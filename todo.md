@@ -70,12 +70,12 @@
 
 ### 1-B Piece & move-vector enums
 
-- [ ] Add `src/engine/pieces.ts`:
+- [x] Add `src/engine/pieces.ts`:
   - `enum PieceType`
   - `interface Piece`
   - Movement-vector constants for R, B, U, N, Q, K
-- [ ] Tests verifying vector counts (e.g. knight = 24)
-- [ ] Commit: `feat(engine): piece definitions & movement vectors`
+- [x] Tests verifying vector counts (e.g. knight = 24)
+- [x] Commit: `feat(engine): piece definitions & movement vectors`
 
 ### 1-C Generic move generation
 
