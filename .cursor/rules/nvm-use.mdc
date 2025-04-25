@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Node Version Management Rule
+
+This project uses [nvm](mdc:https:/github.com/nvm-sh/nvm) to manage Node.js versions. The required Node.js version is specified in the [.nvmrc](mdc:.nvmrc) file in the project root.
+
+## Usage
+- Run `nvm use` in your shell after navigating to the project directory to activate the correct Node.js version.
+- You only need to run `nvm use` once per shell session, unless you change to a different project with a different `.nvmrc`.
+- All `node` and `npm` commands will use the version set by `nvm use`.
+
+## Note
+If you open a new terminal or shell, or change to a directory with a different `.nvmrc`, you should run `nvm use` again to ensure the correct Node.js version is active.

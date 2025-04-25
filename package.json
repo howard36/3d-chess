@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "playwright": "^1.52.0",
+    "wait-on": "^8.0.3"
+  }
+}

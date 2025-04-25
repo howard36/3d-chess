@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
+import { test, expect } from 'vitest';
 import App from './App';
 
-test('renders Vite + React heading', () => {
+test('renders the R3F canvas', () => {
   render(<App />);
-  expect(screen.getByRole('heading', { name: /vite \+ react/i })).toBeInTheDocument();
+  expect(screen.getByTestId('r3f-canvas')).toBeInTheDocument();
 });
