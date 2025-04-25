@@ -36,22 +36,23 @@
 
 ### 0-D Playwright smoke E2E
 
-- [ ] Install `playwright` and run `npx playwright install chromium`
-- [ ] Create `e2e/homepage.spec.ts`:
+- [x] Install `playwright` and run `npx playwright install chromium`
+- [x] Create `e2e/homepage.spec.ts`:
   - Launch dev server on 5173
   - Assert page title includes "Vite + React"
-- [ ] Add `e2e` script: `playwright test`
-- [ ] Update CI to run Playwright headless after build
-- [ ] Commit: `test(e2e): Playwright bootstrap`
+- [x] Add `e2e` script: `playwright test`
+- [x] Update CI to run Playwright headless after build
+- [x] Commit: `test(e2e): Playwright bootstrap`
 
 ### 0-E Three.js placeholder
 
-- [ ] Install `three`, `@react-three/fiber`, `@react-three/drei`
-- [ ] Replace `src/App.tsx` with a `<Canvas>` spinning cube example + orbit controls
-- [ ] Add minimal lighting
-- [ ] Update `App.test.tsx` to assert presence of the canvas (`data-testid="r3f-canvas"`)
-- [ ] Run unit & e2e tests
-- [ ] Commit: `feat(ui): Three.js spinning cube scaffold`
+- [x] Install `three`, `@react-three/fiber`, `@react-three/drei`
+- [x] Replace `src/App.tsx` with a `<Canvas>` spinning cube example + orbit controls
+- [x] Add minimal lighting
+- [x] Update `App.test.tsx` to assert presence of the canvas (`data-testid="r3f-canvas"`)
+- [x] Run unit & e2e tests
+- [x] Commit: `feat(ui): Three.js spinning cube scaffold`
+- [x] Update `.gitignore` for test/build outputs
 
 ---
 
@@ -59,13 +60,13 @@
 
 ### 1-A Coordinate helpers
 
-- [ ] Create `src/engine/coords.ts` with:
+- [x] Create `src/engine/coords.ts` with:
   - `Coord` type
   - `toZXY()` & `fromZXY()` functions
   - `LEVELS`, `FILES`, `RANKS` constants
-- [ ] Add `coords.test.ts` for round-trip and spec examples
-- [ ] Run coverage
-- [ ] Commit: `feat(engine): coordinate converters with tests`
+- [x] Add `coords.test.ts` for round-trip and spec examples
+- [x] Run coverage
+- [x] Commit: `feat(engine): coordinate converters with tests`
 
 ### 1-B Piece & move-vector enums
 
