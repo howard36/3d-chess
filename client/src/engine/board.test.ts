@@ -33,38 +33,27 @@ describe('Board move generation', () => {
     }
   });
 
-  it('knight from corner has correct move count (ignoring off-board)', () => {
+  it('knight from corner (0,0,0) has correct moves', () => {
     const board = new Board();
-    board.grid = buildStartingPosition();
+    board.grid = buildStartingPosition(); // Clear board
     const corner: Coord = { x: 0, y: 0, z: 0 };
     setPiece(board, corner, { type: PieceType.Knight, color: 'white' });
     const moves = board.generateMoves(corner);
-    // Only moves inside the board
-    for (const move of moves) {
-      expect(board.isInside(move)).toBe(true);
-    }
-    // For 3D knight, from (0,0,0), only moves with all coords >=0 and <5
-    // Let's count them:
-    const expected = [
-      { x: 2, y: 1, z: 0 },
-      { x: 1, y: 2, z: 0 },
-      { x: 2, y: 0, z: 1 },
-      { x: 1, y: 0, z: 2 },
-      { x: 0, y: 2, z: 1 },
-      { x: 0, y: 1, z: 2 },
-      { x: 1, y: 0, z: 2 },
-      { x: 0, y: 1, z: 2 },
-      { x: 0, y: 2, z: 1 },
-      { x: 2, y: 0, z: 1 },
-      { x: 1, y: 2, z: 0 },
-      { x: 2, y: 1, z: 0 },
+
+    // Based on spec (permutations of ±2, ±1, 0) and board bounds (0-4)
+    const expectedMoves: Coord[] = [
+      // From (0,0,0), only positive displacements are possible
+      { x: 2, y: 1, z: 0 }, // (+2, +1, 0)
+      { x: 1, y: 2, z: 0 }, // (+1, +2, 0)
+      { x: 2, y: 0, z: 1 }, // (+2, 0, +1)
+      { x: 0, y: 2, z: 1 }, // (0, +2, +1)
+      { x: 1, y: 0, z: 2 }, // (+1, 0, +2)
+      { x: 0, y: 1, z: 2 }, // (0, +1, +2)
     ];
-    // Remove duplicates
-    const unique = new Set(moves.map((m) => `${m.x},${m.y},${m.z}`));
-    expect(unique.size).toBe(moves.length);
-    // Should match the number of legal moves
-    expect(moves.length).toBeGreaterThan(0);
-    expect(moves.length).toBeLessThanOrEqual(24);
+
+    // Check that exactly these moves are generated
+    expect(moves).toHaveLength(expectedMoves.length);
+    expect(moves).toEqual(expect.arrayContaining(expectedMoves));
   });
 
   it('board boundaries enforced', () => {
@@ -104,28 +93,26 @@ describe('Pawn move generation and promotion', () => {
     board.grid = buildStartingPosition();
     const from: Coord = { x: 2, y: 2, z: 2 };
     setPiece(board, from, { type: PieceType.Pawn, color: 'white' });
-    // Place black pieces in all capture squares
+    // Place black pieces in the 5 valid capture squares
     const captureTargets = [
-      { x: 3, y: 3, z: 2 },
-      { x: 1, y: 3, z: 2 }, // forward-diagonals
-      { x: 3, y: 2, z: 3 },
-      { x: 1, y: 2, z: 3 }, // up-diagonals
-      { x: 3, y: 3, z: 3 },
-      { x: 1, y: 3, z: 3 }, // forward-up-diagonals
-      { x: 3, y: 1, z: 2 },
-      { x: 1, y: 1, z: 2 }, // backward-diagonals
-      { x: 3, y: 2, z: 1 },
-      { x: 1, y: 2, z: 1 }, // down-diagonals
-      { x: 3, y: 1, z: 1 },
-      { x: 1, y: 1, z: 1 }, // backward-down-diagonals
+      { x: 2, y: 3, z: 3 }, // Forwards-Up
+      { x: 1, y: 3, z: 2 }, // Forwards-Left
+      { x: 3, y: 3, z: 2 }, // Forwards-Right
+      { x: 1, y: 2, z: 3 }, // Up-Left
+      { x: 3, y: 2, z: 3 }, // Up-Right
     ];
     for (const target of captureTargets) {
       setPiece(board, target, { type: PieceType.Knight, color: 'black' });
     }
     const moves = board.generateMoves(from);
-    for (const target of captureTargets) {
-      expect(moves).toContainEqual(target);
-    }
+    // Moves should include the 2 non-capture moves + 5 capture moves
+    const expectedMoves = [
+      { x: 2, y: 3, z: 2 }, // forward
+      { x: 2, y: 2, z: 3 }, // up
+      ...captureTargets,
+    ];
+    expect(moves).toHaveLength(expectedMoves.length);
+    expect(moves).toEqual(expect.arrayContaining(expectedMoves));
   });
 
   it('white pawn: promotion only at (x,4,4)', () => {

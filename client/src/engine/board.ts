@@ -55,32 +55,23 @@ export class Board {
       if (this.isInside(up) && !this.grid[up.z][up.x][up.y]) {
         moves.push(up);
       }
-      // Captures: diagonals in y and z directions
-      const captureDeltas = [
-        [0, dir, dir], // forward-up
-        [0, dir, -dir], // forward-down
-        [0, -dir, dir], // backward-up
-        [0, -dir, -dir], // backward-down
-        [0, dir, 0], // forward
-        [0, 0, dir], // up
-        [0, -dir, 0], // backward
-        [0, 0, -dir], // down
+      // Captures: 5 specified diagonal directions
+      // Spec Section 2.5: Relative to White (dir=1):
+      // - Forwards-Up: (0, +1, +1) -> (dx=0, dy=dir, dz=dir)
+      // - Forwards-Left: (-1, +1, 0) -> (dx=-1, dy=dir, dz=0)
+      // - Forwards-Right: (+1, +1, 0) -> (dx=1, dy=dir, dz=0)
+      // - Up-Left: (-1, 0, +1) -> (dx=-1, dy=0, dz=dir)
+      // - Up-Right: (+1, 0, +1) -> (dx=1, dy=0, dz=dir)
+      const captureDeltas: [number, number, number][] = [
+        [0, dir, dir], // Forwards-Up
+        [-1, dir, 0], // Forwards-Left
+        [1, dir, 0], // Forwards-Right
+        [-1, 0, dir], // Up-Left
+        [1, 0, dir], // Up-Right
       ];
+
       // Only allow captures to squares with enemy piece
-      for (const [dx, dy, dz] of [
-        [1, dir, 0],
-        [-1, dir, 0], // forward-diagonals
-        [1, 0, dir],
-        [-1, 0, dir], // up-diagonals
-        [1, dir, dir],
-        [-1, dir, dir], // forward-up-diagonals
-        [1, -dir, 0],
-        [-1, -dir, 0], // backward-diagonals
-        [1, 0, -dir],
-        [-1, 0, -dir], // down-diagonals
-        [1, -dir, -dir],
-        [-1, -dir, -dir], // backward-down-diagonals
-      ]) {
+      for (const [dx, dy, dz] of captureDeltas) {
         const to: Coord = { x: from.x + dx, y: from.y + dy, z: from.z + dz };
         if (this.isInside(to)) {
           const target = this.grid[to.z][to.x][to.y];
