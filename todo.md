@@ -79,20 +79,20 @@
 
 ### 1-C Generic move generation
 
-- [ ] Create `src/engine/board.ts` with `Board` class:
+- [x] Create `src/engine/board.ts` with `Board` class:
   - 5×5×5 `grid`
   - Constructor for starting setup
   - `isInside()`
   - `generateMoves()` for sliding & knight
-- [ ] Tests: rook rays, knight moves, boundary enforcement
-- [ ] Commit: `feat(engine): base move generation (non-pawns)`
+- [x] Tests: rook rays, knight moves, boundary enforcement
+- [x] Commit: `feat(engine): base move generation (non-pawns)`
 
 ### 1-D Pawn logic & promotion detection
 
-- [ ] Extend `generateMoves()` for pawn rules (§2.5)
-- [ ] Implement `applyMove(from, to, promotion?)`
-- [ ] Tests: forward/up moves, captures, promotion at (x,4,4)/(x,0,0)
-- [ ] Commit: `feat(engine): pawn moves & promotion`
+- [x] Extend `generateMoves()` for pawn rules (§2.5)
+- [x] Implement `applyMove(from, to, promotion?)`
+- [x] Tests: forward/up moves, captures, promotion at (x,4,4)/(x,0,0)
+- [x] Commit: `feat(engine): pawn moves & promotion`
 
 ### 1-E Check / checkmate / stalemate
 

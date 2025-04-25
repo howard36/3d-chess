@@ -40,8 +40,57 @@ export class Board {
 
   generateMoves(from: Coord): Coord[] {
     const piece = this.grid[from.z][from.x][from.y];
-    if (!piece || piece.type === PieceType.Pawn) return [];
-    const moves: Coord[] = [];
+    if (!piece) return [];
+    // Pawn logic
+    if (piece.type === PieceType.Pawn) {
+      const moves: Coord[] = [];
+      const dir = piece.color === 'white' ? 1 : -1;
+      // Forward (y axis)
+      const forward: Coord = { x: from.x, y: from.y + dir, z: from.z };
+      if (this.isInside(forward) && !this.grid[forward.z][forward.x][forward.y]) {
+        moves.push(forward);
+      }
+      // Up (z axis)
+      const up: Coord = { x: from.x, y: from.y, z: from.z + dir };
+      if (this.isInside(up) && !this.grid[up.z][up.x][up.y]) {
+        moves.push(up);
+      }
+      // Captures: diagonals in y and z directions
+      const captureDeltas = [
+        [0, dir, dir], // forward-up
+        [0, dir, -dir], // forward-down
+        [0, -dir, dir], // backward-up
+        [0, -dir, -dir], // backward-down
+        [0, dir, 0], // forward
+        [0, 0, dir], // up
+        [0, -dir, 0], // backward
+        [0, 0, -dir], // down
+      ];
+      // Only allow captures to squares with enemy piece
+      for (const [dx, dy, dz] of [
+        [1, dir, 0],
+        [-1, dir, 0], // forward-diagonals
+        [1, 0, dir],
+        [-1, 0, dir], // up-diagonals
+        [1, dir, dir],
+        [-1, dir, dir], // forward-up-diagonals
+        [1, -dir, 0],
+        [-1, -dir, 0], // backward-diagonals
+        [1, 0, -dir],
+        [-1, 0, -dir], // down-diagonals
+        [1, -dir, -dir],
+        [-1, -dir, -dir], // backward-down-diagonals
+      ]) {
+        const to: Coord = { x: from.x + dx, y: from.y + dy, z: from.z + dz };
+        if (this.isInside(to)) {
+          const target = this.grid[to.z][to.x][to.y];
+          if (target && target.color !== piece.color) {
+            moves.push(to);
+          }
+        }
+      }
+      return moves;
+    }
     let vectors: ReadonlyArray<[number, number, number]> = [];
     let sliding = false;
     switch (piece.type) {
@@ -72,6 +121,7 @@ export class Board {
       default:
         return [];
     }
+    const moves: Coord[] = [];
     for (const [dz, dx, dy] of vectors) {
       let n = 1;
       while (true) {
@@ -89,5 +139,25 @@ export class Board {
       }
     }
     return moves;
+  }
+
+  applyMove(from: Coord, to: Coord, promotion?: PieceType): void {
+    const piece = this.grid[from.z][from.x][from.y];
+    if (!piece) return;
+    // Remove from origin
+    this.grid[from.z][from.x][from.y] = null;
+    // Promotion logic
+    let newPiece = piece;
+    if (
+      piece.type === PieceType.Pawn &&
+      ((piece.color === 'white' && to.y === 4 && to.z === 4) ||
+        (piece.color === 'black' && to.y === 0 && to.z === 0)) &&
+      promotion &&
+      promotion !== PieceType.Pawn &&
+      promotion !== PieceType.King
+    ) {
+      newPiece = { type: promotion, color: piece.color };
+    }
+    this.grid[to.z][to.x][to.y] = newPiece;
   }
 }
