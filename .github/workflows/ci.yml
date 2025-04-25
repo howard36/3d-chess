@@ -23,3 +23,11 @@ jobs:
         run: cd client && npm run build
       - name: Run tests with coverage
         run: cd client && npm run test -- --coverage
+      - name: Install Playwright Browsers
+        run: cd client && npx playwright install --with-deps
+      - name: Start Vite dev server
+        run: cd client && npm run dev &
+      - name: Wait for dev server
+        run: npx wait-on http://localhost:5173
+      - name: Run Playwright E2E tests
+        run: cd client && npm run e2e
