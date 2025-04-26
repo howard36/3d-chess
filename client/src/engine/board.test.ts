@@ -283,3 +283,59 @@ describe('generateLegalMoves', () => {
     expect(legalMoves[0].to).toEqual({ x: 0, y: 0, z: 1 });
   });
 });
+
+describe('3-D checkmate & stalemate scenarios', () => {
+  function setPiece(board: Board, coord: Coord, piece: Piece | null) {
+    board.grid[coord.z][coord.x][coord.y] = piece;
+  }
+
+  it('Simple 3-D corner mate: black king at (4,4,4) is checkmated', () => {
+    const board = new Board();
+    // Clear board
+    for (let z = 0; z < 5; z++)
+      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
+    // White: queen at (4,4,3), rook at (3,4,4), king at (0,0,0)
+    setPiece(board, { x: 4, y: 4, z: 3 }, { type: PieceType.Queen, color: 'white' });
+    // Defend the checking queen so capturing it is illegal
+    setPiece(board, { x: 4, y: 4, z: 2 }, { type: PieceType.Rook, color: 'white' });
+    setPiece(board, { x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+    // Black: king at (4,4,4)
+    setPiece(board, { x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
+    expect(board.isCheckmate('black')).toBe(true);
+  });
+
+  it("Classic 2-D Fool's-mate analogue is NOT mate in 3-D (king escapes vertically)", () => {
+    const board = new Board();
+    // Clear board
+    for (let z = 0; z < 5; z++)
+      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
+    // Place black king at (4,0,0) (E a 1)
+    setPiece(board, { x: 0, y: 0, z: 4 }, { type: PieceType.King, color: 'black' });
+    // Place white queen at (4,1,1) (E b 2), white bishop at (2,2,2) (C c 3)
+    setPiece(board, { x: 1, y: 1, z: 4 }, { type: PieceType.Queen, color: 'white' });
+    setPiece(board, { x: 2, y: 2, z: 2 }, { type: PieceType.Bishop, color: 'white' });
+    // Place white king far away
+    setPiece(board, { x: 0, y: 4, z: 0 }, { type: PieceType.King, color: 'white' });
+    // Black king should NOT be checkmated (can escape to (4,0,1))
+    expect(board.isCheckmate('black')).toBe(false);
+    // Should be in check, but not mate
+    expect(board.inCheck('black')).toBe(true);
+  });
+
+  it('Stalemate box: black king at (0,0,0) is stalemated', () => {
+    const board = new Board();
+    // Clear board
+    for (let z = 0; z < 5; z++)
+      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
+    // Black king at (0,0,0)
+    setPiece(board, { x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'black' });
+    // White king far away
+    setPiece(board, { x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'white' });
+    // White rooks seal last moves: (1,1,0), (1,0,1), (0,1,1), and (1,1,1)
+    setPiece(board, { x: 1, y: 1, z: 0 }, { type: PieceType.Rook, color: 'white' });
+    setPiece(board, { x: 1, y: 0, z: 1 }, { type: PieceType.Rook, color: 'white' });
+    setPiece(board, { x: 0, y: 1, z: 1 }, { type: PieceType.Rook, color: 'white' });
+    setPiece(board, { x: 1, y: 1, z: 1 }, { type: PieceType.Rook, color: 'white' });
+    expect(board.isStalemate('black')).toBe(true);
+  });
+});
