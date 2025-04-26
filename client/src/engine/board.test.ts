@@ -15,7 +15,6 @@ describe('Board move generation', () => {
     const center: Coord = { x: 2, y: 2, z: 2 };
     setPiece(board, center, { type: PieceType.Rook, color: 'white' });
     const moves = board.generateMoves(center);
-    console.log('Rook moves from center:', moves);
     // Should be 6 rays, each up to 2 squares (no blockers): 2*6=12
     expect(moves.length).toBe(12);
     // All moves should be in straight lines from center
@@ -152,5 +151,50 @@ describe('Pawn move generation and promotion', () => {
     const to: Coord = { x: 2, y: 0, z: 0 };
     board.applyMove(from, to, PieceType.Queen);
     expect(board.grid[to.z][to.x][to.y]).toEqual({ type: PieceType.Queen, color: 'black' });
+  });
+});
+
+describe('Attack map and king locator', () => {
+  function setPiece(board: Board, coord: Coord, piece: Piece | null) {
+    board.grid[coord.z][coord.x][coord.y] = piece;
+  }
+
+  it('findKing locates the correct king', () => {
+    const board = new Board();
+    board.grid = buildStartingPosition();
+    const kingPos: Coord = { x: 1, y: 2, z: 3 };
+    setPiece(board, kingPos, { type: PieceType.King, color: 'black' });
+    expect(board.findKing('black')).toEqual(kingPos);
+  });
+
+  it('isSquareAttacked: single white rook attacks black king', () => {
+    const board = new Board();
+    board.grid = buildStartingPosition();
+    const rook: Coord = { x: 0, y: 0, z: 0 };
+    const king: Coord = { x: 0, y: 4, z: 0 };
+    setPiece(board, rook, { type: PieceType.Rook, color: 'white' });
+    setPiece(board, king, { type: PieceType.King, color: 'black' });
+    expect(board.isSquareAttacked(king, 'white')).toBe(true);
+    expect(board.isSquareAttacked(rook, 'black')).toBe(false);
+  });
+
+  it('isSquareAttacked: knight L-shape in 3D', () => {
+    const board = new Board();
+    board.grid = buildStartingPosition();
+    const knight: Coord = { x: 1, y: 0, z: 0 };
+    const king: Coord = { x: 3, y: 1, z: 0 };
+    setPiece(board, knight, { type: PieceType.Knight, color: 'white' });
+    setPiece(board, king, { type: PieceType.King, color: 'black' });
+    expect(board.isSquareAttacked(king, 'white')).toBe(true);
+  });
+
+  it('isSquareAttacked: unicorn diagonal attack', () => {
+    const board = new Board();
+    board.grid = buildStartingPosition();
+    const unicorn: Coord = { x: 0, y: 0, z: 0 };
+    const king: Coord = { x: 4, y: 4, z: 4 };
+    setPiece(board, unicorn, { type: PieceType.Unicorn, color: 'white' });
+    setPiece(board, king, { type: PieceType.King, color: 'black' });
+    expect(board.isSquareAttacked(king, 'white')).toBe(true);
   });
 });

@@ -151,4 +151,36 @@ export class Board {
     }
     this.grid[to.z][to.x][to.y] = newPiece;
   }
+
+  findKing(color: 'white' | 'black'): Coord {
+    for (let z = 0; z < LEVELS.length; z++) {
+      for (let x = 0; x < FILES.length; x++) {
+        for (let y = 0; y < RANKS.length; y++) {
+          const piece = this.grid[z][x][y];
+          if (piece && piece.type === PieceType.King && piece.color === color) {
+            return { x, y, z };
+          }
+        }
+      }
+    }
+    throw new Error(`King of color ${color} not found`);
+  }
+
+  isSquareAttacked(target: Coord, byColor: 'white' | 'black'): boolean {
+    for (let z = 0; z < LEVELS.length; z++) {
+      for (let x = 0; x < FILES.length; x++) {
+        for (let y = 0; y < RANKS.length; y++) {
+          const piece = this.grid[z][x][y];
+          if (piece && piece.color === byColor) {
+            const from = { x, y, z };
+            const moves = this.generateMoves(from);
+            if (moves.some((m) => m.x === target.x && m.y === target.y && m.z === target.z)) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
 }

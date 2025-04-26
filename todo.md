@@ -54,6 +54,15 @@
 - [x] Commit: `feat(ui): Three.js spinning cube scaffold`
 - [x] Update `.gitignore` for test/build outputs
 
+### 0-E-1 Attack map builder
+
+- [x] Implement `findKing(color)` and `isSquareAttacked(target, byColor)` with unit tests
+- [x] Implement `inCheck(color)` (uses king locator + attack map) with tests
+- [x] Create `generateLegalMoves(color)` that filters out moves leaving king in check
+- [x] Add `isCheckmate(color)` & `isStalemate(color)` (with helper `hasLegalMove`)
+- [x] Write 3D-specific scenario tests (corner mate, 3D Fool's-mate fail, stalemate box)
+- [x] Commit: `feat(engine): check, mate, stalemate detection`
+
 ---
 
 ## Phase 1 – Core Rules Engine
@@ -96,8 +105,11 @@
 
 ### 1-E Check / checkmate / stalemate
 
-- [ ] Add `inCheck(color)`, `hasLegalMove(color)`, `isCheckmate(color)`, `isStalemate(color)`
-- [ ] Tests: fool's mate checkmate, stalemate scenario
+- [ ] Add `findKing(color)` and `isSquareAttacked(target, byColor)` with unit tests
+- [ ] Implement `inCheck(color)` (uses king locator + attack map) with tests
+- [ ] Create `generateLegalMoves(color)` that filters out moves leaving king in check
+- [ ] Add `isCheckmate(color)` & `isStalemate(color)` (with helper `hasLegalMove`)
+- [ ] Write 3D-specific scenario tests (corner mate, 3D Fool's-mate fail, stalemate box)
 - [ ] Commit: `feat(engine): check, mate, stalemate detection`
 
 ### 1-F Coverage & public API barrel
