@@ -1,19 +1,13 @@
-import { Board, buildStartingPosition } from './board';
-import { PieceType, Piece } from './pieces';
+import { Board } from './board';
+import { PieceType } from './pieces';
 import { Coord } from './coords';
 
 describe('Board move generation', () => {
-  function setPiece(board: Board, coord: Coord, piece: Piece | null) {
-    board.grid[coord.z][coord.x][coord.y] = piece;
-  }
-
   it('rook from center has 6 ray directions', () => {
     const board = new Board();
-    // Clear board
-    board.grid = buildStartingPosition();
     // Place rook at center
     const center: Coord = { x: 2, y: 2, z: 2 };
-    setPiece(board, center, { type: PieceType.Rook, color: 'white' });
+    board.setPiece(center, { type: PieceType.Rook, color: 'white' });
     const moves = board.generateMoves(center);
     // Should be 6 rays, each up to 2 squares (no blockers): 2*6=12
     expect(moves.length).toBe(12);
@@ -34,9 +28,8 @@ describe('Board move generation', () => {
 
   it('knight from corner (0,0,0) has correct moves', () => {
     const board = new Board();
-    board.grid = buildStartingPosition(); // Clear board
     const corner: Coord = { x: 0, y: 0, z: 0 };
-    setPiece(board, corner, { type: PieceType.Knight, color: 'white' });
+    board.setPiece(corner, { type: PieceType.Knight, color: 'white' });
     const moves = board.generateMoves(corner);
 
     // Based on spec (permutations of ±2, ±1, 0) and board bounds (0-4)
@@ -69,15 +62,10 @@ describe('Board move generation', () => {
 });
 
 describe('Pawn move generation and promotion', () => {
-  function setPiece(board: Board, coord: Coord, piece: Piece | null) {
-    board.grid[coord.z][coord.x][coord.y] = piece;
-  }
-
   it('white pawn: legal non-capture forward & up', () => {
     const board = new Board();
-    board.grid = buildStartingPosition();
     const from: Coord = { x: 2, y: 2, z: 2 };
-    setPiece(board, from, { type: PieceType.Pawn, color: 'white' });
+    board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
     const moves = board.generateMoves(from);
     expect(moves).toEqual(
       expect.arrayContaining([
@@ -89,9 +77,8 @@ describe('Pawn move generation and promotion', () => {
 
   it('white pawn: capture directions matrix', () => {
     const board = new Board();
-    board.grid = buildStartingPosition();
     const from: Coord = { x: 2, y: 2, z: 2 };
-    setPiece(board, from, { type: PieceType.Pawn, color: 'white' });
+    board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
     // Place black pieces in the 5 valid capture squares
     const captureTargets = [
       { x: 2, y: 3, z: 3 }, // Forwards-Up
@@ -101,7 +88,7 @@ describe('Pawn move generation and promotion', () => {
       { x: 3, y: 2, z: 3 }, // Up-Right
     ];
     for (const target of captureTargets) {
-      setPiece(board, target, { type: PieceType.Knight, color: 'black' });
+      board.setPiece(target, { type: PieceType.Knight, color: 'black' });
     }
     const moves = board.generateMoves(from);
     // Moves should include the 2 non-capture moves + 5 capture moves
@@ -116,26 +103,24 @@ describe('Pawn move generation and promotion', () => {
 
   it('white pawn: promotion only at (x,4,4)', () => {
     const board = new Board();
-    board.grid = buildStartingPosition();
     const from: Coord = { x: 2, y: 3, z: 3 };
-    setPiece(board, from, { type: PieceType.Pawn, color: 'white' });
+    board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
     // Move to promotion square
     const to: Coord = { x: 2, y: 4, z: 4 };
     board.applyMove(from, to, PieceType.Queen);
-    expect(board.grid[to.z][to.x][to.y]).toEqual({ type: PieceType.Queen, color: 'white' });
+    expect(board.getPiece(to)).toEqual({ type: PieceType.Queen, color: 'white' });
     // Move to non-promotion square
     const from2: Coord = { x: 1, y: 3, z: 3 };
-    setPiece(board, from2, { type: PieceType.Pawn, color: 'white' });
+    board.setPiece(from2, { type: PieceType.Pawn, color: 'white' });
     const to2: Coord = { x: 1, y: 4, z: 3 };
     board.applyMove(from2, to2, PieceType.Queen);
-    expect(board.grid[to2.z][to2.x][to2.y]).toEqual({ type: PieceType.Pawn, color: 'white' });
+    expect(board.getPiece(to2)).toEqual({ type: PieceType.Pawn, color: 'white' });
   });
 
   it('white pawn: no two-square option', () => {
     const board = new Board();
-    board.grid = buildStartingPosition();
     const from: Coord = { x: 2, y: 1, z: 2 };
-    setPiece(board, from, { type: PieceType.Pawn, color: 'white' });
+    board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
     const moves = board.generateMoves(from);
     // Should not include y: 3 (two squares forward)
     expect(moves).not.toContainEqual({ x: 2, y: 3, z: 2 });
@@ -145,75 +130,61 @@ describe('Pawn move generation and promotion', () => {
 
   it('applyMove: promotion for black pawn at (x,0,0)', () => {
     const board = new Board();
-    board.grid = buildStartingPosition();
     const from: Coord = { x: 2, y: 1, z: 1 };
-    setPiece(board, from, { type: PieceType.Pawn, color: 'black' });
+    board.setPiece(from, { type: PieceType.Pawn, color: 'black' });
     const to: Coord = { x: 2, y: 0, z: 0 };
     board.applyMove(from, to, PieceType.Queen);
-    expect(board.grid[to.z][to.x][to.y]).toEqual({ type: PieceType.Queen, color: 'black' });
+    expect(board.getPiece(to)).toEqual({ type: PieceType.Queen, color: 'black' });
   });
 });
 
 describe('Attack map and king locator', () => {
-  function setPiece(board: Board, coord: Coord, piece: Piece | null) {
-    board.grid[coord.z][coord.x][coord.y] = piece;
-  }
-
   it('findKing locates the correct king', () => {
     const board = new Board();
-    board.grid = buildStartingPosition();
     const kingPos: Coord = { x: 1, y: 2, z: 3 };
-    setPiece(board, kingPos, { type: PieceType.King, color: 'black' });
+    board.setPiece(kingPos, { type: PieceType.King, color: 'black' });
     expect(board.findKing('black')).toEqual(kingPos);
   });
 
   it('isSquareAttacked: single white rook attacks black king', () => {
     const board = new Board();
-    board.grid = buildStartingPosition();
     const rook: Coord = { x: 0, y: 0, z: 0 };
     const king: Coord = { x: 0, y: 4, z: 0 };
-    setPiece(board, rook, { type: PieceType.Rook, color: 'white' });
-    setPiece(board, king, { type: PieceType.King, color: 'black' });
+    board.setPiece(rook, { type: PieceType.Rook, color: 'white' });
+    board.setPiece(king, { type: PieceType.King, color: 'black' });
     expect(board.isSquareAttacked(king, 'white')).toBe(true);
     expect(board.isSquareAttacked(rook, 'black')).toBe(false);
   });
 
   it('isSquareAttacked: knight L-shape in 3D', () => {
     const board = new Board();
-    board.grid = buildStartingPosition();
     const knight: Coord = { x: 1, y: 0, z: 0 };
     const king: Coord = { x: 3, y: 1, z: 0 };
-    setPiece(board, knight, { type: PieceType.Knight, color: 'white' });
-    setPiece(board, king, { type: PieceType.King, color: 'black' });
+    board.setPiece(knight, { type: PieceType.Knight, color: 'white' });
+    board.setPiece(king, { type: PieceType.King, color: 'black' });
     expect(board.isSquareAttacked(king, 'white')).toBe(true);
   });
 
   it('isSquareAttacked: unicorn diagonal attack', () => {
     const board = new Board();
-    board.grid = buildStartingPosition();
     const unicorn: Coord = { x: 0, y: 0, z: 0 };
     const king: Coord = { x: 4, y: 4, z: 4 };
-    setPiece(board, unicorn, { type: PieceType.Unicorn, color: 'white' });
-    setPiece(board, king, { type: PieceType.King, color: 'black' });
+    board.setPiece(unicorn, { type: PieceType.Unicorn, color: 'white' });
+    board.setPiece(king, { type: PieceType.King, color: 'black' });
     expect(board.isSquareAttacked(king, 'white')).toBe(true);
   });
 });
 
 // --- inCheck tests ---
 describe('inCheck', () => {
-  function setPiece(board: Board, coord: Coord, piece: Piece | null) {
-    board.grid[coord.z][coord.x][coord.y] = piece;
-  }
-
   it('rook attacks king: black in check, white not', () => {
     const board = new Board();
-    board.grid = buildStartingPosition();
     const rook: Coord = { x: 0, y: 0, z: 0 };
     const blackKing: Coord = { x: 0, y: 4, z: 0 };
     const whiteKing: Coord = { x: 4, y: 4, z: 4 };
-    setPiece(board, rook, { type: PieceType.Rook, color: 'white' });
-    setPiece(board, blackKing, { type: PieceType.King, color: 'black' });
-    setPiece(board, whiteKing, { type: PieceType.King, color: 'white' });
+    board.setPiece(rook, { type: PieceType.Rook, color: 'white' });
+    board.setPiece(blackKing, { type: PieceType.King, color: 'black' });
+    board.setPiece(whiteKing, { type: PieceType.King, color: 'white' });
     expect(board.inCheck('black')).toBe(true);
     expect(board.inCheck('white')).toBe(false);
   });
@@ -222,33 +193,26 @@ describe('inCheck', () => {
     const board = new Board();
     // Clear board
     for (let z = 0; z < 5; z++)
-      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
+      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.setPiece({ x, y, z }, null);
     const blackKing: Coord = { x: 0, y: 0, z: 0 };
     const whiteKing: Coord = { x: 4, y: 4, z: 4 };
-    setPiece(board, blackKing, { type: PieceType.King, color: 'black' });
-    setPiece(board, whiteKing, { type: PieceType.King, color: 'white' });
+    board.setPiece(blackKing, { type: PieceType.King, color: 'black' });
+    board.setPiece(whiteKing, { type: PieceType.King, color: 'white' });
     expect(board.inCheck('black')).toBe(false);
     expect(board.inCheck('white')).toBe(false);
   });
 });
 
 describe('generateLegalMoves', () => {
-  function setPiece(board: Board, coord: Coord, piece: Piece | null) {
-    board.grid[coord.z][coord.x][coord.y] = piece;
-  }
-
   it('excludes illegal moves for a pinned piece (rook can only move along pin line)', () => {
     const board = new Board();
-    // Clear board
-    for (let z = 0; z < 5; z++)
-      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
     // Place black king at (0,0,0), white rook at (0,0,4), black rook at (0,0,2)
     const blackKing: Coord = { x: 0, y: 0, z: 0 };
     const whiteRook: Coord = { x: 0, y: 0, z: 4 };
     const blackRook: Coord = { x: 0, y: 0, z: 2 };
-    setPiece(board, blackKing, { type: PieceType.King, color: 'black' });
-    setPiece(board, whiteRook, { type: PieceType.Rook, color: 'white' });
-    setPiece(board, blackRook, { type: PieceType.Rook, color: 'black' });
+    board.setPiece(blackKing, { type: PieceType.King, color: 'black' });
+    board.setPiece(whiteRook, { type: PieceType.Rook, color: 'white' });
+    board.setPiece(blackRook, { type: PieceType.Rook, color: 'black' });
     // The black rook is pinned and can only move along the z-axis between king and attacker
     const legalMoves = board.generateLegalMoves('black');
     const rookMoves = legalMoves.filter((m) => m.from.x === 0 && m.from.y === 0 && m.from.z === 2);
@@ -264,17 +228,14 @@ describe('generateLegalMoves', () => {
 
   it('black king in corner has only one legal move due to two white rooks defending each other', () => {
     const board = new Board();
-    // Clear board
-    for (let z = 0; z < 5; z++)
-      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
     // Place black king at (0,0,0)
     const blackKing: Coord = { x: 0, y: 0, z: 0 };
     // Place white rooks at (1,1,0) and (1,1,1)
     const whiteRook1: Coord = { x: 1, y: 1, z: 0 };
     const whiteRook2: Coord = { x: 1, y: 1, z: 1 };
-    setPiece(board, blackKing, { type: PieceType.King, color: 'black' });
-    setPiece(board, whiteRook1, { type: PieceType.Rook, color: 'white' });
-    setPiece(board, whiteRook2, { type: PieceType.Rook, color: 'white' });
+    board.setPiece(blackKing, { type: PieceType.King, color: 'black' });
+    board.setPiece(whiteRook1, { type: PieceType.Rook, color: 'white' });
+    board.setPiece(whiteRook2, { type: PieceType.Rook, color: 'white' });
 
     // The only legal move for the black king is to (0,0,1)
     const legalMoves = board.generateLegalMoves('black');
@@ -285,37 +246,27 @@ describe('generateLegalMoves', () => {
 });
 
 describe('3-D checkmate & stalemate scenarios', () => {
-  function setPiece(board: Board, coord: Coord, piece: Piece | null) {
-    board.grid[coord.z][coord.x][coord.y] = piece;
-  }
-
   it('Simple 3-D corner mate: black king at (4,4,4) is checkmated', () => {
     const board = new Board();
-    // Clear board
-    for (let z = 0; z < 5; z++)
-      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
     // White: queen at (4,4,3), rook at (3,4,4), king at (0,0,0)
-    setPiece(board, { x: 4, y: 4, z: 3 }, { type: PieceType.Queen, color: 'white' });
+    board.setPiece({ x: 4, y: 4, z: 3 }, { type: PieceType.Queen, color: 'white' });
     // Defend the checking queen so capturing it is illegal
-    setPiece(board, { x: 4, y: 4, z: 2 }, { type: PieceType.Rook, color: 'white' });
-    setPiece(board, { x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+    board.setPiece({ x: 4, y: 4, z: 2 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
     // Black: king at (4,4,4)
-    setPiece(board, { x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
+    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
     expect(board.isCheckmate('black')).toBe(true);
   });
 
   it("Classic 2-D Fool's-mate analogue is NOT mate in 3-D (king escapes vertically)", () => {
     const board = new Board();
-    // Clear board
-    for (let z = 0; z < 5; z++)
-      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
     // Place black king at (4,0,0) (E a 1)
-    setPiece(board, { x: 0, y: 0, z: 4 }, { type: PieceType.King, color: 'black' });
+    board.setPiece({ x: 0, y: 0, z: 4 }, { type: PieceType.King, color: 'black' });
     // Place white queen at (4,1,1) (E b 2), white bishop at (2,2,2) (C c 3)
-    setPiece(board, { x: 1, y: 1, z: 4 }, { type: PieceType.Queen, color: 'white' });
-    setPiece(board, { x: 2, y: 2, z: 2 }, { type: PieceType.Bishop, color: 'white' });
+    board.setPiece({ x: 1, y: 1, z: 4 }, { type: PieceType.Queen, color: 'white' });
+    board.setPiece({ x: 2, y: 2, z: 2 }, { type: PieceType.Bishop, color: 'white' });
     // Place white king far away
-    setPiece(board, { x: 0, y: 4, z: 0 }, { type: PieceType.King, color: 'white' });
+    board.setPiece({ x: 0, y: 4, z: 0 }, { type: PieceType.King, color: 'white' });
     // Black king should NOT be checkmated (can escape to (4,0,1))
     expect(board.isCheckmate('black')).toBe(false);
     // Should be in check, but not mate
@@ -324,18 +275,15 @@ describe('3-D checkmate & stalemate scenarios', () => {
 
   it('Stalemate box: black king at (0,0,0) is stalemated', () => {
     const board = new Board();
-    // Clear board
-    for (let z = 0; z < 5; z++)
-      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
     // Black king at (0,0,0)
-    setPiece(board, { x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'black' });
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'black' });
     // White king far away
-    setPiece(board, { x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'white' });
+    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'white' });
     // White rooks seal last moves: (1,1,0), (1,0,1), (0,1,1), and (1,1,1)
-    setPiece(board, { x: 1, y: 1, z: 0 }, { type: PieceType.Rook, color: 'white' });
-    setPiece(board, { x: 1, y: 0, z: 1 }, { type: PieceType.Rook, color: 'white' });
-    setPiece(board, { x: 0, y: 1, z: 1 }, { type: PieceType.Rook, color: 'white' });
-    setPiece(board, { x: 1, y: 1, z: 1 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 1, y: 1, z: 0 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 1, y: 0, z: 1 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 0, y: 1, z: 1 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 1, y: 1, z: 1 }, { type: PieceType.Rook, color: 'white' });
     expect(board.isStalemate('black')).toBe(true);
   });
 });

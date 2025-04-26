@@ -10,21 +10,16 @@ import {
 } from './pieces';
 import { Coord, LEVELS, FILES, RANKS } from './coords';
 
-// Helper to build the starting position (stub for now)
-export function buildStartingPosition(): (Piece | null)[][][] {
-  // 5x5x5 grid, all null for now (to be filled in later)
-  return Array.from({ length: LEVELS.length }, () =>
-    Array.from({ length: FILES.length }, () =>
-      Array.from({ length: RANKS.length }, () => null as Piece | null),
-    ),
-  );
-}
-
 export class Board {
   grid: (Piece | null)[][][];
 
   constructor() {
-    this.grid = buildStartingPosition();
+    // 5x5x5 grid, all null by default
+    this.grid = Array.from({ length: LEVELS.length }, () =>
+      Array.from({ length: FILES.length }, () =>
+        Array.from({ length: RANKS.length }, () => null as Piece | null),
+      ),
+    );
   }
 
   isInside(coord: Coord): boolean {
@@ -38,8 +33,16 @@ export class Board {
     );
   }
 
+  setPiece(coord: Coord, piece: Piece | null): void {
+    this.grid[coord.z][coord.x][coord.y] = piece;
+  }
+
+  getPiece(coord: Coord): Piece | null {
+    return this.grid[coord.z][coord.x][coord.y];
+  }
+
   generateMoves(from: Coord): Coord[] {
-    const piece = this.grid[from.z][from.x][from.y];
+    const piece = this.getPiece(from);
     if (!piece) return [];
     // Pawn logic
     if (piece.type === PieceType.Pawn) {
@@ -47,12 +50,12 @@ export class Board {
       const dir = piece.color === 'white' ? 1 : -1;
       // Forward (y axis)
       const forward: Coord = { x: from.x, y: from.y + dir, z: from.z };
-      if (this.isInside(forward) && !this.grid[forward.z][forward.x][forward.y]) {
+      if (this.isInside(forward) && !this.getPiece(forward)) {
         moves.push(forward);
       }
       // Up (z axis)
       const up: Coord = { x: from.x, y: from.y, z: from.z + dir };
-      if (this.isInside(up) && !this.grid[up.z][up.x][up.y]) {
+      if (this.isInside(up) && !this.getPiece(up)) {
         moves.push(up);
       }
       // Captures: 5 specified diagonal directions
@@ -74,7 +77,7 @@ export class Board {
       for (const [dx, dy, dz] of captureDeltas) {
         const to: Coord = { x: from.x + dx, y: from.y + dy, z: from.z + dz };
         if (this.isInside(to)) {
-          const target = this.grid[to.z][to.x][to.y];
+          const target = this.getPiece(to);
           if (target && target.color !== piece.color) {
             moves.push(to);
           }
@@ -118,7 +121,7 @@ export class Board {
       while (true) {
         const to: Coord = { z: from.z + dz * n, x: from.x + dx * n, y: from.y + dy * n };
         if (!this.isInside(to)) break;
-        const target = this.grid[to.z][to.x][to.y];
+        const target = this.getPiece(to);
         if (!target) {
           moves.push(to);
         } else {
@@ -133,10 +136,10 @@ export class Board {
   }
 
   applyMove(from: Coord, to: Coord, promotion?: PieceType, board: Board = this): void {
-    const piece = board.grid[from.z][from.x][from.y];
+    const piece = board.getPiece(from);
     if (!piece) return;
     // Remove from origin
-    board.grid[from.z][from.x][from.y] = null;
+    board.setPiece(from, null);
     // Promotion logic
     let newPiece = piece;
     if (
@@ -149,14 +152,14 @@ export class Board {
     ) {
       newPiece = { type: promotion, color: piece.color };
     }
-    board.grid[to.z][to.x][to.y] = newPiece;
+    board.setPiece(to, newPiece);
   }
 
   findKing(color: 'white' | 'black'): Coord {
     for (let z = 0; z < LEVELS.length; z++) {
       for (let x = 0; x < FILES.length; x++) {
         for (let y = 0; y < RANKS.length; y++) {
-          const piece = this.grid[z][x][y];
+          const piece = this.getPiece({ x, y, z });
           if (piece && piece.type === PieceType.King && piece.color === color) {
             return { x, y, z };
           }
@@ -170,7 +173,7 @@ export class Board {
     for (let z = 0; z < LEVELS.length; z++) {
       for (let x = 0; x < FILES.length; x++) {
         for (let y = 0; y < RANKS.length; y++) {
-          const piece = this.grid[z][x][y];
+          const piece = this.getPiece({ x, y, z });
           if (piece && piece.color === byColor) {
             const from = { x, y, z };
             const moves = this.generateMoves(from);
@@ -204,7 +207,7 @@ export class Board {
     for (let z = 0; z < LEVELS.length; z++) {
       for (let x = 0; x < FILES.length; x++) {
         for (let y = 0; y < RANKS.length; y++) {
-          const piece = this.grid[z][x][y];
+          const piece = this.getPiece({ x, y, z });
           if (piece && piece.color === color) {
             const from: Coord = { x, y, z };
             const moves = this.generateMoves(from);
