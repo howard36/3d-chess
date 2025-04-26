@@ -183,4 +183,13 @@ export class Board {
     }
     return false;
   }
+
+  /**
+   * Returns true if the king of the given color is in check.
+   */
+  inCheck(color: 'white' | 'black'): boolean {
+    const kingPos = this.findKing(color);
+    const enemyColor = color === 'white' ? 'black' : 'white';
+    return this.isSquareAttacked(kingPos, enemyColor);
+  }
 }

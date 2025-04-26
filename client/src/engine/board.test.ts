@@ -198,3 +198,36 @@ describe('Attack map and king locator', () => {
     expect(board.isSquareAttacked(king, 'white')).toBe(true);
   });
 });
+
+// --- inCheck tests ---
+describe('inCheck', () => {
+  function setPiece(board: Board, coord: Coord, piece: Piece | null) {
+    board.grid[coord.z][coord.x][coord.y] = piece;
+  }
+
+  it('rook attacks king: black in check, white not', () => {
+    const board = new Board();
+    board.grid = buildStartingPosition();
+    const rook: Coord = { x: 0, y: 0, z: 0 };
+    const blackKing: Coord = { x: 0, y: 4, z: 0 };
+    const whiteKing: Coord = { x: 4, y: 4, z: 4 };
+    setPiece(board, rook, { type: PieceType.Rook, color: 'white' });
+    setPiece(board, blackKing, { type: PieceType.King, color: 'black' });
+    setPiece(board, whiteKing, { type: PieceType.King, color: 'white' });
+    expect(board.inCheck('black')).toBe(true);
+    expect(board.inCheck('white')).toBe(false);
+  });
+
+  it('only two kings: neither in check', () => {
+    const board = new Board();
+    // Clear board
+    for (let z = 0; z < 5; z++)
+      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
+    const blackKing: Coord = { x: 0, y: 0, z: 0 };
+    const whiteKing: Coord = { x: 4, y: 4, z: 4 };
+    setPiece(board, blackKing, { type: PieceType.King, color: 'black' });
+    setPiece(board, whiteKing, { type: PieceType.King, color: 'white' });
+    expect(board.inCheck('black')).toBe(false);
+    expect(board.inCheck('white')).toBe(false);
+  });
+});

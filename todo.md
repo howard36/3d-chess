@@ -63,6 +63,11 @@
 - [x] Write 3D-specific scenario tests (corner mate, 3D Fool's-mate fail, stalemate box)
 - [x] Commit: `feat(engine): check, mate, stalemate detection`
 
+### 0-E-2 inCheck()
+
+- [x] Implement `inCheck(color)` (uses king locator + attack map) with tests
+- [x] Commit: `feat(engine): check, mate, stalemate detection`
+
 ---
 
 ## Phase 1 – Core Rules Engine
