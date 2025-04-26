@@ -132,11 +132,11 @@ export class Board {
     return moves;
   }
 
-  applyMove(from: Coord, to: Coord, promotion?: PieceType): void {
-    const piece = this.grid[from.z][from.x][from.y];
+  applyMove(from: Coord, to: Coord, promotion?: PieceType, board: Board = this): void {
+    const piece = board.grid[from.z][from.x][from.y];
     if (!piece) return;
     // Remove from origin
-    this.grid[from.z][from.x][from.y] = null;
+    board.grid[from.z][from.x][from.y] = null;
     // Promotion logic
     let newPiece = piece;
     if (
@@ -149,7 +149,7 @@ export class Board {
     ) {
       newPiece = { type: promotion, color: piece.color };
     }
-    this.grid[to.z][to.x][to.y] = newPiece;
+    board.grid[to.z][to.x][to.y] = newPiece;
   }
 
   findKing(color: 'white' | 'black'): Coord {
@@ -191,5 +191,66 @@ export class Board {
     const kingPos = this.findKing(color);
     const enemyColor = color === 'white' ? 'black' : 'white';
     return this.isSquareAttacked(kingPos, enemyColor);
+  }
+
+  /**
+   * Generate all legal moves for the given color.
+   * Returns array of { from, to, promotion? }
+   */
+  generateLegalMoves(
+    color: 'white' | 'black',
+  ): { from: Coord; to: Coord; promotion?: PieceType }[] {
+    const legalMoves: { from: Coord; to: Coord; promotion?: PieceType }[] = [];
+    for (let z = 0; z < LEVELS.length; z++) {
+      for (let x = 0; x < FILES.length; x++) {
+        for (let y = 0; y < RANKS.length; y++) {
+          const piece = this.grid[z][x][y];
+          if (piece && piece.color === color) {
+            const from: Coord = { x, y, z };
+            const moves = this.generateMoves(from);
+            for (const to of moves) {
+              // Handle pawn promotion: if pawn moves to promotion square, generate all valid promotions
+              if (
+                piece.type === PieceType.Pawn &&
+                ((piece.color === 'white' && to.y === 4 && to.z === 4) ||
+                  (piece.color === 'black' && to.y === 0 && to.z === 0))
+              ) {
+                // Try all promotion types except Pawn/King
+                for (const promotion of [
+                  PieceType.Queen,
+                  PieceType.Rook,
+                  PieceType.Bishop,
+                  PieceType.Knight,
+                  PieceType.Unicorn,
+                ]) {
+                  const clone = this.clone();
+                  clone.applyMove(from, to, promotion);
+                  if (!clone.inCheck(color)) {
+                    legalMoves.push({ from, to, promotion });
+                  }
+                }
+              } else {
+                const clone = this.clone();
+                clone.applyMove(from, to);
+                if (!clone.inCheck(color)) {
+                  legalMoves.push({ from, to });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return legalMoves;
+  }
+
+  /**
+   * Shallow clone of the board (for move simulation)
+   */
+  clone(): Board {
+    const newBoard = new Board();
+    // Deep copy grid (3D array)
+    newBoard.grid = this.grid.map((level) => level.map((file) => file.slice()));
+    return newBoard;
   }
 }

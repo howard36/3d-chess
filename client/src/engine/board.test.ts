@@ -231,3 +231,55 @@ describe('inCheck', () => {
     expect(board.inCheck('white')).toBe(false);
   });
 });
+
+describe('generateLegalMoves', () => {
+  function setPiece(board: Board, coord: Coord, piece: Piece | null) {
+    board.grid[coord.z][coord.x][coord.y] = piece;
+  }
+
+  it('excludes illegal moves for a pinned piece (rook can only move along pin line)', () => {
+    const board = new Board();
+    // Clear board
+    for (let z = 0; z < 5; z++)
+      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
+    // Place black king at (0,0,0), white rook at (0,0,4), black rook at (0,0,2)
+    const blackKing: Coord = { x: 0, y: 0, z: 0 };
+    const whiteRook: Coord = { x: 0, y: 0, z: 4 };
+    const blackRook: Coord = { x: 0, y: 0, z: 2 };
+    setPiece(board, blackKing, { type: PieceType.King, color: 'black' });
+    setPiece(board, whiteRook, { type: PieceType.Rook, color: 'white' });
+    setPiece(board, blackRook, { type: PieceType.Rook, color: 'black' });
+    // The black rook is pinned and can only move along the z-axis between king and attacker
+    const legalMoves = board.generateLegalMoves('black');
+    const rookMoves = legalMoves.filter((m) => m.from.x === 0 && m.from.y === 0 && m.from.z === 2);
+    // All rook moves must stay on (0,0,*) and not move off the line
+    expect(rookMoves.length).toBeGreaterThan(0);
+    for (const move of rookMoves) {
+      expect(move.to.x).toBe(0);
+      expect(move.to.y).toBe(0);
+      // Must be between king and attacker (z=1,3,4)
+      expect([1, 3, 4]).toContain(move.to.z);
+    }
+  });
+
+  it('black king in corner has only one legal move due to two white rooks defending each other', () => {
+    const board = new Board();
+    // Clear board
+    for (let z = 0; z < 5; z++)
+      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.grid[z][x][y] = null;
+    // Place black king at (0,0,0)
+    const blackKing: Coord = { x: 0, y: 0, z: 0 };
+    // Place white rooks at (1,1,0) and (1,1,1)
+    const whiteRook1: Coord = { x: 1, y: 1, z: 0 };
+    const whiteRook2: Coord = { x: 1, y: 1, z: 1 };
+    setPiece(board, blackKing, { type: PieceType.King, color: 'black' });
+    setPiece(board, whiteRook1, { type: PieceType.Rook, color: 'white' });
+    setPiece(board, whiteRook2, { type: PieceType.Rook, color: 'white' });
+
+    // The only legal move for the black king is to (0,0,1)
+    const legalMoves = board.generateLegalMoves('black');
+    expect(legalMoves).toHaveLength(1);
+    expect(legalMoves[0].from).toEqual({ x: 0, y: 0, z: 0 });
+    expect(legalMoves[0].to).toEqual({ x: 0, y: 0, z: 1 });
+  });
+});
