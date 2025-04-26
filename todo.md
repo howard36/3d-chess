@@ -113,9 +113,9 @@
 - [x] Add `findKing(color)` and `isSquareAttacked(target, byColor)` with unit tests
 - [x] Implement `inCheck(color)` (uses king locator + attack map) with tests
 - [x] Create `generateLegalMoves(color)` that filters out moves leaving king in check
-- [ ] Add `isCheckmate(color)` & `isStalemate(color)` (with helper `hasLegalMove`)
-- [ ] Write 3D-specific scenario tests (corner mate, 3D Fool's-mate fail, stalemate box)
-- [ ] Commit: `feat(engine): check, mate, stalemate detection`
+- [x] Add `isCheckmate(color)` & `isStalemate(color)` (with helper `hasLegalMove`)
+- [x] Write 3D-specific scenario tests (corner mate, 3D Fool's-mate fail, stalemate box)
+- [x] Commit: `feat(engine): check, mate, stalemate detection`
 
 ### 1-F Coverage & public API barrel
 

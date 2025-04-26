@@ -245,6 +245,27 @@ export class Board {
   }
 
   /**
+   * Returns true if the given color is checkmated.
+   */
+  isCheckmate(color: 'white' | 'black'): boolean {
+    return this.inCheck(color) && this.generateLegalMoves(color).length === 0;
+  }
+
+  /**
+   * Returns true if the given color is stalemated.
+   */
+  isStalemate(color: 'white' | 'black'): boolean {
+    return !this.inCheck(color) && this.generateLegalMoves(color).length === 0;
+  }
+
+  /**
+   * Returns true if the given color has at least one legal move.
+   */
+  hasLegalMove(color: 'white' | 'black'): boolean {
+    return this.generateLegalMoves(color).length > 0;
+  }
+
+  /**
    * Shallow clone of the board (for move simulation)
    */
   clone(): Board {
