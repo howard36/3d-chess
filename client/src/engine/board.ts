@@ -8,7 +8,7 @@ import {
   KING_VECTORS,
   KNIGHT_VECTORS,
 } from './pieces';
-import { Coord, LEVELS, FILES, RANKS } from './coords';
+import { Coord, LEVELS, FILES, RANKS, toZXY } from './coords';
 
 export class Board {
   grid: (Piece | null)[][][];
@@ -43,7 +43,7 @@ export class Board {
 
   generateMoves(from: Coord): Coord[] {
     const piece = this.getPiece(from);
-    if (!piece) return [];
+    if (!piece) throw new Error(`No piece at ${toZXY(from)}`);
     // Pawn logic
     if (piece.type === PieceType.Pawn) {
       const moves: Coord[] = [];
@@ -113,7 +113,7 @@ export class Board {
         sliding = false;
         break;
       default:
-        return [];
+        throw new Error(`Unknown piece type at ${toZXY(from)}`);
     }
     const moves: Coord[] = [];
     for (const [dz, dx, dy] of vectors) {
@@ -137,7 +137,7 @@ export class Board {
 
   applyMove(from: Coord, to: Coord, promotion?: PieceType, board: Board = this): void {
     const piece = board.getPiece(from);
-    if (!piece) return;
+    if (!piece) throw new Error(`No piece at ${toZXY(from)}`);
     // Remove from origin
     board.setPiece(from, null);
     // Promotion logic
@@ -259,13 +259,6 @@ export class Board {
    */
   isStalemate(color: 'white' | 'black'): boolean {
     return !this.inCheck(color) && this.generateLegalMoves(color).length === 0;
-  }
-
-  /**
-   * Returns true if the given color has at least one legal move.
-   */
-  hasLegalMove(color: 'white' | 'black'): boolean {
-    return this.generateLegalMoves(color).length > 0;
   }
 
   /**

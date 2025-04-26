@@ -287,3 +287,23 @@ describe('3-D checkmate & stalemate scenarios', () => {
     expect(board.isStalemate('black')).toBe(true);
   });
 });
+
+describe('Board cloning', () => {
+  it('modifying a clone does not affect the original board', () => {
+    const board = new Board();
+    const from = { x: 0, y: 1, z: 0 };
+    const to = { x: 0, y: 2, z: 0 };
+    // Place a white pawn at from
+    board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
+    // Clone the board
+    const clone = board.clone();
+    // Make a move on the clone
+    clone.applyMove(from, to);
+    // The original board should still have the pawn at 'from' and not at 'to'
+    expect(board.getPiece(from)).toEqual({ type: PieceType.Pawn, color: 'white' });
+    expect(board.getPiece(to)).toBeNull();
+    // The clone should have the pawn at 'to' and not at 'from'
+    expect(clone.getPiece(from)).toBeNull();
+    expect(clone.getPiece(to)).toEqual({ type: PieceType.Pawn, color: 'white' });
+  });
+});

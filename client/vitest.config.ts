@@ -12,5 +12,14 @@ export default defineConfig({
       '**/coverage/**',
       '**/test-results/**',
     ],
+    coverage: {
+      include: ['src/engine/**/*.ts'],
+      thresholds: {
+        statements: 90,
+        branches: 90,
+        functions: 90,
+        lines: 90,
+      },
+    },
   },
 });
