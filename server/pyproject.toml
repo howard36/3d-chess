@@ -1,0 +1,22 @@
+[project]
+name = "3d-chess-backend"
+version = "0.1.0"
+description = "3D Chess backend on Modal"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi[standard]>=0.115.4",
+]
+
+[project.optional-dependencies]
+test = [
+  "uvicorn[standard]",
+  "modal>=0.74",
+  "pytest",
+  "pytest-asyncio",
+  "httpx",
+  "websockets",
+]
+
+[tool.uv]
+# python-version = "3.11"  # Removed due to TOML parse error

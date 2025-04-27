@@ -31,4 +31,20 @@ client/dist/
 client/build/
 
 # Refer to client/.gitignore for frontend-specific ignores
-# (e.g. coverage, test-results, etc.) 
+# (e.g. coverage, test-results, etc.)
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Python virtualenvs
+.venv/
+.python-version
+
+# Test cache
+.pytest_cache/
+
+# (server) build/lock files
+# Keep uv.lock tracked for reproducible installs 

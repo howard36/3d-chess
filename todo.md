@@ -120,7 +120,7 @@
 ### 1-F Coverage & public API barrel
 
 - [x] Create `src/engine/index.ts` exporting public API
-- [x] Enforce Vitest coverage ≥ 90 % (config in place, threshold raised)
+- [x] Enforce Vitest coverage ≥ 90 % (engine only)
 - [x] Commit: `chore(engine): barrel export & coverage gate`
 
 ---
@@ -129,47 +129,42 @@
 
 ### 2-A FastAPI scaffold
 
-- [ ] Create `server/modal_app.py` with `FastAPI` + `modal.Stub(concurrency_limit=1)`
-- [ ] Add `/health` route
-- [ ] Create `requirements.txt`
-- [ ] Dev script: `uvicorn modal_app:app --reload`
-- [ ] Pytest for `/health` using `httpx`
-- [ ] Commit: `feat(server): FastAPI health endpoint under Modal`
+- [x] Create `server/modal_app.py` with `modal.App`
+- [x] Decorate `serve()` with `@app.function`
+- [x] Decorate `serve()` with `@modal.asgi_app`
+- [x] Add a `/health` GET route to the FastAPI app
 
 ### 2-B Pydantic models from JSON Schema
 
-- [ ] Add `server/schema.json` (WebSocket schema)
-- [ ] Generate `messages.py` via `datamodel-code-generator` (or manual)
-- [ ] Tests: validate sample envelopes
-- [ ] Commit: `feat(server): pydantic models for WS schema`
+- [ ] Add `server/schema.json` containing the WebSocket JSON Schema
+- [ ] Generate `server/messages.py` via `datamodel-code-generator`
+- [ ] Write tests that instantiate each generated message model from sample JSON
 
 ### 2-C create_game handler
 
-- [ ] Add `/ws` WebSocket endpoint
-- [ ] Handle "create_game" → generate UUID, store in-memory, reply "game_created"
-- [ ] Pytest with `websockets` client for round-trip
-- [ ] Commit: `feat(server): create_game flow`
+- [ ] Implement `/ws` WebSocket endpoint in `modal_app.py`
+- [ ] Handle `"create_game"` messages by generating a UUID
+- [ ] Store the creator's `WebSocket` in an in-memory map keyed by gameId
+- [ ] Send back a `"game_created"` message with the new gameId
 
 ### 2-D join_game & game_start
 
-- [ ] Handle "join_game": add second connection, randomize colors, send "game_start"
-- [ ] Track `turn` state
-- [ ] Pytest: two clients receive complementary colors
-- [ ] Commit: `feat(server): join_game & game_start`
+- [ ] Extend the `/ws` handler to process `"join_game"` messages
+- [ ] Attach the second client under a random color assignment
+- [ ] Record the initial `turn` state for the game
+- [ ] Broadcast a `"game_start"` message to both players
 
 ### 2-E move → move_made relay
 
-- [ ] Accept "move" only from correct-turn player
-- [ ] Broadcast "move_made" and flip turn
-- [ ] Send "error" on wrong-turn
-- [ ] Pytest: validate relay & error
-- [ ] Commit: `feat(server): move relay with basic validation`
+- [ ] Within the `/ws` handler, accept `"move"` only from the socket matching the current `turn`
+- [ ] Relay a `"move_made"` message to both clients when valid
+- [ ] Flip the `turn` state after relaying
+- [ ] Send an `"error"` message on out-of-turn attempts
 
 ### 2-F Server coverage & CI
 
-- [ ] Add `pytest --cov=server` to CI
-- [ ] Enforce ≥ 90 % coverage
-- [ ] Commit: `chore(server): coverage gate`
+- [ ] Update CI to run `pytest --cov=server`
+- [ ] Enforce a minimum of 90 % coverage for all code under `server/`
 
 ---
 
