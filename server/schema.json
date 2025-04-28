@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WebSocket V1 Message Envelope",
+  "oneOf": [
+    { "$ref": "#/definitions/create_game" },
+    { "$ref": "#/definitions/game_created" },
+    { "$ref": "#/definitions/join_game" },
+    { "$ref": "#/definitions/game_start" },
+    { "$ref": "#/definitions/move" },
+    { "$ref": "#/definitions/move_made" },
+    { "$ref": "#/definitions/error" }
+  ],
+  "definitions": {
+    "create_game": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "create_game" }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "game_created": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "game_created" },
+        "gameId": { "type": "string" }
+      },
+      "required": ["type", "gameId"],
+      "additionalProperties": false
+    },
+    "join_game": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "join_game" },
+        "gameId": { "type": "string" }
+      },
+      "required": ["type", "gameId"],
+      "additionalProperties": false
+    },
+    "game_start": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "game_start" },
+        "color": { "enum": ["white", "black"] },
+        "initialPosition": { "type": "string" }
+      },
+      "required": ["type", "color"],
+      "additionalProperties": false
+    },
+    "move": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "move" },
+        "from": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
+        "to": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
+        "promotion": { "enum": ["Q", "R", "B", "N", "U"] }
+      },
+      "required": ["type", "from", "to"],
+      "additionalProperties": false
+    },
+    "move_made": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "move_made" },
+        "by": { "enum": ["white", "black"] },
+        "from": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
+        "to": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
+        "promotion": { "enum": ["Q", "R", "B", "N", "U"] }
+      },
+      "required": ["type", "by", "from", "to"],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "error" },
+        "code": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "required": ["type", "code", "message"],
+      "additionalProperties": false
+    }
+  }
+}

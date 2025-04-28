@@ -136,9 +136,10 @@
 
 ### 2-B Pydantic models from JSON Schema
 
-- [ ] Add `server/schema.json` containing the WebSocket JSON Schema
-- [ ] Generate `server/messages.py` via `datamodel-code-generator`
-- [ ] Write tests that instantiate each generated message model from sample JSON
+- [x] Add `server/schema.json` containing the WebSocket JSON Schema
+- [x] Generate `server/messages.py` via `datamodel-code-generator`
+- [x] Write tests that instantiate each generated message model from sample JSON
+- [x] Update Pydantic 'const' usage to 'Literal' in server/messages.py
 
 ### 2-C create_game handler
 

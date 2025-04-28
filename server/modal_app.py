@@ -4,7 +4,7 @@ image = modal.Image.debian_slim().pip_install("fastapi[standard]")
 
 app = modal.App("3d-chess-backend")
 
-@app.function(image=image)
+@app.function(image=image, include_source=True)
 @modal.asgi_app()
 def serve() -> "fastapi.FastAPI":
     import fastapi

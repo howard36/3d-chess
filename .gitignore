@@ -47,4 +47,7 @@ __pycache__/
 .pytest_cache/
 
 # (server) build/lock files
-# Keep uv.lock tracked for reproducible installs 
+# Keep uv.lock tracked for reproducible installs
+
+# Python packaging egg-info directories
+*.egg-info/ 

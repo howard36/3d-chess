@@ -1,0 +1,14 @@
+---
+description: 
+globs: server/**/*
+alwaysApply: false
+---
+# Virtual Environment Activation Rule
+
+To activate the Python virtual environment for the backend, use the following command:
+
+```fish
+source server/.venv/bin/activate.fish
+```
+
+This ensures all Python dependencies (including pytest) are available for development and testing.
