@@ -30,28 +30,39 @@ def serve() -> "fastapi.FastAPI":
     @web_app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
         await ws.accept()
+        player_color = None  # Track the player's color for this connection
         try:
             while True:
                 data = await ws.receive_json()
                 envelope = WebsocketV1MessageEnvelope.model_validate(data).root
                 if isinstance(envelope, CreateGame):
                     gid = str(uuid.uuid4())
-                    games[gid] = {"white": ws}
-                    turns[gid] = "white"
+                    # Creator can be white or black, but white always moves first
+                    player_color = random.choice(["white", "black"])
+                    games[gid] = {player_color: ws}
+                    turns[gid] = "white"  # Always white's turn to move first
                     await ws.send_json(GameCreated(type="game_created", gameId=gid).model_dump())
                 elif isinstance(envelope, JoinGame):
                     gid = envelope.gameId
-                    if gid not in games or "black" in games[gid]:
+                    if gid not in games:
                         err = Error(type="error", code="invalid_game", message="Cannot join")
                         await ws.send_json(err.model_dump())
                     else:
-                        # Randomly assign color to joining player
-                        color = "black" if "white" in games[gid] else "white"
-                        games[gid][color] = ws
-                        # Send GameStart to both players
-                        for col, sock in games[gid].items():
-                            await sock.send_json(GameStart(type="game_start", color=Color(col)).model_dump(mode="json"))
+                        # Assign joiner the only remaining color
+                        available_colors = [c for c in ("white", "black") if c not in games[gid]]
+                        if not available_colors:
+                            err = Error(type="error", code="invalid_game", message="Game full")
+                            await ws.send_json(err.model_dump())
+                        else:
+                            player_color = available_colors[0]
+                            games[gid][player_color] = ws
+                            # Send GameStart to both players, white first
+                            for col in ("white", "black"):
+                                if col in games[gid]:
+                                    sock = games[gid][col]
+                                    await sock.send_json(GameStart(type="game_start", color=Color(col)).model_dump(mode="json"))
         except WebSocketDisconnect:
+            # Optionally: clean up player from games here if desired
             pass
 
     return web_app 
