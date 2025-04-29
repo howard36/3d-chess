@@ -150,10 +150,10 @@
 
 ### 2-D join_game & game_start
 
-- [ ] Extend the `/ws` handler to process `"join_game"` messages
-- [ ] Attach the second client under a random color assignment
-- [ ] Record the initial `turn` state for the game
-- [ ] Broadcast a `"game_start"` message to both players
+- [x] Extend the `/ws` handler to process `"join_game"` messages
+- [x] Attach the second client under a random color assignment
+- [x] Record the initial `turn` state for the game
+- [x] Broadcast a `"game_start"` message to both players
 
 ### 2-E move → move_made relay
 
