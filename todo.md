@@ -143,10 +143,10 @@
 
 ### 2-C create_game handler
 
-- [ ] Implement `/ws` WebSocket endpoint in `modal_app.py`
-- [ ] Handle `"create_game"` messages by generating a UUID
-- [ ] Store the creator's `WebSocket` in an in-memory map keyed by gameId
-- [ ] Send back a `"game_created"` message with the new gameId
+- [x] Implement `/ws` WebSocket endpoint in `modal_app.py`
+- [x] Handle `"create_game"` messages by generating a UUID
+- [x] Store the creator's `WebSocket` in an in-memory map keyed by gameId
+- [x] Send back a `"game_created"` message with the new gameId
 
 ### 2-D join_game & game_start
 
