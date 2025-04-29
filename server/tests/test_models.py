@@ -1,8 +1,7 @@
-import sys
-print(sys.path)
+
 
 import pytest
-from messages import CreateGame, Move, MoveMade, JoinGame
+from messages import CreateGame, Move, JoinGame
 
 @pytest.mark.parametrize("Model, data", [
     (CreateGame, {"type": "create_game"}),
