@@ -2,7 +2,7 @@ import modal
 import uuid
 import random
 from fastapi import WebSocket, WebSocketDisconnect
-from messages import WebsocketV1MessageEnvelope, CreateGame, GameCreated, JoinGame, GameStart, Error, Color
+from messages import WebsocketV1MessageEnvelope, CreateGame, GameCreated, JoinGame, GameStart, Error, Color, Move, MoveMade, By
 
 # Mount the local messages.py module into the container so `from messages import …` works
 image = (
@@ -21,6 +21,8 @@ turns: dict[str, str] = {}
 @modal.asgi_app()
 def serve() -> "fastapi.FastAPI":
     import fastapi
+    import pydantic
+    print(f"[modal] pydantic version: {pydantic.__version__}")
     web_app = fastapi.FastAPI()
 
     @web_app.get("/health")
@@ -30,7 +32,9 @@ def serve() -> "fastapi.FastAPI":
     @web_app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
         await ws.accept()
+        print(f"[modal] pydantic version: {pydantic.__version__}")
         player_color = None  # Track the player's color for this connection
+        gid = None  # Track the game id for this connection
         try:
             while True:
                 data = await ws.receive_json()
@@ -61,6 +65,26 @@ def serve() -> "fastapi.FastAPI":
                                 if col in games[gid]:
                                     sock = games[gid][col]
                                     await sock.send_json(GameStart(type="game_start", color=Color(col)).model_dump(mode="json"))
+                elif isinstance(envelope, Move):
+                    if gid is None or player_color is None or gid not in games:
+                        err = Error(type="error", code="invalid_move", message="Invalid game or player state")
+                        await ws.send_json(err.model_dump())
+                    elif turns[gid] != player_color:
+                        err = Error(type="error", code="wrong_turn", message="Not your turn")
+                        await ws.send_json(err.model_dump())
+                    else:
+                        # Relay move to both players, using server-tracked color and gid
+                        payload = {
+                            "type": "move_made",
+                            "by": player_color,
+                            "from": envelope.from_,
+                            "to": envelope.to,
+                            "promotion": envelope.promotion,
+                        }
+                        move_made = MoveMade.model_validate(payload)
+                        for sock in games[gid].values():
+                            await sock.send_json(move_made.model_dump(mode="json", by_alias=True))
+                        turns[gid] = "black" if player_color == "white" else "white"
         except WebSocketDisconnect:
             # Optionally: clean up player from games here if desired
             pass

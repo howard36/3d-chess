@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Git Status Before Staging Rule
+
+Before staging any git changes, always run `git status -s` to see all the files that have changed. This ensures you do not miss any untracked or modified files and helps maintain transparency and completeness in your commits.
+
+Example:
+
+```
+git status -s
+```
+
+This rule applies to all contributors and should be followed before every `git add` operation.

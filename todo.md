@@ -154,13 +154,14 @@
 - [x] Attach the second client under a random color assignment
 - [x] Record the initial `turn` state for the game
 - [x] Broadcast a `"game_start"` message to both players
+- [x] Refactor: track player color per WebSocket connection in `ws_endpoint` (commit cf6be1f)
 
-### 2-E move → move_made relay
+### 2-E move relay & turn validation
 
-- [ ] Within the `/ws` handler, accept `"move"` only from the socket matching the current `turn`
-- [ ] Relay a `"move_made"` message to both clients when valid
-- [ ] Flip the `turn` state after relaying
-- [ ] Send an `"error"` message on out-of-turn attempts
+- [x] Within the `/ws` handler, accept `"move"` only from the socket matching the current `turn`
+- [x] Relay a `"move_made"` message to both clients when valid
+- [x] Flip the `turn` state after relaying
+- [x] Send an `"error"` message on out-of-turn attempts
 
 ### 2-F Server coverage & CI
 
