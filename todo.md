@@ -188,9 +188,9 @@
 
 ### 3-C Orbit controls & responsive canvas
 
-- [ ] Add `<OrbitControls makeDefault />`
-- [ ] Implement `useWindowSize` hook for full-window canvas
-- [ ] Commit: `chore(ui): orbit controls & responsive canvas`
+- [x] Add `<OrbitControls makeDefault />`
+- [x] Implement `useWindowSize` hook for full-window canvas
+- [x] Commit: `chore(ui): orbit controls & responsive canvas`
 
 ### 3-D Static starting position
 
