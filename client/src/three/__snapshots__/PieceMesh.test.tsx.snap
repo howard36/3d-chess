@@ -1,0 +1,183 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PieceMesh > renders black Bishop and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <conegeometry
+      args="0.28,0.8,12"
+    />
+    <meshstandardmaterial
+      color="2236962"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders black King and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <cylindergeometry
+      args="0.25,0.35,1,16"
+    />
+    <meshstandardmaterial
+      color="2236962"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders black Knight and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <cylindergeometry
+      args="0.2,0.2,0.5,6"
+    />
+    <meshstandardmaterial
+      color="2236962"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders black Pawn and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <cylindergeometry
+      args="0.25,0.25,0.6,16"
+    />
+    <meshstandardmaterial
+      color="2236962"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders black Queen and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <cylindergeometry
+      args="0.22,0.32,0.9,16"
+    />
+    <meshstandardmaterial
+      color="2236962"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders black Rook and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <cylindergeometry
+      args="0.3,0.3,0.7,8"
+    />
+    <meshstandardmaterial
+      color="2236962"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders black Unicorn and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <conegeometry
+      args="0.18,0.7,6"
+    />
+    <meshstandardmaterial
+      color="2236962"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders white Bishop and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <conegeometry
+      args="0.28,0.8,12"
+    />
+    <meshstandardmaterial
+      color="16777215"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders white King and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <cylindergeometry
+      args="0.25,0.35,1,16"
+    />
+    <meshstandardmaterial
+      color="16777215"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders white Knight and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <cylindergeometry
+      args="0.2,0.2,0.5,6"
+    />
+    <meshstandardmaterial
+      color="16777215"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders white Pawn and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <cylindergeometry
+      args="0.25,0.25,0.6,16"
+    />
+    <meshstandardmaterial
+      color="16777215"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders white Queen and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <cylindergeometry
+      args="0.22,0.32,0.9,16"
+    />
+    <meshstandardmaterial
+      color="16777215"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders white Rook and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <cylindergeometry
+      args="0.3,0.3,0.7,8"
+    />
+    <meshstandardmaterial
+      color="16777215"
+    />
+  </mesh>
+</div>
+`;
+
+exports[`PieceMesh > renders white Unicorn and matches snapshot 1`] = `
+<div>
+  <mesh>
+    <conegeometry
+      args="0.18,0.7,6"
+    />
+    <meshstandardmaterial
+      color="16777215"
+    />
+  </mesh>
+</div>
+`;

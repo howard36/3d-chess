@@ -174,17 +174,17 @@
 
 ### 3-A 5×5×5 grid rendering
 
-- [ ] Create `client/src/three/Board.tsx` rendering 125 cubes
-- [ ] Parent group with `data-testid="board-grid"`
-- [ ] Update `App.test.tsx` to assert 125 meshes
-- [ ] Commit: `feat(ui): render empty 5×5×5 grid`
+- [x] Create `client/src/three/Board.tsx` rendering 125 cubes
+- [x] Parent group with `data-testid="board-grid"` (now `name="board-grid"`)
+- [x] Update `App.test.tsx` to assert 125 meshes (now asserts canvas only; mesh count in Board.test.tsx)
+- [x] Commit: `feat(ui): render empty 5×5×5 grid`
 
 ### 3-B Placeholder piece meshes
 
-- [ ] Add `PieceMesh.tsx` with simple geometries per piece type
-- [ ] Prop types: `type` and `color`
-- [ ] Snapshot tests
-- [ ] Commit: `feat(ui): placeholder piece meshes`
+- [x] Add `PieceMesh.tsx` with simple geometries per piece type
+- [x] Prop types: `type` and `color`
+- [x] Snapshot tests
+- [x] Commit: `feat(ui): placeholder piece meshes`
 
 ### 3-C Orbit controls & responsive canvas
 
