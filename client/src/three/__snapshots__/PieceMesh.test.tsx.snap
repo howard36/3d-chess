@@ -2,7 +2,9 @@
 
 exports[`PieceMesh > renders black Bishop and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <conegeometry
       args="0.28,0.8,12"
     />
@@ -15,7 +17,9 @@ exports[`PieceMesh > renders black Bishop and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders black King and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <cylindergeometry
       args="0.25,0.35,1,16"
     />
@@ -28,7 +32,9 @@ exports[`PieceMesh > renders black King and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders black Knight and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <cylindergeometry
       args="0.2,0.2,0.5,6"
     />
@@ -41,7 +47,9 @@ exports[`PieceMesh > renders black Knight and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders black Pawn and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <cylindergeometry
       args="0.25,0.25,0.6,16"
     />
@@ -54,7 +62,9 @@ exports[`PieceMesh > renders black Pawn and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders black Queen and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <cylindergeometry
       args="0.22,0.32,0.9,16"
     />
@@ -67,7 +77,9 @@ exports[`PieceMesh > renders black Queen and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders black Rook and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <cylindergeometry
       args="0.3,0.3,0.7,8"
     />
@@ -80,7 +92,9 @@ exports[`PieceMesh > renders black Rook and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders black Unicorn and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <conegeometry
       args="0.18,0.7,6"
     />
@@ -93,7 +107,9 @@ exports[`PieceMesh > renders black Unicorn and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders white Bishop and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <conegeometry
       args="0.28,0.8,12"
     />
@@ -106,7 +122,9 @@ exports[`PieceMesh > renders white Bishop and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders white King and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <cylindergeometry
       args="0.25,0.35,1,16"
     />
@@ -119,7 +137,9 @@ exports[`PieceMesh > renders white King and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders white Knight and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <cylindergeometry
       args="0.2,0.2,0.5,6"
     />
@@ -132,7 +152,9 @@ exports[`PieceMesh > renders white Knight and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders white Pawn and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <cylindergeometry
       args="0.25,0.25,0.6,16"
     />
@@ -145,7 +167,9 @@ exports[`PieceMesh > renders white Pawn and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders white Queen and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <cylindergeometry
       args="0.22,0.32,0.9,16"
     />
@@ -158,7 +182,9 @@ exports[`PieceMesh > renders white Queen and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders white Rook and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <cylindergeometry
       args="0.3,0.3,0.7,8"
     />
@@ -171,7 +197,9 @@ exports[`PieceMesh > renders white Rook and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders white Unicorn and matches snapshot 1`] = `
 <div>
-  <mesh>
+  <mesh
+    userdata="[object Object]"
+  >
     <conegeometry
       args="0.18,0.7,6"
     />

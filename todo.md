@@ -194,10 +194,10 @@
 
 ### 3-D Static starting position
 
-- [ ] Import `Board` engine to iterate pieces
-- [ ] Render `<PieceMesh>` at correct world coords
-- [ ] Test: count 32 piece meshes
-- [ ] Commit: `feat(ui): starting position rendered`
+- [x] Import `Board` engine to iterate pieces
+- [x] Render `<PieceMesh>` at correct world coords
+- [x] Test: count 40 piece meshes
+- [x] Commit: `feat(ui): starting position rendered`
 
 ---
 

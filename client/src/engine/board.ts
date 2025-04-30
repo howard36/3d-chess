@@ -270,4 +270,41 @@ export class Board {
     newBoard.grid = this.grid.map((level) => level.map((file) => file.slice()));
     return newBoard;
   }
+
+  static setupStartingPosition(board: Board): void {
+    // White Pawns: (x, 1, 0) and (x, 1, 1) for x=0..4
+    for (let x = 0; x < 5; x++) {
+      board.setPiece({ x, y: 1, z: 0 }, { type: PieceType.Pawn, color: 'white' });
+      board.setPiece({ x, y: 1, z: 1 }, { type: PieceType.Pawn, color: 'white' });
+    }
+    // White Back Rank 1: y=0, z=0
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 1, y: 0, z: 0 }, { type: PieceType.Knight, color: 'white' });
+    board.setPiece({ x: 2, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+    board.setPiece({ x: 3, y: 0, z: 0 }, { type: PieceType.Knight, color: 'white' });
+    board.setPiece({ x: 4, y: 0, z: 0 }, { type: PieceType.Rook, color: 'white' });
+    // White Back Rank 2: y=0, z=1
+    board.setPiece({ x: 0, y: 0, z: 1 }, { type: PieceType.Bishop, color: 'white' });
+    board.setPiece({ x: 1, y: 0, z: 1 }, { type: PieceType.Unicorn, color: 'white' });
+    board.setPiece({ x: 2, y: 0, z: 1 }, { type: PieceType.Queen, color: 'white' });
+    board.setPiece({ x: 3, y: 0, z: 1 }, { type: PieceType.Bishop, color: 'white' });
+    board.setPiece({ x: 4, y: 0, z: 1 }, { type: PieceType.Unicorn, color: 'white' });
+    // Black Pawns: (x, 3, 4) and (x, 3, 3) for x=0..4
+    for (let x = 0; x < 5; x++) {
+      board.setPiece({ x, y: 3, z: 4 }, { type: PieceType.Pawn, color: 'black' });
+      board.setPiece({ x, y: 3, z: 3 }, { type: PieceType.Pawn, color: 'black' });
+    }
+    // Black Back Rank 1: y=4, z=4
+    board.setPiece({ x: 0, y: 4, z: 4 }, { type: PieceType.Rook, color: 'black' });
+    board.setPiece({ x: 1, y: 4, z: 4 }, { type: PieceType.Knight, color: 'black' });
+    board.setPiece({ x: 2, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
+    board.setPiece({ x: 3, y: 4, z: 4 }, { type: PieceType.Knight, color: 'black' });
+    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.Rook, color: 'black' });
+    // Black Back Rank 2: y=4, z=3
+    board.setPiece({ x: 0, y: 4, z: 3 }, { type: PieceType.Unicorn, color: 'black' });
+    board.setPiece({ x: 1, y: 4, z: 3 }, { type: PieceType.Bishop, color: 'black' });
+    board.setPiece({ x: 2, y: 4, z: 3 }, { type: PieceType.Queen, color: 'black' });
+    board.setPiece({ x: 3, y: 4, z: 3 }, { type: PieceType.Unicorn, color: 'black' });
+    board.setPiece({ x: 4, y: 4, z: 3 }, { type: PieceType.Bishop, color: 'black' });
+  }
 }
