@@ -22,7 +22,6 @@ turns: dict[str, str] = {}
 def serve() -> "fastapi.FastAPI":
     import fastapi
     import pydantic
-    print(f"[modal] pydantic version: {pydantic.__version__}")
     web_app = fastapi.FastAPI()
 
     @web_app.get("/health")

@@ -165,8 +165,8 @@
 
 ### 2-F Server coverage & CI
 
-- [ ] Update CI to run `pytest --cov=server`
-- [ ] Enforce a minimum of 90 % coverage for all code under `server/`
+- [x] Refactor websocket tests to use ws_connect fixture (shared async factory for DRYness)
+- [x] Add end-to-end WebSocket integration test covering create, join, move, and error flows
 
 ---
 
