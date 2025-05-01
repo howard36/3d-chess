@@ -197,6 +197,7 @@
 - [x] Import `Board` engine to iterate pieces
 - [x] Render `<PieceMesh>` at correct world coords
 - [x] Test: count 40 piece meshes
+- [x] Test: clicking a piece highlights legal move cubes
 - [x] Commit: `feat(ui): starting position rendered`
 
 ---

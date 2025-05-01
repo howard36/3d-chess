@@ -3,6 +3,8 @@ import Board from './Board';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
 import * as THREE from 'three';
+import { PieceType } from '../engine';
+import { act } from 'react';
 
 function countMeshes(node: ReactThreeTestInstance): number {
   let count = node.type === 'Mesh' ? 1 : 0;
@@ -32,10 +34,8 @@ function countPieceMeshes(node: ReactThreeTestInstance): number {
 
 function countHighlightedCubes(node: ReactThreeTestInstance): number {
   let count = 0;
-  if (
-    node.type === 'Box' &&
-    (node.props['material-color'] === '#ffe066' || node.props['materialColor'] === '#ffe066')
-  ) {
+  // Count highlighted cube meshes via userData flag
+  if (node.props.userData?.highlight === true) {
     count = 1;
   }
   for (const child of node.children) {
@@ -57,18 +57,21 @@ describe('Board', () => {
     expect(pieceCount).toBe(40);
   });
 
-  it('clicks a piece and highlights destination cubes', async () => {
+  it('clicks a pawn and highlights destination cubes', async () => {
     const renderer = await ReactThreeTestRenderer.create(<Board />);
-    // Find a piece mesh (first one)
-    const piece = renderer.scene.children.find(
-      (child) => child.type === 'Mesh' && child.props.userData?.piece !== undefined,
+    const boardGroup = (renderer.scene as ReactThreeTestInstance)
+      .children[0] as ReactThreeTestInstance;
+    const pawn = boardGroup.children.find(
+      (child) => child.type === 'Mesh' && child.props.userData?.piece?.type === PieceType.Pawn,
     ) as ReactThreeTestInstance;
-    expect(piece).toBeDefined();
-    // Simulate pointer down
-    piece.props.onPointerDown?.({} as any);
-    // Re-render
-    renderer.update(<Board />);
-    // Count highlighted cubes
+    expect(pawn).toBeDefined();
+
+    // Simulate pointer down inside act
+    await act(async () => {
+      pawn.props.onPointerDown?.({} as any);
+    });
+
+    // Now count highlighted cubes
     const highlightCount = countHighlightedCubes(renderer.scene as ReactThreeTestInstance);
     expect(highlightCount).toBeGreaterThan(0);
   });
