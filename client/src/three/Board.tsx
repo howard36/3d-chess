@@ -73,7 +73,10 @@ const Board = memo((props: ThreeElements['group']) => {
             material-opacity={isDest ? 0.5 : 0.1}
             castShadow={false}
             receiveShadow={false}
-            userData={{ highlight: isDest }}
+            userData={{
+              highlight: isDest,
+              cube: true,
+            }}
           />
         );
       })}
