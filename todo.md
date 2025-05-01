@@ -205,10 +205,10 @@
 
 ### 4-A Raycast selection & highlights
 
-- [ ] Add `useSelectedPiece` state
-- [ ] On piece click: compute legal moves & highlight cubes
-- [ ] RTL + `@react-three/test-renderer` test for highlighting
-- [ ] Commit: `feat(ui): piece selection & highlights`
+- [x] Add `useSelectedPiece` state
+- [x] On piece click: compute legal moves & highlight cubes
+- [x] RTL + `@react-three/test-renderer` test for highlighting
+- [x] Commit: `feat(ui): piece selection & highlights`
 
 ### 4-B Local move execution
 

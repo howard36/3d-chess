@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Box } from '@react-three/drei';
 import { ThreeElements } from '@react-three/fiber';
 import { Board as EngineBoard } from '../engine';
@@ -17,8 +17,15 @@ const cubes = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => {
 
 const Board = memo((props: ThreeElements['group']) => {
   // Set up the engine board and starting position
-  const board = new EngineBoard();
-  EngineBoard.setupStartingPosition(board);
+  const board = useMemo(() => {
+    const b = new EngineBoard();
+    EngineBoard.setupStartingPosition(b);
+    return b;
+  }, []);
+
+  // State for selected piece and its legal moves
+  const [selected, setSelected] = useState<null | { x: number; y: number; z: number }>(null);
+  const [legalMoves, setLegalMoves] = useState<{ x: number; y: number; z: number }[]>([]);
 
   // Collect all pieces with their coordinates
   const pieces = [];
@@ -33,26 +40,49 @@ const Board = memo((props: ThreeElements['group']) => {
     }
   }
 
+  // Handle piece selection
+  const handlePiecePointerDown = (x: number, y: number, z: number) => {
+    setSelected({ x, y, z });
+    try {
+      const moves = board.generateMoves({ x, y, z });
+      setLegalMoves(moves);
+    } catch {
+      setLegalMoves([]);
+    }
+  };
+
+  // Helper to check if a cube is a legal move destination
+  const isHighlighted = (x: number, y: number, z: number) =>
+    legalMoves.some((m) => m.x === x && m.y === y && m.z === z);
+
   return (
     <group name="board-grid" {...props}>
-      {cubes.map(([x, y, z, key]) => (
-        <Box
-          key={key as string}
-          position={[x as number, y as number, z as number]}
-          args={[1, 1, 1]}
-          material-color="#b0c4de"
-          material-transparent
-          material-opacity={0.3}
-          castShadow={false}
-          receiveShadow={false}
-        />
-      ))}
+      {cubes.map(([x, y, z, key]) => {
+        const isDest = isHighlighted(
+          Math.round((x as number) / SPACING + HALF),
+          Math.round((y as number) / SPACING + HALF),
+          Math.round((z as number) / SPACING + HALF),
+        );
+        return (
+          <Box
+            key={key as string}
+            position={[x as number, y as number, z as number]}
+            args={[1, 1, 1]}
+            material-color={isDest ? '#ffd600' : '#e3eaf2'}
+            material-transparent
+            material-opacity={isDest ? 0.5 : 0.1}
+            castShadow={false}
+            receiveShadow={false}
+          />
+        );
+      })}
       {pieces.map(({ type, color, x, y, z }) => (
         <PieceMesh
           key={`${type}-${color}-${x},${y},${z}`}
           type={type}
           color={color}
           position={[(x - HALF) * SPACING, (y - HALF) * SPACING, (z - HALF) * SPACING]}
+          onPointerDown={() => handlePiecePointerDown(x, y, z)}
         />
       ))}
     </group>

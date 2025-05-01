@@ -30,6 +30,20 @@ function countPieceMeshes(node: ReactThreeTestInstance): number {
   return count;
 }
 
+function countHighlightedCubes(node: ReactThreeTestInstance): number {
+  let count = 0;
+  if (
+    node.type === 'Box' &&
+    (node.props['material-color'] === '#ffe066' || node.props['materialColor'] === '#ffe066')
+  ) {
+    count = 1;
+  }
+  for (const child of node.children) {
+    count += countHighlightedCubes(child as ReactThreeTestInstance);
+  }
+  return count;
+}
+
 describe('Board', () => {
   it('renders 125 Box meshes', async () => {
     const renderer = await ReactThreeTestRenderer.create(<Board />);
@@ -41,5 +55,21 @@ describe('Board', () => {
     const renderer = await ReactThreeTestRenderer.create(<Board />);
     const pieceCount = countPieceMeshes(renderer.scene as ReactThreeTestInstance);
     expect(pieceCount).toBe(40);
+  });
+
+  it('clicks a piece and highlights destination cubes', async () => {
+    const renderer = await ReactThreeTestRenderer.create(<Board />);
+    // Find a piece mesh (first one)
+    const piece = renderer.scene.children.find(
+      (child) => child.type === 'Mesh' && child.props.userData?.piece !== undefined,
+    ) as ReactThreeTestInstance;
+    expect(piece).toBeDefined();
+    // Simulate pointer down
+    piece.props.onPointerDown?.({} as any);
+    // Re-render
+    renderer.update(<Board />);
+    // Count highlighted cubes
+    const highlightCount = countHighlightedCubes(renderer.scene as ReactThreeTestInstance);
+    expect(highlightCount).toBeGreaterThan(0);
   });
 });
