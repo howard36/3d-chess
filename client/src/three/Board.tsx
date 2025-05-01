@@ -1,8 +1,9 @@
-import { memo, useState, useMemo } from 'react';
+import { memo, useState, useMemo, useEffect } from 'react';
 import { Box } from '@react-three/drei';
 import { ThreeElements } from '@react-three/fiber';
 import { Board as EngineBoard } from '../engine';
 import { PieceMesh } from './PieceMesh';
+import React from 'react';
 
 const GRID_SIZE = 5;
 const SPACING = 1.1;
@@ -15,7 +16,16 @@ const cubes = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => {
   return [(x - HALF) * SPACING, (y - HALF) * SPACING, (z - HALF) * SPACING, `${x},${y},${z}`];
 });
 
-const Board = memo((props: ThreeElements['group']) => {
+export type BoardTurn = 'white' | 'black';
+
+export interface BoardProps {
+  onTurnChange?: (turn: BoardTurn) => void;
+  currentTurn?: BoardTurn;
+  children?: React.ReactNode;
+  [key: string]: any; // allow passing arbitrary props to <group>
+}
+
+const Board = memo((props: BoardProps) => {
   // Set up the engine board and starting position
   const board = useMemo(() => {
     const b = new EngineBoard();
@@ -27,7 +37,7 @@ const Board = memo((props: ThreeElements['group']) => {
   const [selected, setSelected] = useState<null | { x: number; y: number; z: number }>(null);
   const [legalMoves, setLegalMoves] = useState<{ x: number; y: number; z: number }[]>([]);
   // Add state for current turn and force update
-  const [currentTurn, setCurrentTurn] = useState<'white' | 'black'>('white');
+  const [currentTurn, setCurrentTurn] = useState<BoardTurn>(props.currentTurn ?? 'white');
   const [, setVersion] = useState(0); // for force update
 
   // Collect all pieces with their coordinates
@@ -56,6 +66,12 @@ const Board = memo((props: ThreeElements['group']) => {
     }
   };
 
+  // Toggle turn
+  const handleTurnChange = (turn: BoardTurn) => {
+    setCurrentTurn(turn);
+    props.onTurnChange?.(turn);
+  };
+
   // Handle highlighted cube click (move application)
   const handleCubePointerDown = (x: number, y: number, z: number) => {
     if (!selected) return;
@@ -65,7 +81,7 @@ const Board = memo((props: ThreeElements['group']) => {
     setSelected(null);
     setLegalMoves([]);
     // Toggle turn
-    setCurrentTurn((turn) => (turn === 'white' ? 'black' : 'white'));
+    handleTurnChange(currentTurn === 'white' ? 'black' : 'white');
     // Force update to re-render scene
     setVersion((v) => v + 1);
   };
@@ -85,6 +101,7 @@ const Board = memo((props: ThreeElements['group']) => {
         }
       }}
     >
+      {props.children}
       {cubes.map(([x, y, z, key]) => {
         const gx = Math.round((x as number) / SPACING + HALF);
         const gy = Math.round((y as number) / SPACING + HALF);

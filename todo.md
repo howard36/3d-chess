@@ -227,11 +227,11 @@
 - [x] Test: clicking a piece does not immediately unselect it
 - [x] Commit: `fix(ui): board click unselect and event propagation logic`
 
-### 4-D Turn indicator
+### 4-D Turn banner
 
-- [ ] Add `TurnIndicator` component showing "White to move" etc.
-- [ ] Test: turns flip after moves
-- [ ] Commit: `feat(ui): turn indicator synced with moves`
+- [x] Add simple `TurnIndicator` component top-center, shows "White to move" etc.
+- [x] Unit test: after each move, text flips.
+- [x] Commit: `feat(ui): turn indicator synced with moves`
 
 ---
 
@@ -340,22 +340,4 @@
 
 ### 8-A Modal deploy script
 
-- [ ] Create `modal_deploy.sh` for `modal deploy` (with ENV vars)
-- [ ] Document `BACKEND_WS_URL` injection
-- [ ] Commit: `ci: modal deploy script`
-
-### 8-B Static site hosting
-
-- [ ] Configure Cloudflare Pages or GH Pages
-- [ ] Inject `BACKEND_WS_URL` into Vite build
-- [ ] Commit: `ci: static site deploy pipeline`
-
-### 8-C Prod smoke & tag
-
-- [ ] After deploy, run Playwright against prod URLs for full-game flow
-- [ ] Create annotated git tag `v1.0.0` on success
-- [ ] Commit: `release: v1.0.0 🎉`
-
----
-
-> Check off items from this list as you land each commit
+- [ ] Create `modal_deploy.sh` for `
