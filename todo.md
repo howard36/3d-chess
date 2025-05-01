@@ -213,10 +213,10 @@
 
 ### 4-B Local move execution
 
-- [ ] On highlight click: call `applyMove`, update state
-- [ ] Toggle turn
-- [ ] RTL test: mesh relocates & highlights clear
-- [ ] Commit: `feat(ui): local move application`
+- [x] On highlight click: call `applyMove`, update state
+- [x] Toggle turn
+- [x] RTL test: mesh relocates & highlights clear
+- [x] Commit: `feat(ui): local move application`
 
 ### 4-C Illegal move toast
 

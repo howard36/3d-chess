@@ -26,6 +26,9 @@ const Board = memo((props: ThreeElements['group']) => {
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | { x: number; y: number; z: number }>(null);
   const [legalMoves, setLegalMoves] = useState<{ x: number; y: number; z: number }[]>([]);
+  // Add state for current turn and force update
+  const [currentTurn, setCurrentTurn] = useState<'white' | 'black'>('white');
+  const [, setVersion] = useState(0); // for force update
 
   // Collect all pieces with their coordinates
   const pieces = [];
@@ -42,6 +45,8 @@ const Board = memo((props: ThreeElements['group']) => {
 
   // Handle piece selection
   const handlePiecePointerDown = (x: number, y: number, z: number) => {
+    const piece = board.getPiece({ x, y, z });
+    if (!piece || piece.color !== currentTurn) return;
     setSelected({ x, y, z });
     try {
       const moves = board.generateMoves({ x, y, z });
@@ -51,6 +56,20 @@ const Board = memo((props: ThreeElements['group']) => {
     }
   };
 
+  // Handle highlighted cube click (move application)
+  const handleCubePointerDown = (x: number, y: number, z: number) => {
+    if (!selected) return;
+    // Apply move
+    board.applyMove(selected, { x, y, z });
+    // Clear selection and highlights
+    setSelected(null);
+    setLegalMoves([]);
+    // Toggle turn
+    setCurrentTurn((turn) => (turn === 'white' ? 'black' : 'white'));
+    // Force update to re-render scene
+    setVersion((v) => v + 1);
+  };
+
   // Helper to check if a cube is a legal move destination
   const isHighlighted = (x: number, y: number, z: number) =>
     legalMoves.some((m) => m.x === x && m.y === y && m.z === z);
@@ -58,11 +77,10 @@ const Board = memo((props: ThreeElements['group']) => {
   return (
     <group name="board-grid" {...props}>
       {cubes.map(([x, y, z, key]) => {
-        const isDest = isHighlighted(
-          Math.round((x as number) / SPACING + HALF),
-          Math.round((y as number) / SPACING + HALF),
-          Math.round((z as number) / SPACING + HALF),
-        );
+        const gx = Math.round((x as number) / SPACING + HALF);
+        const gy = Math.round((y as number) / SPACING + HALF);
+        const gz = Math.round((z as number) / SPACING + HALF);
+        const isDest = isHighlighted(gx, gy, gz);
         return (
           <Box
             key={key as string}
@@ -77,6 +95,15 @@ const Board = memo((props: ThreeElements['group']) => {
               highlight: isDest,
               cube: true,
             }}
+            // Add pointer handler for highlighted cubes
+            onPointerDown={
+              isDest
+                ? (e) => {
+                    e.stopPropagation();
+                    handleCubePointerDown(gx, gy, gz);
+                  }
+                : undefined
+            }
           />
         );
       })}
