@@ -218,12 +218,14 @@
 - [x] RTL test: mesh relocates & highlights clear
 - [x] Commit: `feat(ui): local move application`
 
-### 4-C Illegal move toast
+### 4-C Board selection event logic improvements
 
-- [ ] Install `react-hot-toast`
-- [ ] Show toast on invalid click
-- [ ] RTL test with fake timers for toast
-- [ ] Commit: `feat(ui): invalid move toast`
+- [x] Add onPointerDown to <group> to unselect piece when clicking outside pieces/highlights
+- [x] Ensure highlighted cube clicks call e.stopPropagation()
+- [x] Ensure piece clicks call e.stopPropagation()
+- [x] Test: selecting a piece and clicking empty space unselects it
+- [x] Test: clicking a piece does not immediately unselect it
+- [x] Commit: `fix(ui): board click unselect and event propagation logic`
 
 ### 4-D Turn indicator
 

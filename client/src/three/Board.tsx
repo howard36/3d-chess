@@ -75,7 +75,16 @@ const Board = memo((props: ThreeElements['group']) => {
     legalMoves.some((m) => m.x === x && m.y === y && m.z === z);
 
   return (
-    <group name="board-grid" {...props}>
+    <group
+      name="board-grid"
+      {...props}
+      onPointerDown={() => {
+        if (selected) {
+          setSelected(null);
+          setLegalMoves([]);
+        }
+      }}
+    >
       {cubes.map(([x, y, z, key]) => {
         const gx = Math.round((x as number) / SPACING + HALF);
         const gy = Math.round((y as number) / SPACING + HALF);
@@ -113,7 +122,10 @@ const Board = memo((props: ThreeElements['group']) => {
           type={type}
           color={color}
           position={[(x - HALF) * SPACING, (y - HALF) * SPACING, (z - HALF) * SPACING]}
-          onPointerDown={() => handlePiecePointerDown(x, y, z)}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            handlePiecePointerDown(x, y, z);
+          }}
         />
       ))}
     </group>
