@@ -21,6 +21,7 @@ export type BoardTurn = 'white' | 'black';
 export interface BoardProps {
   onTurnChange?: (turn: BoardTurn) => void;
   currentTurn?: BoardTurn;
+  playerColor?: 'white' | 'black' | null;
   children?: React.ReactNode;
   [key: string]: any; // allow passing arbitrary props to <group>
 }
@@ -56,7 +57,13 @@ const Board = memo((props: BoardProps) => {
   // Handle piece selection
   const handlePiecePointerDown = (x: number, y: number, z: number) => {
     const piece = board.getPiece({ x, y, z });
-    if (!piece || piece.color !== currentTurn) return;
+    // Only allow clicking pieces that match both the current turn and playerColor
+    if (
+      !piece ||
+      piece.color !== currentTurn ||
+      (props.playerColor && piece.color !== props.playerColor)
+    )
+      return;
     setSelected({ x, y, z });
     try {
       const moves = board.generateMoves({ x, y, z });
