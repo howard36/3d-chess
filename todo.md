@@ -239,10 +239,10 @@
 
 ### 5-A `useGameSocket` hook
 
-- [ ] Create hook with `send()` and `lastMessage`
-- [ ] No auto-reconnect
-- [ ] Test with `jest-websocket-mock`
-- [ ] Commit: `feat(ws): socket hook`
+- [x] Create hook with `send()` and `lastMessage`
+- [x] No auto-reconnect
+- [x] Test with `jest-websocket-mock`
+- [x] Commit: `feat(ws): socket hook`
 
 ### 5-B Start screen & create game
 
