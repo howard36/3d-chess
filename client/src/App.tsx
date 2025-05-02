@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 // import { Canvas } from '@react-three/fiber';
 // import { OrbitControls } from '@react-three/drei';
 // import Board from './three/Board';
@@ -9,9 +9,20 @@ import StartScreen from './screens/StartScreen';
 import GameScreen from './screens/GameScreen';
 import './App.css'; // Assuming some base styles might be here
 import { useGameSocket } from './hooks/useGameSocket';
+import React from 'react';
 
 function App() {
   const gameSocket = useGameSocket();
+  const [isCreator, setIsCreator] = React.useState(false);
+  const location = useLocation();
+
+  React.useEffect(() => {
+    // Reset isCreator when navigating to StartScreen
+    if (location.pathname === '/') {
+      setIsCreator(false);
+    }
+  }, [location.pathname]);
+
   // const { width, height } = useWindowSize();
   // const [turn, setTurn] = useState<'white' | 'black'>('white');
   return (
@@ -25,8 +36,14 @@ function App() {
     //   </Canvas>
     // </div>
     <Routes>
-      <Route path="/" element={<StartScreen gameSocket={gameSocket} />} />
-      <Route path="/game/:gameId" element={<GameScreen gameSocket={gameSocket} />} />
+      <Route
+        path="/"
+        element={<StartScreen gameSocket={gameSocket} setIsCreator={setIsCreator} />}
+      />
+      <Route
+        path="/game/:gameId"
+        element={<GameScreen gameSocket={gameSocket} isCreator={isCreator} />}
+      />
     </Routes>
   );
 }

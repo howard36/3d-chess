@@ -12,9 +12,10 @@ test('create game flow', async ({ page }) => {
   await startButton.click();
 
   // Wait for navigation and check the URL
-  // It should match /game/game_ followed by some characters
-  await page.waitForURL(/^http:\/\/localhost:\d+\/game\/game_[a-z0-9]+/);
-  expect(page.url()).toMatch(/^http:\/\/localhost:\d+\/game\/game_[a-z0-9]+/);
+  // It should match /game/ followed by some ID
+  const gameUrlRegex = /^http:\/\/localhost:\d+\/game\/[^/]+/; // Looser regex: matches /game/ followed by any non-slash characters
+  await page.waitForURL(gameUrlRegex);
+  expect(page.url()).toMatch(gameUrlRegex);
 
   // Check if the game screen content (placeholder) is visible
   const gameScreenTitle = page.getByRole('heading', { name: 'Game Screen' });

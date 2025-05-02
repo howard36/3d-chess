@@ -6,9 +6,10 @@ interface StartScreenProps {
     send: (msg: any) => void;
     lastMessage: React.RefObject<MessageEvent | null>;
   };
+  setIsCreator: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
+const StartScreen: React.FC<StartScreenProps> = ({ gameSocket, setIsCreator }) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -30,6 +31,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
   }, [isLoading, gameSocket, navigate]);
 
   const handleCreateGame = () => {
+    setIsCreator(true);
     setIsLoading(true);
     gameSocket.send({ type: 'create_game' });
   };
