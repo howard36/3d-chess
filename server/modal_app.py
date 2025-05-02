@@ -21,7 +21,6 @@ turns: dict[str, str] = {}
 @modal.asgi_app()
 def serve() -> "fastapi.FastAPI":
     import fastapi
-    import pydantic
     web_app = fastapi.FastAPI()
 
     @web_app.get("/health")
@@ -31,7 +30,6 @@ def serve() -> "fastapi.FastAPI":
     @web_app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
         await ws.accept()
-        print(f"[modal] pydantic version: {pydantic.__version__}")
         player_color = None  # Track the player's color for this connection
         gid = None  # Track the game id for this connection
         try:

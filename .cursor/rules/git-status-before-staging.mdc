@@ -3,14 +3,8 @@ description:
 globs: 
 alwaysApply: true
 ---
-# Git Status Before Commit Rule
+# Before Commit Rule
 
-Before committing any git changes, always run `git status -s` to see all the files that have changed. This ensures you do not miss any untracked or modified files and helps maintain transparency and completeness in your commits.
-
-Example:
-
-```
-git status -s
-```
+Before committing any git changes, always run the appropriate tests (`npm run test` in the `client/` directory, or `pytest` in the `server/` directory) and use `git status -s` to see all the files that have changed. This ensures you do not miss any untracked or modified files and helps maintain transparency and completeness in your commits.
 
 This rule applies to all contributors and should be followed before every `git add` operation.

@@ -9,7 +9,9 @@ def ws_server():
     Deploy the backend once for the session,
     then return the public WebSocket URL.
     """
+    import time
     app.deploy()     # programmatic deploy
+    time.sleep(10)   # wait 10 seconds before returning the web url
     return serve.web_url          # the function's web_url property 
 
 @pytest_asyncio.fixture
@@ -22,7 +24,7 @@ async def ws_connect(ws_server):
     opened = []
 
     async def _new(**kwargs):
-        conn = await websockets.connect(uri, open_timeout=10, **kwargs)
+        conn = await websockets.connect(uri, **kwargs)
         opened.append(conn)
         return conn
 
