@@ -246,10 +246,10 @@
 
 ### 5-B Start screen & create game
 
-- [ ] `/` route → `StartScreen` with "Create New Game" button
-- [ ] On click: send `create_game`, await `game_created`, redirect to `/game/:id`
-- [ ] Playwright test: flow from button to game URL
-- [ ] Commit: `feat(ui): start screen & create game flow`
+- [x] `/` route → `StartScreen` with "Create New Game" button
+- [x] On click: send `create_game`, await `game_created`, redirect to `/game/:id`
+- [x] Playwright test: flow from button to game URL
+- [x] Commit: `feat(ui): start screen & create game flow`
 
 ### 5-C Join game from link
 
