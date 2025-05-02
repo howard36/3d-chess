@@ -1,5 +1,9 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
+import Board, { BoardTurn } from '../three/Board';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import TurnIndicator from '../three/TurnIndicator';
 
 interface GameScreenProps {
   gameSocket: {
@@ -9,23 +13,74 @@ interface GameScreenProps {
   isCreator: boolean;
 }
 
+type PlayerColor = 'white' | 'black' | null;
+
+type Phase = 'waiting' | 'joined' | 'started';
+
 const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
   const { gameId } = useParams<{ gameId: string }>();
+  const [phase, setPhase] = React.useState<Phase>('waiting');
+  const [color, setColor] = React.useState<PlayerColor>(null);
+  const [currentTurn, setCurrentTurn] = React.useState<BoardTurn>('white');
+  const joinSent = React.useRef(false);
 
-  // For now, always in waiting phase (before game start)
-  const waitingPhase = true;
+  // Listen for game_start message
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      const event = gameSocket.lastMessage.current;
+      if (event) {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'game_start' && data.color) {
+            setColor(data.color);
+            setPhase('started');
+          }
+        } catch {}
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [gameSocket]);
 
+  // TODO: Listen for move_made messages to update currentTurn
+
+  // Send join_game when button is clicked
+  const handleJoin = () => {
+    if (!gameId || joinSent.current) return;
+    gameSocket.send({ type: 'join_game', gameId });
+    setPhase('joined');
+    joinSent.current = true;
+  };
+
+  // Render only Canvas and TurnIndicator when game starts
+  if (phase === 'started') {
+    return (
+      <div style={{ position: 'relative', height: '100vh', width: '100vw' }}>
+        <TurnIndicator turn={currentTurn} />
+        <Canvas data-testid="r3f-canvas" style={{ height: '100%', width: '100%' }}>
+          <ambientLight intensity={0.5} />
+          <pointLight position={[10, 10, 10]} />
+          <Board currentTurn={currentTurn} onTurnChange={setCurrentTurn} />
+          <OrbitControls makeDefault />
+        </Canvas>
+      </div>
+    );
+  }
+
+  // Render pre-game info otherwise
   return (
     <div>
       <h1>Game Screen</h1>
       <p>Game ID: {gameId}</p>
       <p>You are the creator: {isCreator ? 'true' : 'false'}</p>
-      {waitingPhase &&
+      {phase === 'waiting' &&
         (isCreator ? (
           <p>Waiting for player to join...</p>
         ) : (
-          <button disabled={false}>Join Game</button>
+          <button onClick={handleJoin} disabled={phase !== 'waiting'}>
+            Join Game
+          </button>
         ))}
+      {phase === 'joined' && !isCreator && <p>Joining game...</p>}
     </div>
   );
 };
