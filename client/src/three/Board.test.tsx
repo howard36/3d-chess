@@ -6,6 +6,7 @@ import { PieceType } from '../engine';
 import { act } from 'react';
 import TurnIndicator from './TurnIndicator';
 import { useState } from 'react';
+import { vi } from 'vitest';
 
 describe('Board', () => {
   it('renders 125 cube meshes', async () => {
@@ -104,48 +105,31 @@ describe('Board', () => {
     ).length;
     expect(highlightCount).toBeGreaterThan(0);
   });
-});
 
-// describe('TurnIndicator integration', () => {
-//   it('shows correct turn and flips after a move', async () => {
-//     // Minimal wrapper to test Board+TurnIndicator
-//     function Wrapper() {
-//       const [turn, setTurn] = useState<'white' | 'black'>('white');
-//       return (
-//         <>
-//           <TurnIndicator turn={turn} />
-//           <Board onTurnChange={setTurn} currentTurn={turn} />
-//         </>
-//       );
-//     }
-//     const renderer = await ReactThreeTestRenderer.create(<Wrapper />);
-//     // Find indicator
-//     let indicator = (renderer.getInstance() as ReactThreeTestInstance).findByProps({
-//       'data-testid': 'turn-indicator',
-//     });
-//     expect(indicator.props.children).toContain('White to move');
-//     // Find a pawn and move it
-//     const boardGroup = (renderer.scene as ReactThreeTestInstance)
-//       .children[0] as ReactThreeTestInstance;
-//     const pawn = boardGroup.children.find(
-//       (child) => child.type === 'Mesh' && child.props.userData?.piece?.type === PieceType.Pawn,
-//     ) as ReactThreeTestInstance;
-//     // Select pawn
-//     await act(async () => {
-//       pawn.props.onPointerDown?.({ stopPropagation: () => {} } as any);
-//     });
-//     // Find a highlighted cube
-//     const dest = (renderer.scene as ReactThreeTestInstance).findAll(
-//       (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
-//     )[0];
-//     // Move pawn
-//     await act(async () => {
-//       dest.props.onPointerDown?.({ stopPropagation: () => {} } as any);
-//     });
-//     // Indicator should flip
-//     indicator = (renderer.getInstance() as ReactThreeTestInstance).findByProps({
-//       'data-testid': 'turn-indicator',
-//     });
-//     expect(indicator.props.children).toContain('Black to move');
-//   });
-// });
+  it('calls onTurnChange with the correct next turn after a move', async () => {
+    const onTurnChange = vi.fn();
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board onTurnChange={onTurnChange} currentTurn="white" />,
+    );
+    // Find a pawn
+    const boardGroup = (renderer.scene as ReactThreeTestInstance)
+      .children[0] as ReactThreeTestInstance;
+    const pawn = boardGroup.children.find(
+      (child) => child.type === 'Mesh' && child.props.userData?.piece?.type === PieceType.Pawn,
+    ) as ReactThreeTestInstance;
+    // Select pawn
+    await act(async () => {
+      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as any);
+    });
+    // Find a highlighted destination
+    const dest = (renderer.scene as ReactThreeTestInstance).findAll(
+      (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
+    )[0];
+    // Move pawn
+    await act(async () => {
+      dest.props.onPointerDown?.({ stopPropagation: () => {} } as any);
+    });
+    // Assert turn toggled
+    expect(onTurnChange).toHaveBeenCalledWith('black');
+  });
+});
