@@ -8,8 +8,10 @@ import { Routes, Route } from 'react-router-dom';
 import StartScreen from './screens/StartScreen';
 import GameScreen from './screens/GameScreen';
 import './App.css'; // Assuming some base styles might be here
+import { useGameSocket } from './hooks/useGameSocket';
 
 function App() {
+  const gameSocket = useGameSocket();
   // const { width, height } = useWindowSize();
   // const [turn, setTurn] = useState<'white' | 'black'>('white');
   return (
@@ -23,8 +25,8 @@ function App() {
     //   </Canvas>
     // </div>
     <Routes>
-      <Route path="/" element={<StartScreen />} />
-      <Route path="/game/:gameId" element={<GameScreen />} />
+      <Route path="/" element={<StartScreen gameSocket={gameSocket} />} />
+      <Route path="/game/:gameId" element={<GameScreen gameSocket={gameSocket} />} />
     </Routes>
   );
 }

@@ -1,7 +1,14 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 
-const GameScreen: React.FC = () => {
+interface GameScreenProps {
+  gameSocket: {
+    send: (msg: any) => void;
+    lastMessage: React.RefObject<MessageEvent | null>;
+  };
+}
+
+const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { gameId } = useParams<{ gameId: string }>();
 
   return (

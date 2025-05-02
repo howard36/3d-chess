@@ -1,31 +1,37 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-// Placeholder for API call
-const createGameApi = async (): Promise<{ gameId: string }> => {
-  // Simulate API call delay
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  // In a real app, this would be: fetch('/api/games', { method: 'POST' }).then(res => res.json())
-  const gameId = `game_${Math.random().toString(36).substring(2, 9)}`;
-  console.log(`Simulated game creation, ID: ${gameId}`);
-  return { gameId };
-};
+interface StartScreenProps {
+  gameSocket: {
+    send: (msg: any) => void;
+    lastMessage: React.RefObject<MessageEvent | null>;
+  };
+}
 
-const StartScreen: React.FC = () => {
+const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
 
-  const handleCreateGame = async () => {
+  React.useEffect(() => {
+    if (!isLoading) return;
+    const interval = setInterval(() => {
+      const event = gameSocket.lastMessage.current;
+      if (event) {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'game_created' && data.gameId) {
+            setIsLoading(false);
+            navigate(`/game/${data.gameId}`);
+          }
+        } catch {}
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [isLoading, gameSocket, navigate]);
+
+  const handleCreateGame = () => {
     setIsLoading(true);
-    try {
-      const { gameId } = await createGameApi();
-      navigate(`/game/${gameId}`);
-    } catch (error) {
-      console.error('Failed to create game:', error);
-      // Handle error appropriately, maybe show a message to the user
-      setIsLoading(false);
-    }
-    // No need to set isLoading false on success as we navigate away
+    gameSocket.send({ type: 'create_game' });
   };
 
   return (

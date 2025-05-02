@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 const WS_URL = 'wss://howard-modal-labs--3d-chess-backend-serve.modal.run/ws';
 
-export function useGameSocket(gameId: string | null) {
+export function useGameSocket() {
   const socketRef = useRef<WebSocket | null>(null);
   const lastMessage = useRef<MessageEvent | null>(null);
 
@@ -13,11 +13,6 @@ export function useGameSocket(gameId: string | null) {
   };
 
   useEffect(() => {
-    if (!gameId) {
-      socketRef.current?.close();
-      socketRef.current = null;
-      return;
-    }
     const ws = new WebSocket(WS_URL);
     socketRef.current = ws;
 
@@ -29,7 +24,7 @@ export function useGameSocket(gameId: string | null) {
       ws.close();
       socketRef.current = null;
     };
-  }, [gameId]);
+  }, []);
 
   return { send, lastMessage };
 }
