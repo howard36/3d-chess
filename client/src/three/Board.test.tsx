@@ -153,4 +153,30 @@ describe('Board', () => {
     expect(onMove).toHaveBeenCalledTimes(1);
     // Board no longer reconciles with moves prop; parent is responsible
   });
+
+  it('renders king with emissive red when in check', async () => {
+    // Set up a board with black king in check from a white rook
+    const board = new EngineBoard();
+    // Clear board
+    for (let z = 0; z < 5; z++)
+      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.setPiece({ x, y, z }, null);
+    // Place black king at (0,0,0), white rook at (0,4,0)
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'black' });
+    board.setPiece({ x: 0, y: 4, z: 0 }, { type: PieceType.Rook, color: 'white' });
+    // Render board for black's turn (king in check)
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={board} currentTurn="black" />,
+    );
+    // Find the king mesh
+    const kingMesh = (renderer.scene as ReactThreeTestInstance).find(
+      (node) =>
+        node.type === 'Mesh' &&
+        node.props.userData?.piece?.type === PieceType.King &&
+        node.props.userData?.piece?.color === 'black',
+    );
+    expect(kingMesh).toBeDefined();
+    // Emissive should be included in userData of the king mesh
+    const emissive = (kingMesh.props.userData as any).emissive;
+    expect(emissive === '#ff2222' || emissive === 0xff2222).toBe(true);
+  });
 });

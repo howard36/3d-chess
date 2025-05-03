@@ -53,6 +53,14 @@ const Board = memo((props: BoardProps) => {
     }
   }
 
+  // --- King in check logic ---
+  let kingInCheck = false;
+  let kingPos: { x: number; y: number; z: number } | null = null;
+  try {
+    kingInCheck = board.inCheck(props.currentTurn);
+    kingPos = board.findKing(props.currentTurn);
+  } catch {}
+
   // Handle piece selection
   const handlePiecePointerDown = (x: number, y: number, z: number) => {
     const piece = board.getPiece({ x, y, z });
@@ -141,6 +149,18 @@ const Board = memo((props: BoardProps) => {
             e.stopPropagation();
             handlePiecePointerDown(x, y, z);
           }}
+          // Highlight king if in check
+          emissive={
+            type === PieceType.King &&
+            color === props.currentTurn &&
+            kingInCheck &&
+            kingPos &&
+            kingPos.x === x &&
+            kingPos.y === y &&
+            kingPos.z === z
+              ? '#ff2222'
+              : undefined
+          }
         />
       ))}
     </group>
