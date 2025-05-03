@@ -1,10 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const WS_URL = 'wss://howard-modal-labs--3d-chess-backend-serve.modal.run/ws';
 
 export function useGameSocket() {
   const socketRef = useRef<WebSocket | null>(null);
-  const lastMessage = useRef<MessageEvent | null>(null);
+  const [lastMessage, setLastMessage] = useState<MessageEvent | null>(null);
 
   const send = (msg: any) => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
@@ -17,7 +17,7 @@ export function useGameSocket() {
     socketRef.current = ws;
 
     ws.onmessage = (event) => {
-      lastMessage.current = event;
+      setLastMessage(event);
     };
 
     return () => {

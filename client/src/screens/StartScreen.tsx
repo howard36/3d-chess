@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 interface StartScreenProps {
   gameSocket: {
     send: (msg: any) => void;
-    lastMessage: React.RefObject<MessageEvent | null>;
+    lastMessage: MessageEvent | null;
   };
   setIsCreator: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -14,21 +14,15 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket, setIsCreator }) =
   const [isLoading, setIsLoading] = React.useState(false);
 
   React.useEffect(() => {
-    if (!isLoading) return;
-    const interval = setInterval(() => {
-      const event = gameSocket.lastMessage.current;
-      if (event) {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'game_created' && data.gameId) {
-            setIsLoading(false);
-            navigate(`/game/${data.gameId}`);
-          }
-        } catch {}
+    const event = gameSocket.lastMessage;
+    if (event) {
+      const data = JSON.parse(event.data);
+      if (data.type === 'game_created' && data.gameId) {
+        setIsLoading(false);
+        navigate(`/game/${data.gameId}`);
       }
-    }, 100);
-    return () => clearInterval(interval);
-  }, [isLoading, gameSocket, navigate]);
+    }
+  }, [gameSocket.lastMessage, navigate]);
 
   const handleCreateGame = () => {
     setIsCreator(true);

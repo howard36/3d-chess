@@ -27,7 +27,7 @@ describe('useGameSocket', () => {
   });
 
   it('sends create_game and receives game_created', async () => {
-    const { result } = renderHook(() => useGameSocket(gameId));
+    const { result } = renderHook(() => useGameSocket());
 
     // Wait for connection
     await server.connected;
@@ -49,7 +49,7 @@ describe('useGameSocket', () => {
 
     // Wait for the message to be received by the hook
     await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(result.current.lastMessage.current?.data).toBe(
+    expect(result.current.lastMessage?.data).toBe(
       JSON.stringify({ type: 'game_created', id: gameId }),
     );
   });

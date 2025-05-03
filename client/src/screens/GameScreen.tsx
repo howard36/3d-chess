@@ -8,7 +8,7 @@ import TurnIndicator from '../three/TurnIndicator';
 interface GameScreenProps {
   gameSocket: {
     send: (msg: any) => void;
-    lastMessage: React.RefObject<MessageEvent | null>;
+    lastMessage: MessageEvent | null;
   };
   isCreator: boolean;
 }
@@ -22,33 +22,28 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
   const [phase, setPhase] = React.useState<Phase>('waiting');
   const [color, setColor] = React.useState<PlayerColor>(null);
   const [currentTurn, setCurrentTurn] = React.useState<BoardTurn>('white');
-  const joinSent = React.useRef(false);
+  const [joinSent, setJoinSent] = React.useState(false);
 
   // Listen for game_start message
   React.useEffect(() => {
-    const interval = setInterval(() => {
-      const event = gameSocket.lastMessage.current;
-      if (event) {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'game_start' && data.color) {
-            setColor(data.color);
-            setPhase('started');
-          }
-        } catch {}
+    const event = gameSocket.lastMessage;
+    if (event) {
+      const data = JSON.parse(event.data);
+      if (data.type === 'game_start' && data.color) {
+        setColor(data.color);
+        setPhase('started');
       }
-    }, 100);
-    return () => clearInterval(interval);
-  }, [gameSocket]);
+    }
+  }, [gameSocket.lastMessage]);
 
   // TODO: Listen for move_made messages to update currentTurn
 
   // Send join_game when button is clicked
   const handleJoin = () => {
-    if (!gameId || joinSent.current) return;
+    if (!gameId || joinSent) return;
     gameSocket.send({ type: 'join_game', gameId });
     setPhase('joined');
-    joinSent.current = true;
+    setJoinSent(true);
   };
 
   // Render only Canvas and TurnIndicator when game starts
