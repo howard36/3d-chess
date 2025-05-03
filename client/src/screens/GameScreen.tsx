@@ -22,13 +22,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
   const [phase, setPhase] = React.useState<Phase>('waiting');
   const [color, setColor] = React.useState<PlayerColor>(null);
   const [currentTurn, setCurrentTurn] = React.useState<BoardTurn>('white');
-  const [joinSent, setJoinSent] = React.useState(false);
 
   // Listen for game_start message
   React.useEffect(() => {
     const event = gameSocket.lastMessage;
     if (event) {
-      console.log('Received WebSocket event:', event);
       const data = JSON.parse(event.data);
       if (data.type === 'game_start' && data.color) {
         setColor(data.color);
@@ -41,10 +39,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
 
   // Send join_game when button is clicked
   const handleJoin = () => {
-    if (!gameId || joinSent) return;
+    if (!gameId || phase !== 'waiting') return;
     gameSocket.send({ type: 'join_game', gameId });
     setPhase('joined');
-    setJoinSent(true);
   };
 
   // Render only Canvas and TurnIndicator when game starts
