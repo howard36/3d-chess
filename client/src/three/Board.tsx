@@ -19,13 +19,15 @@ const cubes = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => {
 
 export type BoardTurn = 'white' | 'black';
 
+export type ServerPromotionType = 'Q' | 'R' | 'B' | 'N' | 'U';
+
 export interface BoardProps {
   currentTurn: BoardTurn;
   playerColor?: 'white' | 'black' | null;
   onMove?: (move: {
     from: { x: number; y: number; z: number };
     to: { x: number; y: number; z: number };
-    promotion?: PieceType;
+    promotion?: ServerPromotionType;
   }) => void;
   board: EngineBoard;
   children?: React.ReactNode;
@@ -83,9 +85,24 @@ const Board = memo((props: BoardProps) => {
   // Handle highlighted cube click (move application)
   const handleCubePointerDown = (x: number, y: number, z: number) => {
     if (!selected) return;
+    // Detect if this is a pawn promotion move
+    const piece = board.getPiece(selected);
+    let promotion: ServerPromotionType | undefined = undefined;
+    if (
+      piece &&
+      piece.type === PieceType.Pawn &&
+      ((piece.color === 'white' && y === 4 && z === 4) ||
+        (piece.color === 'black' && y === 0 && z === 0))
+    ) {
+      promotion = 'Q';
+    }
     // Call onMove prop to send move to server
     if (props.onMove) {
-      props.onMove({ from: selected, to: { x, y, z } });
+      props.onMove({
+        from: selected,
+        to: { x, y, z },
+        promotion: promotion === 'Q' ? 'Q' : undefined,
+      });
     }
     // Clear selection and highlights
     setSelected(null);

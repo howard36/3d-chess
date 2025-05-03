@@ -51,8 +51,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
     for (const move of moves) {
       let promotion: PieceType | undefined = undefined;
       if (move.promotion) {
-        promotion =
-          typeof move.promotion === 'string' ? (PieceType as any)[move.promotion] : move.promotion;
+        promotion = PieceType.Queen;
       }
       b.applyMove(move.from, move.to, promotion);
     }
