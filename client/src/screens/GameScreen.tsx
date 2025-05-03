@@ -28,6 +28,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
   React.useEffect(() => {
     const event = gameSocket.lastMessage;
     if (event) {
+      console.log('Received WebSocket event:', event);
       const data = JSON.parse(event.data);
       if (data.type === 'game_start' && data.color) {
         setColor(data.color);

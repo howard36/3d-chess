@@ -25,10 +25,7 @@ test('renders StartScreen for the default route', () => {
 test('GameScreen shows waiting message if isCreator is true', () => {
   render(
     <MemoryRouter initialEntries={['/game/abc123']}>
-      <GameScreen
-        gameSocket={{ send: () => {}, lastMessage: { current: null } }}
-        isCreator={true}
-      />
+      <GameScreen gameSocket={{ send: () => {}, lastMessage: null }} isCreator={true} />
     </MemoryRouter>,
   );
   expect(screen.getByText('Waiting for player to join...')).toBeInTheDocument();
@@ -38,10 +35,7 @@ test('GameScreen shows waiting message if isCreator is true', () => {
 test('GameScreen shows join button if isCreator is false', () => {
   render(
     <MemoryRouter initialEntries={['/game/abc123']}>
-      <GameScreen
-        gameSocket={{ send: () => {}, lastMessage: { current: null } }}
-        isCreator={false}
-      />
+      <GameScreen gameSocket={{ send: () => {}, lastMessage: null }} isCreator={false} />
     </MemoryRouter>,
   );
   expect(screen.getByRole('button', { name: 'Join Game' })).toBeInTheDocument();
@@ -50,7 +44,7 @@ test('GameScreen shows join button if isCreator is false', () => {
 
 test('clicking Join Game sends join_game message', async () => {
   const send = vi.fn();
-  const lastMessage = { current: null };
+  const lastMessage = null;
   render(
     <MemoryRouter initialEntries={['/game/abc123']}>
       <Routes>
