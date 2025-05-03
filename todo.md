@@ -289,10 +289,10 @@
 
 ### 6-C Pawn promotion dialog
 
-- [ ] Detect promotion square moves
-- [ ] Show picker for Q/R/B/N/U, then send with `promotion` field
-- [ ] RTL test: promote pawn, verify queen mesh
-- [ ] Commit: `feat(ui): promotion workflow`
+- [x] Detect promotion square moves
+- [x] Show picker for Q/R/B/N/U, then send with `promotion` field
+- [x] RTL test: promote pawn, verify queen mesh
+- [x] Commit: `feat(ui): promotion workflow`
 
 ### 6-D Styling pass
 
