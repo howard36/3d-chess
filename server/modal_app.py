@@ -16,7 +16,7 @@ app = modal.App("3d-chess-backend")
 games: dict[str, dict[str, WebSocket]] = {}
 turns: dict[str, str] = {}
 
-@app.function(image=image, include_source=True, max_containers=1)
+@app.function(image=image, include_source=True, max_containers=1, timeout=3600)
 @modal.concurrent(max_inputs=1000)
 @modal.asgi_app()
 def serve() -> "fastapi.FastAPI":

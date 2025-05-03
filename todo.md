@@ -200,11 +200,6 @@
 - [x] Test: clicking a piece highlights legal move cubes
 - [x] Commit: `feat(ui): starting position rendered`
 
-### 3-E Refactor Board to be fully controlled by parent, apply moves only on move_made, update tests and GameScreen
-
-- [x] Refactor Board to be fully controlled by parent, apply moves only on move_made, update tests and GameScreen
-- [x] Commit: `feat(ui): refactored Board to be fully controlled by parent, apply moves only on move_made, update tests and GameScreen`
-
 ---
 
 ## Phase 4 – Local Play Slice
@@ -281,9 +276,9 @@
 
 ### 6-A King in check glow
 
-- [ ] When `inCheck`, set king emissive red
-- [ ] RTL test for material property
-- [ ] Commit: `feat(ui): king glows when in check`
+- [x] When `inCheck`, set king emissive red
+- [x] RTL test for material property
+- [x] Commit: `feat(ui): king glows when in check`
 
 ### 6-B End-game modal
 
@@ -308,4 +303,41 @@
 ### 6-E Accessibility audit
 
 - [ ] Add `aria-label` to meshes (e.g. "White Knight at Bb2")
-- [ ] Enable `eslint-plugin-jsx-a11y`
+- [ ] Enable `eslint-plugin-jsx-a11y` rules
+- [ ] Run lint & fix violations
+- [ ] Commit: `chore(ui): a11y labels & lint rules`
+
+---
+
+## Phase 7 – Hardening & E2E
+
+### 7-A Full Playwright flow
+
+- [ ] `e2e/full_game.spec.ts`: create, join, execute mate, expect modal
+- [ ] Commit: `test(e2e): full-game happy path`
+
+### 7-B Coverage gate ≥ 90 %
+
+- [ ] Merge Vitest, Pytest & Playwright coverage in CI
+- [ ] Fail if overall < 90 %
+- [ ] Commit: `chore(ci): enforce 90 % coverage`
+
+### 7-C OS/Node CI matrix
+
+- [ ] Expand CI to ubuntu/windows × Node 18/20
+- [ ] Ensure all tests pass
+- [ ] Commit: `ci: OS/Node matrix added`
+
+### 7-D Schema-fuzz tests
+
+- [ ] Use `jsonschema-faker` to generate 100 valid envelopes
+- [ ] Feed to WS server in tests; assert behavior
+- [ ] Commit: `test(server): schema-fuzz message tests`
+
+---
+
+## Phase 8 – Deployment
+
+### 8-A Modal deploy script
+
+- [ ] Create `modal_deploy.sh` for `

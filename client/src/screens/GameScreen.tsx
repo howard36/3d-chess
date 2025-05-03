@@ -7,6 +7,7 @@ import TurnIndicator from '../three/TurnIndicator';
 import { toZXY, fromZXY } from '../engine/coords';
 import { Board as EngineBoard } from '../engine';
 import { PieceType } from '../engine/pieces';
+import EndGameModal from './EndGameModal';
 
 interface GameScreenProps {
   gameSocket: {
@@ -32,6 +33,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
       promotion?: string;
     }[]
   >([]);
+  const [gameOver, setGameOver] = React.useState<null | {
+    result: 'checkmate' | 'stalemate';
+    winner?: 'white' | 'black';
+  }>(null);
   // Maintain the board state in GameScreen
   const [board, setBoard] = React.useState(() => {
     const b = new EngineBoard();
@@ -54,6 +59,17 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
     setBoard(b);
     // Print the new list of moves
     console.log('Current moves:', moves);
+    // Check for checkmate/stalemate after move
+    // The player who just moved is (moves.length % 2 === 0 ? 'black' : 'white')
+    // The *other* player is the one whose turn it now is:
+    const nextTurn = moves.length % 2 === 0 ? 'white' : 'black';
+    if (b.isCheckmate(nextTurn)) {
+      setGameOver({ result: 'checkmate', winner: moves.length % 2 === 0 ? 'black' : 'white' });
+    } else if (b.isStalemate(nextTurn)) {
+      setGameOver({ result: 'stalemate' });
+    } else {
+      setGameOver(null);
+    }
   }, [moves]);
 
   // Listen for game_start message
@@ -141,6 +157,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
           <Board currentTurn={currentTurn} playerColor={color} onMove={handleMove} board={board} />
           <OrbitControls makeDefault />
         </Canvas>
+        {gameOver && <EndGameModal result={gameOver.result} winner={gameOver.winner} />}
       </div>
     );
   }
