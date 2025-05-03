@@ -4,6 +4,7 @@ import { ThreeElements } from '@react-three/fiber';
 import { Board as EngineBoard } from '../engine';
 import { PieceMesh } from './PieceMesh';
 import React from 'react';
+import { PieceType } from '../engine/pieces';
 
 const GRID_SIZE = 5;
 const SPACING = 1.1;
@@ -19,29 +20,27 @@ const cubes = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => {
 export type BoardTurn = 'white' | 'black';
 
 export interface BoardProps {
-  onTurnChange?: (turn: BoardTurn) => void;
-  currentTurn?: BoardTurn;
+  currentTurn: BoardTurn;
   playerColor?: 'white' | 'black' | null;
+  onMove?: (move: {
+    from: { x: number; y: number; z: number };
+    to: { x: number; y: number; z: number };
+    promotion?: PieceType;
+  }) => void;
+  board: EngineBoard;
   children?: React.ReactNode;
   [key: string]: any; // allow passing arbitrary props to <group>
 }
 
 const Board = memo((props: BoardProps) => {
-  // Set up the engine board and starting position
-  const board = useMemo(() => {
-    const b = new EngineBoard();
-    EngineBoard.setupStartingPosition(b);
-    return b;
-  }, []);
+  // Remove internal board state, use props.board
+  const board = props.board;
 
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | { x: number; y: number; z: number }>(null);
   const [legalMoves, setLegalMoves] = useState<{ x: number; y: number; z: number }[]>([]);
-  // Add state for current turn and force update
-  const [currentTurn, setCurrentTurn] = useState<BoardTurn>(props.currentTurn ?? 'white');
-  const [, setVersion] = useState(0); // for force update
 
-  // Collect all pieces with their coordinates
+  // Collect all pieces with their coordinates from the provided board
   const pieces = [];
   for (let z = 0; z < GRID_SIZE; z++) {
     for (let x = 0; x < GRID_SIZE; x++) {
@@ -60,7 +59,7 @@ const Board = memo((props: BoardProps) => {
     // Only allow clicking pieces that match both the current turn and playerColor
     if (
       !piece ||
-      piece.color !== currentTurn ||
+      piece.color !== props.currentTurn ||
       (props.playerColor && piece.color !== props.playerColor)
     )
       return;
@@ -73,24 +72,16 @@ const Board = memo((props: BoardProps) => {
     }
   };
 
-  // Toggle turn
-  const handleTurnChange = (turn: BoardTurn) => {
-    setCurrentTurn(turn);
-    props.onTurnChange?.(turn);
-  };
-
   // Handle highlighted cube click (move application)
   const handleCubePointerDown = (x: number, y: number, z: number) => {
     if (!selected) return;
-    // Apply move
-    board.applyMove(selected, { x, y, z });
+    // Call onMove prop to send move to server
+    if (props.onMove) {
+      props.onMove({ from: selected, to: { x, y, z } });
+    }
     // Clear selection and highlights
     setSelected(null);
     setLegalMoves([]);
-    // Toggle turn
-    handleTurnChange(currentTurn === 'white' ? 'black' : 'white');
-    // Force update to re-render scene
-    setVersion((v) => v + 1);
   };
 
   // Helper to check if a cube is a legal move destination

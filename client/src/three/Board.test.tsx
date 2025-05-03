@@ -7,10 +7,20 @@ import { act } from 'react';
 import TurnIndicator from './TurnIndicator';
 import { useState } from 'react';
 import { vi } from 'vitest';
+import { Board as EngineBoard } from '../engine';
+
+// Helper to create a fresh board
+function createTestBoard() {
+  const b = new EngineBoard();
+  EngineBoard.setupStartingPosition(b);
+  return b;
+}
 
 describe('Board', () => {
   it('renders 125 cube meshes', async () => {
-    const renderer = await ReactThreeTestRenderer.create(<Board />);
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
     // Count only cubes by userData.cube === true
     const cubeCount = (renderer.scene as ReactThreeTestInstance).findAll(
       (node) => node.type === 'Mesh' && node.props.userData?.cube === true,
@@ -19,7 +29,9 @@ describe('Board', () => {
   });
 
   it('renders 40 piece meshes', async () => {
-    const renderer = await ReactThreeTestRenderer.create(<Board />);
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
     const pieceCount = (renderer.scene as ReactThreeTestInstance).findAll(
       (node) => node.type === 'Mesh' && node.props.userData?.piece !== undefined,
     ).length;
@@ -27,7 +39,9 @@ describe('Board', () => {
   });
 
   it('clicks a pawn and highlights destination cubes', async () => {
-    const renderer = await ReactThreeTestRenderer.create(<Board />);
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const pawn = boardGroup.children.find(
@@ -48,7 +62,9 @@ describe('Board', () => {
   });
 
   it('unselects a piece when clicking empty space after selecting', async () => {
-    const renderer = await ReactThreeTestRenderer.create(<Board />);
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const pawn = boardGroup.children.find(
@@ -78,7 +94,9 @@ describe('Board', () => {
   });
 
   it('does not unselect when clicking another piece (selection moves)', async () => {
-    const renderer = await ReactThreeTestRenderer.create(<Board />);
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const pawns = boardGroup.children.filter(
@@ -106,10 +124,12 @@ describe('Board', () => {
     expect(highlightCount).toBeGreaterThan(0);
   });
 
-  it('calls onTurnChange with the correct next turn after a move', async () => {
-    const onTurnChange = vi.fn();
+  it('calls onMove when a move is made and reconciles with moves prop', async () => {
+    const onMove = vi.fn();
+    // Track moves for reconciliation
+    const board = createTestBoard();
     const renderer = await ReactThreeTestRenderer.create(
-      <Board onTurnChange={onTurnChange} currentTurn="white" />,
+      <Board onMove={onMove} board={board} currentTurn="white" />,
     );
     // Find a pawn
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
@@ -125,11 +145,12 @@ describe('Board', () => {
     const dest = (renderer.scene as ReactThreeTestInstance).findAll(
       (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
     )[0];
-    // Move pawn
+    // Move pawn (local move)
     await act(async () => {
       dest.props.onPointerDown?.({ stopPropagation: () => {} } as any);
     });
-    // Assert turn toggled
-    expect(onTurnChange).toHaveBeenCalledWith('black');
+    // onMove should be called
+    expect(onMove).toHaveBeenCalledTimes(1);
+    // Board no longer reconciles with moves prop; parent is responsible
   });
 });

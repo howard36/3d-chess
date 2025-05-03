@@ -4,6 +4,9 @@ import Board, { BoardTurn } from '../three/Board';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import TurnIndicator from '../three/TurnIndicator';
+import { toZXY, fromZXY } from '../engine/coords';
+import { Board as EngineBoard } from '../engine';
+import { PieceType } from '../engine/pieces';
 
 interface GameScreenProps {
   gameSocket: {
@@ -22,20 +25,79 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
   const [phase, setPhase] = React.useState<Phase>('waiting');
   const [color, setColor] = React.useState<PlayerColor>(null);
   const [currentTurn, setCurrentTurn] = React.useState<BoardTurn>('white');
+  const [moves, setMoves] = React.useState<
+    {
+      from: { x: number; y: number; z: number };
+      to: { x: number; y: number; z: number };
+      promotion?: string;
+    }[]
+  >([]);
+  // Maintain the board state in GameScreen
+  const [board, setBoard] = React.useState(() => {
+    const b = new EngineBoard();
+    EngineBoard.setupStartingPosition(b);
+    return b;
+  });
+
+  // Apply moves to the board when moves change
+  React.useEffect(() => {
+    const b = new EngineBoard();
+    EngineBoard.setupStartingPosition(b);
+    for (const move of moves) {
+      let promotion: PieceType | undefined = undefined;
+      if (move.promotion) {
+        promotion =
+          typeof move.promotion === 'string' ? (PieceType as any)[move.promotion] : move.promotion;
+      }
+      b.applyMove(move.from, move.to, promotion);
+    }
+    setBoard(b);
+    // Print the new list of moves
+    console.log('Current moves:', moves);
+  }, [moves]);
 
   // Listen for game_start message
   React.useEffect(() => {
     const event = gameSocket.lastMessage;
+    console.log('lastMessage:', event);
     if (event) {
-      const data = JSON.parse(event.data);
-      if (data.type === 'game_start' && data.color) {
-        setColor(data.color);
+      const parsed = JSON.parse(event.data);
+      console.log('parsed before destructuring:', parsed);
+
+      if (parsed.type === 'game_start' && parsed.color) {
+        setColor(parsed.color);
         setPhase('started');
+      }
+
+      if (parsed.type === 'move_made' && parsed.by && parsed.from && parsed.to) {
+        const { from: fromStr, to: toStr, promotion, by } = parsed;
+        const parsedMove = {
+          from: fromZXY(fromStr),
+          to: fromZXY(toStr),
+          promotion,
+        };
+        setMoves((prev) => [...prev, parsedMove]);
+        // Use the 'by' field from the server to set the current turn
+        setCurrentTurn(by === 'white' ? 'black' : 'white');
       }
     }
   }, [gameSocket.lastMessage]);
 
-  // TODO: Listen for move_made messages to update currentTurn
+  // Send move message on local move
+  const handleMove = (move: {
+    from: { x: number; y: number; z: number };
+    to: { x: number; y: number; z: number };
+    promotion?: string;
+  }) => {
+    if (!gameId) return;
+    // Only send move to server; moves will be updated on move_made
+    gameSocket.send({
+      type: 'move',
+      from: toZXY(move.from),
+      to: toZXY(move.to),
+      promotion: move.promotion, // if any
+    });
+  };
 
   // Send join_game when button is clicked
   const handleJoin = () => {
@@ -76,7 +138,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
         <Canvas data-testid="r3f-canvas" style={{ height: '100%', width: '100%' }}>
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} />
-          <Board currentTurn={currentTurn} onTurnChange={setCurrentTurn} playerColor={color} />
+          <Board currentTurn={currentTurn} playerColor={color} onMove={handleMove} board={board} />
           <OrbitControls makeDefault />
         </Canvas>
       </div>
