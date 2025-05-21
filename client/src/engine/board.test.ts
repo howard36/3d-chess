@@ -1,28 +1,35 @@
-import { Board } from './board';
+import { Board, Move } from './board';
 import { PieceType } from './pieces';
 import { Coord } from './coords';
 
+const ALL_PROMOTION_TYPES = [
+  PieceType.Queen,
+  PieceType.Rook,
+  PieceType.Bishop,
+  PieceType.Knight,
+  PieceType.Unicorn,
+];
+
 describe('Board move generation', () => {
-  it('rook from center has 6 ray directions', () => {
+  it('rook from center has 6 ray directions, each up to 2 squares', () => {
     const board = new Board();
-    // Place rook at center
     const center: Coord = { x: 2, y: 2, z: 2 };
     board.setPiece(center, { type: PieceType.Rook, color: 'white' });
-    const moves = board.generateMoves(center);
-    // Should be 6 rays, each up to 2 squares (no blockers): 2*6=12
+    const moves = board.generatePotentialMoves(center);
+    // Expected: 6 directions * 2 squares each = 12 moves
     expect(moves.length).toBe(12);
-    // All moves should be in straight lines from center
     for (const move of moves) {
-      const dx = move.x - center.x;
-      const dy = move.y - center.y;
-      const dz = move.z - center.z;
-      expect(
-        [
-          [dx !== 0 && dy === 0 && dz === 0],
-          [dx === 0 && dy !== 0 && dz === 0],
-          [dx === 0 && dy === 0 && dz !== 0],
-        ].some(([b]) => b),
-      ).toBe(true);
+      expect(move.from).toEqual(center);
+      expect(move.promotion).toBeUndefined();
+      const dx = move.to.x - center.x;
+      const dy = move.to.y - center.y;
+      const dz = move.to.z - center.z;
+      // Check it's a straight line and not stationary
+      const isStraightLine =
+        (dx !== 0 && dy === 0 && dz === 0) ||
+        (dx === 0 && dy !== 0 && dz === 0) ||
+        (dx === 0 && dy === 0 && dz !== 0);
+      expect(isStraightLine).toBe(true);
     }
   });
 
@@ -30,22 +37,19 @@ describe('Board move generation', () => {
     const board = new Board();
     const corner: Coord = { x: 0, y: 0, z: 0 };
     board.setPiece(corner, { type: PieceType.Knight, color: 'white' });
-    const moves = board.generateMoves(corner);
-
-    // Based on spec (permutations of ±2, ±1, 0) and board bounds (0-4)
-    const expectedMoves: Coord[] = [
-      // From (0,0,0), only positive displacements are possible
-      { x: 2, y: 1, z: 0 }, // (+2, +1, 0)
-      { x: 1, y: 2, z: 0 }, // (+1, +2, 0)
-      { x: 2, y: 0, z: 1 }, // (+2, 0, +1)
-      { x: 0, y: 2, z: 1 }, // (0, +2, +1)
-      { x: 1, y: 0, z: 2 }, // (+1, 0, +2)
-      { x: 0, y: 1, z: 2 }, // (0, +1, +2)
+    const moves = board.generatePotentialMoves(corner);
+    const expectedDestinations: Coord[] = [
+      { x: 2, y: 1, z: 0 },
+      { x: 1, y: 2, z: 0 },
+      { x: 2, y: 0, z: 1 },
+      { x: 0, y: 2, z: 1 },
+      { x: 1, y: 0, z: 2 },
+      { x: 0, y: 1, z: 2 },
     ];
-
-    // Check that exactly these moves are generated
-    expect(moves).toHaveLength(expectedMoves.length);
-    expect(moves).toEqual(expect.arrayContaining(expectedMoves));
+    expect(moves.length).toBe(expectedDestinations.length);
+    for (const dest of expectedDestinations) {
+      expect(moves).toContainEqual({ from: corner, to: dest, promotion: undefined });
+    }
   });
 
   it('board boundaries enforced', () => {
@@ -62,79 +66,143 @@ describe('Board move generation', () => {
 });
 
 describe('Pawn move generation and promotion', () => {
-  it('white pawn: legal non-capture forward & up', () => {
+  it('white pawn: non-capture forward & up, no promotion', () => {
     const board = new Board();
-    const from: Coord = { x: 2, y: 2, z: 2 };
+    const from: Coord = { x: 2, y: 2, z: 2 }; // Not a promotion rank/level
     board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
-    const moves = board.generateMoves(from);
-    expect(moves).toEqual(
-      expect.arrayContaining([
-        { x: 2, y: 3, z: 2 }, // forward
-        { x: 2, y: 2, z: 3 }, // up
-      ]),
-    );
+    const moves = board.generatePotentialMoves(from);
+    const expectedMoves: Move[] = [
+      { from, to: { x: 2, y: 3, z: 2 }, promotion: undefined }, // forward
+      { from, to: { x: 2, y: 2, z: 3 }, promotion: undefined }, // up
+    ];
+    expect(moves).toEqual(expect.arrayContaining(expectedMoves));
+    expect(moves.length).toBe(expectedMoves.length); // Ensure no extra moves
   });
 
-  it('white pawn: capture directions matrix', () => {
+  it('white pawn: capture directions, no promotion', () => {
     const board = new Board();
-    const from: Coord = { x: 2, y: 2, z: 2 };
+    const from: Coord = { x: 2, y: 2, z: 2 }; // Not promotion rank/level
     board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
-    // Place black pieces in the 5 valid capture squares
-    const captureTargets = [
-      { x: 2, y: 3, z: 3 }, // Forwards-Up
-      { x: 1, y: 3, z: 2 }, // Forwards-Left
-      { x: 3, y: 3, z: 2 }, // Forwards-Right
-      { x: 1, y: 2, z: 3 }, // Up-Left
-      { x: 3, y: 2, z: 3 }, // Up-Right
+    const captureTargetCoords: Coord[] = [
+      { x: 2, y: 3, z: 3 },
+      { x: 1, y: 3, z: 2 },
+      { x: 3, y: 3, z: 2 },
+      { x: 1, y: 2, z: 3 },
+      { x: 3, y: 2, z: 3 },
     ];
-    for (const target of captureTargets) {
+    for (const target of captureTargetCoords) {
       board.setPiece(target, { type: PieceType.Knight, color: 'black' });
     }
-    const moves = board.generateMoves(from);
-    // Moves should include the 2 non-capture moves + 5 capture moves
-    const expectedMoves = [
-      { x: 2, y: 3, z: 2 }, // forward
-      { x: 2, y: 2, z: 3 }, // up
-      ...captureTargets,
+    const moves = board.generatePotentialMoves(from);
+    const expectedSimpleMoves: Move[] = [
+      { from, to: { x: 2, y: 3, z: 2 }, promotion: undefined },
+      { from, to: { x: 2, y: 2, z: 3 }, promotion: undefined },
     ];
-    expect(moves).toHaveLength(expectedMoves.length);
-    expect(moves).toEqual(expect.arrayContaining(expectedMoves));
+    const expectedCaptureMoves: Move[] = captureTargetCoords.map((to) => ({
+      from,
+      to,
+      promotion: undefined,
+    }));
+    expect(moves).toEqual(
+      expect.arrayContaining([...expectedSimpleMoves, ...expectedCaptureMoves]),
+    );
+    expect(moves.length).toBe(expectedSimpleMoves.length + expectedCaptureMoves.length);
   });
 
-  it('white pawn: promotion only at (x,4,4)', () => {
+  it('white pawn: generates all promotion types when moving to promotion square (y=4, z=4)', () => {
+    const board = new Board();
+    const from: Coord = { x: 2, y: 3, z: 4 };
+    board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
+    const to: Coord = { x: 2, y: 4, z: 4 }; // Promotion square for white
+
+    // Simulate empty square for forward move
+    board.setPiece(to, null);
+
+    const moves = board.generatePotentialMoves(from);
+
+    // Check only moves to the promotion square are considered for promotion
+    const promotionMoves = moves.filter(
+      (m) => m.to.x === to.x && m.to.y === to.y && m.to.z === to.z && m.promotion,
+    );
+    expect(promotionMoves.length).toBe(ALL_PROMOTION_TYPES.length);
+    for (const promoType of ALL_PROMOTION_TYPES) {
+      expect(promotionMoves).toContainEqual({ from, to, promotion: promoType });
+    }
+
+    // Ensure non-promoting moves to other squares (if any) are not included in this check, or are handled separately
+    // For this specific setup, only the forward move to (2,4,4) and up-move to (2,3,4) are possible non-captures
+    const nonCaptureNonPromotionUpMove: Coord = { x: 2, y: 3, z: 4 };
+    if (board.getPiece(nonCaptureNonPromotionUpMove) === null) {
+      expect(moves).toContainEqual({
+        from,
+        to: nonCaptureNonPromotionUpMove,
+        promotion: undefined,
+      });
+    }
+  });
+
+  it('white pawn: generates all promotion types when capturing onto promotion square', () => {
+    const board = new Board();
+    const from: Coord = { x: 1, y: 3, z: 4 };
+    board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
+    const captureTo: Coord = { x: 0, y: 4, z: 4 }; // Forward-Left capture to promotion square
+    board.setPiece(captureTo, { type: PieceType.Rook, color: 'black' }); // Enemy piece
+
+    const moves = board.generatePotentialMoves(from);
+    const promotionCaptureMoves = moves.filter(
+      (m) =>
+        m.to.x === captureTo.x && m.to.y === captureTo.y && m.to.z === captureTo.z && m.promotion,
+    );
+    expect(promotionCaptureMoves.length).toBe(ALL_PROMOTION_TYPES.length);
+    for (const promoType of ALL_PROMOTION_TYPES) {
+      expect(promotionCaptureMoves).toContainEqual({ from, to: captureTo, promotion: promoType });
+    }
+  });
+
+  it('applyMove: promotion for white pawn at (x,4,4)', () => {
     const board = new Board();
     const from: Coord = { x: 2, y: 3, z: 3 };
     board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
-    // Move to promotion square
     const to: Coord = { x: 2, y: 4, z: 4 };
-    board.applyMove(from, to, PieceType.Queen);
+    board.applyMove({ from, to, promotion: PieceType.Queen });
     expect(board.getPiece(to)).toEqual({ type: PieceType.Queen, color: 'white' });
-    // Move to non-promotion square
+
+    // Test non-promotion move
     const from2: Coord = { x: 1, y: 3, z: 3 };
     board.setPiece(from2, { type: PieceType.Pawn, color: 'white' });
-    const to2: Coord = { x: 1, y: 4, z: 3 };
-    board.applyMove(from2, to2, PieceType.Queen);
+    const to2: Coord = { x: 1, y: 4, z: 3 }; // Not a full promotion square (z is not 4)
+    board.applyMove({ from: from2, to: to2, promotion: PieceType.Queen }); // Promotion should be ignored
     expect(board.getPiece(to2)).toEqual({ type: PieceType.Pawn, color: 'white' });
   });
 
-  it('white pawn: no two-square option', () => {
+  it('white pawn: no two-square option (as per current rules)', () => {
     const board = new Board();
-    const from: Coord = { x: 2, y: 1, z: 2 };
+    const from: Coord = { x: 2, y: 1, z: 2 }; // Starting rank for two-square would be y=0 or y=1 depending on interpretation
     board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
-    const moves = board.generateMoves(from);
-    // Should not include y: 3 (two squares forward)
-    expect(moves).not.toContainEqual({ x: 2, y: 3, z: 2 });
-    // Should only allow y: 2 (one square forward)
-    expect(moves).toContainEqual({ x: 2, y: 2, z: 2 });
+    const moves = board.generatePotentialMoves(from);
+    // Standard 3D chess rules don't usually have a two-square first move for pawns.
+    // This test confirms that for a pawn at (2,1,2), (2,3,2) is not a generated move.
+    const twoSqForward: Coord = { x: 2, y: 3, z: 2 };
+    expect(
+      moves.find(
+        (m) => m.to.x === twoSqForward.x && m.to.y === twoSqForward.y && m.to.z === twoSqForward.z,
+      ),
+    ).toBeUndefined();
+    const oneSqForward: Coord = { x: 2, y: 2, z: 2 };
+    expect(
+      moves.find(
+        (m) => m.to.x === oneSqForward.x && m.to.y === oneSqForward.y && m.to.z === oneSqForward.z,
+      ),
+    ).toBeDefined();
   });
 
   it('applyMove: promotion for black pawn at (x,0,0)', () => {
     const board = new Board();
     const from: Coord = { x: 2, y: 1, z: 1 };
     board.setPiece(from, { type: PieceType.Pawn, color: 'black' });
-    const to: Coord = { x: 2, y: 0, z: 0 };
-    board.applyMove(from, to, PieceType.Queen);
-    expect(board.getPiece(to)).toEqual({ type: PieceType.Queen, color: 'black' });
+    const to: Coord = { x: 2, y: 0, z: 0 }; // Promotion square for black
+    board.applyMove({ from, to, promotion: PieceType.Unicorn });
+    expect(board.getPiece(to)).toEqual({ type: PieceType.Unicorn, color: 'black' });
   });
 });
 
@@ -203,7 +271,7 @@ describe('inCheck', () => {
   });
 });
 
-describe('generateLegalMoves', () => {
+describe('generateAllLegalMoves', () => {
   it('excludes illegal moves for a pinned piece (rook can only move along pin line)', () => {
     const board = new Board();
     // Place black king at (0,0,0), white rook at (0,0,4), black rook at (0,0,2)
@@ -214,8 +282,10 @@ describe('generateLegalMoves', () => {
     board.setPiece(whiteRook, { type: PieceType.Rook, color: 'white' });
     board.setPiece(blackRook, { type: PieceType.Rook, color: 'black' });
     // The black rook is pinned and can only move along the z-axis between king and attacker
-    const legalMoves = board.generateLegalMoves('black');
-    const rookMoves = legalMoves.filter((m) => m.from.x === 0 && m.from.y === 0 && m.from.z === 2);
+    const legalMoves = board.generateAllLegalMoves('black');
+    const rookMoves = legalMoves.filter(
+      (m: Move) => m.from.x === 0 && m.from.y === 0 && m.from.z === 2,
+    );
     // All rook moves must stay on (0,0,*) and not move off the line
     expect(rookMoves.length).toBeGreaterThan(0);
     for (const move of rookMoves) {
@@ -238,7 +308,7 @@ describe('generateLegalMoves', () => {
     board.setPiece(whiteRook2, { type: PieceType.Rook, color: 'white' });
 
     // The only legal move for the black king is to (0,0,1)
-    const legalMoves = board.generateLegalMoves('black');
+    const legalMoves = board.generateAllLegalMoves('black');
     expect(legalMoves).toHaveLength(1);
     expect(legalMoves[0].from).toEqual({ x: 0, y: 0, z: 0 });
     expect(legalMoves[0].to).toEqual({ x: 0, y: 0, z: 1 });
@@ -298,12 +368,117 @@ describe('Board cloning', () => {
     // Clone the board
     const clone = board.clone();
     // Make a move on the clone
-    clone.applyMove(from, to);
+    clone.applyMove({ from, to });
     // The original board should still have the pawn at 'from' and not at 'to'
     expect(board.getPiece(from)).toEqual({ type: PieceType.Pawn, color: 'white' });
     expect(board.getPiece(to)).toBeNull();
     // The clone should have the pawn at 'to' and not at 'from'
     expect(clone.getPiece(from)).toBeNull();
     expect(clone.getPiece(to)).toEqual({ type: PieceType.Pawn, color: 'white' });
+  });
+});
+
+describe('generateLegalMoves (per piece)', () => {
+  it('pinned rook can only move along the pin line', () => {
+    const board = new Board();
+    const blackKing: Coord = { x: 0, y: 0, z: 0 };
+    const whiteRookAttacker: Coord = { x: 0, y: 0, z: 4 }; // Attacks along z-axis
+    const blackRookPinned: Coord = { x: 0, y: 0, z: 2 }; // Pinned piece
+
+    board.setPiece(blackKing, { type: PieceType.King, color: 'black' });
+    board.setPiece(whiteRookAttacker, { type: PieceType.Rook, color: 'white' });
+    board.setPiece(blackRookPinned, { type: PieceType.Rook, color: 'black' });
+
+    // Add a friendly piece NOT on the pin line, to ensure it cannot move there
+    board.setPiece({ x: 1, y: 0, z: 2 }, { type: PieceType.Pawn, color: 'black' });
+    // Add an enemy piece NOT on the pin line, to ensure it can be captured if not pinned
+    board.setPiece({ x: 0, y: 1, z: 2 }, { type: PieceType.Pawn, color: 'white' });
+
+    const legalMovesForPinnedRook = board.generateLegalMoves(blackRookPinned);
+
+    // Expected moves for the pinned rook:
+    // Can move to z=1 (towards king)
+    // Can move to z=3 (towards attacker, before attacker)
+    // Can capture attacker at z=4
+    const expectedDestinations: Coord[] = [
+      { x: 0, y: 0, z: 1 },
+      { x: 0, y: 0, z: 3 },
+      { x: 0, y: 0, z: 4 }, // Capture attacker
+    ];
+
+    expect(legalMovesForPinnedRook.length).toBe(expectedDestinations.length);
+    for (const dest of expectedDestinations) {
+      expect(legalMovesForPinnedRook).toContainEqual({
+        from: blackRookPinned,
+        to: dest,
+        promotion: undefined,
+      });
+    }
+
+    // Ensure it cannot move off the pin line, e.g., to (1,0,2) or capture at (0,1,2)
+    expect(legalMovesForPinnedRook).not.toContainEqual({
+      from: blackRookPinned,
+      to: { x: 1, y: 0, z: 2 },
+      promotion: undefined,
+    });
+    expect(legalMovesForPinnedRook).not.toContainEqual({
+      from: blackRookPinned,
+      to: { x: 0, y: 1, z: 2 },
+      promotion: undefined,
+    });
+  });
+
+  it('throws an error if called on an empty square', () => {
+    const board = new Board();
+    const emptyCoord: Coord = { x: 1, y: 1, z: 1 };
+    // Ensure the square is empty
+    board.setPiece(emptyCoord, null);
+    expect(() => board.generateLegalMoves(emptyCoord)).toThrow(
+      `No piece at Bb2 to generate legal moves for.`, // ZXY for (1 1 1) is Bb2
+    );
+  });
+});
+
+describe('generateAllLegalMoves', () => {
+  it('excludes illegal moves for a pinned piece (rook can only move along pin line) - aggregated', () => {
+    const board = new Board();
+    // Place black king at (0,0,0), white rook at (0,0,4), black rook at (0,0,2)
+    const blackKing: Coord = { x: 0, y: 0, z: 0 };
+    const whiteRook: Coord = { x: 0, y: 0, z: 4 };
+    const blackRook: Coord = { x: 0, y: 0, z: 2 };
+    board.setPiece(blackKing, { type: PieceType.King, color: 'black' });
+    board.setPiece(whiteRook, { type: PieceType.Rook, color: 'white' });
+    board.setPiece(blackRook, { type: PieceType.Rook, color: 'black' });
+    // The black rook is pinned and can only move along the z-axis between king and attacker
+    const legalMoves = board.generateAllLegalMoves('black');
+    const rookMoves = legalMoves.filter(
+      (m: Move) => m.from.x === blackRook.x && m.from.y === blackRook.y && m.from.z === blackRook.z,
+    );
+    // All rook moves must stay on (0,0,*) and not move off the line
+    expect(rookMoves.length).toBeGreaterThan(0);
+    for (const move of rookMoves) {
+      expect(move.to.x).toBe(0);
+      expect(move.to.y).toBe(0);
+      // Must be between king and attacker (z=1,3,4)
+      expect([1, 3, 4]).toContain(move.to.z);
+    }
+  });
+
+  it('black king in corner has only one legal move due to two white rooks defending each other - aggregated', () => {
+    const board = new Board();
+    // Place black king at (0,0,0)
+    const blackKing: Coord = { x: 0, y: 0, z: 0 };
+    // Place white rooks at (1,1,0) and (1,1,1)
+    const whiteRook1: Coord = { x: 1, y: 1, z: 0 };
+    const whiteRook2: Coord = { x: 1, y: 1, z: 1 };
+    board.setPiece(blackKing, { type: PieceType.King, color: 'black' });
+    board.setPiece(whiteRook1, { type: PieceType.Rook, color: 'white' });
+    board.setPiece(whiteRook2, { type: PieceType.Rook, color: 'white' });
+
+    // The only legal move for the black king is to (0,0,1)
+    const legalMoves = board.generateAllLegalMoves('black');
+    expect(legalMoves).toHaveLength(1);
+    expect(legalMoves[0].from).toEqual({ x: 0, y: 0, z: 0 });
+    expect(legalMoves[0].to).toEqual({ x: 0, y: 0, z: 1 });
   });
 });

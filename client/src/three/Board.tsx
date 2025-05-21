@@ -1,10 +1,11 @@
 import { memo, useState, useMemo, useEffect } from 'react';
 import { Box } from '@react-three/drei';
 import { ThreeElements } from '@react-three/fiber';
-import { Board as EngineBoard } from '../engine';
+import { Board as EngineBoard, Move } from '../engine';
 import { PieceMesh } from './PieceMesh';
 import React from 'react';
 import { PieceType } from '../engine/pieces';
+import { Coord } from '../engine/coords';
 
 const GRID_SIZE = 5;
 const SPACING = 1.1;
@@ -24,11 +25,7 @@ export type ServerPromotionType = 'Q' | 'R' | 'B' | 'N' | 'U';
 export interface BoardProps {
   currentTurn: BoardTurn;
   playerColor?: 'white' | 'black' | null;
-  onMove?: (move: {
-    from: { x: number; y: number; z: number };
-    to: { x: number; y: number; z: number };
-    promotion?: ServerPromotionType;
-  }) => void;
+  onMove?: (move: Move) => void;
   board: EngineBoard;
   children?: React.ReactNode;
   [key: string]: any; // allow passing arbitrary props to <group>
@@ -39,8 +36,8 @@ const Board = memo((props: BoardProps) => {
   const board = props.board;
 
   // State for selected piece and its legal moves
-  const [selected, setSelected] = useState<null | { x: number; y: number; z: number }>(null);
-  const [legalMoves, setLegalMoves] = useState<{ x: number; y: number; z: number }[]>([]);
+  const [selected, setSelected] = useState<null | Coord>(null);
+  const [legalMoves, setLegalMoves] = useState<Move[]>([]);
 
   // Collect all pieces with their coordinates from the provided board
   const pieces = [];
@@ -75,9 +72,12 @@ const Board = memo((props: BoardProps) => {
       return;
     setSelected({ x, y, z });
     try {
-      const moves = board.generateMoves({ x, y, z });
-      setLegalMoves(moves);
-    } catch {
+      // Directly call generateLegalMoves which already filters for checks
+      const actualLegalMoves = board.generateLegalMoves({ x, y, z });
+      setLegalMoves(actualLegalMoves);
+    } catch (error) {
+      // Handle cases like clicking on an empty square if generateLegalMoves throws an error
+      console.error('Error generating legal moves:', error);
       setLegalMoves([]);
     }
   };
@@ -85,24 +85,41 @@ const Board = memo((props: BoardProps) => {
   // Handle highlighted cube click (move application)
   const handleCubePointerDown = (x: number, y: number, z: number) => {
     if (!selected) return;
-    // Detect if this is a pawn promotion move
+
+    const targetCoord = { x, y, z };
+    // Find the specific move from legalMoves that matches the targetCoord
+    // This is important if there are multiple promotions to the same square.
+    // For simplicity, if it's a pawn promotion, we'll default to Queen for now if onMove is not defined,
+    // or expect onMove to handle the promotion choice if it is defined.
+    let moveToSend = legalMoves.find(
+      (m) => m.to.x === targetCoord.x && m.to.y === targetCoord.y && m.to.z === targetCoord.z,
+    );
+
+    if (!moveToSend) return; // Should not happen if cube is highlighted
+
     const piece = board.getPiece(selected);
-    let promotion: ServerPromotionType | undefined = undefined;
     if (
       piece &&
       piece.type === PieceType.Pawn &&
-      ((piece.color === 'white' && y === 4 && z === 4) ||
-        (piece.color === 'black' && y === 0 && z === 0))
+      board.isPromotionSquare(targetCoord, piece.color)
     ) {
-      promotion = 'Q';
+      // If multiple promotion moves exist for this square, prioritize Queen or the first one.
+      // A better UI would let the user choose.
+      const promotionMoves = legalMoves.filter(
+        (m) =>
+          m.to.x === targetCoord.x &&
+          m.to.y === targetCoord.y &&
+          m.to.z === targetCoord.z &&
+          m.promotion,
+      );
+      if (promotionMoves.length > 0) {
+        moveToSend =
+          promotionMoves.find((m) => m.promotion === PieceType.Queen) || promotionMoves[0];
+      }
     }
-    // Call onMove prop to send move to server
+
     if (props.onMove) {
-      props.onMove({
-        from: selected,
-        to: { x, y, z },
-        promotion: promotion === 'Q' ? 'Q' : undefined,
-      });
+      props.onMove(moveToSend);
     }
     // Clear selection and highlights
     setSelected(null);
@@ -111,7 +128,7 @@ const Board = memo((props: BoardProps) => {
 
   // Helper to check if a cube is a legal move destination
   const isHighlighted = (x: number, y: number, z: number) =>
-    legalMoves.some((m) => m.x === x && m.y === y && m.z === z);
+    legalMoves.some((m) => m.to.x === x && m.to.y === y && m.to.z === z);
 
   return (
     <group

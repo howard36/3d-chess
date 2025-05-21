@@ -10,6 +10,16 @@ import {
 } from './pieces';
 import { Coord, LEVELS, FILES, RANKS, toZXY } from './coords';
 
+export type Move = { from: Coord; to: Coord; promotion?: PieceType };
+
+const ALL_PROMOTION_TYPES = [
+  PieceType.Queen,
+  PieceType.Rook,
+  PieceType.Bishop,
+  PieceType.Knight,
+  PieceType.Unicorn,
+];
+
 export class Board {
   grid: (Piece | null)[][][];
 
@@ -41,30 +51,51 @@ export class Board {
     return this.grid[coord.z][coord.x][coord.y];
   }
 
-  generateMoves(from: Coord): Coord[] {
+  isPromotionSquare(coord: Coord, color: 'white' | 'black'): boolean {
+    return (
+      (color === 'white' && coord.y === RANKS.length - 1 && coord.z === LEVELS.length - 1) ||
+      (color === 'black' && coord.y === 0 && coord.z === 0)
+    );
+  }
+
+  generatePotentialMoves(from: Coord): Move[] {
     const piece = this.getPiece(from);
     if (!piece) throw new Error(`No piece at ${toZXY(from)}`);
-    // Pawn logic
+
+    const potentialMoves: Move[] = [];
+
     if (piece.type === PieceType.Pawn) {
-      const moves: Coord[] = [];
       const dir = piece.color === 'white' ? 1 : -1;
-      // Forward (y axis)
+
+      // Helper to add pawn moves, handling promotions
+      const addPawnMove = (to: Coord, isCapture: boolean) => {
+        if (!this.isInside(to)) return;
+        const targetPiece = this.getPiece(to);
+
+        if (isCapture) {
+          if (!targetPiece || targetPiece.color === piece.color) return; // Must capture opponent
+        } else {
+          if (targetPiece) return; // Cannot move to occupied square
+        }
+
+        if (this.isPromotionSquare(to, piece.color)) {
+          for (const promotionType of ALL_PROMOTION_TYPES) {
+            potentialMoves.push({ from, to, promotion: promotionType });
+          }
+        } else {
+          potentialMoves.push({ from, to, promotion: undefined });
+        }
+      };
+
+      // Forward (y axis) - non-capture
       const forward: Coord = { x: from.x, y: from.y + dir, z: from.z };
-      if (this.isInside(forward) && !this.getPiece(forward)) {
-        moves.push(forward);
-      }
-      // Up (z axis)
+      addPawnMove(forward, false);
+
+      // Up (z axis) - non-capture
       const up: Coord = { x: from.x, y: from.y, z: from.z + dir };
-      if (this.isInside(up) && !this.getPiece(up)) {
-        moves.push(up);
-      }
+      addPawnMove(up, false);
+
       // Captures: 5 specified diagonal directions
-      // Spec Section 2.5: Relative to White (dir=1):
-      // - Forwards-Up: (0, +1, +1) -> (dx=0, dy=dir, dz=dir)
-      // - Forwards-Left: (-1, +1, 0) -> (dx=-1, dy=dir, dz=0)
-      // - Forwards-Right: (+1, +1, 0) -> (dx=1, dy=dir, dz=0)
-      // - Up-Left: (-1, 0, +1) -> (dx=-1, dy=0, dz=dir)
-      // - Up-Right: (+1, 0, +1) -> (dx=1, dy=0, dz=dir)
       const captureDeltas: [number, number, number][] = [
         [0, dir, dir], // Forwards-Up
         [-1, dir, 0], // Forwards-Left
@@ -73,18 +104,14 @@ export class Board {
         [1, 0, dir], // Up-Right
       ];
 
-      // Only allow captures to squares with enemy piece
       for (const [dx, dy, dz] of captureDeltas) {
         const to: Coord = { x: from.x + dx, y: from.y + dy, z: from.z + dz };
-        if (this.isInside(to)) {
-          const target = this.getPiece(to);
-          if (target && target.color !== piece.color) {
-            moves.push(to);
-          }
-        }
+        addPawnMove(to, true);
       }
-      return moves;
+      return potentialMoves;
     }
+
+    // Other pieces (Rook, Bishop, Unicorn, Queen, King, Knight)
     let vectors: ReadonlyArray<[number, number, number]> = [];
     let sliding = false;
     switch (piece.type) {
@@ -115,27 +142,31 @@ export class Board {
       default:
         throw new Error(`Unknown piece type at ${toZXY(from)}`);
     }
-    const moves: Coord[] = [];
+
     for (const [dz, dx, dy] of vectors) {
       let n = 1;
       while (true) {
         const to: Coord = { z: from.z + dz * n, x: from.x + dx * n, y: from.y + dy * n };
         if (!this.isInside(to)) break;
-        const target = this.getPiece(to);
-        if (!target) {
-          moves.push(to);
+
+        const targetPiece = this.getPiece(to);
+        if (!targetPiece) {
+          potentialMoves.push({ from, to, promotion: undefined });
         } else {
-          if (target.color !== piece.color) moves.push(to);
-          break;
+          if (targetPiece.color !== piece.color) {
+            potentialMoves.push({ from, to, promotion: undefined });
+          }
+          break; // Blocked by a piece
         }
         if (!sliding) break;
         n++;
       }
     }
-    return moves;
+    return potentialMoves;
   }
 
-  applyMove(from: Coord, to: Coord, promotion?: PieceType, board: Board = this): void {
+  applyMove(move: Move, board: Board = this): void {
+    const { from, to, promotion } = move;
     const piece = board.getPiece(from);
     if (!piece) throw new Error(`No piece at ${toZXY(from)}`);
     // Remove from origin
@@ -144,8 +175,7 @@ export class Board {
     let newPiece = piece;
     if (
       piece.type === PieceType.Pawn &&
-      ((piece.color === 'white' && to.y === 4 && to.z === 4) ||
-        (piece.color === 'black' && to.y === 0 && to.z === 0)) &&
+      this.isPromotionSquare(to, piece.color) && // Use isPromotionSquare here
       promotion &&
       promotion !== PieceType.Pawn &&
       promotion !== PieceType.King
@@ -175,9 +205,11 @@ export class Board {
         for (let y = 0; y < RANKS.length; y++) {
           const piece = this.getPiece({ x, y, z });
           if (piece && piece.color === byColor) {
-            const from = { x, y, z };
-            const moves = this.generateMoves(from);
-            if (moves.some((m) => m.x === target.x && m.y === target.y && m.z === target.z)) {
+            const fromCoord = { x, y, z };
+            const moves = this.generatePotentialMoves(fromCoord);
+            if (
+              moves.some((m) => m.to.x === target.x && m.to.y === target.y && m.to.z === target.z)
+            ) {
               return true;
             }
           }
@@ -197,68 +229,61 @@ export class Board {
   }
 
   /**
-   * Generate all legal moves for the given color.
+   * Generate all legal moves for the piece at the given 'from' coordinate.
+   * Returns an array of legal Move objects.
+   * Throws an error if no piece is at the specified 'from' coordinate.
+   */
+  generateLegalMoves(from: Coord): Move[] {
+    const piece = this.getPiece(from);
+    if (!piece) {
+      throw new Error(`No piece at ${toZXY(from)} to generate legal moves for.`);
+    }
+
+    const legalMovesForPiece: Move[] = [];
+    const potentialMoves = this.generatePotentialMoves(from);
+
+    for (const potentialMove of potentialMoves) {
+      const clone = this.clone();
+      clone.applyMove(potentialMove);
+      if (!clone.inCheck(piece.color)) {
+        legalMovesForPiece.push(potentialMove);
+      }
+    }
+    return legalMovesForPiece;
+  }
+
+  /**
+   * Generate all legal moves for all pieces of the given color.
    * Returns array of { from, to, promotion? }
    */
-  generateLegalMoves(
-    color: 'white' | 'black',
-  ): { from: Coord; to: Coord; promotion?: PieceType }[] {
-    const legalMoves: { from: Coord; to: Coord; promotion?: PieceType }[] = [];
+  generateAllLegalMoves(color: 'white' | 'black'): Move[] {
+    const allLegalMovesForColor: Move[] = [];
     for (let z = 0; z < LEVELS.length; z++) {
       for (let x = 0; x < FILES.length; x++) {
         for (let y = 0; y < RANKS.length; y++) {
           const piece = this.getPiece({ x, y, z });
           if (piece && piece.color === color) {
-            const from: Coord = { x, y, z };
-            const moves = this.generateMoves(from);
-            for (const to of moves) {
-              // Handle pawn promotion: if pawn moves to promotion square, generate all valid promotions
-              if (
-                piece.type === PieceType.Pawn &&
-                ((piece.color === 'white' && to.y === 4 && to.z === 4) ||
-                  (piece.color === 'black' && to.y === 0 && to.z === 0))
-              ) {
-                // Try all promotion types except Pawn/King
-                for (const promotion of [
-                  PieceType.Queen,
-                  PieceType.Rook,
-                  PieceType.Bishop,
-                  PieceType.Knight,
-                  PieceType.Unicorn,
-                ]) {
-                  const clone = this.clone();
-                  clone.applyMove(from, to, promotion);
-                  if (!clone.inCheck(color)) {
-                    legalMoves.push({ from, to, promotion });
-                  }
-                }
-              } else {
-                const clone = this.clone();
-                clone.applyMove(from, to);
-                if (!clone.inCheck(color)) {
-                  legalMoves.push({ from, to });
-                }
-              }
-            }
+            const movesForThisPiece = this.generateLegalMoves({ x, y, z });
+            allLegalMovesForColor.push(...movesForThisPiece);
           }
         }
       }
     }
-    return legalMoves;
+    return allLegalMovesForColor;
   }
 
   /**
    * Returns true if the given color is checkmated.
    */
   isCheckmate(color: 'white' | 'black'): boolean {
-    return this.inCheck(color) && this.generateLegalMoves(color).length === 0;
+    return this.inCheck(color) && this.generateAllLegalMoves(color).length === 0;
   }
 
   /**
    * Returns true if the given color is stalemated.
    */
   isStalemate(color: 'white' | 'black'): boolean {
-    return !this.inCheck(color) && this.generateLegalMoves(color).length === 0;
+    return !this.inCheck(color) && this.generateAllLegalMoves(color).length === 0;
   }
 
   /**

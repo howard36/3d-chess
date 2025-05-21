@@ -1,11 +1,11 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import Board, { BoardTurn } from '../three/Board';
+import Board, { BoardTurn, ServerPromotionType } from '../three/Board';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import TurnIndicator from '../three/TurnIndicator';
 import { toZXY, fromZXY } from '../engine/coords';
-import { Board as EngineBoard } from '../engine';
+import { Board as EngineBoard, Move } from '../engine';
 import { PieceType } from '../engine/pieces';
 import EndGameModal from './EndGameModal';
 
@@ -26,13 +26,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
   const [phase, setPhase] = React.useState<Phase>('waiting');
   const [color, setColor] = React.useState<PlayerColor>(null);
   const [currentTurn, setCurrentTurn] = React.useState<BoardTurn>('white');
-  const [moves, setMoves] = React.useState<
-    {
-      from: { x: number; y: number; z: number };
-      to: { x: number; y: number; z: number };
-      promotion?: string;
-    }[]
-  >([]);
+  const [moves, setMoves] = React.useState<Move[]>([]);
   const [gameOver, setGameOver] = React.useState<null | {
     result: 'checkmate' | 'stalemate';
     winner?: 'white' | 'black';
@@ -49,11 +43,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
     const b = new EngineBoard();
     EngineBoard.setupStartingPosition(b);
     for (const move of moves) {
-      let promotion: PieceType | undefined = undefined;
-      if (move.promotion) {
-        promotion = PieceType.Queen;
-      }
-      b.applyMove(move.from, move.to, promotion);
+      b.applyMove(move);
     }
     setBoard(b);
     // Print the new list of moves
@@ -86,10 +76,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
 
       if (parsed.type === 'move_made' && parsed.by && parsed.from && parsed.to) {
         const { from: fromStr, to: toStr, promotion, by } = parsed;
-        const parsedMove = {
+        const parsedMove: Move = {
           from: fromZXY(fromStr),
           to: fromZXY(toStr),
-          promotion,
+          // TODO: Handle promotion string from server properly
+          promotion: promotion ? PieceType[promotion as keyof typeof PieceType] : undefined,
         };
         setMoves((prev) => [...prev, parsedMove]);
         // Use the 'by' field from the server to set the current turn
@@ -99,18 +90,16 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
   }, [gameSocket.lastMessage]);
 
   // Send move message on local move
-  const handleMove = (move: {
-    from: { x: number; y: number; z: number };
-    to: { x: number; y: number; z: number };
-    promotion?: string;
-  }) => {
+  const handleMove = (move: Move) => {
     if (!gameId) return;
     // Only send move to server; moves will be updated on move_made
     gameSocket.send({
       type: 'move',
       from: toZXY(move.from),
       to: toZXY(move.to),
-      promotion: move.promotion, // if any
+      promotion: move.promotion
+        ? (move.promotion.toString()[0].toUpperCase() as ServerPromotionType)
+        : undefined, // if any
     });
   };
 
@@ -130,52 +119,61 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
           <div
             style={{
               position: 'absolute',
-              top: 56,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: 'rgba(255,255,255,0.85)',
-              color: 'black',
-              padding: '4px 16px',
-              borderRadius: 8,
-              fontWeight: 500,
-              fontSize: 16,
-              zIndex: 10,
-              pointerEvents: 'none',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-              border: color === 'white' ? '2px solid #eee' : '2px solid #222',
+              top: '10px',
+              left: '10px',
+              padding: '10px',
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              color: 'white',
+              borderRadius: '5px',
+              zIndex: 1000, // Ensure it's above the canvas
             }}
-            data-testid="player-color-indicator"
           >
-            {`You are ${color}`}
+            You are playing as {color}.
           </div>
         )}
+        {/* Turn indicator */}
         <TurnIndicator turn={currentTurn} />
+        {/* Main 3D Board canvas */}
         <Canvas data-testid="r3f-canvas" style={{ height: '100%', width: '100%' }}>
-          <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} />
-          <Board currentTurn={currentTurn} playerColor={color} onMove={handleMove} board={board} />
+          <ambientLight intensity={Math.PI / 2} />
+          <spotLight
+            position={[10, 10, 10]}
+            angle={0.15}
+            penumbra={1}
+            decay={0}
+            intensity={Math.PI}
+          />
+          <pointLight position={[-10, -10, -10]} decay={0} intensity={Math.PI} />
+          <Board
+            board={board} // Pass the EngineBoard instance
+            currentTurn={currentTurn}
+            playerColor={color} // Pass the determined player color
+            onMove={handleMove}
+          />
           <OrbitControls makeDefault />
         </Canvas>
+        {/* End Game Modal */}
         {gameOver && <EndGameModal result={gameOver.result} winner={gameOver.winner} />}
       </div>
     );
   }
 
-  // Render pre-game info otherwise
+  // UI for waiting/joining phase
   return (
-    <div>
-      <h1>Game Screen</h1>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+      }}
+    >
+      <h1>3D Chess</h1>
       <p>Game ID: {gameId}</p>
-      <p>You are the creator: {isCreator ? 'true' : 'false'}</p>
-      {phase === 'waiting' &&
-        (isCreator ? (
-          <p>Waiting for player to join...</p>
-        ) : (
-          <button onClick={handleJoin} disabled={phase !== 'waiting'}>
-            Join Game
-          </button>
-        ))}
-      {phase === 'joined' && !isCreator && <p>Joining game...</p>}
+      {phase === 'waiting' && !isCreator && <button onClick={handleJoin}>Join Game</button>}
+      {phase === 'waiting' && isCreator && <p>Waiting for player to join...</p>}
+      {phase === 'joined' && <p>Joined game, waiting for start...</p>}
     </div>
   );
 };
