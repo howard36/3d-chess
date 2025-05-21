@@ -1,7 +1,7 @@
-import { memo, useState, useMemo, useEffect } from 'react';
+import { memo, useState } from 'react';
 import { Box } from '@react-three/drei';
-import { ThreeElements } from '@react-three/fiber';
-import { Board as EngineBoard, Move } from '../engine';
+import { Board as EngineBoard } from '../engine';
+import type { Move } from '../engine';
 import { PieceMesh } from './PieceMesh';
 import React from 'react';
 import { PieceType } from '../engine/pieces';
@@ -28,7 +28,6 @@ export interface BoardProps {
   onMove?: (move: Move) => void;
   board: EngineBoard;
   children?: React.ReactNode;
-  [key: string]: any; // allow passing arbitrary props to <group>
 }
 
 const Board = memo((props: BoardProps) => {
@@ -53,12 +52,8 @@ const Board = memo((props: BoardProps) => {
   }
 
   // --- King in check logic ---
-  let kingInCheck = false;
-  let kingPos: { x: number; y: number; z: number } | null = null;
-  try {
-    kingInCheck = board.inCheck(props.currentTurn);
-    kingPos = board.findKing(props.currentTurn);
-  } catch {}
+  const kingInCheck = board.inCheck(props.currentTurn);
+  const kingPos = board.findKing(props.currentTurn);
 
   // Handle piece selection
   const handlePiecePointerDown = (x: number, y: number, z: number) => {
@@ -71,15 +66,9 @@ const Board = memo((props: BoardProps) => {
     )
       return;
     setSelected({ x, y, z });
-    try {
-      // Directly call generateLegalMoves which already filters for checks
-      const actualLegalMoves = board.generateLegalMoves({ x, y, z });
-      setLegalMoves(actualLegalMoves);
-    } catch (error) {
-      // Handle cases like clicking on an empty square if generateLegalMoves throws an error
-      console.error('Error generating legal moves:', error);
-      setLegalMoves([]);
-    }
+    // Directly call generateLegalMoves which already filters for checks
+    const actualLegalMoves = board.generateLegalMoves({ x, y, z });
+    setLegalMoves(actualLegalMoves);
   };
 
   // Handle highlighted cube click (move application)
@@ -133,7 +122,6 @@ const Board = memo((props: BoardProps) => {
   return (
     <group
       name="board-grid"
-      {...props}
       onPointerDown={() => {
         if (selected) {
           setSelected(null);
@@ -179,7 +167,7 @@ const Board = memo((props: BoardProps) => {
           type={type}
           color={color}
           position={[(x - HALF) * SPACING, (y - HALF) * SPACING, (z - HALF) * SPACING]}
-          onPointerDown={(e) => {
+          onPointerDown={(e: React.PointerEvent) => {
             e.stopPropagation();
             handlePiecePointerDown(x, y, z);
           }}

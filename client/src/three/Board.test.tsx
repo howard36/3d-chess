@@ -4,8 +4,6 @@ import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
 import { PieceType } from '../engine';
 import { act } from 'react';
-import TurnIndicator from './TurnIndicator';
-import { useState } from 'react';
 import { vi } from 'vitest';
 import { Board as EngineBoard } from '../engine';
 
@@ -51,7 +49,7 @@ describe('Board', () => {
 
     // Simulate pointer down inside act
     await act(async () => {
-      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as any);
+      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
     });
 
     // Now count highlighted cubes using findAll
@@ -74,7 +72,7 @@ describe('Board', () => {
 
     // Select the pawn
     await act(async () => {
-      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as any);
+      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
     });
     // There should be highlights
     let highlightCount = (renderer.scene as ReactThreeTestInstance).findAll(
@@ -84,7 +82,7 @@ describe('Board', () => {
 
     // Click empty space (simulate group onPointerDown)
     await act(async () => {
-      boardGroup.props.onPointerDown?.({} as any);
+      boardGroup.props.onPointerDown?.({} as React.PointerEvent<Element>);
     });
     // Highlights should be gone
     highlightCount = (renderer.scene as ReactThreeTestInstance).findAll(
@@ -106,7 +104,7 @@ describe('Board', () => {
 
     // Select the first pawn
     await act(async () => {
-      pawns[0].props.onPointerDown?.({ stopPropagation: () => {} } as any);
+      pawns[0].props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
     });
     let highlightCount = (renderer.scene as ReactThreeTestInstance).findAll(
       (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
@@ -115,7 +113,7 @@ describe('Board', () => {
 
     // Select the second pawn
     await act(async () => {
-      pawns[1].props.onPointerDown?.({ stopPropagation: () => {} } as any);
+      pawns[1].props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
     });
     // Highlights should still exist (selection moved, not cleared)
     highlightCount = (renderer.scene as ReactThreeTestInstance).findAll(
@@ -139,7 +137,7 @@ describe('Board', () => {
     ) as ReactThreeTestInstance;
     // Select pawn
     await act(async () => {
-      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as any);
+      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
     });
     // Find a highlighted destination
     const dest = (renderer.scene as ReactThreeTestInstance).findAll(
@@ -147,7 +145,7 @@ describe('Board', () => {
     )[0];
     // Move pawn (local move)
     await act(async () => {
-      dest.props.onPointerDown?.({ stopPropagation: () => {} } as any);
+      dest.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
     });
     // onMove should be called
     expect(onMove).toHaveBeenCalledTimes(1);
@@ -176,7 +174,7 @@ describe('Board', () => {
     );
     expect(kingMesh).toBeDefined();
     // Emissive should be included in userData of the king mesh
-    const emissive = (kingMesh.props.userData as any).emissive;
+    const emissive = kingMesh.props.userData.emissive;
     expect(emissive === '#ff2222' || emissive === 0xff2222).toBe(true);
   });
 });
