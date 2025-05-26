@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { useState } from 'react';
 import { Box } from '@react-three/drei';
 import { Board as EngineBoard } from '../engine';
 import type { Move } from '../engine';
@@ -30,7 +30,7 @@ export interface BoardProps {
   children?: React.ReactNode;
 }
 
-const Board = memo((props: BoardProps) => {
+const Board = (props: BoardProps) => {
   // Remove internal board state, use props.board
   const board = props.board;
 
@@ -50,10 +50,6 @@ const Board = memo((props: BoardProps) => {
       }
     }
   }
-
-  // --- King in check logic ---
-  const kingInCheck = board.inCheck(props.currentTurn);
-  const kingPos = board.findKing(props.currentTurn);
 
   // Handle piece selection
   const handlePiecePointerDown = (x: number, y: number, z: number) => {
@@ -173,20 +169,12 @@ const Board = memo((props: BoardProps) => {
           }}
           // Highlight king if in check
           emissive={
-            type === PieceType.King &&
-            color === props.currentTurn &&
-            kingInCheck &&
-            kingPos &&
-            kingPos.x === x &&
-            kingPos.y === y &&
-            kingPos.z === z
-              ? '#ff2222'
-              : undefined
+            type === PieceType.King && board.inCheck(color) ? '#ff2222' : '#000000'
           }
         />
       ))}
     </group>
   );
-});
+};
 
 export default Board;
