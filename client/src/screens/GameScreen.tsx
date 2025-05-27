@@ -33,17 +33,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
   }>(null);
   // Maintain the board state in GameScreen
   const [board, setBoard] = React.useState(() => {
-    const b = new EngineBoard();
-    EngineBoard.setupStartingPosition(b);
-    return b;
+    return EngineBoard.setupStartingPosition();
   });
 
   // Apply moves to the board when moves change
   React.useEffect(() => {
-    const b = new EngineBoard();
-    EngineBoard.setupStartingPosition(b);
+    let b = EngineBoard.setupStartingPosition();
     for (const move of moves) {
-      b.applyMove(move);
+      b = b.applyMove(move);
     }
     setBoard(b);
     // Print the new list of moves

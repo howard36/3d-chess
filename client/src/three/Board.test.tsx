@@ -9,9 +9,7 @@ import { Board as EngineBoard } from '../engine';
 
 // Helper to create a fresh board
 function createTestBoard() {
-  const b = new EngineBoard();
-  EngineBoard.setupStartingPosition(b);
-  return b;
+  return EngineBoard.setupStartingPosition();
 }
 
 describe('Board', () => {

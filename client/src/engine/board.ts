@@ -165,24 +165,30 @@ export class Board {
     return potentialMoves;
   }
 
-  applyMove(move: Move, board: Board = this): void {
+  applyMove(move: Move): Board {
     const { from, to, promotion } = move;
-    const piece = board.getPiece(from);
+    const piece = this.getPiece(from);
     if (!piece) throw new Error(`No piece at ${toZXY(from)}`);
+    
+    // Create a new board with the move applied
+    const newBoard = this.clone();
+    
     // Remove from origin
-    board.setPiece(from, null);
+    newBoard.setPiece(from, null);
     // Promotion logic
     let newPiece = piece;
     if (
       piece.type === PieceType.Pawn &&
-      this.isPromotionSquare(to, piece.color) && // Use isPromotionSquare here
+      this.isPromotionSquare(to, piece.color) &&
       promotion &&
       promotion !== PieceType.Pawn &&
       promotion !== PieceType.King
     ) {
       newPiece = { type: promotion, color: piece.color };
     }
-    board.setPiece(to, newPiece);
+    newBoard.setPiece(to, newPiece);
+    
+    return newBoard;
   }
 
   findKing(color: 'white' | 'black'): Coord {
@@ -243,9 +249,8 @@ export class Board {
     const potentialMoves = this.generatePotentialMoves(from);
 
     for (const potentialMove of potentialMoves) {
-      const clone = this.clone();
-      clone.applyMove(potentialMove);
-      if (!clone.inCheck(piece.color)) {
+      const newBoard = this.applyMove(potentialMove);
+      if (!newBoard.inCheck(piece.color)) {
         legalMovesForPiece.push(potentialMove);
       }
     }
@@ -296,7 +301,8 @@ export class Board {
     return newBoard;
   }
 
-  static setupStartingPosition(board: Board): void {
+  static setupStartingPosition(): Board {
+    const board = new Board();
     // White Pawns: (x, 1, 0) and (x, 1, 1) for x=0..4
     for (let x = 0; x < 5; x++) {
       board.setPiece({ x, y: 1, z: 0 }, { type: PieceType.Pawn, color: 'white' });
@@ -331,5 +337,6 @@ export class Board {
     board.setPiece({ x: 2, y: 4, z: 3 }, { type: PieceType.Queen, color: 'black' });
     board.setPiece({ x: 3, y: 4, z: 3 }, { type: PieceType.Unicorn, color: 'black' });
     board.setPiece({ x: 4, y: 4, z: 3 }, { type: PieceType.Bishop, color: 'black' });
+    return board;
   }
 }

@@ -164,15 +164,15 @@ describe('Pawn move generation and promotion', () => {
     const from: Coord = { x: 2, y: 3, z: 3 };
     board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
     const to: Coord = { x: 2, y: 4, z: 4 };
-    board.applyMove({ from, to, promotion: PieceType.Queen });
-    expect(board.getPiece(to)).toEqual({ type: PieceType.Queen, color: 'white' });
+    const newBoard = board.applyMove({ from, to, promotion: PieceType.Queen });
+    expect(newBoard.getPiece(to)).toEqual({ type: PieceType.Queen, color: 'white' });
 
     // Test non-promotion move
     const from2: Coord = { x: 1, y: 3, z: 3 };
     board.setPiece(from2, { type: PieceType.Pawn, color: 'white' });
     const to2: Coord = { x: 1, y: 4, z: 3 }; // Not a full promotion square (z is not 4)
-    board.applyMove({ from: from2, to: to2, promotion: PieceType.Queen }); // Promotion should be ignored
-    expect(board.getPiece(to2)).toEqual({ type: PieceType.Pawn, color: 'white' });
+    const newBoard2 = board.applyMove({ from: from2, to: to2, promotion: PieceType.Queen }); // Promotion should be ignored
+    expect(newBoard2.getPiece(to2)).toEqual({ type: PieceType.Pawn, color: 'white' });
   });
 
   it('white pawn: no two-square option (as per current rules)', () => {
@@ -201,8 +201,8 @@ describe('Pawn move generation and promotion', () => {
     const from: Coord = { x: 2, y: 1, z: 1 };
     board.setPiece(from, { type: PieceType.Pawn, color: 'black' });
     const to: Coord = { x: 2, y: 0, z: 0 }; // Promotion square for black
-    board.applyMove({ from, to, promotion: PieceType.Unicorn });
-    expect(board.getPiece(to)).toEqual({ type: PieceType.Unicorn, color: 'black' });
+    const newBoard = board.applyMove({ from, to, promotion: PieceType.Unicorn });
+    expect(newBoard.getPiece(to)).toEqual({ type: PieceType.Unicorn, color: 'black' });
   });
 });
 
@@ -368,13 +368,13 @@ describe('Board cloning', () => {
     // Clone the board
     const clone = board.clone();
     // Make a move on the clone
-    clone.applyMove({ from, to });
+    const movedClone = clone.applyMove({ from, to });
     // The original board should still have the pawn at 'from' and not at 'to'
     expect(board.getPiece(from)).toEqual({ type: PieceType.Pawn, color: 'white' });
     expect(board.getPiece(to)).toBeNull();
-    // The clone should have the pawn at 'to' and not at 'from'
-    expect(clone.getPiece(from)).toBeNull();
-    expect(clone.getPiece(to)).toEqual({ type: PieceType.Pawn, color: 'white' });
+    // The moved clone should have the pawn at 'to' and not at 'from'
+    expect(movedClone.getPiece(from)).toBeNull();
+    expect(movedClone.getPiece(to)).toEqual({ type: PieceType.Pawn, color: 'white' });
   });
 });
 
