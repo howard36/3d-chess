@@ -13,6 +13,8 @@ interface StartScreenProps {
 const StartScreen: React.FC<StartScreenProps> = ({ gameSocket, setIsCreator }) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [gameCreated, setGameCreated] = React.useState(false);
+  const [gameId, setGameId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const event = gameSocket.lastMessage;
@@ -20,7 +22,8 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket, setIsCreator }) =
       const data = JSON.parse(event.data);
       if (data.type === 'game_created' && data.gameId) {
         setIsLoading(false);
-        navigate(`/game/${data.gameId}`);
+        setGameCreated(true);
+        setGameId(data.gameId);
       }
     }
   }, [gameSocket.lastMessage, navigate]);
