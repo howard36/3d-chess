@@ -32,11 +32,17 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket, setIsCreator }) =
   };
 
   return (
-    <div>
-      <h1>3D Chess</h1>
-      <button onClick={handleCreateGame} disabled={isLoading}>
-        {isLoading ? 'Creating Game...' : 'Start New Game'}
-      </button>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8">
+      <div className="text-center flex flex-col items-center gap-8">
+        <h1 className="text-6xl font-bold text-white tracking-wide">3D Chess</h1>
+        <button
+          onClick={handleCreateGame}
+          disabled={isLoading}
+          className="py-3 px-6 text-2xl font-semibold text-gray-900 bg-white rounded-xl hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105"
+        >
+          {isLoading ? 'Creating Game...' : 'Start New Game'}
+        </button>
+      </div>
     </div>
   );
 };

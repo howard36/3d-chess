@@ -7,7 +7,6 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 // import { useState } from 'react';
 import StartScreen from './screens/StartScreen';
 import GameScreen from './screens/GameScreen';
-import './App.css'; // Assuming some base styles might be here
 import { useGameSocket } from './hooks/useGameSocket';
 import React from 'react';
 
