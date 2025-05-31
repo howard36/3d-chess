@@ -1,6 +1,6 @@
 import modal
-import uuid
 import random
+import string
 from fastapi import WebSocket, WebSocketDisconnect
 from messages import WebsocketV1MessageEnvelope, CreateGame, GameCreated, JoinGame, GameStart, Error, Color, Move, MoveMade, By
 
@@ -37,7 +37,7 @@ def serve() -> "fastapi.FastAPI":
                 data = await ws.receive_json()
                 envelope = WebsocketV1MessageEnvelope.model_validate(data).root
                 if isinstance(envelope, CreateGame):
-                    gid = str(uuid.uuid4())
+                    gid = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
                     # Creator can be white or black, but white always moves first
                     player_color = random.choice(["white", "black"])
                     games[gid] = {player_color: ws}
