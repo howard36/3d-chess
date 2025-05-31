@@ -158,20 +158,27 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
 
   // UI for waiting/joining phase
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-      }}
-    >
-      <h1>3D Chess</h1>
-      <p>Game ID: {gameId}</p>
-      {phase === 'waiting' && !isCreator && <button onClick={handleJoin}>Join Game</button>}
-      {phase === 'waiting' && isCreator && <p>Waiting for player to join...</p>}
-      {phase === 'joined' && <p>Joined game, waiting for start...</p>}
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8">
+      <div className="text-center flex flex-col items-center gap-8">
+        <h1 className="text-6xl font-bold text-white tracking-wide">3D Chess</h1>
+        {phase === 'waiting' && !isCreator && (
+          <button 
+            onClick={handleJoin}
+            className="py-3 px-6 text-2xl font-semibold text-gray-900 bg-white rounded-xl hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 transition-all duration-200 transform hover:scale-105"
+          >
+            Join Game
+          </button>
+        )}
+        {phase === 'waiting' && isCreator && (
+          <div className="text-center">
+            <p className="text-xl mb-4">Game created! Share this link with a friend:</p>
+            <p className="text-2xl font-bold bg-gray-800 px-4 py-2 rounded-lg">
+              https://3d-chess.pages.dev/game/{gameId}
+            </p>
+          </div>
+        )}
+        {phase === 'joined' && <p className="text-xl">Joined game, waiting for start...</p>}
+      </div>
     </div>
   );
 };
