@@ -1,4 +1,3 @@
-import React from 'react';
 import { render } from '@testing-library/react';
 import { PieceMesh } from './PieceMesh';
 import { PieceType } from '../engine';
