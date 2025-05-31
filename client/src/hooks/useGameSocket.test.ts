@@ -10,7 +10,7 @@ beforeAll(() => {
 });
 afterAll(() => {
   // Restore the original implementation
-  (console.error as any).mockRestore(); // Still works, but ensure spy is restored
+  vi.mocked(console.error).mockRestore(); // Restore spy properly
 });
 
 describe('useGameSocket', () => {

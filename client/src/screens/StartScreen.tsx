@@ -1,9 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { WebSocketMessage } from '../types/messages';
 
 interface StartScreenProps {
   gameSocket: {
-    send: (msg: any) => void;
+    send: (msg: WebSocketMessage) => void;
     lastMessage: MessageEvent | null;
   };
   setIsCreator: React.Dispatch<React.SetStateAction<boolean>>;

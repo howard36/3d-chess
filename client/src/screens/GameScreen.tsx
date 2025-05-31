@@ -8,10 +8,11 @@ import { toZXY, fromZXY } from '../engine/coords';
 import { Board as EngineBoard, Move } from '../engine';
 import { PieceType } from '../engine/pieces';
 import EndGameModal from './EndGameModal';
+import type { WebSocketMessage } from '../types/messages';
 
 interface GameScreenProps {
   gameSocket: {
-    send: (msg: any) => void;
+    send: (msg: WebSocketMessage) => void;
     lastMessage: MessageEvent | null;
   };
   isCreator: boolean;
