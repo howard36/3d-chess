@@ -29,7 +29,7 @@ describe('Board', () => {
       <Board board={createTestBoard()} currentTurn="white" />,
     );
     const pieceCount = (renderer.scene as ReactThreeTestInstance).findAll(
-      (node) => node.type === 'Mesh' && node.props.userData?.piece !== undefined,
+      (node) => (node.type === 'Mesh' || node.type === 'Group') && node.props.userData?.piece !== undefined,
     ).length;
     expect(pieceCount).toBe(40);
   });
@@ -41,7 +41,7 @@ describe('Board', () => {
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const pawn = boardGroup.children.find(
-      (child) => child.type === 'Mesh' && child.props.userData?.piece?.type === PieceType.Pawn,
+      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Pawn,
     ) as ReactThreeTestInstance;
     expect(pawn).toBeDefined();
 
@@ -64,7 +64,7 @@ describe('Board', () => {
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const pawn = boardGroup.children.find(
-      (child) => child.type === 'Mesh' && child.props.userData?.piece?.type === PieceType.Pawn,
+      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Pawn,
     ) as ReactThreeTestInstance;
     expect(pawn).toBeDefined();
 
@@ -96,7 +96,7 @@ describe('Board', () => {
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const pawns = boardGroup.children.filter(
-      (child) => child.type === 'Mesh' && child.props.userData?.piece?.type === PieceType.Pawn,
+      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Pawn,
     ) as ReactThreeTestInstance[];
     expect(pawns.length).toBeGreaterThan(1);
 
@@ -131,7 +131,7 @@ describe('Board', () => {
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const pawn = boardGroup.children.find(
-      (child) => child.type === 'Mesh' && child.props.userData?.piece?.type === PieceType.Pawn,
+      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Pawn,
     ) as ReactThreeTestInstance;
     // Select pawn
     await act(async () => {
@@ -166,7 +166,7 @@ describe('Board', () => {
     // Find the king mesh
     const kingMesh = (renderer.scene as ReactThreeTestInstance).find(
       (node) =>
-        node.type === 'Mesh' &&
+        (node.type === 'Mesh' || node.type === 'Group') &&
         node.props.userData?.piece?.type === PieceType.King &&
         node.props.userData?.piece?.color === 'black',
     );

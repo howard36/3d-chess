@@ -1,32 +1,28 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { WebSocketMessage } from '../types/messages';
+import type { GameCreated, Error as ServerError } from '../types/messages';
+import type { GameSocket } from '../hooks/useGameSocket';
 
 interface StartScreenProps {
-  gameSocket: {
-    send: (msg: WebSocketMessage) => void;
-    lastMessage: MessageEvent | null;
-  };
+  gameSocket: GameSocket;
   setIsCreator: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const StartScreen: React.FC<StartScreenProps> = ({ gameSocket, setIsCreator }) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
-  const [gameCreated, setGameCreated] = React.useState(false);
-  const [gameId, setGameId] = React.useState<string | null>(null);
+
+  const gameCreated = gameSocket.messages.find(
+    (m): m is GameCreated => m.type === 'game_created',
+  );
+  const errors = gameSocket.messages.filter((m): m is ServerError => m.type === 'error');
+  const latestError = errors.length > 0 ? errors[errors.length - 1] : null;
 
   React.useEffect(() => {
-    const event = gameSocket.lastMessage;
-    if (event) {
-      const data = JSON.parse(event.data);
-      if (data.type === 'game_created' && data.gameId) {
-        setIsLoading(false);
-        setGameCreated(true);
-        setGameId(data.gameId);
-      }
+    if (gameCreated) {
+      navigate(`/game/${gameCreated.gameId}`);
     }
-  }, [gameSocket.lastMessage, navigate]);
+  }, [gameCreated, navigate]);
 
   const handleCreateGame = () => {
     setIsCreator(true);
@@ -45,6 +41,11 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket, setIsCreator }) =
         >
           {isLoading ? 'Creating Game...' : 'Start New Game'}
         </button>
+        {latestError && (
+          <p role="alert" className="text-red-400 text-lg">
+            Error: {latestError.message}
+          </p>
+        )}
       </div>
     </div>
   );
