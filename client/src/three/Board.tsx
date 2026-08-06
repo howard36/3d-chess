@@ -52,15 +52,18 @@ const Board = (props: BoardProps) => {
   }
 
   // Handle piece selection
-  const handlePiecePointerDown = (x: number, y: number, z: number) => {
+  const handlePiecePointerDown = (e: React.PointerEvent, x: number, y: number, z: number) => {
     const piece = board.getPiece({ x, y, z });
-    // Only allow clicking pieces that match both the current turn and playerColor
+    // Only allow clicking pieces that match both the current turn and playerColor.
+    // When the piece isn't selectable, don't stop propagation: the click ray must
+    // be able to continue to a highlighted destination cube behind this piece.
     if (
       !piece ||
       piece.color !== props.currentTurn ||
       (props.playerColor && piece.color !== props.playerColor)
     )
       return;
+    e.stopPropagation();
     setSelected({ x, y, z });
     // Directly call generateLegalMoves which already filters for checks
     const actualLegalMoves = board.generateLegalMoves({ x, y, z });
@@ -163,14 +166,9 @@ const Board = (props: BoardProps) => {
           type={type}
           color={color}
           position={[(x - HALF) * SPACING, (y - HALF) * SPACING, (z - HALF) * SPACING]}
-          onPointerDown={(e: React.PointerEvent) => {
-            e.stopPropagation();
-            handlePiecePointerDown(x, y, z);
-          }}
+          onPointerDown={(e: React.PointerEvent) => handlePiecePointerDown(e, x, y, z)}
           // Highlight king if in check
-          emissive={
-            type === PieceType.King && board.inCheck(color) ? '#ff2222' : '#000000'
-          }
+          emissive={type === PieceType.King && board.inCheck(color) ? '#ff2222' : '#000000'}
         />
       ))}
     </group>
