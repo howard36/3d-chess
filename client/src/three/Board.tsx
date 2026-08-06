@@ -20,8 +20,6 @@ const cubes = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => {
 
 export type BoardTurn = 'white' | 'black';
 
-export type ServerPromotionType = 'Q' | 'R' | 'B' | 'N' | 'U';
-
 export interface BoardProps {
   currentTurn: BoardTurn;
   playerColor?: 'white' | 'black' | null;
@@ -37,6 +35,14 @@ const Board = (props: BoardProps) => {
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | Coord>(null);
   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
+
+  // A selection made against an earlier position is stale once the board or
+  // turn changes (e.g. the opponent's move arrives) — clear it so a stale
+  // highlighted destination can't be sent as a move.
+  React.useEffect(() => {
+    setSelected(null);
+    setLegalMoves([]);
+  }, [props.board, props.currentTurn]);
 
   // Collect all pieces with their coordinates from the provided board
   const pieces = [];

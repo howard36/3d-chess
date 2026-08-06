@@ -6,7 +6,7 @@ exports[`PieceMesh > renders black Bishop and matches snapshot 1`] = `
     userdata="[object Object]"
   >
     <conegeometry
-      args="0.28,0.8,12"
+      args="0.38,0.8,12"
     />
     <meshstandardmaterial
       color="2236962"
@@ -17,16 +17,40 @@ exports[`PieceMesh > renders black Bishop and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders black King and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <cylindergeometry
-      args="0.25,0.35,1,16"
-    />
-    <meshstandardmaterial
-      color="2236962"
-    />
-  </mesh>
+    <mesh
+      position="0,0,0"
+    >
+      <cylindergeometry
+        args="0.25,0.35,0.7,16"
+      />
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+    <mesh
+      position="0,0.55,0"
+    >
+      <boxgeometry
+        args="0.2,0.4,0.2"
+      />
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+    <mesh
+      position="0,0.6,0"
+    >
+      <boxgeometry
+        args="0.4,0.08,0.2"
+      />
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+  </group>
 </div>
 `;
 
@@ -47,16 +71,34 @@ exports[`PieceMesh > renders black Knight and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders black Pawn and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <cylindergeometry
-      args="0.25,0.25,0.6,16"
-    />
-    <meshstandardmaterial
-      color="2236962"
-    />
-  </mesh>
+    <mesh
+      geometry="[object Object]"
+      position="0,-0.2,0"
+    >
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+    <mesh
+      geometry="[object Object]"
+      position="0,0,0"
+    >
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+    <mesh
+      geometry="[object Object]"
+      position="0,0.15,0"
+    >
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+  </group>
 </div>
 `;
 
@@ -77,16 +119,70 @@ exports[`PieceMesh > renders black Queen and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders black Rook and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <cylindergeometry
-      args="0.3,0.3,0.7,8"
-    />
-    <meshstandardmaterial
-      color="2236962"
-    />
-  </mesh>
+    <mesh
+      position="0,0,0"
+    >
+      <cylindergeometry
+        args="0.22,0.28,0.7,12"
+      />
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+    <mesh
+      position="0,0.38,0"
+    >
+      <cylindergeometry
+        args="0.28,0.3,0.08,12"
+      />
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+    <mesh
+      position="0.26,0.46,0"
+    >
+      <boxgeometry
+        args="0.09,0.12,0.09"
+      />
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+    <mesh
+      position="1.5920408388915593e-17,0.46,0.26"
+    >
+      <boxgeometry
+        args="0.09,0.12,0.09"
+      />
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+    <mesh
+      position="-0.26,0.46,3.1840816777831187e-17"
+    >
+      <boxgeometry
+        args="0.09,0.12,0.09"
+      />
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+    <mesh
+      position="-4.7761225166746774e-17,0.46,-0.26"
+    >
+      <boxgeometry
+        args="0.09,0.12,0.09"
+      />
+      <meshstandardmaterial
+        color="2236962"
+      />
+    </mesh>
+  </group>
 </div>
 `;
 
@@ -96,7 +192,7 @@ exports[`PieceMesh > renders black Unicorn and matches snapshot 1`] = `
     userdata="[object Object]"
   >
     <conegeometry
-      args="0.18,0.7,6"
+      args="0.18,1.2,6"
     />
     <meshstandardmaterial
       color="2236962"
@@ -111,7 +207,7 @@ exports[`PieceMesh > renders white Bishop and matches snapshot 1`] = `
     userdata="[object Object]"
   >
     <conegeometry
-      args="0.28,0.8,12"
+      args="0.38,0.8,12"
     />
     <meshstandardmaterial
       color="16777215"
@@ -122,16 +218,40 @@ exports[`PieceMesh > renders white Bishop and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders white King and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <cylindergeometry
-      args="0.25,0.35,1,16"
-    />
-    <meshstandardmaterial
-      color="16777215"
-    />
-  </mesh>
+    <mesh
+      position="0,0,0"
+    >
+      <cylindergeometry
+        args="0.25,0.35,0.7,16"
+      />
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+    <mesh
+      position="0,0.55,0"
+    >
+      <boxgeometry
+        args="0.2,0.4,0.2"
+      />
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+    <mesh
+      position="0,0.6,0"
+    >
+      <boxgeometry
+        args="0.4,0.08,0.2"
+      />
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+  </group>
 </div>
 `;
 
@@ -152,16 +272,34 @@ exports[`PieceMesh > renders white Knight and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders white Pawn and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <cylindergeometry
-      args="0.25,0.25,0.6,16"
-    />
-    <meshstandardmaterial
-      color="16777215"
-    />
-  </mesh>
+    <mesh
+      geometry="[object Object]"
+      position="0,-0.2,0"
+    >
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+    <mesh
+      geometry="[object Object]"
+      position="0,0,0"
+    >
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+    <mesh
+      geometry="[object Object]"
+      position="0,0.15,0"
+    >
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+  </group>
 </div>
 `;
 
@@ -182,16 +320,70 @@ exports[`PieceMesh > renders white Queen and matches snapshot 1`] = `
 
 exports[`PieceMesh > renders white Rook and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <cylindergeometry
-      args="0.3,0.3,0.7,8"
-    />
-    <meshstandardmaterial
-      color="16777215"
-    />
-  </mesh>
+    <mesh
+      position="0,0,0"
+    >
+      <cylindergeometry
+        args="0.22,0.28,0.7,12"
+      />
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+    <mesh
+      position="0,0.38,0"
+    >
+      <cylindergeometry
+        args="0.28,0.3,0.08,12"
+      />
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+    <mesh
+      position="0.26,0.46,0"
+    >
+      <boxgeometry
+        args="0.09,0.12,0.09"
+      />
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+    <mesh
+      position="1.5920408388915593e-17,0.46,0.26"
+    >
+      <boxgeometry
+        args="0.09,0.12,0.09"
+      />
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+    <mesh
+      position="-0.26,0.46,3.1840816777831187e-17"
+    >
+      <boxgeometry
+        args="0.09,0.12,0.09"
+      />
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+    <mesh
+      position="-4.7761225166746774e-17,0.46,-0.26"
+    >
+      <boxgeometry
+        args="0.09,0.12,0.09"
+      />
+      <meshstandardmaterial
+        color="16777215"
+      />
+    </mesh>
+  </group>
 </div>
 `;
 
@@ -201,7 +393,7 @@ exports[`PieceMesh > renders white Unicorn and matches snapshot 1`] = `
     userdata="[object Object]"
   >
     <conegeometry
-      args="0.18,0.7,6"
+      args="0.18,1.2,6"
     />
     <meshstandardmaterial
       color="16777215"

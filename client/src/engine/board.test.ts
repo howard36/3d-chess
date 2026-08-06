@@ -129,16 +129,9 @@ describe('Pawn move generation and promotion', () => {
       expect(promotionMoves).toContainEqual({ from, to, promotion: promoType });
     }
 
-    // Ensure non-promoting moves to other squares (if any) are not included in this check, or are handled separately
-    // For this specific setup, only the forward move to (2,4,4) and up-move to (2,3,4) are possible non-captures
-    const nonCaptureNonPromotionUpMove: Coord = { x: 2, y: 3, z: 4 };
-    if (board.getPiece(nonCaptureNonPromotionUpMove) === null) {
-      expect(moves).toContainEqual({
-        from,
-        to: nonCaptureNonPromotionUpMove,
-        promotion: undefined,
-      });
-    }
+    // The up-move from (2,3,4) would go to (2,3,5), which is out of bounds, and
+    // there are no capture targets — so the 5 promotion moves are the only moves.
+    expect(moves.length).toBe(ALL_PROMOTION_TYPES.length);
   });
 
   it('white pawn: generates all promotion types when capturing onto promotion square', () => {
@@ -167,12 +160,34 @@ describe('Pawn move generation and promotion', () => {
     const newBoard = board.applyMove({ from, to, promotion: PieceType.Queen });
     expect(newBoard.getPiece(to)).toEqual({ type: PieceType.Queen, color: 'white' });
 
-    // Test non-promotion move
+    // A non-promotion move must not carry a promotion
     const from2: Coord = { x: 1, y: 3, z: 3 };
     board.setPiece(from2, { type: PieceType.Pawn, color: 'white' });
     const to2: Coord = { x: 1, y: 4, z: 3 }; // Not a full promotion square (z is not 4)
-    const newBoard2 = board.applyMove({ from: from2, to: to2, promotion: PieceType.Queen }); // Promotion should be ignored
+    expect(() => board.applyMove({ from: from2, to: to2, promotion: PieceType.Queen })).toThrow();
+    const newBoard2 = board.applyMove({ from: from2, to: to2, promotion: undefined });
     expect(newBoard2.getPiece(to2)).toEqual({ type: PieceType.Pawn, color: 'white' });
+  });
+
+  it('applyMove: throws when a pawn reaches a promotion square without a valid promotion', () => {
+    const white: Coord = { x: 2, y: 3, z: 4 };
+    const whiteTo: Coord = { x: 2, y: 4, z: 4 };
+    const black: Coord = { x: 2, y: 1, z: 0 };
+    const blackTo: Coord = { x: 2, y: 0, z: 0 };
+    const board = new Board();
+    board.setPiece(white, { type: PieceType.Pawn, color: 'white' });
+    board.setPiece(black, { type: PieceType.Pawn, color: 'black' });
+
+    expect(() => board.applyMove({ from: white, to: whiteTo })).toThrow();
+    expect(() => board.applyMove({ from: white, to: whiteTo, promotion: PieceType.Pawn })).toThrow();
+    expect(() => board.applyMove({ from: white, to: whiteTo, promotion: PieceType.King })).toThrow();
+    expect(() => board.applyMove({ from: black, to: blackTo })).toThrow();
+
+    // All five legal promotion types are honored
+    for (const promoType of ALL_PROMOTION_TYPES) {
+      const promoted = board.applyMove({ from: white, to: whiteTo, promotion: promoType });
+      expect(promoted.getPiece(whiteTo)).toEqual({ type: promoType, color: 'white' });
+    }
   });
 
   it('white pawn: no two-square option (as per current rules)', () => {
