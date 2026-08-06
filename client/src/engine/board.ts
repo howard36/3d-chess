@@ -175,16 +175,20 @@ export class Board {
     
     // Remove from origin
     newBoard.setPiece(from, null);
-    // Promotion logic
+    // Promotion logic: promotion is mandatory (and only valid) when a pawn
+    // reaches a promotion square, and must be one of ALL_PROMOTION_TYPES.
     let newPiece = piece;
-    if (
-      piece.type === PieceType.Pawn &&
-      this.isPromotionSquare(to, piece.color) &&
-      promotion &&
-      promotion !== PieceType.Pawn &&
-      promotion !== PieceType.King
-    ) {
+    if (piece.type === PieceType.Pawn && this.isPromotionSquare(to, piece.color)) {
+      if (!promotion || !ALL_PROMOTION_TYPES.includes(promotion)) {
+        throw new Error(
+          `Pawn moving to promotion square ${toZXY(to)} requires a valid promotion, got: ${promotion}`,
+        );
+      }
       newPiece = { type: promotion, color: piece.color };
+    } else if (promotion !== undefined) {
+      throw new Error(
+        `Move ${toZXY(from)} -> ${toZXY(to)} is not a pawn promotion but has promotion: ${promotion}`,
+      );
     }
     newBoard.setPiece(to, newPiece);
     

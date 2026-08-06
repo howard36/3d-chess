@@ -1,3 +1,5 @@
+import type { Promotion } from '../types/messages';
+
 export enum PieceType {
   King = 'King',
   Queen = 'Queen',
@@ -12,6 +14,23 @@ export interface Piece {
   type: PieceType;
   color: 'white' | 'black';
 }
+
+// Wire-format promotion letters (schema: "Q" | "R" | "B" | "N" | "U")
+export const PIECE_TO_PROMOTION: Partial<Record<PieceType, Promotion>> = {
+  [PieceType.Queen]: 'Q',
+  [PieceType.Rook]: 'R',
+  [PieceType.Bishop]: 'B',
+  [PieceType.Knight]: 'N',
+  [PieceType.Unicorn]: 'U',
+};
+
+export const PROMOTION_TO_PIECE: Record<Promotion, PieceType> = {
+  Q: PieceType.Queen,
+  R: PieceType.Rook,
+  B: PieceType.Bishop,
+  N: PieceType.Knight,
+  U: PieceType.Unicorn,
+};
 
 // Movement vectors for each piece type (3D chess, §2.4)
 // Each vector is [dz, dx, dy] (z=level, x=file, y=rank)
