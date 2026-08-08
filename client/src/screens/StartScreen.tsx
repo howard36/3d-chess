@@ -2,13 +2,13 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { GameCreated, Error as ServerError } from '../types/messages';
 import type { GameSocket } from '../hooks/useGameSocket';
+import { setStoredRole } from '../lib/playerRole';
 
 interface StartScreenProps {
   gameSocket: GameSocket;
-  setIsCreator: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const StartScreen: React.FC<StartScreenProps> = ({ gameSocket, setIsCreator }) => {
+const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -20,12 +20,14 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket, setIsCreator }) =
 
   React.useEffect(() => {
     if (gameCreated) {
+      // Persist the role as soon as the server assigns it, so the creator can
+      // leave and rejoin this game later.
+      setStoredRole(gameCreated.gameId, gameCreated.color);
       navigate(`/game/${gameCreated.gameId}`);
     }
   }, [gameCreated, navigate]);
 
   const handleCreateGame = () => {
-    setIsCreator(true);
     setIsLoading(true);
     gameSocket.send({ type: 'create_game' });
   };

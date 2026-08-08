@@ -6,16 +6,14 @@ import React from 'react';
 
 function App() {
   const gameSocket = useGameSocket();
-  const [isCreator, setIsCreator] = React.useState(false);
   const location = useLocation();
   const { reset } = gameSocket;
 
   React.useEffect(() => {
     // Navigating back to the start screen ends the current game session:
-    // clear creator status and start a fresh socket session so the previous
-    // game's messages and server-side state don't leak into the next game.
+    // start a fresh socket session so the previous game's messages and
+    // server-side state don't leak into the next game.
     if (location.pathname === '/') {
-      setIsCreator(false);
       reset();
     }
     // `reset` is a no-op unless the session saw traffic; depending on
@@ -25,14 +23,8 @@ function App() {
 
   return (
     <Routes>
-      <Route
-        path="/"
-        element={<StartScreen gameSocket={gameSocket} setIsCreator={setIsCreator} />}
-      />
-      <Route
-        path="/game/:gameId"
-        element={<GameScreen gameSocket={gameSocket} isCreator={isCreator} />}
-      />
+      <Route path="/" element={<StartScreen gameSocket={gameSocket} />} />
+      <Route path="/game/:gameId" element={<GameScreen gameSocket={gameSocket} />} />
     </Routes>
   );
 }

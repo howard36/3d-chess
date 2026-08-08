@@ -5,7 +5,9 @@
     { "$ref": "#/definitions/create_game" },
     { "$ref": "#/definitions/game_created" },
     { "$ref": "#/definitions/join_game" },
+    { "$ref": "#/definitions/rejoin_game" },
     { "$ref": "#/definitions/game_start" },
+    { "$ref": "#/definitions/game_state" },
     { "$ref": "#/definitions/move" },
     { "$ref": "#/definitions/move_made" },
     { "$ref": "#/definitions/error" }
@@ -23,9 +25,10 @@
       "type": "object",
       "properties": {
         "type": { "const": "game_created" },
-        "gameId": { "type": "string" }
+        "gameId": { "type": "string" },
+        "color": { "enum": ["white", "black"] }
       },
-      "required": ["type", "gameId"],
+      "required": ["type", "gameId", "color"],
       "additionalProperties": false
     },
     "join_game": {
@@ -37,6 +40,16 @@
       "required": ["type", "gameId"],
       "additionalProperties": false
     },
+    "rejoin_game": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "rejoin_game" },
+        "gameId": { "type": "string" },
+        "color": { "enum": ["white", "black"] }
+      },
+      "required": ["type", "gameId", "color"],
+      "additionalProperties": false
+    },
     "game_start": {
       "type": "object",
       "properties": {
@@ -45,6 +58,28 @@
         "initialPosition": { "type": "string" }
       },
       "required": ["type", "color"],
+      "additionalProperties": false
+    },
+    "game_state": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "game_state" },
+        "color": { "enum": ["white", "black"] },
+        "started": { "type": "boolean" },
+        "moves": { "type": "array", "items": { "$ref": "#/definitions/move_record" } }
+      },
+      "required": ["type", "color", "started", "moves"],
+      "additionalProperties": false
+    },
+    "move_record": {
+      "type": "object",
+      "properties": {
+        "by": { "enum": ["white", "black"] },
+        "from": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
+        "to": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
+        "promotion": { "enum": ["Q", "R", "B", "N", "U"] }
+      },
+      "required": ["by", "from", "to"],
       "additionalProperties": false
     },
     "move": {

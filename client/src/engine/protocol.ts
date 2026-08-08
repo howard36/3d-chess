@@ -4,10 +4,10 @@
 import { fromZXY, toZXY } from './coords';
 import { PIECE_TO_PROMOTION, PROMOTION_TO_PIECE } from './pieces';
 import type { Move } from './board';
-import type { Move as MoveMessage, MoveMade, Promotion } from '../types/messages';
+import type { Move as MoveMessage, MoveRecord, Promotion } from '../types/messages';
 
-/** Convert a received move_made message into an engine Move. */
-export function moveFromMessage(msg: MoveMade): Move {
+/** Convert a received move_made message (or a stored move record) into an engine Move. */
+export function moveFromMessage(msg: MoveRecord): Move {
   return {
     from: fromZXY(msg.from),
     to: fromZXY(msg.to),

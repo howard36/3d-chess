@@ -4,9 +4,7 @@ import { PieceType } from './pieces';
 
 describe('moveFromMessage', () => {
   it('parses coordinates and no promotion', () => {
-    expect(
-      moveFromMessage({ type: 'move_made', by: 'white', from: 'Aa2', to: 'Aa3' }),
-    ).toEqual({
+    expect(moveFromMessage({ by: 'white', from: 'Aa2', to: 'Aa3' })).toEqual({
       from: { x: 0, y: 1, z: 0 },
       to: { x: 0, y: 2, z: 0 },
       promotion: undefined,
@@ -23,7 +21,6 @@ describe('moveFromMessage', () => {
     ];
     for (const [letter, pieceType] of cases) {
       const move = moveFromMessage({
-        type: 'move_made',
         by: 'white',
         from: 'Ea4',
         to: 'Ea5',
@@ -63,7 +60,12 @@ describe('moveToMessage', () => {
         to: { x: 0, y: 4, z: 4 },
         promotion: pieceType,
       });
-      const back = moveFromMessage({ ...msg, type: 'move_made', by: 'white' });
+      const back = moveFromMessage({
+        by: 'white',
+        from: msg.from,
+        to: msg.to,
+        promotion: msg.promotion,
+      });
       expect(back.promotion).toBe(pieceType);
     }
   });
