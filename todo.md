@@ -1,5 +1,8 @@
 # 3D Chess Online Multiplayer v1.0 — TODO Checklist
 
+> **Historical document.** This was the original build checklist and is no longer
+> maintained. See `README.md` for current documentation.
+
 ---
 
 ## Phase 0 – Project Bootstrap

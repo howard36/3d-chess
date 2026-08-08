@@ -1,5 +1,13 @@
 # Project Specification: 3D Chess Online Multiplayer (Version 1.0)
 
+> **Historical document.** This is the original V1 spec, kept for reference. The
+> implementation has since evolved past it — see `README.md` for current architecture and
+> assumptions, and `server/schema.json` for the authoritative protocol. Known drift from
+> this spec: the creator's color is assigned at `create_game` time and included in
+> `game_created`; `rejoin_game` and `game_state` messages were added for reconnection;
+> game records are stored in a durable `modal.Dict` rather than a plain in-memory dict;
+> and pawn promotion currently auto-selects Queen (no picker UI yet).
+
 **Preface: Software Engineering Practices**
 
 This project should adhere to standard software engineering best practices, emphasizing:
