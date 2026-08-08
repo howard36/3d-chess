@@ -7,22 +7,34 @@ import TurnIndicator from '../three/TurnIndicator';
 import { Board as EngineBoard, Move } from '../engine';
 import { moveFromMessage, moveToMessage } from '../engine/protocol';
 import EndGameModal from './EndGameModal';
-import type { GameStart, MoveMade, Error as ServerError } from '../types/messages';
+import type { GameStart, GameState, MoveMade, Error as ServerError } from '../types/messages';
 import type { GameSocket } from '../hooks/useGameSocket';
+import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
-  isCreator: boolean;
 }
 
 type Phase = 'waiting' | 'joined' | 'started';
 
-const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
+const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { gameId } = useParams<{ gameId: string }>();
-  // Whether this client has sent join_game (creator never does)
+  // Whether this client has sent join_game (players with a stored role never do)
   const [joinRequested, setJoinRequested] = React.useState(false);
   // Errors the user has already dismissed (by count, since the log is append-only)
   const [dismissedErrorCount, setDismissedErrorCount] = React.useState(0);
+  // Render mirror of the persisted role; localStorage is the source of truth
+  const [storedRole, setStoredRoleState] = React.useState(() =>
+    gameId ? getStoredRole(gameId) : null,
+  );
+  // Guards the auto-rejoin so it fires at most once per game page
+  const rejoinSentRef = React.useRef(false);
+
+  React.useEffect(() => {
+    // Re-sync when the route's gameId changes (a different game's page)
+    setStoredRoleState(gameId ? getStoredRole(gameId) : null);
+    rejoinSentRef.current = false;
+  }, [gameId]);
 
   const messages = gameSocket.messages;
 
@@ -31,12 +43,44 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
     () => messages.find((m): m is GameStart => m.type === 'game_start'),
     [messages],
   );
-  const color = gameStart?.color ?? null;
-
-  const moves: Move[] = React.useMemo(
-    () => messages.filter((m): m is MoveMade => m.type === 'move_made').map(moveFromMessage),
+  // A game_state reply (rejoin) carries the same role/history information a
+  // live session accumulates from game_start + move_made messages.
+  const gameState = React.useMemo(
+    () => messages.find((m): m is GameState => m.type === 'game_state'),
     [messages],
   );
+  const color = gameStart?.color ?? gameState?.color ?? null;
+
+  const moves: Move[] = React.useMemo(
+    () =>
+      [
+        ...(gameState?.moves ?? []),
+        ...messages.filter((m): m is MoveMade => m.type === 'move_made'),
+      ].map(moveFromMessage),
+    [messages, gameState],
+  );
+
+  // Rejoin on page load: with a stored role and no session in the log (a fresh
+  // socket, unlike the creator arriving from StartScreen with game_created
+  // already present), reclaim the seat and let the server replay history.
+  React.useEffect(() => {
+    if (rejoinSentRef.current || !gameId || !storedRole) return;
+    const hasSession = messages.some(
+      (m) => m.type === 'game_created' || m.type === 'game_start' || m.type === 'game_state',
+    );
+    if (hasSession) return;
+    rejoinSentRef.current = true;
+    gameSocket.send({ type: 'rejoin_game', gameId, color: storedRole });
+  }, [gameId, storedRole, messages, gameSocket]);
+
+  // The joiner learns their role from game_start; persist it immediately so
+  // they can rejoin later (idempotent for a creator who already stored it).
+  React.useEffect(() => {
+    if (gameId && gameStart) {
+      setStoredRole(gameId, gameStart.color);
+      setStoredRoleState(gameStart.color);
+    }
+  }, [gameId, gameStart]);
 
   const board = React.useMemo(() => {
     let b = EngineBoard.setupStartingPosition();
@@ -79,7 +123,23 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
     }
   }, [errors, gameStart, joinRequested]);
 
-  const phase: Phase = gameStart ? 'started' : joinRequested ? 'joined' : 'waiting';
+  // A failed rejoin means the stored role is stale (the game expired or the
+  // seat was never claimed): forget it and fall back to the join button.
+  React.useEffect(() => {
+    if (
+      gameId &&
+      storedRole &&
+      !gameStart &&
+      !gameState &&
+      errors.some((e) => e.code === 'invalid_rejoin' || e.code === 'invalid_game')
+    ) {
+      clearStoredRole(gameId);
+      setStoredRoleState(null);
+    }
+  }, [errors, gameId, storedRole, gameStart, gameState]);
+
+  const phase: Phase =
+    gameStart || gameState?.started ? 'started' : joinRequested ? 'joined' : 'waiting';
 
   // Send move message on local move
   const handleMove = (move: Move) => {
@@ -178,7 +238,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8">
       <div className="text-center flex flex-col items-center gap-8">
         <h1 className="text-6xl font-bold text-white tracking-wide">3D Chess</h1>
-        {phase === 'waiting' && !isCreator && (
+        {phase === 'waiting' && !storedRole && (
           <button
             onClick={handleJoin}
             className="py-3 px-6 text-2xl font-semibold text-gray-900 bg-white rounded-xl hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 transition-all duration-200 transform hover:scale-105"
@@ -186,7 +246,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket, isCreator }) => {
             Join Game
           </button>
         )}
-        {phase === 'waiting' && isCreator && (
+        {phase === 'waiting' && storedRole && (
           <div className="text-center">
             <p className="text-xl mb-4">Game created! Share this link with a friend:</p>
             <p className="text-2xl font-bold bg-gray-800 px-4 py-2 rounded-lg">

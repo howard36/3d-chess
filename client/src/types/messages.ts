@@ -4,9 +4,12 @@ export type CreateGame = {
   type: 'create_game';
 };
 
+export type Color = 'white' | 'black';
+
 export type GameCreated = {
   type: 'game_created';
   gameId: string;
+  color: Color;
 };
 
 export type JoinGame = {
@@ -14,7 +17,11 @@ export type JoinGame = {
   gameId: string;
 };
 
-export type Color = 'white' | 'black';
+export type RejoinGame = {
+  type: 'rejoin_game';
+  gameId: string;
+  color: Color;
+};
 
 export type GameStart = {
   type: 'game_start';
@@ -24,6 +31,21 @@ export type GameStart = {
 
 export type Promotion = 'Q' | 'R' | 'B' | 'N' | 'U';
 
+// A move as stored in a game's history: move_made without the message tag.
+export type MoveRecord = {
+  by: Color;
+  from: string; // Pattern: [A-E][a-e][1-5]
+  to: string; // Pattern: [A-E][a-e][1-5]
+  promotion?: Promotion;
+};
+
+export type GameState = {
+  type: 'game_state';
+  color: Color;
+  started: boolean;
+  moves: MoveRecord[];
+};
+
 export type Move = {
   type: 'move';
   from: string; // Pattern: [A-E][a-e][1-5]
@@ -31,12 +53,8 @@ export type Move = {
   promotion?: Promotion;
 };
 
-export type MoveMade = {
+export type MoveMade = MoveRecord & {
   type: 'move_made';
-  by: Color;
-  from: string; // Pattern: [A-E][a-e][1-5]
-  to: string; // Pattern: [A-E][a-e][1-5]
-  promotion?: Promotion;
 };
 
 export type Error = {
@@ -45,4 +63,13 @@ export type Error = {
   message: string;
 };
 
-export type WebSocketMessage = CreateGame | GameCreated | JoinGame | GameStart | Move | MoveMade | Error;
+export type WebSocketMessage =
+  | CreateGame
+  | GameCreated
+  | JoinGame
+  | RejoinGame
+  | GameStart
+  | GameState
+  | Move
+  | MoveMade
+  | Error;
