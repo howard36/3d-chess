@@ -17,9 +17,6 @@ test = [
   "websockets",
 ]
 
-[tool.uv]
-python-version = "3.13"
-
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
