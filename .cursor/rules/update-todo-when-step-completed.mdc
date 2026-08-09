@@ -1,8 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-# TODO Checklist Update Rule
-
-Whenever you complete a step or land a commit related to a task, make sure to update the checklist in [todo.md](mdc:todo.md) to reflect the current project status. This helps keep project progress transparent and up to date for all contributors.

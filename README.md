@@ -4,9 +4,33 @@ A web app for playing a 5×5×5 3D chess variant (Raumschach-style: standard pie
 Unicorn) with a friend over a shareable link. React + Three.js frontend, small Python
 WebSocket relay on Modal.
 
-This README is the current, authoritative documentation. `spec.md` is the original V1 spec
-and `todo.md` the original build checklist; both are kept for history but have drifted from
-the implementation (see the banners at the top of each).
+This README is the current, authoritative documentation.
+
+## Game rules
+
+Played on a 5×5×5 grid. Squares are addressed as level `A–E` (bottom→top in game terms),
+file `a–e`, rank `1–5`. White starts at low ranks/levels and moves toward higher ones
+("forward" = +rank, "up" = +level); Black is mirrored.
+
+Movement (deltas over file/rank/level; sliders repeat the step and cannot pass through
+pieces):
+
+- **Rook** — ±n along exactly one axis.
+- **Bishop** — ±n along exactly two axes (planar diagonals).
+- **Unicorn** — ±n along all three axes (space diagonals).
+- **Queen** — Rook + Bishop + Unicorn. **King** — any Queen direction, one step.
+- **Knight** — (±2, ±1, 0) in any axis order; jumps over pieces.
+- **Pawn** — no double first move, no en passant. Non-capture: one step forward *or* one
+  step up (player's choice). Capture, relative to White: forward-up (0,+1,+1),
+  forward-left/right (∓1,+1,0), up-left/right (∓1,0,+1). Promotes **only** on squares
+  where both rank and level are maximal (White: rank 5 on level E) or minimal (Black:
+  rank 1 on level A), to Q/R/B/N/U (the UI currently auto-selects Queen).
+
+No castling. Check, checkmate, and stalemate work as in standard chess and are detected
+by the client engine. The starting position is defined in `Board.setupStartingPosition()`
+(`client/src/engine/board.ts`): White's back ranks on rank 1 are R N K N R (level A) and
+B U Q B U (level B), with ten pawns on rank 2 across levels A+B; Black mirrors this on
+ranks 4–5 / levels E+D, with its second back rank ordered U B Q U B.
 
 ## Scope and trust assumptions
 
@@ -122,8 +146,6 @@ independent of rendering.
 client/          React app (Vite). Engine in src/engine, UI in src/screens + src/three.
 client/e2e/      Playwright tests; boots the real server and Vite (see playwright.config.ts).
 server/          FastAPI app + Modal deployment (modal_app.py), schema, generated models, pytest suite.
-spec.md          Historical: original V1 spec (protocol section has drifted).
-todo.md          Historical: original build checklist.
 ```
 
 ## Development
