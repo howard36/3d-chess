@@ -13,7 +13,7 @@ afterAll(() => {
 
 describe('useGameSocket', () => {
   let server: WS;
-  const WS_URL = 'wss://howard-modal-labs--3d-chess-backend-serve.modal.run/ws';
+  const WS_URL = 'wss://howard36--3d-chess-backend-serve.modal.run/ws';
 
   beforeEach(() => {
     server = new WS(WS_URL);

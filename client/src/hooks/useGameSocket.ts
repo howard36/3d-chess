@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { WebSocketMessage } from '../types/messages';
 
 const WS_URL: string =
-  import.meta.env.VITE_WS_URL ?? 'wss://howard-modal-labs--3d-chess-backend-serve.modal.run/ws';
+  import.meta.env.VITE_WS_URL ?? 'wss://howard36--3d-chess-backend-serve.modal.run/ws';
 
 export interface GameSocket {
   send: (msg: WebSocketMessage) => void;
