@@ -20,8 +20,8 @@ from messages import (
 
 # Mount the local messages.py module into the container so `from messages import …` works
 image = (
-    modal.Image.debian_slim()
-    .pip_install("fastapi[standard]")
+    modal.Image.debian_slim(python_version="3.13")
+    .pip_install("fastapi[standard]>=0.115.4")
     .add_local_python_source("messages")  # see https://modal.com/docs/guide/images#Adding-local-Python-modules [1]
 )
 
