@@ -1,22 +1,56 @@
 import { useState } from 'react';
 import { Box } from '@react-three/drei';
+import { BoxGeometry, BufferAttribute, BufferGeometry, EdgesGeometry } from 'three';
 import { Board as EngineBoard } from '../engine';
 import type { Move } from '../engine';
 import { PieceMesh } from './PieceMesh';
 import React from 'react';
 import { PieceType } from '../engine/pieces';
 import { Coord } from '../engine/coords';
+import { theme } from './theme';
 
 const GRID_SIZE = 5;
 const SPACING = 1.1;
 const HALF = (GRID_SIZE - 1) / 2;
 
+const toWorld = (c: Coord): [number, number, number] => [
+  (c.x - HALF) * SPACING,
+  (c.y - HALF) * SPACING,
+  (c.z - HALF) * SPACING,
+];
+
 const cubes = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => {
   const x = i % GRID_SIZE;
   const y = Math.floor(i / GRID_SIZE) % GRID_SIZE;
   const z = Math.floor(i / (GRID_SIZE * GRID_SIZE));
-  return [(x - HALF) * SPACING, (y - HALF) * SPACING, (z - HALF) * SPACING, `${x},${y},${z}`];
+  return { coord: { x, y, z }, position: toWorld({ x, y, z }), key: `${x},${y},${z}` };
 });
+
+// The grid is drawn as a single wireframe lattice rather than translucent cube
+// faces: stacked transparent faces compound into haze toward the center of the
+// board and sort badly against the pieces. One merged geometry keeps it to a
+// single draw call.
+const buildLatticeGeometry = () => {
+  const cellEdges = new EdgesGeometry(new BoxGeometry(1, 1, 1));
+  const src = cellEdges.getAttribute('position');
+  const merged = new Float32Array(cubes.length * src.count * 3);
+  cubes.forEach(({ position }, cell) => {
+    for (let v = 0; v < src.count; v++) {
+      const o = (cell * src.count + v) * 3;
+      merged[o] = src.getX(v) + position[0];
+      merged[o + 1] = src.getY(v) + position[1];
+      merged[o + 2] = src.getZ(v) + position[2];
+    }
+  });
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(merged, 3));
+  return geometry;
+};
+const latticeGeometry = buildLatticeGeometry();
+
+// Line raycasting has a generous default threshold that would steal pointer
+// events from the cells; markers are decorative too.
+const noRaycast = () => null;
 
 export type BoardTurn = 'white' | 'black';
 
@@ -121,6 +155,15 @@ const Board = (props: BoardProps) => {
   const isHighlighted = (x: number, y: number, z: number) =>
     legalMoves.some((m) => m.to.x === x && m.to.y === y && m.to.z === z);
 
+  // Distinct destination cells (promotions produce several moves per cell),
+  // split by whether the move is a capture, to pick the marker shape.
+  const destinations = [
+    ...new Map(legalMoves.map((m) => [`${m.to.x},${m.to.y},${m.to.z}`, m.to])).values(),
+  ].map((to) => ({ to, capture: !!board.getPiece(to) }));
+
+  const isSelected = (x: number, y: number, z: number) =>
+    !!selected && selected.x === x && selected.y === y && selected.z === z;
+
   return (
     <group
       name="board-grid"
@@ -132,19 +175,25 @@ const Board = (props: BoardProps) => {
       }}
     >
       {props.children}
-      {cubes.map(([x, y, z, key]) => {
-        const gx = Math.round((x as number) / SPACING + HALF);
-        const gy = Math.round((y as number) / SPACING + HALF);
-        const gz = Math.round((z as number) / SPACING + HALF);
-        const isDest = isHighlighted(gx, gy, gz);
+      <lineSegments geometry={latticeGeometry} raycast={noRaycast}>
+        <lineBasicMaterial
+          color={theme.gridLine}
+          transparent
+          opacity={theme.gridLineOpacity}
+          depthWrite={false}
+        />
+      </lineSegments>
+      {/* Invisible cell boxes: raycast targets for selecting a destination and
+          for the empty-space click that clears the selection. Destination
+          cells get a faint fill; everything visible about a destination is
+          drawn by the markers below. */}
+      {cubes.map(({ coord, position, key }) => {
+        const isDest = isHighlighted(coord.x, coord.y, coord.z);
         return (
           <Box
-            key={key as string}
-            position={[x as number, y as number, z as number]}
+            key={key}
+            position={position}
             args={[1, 1, 1]}
-            material-color={isDest ? '#ffd600' : '#e3eaf2'}
-            material-transparent
-            material-opacity={isDest ? 0.5 : 0.1}
             castShadow={false}
             receiveShadow={false}
             userData={{
@@ -156,26 +205,72 @@ const Board = (props: BoardProps) => {
               isDest
                 ? (e) => {
                     e.stopPropagation();
-                    handleCubePointerDown(gx, gy, gz);
+                    handleCubePointerDown(coord.x, coord.y, coord.z);
                   }
                 : undefined
             }
-          />
+          >
+            <meshBasicMaterial
+              color={theme.highlightFill}
+              transparent
+              opacity={isDest ? 0.12 : 0}
+              depthWrite={false}
+            />
+          </Box>
         );
       })}
+      {/* Move markers: a dot for a quiet move, a ring around a capturable piece */}
+      {destinations.map(({ to, capture }) =>
+        capture ? (
+          <mesh
+            key={`capture-${to.x},${to.y},${to.z}`}
+            position={toWorld(to)}
+            rotation={[Math.PI / 2, 0, 0]}
+            raycast={noRaycast}
+          >
+            <torusGeometry args={[0.42, 0.035, 8, 32]} />
+            <meshBasicMaterial color={theme.capture} transparent opacity={0.9} depthWrite={false} />
+          </mesh>
+        ) : (
+          <mesh key={`quiet-${to.x},${to.y},${to.z}`} position={toWorld(to)} raycast={noRaycast}>
+            <sphereGeometry args={[0.11, 16, 16]} />
+            <meshBasicMaterial
+              color={theme.quietMove}
+              transparent
+              opacity={0.9}
+              depthWrite={false}
+            />
+          </mesh>
+        ),
+      )}
+      {/* Ring under the selected piece */}
+      {selected && (
+        <mesh
+          position={[toWorld(selected)[0], toWorld(selected)[1] - 0.42, toWorld(selected)[2]]}
+          rotation={[Math.PI / 2, 0, 0]}
+          raycast={noRaycast}
+        >
+          <torusGeometry args={[0.38, 0.04, 8, 32]} />
+          <meshBasicMaterial color={theme.select} transparent opacity={0.95} depthWrite={false} />
+        </mesh>
+      )}
       {pieces.map(({ type, color, x, y, z }) => (
         <PieceMesh
           key={`${type}-${color}-${x},${y},${z}`}
           type={type}
           color={color}
-          position={[(x - HALF) * SPACING, (y - HALF) * SPACING, (z - HALF) * SPACING]}
+          position={toWorld({ x, y, z })}
           onPointerDown={(e: React.PointerEvent) => {
             e.stopPropagation();
             handlePiecePointerDown(x, y, z);
           }}
-          // Highlight king if in check
+          // Check trumps selection for the king's glow
           emissive={
-            type === PieceType.King && board.inCheck(color) ? '#ff2222' : '#000000'
+            type === PieceType.King && board.inCheck(color)
+              ? theme.check
+              : isSelected(x, y, z)
+                ? theme.selectEmissive
+                : '#000000'
           }
         />
       ))}

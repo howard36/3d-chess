@@ -10,6 +10,7 @@ import EndGameModal from './EndGameModal';
 import type { GameStart, GameState, MoveMade, Error as ServerError } from '../types/messages';
 import type { GameSocket } from '../hooks/useGameSocket';
 import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole';
+import { theme } from '../three/theme';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
@@ -208,16 +209,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         {/* Turn indicator */}
         <TurnIndicator turn={currentTurn} />
         {/* Main 3D Board canvas */}
-        <Canvas data-testid="r3f-canvas" style={{ height: '100%', width: '100%' }}>
-          <ambientLight intensity={Math.PI / 2} />
-          <spotLight
-            position={[10, 10, 10]}
-            angle={0.15}
-            penumbra={1}
-            decay={0}
-            intensity={Math.PI}
-          />
-          <pointLight position={[-10, -10, -10]} decay={0} intensity={Math.PI} />
+        <Canvas
+          data-testid="r3f-canvas"
+          style={{ height: '100%', width: '100%' }}
+          camera={{ position: [6.5, 5, 8.5], fov: 40 }}
+        >
+          <color attach="background" args={[theme.background]} />
+          {/* Fog matched to the background gently fades the far side of the
+              lattice, giving a depth cue the flat grid lines can't */}
+          <fog attach="fog" args={[theme.background, 10, 26]} />
+          <hemisphereLight args={['#f5f7fb', '#46506b', 1.1]} />
+          <directionalLight position={[6, 10, 6]} intensity={2.2} />
+          <directionalLight position={[-6, -4, -8]} intensity={1.0} color="#dfe6f2" />
           <Board
             board={board} // Pass the EngineBoard instance
             currentTurn={currentTurn}
