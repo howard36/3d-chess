@@ -9,7 +9,10 @@ exports[`PieceMesh > renders black Bishop and matches snapshot 1`] = `
       args="0.38,0.8,12"
     />
     <meshstandardmaterial
-      color="2236962"
+      color="#413b35"
+      emissive="#000000"
+      metalness="0.35"
+      roughness="0.25"
     />
   </mesh>
 </div>
@@ -27,7 +30,10 @@ exports[`PieceMesh > renders black King and matches snapshot 1`] = `
         args="0.25,0.35,0.7,16"
       />
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
     <mesh
@@ -37,7 +43,10 @@ exports[`PieceMesh > renders black King and matches snapshot 1`] = `
         args="0.2,0.4,0.2"
       />
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
     <mesh
@@ -47,7 +56,10 @@ exports[`PieceMesh > renders black King and matches snapshot 1`] = `
         args="0.4,0.08,0.2"
       />
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
   </group>
@@ -63,7 +75,10 @@ exports[`PieceMesh > renders black Knight and matches snapshot 1`] = `
       args="0.2,0.2,0.5,6"
     />
     <meshstandardmaterial
-      color="2236962"
+      color="#413b35"
+      emissive="#000000"
+      metalness="0.35"
+      roughness="0.25"
     />
   </mesh>
 </div>
@@ -79,7 +94,10 @@ exports[`PieceMesh > renders black Pawn and matches snapshot 1`] = `
       position="0,-0.2,0"
     >
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
     <mesh
@@ -87,7 +105,10 @@ exports[`PieceMesh > renders black Pawn and matches snapshot 1`] = `
       position="0,0,0"
     >
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
     <mesh
@@ -95,7 +116,10 @@ exports[`PieceMesh > renders black Pawn and matches snapshot 1`] = `
       position="0,0.15,0"
     >
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
   </group>
@@ -111,7 +135,10 @@ exports[`PieceMesh > renders black Queen and matches snapshot 1`] = `
       args="0.22,0.32,0.9,16"
     />
     <meshstandardmaterial
-      color="2236962"
+      color="#413b35"
+      emissive="#000000"
+      metalness="0.35"
+      roughness="0.25"
     />
   </mesh>
 </div>
@@ -129,7 +156,10 @@ exports[`PieceMesh > renders black Rook and matches snapshot 1`] = `
         args="0.22,0.28,0.7,12"
       />
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
     <mesh
@@ -139,7 +169,10 @@ exports[`PieceMesh > renders black Rook and matches snapshot 1`] = `
         args="0.28,0.3,0.08,12"
       />
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
     <mesh
@@ -149,7 +182,10 @@ exports[`PieceMesh > renders black Rook and matches snapshot 1`] = `
         args="0.09,0.12,0.09"
       />
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
     <mesh
@@ -159,7 +195,10 @@ exports[`PieceMesh > renders black Rook and matches snapshot 1`] = `
         args="0.09,0.12,0.09"
       />
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
     <mesh
@@ -169,7 +208,10 @@ exports[`PieceMesh > renders black Rook and matches snapshot 1`] = `
         args="0.09,0.12,0.09"
       />
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
     <mesh
@@ -179,7 +221,10 @@ exports[`PieceMesh > renders black Rook and matches snapshot 1`] = `
         args="0.09,0.12,0.09"
       />
       <meshstandardmaterial
-        color="2236962"
+        color="#413b35"
+        emissive="#000000"
+        metalness="0.35"
+        roughness="0.25"
       />
     </mesh>
   </group>
@@ -195,7 +240,10 @@ exports[`PieceMesh > renders black Unicorn and matches snapshot 1`] = `
       args="0.18,1.2,6"
     />
     <meshstandardmaterial
-      color="2236962"
+      color="#413b35"
+      emissive="#000000"
+      metalness="0.35"
+      roughness="0.25"
     />
   </mesh>
 </div>
@@ -210,7 +258,10 @@ exports[`PieceMesh > renders white Bishop and matches snapshot 1`] = `
       args="0.38,0.8,12"
     />
     <meshstandardmaterial
-      color="16777215"
+      color="#f2ead8"
+      emissive="#000000"
+      metalness="0.15"
+      roughness="0.45"
     />
   </mesh>
 </div>
@@ -228,7 +279,10 @@ exports[`PieceMesh > renders white King and matches snapshot 1`] = `
         args="0.25,0.35,0.7,16"
       />
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
     <mesh
@@ -238,7 +292,10 @@ exports[`PieceMesh > renders white King and matches snapshot 1`] = `
         args="0.2,0.4,0.2"
       />
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
     <mesh
@@ -248,7 +305,10 @@ exports[`PieceMesh > renders white King and matches snapshot 1`] = `
         args="0.4,0.08,0.2"
       />
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
   </group>
@@ -264,7 +324,10 @@ exports[`PieceMesh > renders white Knight and matches snapshot 1`] = `
       args="0.2,0.2,0.5,6"
     />
     <meshstandardmaterial
-      color="16777215"
+      color="#f2ead8"
+      emissive="#000000"
+      metalness="0.15"
+      roughness="0.45"
     />
   </mesh>
 </div>
@@ -280,7 +343,10 @@ exports[`PieceMesh > renders white Pawn and matches snapshot 1`] = `
       position="0,-0.2,0"
     >
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
     <mesh
@@ -288,7 +354,10 @@ exports[`PieceMesh > renders white Pawn and matches snapshot 1`] = `
       position="0,0,0"
     >
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
     <mesh
@@ -296,7 +365,10 @@ exports[`PieceMesh > renders white Pawn and matches snapshot 1`] = `
       position="0,0.15,0"
     >
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
   </group>
@@ -312,7 +384,10 @@ exports[`PieceMesh > renders white Queen and matches snapshot 1`] = `
       args="0.22,0.32,0.9,16"
     />
     <meshstandardmaterial
-      color="16777215"
+      color="#f2ead8"
+      emissive="#000000"
+      metalness="0.15"
+      roughness="0.45"
     />
   </mesh>
 </div>
@@ -330,7 +405,10 @@ exports[`PieceMesh > renders white Rook and matches snapshot 1`] = `
         args="0.22,0.28,0.7,12"
       />
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
     <mesh
@@ -340,7 +418,10 @@ exports[`PieceMesh > renders white Rook and matches snapshot 1`] = `
         args="0.28,0.3,0.08,12"
       />
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
     <mesh
@@ -350,7 +431,10 @@ exports[`PieceMesh > renders white Rook and matches snapshot 1`] = `
         args="0.09,0.12,0.09"
       />
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
     <mesh
@@ -360,7 +444,10 @@ exports[`PieceMesh > renders white Rook and matches snapshot 1`] = `
         args="0.09,0.12,0.09"
       />
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
     <mesh
@@ -370,7 +457,10 @@ exports[`PieceMesh > renders white Rook and matches snapshot 1`] = `
         args="0.09,0.12,0.09"
       />
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
     <mesh
@@ -380,7 +470,10 @@ exports[`PieceMesh > renders white Rook and matches snapshot 1`] = `
         args="0.09,0.12,0.09"
       />
       <meshstandardmaterial
-        color="16777215"
+        color="#f2ead8"
+        emissive="#000000"
+        metalness="0.15"
+        roughness="0.45"
       />
     </mesh>
   </group>
@@ -396,7 +489,10 @@ exports[`PieceMesh > renders white Unicorn and matches snapshot 1`] = `
       args="0.18,1.2,6"
     />
     <meshstandardmaterial
-      color="16777215"
+      color="#f2ead8"
+      emissive="#000000"
+      metalness="0.15"
+      roughness="0.45"
     />
   </mesh>
 </div>

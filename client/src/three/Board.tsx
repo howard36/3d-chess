@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Box } from '@react-three/drei';
+import { BoxGeometry, BufferAttribute, BufferGeometry, EdgesGeometry } from 'three';
 import { Board as EngineBoard } from '../engine';
 import type { Move } from '../engine';
 import { PieceMesh } from './PieceMesh';
@@ -7,6 +8,35 @@ import React from 'react';
 import { PieceType } from '../engine/pieces';
 import { Coord, toZXY } from '../engine/coords';
 import { CELLS, toWorld } from './layout';
+import { theme } from './theme';
+
+// The grid is drawn as a single wireframe lattice rather than translucent cube
+// faces: stacked transparent faces compound into haze toward the center of the
+// board and sort badly against the pieces. One merged geometry keeps it to a
+// single draw call. The lattice is the same set of cell edges under either
+// orientation, so it is built once from White's view.
+const buildLatticeGeometry = () => {
+  const cellEdges = new EdgesGeometry(new BoxGeometry(1, 1, 1));
+  const src = cellEdges.getAttribute('position');
+  const merged = new Float32Array(CELLS.length * src.count * 3);
+  CELLS.forEach((cell, i) => {
+    const [cx, cy, cz] = toWorld(cell, 'white');
+    for (let v = 0; v < src.count; v++) {
+      const o = (i * src.count + v) * 3;
+      merged[o] = src.getX(v) + cx;
+      merged[o + 1] = src.getY(v) + cy;
+      merged[o + 2] = src.getZ(v) + cz;
+    }
+  });
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(merged, 3));
+  return geometry;
+};
+const latticeGeometry = buildLatticeGeometry();
+
+// Line raycasting has a generous default threshold that would steal pointer
+// events from the cells; markers are decorative too.
+const noRaycast = () => null;
 
 export type BoardTurn = 'white' | 'black';
 
@@ -104,6 +134,15 @@ const Board = (props: BoardProps) => {
   const isHighlighted = ({ x, y, z }: Coord) =>
     legalMoves.some((m) => m.to.x === x && m.to.y === y && m.to.z === z);
 
+  // Distinct destination cells (promotions produce several moves per cell),
+  // split by whether the move is a capture, to pick the marker shape.
+  const destinations = [...new Map(legalMoves.map((m) => [toZXY(m.to), m.to])).values()].map(
+    (to) => ({ to, capture: !!board.getPiece(to) }),
+  );
+
+  const isSelected = (c: Coord) =>
+    !!selected && selected.x === c.x && selected.y === c.y && selected.z === c.z;
+
   return (
     <group
       name="board-grid"
@@ -115,6 +154,18 @@ const Board = (props: BoardProps) => {
       }}
     >
       {props.children}
+      <lineSegments geometry={latticeGeometry} raycast={noRaycast}>
+        <lineBasicMaterial
+          color={theme.gridLine}
+          transparent
+          opacity={theme.gridLineOpacity}
+          depthWrite={false}
+        />
+      </lineSegments>
+      {/* Invisible cell boxes: raycast targets for selecting a destination and
+          for the empty-space click that clears the selection. Destination
+          cells get a faint fill; everything visible about a destination is
+          drawn by the markers below. */}
       {CELLS.map((cell) => {
         const isDest = isHighlighted(cell);
         return (
@@ -122,9 +173,6 @@ const Board = (props: BoardProps) => {
             key={toZXY(cell)}
             position={toWorld(cell, orientation)}
             args={[1, 1, 1]}
-            material-color={isDest ? '#ffd600' : '#e3eaf2'}
-            material-transparent
-            material-opacity={isDest ? 0.5 : 0.1}
             castShadow={false}
             receiveShadow={false}
             userData={{
@@ -140,9 +188,59 @@ const Board = (props: BoardProps) => {
                   }
                 : undefined
             }
-          />
+          >
+            <meshBasicMaterial
+              color={theme.highlightFill}
+              transparent
+              opacity={isDest ? 0.12 : 0}
+              depthWrite={false}
+            />
+          </Box>
         );
       })}
+      {/* Move markers: a dot for a quiet move, a ring around a capturable piece */}
+      {destinations.map(({ to, capture }) =>
+        capture ? (
+          <mesh
+            key={`capture-${toZXY(to)}`}
+            position={toWorld(to, orientation)}
+            rotation={[Math.PI / 2, 0, 0]}
+            raycast={noRaycast}
+          >
+            <torusGeometry args={[0.42, 0.035, 8, 32]} />
+            <meshBasicMaterial color={theme.capture} transparent opacity={0.9} depthWrite={false} />
+          </mesh>
+        ) : (
+          <mesh
+            key={`quiet-${toZXY(to)}`}
+            position={toWorld(to, orientation)}
+            raycast={noRaycast}
+          >
+            <sphereGeometry args={[0.11, 16, 16]} />
+            <meshBasicMaterial
+              color={theme.quietMove}
+              transparent
+              opacity={0.9}
+              depthWrite={false}
+            />
+          </mesh>
+        ),
+      )}
+      {/* Ring under the selected piece */}
+      {selected && (
+        <mesh
+          position={[
+            toWorld(selected, orientation)[0],
+            toWorld(selected, orientation)[1] - 0.42,
+            toWorld(selected, orientation)[2],
+          ]}
+          rotation={[Math.PI / 2, 0, 0]}
+          raycast={noRaycast}
+        >
+          <torusGeometry args={[0.38, 0.04, 8, 32]} />
+          <meshBasicMaterial color={theme.select} transparent opacity={0.95} depthWrite={false} />
+        </mesh>
+      )}
       {pieces.map(({ type, color, coord }) => (
         <PieceMesh
           key={`${type}-${color}-${toZXY(coord)}`}
@@ -153,9 +251,13 @@ const Board = (props: BoardProps) => {
             e.stopPropagation();
             handlePiecePointerDown(coord);
           }}
-          // Highlight king if in check
+          // Check trumps selection for the king's glow
           emissive={
-            type === PieceType.King && board.inCheck(color) ? '#ff2222' : '#000000'
+            type === PieceType.King && board.inCheck(color)
+              ? theme.check
+              : isSelected(coord)
+                ? theme.selectEmissive
+                : '#000000'
           }
         />
       ))}
