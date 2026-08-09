@@ -209,6 +209,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         {/* Turn indicator */}
         <TurnIndicator turn={currentTurn} />
         {/* Main 3D Board canvas */}
+        {/* Camera sits mostly on +Z (up and to the right), so the whole 5x5x5
+            cube is in frame, the viewing player's levels stay nearest, and the
+            depth layers don't perfectly occlude. */}
         <Canvas
           data-testid="r3f-canvas"
           style={{ height: '100%', width: '100%' }}
@@ -227,7 +230,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             playerColor={color} // Pass the determined player color
             onMove={handleMove}
           />
-          <OrbitControls makeDefault />
+          <OrbitControls makeDefault minDistance={6} maxDistance={25} />
         </Canvas>
         {errorBanner}
         {/* End Game Modal */}

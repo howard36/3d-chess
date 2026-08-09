@@ -166,12 +166,15 @@ cd client && npm run test          # unit/component (Vitest)
 cd client && npm run e2e           # Playwright; starts server + Vite itself
 uv run --project server pytest     # server tests (spawns a real uvicorn)
 
-# Deploy backend
+# Deploy backend manually (not normally needed — CI deploys on merge to main)
 cd server && modal deploy modal_app.py
 ```
 
 CI (GitHub Actions) runs server tests, client lint/build/test, and the E2E suite on every
-push/PR to `main`.
+push/PR to `main`. On a push to `main` — and only once those three pass — it also deploys
+the backend to Modal and polls `/health` to confirm the new version is serving, so the
+deployed app always matches `main`. Authentication comes from the `MODAL_TOKEN_ID` and
+`MODAL_TOKEN_SECRET` repo secrets.
 
 ## Known limitations (accepted for this project's scope)
 

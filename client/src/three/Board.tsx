@@ -6,40 +6,26 @@ import type { Move } from '../engine';
 import { PieceMesh } from './PieceMesh';
 import React from 'react';
 import { PieceType } from '../engine/pieces';
-import { Coord } from '../engine/coords';
+import { Coord, toZXY } from '../engine/coords';
+import { CELLS, toWorld } from './layout';
 import { theme } from './theme';
-
-const GRID_SIZE = 5;
-const SPACING = 1.1;
-const HALF = (GRID_SIZE - 1) / 2;
-
-const toWorld = (c: Coord): [number, number, number] => [
-  (c.x - HALF) * SPACING,
-  (c.y - HALF) * SPACING,
-  (c.z - HALF) * SPACING,
-];
-
-const cubes = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => {
-  const x = i % GRID_SIZE;
-  const y = Math.floor(i / GRID_SIZE) % GRID_SIZE;
-  const z = Math.floor(i / (GRID_SIZE * GRID_SIZE));
-  return { coord: { x, y, z }, position: toWorld({ x, y, z }), key: `${x},${y},${z}` };
-});
 
 // The grid is drawn as a single wireframe lattice rather than translucent cube
 // faces: stacked transparent faces compound into haze toward the center of the
 // board and sort badly against the pieces. One merged geometry keeps it to a
-// single draw call.
+// single draw call. The lattice is the same set of cell edges under either
+// orientation, so it is built once from White's view.
 const buildLatticeGeometry = () => {
   const cellEdges = new EdgesGeometry(new BoxGeometry(1, 1, 1));
   const src = cellEdges.getAttribute('position');
-  const merged = new Float32Array(cubes.length * src.count * 3);
-  cubes.forEach(({ position }, cell) => {
+  const merged = new Float32Array(CELLS.length * src.count * 3);
+  CELLS.forEach((cell, i) => {
+    const [cx, cy, cz] = toWorld(cell, 'white');
     for (let v = 0; v < src.count; v++) {
-      const o = (cell * src.count + v) * 3;
-      merged[o] = src.getX(v) + position[0];
-      merged[o + 1] = src.getY(v) + position[1];
-      merged[o + 2] = src.getZ(v) + position[2];
+      const o = (i * src.count + v) * 3;
+      merged[o] = src.getX(v) + cx;
+      merged[o + 1] = src.getY(v) + cy;
+      merged[o + 2] = src.getZ(v) + cz;
     }
   });
   const geometry = new BufferGeometry();
@@ -63,8 +49,9 @@ export interface BoardProps {
 }
 
 const Board = (props: BoardProps) => {
-  // Remove internal board state, use props.board
   const board = props.board;
+  // Spectators (no assigned colour) get White's view.
+  const orientation = props.playerColor ?? 'white';
 
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | Coord>(null);
@@ -79,21 +66,14 @@ const Board = (props: BoardProps) => {
   }, [props.board, props.currentTurn]);
 
   // Collect all pieces with their coordinates from the provided board
-  const pieces = [];
-  for (let z = 0; z < GRID_SIZE; z++) {
-    for (let x = 0; x < GRID_SIZE; x++) {
-      for (let y = 0; y < GRID_SIZE; y++) {
-        const piece = board.getPiece({ x, y, z });
-        if (piece) {
-          pieces.push({ ...piece, x, y, z });
-        }
-      }
-    }
-  }
+  const pieces = CELLS.flatMap((coord) => {
+    const piece = board.getPiece(coord);
+    return piece ? [{ ...piece, coord }] : [];
+  });
 
   // Handle piece selection
-  const handlePiecePointerDown = (x: number, y: number, z: number) => {
-    const piece = board.getPiece({ x, y, z });
+  const handlePiecePointerDown = (coord: Coord) => {
+    const piece = board.getPiece(coord);
     // Only allow clicking pieces that match both the current turn and playerColor
     if (
       !piece ||
@@ -101,17 +81,16 @@ const Board = (props: BoardProps) => {
       (props.playerColor && piece.color !== props.playerColor)
     )
       return;
-    setSelected({ x, y, z });
+    setSelected(coord);
     // Directly call generateLegalMoves which already filters for checks
-    const actualLegalMoves = board.generateLegalMoves({ x, y, z });
+    const actualLegalMoves = board.generateLegalMoves(coord);
     setLegalMoves(actualLegalMoves);
   };
 
   // Handle highlighted cube click (move application)
-  const handleCubePointerDown = (x: number, y: number, z: number) => {
+  const handleCubePointerDown = (targetCoord: Coord) => {
     if (!selected) return;
 
-    const targetCoord = { x, y, z };
     // Find the specific move from legalMoves that matches the targetCoord
     // This is important if there are multiple promotions to the same square.
     // For simplicity, if it's a pawn promotion, we'll default to Queen for now if onMove is not defined,
@@ -152,17 +131,17 @@ const Board = (props: BoardProps) => {
   };
 
   // Helper to check if a cube is a legal move destination
-  const isHighlighted = (x: number, y: number, z: number) =>
+  const isHighlighted = ({ x, y, z }: Coord) =>
     legalMoves.some((m) => m.to.x === x && m.to.y === y && m.to.z === z);
 
   // Distinct destination cells (promotions produce several moves per cell),
   // split by whether the move is a capture, to pick the marker shape.
-  const destinations = [
-    ...new Map(legalMoves.map((m) => [`${m.to.x},${m.to.y},${m.to.z}`, m.to])).values(),
-  ].map((to) => ({ to, capture: !!board.getPiece(to) }));
+  const destinations = [...new Map(legalMoves.map((m) => [toZXY(m.to), m.to])).values()].map(
+    (to) => ({ to, capture: !!board.getPiece(to) }),
+  );
 
-  const isSelected = (x: number, y: number, z: number) =>
-    !!selected && selected.x === x && selected.y === y && selected.z === z;
+  const isSelected = (c: Coord) =>
+    !!selected && selected.x === c.x && selected.y === c.y && selected.z === c.z;
 
   return (
     <group
@@ -187,12 +166,12 @@ const Board = (props: BoardProps) => {
           for the empty-space click that clears the selection. Destination
           cells get a faint fill; everything visible about a destination is
           drawn by the markers below. */}
-      {cubes.map(({ coord, position, key }) => {
-        const isDest = isHighlighted(coord.x, coord.y, coord.z);
+      {CELLS.map((cell) => {
+        const isDest = isHighlighted(cell);
         return (
           <Box
-            key={key}
-            position={position}
+            key={toZXY(cell)}
+            position={toWorld(cell, orientation)}
             args={[1, 1, 1]}
             castShadow={false}
             receiveShadow={false}
@@ -205,7 +184,7 @@ const Board = (props: BoardProps) => {
               isDest
                 ? (e) => {
                     e.stopPropagation();
-                    handleCubePointerDown(coord.x, coord.y, coord.z);
+                    handleCubePointerDown(cell);
                   }
                 : undefined
             }
@@ -223,8 +202,8 @@ const Board = (props: BoardProps) => {
       {destinations.map(({ to, capture }) =>
         capture ? (
           <mesh
-            key={`capture-${to.x},${to.y},${to.z}`}
-            position={toWorld(to)}
+            key={`capture-${toZXY(to)}`}
+            position={toWorld(to, orientation)}
             rotation={[Math.PI / 2, 0, 0]}
             raycast={noRaycast}
           >
@@ -232,7 +211,11 @@ const Board = (props: BoardProps) => {
             <meshBasicMaterial color={theme.capture} transparent opacity={0.9} depthWrite={false} />
           </mesh>
         ) : (
-          <mesh key={`quiet-${to.x},${to.y},${to.z}`} position={toWorld(to)} raycast={noRaycast}>
+          <mesh
+            key={`quiet-${toZXY(to)}`}
+            position={toWorld(to, orientation)}
+            raycast={noRaycast}
+          >
             <sphereGeometry args={[0.11, 16, 16]} />
             <meshBasicMaterial
               color={theme.quietMove}
@@ -246,7 +229,11 @@ const Board = (props: BoardProps) => {
       {/* Ring under the selected piece */}
       {selected && (
         <mesh
-          position={[toWorld(selected)[0], toWorld(selected)[1] - 0.42, toWorld(selected)[2]]}
+          position={[
+            toWorld(selected, orientation)[0],
+            toWorld(selected, orientation)[1] - 0.42,
+            toWorld(selected, orientation)[2],
+          ]}
           rotation={[Math.PI / 2, 0, 0]}
           raycast={noRaycast}
         >
@@ -254,21 +241,21 @@ const Board = (props: BoardProps) => {
           <meshBasicMaterial color={theme.select} transparent opacity={0.95} depthWrite={false} />
         </mesh>
       )}
-      {pieces.map(({ type, color, x, y, z }) => (
+      {pieces.map(({ type, color, coord }) => (
         <PieceMesh
-          key={`${type}-${color}-${x},${y},${z}`}
+          key={`${type}-${color}-${toZXY(coord)}`}
           type={type}
           color={color}
-          position={toWorld({ x, y, z })}
+          position={toWorld(coord, orientation)}
           onPointerDown={(e: React.PointerEvent) => {
             e.stopPropagation();
-            handlePiecePointerDown(x, y, z);
+            handlePiecePointerDown(coord);
           }}
           // Check trumps selection for the king's glow
           emissive={
             type === PieceType.King && board.inCheck(color)
               ? theme.check
-              : isSelected(x, y, z)
+              : isSelected(coord)
                 ? theme.selectEmissive
                 : '#000000'
           }
