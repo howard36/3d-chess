@@ -5,18 +5,8 @@ import type { Move } from '../engine';
 import { PieceMesh } from './PieceMesh';
 import React from 'react';
 import { PieceType } from '../engine/pieces';
-import { Coord } from '../engine/coords';
-
-const GRID_SIZE = 5;
-const SPACING = 1.1;
-const HALF = (GRID_SIZE - 1) / 2;
-
-const cubes = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => {
-  const x = i % GRID_SIZE;
-  const y = Math.floor(i / GRID_SIZE) % GRID_SIZE;
-  const z = Math.floor(i / (GRID_SIZE * GRID_SIZE));
-  return [(x - HALF) * SPACING, (y - HALF) * SPACING, (z - HALF) * SPACING, `${x},${y},${z}`];
-});
+import { Coord, toZXY } from '../engine/coords';
+import { CELLS, toWorld } from './layout';
 
 export type BoardTurn = 'white' | 'black';
 
@@ -29,8 +19,9 @@ export interface BoardProps {
 }
 
 const Board = (props: BoardProps) => {
-  // Remove internal board state, use props.board
   const board = props.board;
+  // Spectators (no assigned colour) get White's view.
+  const orientation = props.playerColor ?? 'white';
 
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | Coord>(null);
@@ -45,21 +36,14 @@ const Board = (props: BoardProps) => {
   }, [props.board, props.currentTurn]);
 
   // Collect all pieces with their coordinates from the provided board
-  const pieces = [];
-  for (let z = 0; z < GRID_SIZE; z++) {
-    for (let x = 0; x < GRID_SIZE; x++) {
-      for (let y = 0; y < GRID_SIZE; y++) {
-        const piece = board.getPiece({ x, y, z });
-        if (piece) {
-          pieces.push({ ...piece, x, y, z });
-        }
-      }
-    }
-  }
+  const pieces = CELLS.flatMap((coord) => {
+    const piece = board.getPiece(coord);
+    return piece ? [{ ...piece, coord }] : [];
+  });
 
   // Handle piece selection
-  const handlePiecePointerDown = (x: number, y: number, z: number) => {
-    const piece = board.getPiece({ x, y, z });
+  const handlePiecePointerDown = (coord: Coord) => {
+    const piece = board.getPiece(coord);
     // Only allow clicking pieces that match both the current turn and playerColor
     if (
       !piece ||
@@ -67,17 +51,16 @@ const Board = (props: BoardProps) => {
       (props.playerColor && piece.color !== props.playerColor)
     )
       return;
-    setSelected({ x, y, z });
+    setSelected(coord);
     // Directly call generateLegalMoves which already filters for checks
-    const actualLegalMoves = board.generateLegalMoves({ x, y, z });
+    const actualLegalMoves = board.generateLegalMoves(coord);
     setLegalMoves(actualLegalMoves);
   };
 
   // Handle highlighted cube click (move application)
-  const handleCubePointerDown = (x: number, y: number, z: number) => {
+  const handleCubePointerDown = (targetCoord: Coord) => {
     if (!selected) return;
 
-    const targetCoord = { x, y, z };
     // Find the specific move from legalMoves that matches the targetCoord
     // This is important if there are multiple promotions to the same square.
     // For simplicity, if it's a pawn promotion, we'll default to Queen for now if onMove is not defined,
@@ -118,7 +101,7 @@ const Board = (props: BoardProps) => {
   };
 
   // Helper to check if a cube is a legal move destination
-  const isHighlighted = (x: number, y: number, z: number) =>
+  const isHighlighted = ({ x, y, z }: Coord) =>
     legalMoves.some((m) => m.to.x === x && m.to.y === y && m.to.z === z);
 
   return (
@@ -132,15 +115,12 @@ const Board = (props: BoardProps) => {
       }}
     >
       {props.children}
-      {cubes.map(([x, y, z, key]) => {
-        const gx = Math.round((x as number) / SPACING + HALF);
-        const gy = Math.round((y as number) / SPACING + HALF);
-        const gz = Math.round((z as number) / SPACING + HALF);
-        const isDest = isHighlighted(gx, gy, gz);
+      {CELLS.map((cell) => {
+        const isDest = isHighlighted(cell);
         return (
           <Box
-            key={key as string}
-            position={[x as number, y as number, z as number]}
+            key={toZXY(cell)}
+            position={toWorld(cell, orientation)}
             args={[1, 1, 1]}
             material-color={isDest ? '#ffd600' : '#e3eaf2'}
             material-transparent
@@ -156,22 +136,22 @@ const Board = (props: BoardProps) => {
               isDest
                 ? (e) => {
                     e.stopPropagation();
-                    handleCubePointerDown(gx, gy, gz);
+                    handleCubePointerDown(cell);
                   }
                 : undefined
             }
           />
         );
       })}
-      {pieces.map(({ type, color, x, y, z }) => (
+      {pieces.map(({ type, color, coord }) => (
         <PieceMesh
-          key={`${type}-${color}-${x},${y},${z}`}
+          key={`${type}-${color}-${toZXY(coord)}`}
           type={type}
           color={color}
-          position={[(x - HALF) * SPACING, (y - HALF) * SPACING, (z - HALF) * SPACING]}
+          position={toWorld(coord, orientation)}
           onPointerDown={(e: React.PointerEvent) => {
             e.stopPropagation();
-            handlePiecePointerDown(x, y, z);
+            handlePiecePointerDown(coord);
           }}
           // Highlight king if in check
           emissive={
