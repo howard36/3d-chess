@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="12" fill="#111827" />
+
+  <!-- Three stacked board layers, offset up-left as they ascend. The dark
+       strokes keep the layers from smearing together at favicon sizes. -->
+  <g stroke="#111827" stroke-width="1.5" stroke-linejoin="round">
+    <path d="M37 51 L53 56 L37 61 L21 56 Z" fill="#e5e7eb" />
+    <path d="M32 40 L48 45 L32 50 L16 45 Z" fill="#d1d5db" />
+    <path d="M27 29 L43 34 L27 39 L11 34 Z" fill="#9ca3af" />
+  </g>
+
+  <!-- Knight standing on the top layer. -->
+  <path
+    transform="translate(13.2 4.1) scale(1.15)"
+    d="M4 26 L4 23 L6 23 L7 20 L4 17 L5 14 L1 13 L2 10 L7 6 L11 4 L15 1 L14 5 L18 9 L20 16 L18 23 L20 23 L20 26 Z"
+    fill="#ffffff"
+    stroke="#111827"
+    stroke-width="1.2"
+    stroke-linejoin="round"
+  />
+</svg>
