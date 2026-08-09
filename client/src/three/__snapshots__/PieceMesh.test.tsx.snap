@@ -2,19 +2,47 @@
 
 exports[`PieceMesh > renders black Bishop and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <conegeometry
-      args="0.38,0.8,12"
-    />
-    <meshstandardmaterial
-      color="#413b35"
-      emissive="#000000"
-      metalness="0.35"
-      roughness="0.25"
-    />
-  </mesh>
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
+    >
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.575,0"
+        rotation="0,0,-0.6"
+      >
+        <meshstandardmaterial
+          color="[object Object]"
+          metalness="0.08"
+          roughness="0.6"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.725,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+    </group>
+  </group>
 </div>
 `;
 
@@ -23,64 +51,78 @@ exports[`PieceMesh > renders black King and matches snapshot 1`] = `
   <group
     userdata="[object Object]"
   >
-    <mesh
-      position="0,0,0"
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
     >
-      <cylindergeometry
-        args="0.25,0.35,0.7,16"
-      />
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
-    <mesh
-      position="0,0.55,0"
-    >
-      <boxgeometry
-        args="0.2,0.4,0.2"
-      />
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
-    <mesh
-      position="0,0.6,0"
-    >
-      <boxgeometry
-        args="0.4,0.08,0.2"
-      />
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.8,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.815,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+    </group>
   </group>
 </div>
 `;
 
 exports[`PieceMesh > renders black Knight and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <cylindergeometry
-      args="0.2,0.2,0.5,6"
-    />
-    <meshstandardmaterial
-      color="#413b35"
-      emissive="#000000"
-      metalness="0.35"
-      roughness="0.25"
-    />
-  </mesh>
+    <group
+      position="0,-0.5,0"
+      rotation="0,0.35,0"
+    >
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+    </group>
+  </group>
 </div>
 `;
 
@@ -89,58 +131,156 @@ exports[`PieceMesh > renders black Pawn and matches snapshot 1`] = `
   <group
     userdata="[object Object]"
   >
-    <mesh
-      geometry="[object Object]"
-      position="0,-0.2,0"
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
     >
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
-    <mesh
-      geometry="[object Object]"
-      position="0,0,0"
-    >
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
-    <mesh
-      geometry="[object Object]"
-      position="0,0.15,0"
-    >
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.43,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+    </group>
   </group>
 </div>
 `;
 
 exports[`PieceMesh > renders black Queen and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <cylindergeometry
-      args="0.22,0.32,0.9,16"
-    />
-    <meshstandardmaterial
-      color="#413b35"
-      emissive="#000000"
-      metalness="0.35"
-      roughness="0.25"
-    />
-  </mesh>
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
+    >
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.15,0.715,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.10606601717798213,0.715,0.10606601717798211"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="9.184850993605149e-18,0.715,0.15"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-0.10606601717798211,0.715,0.10606601717798213"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-0.15,0.715,1.8369701987210297e-17"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-0.10606601717798216,0.715,-0.10606601717798211"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-2.7554552980815445e-17,0.715,-0.15"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.1060660171779821,0.715,-0.10606601717798216"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.79,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+    </group>
+  </group>
 </div>
 `;
 
@@ -149,121 +289,173 @@ exports[`PieceMesh > renders black Rook and matches snapshot 1`] = `
   <group
     userdata="[object Object]"
   >
-    <mesh
-      position="0,0,0"
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
     >
-      <cylindergeometry
-        args="0.22,0.28,0.7,12"
-      />
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
-    <mesh
-      position="0,0.38,0"
-    >
-      <cylindergeometry
-        args="0.28,0.3,0.08,12"
-      />
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
-    <mesh
-      position="0.26,0.46,0"
-    >
-      <boxgeometry
-        args="0.09,0.12,0.09"
-      />
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
-    <mesh
-      position="1.5920408388915593e-17,0.46,0.26"
-    >
-      <boxgeometry
-        args="0.09,0.12,0.09"
-      />
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
-    <mesh
-      position="-0.26,0.46,3.1840816777831187e-17"
-    >
-      <boxgeometry
-        args="0.09,0.12,0.09"
-      />
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
-    <mesh
-      position="-4.7761225166746774e-17,0.46,-0.26"
-    >
-      <boxgeometry
-        args="0.09,0.12,0.09"
-      />
-      <meshstandardmaterial
-        color="#413b35"
-        emissive="#000000"
-        metalness="0.35"
-        roughness="0.25"
-      />
-    </mesh>
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.17,0.585,0"
+        rotation="0,0,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.05253288904374107,0.585,0.16167960777017612"
+        rotation="0,-1.2566370614359172,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-0.13753288904374106,0.585,0.09992349288972045"
+        rotation="0,-2.5132741228718345,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-0.13753288904374109,0.585,-0.09992349288972042"
+        rotation="0,-3.7699111843077517,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.05253288904374103,0.585,-0.16167960777017612"
+        rotation="0,-5.026548245743669,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+    </group>
   </group>
 </div>
 `;
 
 exports[`PieceMesh > renders black Unicorn and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <conegeometry
-      args="0.18,1.2,6"
-    />
-    <meshstandardmaterial
-      color="#413b35"
-      emissive="#000000"
-      metalness="0.35"
-      roughness="0.25"
-    />
-  </mesh>
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
+    >
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.67,0"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#413b35"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.35"
+        />
+      </mesh>
+    </group>
+  </group>
 </div>
 `;
 
 exports[`PieceMesh > renders white Bishop and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <conegeometry
-      args="0.38,0.8,12"
-    />
-    <meshstandardmaterial
-      color="#f2ead8"
-      emissive="#000000"
-      metalness="0.15"
-      roughness="0.45"
-    />
-  </mesh>
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
+    >
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.575,0"
+        rotation="0,0,-0.6"
+      >
+        <meshstandardmaterial
+          color="[object Object]"
+          metalness="0.08"
+          roughness="0.6"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.725,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+    </group>
+  </group>
 </div>
 `;
 
@@ -272,64 +464,78 @@ exports[`PieceMesh > renders white King and matches snapshot 1`] = `
   <group
     userdata="[object Object]"
   >
-    <mesh
-      position="0,0,0"
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
     >
-      <cylindergeometry
-        args="0.25,0.35,0.7,16"
-      />
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
-    <mesh
-      position="0,0.55,0"
-    >
-      <boxgeometry
-        args="0.2,0.4,0.2"
-      />
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
-    <mesh
-      position="0,0.6,0"
-    >
-      <boxgeometry
-        args="0.4,0.08,0.2"
-      />
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.8,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.815,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+    </group>
   </group>
 </div>
 `;
 
 exports[`PieceMesh > renders white Knight and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <cylindergeometry
-      args="0.2,0.2,0.5,6"
-    />
-    <meshstandardmaterial
-      color="#f2ead8"
-      emissive="#000000"
-      metalness="0.15"
-      roughness="0.45"
-    />
-  </mesh>
+    <group
+      position="0,-0.5,0"
+      rotation="0,-0.35,0"
+    >
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+    </group>
+  </group>
 </div>
 `;
 
@@ -338,58 +544,156 @@ exports[`PieceMesh > renders white Pawn and matches snapshot 1`] = `
   <group
     userdata="[object Object]"
   >
-    <mesh
-      geometry="[object Object]"
-      position="0,-0.2,0"
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
     >
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
-    <mesh
-      geometry="[object Object]"
-      position="0,0,0"
-    >
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
-    <mesh
-      geometry="[object Object]"
-      position="0,0.15,0"
-    >
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.43,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+    </group>
   </group>
 </div>
 `;
 
 exports[`PieceMesh > renders white Queen and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <cylindergeometry
-      args="0.22,0.32,0.9,16"
-    />
-    <meshstandardmaterial
-      color="#f2ead8"
-      emissive="#000000"
-      metalness="0.15"
-      roughness="0.45"
-    />
-  </mesh>
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
+    >
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.15,0.715,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.10606601717798213,0.715,0.10606601717798211"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="9.184850993605149e-18,0.715,0.15"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-0.10606601717798211,0.715,0.10606601717798213"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-0.15,0.715,1.8369701987210297e-17"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-0.10606601717798216,0.715,-0.10606601717798211"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-2.7554552980815445e-17,0.715,-0.15"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.1060660171779821,0.715,-0.10606601717798216"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.79,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+    </group>
+  </group>
 </div>
 `;
 
@@ -398,102 +702,126 @@ exports[`PieceMesh > renders white Rook and matches snapshot 1`] = `
   <group
     userdata="[object Object]"
   >
-    <mesh
-      position="0,0,0"
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
     >
-      <cylindergeometry
-        args="0.22,0.28,0.7,12"
-      />
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
-    <mesh
-      position="0,0.38,0"
-    >
-      <cylindergeometry
-        args="0.28,0.3,0.08,12"
-      />
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
-    <mesh
-      position="0.26,0.46,0"
-    >
-      <boxgeometry
-        args="0.09,0.12,0.09"
-      />
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
-    <mesh
-      position="1.5920408388915593e-17,0.46,0.26"
-    >
-      <boxgeometry
-        args="0.09,0.12,0.09"
-      />
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
-    <mesh
-      position="-0.26,0.46,3.1840816777831187e-17"
-    >
-      <boxgeometry
-        args="0.09,0.12,0.09"
-      />
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
-    <mesh
-      position="-4.7761225166746774e-17,0.46,-0.26"
-    >
-      <boxgeometry
-        args="0.09,0.12,0.09"
-      />
-      <meshstandardmaterial
-        color="#f2ead8"
-        emissive="#000000"
-        metalness="0.15"
-        roughness="0.45"
-      />
-    </mesh>
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.17,0.585,0"
+        rotation="0,0,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.05253288904374107,0.585,0.16167960777017612"
+        rotation="0,-1.2566370614359172,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-0.13753288904374106,0.585,0.09992349288972045"
+        rotation="0,-2.5132741228718345,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="-0.13753288904374109,0.585,-0.09992349288972042"
+        rotation="0,-3.7699111843077517,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0.05253288904374103,0.585,-0.16167960777017612"
+        rotation="0,-5.026548245743669,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+    </group>
   </group>
 </div>
 `;
 
 exports[`PieceMesh > renders white Unicorn and matches snapshot 1`] = `
 <div>
-  <mesh
+  <group
     userdata="[object Object]"
   >
-    <conegeometry
-      args="0.18,1.2,6"
-    />
-    <meshstandardmaterial
-      color="#f2ead8"
-      emissive="#000000"
-      metalness="0.15"
-      roughness="0.45"
-    />
-  </mesh>
+    <group
+      position="0,-0.5,0"
+      rotation="0,0,0"
+    >
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+        position="0,0.67,0"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+      <mesh
+        geometry="[object Object]"
+      >
+        <meshstandardmaterial
+          color="#f2ead8"
+          emissive="0"
+          metalness="0.08"
+          roughness="0.45"
+        />
+      </mesh>
+    </group>
+  </group>
 </div>
 `;
