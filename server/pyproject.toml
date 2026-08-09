@@ -10,7 +10,7 @@ dependencies = [
 [project.optional-dependencies]
 test = [
   "uvicorn[standard]",
-  "modal>=0.74",
+  "modal>=1.5,<2",
   "pytest",
   "pytest-asyncio",
   "httpx",
