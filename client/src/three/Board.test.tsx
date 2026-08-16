@@ -181,6 +181,42 @@ describe('Board', () => {
     expect(rings[0].props.position).toEqual([piecePos[0], piecePos[1] + CELL_FLOOR_Y, piecePos[2]]);
   });
 
+  it('draws the capture ring on the floor the marked piece stands on', async () => {
+    // A white rook with a single black pawn to capture one cell up the ranks.
+    const board = new EngineBoard();
+    board.setPiece({ x: 2, y: 2, z: 2 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 2, y: 3, z: 2 }, { type: PieceType.Pawn, color: 'black' });
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
+
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={board} currentTurn="white" />,
+    );
+    const boardGroup = (renderer.scene as ReactThreeTestInstance)
+      .children[0] as ReactThreeTestInstance;
+    const rook = boardGroup.children.find(
+      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Rook,
+    ) as ReactThreeTestInstance;
+    const pawn = boardGroup.children.find(
+      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Pawn,
+    ) as ReactThreeTestInstance;
+    expect(rook).toBeDefined();
+    expect(pawn).toBeDefined();
+
+    await act(async () => {
+      rook.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
+    });
+
+    const rings = (renderer.scene as ReactThreeTestInstance).findAll(
+      (node) => node.props.userData?.captureRing === true,
+    );
+    expect(rings).toHaveLength(1);
+    // At the base of the piece it marks, not the cell centre — otherwise the
+    // ring cuts through the piece at a height that varies with its silhouette.
+    const pawnPos = pawn.props.position as [number, number, number];
+    expect(rings[0].props.position).toEqual([pawnPos[0], pawnPos[1] + CELL_FLOOR_Y, pawnPos[2]]);
+  });
+
   it('calls onMove when a move is made and reconciles with moves prop', async () => {
     const onMove = vi.fn();
     // Track moves for reconciliation

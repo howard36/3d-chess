@@ -38,6 +38,16 @@ const latticeGeometry = buildLatticeGeometry();
 // events from the cells; markers are decorative too.
 const noRaycast = () => null;
 
+// Drops a cell-centre position to the cell floor, the plane a piece's base disc
+// sits on. Both rings ride on it: a ring is read as lying on the ground, so at
+// the cell centre it instead skewers whatever piece occupies the cell, at a
+// different height for every piece (a pawn is 0.36 tall, a king 0.87).
+const atCellFloor = ([x, y, z]: [number, number, number]): [number, number, number] => [
+  x,
+  y + CELL_FLOOR_Y,
+  z,
+];
+
 export type BoardTurn = 'white' | 'black';
 
 export interface BoardProps {
@@ -200,14 +210,17 @@ const Board = (props: BoardProps) => {
           </Box>
         );
       })}
-      {/* Move markers: a dot for a quiet move, a ring around a capturable piece */}
+      {/* Move markers: a dot for a quiet move, a ring around a capturable piece.
+          The dot marks empty space, so it sits at the cell centre; the ring
+          encircles an occupied cell's piece, so it drops to that piece's base. */}
       {destinations.map(({ to, capture }) =>
         capture ? (
           <mesh
             key={`capture-${toZXY(to)}`}
-            position={toWorld(to, orientation)}
+            position={atCellFloor(toWorld(to, orientation))}
             rotation={[Math.PI / 2, 0, 0]}
             raycast={noRaycast}
+            userData={{ captureRing: true }}
           >
             <torusGeometry args={[0.42, 0.035, 8, 32]} />
             <meshBasicMaterial color={theme.capture} transparent opacity={0.9} depthWrite={false} />
@@ -228,14 +241,13 @@ const Board = (props: BoardProps) => {
           </mesh>
         ),
       )}
-      {/* Ring around the foot of the selected piece. Its tube is centred on the
-          cell floor — the plane every piece's base disc sits on — so it reads as
-          lying on the ground the piece stands on instead of floating up around
-          the flared foot. The radius clears the widest base (the king's, 0.28)
-          while staying inside the cell. */}
+      {/* Ring around the foot of the selected piece. Slightly tighter than the
+          capture ring, so the two read as different markers where they sit in
+          neighbouring cells; the radius still clears the widest base (the
+          king's, 0.28) while staying inside the cell. */}
       {selectedWorld && (
         <mesh
-          position={[selectedWorld[0], selectedWorld[1] + CELL_FLOOR_Y, selectedWorld[2]]}
+          position={atCellFloor(selectedWorld)}
           rotation={[Math.PI / 2, 0, 0]}
           raycast={noRaycast}
           userData={{ selectionRing: true }}
