@@ -6,7 +6,7 @@ import { PieceType } from '../engine';
 import { act } from 'react';
 import { vi } from 'vitest';
 import { Board as EngineBoard } from '../engine';
-import { SPACING } from './layout';
+import { CELL_FLOOR_Y, SPACING } from './layout';
 
 // Helper to create a fresh board
 function createTestBoard() {
@@ -154,6 +154,31 @@ describe('Board', () => {
       (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
     ).length;
     expect(highlightCount).toBeGreaterThan(0);
+  });
+
+  it('draws the selection ring on the floor the selected piece stands on', async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
+    const boardGroup = (renderer.scene as ReactThreeTestInstance)
+      .children[0] as ReactThreeTestInstance;
+    const knight = boardGroup.children.find(
+      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Knight,
+    ) as ReactThreeTestInstance;
+    expect(knight).toBeDefined();
+
+    await act(async () => {
+      knight.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
+    });
+
+    const rings = (renderer.scene as ReactThreeTestInstance).findAll(
+      (node) => node.props.userData?.selectionRing === true,
+    );
+    expect(rings).toHaveLength(1);
+    // Same cell in x/z, and down at the piece's base rather than part-way up
+    // its foot: PieceMesh seats the piece at the same CELL_FLOOR_Y offset.
+    const piecePos = knight.props.position as [number, number, number];
+    expect(rings[0].props.position).toEqual([piecePos[0], piecePos[1] + CELL_FLOOR_Y, piecePos[2]]);
   });
 
   it('calls onMove when a move is made and reconciles with moves prop', async () => {

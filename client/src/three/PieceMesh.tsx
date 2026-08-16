@@ -2,6 +2,7 @@ import React from 'react';
 import type { JSX } from 'react';
 import { Color } from 'three';
 import { PieceType } from '../engine';
+import { CELL_FLOOR_Y } from './layout';
 import { theme } from './theme';
 import {
   bishopBodyGeometry,
@@ -175,7 +176,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = ({
       {...rest}
     >
       {/* Pieces are modeled base-at-y=0; seat them on the cell floor */}
-      <group position={[0, -0.5, 0]} rotation={rotation}>
+      <group position={[0, CELL_FLOOR_Y, 0]} rotation={rotation}>
         {body}
       </group>
     </group>

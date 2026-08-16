@@ -7,7 +7,7 @@ import { PieceMesh } from './PieceMesh';
 import React from 'react';
 import { PieceType } from '../engine/pieces';
 import { Coord, toZXY } from '../engine/coords';
-import { CELLS, toWorld } from './layout';
+import { CELL_FLOOR_Y, CELLS, toWorld } from './layout';
 import { theme } from './theme';
 
 // The grid is drawn as a single wireframe lattice rather than translucent cube
@@ -143,6 +143,8 @@ const Board = (props: BoardProps) => {
   const isSelected = (c: Coord) =>
     !!selected && selected.x === c.x && selected.y === c.y && selected.z === c.z;
 
+  const selectedWorld = selected ? toWorld(selected, orientation) : null;
+
   return (
     <group
       name="board-grid"
@@ -226,16 +228,17 @@ const Board = (props: BoardProps) => {
           </mesh>
         ),
       )}
-      {/* Ring under the selected piece */}
-      {selected && (
+      {/* Ring around the foot of the selected piece. Its tube is centred on the
+          cell floor — the plane every piece's base disc sits on — so it reads as
+          lying on the ground the piece stands on instead of floating up around
+          the flared foot. The radius clears the widest base (the king's, 0.28)
+          while staying inside the cell. */}
+      {selectedWorld && (
         <mesh
-          position={[
-            toWorld(selected, orientation)[0],
-            toWorld(selected, orientation)[1] - 0.42,
-            toWorld(selected, orientation)[2],
-          ]}
+          position={[selectedWorld[0], selectedWorld[1] + CELL_FLOOR_Y, selectedWorld[2]]}
           rotation={[Math.PI / 2, 0, 0]}
           raycast={noRaycast}
+          userData={{ selectionRing: true }}
         >
           <torusGeometry args={[0.38, 0.04, 8, 32]} />
           <meshBasicMaterial color={theme.select} transparent opacity={0.95} depthWrite={false} />
