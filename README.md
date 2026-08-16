@@ -49,7 +49,7 @@ This is a hobby project for games among friends. The design leans on that delibe
   nothing else is persisted. No accounts, no history, no matchmaking.
 
 If the project ever outgrows these assumptions, the first things to revisit are:
-server-side move validation, a per-seat secret for rejoin, and client auto-reconnect.
+server-side move validation and a per-seat secret for rejoin.
 
 ## Architecture
 
@@ -84,8 +84,13 @@ Key decisions:
   safe, so preserve it when editing `modal_app.py`.
 - **Seat persistence on the client.** The assigned color is stored in
   `localStorage` (`client/src/lib/playerRole.ts`) keyed by game id, and is used to
-  auto-`rejoin_game` on page load. Rejoin currently happens only on page load; there is no
-  mid-session auto-reconnect (a dropped socket means: refresh the page).
+  auto-`rejoin_game` on page load **and** after any mid-session drop: the socket hook
+  reconnects with capped exponential backoff, each freshly opened socket bumps a session
+  counter, and the game screen re-claims its seat once per session. The client derives
+  moves from the **latest** `game_state` snapshot plus the `move_made` messages after it,
+  so a reconnect's replayed history never double-counts moves already in the log. Moves
+  queued while disconnected are dropped rather than delivered into a game that may have
+  advanced (the board never showed them — the player just moves again).
 
 ## Protocol
 
@@ -183,12 +188,15 @@ deployed app always matches `main`. Authentication comes from the `MODAL_TOKEN_I
 
 ## Known limitations (accepted for this project's scope)
 
-- No mid-game reconnect: a dropped WebSocket freezes the game until a page refresh
-  (refresh does recover, via `rejoin_game`).
 - Pawn promotion auto-selects Queen; the engine and protocol support underpromotion but
   there is no picker UI.
 - The server doesn't detect checkmate/stalemate; game-over is decided independently by
   each client.
-- A WebSocket session is bounded by the Modal function timeout (1 hour); very long games
-  need a refresh past that point.
+- A WebSocket session is bounded by the Modal function timeout (1 hour). The client
+  auto-reconnects and rejoins when that (or any drop) severs the socket, so the
+  interruption is a brief "Reconnecting…" rather than a frozen game.
+- The server records any shape-valid, turn-correct move without checking legality. The
+  client replays history defensively — an unplayable record freezes the board at the last
+  good position with an explanation instead of crashing — but cannot repair the record.
+- No resign or draw offer: games end only by checkmate or stalemate.
 - No spectators: a game has exactly two seats.

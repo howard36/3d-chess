@@ -125,6 +125,43 @@ describe('Board', () => {
     expect(highlightCount).toBe(0);
   });
 
+  it('marks the last move on its from and to cells', async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board
+        board={createTestBoard()}
+        currentTurn="black"
+        lastMove={{ from: { x: 1, y: 1, z: 0 }, to: { x: 1, y: 2, z: 0 } }}
+      />,
+    );
+    const marked = (renderer.scene as ReactThreeTestInstance).findAll(
+      (node) => node.type === 'Mesh' && node.props.userData?.lastMove === true,
+    );
+    expect(marked).toHaveLength(2);
+  });
+
+  it('ignores piece clicks while disabled', async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" disabled />,
+    );
+    const boardGroup = (renderer.scene as ReactThreeTestInstance)
+      .children[0] as ReactThreeTestInstance;
+    const pawn = boardGroup.children.find(
+      (child) =>
+        (child.type === 'Mesh' || child.type === 'Group') &&
+        child.props.userData?.piece?.type === PieceType.Pawn,
+    ) as ReactThreeTestInstance;
+    expect(pawn).toBeDefined();
+
+    await act(async () => {
+      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
+    });
+
+    const highlightCount = (renderer.scene as ReactThreeTestInstance).findAll(
+      (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
+    ).length;
+    expect(highlightCount).toBe(0);
+  });
+
   it('does not unselect when clicking another piece (selection moves)', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" />,

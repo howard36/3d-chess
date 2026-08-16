@@ -21,5 +21,6 @@ export const theme = {
   quietMove: '#ffb020', // dot marking an empty destination cell
   capture: '#ff5d5d', // ring marking a capturable piece
   highlightFill: '#ffb020', // faint fill of destination cells
+  lastMove: '#58a6ff', // faint fill of the last move's from/to cells (cool, vs the warm accents)
   check: '#ff2222', // king-in-check glow
 } as const;

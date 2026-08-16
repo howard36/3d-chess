@@ -19,10 +19,18 @@ vi.mock('@react-three/drei', () => ({
   OrbitControls: () => null,
 }));
 
-const fakeSocket = (messages: WebSocketMessage[] = [], send = () => {}): GameSocket => ({
+const fakeSocket = (
+  messages: WebSocketMessage[] = [],
+  send = () => {},
+  overrides: Partial<GameSocket> = {},
+): GameSocket => ({
   send,
   messages,
+  status: 'connected',
+  sessionId: 1,
+  sessionStartIndex: 0,
   reset: () => {},
+  ...overrides,
 });
 
 beforeEach(() => {
@@ -161,6 +169,117 @@ test('GameScreen shows the waiting screen when game_state says the game has not 
     fakeSocket([{ type: 'game_state', color: 'white', started: false, moves: [] }]),
   );
   expect(screen.getByText('Game created! Share this link with a friend:')).toBeInTheDocument();
+});
+
+test('GameScreen rejoins again when the socket session changes (mid-game reconnect)', async () => {
+  setStoredRole('abc123', 'white');
+  const send = vi.fn();
+  const msgs: WebSocketMessage[] = [
+    { type: 'game_state', color: 'white', started: true, moves: [] },
+  ];
+  // Session 1 already holds the seat (game_state arrived on it): no rejoin.
+  const { rerender } = renderGameScreen('abc123', fakeSocket(msgs, send));
+  expect(send).not.toHaveBeenCalled();
+
+  // The socket dropped and reopened: session 2 starts after the retained log,
+  // and the server no longer knows this client — it must rejoin.
+  rerender(
+    <MemoryRouter initialEntries={['/game/abc123']}>
+      <Routes>
+        <Route
+          path="/game/:gameId"
+          element={
+            <GameScreen
+              gameSocket={fakeSocket(msgs, send, { sessionId: 2, sessionStartIndex: msgs.length })}
+            />
+          }
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => {
+    expect(send).toHaveBeenCalledWith({ type: 'rejoin_game', gameId: 'abc123', color: 'white' });
+  });
+  expect(send).toHaveBeenCalledTimes(1);
+});
+
+test('GameScreen shows a reconnecting notice while the socket is down', () => {
+  setStoredRole('abc123', 'white');
+  renderGameScreen(
+    'abc123',
+    fakeSocket(
+      [{ type: 'game_state', color: 'white', started: true, moves: [] }],
+      () => {},
+      { status: 'reconnecting' },
+    ),
+  );
+  expect(screen.getByRole('status')).toHaveTextContent('Reconnecting…');
+});
+
+test('GameScreen freezes at the last good position when history has an unplayable move', () => {
+  setStoredRole('abc123', 'white');
+  renderGameScreen(
+    'abc123',
+    fakeSocket([
+      {
+        type: 'game_state',
+        color: 'white',
+        started: true,
+        // Aa3 is empty in the starting position: no client version could have
+        // made this move, so replay must stop instead of throwing mid-render.
+        moves: [{ by: 'white', from: 'Aa3', to: 'Aa4' }],
+      },
+    ]),
+  );
+  expect(screen.getByRole('alert')).toHaveTextContent(/not a legal move for this client/);
+  // Nothing was applied, so the shown position is still White to move
+  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('White to move');
+});
+
+test('GameScreen lists played moves in wire notation', () => {
+  setStoredRole('abc123', 'white');
+  renderGameScreen(
+    'abc123',
+    fakeSocket([
+      {
+        type: 'game_state',
+        color: 'white',
+        started: true,
+        moves: [
+          { by: 'white', from: 'Ab2', to: 'Ab3' },
+          { by: 'black', from: 'Ed4', to: 'Ed3' },
+        ],
+      },
+    ]),
+  );
+  const list = screen.getByTestId('move-list');
+  expect(list).toHaveTextContent('1.');
+  expect(list).toHaveTextContent('Ab2–Ab3');
+  expect(list).toHaveTextContent('Ed4–Ed3');
+});
+
+test('GameScreen does not double-count moves that predate a reconnect snapshot', () => {
+  setStoredRole('abc123', 'white');
+  renderGameScreen(
+    'abc123',
+    fakeSocket([
+      // Live session: one move arrives normally...
+      { type: 'game_start', color: 'white' },
+      { type: 'move_made', by: 'white', from: 'Ab2', to: 'Ab3' },
+      // ...then a reconnect replays the full history in a snapshot.
+      {
+        type: 'game_state',
+        color: 'white',
+        started: true,
+        moves: [
+          { by: 'white', from: 'Ab2', to: 'Ab3' },
+          { by: 'black', from: 'Ed4', to: 'Ed3' },
+        ],
+      },
+    ]),
+  );
+  // Two moves total (not three): back to White
+  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('White to move');
 });
 
 test('GameScreen clears a stale role and falls back to the join button when rejoin fails', async () => {

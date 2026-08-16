@@ -52,11 +52,17 @@ const atCellFloor = ([x, y, z]: [number, number, number]): [number, number, numb
 
 export type BoardTurn = 'white' | 'black';
 
+const coordEquals = (a: Coord, b: Coord) => a.x === b.x && a.y === b.y && a.z === b.z;
+
 export interface BoardProps {
   currentTurn: BoardTurn;
   playerColor?: 'white' | 'black' | null;
   onMove?: (move: Move) => void;
   board: EngineBoard;
+  /** The most recent move, marked on its from/to cells so it can't be missed. */
+  lastMove?: { from: Coord; to: Coord } | null;
+  /** Freezes interaction (selection and moves) while still rendering the position. */
+  disabled?: boolean;
   children?: React.ReactNode;
 }
 
@@ -71,11 +77,12 @@ const Board = (props: BoardProps) => {
 
   // A selection made against an earlier position is stale once the board or
   // turn changes (e.g. the opponent's move arrives) — clear it so a stale
-  // highlighted destination can't be sent as a move.
+  // highlighted destination can't be sent as a move. Disabling the board
+  // (reconnect in progress, broken replay) clears it for the same reason.
   React.useEffect(() => {
     setSelected(null);
     setLegalMoves([]);
-  }, [props.board, props.currentTurn]);
+  }, [props.board, props.currentTurn, props.disabled]);
 
   // Collect all pieces with their coordinates from the provided board
   const pieces = CELLS.flatMap((coord) => {
@@ -85,6 +92,7 @@ const Board = (props: BoardProps) => {
 
   // Handle piece selection
   const handlePiecePointerDown = (coord: Coord) => {
+    if (props.disabled) return;
     const piece = board.getPiece(coord);
     // Only allow clicking pieces that match both the current turn and playerColor
     if (
@@ -101,7 +109,7 @@ const Board = (props: BoardProps) => {
 
   // Handle highlighted cube click (move application)
   const handleCubePointerDown = (targetCoord: Coord) => {
-    if (!selected) return;
+    if (props.disabled || !selected) return;
 
     // Find the specific move from legalMoves that matches the targetCoord
     // This is important if there are multiple promotions to the same square.
@@ -152,8 +160,7 @@ const Board = (props: BoardProps) => {
     (to) => ({ to, capture: !!board.getPiece(to) }),
   );
 
-  const isSelected = (c: Coord) =>
-    !!selected && selected.x === c.x && selected.y === c.y && selected.z === c.z;
+  const isSelected = (c: Coord) => !!selected && coordEquals(selected, c);
 
   const selectedWorld = selected ? toWorld(selected, orientation) : null;
 
@@ -178,10 +185,14 @@ const Board = (props: BoardProps) => {
       </lineSegments>
       {/* Invisible cell boxes: raycast targets for selecting a destination and
           for the empty-space click that clears the selection. Destination
-          cells get a faint fill; everything visible about a destination is
+          cells get a faint fill, the last move's from/to cells a fainter one
+          in a different hue; everything else visible about a destination is
           drawn by the markers below. */}
       {CELLS.map((cell) => {
         const isDest = isHighlighted(cell);
+        const isLastMove =
+          !!props.lastMove &&
+          (coordEquals(cell, props.lastMove.from) || coordEquals(cell, props.lastMove.to));
         return (
           <Box
             key={toZXY(cell)}
@@ -191,6 +202,7 @@ const Board = (props: BoardProps) => {
             receiveShadow={false}
             userData={{
               highlight: isDest,
+              lastMove: isLastMove,
               cube: true,
             }}
             // Add pointer handler for highlighted cubes
@@ -204,9 +216,9 @@ const Board = (props: BoardProps) => {
             }
           >
             <meshBasicMaterial
-              color={theme.highlightFill}
+              color={isDest ? theme.highlightFill : theme.lastMove}
               transparent
-              opacity={isDest ? 0.12 : 0}
+              opacity={isDest ? 0.12 : isLastMove ? 0.18 : 0}
               depthWrite={false}
             />
           </Box>
