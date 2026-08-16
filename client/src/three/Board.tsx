@@ -41,7 +41,9 @@ const noRaycast = () => null;
 // Drops a cell-centre position to the cell floor, the plane a piece's base disc
 // sits on. Both rings ride on it: a ring is read as lying on the ground, so at
 // the cell centre it instead skewers whatever piece occupies the cell, at a
-// different height for every piece (a pawn is 0.36 tall, a king 0.87).
+// different height for every piece. Pieces are all modeled base-at-y=0 and are
+// shorter than their cell, so they are bottom-aligned rather than centred in it,
+// and their tops range from ~0.55 (pawn) to 0.87 (king).
 const atCellFloor = ([x, y, z]: [number, number, number]): [number, number, number] => [
   x,
   y + CELL_FLOOR_Y,
