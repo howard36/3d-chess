@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "prepare": "husky install",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "generate:types": "json2ts --input ../server/schema.json --output src/types/schema.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.7",
@@ -48,6 +49,7 @@
     "husky": "^9.1.7",
     "jest-websocket-mock": "^2.5.0",
     "jsdom": "^26.1.0",
+    "json-schema-to-typescript": "^15.0.4",
     "lint-staged": "^15.5.1",
     "postcss": "^8.5.4",
     "prettier": "^3.5.3",

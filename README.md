@@ -90,16 +90,21 @@ Key decisions:
 ## Protocol
 
 The WebSocket message schema lives in **`server/schema.json`** — that file is the source of
-truth. `server/messages.py` is generated from it:
+truth, including the enumerated error codes. Both sides' models are generated from it, and
+CI fails if either generated file is stale:
 
 ```bash
-datamodel-codegen --input server/schema.json --input-file-type jsonschema \
-  --output server/messages.py --output-model-type pydantic_v2.BaseModel
+# Python models (server/messages.py); datamodel-code-generator is pinned in
+# server/pyproject.toml's test extra so output is byte-stable
+cd server && uv run datamodel-codegen --input schema.json --input-file-type jsonschema \
+  --output messages.py --output-model-type pydantic_v2.BaseModel --disable-timestamp
+
+# TypeScript types (client/src/types/schema.ts)
+cd client && npm run generate:types
 ```
 
-The TypeScript equivalents in `client/src/types/messages.ts` are maintained **by hand** and
-must be kept in sync when the schema changes (as must the error-code strings the client
-matches on: `invalid_game`, `game_full`, `invalid_rejoin`).
+App code imports the TypeScript types via the thin re-export layer
+`client/src/types/messages.ts`, never from the generated file directly.
 
 Message flow, happy path:
 

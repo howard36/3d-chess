@@ -13,6 +13,20 @@
     { "$ref": "#/definitions/error" }
   ],
   "definitions": {
+    "color": { "enum": ["white", "black"] },
+    "promotion": { "enum": ["Q", "R", "B", "N", "U"] },
+    "error_code": {
+      "enum": [
+        "invalid_message",
+        "already_in_game",
+        "invalid_game",
+        "game_full",
+        "invalid_rejoin",
+        "invalid_move",
+        "game_not_started",
+        "wrong_turn"
+      ]
+    },
     "create_game": {
       "type": "object",
       "properties": {
@@ -26,7 +40,7 @@
       "properties": {
         "type": { "const": "game_created" },
         "gameId": { "type": "string" },
-        "color": { "enum": ["white", "black"] }
+        "color": { "$ref": "#/definitions/color" }
       },
       "required": ["type", "gameId", "color"],
       "additionalProperties": false
@@ -45,7 +59,7 @@
       "properties": {
         "type": { "const": "rejoin_game" },
         "gameId": { "type": "string" },
-        "color": { "enum": ["white", "black"] }
+        "color": { "$ref": "#/definitions/color" }
       },
       "required": ["type", "gameId", "color"],
       "additionalProperties": false
@@ -54,7 +68,7 @@
       "type": "object",
       "properties": {
         "type": { "const": "game_start" },
-        "color": { "enum": ["white", "black"] },
+        "color": { "$ref": "#/definitions/color" },
         "initialPosition": { "type": "string" }
       },
       "required": ["type", "color"],
@@ -64,7 +78,7 @@
       "type": "object",
       "properties": {
         "type": { "const": "game_state" },
-        "color": { "enum": ["white", "black"] },
+        "color": { "$ref": "#/definitions/color" },
         "started": { "type": "boolean" },
         "moves": { "type": "array", "items": { "$ref": "#/definitions/move_record" } }
       },
@@ -74,10 +88,10 @@
     "move_record": {
       "type": "object",
       "properties": {
-        "by": { "enum": ["white", "black"] },
+        "by": { "$ref": "#/definitions/color" },
         "from": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
         "to": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
-        "promotion": { "enum": ["Q", "R", "B", "N", "U"] }
+        "promotion": { "$ref": "#/definitions/promotion" }
       },
       "required": ["by", "from", "to"],
       "additionalProperties": false
@@ -88,7 +102,7 @@
         "type": { "const": "move" },
         "from": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
         "to": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
-        "promotion": { "enum": ["Q", "R", "B", "N", "U"] }
+        "promotion": { "$ref": "#/definitions/promotion" }
       },
       "required": ["type", "from", "to"],
       "additionalProperties": false
@@ -97,10 +111,10 @@
       "type": "object",
       "properties": {
         "type": { "const": "move_made" },
-        "by": { "enum": ["white", "black"] },
+        "by": { "$ref": "#/definitions/color" },
         "from": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
         "to": { "type": "string", "pattern": "^[A-E][a-e][1-5]$" },
-        "promotion": { "enum": ["Q", "R", "B", "N", "U"] }
+        "promotion": { "$ref": "#/definitions/promotion" }
       },
       "required": ["type", "by", "from", "to"],
       "additionalProperties": false
@@ -109,7 +123,7 @@
       "type": "object",
       "properties": {
         "type": { "const": "error" },
-        "code": { "type": "string" },
+        "code": { "$ref": "#/definitions/error_code" },
         "message": { "type": "string" }
       },
       "required": ["type", "code", "message"],
