@@ -91,6 +91,26 @@ Moving a piece is always two `clickSquare` calls: the piece, then a
 legal destination. Clicks on illegal squares are silently ignored by
 the app.
 
+**Rotate / zoom the view** (e.g. to screenshot occluded pieces or
+inspect models from another angle): a left-drag on the canvas orbits,
+the wheel zooms (distance clamps to 6–25). Start the drag on empty
+canvas so the press doesn't select a piece; `page.mouse.click` never
+counts as a drag. Verified inside a spec, on the White player's page:
+
+```ts
+await white.mouse.move(1000, 550); // empty canvas, right of the board
+await white.mouse.down();
+await white.mouse.move(700, 480, { steps: 20 }); // orbit left and up
+await white.mouse.up();
+await white.mouse.wheel(0, -400); // zoom in (positive deltaY zooms out)
+await white.screenshot({ path: 'test-results/rotated.png' });
+```
+
+`clickSquare` works from any orbited angle with no settle wait — it
+projects through the live camera at click time, so even the brief
+damping ease after `mouse.up` doesn't matter (verified with
+`--repeat-each=3`).
+
 **Manual servers** (only for iterating outside Playwright, e.g. probing
 with your own Playwright script):
 
@@ -153,9 +173,6 @@ warnings — pre-existing noise, not failures.
   in `GameScreen.tsx` publishes it, and `clickSquare` projects through
   the live camera at click time (correct even after orbiting). If that
   hook is removed, `clickSquare` throws `window.__r3fState missing`.
-- **Don't drag.** A pressed-and-moved mouse is an OrbitControls rotate,
-  not a click. `page.mouse.click(x, y)` is safe; avoid `move` between
-  down and up.
 - **The board only mounts with both players seated.** A single page
   stays on the waiting screen forever — there is nothing to screenshot
   until the second context joins.
