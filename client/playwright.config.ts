@@ -38,5 +38,25 @@ export default defineConfig({
 
     // Collect trace when retrying the failed test
     trace: 'on-first-retry',
+
+    launchOptions: {
+      // Escape hatch for environments whose Chromium build doesn't match this
+      // Playwright version (e.g. sandboxed agent containers with a
+      // pre-installed browser at /opt/pw-browsers/chromium): point at that
+      // binary instead of running `playwright install`.
+      executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+      args: [
+        // Headless Chromium has no GPU; without an explicit software-GL
+        // backend, WebGL context creation can fail or silently fall back,
+        // leaving three.js with a blank canvas. SwiftShader renders the real
+        // scene in software, identically in CI and locally.
+        '--use-gl=angle',
+        '--use-angle=swiftshader',
+        '--enable-unsafe-swiftshader',
+        // Chromium refuses to start as root (containers) with its sandbox on.
+        // The suite only ever loads the local dev server, so this is safe.
+        '--no-sandbox',
+      ],
+    },
   },
 });

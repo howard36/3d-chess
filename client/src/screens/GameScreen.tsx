@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 import Board, { BoardTurn } from '../three/Board';
 import { Canvas } from '@react-three/fiber';
+import type { RootState } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import TurnIndicator from '../three/TurnIndicator';
 import { Board as EngineBoard, Move } from '../engine';
@@ -216,6 +217,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
           data-testid="r3f-canvas"
           style={{ height: '100%', width: '100%' }}
           camera={{ position: [6.5, 5, 8.5], fov: 40 }}
+          // Test hook: r3f v9 no longer exposes its store on the canvas
+          // element, so drivers (e2e/helpers/board.ts) read the live camera
+          // here to project board cells to pixels — correct even after the
+          // user orbits or the camera setup above changes.
+          onCreated={(state: RootState) => {
+            (window as Window & { __r3fState?: RootState }).__r3fState = state;
+          }}
         >
           <color attach="background" args={[theme.background]} />
           {/* Fog matched to the background gently fades the far side of the
