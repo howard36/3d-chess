@@ -7,7 +7,7 @@ import { PieceMesh } from './PieceMesh';
 import React from 'react';
 import { PieceType } from '../engine/pieces';
 import { Coord, toZXY } from '../engine/coords';
-import { CELLS, toWorld } from './layout';
+import { CELL_FLOOR_Y, CELLS, toWorld } from './layout';
 import { theme } from './theme';
 
 // The grid is drawn as a single wireframe lattice rather than translucent cube
@@ -37,6 +37,18 @@ const latticeGeometry = buildLatticeGeometry();
 // Line raycasting has a generous default threshold that would steal pointer
 // events from the cells; markers are decorative too.
 const noRaycast = () => null;
+
+// Drops a cell-centre position to the cell floor, the plane a piece's base disc
+// sits on. Both rings ride on it: a ring is read as lying on the ground, so at
+// the cell centre it instead skewers whatever piece occupies the cell, at a
+// different height for every piece. Pieces are all modeled base-at-y=0 and are
+// shorter than their cell, so they are bottom-aligned rather than centred in it,
+// and their tops range from ~0.55 (pawn) to 0.87 (king).
+const atCellFloor = ([x, y, z]: [number, number, number]): [number, number, number] => [
+  x,
+  y + CELL_FLOOR_Y,
+  z,
+];
 
 export type BoardTurn = 'white' | 'black';
 
@@ -143,6 +155,8 @@ const Board = (props: BoardProps) => {
   const isSelected = (c: Coord) =>
     !!selected && selected.x === c.x && selected.y === c.y && selected.z === c.z;
 
+  const selectedWorld = selected ? toWorld(selected, orientation) : null;
+
   return (
     <group
       name="board-grid"
@@ -198,14 +212,17 @@ const Board = (props: BoardProps) => {
           </Box>
         );
       })}
-      {/* Move markers: a dot for a quiet move, a ring around a capturable piece */}
+      {/* Move markers: a dot for a quiet move, a ring around a capturable piece.
+          The dot marks empty space, so it sits at the cell centre; the ring
+          encircles an occupied cell's piece, so it drops to that piece's base. */}
       {destinations.map(({ to, capture }) =>
         capture ? (
           <mesh
             key={`capture-${toZXY(to)}`}
-            position={toWorld(to, orientation)}
+            position={atCellFloor(toWorld(to, orientation))}
             rotation={[Math.PI / 2, 0, 0]}
             raycast={noRaycast}
+            userData={{ captureRing: true }}
           >
             <torusGeometry args={[0.42, 0.035, 8, 32]} />
             <meshBasicMaterial color={theme.capture} transparent opacity={0.9} depthWrite={false} />
@@ -226,16 +243,16 @@ const Board = (props: BoardProps) => {
           </mesh>
         ),
       )}
-      {/* Ring under the selected piece */}
-      {selected && (
+      {/* Ring around the foot of the selected piece. Slightly tighter than the
+          capture ring, so the two read as different markers where they sit in
+          neighbouring cells; the radius still clears the widest base (the
+          king's, 0.28) while staying inside the cell. */}
+      {selectedWorld && (
         <mesh
-          position={[
-            toWorld(selected, orientation)[0],
-            toWorld(selected, orientation)[1] - 0.42,
-            toWorld(selected, orientation)[2],
-          ]}
+          position={atCellFloor(selectedWorld)}
           rotation={[Math.PI / 2, 0, 0]}
           raycast={noRaycast}
+          userData={{ selectionRing: true }}
         >
           <torusGeometry args={[0.38, 0.04, 8, 32]} />
           <meshBasicMaterial color={theme.select} transparent opacity={0.95} depthWrite={false} />

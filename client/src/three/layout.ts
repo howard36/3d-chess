@@ -5,6 +5,14 @@ export const GRID_SIZE = FILES.length;
 export const SPACING = 1.1;
 const HALF = (GRID_SIZE - 1) / 2;
 
+/**
+ * Cell-local height of the floor a piece stands on — the bottom face of the
+ * unit cell. Pieces are modeled base-at-y=0, so this is both the offset that
+ * seats a piece in its cell and the height anything drawn at a piece's feet
+ * (the selection ring) has to sit at.
+ */
+export const CELL_FLOOR_Y = -0.5;
+
 export type Orientation = 'white' | 'black';
 
 /** Every cell of the 5x5x5 grid, in z -> y -> x order. */
