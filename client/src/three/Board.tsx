@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { Box } from '@react-three/drei';
 import { BoxGeometry, BufferAttribute, BufferGeometry, EdgesGeometry } from 'three';
 import { Board as EngineBoard } from '../engine';
-import type { Move } from '../engine';
+import type { Move, Piece } from '../engine';
 import { PieceMesh } from './PieceMesh';
 import React from 'react';
 import { PieceType } from '../engine/pieces';
 import { Coord, toZXY } from '../engine/coords';
 import { CELL_FLOOR_Y, CELLS, toWorld } from './layout';
+import { GhostPiece, MoveGlide } from './moveAnimation';
 import { theme } from './theme';
 
 // The grid is drawn as a single wireframe lattice rather than translucent cube
@@ -52,11 +53,20 @@ const atCellFloor = ([x, y, z]: [number, number, number]): [number, number, numb
 
 export type BoardTurn = 'white' | 'black';
 
+export interface LastMoveInfo {
+  move: Move;
+  /** Total moves played; increments exactly once per new move. */
+  moveCount: number;
+  /** Piece that stood on move.to before the move, if the move captured. */
+  capturedPiece: Piece | null;
+}
+
 export interface BoardProps {
   currentTurn: BoardTurn;
   playerColor?: 'white' | 'black' | null;
   onMove?: (move: Move) => void;
   board: EngineBoard;
+  lastMove?: LastMoveInfo;
   children?: React.ReactNode;
 }
 
@@ -64,6 +74,14 @@ const Board = (props: BoardProps) => {
   const board = props.board;
   // Spectators (no assigned colour) get White's view.
   const orientation = props.playerColor ?? 'white';
+
+  const lastMove = props.lastMove;
+  // Moves already played when this board mounted are history (a rejoin
+  // replay): they keep their highlight but must not animate.
+  const mountMoveCount = React.useRef(lastMove?.moveCount ?? 0);
+  const animate = !!lastMove && lastMove.moveCount > mountMoveCount.current;
+  const lastFromKey = lastMove ? toZXY(lastMove.move.from) : null;
+  const lastToKey = lastMove ? toZXY(lastMove.move.to) : null;
 
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | Coord>(null);
@@ -178,19 +196,33 @@ const Board = (props: BoardProps) => {
       </lineSegments>
       {/* Invisible cell boxes: raycast targets for selecting a destination and
           for the empty-space click that clears the selection. Destination
-          cells get a faint fill; everything visible about a destination is
-          drawn by the markers below. */}
+          cells get a faint fill, the last move's cells a teal one; everything
+          else visible about a destination is drawn by the markers below. The
+          flags reflect what is drawn: a legal-destination fill replaces the
+          last-move fill on a shared cell. */}
       {CELLS.map((cell) => {
+        const cellKey = toZXY(cell);
         const isDest = isHighlighted(cell);
+        const isLastTo = !isDest && cellKey === lastToKey;
+        const isLastFrom = !isDest && !isLastTo && cellKey === lastFromKey;
+        const fill = isDest
+          ? { color: theme.highlightFill, opacity: 0.12 }
+          : isLastTo
+            ? { color: theme.lastMoveFill, opacity: theme.lastMoveToOpacity }
+            : isLastFrom
+              ? { color: theme.lastMoveFill, opacity: theme.lastMoveFromOpacity }
+              : { color: theme.highlightFill, opacity: 0 };
         return (
           <Box
-            key={toZXY(cell)}
+            key={cellKey}
             position={toWorld(cell, orientation)}
             args={[1, 1, 1]}
             castShadow={false}
             receiveShadow={false}
             userData={{
               highlight: isDest,
+              lastMoveFrom: isLastFrom,
+              lastMoveTo: isLastTo,
               cube: true,
             }}
             // Add pointer handler for highlighted cubes
@@ -204,9 +236,9 @@ const Board = (props: BoardProps) => {
             }
           >
             <meshBasicMaterial
-              color={theme.highlightFill}
+              color={fill.color}
               transparent
-              opacity={isDest ? 0.12 : 0}
+              opacity={fill.opacity}
               depthWrite={false}
             />
           </Box>
@@ -258,26 +290,52 @@ const Board = (props: BoardProps) => {
           <meshBasicMaterial color={theme.select} transparent opacity={0.95} depthWrite={false} />
         </mesh>
       )}
-      {pieces.map(({ type, color, coord }) => (
-        <PieceMesh
-          key={`${type}-${color}-${toZXY(coord)}`}
-          type={type}
-          color={color}
-          position={toWorld(coord, orientation)}
-          onPointerDown={(e: React.PointerEvent) => {
-            e.stopPropagation();
-            handlePiecePointerDown(coord);
-          }}
-          // Check trumps selection for the king's glow
-          emissive={
-            type === PieceType.King && board.inCheck(color)
-              ? theme.check
-              : isSelected(coord)
-                ? theme.selectEmissive
-                : '#000000'
-          }
+      {pieces.map(({ type, color, coord }) => {
+        const mesh = (
+          <PieceMesh
+            key={`${type}-${color}-${toZXY(coord)}`}
+            type={type}
+            color={color}
+            position={toWorld(coord, orientation)}
+            onPointerDown={(e: React.PointerEvent) => {
+              e.stopPropagation();
+              handlePiecePointerDown(coord);
+            }}
+            // Check trumps selection for the king's glow
+            emissive={
+              type === PieceType.King && board.inCheck(color)
+                ? theme.check
+                : isSelected(coord)
+                  ? theme.selectEmissive
+                  : '#000000'
+            }
+          />
+        );
+        // The just-moved piece glides in from its source cell. Piece keys are
+        // position-derived and can recur across moves, so the wrapper is keyed
+        // by moveCount: every new move mounts a fresh tween, superseding one
+        // still in flight.
+        if (animate && lastMove && toZXY(coord) === lastToKey) {
+          return (
+            <MoveGlide
+              key={`anim-${lastMove.moveCount}`}
+              from={toWorld(lastMove.move.from, orientation)}
+              to={toWorld(coord, orientation)}
+            >
+              {mesh}
+            </MoveGlide>
+          );
+        }
+        return mesh;
+      })}
+      {animate && lastMove?.capturedPiece && (
+        <GhostPiece
+          key={`ghost-${lastMove.moveCount}`}
+          type={lastMove.capturedPiece.type}
+          color={lastMove.capturedPiece.color}
+          position={toWorld(lastMove.move.to, orientation)}
         />
-      ))}
+      )}
     </group>
   );
 };
