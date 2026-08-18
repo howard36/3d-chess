@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import Board, { BoardTurn } from '../three/Board';
+import Board, { BoardTurn, LastMoveInfo } from '../three/Board';
 import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
@@ -84,13 +84,23 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     }
   }, [gameId, gameStart]);
 
-  const board = React.useMemo(() => {
-    let b = EngineBoard.setupStartingPosition();
+  // The pre-move board falls out of the same fold; the last move's captured
+  // piece can only be read from it, since the current board no longer holds it.
+  const { board, prevBoard } = React.useMemo(() => {
+    let prev = EngineBoard.setupStartingPosition();
+    let b = prev;
     for (const move of moves) {
+      prev = b;
       b = b.applyMove(move);
     }
-    return b;
+    return { board: b, prevBoard: prev };
   }, [moves]);
+
+  const lastMoveInfo = React.useMemo<LastMoveInfo | undefined>(() => {
+    const move = moves[moves.length - 1];
+    if (!move) return undefined;
+    return { move, moveCount: moves.length, capturedPiece: prevBoard.getPiece(move.to) };
+  }, [moves, prevBoard]);
 
   // White moves first; turn alternates with each applied move
   const currentTurn: BoardTurn = moves.length % 2 === 0 ? 'white' : 'black';
@@ -237,6 +247,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             currentTurn={currentTurn}
             playerColor={color} // Pass the determined player color
             onMove={handleMove}
+            lastMove={lastMoveInfo}
           />
           <OrbitControls makeDefault minDistance={6} maxDistance={25} />
         </Canvas>
