@@ -124,7 +124,7 @@ Stop with `lsof -ti:8000 -sTCP:LISTEN | xargs -r kill` (same for 5173).
 If writing your own script instead of a spec, launch Chromium with
 `executablePath: '/opt/pw-browsers/chromium'` and the same flags as
 `playwright.config.ts` `launchOptions.args`, and import Playwright by
-absolute path (`/…/3d-chess/node_modules/playwright/index.mjs`) — a
+absolute path (`/…/3d-chess/client/node_modules/playwright/index.mjs`) — a
 bare `import 'playwright'` fails from outside the repo tree.
 
 ## Run (human path)
@@ -140,7 +140,7 @@ needs two browsers anyway.
 ## Test
 
 ```bash
-cd client && npm run lint && npm run test   # eslint; 9 vitest files, 98 tests
+cd client && npm run lint && npm run test   # eslint; 10 vitest files, 112 tests
 uv run --project server pytest              # 29 tests, spawns a real uvicorn
 cd client && PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npm run e2e
 ```

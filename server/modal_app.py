@@ -102,7 +102,7 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                 except ValueError:
                     # Frame was not valid JSON
                     err = Error(type="error", code="invalid_message", message="Message is not valid JSON")
-                    await _safe_send(ws, err.model_dump())
+                    await _safe_send(ws, err.model_dump(mode="json"))
                     continue
                 try:
                     envelope = WebsocketV1MessageEnvelope.model_validate(data).root
@@ -112,13 +112,13 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         code="invalid_message",
                         message="Message does not conform to the protocol schema",
                     )
-                    await _safe_send(ws, err.model_dump())
+                    await _safe_send(ws, err.model_dump(mode="json"))
                     continue
 
                 if isinstance(envelope, CreateGame):
                     if gid is not None:
                         err = Error(type="error", code="already_in_game", message="Already in a game")
-                        await _safe_send(ws, err.model_dump())
+                        await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     gid = _new_game_id(store)
                     # Creator can be white or black, but white always moves first
@@ -130,19 +130,19 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                 elif isinstance(envelope, JoinGame):
                     if gid is not None:
                         err = Error(type="error", code="already_in_game", message="Already in a game")
-                        await _safe_send(ws, err.model_dump())
+                        await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     record = store.get(envelope.gameId)
                     if record is None:
                         err = Error(type="error", code="invalid_game", message="Cannot join")
-                        await _safe_send(ws, err.model_dump())
+                        await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     # Seats are claimed for the life of the game, so a full game
                     # stays full even while a claimant is disconnected.
                     available_colors = [c for c in ("white", "black") if c not in record["seats"]]
                     if not available_colors:
                         err = Error(type="error", code="game_full", message="Game full")
-                        await _safe_send(ws, err.model_dump())
+                        await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     gid = envelope.gameId
                     player_color = available_colors[0]
@@ -161,16 +161,16 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                 elif isinstance(envelope, RejoinGame):
                     if gid is not None:
                         err = Error(type="error", code="already_in_game", message="Already in a game")
-                        await _safe_send(ws, err.model_dump())
+                        await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     record = store.get(envelope.gameId)
                     if record is None:
                         err = Error(type="error", code="invalid_game", message="Cannot rejoin")
-                        await _safe_send(ws, err.model_dump())
+                        await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     if envelope.color.value not in record["seats"]:
                         err = Error(type="error", code="invalid_rejoin", message="No such seat to rejoin")
-                        await _safe_send(ws, err.model_dump())
+                        await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     gid = envelope.gameId
                     player_color = envelope.color.value
@@ -198,17 +198,17 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                     record = store.get(gid) if gid is not None else None
                     if record is None:
                         err = Error(type="error", code="invalid_move", message="Not in a game")
-                        await _safe_send(ws, err.model_dump())
+                        await _safe_send(ws, err.model_dump(mode="json"))
                     elif len(record["seats"]) < 2:
                         err = Error(
                             type="error",
                             code="game_not_started",
                             message="Both players must have joined to move",
                         )
-                        await _safe_send(ws, err.model_dump())
+                        await _safe_send(ws, err.model_dump(mode="json"))
                     elif _turn(record) != player_color:
                         err = Error(type="error", code="wrong_turn", message="Not your turn")
-                        await _safe_send(ws, err.model_dump())
+                        await _safe_send(ws, err.model_dump(mode="json"))
                     else:
                         # Record the move (write back before any await), then
                         # relay to whichever players are connected; an offline
@@ -229,7 +229,7 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         code="invalid_message",
                         message=f"Clients may not send {envelope.type} messages",
                     )
-                    await _safe_send(ws, err.model_dump())
+                    await _safe_send(ws, err.model_dump(mode="json"))
         except WebSocketDisconnect:
             pass
         finally:

@@ -21,6 +21,14 @@ jobs:
         working-directory: server
       - name: Run server tests
         run: uv run --project server pytest
+      # messages.py is generated from schema.json; a schema change that skips
+      # regeneration would silently desync the validated wire format.
+      - name: Check messages.py is current with schema.json
+        run: |
+          uv run datamodel-codegen --input schema.json --input-file-type jsonschema \
+            --output messages.py --output-model-type pydantic_v2.BaseModel --disable-timestamp
+          git diff --exit-code messages.py
+        working-directory: server
 
   client:
     runs-on: ubuntu-latest
@@ -43,6 +51,13 @@ jobs:
         working-directory: client
       - name: Run tests with coverage
         run: npm run test -- --coverage
+        working-directory: client
+      # src/types/schema.ts is generated from server/schema.json; a stale copy
+      # means the client compiles against a protocol the server no longer speaks.
+      - name: Check generated types are current with schema.json
+        run: |
+          npm run generate:types
+          git diff --exit-code src/types/schema.ts
         working-directory: client
 
   e2e:

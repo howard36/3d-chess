@@ -73,6 +73,85 @@ describe('useGameSocket', () => {
     });
   });
 
+  it('reconnects after an unexpected drop, bumps the session, and keeps the log', async () => {
+    const { result } = renderHook(() => useGameSocket());
+    await server.connected;
+    act(() => {
+      server.send(JSON.stringify({ type: 'game_start', color: 'white' }));
+    });
+    await waitFor(() => {
+      expect(result.current.messages).toHaveLength(1);
+    });
+    expect(result.current.status).toBe('connected');
+    const firstSession = result.current.sessionId;
+    expect(firstSession).toBeGreaterThan(0);
+    expect(result.current.sessionStartIndex).toBe(0);
+
+    // The server drops the connection (network blip, Modal timeout, ...)
+    act(() => {
+      server.close();
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe('reconnecting');
+    });
+
+    // The server comes back; the hook's retry loop finds it by itself
+    server = new WS(WS_URL);
+    await server.connected;
+    await waitFor(
+      () => {
+        expect(result.current.status).toBe('connected');
+      },
+      { timeout: 3000 },
+    );
+    // New socket = new server-side session, starting after the retained log
+    expect(result.current.sessionId).toBe(firstSession + 1);
+    expect(result.current.sessionStartIndex).toBe(1);
+    expect(result.current.messages).toHaveLength(1);
+  });
+
+  it('flushes queued messages on reconnect but drops stale moves', async () => {
+    const { result } = renderHook(() => useGameSocket());
+    await server.connected;
+    act(() => {
+      server.close();
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe('reconnecting');
+    });
+
+    // Sent while disconnected: the move must not survive into the next
+    // session (the game may have moved on), the rejoin must.
+    act(() => {
+      result.current.send({ type: 'move', from: 'Ab2', to: 'Ab3' });
+      result.current.send({ type: 'rejoin_game', gameId: 'ABC123', color: 'white' });
+    });
+
+    server = new WS(WS_URL);
+    await server.connected;
+    await expect(server).toReceiveMessage(
+      JSON.stringify({ type: 'rejoin_game', gameId: 'ABC123', color: 'white' }),
+    );
+    expect(server.messages).not.toContainEqual(
+      JSON.stringify({ type: 'move', from: 'Ab2', to: 'Ab3' }),
+    );
+  });
+
+  it('surfaces a malformed server frame as an error message instead of throwing', async () => {
+    const { result } = renderHook(() => useGameSocket());
+    await server.connected;
+    act(() => {
+      server.send('this is not JSON');
+    });
+    await waitFor(() => {
+      expect(result.current.messages).toContainEqual({
+        type: 'error',
+        code: 'invalid_message',
+        message: 'Received a malformed message from the server',
+      });
+    });
+  });
+
   it('reset() drops the session messages and opens a fresh connection', async () => {
     const { result } = renderHook(() => useGameSocket());
     await server.connected;
