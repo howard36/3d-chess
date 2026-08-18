@@ -27,6 +27,5 @@ export const theme = {
   // Last-move trace — teal, hue-opposed to both the cool background and the
   // amber interaction accents, so it can't be confused with a legal move.
   lastMoveFill: '#14b8a6', // fill of the last move's from/to cells
-  lastMoveToOpacity: 0.3, // destination cell (stronger)
-  lastMoveFromOpacity: 0.15, // source cell (fainter)
+  lastMoveFillOpacity: 0.3,
 } as const;

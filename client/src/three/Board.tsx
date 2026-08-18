@@ -207,11 +207,9 @@ const Board = (props: BoardProps) => {
         const isLastFrom = !isDest && !isLastTo && cellKey === lastFromKey;
         const fill = isDest
           ? { color: theme.highlightFill, opacity: theme.highlightFillOpacity }
-          : isLastTo
-            ? { color: theme.lastMoveFill, opacity: theme.lastMoveToOpacity }
-            : isLastFrom
-              ? { color: theme.lastMoveFill, opacity: theme.lastMoveFromOpacity }
-              : { color: theme.highlightFill, opacity: 0 };
+          : isLastTo || isLastFrom
+            ? { color: theme.lastMoveFill, opacity: theme.lastMoveFillOpacity }
+            : { color: theme.highlightFill, opacity: 0 };
         return (
           <Box
             key={cellKey}

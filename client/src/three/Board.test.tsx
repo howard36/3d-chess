@@ -405,13 +405,13 @@ describe('Board', () => {
       expect(fromCells[0].props.position).toEqual(toWorld(FROM, 'white'));
       expect(toCells[0].props.position).toEqual(toWorld(TO, 'white'));
 
-      // Teal fill, destination stronger than source
+      // Teal fill, same strength on both cells
       const materialOf = (cell: ReactThreeTestInstance) =>
         (cell.instance as unknown as { material: { color: { getHexString(): string }; opacity: number } })
           .material;
       expect(`#${materialOf(toCells[0]).color.getHexString()}`).toBe(theme.lastMoveFill);
-      expect(materialOf(toCells[0]).opacity).toBe(theme.lastMoveToOpacity);
-      expect(materialOf(fromCells[0]).opacity).toBe(theme.lastMoveFromOpacity);
+      expect(materialOf(toCells[0]).opacity).toBe(theme.lastMoveFillOpacity);
+      expect(materialOf(fromCells[0]).opacity).toBe(theme.lastMoveFillOpacity);
 
       // Moves already played at mount are history: highlight only, no glide,
       // and the piece rests exactly on its cell.
