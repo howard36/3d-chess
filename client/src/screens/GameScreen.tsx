@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import Board, { BoardTurn } from '../three/Board';
+import Board, { BoardTurn, LastMoveInfo } from '../three/Board';
 import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
@@ -104,16 +104,24 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // written a move this engine can't apply. Stopping at the first bad move
   // (instead of throwing mid-render) keeps the game viewable at the last
   // good position rather than white-screening both players forever.
-  const { board, replayFailedAt } = React.useMemo(() => {
+  //
+  // prevBoard tracks the position before the most recently *applied* move
+  // (not necessarily the last record): it only advances alongside a
+  // successful applyMove, so on a mid-replay failure it still holds the
+  // board before the last good move rather than collapsing to `board`.
+  const { board, prevBoard, replayFailedAt } = React.useMemo(() => {
     let b = EngineBoard.setupStartingPosition();
+    let beforeLastApplied = b;
     for (let i = 0; i < moveRecords.length; i++) {
+      const before = b;
       try {
         b = b.applyMove(moveFromMessage(moveRecords[i]));
+        beforeLastApplied = before;
       } catch {
-        return { board: b, replayFailedAt: i };
+        return { board: b, prevBoard: beforeLastApplied, replayFailedAt: i };
       }
     }
-    return { board: b, replayFailedAt: null };
+    return { board: b, prevBoard: beforeLastApplied, replayFailedAt: null };
   }, [moveRecords]);
 
   // White moves first; turn alternates with each *applied* move, so a frozen
@@ -121,18 +129,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const appliedMoveCount = replayFailedAt ?? moveRecords.length;
   const currentTurn: BoardTurn = appliedMoveCount % 2 === 0 ? 'white' : 'black';
 
-  // The most recent applied move, highlighted so a returning glance (or an
-  // opponent's move arriving) is visible without diffing the whole lattice.
-  const lastMove = React.useMemo(() => {
-    if (appliedMoveCount === 0) return null;
-    const record = moveRecords[appliedMoveCount - 1];
-    try {
-      const { from, to } = moveFromMessage(record);
-      return { from, to };
-    } catch {
-      return null;
-    }
-  }, [moveRecords, appliedMoveCount]);
+  // The most recent applied move, for the board's highlight/animation and the
+  // captured-piece ghost. moveRecords[appliedMoveCount - 1] is always one of
+  // the records the replay above already applied successfully, so converting
+  // it again here can't throw.
+  const lastMoveInfo = React.useMemo<LastMoveInfo | undefined>(() => {
+    if (appliedMoveCount === 0) return undefined;
+    const move = moveFromMessage(moveRecords[appliedMoveCount - 1]);
+    return { move, moveCount: appliedMoveCount, capturedPiece: prevBoard.getPiece(move.to) };
+  }, [moveRecords, appliedMoveCount, prevBoard]);
 
   const gameOver = React.useMemo((): null | {
     result: 'checkmate' | 'stalemate';
@@ -323,7 +328,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             currentTurn={currentTurn}
             playerColor={color} // Pass the determined player color
             onMove={handleMove}
-            lastMove={lastMove}
+            lastMove={lastMoveInfo}
             disabled={status !== 'connected' || replayFailedAt !== null}
           />
           <OrbitControls makeDefault minDistance={6} maxDistance={25} />

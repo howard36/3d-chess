@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import Board from './Board';
+import type { LastMoveInfo } from './Board';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
 import { PieceType } from '../engine';
 import { act } from 'react';
 import { vi } from 'vitest';
 import { Board as EngineBoard } from '../engine';
-import { CELL_FLOOR_Y, SPACING } from './layout';
+import { CELL_FLOOR_Y, SPACING, toWorld } from './layout';
+import { theme } from './theme';
 
 // Helper to create a fresh board
 function createTestBoard() {
@@ -123,20 +125,6 @@ describe('Board', () => {
       (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
     ).length;
     expect(highlightCount).toBe(0);
-  });
-
-  it('marks the last move on its from and to cells', async () => {
-    const renderer = await ReactThreeTestRenderer.create(
-      <Board
-        board={createTestBoard()}
-        currentTurn="black"
-        lastMove={{ from: { x: 1, y: 1, z: 0 }, to: { x: 1, y: 2, z: 0 } }}
-      />,
-    );
-    const marked = (renderer.scene as ReactThreeTestInstance).findAll(
-      (node) => node.type === 'Mesh' && node.props.userData?.lastMove === true,
-    );
-    expect(marked).toHaveLength(2);
   });
 
   it('ignores piece clicks while disabled', async () => {
@@ -388,5 +376,204 @@ describe('Board', () => {
     expect(piecePositions(spectator, PieceType.King, 'white')).toEqual(
       piecePositions(white, PieceType.King, 'white'),
     );
+  });
+
+  describe('last move', () => {
+    const FROM = { x: 2, y: 2, z: 2 };
+    const TO = { x: 2, y: 3, z: 2 };
+
+    // A lone white rook (plus kings) that just arrived on TO from FROM.
+    function boardAfterMove() {
+      const board = new EngineBoard();
+      board.setPiece(TO, { type: PieceType.Rook, color: 'white' });
+      board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+      board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
+      return board;
+    }
+
+    // The position before that move: the rook still on FROM.
+    function boardBeforeMove(withVictim = false) {
+      const board = new EngineBoard();
+      board.setPiece(FROM, { type: PieceType.Rook, color: 'white' });
+      if (withVictim) board.setPiece(TO, { type: PieceType.Pawn, color: 'black' });
+      board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+      board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
+      return board;
+    }
+
+    const lastMove = (moveCount: number, capturedPiece: LastMoveInfo['capturedPiece'] = null) =>
+      ({ move: { from: FROM, to: TO }, moveCount, capturedPiece }) as LastMoveInfo;
+
+    function findCells(renderer: { scene: unknown }, flag: 'lastMoveFrom' | 'lastMoveTo') {
+      return (renderer.scene as ReactThreeTestInstance).findAll(
+        (node) => node.type === 'Mesh' && node.props.userData?.[flag] === true,
+      );
+    }
+
+    function glideGroups(renderer: { scene: unknown }) {
+      return (renderer.scene as ReactThreeTestInstance).findAll(
+        (node) => node.props.userData?.moveGlide === true,
+      );
+    }
+
+    it('fills the from and to cells without animating when mounted with history', async () => {
+      const renderer = await ReactThreeTestRenderer.create(
+        <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} />,
+      );
+
+      const fromCells = findCells(renderer, 'lastMoveFrom');
+      const toCells = findCells(renderer, 'lastMoveTo');
+      expect(fromCells).toHaveLength(1);
+      expect(toCells).toHaveLength(1);
+      expect(fromCells[0].props.position).toEqual(toWorld(FROM, 'white'));
+      expect(toCells[0].props.position).toEqual(toWorld(TO, 'white'));
+
+      // Teal fill, same strength on both cells
+      const materialOf = (cell: ReactThreeTestInstance) =>
+        (cell.instance as unknown as { material: { color: { getHexString(): string }; opacity: number } })
+          .material;
+      expect(`#${materialOf(toCells[0]).color.getHexString()}`).toBe(theme.lastMoveFill);
+      expect(materialOf(toCells[0]).opacity).toBe(theme.lastMoveFillOpacity);
+      expect(materialOf(fromCells[0]).opacity).toBe(theme.lastMoveFillOpacity);
+
+      // Moves already played at mount are history: highlight only, no glide,
+      // and the piece rests exactly on its cell.
+      expect(glideGroups(renderer)).toHaveLength(0);
+      expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(TO, 'white')]);
+    });
+
+    it('lets a legal-destination fill win over the last-move fill', async () => {
+      // Black pawn above the rook: reachable, and sitting on the last move's
+      // destination cell so the two fills compete.
+      const board = boardAfterMove();
+      const above = { x: 2, y: 4, z: 2 };
+      board.setPiece(above, { type: PieceType.Pawn, color: 'black' });
+      const renderer = await ReactThreeTestRenderer.create(
+        <Board
+          board={board}
+          currentTurn="white"
+          lastMove={{ move: { from: FROM, to: above }, moveCount: 1, capturedPiece: null }}
+        />,
+      );
+
+      const rook = (renderer.scene as ReactThreeTestInstance).find(
+        (node) =>
+          (node.type === 'Mesh' || node.type === 'Group') &&
+          node.props.userData?.piece?.type === PieceType.Rook,
+      );
+      await act(async () => {
+        rook.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
+      });
+
+      const cell = (renderer.scene as ReactThreeTestInstance)
+        .findAll((node) => node.type === 'Mesh' && node.props.userData?.cube === true)
+        .find(
+          (node) =>
+            JSON.stringify(node.props.position) === JSON.stringify(toWorld(above, 'white')),
+        )!;
+      expect(cell.props.userData.highlight).toBe(true);
+      expect(cell.props.userData.lastMoveTo).toBe(false);
+      const material = (
+        cell.instance as unknown as {
+          material: { color: { getHexString(): string }; opacity: number };
+        }
+      ).material;
+      expect(`#${material.color.getHexString()}`).toBe(theme.highlightFill);
+      expect(material.opacity).toBe(theme.highlightFillOpacity);
+    });
+
+    it('glides a newly arrived move from its source cell with a lift', async () => {
+      const renderer = await ReactThreeTestRenderer.create(
+        <Board board={boardBeforeMove()} currentTurn="white" />,
+      );
+      await renderer.update(
+        <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} />,
+      );
+
+      const glides = glideGroups(renderer);
+      expect(glides).toHaveLength(1);
+      const group = glides[0].instance as unknown as {
+        position: { x: number; y: number; z: number };
+      };
+      const [fx, fy, fz] = toWorld(FROM, 'white');
+      const [tx, ty, tz] = toWorld(TO, 'white');
+      // Before any frame the wrapper holds the full journey back to the source
+      expect(group.position.x).toBeCloseTo(fx - tx);
+      expect(group.position.y).toBeCloseTo(fy - ty);
+      expect(group.position.z).toBeCloseTo(fz - tz);
+
+      // Half-way (150ms of 300ms): eased midpoint plus the full lift. Frame
+      // deltas are clamped, so simulate several small frames.
+      await act(async () => {
+        await renderer.advanceFrames(5, 0.03);
+      });
+      expect(group.position.y).toBeCloseTo((fy - ty) / 2 + 0.2 * SPACING);
+
+      // Past the duration: snapped home, resting position untouched
+      await act(async () => {
+        await renderer.advanceFrames(6, 0.03);
+      });
+      expect(group.position.x).toBe(0);
+      expect(group.position.y).toBe(0);
+      expect(group.position.z).toBe(0);
+      expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(TO, 'white')]);
+    });
+
+    it('fades a captured piece out and removes it when done', async () => {
+      const renderer = await ReactThreeTestRenderer.create(
+        <Board board={boardBeforeMove(true)} currentTurn="white" />,
+      );
+      await renderer.update(
+        <Board
+          board={boardAfterMove()}
+          currentTurn="black"
+          lastMove={lastMove(1, { type: PieceType.Pawn, color: 'black' })}
+        />,
+      );
+
+      const ghosts = (renderer.scene as ReactThreeTestInstance).findAll(
+        (node) => node.props.userData?.ghostPiece === true,
+      );
+      expect(ghosts).toHaveLength(1);
+      const [tx, ty, tz] = toWorld(TO, 'white');
+      expect(ghosts[0].props.position).toEqual([tx, ty + CELL_FLOOR_Y, tz]);
+
+      await act(async () => {
+        await renderer.advanceFrames(11, 0.03);
+      });
+      expect(
+        (renderer.scene as ReactThreeTestInstance).findAll(
+          (node) => node.props.userData?.ghostPiece === true,
+        ),
+      ).toHaveLength(0);
+    });
+
+    it("animates in black's mirrored frame for the black player", async () => {
+      const renderer = await ReactThreeTestRenderer.create(
+        <Board board={boardBeforeMove()} currentTurn="white" playerColor="black" />,
+      );
+      await renderer.update(
+        <Board
+          board={boardAfterMove()}
+          currentTurn="black"
+          playerColor="black"
+          lastMove={lastMove(1)}
+        />,
+      );
+
+      expect(findCells(renderer, 'lastMoveFrom')[0].props.position).toEqual(
+        toWorld(FROM, 'black'),
+      );
+      expect(findCells(renderer, 'lastMoveTo')[0].props.position).toEqual(toWorld(TO, 'black'));
+
+      const group = glideGroups(renderer)[0].instance as unknown as {
+        position: { x: number; y: number; z: number };
+      };
+      const [fx, fy, fz] = toWorld(FROM, 'black');
+      const [tx, ty, tz] = toWorld(TO, 'black');
+      expect(group.position.x).toBeCloseTo(fx - tx);
+      expect(group.position.y).toBeCloseTo(fy - ty);
+      expect(group.position.z).toBeCloseTo(fz - tz);
+    });
   });
 });
