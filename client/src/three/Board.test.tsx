@@ -456,7 +456,7 @@ describe('Board', () => {
         }
       ).material;
       expect(`#${material.color.getHexString()}`).toBe(theme.highlightFill);
-      expect(material.opacity).toBe(0.12);
+      expect(material.opacity).toBe(theme.highlightFillOpacity);
     });
 
     it('glides a newly arrived move from its source cell with a lift', async () => {
