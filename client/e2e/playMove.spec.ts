@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { clickSquare, getPlayerColor, waitForBoard } from './helpers/board';
+import { clickSquare, getPlayerColor, waitForBoard, waitForDestination } from './helpers/board';
 import type { Orientation } from './helpers/board';
 
 // Plays the opening moves of a real two-player game by clicking the WebGL
@@ -33,8 +33,10 @@ test('two players each play a move by clicking the board', async ({ browser }) =
 
   await expect(pageA.getByText('White to move')).toBeVisible();
 
-  // White: pawn Ab2 one step forward. Select, then click the destination.
+  // White: pawn Ab2 one step forward. Select, wait for the destination to
+  // become live, then click it.
   await clickSquare(bySeat.white, 'Ab2', 'white');
+  await waitForDestination(bySeat.white, 'Ab3', 'white');
   await clickSquare(bySeat.white, 'Ab3', 'white');
 
   // The move round-trips through the server; both clients flip the turn.
@@ -44,6 +46,7 @@ test('two players each play a move by clicking the board', async ({ browser }) =
   // Black replies in kind (Ed4 -> Ed3), proving the mirrored-orientation
   // projection and the reverse relay direction both work.
   await clickSquare(bySeat.black, 'Ed4', 'black');
+  await waitForDestination(bySeat.black, 'Ed3', 'black');
   await clickSquare(bySeat.black, 'Ed3', 'black');
 
   await expect(bySeat.white.getByText('White to move')).toBeVisible();
