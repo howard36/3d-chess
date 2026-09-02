@@ -61,7 +61,10 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
         (e[2] * x + e[6] * y + e[10] * z + e[14]) / w,
       ];
     };
-    const ndc = applyMatrix4(camera.projectionMatrix, applyMatrix4(camera.matrixWorldInverse, [wx, wy, wz]));
+    const ndc = applyMatrix4(
+      camera.projectionMatrix,
+      applyMatrix4(camera.matrixWorldInverse, [wx, wy, wz]),
+    );
     return { x: (ndc[0] * 0.5 + 0.5) * size.width, y: (-ndc[1] * 0.5 + 0.5) * size.height };
   }, world);
 
@@ -74,4 +77,57 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
 /** Waits until the game Canvas has mounted and published its r3f state. */
 export async function waitForBoard(page: Page): Promise<void> {
   await page.waitForFunction(() => !!(window as Window & { __r3fState?: unknown }).__r3fState);
+}
+
+/**
+ * Waits until `zxy` is drawn as a legal destination of the current selection,
+ * i.e. its cell box has flipped to `userData.highlight` and so carries the
+ * pointer handler that turns a click into a move.
+ *
+ * Selecting a piece and clicking its destination are two separate React
+ * commits. React yields to pending input, so a destination click sent straight
+ * after the selection click can be raycast against the scene from *before*
+ * the selection committed, where the cell is inert; the click is a no-op and
+ * the move never happens. Playwright 1.62 delivers the follow-up click quickly
+ * enough to hit that window every time, so the driver has to wait for the
+ * commit explicitly.
+ */
+export async function waitForDestination(
+  page: Page,
+  zxy: string,
+  seat: Orientation,
+): Promise<void> {
+  const world = toWorld(fromZXY(zxy), seat);
+  await page.waitForFunction(([wx, wy, wz]) => {
+    const state = (
+      window as Window & {
+        __r3fState?: { get?: () => unknown } & Record<string, unknown>;
+      }
+    ).__r3fState;
+    if (!state) return false;
+    const { scene } = (state.get ? state.get() : state) as {
+      scene: {
+        traverse(
+          cb: (o: {
+            position: { x: number; y: number; z: number };
+            userData: Record<string, unknown>;
+          }) => void,
+        ): void;
+      };
+    };
+    const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+    let found = false;
+    scene.traverse((o) => {
+      if (
+        o.userData.cube &&
+        o.userData.highlight &&
+        near(o.position.x, wx) &&
+        near(o.position.y, wy) &&
+        near(o.position.z, wz)
+      ) {
+        found = true;
+      }
+    });
+    return found;
+  }, world);
 }
