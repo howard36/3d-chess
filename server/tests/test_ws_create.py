@@ -1,13 +1,16 @@
-import pytest, json
-import websockets
+import json
+
+import pytest
+
 
 @pytest.mark.asyncio
 async def test_create_game(ws_connect):
     ws = await ws_connect()
-    await ws.send(json.dumps({"type":"create_game"}))
+    await ws.send(json.dumps({"type": "create_game"}))
     msg = json.loads(await ws.recv())
     assert msg["type"] == "game_created"
-    assert "gameId" in msg 
+    assert "gameId" in msg
+
 
 @pytest.mark.asyncio
 async def test_join_game(ws_connect):
@@ -25,4 +28,4 @@ async def test_join_game(ws_connect):
     start_msgs = [json.loads(await ws1.recv()), json.loads(await ws2.recv())]
     assert all(m["type"] == "game_start" for m in start_msgs)
     colors = {m["color"] for m in start_msgs}
-    assert colors == {"white", "black"} 
+    assert colors == {"white", "black"}

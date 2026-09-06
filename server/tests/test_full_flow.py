@@ -1,18 +1,19 @@
-import pytest
-import websockets
 import json
+
+import pytest
+
 
 @pytest.mark.asyncio
 async def test_full_ws_flow(ws_connect):
     # Client A creates a game
     ws1 = await ws_connect()
     ws2 = await ws_connect()
-    await ws1.send(json.dumps({"type":"create_game"}))
+    await ws1.send(json.dumps({"type": "create_game"}))
     created = json.loads(await ws1.recv())
     game_id = created["gameId"]
 
     # Client B joins
-    await ws2.send(json.dumps({"type":"join_game","gameId":game_id}))
+    await ws2.send(json.dumps({"type": "join_game", "gameId": game_id}))
     start1 = json.loads(await ws1.recv())
     start2 = json.loads(await ws2.recv())
     assert start1["type"] == "game_start"
@@ -36,4 +37,4 @@ async def test_full_ws_flow(ws_connect):
     await white_ws.send(json.dumps(bad))
     err = json.loads(await white_ws.recv())
     assert err["type"] == "error"
-    assert err["code"] == "wrong_turn" 
+    assert err["code"] == "wrong_turn"
