@@ -19,6 +19,10 @@ jobs:
       - name: Install server dependencies
         run: uv sync --extra test
         working-directory: server
+      - name: Lint server (ruff)
+        run: |
+          uv run --project server ruff check server
+          uv run --project server ruff format --check server
       - name: Run server tests
         run: uv run --project server pytest
       # messages.py is generated from schema.json; a schema change that skips

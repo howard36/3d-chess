@@ -1,28 +1,32 @@
-import modal
 import random
 import string
+
 import fastapi
+import modal
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
+
 from messages import (
-    WebsocketV1MessageEnvelope,
+    Color,
     CreateGame,
+    Error,
     GameCreated,
-    JoinGame,
-    RejoinGame,
     GameStart,
     GameState,
-    Error,
-    Color,
+    JoinGame,
     Move,
     MoveMade,
+    RejoinGame,
+    WebsocketV1MessageEnvelope,
 )
 
 # Mount the local messages.py module into the container so `from messages import …` works
 image = (
     modal.Image.debian_slim(python_version="3.13")
     .pip_install("fastapi[standard]>=0.115.4")
-    .add_local_python_source("messages")  # see https://modal.com/docs/guide/images#Adding-local-Python-modules [1]
+    .add_local_python_source(
+        "messages"
+    )  # see https://modal.com/docs/guide/images#Adding-local-Python-modules [1]
 )
 
 app = modal.App("3d-chess-backend")
@@ -101,7 +105,9 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                     data = await ws.receive_json()
                 except ValueError:
                     # Frame was not valid JSON
-                    err = Error(type="error", code="invalid_message", message="Message is not valid JSON")
+                    err = Error(
+                        type="error", code="invalid_message", message="Message is not valid JSON"
+                    )
                     await _safe_send(ws, err.model_dump(mode="json"))
                     continue
                 try:
@@ -117,7 +123,9 @@ def create_web_app(store=None) -> fastapi.FastAPI:
 
                 if isinstance(envelope, CreateGame):
                     if gid is not None:
-                        err = Error(type="error", code="already_in_game", message="Already in a game")
+                        err = Error(
+                            type="error", code="already_in_game", message="Already in a game"
+                        )
                         await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     gid = _new_game_id(store)
@@ -125,11 +133,15 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                     player_color = random.choice(["white", "black"])
                     store[gid] = {"seats": [player_color], "moves": []}
                     connections[gid] = {player_color: ws}
-                    created = GameCreated(type="game_created", gameId=gid, color=Color(player_color))
+                    created = GameCreated(
+                        type="game_created", gameId=gid, color=Color(player_color)
+                    )
                     await _safe_send(ws, created.model_dump(mode="json"))
                 elif isinstance(envelope, JoinGame):
                     if gid is not None:
-                        err = Error(type="error", code="already_in_game", message="Already in a game")
+                        err = Error(
+                            type="error", code="already_in_game", message="Already in a game"
+                        )
                         await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     record = store.get(envelope.gameId)
@@ -160,7 +172,9 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                             await _safe_send(sock, payload)
                 elif isinstance(envelope, RejoinGame):
                     if gid is not None:
-                        err = Error(type="error", code="already_in_game", message="Already in a game")
+                        err = Error(
+                            type="error", code="already_in_game", message="Already in a game"
+                        )
                         await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     record = store.get(envelope.gameId)
@@ -169,7 +183,9 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     if envelope.color.value not in record["seats"]:
-                        err = Error(type="error", code="invalid_rejoin", message="No such seat to rejoin")
+                        err = Error(
+                            type="error", code="invalid_rejoin", message="No such seat to rejoin"
+                        )
                         await _safe_send(ws, err.model_dump(mode="json"))
                         continue
                     gid = envelope.gameId
@@ -188,7 +204,9 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                             "moves": record["moves"],
                         }
                     )
-                    await _safe_send(ws, state.model_dump(mode="json", by_alias=True, exclude_none=True))
+                    await _safe_send(
+                        ws, state.model_dump(mode="json", by_alias=True, exclude_none=True)
+                    )
                     if old_ws is not None and old_ws is not ws:
                         try:
                             await old_ws.close()
@@ -219,7 +237,9 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         record["moves"].append(move_dict)
                         store[gid] = record
                         move_made = MoveMade.model_validate({"type": "move_made", **move_dict})
-                        payload = move_made.model_dump(mode="json", by_alias=True, exclude_none=True)
+                        payload = move_made.model_dump(
+                            mode="json", by_alias=True, exclude_none=True
+                        )
                         for sock in list(connections.get(gid, {}).values()):
                             await _safe_send(sock, payload)
                 else:
