@@ -11,7 +11,6 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "prepare": "husky install",
     "test": "vitest run",
     "e2e": "playwright test",
     "generate:types": "json2ts --input ../server/schema.json --output src/types/schema.ts"
@@ -51,11 +50,9 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
-    "husky": "^9.1.7",
     "jest-websocket-mock": "^2.5.0",
     "jsdom": "^26.1.0",
     "json-schema-to-typescript": "^15.0.4",
-    "lint-staged": "^15.5.1",
     "postcss": "^8.5.4",
     "prettier": "^3.5.3",
     "resize-observer-polyfill": "^1.5.1",
@@ -64,11 +61,5 @@
     "typescript-eslint": "^8.26.1",
     "vite": "^6.3.1",
     "vitest": "^3.1.2"
-  },
-  "lint-staged": {
-    "*.{js,ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ]
   }
 }
