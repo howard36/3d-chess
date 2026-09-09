@@ -99,8 +99,9 @@ uv run --project ../server pytest   # spawns a real uvicorn
 npm run e2e                         # 3 specs; drive.spec is skipped without DRIVE_MOVES
 ```
 
-Vitest prints `<meshStandardMaterial /> is using incorrect casing`
-warnings; pre-existing noise, not failures.
+Vitest prints `The current testing environment is not configured to
+support act(...)` warnings from the r3f test renderer; pre-existing
+noise, not failures.
 
 ## Gotchas
 

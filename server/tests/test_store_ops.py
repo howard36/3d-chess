@@ -1,9 +1,11 @@
 """Unit tests for the synchronous store operations in modal_app.
 
-These run against a plain dict, with no sockets involved. The structural test
-at the bottom is the point of the split: the read-modify-write on the store
-is only atomic because nothing in these functions can yield to the event
-loop, and a plain `def` cannot contain `await`.
+These run against a plain dict, with no sockets involved. The two structural
+tests at the bottom are the point of the split: the read-modify-write on the
+store is only atomic because nothing in these functions can yield to the
+event loop (a plain `def` cannot contain `await`), and because the handler
+never reads or writes the store itself, so no handler-level read can be
+separated from its write by an `await`.
 """
 
 import inspect
@@ -108,7 +110,7 @@ def test_record_move_enforces_game_state_and_turn():
     assert store["G00001"]["moves"][1]["promotion"] == Promotion.Q.value
 
 
-def test_store_operations_write_back_without_yielding():
+def test_store_operations_are_synchronous():
     """Guards the concurrency argument documented in README/CLAUDE.md.
 
     modal.Dict calls block, so a store operation is atomic with respect to
@@ -117,4 +119,13 @@ def test_store_operations_write_back_without_yielding():
     """
     for op in STORE_OPERATIONS:
         assert not inspect.iscoroutinefunction(op), f"{op.__name__} must stay synchronous"
-        assert "await" not in inspect.getsource(op), f"{op.__name__} must not await"
+
+
+def test_handler_never_touches_the_store_directly():
+    """The other half of the argument: a handler that read a record, awaited,
+    and wrote it back would race, and the sync store operations could not
+    prevent it. So the handler may only hand `store` to those operations.
+    """
+    source = inspect.getsource(modal_app.create_web_app)
+    for forbidden in ("store[", "store.get(", " in store"):
+        assert forbidden not in source, f"handler must not access the store directly: {forbidden}"
