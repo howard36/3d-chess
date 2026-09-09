@@ -245,6 +245,52 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     </div>
   );
 
+  // The server closed this socket because a newer connection (another tab, a
+  // refreshed window) took the seat. The hook deliberately does not retry —
+  // that would evict the other tab, which would retry in turn, forever — so
+  // this stays until the user picks a side. The board is already disabled
+  // via status !== 'connected'.
+  const replacedNotice = status === 'replaced' && (
+    <div
+      role="alertdialog"
+      aria-labelledby="replaced-title"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.6)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1002,
+      }}
+    >
+      <div
+        style={{
+          background: 'white',
+          color: '#222',
+          padding: '2rem 3rem',
+          borderRadius: 16,
+          boxShadow: '0 4px 32px rgba(0,0,0,0.18)',
+          textAlign: 'center',
+          maxWidth: 420,
+        }}
+      >
+        <h2 id="replaced-title" style={{ marginTop: 0 }}>
+          This game is open in another tab
+        </h2>
+        <p>
+          Your seat moved to the newer tab or window. Close this one, or take the game back here.
+        </p>
+        <button
+          style={{ marginTop: 8, fontSize: 18, padding: '0.7em 2em' }}
+          onClick={gameSocket.reconnect}
+        >
+          Play here
+        </button>
+      </div>
+    </div>
+  );
+
   // Not dismissible: the game record itself is broken, and every reload will
   // hit the same move. Everything before it stays viewable.
   const replayErrorBanner = replayFailedAt !== null && (
@@ -331,6 +377,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         {errorBanner}
         {/* End Game Modal */}
         {gameOver && <EndGameModal result={gameOver.result} winner={gameOver.winner} />}
+        {replacedNotice}
       </div>
     );
   }
@@ -360,6 +407,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       </div>
       {reconnectingBanner}
       {errorBanner}
+      {replacedNotice}
     </div>
   );
 };

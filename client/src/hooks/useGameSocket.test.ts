@@ -1,7 +1,7 @@
 import WS from 'jest-websocket-mock';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
-import { useGameSocket } from './useGameSocket';
+import { SEAT_REPLACED_CLOSE_CODE, useGameSocket, WS_URL } from './useGameSocket';
 
 // Silence console.error for expected errors (like closing sockets)
 beforeAll(() => {
@@ -13,7 +13,6 @@ afterAll(() => {
 
 describe('useGameSocket', () => {
   let server: WS;
-  const WS_URL = 'wss://howard36--3d-chess-backend-serve.modal.run/ws';
 
   beforeEach(() => {
     server = new WS(WS_URL);
@@ -133,6 +132,56 @@ describe('useGameSocket', () => {
     expect(server.messages).not.toContainEqual(
       JSON.stringify({ type: 'move', from: 'Ab2', to: 'Ab3' }),
     );
+  });
+
+  it('stays down after a seat_replaced close and only reconnects on request', async () => {
+    const { result } = renderHook(() => useGameSocket());
+    await server.connected;
+    act(() => {
+      server.send(JSON.stringify({ type: 'game_state', color: 'white', started: true, moves: [] }));
+    });
+    await waitFor(() => {
+      expect(result.current.messages).toHaveLength(1);
+    });
+    const firstSession = result.current.sessionId;
+
+    // Another tab rejoined as white; the server evicts this socket.
+    act(() => {
+      server.close({ code: SEAT_REPLACED_CLOSE_CODE, reason: 'seat_replaced', wasClean: true });
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe('replaced');
+    });
+
+    // The server is reachable, but the hook must not retry by itself — a
+    // retry would rejoin and evict the other tab, which would retry in turn.
+    // Wait past the first backoff step (500ms) to prove nothing fires.
+    server = new WS(WS_URL);
+    await new Promise((r) => setTimeout(r, 700));
+    expect(result.current.status).toBe('replaced');
+    expect(result.current.sessionId).toBe(firstSession);
+
+    // The user takes the seat back: fresh socket, new session, log retained.
+    act(() => {
+      result.current.reconnect();
+    });
+    await server.connected;
+    await waitFor(() => {
+      expect(result.current.status).toBe('connected');
+    });
+    expect(result.current.sessionId).toBe(firstSession + 1);
+    expect(result.current.sessionStartIndex).toBe(1);
+    expect(result.current.messages).toHaveLength(1);
+  });
+
+  it('exposes stable send/reset/reconnect identities across renders', async () => {
+    const { result, rerender } = renderHook(() => useGameSocket());
+    await server.connected;
+    const { send, reset, reconnect } = result.current;
+    rerender();
+    expect(result.current.send).toBe(send);
+    expect(result.current.reset).toBe(reset);
+    expect(result.current.reconnect).toBe(reconnect);
   });
 
   it('surfaces a malformed server frame as an error message instead of throwing', async () => {
