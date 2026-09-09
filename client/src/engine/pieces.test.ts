@@ -35,8 +35,35 @@ describe('Movement vectors', () => {
   it('king vectors are non-empty and length 26', () => {
     expect(KING_VECTORS.length).toBe(26);
   });
-  it('knight vectors are non-empty and length 24', () => {
-    expect(KNIGHT_VECTORS.length).toBe(24);
+  it('knight vectors are exactly the 24 signed permutations of (2, 1, 0)', () => {
+    // 3! orderings of the magnitudes x 2 signs for each of the two non-zero
+    // components = 6 x 4 = 24 distinct vectors.
+    const expected = new Set<string>();
+    for (const [a, b, c] of [
+      [2, 1, 0],
+      [2, 0, 1],
+      [1, 2, 0],
+      [1, 0, 2],
+      [0, 2, 1],
+      [0, 1, 2],
+    ]) {
+      for (const sa of [-1, 1]) {
+        for (const sb of [-1, 1]) {
+          for (const sc of [-1, 1]) {
+            // Negating a zero component is a no-op, so the Set collapses those.
+            expected.add([a * sa, b * sb, c * sc].join());
+          }
+        }
+      }
+    }
+    expect(expected.size).toBe(24);
+
+    const actual = KNIGHT_VECTORS.map((v) => v.join());
+    expect(new Set(actual).size).toBe(24); // no duplicates
+    expect(new Set(actual)).toEqual(expected);
+    for (const v of KNIGHT_VECTORS) {
+      expect(v.map(Math.abs).sort()).toEqual([0, 1, 2]);
+    }
   });
 });
 

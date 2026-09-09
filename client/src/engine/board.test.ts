@@ -458,46 +458,435 @@ describe('generateLegalMoves (per piece)', () => {
   });
 });
 
-describe('generateAllLegalMoves', () => {
-  it('excludes illegal moves for a pinned piece (rook can only move along pin line) - aggregated', () => {
-    const board = new Board();
-    // Place black king at (0,0,0), white rook at (0,0,4), black rook at (0,0,2)
-    const blackKing: Coord = { x: 0, y: 0, z: 0 };
-    const whiteRook: Coord = { x: 0, y: 0, z: 4 };
-    const blackRook: Coord = { x: 0, y: 0, z: 2 };
-    board.setPiece(blackKing, { type: PieceType.King, color: 'black' });
-    board.setPiece(whiteRook, { type: PieceType.Rook, color: 'white' });
-    board.setPiece(blackRook, { type: PieceType.Rook, color: 'black' });
-    // The black rook is pinned and can only move along the z-axis between king and attacker
-    const legalMoves = board.generateAllLegalMoves('black');
-    const rookMoves = legalMoves.filter(
-      (m: Move) => m.from.x === blackRook.x && m.from.y === blackRook.y && m.from.z === blackRook.z,
-    );
-    // All rook moves must stay on (0,0,*) and not move off the line
-    expect(rookMoves.length).toBeGreaterThan(0);
-    for (const move of rookMoves) {
-      expect(move.to.x).toBe(0);
-      expect(move.to.y).toBe(0);
-      // Must be between king and attacker (z=1,3,4)
-      expect([1, 3, 4]).toContain(move.to.z);
+// ---------------------------------------------------------------------------
+// Exact, position-specific tests. Expected destination sets are derived from
+// the movement rules in README.md (not from the vector tables in pieces.ts), so
+// these tests would catch a wrong or missing vector.
+// ---------------------------------------------------------------------------
+
+const CENTRE: Coord = { x: 2, y: 2, z: 2 };
+const CORNER: Coord = { x: 0, y: 0, z: 0 };
+
+const key = (c: Coord) => `${c.x},${c.y},${c.z}`;
+const destinationKeys = (moves: Move[]) => new Set(moves.map((m) => key(m.to)));
+
+// Every cell of the 5x5x5 board.
+const ALL_CELLS: Coord[] = [];
+for (let z = 0; z < 5; z++)
+  for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) ALL_CELLS.push({ x, y, z });
+
+// In-bounds cells reachable from `from` under a rule on the absolute deltas
+// (|dx|, |dy|, |dz|), which is how README.md states each piece's movement.
+const cellsWhere = (from: Coord, rule: (ax: number, ay: number, az: number) => boolean) =>
+  new Set(
+    ALL_CELLS.filter((c) =>
+      rule(Math.abs(c.x - from.x), Math.abs(c.y - from.y), Math.abs(c.z - from.z)),
+    ).map(key),
+  );
+
+// README: rook ±n along exactly one axis.
+const rookRule = (ax: number, ay: number, az: number) =>
+  [ax, ay, az].filter((a) => a !== 0).length === 1;
+// README: bishop ±n along exactly two axes (same n on both).
+const bishopRule = (ax: number, ay: number, az: number) => {
+  const nonZero = [ax, ay, az].filter((a) => a !== 0);
+  return nonZero.length === 2 && nonZero[0] === nonZero[1];
+};
+// README: unicorn ±n along all three axes.
+const unicornRule = (ax: number, ay: number, az: number) => ax !== 0 && ax === ay && ay === az;
+const queenRule = (ax: number, ay: number, az: number) =>
+  rookRule(ax, ay, az) || bishopRule(ax, ay, az) || unicornRule(ax, ay, az);
+// README: king = any queen direction, one step.
+const kingRule = (ax: number, ay: number, az: number) =>
+  Math.max(ax, ay, az) === 1 && queenRule(ax, ay, az);
+// README: knight (±2, ±1, 0) in any axis order.
+const knightRule = (ax: number, ay: number, az: number) => [ax, ay, az].sort().join() === '0,1,2';
+
+const lone = (type: PieceType, at: Coord, color: 'white' | 'black' = 'white') => {
+  const board = new Board();
+  board.setPiece(at, { type, color });
+  return board;
+};
+
+describe('generatePotentialMoves: exact destination sets on an empty board', () => {
+  // Centre (2,2,2): every ray has exactly 2 in-bounds squares before the edge,
+  // so a slider's count is (number of directions) x 2.
+  //   rook    6 directions x 2 = 12
+  //   bishop 12 directions x 2 = 24
+  //   unicorn 8 directions x 2 = 16
+  //   queen  26 directions x 2 = 52
+  //   king   26 directions x 1 = 26
+  //   knight 24 vectors, all in bounds from the centre (2 +/- 2, 2 +/- 1) = 24
+  it.each([
+    [PieceType.Rook, rookRule, 12],
+    [PieceType.Bishop, bishopRule, 24],
+    [PieceType.Unicorn, unicornRule, 16],
+    [PieceType.Queen, queenRule, 52],
+    [PieceType.King, kingRule, 26],
+    [PieceType.Knight, knightRule, 24],
+  ] as const)('%s from the centre', (type, rule, count) => {
+    const moves = lone(type, CENTRE).generatePotentialMoves(CENTRE);
+    expect(moves).toHaveLength(count);
+    expect(destinationKeys(moves)).toEqual(cellsWhere(CENTRE, rule));
+    for (const move of moves) {
+      expect(move.from).toEqual(CENTRE);
+      expect(move.promotion).toBeUndefined();
     }
   });
 
-  it('black king in corner has only one legal move due to two white rooks defending each other - aggregated', () => {
-    const board = new Board();
-    // Place black king at (0,0,0)
-    const blackKing: Coord = { x: 0, y: 0, z: 0 };
-    // Place white rooks at (1,1,0) and (1,1,1)
-    const whiteRook1: Coord = { x: 1, y: 1, z: 0 };
-    const whiteRook2: Coord = { x: 1, y: 1, z: 1 };
-    board.setPiece(blackKing, { type: PieceType.King, color: 'black' });
-    board.setPiece(whiteRook1, { type: PieceType.Rook, color: 'white' });
-    board.setPiece(whiteRook2, { type: PieceType.Rook, color: 'white' });
+  // Corner (0,0,0): only the positive sense of each axis stays in bounds, and
+  // each such ray has 4 squares.
+  //   rook    3 rays (+x, +y, +z) x 4 = 12
+  //   bishop  3 rays (+x+y, +x+z, +y+z) x 4 = 12
+  //   unicorn 1 ray (+x+y+z) x 4 = 4
+  //   queen   12 + 12 + 4 = 28
+  //   king    3 + 3 + 1 = 7 (one step along each of the 7 rays above)
+  //   knight  the 6 permutations of (2, 1, 0) with all-positive signs
+  it.each([
+    [PieceType.Rook, rookRule, 12],
+    [PieceType.Bishop, bishopRule, 12],
+    [PieceType.Unicorn, unicornRule, 4],
+    [PieceType.Queen, queenRule, 28],
+    [PieceType.King, kingRule, 7],
+    [PieceType.Knight, knightRule, 6],
+  ] as const)('%s from the corner', (type, rule, count) => {
+    const moves = lone(type, CORNER).generatePotentialMoves(CORNER);
+    expect(moves).toHaveLength(count);
+    expect(destinationKeys(moves)).toEqual(cellsWhere(CORNER, rule));
+  });
 
-    // The only legal move for the black king is to (0,0,1)
-    const legalMoves = board.generateAllLegalMoves('black');
-    expect(legalMoves).toHaveLength(1);
-    expect(legalMoves[0].from).toEqual({ x: 0, y: 0, z: 0 });
-    expect(legalMoves[0].to).toEqual({ x: 0, y: 0, z: 1 });
+  it('throws on an empty square', () => {
+    expect(() => new Board().generatePotentialMoves(CORNER)).toThrow('No piece at Aa1');
+  });
+});
+
+describe('generatePotentialMoves: sliders are blocked', () => {
+  it('rook stops short of a friendly piece and cannot land on it', () => {
+    const board = lone(PieceType.Rook, CENTRE);
+    board.setPiece({ x: 2, y: 3, z: 2 }, { type: PieceType.Pawn, color: 'white' });
+    const dests = destinationKeys(board.generatePotentialMoves(CENTRE));
+    // The whole +y ray (2 squares) is gone; the other 5 rays are untouched.
+    expect(dests.size).toBe(10);
+    expect(dests.has('2,3,2')).toBe(false);
+    expect(dests.has('2,4,2')).toBe(false);
+    expect(dests.has('2,1,2')).toBe(true);
+  });
+
+  it('rook can capture an enemy piece but cannot pass beyond it', () => {
+    const board = lone(PieceType.Rook, CENTRE);
+    board.setPiece({ x: 2, y: 3, z: 2 }, { type: PieceType.Pawn, color: 'black' });
+    const dests = destinationKeys(board.generatePotentialMoves(CENTRE));
+    expect(dests.size).toBe(11);
+    expect(dests.has('2,3,2')).toBe(true);
+    expect(dests.has('2,4,2')).toBe(false);
+  });
+
+  it('bishop is blocked on a planar diagonal', () => {
+    const friendly = lone(PieceType.Bishop, CORNER);
+    friendly.setPiece({ x: 2, y: 2, z: 0 }, { type: PieceType.Pawn, color: 'white' });
+    const friendlyDests = destinationKeys(friendly.generatePotentialMoves(CORNER));
+    expect(friendlyDests.has('1,1,0')).toBe(true);
+    expect(friendlyDests.has('2,2,0')).toBe(false);
+    expect(friendlyDests.has('3,3,0')).toBe(false);
+    expect(friendlyDests.size).toBe(12 - 3); // +x+y ray loses 3 of its 4 squares
+
+    const enemy = lone(PieceType.Bishop, CORNER);
+    enemy.setPiece({ x: 2, y: 2, z: 0 }, { type: PieceType.Pawn, color: 'black' });
+    const enemyDests = destinationKeys(enemy.generatePotentialMoves(CORNER));
+    expect(enemyDests.has('1,1,0')).toBe(true);
+    expect(enemyDests.has('2,2,0')).toBe(true);
+    expect(enemyDests.has('3,3,0')).toBe(false);
+    expect(enemyDests.has('4,4,0')).toBe(false);
+    expect(enemyDests.size).toBe(12 - 2);
+  });
+
+  it('unicorn is blocked on a space diagonal', () => {
+    const friendly = lone(PieceType.Unicorn, CORNER);
+    friendly.setPiece({ x: 2, y: 2, z: 2 }, { type: PieceType.Pawn, color: 'white' });
+    expect(destinationKeys(friendly.generatePotentialMoves(CORNER))).toEqual(new Set(['1,1,1']));
+
+    const enemy = lone(PieceType.Unicorn, CORNER);
+    enemy.setPiece({ x: 2, y: 2, z: 2 }, { type: PieceType.Pawn, color: 'black' });
+    expect(destinationKeys(enemy.generatePotentialMoves(CORNER))).toEqual(
+      new Set(['1,1,1', '2,2,2']),
+    );
+  });
+});
+
+describe('generatePotentialMoves: knight jumps', () => {
+  it('a knight boxed in by friendly pieces on all 26 neighbours keeps every destination', () => {
+    const board = lone(PieceType.Knight, CENTRE);
+    const neighbours = ALL_CELLS.filter((c) => cellsWhere(CENTRE, kingRule).has(key(c)));
+    expect(neighbours).toHaveLength(26);
+    for (const c of neighbours) board.setPiece(c, { type: PieceType.Pawn, color: 'white' });
+    const moves = board.generatePotentialMoves(CENTRE);
+    expect(moves).toHaveLength(24);
+    expect(destinationKeys(moves)).toEqual(cellsWhere(CENTRE, knightRule));
+  });
+});
+
+describe('Black pawn move generation', () => {
+  const from = CENTRE;
+
+  it('quiet moves are one step -y (forward) or -z (down)', () => {
+    const moves = lone(PieceType.Pawn, from, 'black').generatePotentialMoves(from);
+    expect(moves).toHaveLength(2);
+    expect(moves).toContainEqual({ from, to: { x: 2, y: 1, z: 2 }, promotion: undefined });
+    expect(moves).toContainEqual({ from, to: { x: 2, y: 2, z: 1 }, promotion: undefined });
+  });
+
+  it('captures in all five mirrored directions', () => {
+    const board = lone(PieceType.Pawn, from, 'black');
+    // White's (dx, dy, dz) capture deltas with dy and dz negated.
+    const targets: Coord[] = [
+      { x: 2, y: 1, z: 1 }, // forward-down (0,-1,-1)
+      { x: 1, y: 1, z: 2 }, // forward-left (-1,-1,0)
+      { x: 3, y: 1, z: 2 }, // forward-right (+1,-1,0)
+      { x: 1, y: 2, z: 1 }, // down-left (-1,0,-1)
+      { x: 3, y: 2, z: 1 }, // down-right (+1,0,-1)
+    ];
+    for (const t of targets) board.setPiece(t, { type: PieceType.Knight, color: 'white' });
+    const moves = board.generatePotentialMoves(from);
+    expect(moves).toHaveLength(2 + targets.length);
+    for (const to of targets) {
+      expect(moves).toContainEqual({ from, to, promotion: undefined });
+    }
+  });
+
+  it('is blocked forward and down by any piece, and cannot capture straight ahead', () => {
+    const board = lone(PieceType.Pawn, from, 'black');
+    board.setPiece({ x: 2, y: 1, z: 2 }, { type: PieceType.Rook, color: 'white' }); // enemy ahead
+    board.setPiece({ x: 2, y: 2, z: 1 }, { type: PieceType.Rook, color: 'black' }); // friend below
+    expect(board.generatePotentialMoves(from)).toHaveLength(0);
+  });
+
+  it('cannot capture a friendly piece on a capture square', () => {
+    const board = lone(PieceType.Pawn, from, 'black');
+    board.setPiece({ x: 1, y: 1, z: 2 }, { type: PieceType.Knight, color: 'black' });
+    const dests = destinationKeys(board.generatePotentialMoves(from));
+    expect(dests).toEqual(new Set(['2,1,2', '2,2,1']));
+  });
+
+  it('white and black pawn moves mirror each other through the board centre', () => {
+    const mirror = (c: Coord): Coord => ({ x: 4 - c.x, y: 4 - c.y, z: 4 - c.z });
+    const white = new Board();
+    const at: Coord = { x: 1, y: 1, z: 1 };
+    white.setPiece(at, { type: PieceType.Pawn, color: 'white' });
+    white.setPiece({ x: 2, y: 2, z: 1 }, { type: PieceType.Rook, color: 'black' });
+    const black = new Board();
+    black.setPiece(mirror(at), { type: PieceType.Pawn, color: 'black' });
+    black.setPiece(mirror({ x: 2, y: 2, z: 1 }), { type: PieceType.Rook, color: 'white' });
+
+    const whiteDests = [...destinationKeys(white.generatePotentialMoves(at))].sort();
+    const blackDests = [...destinationKeys(black.generatePotentialMoves(mirror(at)))]
+      .map((k) => {
+        const [x, y, z] = k.split(',').map(Number);
+        return key(mirror({ x, y, z }));
+      })
+      .sort();
+    expect(blackDests).toEqual(whiteDests);
+    expect(whiteDests).toHaveLength(3);
+  });
+});
+
+describe('Check detection by piece type', () => {
+  const withKings = (board: Board, white: Coord, black: Coord) => {
+    board.setPiece(white, { type: PieceType.King, color: 'white' });
+    board.setPiece(black, { type: PieceType.King, color: 'black' });
+    return board;
+  };
+
+  it('white pawn gives check only along its five capture directions', () => {
+    const pawn: Coord = { x: 2, y: 2, z: 2 };
+    const attacked: Coord[] = [
+      { x: 2, y: 3, z: 3 },
+      { x: 1, y: 3, z: 2 },
+      { x: 3, y: 3, z: 2 },
+      { x: 1, y: 2, z: 3 },
+      { x: 3, y: 2, z: 3 },
+    ];
+    for (const kingAt of attacked) {
+      const board = withKings(lone(PieceType.Pawn, pawn), { x: 0, y: 0, z: 0 }, kingAt);
+      expect(board.isSquareAttacked(kingAt, 'white')).toBe(true);
+      expect(board.inCheck('black')).toBe(true);
+    }
+    // The quiet forward and up steps are not attacks.
+    for (const kingAt of [
+      { x: 2, y: 3, z: 2 },
+      { x: 2, y: 2, z: 3 },
+    ]) {
+      const board = withKings(lone(PieceType.Pawn, pawn), { x: 0, y: 0, z: 0 }, kingAt);
+      expect(board.isSquareAttacked(kingAt, 'white')).toBe(false);
+      expect(board.inCheck('black')).toBe(false);
+    }
+  });
+
+  it('black pawn gives check only along its five mirrored capture directions', () => {
+    const pawn: Coord = { x: 2, y: 2, z: 2 };
+    const attacked: Coord[] = [
+      { x: 2, y: 1, z: 1 },
+      { x: 1, y: 1, z: 2 },
+      { x: 3, y: 1, z: 2 },
+      { x: 1, y: 2, z: 1 },
+      { x: 3, y: 2, z: 1 },
+    ];
+    for (const kingAt of attacked) {
+      const board = withKings(lone(PieceType.Pawn, pawn, 'black'), kingAt, { x: 4, y: 4, z: 4 });
+      expect(board.isSquareAttacked(kingAt, 'black')).toBe(true);
+      expect(board.inCheck('white')).toBe(true);
+    }
+    for (const kingAt of [
+      { x: 2, y: 1, z: 2 },
+      { x: 2, y: 2, z: 1 },
+    ]) {
+      const board = withKings(lone(PieceType.Pawn, pawn, 'black'), kingAt, { x: 4, y: 4, z: 4 });
+      expect(board.isSquareAttacked(kingAt, 'black')).toBe(false);
+      expect(board.inCheck('white')).toBe(false);
+    }
+  });
+
+  it('bishop gives check along a planar diagonal unless a piece interposes', () => {
+    const board = withKings(
+      lone(PieceType.Bishop, CORNER),
+      { x: 4, y: 0, z: 4 },
+      { x: 3, y: 3, z: 0 },
+    );
+    expect(board.inCheck('black')).toBe(true);
+    board.setPiece({ x: 1, y: 1, z: 0 }, { type: PieceType.Pawn, color: 'black' });
+    expect(board.inCheck('black')).toBe(false);
+    // A space diagonal is not a bishop line.
+    const offLine = withKings(
+      lone(PieceType.Bishop, CORNER),
+      { x: 4, y: 0, z: 4 },
+      { x: 3, y: 3, z: 3 },
+    );
+    expect(offLine.inCheck('black')).toBe(false);
+  });
+
+  it('queen gives check along rook, bishop, and unicorn lines', () => {
+    for (const kingAt of [
+      { x: 0, y: 4, z: 0 }, // rook line
+      { x: 3, y: 3, z: 0 }, // bishop line
+      { x: 4, y: 4, z: 4 }, // unicorn line
+    ]) {
+      const board = withKings(lone(PieceType.Queen, CORNER), { x: 4, y: 0, z: 4 }, kingAt);
+      expect(board.inCheck('black')).toBe(true);
+    }
+    // A knight's offset is not a queen line.
+    const safe = withKings(
+      lone(PieceType.Queen, CORNER),
+      { x: 4, y: 0, z: 4 },
+      { x: 2, y: 1, z: 0 },
+    );
+    expect(safe.inCheck('black')).toBe(false);
+  });
+
+  it('adjacent kings attack each other; a two-step gap does not', () => {
+    const board = withKings(new Board(), CENTRE, { x: 3, y: 3, z: 3 });
+    expect(board.isSquareAttacked({ x: 3, y: 3, z: 3 }, 'white')).toBe(true);
+    expect(board.isSquareAttacked(CENTRE, 'black')).toBe(true);
+    expect(board.inCheck('white')).toBe(true);
+    expect(board.inCheck('black')).toBe(true);
+
+    const apart = withKings(new Board(), CENTRE, { x: 4, y: 4, z: 4 });
+    expect(apart.inCheck('white')).toBe(false);
+    expect(apart.inCheck('black')).toBe(false);
+  });
+
+  it('findKing throws when the king is absent', () => {
+    expect(() => new Board().findKing('white')).toThrow('King of color white not found');
+    const blackOnly = lone(PieceType.King, CORNER, 'black');
+    expect(() => blackOnly.findKing('white')).toThrow();
+    expect(blackOnly.findKing('black')).toEqual(CORNER);
+  });
+});
+
+describe('Checkmate refutations', () => {
+  // Black king boxed into the (0,0,0) corner by four mutually-defended white
+  // rooks (the stalemate box), then checked by a fifth rook along the y-axis.
+  // With no other black piece this is mate.
+  const matedCorner = () => {
+    const board = new Board();
+    board.setPiece(CORNER, { type: PieceType.King, color: 'black' });
+    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'white' });
+    board.setPiece({ x: 1, y: 1, z: 0 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 1, y: 0, z: 1 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 0, y: 1, z: 1 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 1, y: 1, z: 1 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 0, y: 4, z: 0 }, { type: PieceType.Rook, color: 'white' }); // the check
+    return board;
+  };
+
+  it('the box position is mate on its own', () => {
+    expect(matedCorner().isCheckmate('black')).toBe(true);
+  });
+
+  it('is refuted when the checking piece can be captured', () => {
+    const board = matedCorner();
+    // A black bishop on (2,2,0) reaches the checking rook via (1,3,0).
+    const bishop: Coord = { x: 2, y: 2, z: 0 };
+    board.setPiece(bishop, { type: PieceType.Bishop, color: 'black' });
+    expect(board.inCheck('black')).toBe(true);
+    expect(board.isCheckmate('black')).toBe(false);
+    expect(board.generateAllLegalMoves('black')).toEqual([
+      { from: bishop, to: { x: 0, y: 4, z: 0 }, promotion: undefined },
+    ]);
+  });
+
+  it('is refuted when a piece can interpose', () => {
+    const board = matedCorner();
+    // A black rook on (4,2,0) can slide along y=2 to (0,2,0), blocking the file.
+    const rook: Coord = { x: 4, y: 2, z: 0 };
+    board.setPiece(rook, { type: PieceType.Rook, color: 'black' });
+    expect(board.inCheck('black')).toBe(true);
+    expect(board.isCheckmate('black')).toBe(false);
+    expect(board.generateAllLegalMoves('black')).toEqual([
+      { from: rook, to: { x: 0, y: 2, z: 0 }, promotion: undefined },
+    ]);
+  });
+
+  it('is refuted when the king can capture an undefended checking piece', () => {
+    const board = new Board();
+    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
+    board.setPiece({ x: 4, y: 4, z: 3 }, { type: PieceType.Queen, color: 'white' });
+    board.setPiece(CORNER, { type: PieceType.King, color: 'white' });
+    expect(board.inCheck('black')).toBe(true);
+    expect(board.isCheckmate('black')).toBe(false);
+    expect(board.generateLegalMoves({ x: 4, y: 4, z: 4 })).toContainEqual({
+      from: { x: 4, y: 4, z: 4 },
+      to: { x: 4, y: 4, z: 3 },
+      promotion: undefined,
+    });
+  });
+});
+
+describe('Starting position baseline', () => {
+  const board = Board.setupStartingPosition();
+  const pieces = ALL_CELLS.map((c) => board.getPiece(c)).filter((p) => p !== null);
+
+  it('has 40 pieces, 20 per colour', () => {
+    expect(pieces).toHaveLength(40);
+    expect(pieces.filter((p) => p.color === 'white')).toHaveLength(20);
+    expect(pieces.filter((p) => p.color === 'black')).toHaveLength(20);
+  });
+
+  it('has neither side in check', () => {
+    expect(board.inCheck('white')).toBe(false);
+    expect(board.inCheck('black')).toBe(false);
+  });
+
+  // 61, computed once and hand-verified from the rules:
+  //   pawns    15  (5 on level A: forward only, up is blocked by the level-B
+  //                 pawn; 5 on level B: forward + up)
+  //   knights  12  (6 each; the (±2,±1,0) hops onto a2/b2-rank pawns, the
+  //                 bishop, and off-board are excluded)
+  //   bishops  13  (a-file bishop 6, d-file bishop 7; each includes one
+  //                 long-diagonal capture of a black pawn)
+  //   unicorns  7  (4 + 3, again with one long-diagonal capture each)
+  //   queen    14
+  //   king      0, rooks 0  (fully surrounded)
+  it('white has 61 legal moves, and black the same by symmetry', () => {
+    expect(board.generateAllLegalMoves('white')).toHaveLength(61);
+    expect(board.generateAllLegalMoves('black')).toHaveLength(61);
   });
 });
