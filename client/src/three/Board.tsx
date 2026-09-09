@@ -263,11 +263,7 @@ const Board = (props: BoardProps) => {
             <meshBasicMaterial color={theme.capture} transparent opacity={0.9} depthWrite={false} />
           </mesh>
         ) : (
-          <mesh
-            key={`quiet-${toZXY(to)}`}
-            position={toWorld(to, orientation)}
-            raycast={noRaycast}
-          >
+          <mesh key={`quiet-${toZXY(to)}`} position={toWorld(to, orientation)} raycast={noRaycast}>
             <sphereGeometry args={[0.11, 16, 16]} />
             <meshBasicMaterial
               color={theme.quietMove}

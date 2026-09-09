@@ -169,10 +169,10 @@ export class Board {
     const { from, to, promotion } = move;
     const piece = this.getPiece(from);
     if (!piece) throw new Error(`No piece at ${toZXY(from)}`);
-    
+
     // Create a new board with the move applied
     const newBoard = this.clone();
-    
+
     // Remove from origin
     newBoard.setPiece(from, null);
     // Promotion logic: promotion is mandatory (and only valid) when a pawn
@@ -191,7 +191,7 @@ export class Board {
       );
     }
     newBoard.setPiece(to, newPiece);
-    
+
     return newBoard;
   }
 

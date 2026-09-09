@@ -1,0 +1,8 @@
+# Generated from server/schema.json; CI byte-compares it against codegen output
+src/types/schema.ts
+node_modules
+dist
+coverage
+test-results
+playwright-report
+package-lock.json

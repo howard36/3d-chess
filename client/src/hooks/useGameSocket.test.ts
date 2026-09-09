@@ -42,9 +42,7 @@ describe('useGameSocket', () => {
     act(() => {
       result.current.send({ type: 'join_game', gameId: 'ABC123' });
     });
-    await expect(server).toReceiveMessage(
-      JSON.stringify({ type: 'join_game', gameId: 'ABC123' }),
-    );
+    await expect(server).toReceiveMessage(JSON.stringify({ type: 'join_game', gameId: 'ABC123' }));
 
     act(() => {
       server.send(JSON.stringify({ type: 'game_created', gameId: 'ABC123' }));

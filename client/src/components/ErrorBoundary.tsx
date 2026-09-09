@@ -33,8 +33,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
         <div className="text-center flex flex-col items-center gap-6" role="alert">
           <h1 className="text-4xl font-bold">Something went wrong</h1>
           <p className="text-lg text-gray-300 max-w-md">
-            The app hit an unexpected error. Your game lives on the server, so reloading is
-            safe — it will restore the current position.
+            The app hit an unexpected error. Your game lives on the server, so reloading is safe —
+            it will restore the current position.
           </p>
           <a
             href="/"

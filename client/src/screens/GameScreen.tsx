@@ -9,12 +9,7 @@ import { Board as EngineBoard, Move } from '../engine';
 import { moveFromMessage, moveToMessage } from '../engine/protocol';
 import EndGameModal from './EndGameModal';
 import MoveList from './MoveList';
-import type {
-  GameStart,
-  GameState,
-  MoveMade,
-  Error as ServerError,
-} from '../types/messages';
+import type { GameStart, GameState, MoveMade, Error as ServerError } from '../types/messages';
 import type { GameSocket } from '../hooks/useGameSocket';
 import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole';
 import { theme } from '../three/theme';
@@ -82,9 +77,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     if (rejoinSessionRef.current === sessionId) return;
     const hasSession = messages
       .slice(sessionStartIndex)
-      .some(
-        (m) => m.type === 'game_created' || m.type === 'game_start' || m.type === 'game_state',
-      );
+      .some((m) => m.type === 'game_created' || m.type === 'game_start' || m.type === 'game_state');
     if (hasSession) return;
     rejoinSessionRef.current = sessionId;
     gameSocket.send({ type: 'rejoin_game', gameId, color: storedRole });
@@ -271,8 +264,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         textAlign: 'center',
       }}
     >
-      Move {replayFailedAt + 1} in this game's history is not a legal move for this client
-      (likely an app version mismatch). The board is frozen at the position before it.
+      Move {replayFailedAt + 1} in this game's history is not a legal move for this client (likely
+      an app version mismatch). The board is frozen at the position before it.
     </div>
   );
 

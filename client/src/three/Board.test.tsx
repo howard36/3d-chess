@@ -67,7 +67,8 @@ describe('Board', () => {
       <Board board={createTestBoard()} currentTurn="white" />,
     );
     const pieceCount = (renderer.scene as ReactThreeTestInstance).findAll(
-      (node) => (node.type === 'Mesh' || node.type === 'Group') && node.props.userData?.piece !== undefined,
+      (node) =>
+        (node.type === 'Mesh' || node.type === 'Group') && node.props.userData?.piece !== undefined,
     ).length;
     expect(pieceCount).toBe(40);
   });
@@ -79,7 +80,9 @@ describe('Board', () => {
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const pawn = boardGroup.children.find(
-      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Pawn,
+      (child) =>
+        (child.type === 'Mesh' || child.type === 'Group') &&
+        child.props.userData?.piece?.type === PieceType.Pawn,
     ) as ReactThreeTestInstance;
     expect(pawn).toBeDefined();
 
@@ -102,7 +105,9 @@ describe('Board', () => {
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const pawn = boardGroup.children.find(
-      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Pawn,
+      (child) =>
+        (child.type === 'Mesh' || child.type === 'Group') &&
+        child.props.userData?.piece?.type === PieceType.Pawn,
     ) as ReactThreeTestInstance;
     expect(pawn).toBeDefined();
 
@@ -157,7 +162,9 @@ describe('Board', () => {
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const pawns = boardGroup.children.filter(
-      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Pawn,
+      (child) =>
+        (child.type === 'Mesh' || child.type === 'Group') &&
+        child.props.userData?.piece?.type === PieceType.Pawn,
     ) as ReactThreeTestInstance[];
     expect(pawns.length).toBeGreaterThan(1);
 
@@ -188,7 +195,9 @@ describe('Board', () => {
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const knight = boardGroup.children.find(
-      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Knight,
+      (child) =>
+        (child.type === 'Mesh' || child.type === 'Group') &&
+        child.props.userData?.piece?.type === PieceType.Knight,
     ) as ReactThreeTestInstance;
     expect(knight).toBeDefined();
 
@@ -220,10 +229,14 @@ describe('Board', () => {
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const rook = boardGroup.children.find(
-      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Rook,
+      (child) =>
+        (child.type === 'Mesh' || child.type === 'Group') &&
+        child.props.userData?.piece?.type === PieceType.Rook,
     ) as ReactThreeTestInstance;
     const pawn = boardGroup.children.find(
-      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Pawn,
+      (child) =>
+        (child.type === 'Mesh' || child.type === 'Group') &&
+        child.props.userData?.piece?.type === PieceType.Pawn,
     ) as ReactThreeTestInstance;
     expect(rook).toBeDefined();
     expect(pawn).toBeDefined();
@@ -253,7 +266,9 @@ describe('Board', () => {
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
     const pawn = boardGroup.children.find(
-      (child) => (child.type === 'Mesh' || child.type === 'Group') && child.props.userData?.piece?.type === PieceType.Pawn,
+      (child) =>
+        (child.type === 'Mesh' || child.type === 'Group') &&
+        child.props.userData?.piece?.type === PieceType.Pawn,
     ) as ReactThreeTestInstance;
     // Select pawn
     await act(async () => {
@@ -310,7 +325,7 @@ describe('Board', () => {
     const NEAREST = 2 * SPACING;
     const SECOND_NEAREST = SPACING;
 
-    it('puts the player\'s pawns on the second-from-bottom slab, nearest two layers', async () => {
+    it("puts the player's pawns on the second-from-bottom slab, nearest two layers", async () => {
       const renderer = await ReactThreeTestRenderer.create(
         <Board board={createTestBoard()} currentTurn="white" playerColor={playerColor} />,
       );
@@ -325,9 +340,7 @@ describe('Board', () => {
       const renderer = await ReactThreeTestRenderer.create(
         <Board board={createTestBoard()} currentTurn="white" playerColor={playerColor} />,
       );
-      expect(piecePositions(renderer, PieceType.King, playerColor)).toEqual([
-        [0, BOTTOM, NEAREST],
-      ]);
+      expect(piecePositions(renderer, PieceType.King, playerColor)).toEqual([[0, BOTTOM, NEAREST]]);
     });
 
     // Black's army is White's inverted through the centre, files included, so
@@ -360,9 +373,7 @@ describe('Board', () => {
       const pawns = piecePositions(renderer, PieceType.Pawn, opponent);
 
       expect(pawns.map(([, y]) => y)).toEqual(Array(10).fill(-SECOND_FROM_BOTTOM));
-      expect(new Set(pawns.map(([, , z]) => z))).toEqual(
-        new Set([-NEAREST, -SECOND_NEAREST]),
-      );
+      expect(new Set(pawns.map(([, , z]) => z))).toEqual(new Set([-NEAREST, -SECOND_NEAREST]));
     });
   });
 
@@ -430,8 +441,11 @@ describe('Board', () => {
 
       // Teal fill, same strength on both cells
       const materialOf = (cell: ReactThreeTestInstance) =>
-        (cell.instance as unknown as { material: { color: { getHexString(): string }; opacity: number } })
-          .material;
+        (
+          cell.instance as unknown as {
+            material: { color: { getHexString(): string }; opacity: number };
+          }
+        ).material;
       expect(`#${materialOf(toCells[0]).color.getHexString()}`).toBe(theme.lastMoveFill);
       expect(materialOf(toCells[0]).opacity).toBe(theme.lastMoveFillOpacity);
       expect(materialOf(fromCells[0]).opacity).toBe(theme.lastMoveFillOpacity);
@@ -468,8 +482,7 @@ describe('Board', () => {
       const cell = (renderer.scene as ReactThreeTestInstance)
         .findAll((node) => node.type === 'Mesh' && node.props.userData?.cube === true)
         .find(
-          (node) =>
-            JSON.stringify(node.props.position) === JSON.stringify(toWorld(above, 'white')),
+          (node) => JSON.stringify(node.props.position) === JSON.stringify(toWorld(above, 'white')),
         )!;
       expect(cell.props.userData.highlight).toBe(true);
       expect(cell.props.userData.lastMoveTo).toBe(false);
@@ -561,9 +574,7 @@ describe('Board', () => {
         />,
       );
 
-      expect(findCells(renderer, 'lastMoveFrom')[0].props.position).toEqual(
-        toWorld(FROM, 'black'),
-      );
+      expect(findCells(renderer, 'lastMoveFrom')[0].props.position).toEqual(toWorld(FROM, 'black'));
       expect(findCells(renderer, 'lastMoveTo')[0].props.position).toEqual(toWorld(TO, 'black'));
 
       const group = glideGroups(renderer)[0].instance as unknown as {

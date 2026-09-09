@@ -43,14 +43,7 @@ export const CELLS: Coord[] = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => (
  * vector set in pieces.ts is closed under negating a single axis, so no piece's
  * legal moves can render misleadingly.
  */
-export function toWorld(
-  { x, y, z }: Coord,
-  orientation: Orientation,
-): [number, number, number] {
+export function toWorld({ x, y, z }: Coord, orientation: Orientation): [number, number, number] {
   const flip = (v: number) => (orientation === 'white' ? v : GRID_SIZE - 1 - v);
-  return [
-    (flip(x) - HALF) * SPACING,
-    (flip(y) - HALF) * SPACING,
-    (HALF - flip(z)) * SPACING,
-  ];
+  return [(flip(x) - HALF) * SPACING, (flip(y) - HALF) * SPACING, (HALF - flip(z)) * SPACING];
 }

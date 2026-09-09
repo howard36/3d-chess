@@ -33,9 +33,12 @@ describe('moveFromMessage', () => {
 
 describe('moveToMessage', () => {
   it('serializes coordinates and omits promotion when absent', () => {
-    expect(
-      moveToMessage({ from: { x: 0, y: 1, z: 0 }, to: { x: 0, y: 2, z: 0 } }),
-    ).toEqual({ type: 'move', from: 'Aa2', to: 'Aa3', promotion: undefined });
+    expect(moveToMessage({ from: { x: 0, y: 1, z: 0 }, to: { x: 0, y: 2, z: 0 } })).toEqual({
+      type: 'move',
+      from: 'Aa2',
+      to: 'Aa3',
+      promotion: undefined,
+    });
   });
 
   it('sends N for a knight promotion (not K)', () => {
