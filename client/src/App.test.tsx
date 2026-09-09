@@ -73,7 +73,9 @@ test('StartScreen shows server errors', () => {
   render(
     <MemoryRouter initialEntries={['/']}>
       <StartScreen
-        gameSocket={fakeSocket([{ type: 'error', code: 'invalid_message', message: 'Bad request' }])}
+        gameSocket={fakeSocket([
+          { type: 'error', code: 'invalid_message', message: 'Bad request' },
+        ])}
       />
     </MemoryRouter>,
   );
@@ -207,11 +209,9 @@ test('GameScreen shows a reconnecting notice while the socket is down', () => {
   setStoredRole('abc123', 'white');
   renderGameScreen(
     'abc123',
-    fakeSocket(
-      [{ type: 'game_state', color: 'white', started: true, moves: [] }],
-      () => {},
-      { status: 'reconnecting' },
-    ),
+    fakeSocket([{ type: 'game_state', color: 'white', started: true, moves: [] }], () => {}, {
+      status: 'reconnecting',
+    }),
   );
   expect(screen.getByRole('status')).toHaveTextContent('Reconnecting…');
 });

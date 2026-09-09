@@ -179,8 +179,12 @@ describe('Pawn move generation and promotion', () => {
     board.setPiece(black, { type: PieceType.Pawn, color: 'black' });
 
     expect(() => board.applyMove({ from: white, to: whiteTo })).toThrow();
-    expect(() => board.applyMove({ from: white, to: whiteTo, promotion: PieceType.Pawn })).toThrow();
-    expect(() => board.applyMove({ from: white, to: whiteTo, promotion: PieceType.King })).toThrow();
+    expect(() =>
+      board.applyMove({ from: white, to: whiteTo, promotion: PieceType.Pawn }),
+    ).toThrow();
+    expect(() =>
+      board.applyMove({ from: white, to: whiteTo, promotion: PieceType.King }),
+    ).toThrow();
     expect(() => board.applyMove({ from: black, to: blackTo })).toThrow();
 
     // All five legal promotion types are honored

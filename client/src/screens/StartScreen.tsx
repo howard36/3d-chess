@@ -12,9 +12,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
 
-  const gameCreated = gameSocket.messages.find(
-    (m): m is GameCreated => m.type === 'game_created',
-  );
+  const gameCreated = gameSocket.messages.find((m): m is GameCreated => m.type === 'game_created');
   const errors = gameSocket.messages.filter((m): m is ServerError => m.type === 'error');
   const latestError = errors.length > 0 ? errors[errors.length - 1] : null;
 

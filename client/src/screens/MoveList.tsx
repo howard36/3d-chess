@@ -8,8 +8,7 @@ export interface MoveListProps {
 // Renders a move as it appears on the wire (level-file-rank, e.g. Ab2), which
 // is also the notation the README documents — no conversion, so the list stays
 // renderable even for a record the engine can't replay.
-const formatMove = (m: MoveRecord) =>
-  `${m.from}–${m.to}${m.promotion ? `=${m.promotion}` : ''}`;
+const formatMove = (m: MoveRecord) => `${m.from}–${m.to}${m.promotion ? `=${m.promotion}` : ''}`;
 
 /**
  * Scrolling history of the game so far, one row per full move (White then
