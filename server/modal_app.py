@@ -1,3 +1,4 @@
+import os
 import random
 import string
 
@@ -20,14 +21,25 @@ from messages import (
     WebsocketV1MessageEnvelope,
 )
 
-# Mount the local messages.py module into the container so `from messages import …` works
+# The image installs exactly the dependency set in uv.lock (main dependencies
+# only, no extras), so production runs the versions CI tested rather than
+# whatever `pip install fastapi` resolved to when the layer was first built.
+# `uv_project_dir` is relative to where `modal deploy` runs, i.e. server/.
+# messages.py is mounted separately so a code change doesn't rebuild the
+# dependency layer. APP_VERSION is baked in at deploy time so /health can
+# prove which commit is serving (CI greps for it after a deploy).
 image = (
     modal.Image.debian_slim(python_version="3.13")
-    .pip_install("fastapi[standard]>=0.115.4")
-    .add_local_python_source(
-        "messages"
-    )  # see https://modal.com/docs/guide/images#Adding-local-Python-modules [1]
+    .uv_sync("./")
+    .env({"APP_VERSION": os.environ.get("GITHUB_SHA", "dev")})
+    .add_local_python_source("messages")
 )
+
+# Close code sent to a socket whose seat was reclaimed by a newer connection
+# (rejoin_game from another tab or a refreshed page). It is an application
+# code (4000-4999) so the client can tell "you were replaced, stop
+# reconnecting" from a network drop, which it should retry.
+SEAT_REPLACED_CLOSE_CODE = 4001
 
 app = modal.App("3d-chess-backend")
 
@@ -92,7 +104,7 @@ def create_web_app(store=None) -> fastapi.FastAPI:
 
     @web_app.get("/health")
     async def health_check():
-        return {"status": "healthy"}
+        return {"status": "healthy", "version": os.environ.get("APP_VERSION", "dev")}
 
     @web_app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
@@ -103,8 +115,11 @@ def create_web_app(store=None) -> fastapi.FastAPI:
             while True:
                 try:
                     data = await ws.receive_json()
-                except ValueError:
-                    # Frame was not valid JSON
+                except (ValueError, KeyError):
+                    # ValueError: the text frame was not valid JSON. KeyError:
+                    # Starlette reads message["text"], which a binary frame
+                    # doesn't carry; without this the exception would escape
+                    # the loop and kill the connection.
                     err = Error(
                         type="error", code="invalid_message", message="Message is not valid JSON"
                     )
@@ -209,7 +224,9 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                     )
                     if old_ws is not None and old_ws is not ws:
                         try:
-                            await old_ws.close()
+                            await old_ws.close(
+                                code=SEAT_REPLACED_CLOSE_CODE, reason="seat_replaced"
+                            )
                         except Exception:
                             pass
                 elif isinstance(envelope, Move):
