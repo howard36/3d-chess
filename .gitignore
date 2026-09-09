@@ -50,3 +50,5 @@ __pycache__/
 
 # Python packaging egg-info directories
 *.egg-info/ 
+# Claude Code worktrees
+.claude/worktrees/

@@ -8,9 +8,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Only what `modal deploy` needs locally; the production image installs the
+# main dependencies from uv.lock (see modal_app.py).
+deploy = ["modal>=1.5,<2"]
 test = [
+  "3d-chess-backend[deploy]",  # tests import modal_app, which imports modal
   "uvicorn[standard]",
-  "modal>=1.5,<2",
   "pytest",
   "pytest-asyncio",
   "httpx",

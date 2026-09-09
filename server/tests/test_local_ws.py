@@ -10,6 +10,7 @@ import time
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 import modal_app
 from modal_app import create_web_app
@@ -73,10 +74,14 @@ def rejoin(ws, gid, color):
     return msg
 
 
-def test_health(client):
+def test_health_reports_status_and_version(client, monkeypatch):
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "healthy"}
+    # Outside a deploy nothing sets APP_VERSION; CI's deploy job bakes in the
+    # commit SHA and greps for it to prove the new build is serving.
+    assert resp.json() == {"status": "healthy", "version": "dev"}
+    monkeypatch.setenv("APP_VERSION", "abc123")
+    assert client.get("/health").json()["version"] == "abc123"
 
 
 def test_full_flow_and_turn_enforcement(client):
@@ -128,6 +133,17 @@ def test_invalid_json_gets_error_and_connection_survives(client):
         assert err["type"] == "error"
         assert err["code"] == "invalid_message"
         # Connection still usable
+        create_game(ws)
+
+
+def test_binary_frame_gets_error_and_connection_survives(client):
+    # Starlette's receive_json reads message["text"], which a binary frame
+    # lacks; that used to escape the handler and kill the socket.
+    with client.websocket_connect("/ws") as ws:
+        ws.send_bytes(b"\x00\x01")
+        err = ws.receive_json()
+        assert err["type"] == "error"
+        assert err["code"] == "invalid_message"
         create_game(ws)
 
 
@@ -332,6 +348,13 @@ def test_moves_while_opponent_disconnected_appear_on_rejoin(client, creator_is_w
             assert ws1.receive_json()["by"] == "black"
 
 
+def test_rejoin_while_in_game_rejected(client, creator_is_white):
+    with client.websocket_connect("/ws") as ws:
+        gid, _ = create_game(ws)
+        ws.send_json({"type": "rejoin_game", "gameId": gid, "color": "white"})
+        assert ws.receive_json()["code"] == "already_in_game"
+
+
 def test_rejoin_replaces_lingering_socket(client, creator_is_white):
     with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
         gid, _ = create_game(ws1)
@@ -344,8 +367,16 @@ def test_rejoin_replaces_lingering_socket(client, creator_is_white):
             state = rejoin(ws_new, gid, "white")
             assert state["started"] is True
 
-            # The old socket is closed server-side; once its disconnect is
-            # processed it must not evict the replacement.
+            # The old socket is closed server-side with the application close
+            # code that tells the client it was replaced (so it must not
+            # auto-reconnect and evict the replacement in turn).
+            with pytest.raises(WebSocketDisconnect) as closed:
+                ws1.receive_json()
+            assert closed.value.code == modal_app.SEAT_REPLACED_CLOSE_CODE
+            assert closed.value.reason == "seat_replaced"
+
+            # Once the old socket's disconnect is processed it must not evict
+            # the replacement.
             assert wait_until(lambda: modal_app.connections.get(gid, {}).get("white") is not None)
 
             # The replacement plays as white; black still receives the move

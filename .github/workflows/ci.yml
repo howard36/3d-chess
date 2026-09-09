@@ -122,25 +122,29 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: server/uv.lock
-      - name: Install server dependencies
-        run: uv sync --extra test
+      - name: Install deploy dependencies
+        run: uv sync --extra deploy
         working-directory: server
-      # Run from server/ so add_local_python_source("messages") resolves.
+      # Run from server/ so Image.uv_sync("./") and
+      # add_local_python_source("messages") resolve. GITHUB_SHA is baked into
+      # the image as APP_VERSION so the health check below can tell the new
+      # deployment from the old one (which was already healthy).
       - name: Deploy Modal app
         run: uv run modal deploy modal_app.py
         working-directory: server
       # max_containers=1 means no warm replica, so the first request after a
-      # deploy pays a cold start. Poll rather than assume.
-      - name: Verify deployment health
+      # deploy pays a cold start. Poll until /health reports this commit.
+      - name: Verify deployment serves this commit
         env:
           URL: https://howard36--3d-chess-backend-serve.modal.run
         run: |
           for _ in $(seq 1 30); do
-            if curl -fsS "$URL/health" | grep -q healthy; then
-              echo "healthy"
+            if curl -fsS "$URL/health" | grep -q "\"version\":\"$GITHUB_SHA\""; then
+              echo "serving $GITHUB_SHA"
               exit 0
             fi
             sleep 5
           done
-          echo "health check failed after 150s"
+          echo "deployment did not report version $GITHUB_SHA within 150s"
+          curl -fsS "$URL/health" || true
           exit 1
