@@ -9,7 +9,7 @@ Two independent projects, no root package.json: `client/` (React 19 + Vite + rea
 Client (run from `client/`):
 - `npm run lint` / `npm run build` (`tsc -b` is the only typecheck) / `npm run test` (vitest; `npx vitest run src/engine/board.test.ts` for one file)
 - `npm run e2e` — Playwright boots uvicorn on :8000 and Vite on :5173 itself; do not start servers first. See `/run-3d-chess` for driving the app and screenshots.
-- `npx prettier --write <file>` — `.prettierrc` is the intended style (single quotes, trailing commas, width 100); it is not wired into ESLint.
+- `npx prettier --write <file>` — `.prettierrc` is the style (single quotes, trailing commas, width 100). `npm run lint` runs `prettier --check .` after ESLint, so CI fails on unformatted files; `.prettierignore` skips the generated `src/types/schema.ts`.
 
 Server (run from repo root): `uv run --project server pytest` (spawns a real uvicorn on a random port). `uv sync --extra test` in `server/` once first. Lint/format: `uv run --project server ruff check server` and `ruff format server`.
 
@@ -34,7 +34,8 @@ Client code imports wire types from `client/src/types/messages.ts` (hand-written
 ## Gotchas
 
 - `npm run dev` with no `VITE_WS_URL` connects to the **production** Modal backend. For a local backend, export `VITE_WS_URL=ws://127.0.0.1:8000/ws` before starting Vite (it is inlined at startup).
-- Seat color persists in `localStorage` keyed by game id, so use two browser contexts, not two tabs. The creator's color is random. The board only mounts once both players are seated.
+- Seat color persists in `localStorage` keyed by game id, so a second tab of the same game takes over the seat (the first tab gets a "replaced" notice via close code 4001 and stops reconnecting). For two players use two browser contexts. The creator's color is random. The board only mounts once both players are seated.
+- The e2e suite writes `playwright-report/` and traces only on CI (`reporter`/`retries` are CI-conditional in `playwright.config.ts`).
 - Python is pinned `>=3.13,<3.14`; `datamodel-code-generator` is pinned exactly so generated output is byte-stable. Keep `uv.lock` tracked.
 
 ## Git

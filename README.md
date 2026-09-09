@@ -20,7 +20,7 @@ pieces):
 - **Unicorn** — ±n along all three axes (space diagonals).
 - **Queen** — Rook + Bishop + Unicorn. **King** — any Queen direction, one step.
 - **Knight** — (±2, ±1, 0) in any axis order; jumps over pieces.
-- **Pawn** — no double first move, no en passant. Non-capture: one step forward *or* one
+- **Pawn** — no double first move, no en passant. Non-capture: one step forward _or_ one
   step up (player's choice). Capture, relative to White: forward-up (0,+1,+1),
   forward-left/right (∓1,+1,0), up-left/right (∓1,0,+1). Promotes **only** on squares
   where both rank and level are maximal (White: rank 5 on level E) or minimal (Black:
@@ -69,7 +69,7 @@ Key decisions:
 
 - **Event-sourced client state.** The client never mutates a board directly. It keeps the
   ordered log of received messages and derives everything (board, turn, phase, game over)
-  by replaying moves from the fixed starting position. A local move is only *sent*; the
+  by replaying moves from the fixed starting position. A local move is only _sent_; the
   board updates when the server's `move_made` echo arrives. This keeps both clients in
   lockstep and makes rejoin trivial.
 - **Server = relay + durable move log.** Per game the server stores `{seats, moves}` in a
@@ -120,6 +120,11 @@ Message flow, happy path:
 2. Joiner opens `/game/:gameId`, sends `join_game` → both players get `game_start {color}`.
 3. Moves: `move {from, to, promotion?}` → server checks turn parity → `move_made` to both.
 4. Reload/rejoin: `rejoin_game {gameId, color}` → `game_state {color, started, moves}`.
+   If another socket already held that seat, the server closes it with WebSocket close
+   code **4001 `seat_replaced`** (last connection wins). The client treats that code as
+   "stop reconnecting": it shows a _this game is open in another tab_ notice with a button
+   that rejoins and takes the seat back, instead of retrying and evicting the newer tab in
+   turn. Any other close is a network fault and is retried with backoff.
 
 Coordinates on the wire use the display notation described below (e.g. `"Aa1"`).
 
@@ -132,26 +137,29 @@ toward +y, "forward"), `z` = level (White promotes toward +z, "up").
 So internal `(0,0,0)` = `Aa1`, `(4,4,4)` = `Ee5`. Conversions live in
 `client/src/engine/coords.ts`.
 
-**3. Rendering (Three.js scene):** `client/src/three/Board.tsx` maps engine axes to scene
-axes **identically** — engine `x→scene x`, `y→scene y`, `z→scene z`. Because Three.js
-screen-up is +y and the default camera looks down the −z axis from `[0, 0, 5]`, that means:
+**3. Rendering (Three.js scene):** `toWorld()` in `client/src/three/layout.ts` maps an
+engine coordinate to a world position, **oriented to the viewing player**. For White the
+engine axes map straight onto world axes, with the level axis negated so that level A is
+nearest the camera; for Black all three axes are mirrored (`v → 4 − v`), which is the
+symmetry the starting position is built on, so each player sees their own army laid out
+identically and their own levels nearest. The default camera sits at `[6.5, 5, 8.5]`
+(mostly on +Z, up and to the right) looking at the cube's centre, so:
 
-| Game concept                    | Engine axis | On screen (default camera)     |
-| ------------------------------- | ----------- | ------------------------------ |
-| File a–e                        | x           | left → right                   |
-| Rank 1–5 (White's "forward")    | y           | bottom → top                   |
-| Level A–E (the game's "up")     | z           | far → near (toward the viewer) |
+| Game concept                      | Engine axis | World axis | On screen (default camera, viewing player) |
+| --------------------------------- | ----------- | ---------- | ------------------------------------------ |
+| File a–e                          | x           | X          | left → right (mirrored for Black)          |
+| Rank 1–5 (the player's "forward") | y           | Y          | bottom → top (own back rank at the bottom) |
+| Level A–E (the game's "up")       | z           | −Z         | near → far (own levels nearest the camera) |
 
 So the game's "vertical" (levels) is rendered as **depth**, and the game's "forward"
-(ranks) is rendered as **screen height**. Concretely: White's ten starting pawns (rank 2,
-levels A+B) appear as the second-from-bottom horizontal slab of the cube, in the two
-slices farthest from the camera; moving a pawn "up a level" moves it toward the viewer,
-not up the screen. Both players get the same default orientation (there is no camera flip
-for Black — Black's pieces start at the top of the screen), and OrbitControls allows free
-rotation, so the default orientation is just a starting point. This axis mapping is a
-deliberate simplification; if it's ever changed (e.g. to make levels vertical), only the
-scene-position math in `three/Board.tsx` should change — the engine and wire formats are
-independent of rendering.
+(ranks) as **screen height**. Concretely, for White: the ten starting pawns (rank 2,
+levels A+B) are the second-from-bottom horizontal row of the cube, in the two slices
+nearest the camera; moving a pawn "up a level" moves it away from the viewer, not up the
+screen. Black sees the mirror image, with Black's pawns nearest. OrbitControls allows free
+rotation, so the default view is just a starting point. Only positions are transformed;
+piece meshes are never mirrored. If this mapping is ever changed (e.g. to make levels
+vertical), only `three/layout.ts` should change — the engine and wire formats are
+independent of rendering, and the e2e click helpers project through the live camera.
 
 ## Repository layout
 
@@ -180,14 +188,24 @@ cd client && npm run e2e           # Playwright; starts server + Vite itself
 uv run --project server pytest     # server tests (spawns a real uvicorn)
 
 # Deploy backend manually (not normally needed — CI deploys on merge to main)
-cd server && modal deploy modal_app.py
+cd server && uv run --extra deploy modal deploy modal_app.py
+# Try a change without touching production: deploy under another name, then stop it
+cd server && uv run --extra deploy modal deploy modal_app.py --name 3d-chess-backend-staging
+cd server && uv run --extra deploy modal app stop 3d-chess-backend-staging -y
 ```
 
-CI (GitHub Actions) runs server tests, client lint/build/test, and the E2E suite on every
-push/PR to `main`. On a push to `main` — and only once those three pass — it also deploys
-the backend to Modal and polls `/health` to confirm the new version is serving, so the
-deployed app always matches `main`. Authentication comes from the `MODAL_TOKEN_ID` and
-`MODAL_TOKEN_SECRET` repo secrets.
+CI (GitHub Actions) runs server tests, client lint (ESLint + Prettier check), build, and
+unit tests, and the E2E suite on every push/PR to `main`; on an E2E failure the Playwright
+HTML report and trace are uploaded as a workflow artifact. On a push to `main` — and only
+once those three jobs pass — it also deploys the backend to Modal. The deploy bakes the
+commit SHA into the image as `APP_VERSION`, and the job polls `/health` until it reports
+that SHA, so a deploy that never starts serving fails the job rather than passing on the
+previous (already healthy) deployment. The production image is built with
+`Image.uv_sync` from `server/uv.lock`, so it runs exactly the dependency versions the
+tests ran against. Authentication comes from the `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`
+repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
+integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
+Pages" check on pull requests.
 
 ## Known limitations (accepted for this project's scope)
 
@@ -198,6 +216,12 @@ deployed app always matches `main`. Authentication comes from the `MODAL_TOKEN_I
 - A WebSocket session is bounded by the Modal function timeout (1 hour). The client
   auto-reconnects and rejoins when that (or any drop) severs the socket, so the
   interruption is a brief "Reconnecting…" rather than a frozen game.
+- One seat, one live tab. Opening your own game in a second tab of the same browser moves
+  the seat to that tab; the first tab is told so and can take it back, but the two never
+  play simultaneously.
+- Modal's edge rejects binary WebSocket frames before they reach the app; the local
+  uvicorn backend answers them with an `invalid_message` error instead. The client only
+  ever sends text.
 - The server records any shape-valid, turn-correct move without checking legality. The
   client replays history defensively — an unplayable record freezes the board at the last
   good position with an explanation instead of crashing — but cannot repair the record.
