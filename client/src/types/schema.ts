@@ -47,7 +47,6 @@ export interface RejoinGame {
 export interface GameStart {
   type: "game_start";
   color: Color;
-  initialPosition?: string;
 }
 export interface GameState {
   type: "game_state";

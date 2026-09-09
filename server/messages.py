@@ -72,7 +72,6 @@ class GameStart(BaseModel):
     )
     type: Literal['game_start']
     color: Color
-    initialPosition: Optional[str] = None
 
 
 class MoveRecord(BaseModel):

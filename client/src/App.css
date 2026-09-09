@@ -1,4 +1,0 @@
-/* Prevent scrollbars from canvas */
-body {
-  overflow: hidden;
-}
