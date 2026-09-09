@@ -105,8 +105,9 @@ warnings; pre-existing noise, not failures.
 ## Gotchas
 
 - **Two browser contexts, never two tabs.** The seat persists in
-  `localStorage` per game id, so a second tab rejoins the first tab's
-  seat. `startGame` does this for you.
+  `localStorage` per game id, so a second tab takes over the first
+  tab's seat and the first tab shows a "replaced" notice.
+  `startGame` uses two contexts for you.
 - **Board orientation flips per seat.** Pass the clicking page's own
   seat to `clickSquare`, or you click mirrored squares.
 - **Click projection relies on `window.__r3fState`**, published by the
