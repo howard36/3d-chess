@@ -81,7 +81,10 @@ Key decisions:
 - **Concurrency model.** One container, one event loop, cooperative scheduling. Because
   `modal.Dict` returns deserialized copies, every mutation is read-modify-write and is
   written back **before any `await`** — that ordering is what makes concurrent handlers
-  safe, so preserve it when editing `modal_app.py`.
+  safe. It is enforced structurally: the store operations in `modal_app.py`
+  (`create_game`, `claim_seat`, `find_seat`, `record_move`) are synchronous functions, so
+  they cannot yield to the event loop, and `modal.Dict`'s calls block (never switch to
+  the `.aio` variants). The WebSocket handler only dispatches to them and sends replies.
 - **Seat persistence on the client.** The assigned color is stored in
   `localStorage` (`client/src/lib/playerRole.ts`) keyed by game id, and is used to
   auto-`rejoin_game` on page load **and** after any mid-session drop: the socket hook
