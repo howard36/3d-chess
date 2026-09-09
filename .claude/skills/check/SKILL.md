@@ -8,7 +8,7 @@ Run every step from the repo root; report each step's pass/fail with the failing
 Optional argument: `$ARGUMENTS` may be `client`, `server`, or `e2e` to run only that group.
 
 1. Client (in `client/`): `npm run lint`, `npm run build`, `npm run test -- --coverage`.
-   Coverage thresholds (90%) apply only to `src/engine/**`. The `<meshStandardMaterial /> is using incorrect casing` warnings are expected noise.
+   Coverage thresholds (90%) apply only to `src/engine/**` (hooks/lib are reported, not gated). The `not configured to support act(...)` warnings from the r3f test renderer are expected noise.
 2. Client codegen gate (in `client/`): `npm run generate:types && git diff --exit-code src/types/schema.ts`.
 3. Server: `uv run --project server ruff check server && uv run --project server ruff format --check server && uv run --project server pytest`.
 4. Server codegen gate (in `server/`): `uv run datamodel-codegen --input schema.json --input-file-type jsonschema --output messages.py --output-model-type pydantic_v2.BaseModel --disable-timestamp && git diff --exit-code messages.py`.

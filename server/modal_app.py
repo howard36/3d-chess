@@ -1,4 +1,3 @@
-import inspect
 import os
 import random
 import string
@@ -30,10 +29,17 @@ from messages import (
 # messages.py is mounted separately so a code change doesn't rebuild the
 # dependency layer. APP_VERSION is baked in at deploy time so /health can
 # prove which commit is serving (CI greps for it after a deploy).
+# GAMES_STORE names the modal.Dict holding game records; a staging deploy
+# (see README) sets it so it never shares production's games.
 image = (
     modal.Image.debian_slim(python_version="3.13")
     .uv_sync("./")
-    .env({"APP_VERSION": os.environ.get("GITHUB_SHA", "dev")})
+    .env(
+        {
+            "APP_VERSION": os.environ.get("GITHUB_SHA", "dev"),
+            "GAMES_STORE": os.environ.get("GAMES_STORE", "3d-chess-games"),
+        }
+    )
     .add_local_python_source("messages")
 )
 
@@ -70,10 +76,14 @@ class GameError(Exception):
 # read-modify-write that must complete without yielding to the event loop, or
 # a concurrent handler could interleave a stale write.
 #
-# These functions are deliberately plain `def`, not `async def`: `await` is a
-# syntax error inside them, so the no-yield property holds by construction
-# rather than by review. test_store_ops.py asserts they stay synchronous.
-# Tests pass a plain dict, which has the same access pattern.
+# Two rules make that hold without relying on review:
+#   1. These functions are plain `def`, not `async def`, so nothing inside
+#      them can yield (`await` is a syntax error in a plain function).
+#   2. The WebSocket handler never touches `store` itself; it only passes it
+#      to these functions. So there is no read in the handler that a later
+#      write could race against.
+# test_store_ops.py asserts both. Tests pass a plain dict, which has the same
+# access pattern.
 
 
 def create_game(store) -> tuple[str, str]:
@@ -137,7 +147,6 @@ def record_move(store, gid: str | None, color: str | None, move: Move) -> dict:
 
 
 STORE_OPERATIONS = (create_game, claim_seat, find_seat, record_move)
-assert not any(inspect.iscoroutinefunction(f) for f in STORE_OPERATIONS)
 
 
 def _turn(record: dict) -> str:
@@ -309,4 +318,5 @@ def create_web_app(store=None) -> fastapi.FastAPI:
 def serve() -> fastapi.FastAPI:
     # Durable game records survive container restarts and expire via Modal's
     # ~30-day inactivity TTL, so abandoned games clean themselves up.
-    return create_web_app(store=modal.Dict.from_name("3d-chess-games", create_if_missing=True))
+    store = modal.Dict.from_name(os.environ["GAMES_STORE"], create_if_missing=True)
+    return create_web_app(store=store)

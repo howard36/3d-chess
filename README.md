@@ -81,10 +81,11 @@ Key decisions:
 - **Concurrency model.** One container, one event loop, cooperative scheduling. Because
   `modal.Dict` returns deserialized copies, every mutation is read-modify-write and is
   written back **before any `await`** — that ordering is what makes concurrent handlers
-  safe. It is enforced structurally: the store operations in `modal_app.py`
-  (`create_game`, `claim_seat`, `find_seat`, `record_move`) are synchronous functions, so
-  they cannot yield to the event loop, and `modal.Dict`'s calls block (never switch to
-  the `.aio` variants). The WebSocket handler only dispatches to them and sends replies.
+  safe. Two rules keep it true, and `test_store_ops.py` asserts both: the store operations
+  in `modal_app.py` (`create_game`, `claim_seat`, `find_seat`, `record_move`) are
+  synchronous functions, so nothing inside them can yield to the event loop; and the
+  WebSocket handler never reads or writes the store itself, only passes it to those
+  operations. `modal.Dict`'s calls block; never switch to the `.aio` variants.
 - **Seat persistence on the client.** The assigned color is stored in
   `localStorage` (`client/src/lib/playerRole.ts`) keyed by game id, and is used to
   auto-`rejoin_game` on page load **and** after any mid-session drop: the socket hook
@@ -158,8 +159,10 @@ nearest the camera; moving a pawn "up a level" moves it away from the viewer, no
 screen. Black sees the mirror image, with Black's pawns nearest. OrbitControls allows free
 rotation, so the default view is just a starting point. Only positions are transformed;
 piece meshes are never mirrored. If this mapping is ever changed (e.g. to make levels
-vertical), only `three/layout.ts` should change — the engine and wire formats are
-independent of rendering, and the e2e click helpers project through the live camera.
+vertical), the position math is in `three/layout.ts`; the floor rings and the glide
+lift in `three/Board.tsx` and `three/motion.ts` assume world-Y-up, and the camera lives in
+`screens/GameScreen.tsx`. The engine and wire formats are independent of rendering, and
+the e2e click helpers project through the live camera.
 
 ## Repository layout
 
@@ -187,10 +190,13 @@ cd client && npm run test          # unit/component (Vitest)
 cd client && npm run e2e           # Playwright; starts server + Vite itself
 uv run --project server pytest     # server tests (spawns a real uvicorn)
 
-# Deploy backend manually (not normally needed — CI deploys on merge to main)
-cd server && uv run --extra deploy modal deploy modal_app.py
-# Try a change without touching production: deploy under another name, then stop it
-cd server && uv run --extra deploy modal deploy modal_app.py --name 3d-chess-backend-staging
+# Deploy backend manually (not normally needed — CI deploys on merge to main).
+# GITHUB_SHA is what /health reports; without it the image says "dev".
+cd server && GITHUB_SHA=$(git rev-parse HEAD) uv run --extra deploy modal deploy modal_app.py
+# Try a change without touching production: a separate app name AND a separate game
+# store (GAMES_STORE names the modal.Dict; the default is production's). Stop it after.
+cd server && GAMES_STORE=3d-chess-games-staging uv run --extra deploy \
+  modal deploy modal_app.py --name 3d-chess-backend-staging
 cd server && uv run --extra deploy modal app stop 3d-chess-backend-staging -y
 ```
 
