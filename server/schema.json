@@ -68,8 +68,7 @@
       "type": "object",
       "properties": {
         "type": { "const": "game_start" },
-        "color": { "$ref": "#/definitions/color" },
-        "initialPosition": { "type": "string" }
+        "color": { "$ref": "#/definitions/color" }
       },
       "required": ["type", "color"],
       "additionalProperties": false
