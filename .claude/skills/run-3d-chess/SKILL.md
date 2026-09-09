@@ -96,7 +96,7 @@ click time, so it works from any orbited angle without a settle wait.
 ```bash
 npm run lint && npm run test        # eslint + vitest
 uv run --project ../server pytest   # spawns a real uvicorn
-npm run e2e                         # 2 specs; drive.spec is skipped without DRIVE_MOVES
+npm run e2e                         # 3 specs; drive.spec is skipped without DRIVE_MOVES
 ```
 
 Vitest prints `<meshStandardMaterial /> is using incorrect casing`

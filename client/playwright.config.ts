@@ -2,6 +2,12 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e', // Only run tests in the e2e directory
+  // On CI, retry once so a failure leaves a trace (trace: 'on-first-retry'
+  // below), and write the HTML report the workflow uploads on failure. The
+  // default reporter never writes playwright-report/, so the upload step
+  // used to find nothing.
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [['dot'], ['html', { open: 'never' }]] : 'list',
   // Configure projects for major browsers
   // projects: [
   //   {
