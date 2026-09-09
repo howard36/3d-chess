@@ -25,7 +25,7 @@ Client code imports wire types from `client/src/types/messages.ts` (hand-written
 
 ## Invariants to preserve
 
-- **Server** (`server/modal_app.py`): `modal.Dict` returns copies, so every store mutation is read-modify-write and must be written back **before any `await`**. That ordering is the entire concurrency-safety argument (single container, single event loop).
+- **Server** (`server/modal_app.py`): `modal.Dict` returns copies, so every store mutation is read-modify-write and must be written back **before any `await`**. That ordering is the entire concurrency-safety argument (single container, single event loop). It holds because the `modal.Dict` calls *block* and the store operations (`create_game`, `claim_seat`, `find_seat`, `record_move`) are plain `def`s that cannot contain `await`; keep new mutations in that section, never convert them to `async def`, and never switch the store to the `.aio` variants. `test_store_ops.py` enforces this.
 - **Client**: board state is event-sourced from the message log (latest `game_state` snapshot + subsequent `move_made`). Never mutate the board directly; a local move is only sent, and the board updates when the server echoes `move_made`.
 - The server validates message shape and turn parity only; the rules engine lives in `client/src/engine/`, which has a 90% coverage threshold in vitest.
 - `window.__r3fState`, published by the `Canvas onCreated` hook in `client/src/screens/GameScreen.tsx`, exists solely so e2e can project clicks. Removing it breaks the e2e suite.
