@@ -18,6 +18,19 @@ vi.mock('@react-three/fiber', () => ({
 vi.mock('@react-three/drei', () => ({
   OrbitControls: () => null,
 }));
+// The one test that renders <App /> must not open a real WebSocket to the
+// production backend; every other test injects a fake socket directly.
+vi.mock('./hooks/useGameSocket', () => ({
+  useGameSocket: () => ({
+    send: () => {},
+    messages: [],
+    status: 'connected',
+    sessionId: 1,
+    sessionStartIndex: 0,
+    reconnect: () => {},
+    reset: () => {},
+  }),
+}));
 
 const fakeSocket = (
   messages: WebSocketMessage[] = [],
@@ -29,6 +42,7 @@ const fakeSocket = (
   status: 'connected',
   sessionId: 1,
   sessionStartIndex: 0,
+  reconnect: () => {},
   reset: () => {},
   ...overrides,
 });
@@ -80,6 +94,54 @@ test('StartScreen shows server errors', () => {
     </MemoryRouter>,
   );
   expect(screen.getByRole('alert')).toHaveTextContent('Bad request');
+});
+
+test('StartScreen re-enables the create button when the server answers with an error', async () => {
+  const send = vi.fn();
+  const { rerender } = render(
+    <MemoryRouter initialEntries={['/']}>
+      <StartScreen gameSocket={fakeSocket([], send)} />
+    </MemoryRouter>,
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Start New Game' }));
+  expect(send).toHaveBeenCalledWith({ type: 'create_game' });
+  expect(screen.getByRole('button', { name: 'Creating Game...' })).toBeDisabled();
+
+  rerender(
+    <MemoryRouter initialEntries={['/']}>
+      <StartScreen
+        gameSocket={fakeSocket(
+          [{ type: 'error', code: 'already_in_game', message: 'Already in a game' }],
+          send,
+        )}
+      />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole('alert')).toHaveTextContent('Already in a game');
+  expect(screen.getByRole('button', { name: 'Start New Game' })).toBeEnabled();
+});
+
+test('StartScreen reports the connection status until the socket is open', () => {
+  const { rerender } = render(
+    <MemoryRouter initialEntries={['/']}>
+      <StartScreen gameSocket={fakeSocket([], () => {}, { status: 'connecting' })} />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole('status')).toHaveTextContent('Connecting to server…');
+
+  rerender(
+    <MemoryRouter initialEntries={['/']}>
+      <StartScreen gameSocket={fakeSocket([], () => {}, { status: 'reconnecting' })} />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole('status')).toHaveTextContent('Reconnecting to server…');
+
+  rerender(
+    <MemoryRouter initialEntries={['/']}>
+      <StartScreen gameSocket={fakeSocket()} />
+    </MemoryRouter>,
+  );
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
 });
 
 const renderGameScreen = (gameId: string, socket: GameSocket) =>
@@ -343,4 +405,32 @@ test('GameScreen returns to the join button and shows the error when joining fai
     expect(screen.getByRole('button', { name: 'Join Game' })).toBeInTheDocument();
   });
   expect(screen.getByRole('alert')).toHaveTextContent('Cannot join');
+});
+
+test('GameScreen explains a replaced seat and lets the user take the game back', async () => {
+  setStoredRole('abc123', 'white');
+  const reconnect = vi.fn();
+  renderGameScreen(
+    'abc123',
+    fakeSocket([{ type: 'game_state', color: 'white', started: true, moves: [] }], () => {}, {
+      status: 'replaced',
+      reconnect,
+    }),
+  );
+  const dialog = screen.getByRole('alertdialog', { name: 'This game is open in another tab' });
+  expect(dialog).toBeInTheDocument();
+  // Not a connection fault, so no retry banner
+  expect(screen.queryByText('Reconnecting…')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Play here' }));
+  expect(reconnect).toHaveBeenCalledTimes(1);
+});
+
+test('GameScreen shows the replaced notice on the waiting screen too', () => {
+  setStoredRole('abc123', 'white');
+  renderGameScreen(
+    'abc123',
+    fakeSocket([], () => {}, { status: 'replaced' }),
+  );
+  expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  expect(screen.getByText('Game created! Share this link with a friend:')).toBeInTheDocument();
 });

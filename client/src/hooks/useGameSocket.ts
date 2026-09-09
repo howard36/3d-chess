@@ -1,13 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WebSocketMessage } from '../types/messages';
 
-const WS_URL: string =
+export const WS_URL: string =
   import.meta.env.VITE_WS_URL ?? 'wss://howard36--3d-chess-backend-serve.modal.run/ws';
+
+/**
+ * Close code the server sends to a socket whose seat was reclaimed by a newer
+ * connection (a rejoin from another tab, or a refreshed page). Mirrors
+ * SEAT_REPLACED_CLOSE_CODE in server/modal_app.py. Unlike a network drop it
+ * must NOT be retried: the retry would rejoin and evict the newer socket,
+ * which would retry in turn, and the two tabs would fight forever.
+ */
+export const SEAT_REPLACED_CLOSE_CODE = 4001;
 
 /** Delay before reconnect attempt n (0-based): 0.5s, 1s, 2s, 4s, then 8s forever. */
 const reconnectDelayMs = (attempt: number) => Math.min(500 * 2 ** attempt, 8000);
 
-export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting';
+export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'replaced';
 
 export interface GameSocket {
   send: (msg: WebSocketMessage) => void;
@@ -15,7 +24,9 @@ export interface GameSocket {
   messages: WebSocketMessage[];
   /**
    * 'connecting' before the first socket of a session opens, 'reconnecting'
-   * after an unexpected drop while the automatic retry loop runs.
+   * after an unexpected drop while the automatic retry loop runs, 'replaced'
+   * after the server closed the socket because a newer connection took this
+   * seat (no retry; see reconnect()).
    */
   status: ConnectionStatus;
   /**
@@ -26,6 +37,12 @@ export interface GameSocket {
   sessionId: number;
   /** Index into `messages` of the first message received on the current socket. */
   sessionStartIndex: number;
+  /**
+   * Open a fresh socket after this one was replaced. Keeps the message log;
+   * the new session id makes the screen rejoin, which reclaims the seat and
+   * in turn replaces the other connection.
+   */
+  reconnect: () => void;
   /**
    * End the current game session: close the connection, drop its messages, and
    * open a fresh connection. Used when navigating back to the start screen so a
@@ -51,7 +68,9 @@ export function useGameSocket(): GameSocket {
   // Bumping the generation tears down the current socket and opens a new one.
   const [generation, setGeneration] = useState(0);
 
-  const send = (msg: WebSocketMessage) => {
+  // Stable identities: consumers list these in effect dependencies, and App
+  // depends on `reset` running once per navigation, not once per render.
+  const send = useCallback((msg: WebSocketMessage) => {
     hasActivityRef.current = true;
     const socket = socketRef.current;
     if (socket && socket.readyState === WebSocket.OPEN) {
@@ -59,9 +78,15 @@ export function useGameSocket(): GameSocket {
     } else {
       outgoingQueueRef.current.push(msg);
     }
-  };
+  }, []);
 
-  const reset = () => {
+  const reconnect = useCallback(() => {
+    attemptRef.current = 0;
+    setStatus('connecting');
+    setGeneration((g) => g + 1);
+  }, []);
+
+  const reset = useCallback(() => {
     if (!hasActivityRef.current) return;
     hasActivityRef.current = false;
     outgoingQueueRef.current = [];
@@ -70,7 +95,7 @@ export function useGameSocket(): GameSocket {
     setMessages([]);
     setStatus('connecting');
     setGeneration((g) => g + 1);
-  };
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -119,9 +144,15 @@ export function useGameSocket(): GameSocket {
         setMessages((prev) => [...prev, parsed]);
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (disposed || socketRef.current !== ws) return;
         socketRef.current = null;
+        if (event.code === SEAT_REPLACED_CLOSE_CODE) {
+          // Deliberate eviction by a newer connection, not a network fault:
+          // stay down until the user asks for the seat back (reconnect()).
+          setStatus('replaced');
+          return;
+        }
         setStatus('reconnecting');
         retryTimer = setTimeout(connect, reconnectDelayMs(attemptRef.current++));
       };
@@ -143,6 +174,7 @@ export function useGameSocket(): GameSocket {
     status,
     sessionId: session.id,
     sessionStartIndex: session.startIndex,
+    reconnect,
     reset,
   };
 }

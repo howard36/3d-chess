@@ -13,13 +13,12 @@ function App() {
     // Navigating back to the start screen ends the current game session:
     // start a fresh socket session so the previous game's messages and
     // server-side state don't leak into the next game.
+    // `reset` is stable and a no-op unless the session saw traffic, so this
+    // runs exactly once per navigation.
     if (location.pathname === '/') {
       reset();
     }
-    // `reset` is a no-op unless the session saw traffic; depending on
-    // pathname alone ensures this runs exactly once per navigation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  }, [location.pathname, reset]);
 
   return (
     <Routes>

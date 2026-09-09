@@ -15,6 +15,12 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
   const gameCreated = gameSocket.messages.find((m): m is GameCreated => m.type === 'game_created');
   const errors = gameSocket.messages.filter((m): m is ServerError => m.type === 'error');
   const latestError = errors.length > 0 ? errors[errors.length - 1] : null;
+  const { status } = gameSocket;
+
+  // A server error is the reply to the create request; let the user try again.
+  React.useEffect(() => {
+    if (latestError) setIsLoading(false);
+  }, [latestError]);
 
   React.useEffect(() => {
     if (gameCreated) {
@@ -44,6 +50,11 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
         {latestError && (
           <p role="alert" className="text-red-400 text-lg">
             Error: {latestError.message}
+          </p>
+        )}
+        {status !== 'connected' && (
+          <p role="status" className="text-gray-400 text-lg">
+            {status === 'reconnecting' ? 'Reconnecting to server…' : 'Connecting to server…'}
           </p>
         )}
       </div>
