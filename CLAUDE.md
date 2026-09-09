@@ -35,7 +35,6 @@ Client code imports wire types from `client/src/types/messages.ts` (hand-written
 
 - `npm run dev` with no `VITE_WS_URL` connects to the **production** Modal backend. For a local backend, export `VITE_WS_URL=ws://127.0.0.1:8000/ws` before starting Vite (it is inlined at startup).
 - Seat color persists in `localStorage` keyed by game id, so use two browser contexts, not two tabs. The creator's color is random. The board only mounts once both players are seated.
-- Vitest prints `<meshStandardMaterial /> is using incorrect casing` warnings; that is pre-existing noise, not a failure.
 - Python is pinned `>=3.13,<3.14`; `datamodel-code-generator` is pinned exactly so generated output is byte-stable. Keep `uv.lock` tracked.
 
 ## Git

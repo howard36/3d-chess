@@ -4,22 +4,71 @@ import type { LastMoveInfo } from './Board';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
 import { PieceType } from '../engine';
+import type { Coord, Move } from '../engine';
 import { act } from 'react';
 import { vi } from 'vitest';
 import { Board as EngineBoard } from '../engine';
 import { CELL_FLOOR_Y, SPACING, toWorld } from './layout';
+import { MOVE_ANIMATION } from './motion';
 import { theme } from './theme';
+
+type Renderer = { scene: unknown };
+type Color = 'white' | 'black';
 
 // Helper to create a fresh board
 function createTestBoard() {
   return EngineBoard.setupStartingPosition();
 }
 
+const sameVec = (a: unknown, b: [number, number, number]) =>
+  JSON.stringify(a) === JSON.stringify(b);
+
+// The rendered node for a piece of the given type/colour. Uses findAll so it
+// is robust to wrapper groups (MoveGlide, GhostPiece) around the PieceMesh.
+// Pass `at` to pick a specific piece when several of that kind are on the
+// board; it is resolved in White's frame unless `orientation` says otherwise.
+function findPiece(
+  renderer: Renderer,
+  type: PieceType,
+  color: Color,
+  at?: Coord,
+  orientation: Color = 'white',
+): ReactThreeTestInstance {
+  const matches = (renderer.scene as ReactThreeTestInstance).findAll(
+    (node) =>
+      (node.type === 'Mesh' || node.type === 'Group') &&
+      node.props.userData?.piece?.type === type &&
+      node.props.userData?.piece?.color === color &&
+      (!at || sameVec(node.props.position, toWorld(at, orientation))),
+  );
+  expect(matches.length).toBeGreaterThanOrEqual(1);
+  return matches[0];
+}
+
+// Simulate a pointer-down on a rendered node, inside act.
+async function press(node: ReactThreeTestInstance) {
+  await act(async () => {
+    node.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
+  });
+}
+
+function highlightedCells(renderer: Renderer): ReactThreeTestInstance[] {
+  return (renderer.scene as ReactThreeTestInstance).findAll(
+    (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
+  );
+}
+
+function selectionRings(renderer: Renderer): ReactThreeTestInstance[] {
+  return (renderer.scene as ReactThreeTestInstance).findAll(
+    (node) => node.props.userData?.selectionRing === true,
+  );
+}
+
 // World positions of every piece of a given type/colour currently rendered.
 function piecePositions(
-  renderer: { scene: unknown },
+  renderer: Renderer,
   type: PieceType,
-  color: 'white' | 'black',
+  color: Color,
 ): [number, number, number][] {
   return (renderer.scene as ReactThreeTestInstance)
     .findAll(
@@ -33,8 +82,8 @@ function piecePositions(
 
 // Piece types of a given colour sitting on one row, ordered left to right.
 function rowLeftToRight(
-  renderer: { scene: unknown },
-  color: 'white' | 'black',
+  renderer: Renderer,
+  color: Color,
   worldY: number,
   worldZ: number,
 ): PieceType[] {
@@ -49,6 +98,10 @@ function rowLeftToRight(
     .sort((a, b) => a.props.position[0] - b.props.position[0])
     .map((node) => node.props.userData.piece.type as PieceType);
 }
+
+// A white pawn on level B (z=1) of the starting position: it can step
+// forward or up, so it has exactly two legal moves.
+const LEVEL_B_PAWN: Coord = { x: 0, y: 1, z: 1 };
 
 describe('Board', () => {
   it('renders 125 cube meshes', async () => {
@@ -73,29 +126,19 @@ describe('Board', () => {
     expect(pieceCount).toBe(40);
   });
 
-  it('clicks a pawn and highlights destination cubes', async () => {
+  it('clicks a pawn and highlights exactly its two destination cubes', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" />,
     );
-    const boardGroup = (renderer.scene as ReactThreeTestInstance)
-      .children[0] as ReactThreeTestInstance;
-    const pawn = boardGroup.children.find(
-      (child) =>
-        (child.type === 'Mesh' || child.type === 'Group') &&
-        child.props.userData?.piece?.type === PieceType.Pawn,
-    ) as ReactThreeTestInstance;
-    expect(pawn).toBeDefined();
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
 
-    // Simulate pointer down inside act
-    await act(async () => {
-      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
-    });
-
-    // Now count highlighted cubes using findAll
-    const highlightCount = (renderer.scene as ReactThreeTestInstance).findAll(
-      (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
-    ).length;
-    expect(highlightCount).toBeGreaterThan(0);
+    const highlighted = highlightedCells(renderer);
+    expect(highlighted).toHaveLength(2);
+    const forward = toWorld({ x: 0, y: 2, z: 1 }, 'white');
+    const up = toWorld({ x: 0, y: 1, z: 2 }, 'white');
+    expect(highlighted.some((c) => sameVec(c.props.position, forward))).toBe(true);
+    expect(highlighted.some((c) => sameVec(c.props.position, up))).toBe(true);
+    expect(selectionRings(renderer)).toHaveLength(1);
   });
 
   it('unselects a piece when clicking empty space after selecting', async () => {
@@ -104,110 +147,98 @@ describe('Board', () => {
     );
     const boardGroup = (renderer.scene as ReactThreeTestInstance)
       .children[0] as ReactThreeTestInstance;
-    const pawn = boardGroup.children.find(
-      (child) =>
-        (child.type === 'Mesh' || child.type === 'Group') &&
-        child.props.userData?.piece?.type === PieceType.Pawn,
-    ) as ReactThreeTestInstance;
-    expect(pawn).toBeDefined();
 
-    // Select the pawn
-    await act(async () => {
-      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
-    });
-    // There should be highlights
-    let highlightCount = (renderer.scene as ReactThreeTestInstance).findAll(
-      (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
-    ).length;
-    expect(highlightCount).toBeGreaterThan(0);
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(highlightedCells(renderer)).toHaveLength(2);
 
     // Click empty space (simulate group onPointerDown)
     await act(async () => {
       boardGroup.props.onPointerDown?.({} as React.PointerEvent<Element>);
     });
-    // Highlights should be gone
-    highlightCount = (renderer.scene as ReactThreeTestInstance).findAll(
-      (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
-    ).length;
-    expect(highlightCount).toBe(0);
+    expect(highlightedCells(renderer)).toHaveLength(0);
+    expect(selectionRings(renderer)).toHaveLength(0);
   });
 
   it('ignores piece clicks while disabled', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" disabled />,
     );
-    const boardGroup = (renderer.scene as ReactThreeTestInstance)
-      .children[0] as ReactThreeTestInstance;
-    const pawn = boardGroup.children.find(
-      (child) =>
-        (child.type === 'Mesh' || child.type === 'Group') &&
-        child.props.userData?.piece?.type === PieceType.Pawn,
-    ) as ReactThreeTestInstance;
-    expect(pawn).toBeDefined();
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(highlightedCells(renderer)).toHaveLength(0);
+    expect(selectionRings(renderer)).toHaveLength(0);
+  });
 
-    await act(async () => {
-      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
-    });
+  it("cannot select the opponent's piece", async () => {
+    // Black to move, but we are White: Black's pawn is not ours to pick up.
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="black" playerColor="white" />,
+    );
+    await press(findPiece(renderer, PieceType.Pawn, 'black'));
+    expect(highlightedCells(renderer)).toHaveLength(0);
+    expect(selectionRings(renderer)).toHaveLength(0);
+  });
 
-    const highlightCount = (renderer.scene as ReactThreeTestInstance).findAll(
-      (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
-    ).length;
-    expect(highlightCount).toBe(0);
+  it('cannot select a piece whose side is not on turn', async () => {
+    // Our own pawn, but it is Black's turn.
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="black" playerColor="white" />,
+    );
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(highlightedCells(renderer)).toHaveLength(0);
+    expect(selectionRings(renderer)).toHaveLength(0);
+
+    // Same for a spectator view (no playerColor): only the side on turn moves.
+    const spectator = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="black" />,
+    );
+    await press(findPiece(spectator, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(highlightedCells(spectator)).toHaveLength(0);
+  });
+
+  it('clears the selection when the board prop changes', async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(highlightedCells(renderer)).toHaveLength(2);
+
+    // A new board instance (as after the server echoes a move) invalidates
+    // the selection even if the position is identical.
+    await renderer.update(<Board board={createTestBoard()} currentTurn="white" />);
+    expect(highlightedCells(renderer)).toHaveLength(0);
+    expect(selectionRings(renderer)).toHaveLength(0);
   });
 
   it('does not unselect when clicking another piece (selection moves)', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" />,
     );
-    const boardGroup = (renderer.scene as ReactThreeTestInstance)
-      .children[0] as ReactThreeTestInstance;
-    const pawns = boardGroup.children.filter(
-      (child) =>
-        (child.type === 'Mesh' || child.type === 'Group') &&
-        child.props.userData?.piece?.type === PieceType.Pawn,
-    ) as ReactThreeTestInstance[];
-    expect(pawns.length).toBeGreaterThan(1);
+    const first: Coord = { x: 0, y: 1, z: 1 };
+    const second: Coord = { x: 1, y: 1, z: 1 };
 
-    // Select the first pawn
-    await act(async () => {
-      pawns[0].props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
-    });
-    let highlightCount = (renderer.scene as ReactThreeTestInstance).findAll(
-      (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
-    ).length;
-    expect(highlightCount).toBeGreaterThan(0);
+    await press(findPiece(renderer, PieceType.Pawn, 'white', first));
+    expect(highlightedCells(renderer)).toHaveLength(2);
+    const [fx, fy, fz] = toWorld(first, 'white');
+    expect(selectionRings(renderer)[0].props.position).toEqual([fx, fy + CELL_FLOOR_Y, fz]);
 
-    // Select the second pawn
-    await act(async () => {
-      pawns[1].props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
-    });
-    // Highlights should still exist (selection moved, not cleared)
-    highlightCount = (renderer.scene as ReactThreeTestInstance).findAll(
-      (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
-    ).length;
-    expect(highlightCount).toBeGreaterThan(0);
+    await press(findPiece(renderer, PieceType.Pawn, 'white', second));
+    // Highlights still exist and now belong to the second pawn.
+    const highlighted = highlightedCells(renderer);
+    expect(highlighted).toHaveLength(2);
+    expect(
+      highlighted.some((c) => sameVec(c.props.position, toWorld({ x: 1, y: 2, z: 1 }, 'white'))),
+    ).toBe(true);
+    expect(selectionRings(renderer)).toHaveLength(1);
   });
 
   it('draws the selection ring on the floor the selected piece stands on', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" />,
     );
-    const boardGroup = (renderer.scene as ReactThreeTestInstance)
-      .children[0] as ReactThreeTestInstance;
-    const knight = boardGroup.children.find(
-      (child) =>
-        (child.type === 'Mesh' || child.type === 'Group') &&
-        child.props.userData?.piece?.type === PieceType.Knight,
-    ) as ReactThreeTestInstance;
-    expect(knight).toBeDefined();
+    const knight = findPiece(renderer, PieceType.Knight, 'white');
+    await press(knight);
 
-    await act(async () => {
-      knight.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
-    });
-
-    const rings = (renderer.scene as ReactThreeTestInstance).findAll(
-      (node) => node.props.userData?.selectionRing === true,
-    );
+    const rings = selectionRings(renderer);
     expect(rings).toHaveLength(1);
     // Same cell in x/z, and down at the piece's base rather than part-way up
     // its foot: PieceMesh seats the piece at the same CELL_FLOOR_Y offset.
@@ -226,24 +257,8 @@ describe('Board', () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={board} currentTurn="white" />,
     );
-    const boardGroup = (renderer.scene as ReactThreeTestInstance)
-      .children[0] as ReactThreeTestInstance;
-    const rook = boardGroup.children.find(
-      (child) =>
-        (child.type === 'Mesh' || child.type === 'Group') &&
-        child.props.userData?.piece?.type === PieceType.Rook,
-    ) as ReactThreeTestInstance;
-    const pawn = boardGroup.children.find(
-      (child) =>
-        (child.type === 'Mesh' || child.type === 'Group') &&
-        child.props.userData?.piece?.type === PieceType.Pawn,
-    ) as ReactThreeTestInstance;
-    expect(rook).toBeDefined();
-    expect(pawn).toBeDefined();
-
-    await act(async () => {
-      rook.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
-    });
+    const pawn = findPiece(renderer, PieceType.Pawn, 'black');
+    await press(findPiece(renderer, PieceType.Rook, 'white'));
 
     const rings = (renderer.scene as ReactThreeTestInstance).findAll(
       (node) => node.props.userData?.captureRing === true,
@@ -255,44 +270,62 @@ describe('Board', () => {
     expect(rings[0].props.position).toEqual([pawnPos[0], pawnPos[1] + CELL_FLOOR_Y, pawnPos[2]]);
   });
 
-  it('calls onMove when a move is made and reconciles with moves prop', async () => {
-    const onMove = vi.fn();
-    // Track moves for reconciliation
-    const board = createTestBoard();
+  it('calls onMove with the from/to of the clicked destination and clears the selection', async () => {
+    const onMove = vi.fn<(move: Move) => void>();
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board onMove={onMove} board={createTestBoard()} currentTurn="white" />,
+    );
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+
+    const forward: Coord = { x: 0, y: 2, z: 1 };
+    const dest = highlightedCells(renderer).find((c) =>
+      sameVec(c.props.position, toWorld(forward, 'white')),
+    )!;
+    expect(dest).toBeDefined();
+    await press(dest);
+
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onMove.mock.calls[0][0]).toEqual({
+      from: LEVEL_B_PAWN,
+      to: forward,
+      promotion: undefined,
+    });
+    // The board itself does not apply the move (state is event-sourced by the
+    // parent); it only drops the selection.
+    expect(highlightedCells(renderer)).toHaveLength(0);
+    expect(selectionRings(renderer)).toHaveLength(0);
+    expect(piecePositions(renderer, PieceType.Pawn, 'white')).toContainEqual(
+      toWorld(LEVEL_B_PAWN, 'white'),
+    );
+  });
+
+  it('defaults a promotion to Queen and offers the promotion square once', async () => {
+    const onMove = vi.fn<(move: Move) => void>();
+    const board = new EngineBoard();
+    const from: Coord = { x: 2, y: 3, z: 4 };
+    const to: Coord = { x: 2, y: 4, z: 4 }; // rank 5 on level E: White's promotion square
+    board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+    board.setPiece({ x: 4, y: 0, z: 0 }, { type: PieceType.King, color: 'black' });
+
     const renderer = await ReactThreeTestRenderer.create(
       <Board onMove={onMove} board={board} currentTurn="white" />,
     );
-    // Find a pawn
-    const boardGroup = (renderer.scene as ReactThreeTestInstance)
-      .children[0] as ReactThreeTestInstance;
-    const pawn = boardGroup.children.find(
-      (child) =>
-        (child.type === 'Mesh' || child.type === 'Group') &&
-        child.props.userData?.piece?.type === PieceType.Pawn,
-    ) as ReactThreeTestInstance;
-    // Select pawn
-    await act(async () => {
-      pawn.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
-    });
-    // Find a highlighted destination
-    const dest = (renderer.scene as ReactThreeTestInstance).findAll(
-      (node) => node.type === 'Mesh' && node.props.userData?.highlight === true,
-    )[0];
-    // Move pawn (local move)
-    await act(async () => {
-      dest.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
-    });
-    // onMove should be called
+    await press(findPiece(renderer, PieceType.Pawn, 'white'));
+
+    // Five promotion moves target the same cell; it is highlighted once.
+    const highlighted = highlightedCells(renderer);
+    expect(highlighted).toHaveLength(1);
+    expect(sameVec(highlighted[0].props.position, toWorld(to, 'white'))).toBe(true);
+
+    await press(highlighted[0]);
     expect(onMove).toHaveBeenCalledTimes(1);
-    // Board no longer reconciles with moves prop; parent is responsible
+    expect(onMove.mock.calls[0][0]).toEqual({ from, to, promotion: PieceType.Queen });
   });
 
-  it('renders king with emissive red when in check', async () => {
+  it('renders king with the check glow when in check', async () => {
     // Set up a board with black king in check from a white rook
     const board = new EngineBoard();
-    // Clear board
-    for (let z = 0; z < 5; z++)
-      for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) board.setPiece({ x, y, z }, null);
     // Place black king at (0,0,0), white rook at (0,4,0)
     board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'black' });
     board.setPiece({ x: 0, y: 4, z: 0 }, { type: PieceType.Rook, color: 'white' });
@@ -300,17 +333,8 @@ describe('Board', () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={board} currentTurn="black" />,
     );
-    // Find the king mesh
-    const kingMesh = (renderer.scene as ReactThreeTestInstance).find(
-      (node) =>
-        (node.type === 'Mesh' || node.type === 'Group') &&
-        node.props.userData?.piece?.type === PieceType.King &&
-        node.props.userData?.piece?.color === 'black',
-    );
-    expect(kingMesh).toBeDefined();
-    // Emissive should be included in userData of the king mesh
-    const emissive = kingMesh.props.userData.emissive;
-    expect(emissive === '#ff2222' || emissive === 0xff2222).toBe(true);
+    const king = findPiece(renderer, PieceType.King, 'black');
+    expect(king.props.userData.emissive).toBe(theme.check);
   });
 
   // The viewing player's own army must read the same way for both colours:
@@ -415,13 +439,13 @@ describe('Board', () => {
     const lastMove = (moveCount: number, capturedPiece: LastMoveInfo['capturedPiece'] = null) =>
       ({ move: { from: FROM, to: TO }, moveCount, capturedPiece }) as LastMoveInfo;
 
-    function findCells(renderer: { scene: unknown }, flag: 'lastMoveFrom' | 'lastMoveTo') {
+    function findCells(renderer: Renderer, flag: 'lastMoveFrom' | 'lastMoveTo') {
       return (renderer.scene as ReactThreeTestInstance).findAll(
         (node) => node.type === 'Mesh' && node.props.userData?.[flag] === true,
       );
     }
 
-    function glideGroups(renderer: { scene: unknown }) {
+    function glideGroups(renderer: Renderer) {
       return (renderer.scene as ReactThreeTestInstance).findAll(
         (node) => node.props.userData?.moveGlide === true,
       );
@@ -470,14 +494,7 @@ describe('Board', () => {
         />,
       );
 
-      const rook = (renderer.scene as ReactThreeTestInstance).find(
-        (node) =>
-          (node.type === 'Mesh' || node.type === 'Group') &&
-          node.props.userData?.piece?.type === PieceType.Rook,
-      );
-      await act(async () => {
-        rook.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
-      });
+      await press(findPiece(renderer, PieceType.Rook, 'white'));
 
       const cell = (renderer.scene as ReactThreeTestInstance)
         .findAll((node) => node.type === 'Mesh' && node.props.userData?.cube === true)
@@ -520,7 +537,7 @@ describe('Board', () => {
       await act(async () => {
         await renderer.advanceFrames(5, 0.03);
       });
-      expect(group.position.y).toBeCloseTo((fy - ty) / 2 + 0.2 * SPACING);
+      expect(group.position.y).toBeCloseTo((fy - ty) / 2 + MOVE_ANIMATION.liftWorld);
 
       // Past the duration: snapped home, resting position untouched
       await act(async () => {
