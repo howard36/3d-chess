@@ -24,7 +24,7 @@ pieces):
   step up (player's choice). Capture, relative to White: forward-up (0,+1,+1),
   forward-left/right (∓1,+1,0), up-left/right (∓1,0,+1). Promotes **only** on squares
   where both rank and level are maximal (White: rank 5 on level E) or minimal (Black:
-  rank 1 on level A), to Q/R/B/N/U (the UI currently auto-selects Queen).
+  rank 1 on level A), to Q/R/B/N/U (the player picks from a prompt).
 
 No castling. Check, checkmate, and stalemate work as in standard chess and are detected
 by the client engine. The starting position is defined in `Board.setupStartingPosition()`
@@ -229,8 +229,6 @@ Pages" check on pull requests.
 
 ## Known limitations (accepted for this project's scope)
 
-- Pawn promotion auto-selects Queen; the engine and protocol support underpromotion but
-  there is no picker UI.
 - The server doesn't detect checkmate/stalemate; game-over is decided independently by
   each client.
 - A WebSocket session is bounded by the Modal function timeout (1 hour). The client

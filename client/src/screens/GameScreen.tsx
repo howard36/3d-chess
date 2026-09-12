@@ -9,6 +9,7 @@ import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
 import EndGameModal from './EndGameModal';
 import MoveList from './MoveList';
+import PromotionPicker from './PromotionPicker';
 import { deriveHistory } from '../game/history';
 import type { GameHistory } from '../game/history';
 import { hasSessionSince, selectErrors, selectOpponentOnline, selectSeat } from '../game/session';
@@ -74,6 +75,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     !messages
       .slice(moveSent.index)
       .some((m) => m.type === 'move_made' || m.type === 'error' || m.type === 'game_state');
+
+  // The board takes no input while disconnected (a frozen snapshot), while a
+  // move awaits its echo, or when the record is broken.
+  const boardDisabled = status !== 'connected' || replayFailedAt !== null || awaitingMove;
+
+  // A pawn moved onto a promotion square: the legal moves for that square,
+  // one per piece, until the player picks one. The choices belong to the
+  // position they were made against, so they go away when it moves on or
+  // when the board stops taking input (a drop would otherwise leave a live
+  // dialog whose pick is silently discarded).
+  const [promotionChoices, setPromotionChoices] = React.useState<Move[] | null>(null);
+  React.useEffect(() => setPromotionChoices(null), [board, boardDisabled]);
 
   // Rejoin whenever a socket session opens without a server-side seat: on page
   // load with a stored role, and again after every mid-game reconnect (the
@@ -330,11 +343,22 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             currentTurn={currentTurn}
             playerColor={color} // Pass the determined player color
             onMove={handleMove}
+            onChoosePromotion={setPromotionChoices}
             lastMove={lastMove}
-            disabled={status !== 'connected' || replayFailedAt !== null || awaitingMove}
+            disabled={boardDisabled}
           />
           <OrbitControls makeDefault minDistance={6} maxDistance={25} />
         </Canvas>
+        {promotionChoices && !boardDisabled && (
+          <PromotionPicker
+            choices={promotionChoices}
+            onPick={(move) => {
+              setPromotionChoices(null);
+              handleMove(move);
+            }}
+            onCancel={() => setPromotionChoices(null)}
+          />
+        )}
         {reconnectingBanner}
         {replayErrorBanner}
         {errorBanner}
