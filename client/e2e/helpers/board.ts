@@ -56,13 +56,17 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
       const { camera, size, scene, raycaster } = (state.get ? state.get() : state) as {
         camera: { updateMatrixWorld(): void; [k: string]: unknown };
         size: { width: number; height: number };
-        scene: { children: Obj[] };
+        scene: { children: Obj[]; updateMatrixWorld(force: boolean): void };
         raycaster: {
           setFromCamera(ndc: { x: number; y: number }, camera: unknown): void;
           intersectObjects(objects: Obj[], recursive: boolean): { object: Obj }[];
         };
       };
+      // With a demand-driven frame loop, world matrices are only refreshed
+      // inside a render; a freshly committed piece or cell may not have had
+      // one yet, and Mesh.raycast reads matrixWorld directly.
       camera.updateMatrixWorld();
+      scene.updateMatrixWorld(true);
       const project = ([x, y, z]: number[]) => {
         const apply = (m: { elements: number[] }, [px, py, pz]: number[]) => {
           const e = m.elements;
@@ -95,6 +99,8 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
         return `${Object.keys(o.userData).join(',') || 'object'}@(${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)})`;
       };
       const blockers: string[] = [];
+      const canvasEl = document.querySelector('canvas');
+      if (!canvasEl) throw new Error('No canvas on the page');
       // Sample the centre first, then points spread inside the cell (the box
       // is 1 unit wide; spacing is a little more, so ±0.4 stays inside it).
       const offsets = [0, 0.4, -0.4];
@@ -110,9 +116,17 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
               if (first) break;
             }
             if (first && atTarget(first)) {
-              return {
-                pixel: { x: (nx * 0.5 + 0.5) * size.width, y: (-ny * 0.5 + 0.5) * size.height },
+              const pixel = {
+                x: (nx * 0.5 + 0.5) * size.width,
+                y: (-ny * 0.5 + 0.5) * size.height,
               };
+              // The HUD (turn indicator, move list, seat label) is HTML laid
+              // over the canvas and would swallow the click.
+              const rect = canvasEl.getBoundingClientRect();
+              const under = document.elementFromPoint(rect.left + pixel.x, rect.top + pixel.y);
+              if (under === canvasEl) return { pixel };
+              if (blockers.length < 4) blockers.push(`HUD <${under?.tagName.toLowerCase()}>`);
+              continue;
             }
             if (blockers.length < 4) blockers.push(first ? describe(first) : 'nothing');
           }

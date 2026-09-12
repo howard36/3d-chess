@@ -616,13 +616,7 @@ test('GameScreen frees the board after a reconnect, since the unanswered move wa
   // The socket dropped and reopened as session 2 before any answer came.
   rerender(gameScreenAt(fakeSocket(started, send, { status: 'reconnecting' })));
   rerender(
-    gameScreenAt(
-      fakeSocket(
-        [...started, { type: 'game_state', color: 'white', started: true, moves: [] }],
-        send,
-        { sessionId: 2, sessionStartIndex: started.length },
-      ),
-    ),
+    gameScreenAt(fakeSocket(started, send, { sessionId: 2, sessionStartIndex: started.length })),
   );
   expect(screen.getByTestId('board')).toBeEnabled();
 });

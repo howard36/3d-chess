@@ -22,8 +22,10 @@ test('a finished game shows the result and lets both players start over', async 
 
   const oldUrl = game.white.url();
   for (const page of [game.white, game.black]) {
-    await page.getByRole('button', { name: 'Start new game' }).click();
-    await expect(page.getByRole('button', { name: 'Start New Game' })).toBeVisible();
+    // Role names match case-insensitively, and the modal's button differs
+    // from the start screen's only by case.
+    await page.getByRole('button', { name: 'Start new game', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Start New Game', exact: true })).toBeVisible();
     // The bounce happened within the first render of the start screen; hold a
     // moment and make sure the page is still there and the old game is gone.
     await page.waitForTimeout(1000);
@@ -32,7 +34,7 @@ test('a finished game shows the result and lets both players start over', async 
   }
 
   // The session is fresh: creating a game from here starts a new one.
-  await game.white.getByRole('button', { name: 'Start New Game' }).click();
+  await game.white.getByRole('button', { name: 'Start New Game', exact: true }).click();
   await game.white.waitForURL(/\/game\/[A-Z0-9]+/);
   expect(game.white.url()).not.toBe(oldUrl);
   await expect(game.white.getByText('Game created! Share this link with a friend:')).toBeVisible();
