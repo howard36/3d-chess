@@ -43,9 +43,9 @@ export interface GameHistory {
    * Index of the first record this client could not replay, or null. The
    * server records any shape-valid, turn-correct move without checking
    * legality, so a buggy or version-skewed client can have written a move
-   * this engine can't apply (or one that leaves the position unprocessable,
-   * e.g. a captured king). Stopping there keeps the game viewable at the last
-   * good position instead of throwing mid-render.
+   * this engine can't apply, or one that captures a king and so leaves a
+   * position the rules can't evaluate. Stopping there keeps the game viewable
+   * at the last good position instead of throwing mid-render.
    */
   replayFailedAt: number | null;
   /** Null while the game is on, or when replay failed (the position shown is not final). */
@@ -114,27 +114,21 @@ export function deriveHistory(
   let replayFailedAt: number | null = null;
   for (let i = 0; i < moveRecords.length; i++) {
     try {
-      positions.push(positions[i].applyMove(moveFromMessage(moveRecords[i])));
+      const next = positions[i].applyMove(moveFromMessage(moveRecords[i]));
+      // The rules evaluate a position by finding each king (check detection),
+      // so a record that captured one is unplayable from that move on.
+      next.findKing('white');
+      next.findKing('black');
+      positions.push(next);
     } catch {
       replayFailedAt = i;
       break;
     }
   }
 
-  let gameOver: GameOver | null = null;
-  if (replayFailedAt === null) {
-    try {
-      gameOver = gameOverAt(positions[positions.length - 1], turnAfter(moveRecords.length));
-    } catch {
-      // The last applied move left a position the rules can't evaluate (no
-      // king to find): treat it like any other unplayable record.
-      replayFailedAt = positions.length - 2;
-      positions.pop();
-    }
-  }
-
   const appliedMoveCount = positions.length - 1;
   const board = positions[appliedMoveCount];
+  const gameOver = replayFailedAt === null ? gameOverAt(board, turnAfter(appliedMoveCount)) : null;
   let lastMove: LastMove | undefined;
   if (appliedMoveCount > 0) {
     // This record was applied successfully above, so converting it again can't throw.

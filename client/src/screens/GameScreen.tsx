@@ -54,15 +54,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const errors = React.useMemo(() => selectErrors(messages), [messages]);
 
   // The replayed game. deriveHistory hands back the previous object while the
-  // move record is unchanged, so a presence or error message neither replays
-  // the game nor gives the 3D board a new position (which would clear the
-  // player's selection).
+  // move record is unchanged (it memoizes itself through `prev`), so a
+  // presence or error message neither replays the game nor gives the 3D
+  // board a new position (which would clear the player's selection).
   const historyRef = React.useRef<GameHistory | null>(null);
-  const history = React.useMemo(() => {
-    const next = deriveHistory(messages, historyRef.current);
-    historyRef.current = next;
-    return next;
-  }, [messages]);
+  const history = deriveHistory(messages, historyRef.current);
+  historyRef.current = history;
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
 
   // Rejoin whenever a socket session opens without a server-side seat: on page

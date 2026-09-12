@@ -45,6 +45,12 @@ describe('selectSeat', () => {
     expect(seat.started).toBe(true);
     expect(
       selectSeat([
+        { type: 'game_state', color: 'white', started: true, moves: [] },
+        { type: 'game_start', color: 'black' },
+      ]).color,
+    ).toBe('black');
+    expect(
+      selectSeat([
         { type: 'game_joined', color: 'black' },
         { type: 'game_start', color: 'black' },
       ]).assigned,

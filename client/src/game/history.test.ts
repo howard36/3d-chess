@@ -198,6 +198,23 @@ describe('deriveHistory: unplayable records', () => {
     expect(h.gameOver).toBeNull();
   });
 
+  it('freezes at the capture even when the record continues past it', () => {
+    // Nothing later in the record can be trusted once a king is gone, and
+    // the side to move at the end may still have its king, so the check has
+    // to happen at the capturing move itself.
+    const h = deriveHistory([
+      snapshot([
+        { by: 'white', from: 'Aa2', to: 'Aa3' },
+        { by: 'black', from: 'Ed4', to: 'Ed3' },
+        { by: 'white', from: 'Bc1', to: 'Ec5' }, // captures the black king
+        { by: 'black', from: 'Ed3', to: 'Ed2' },
+      ]),
+    ]);
+    expect(h.replayFailedAt).toBe(2);
+    expect(h.appliedMoveCount).toBe(2);
+    expect(h.board.getPiece(fromZXY('Ec5'))).toEqual({ type: PieceType.King, color: 'black' });
+  });
+
   it('freezes at the start when the first record captures a king', () => {
     const h = deriveHistory([moveMade('white', 'Bc1', 'Ec5')]);
     expect(h.replayFailedAt).toBe(0);
