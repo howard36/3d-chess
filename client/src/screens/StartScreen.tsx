@@ -10,17 +10,22 @@ interface StartScreenProps {
 
 const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = React.useState(false);
+  const { messages, status } = gameSocket;
+  // Index into the message log at which this screen sent create_game, or
+  // null before the button is clicked. Only messages from there on are the
+  // reply to *this* request: when "Start new game" brings a player back here
+  // from a finished game, the log still holds that game's game_created for
+  // the first render (App resets the session in an effect, which runs after
+  // this screen's), and reacting to it would navigate straight back into the
+  // old game.
+  const [requestIndex, setRequestIndex] = React.useState<number | null>(null);
+  const replies = requestIndex === null ? [] : messages.slice(requestIndex);
 
-  const gameCreated = gameSocket.messages.find((m): m is GameCreated => m.type === 'game_created');
-  const errors = gameSocket.messages.filter((m): m is ServerError => m.type === 'error');
+  const gameCreated = replies.find((m): m is GameCreated => m.type === 'game_created');
+  const errors = replies.filter((m): m is ServerError => m.type === 'error');
   const latestError = errors.length > 0 ? errors[errors.length - 1] : null;
-  const { status } = gameSocket;
-
   // A server error is the reply to the create request; let the user try again.
-  React.useEffect(() => {
-    if (latestError) setIsLoading(false);
-  }, [latestError]);
+  const isLoading = requestIndex !== null && !gameCreated && !latestError;
 
   React.useEffect(() => {
     if (gameCreated) {
@@ -32,7 +37,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
   }, [gameCreated, navigate]);
 
   const handleCreateGame = () => {
-    setIsLoading(true);
+    setRequestIndex(messages.length);
     gameSocket.send({ type: 'create_game' });
   };
 
