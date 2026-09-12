@@ -95,6 +95,12 @@ export interface BoardProps {
   currentTurn: BoardTurn;
   playerColor?: 'white' | 'black' | null;
   onMove?: (move: Move) => void;
+  /**
+   * Called instead of onMove when the clicked destination is a promotion
+   * square, with one move per promotion piece, so the caller can ask the
+   * player which piece they want. Without it the board promotes to a Queen.
+   */
+  onChoosePromotion?: (choices: Move[]) => void;
   board: EngineBoard;
   lastMove?: LastMoveInfo;
   /** Freezes interaction (selection and moves) while still rendering the position. */
@@ -182,40 +188,15 @@ const Board = (props: BoardProps) => {
   // Handle highlighted cube click (move application)
   const handleCubePointerDown = (targetCoord: Coord) => {
     if (props.disabled || !selected) return;
+    // Several legal moves share a destination only when a pawn promotes there
+    // (one per promotion piece); otherwise there is exactly one.
+    const choices = legalMoves.filter((m) => coordEquals(m.to, targetCoord));
+    if (choices.length === 0) return; // Should not happen if cube is highlighted
 
-    // Find the specific move from legalMoves that matches the targetCoord
-    // This is important if there are multiple promotions to the same square.
-    // For simplicity, if it's a pawn promotion, we'll default to Queen for now if onMove is not defined,
-    // or expect onMove to handle the promotion choice if it is defined.
-    let moveToSend = legalMoves.find(
-      (m) => m.to.x === targetCoord.x && m.to.y === targetCoord.y && m.to.z === targetCoord.z,
-    );
-
-    if (!moveToSend) return; // Should not happen if cube is highlighted
-
-    const piece = board.getPiece(selected);
-    if (
-      piece &&
-      piece.type === PieceType.Pawn &&
-      board.isPromotionSquare(targetCoord, piece.color)
-    ) {
-      // If multiple promotion moves exist for this square, prioritize Queen or the first one.
-      // A better UI would let the user choose.
-      const promotionMoves = legalMoves.filter(
-        (m) =>
-          m.to.x === targetCoord.x &&
-          m.to.y === targetCoord.y &&
-          m.to.z === targetCoord.z &&
-          m.promotion,
-      );
-      if (promotionMoves.length > 0) {
-        moveToSend =
-          promotionMoves.find((m) => m.promotion === PieceType.Queen) || promotionMoves[0];
-      }
-    }
-
-    if (props.onMove) {
-      props.onMove(moveToSend);
+    if (choices.length > 1 && props.onChoosePromotion) {
+      props.onChoosePromotion(choices);
+    } else if (props.onMove) {
+      props.onMove(choices.find((m) => m.promotion === PieceType.Queen) ?? choices[0]);
     }
     // Clear selection and highlights
     setSelected(null);

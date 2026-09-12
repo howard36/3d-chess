@@ -352,6 +352,43 @@ describe('Board', () => {
     expect(onMove.mock.calls[0][0]).toEqual({ from, to, promotion: PieceType.Queen });
   });
 
+  it('hands the promotion choices to onChoosePromotion instead of picking for the player', async () => {
+    const onMove = vi.fn<(move: Move) => void>();
+    const onChoosePromotion = vi.fn<(choices: Move[]) => void>();
+    const board = new EngineBoard();
+    const from: Coord = { x: 2, y: 3, z: 4 };
+    const to: Coord = { x: 2, y: 4, z: 4 };
+    board.setPiece(from, { type: PieceType.Pawn, color: 'white' });
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+    board.setPiece({ x: 4, y: 0, z: 0 }, { type: PieceType.King, color: 'black' });
+
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board
+        onMove={onMove}
+        onChoosePromotion={onChoosePromotion}
+        board={board}
+        currentTurn="white"
+      />,
+    );
+    await press(findPiece(renderer, PieceType.Pawn, 'white'));
+    await press(highlightedCells(renderer)[0]);
+
+    expect(onMove).not.toHaveBeenCalled();
+    expect(onChoosePromotion).toHaveBeenCalledTimes(1);
+    const choices = onChoosePromotion.mock.calls[0][0];
+    expect(choices.map((m) => m.promotion)).toEqual([
+      PieceType.Queen,
+      PieceType.Rook,
+      PieceType.Bishop,
+      PieceType.Knight,
+      PieceType.Unicorn,
+    ]);
+    expect(choices.map((m) => m.to)).toEqual(choices.map(() => to));
+    expect(choices.map((m) => m.from)).toEqual(choices.map(() => from));
+    // The selection is cleared either way
+    expect(highlightedCells(renderer)).toHaveLength(0);
+  });
+
   it('renders king with the check glow when in check', async () => {
     // Set up a board with black king in check from a white rook
     const board = new EngineBoard();
