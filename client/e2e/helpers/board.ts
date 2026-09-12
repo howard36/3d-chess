@@ -25,12 +25,15 @@ export async function getPlayerColor(page: Page): Promise<Orientation> {
  * Black), so the pixel depends on which seat this page holds — pass the
  * colour from getPlayerColor.
  *
- * The world -> pixel projection runs in the page against the live camera
- * exposed by the Canvas onCreated hook in GameScreen.tsx, so it stays correct
- * if the camera moves or the default setup changes. Playwright can't pass a
- * three.js camera across the page boundary, and the page doesn't expose the
- * THREE namespace, so the projection (Vector3.project: world -> view ->
- * clip space) is spelled out as raw column-major matrix maths.
+ * The projection and the occlusion check run in the page against the live
+ * r3f state exposed by the Canvas onCreated hook in GameScreen.tsx, so they
+ * stay correct if the camera moves or the default setup changes. A 3D board
+ * is not a grid: the ray through a cell's centre often passes through another
+ * cell first, and if that cell is also a legal destination (or holds a piece)
+ * it takes the click, so the helper samples several points inside the target
+ * cell and uses the first one whose ray reaches the target before any other
+ * interactive object — mirroring how r3f dispatches to the nearest hit with a
+ * handler. It throws if no such point exists rather than clicking blindly.
  */
 export async function clickSquare(page: Page, zxy: string, seat: Orientation): Promise<void> {
   const world = toWorld(fromZXY(zxy), seat);
@@ -41,32 +44,78 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
       }
     ).__r3fState;
     if (!state) throw new Error('window.__r3fState missing — has the game Canvas mounted?');
+    type Obj = {
+      position: { x: number; y: number; z: number };
+      userData: Record<string, unknown>;
+      parent: Obj | null;
+      children: Obj[];
+    };
     // state.get() returns a fresh store snapshot (size changes on resize);
-    // the camera object itself is a live reference either way.
-    const { camera, size } = (state.get ? state.get() : state) as {
-      camera: {
-        updateMatrixWorld(): void;
-        matrixWorldInverse: { elements: number[] };
-        projectionMatrix: { elements: number[] };
-      };
+    // the camera and scene objects are live references either way.
+    const { camera, size, scene, raycaster } = (state.get ? state.get() : state) as {
+      camera: { updateMatrixWorld(): void; [k: string]: unknown };
       size: { width: number; height: number };
+      scene: { children: Obj[] };
+      raycaster: {
+        setFromCamera(ndc: { x: number; y: number }, camera: unknown): void;
+        intersectObjects(objects: Obj[], recursive: boolean): { object: Obj }[];
+      };
     };
     camera.updateMatrixWorld();
-    const applyMatrix4 = (m: { elements: number[] }, [x, y, z]: number[]) => {
-      const e = m.elements;
-      const w = e[3] * x + e[7] * y + e[11] * z + e[15];
-      return [
-        (e[0] * x + e[4] * y + e[8] * z + e[12]) / w,
-        (e[1] * x + e[5] * y + e[9] * z + e[13]) / w,
-        (e[2] * x + e[6] * y + e[10] * z + e[14]) / w,
-      ];
+    const project = ([x, y, z]: number[]) => {
+      const apply = (m: { elements: number[] }, [px, py, pz]: number[]) => {
+        const e = m.elements;
+        const w = e[3] * px + e[7] * py + e[11] * pz + e[15];
+        return [
+          (e[0] * px + e[4] * py + e[8] * pz + e[12]) / w,
+          (e[1] * px + e[5] * py + e[9] * pz + e[13]) / w,
+          (e[2] * px + e[6] * py + e[10] * pz + e[14]) / w,
+        ];
+      };
+      return apply(
+        camera.projectionMatrix as { elements: number[] },
+        apply(camera.matrixWorldInverse as { elements: number[] }, [x, y, z]),
+      );
     };
-    const ndc = applyMatrix4(
-      camera.projectionMatrix,
-      applyMatrix4(camera.matrixWorldInverse, [wx, wy, wz]),
-    );
-    return { x: (ndc[0] * 0.5 + 0.5) * size.width, y: (-ndc[1] * 0.5 + 0.5) * size.height };
+    const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+    const atTarget = (o: Obj) =>
+      near(o.position.x, wx) && near(o.position.y, wy) && near(o.position.z, wz);
+    // The object r3f would hand this hit to: a piece (its outer group carries
+    // the handler) or a destination cell; anything else is inert.
+    const interactive = (hit: Obj): Obj | null => {
+      for (let o: Obj | null = hit; o; o = o.parent) {
+        if (o.userData.piece) return o;
+        if (o.userData.cube) return o.userData.highlight ? o : null;
+      }
+      return null;
+    };
+    // Sample the centre first, then points spread inside the cell (the box
+    // is 1 unit wide; spacing is a little more, so ±0.4 stays inside it).
+    const offsets = [0, 0.4, -0.4];
+    for (const dx of offsets) {
+      for (const dy of offsets) {
+        for (const dz of offsets) {
+          const [nx, ny] = project([wx + dx, wy + dy, wz + dz]);
+          raycaster.setFromCamera({ x: nx, y: ny }, camera);
+          const hits = raycaster.intersectObjects(scene.children, true);
+          let first: Obj | null = null;
+          for (const hit of hits) {
+            first = interactive(hit.object);
+            if (first) break;
+          }
+          if (first && atTarget(first)) {
+            return { x: (nx * 0.5 + 0.5) * size.width, y: (-ny * 0.5 + 0.5) * size.height };
+          }
+        }
+      }
+    }
+    return null;
   }, world);
+  if (!pixel) {
+    throw new Error(
+      `No pixel reaches ${zxy} before another piece or destination from this camera angle`,
+    );
+  }
 
   const canvas = page.locator('canvas');
   const box = await canvas.boundingBox();

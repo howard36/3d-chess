@@ -35,6 +35,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // The socket session a rejoin_game was last sent on, so each fresh socket
   // (page load or mid-game reconnect) rejoins at most once.
   const rejoinSessionRef = React.useRef(0);
+  // Where in the log the last move was sent, and on which socket session.
+  // Until the server answers (the move_made echo, or an error), the board
+  // stays disabled so a quick second move can't be sent into a turn that is
+  // no longer ours. A drop before the answer frees it: the session changes,
+  // and the move was never delivered (useGameSocket drops queued moves).
+  const [moveSent, setMoveSent] = React.useState<{ sessionId: number; index: number } | null>(null);
 
   React.useEffect(() => {
     // Re-sync when the route's gameId changes (a different game's page)
@@ -61,6 +67,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const history = deriveHistory(messages, historyRef.current);
   historyRef.current = history;
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
+
+  const awaitingMove =
+    moveSent !== null &&
+    moveSent.sessionId === sessionId &&
+    !messages
+      .slice(moveSent.index)
+      .some((m) => m.type === 'move_made' || m.type === 'error' || m.type === 'game_state');
 
   // Rejoin whenever a socket session opens without a server-side seat: on page
   // load with a stored role, and again after every mid-game reconnect (the
@@ -122,9 +135,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // snapshot, so a move made against it is not sent (the Board is disabled
   // too — this is the backstop).
   const handleMove = (move: Move) => {
-    if (!gameId || status !== 'connected') return;
+    if (!gameId || status !== 'connected' || awaitingMove) return;
     // Only send move to server; the board updates when move_made comes back
     gameSocket.send(moveToMessage(move));
+    setMoveSent({ sessionId, index: messages.length });
   };
 
   // Send join_game when button is clicked
@@ -313,7 +327,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             playerColor={color} // Pass the determined player color
             onMove={handleMove}
             lastMove={lastMove}
-            disabled={status !== 'connected' || replayFailedAt !== null}
+            disabled={status !== 'connected' || replayFailedAt !== null || awaitingMove}
           />
           <OrbitControls makeDefault minDistance={6} maxDistance={25} />
         </Canvas>
