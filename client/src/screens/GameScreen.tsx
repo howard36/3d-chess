@@ -1,21 +1,17 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import Board, { BoardTurn, LastMoveInfo } from '../three/Board';
+import Board from '../three/Board';
 import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import TurnIndicator from '../three/TurnIndicator';
-import { Board as EngineBoard, Move } from '../engine';
-import { moveFromMessage, moveToMessage } from '../engine/protocol';
+import type { Move } from '../engine';
+import { moveToMessage } from '../engine/protocol';
 import EndGameModal from './EndGameModal';
 import MoveList from './MoveList';
-import type {
-  GameJoined,
-  GameStart,
-  GameState,
-  MoveMade,
-  Error as ServerError,
-} from '../types/messages';
+import { deriveHistory } from '../game/history';
+import type { GameHistory } from '../game/history';
+import { hasSessionSince, selectErrors, selectOpponentOnline, selectSeat } from '../game/session';
 import type { GameSocket } from '../hooks/useGameSocket';
 import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole';
 import { theme } from '../three/theme';
@@ -49,48 +45,25 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { messages, sessionId, sessionStartIndex, status } = gameSocket;
 
   // --- All game state is derived from the message log ---
-  const gameStart = React.useMemo(
-    () => messages.find((m): m is GameStart => m.type === 'game_start'),
-    [messages],
+  const seat = React.useMemo(() => selectSeat(messages), [messages]);
+  const { color } = seat;
+  const opponentOnline = React.useMemo(
+    () => selectOpponentOnline(messages, color),
+    [messages, color],
   );
-  // The server confirms a joiner's seat directly, before the game_start it
-  // broadcasts, so a drop between the two still leaves a rejoinable role.
-  const gameJoined = React.useMemo(
-    () => messages.find((m): m is GameJoined => m.type === 'game_joined'),
-    [messages],
-  );
-  // A game_state reply (rejoin) carries the same role/history information a
-  // live session accumulates from game_start + move_made messages. The LAST
-  // game_state wins: every reconnect replays the full history in a fresh
-  // snapshot that supersedes earlier ones, and only move_made messages after
-  // it are new — counting earlier ones again would duplicate moves.
-  const { gameState, moveRecords } = React.useMemo(() => {
-    let lastStateIndex = -1;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].type === 'game_state') {
-        lastStateIndex = i;
-        break;
-      }
-    }
-    const state = lastStateIndex >= 0 ? (messages[lastStateIndex] as GameState) : undefined;
-    const tail = messages
-      .slice(lastStateIndex + 1)
-      .filter((m): m is MoveMade => m.type === 'move_made');
-    return { gameState: state, moveRecords: [...(state?.moves ?? []), ...tail] };
-  }, [messages]);
-  const color = gameStart?.color ?? gameState?.color ?? gameJoined?.color ?? null;
+  const errors = React.useMemo(() => selectErrors(messages), [messages]);
 
-  // Whether the opponent is connected, from the latest presence message
-  // about them. The server sends one on every (re)join, so after a reconnect
-  // the newest message is current; null until the first one arrives.
-  const opponentOnline = React.useMemo<boolean | null>(() => {
-    if (!color) return null;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.type === 'presence' && m.color !== color) return m.online;
-    }
-    return null;
-  }, [messages, color]);
+  // The replayed game. deriveHistory hands back the previous object while the
+  // move record is unchanged, so a presence or error message neither replays
+  // the game nor gives the 3D board a new position (which would clear the
+  // player's selection).
+  const historyRef = React.useRef<GameHistory | null>(null);
+  const history = React.useMemo(() => {
+    const next = deriveHistory(messages, historyRef.current);
+    historyRef.current = next;
+    return next;
+  }, [messages]);
+  const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
 
   // Rejoin whenever a socket session opens without a server-side seat: on page
   // load with a stored role, and again after every mid-game reconnect (the
@@ -99,24 +72,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   React.useEffect(() => {
     if (!gameId || !storedRole || sessionId === 0) return;
     if (rejoinSessionRef.current === sessionId) return;
-    const hasSession = messages
-      .slice(sessionStartIndex)
-      .some(
-        (m) =>
-          m.type === 'game_created' ||
-          m.type === 'game_joined' ||
-          m.type === 'game_start' ||
-          m.type === 'game_state',
-      );
-    if (hasSession) return;
+    if (hasSessionSince(messages, sessionStartIndex)) return;
     rejoinSessionRef.current = sessionId;
     gameSocket.send({ type: 'rejoin_game', gameId, color: storedRole });
   }, [gameId, storedRole, messages, sessionId, sessionStartIndex, gameSocket]);
 
-  // The joiner learns their role from game_joined (or game_start, for a
-  // server that predates it); persist it immediately so they can rejoin
-  // later (idempotent for a creator who already stored it).
-  const assignedColor = gameJoined?.color ?? gameStart?.color;
+  // Persist the assigned role the moment the server confirms it, so the
+  // player can rejoin later (idempotent for a creator who already stored it).
+  const assignedColor = seat.assigned;
   React.useEffect(() => {
     if (gameId && assignedColor) {
       setStoredRole(gameId, assignedColor);
@@ -124,76 +87,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     }
   }, [gameId, assignedColor]);
 
-  // Replay the move log defensively: the server validates shape and turn
-  // order but not legality, so a buggy or version-skewed client can have
-  // written a move this engine can't apply. Stopping at the first bad move
-  // (instead of throwing mid-render) keeps the game viewable at the last
-  // good position rather than white-screening both players forever.
-  //
-  // prevBoard tracks the position before the most recently *applied* move
-  // (not necessarily the last record): it only advances alongside a
-  // successful applyMove, so on a mid-replay failure it still holds the
-  // board before the last good move rather than collapsing to `board`.
-  const { board, prevBoard, replayFailedAt } = React.useMemo(() => {
-    let b = EngineBoard.setupStartingPosition();
-    let beforeLastApplied = b;
-    for (let i = 0; i < moveRecords.length; i++) {
-      const before = b;
-      try {
-        b = b.applyMove(moveFromMessage(moveRecords[i]));
-        beforeLastApplied = before;
-      } catch {
-        return { board: b, prevBoard: beforeLastApplied, replayFailedAt: i };
-      }
-    }
-    return { board: b, prevBoard: beforeLastApplied, replayFailedAt: null };
-  }, [moveRecords]);
-
-  // White moves first; turn alternates with each *applied* move, so a frozen
-  // board's indicator matches the position actually shown.
-  const appliedMoveCount = replayFailedAt ?? moveRecords.length;
-  const currentTurn: BoardTurn = appliedMoveCount % 2 === 0 ? 'white' : 'black';
-
-  // The most recent applied move, for the board's highlight/animation and the
-  // captured-piece ghost. moveRecords[appliedMoveCount - 1] is always one of
-  // the records the replay above already applied successfully, so converting
-  // it again here can't throw.
-  const lastMoveInfo = React.useMemo<LastMoveInfo | undefined>(() => {
-    if (appliedMoveCount === 0) return undefined;
-    const move = moveFromMessage(moveRecords[appliedMoveCount - 1]);
-    return { move, moveCount: appliedMoveCount, capturedPiece: prevBoard.getPiece(move.to) };
-  }, [moveRecords, appliedMoveCount, prevBoard]);
-
-  const gameOver = React.useMemo((): null | {
-    result: 'checkmate' | 'stalemate';
-    winner?: 'white' | 'black';
-  } => {
-    if (replayFailedAt !== null) return null;
-    if (board.isCheckmate(currentTurn)) {
-      return { result: 'checkmate', winner: currentTurn === 'white' ? 'black' : 'white' };
-    }
-    if (board.isStalemate(currentTurn)) {
-      return { result: 'stalemate' };
-    }
-    return null;
-  }, [board, currentTurn, replayFailedAt]);
-
-  const errors = React.useMemo(
-    () => messages.filter((m): m is ServerError => m.type === 'error'),
-    [messages],
-  );
   const latestError = errors.length > dismissedErrorCount ? errors[errors.length - 1] : null;
 
   // A failed join (bad game id, game full) returns the user to the join button
   React.useEffect(() => {
     if (
       joinRequested &&
-      !gameStart &&
+      !seat.started &&
       errors.some((e) => e.code === 'invalid_game' || e.code === 'game_full')
     ) {
       setJoinRequested(false);
     }
-  }, [errors, gameStart, joinRequested]);
+  }, [errors, seat.started, joinRequested]);
 
   // A failed rejoin means the stored role is stale (the game expired or the
   // seat was never claimed): forget it and fall back to the join button.
@@ -201,21 +106,20 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     if (
       gameId &&
       storedRole &&
-      !gameStart &&
-      !gameState &&
+      !seat.started &&
+      !history.snapshot &&
       errors.some((e) => e.code === 'invalid_rejoin' || e.code === 'invalid_game')
     ) {
       clearStoredRole(gameId);
       setStoredRoleState(null);
     }
-  }, [errors, gameId, storedRole, gameStart, gameState]);
+  }, [errors, gameId, storedRole, seat.started, history.snapshot]);
 
-  const phase: Phase =
-    gameStart || gameState?.started
-      ? 'started'
-      : joinRequested || gameJoined
-        ? 'joined'
-        : 'waiting';
+  const phase: Phase = seat.started
+    ? 'started'
+    : joinRequested || seat.joined
+      ? 'joined'
+      : 'waiting';
 
   // Send move message on local move. While disconnected the board is a frozen
   // snapshot, so a move made against it is not sent (the Board is disabled
@@ -411,7 +315,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             currentTurn={currentTurn}
             playerColor={color} // Pass the determined player color
             onMove={handleMove}
-            lastMove={lastMoveInfo}
+            lastMove={lastMove}
             disabled={status !== 'connected' || replayFailedAt !== null}
           />
           <OrbitControls makeDefault minDistance={6} maxDistance={25} />
