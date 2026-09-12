@@ -1,14 +1,6 @@
-import { Board, Move } from './board';
+import { ALL_PROMOTION_TYPES, Board, Move } from './board';
 import { PieceType } from './pieces';
 import { Coord } from './coords';
-
-const ALL_PROMOTION_TYPES = [
-  PieceType.Queen,
-  PieceType.Rook,
-  PieceType.Bishop,
-  PieceType.Knight,
-  PieceType.Unicorn,
-];
 
 describe('Board move generation', () => {
   it('rook from center has 6 ray directions, each up to 2 squares', () => {
@@ -941,5 +933,180 @@ describe('isSquareAttacked on arbitrary squares (generateAttackedSquares)', () =
     board.setPiece({ x: 0, y: 3, z: 2 }, { type: PieceType.King, color: B });
     const kingMoves = board.generateLegalMoves({ x: 0, y: 3, z: 2 });
     expect(kingMoves.some((m) => m.to.x === 0 && m.to.y === 2 && m.to.z === 2)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rules that were previously untested: black promotion generation, capture
+// removal in applyMove, promotion legality filtering, and stalemate vs check.
+// ---------------------------------------------------------------------------
+
+const WHITE = 'white' as const;
+const BLACK = 'black' as const;
+
+const countPieces = (board: Board) => ALL_CELLS.filter((c) => board.getPiece(c) !== null).length;
+
+describe('Black pawn promotion generation onto (x,0,0)', () => {
+  const promotionSquare: Coord = { x: 2, y: 0, z: 0 };
+
+  it('a pawn on (x,1,1) promotes onto (x,0,0) only by capturing along the forward-down diagonal', () => {
+    const from: Coord = { x: 2, y: 1, z: 1 };
+    const board = lone(PieceType.Pawn, from, BLACK);
+
+    // (2,0,0) is a capture square for this pawn, not a step square: with it
+    // empty there is no promotion at all, only the two quiet steps.
+    const quiet = board.generatePotentialMoves(from);
+    expect(quiet).toHaveLength(2);
+    expect(quiet.every((m) => m.promotion === undefined)).toBe(true);
+    expect(destinationKeys(quiet)).toEqual(
+      new Set([key({ x: 2, y: 0, z: 1 }), key({ x: 2, y: 1, z: 0 })]),
+    );
+
+    board.setPiece(promotionSquare, { type: PieceType.Rook, color: WHITE });
+    const moves = board.generatePotentialMoves(from);
+    const promotions = moves.filter((m) => key(m.to) === key(promotionSquare));
+    expect(promotions).toHaveLength(ALL_PROMOTION_TYPES.length);
+    expect(new Set(promotions.map((m) => m.promotion))).toEqual(new Set(ALL_PROMOTION_TYPES));
+    // The two quiet steps are still there, unpromoted.
+    expect(moves).toHaveLength(2 + ALL_PROMOTION_TYPES.length);
+    expect(moves.filter((m) => m.promotion === undefined)).toHaveLength(2);
+  });
+
+  it('a pawn stepping forward from (x,1,0) or down from (x,0,1) promotes onto (x,0,0)', () => {
+    for (const from of [
+      { x: 2, y: 1, z: 0 },
+      { x: 2, y: 0, z: 1 },
+    ]) {
+      const moves = lone(PieceType.Pawn, from, BLACK).generatePotentialMoves(from);
+      // The other step and every capture square are off the board or empty,
+      // so the five promotion steps are the only moves.
+      expect(moves).toHaveLength(ALL_PROMOTION_TYPES.length);
+      for (const promotion of ALL_PROMOTION_TYPES) {
+        expect(moves).toContainEqual({ from, to: promotionSquare, promotion });
+      }
+    }
+  });
+
+  it('a pawn capturing sideways from (x+1,1,0) promotes onto (x,0,0)', () => {
+    const from: Coord = { x: 3, y: 1, z: 0 };
+    const board = lone(PieceType.Pawn, from, BLACK);
+    board.setPiece(promotionSquare, { type: PieceType.Knight, color: WHITE });
+    const captures = board
+      .generatePotentialMoves(from)
+      .filter((m) => key(m.to) === key(promotionSquare));
+    expect(captures).toHaveLength(ALL_PROMOTION_TYPES.length);
+    expect(new Set(captures.map((m) => m.promotion))).toEqual(new Set(ALL_PROMOTION_TYPES));
+  });
+});
+
+describe('applyMove captures', () => {
+  it('removes the captured piece and leaves the mover on the destination', () => {
+    const board = new Board();
+    const from: Coord = { x: 0, y: 0, z: 0 };
+    const to: Coord = { x: 0, y: 0, z: 3 };
+    board.setPiece(from, { type: PieceType.Rook, color: WHITE });
+    board.setPiece(to, { type: PieceType.Knight, color: BLACK });
+    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: WHITE });
+    board.setPiece({ x: 4, y: 0, z: 4 }, { type: PieceType.King, color: BLACK });
+    expect(countPieces(board)).toBe(4);
+
+    const after = board.applyMove({ from, to });
+
+    expect(countPieces(after)).toBe(3);
+    expect(after.getPiece(from)).toBeNull();
+    expect(after.getPiece(to)).toEqual({ type: PieceType.Rook, color: WHITE });
+    // The captured knight is gone from the board entirely, not just moved.
+    const blackKnights = ALL_CELLS.filter((c) => {
+      const p = after.getPiece(c);
+      return p !== null && p.color === BLACK && p.type === PieceType.Knight;
+    });
+    expect(blackKnights).toHaveLength(0);
+    // applyMove returns a new board; the original still has the knight.
+    expect(countPieces(board)).toBe(4);
+    expect(board.getPiece(to)).toEqual({ type: PieceType.Knight, color: BLACK });
+  });
+});
+
+describe('generateLegalMoves filters promotions that leave the king in check', () => {
+  // White rook at (0,0,0) checks the black king at (0,0,3) along the level
+  // axis. The black pawn at (1,1,0) can either step forward to (1,0,0) --
+  // a promotion that does nothing about the check -- or capture the rook on
+  // (0,0,0), a promotion that resolves it.
+  const pawn: Coord = { x: 1, y: 1, z: 0 };
+  const rook: Coord = { x: 0, y: 0, z: 0 };
+  const step: Coord = { x: 1, y: 0, z: 0 };
+
+  const position = () => {
+    const board = new Board();
+    board.setPiece(rook, { type: PieceType.Rook, color: WHITE });
+    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: WHITE });
+    board.setPiece({ x: 0, y: 0, z: 3 }, { type: PieceType.King, color: BLACK });
+    board.setPiece(pawn, { type: PieceType.Pawn, color: BLACK });
+    return board;
+  };
+
+  it('generates both promotion sets as potential moves', () => {
+    const potential = position().generatePotentialMoves(pawn);
+    expect(potential).toHaveLength(2 * ALL_PROMOTION_TYPES.length);
+    expect(potential.filter((m) => key(m.to) === key(step))).toHaveLength(
+      ALL_PROMOTION_TYPES.length,
+    );
+    expect(potential.filter((m) => key(m.to) === key(rook))).toHaveLength(
+      ALL_PROMOTION_TYPES.length,
+    );
+  });
+
+  it('keeps every promotion that captures the checking rook and drops every quiet promotion', () => {
+    const board = position();
+    expect(board.inCheck(BLACK)).toBe(true);
+
+    const legal = board.generateLegalMoves(pawn);
+    expect(legal).toHaveLength(ALL_PROMOTION_TYPES.length);
+    expect(legal.every((m) => key(m.to) === key(rook))).toBe(true);
+    expect(new Set(legal.map((m) => m.promotion))).toEqual(new Set(ALL_PROMOTION_TYPES));
+    for (const promotion of ALL_PROMOTION_TYPES) {
+      expect(legal).not.toContainEqual({ from: pawn, to: step, promotion });
+      // Sanity: the filtered step really does leave black in check, and the
+      // kept capture really does not.
+      expect(board.applyMove({ from: pawn, to: step, promotion }).inCheck(BLACK)).toBe(true);
+      expect(board.applyMove({ from: pawn, to: rook, promotion }).inCheck(BLACK)).toBe(false);
+    }
+  });
+});
+
+describe('isStalemate', () => {
+  it('is false in a mate position: no legal moves but the side to move is in check', () => {
+    const board = new Board();
+    board.setPiece({ x: 4, y: 4, z: 3 }, { type: PieceType.Queen, color: WHITE });
+    board.setPiece({ x: 4, y: 4, z: 2 }, { type: PieceType.Rook, color: WHITE });
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: WHITE });
+    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: BLACK });
+
+    expect(board.generateAllLegalMoves(BLACK)).toHaveLength(0);
+    expect(board.inCheck(BLACK)).toBe(true);
+    expect(board.isCheckmate(BLACK)).toBe(true);
+    expect(board.isStalemate(BLACK)).toBe(false);
+  });
+
+  it('is false when the side to move is not in check but still has a legal move', () => {
+    // The stalemate box from above, plus one black pawn with a free step down.
+    const board = new Board();
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: BLACK });
+    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: WHITE });
+    board.setPiece({ x: 1, y: 1, z: 0 }, { type: PieceType.Rook, color: WHITE });
+    board.setPiece({ x: 1, y: 0, z: 1 }, { type: PieceType.Rook, color: WHITE });
+    board.setPiece({ x: 0, y: 1, z: 1 }, { type: PieceType.Rook, color: WHITE });
+    board.setPiece({ x: 1, y: 1, z: 1 }, { type: PieceType.Rook, color: WHITE });
+    expect(board.isStalemate(BLACK)).toBe(true);
+
+    const pawn: Coord = { x: 4, y: 0, z: 4 };
+    board.setPiece(pawn, { type: PieceType.Pawn, color: BLACK });
+
+    expect(board.inCheck(BLACK)).toBe(false);
+    expect(board.generateAllLegalMoves(BLACK)).toEqual([
+      { from: pawn, to: { x: 4, y: 0, z: 3 }, promotion: undefined },
+    ]);
+    expect(board.isStalemate(BLACK)).toBe(false);
+    expect(board.isCheckmate(BLACK)).toBe(false);
   });
 });

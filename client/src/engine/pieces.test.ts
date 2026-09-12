@@ -20,8 +20,10 @@ describe('PieceType enum', () => {
 });
 
 describe('Movement vectors', () => {
-  it('rook vectors are non-empty and length 6', () => {
-    expect(ROOK_VECTORS.length).toBe(6);
+  it('rook vectors are exactly the six unit axis vectors', () => {
+    const expected = new Set(['1,0,0', '-1,0,0', '0,1,0', '0,-1,0', '0,0,1', '0,0,-1']);
+    expect(new Set(ROOK_VECTORS.map((v) => v.join()))).toEqual(expected);
+    expect(ROOK_VECTORS).toHaveLength(6); // no duplicates
   });
   it('bishop vectors are non-empty and length 12', () => {
     expect(BISHOP_VECTORS.length).toBe(12);
