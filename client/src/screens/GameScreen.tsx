@@ -9,7 +9,13 @@ import { Board as EngineBoard, Move } from '../engine';
 import { moveFromMessage, moveToMessage } from '../engine/protocol';
 import EndGameModal from './EndGameModal';
 import MoveList from './MoveList';
-import type { GameStart, GameState, MoveMade, Error as ServerError } from '../types/messages';
+import type {
+  GameJoined,
+  GameStart,
+  GameState,
+  MoveMade,
+  Error as ServerError,
+} from '../types/messages';
 import type { GameSocket } from '../hooks/useGameSocket';
 import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole';
 import { theme } from '../three/theme';
@@ -47,6 +53,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     () => messages.find((m): m is GameStart => m.type === 'game_start'),
     [messages],
   );
+  // The server confirms a joiner's seat directly, before the game_start it
+  // broadcasts, so a drop between the two still leaves a rejoinable role.
+  const gameJoined = React.useMemo(
+    () => messages.find((m): m is GameJoined => m.type === 'game_joined'),
+    [messages],
+  );
   // A game_state reply (rejoin) carries the same role/history information a
   // live session accumulates from game_start + move_made messages. The LAST
   // game_state wins: every reconnect replays the full history in a fresh
@@ -66,7 +78,19 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       .filter((m): m is MoveMade => m.type === 'move_made');
     return { gameState: state, moveRecords: [...(state?.moves ?? []), ...tail] };
   }, [messages]);
-  const color = gameStart?.color ?? gameState?.color ?? null;
+  const color = gameStart?.color ?? gameState?.color ?? gameJoined?.color ?? null;
+
+  // Whether the opponent is connected, from the latest presence message
+  // about them. The server sends one on every (re)join, so after a reconnect
+  // the newest message is current; null until the first one arrives.
+  const opponentOnline = React.useMemo<boolean | null>(() => {
+    if (!color) return null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.type === 'presence' && m.color !== color) return m.online;
+    }
+    return null;
+  }, [messages, color]);
 
   // Rejoin whenever a socket session opens without a server-side seat: on page
   // load with a stored role, and again after every mid-game reconnect (the
@@ -77,20 +101,28 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     if (rejoinSessionRef.current === sessionId) return;
     const hasSession = messages
       .slice(sessionStartIndex)
-      .some((m) => m.type === 'game_created' || m.type === 'game_start' || m.type === 'game_state');
+      .some(
+        (m) =>
+          m.type === 'game_created' ||
+          m.type === 'game_joined' ||
+          m.type === 'game_start' ||
+          m.type === 'game_state',
+      );
     if (hasSession) return;
     rejoinSessionRef.current = sessionId;
     gameSocket.send({ type: 'rejoin_game', gameId, color: storedRole });
   }, [gameId, storedRole, messages, sessionId, sessionStartIndex, gameSocket]);
 
-  // The joiner learns their role from game_start; persist it immediately so
-  // they can rejoin later (idempotent for a creator who already stored it).
+  // The joiner learns their role from game_joined (or game_start, for a
+  // server that predates it); persist it immediately so they can rejoin
+  // later (idempotent for a creator who already stored it).
+  const assignedColor = gameJoined?.color ?? gameStart?.color;
   React.useEffect(() => {
-    if (gameId && gameStart) {
-      setStoredRole(gameId, gameStart.color);
-      setStoredRoleState(gameStart.color);
+    if (gameId && assignedColor) {
+      setStoredRole(gameId, assignedColor);
+      setStoredRoleState(assignedColor);
     }
-  }, [gameId, gameStart]);
+  }, [gameId, assignedColor]);
 
   // Replay the move log defensively: the server validates shape and turn
   // order but not legality, so a buggy or version-skewed client can have
@@ -179,7 +211,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   }, [errors, gameId, storedRole, gameStart, gameState]);
 
   const phase: Phase =
-    gameStart || gameState?.started ? 'started' : joinRequested ? 'joined' : 'waiting';
+    gameStart || gameState?.started
+      ? 'started'
+      : joinRequested || gameJoined
+        ? 'joined'
+        : 'waiting';
 
   // Send move message on local move. While disconnected the board is a frozen
   // snapshot, so a move made against it is not sent (the Board is disabled
@@ -334,6 +370,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             }}
           >
             You are playing as {color}.
+            {opponentOnline !== null && (
+              <div
+                data-testid="opponent-presence"
+                style={{ marginTop: 4, fontSize: 13, opacity: 0.85 }}
+              >
+                Opponent: {opponentOnline ? 'online' : 'offline'}
+              </div>
+            )}
           </div>
         )}
         {/* Turn indicator */}

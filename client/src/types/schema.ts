@@ -9,11 +9,13 @@ export type WebSocketV1MessageEnvelope =
   | CreateGame
   | GameCreated
   | JoinGame
+  | GameJoined
   | RejoinGame
   | GameStart
   | GameState
   | Move
   | MoveMade
+  | Presence
   | Error;
 export type Color = "white" | "black";
 export type Promotion = "Q" | "R" | "B" | "N" | "U";
@@ -38,6 +40,10 @@ export interface GameCreated {
 export interface JoinGame {
   type: "join_game";
   gameId: string;
+}
+export interface GameJoined {
+  type: "game_joined";
+  color: Color;
 }
 export interface RejoinGame {
   type: "rejoin_game";
@@ -72,6 +78,11 @@ export interface MoveMade {
   from: string;
   to: string;
   promotion?: Promotion;
+}
+export interface Presence {
+  type: "presence";
+  color: Color;
+  online: boolean;
 }
 export interface Error {
   type: "error";

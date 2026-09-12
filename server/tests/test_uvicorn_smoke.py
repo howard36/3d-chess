@@ -28,10 +28,13 @@ async def test_create_join_move_roundtrip(ws_connect):
     assert created["type"] == "game_created"
 
     await ws2.send(json.dumps({"type": "join_game", "gameId": created["gameId"]}))
+    assert json.loads(await ws2.recv())["type"] == "game_joined"
     start1 = json.loads(await ws1.recv())
     start2 = json.loads(await ws2.recv())
     assert {start1["type"], start2["type"]} == {"game_start"}
     assert {start1["color"], start2["color"]} == {"white", "black"}
+    assert json.loads(await ws1.recv())["type"] == "presence"
+    assert json.loads(await ws2.recv())["type"] == "presence"
     white_ws, black_ws = (ws1, ws2) if start1["color"] == "white" else (ws2, ws1)
 
     await white_ws.send(json.dumps({"type": "move", "from": "Aa2", "to": "Aa3"}))

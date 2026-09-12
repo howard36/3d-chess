@@ -5,11 +5,13 @@
     { "$ref": "#/definitions/create_game" },
     { "$ref": "#/definitions/game_created" },
     { "$ref": "#/definitions/join_game" },
+    { "$ref": "#/definitions/game_joined" },
     { "$ref": "#/definitions/rejoin_game" },
     { "$ref": "#/definitions/game_start" },
     { "$ref": "#/definitions/game_state" },
     { "$ref": "#/definitions/move" },
     { "$ref": "#/definitions/move_made" },
+    { "$ref": "#/definitions/presence" },
     { "$ref": "#/definitions/error" }
   ],
   "definitions": {
@@ -52,6 +54,15 @@
         "gameId": { "type": "string" }
       },
       "required": ["type", "gameId"],
+      "additionalProperties": false
+    },
+    "game_joined": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "game_joined" },
+        "color": { "$ref": "#/definitions/color" }
+      },
+      "required": ["type", "color"],
       "additionalProperties": false
     },
     "rejoin_game": {
@@ -116,6 +127,16 @@
         "promotion": { "$ref": "#/definitions/promotion" }
       },
       "required": ["type", "by", "from", "to"],
+      "additionalProperties": false
+    },
+    "presence": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "presence" },
+        "color": { "$ref": "#/definitions/color" },
+        "online": { "type": "boolean" }
+      },
+      "required": ["type", "color", "online"],
       "additionalProperties": false
     },
     "error": {

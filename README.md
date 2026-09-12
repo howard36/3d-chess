@@ -118,7 +118,9 @@ App code imports the TypeScript types via the thin re-export layer
 Message flow, happy path:
 
 1. Creator: `create_game` → `game_created {gameId, color}` (creator's color is random).
-2. Joiner opens `/game/:gameId`, sends `join_game` → both players get `game_start {color}`.
+2. Joiner opens `/game/:gameId`, sends `join_game` → the joiner gets `game_joined {color}`
+   (its seat, confirmed before anything is broadcast, so a drop right after is still
+   rejoinable), then both players get `game_start {color}`.
 3. Moves: `move {from, to, promotion?}` → server checks turn parity → `move_made` to both.
 4. Reload/rejoin: `rejoin_game {gameId, color}` → `game_state {color, started, moves}`.
    If another socket already held that seat, the server closes it with WebSocket close
@@ -126,6 +128,11 @@ Message flow, happy path:
    "stop reconnecting": it shows a _this game is open in another tab_ notice with a button
    that rejoins and takes the seat back, instead of retrying and evicting the newer tab in
    turn. Any other close is a network fault and is retried with backoff.
+5. Presence: after a join or rejoin the server sends each player
+   `presence {color: <opponent>, online}` for the opponent's current state, and tells the
+   opponent the player is online; when a player's live socket drops it tells the opponent
+   `online: false`. A replaced socket's late disconnect is not a departure. The client shows
+   "Opponent: online/offline" from the latest presence message about the opponent.
 
 Coordinates on the wire use the display notation described below (e.g. `"Aa1"`).
 
