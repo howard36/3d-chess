@@ -391,6 +391,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
           data-testid="r3f-canvas"
           style={{ height: '100%', width: '100%' }}
           camera={{ position: [6.5, 5, 8.5], fov: 40 }}
+          // A chess position is static: render only when something changes.
+          // React commits and OrbitControls invalidate on their own; the move
+          // animations (three/moveAnimation.tsx) request frames while they run.
+          frameloop="demand"
           // Test hook: r3f v9 no longer exposes its store on the canvas
           // element, so drivers (e2e/helpers/board.ts) read the live camera
           // here to project board cells to pixels — correct even after the

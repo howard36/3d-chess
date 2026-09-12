@@ -115,6 +115,35 @@ describe('Board', () => {
     expect(cubeCount).toBe(125);
   });
 
+  it('draws only filled cells and keeps the rest as invisible raycast targets', async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
+    type CellMesh = { visible: boolean; geometry: unknown; material: unknown };
+    const cells = () =>
+      (renderer.scene as ReactThreeTestInstance)
+        .findAll((node) => node.type === 'Mesh' && node.props.userData?.cube === true)
+        .map((node) => node.instance as unknown as CellMesh);
+
+    // Nothing to draw yet: no cell is visible, they all share one geometry and
+    // one material, and none has opted out of raycasting (a click on any of
+    // them must still reach the board group to clear a selection).
+    const idle = cells();
+    expect(idle).toHaveLength(125);
+    expect(idle.every((cell) => cell.visible === false)).toBe(true);
+    expect(new Set(idle.map((cell) => cell.geometry)).size).toBe(1);
+    expect(new Set(idle.map((cell) => cell.material)).size).toBe(1);
+    expect(idle.some((cell) => Object.prototype.hasOwnProperty.call(cell, 'raycast'))).toBe(false);
+
+    // Selecting a piece draws exactly its destination cells.
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    const drawn = cells().filter((cell) => cell.visible);
+    expect(drawn).toHaveLength(2);
+    expect(
+      highlightedCells(renderer).map((c) => (c.instance as unknown as CellMesh).visible),
+    ).toEqual([true, true]);
+  });
+
   it('renders 40 piece meshes', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" />,

@@ -149,14 +149,17 @@ const pieceBody = (type: PieceType, color: PieceColor, emissive?: string | numbe
   }
 };
 
-export const PieceMesh: React.FC<PieceMeshProps> = ({
+// Memoized: a piece is up to 13 meshes, and the board re-renders on every
+// selection change and incoming message. Board passes referentially stable
+// position arrays and handlers so the shallow comparison actually skips.
+export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh({
   type,
   color,
   emissive,
   position,
   onPointerDown,
   ...rest
-}) => {
+}) {
   const body = pieceBody(type, color, emissive);
   if (body === null) return null;
 
@@ -181,4 +184,4 @@ export const PieceMesh: React.FC<PieceMeshProps> = ({
       </group>
     </group>
   );
-};
+});
