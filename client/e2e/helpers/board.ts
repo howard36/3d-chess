@@ -37,83 +37,103 @@ export async function getPlayerColor(page: Page): Promise<Orientation> {
  */
 export async function clickSquare(page: Page, zxy: string, seat: Orientation): Promise<void> {
   const world = toWorld(fromZXY(zxy), seat);
-  const pixel = await page.evaluate(([wx, wy, wz]) => {
-    const state = (
-      window as Window & {
-        __r3fState?: { get?: () => unknown } & Record<string, unknown>;
-      }
-    ).__r3fState;
-    if (!state) throw new Error('window.__r3fState missing — has the game Canvas mounted?');
-    type Obj = {
-      position: { x: number; y: number; z: number };
-      userData: Record<string, unknown>;
-      parent: Obj | null;
-      children: Obj[];
-    };
-    // state.get() returns a fresh store snapshot (size changes on resize);
-    // the camera and scene objects are live references either way.
-    const { camera, size, scene, raycaster } = (state.get ? state.get() : state) as {
-      camera: { updateMatrixWorld(): void; [k: string]: unknown };
-      size: { width: number; height: number };
-      scene: { children: Obj[] };
-      raycaster: {
-        setFromCamera(ndc: { x: number; y: number }, camera: unknown): void;
-        intersectObjects(objects: Obj[], recursive: boolean): { object: Obj }[];
+  const locate = () =>
+    page.evaluate(([wx, wy, wz]) => {
+      const state = (
+        window as Window & {
+          __r3fState?: { get?: () => unknown } & Record<string, unknown>;
+        }
+      ).__r3fState;
+      if (!state) throw new Error('window.__r3fState missing — has the game Canvas mounted?');
+      type Obj = {
+        position: { x: number; y: number; z: number };
+        userData: Record<string, unknown>;
+        parent: Obj | null;
+        children: Obj[];
       };
-    };
-    camera.updateMatrixWorld();
-    const project = ([x, y, z]: number[]) => {
-      const apply = (m: { elements: number[] }, [px, py, pz]: number[]) => {
-        const e = m.elements;
-        const w = e[3] * px + e[7] * py + e[11] * pz + e[15];
-        return [
-          (e[0] * px + e[4] * py + e[8] * pz + e[12]) / w,
-          (e[1] * px + e[5] * py + e[9] * pz + e[13]) / w,
-          (e[2] * px + e[6] * py + e[10] * pz + e[14]) / w,
-        ];
+      // state.get() returns a fresh store snapshot (size changes on resize);
+      // the camera and scene objects are live references either way.
+      const { camera, size, scene, raycaster } = (state.get ? state.get() : state) as {
+        camera: { updateMatrixWorld(): void; [k: string]: unknown };
+        size: { width: number; height: number };
+        scene: { children: Obj[] };
+        raycaster: {
+          setFromCamera(ndc: { x: number; y: number }, camera: unknown): void;
+          intersectObjects(objects: Obj[], recursive: boolean): { object: Obj }[];
+        };
       };
-      return apply(
-        camera.projectionMatrix as { elements: number[] },
-        apply(camera.matrixWorldInverse as { elements: number[] }, [x, y, z]),
-      );
-    };
-    const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
-    const atTarget = (o: Obj) =>
-      near(o.position.x, wx) && near(o.position.y, wy) && near(o.position.z, wz);
-    // The object r3f would hand this hit to: a piece (its outer group carries
-    // the handler) or a destination cell; anything else is inert.
-    const interactive = (hit: Obj): Obj | null => {
-      for (let o: Obj | null = hit; o; o = o.parent) {
-        if (o.userData.piece) return o;
-        if (o.userData.cube) return o.userData.highlight ? o : null;
-      }
-      return null;
-    };
-    // Sample the centre first, then points spread inside the cell (the box
-    // is 1 unit wide; spacing is a little more, so ±0.4 stays inside it).
-    const offsets = [0, 0.4, -0.4];
-    for (const dx of offsets) {
-      for (const dy of offsets) {
-        for (const dz of offsets) {
-          const [nx, ny] = project([wx + dx, wy + dy, wz + dz]);
-          raycaster.setFromCamera({ x: nx, y: ny }, camera);
-          const hits = raycaster.intersectObjects(scene.children, true);
-          let first: Obj | null = null;
-          for (const hit of hits) {
-            first = interactive(hit.object);
-            if (first) break;
-          }
-          if (first && atTarget(first)) {
-            return { x: (nx * 0.5 + 0.5) * size.width, y: (-ny * 0.5 + 0.5) * size.height };
+      camera.updateMatrixWorld();
+      const project = ([x, y, z]: number[]) => {
+        const apply = (m: { elements: number[] }, [px, py, pz]: number[]) => {
+          const e = m.elements;
+          const w = e[3] * px + e[7] * py + e[11] * pz + e[15];
+          return [
+            (e[0] * px + e[4] * py + e[8] * pz + e[12]) / w,
+            (e[1] * px + e[5] * py + e[9] * pz + e[13]) / w,
+            (e[2] * px + e[6] * py + e[10] * pz + e[14]) / w,
+          ];
+        };
+        return apply(
+          camera.projectionMatrix as { elements: number[] },
+          apply(camera.matrixWorldInverse as { elements: number[] }, [x, y, z]),
+        );
+      };
+      const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+      const atTarget = (o: Obj) =>
+        near(o.position.x, wx) && near(o.position.y, wy) && near(o.position.z, wz);
+      // The object r3f would hand this hit to: a piece (its outer group carries
+      // the handler) or a destination cell; anything else is inert.
+      const interactive = (hit: Obj): Obj | null => {
+        for (let o: Obj | null = hit; o; o = o.parent) {
+          if (o.userData.piece) return o;
+          if (o.userData.cube) return o.userData.highlight ? o : null;
+        }
+        return null;
+      };
+      const describe = (o: Obj) => {
+        const p = o.position;
+        return `${Object.keys(o.userData).join(',') || 'object'}@(${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)})`;
+      };
+      const blockers: string[] = [];
+      // Sample the centre first, then points spread inside the cell (the box
+      // is 1 unit wide; spacing is a little more, so ±0.4 stays inside it).
+      const offsets = [0, 0.4, -0.4];
+      for (const dx of offsets) {
+        for (const dy of offsets) {
+          for (const dz of offsets) {
+            const [nx, ny] = project([wx + dx, wy + dy, wz + dz]);
+            raycaster.setFromCamera({ x: nx, y: ny }, camera);
+            const hits = raycaster.intersectObjects(scene.children, true);
+            let first: Obj | null = null;
+            for (const hit of hits) {
+              first = interactive(hit.object);
+              if (first) break;
+            }
+            if (first && atTarget(first)) {
+              return {
+                pixel: { x: (nx * 0.5 + 0.5) * size.width, y: (-ny * 0.5 + 0.5) * size.height },
+              };
+            }
+            if (blockers.length < 4) blockers.push(first ? describe(first) : 'nothing');
           }
         }
       }
-    }
-    return null;
-  }, world);
+      return { blockers, size: `${size.width}x${size.height}` };
+    }, world);
+
+  // A piece gliding through the line of sight (the last move's animation)
+  // can block every sample for a moment; poll briefly before giving up.
+  const deadline = Date.now() + 3000;
+  let result = await locate();
+  while (!result.pixel && Date.now() < deadline) {
+    await page.waitForTimeout(100);
+    result = await locate();
+  }
+  const pixel = result.pixel;
   if (!pixel) {
     throw new Error(
-      `No pixel reaches ${zxy} before another piece or destination from this camera angle`,
+      `No pixel reaches ${zxy} (${seat}) before another piece or destination; ` +
+        `canvas ${result.size}, first samples blocked by: ${result.blockers?.join(' | ')}`,
     );
   }
 
