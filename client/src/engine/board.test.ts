@@ -890,3 +890,56 @@ describe('Starting position baseline', () => {
     expect(board.generateAllLegalMoves('black')).toHaveLength(61);
   });
 });
+
+describe('isSquareAttacked on arbitrary squares (generateAttackedSquares)', () => {
+  const W = 'white' as const;
+  const B = 'black' as const;
+
+  it('a pawn attacks its capture squares even when they are empty, never its step squares', () => {
+    const board = new Board();
+    board.setPiece({ x: 2, y: 2, z: 2 }, { type: PieceType.Pawn, color: W });
+    // Quiet steps: forward and up. Empty, so a move exists but no attack.
+    expect(board.isSquareAttacked({ x: 2, y: 3, z: 2 }, W)).toBe(false);
+    expect(board.isSquareAttacked({ x: 2, y: 2, z: 3 }, W)).toBe(false);
+    // All five capture squares are attacked while empty
+    for (const [dx, dy, dz] of [
+      [0, 1, 1],
+      [-1, 1, 0],
+      [1, 1, 0],
+      [-1, 0, 1],
+      [1, 0, 1],
+    ]) {
+      expect(board.isSquareAttacked({ x: 2 + dx, y: 2 + dy, z: 2 + dz }, W)).toBe(true);
+    }
+    // Mirrored for black
+    board.setPiece({ x: 2, y: 2, z: 2 }, { type: PieceType.Pawn, color: B });
+    expect(board.isSquareAttacked({ x: 2, y: 1, z: 2 }, B)).toBe(false);
+    expect(board.isSquareAttacked({ x: 2, y: 1, z: 1 }, B)).toBe(true);
+    expect(board.isSquareAttacked({ x: 3, y: 2, z: 1 }, B)).toBe(true);
+  });
+
+  it('a ray attacks the first piece it hits regardless of colour, and nothing beyond it', () => {
+    const board = new Board();
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.Rook, color: W });
+    board.setPiece({ x: 0, y: 2, z: 0 }, { type: PieceType.Pawn, color: W }); // friendly blocker
+    // The friendly pawn's square is defended (attacked) by the rook...
+    expect(board.isSquareAttacked({ x: 0, y: 2, z: 0 }, W)).toBe(true);
+    // ...but nothing past it is
+    expect(board.isSquareAttacked({ x: 0, y: 3, z: 0 }, W)).toBe(false);
+    // Empty squares before the blocker are attacked
+    expect(board.isSquareAttacked({ x: 0, y: 1, z: 0 }, W)).toBe(true);
+  });
+
+  it('agrees with inCheck for the occupied king square', () => {
+    const board = new Board();
+    board.setPiece({ x: 2, y: 2, z: 2 }, { type: PieceType.King, color: B });
+    board.setPiece({ x: 1, y: 1, z: 2 }, { type: PieceType.Pawn, color: W }); // attacks (2,2,2)
+    expect(board.inCheck(B)).toBe(true);
+    expect(board.isSquareAttacked({ x: 2, y: 2, z: 2 }, W)).toBe(true);
+    // A king next to it cannot step into the pawn's other capture square
+    board.setPiece({ x: 2, y: 2, z: 2 }, null);
+    board.setPiece({ x: 0, y: 3, z: 2 }, { type: PieceType.King, color: B });
+    const kingMoves = board.generateLegalMoves({ x: 0, y: 3, z: 2 });
+    expect(kingMoves.some((m) => m.to.x === 0 && m.to.y === 2 && m.to.z === 2)).toBe(false);
+  });
+});
