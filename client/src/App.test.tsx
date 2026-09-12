@@ -10,6 +10,7 @@ import { waitFor } from '@testing-library/react';
 import type { GameSocket } from './hooks/useGameSocket';
 import type { WebSocketMessage } from './types/messages';
 import type { Move } from './engine';
+import { PieceType } from './engine';
 import { getStoredRole, setStoredRole } from './lib/playerRole';
 
 // The started phase mounts a WebGL canvas, which jsdom can't provide; stub the
@@ -31,14 +32,39 @@ vi.mock('@react-three/drei', () => ({
 // The 3D board itself is covered by Board.test.tsx; here it is a button that
 // plays a fixed pawn move, so GameScreen's move wiring can be exercised.
 vi.mock('./three/Board', () => ({
-  default: ({ onMove, disabled }: { onMove?: (m: Move) => void; disabled?: boolean }) => (
-    <button
-      data-testid="board"
-      disabled={disabled}
-      onClick={() => onMove?.({ from: { x: 0, y: 1, z: 0 }, to: { x: 0, y: 2, z: 0 } })}
-    >
-      board
-    </button>
+  default: ({
+    onMove,
+    onChoosePromotion,
+    disabled,
+  }: {
+    onMove?: (m: Move) => void;
+    onChoosePromotion?: (choices: Move[]) => void;
+    disabled?: boolean;
+  }) => (
+    <>
+      <button
+        data-testid="board"
+        disabled={disabled}
+        onClick={() => onMove?.({ from: { x: 0, y: 1, z: 0 }, to: { x: 0, y: 2, z: 0 } })}
+      >
+        board
+      </button>
+      <button
+        data-testid="board-promote"
+        disabled={disabled}
+        onClick={() =>
+          onChoosePromotion?.(
+            [PieceType.Queen, PieceType.Rook, PieceType.Unicorn].map((promotion) => ({
+              from: { x: 2, y: 3, z: 4 },
+              to: { x: 2, y: 4, z: 4 },
+              promotion,
+            })),
+          )
+        }
+      >
+        promote
+      </button>
+    </>
   ),
 }));
 // The one test that renders <App /> must not open a real WebSocket to the
@@ -618,6 +644,31 @@ test('GameScreen frees the board after a reconnect, since the unanswered move wa
   rerender(
     gameScreenAt(fakeSocket(started, send, { sessionId: 2, sessionStartIndex: started.length })),
   );
+  expect(screen.getByTestId('board')).toBeEnabled();
+});
+
+test('GameScreen asks which piece to promote to and sends the chosen move', async () => {
+  const send = vi.fn();
+  renderGameScreen('abc123', fakeSocket(started, send));
+  await userEvent.click(screen.getByTestId('board-promote'));
+  const dialog = screen.getByRole('dialog', { name: 'Promote to' });
+  expect(dialog).toBeInTheDocument();
+  expect(send).not.toHaveBeenCalled();
+
+  await userEvent.click(screen.getByRole('button', { name: 'Unicorn' }));
+  expect(send).toHaveBeenCalledWith({ type: 'move', from: 'Ec4', to: 'Ec5', promotion: 'U' });
+  expect(screen.queryByRole('dialog', { name: 'Promote to' })).not.toBeInTheDocument();
+  // The move is in flight, so the board holds like for any other move
+  expect(screen.getByTestId('board')).toBeDisabled();
+});
+
+test('GameScreen drops the promotion when the player cancels', async () => {
+  const send = vi.fn();
+  renderGameScreen('abc123', fakeSocket(started, send));
+  await userEvent.click(screen.getByTestId('board-promote'));
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(send).not.toHaveBeenCalled();
   expect(screen.getByTestId('board')).toBeEnabled();
 });
 

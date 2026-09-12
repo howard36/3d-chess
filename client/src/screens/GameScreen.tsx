@@ -9,6 +9,7 @@ import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
 import EndGameModal from './EndGameModal';
 import MoveList from './MoveList';
+import PromotionPicker from './PromotionPicker';
 import { deriveHistory } from '../game/history';
 import type { GameHistory } from '../game/history';
 import { hasSessionSince, selectErrors, selectOpponentOnline, selectSeat } from '../game/session';
@@ -67,6 +68,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const history = deriveHistory(messages, historyRef.current);
   historyRef.current = history;
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
+
+  // A pawn moved onto a promotion square: the legal moves for that square,
+  // one per piece, until the player picks one (or the position moves on).
+  const [promotionChoices, setPromotionChoices] = React.useState<Move[] | null>(null);
+  React.useEffect(() => setPromotionChoices(null), [board]);
 
   const awaitingMove =
     moveSent !== null &&
@@ -330,11 +336,22 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             currentTurn={currentTurn}
             playerColor={color} // Pass the determined player color
             onMove={handleMove}
+            onChoosePromotion={setPromotionChoices}
             lastMove={lastMove}
             disabled={status !== 'connected' || replayFailedAt !== null || awaitingMove}
           />
           <OrbitControls makeDefault minDistance={6} maxDistance={25} />
         </Canvas>
+        {promotionChoices && (
+          <PromotionPicker
+            choices={promotionChoices}
+            onPick={(move) => {
+              setPromotionChoices(null);
+              handleMove(move);
+            }}
+            onCancel={() => setPromotionChoices(null)}
+          />
+        )}
         {reconnectingBanner}
         {replayErrorBanner}
         {errorBanner}
