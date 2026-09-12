@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { deriveHistory } from './history';
-import { PieceType, fromZXY } from '../engine';
+import { PieceType } from '../engine';
+import { fromZXY } from '../engine/coords';
 import type { MoveRecord, WebSocketMessage } from '../types/messages';
 
 const snapshot = (moves: MoveRecord[], started = true): WebSocketMessage => ({
