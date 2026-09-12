@@ -20,6 +20,7 @@ test('create game flow', async ({ page }) => {
 
   // The creator sees the shareable game link
   await expect(page.getByText('Game created! Share this link with a friend:')).toBeVisible();
-  const gameId = page.url().split('/game/')[1];
-  await expect(page.getByText(`http://localhost:5173/game/${gameId}`)).toBeVisible();
+  const { origin, pathname } = new URL(page.url());
+  const gameId = pathname.split('/game/')[1];
+  await expect(page.getByText(`${origin}/game/${gameId}`)).toBeVisible();
 });
