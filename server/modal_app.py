@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 import string
@@ -50,6 +51,35 @@ image = (
 # code (4000-4999) so the client can tell "you were replaced, stop
 # reconnecting" from a network drop, which it should retry.
 SEAT_REPLACED_CLOSE_CODE = 4001
+
+# Standard "internal error" close code, sent when a handler hits an exception
+# it did not expect; the traceback is in the server log.
+INTERNAL_ERROR_CLOSE_CODE = 1011
+
+logger = logging.getLogger("3d_chess")
+
+
+def _configure_logging() -> None:
+    """Make this module's INFO logs visible on stderr.
+
+    uvicorn configures only its own loggers (and Modal none), never the root,
+    so without a handler of our own everything below WARNING is dropped.
+    create_web_app calls this on every construction (tests build many apps),
+    hence the guards: never stack a second handler, never override a level
+    someone else configured.
+    """
+    if not logger.handlers:
+        handler = logging.StreamHandler()  # stderr
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        logger.addHandler(handler)
+    if logger.level == logging.NOTSET:
+        logger.setLevel(logging.INFO)
+
+
+def _client(ws: WebSocket) -> str:
+    """`host:port` of the peer, for correlating log lines about one socket."""
+    return f"{ws.client.host}:{ws.client.port}" if ws.client else "?"
+
 
 app = modal.App("3d-chess-backend")
 
@@ -169,11 +199,22 @@ async def _safe_send(ws: WebSocket, payload: dict) -> bool:
     try:
         await ws.send_json(payload)
         return True
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "send failed client=%s type=%s error=%r", _client(ws), payload.get("type"), exc
+        )
         return False
 
 
-async def _send_error(ws: WebSocket, code: ErrorCode, message: str) -> None:
+async def _send_error(ws: WebSocket, code: ErrorCode, message: str, gid: str | None) -> None:
+    """Answer a rejected request with an `error` message (and log the rejection)."""
+    logger.warning(
+        "request rejected client=%s gid=%s code=%s message=%s",
+        _client(ws),
+        gid,
+        code.value,
+        message,
+    )
     await _safe_send(ws, Error(type="error", code=code, message=message).model_dump(mode="json"))
 
 
@@ -224,6 +265,7 @@ def _require_not_in_game(gid: str | None) -> None:
 def create_web_app(store=None) -> fastapi.FastAPI:
     if store is None:
         store = {}
+    _configure_logging()
     web_app = fastapi.FastAPI()
 
     @web_app.get("/health")
@@ -233,6 +275,8 @@ def create_web_app(store=None) -> fastapi.FastAPI:
     @web_app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
         await ws.accept()
+        client = _client(ws)
+        logger.info("websocket accepted client=%s", client)
         player_color: str | None = None  # this connection's seat, once claimed
         gid: str | None = None  # this connection's game, once in one
         try:
@@ -244,7 +288,9 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                     # Starlette reads message["text"], which a binary frame
                     # doesn't carry; without this the exception would escape
                     # the loop and kill the connection.
-                    await _send_error(ws, ErrorCode.invalid_message, "Message is not valid JSON")
+                    await _send_error(
+                        ws, ErrorCode.invalid_message, "Message is not valid JSON", gid
+                    )
                     continue
                 try:
                     envelope = WebsocketV1MessageEnvelope.model_validate(data).root
@@ -253,6 +299,7 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         ws,
                         ErrorCode.invalid_message,
                         "Message does not conform to the protocol schema",
+                        gid,
                     )
                     continue
 
@@ -261,6 +308,9 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         _require_not_in_game(gid)
                         gid, player_color = create_game(store)
                         connections[gid] = {player_color: ws}
+                        logger.info(
+                            "game created gid=%s color=%s client=%s", gid, player_color, client
+                        )
                         created = GameCreated(
                             type="game_created", gameId=gid, color=Color(player_color)
                         )
@@ -271,6 +321,9 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         gid = envelope.gameId
                         conns = connections.setdefault(gid, {})
                         conns[player_color] = ws
+                        logger.info(
+                            "seat joined gid=%s color=%s client=%s", gid, player_color, client
+                        )
                         # The joiner's seat is confirmed to it directly first, so a
                         # drop before the game_start below still leaves it able to
                         # rejoin (the seat is already claimed in the store).
@@ -295,6 +348,15 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         conns = connections.setdefault(gid, {})
                         old_ws = conns.get(player_color)
                         conns[player_color] = ws
+                        replaced = old_ws is not None and old_ws is not ws
+                        logger.info(
+                            "seat rejoined gid=%s color=%s moves=%d replaced_socket=%s client=%s",
+                            gid,
+                            player_color,
+                            len(record["moves"]),
+                            replaced,
+                            client,
+                        )
                         state = GameState.model_validate(
                             {
                                 "type": "game_state",
@@ -308,7 +370,7 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         )
                         await _send_opponent_presence(gid, ws, player_color)
                         await _notify_opponent_presence(gid, player_color, True)
-                        if old_ws is not None and old_ws is not ws:
+                        if replaced:
                             try:
                                 await old_ws.close(
                                     code=SEAT_REPLACED_CLOSE_CODE, reason="seat_replaced"
@@ -320,6 +382,14 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         # players are connected; an offline opponent catches up
                         # via game_state on rejoin.
                         move_dict = record_move(store, gid, player_color, envelope)
+                        logger.info(
+                            "move recorded gid=%s by=%s from=%s to=%s promotion=%s",
+                            gid,
+                            move_dict["by"],
+                            move_dict["from"],
+                            move_dict["to"],
+                            move_dict.get("promotion"),
+                        )
                         move_made = MoveMade.model_validate({"type": "move_made", **move_dict})
                         payload = move_made.model_dump(
                             mode="json", by_alias=True, exclude_none=True
@@ -333,10 +403,21 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                             f"Clients may not send {envelope.type} messages",
                         )
                 except GameError as err:
-                    await _send_error(ws, err.code, err.message)
+                    await _send_error(ws, err.code, err.message, gid)
         except WebSocketDisconnect:
             pass
+        except Exception:
+            # Anything else is a bug. Log the traceback (uvicorn would only
+            # report it if we re-raised, and Modal's wrapper not at all) and
+            # end this connection cleanly; the client's reconnect logic then
+            # rejoins as it would after a network drop.
+            logger.exception("unhandled error gid=%s color=%s client=%s", gid, player_color, client)
+            try:
+                await ws.close(code=INTERNAL_ERROR_CLOSE_CODE, reason="internal_error")
+            except Exception:
+                pass
         finally:
+            logger.info("websocket closed gid=%s color=%s client=%s", gid, player_color, client)
             # Detach this connection so later broadcasts don't hit a dead
             # socket. The durable record stays in the store for rejoins.
             if gid is not None and player_color is not None:
