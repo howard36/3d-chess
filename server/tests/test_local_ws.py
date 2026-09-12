@@ -56,14 +56,24 @@ def start_game(ws1, ws2):
     """Create with ws1, join with ws2; return (gid, white_ws, black_ws)."""
     gid, _ = create_game(ws1)
     ws2.send_json({"type": "join_game", "gameId": gid})
+    joined = ws2.receive_json()
+    assert joined["type"] == "game_joined"
     start1 = ws1.receive_json()
     start2 = ws2.receive_json()
     assert start1["type"] == "game_start"
     assert start2["type"] == "game_start"
+    assert start2["color"] == joined["color"]
     assert {start1["color"], start2["color"]} == {"white", "black"}
+    # Each side is then told the other is connected
+    assert ws1.receive_json() == {"type": "presence", "color": start2["color"], "online": True}
+    assert ws2.receive_json() == {"type": "presence", "color": start1["color"], "online": True}
     if start1["color"] == "white":
         return gid, ws1, ws2
     return gid, ws2, ws1
+
+
+def presence(color, online):
+    return {"type": "presence", "color": color, "online": online}
 
 
 def rejoin(ws, gid, color):
@@ -71,6 +81,8 @@ def rejoin(ws, gid, color):
     msg = ws.receive_json()
     assert msg["type"] == "game_state"
     assert msg["color"] == color
+    # followed by the opponent's current presence
+    assert ws.receive_json()["type"] == "presence"
     return msg
 
 
@@ -232,8 +244,10 @@ def test_disconnect_cleanup_and_survivor_keeps_working(client, store):
             gid, white_ws, black_ws = start_game(ws1, ws2)
             survivor_is_white = white_ws is ws1
 
-        # ws2 disconnected: its socket must be removed from the live map
+        # ws2 disconnected: its socket must be removed from the live map, and
+        # the survivor told
         assert wait_until(lambda: len(modal_app.connections.get(gid, {})) == 1)
+        assert ws1.receive_json()["type"] == "presence"
 
         # The survivor may keep playing while the opponent is away; the
         # opponent catches up from the stored history on rejoin.
@@ -279,6 +293,7 @@ def test_rejoin_unclaimed_seat_rejected(client, creator_is_white):
         assert ws2.receive_json()["code"] == "invalid_rejoin"
         # The failed rejoin leaves the connection free to join normally
         ws2.send_json({"type": "join_game", "gameId": gid})
+        assert ws2.receive_json()["type"] == "game_joined"
         assert ws2.receive_json()["type"] == "game_start"
 
 
@@ -294,6 +309,7 @@ def test_rejoin_before_opponent_joins(client):
         # The rejoined creator gets game_start when an opponent arrives
         with client.websocket_connect("/ws") as ws3:
             ws3.send_json({"type": "join_game", "gameId": gid})
+            assert ws3.receive_json()["type"] == "game_joined"
             assert ws3.receive_json()["type"] == "game_start"
             start = ws2.receive_json()
             assert start["type"] == "game_start"
@@ -315,6 +331,8 @@ def test_rejoin_restores_history_and_play_continues(client):
         assert state_w["moves"] == [{"by": "white", "from": "Aa2", "to": "Aa3"}]
         state_b = rejoin(ws_b, gid, "black")
         assert state_b["moves"] == state_w["moves"]
+        # White (already connected) is told black arrived
+        assert ws_w.receive_json() == presence("black", True)
 
         # Turn enforcement picks up where the history left off: black to move
         ws_w.send_json({"type": "move", "from": "Aa3", "to": "Aa4"})
@@ -332,8 +350,10 @@ def test_moves_while_opponent_disconnected_appear_on_rejoin(client, creator_is_w
         with client.websocket_connect("/ws") as ws2:
             ws2.send_json({"type": "join_game", "gameId": gid})
             assert ws1.receive_json()["type"] == "game_start"
+            assert ws1.receive_json() == presence("black", True)
             assert ws2.receive_json()["color"] == "black"
         assert wait_until(lambda: len(modal_app.connections.get(gid, {})) == 1)
+        assert ws1.receive_json() == presence("black", False)
 
         # White moves while black is away
         ws1.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
@@ -343,6 +363,7 @@ def test_moves_while_opponent_disconnected_appear_on_rejoin(client, creator_is_w
         with client.websocket_connect("/ws") as ws_b:
             state = rejoin(ws_b, gid, "black")
             assert state["moves"] == [{"by": "white", "from": "Aa2", "to": "Aa3"}]
+            assert ws1.receive_json() == presence("black", True)
             ws_b.send_json({"type": "move", "from": "Ea4", "to": "Ea3"})
             assert ws_b.receive_json()["by"] == "black"
             assert ws1.receive_json()["by"] == "black"
@@ -360,12 +381,19 @@ def test_rejoin_replaces_lingering_socket(client, creator_is_white):
         gid, _ = create_game(ws1)
         ws2.send_json({"type": "join_game", "gameId": gid})
         assert ws1.receive_json()["type"] == "game_start"
+        assert ws1.receive_json() == presence("black", True)
+        assert ws2.receive_json()["type"] == "game_joined"
         assert ws2.receive_json()["type"] == "game_start"
+        assert ws2.receive_json() == presence("white", True)
 
         # White rejoins on a fresh socket while the old one is still open
         with client.websocket_connect("/ws") as ws_new:
             state = rejoin(ws_new, gid, "white")
             assert state["started"] is True
+            # Black is told white (re)connected; it never sees white go
+            # offline, because the replaced socket's disconnect is not a
+            # departure.
+            assert ws2.receive_json() == presence("white", True)
 
             # The old socket is closed server-side with the application close
             # code that tells the client it was replaced (so it must not
@@ -383,3 +411,48 @@ def test_rejoin_replaces_lingering_socket(client, creator_is_white):
             ws_new.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
             assert ws_new.receive_json()["type"] == "move_made"
             assert ws2.receive_json()["type"] == "move_made"
+
+
+def test_presence_follows_connections(client, creator_is_white):
+    with client.websocket_connect("/ws") as ws1:
+        gid, _ = create_game(ws1)
+        with client.websocket_connect("/ws") as ws2:
+            ws2.send_json({"type": "join_game", "gameId": gid})
+            # Joiner: seat confirmed directly, then start, then opponent status
+            assert ws2.receive_json() == {"type": "game_joined", "color": "black"}
+            assert ws2.receive_json()["type"] == "game_start"
+            assert ws2.receive_json() == presence("white", True)
+            # Creator: start, then the joiner's arrival
+            assert ws1.receive_json()["type"] == "game_start"
+            assert ws1.receive_json() == presence("black", True)
+        # Black leaves
+        assert ws1.receive_json() == presence("black", False)
+
+        # Black comes back on a new socket: it learns white is online, white
+        # learns black is back
+        with client.websocket_connect("/ws") as ws3:
+            ws3.send_json({"type": "rejoin_game", "gameId": gid, "color": "black"})
+            assert ws3.receive_json()["type"] == "game_state"
+            assert ws3.receive_json() == presence("white", True)
+            assert ws1.receive_json() == presence("black", True)
+
+            # The other way round: white leaves and returns while black waits
+            ws1.close()
+            assert ws3.receive_json() == presence("white", False)
+            with client.websocket_connect("/ws") as ws4:
+                rejoin(ws4, gid, "white")
+                assert ws3.receive_json() == presence("white", True)
+
+
+def test_game_joined_alone_is_enough_to_rejoin(client, creator_is_white):
+    """A joiner that drops right after game_joined (before game_start) has a
+    claimed seat and knows its color, so it can rejoin."""
+    with client.websocket_connect("/ws") as ws1:
+        gid, _ = create_game(ws1)
+        with client.websocket_connect("/ws") as ws2:
+            ws2.send_json({"type": "join_game", "gameId": gid})
+            joined = ws2.receive_json()
+            assert joined == {"type": "game_joined", "color": "black"}
+        with client.websocket_connect("/ws") as ws3:
+            state = rejoin(ws3, gid, joined["color"])
+            assert state["started"] is True

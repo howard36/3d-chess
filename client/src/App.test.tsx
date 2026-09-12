@@ -434,3 +434,73 @@ test('GameScreen shows the replaced notice on the waiting screen too', () => {
   expect(screen.getByRole('alertdialog')).toBeInTheDocument();
   expect(screen.getByText('Game created! Share this link with a friend:')).toBeInTheDocument();
 });
+
+test('GameScreen stores the role from game_joined, so a drop before game_start is recoverable', () => {
+  const { rerender } = render(
+    <MemoryRouter initialEntries={['/game/abc123']}>
+      <Routes>
+        <Route
+          path="/game/:gameId"
+          element={
+            <GameScreen gameSocket={fakeSocket([{ type: 'game_joined', color: 'black' }])} />
+          }
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(getStoredRole('abc123')).toBe('black');
+  // Seat confirmed but the game hasn't started: neither the share link nor the join button
+  expect(screen.getByText('Joined game, waiting for start...')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Join Game' })).not.toBeInTheDocument();
+
+  // A session that already holds game_joined must not rejoin on top of it
+  const send = vi.fn();
+  rerender(
+    <MemoryRouter initialEntries={['/game/abc123']}>
+      <Routes>
+        <Route
+          path="/game/:gameId"
+          element={
+            <GameScreen gameSocket={fakeSocket([{ type: 'game_joined', color: 'black' }], send)} />
+          }
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(send).not.toHaveBeenCalled();
+});
+
+test('GameScreen shows whether the opponent is connected, from the latest presence message', () => {
+  const started: WebSocketMessage[] = [{ type: 'game_start', color: 'white' }];
+  const { rerender } = renderGameScreen('abc123', fakeSocket(started));
+  // No presence yet: nothing claimed either way
+  expect(screen.queryByTestId('opponent-presence')).not.toBeInTheDocument();
+
+  const withPresence = (...presence: WebSocketMessage[]) => (
+    <MemoryRouter initialEntries={['/game/abc123']}>
+      <Routes>
+        <Route
+          path="/game/:gameId"
+          element={<GameScreen gameSocket={fakeSocket([...started, ...presence])} />}
+        />
+      </Routes>
+    </MemoryRouter>
+  );
+  rerender(withPresence({ type: 'presence', color: 'black', online: true }));
+  expect(screen.getByTestId('opponent-presence')).toHaveTextContent('Opponent: online');
+  rerender(
+    withPresence(
+      { type: 'presence', color: 'black', online: true },
+      { type: 'presence', color: 'black', online: false },
+    ),
+  );
+  expect(screen.getByTestId('opponent-presence')).toHaveTextContent('Opponent: offline');
+  // A presence message about our own colour is not about the opponent
+  rerender(
+    withPresence(
+      { type: 'presence', color: 'black', online: false },
+      { type: 'presence', color: 'white', online: true },
+    ),
+  );
+  expect(screen.getByTestId('opponent-presence')).toHaveTextContent('Opponent: offline');
+});

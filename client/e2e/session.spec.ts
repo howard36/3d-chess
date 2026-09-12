@@ -85,3 +85,15 @@ test('a second tab takes the seat over; the first stops reconnecting until asked
   await second.close();
   await game.close();
 });
+
+test('each player sees whether the opponent is connected', async ({ browser }) => {
+  const game = await startGame(browser);
+  await expect(game.white.getByTestId('opponent-presence')).toHaveText('Opponent: online');
+  await expect(game.black.getByTestId('opponent-presence')).toHaveText('Opponent: online');
+
+  // Black leaves (closing the context drops its socket)
+  await game.black.context().close();
+  await expect(game.white.getByTestId('opponent-presence')).toHaveText('Opponent: offline');
+
+  await game.white.context().close();
+});

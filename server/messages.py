@@ -57,6 +57,14 @@ class JoinGame(BaseModel):
     gameId: str
 
 
+class GameJoined(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['game_joined']
+    color: Color
+
+
 class RejoinGame(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -105,6 +113,15 @@ class MoveMade(BaseModel):
     promotion: Optional[Promotion] = None
 
 
+class Presence(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['presence']
+    color: Color
+    online: bool
+
+
 class Error(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -130,11 +147,13 @@ class WebsocketV1MessageEnvelope(
             CreateGame,
             GameCreated,
             JoinGame,
+            GameJoined,
             RejoinGame,
             GameStart,
             GameState,
             Move,
             MoveMade,
+            Presence,
             Error,
         ]
     ]
@@ -143,10 +162,12 @@ class WebsocketV1MessageEnvelope(
         CreateGame,
         GameCreated,
         JoinGame,
+        GameJoined,
         RejoinGame,
         GameStart,
         GameState,
         Move,
         MoveMade,
+        Presence,
         Error,
     ] = Field(..., title='WebSocket V1 Message Envelope')

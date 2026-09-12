@@ -13,11 +13,13 @@ from messages import (
     Error,
     ErrorCode,
     GameCreated,
+    GameJoined,
     GameStart,
     GameState,
     JoinGame,
     Move,
     MoveMade,
+    Presence,
     RejoinGame,
     WebsocketV1MessageEnvelope,
 )
@@ -175,21 +177,43 @@ async def _send_error(ws: WebSocket, code: ErrorCode, message: str) -> None:
     await _safe_send(ws, Error(type="error", code=code, message=message).model_dump(mode="json"))
 
 
-def _remove_player(gid: str, color: str, ws: WebSocket) -> None:
-    """Detach a socket from the live-connection map.
+def _remove_player(gid: str, color: str, ws: WebSocket) -> bool:
+    """Detach a socket from the live-connection map; True if it was the live one.
 
     The identity check makes a replaced socket's late disconnect a no-op, so a
-    player who rejoined on a fresh socket is not evicted when the old one dies.
-    The durable game record is deliberately left alone — it must survive
-    disconnects so players can rejoin.
+    player who rejoined on a fresh socket is not evicted (nor reported
+    offline) when the old one dies. The durable game record is deliberately
+    left alone — it must survive disconnects so players can rejoin.
     """
     conns = connections.get(gid)
     if conns is None:
-        return
-    if conns.get(color) is ws:
+        return False
+    detached = conns.get(color) is ws
+    if detached:
         del conns[color]
     if not conns:
         del connections[gid]
+    return detached
+
+
+def _opponent(color: str) -> str:
+    return "black" if color == "white" else "white"
+
+
+async def _notify_opponent_presence(gid: str, color: str, online: bool) -> None:
+    """Tell `color`'s opponent, if connected, that `color` came online/went offline."""
+    sock = connections.get(gid, {}).get(_opponent(color))
+    if sock is not None:
+        msg = Presence(type="presence", color=Color(color), online=online)
+        await _safe_send(sock, msg.model_dump(mode="json"))
+
+
+async def _send_opponent_presence(gid: str, ws: WebSocket, color: str) -> None:
+    """Tell `ws` (seated as `color`) whether its opponent is connected right now."""
+    opponent = _opponent(color)
+    online = opponent in connections.get(gid, {})
+    msg = Presence(type="presence", color=Color(opponent), online=online)
+    await _safe_send(ws, msg.model_dump(mode="json"))
 
 
 def _require_not_in_game(gid: str | None) -> None:
@@ -247,12 +271,19 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         gid = envelope.gameId
                         conns = connections.setdefault(gid, {})
                         conns[player_color] = ws
+                        # The joiner's seat is confirmed to it directly first, so a
+                        # drop before the game_start below still leaves it able to
+                        # rejoin (the seat is already claimed in the store).
+                        joined = GameJoined(type="game_joined", color=Color(player_color))
+                        await _safe_send(ws, joined.model_dump(mode="json"))
                         # Send GameStart to the connected players, white first
                         for col in ("white", "black"):
                             sock = conns.get(col)
                             if sock is not None:
                                 payload = GameStart(type="game_start", color=Color(col))
                                 await _safe_send(sock, payload.model_dump(mode="json"))
+                        await _notify_opponent_presence(gid, player_color, True)
+                        await _send_opponent_presence(gid, ws, player_color)
                     elif isinstance(envelope, RejoinGame):
                         _require_not_in_game(gid)
                         record = find_seat(store, envelope.gameId, envelope.color.value)
@@ -275,6 +306,8 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         await _safe_send(
                             ws, state.model_dump(mode="json", by_alias=True, exclude_none=True)
                         )
+                        await _send_opponent_presence(gid, ws, player_color)
+                        await _notify_opponent_presence(gid, player_color, True)
                         if old_ws is not None and old_ws is not ws:
                             try:
                                 await old_ws.close(
@@ -307,7 +340,8 @@ def create_web_app(store=None) -> fastapi.FastAPI:
             # Detach this connection so later broadcasts don't hit a dead
             # socket. The durable record stays in the store for rejoins.
             if gid is not None and player_color is not None:
-                _remove_player(gid, player_color, ws)
+                if _remove_player(gid, player_color, ws):
+                    await _notify_opponent_presence(gid, player_color, False)
 
     return web_app
 
