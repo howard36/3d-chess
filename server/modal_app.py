@@ -33,7 +33,7 @@ from messages import (
 # (see README) sets it so it never shares production's games.
 image = (
     modal.Image.debian_slim(python_version="3.13")
-    .uv_sync("./")
+    .uv_sync("./", uv_version="0.12.9")  # pinned so the image build itself is reproducible
     .env(
         {
             "APP_VERSION": os.environ.get("GITHUB_SHA", "dev"),

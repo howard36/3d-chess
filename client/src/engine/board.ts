@@ -20,6 +20,38 @@ const ALL_PROMOTION_TYPES = [
   PieceType.Unicorn,
 ];
 
+/** A pawn's five capture directions, as [dx, dy, dz] for a pawn moving in `dir`. */
+const pawnCaptureDeltas = (dir: number): [number, number, number][] => [
+  [0, dir, dir], // Forwards-Up
+  [-1, dir, 0], // Forwards-Left
+  [1, dir, 0], // Forwards-Right
+  [-1, 0, dir], // Up-Left
+  [1, 0, dir], // Up-Right
+];
+
+/** Movement vectors ([dz, dx, dy]) and whether they repeat, for every non-pawn type. */
+const movementVectors = (
+  type: PieceType,
+  at: Coord,
+): { vectors: ReadonlyArray<[number, number, number]>; sliding: boolean } => {
+  switch (type) {
+    case PieceType.Rook:
+      return { vectors: ROOK_VECTORS, sliding: true };
+    case PieceType.Bishop:
+      return { vectors: BISHOP_VECTORS, sliding: true };
+    case PieceType.Unicorn:
+      return { vectors: UNICORN_VECTORS, sliding: true };
+    case PieceType.Queen:
+      return { vectors: QUEEN_VECTORS, sliding: true };
+    case PieceType.King:
+      return { vectors: KING_VECTORS, sliding: false };
+    case PieceType.Knight:
+      return { vectors: KNIGHT_VECTORS, sliding: false };
+    default:
+      throw new Error(`Unknown piece type at ${toZXY(at)}`);
+  }
+};
+
 export class Board {
   grid: (Piece | null)[][][];
 
@@ -95,16 +127,7 @@ export class Board {
       const up: Coord = { x: from.x, y: from.y, z: from.z + dir };
       addPawnMove(up, false);
 
-      // Captures: 5 specified diagonal directions
-      const captureDeltas: [number, number, number][] = [
-        [0, dir, dir], // Forwards-Up
-        [-1, dir, 0], // Forwards-Left
-        [1, dir, 0], // Forwards-Right
-        [-1, 0, dir], // Up-Left
-        [1, 0, dir], // Up-Right
-      ];
-
-      for (const [dx, dy, dz] of captureDeltas) {
+      for (const [dx, dy, dz] of pawnCaptureDeltas(dir)) {
         const to: Coord = { x: from.x + dx, y: from.y + dy, z: from.z + dz };
         addPawnMove(to, true);
       }
@@ -112,36 +135,7 @@ export class Board {
     }
 
     // Other pieces (Rook, Bishop, Unicorn, Queen, King, Knight)
-    let vectors: ReadonlyArray<[number, number, number]> = [];
-    let sliding = false;
-    switch (piece.type) {
-      case PieceType.Rook:
-        vectors = ROOK_VECTORS;
-        sliding = true;
-        break;
-      case PieceType.Bishop:
-        vectors = BISHOP_VECTORS;
-        sliding = true;
-        break;
-      case PieceType.Unicorn:
-        vectors = UNICORN_VECTORS;
-        sliding = true;
-        break;
-      case PieceType.Queen:
-        vectors = QUEEN_VECTORS;
-        sliding = true;
-        break;
-      case PieceType.King:
-        vectors = KING_VECTORS;
-        sliding = false;
-        break;
-      case PieceType.Knight:
-        vectors = KNIGHT_VECTORS;
-        sliding = false;
-        break;
-      default:
-        throw new Error(`Unknown piece type at ${toZXY(from)}`);
-    }
+    const { vectors, sliding } = movementVectors(piece.type, from);
 
     for (const [dz, dx, dy] of vectors) {
       let n = 1;
@@ -209,17 +203,51 @@ export class Board {
     throw new Error(`King of color ${color} not found`);
   }
 
+  /**
+   * Squares the piece at `from` attacks: every square it could capture on if
+   * an enemy piece stood there. Differs from generatePotentialMoves in two
+   * ways that matter for check detection on arbitrary squares: a pawn attacks
+   * its capture squares whether or not they are occupied (and never the
+   * square it steps to), and a ray counts the first piece it hits whatever
+   * its colour (a friendly piece there is defended).
+   */
+  generateAttackedSquares(from: Coord): Coord[] {
+    const piece = this.getPiece(from);
+    if (!piece) throw new Error(`No piece at ${toZXY(from)}`);
+
+    const attacked: Coord[] = [];
+    if (piece.type === PieceType.Pawn) {
+      const dir = piece.color === 'white' ? 1 : -1;
+      for (const [dx, dy, dz] of pawnCaptureDeltas(dir)) {
+        const to: Coord = { x: from.x + dx, y: from.y + dy, z: from.z + dz };
+        if (this.isInside(to)) attacked.push(to);
+      }
+      return attacked;
+    }
+
+    const { vectors, sliding } = movementVectors(piece.type, from);
+    for (const [dz, dx, dy] of vectors) {
+      let n = 1;
+      while (true) {
+        const to: Coord = { z: from.z + dz * n, x: from.x + dx * n, y: from.y + dy * n };
+        if (!this.isInside(to)) break;
+        attacked.push(to);
+        if (this.getPiece(to) || !sliding) break;
+        n++;
+      }
+    }
+    return attacked;
+  }
+
+  /** True if any piece of `byColor` attacks `target` (see generateAttackedSquares). */
   isSquareAttacked(target: Coord, byColor: 'white' | 'black'): boolean {
     for (let z = 0; z < LEVELS.length; z++) {
       for (let x = 0; x < FILES.length; x++) {
         for (let y = 0; y < RANKS.length; y++) {
           const piece = this.getPiece({ x, y, z });
           if (piece && piece.color === byColor) {
-            const fromCoord = { x, y, z };
-            const moves = this.generatePotentialMoves(fromCoord);
-            if (
-              moves.some((m) => m.to.x === target.x && m.to.y === target.y && m.to.z === target.z)
-            ) {
+            const squares = this.generateAttackedSquares({ x, y, z });
+            if (squares.some((c) => c.x === target.x && c.y === target.y && c.z === target.z)) {
               return true;
             }
           }
