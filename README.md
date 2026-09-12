@@ -60,8 +60,9 @@ client (React 19 + Vite + @react-three/fiber)          server (FastAPI on Modal)
 │           mate, stalemate                  │◄────────►│  - validates shape + turn    │
 │ hooks/useGameSocket  append-only message   │  JSON    │  - appends moves to durable  │
 │           log over one WebSocket           │          │    game record (modal.Dict)  │
-│ screens/  derive ALL state from the log    │          │  - relays to live sockets    │
-│ three/    render board, raycast clicks     │          │  - replays history on rejoin │
+│ game/     derive ALL state from the log    │          │  - relays to live sockets    │
+│ screens/  wire that state to the UI        │          │  - replays history on rejoin │
+│ three/    render board, raycast clicks     │          │                              │
 └────────────────────────────────────────────┘          └──────────────────────────────┘
 ```
 
@@ -69,9 +70,14 @@ Key decisions:
 
 - **Event-sourced client state.** The client never mutates a board directly. It keeps the
   ordered log of received messages and derives everything (board, turn, phase, game over)
-  by replaying moves from the fixed starting position. A local move is only _sent_; the
-  board updates when the server's `move_made` echo arrives. This keeps both clients in
-  lockstep and makes rejoin trivial.
+  by replaying moves from the fixed starting position. The derivation is pure code in
+  `client/src/game/` (`history.ts` replays the record, `session.ts` reads the seat,
+  presence and errors); `GameScreen` only wires its output to the UI. A local move is
+  only _sent_; the board updates when the server's `move_made` echo arrives. This keeps
+  both clients in lockstep and makes rejoin trivial. The replay hands back the same
+  result object while the move record is unchanged, so a presence or error message
+  neither replays the game nor resets the 3D board (which would drop the player's
+  selection).
 - **Server = relay + durable move log.** Per game the server stores `{seats, moves}` in a
   `modal.Dict` (durable) and keeps live sockets in a plain in-process dict (ephemeral).
   A disconnect detaches the socket but leaves the game record intact; `rejoin_game`
@@ -174,7 +180,8 @@ the e2e click helpers project through the live camera.
 ## Repository layout
 
 ```
-client/          React app (Vite). Engine in src/engine, UI in src/screens + src/three.
+client/          React app (Vite). Engine in src/engine, log-derived game state in src/game,
+                 UI in src/screens + src/three.
 client/e2e/      Playwright tests; boots the real server and Vite (see playwright.config.ts).
 server/          FastAPI app + Modal deployment (modal_app.py), schema, generated models, pytest suite.
 ```
@@ -236,7 +243,8 @@ Pages" check on pull requests.
   uvicorn backend answers them with an `invalid_message` error instead. The client only
   ever sends text.
 - The server records any shape-valid, turn-correct move without checking legality. The
-  client replays history defensively — an unplayable record freezes the board at the last
-  good position with an explanation instead of crashing — but cannot repair the record.
+  client replays history defensively — a record it cannot apply, or one that leaves a
+  position it cannot evaluate (a captured king), freezes the board at the last good
+  position with an explanation instead of crashing — but it cannot repair the record.
 - No resign or draw offer: games end only by checkmate or stalemate.
 - No spectators: a game has exactly two seats.

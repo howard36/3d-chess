@@ -298,6 +298,33 @@ test('GameScreen freezes at the last good position when history has an unplayabl
   expect(screen.getByTestId('turn-indicator')).toHaveTextContent('White to move');
 });
 
+test('GameScreen freezes before a recorded king capture instead of crashing', () => {
+  setStoredRole('abc123', 'white');
+  renderGameScreen(
+    'abc123',
+    fakeSocket([
+      {
+        type: 'game_state',
+        color: 'white',
+        started: true,
+        // Shape-valid and turn-correct, so the server recorded it, but no
+        // client that detects check could have played a king capture. The
+        // position after it has no black king to test for check, which used
+        // to throw from the game-over check and white-screen the page.
+        moves: [
+          { by: 'white', from: 'Aa2', to: 'Aa3' },
+          { by: 'black', from: 'Ed4', to: 'Ed3' },
+          { by: 'white', from: 'Bc1', to: 'Ec5' },
+        ],
+      },
+    ]),
+  );
+  expect(screen.getByRole('alert')).toHaveTextContent(/Move 3 in this game's history/);
+  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('White to move');
+  // The record itself is still listed in full
+  expect(screen.getByTestId('move-list')).toHaveTextContent('Bc1–Ec5');
+});
+
 test('GameScreen lists played moves in wire notation', () => {
   setStoredRole('abc123', 'white');
   renderGameScreen(
