@@ -1,6 +1,5 @@
 import React from 'react';
 import type { Move } from '../engine';
-import { PieceType } from '../engine';
 
 export interface PromotionPickerProps {
   /** The legal promotion moves for the clicked square, one per piece. */
@@ -22,9 +21,14 @@ const PromotionPicker: React.FC<PromotionPickerProps> = ({ choices, onPick, onCa
   return (
     <div
       role="dialog"
+      aria-modal="true"
       aria-labelledby="promotion-title"
       onKeyDown={(e) => {
         if (e.key === 'Escape') onCancel();
+      }}
+      // Clicking the backdrop cancels, like Escape
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
       }}
       style={{
         position: 'fixed',
@@ -57,7 +61,7 @@ const PromotionPicker: React.FC<PromotionPickerProps> = ({ choices, onPick, onCa
               onClick={() => onPick(move)}
               style={{ fontSize: 16, padding: '0.6em 1.2em' }}
             >
-              {move.promotion ?? PieceType.Queen}
+              {move.promotion}
             </button>
           ))}
         </div>

@@ -69,17 +69,24 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   historyRef.current = history;
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
 
-  // A pawn moved onto a promotion square: the legal moves for that square,
-  // one per piece, until the player picks one (or the position moves on).
-  const [promotionChoices, setPromotionChoices] = React.useState<Move[] | null>(null);
-  React.useEffect(() => setPromotionChoices(null), [board]);
-
   const awaitingMove =
     moveSent !== null &&
     moveSent.sessionId === sessionId &&
     !messages
       .slice(moveSent.index)
       .some((m) => m.type === 'move_made' || m.type === 'error' || m.type === 'game_state');
+
+  // The board takes no input while disconnected (a frozen snapshot), while a
+  // move awaits its echo, or when the record is broken.
+  const boardDisabled = status !== 'connected' || replayFailedAt !== null || awaitingMove;
+
+  // A pawn moved onto a promotion square: the legal moves for that square,
+  // one per piece, until the player picks one. The choices belong to the
+  // position they were made against, so they go away when it moves on or
+  // when the board stops taking input (a drop would otherwise leave a live
+  // dialog whose pick is silently discarded).
+  const [promotionChoices, setPromotionChoices] = React.useState<Move[] | null>(null);
+  React.useEffect(() => setPromotionChoices(null), [board, boardDisabled]);
 
   // Rejoin whenever a socket session opens without a server-side seat: on page
   // load with a stored role, and again after every mid-game reconnect (the
@@ -338,11 +345,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             onMove={handleMove}
             onChoosePromotion={setPromotionChoices}
             lastMove={lastMove}
-            disabled={status !== 'connected' || replayFailedAt !== null || awaitingMove}
+            disabled={boardDisabled}
           />
           <OrbitControls makeDefault minDistance={6} maxDistance={25} />
         </Canvas>
-        {promotionChoices && (
+        {promotionChoices && !boardDisabled && (
           <PromotionPicker
             choices={promotionChoices}
             onPick={(move) => {

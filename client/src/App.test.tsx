@@ -662,6 +662,31 @@ test('GameScreen asks which piece to promote to and sends the chosen move', asyn
   expect(screen.getByTestId('board')).toBeDisabled();
 });
 
+test('GameScreen closes the promotion prompt when the position moves on or the socket drops', async () => {
+  const send = vi.fn();
+  const { rerender } = renderGameScreen('abc123', fakeSocket(started, send));
+  await userEvent.click(screen.getByTestId('board-promote'));
+  expect(screen.getByRole('dialog', { name: 'Promote to' })).toBeInTheDocument();
+
+  // The socket drops: the board is a frozen snapshot, so is the prompt.
+  rerender(gameScreenAt(fakeSocket(started, send, { status: 'reconnecting' })));
+  expect(screen.queryByRole('dialog', { name: 'Promote to' })).not.toBeInTheDocument();
+  // ...and it does not come back once reconnected: the choices were dropped.
+  rerender(gameScreenAt(fakeSocket(started, send, { sessionId: 2 })));
+  expect(screen.queryByRole('dialog', { name: 'Promote to' })).not.toBeInTheDocument();
+
+  // A new position (the opponent moved, a replayed history) closes it too.
+  await userEvent.click(screen.getByTestId('board-promote'));
+  expect(screen.getByRole('dialog', { name: 'Promote to' })).toBeInTheDocument();
+  rerender(
+    gameScreenAt(
+      fakeSocket([...started, { type: 'move_made', by: 'white', from: 'Aa2', to: 'Aa3' }], send),
+    ),
+  );
+  expect(screen.queryByRole('dialog', { name: 'Promote to' })).not.toBeInTheDocument();
+  expect(send).not.toHaveBeenCalled();
+});
+
 test('GameScreen drops the promotion when the player cancels', async () => {
   const send = vi.fn();
   renderGameScreen('abc123', fakeSocket(started, send));
