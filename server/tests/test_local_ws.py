@@ -6,6 +6,7 @@ and rejoin without needing Modal credentials. The durable store is a plain
 dict here; production passes a modal.Dict with the same access patterns.
 """
 
+import logging
 import time
 
 import pytest
@@ -456,3 +457,89 @@ def test_game_joined_alone_is_enough_to_rejoin(client, creator_is_white):
         with client.websocket_connect("/ws") as ws3:
             state = rejoin(ws3, gid, joined["color"])
             assert state["started"] is True
+
+
+# --- Logging ------------------------------------------------------------------
+
+
+def app_logs(caplog, level):
+    return [r.getMessage() for r in caplog.records if r.name == "3d_chess" and r.levelno == level]
+
+
+def test_game_error_is_logged_as_warning(client, caplog):
+    with caplog.at_level(logging.INFO, logger="3d_chess"):
+        with client.websocket_connect("/ws") as ws:
+            gid, _ = create_game(ws)
+            ws.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+            assert ws.receive_json()["code"] == "game_not_started"
+    warnings = app_logs(caplog, logging.WARNING)
+    assert len(warnings) == 1
+    assert f"gid={gid}" in warnings[0]
+    assert "code=game_not_started" in warnings[0]
+    assert "message=Both players must have joined to move" in warnings[0]
+
+
+def test_lifecycle_and_moves_are_logged_at_info(client, caplog):
+    with caplog.at_level(logging.INFO, logger="3d_chess"):
+        with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
+            gid, white_ws, black_ws = start_game(ws1, ws2)
+            white_ws.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+            white_ws.receive_json()
+            black_ws.receive_json()
+            black_ws.send_json({"type": "move", "from": "Ea4", "to": "Ea5", "promotion": "N"})
+            black_ws.receive_json()
+            white_ws.receive_json()
+        assert wait_until(lambda: gid not in modal_app.connections)
+    infos = app_logs(caplog, logging.INFO)
+    assert sum(m.startswith("websocket accepted ") for m in infos) == 2
+    assert sum(m.startswith(f"websocket closed gid={gid} ") for m in infos) == 2
+    assert sum(m.startswith(f"game created gid={gid} color=") for m in infos) == 1
+    assert sum(m.startswith(f"seat joined gid={gid} color=") for m in infos) == 1
+    assert f"move recorded gid={gid} by=white from=Aa2 to=Aa3 promotion=None" in infos
+    assert f"move recorded gid={gid} by=black from=Ea4 to=Ea5 promotion=N" in infos
+    assert app_logs(caplog, logging.WARNING) == []
+
+
+def test_rejoin_logs_whether_a_socket_was_replaced(client, caplog, creator_is_white):
+    with caplog.at_level(logging.INFO, logger="3d_chess"):
+        with client.websocket_connect("/ws") as ws1:
+            gid, _ = create_game(ws1)
+            with client.websocket_connect("/ws") as ws_new:
+                rejoin(ws_new, gid, "white")
+                with pytest.raises(WebSocketDisconnect):
+                    ws1.receive_json()
+        assert wait_until(lambda: gid not in modal_app.connections)
+        with client.websocket_connect("/ws") as ws3:
+            rejoin(ws3, gid, "white")
+    rejoins = [m for m in app_logs(caplog, logging.INFO) if m.startswith("seat rejoined ")]
+    assert len(rejoins) == 2
+    assert rejoins[0].startswith(
+        f"seat rejoined gid={gid} color=white moves=0 replaced_socket=True"
+    )
+    assert rejoins[1].startswith(
+        f"seat rejoined gid={gid} color=white moves=0 replaced_socket=False"
+    )
+
+
+def test_unexpected_exception_is_logged_with_traceback_and_closes_socket(
+    client, caplog, monkeypatch
+):
+    def boom(*args, **kwargs):
+        raise RuntimeError("store exploded")
+
+    monkeypatch.setattr(modal_app, "record_move", boom)
+    with caplog.at_level(logging.INFO, logger="3d_chess"):
+        with client.websocket_connect("/ws") as ws:
+            gid, _ = create_game(ws)
+            ws.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+            with pytest.raises(WebSocketDisconnect) as closed:
+                ws.receive_json()
+            assert closed.value.code == modal_app.INTERNAL_ERROR_CLOSE_CODE
+            assert closed.value.reason == "internal_error"
+    errors = [r for r in caplog.records if r.name == "3d_chess" and r.levelno == logging.ERROR]
+    assert len(errors) == 1
+    assert f"gid={gid}" in errors[0].getMessage()
+    assert errors[0].exc_info is not None
+    assert errors[0].exc_info[0] is RuntimeError
+    # The connection was still detached from the live map
+    assert wait_until(lambda: gid not in modal_app.connections)

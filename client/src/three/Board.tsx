@@ -1,6 +1,11 @@
-import { useState } from 'react';
-import { Box } from '@react-three/drei';
-import { BoxGeometry, BufferAttribute, BufferGeometry, EdgesGeometry } from 'three';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  BoxGeometry,
+  BufferAttribute,
+  BufferGeometry,
+  EdgesGeometry,
+  MeshBasicMaterial,
+} from 'three';
 import { Board as EngineBoard } from '../engine';
 import type { Move, Piece } from '../engine';
 import { PieceMesh } from './PieceMesh';
@@ -34,6 +39,29 @@ const buildLatticeGeometry = () => {
   return geometry;
 };
 const latticeGeometry = buildLatticeGeometry();
+
+// The 125 cell boxes share one geometry and one of three materials instead of
+// owning a BoxGeometry and a transparent material each. A cell with nothing
+// to draw is `visible={false}`: three's Raycaster tests layers, not
+// visibility, so it still catches destination clicks and the empty-space
+// click that clears a selection, while the renderer never queues it. It keeps
+// a (never drawn) material because Mesh.raycast bails without one.
+const cellGeometry = new BoxGeometry(1, 1, 1);
+const cellFill = {
+  destination: new MeshBasicMaterial({
+    color: theme.highlightFill,
+    transparent: true,
+    opacity: theme.highlightFillOpacity,
+    depthWrite: false,
+  }),
+  lastMove: new MeshBasicMaterial({
+    color: theme.lastMoveFill,
+    transparent: true,
+    opacity: theme.lastMoveFillOpacity,
+    depthWrite: false,
+  }),
+  none: new MeshBasicMaterial(),
+};
 
 // Line raycasting has a generous default threshold that would steal pointer
 // events from the cells; markers are decorative too.
@@ -71,13 +99,21 @@ export interface BoardProps {
   lastMove?: LastMoveInfo;
   /** Freezes interaction (selection and moves) while still rendering the position. */
   disabled?: boolean;
-  children?: React.ReactNode;
 }
 
 const Board = (props: BoardProps) => {
   const board = props.board;
   // Spectators (no assigned colour) get White's view.
   const orientation = props.playerColor ?? 'white';
+
+  // World position of every cell, computed once per orientation. PieceMesh is
+  // memoized on a shallow prop comparison, so the position it receives has to
+  // be the same array from one render to the next, not a fresh toWorld result.
+  const worldPositions = useMemo(
+    () => new Map(CELLS.map((cell) => [toZXY(cell), toWorld(cell, orientation)])),
+    [orientation],
+  );
+  const worldOf = (cell: Coord) => worldPositions.get(toZXY(cell))!;
 
   const lastMove = props.lastMove;
   // Moves already played when this board mounted are history (a rejoin
@@ -122,6 +158,26 @@ const Board = (props: BoardProps) => {
     const actualLegalMoves = board.generateLegalMoves(coord);
     setLegalMoves(actualLegalMoves);
   };
+
+  // Same reason as worldPositions: each piece gets a handler whose identity
+  // never changes, delegating to the latest closure through a ref.
+  const latestPiecePointerDown = useRef(handlePiecePointerDown);
+  useLayoutEffect(() => {
+    latestPiecePointerDown.current = handlePiecePointerDown;
+  });
+  const pieceHandlers = useMemo(
+    () =>
+      new Map(
+        CELLS.map((cell) => [
+          toZXY(cell),
+          (e: React.PointerEvent) => {
+            e.stopPropagation();
+            latestPiecePointerDown.current(cell);
+          },
+        ]),
+      ),
+    [],
+  );
 
   // Handle highlighted cube click (move application)
   const handleCubePointerDown = (targetCoord: Coord) => {
@@ -178,7 +234,7 @@ const Board = (props: BoardProps) => {
 
   const isSelected = (c: Coord) => !!selected && coordEquals(selected, c);
 
-  const selectedWorld = selected ? toWorld(selected, orientation) : null;
+  const selectedWorld = selected ? worldOf(selected) : null;
 
   return (
     <group
@@ -190,7 +246,6 @@ const Board = (props: BoardProps) => {
         }
       }}
     >
-      {props.children}
       <lineSegments geometry={latticeGeometry} raycast={noRaycast}>
         <lineBasicMaterial
           color={theme.gridLine}
@@ -199,29 +254,29 @@ const Board = (props: BoardProps) => {
           depthWrite={false}
         />
       </lineSegments>
-      {/* Invisible cell boxes: raycast targets for selecting a destination and
-          for the empty-space click that clears the selection. Destination
-          cells get a faint fill, the last move's cells a teal one; everything
-          else visible about a destination is drawn by the markers below. The
-          flags reflect what is drawn: a legal-destination fill replaces the
-          last-move fill on a shared cell. */}
+      {/* Cell boxes: raycast targets for selecting a destination and for the
+          empty-space click that clears the selection. Destination cells get a
+          faint fill, the last move's cells a teal one, and every other cell is
+          not drawn at all; everything else visible about a destination is
+          drawn by the markers below. The flags reflect what is drawn: a
+          legal-destination fill replaces the last-move fill on a shared cell. */}
       {CELLS.map((cell) => {
         const cellKey = toZXY(cell);
         const isDest = isHighlighted(cell);
         const isLastTo = !isDest && cellKey === lastToKey;
         const isLastFrom = !isDest && !isLastTo && cellKey === lastFromKey;
-        const fill = isDest
-          ? { color: theme.highlightFill, opacity: theme.highlightFillOpacity }
+        const material = isDest
+          ? cellFill.destination
           : isLastTo || isLastFrom
-            ? { color: theme.lastMoveFill, opacity: theme.lastMoveFillOpacity }
-            : { color: theme.highlightFill, opacity: 0 };
+            ? cellFill.lastMove
+            : cellFill.none;
         return (
-          <Box
+          <mesh
             key={cellKey}
-            position={toWorld(cell, orientation)}
-            args={[1, 1, 1]}
-            castShadow={false}
-            receiveShadow={false}
+            position={worldOf(cell)}
+            geometry={cellGeometry}
+            material={material}
+            visible={material !== cellFill.none}
             userData={{
               highlight: isDest,
               lastMoveFrom: isLastFrom,
@@ -237,14 +292,7 @@ const Board = (props: BoardProps) => {
                   }
                 : undefined
             }
-          >
-            <meshBasicMaterial
-              color={fill.color}
-              transparent
-              opacity={fill.opacity}
-              depthWrite={false}
-            />
-          </Box>
+          />
         );
       })}
       {/* Move markers: a dot for a quiet move, a ring around a capturable piece.
@@ -254,7 +302,7 @@ const Board = (props: BoardProps) => {
         capture ? (
           <mesh
             key={`capture-${toZXY(to)}`}
-            position={atCellFloor(toWorld(to, orientation))}
+            position={atCellFloor(worldOf(to))}
             rotation={[Math.PI / 2, 0, 0]}
             raycast={noRaycast}
             userData={{ captureRing: true }}
@@ -263,7 +311,7 @@ const Board = (props: BoardProps) => {
             <meshBasicMaterial color={theme.capture} transparent opacity={0.9} depthWrite={false} />
           </mesh>
         ) : (
-          <mesh key={`quiet-${toZXY(to)}`} position={toWorld(to, orientation)} raycast={noRaycast}>
+          <mesh key={`quiet-${toZXY(to)}`} position={worldOf(to)} raycast={noRaycast}>
             <sphereGeometry args={[0.11, 16, 16]} />
             <meshBasicMaterial
               color={theme.quietMove}
@@ -295,11 +343,8 @@ const Board = (props: BoardProps) => {
             key={`${type}-${color}-${toZXY(coord)}`}
             type={type}
             color={color}
-            position={toWorld(coord, orientation)}
-            onPointerDown={(e: React.PointerEvent) => {
-              e.stopPropagation();
-              handlePiecePointerDown(coord);
-            }}
+            position={worldOf(coord)}
+            onPointerDown={pieceHandlers.get(toZXY(coord))}
             // Check trumps selection for the king's glow
             emissive={
               type === PieceType.King && board.inCheck(color)
@@ -318,8 +363,8 @@ const Board = (props: BoardProps) => {
           return (
             <MoveGlide
               key={`anim-${lastMove.moveCount}`}
-              from={toWorld(lastMove.move.from, orientation)}
-              to={toWorld(coord, orientation)}
+              from={worldOf(lastMove.move.from)}
+              to={worldOf(coord)}
             >
               {mesh}
             </MoveGlide>
@@ -332,7 +377,7 @@ const Board = (props: BoardProps) => {
           key={`ghost-${lastMove.moveCount}`}
           type={lastMove.capturedPiece.type}
           color={lastMove.capturedPiece.color}
-          position={toWorld(lastMove.move.to, orientation)}
+          position={worldOf(lastMove.move.to)}
         />
       )}
     </group>

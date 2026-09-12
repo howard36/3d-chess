@@ -1,5 +1,5 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import type { Group, Mesh, MeshStandardMaterial } from 'three';
 import type { PieceType } from '../engine/pieces';
 import { CELL_FLOOR_Y } from './layout';
@@ -16,6 +16,12 @@ type Vec3 = [number, number, number];
  * zero. It deliberately has no `position` prop — the start offset is set
  * imperatively once, so a mid-flight React re-render can never snap the piece
  * back. Mount the wrapper freshly (via key) for each move to be animated.
+ *
+ * The Canvas runs a demand-driven frame loop (nothing renders unless asked),
+ * so both animations here request a frame on mount and again from every
+ * in-flight frame; the frame that lands the tween needs no successor. The
+ * per-frame delta is clamped because the first frame after an idle stretch
+ * reports the whole idle time.
  */
 export const MoveGlide = ({
   from,
@@ -29,6 +35,7 @@ export const MoveGlide = ({
   const group = useRef<Group>(null);
   const elapsedMs = useRef(0);
   const done = useRef(false);
+  const invalidate = useThree((s) => s.invalidate);
   const dx = from[0] - to[0];
   const dy = from[1] - to[1];
   const dz = from[2] - to[2];
@@ -38,6 +45,8 @@ export const MoveGlide = ({
     group.current?.position.set(dx, dy, dz);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only; a new move mounts a new wrapper
   }, []);
+
+  useEffect(() => invalidate(), [invalidate]);
 
   useFrame((_, delta) => {
     const g = group.current;
@@ -57,6 +66,7 @@ export const MoveGlide = ({
       dy * remain + MOVE_ANIMATION.liftWorld * 4 * e * remain,
       dz * remain,
     );
+    invalidate();
   });
 
   return (
@@ -84,6 +94,9 @@ export const GhostPiece = ({
   const elapsedMs = useRef(0);
   const materials = useRef<MeshStandardMaterial[] | null>(null);
   const [finished, setFinished] = useState(false);
+  const invalidate = useThree((s) => s.invalidate);
+
+  useEffect(() => invalidate(), [invalidate]);
 
   useFrame((_, delta) => {
     const g = group.current;
@@ -109,7 +122,9 @@ export const GhostPiece = ({
     const e = easeInOutCubic(t);
     g.scale.setScalar(Math.max(1 - e, 1e-4));
     for (const material of materials.current) material.opacity = 1 - e;
+    // Unmounting is a React commit, which requests the frame that removes it.
     if (t >= 1) setFinished(true);
+    else invalidate();
   });
 
   if (finished) return null;

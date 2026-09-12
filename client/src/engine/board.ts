@@ -12,7 +12,7 @@ import { Coord, LEVELS, FILES, RANKS, toZXY } from './coords';
 
 export type Move = { from: Coord; to: Coord; promotion?: PieceType };
 
-const ALL_PROMOTION_TYPES = [
+export const ALL_PROMOTION_TYPES = [
   PieceType.Queen,
   PieceType.Rook,
   PieceType.Bishop,
@@ -30,26 +30,16 @@ const pawnCaptureDeltas = (dir: number): [number, number, number][] => [
 ];
 
 /** Movement vectors ([dz, dx, dy]) and whether they repeat, for every non-pawn type. */
-const movementVectors = (
-  type: PieceType,
-  at: Coord,
-): { vectors: ReadonlyArray<[number, number, number]>; sliding: boolean } => {
-  switch (type) {
-    case PieceType.Rook:
-      return { vectors: ROOK_VECTORS, sliding: true };
-    case PieceType.Bishop:
-      return { vectors: BISHOP_VECTORS, sliding: true };
-    case PieceType.Unicorn:
-      return { vectors: UNICORN_VECTORS, sliding: true };
-    case PieceType.Queen:
-      return { vectors: QUEEN_VECTORS, sliding: true };
-    case PieceType.King:
-      return { vectors: KING_VECTORS, sliding: false };
-    case PieceType.Knight:
-      return { vectors: KNIGHT_VECTORS, sliding: false };
-    default:
-      throw new Error(`Unknown piece type at ${toZXY(at)}`);
-  }
+const MOVEMENT_VECTORS: Record<
+  Exclude<PieceType, PieceType.Pawn>,
+  { vectors: ReadonlyArray<[number, number, number]>; sliding: boolean }
+> = {
+  [PieceType.Rook]: { vectors: ROOK_VECTORS, sliding: true },
+  [PieceType.Bishop]: { vectors: BISHOP_VECTORS, sliding: true },
+  [PieceType.Unicorn]: { vectors: UNICORN_VECTORS, sliding: true },
+  [PieceType.Queen]: { vectors: QUEEN_VECTORS, sliding: true },
+  [PieceType.King]: { vectors: KING_VECTORS, sliding: false },
+  [PieceType.Knight]: { vectors: KNIGHT_VECTORS, sliding: false },
 };
 
 export class Board {
@@ -135,7 +125,7 @@ export class Board {
     }
 
     // Other pieces (Rook, Bishop, Unicorn, Queen, King, Knight)
-    const { vectors, sliding } = movementVectors(piece.type, from);
+    const { vectors, sliding } = MOVEMENT_VECTORS[piece.type];
 
     for (const [dz, dx, dy] of vectors) {
       let n = 1;
@@ -225,7 +215,7 @@ export class Board {
       return attacked;
     }
 
-    const { vectors, sliding } = movementVectors(piece.type, from);
+    const { vectors, sliding } = MOVEMENT_VECTORS[piece.type];
     for (const [dz, dx, dy] of vectors) {
       let n = 1;
       while (true) {

@@ -85,8 +85,28 @@ jobs:
       - name: Install client dependencies
         run: npm ci
         working-directory: client
+      # The Chromium download (~150MB) is cached per Playwright version; the
+      # key comes from the lockfile so a bump invalidates it. OS packages are
+      # not part of the cache, so a hit still runs install-deps.
+      - name: Resolve Playwright version
+        id: playwright
+        run: |
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+        working-directory: client
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+        working-directory: client
+      - name: Install Playwright OS dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
         working-directory: client
       - name: Run Playwright E2E tests
         run: npm run e2e
