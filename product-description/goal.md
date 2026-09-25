@@ -99,7 +99,7 @@ Ownership of the playing states (the `play/` documents must agree on these hand-
 - Do not modify anything in `client/` or `server/` or the repository's root files. They are read-only reference material.
 - Do not add files outside the README's structure without updating the structure and coverage table to match.
 - When a behavior cannot be determined from code and tests, write down what you could determine, put the rest in "Open questions", and move on. Do not guess and do not block.
-- Depth bar: `start/creating-a-game.md` is roughly 180 lines for a small request. The `play/` documents will be longer; game-page panels will often be shorter. Completeness matters more than length. Every phase, every modifier row, every interrupt row must be accounted for, even if the answer is "No effect."
+- Depth bar: `start/creating-a-game.md` is roughly 140 lines of long paragraphs for a small request. The `play/` documents will be longer; game-page panels will often be shorter. Completeness matters more than length. Every phase, every modifier row, every interrupt row must be accounted for, even if the answer is "No effect."
 - If you find that the README's structure is wrong for something you discover (a document that should be split, two that should merge), make the change, update the structure and coverage table, and note why in the commit message.
 
 You are done when the coverage table has no `not started` rows, the consistency pass is complete, and everything is committed.

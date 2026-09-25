@@ -172,15 +172,15 @@ Status is one of `not started`, `drafted`, or `verified`.
 
 | Document | Status |
 | --- | --- |
-| glossary.md | not started |
+| glossary.md | drafted |
 | bug-triage.md | not started |
 | verification/ (6 checklists) | not started |
-| foundations/game-rules.md | not started |
-| foundations/input-model.md | not started |
-| foundations/connection-and-seat.md | not started |
-| foundations/screens-and-navigation.md | not started |
-| foundations/the-view.md | not started |
-| start/creating-a-game.md | not started |
+| foundations/game-rules.md | drafted |
+| foundations/input-model.md | drafted |
+| foundations/connection-and-seat.md | drafted |
+| foundations/screens-and-navigation.md | drafted |
+| foundations/the-view.md | drafted |
+| start/creating-a-game.md | drafted |
 | start/waiting-for-an-opponent.md | not started |
 | start/joining-a-game.md | not started |
 | play/making-a-move.md | not started |
