@@ -2,7 +2,7 @@
 
 ## Summary
 
-Waiting for an opponent is the stretch between a game existing and a game starting: the creator sits on the [share-link screen](../glossary.md#the-product-and-its-screens), holding one seat, until someone else opens the [share link](../glossary.md#games-and-seats) and clicks "Join Game". It lives on the game page at `/game/{id}` in the before-joining [phase](../foundations/screens-and-navigation.md#the-game-page-and-its-phases), for a browser that has a [stored seat](../foundations/connection-and-seat.md#the-stored-seat) for the game. The screen offers nothing to do: no button, no copy control, no way to cancel the game, and no sign of who has seen the link. The request that ends the wait is not the creator's but the joiner's: the joiner's join reaching the server is what starts the game, and the server's announcement that the game has started, arriving on this page, is what replaces the screen with the board. This document describes the wait from the creator's side; the joiner's side is [joining a game](joining-a-game.md).
+Waiting for an opponent is the stretch between a game existing and a game starting: the creator sits on the [share-link screen](../glossary.md#the-product-and-its-screens), holding one seat, until someone else opens the [share link](../glossary.md#games-and-seats) and clicks "Join Game". It lives on the game page at `/game/{id}` in the before-joining [phase](../foundations/screens-and-navigation.md#the-game-page-and-its-phases), for a browser that has a [stored seat](../foundations/connection-and-seat.md#the-stored-seat) for the game. The screen offers nothing to do: no button, no copy control, no way to cancel the game, and no sign of who has seen the link. The request that ends the wait is not the creator's but the joiner's: the joiner's join reaching the server is what starts the game, and the server's [start notice](../glossary.md#requests), arriving on this page, is what replaces the screen with the board. This document describes the wait from the creator's side; the joiner's side is [joining a game](joining-a-game.md).
 
 ## The simple case
 
@@ -27,7 +27,7 @@ stateDiagram-v2
     rejoining --> share : snapshot says not started
     rejoining --> board : snapshot says started
     rejoining --> join : rejoin refused before any snapshot (game expired)
-    share --> board : announcement that the game has started (someone joined)
+    share --> board : start notice (someone joined)
     share --> recon : connection drops
     recon --> rejoining : connection opens (rejoin sent)
     share --> replaced : another tab of this browser takes the seat
@@ -65,13 +65,13 @@ The game has started from this moment, whether or not the creator's page ever he
 
 ### While in flight
 
-On the creator's side, the announcement is in flight only for the time it takes to cross the network, a fraction of a second, and there is no sign of it: the share-link screen does not change until it arrives. The creator never sees the joiner's join screen, the joiner's "Joined game, waiting for start...", or anything else the joiner does before the join reaches the server.
+On the creator's side, the start notice is in flight only for the time it takes to cross the network, a fraction of a second, and there is no sign of it: the share-link screen does not change until it arrives. The creator never sees the joiner's join screen, the joiner's "Joined game, waiting for start...", or anything else the joiner does before the join reaches the server.
 
-If the creator's page is not connected when the join is recorded (reconnecting after a drop, replaced by another tab, on the start screen, or closed), the announcement is not sent to it at all. The game has started anyway; the page learns so from the snapshot after its next rejoin.
+If the creator's page is not connected when the join is recorded (reconnecting after a drop, replaced by another tab, on the start screen, or closed), the start notice is not sent to it at all. The game has started anyway; the page learns so from the snapshot after its next rejoin.
 
 ### The answer arrives
 
-The answer is the server's announcement that the game has started, carrying the creator's color. The page switches straight from the share-link screen to the board screen, with no transition, and stays in the playing phase for as long as it is open:
+The answer is the server's [start notice](../glossary.md#requests), carrying the creator's color. The page switches straight from the share-link screen to the board screen, with no transition, and stays in the playing phase for as long as it is open:
 
 - the seat label at the top left reads "You are playing as white." or "You are playing as black."; this is the first time the page shows the color;
 - the board is drawn in the [default view](../foundations/the-view.md#the-default-view), [oriented](../foundations/the-view.md#orientation) for the creator's color, with the starting position;
@@ -91,7 +91,7 @@ There is no sound, no browser notification, and no change to the tab's title. A 
 | Your color | Already decided at random when the game was created, and held by this browser as the stored seat, but not shown anywhere on this screen. | Cannot change. The board shows it for the first time. |
 | Whose turn it is | No turn yet: there is no board, and nothing can be played until both seats are taken. | No effect. The game starts with White to move; a joiner seated as White can move before the creator's board appears if the creator is not connected. |
 | How you reached the page | From "Start New Game": no rejoin, the screen at once. Returning with a stored seat: the screen at once, then a rejoin whose snapshot keeps it or replaces it with the board. A returning joiner, or any player of a started game, sees this screen only until the snapshot. A visitor sees the join screen instead. A creator whose browser does not store the seat sees the join screen too (see the edge cases). | No effect. |
-| Connection state | Connecting (after a page load): the screen shows at once, with no indicator, and the rejoin goes out when the connection opens. Connected: as described. Reconnecting: the amber "Reconnecting…" box at the top right; the screen stays. Replaced: the [replaced dialog](../session/second-tab.md) covers the screen. | A drop at the moment the join is recorded loses the announcement; the snapshot after reconnecting says the game has started, and the board appears. |
+| Connection state | Connecting (after a page load): the screen shows at once, with no indicator, and the rejoin goes out when the connection opens. Connected: as described. Reconnecting: the amber "Reconnecting…" box at the top right; the screen stays. Replaced: the [replaced dialog](../session/second-tab.md) covers the screen. | A drop at the moment the join is recorded loses the start notice; the snapshot after reconnecting says the game has started, and the board appears. |
 | Game state | Not started: one seat taken, no moves. In check, over, and frozen cannot occur. | The game becomes in progress. |
 | Shift, Ctrl, or Cmd held | No effect. The share link is text, not a link, so Ctrl-click or Cmd-click does not open it. | No effect. |
 | Input device | Nothing on the screen responds to a click, a tap, or a key. The link's text can be selected with the mouse or a long press and copied. Tab reaches nothing unless the error banner or the replaced dialog is showing. | No effect. |
@@ -100,20 +100,20 @@ Nothing the creator can do changes what happens when someone joins: the color wa
 
 ## Cancel and interrupt
 
-"Before sending" is the wait itself, before any join reaches the server; "while in flight" is the moment between the server recording a join and the announcement reaching this page.
+"Before sending" is the wait itself, before any join reaches the server; "while in flight" is the moment between the server recording a join and the start notice reaching this page.
 
 | Event | Before sending | While in flight |
 | --- | --- | --- |
 | Escape or Cancel | No effect. There is no Cancel control and no way to withdraw or close the game; Escape is ignored. | No effect. |
 | Pressing elsewhere or turning the view | There is no board on this screen. Clicking the page does nothing; dragging across the link selects its text. | Same. |
-| Leaving the game page within the app | Back to the start screen [resets](../foundations/connection-and-seat.md#returning-to-the-start-screen) the connection. The game stays on the server, open to a joiner. Forward, or the link, returns through a rejoin: the share-link screen again, or the board if someone joined meanwhile. | The announcement is lost with the page. The game has started; the creator finds the board on returning. |
+| Leaving the game page within the app | Back to the start screen [resets](../foundations/connection-and-seat.md#returning-to-the-start-screen) the connection. The game stays on the server, open to a joiner. Forward, or the link, returns through a rejoin: the share-link screen again, or the board if someone joined meanwhile. | The start notice is lost with the page. The game has started; the creator finds the board on returning. |
 | The game ends | Not applicable: the game has not started. | Not applicable. |
 | The server answers with an error | The creator's only request here is the automatic rejoin. If it is refused because the game has expired or the seat is unknown ("Cannot rejoin", "No such seat to rejoin") before the page has had any snapshot, the stored seat is deleted, the page shows the join screen, and the [error banner](../game-page/error-banner.md) shows the message. A page that has already had a snapshot keeps the stored seat and stays on the share-link screen, with the message in the banner. | Not applicable: the join has been accepted by this point, and a refused join is reported only to the joiner. |
-| The connection drops | "Reconnecting…" appears at the top right and the screen stays. When a connection opens, the page rejoins; the snapshot keeps the screen if nobody has joined, or brings the board if someone joined during the outage. | The announcement is lost. The snapshot after reconnecting says the game has started, and the board appears. |
+| The connection drops | "Reconnecting…" appears at the top right and the screen stays. When a connection opens, the page rejoins; the snapshot keeps the screen if nobody has joined, or brings the board if someone joined during the outage. | The start notice is lost. The snapshot after reconnecting says the game has started, and the board appears. |
 | The window loses focus or the tab is hidden | No effect. The connection stays open in a background tab. | The page switches to the board in the background. Nothing signals it; the player finds the board on returning to the tab. |
 | Reload or closing the tab | Reload: the screen reappears at once and rejoins. Closing: the game waits on the server, and the link reopens it; the link is the only way back, since the start screen does not list games. | Reload: the snapshot says the game has started, and the board appears. Closing: the joiner's board shows "Opponent: offline", and the creator finds the game started on returning. |
-| The opponent acts | This row is the document's subject: the only thing an opponent can do is join, and the first join to reach the server ends the wait. | The announcement arrives and the board appears. |
-| Another tab takes the seat | Opening the share link in another tab or window of this browser rejoins as the creator there and takes the seat; this tab shows the replaced dialog over the share-link screen, and "Play here" takes the seat back. | The announcement goes only to the tab holding the seat. The other tab learns the game has started from the snapshot after "Play here". |
+| The opponent acts | This row is the document's subject: the only thing an opponent can do is join, and the first join to reach the server ends the wait. | The start notice arrives and the board appears. |
+| Another tab takes the seat | Opening the share link in another tab or window of this browser rejoins as the creator there and takes the seat; this tab shows the replaced dialog over the share-link screen, and "Play here" takes the seat back. | The start notice goes only to the tab holding the seat. The other tab learns the game has started from the snapshot after "Play here". |
 | A second touch point or a cancelled touch | No effect. | No effect. |
 
 Nothing in this table changes the server's record except the join itself, and the stored seat survives every row except a rejoin refused before the page has had any snapshot.
@@ -146,7 +146,7 @@ Nothing in this table changes the server's record except the join itself, and th
 - **A returning joiner.** A joiner reopening a started game sees "Game created! Share this link with a friend:" and the link until the snapshot arrives, normally too briefly to read, and for as long as an outage lasts. See [the connection and seat model](../foundations/connection-and-seat.md#rejoining).
 - **Waiting more than an hour.** The server ends every connection within an hour, so a long wait shows "Reconnecting…" for a moment about once an hour; the page rejoins and the screen stays.
 - **A flash of "Opponent: offline".** A page that has rejoined at least once while waiting (after a reload or a drop) holds the report that no opponent was connected. When the game starts, the board can show "Opponent: offline" for an instant before the report that the joiner is online replaces it.
-- **"Opponent: online" for an absent creator.** If the creator's connection has died without the server noticing yet (a laptop lid closed, a network that vanished), the joiner is told the creator is online, and the announcement meant for the creator is lost. The creator's page rejoins when it reconnects and shows the board.
+- **"Opponent: online" for an absent creator.** If the creator's connection has died without the server noticing yet (a laptop lid closed, a network that vanished), the joiner is told the creator is online, and the start notice meant for the creator is lost. The creator's page rejoins when it reconnects and shows the board.
 - **Back, then Forward, quickly.** Going Back to the start screen and Forward again before the start screen's fresh connection has opened sends the rejoin twice; the second is refused, and the share-link screen shows "Error: Already in a game" in the error banner. The seat is not affected. This looks like a bug; see open questions.
 - **Leaving to create another game.** Back to the start screen and "Start New Game" creates a second game; the first keeps waiting on the server, reachable only through its link.
 - **The page title** stays "3D Chess — Online Multiplayer" throughout, including when the opponent joins.

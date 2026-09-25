@@ -57,7 +57,7 @@ The join leaves the browser the instant the button is clicked on an open connect
 - otherwise records the free seat as taken, for the life of the game;
 - ties this connection to the game and the seat, so that everything else sent on it is on the joiner's behalf;
 - confirms the seat to the joiner, with its color;
-- announces that the game has started to every player connected to the game, White first: the joiner, and the creator if the creator's page is connected;
+- sends the [start notice](../glossary.md#requests) to every player connected to the game, White first: the joiner, and the creator if the creator's page is connected;
 - tells the creator the joiner is online, and tells the joiner whether the creator is connected.
 
 The seat is taken from this moment whether or not any answer reaches the joiner. A refused join changes nothing on the server and leaves the connection free.
@@ -73,7 +73,7 @@ If the connection drops now, before the seat confirmation arrives, the page stay
 On success, three messages arrive in quick succession, and the page reacts to each:
 
 1. **The seat confirmation**, carrying the joiner's color. The browser writes the stored seat for the game (key: the game id, value: the color). Nothing visible changes. From here on, a drop or a reload is recoverable: the page [rejoins](../foundations/connection-and-seat.md#rejoining) with the stored seat and the snapshot shows the started game.
-2. **The announcement that the game has started.** The page switches to the board screen and stays in the playing phase for as long as it is open: "You are playing as white." or "You are playing as black." at the top left, "White to move" at the top center, the board in the [default view](../foundations/the-view.md#the-default-view), [oriented](../foundations/the-view.md#orientation) for the joiner's color, and no [move list](../game-page/move-list.md) until the first move. The stored seat is written again with the same color, which changes nothing.
+2. **The start notice.** The page switches to the board screen and stays in the playing phase for as long as it is open: "You are playing as white." or "You are playing as black." at the top left, "White to move" at the top center, the board in the [default view](../foundations/the-view.md#the-default-view), [oriented](../foundations/the-view.md#orientation) for the joiner's color, and no [move list](../game-page/move-list.md) until the first move. The stored seat is written again with the same color, which changes nothing.
 3. **The creator's presence**, immediately after. "Opponent: online" appears under the seat label, or "Opponent: offline" if the creator's page is not connected at that moment (see [seat and opponent status](../game-page/seat-and-opponent-status.md)).
 
 A joiner seated as White can move at once, even if the creator is offline ([making a move](../play/making-a-move.md)); a joiner seated as Black waits for the creator's first move ([the opponent's move](../play/the-opponents-move.md)).
@@ -126,7 +126,7 @@ After any interrupt before the seat confirmation, this browser holds no stored s
 
 **Game over.** Not applicable.
 
-**Stored seat.** Written the moment the seat confirmation arrives, before the announcement that the game has started, so that a drop between the two is recovered by a rejoin. Nothing is written before that, so a join whose confirmation never arrives leaves nothing in the browser. If the browser refuses to store it (storage disabled), the write fails silently; the page still remembers the seat for as long as it is open and rejoins after a drop, but a reload shows the join screen, and joining again is refused with "Game full".
+**Stored seat.** Written the moment the seat confirmation arrives, before the start notice, so that a drop between the two is recovered by a rejoin. Nothing is written before that, so a join whose confirmation never arrives leaves nothing in the browser. If the browser refuses to store it (storage disabled), the write fails silently; the page still remembers the seat for as long as it is open and rejoins after a drop, but a reload shows the join screen, and joining again is refused with "Game full".
 
 **Keyboard, touch, and screen size.** The button can be reached with Tab and pressed with Enter or Space. A tap works like a click. After the click the button is gone and nothing is focused. The screen is a single centered column and fits any window width; see [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md) and [accessibility](../cross-cutting/accessibility.md).
 
