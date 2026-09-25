@@ -118,6 +118,12 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Echo.** The server's copy of a recorded move, sent to both players, including the one who made it. A move appears on a player's board only when its echo (or a snapshot that contains it) arrives; the mover's own board does not show the move early.
 
+**Seat confirmation.** The server's answer to a successful join, sent to the joiner alone just before the *start notice*, carrying the color the joiner got. The stored seat is written when it arrives, which is why a drop after it is recoverable and a drop before it is not.
+
+**Start notice.** The server's message, sent the moment a game's second seat is taken, telling every player connected to the game that it has started, and each one its own color. It moves the share-link and joined screens to the board screen. A player whose page is not connected at that moment never receives it; the snapshot from their next rejoin says the game has started instead.
+
+**Land.** A move lands on a board when its echo, or a snapshot containing it, arrives and the browser replays it: the piece glides (or is simply drawn, for a move already in the record when the board appeared), the last-move trace moves, the turn indicator changes, and the move list gains the move, all at that moment and never before.
+
 **Snapshot.** The server's answer to a rejoin: the player's color, whether the game has started, and the entire move record. A snapshot replaces everything the page knew about the move record, so moves are never counted twice.
 
 **Error.** A request the server refused, with a short message shown to the player. The full list is in [error messages](cross-cutting/error-messages.md).
@@ -160,7 +166,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Retry schedule.** After an unexpected drop, the browser waits 0.5 s, then 1 s, 2 s, 4 s, and then 8 s between attempts, forever. The schedule starts over whenever a connection opens. There is no limit on attempts and no manual retry button.
 
-**Drop.** The connection closing without the player asking: a network change, the server restarting, or the one-hour limit. A drop is always followed by the retry schedule, except when the server closed the connection because the seat was *replaced*.
+**Drop.** The connection closing without the player asking: a network change, a computer going to sleep, the server restarting or being redeployed, a fault on the server (which closes the connection with an internal-error code), or the one-hour limit. A drop is always followed by the retry schedule, except when the server closed the connection because the seat was *replaced*.
 
 **One-hour limit.** The server ends every connection after at most one hour. The player sees it as an ordinary brief drop.
 
@@ -168,17 +174,21 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Last connection wins.** When a rejoin names a seat that another live connection holds, the server gives the seat to the new connection and closes the old one with a message that stops it retrying. This is what lets a reloaded tab recover at once, and what makes a second tab take the seat from the first.
 
+**Replaced signal.** The way the server closes a connection whose seat a newer connection has taken (last connection wins). A tab that receives it does not retry and shows the replaced dialog; every other close starts the retry schedule. A connection that has already died never receives it, which is why a tab that was reconnecting when another tab took the seat takes the seat back by itself when its retry succeeds.
+
 **Presence.** Whether the opponent currently has a live connection to the game, shown as "Opponent: online" or "Opponent: offline" under the seat label. The server announces it when a player joins or rejoins and when a player's connection drops. See [seat and opponent status](game-page/seat-and-opponent-status.md).
 
 ## The interface
 
 **Seat label.** The dark box at the top left of the board screen: "You are playing as white." (or black, in lower case), with the presence line under it once known.
 
+**Presence line.** The smaller second line of the seat label, "Opponent: online" or "Opponent: offline". It is absent until the first presence report arrives, and after that shows the latest report about the opponent that this page has received, even while this page's own connection is down.
+
 **Turn indicator.** The light box at the top center of the board screen: "White to move" or "Black to move". It ignores the pointer, so presses pass through it to the board.
 
 **Move list.** The dark panel at the bottom right of the board screen listing every move in the record, one numbered row per White–Black pair, in cell notation with an en dash (`Ab2–Ab3`) and `=` plus a letter for a promotion (`Da4–Ea5=U`). Hidden until the first move. See [the move list](game-page/move-list.md).
 
-**Error banner.** The red box at the bottom center of the game page: "Error: " followed by the server's message, with a "✕" button that dismisses it. See [the error banner](game-page/error-banner.md). The start screen shows errors differently, as red text under its button.
+**Error banner.** The red box at the bottom center of the game page: "Error: " followed by the server's message, with a "✕" button that dismisses it. *Dismissing* hides every error received on the page so far; nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The start screen shows errors differently, as red text under its button.
 
 **Reconnecting banner.** The amber "Reconnecting…" box at the top right of the game page while the connection state is *reconnecting*.
 
@@ -194,7 +204,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **View.** What the camera shows of the board. Each player's view is independent and local; turning it changes nothing for the opponent and nothing on the server.
 
-**Default view.** The camera position every board screen starts from: up and to the right of the board, looking at its center, with the whole cube in frame. Reloading returns to it; nothing else does.
+**Default view.** The camera position every board screen starts from: up and to the right of the board, looking at its center, with most of the cube in frame (the nearest bottom edge runs slightly off the bottom of a typical window). Reloading returns to it; nothing else does.
 
 **Orientation.** Each player sees the board from their own side: their own back ranks at the bottom of the screen, their own levels nearest the camera, and their army laid out left to right exactly as the other player sees theirs. See [the view](foundations/the-view.md#orientation).
 

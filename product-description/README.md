@@ -181,23 +181,23 @@ Status is one of `not started`, `drafted`, or `verified`.
 | foundations/screens-and-navigation.md | drafted |
 | foundations/the-view.md | drafted |
 | start/creating-a-game.md | drafted |
-| start/waiting-for-an-opponent.md | not started |
-| start/joining-a-game.md | not started |
+| start/waiting-for-an-opponent.md | drafted |
+| start/joining-a-game.md | drafted |
 | play/making-a-move.md | drafted |
 | play/promotion.md | drafted |
 | play/the-opponents-move.md | drafted |
 | play/check-and-game-end.md | drafted |
-| game-page/seat-and-opponent-status.md | not started |
-| game-page/turn-indicator.md | not started |
-| game-page/move-list.md | not started |
-| game-page/error-banner.md | not started |
-| session/reload-and-return.md | not started |
-| session/connection-loss.md | not started |
-| session/second-tab.md | not started |
-| cross-cutting/error-messages.md | not started |
-| cross-cutting/broken-game-record.md | not started |
-| cross-cutting/accessibility.md | not started |
-| cross-cutting/screen-sizes-and-touch.md | not started |
+| game-page/seat-and-opponent-status.md | drafted |
+| game-page/turn-indicator.md | drafted |
+| game-page/move-list.md | drafted |
+| game-page/error-banner.md | drafted |
+| session/reload-and-return.md | drafted |
+| session/connection-loss.md | drafted |
+| session/second-tab.md | drafted |
+| cross-cutting/error-messages.md | drafted |
+| cross-cutting/broken-game-record.md | drafted |
+| cross-cutting/accessibility.md | drafted |
+| cross-cutting/screen-sizes-and-touch.md | drafted |
 
 ## Reference
 
