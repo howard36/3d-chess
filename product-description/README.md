@@ -124,6 +124,7 @@ verification/
   game-page.md                   checklists for game-page/
   session.md                     checklists for session/
   cross-cutting.md               checklists for cross-cutting/
+  harness/                       the Playwright scripts that ran the first, scripted pass
 
 foundations/
   game-rules.md                  the board, its coordinates, the pieces and how they move, check,
@@ -174,7 +175,7 @@ Status is one of `not started`, `drafted`, or `verified`.
 | --- | --- |
 | glossary.md | drafted |
 | bug-triage.md | not started |
-| verification/ (6 checklists) | not started |
+| verification/ (6 checklists) | drafted |
 | foundations/game-rules.md | drafted |
 | foundations/input-model.md | drafted |
 | foundations/connection-and-seat.md | drafted |
