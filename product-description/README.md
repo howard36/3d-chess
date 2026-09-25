@@ -183,10 +183,10 @@ Status is one of `not started`, `drafted`, or `verified`.
 | start/creating-a-game.md | drafted |
 | start/waiting-for-an-opponent.md | not started |
 | start/joining-a-game.md | not started |
-| play/making-a-move.md | not started |
-| play/promotion.md | not started |
-| play/the-opponents-move.md | not started |
-| play/check-and-game-end.md | not started |
+| play/making-a-move.md | drafted |
+| play/promotion.md | drafted |
+| play/the-opponents-move.md | drafted |
+| play/check-and-game-end.md | drafted |
 | game-page/seat-and-opponent-status.md | not started |
 | game-page/turn-indicator.md | not started |
 | game-page/move-list.md | not started |
