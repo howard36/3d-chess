@@ -69,6 +69,14 @@ The game page:
 - Only the latest server error is shown, as the error banner on the game page and as red text on the start screen. Dismissing hides every error so far; a later error shows again.
 - Game over is decided by each browser from the record. The end-game dialog covers the board and offers only "Start new game", which goes to the start screen.
 
+Established by the first verification pass (2026-09-25, scripted; see verification/README.md):
+
+- Animations advance at most 33 ms per drawn frame, so below 30 frames per second the 300 ms glide and fade last longer (about 1.5 s at 9 frames per second).
+- The promotion dialog opens with nothing focused: the press that opens it takes focus back from "Queen". Escape and Enter work only after a Tab.
+- Two presses on a destination within about 20 ms both send the move; the copy is refused with "Not your turn".
+- The default view does not frame the whole cube: in a 1280 × 720 window the nearest bottom edge is cut off, and the vertical field of view is fixed, so narrow windows crop the sides.
+- The dialogs' buttons render as plain words (no border or background) and their headings as body-size text.
+
 Naming decisions:
 
 - "The board takes input" (not "enabled"), "held" for the player's own move in flight, "frozen" only for a move record this browser cannot replay.

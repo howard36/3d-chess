@@ -57,7 +57,7 @@ The [harness](harness/README.md) wraps this in Playwright: it seats two players 
 **First pass, 2026-09-25, scripted, against commit `d94507b`.** Every checklist item was run once by the [harness](harness/README.md) in headless Chromium, with two browser contexts as the two players, against the local server and client. Results are recorded in each file's Result column.
 
 - **146 items: 145 pass, 0 fail, 1 blocked.** The blocked item (PROMO-10) could not be set up in a phone-sized window because the board is cropped there (SIZE-01).
-- **"Pass" on a suspected-bug item means the product did what the document says it does**, which for those items is the defect. The pass confirmed 18 of them in the running product; they are the entries marked confirmed in [`bug-triage.md`](../bug-triage.md).
+- **"Pass" on a suspected-bug item means the product did what the document says it does**, which for those items is the defect. The pass confirmed, in the running product, the defects behind 19 of the 23 entries in [`bug-triage.md`](../bug-triage.md); each of those carries a Status line naming the items.
 - **Five claims failed on the first run and were fixed in the documents, not the product**, then passed: the promotion dialog does not keep focus on "Queen" (PROMO-02, PROMO-04, PROMO-08), a very fast double press sends a move twice (MOVE-07), and the default view does not frame the whole cube (VIEW-01). Their Result cells say so.
 - Several first-run failures were the harness's own (timing at a low frame rate, a test that clicked before a screen had rendered); they were corrected and rerun, and are not recorded as product results.
 
