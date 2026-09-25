@@ -50,7 +50,7 @@ The dialog covers the whole window with a translucent dark backdrop and a white 
 | Black delivered checkmate | "Black wins by checkmate!" |
 | Stalemate | "Draw by stalemate!" |
 
-Below it is a single button, "Start new game". The dialog does not say "You win" or "You lose", does not show the number of moves, and has no close button: Escape and a click on the backdrop do nothing.
+Below it is a single button, "Start new game", drawn as plain larger words with no border or background; the heading is ordinary-sized text. The dialog does not say "You win" or "You lose", does not show the number of moves, and has no close button: Escape and a click on the backdrop do nothing.
 
 The dialog is not shown when the board is [frozen](../cross-cutting/broken-game-record.md): a position the browser could not fully replay is not treated as final.
 
@@ -122,7 +122,7 @@ The finished game remains on the server unchanged until it expires, about 30 day
 
 **Stored seat.** Kept after the game ends, so the link keeps working for the player until the game expires.
 
-**Keyboard, touch, and screen size.** The dialog's button is reachable by Tab, but focus is not placed on it, and nothing else on the page can be reached behind the dialog. Check is conveyed only by a red color; see [accessibility](../cross-cutting/accessibility.md). The dialog is at least 300 px wide and fits a phone screen.
+**Keyboard, touch, and screen size.** The dialog's button is reachable by Tab, but focus is not placed on it. Behind the dialog, the board and the view cannot be reached; the error banner's "✕", which is drawn above the dialog, can still be reached by Tab and clicked. Check is conveyed only by a red color; see [accessibility](../cross-cutting/accessibility.md). The dialog is at least 300 px wide and fits a phone screen.
 
 ## Edge cases
 

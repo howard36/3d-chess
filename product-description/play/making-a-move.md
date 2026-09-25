@@ -73,7 +73,7 @@ The server, on receiving it, checks that this connection holds a seat in a game 
 
 ### While in flight
 
-The board is held. Presses on pieces and cells do nothing: nothing can be selected, and pressing another destination sends nothing, so a quick double press sends one move. The view can still be turned. The turn indicator still names the player, the piece still stands on its origin, and the move list is unchanged. Nothing on screen says that a move is on its way: no spinner, no dimming, no text. On an ordinary connection the wait is a fraction of a second; on a slow one, the board simply does not respond until the echo comes.
+The board is held. Presses on pieces and cells do nothing: nothing can be selected, and pressing another destination sends nothing. The hold takes effect a few tens of milliseconds after the press, though: a second press on the same destination inside that moment (a very fast double-click) sends the move again, and the server refuses the copy with "Error: Not your turn" in the error banner. An ordinary double-click is slower than that and sends one move. The view can still be turned. The turn indicator still names the player, the piece still stands on its origin, and the move list is unchanged. Nothing on screen says that a move is on its way: no spinner, no dimming, no text. On an ordinary connection the wait is a fraction of a second; on a slow one, the board simply does not respond until the echo comes.
 
 ### The answer arrives
 
@@ -150,17 +150,19 @@ After an interrupt before sending, the player is always back to having nothing s
 - **A drag that plays a move.** A drag meant to turn the view that starts on a highlighted cell plays that move, because the press acts before the drag begins. With a Queen or Rook selected, highlighted cells can cover much of the board.
 - **Capturing.** Pressing the opponent's piece in a highlighted cell captures it. The capture ring sits at the piece's foot, but any part of the highlighted cell takes the press.
 - **In check.** The King glows red; selecting it shows its escapes, and its glow stays red rather than amber. Pieces that cannot block or capture the checking piece show no destinations.
-- **A stale position after reconnecting.** Between a new connection opening and the rejoin's snapshot arriving (at most one round trip), the board takes input against the position it showed before the drop. If the player's previous move had in fact been recorded, a move sent in that window is refused with "Error: Not your turn" and the snapshot then shows the recorded move.
+- **A stale position after reconnecting.** Between a new connection opening and the rejoin's snapshot arriving (at most one round trip), the board takes input against the position it showed before the drop. If the player's previous move had in fact been recorded, a move sent in that window is refused with "Error: Not your turn" and the snapshot shows the recorded move. If the opponent had also already answered it, the move is accepted, although it was chosen two moves ago, and it may be illegal in the real position or even unplayable, which [freezes](../cross-cutting/broken-game-record.md) both boards. See [connection loss](../session/connection-loss.md#while-in-flight).
 - **The same position, a new board.** A snapshot identical to what the board already showed still clears the selection.
 - **A press on the turn indicator.** It lets presses through to the board. The seat label and the move list do not: a destination behind them cannot be pressed until the view is turned.
+- **A very fast double press.** Two presses on a destination within a few tens of milliseconds both send the move; the first is recorded and the second is refused with "Error: Not your turn". The game is unaffected, but the error banner appears. Confirmed in the scripted pass at gaps of 0 and 20 ms; at 50 ms and more only one move was sent.
 - **Every mouse button presses.** A right press that starts a pan, or a middle press that starts a zoom, selects or plays a move just like a left press.
 
 ## Open questions and verification
 
 - The press-acts-at-once behavior means a drag to turn the view can play a move or lose the selection; see [the input model](../foundations/input-model.md#open-questions-and-verification). This may be worth treating as a bug rather than documenting.
+- A second press within a few tens of milliseconds of the first sends the move twice; the copy is refused with "Not your turn" (`client/src/screens/GameScreen.tsx:150-155` checks the hold from the last render, which has not happened yet). Harmless to the game but shows an error; low priority.
 - There is no visible sign that a move is in flight. On a slow connection the board silently ignores presses until the echo arrives. Whether an indicator is wanted is a product call.
 - There is no undo or takeback of any kind, by design.
-- "Not your turn" after a reconnect is read from code and depends on a round-trip window; not reproduced.
+- The board takes input again before the rejoin's snapshot arrives, so a move can be sent against a position up to two moves old; if the opponent has already answered the player's recorded move, it is accepted and can freeze the game. See [connection loss](../session/connection-loss.md#open-questions-and-verification). This may be worth treating as a bug. Read from code; it depends on a round-trip window and was not reproduced.
 - Selection, markers, the promotion hand-off, and the held board are covered by `client/src/three/Board.test.tsx` and `client/src/App.test.tsx`; the full loop by `client/e2e/playMove.spec.ts`. Right and middle presses, and presses through the turn indicator, were not tried by hand.
 
 Verified against 3D Chess commit `d94507b`

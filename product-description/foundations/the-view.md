@@ -30,7 +30,7 @@ The board has no labels: no letters, digits, or level names appear anywhere in t
 
 ## The default view
 
-Every board screen starts with the camera in front of the board, above it and to the right, looking at the center of the cube, with the whole cube in frame and the player's own slices nearest. The slices are not exactly behind one another from there, so pieces on deeper levels peek out beside the nearer ones. Both players' cameras start in the same place; the orientation above is what makes each see their own side.
+Every board screen starts with the camera in front of the board, above it and to the right, looking at the center of the cube, with the player's own slices nearest. Most of the cube is in frame, but not all of it: in a typical wide window the nearest bottom edge of the cube, where the player's own back rank stands, runs slightly off the bottom of the window, cutting off the feet of the nearest pieces. The slices are not exactly behind one another from there, so pieces on deeper levels peek out beside the nearer ones. Both players' cameras start in the same place; the orientation above is what makes each see their own side.
 
 The view resets to the default only when the board screen is created: on a page load, a reload, and a return to the game. It does not reset between moves, on reconnecting, or when the opponent moves. There is no "reset view" control.
 
@@ -101,6 +101,8 @@ Every move that arrives while the board screen is showing animates on both playe
 
 Moves do not animate when they were already in the record when the board screen appeared: after a reload, a return to the game, or the board appearing for the first time on a rejoin, the position is simply drawn, with the last-move fill on the latest move. After a reconnect, the snapshot animates its last move only if that move is one this board had not yet shown.
 
+The 300 ms assume a smooth frame rate. Each drawn frame advances an animation by at most 33 ms, so on a device that draws fewer than 30 frames per second the glide and fade take longer: in the scripted pass, with software drawing at about 9 frames per second, a capture's fade ended about 1.5 s after the press. The view's coasting after a drag stretches the same way.
+
 A new move arriving while a glide is still running starts its own glide at once; the earlier piece jumps to its destination. While the tab is hidden, the scene is not drawn and animations pause where they are; when the player returns to the tab, a move that arrived meanwhile glides in from its origin.
 
 A press during a glide can hit the moving piece where it is drawn at that instant; the fading piece cannot be hit at all.
@@ -155,7 +157,7 @@ After any interrupt the view stays where it was left, except when the board scre
 
 **Stored seat.** The view is not stored; only the seat is.
 
-**Keyboard, touch, and screen size.** The view cannot be turned from the keyboard. Touch works as described above. The scene fills the window at any size and keeps its proportions when the window is resized; a narrow window shows the same cube smaller. See [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
+**Keyboard, touch, and screen size.** The view cannot be turned from the keyboard. Touch works as described above. The scene fills the window at any size and redraws at once when the window is resized. The camera's vertical field of view is fixed, so the cube's size follows the window's height: a narrower window crops the sides of the board rather than shrinking it, and an upright phone cuts off a large part of both sides at the default view. See [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
 
 ## Edge cases
 
@@ -170,6 +172,7 @@ After any interrupt the view stays where it was left, except when the board scre
 - The colors, sizes, timings, and orientation are read from `client/src/three/` and covered by `client/src/three/Board.test.tsx` and `layout.test.ts`; the look was checked against the end-to-end screenshots' description, not by eye.
 - The camera controls' behavior (which button does what, damping, the effect of Shift/Ctrl/Cmd, touch gestures, the vertical limits) is the 3D library's default and was read from the library, not from this repository's tests. Not confirmed by hand.
 - Whether a drag in progress survives the end-game dialog appearing is read from how the camera controls capture the pointer; not tried.
+- The default view cutting off the nearest bottom edge of the cube was seen in the scripted pass's screenshots at 1280 × 720. Whether the view should be framed so that the player's own back rank is fully visible is a product call.
 - The absence of coordinate labels on the board, and the absence of a "reset view" control, may be worth a product call.
 - Color is the only cue distinguishing the markers; see accessibility.
 

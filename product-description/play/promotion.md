@@ -40,14 +40,16 @@ At the same instant the board clears the selection and its markers, exactly as i
 - five buttons in a row, in the order Queen, Rook, Bishop, Knight, Unicorn, which wrap onto a second line if the window is narrow;
 - a plain gray "Cancel" button below them.
 
-Keyboard focus moves to "Queen". Nothing has been sent, and the board shows the pawn where it was.
+The dialog gives keyboard focus to "Queen", but the press that opened it takes focus straight back to the page a moment later, so in practice nothing in the dialog has focus: Escape and Enter do nothing until the player clicks in the dialog or presses Tab, which reaches "Queen" first. Nothing has been sent, and the board shows the pawn where it was.
+
+The piece buttons and "Cancel" are drawn as plain words, with no border or background, and "Promote to" is ordinary-sized text; only the white panel and the darkened backdrop mark it as a dialog.
 
 ### End without sending
 
 The dialog closes without sending in any of these ways:
 
 - **Cancel**: clicking "Cancel".
-- **Escape**: pressing Escape while keyboard focus is in the dialog (it is, from the moment it opens, unless the player has clicked somewhere in the panel that is not a button, or tabbed out).
+- **Escape**: pressing Escape while keyboard focus is on one of the dialog's buttons. It is not when the dialog opens (see Begin): the player must first press Tab. Clicking the panel between buttons, or tabbing past "Cancel", takes focus out again.
 - **The backdrop**: clicking the darkened area outside the white panel. A click on the panel itself, between buttons, does nothing.
 - **The position changes**: a new position arrives from the server (a snapshot after a reconnect).
 - **The board stops taking input**: the connection drops, another tab takes the seat, or the record freezes. The dialog does not come back when the board takes input again.
@@ -80,7 +82,7 @@ An error or a drop is handled as in [making a move](making-a-move.md#the-answer-
 | Connection state | The dialog appears only while connected. If the connection drops while it is open, it closes without sending. | A drop is handled as for any move. |
 | Game state | In progress or in check: as described (a promotion that does not answer a check is never offered). Over or frozen: no promotion is possible. | Only this move's echo can end the game. |
 | Shift, Ctrl, or Cmd held | No effect on the press that opens the dialog, or on the buttons. | No effect. |
-| Input device | Mouse or touch: click or tap a button. Keyboard: the dialog is fully usable (Tab between buttons, Enter or Space to pick, Escape to cancel), but the pawn and the square cannot be pressed from the keyboard, so the keyboard can only finish what a pointer began. | No effect. |
+| Input device | Mouse or touch: click or tap a button. Keyboard: after one Tab to reach "Queen", the dialog is usable (Tab between buttons, Enter or Space to pick, Escape to cancel); before that Tab, no key does anything. The pawn and the square cannot be pressed from the keyboard, so the keyboard can only finish what a pointer began. | No effect. |
 
 ## Cancel and interrupt
 
@@ -88,7 +90,7 @@ An error or a drop is handled as in [making a move](making-a-move.md#the-answer-
 
 | Event | Before sending | While in flight |
 | --- | --- | --- |
-| Escape or Cancel | Closes the dialog; nothing sent; nothing selected. Escape works only while keyboard focus is in the dialog. A click on the backdrop does the same. | No effect. The promotion cannot be taken back. |
+| Escape or Cancel | Closes the dialog; nothing sent; nothing selected. Escape works only while keyboard focus is on one of the dialog's buttons, which it is not when the dialog opens. A click on the backdrop does the same as Cancel. | No effect. The promotion cannot be taken back. |
 | Pressing elsewhere or turning the view | The board and the view cannot be reached: the backdrop covers the whole window, and clicking it cancels. The error banner and the reconnecting banner, if showing, sit above the backdrop and can still be clicked. | As in making a move: presses do nothing, the view turns. |
 | Leaving the game page within the app | The dialog is lost with the page; nothing sent. | The move is recorded if the server received it; returning shows it in place. |
 | The game ends | Cannot happen: nothing can land during the player's own turn. | This move's echo can end the game. |
@@ -116,20 +118,21 @@ An error or a drop is handled as in [making a move](making-a-move.md#the-answer-
 
 **Stored seat.** No role.
 
-**Keyboard, touch, and screen size.** The dialog is keyboard-operable once open, and "Queen" has focus on opening, so Enter promotes to a Queen. Focus is not held inside the dialog: Tab past "Cancel" leaves it, and Escape then no longer works. On a narrow window the five buttons wrap onto two lines.
+**Keyboard, touch, and screen size.** The dialog tries to put focus on "Queen" but loses it to the press that opened it, so a keyboard user has to press Tab once before Escape, Enter, or Space do anything. Focus is not held inside the dialog: Tab past "Cancel" leaves it, and Escape then no longer works. On a narrow window the five buttons wrap onto two lines.
 
 ## Edge cases
 
 - **Every promotion shows the dialog.** There is no automatic Queen and no remembered choice; each promotion asks.
 - **Capturing onto the promotion square.** Pressing the opponent's piece on the promotion square opens the dialog like a quiet promotion; the captured piece fades when the move lands.
-- **The Queen is the default only for the keyboard.** Focus starts on "Queen", so pressing Enter right away promotes to a Queen; a mouse or touch user has no default.
+- **No default piece.** The dialog means "Queen" to have focus, which would make Enter promote to a Queen, but the focus is lost at once (see Begin), so pressing Enter right after the dialog opens does nothing. After one Tab, Enter promotes to a Queen.
 - **A click inside the panel.** Clicking the white panel between buttons does nothing, but it takes keyboard focus away from the buttons, after which Escape no longer cancels.
 - **Promoting to a Knight.** Recorded with the letter N, not K.
 - **Several pawns on promotion squares.** Each promotion is its own move with its own dialog; there is no batch.
 
 ## Open questions and verification
 
-- Escape works only while focus is inside the dialog, and a click on the panel or a Tab past the last button loses it. There is no focus trap. Read from code; a small accessibility gap, see [accessibility](../cross-cutting/accessibility.md).
+- **Confirmed: the dialog's focus is lost the moment it opens.** The dialog focuses "Queen" as it appears (`client/src/screens/PromotionPicker.tsx:16-19`), but it appears during the pointer-down of the press on the promotion square, and the browser's default handling of that same press then moves focus to the page, since the 3D canvas cannot take focus. In a scripted Chromium pass the focus log read "focus in: Queen, focus out: Queen" and the page body had focus afterwards; Escape and Enter did nothing until a Tab. Every promotion dialog is opened by such a press, so the intended keyboard shortcut never works as designed. See the verification results.
+- Escape works only while focus is inside the dialog, and a click on the panel or a Tab past the last button loses it. There is no focus trap. See [accessibility](../cross-cutting/accessibility.md).
 - The error and reconnecting banners are drawn above the dialog's backdrop and remain clickable. Read from the drawing order; not confirmed by hand.
 - The dialog, its cancel paths, the send, the automatic close on a drop or a new position, and the "=U" in the move list are covered by `client/src/App.test.tsx`, `client/src/three/Board.test.tsx`, and `client/e2e/promotion.spec.ts`.
 

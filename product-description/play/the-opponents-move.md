@@ -113,7 +113,7 @@ How the move lands depends on when the player sees it:
 
 **The game record.** The opponent's move is permanent once recorded, whether or not the player is watching. Every player's board is replayed from the same record, so the player always ends up with the same position, however and whenever the move reaches them.
 
-**Connection.** The player needs no connection for the opponent to move; they need one to see the move. Moves missed while disconnected all arrive together in the next snapshot, and only the latest one glides.
+**Connection.** The player needs no connection for the opponent to move; they need one to see the move. A move missed while disconnected arrives in the next snapshot and glides in; if several were missed (possible only for a replaced tab), only the latest glides.
 
 **The opponent.** All the player learns about the opponent during their turn is presence, and presence says only whether a connection is open, not whether anyone is at the keyboard.
 
@@ -127,7 +127,7 @@ How the move lands depends on when the player sees it:
 
 ## Edge cases
 
-- **Several moves at once.** A player who returns after being disconnected across several moves (for example after leaving the tab reconnecting through an outage) receives them all in one snapshot; only the last one glides, and the others are simply in place.
+- **Several moves at once.** While a player is disconnected, at most one opponent move can be made (after it, it is the player's turn). Several can pile up only when this tab was [replaced](../session/second-tab.md) and the player went on playing in the other tab: after "Play here", this tab receives them all in one snapshot, the last one glides, and the others are simply in place.
 - **A move landing on a hidden piece.** From the player's angle the moving piece or its destination may be hidden behind nearer pieces. The teal trace and the move list still show where the move went.
 - **Moves in quick succession.** If the player's own move lands and the opponent answers within 300 ms, the second glide starts at once and the first piece jumps to its destination.
 - **An opponent who never returns.** The game stays on the opponent's turn indefinitely. The player can only leave; the game expires about 30 days after it was last active.
