@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import type { GameCreated, Error as ServerError } from '../types/messages';
 import type { GameSocket } from '../hooks/useGameSocket';
 import { setStoredRole } from '../lib/playerRole';
+import { getClientId } from '../lib/clientId';
+import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
 
 interface StartScreenProps {
   gameSocket: GameSocket;
@@ -36,9 +38,13 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
     }
   }, [gameCreated, navigate]);
 
+  // If the connection drops before the answer, ask again on the next one
+  // rather than leave the button stuck at "Creating Game...".
+  const requestGame = useResendOnReconnect(gameSocket, !isLoading);
+
   const handleCreateGame = () => {
     setRequestIndex(messages.length);
-    gameSocket.send({ type: 'create_game' });
+    requestGame({ type: 'create_game', clientId: getClientId() });
   };
 
   return (

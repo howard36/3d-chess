@@ -78,12 +78,13 @@ Key decisions:
   result object while the move record is unchanged, so a presence or error message
   neither replays the game nor resets the 3D board (which would drop the player's
   selection).
-- **Server = relay + durable move log.** Per game the server stores `{seats, moves}` in a
-  `modal.Dict` (durable) and keeps live sockets in a plain in-process dict (ephemeral).
+- **Server = relay + durable move log.** Per game the server stores `{seats, moves}` (plus
+  `claimants`, which client id claimed each seat) in a `modal.Dict` (durable) and keeps
+  live sockets in a plain in-process dict (ephemeral).
   A disconnect detaches the socket but leaves the game record intact; `rejoin_game`
   reclaims a seat and receives the full history in a `game_state` message.
   Last-connection-wins on rejoin, so a refreshed tab can't be locked out by its own
-  half-open predecessor.
+  half-open predecessor; an automatic reconnect is the exception (see Protocol).
 - **Concurrency model.** One container, one event loop, cooperative scheduling. Because
   `modal.Dict` returns deserialized copies, every mutation is read-modify-write and is
   written back **before any `await`** — that ordering is what makes concurrent handlers
@@ -100,7 +101,19 @@ Key decisions:
   moves from the **latest** `game_state` snapshot plus the `move_made` messages after it,
   so a reconnect's replayed history never double-counts moves already in the log. Moves
   queued while disconnected are dropped rather than delivered into a game that may have
-  advanced (the board never showed them — the player just moves again).
+  advanced (the board never showed them — the player just moves again). The board takes
+  no input on a fresh socket until its rejoin is answered: before that it shows the
+  position from before the drop, and a move made against it could be recorded but
+  unplayable. A `create_game` or `join_game` whose answer is lost to a drop is sent again
+  on the next socket. Leaving a game's page (for the start screen, or straight for
+  another game's page through history) resets the socket session.
+- **Tab identity.** Each tab picks a random `clientId` (`client/src/lib/clientId.ts`,
+  kept in `sessionStorage`, so it survives a reload but is not shared with other tabs)
+  and sends it with `create_game`, `join_game` and `rejoin_game`.
+- **Input.** The board acts on a click (primary button, released within a few pixels of
+  the press), never on pointer-down, so a drag, right-drag or pinch that starts over the
+  cube only turns the view. A move can also be typed (`Ab2-Ab3`, `=Q` to promote) in the
+  move box, which is how a keyboard-only or screen-reader player plays.
 
 ## Protocol
 
@@ -124,16 +137,25 @@ App code imports the TypeScript types via the thin re-export layer
 Message flow, happy path:
 
 1. Creator: `create_game` → `game_created {gameId, color}` (creator's color is random).
-2. Joiner opens `/game/:gameId`, sends `join_game` → the joiner gets `game_joined {color}`
-   (its seat, confirmed before anything is broadcast, so a drop right after is still
-   rejoinable), then both players get `game_start {color}`.
+2. Joiner opens `/game/:gameId`, sends `join_game {gameId, clientId?}` → the joiner gets
+   `game_joined {color}` (its seat, confirmed before anything is broadcast, so a drop right
+   after is still rejoinable), then both players get `game_start {color}`. A `join_game`
+   from the client id that already claimed a seat in the game gets that seat again rather
+   than `game_full`, so a tab whose `game_joined` was lost can simply repeat its join.
 3. Moves: `move {from, to, promotion?}` → server checks turn parity → `move_made` to both.
-4. Reload/rejoin: `rejoin_game {gameId, color}` → `game_state {color, started, moves}`.
+4. Reload/rejoin: `rejoin_game {gameId, color, clientId?, takeover?}` →
+   `game_state {color, started, moves}`.
    If another socket already held that seat, the server closes it with WebSocket close
    code **4001 `seat_replaced`** (last connection wins). The client treats that code as
    "stop reconnecting": it shows a _this game is open in another tab_ notice with a button
    that rejoins and takes the seat back, instead of retrying and evicting the newer tab in
    turn. Any other close is a network fault and is retried with backoff.
+   The client sends `takeover: false` on an automatic reconnect (and `true`, the default,
+   on page load and "Play here"). With `takeover: false` the server refuses with error
+   `seat_in_use` if the seat is held by a live socket of a _different_ client id, so a tab
+   that was offline while the player moved to another tab does not take the seat back
+   unasked; it shows the same notice instead. Its own half-open predecessor (same client
+   id) it still replaces.
 5. Presence: after a join or rejoin the server sends each player
    `presence {color: <opponent>, online}` for the opponent's current state, and tells the
    opponent the player is online; when a player's live socket drops it tells the opponent
@@ -174,7 +196,8 @@ rotation, so the default view is just a starting point. Only positions are trans
 piece meshes are never mirrored. If this mapping is ever changed (e.g. to make levels
 vertical), the position math is in `three/layout.ts`; the floor rings and the glide
 lift in `three/Board.tsx` and `three/motion.ts` assume world-Y-up, and the camera lives in
-`screens/GameScreen.tsx`. The engine and wire formats are independent of rendering, and
+`screens/GameScreen.tsx` (its starting direction) and `three/cameraFit.ts` (its distance,
+fitted to the window's shape so the whole cube is framed on a phone too). The engine and wire formats are independent of rendering, and
 the e2e click helpers project through the live camera.
 
 ## Repository layout

@@ -18,12 +18,13 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner }) => {
   }
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="end-game-title"
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
+        inset: 0,
+        padding: 16,
         background: 'rgba(0,0,0,0.5)',
         display: 'flex',
         alignItems: 'center',
@@ -39,11 +40,15 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner }) => {
           borderRadius: 16,
           boxShadow: '0 4px 32px rgba(0,0,0,0.18)',
           textAlign: 'center',
-          minWidth: 300,
+          maxWidth: 420,
         }}
       >
-        <h2 style={{ marginBottom: 16 }}>{message}</h2>
+        <h2 id="end-game-title" style={{ marginBottom: 16 }}>
+          {message}
+        </h2>
+        {/* The dialog takes focus: a keyboard player lands on its only action */}
         <button
+          autoFocus
           style={{ marginTop: 16, fontSize: 18, padding: '0.7em 2em' }}
           onClick={() => navigate('/')}
         >

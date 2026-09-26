@@ -16,6 +16,12 @@
   ],
   "definitions": {
     "color": { "enum": ["white", "black"] },
+    "client_id": {
+      "description": "Random id a browser tab picks for itself. The server remembers which tab claimed each seat, so a tab can re-send a join whose answer it lost, and an automatic rejoin can tell its own stale connection from another tab's live one.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
     "promotion": { "enum": ["Q", "R", "B", "N", "U"] },
     "error_code": {
       "enum": [
@@ -26,13 +32,15 @@
         "invalid_rejoin",
         "invalid_move",
         "game_not_started",
-        "wrong_turn"
+        "wrong_turn",
+        "seat_in_use"
       ]
     },
     "create_game": {
       "type": "object",
       "properties": {
-        "type": { "const": "create_game" }
+        "type": { "const": "create_game" },
+        "clientId": { "$ref": "#/definitions/client_id" }
       },
       "required": ["type"],
       "additionalProperties": false
@@ -51,7 +59,8 @@
       "type": "object",
       "properties": {
         "type": { "const": "join_game" },
-        "gameId": { "type": "string" }
+        "gameId": { "type": "string" },
+        "clientId": { "$ref": "#/definitions/client_id" }
       },
       "required": ["type", "gameId"],
       "additionalProperties": false
@@ -70,7 +79,12 @@
       "properties": {
         "type": { "const": "rejoin_game" },
         "gameId": { "type": "string" },
-        "color": { "$ref": "#/definitions/color" }
+        "color": { "$ref": "#/definitions/color" },
+        "clientId": { "$ref": "#/definitions/client_id" },
+        "takeover": {
+          "description": "Whether to take the seat from another tab's live connection (the default). An automatic reconnect sends false, and is refused with seat_in_use instead.",
+          "type": "boolean"
+        }
       },
       "required": ["type", "gameId", "color"],
       "additionalProperties": false

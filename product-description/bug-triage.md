@@ -6,17 +6,19 @@ A consolidated list of the defects and inconsistencies that the feature document
 
 The documents raised about 60 questions; after merging by root cause, 23 entries remain. Three are **high**. All three can end a game or change it against the player's intent: a press on the board acts on pointer-down, so turning the view can play a move (B-01); a move made just after reconnecting can be recorded against a stale position and freeze the game for both players (B-02); and a join whose answer is lost leaves the joiner stranded and the game unplayable (B-03). The largest cluster is **the connection edge**: B-02, B-03, B-04, B-06, B-10, B-16, and B-17 are all a page's state and the server's getting out of step around a drop, a reset, or a second tab. The fixes are small and local: wait for the snapshot, resend or recover lost requests, reset on every game change. A second cluster is **input and layout**: B-01, B-07, B-08, B-09. Four entries are product calls about what the game should offer rather than defects (B-20 to B-23).
 
-| ID | Title | Severity | Area | Decision needed | Issue |
+**B-01 to B-09, every high and medium entry, were fixed on 2026-09-26**; each carries a **Fix** line, and the table's last column says so. The two product calls among them were decided as described there (B-06: the tab the player chose keeps the seat; B-09: dialogs, live regions, reduced motion and typed moves, not keyboard navigation of the 3D board).
+
+| ID | Title | Severity | Area | Decision needed | Status |
 | --- | --- | --- | --- | --- | --- |
-| B-01 | A press on the board acts on pointer-down, so turning the view can play a move or drop the selection | high | play | fix | — |
-| B-02 | A move pressed just after reconnecting is recorded against a stale position and can freeze the game | high | session | fix | — |
-| B-03 | A join whose answer is lost strands the joiner and loses the seat for good | high | start | fix | — |
-| B-04 | A create whose answer is lost leaves "Creating Game..." stuck until reload | medium | start | fix | — |
-| B-05 | Jumping between two game pages through browser history shows the old game under the new address | medium | session | fix | — |
-| B-06 | A tab that was reconnecting takes the seat back from the newer tab without a click | medium | session | product call | — |
-| B-07 | The promotion dialog loses keyboard focus to the press that opens it | medium | play | fix | — |
-| B-08 | The default view crops the board, badly on phones, and the HUD collides in narrow windows | medium | view | fix | — |
-| B-09 | The game cannot be played without a pointer, and dialogs and cues are not accessible | medium | cross-cutting | product call | — |
+| B-01 | A press on the board acts on pointer-down, so turning the view can play a move or drop the selection | high | play | fix | fixed |
+| B-02 | A move pressed just after reconnecting is recorded against a stale position and can freeze the game | high | session | fix | fixed |
+| B-03 | A join whose answer is lost strands the joiner and loses the seat for good | high | start | fix | fixed |
+| B-04 | A create whose answer is lost leaves "Creating Game..." stuck until reload | medium | start | fix | fixed |
+| B-05 | Jumping between two game pages through browser history shows the old game under the new address | medium | session | fix | fixed |
+| B-06 | A tab that was reconnecting takes the seat back from the newer tab without a click | medium | session | product call | fixed |
+| B-07 | The promotion dialog loses keyboard focus to the press that opens it | medium | play | fix | fixed |
+| B-08 | The default view crops the board, badly on phones, and the HUD collides in narrow windows | medium | view | fix | fixed |
+| B-09 | The game cannot be played without a pointer, and dialogs and cues are not accessible | medium | cross-cutting | product call | fixed |
 | B-10 | Back then Forward before the start screen's connection opens shows "Error: Already in a game" | low | session | fix | — |
 | B-11 | With browser storage disabled, the creator lands on the join screen and a reload loses the seat | low | start | fix | — |
 | B-12 | Returning players see "Game created! Share this link with a friend:" while their rejoin is in flight | low | session | fix | — |
@@ -44,6 +46,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Resolve presses on click (the 3D library's click event already ignores presses that moved more than a couple of pixels), and only for the primary button and the first pointer.
 - **Raised by:** [the input model](foundations/input-model.md#open-questions-and-verification), [making a move](play/making-a-move.md#open-questions-and-verification), [the view](foundations/the-view.md#begin), [screen sizes and touch](cross-cutting/screen-sizes-and-touch.md#open-questions-and-verification).
 - **Status:** confirmed 2026-09-25 by the scripted pass: INPUT-02 (a drag from a destination played the move), INPUT-03 (a drag from an empty cell cleared the selection), INPUT-05 and MOVE-08 (right and middle presses select and move).
+- **Fix:** fixed 2026-09-26. The board acts on click, only for the primary button and only when the pointer was released within 6 px of the press (`client/src/three/tap.ts`, used by every handler in `Board.tsx`); a drag, right-drag, middle-drag or pinch only turns the view. On rerun, INPUT-02, INPUT-03, INPUT-05 and MOVE-08 no longer reproduce.
 
 ### B-02: A move pressed just after reconnecting is recorded against a stale position and can freeze the game
 
@@ -55,6 +58,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Treat the board as not taking input until `hasSessionSince(messages, sessionStartIndex)` holds for a page with a stored seat, which is the same check the page already uses to decide whether to rejoin.
 - **Raised by:** [connection loss](session/connection-loss.md#open-questions-and-verification), [a second tab](session/second-tab.md#open-questions-and-verification), [making a move](play/making-a-move.md#edge-cases), [the broken game record](cross-cutting/broken-game-record.md#open-questions-and-verification), [the turn indicator](game-page/turn-indicator.md#edge-cases), [the connection and seat model](foundations/connection-and-seat.md#open-questions-and-verification).
 - **Status:** confirmed 2026-09-25 by the scripted pass: DROP-02 (both boards froze at move 3).
+- **Fix:** fixed 2026-09-26. The board, the move box and the move send all wait until the current connection's create, join or rejoin has been answered (`hasSessionSince(messages, sessionStartIndex)` in `GameScreen.tsx`).
 
 ### B-03: A join whose answer is lost strands the joiner and loses the seat for good
 
@@ -66,6 +70,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. For example, re-send the join on the next connection when the page is in the joined phase without a confirmed seat (a repeated join is harmless if the server treats a join from the same browser as a rejoin), or include the chosen color in the join so the joiner can rejoin.
 - **Raised by:** [joining a game](start/joining-a-game.md#open-questions-and-verification), [connection loss](session/connection-loss.md#open-questions-and-verification), [the connection and seat model](foundations/connection-and-seat.md#requests-while-disconnected).
 - **Status:** confirmed 2026-09-25 by the scripted pass: JOIN-05.
+- **Fix:** fixed 2026-09-26. Every tab sends a random `clientId` (per tab, kept in `sessionStorage`) with `join_game`; the server records which client claimed each seat and answers a repeated join from that client with its own seat instead of "Game full". The page re-sends an unanswered join on each new connection (`useResendOnReconnect`), and a reload followed by "Join Game" also gets the seat back.
 
 ## Medium
 
@@ -79,6 +84,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Re-enable the button (or re-send) when a new connection opens with the request unanswered.
 - **Raised by:** [creating a game](start/creating-a-game.md#open-questions-and-verification), [connection loss](session/connection-loss.md#open-questions-and-verification).
 - **Status:** confirmed 2026-09-25 by the scripted pass: CREATE-03.
+- **Fix:** fixed 2026-09-26. An unanswered `create_game` is re-sent on the next connection (`useResendOnReconnect` in `StartScreen.tsx`); the worst case is an unused game on the server.
 
 ### B-05: Jumping between two game pages through browser history shows the old game under the new address
 
@@ -90,6 +96,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Reset the connection whenever the game id in the address changes, not only on `/`.
 - **Raised by:** [reloading and returning](session/reload-and-return.md#open-questions-and-verification), [the broken game record](cross-cutting/broken-game-record.md#open-questions-and-verification).
 - **Status:** confirmed 2026-09-25 by the scripted pass: RELOAD-03.
+- **Fix:** fixed 2026-09-26. `App.tsx` resets the socket session whenever the game id in the address changes (not only on `/`), in a layout effect so the old game is never painted, and mounts a fresh game screen per game id.
 
 ### B-06: A tab that was reconnecting takes the seat back from the newer tab without a click
 
@@ -101,6 +108,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `product call`. Either keep last-connection-wins (and document it), or let a reconnecting page learn that its seat moved (for example a rejoin that does not take a seat held by a live connection unless the user asks).
 - **Raised by:** [a second tab](session/second-tab.md#open-questions-and-verification), [connection loss](session/connection-loss.md#edge-cases).
 - **Status:** confirmed 2026-09-25 by the scripted pass: TAB-02.
+- **Fix:** fixed 2026-09-26, deciding that the tab the player chose keeps the seat. `rejoin_game` gained `takeover`: page loads and "Play here" send `true` (last connection wins, as before); an automatic reconnect sends `false`, and the server refuses it with the new error `seat_in_use` if another client's live connection holds the seat. That tab then shows "This game is open in another tab" with "Play here". Its own half-open socket (same client id) is still replaced.
 
 ### B-07: The promotion dialog loses keyboard focus to the press that opens it
 
@@ -112,6 +120,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Open the dialog on click, or focus after the pointer sequence ends.
 - **Raised by:** [promotion](play/promotion.md#open-questions-and-verification), [accessibility](cross-cutting/accessibility.md#open-questions-and-verification).
 - **Status:** confirmed 2026-09-25 by the scripted pass: PROMO-02, PROMO-04, PROMO-08 (the first draft of the promotion document claimed the opposite and was corrected).
+- **Fix:** fixed 2026-09-26 by the B-01 fix: the dialog now opens on the click, after the browser's focus handling for the press, so "Queen" keeps focus and Escape and Enter work. On rerun, PROMO-02, PROMO-04 and PROMO-08 no longer reproduce.
 
 ### B-08: The default view crops the board, badly on phones, and the HUD collides in narrow windows
 
@@ -123,6 +132,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Fit the camera distance to the cube and the window's aspect; let the HUD wrap or stack; make the share link breakable, or give it a copy button.
 - **Raised by:** [the view](foundations/the-view.md#open-questions-and-verification), [screen sizes and touch](cross-cutting/screen-sizes-and-touch.md#open-questions-and-verification), [seat and opponent status](game-page/seat-and-opponent-status.md#open-questions-and-verification), [the turn indicator](game-page/turn-indicator.md#open-questions-and-verification), [waiting for an opponent](start/waiting-for-an-opponent.md#open-questions-and-verification).
 - **Status:** confirmed 2026-09-25 by the scripted pass: VIEW-01 (screenshot), SIZE-01, SIZE-02, SEAT-03, TURN-02.
+- **Fix:** fixed 2026-09-26. The camera's distance is fitted to the cube and the window's aspect ratio on load and on every resize, keeping the current direction (`client/src/three/cameraFit.ts`). The HUD is two responsive grids (top: seat, turn, connection; bottom: move box, error, move list) that stack in narrow windows, the page uses `100dvh`, and the share link wraps anywhere and has a "Copy link" button.
 
 ### B-09: The game cannot be played without a pointer, and dialogs and cues are not accessible
 
@@ -134,6 +144,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `product call`. Decide the accessibility bar; the dialog roles, focus handling, live regions, and reduced motion are cheap fixes whatever the bar.
 - **Raised by:** [accessibility](cross-cutting/accessibility.md#open-questions-and-verification), [a second tab](session/second-tab.md#open-questions-and-verification), [check and the end of the game](play/check-and-game-end.md#open-questions-and-verification).
 - **Status:** confirmed 2026-09-25 by the scripted pass: A11Y-01, A11Y-02, A11Y-03, TAB-04.
+- **Fix:** fixed 2026-09-26 at the level the entry calls cheap, plus keyboard play. A move box under the board takes typed moves (`Ab2-Ab3`, `=Q` to promote) with spoken errors. The end-game and replaced dialogs have dialog roles, take focus, and make the page behind them `inert`, as the promotion dialog does. The turn indicator and presence line are live regions, check is said in words ("— in check"), the canvas has a text label, and move animations are skipped under reduced motion. Still open: navigating the 3D board itself by keyboard, and color-only cues for the last move (the move list states it in text).
 
 ## Low
 

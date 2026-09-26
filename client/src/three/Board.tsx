@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ThreeEvent } from '@react-three/fiber';
 import {
   BoxGeometry,
   BufferAttribute,
@@ -14,7 +15,9 @@ import { PieceType } from '../engine/pieces';
 import { Coord, toZXY } from '../engine/coords';
 import { CELL_FLOOR_Y, CELLS, toWorld } from './layout';
 import { GhostPiece, MoveGlide } from './moveAnimation';
+import { prefersReducedMotion } from './motion';
 import { theme } from './theme';
+import { isTap } from './tap';
 
 // The grid is drawn as a single wireframe lattice rather than translucent cube
 // faces: stacked transparent faces compound into haze toward the center of the
@@ -125,7 +128,8 @@ const Board = (props: BoardProps) => {
   // Moves already played when this board mounted are history (a rejoin
   // replay): they keep their highlight but must not animate.
   const mountMoveCount = React.useRef(lastMove?.moveCount ?? 0);
-  const animate = !!lastMove && lastMove.moveCount > mountMoveCount.current;
+  const animate =
+    !!lastMove && lastMove.moveCount > mountMoveCount.current && !prefersReducedMotion();
   const lastFromKey = lastMove ? toZXY(lastMove.move.from) : null;
   const lastToKey = lastMove ? toZXY(lastMove.move.to) : null;
 
@@ -149,7 +153,7 @@ const Board = (props: BoardProps) => {
   });
 
   // Handle piece selection
-  const handlePiecePointerDown = (coord: Coord) => {
+  const handlePieceClick = (coord: Coord) => {
     if (props.disabled) return;
     const piece = board.getPiece(coord);
     // Only allow clicking pieces that match both the current turn and playerColor
@@ -167,18 +171,18 @@ const Board = (props: BoardProps) => {
 
   // Same reason as worldPositions: each piece gets a handler whose identity
   // never changes, delegating to the latest closure through a ref.
-  const latestPiecePointerDown = useRef(handlePiecePointerDown);
+  const latestPieceClick = useRef(handlePieceClick);
   useLayoutEffect(() => {
-    latestPiecePointerDown.current = handlePiecePointerDown;
+    latestPieceClick.current = handlePieceClick;
   });
   const pieceHandlers = useMemo(
     () =>
       new Map(
         CELLS.map((cell) => [
           toZXY(cell),
-          (e: React.PointerEvent) => {
+          (e: ThreeEvent<MouseEvent>) => {
             e.stopPropagation();
-            latestPiecePointerDown.current(cell);
+            if (isTap(e)) latestPieceClick.current(cell);
           },
         ]),
       ),
@@ -186,7 +190,7 @@ const Board = (props: BoardProps) => {
   );
 
   // Handle highlighted cube click (move application)
-  const handleCubePointerDown = (targetCoord: Coord) => {
+  const handleCubeClick = (targetCoord: Coord) => {
     if (props.disabled || !selected) return;
     // Several legal moves share a destination only when a pawn promotes there
     // (one per promotion piece); otherwise there is exactly one.
@@ -220,8 +224,8 @@ const Board = (props: BoardProps) => {
   return (
     <group
       name="board-grid"
-      onPointerDown={() => {
-        if (selected) {
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (selected && isTap(e)) {
           setSelected(null);
           setLegalMoves([]);
         }
@@ -264,12 +268,12 @@ const Board = (props: BoardProps) => {
               lastMoveTo: isLastTo,
               cube: true,
             }}
-            // Add pointer handler for highlighted cubes
-            onPointerDown={
+            // Clicking a highlighted cube plays the move
+            onClick={
               isDest
-                ? (e) => {
+                ? (e: ThreeEvent<MouseEvent>) => {
                     e.stopPropagation();
-                    handleCubePointerDown(cell);
+                    if (isTap(e)) handleCubeClick(cell);
                   }
                 : undefined
             }
@@ -325,7 +329,7 @@ const Board = (props: BoardProps) => {
             type={type}
             color={color}
             position={worldOf(coord)}
-            onPointerDown={pieceHandlers.get(toZXY(coord))}
+            onClick={pieceHandlers.get(toZXY(coord))}
             // Check trumps selection for the king's glow
             emissive={
               type === PieceType.King && board.inCheck(color)

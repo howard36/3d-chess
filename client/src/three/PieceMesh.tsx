@@ -1,5 +1,6 @@
 import React from 'react';
 import type { JSX } from 'react';
+import type { ThreeEvent } from '@react-three/fiber';
 import { Color } from 'three';
 import { PieceType } from '../engine';
 import { CELL_FLOOR_Y } from './layout';
@@ -30,7 +31,7 @@ export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   color: 'white' | 'black';
   emissive?: string | number;
   position?: [number, number, number];
-  onPointerDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onClick?: (event: ThreeEvent<MouseEvent>) => void;
 };
 
 type PieceColor = 'white' | 'black';
@@ -157,7 +158,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   color,
   emissive,
   position,
-  onPointerDown,
+  onClick,
   ...rest
 }) {
   const body = pieceBody(type, color, emissive);
@@ -174,7 +175,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   return (
     <group
       position={position}
-      onPointerDown={onPointerDown}
+      onClick={onClick}
       userData={{ piece: { type, color }, emissive }}
       {...rest}
     >

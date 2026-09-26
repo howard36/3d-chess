@@ -45,10 +45,18 @@ function findPiece(
   return matches[0];
 }
 
-// Simulate a pointer-down on a rendered node, inside act.
-async function press(node: ReactThreeTestInstance) {
+// A click as r3f delivers it: `delta` is how far the pointer travelled since
+// its press, `button` which mouse button it was.
+const clickEvent = ({ delta = 0, button = 0 } = {}) => ({
+  stopPropagation: () => {},
+  delta,
+  nativeEvent: { button },
+});
+
+// Simulate a click on a rendered node, inside act.
+async function press(node: ReactThreeTestInstance, opts?: { delta?: number; button?: number }) {
   await act(async () => {
-    node.props.onPointerDown?.({ stopPropagation: () => {} } as React.PointerEvent<Element>);
+    node.props.onClick?.(clickEvent(opts));
   });
 }
 
@@ -180,10 +188,8 @@ describe('Board', () => {
     await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
     expect(highlightedCells(renderer)).toHaveLength(2);
 
-    // Click empty space (simulate group onPointerDown)
-    await act(async () => {
-      boardGroup.props.onPointerDown?.({} as React.PointerEvent<Element>);
-    });
+    // Click empty space (simulate the group's onClick)
+    await press(boardGroup);
     expect(highlightedCells(renderer)).toHaveLength(0);
     expect(selectionRings(renderer)).toHaveLength(0);
   });
@@ -326,6 +332,35 @@ describe('Board', () => {
     expect(piecePositions(renderer, PieceType.Pawn, 'white')).toContainEqual(
       toWorld(LEVEL_B_PAWN, 'white'),
     );
+  });
+
+  // A drag that starts over the cube turns the view (OrbitControls sees the
+  // same pointer); it must not select, move, or drop the selection.
+  it('ignores clicks that ended a drag or came from another button', async () => {
+    const onMove = vi.fn<(move: Move) => void>();
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board onMove={onMove} board={createTestBoard()} currentTurn="white" />,
+    );
+    const pawn = findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN);
+    await press(pawn, { delta: 40 });
+    await press(pawn, { button: 2 });
+    expect(selectionRings(renderer)).toHaveLength(0);
+
+    await press(pawn);
+    expect(selectionRings(renderer)).toHaveLength(1);
+    const dest = highlightedCells(renderer)[0];
+    await press(dest, { delta: 40 });
+    await press(dest, { button: 1 });
+    expect(onMove).not.toHaveBeenCalled();
+
+    const boardGroup = (renderer.scene as ReactThreeTestInstance)
+      .children[0] as ReactThreeTestInstance;
+    await press(boardGroup, { delta: 40 });
+    expect(selectionRings(renderer)).toHaveLength(1);
+
+    // A few pixels of jitter still count as a click
+    await press(dest, { delta: 4 });
+    expect(onMove).toHaveBeenCalledTimes(1);
   });
 
   it('defaults a promotion to Queen and offers the promotion square once', async () => {
@@ -576,6 +611,36 @@ describe('Board', () => {
       ).material;
       expect(`#${material.color.getHexString()}`).toBe(theme.highlightFill);
       expect(material.opacity).toBe(theme.highlightFillOpacity);
+    });
+
+    it('skips the glide and the fade when the player prefers reduced motion', async () => {
+      const matchMedia = vi
+        .spyOn(window, 'matchMedia')
+        .mockImplementation(
+          (query: string) => ({ matches: query.includes('reduce') }) as MediaQueryList,
+        );
+      try {
+        const renderer = await ReactThreeTestRenderer.create(
+          <Board board={boardBeforeMove(true)} currentTurn="white" />,
+        );
+        await renderer.update(
+          <Board
+            board={boardAfterMove()}
+            currentTurn="black"
+            lastMove={lastMove(1, { type: PieceType.Pawn, color: 'black' })}
+          />,
+        );
+        expect(glideGroups(renderer)).toHaveLength(0);
+        expect(
+          (renderer.scene as ReactThreeTestInstance).findAll(
+            (node) => node.props.userData?.ghostPiece === true,
+          ),
+        ).toHaveLength(0);
+        // The highlight still says what moved
+        expect(findCells(renderer, 'lastMoveTo')).toHaveLength(1);
+      } finally {
+        matchMedia.mockRestore();
+      }
     });
 
     it('glides a newly arrived move from its source cell with a lift', async () => {

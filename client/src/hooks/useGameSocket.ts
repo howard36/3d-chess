@@ -19,7 +19,13 @@ const reconnectDelayMs = (attempt: number) => Math.min(500 * 2 ** attempt, 8000)
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'replaced';
 
 export interface GameSocket {
-  send: (msg: WebSocketMessage) => void;
+  /**
+   * Send now if the socket is open (returns true), otherwise queue the message
+   * for the next socket to open (returns false). A request sent now can still
+   * go unanswered if the socket drops before the reply; callers that must
+   * survive that re-send on the next session (see useResendOnReconnect).
+   */
+  send: (msg: WebSocketMessage) => boolean;
   /** All messages received on this session, in arrival order (append-only). */
   messages: WebSocketMessage[];
   /**
@@ -31,8 +37,9 @@ export interface GameSocket {
   status: ConnectionStatus;
   /**
    * Bumps each time a socket finishes opening (first connect and every
-   * reconnect). The server keeps no memory of previous sockets, so each bump
-   * means a claimed seat must be re-claimed via rejoin_game.
+   * reconnect); 0 before the first one opens and again after reset(). The
+   * server keeps no memory of previous sockets, so each bump means a claimed
+   * seat must be re-claimed via rejoin_game.
    */
   sessionId: number;
   /** Index into `messages` of the first message received on the current socket. */
@@ -75,9 +82,10 @@ export function useGameSocket(): GameSocket {
     const socket = socketRef.current;
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(msg));
-    } else {
-      outgoingQueueRef.current.push(msg);
+      return true;
     }
+    outgoingQueueRef.current.push(msg);
+    return false;
   }, []);
 
   const reconnect = useCallback(() => {
@@ -94,6 +102,9 @@ export function useGameSocket(): GameSocket {
     attemptRef.current = 0;
     setMessages([]);
     setStatus('connecting');
+    // No session until the fresh socket opens: a screen must not mistake the
+    // old socket's session for its own and send on it as it is torn down.
+    setSession({ id: 0, startIndex: 0 });
     setGeneration((g) => g + 1);
   }, []);
 
@@ -126,6 +137,9 @@ export function useGameSocket(): GameSocket {
       };
 
       ws.onmessage = (event) => {
+        // A superseded socket (reset, replaced) may still deliver a reply in
+        // flight; it belongs to a session this log no longer describes.
+        if (disposed || socketRef.current !== ws) return;
         hasActivityRef.current = true;
         let parsed: WebSocketMessage;
         try {

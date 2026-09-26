@@ -17,6 +17,10 @@ export type WebSocketV1MessageEnvelope =
   | MoveMade
   | Presence
   | Error;
+/**
+ * Random id a browser tab picks for itself. The server remembers which tab claimed each seat, so a tab can re-send a join whose answer it lost, and an automatic rejoin can tell its own stale connection from another tab's live one.
+ */
+export type ClientId = string;
 export type Color = "white" | "black";
 export type Promotion = "Q" | "R" | "B" | "N" | "U";
 export type ErrorCode =
@@ -27,10 +31,12 @@ export type ErrorCode =
   | "invalid_rejoin"
   | "invalid_move"
   | "game_not_started"
-  | "wrong_turn";
+  | "wrong_turn"
+  | "seat_in_use";
 
 export interface CreateGame {
   type: "create_game";
+  clientId?: ClientId;
 }
 export interface GameCreated {
   type: "game_created";
@@ -40,6 +46,7 @@ export interface GameCreated {
 export interface JoinGame {
   type: "join_game";
   gameId: string;
+  clientId?: ClientId;
 }
 export interface GameJoined {
   type: "game_joined";
@@ -49,6 +56,11 @@ export interface RejoinGame {
   type: "rejoin_game";
   gameId: string;
   color: Color;
+  clientId?: ClientId;
+  /**
+   * Whether to take the seat from another tab's live connection (the default). An automatic reconnect sends false, and is refused with seat_in_use instead.
+   */
+  takeover?: boolean;
 }
 export interface GameStart {
   type: "game_start";

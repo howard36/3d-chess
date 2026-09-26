@@ -62,3 +62,12 @@ The [harness](harness/README.md) wraps this in Playwright: it seats two players 
 - Several first-run failures were the harness's own (timing at a low frame rate, a test that clicked before a screen had rendered); they were corrected and rerun, and are not recorded as product results.
 
 What this pass did **not** cover: anything that needs a human eye (whether colors, sizes, and animations look right, and whether text is readable), browsers other than Chromium, real touch devices and two-finger gestures, screen readers, real network loss and laptop sleep, the production deployment (cold starts, the one-hour limit, expiry), and every item listed under "Not checkable by hand". Because the pass was scripted, **no document has been marked `verified`**: the protocol requires a person to watch the P1 and P2 items, and that pass has not been run.
+
+**Rerun after the fixes for B-01 to B-09, 2026-09-26.** The harness was rerun against the fixed build. The items that confirmed those defects now fail, which is the intended outcome: the product no longer does what the old documents say. That covers INPUT-01 to INPUT-05, MOVE-08, PROMO-02, PROMO-04, PROMO-08, VIEW-03, VIEW-07, SIZE-01, SIZE-02, SEAT-03, A11Y-01 to A11Y-03, END-08, WAIT-01, CREATE-03 and JOIN-05. Items that compare the turn indicator's exact text fail where the side to move is in check, since it now adds "— in check" (RULES-08, RULES-09, END-01). A few fail only because an earlier item in the same script no longer plays a move, which leaves the game in a different position (INPUT-12, MOVE-03, OPP-01), and the scripts that waited on the old behavior stopped early. The fixes for DROP-02, TAB-02, RELOAD-03, JOIN-05 and CREATE-03 were checked separately with the same helpers:
+- a move pressed during the held-back rejoin is not sent, and play continues;
+- the reconnecting tab shows "Play here" instead of taking the seat back;
+- a history jump shows the finished game under its own address;
+- a join cut mid-flight ends on the board, with the seat kept across a reload;
+- a create cut mid-flight lands on the new game.
+
+The checklists and documents have not yet been rewritten for the fixed build (see the coverage note in [the README](../README.md#coverage)).
