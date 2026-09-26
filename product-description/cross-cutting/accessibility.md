@@ -30,7 +30,7 @@ Tab moves keyboard focus through the page's HTML buttons, its one text field, an
 | Board screen, no dialog | The move box's field; its "Move" button, when the player may move and the field is not empty; the error banner's "✕" when an error shows. Nothing on the board. |
 | Board screen, promotion dialog open | The five piece buttons and "Cancel". |
 | Board screen, end-game dialog up | "Start new game". |
-| Any game page screen, when [replaced](../glossary.md#events-that-end-or-interrupt-a-request) | "Play here". On the board screen, the end-game dialog's "Start new game" too if that dialog is also up, since it is not part of what the replaced dialog puts out of reach. On the share-link, join, and joined screens, the error banner's "✕" too, if an error shows. |
+| Any game page screen, when [replaced](../glossary.md#events-that-end-or-interrupt-a-request) | "Play here" only. Everything else on the page is out of reach behind it, including an end-game dialog under it and the error banner's "✕". |
 | Crash screen | "Back to start", a link. |
 
 The seat label, the turn indicator, the banners' text, the headings, and the board are never focusable. When the move list is long enough to scroll, some browsers make it reachable with Tab so that the arrow keys can scroll it; the app does nothing to allow or prevent this (see open questions).
@@ -65,7 +65,7 @@ Nothing is focused when any page loads. The app moves focus in three places, the
 
 - **The promotion dialog** puts focus on its first button, "Queen", as it opens. It opens on the click that plays the pawn to its promotion square, after the browser has finished with that click, so focus stays on "Queen": Enter or Space picks the Queen at once, Escape cancels, and Tab moves to "Rook", "Bishop", "Knight", "Unicorn", and "Cancel" ([promotion](../play/promotion.md#begin)). The board and the HUD behind it are inert, so Tab past "Cancel" goes to the browser's own controls and then back to "Queen". When the dialog closes, by a pick, a cancel, or because the board stopped taking input, focus is not put anywhere: it falls to the page itself, and the next Tab starts again from the top of the page.
 - **The end-game dialog** puts focus on "Start new game" as it opens, so Enter or Space leaves the game at once. The board and the HUD behind it, the move box included, are inert.
-- **The replaced dialog** puts focus on "Play here" as it opens, so Enter or Space takes the seat back at once. On the board screen the board and the HUD behind it are inert; on the share-link, join, and joined screens the page's content is. What it does not cover is listed in [what Tab reaches](#what-tab-reaches).
+- **The replaced dialog** puts focus on "Play here" as it opens, so Enter or Space takes the seat back at once. Everything behind it is inert: on the board screen the board, the HUD, and an end-game dialog if one is up; on the share-link, join, and joined screens the page's content and the error banner. When "Play here" is clicked the dialog closes at once, while the new connection opens, and focus falls to the page.
 - **The move box** keeps focus in its field after a move is sent or refused, so a keyboard player types the next move without Tab.
 - **A control that disappears** (clicking "Join Game", "✕", "Play here", a piece button, "Cancel", or "Start New Game" as the page changes) takes focus with it. Focus drops to the page and nothing moves it to the new content.
 - **Page changes** within the app (the start screen to a new game, a game back to the start screen) move no focus and do not change the page title, so nothing signals the change to a keyboard or screen reader user.
@@ -204,7 +204,7 @@ After any interrupt, focus is where it was, on the page itself, or on the first 
 
 **The opponent.** The opponent's moves are announced through the turn indicator, and their connection through the presence line. Their joining is not announced.
 
-**Other tabs and devices.** The replaced dialog is an alert dialog that takes focus and hides what is behind it. On the board screen, an end-game dialog under it can still be reached with Tab.
+**Other tabs and devices.** The replaced dialog is an alert dialog that takes focus and hides everything behind it, an end-game dialog included.
 
 **Game over.** The end-game dialog is a modal dialog named by its result and takes focus on its only button. Its heading names the winning color, and a player has to know their own color, from the seat label, to read it as a win or a loss.
 
@@ -217,7 +217,7 @@ After any interrupt, focus is where it was, on the page itself, or on the first 
 - **A quick promotion.** Because the promotion dialog opens with focus on "Queen", Enter or Space right after the click that opened it promotes to a Queen. A player who pressed the key meaning something else gets a Queen.
 - **Typing ahead.** The move box can be typed in during the opponent's turn; Enter does nothing until the opponent's move lands, and the move is then judged against the new position.
 - **Tab on the board screen.** With no error and no dialog, Tab on the board screen reaches the move box's field, then "Move" if the player may move and has typed something, and then the browser's own controls.
-- **Not everything behind the replaced dialog is out of reach.** On the board screen the end-game dialog's "Start new game", and on the pre-game screens the error banner's "✕", can still be reached with Tab behind the replaced dialog, though a mouse cannot reach them.
+- **Two dialogs at once.** A finished game whose tab is replaced shows the replaced dialog over the end-game dialog. Only "Play here" can be reached; "Start new game" comes back within reach once the tab holds the seat again.
 - **The focus ring after a click.** "Start New Game", "Join Game", and "Copy link" show their blue ring after a mouse click as well as after Tab, because the ring follows focus, not keyboard use.
 - **The join screen says nothing about the game.** A screen reader user arriving from a share link hears the heading "3D Chess" and a "Join Game" button; nothing names the game or the player who sent the link.
 - **The joined screen is silent.** "Joined game, waiting for start..." replaces the "Join Game" button without an announcement, and normally lasts only a fraction of a second before the board screen, also unannounced except for what its live regions say.
@@ -228,7 +228,6 @@ After any interrupt, focus is where it was, on the page itself, or on the first 
 
 - **The board itself stays pointer-only.** The decision recorded in [B-09](../bug-triage.md#b-09-the-game-cannot-be-played-without-a-pointer-and-dialogs-and-cues-are-not-accessible) was typed moves rather than keyboard navigation of the 3D board. A keyboard or screen reader player can play, but can learn the position only from the move list, and legal moves only by trying them. Whether a described position or a keyboard cursor over cells is wanted is a product call.
 - **Check on the board is shown only by color**, and the destination fill and the last-move trace differ only in hue. The selection ring and the destination dots have almost no lightness contrast with the background (about 1 : 1 by calculation). Likely worth treating as defects; not tested with a color vision simulation.
-- **Tab past the replaced dialog.** The end-game dialog is outside the part of the page the replaced dialog makes inert (`client/src/screens/GameScreen.tsx:332-335` and `:449-450`), and on the pre-game screens so is the error banner (`:460-495`). Read from code; not tried.
 - **Whether "Reconnecting…" and the presence line's first report are announced.** Both are status regions that are added to the page together with their text; several screen readers announce only changes to a region that already exists. Not tried with a screen reader. The turn indicator exists from the moment the board appears, so its changes are not affected.
 - **Contrast figures are calculated**, from the colors in `client/src/three/theme.ts` and the HUD styles, for flat colors over the plain scene background; they were not measured on screen. The reconnecting banner (about 2.8 : 1) and the move numbers (about 3.6 : 1) are below the usual 4.5 : 1 for text.
 - **The dialogs' buttons may not look like buttons**, and the dialogs' titles may look like ordinary text: both read from the base styles, which strip the browser's default button and heading styling. Not checked by eye.
