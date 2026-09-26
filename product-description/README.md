@@ -97,7 +97,7 @@ Progress is tracked in the [coverage table](#coverage) below.
 ### Scope decisions
 
 - **One surface.** The web client as a seated player (or a would-be player) sees it, at the source commit, against a server built from the same commit. Two players in two browser contexts is the normal setup; most features need both.
-- **Where this repo lives.** This description lives in `product-description/` on a branch of the 3D Chess repository itself, because the working environment could keep nothing else. It never changes `client/` or `server/`; every document cites the source commit `d94507b`, and `git diff d94507b -- client server` is empty on this branch.
+- **Where this repo lives.** This description lives in `product-description/` on a branch of the 3D Chess repository itself, because the working environment could keep nothing else. Work on the description never changes `client/` or `server/`; every document cites the source commit `d94507b` it was written against (fixes to the product land separately, and the coverage note below says what they changed).
 - **Server operations are out of scope.** Deployment, `/health`, logging, CI, and the Modal and Cloudflare configuration are not experiences a player has. Where an operational fact reaches the player (the one-hour connection limit, the roughly 30-day expiry of an idle game, a server restart), it is described in [the connection and seat model](foundations/connection-and-seat.md).
 - **Modified clients are out of scope, except for what an honest client shows.** The server trusts clients and does not check move legality. What a player running the real client sees when the record holds a move it cannot replay is described in [the broken game record](cross-cutting/broken-game-record.md); how to write such a client is not.
 - **Test hooks are out of scope.** `window.__r3fState` and the Playwright helpers exist for testing and change nothing a player sees.
@@ -170,6 +170,8 @@ cross-cutting/
 ## Coverage
 
 Status is one of `not started`, `drafted`, or `verified`.
+
+**The documents describe commit `d94507b`, from before the fixes for B-01 to B-09** (see [`bug-triage.md`](bug-triage.md), each entry's **Fix** line). Where those fixes changed behavior, a document and its checklist items now describe the old build: the board acting on pointer-down, the fixed camera, the join and create that could be lost, the reconnecting tab taking the seat back, and the accessibility gaps. Bringing the documents up to the fixed build, and re-basing their `Verified against` footers, is the next piece of work here.
 
 | Document | Status |
 | --- | --- |
