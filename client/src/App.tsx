@@ -8,9 +8,19 @@ import React from 'react';
 // One GameScreen per game: moving between two game pages (browser history can
 // jump straight from one to another) mounts a fresh screen, so nothing the
 // previous game's screen held (a join in flight, dismissed errors, a move
-// awaiting its echo) carries over.
-function GameRoute({ gameSocket }: { gameSocket: GameSocket }) {
+// awaiting its echo) carries over. It is not mounted until the socket session
+// belongs to this game: for one render after a jump the log still holds the
+// previous game's messages, and a screen reading them would take that game's
+// seat for this one's (and store it).
+function GameRoute({
+  gameSocket,
+  readyGameId,
+}: {
+  gameSocket: GameSocket;
+  readyGameId: string | null;
+}) {
   const { gameId } = useParams<{ gameId: string }>();
+  if (gameId !== readyGameId) return null;
   return <GameScreen key={gameId} gameSocket={gameSocket} />;
 }
 
@@ -20,6 +30,8 @@ function App() {
   const { reset } = gameSocket;
   const gameId = matchPath('/game/:gameId', location.pathname)?.params.gameId ?? null;
   const previousGameId = React.useRef(gameId);
+  // The game the socket session now belongs to (see GameRoute)
+  const [readyGameId, setReadyGameId] = React.useState(gameId);
 
   // A layout effect, so the reset lands before the new page first paints: the
   // new screen never shows the previous game's board under its address.
@@ -36,12 +48,16 @@ function App() {
     if (location.pathname === '/' || (previous !== null && gameId !== previous)) {
       reset();
     }
+    setReadyGameId(gameId);
   }, [location.pathname, gameId, reset]);
 
   return (
     <Routes>
       <Route path="/" element={<StartScreen gameSocket={gameSocket} />} />
-      <Route path="/game/:gameId" element={<GameRoute gameSocket={gameSocket} />} />
+      <Route
+        path="/game/:gameId"
+        element={<GameRoute gameSocket={gameSocket} readyGameId={readyGameId} />}
+      />
     </Routes>
   );
 }

@@ -2,13 +2,13 @@
 
 ## Summary
 
-This document covers the two ways the position itself speaks to the player: **check**, shown only as a red glow on the King, and the **end of the game**, shown as a dialog that covers the board and offers a single way out. A game ends only by [checkmate or stalemate](../foundations/game-rules.md#check-checkmate-and-stalemate), decided independently by each player's browser as soon as the move that causes it lands; the server never learns that a game is over. The [end-game dialog](../glossary.md#the-interface) announces the result to both players in the same words and offers "Start new game", which takes the player to the start screen. This document owns a King in check, checkmate and stalemate, the dialog, and that button.
+This document covers the two ways the position itself speaks to the player: **check**, shown as a red glow on the King and as " — in check" after the turn indicator's text, and the **end of the game**, shown as a dialog that covers the board and offers a single way out. A game ends only by [checkmate or stalemate](../foundations/game-rules.md#check-checkmate-and-stalemate), decided independently by each player's browser as soon as the move that causes it lands; the server never learns that a game is over. The [end-game dialog](../glossary.md#the-interface) announces the result to both players in the same words and offers "Start new game", which takes the player to the start screen. This document owns a King in check, checkmate and stalemate, the dialog, and that button.
 
 ## The simple case
 
-The opponent moves a Queen into line with the player's King. As the Queen lands, the player's King turns red. Nothing else announces it: no text, no sound. When the player selects a piece, only moves that get the King out of check are marked; pieces that cannot help show no destinations. The player moves the King aside, and when that move lands, the red glow goes out.
+The opponent moves a Queen into line with the player's King. As the Queen lands, the player's King turns red and the turn indicator changes to, for example, "White to move — in check". Nothing else announces it: no sound, no dialog. When the player selects a piece, only moves that get the King out of check are marked; pieces that cannot help show no destinations. The player moves the King aside, and when that move lands, the red glow and the words " — in check" go.
 
-Later the player delivers mate. As their final move glides in, both boards darken behind a white dialog that reads, for a White winner, "White wins by checkmate!", with a "Start new game" button below. The loser sees the same words. The final position stays visible behind the darkened backdrop but cannot be touched or turned. The player clicks "Start new game" and lands on the start screen, where they can create a new game and send a new link; the opponent is told the player is offline.
+Later the player delivers mate. As their final move glides in, both boards darken behind a white dialog that reads, for a White winner, "White wins by checkmate!", with a "Start new game" button below, which has keyboard focus. The loser sees the same words. The final position stays visible behind the darkened backdrop but cannot be touched or turned. The player clicks "Start new game" and lands on the start screen, where they can create a new game and send a new link; the opponent is told the player is offline.
 
 ## The interaction, event by event
 
@@ -36,13 +36,15 @@ Every time a move lands (an [echo](../glossary.md#requests) or a snapshot change
 
 A King that is attacked [glows red](../foundations/the-view.md#markers-and-colors). In a real game only the side to move can be in check, so the glow is always on the King of the player whose turn it is. It appears on both boards the moment the checking move lands, and goes out the moment a move that ends the check lands. If the player selects their King while in check, its glow stays red, not the amber of a selection.
 
-While in check, the player's selectable pieces offer only moves that leave the King unattacked: the King's escapes, captures of the checking piece, and moves that block the line. A piece that can do none of these can be selected but shows no destinations. Nothing says "check" in words, and the turn indicator does not change; the red King is the only sign.
+At the same moment the [turn indicator](../game-page/turn-indicator.md) adds " — in check" to its text: "White to move — in check" or "Black to move — in check", on both boards. The turn indicator is a polite live region, so a screen reader announces the change. The words go when the check ends, and are not shown once the game is over.
+
+While in check, the player's selectable pieces offer only moves that leave the King unattacked: the King's escapes, captures of the checking piece, and moves that block the line. A piece that can do none of these can be selected but shows no destinations, and a move typed in the [move box](making-a-move.md#begin) that does not end the check is refused under the box. The red King and the words in the turn indicator are the only signs; there is no sound or dialog.
 
 #### Checkmate and stalemate
 
 If the side to move has no legal move, the game is over: checkmate if their King is attacked, stalemate if not. Each browser reaches this conclusion by itself, from the same record, at the moment the final move lands, and shows the end-game dialog at once, while the final move's glide is still playing behind it.
 
-The dialog covers the whole window with a translucent dark backdrop and a white panel. The heading is one of three texts, the same on both boards:
+The dialog covers the whole window with a translucent dark backdrop and a white panel. Everything behind it, the board and every HUD panel, is made inert: it cannot be clicked, focused, or read by assistive technology. The heading is one of three texts, the same on both boards:
 
 | Result | Heading |
 | --- | --- |
@@ -50,13 +52,13 @@ The dialog covers the whole window with a translucent dark backdrop and a white 
 | Black delivered checkmate | "Black wins by checkmate!" |
 | Stalemate | "Draw by stalemate!" |
 
-Below it is a single button, "Start new game", drawn as plain larger words with no border or background; the heading is ordinary-sized text. The dialog does not say "You win" or "You lose", does not show the number of moves, and has no close button: Escape and a click on the backdrop do nothing.
+Below it is a single button, "Start new game", drawn as plain larger words with no border or background; the heading is ordinary-sized text. The button takes keyboard focus as the dialog opens, so Enter or Space activates it at once. Screen readers announce a dialog named by its heading. The panel is at most 420 px wide and keeps a 16 px margin from the window's edges. The dialog does not say "You win" or "You lose", does not show the number of moves, and has no close button: Escape and a click on the backdrop do nothing.
 
 The dialog is not shown when the board is [frozen](../cross-cutting/broken-game-record.md): a position the browser could not fully replay is not treated as final.
 
 ### End without sending
 
-Check ends without anything sent by the player: a move that ends it lands and the glow goes out.
+Check ends without anything sent by the player: a move that ends it lands, the glow goes out, and the turn indicator drops " — in check".
 
 The end-game dialog does not end by itself. It stays for as long as the page is open, and comes back whenever the game is opened again: a reload, a return through the link or a bookmark, or browser Back from the start screen all replay the record, reach the same final position, and show the dialog again at once, without the final glide. The player's [stored seat](../foundations/connection-and-seat.md#the-stored-seat) is never removed for a finished game, so its link always leads back to the result.
 
@@ -86,7 +88,7 @@ The finished game remains on the server unchanged until it expires, about 30 day
 | Connection state | Check and the dialog are worked out in the browser and appear whatever the connection state. "Start new game" works while disconnected too. | Not applicable. |
 | Game state | This document's subject. A frozen record shows neither the dialog nor, beyond the frozen position, any check. | Not applicable. |
 | Shift, Ctrl, or Cmd held | No effect on "Start new game"; it is a button, not a link, and cannot be opened in a new tab. | Not applicable. |
-| Input device | "Start new game" works by click, tap, or keyboard (Tab to it, then Enter or Space); focus is not moved to it when the dialog appears. Check is shown only as a color. | Not applicable. |
+| Input device | "Start new game" works by click, tap, or keyboard: it has focus when the dialog appears, so Enter or Space activates it. Check is shown by color on the board and in words in the turn indicator. | Not applicable. |
 
 ## Cancel and interrupt
 
@@ -95,15 +97,15 @@ The finished game remains on the server unchanged until it expires, about 30 day
 | Event | Before sending | While in flight |
 | --- | --- | --- |
 | Escape or Cancel | No effect on check. The dialog cannot be dismissed: Escape and a click on the backdrop do nothing. | Not applicable. |
-| Pressing elsewhere or turning the view | In check, presses work as in [making a move](making-a-move.md). Under the dialog, the board, the view, the seat label, and the move list cannot be reached. | Not applicable. |
+| Pressing elsewhere or turning the view | In check, presses work as in [making a move](making-a-move.md). Under the dialog, the board, the view, and every HUD panel (seat label, move box, move list, error banner) cannot be reached, by pointer or by Tab. | Not applicable. |
 | Leaving the game page within the app | The page leaves the finished game; the connection resets on arriving at the start screen. Going Forward or reopening the link shows the dialog again. | Not applicable. |
 | The game ends | This document's subject. | Not applicable. |
-| The server answers with an error | An error banner, if one arrives, is drawn above the dialog and can be dismissed. | Not applicable. |
-| The connection drops | Check and the dialog stay. Under the dialog, "Reconnecting…" appears above it, and the page rejoins when the connection returns; the snapshot changes nothing. | Not applicable. |
+| The server answers with an error | An error banner, if one arrives, shows darkened behind the backdrop and cannot be dismissed while the dialog is up. | Not applicable. |
+| The connection drops | Check and the dialog stay. "Reconnecting…" appears, darkened behind the backdrop, and the page rejoins when the connection returns; the snapshot changes nothing. If another tab has taken the seat meanwhile, the replaced dialog appears instead. | Not applicable. |
 | The window loses focus or the tab is hidden | No effect. A game that ends while the tab is hidden shows the dialog when the player returns. | Not applicable. |
 | Reload or closing the tab | Check reappears on reload if still in force. The dialog reappears on reload; closing the tab records nothing. | Not applicable. |
 | The opponent acts | In check, the opponent cannot move until the player does. After the game ends, the opponent's presence changes are hidden behind the dialog; the opponent cannot play any further move through the app. | Not applicable. |
-| Another tab takes the seat | The replaced dialog appears on top of the end-game dialog. After "Play here", the end-game dialog is still there. | Not applicable. |
+| Another tab takes the seat | The replaced dialog appears on top of the end-game dialog, with focus on "Play here". After "Play here", the end-game dialog is still there. | Not applicable. |
 | A second touch point or a cancelled touch | No effect. | Not applicable. |
 
 ## Interactions with other systems
@@ -122,12 +124,14 @@ The finished game remains on the server unchanged until it expires, about 30 day
 
 **Stored seat.** Kept after the game ends, so the link keeps working for the player until the game expires.
 
-**Keyboard, touch, and screen size.** The dialog's button is reachable by Tab, but focus is not placed on it. Behind the dialog, the board and the view cannot be reached; the error banner's "✕", which is drawn above the dialog, can still be reached by Tab and clicked. Check is conveyed only by a red color; see [accessibility](../cross-cutting/accessibility.md). The dialog is at least 300 px wide and fits a phone screen.
+**Keyboard, touch, and screen size.** The dialog's button has focus when the dialog opens. Behind the dialog, everything is inert: the board, the view, and every HUD panel, including the error banner's "✕", cannot be reached by pointer or by Tab. Check is conveyed by the King's red color and by " — in check" in the turn indicator, which screen readers announce; see [accessibility](../cross-cutting/accessibility.md). The dialog is at most 420 px wide, with a 16 px margin, and fits a phone screen.
 
 ## Edge cases
 
 - **The final position cannot be studied.** The dialog cannot be closed, so the final position can only be seen darkened, from the angle the player last left the view, and the move list cannot be scrolled. Reloading shows the dialog again.
-- **The turn indicator after the game.** Behind the backdrop it still reads, for example, "Black to move" for a checkmated Black.
+- **The turn indicator after the game.** Behind the backdrop it still reads, for example, "Black to move" for a checkmated Black, without " — in check", although the mated King still glows red.
+- **Enter after the last move.** Focus moves to "Start new game" as the dialog appears, so a key press meant for something else (a second Enter in the move box after typing the mating move, for example) can take the player straight to the start screen.
+- **Tab behind the replaced dialog.** If another tab takes the seat while the end-game dialog is up, the replaced dialog covers it, but "Start new game" is not made inert: Tab from "Play here" can reach it, and Enter then leaves the game.
 - **Both players each start over.** "Start new game" does not create a game; the player still has to click "Start New Game" on the start screen and send a new link.
 - **Back after starting over.** Browser Back from the start screen returns to the finished game, rejoins it (the opponent sees the player online again), and shows the dialog.
 - **Stalemate by the player's own move.** The player whose move stalemates the opponent sees "Draw by stalemate!" at once, like the opponent.
@@ -137,7 +141,8 @@ The finished game remains on the server unchanged until it expires, about 30 day
 
 - The dialog cannot be dismissed, so a player cannot review the final position or the move list. Whether that is intended is a product call; a "view board" option or a dismissible dialog would change it.
 - The headings name colors rather than saying "You win" or "You lose". Deliberate or not, it is the same text for both players.
-- Focus is not moved into the dialog when it opens. Read from code; see [accessibility](../cross-cutting/accessibility.md).
-- The mate line and both players' "Start new game" are exercised by `client/e2e/gameOver.spec.ts`; check detection and the glow by `client/src/engine/board.test.ts` and `client/src/three/Board.test.tsx`; stalemate detection by the engine tests only. The stalemate heading was not seen in a real game.
+- The replaced dialog makes the board screen inert but not the end-game dialog beside it (`client/src/screens/GameScreen.tsx:332-335`, `:448-450`), so "Start new game" stays reachable by Tab behind the replaced dialog. Read from code; not tried.
+- Whether a stray Enter can reach "Start new game" right after the mating move is typed depends on the echo's timing; read from code (`client/src/screens/EndGameModal.tsx:50-51`), not tried.
+- The mate line and both players' "Start new game" are exercised by `client/e2e/gameOver.spec.ts`; check detection and the glow by `client/src/engine/board.test.ts` and `client/src/three/Board.test.tsx`; the words " — in check" by `client/src/App.test.tsx`; stalemate detection by the engine tests only. The stalemate heading was not seen in a real game.
 
-Verified against 3D Chess commit `d94507b`
+Verified against 3D Chess commit `4e18386`

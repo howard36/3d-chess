@@ -141,7 +141,9 @@ Message flow, happy path:
    `game_joined {color}` (its seat, confirmed before anything is broadcast, so a drop right
    after is still rejoinable), then both players get `game_start {color}`. A `join_game`
    from the client id that already claimed a seat in the game gets that seat again rather
-   than `game_full`, so a tab whose `game_joined` was lost can simply repeat its join.
+   than `game_full`, so a tab whose `game_joined` was lost can simply repeat its join; it is
+   answered with `game_joined` then a `game_state` snapshot (as a rejoin would be), not a
+   second `game_start`.
 3. Moves: `move {from, to, promotion?}` → server checks turn parity → `move_made` to both.
 4. Reload/rejoin: `rejoin_game {gameId, color, clientId?, takeover?}` →
    `game_state {color, started, moves}`.

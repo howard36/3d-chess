@@ -41,7 +41,7 @@ test('server stop and restart', async ({ browser }) => {
     await g.black.reload();
     await expect(g.black.getByText('Game created! Share this link with a friend:')).toBeVisible();
     await expect(g.black.getByText('Reconnecting…')).toBeVisible({ timeout: 10000 });
-    return 'the reloaded page of a started game showed "Game created! Share this link with a friend:" with "Reconnecting…" (suspected copy bug confirmed)';
+    return 'the reloaded page of a started game showed "Game created! Share this link with a friend:" with "Reconnecting…" (bug-triage B-12, still open)';
   });
   // the restart wipes the games: both pages reconnect and are refused
   await item('DROP-04', async () => {
@@ -49,12 +49,16 @@ test('server stop and restart', async ({ browser }) => {
     await expect(g.white.getByText('Reconnecting…')).toHaveCount(0, { timeout: 20000 });
     await expect(g.white.getByRole('alert')).toHaveText(/Cannot rejoin/, { timeout: 10000 });
     expect(await g.white.evaluate(() => !!(window as any).__r3fState)).toBe(true);
-    await playOn(g.white, 'white', 'Bb2', 'Bb3');
-    await expect(g.white.getByRole('alert')).toHaveText(/Not in a game/);
+    await press(g.white, 'Bb2', 'white'); await g.white.waitForTimeout(300);
+    expect((await boardState(g.white)).selectionRings).toBe(0);
+    const box = g.white.getByRole('textbox', { name: 'Type a move (e.g. Ab2-Ab3)' });
+    await box.fill('Bb2-Bb3'); await box.press('Enter'); await g.white.waitForTimeout(500);
+    await expect(g.white.getByRole('button', { name: 'Move', exact: true })).toBeDisabled();
     expect(await turnText(g.white)).toBe('White to move');
+    expect(await g.white.getByRole('alert').allTextContents()).toEqual(['Error: Cannot rejoin✕']);
     const u = g.white.url();
     expect(await role(g.white, u)).toBe('white');
-    return 'board kept; "Error: Cannot rejoin", then "Error: Not in a game" for a move; stored seat kept';
+    return 'board kept; "Error: Cannot rejoin"; a press selected nothing, "Move" stayed disabled, and nothing was sent; stored seat kept';
   });
   await item('CONN-08', async () => {
     const u = g.black.url();
@@ -88,18 +92,24 @@ test('view and input leftovers', async ({ browser }) => {
     return `Bishop destinations ${dests.join(',')}; teal cells now ${teal.length} (Ed3 only); Ed4 amber`;
   });
   await item('VIEW-08', async () => {
+    await press(g.white, 'Bc1', 'white'); await g.white.waitForTimeout(300);
+    expect((await boardState(g.white)).captureRings).toBeGreaterThan(0);
     await g.white.screenshot({ path: 'test-results/markers.png' });
     const c = await g.white.evaluate(() => { const out: string[] = []; (window as any).__r3fState.get().scene.traverse((o: any) => { if (o.userData?.selectionRing || o.userData?.captureRing) out.push((o.userData.selectionRing ? 'select ' : 'capture ') + '#' + o.material.color.getHexString()); if (o.geometry?.type === 'SphereGeometry' && o.geometry.parameters?.radius === 0.11) out.push('dot #' + o.material.color.getHexString()); }); return [...new Set(out)]; });
     return `marker colors: ${c.join(', ')} (screenshot markers.png)`;
   });
   await item('INPUT-11', async () => {
-    await pressAt(g.white, { x: 8, y: 400 });
-    const t = await g.white.getByTestId('turn-indicator').boundingBox();
-    const hit = await g.white.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, { x: t!.x + t!.width / 2, y: t!.y + t!.height / 2 });
-    const s = await g.white.locator('text=/You are playing as/').boundingBox();
-    const hit2 = await g.white.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, { x: s!.x + 20, y: s!.y + 10 });
-    expect(hit).toBe('CANVAS'); expect(hit2).not.toBe('CANVAS');
-    return `the point under the turn indicator hits <${hit}>; under the seat label <${hit2}>`;
+    // What a press at the centre of each panel reaches: the canvas means the
+    // press goes through to the board
+    const at = async (loc: import('@playwright/test').Locator) => {
+      const b = (await loc.boundingBox())!;
+      return g.white.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, { x: b.x + b.width / 2, y: b.y + b.height / 2 });
+    };
+    const turn = await at(g.white.getByTestId('turn-indicator'));
+    const seat = await at(g.white.locator('text=/You are playing as/'));
+    const moveBox = await at(g.white.getByText('Type a move (e.g. Ab2-Ab3)'));
+    expect(turn).toBe('CANVAS'); expect(seat).toBe('CANVAS'); expect(moveBox).not.toBe('CANVAS');
+    return `a press on the turn indicator reaches <${turn}>, on the seat label <${seat}>, on the move box's label <${moveBox}>`;
   });
   await g.close();
   await item('INPUT-14', async () => {
@@ -108,10 +118,13 @@ test('view and input leftovers', async ({ browser }) => {
     const cdp = await t.white.context().newCDPSession(t.white);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: p.x, y: p.y }] });
     await t.white.waitForTimeout(300);
-    const s = await boardState(t.white);
+    const down = await boardState(t.white);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await t.white.waitForTimeout(400);
+    const up = await boardState(t.white);
     await t.close();
-    expect(s.selectionRings).toBe(1);
-    return 'selected while the emulated finger was still down';
+    expect(down.selectionRings).toBe(0);
+    expect(up.selectionRings).toBe(1);
+    return 'nothing selected while the emulated finger was down; selected when it lifted';
   });
 });

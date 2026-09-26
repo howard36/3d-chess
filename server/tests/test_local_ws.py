@@ -473,12 +473,23 @@ def test_repeated_join_from_the_claimant_returns_its_seat(client, creator_is_whi
         assert ws1.receive_json() == presence("black", True)
         assert ws1.receive_json() == presence("black", False)
 
+        # Meanwhile the creator (White) moved, which the lost socket never saw
+        ws1.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+        assert ws1.receive_json()["type"] == "move_made"
+
         with client.websocket_connect("/ws") as ws3:
             ws3.send_json({"type": "join_game", "gameId": gid, "clientId": "tab-b"})
             assert ws3.receive_json() == {"type": "game_joined", "color": "black"}
-            assert ws3.receive_json() == {"type": "game_start", "color": "black"}
+            # Answered like a rejoin: the whole record, not a bare start, so the
+            # page shows the position the game is actually in
+            assert ws3.receive_json() == {
+                "type": "game_state",
+                "color": "black",
+                "started": True,
+                "moves": [{"by": "white", "from": "Aa2", "to": "Aa3"}],
+            }
             assert ws3.receive_json() == presence("white", True)
-            assert ws1.receive_json()["type"] == "game_start"
+            # The opponent is only told Black is back, not restarted
             assert ws1.receive_json() == presence("black", True)
 
             # Anyone else is still refused
@@ -487,8 +498,9 @@ def test_repeated_join_from_the_claimant_returns_its_seat(client, creator_is_whi
                 assert ws4.receive_json()["code"] == "game_full"
 
             # And the seat plays
-            ws1.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+            ws3.send_json({"type": "move", "from": "Ed4", "to": "Ed3"})
             assert ws3.receive_json()["type"] == "move_made"
+            assert ws1.receive_json()["type"] == "move_made"
 
 
 def test_repeated_join_replaces_the_claimants_lingering_socket(client, creator_is_white):
@@ -499,6 +511,7 @@ def test_repeated_join_replaces_the_claimants_lingering_socket(client, creator_i
         with client.websocket_connect("/ws") as ws3:
             ws3.send_json({"type": "join_game", "gameId": gid, "clientId": "tab-b"})
             assert ws3.receive_json()["type"] == "game_joined"
+            assert ws3.receive_json()["type"] == "game_state"
             assert ws2.receive_json()["type"] == "game_start"
             assert ws2.receive_json() == presence("white", True)
             with pytest.raises(WebSocketDisconnect) as closed:
@@ -559,6 +572,24 @@ def test_automatic_rejoin_replaces_its_own_stale_socket(client, creator_is_white
                     while True:
                         stale.receive_json()
                 assert closed.value.code == modal_app.SEAT_REPLACED_CLOSE_CODE
+
+
+def test_repeated_join_before_the_game_starts_waits_for_the_opponent(client, creator_is_white):
+    """The creator's own tab joining its game (say, with storage disabled) is
+    a repeated join too: it gets its seat back and a not-started snapshot."""
+    with client.websocket_connect("/ws") as ws1:
+        ws1.send_json({"type": "create_game", "clientId": "tab-a"})
+        gid = ws1.receive_json()["gameId"]
+    with client.websocket_connect("/ws") as ws2:
+        ws2.send_json({"type": "join_game", "gameId": gid, "clientId": "tab-a"})
+        assert ws2.receive_json() == {"type": "game_joined", "color": "white"}
+        assert ws2.receive_json() == {
+            "type": "game_state",
+            "color": "white",
+            "started": False,
+            "moves": [],
+        }
+        assert ws2.receive_json() == presence("black", False)
 
 
 def test_automatic_rejoin_takes_a_free_seat(client, creator_is_white):

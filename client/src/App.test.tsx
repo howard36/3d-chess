@@ -925,3 +925,59 @@ test('GameScreen moves focus into the replaced dialog and puts the game behind i
   expect(screen.getByRole('button', { name: 'Play here' })).toHaveFocus();
   expect(screen.getByTestId('r3f-canvas').closest('[inert]')).not.toBeNull();
 });
+
+test('GameScreen shows the real position when a re-sent join is answered with a snapshot', async () => {
+  const send = vi.fn<GameSocket['send']>(() => true);
+  const { rerender } = renderGameScreen('abc123', fakeSocket([], send));
+  await userEvent.click(screen.getByRole('button', { name: 'Join Game' }));
+  // The first answer was lost; the repeated join is answered with the seat
+  // and the whole record, in which White has already moved
+  const answered: WebSocketMessage[] = [
+    { type: 'game_joined', color: 'black' },
+    {
+      type: 'game_state',
+      color: 'black',
+      started: true,
+      moves: [{ by: 'white', from: 'Ab2', to: 'Ab3' }],
+    },
+  ];
+  rerender(gameScreenAt(fakeSocket(answered, send, { sessionId: 2 })));
+  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('Black to move');
+  expect(screen.getByTestId('move-list')).toHaveTextContent('Ab2–Ab3');
+  expect(screen.getByTestId('board')).toBeEnabled();
+  expect(getStoredRole('abc123')).toBe('black');
+});
+
+test('GameScreen still takes the seat over when a fresh page loses its first rejoin to a drop', async () => {
+  setStoredRole('abc123', 'white');
+  const send = vi.fn<GameSocket['send']>(() => true);
+  const { rerender } = renderGameScreen('abc123', fakeSocket([], send));
+  await waitFor(() =>
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ takeover: true })),
+  );
+  rerender(gameScreenAt(fakeSocket([], send, { status: 'reconnecting' })));
+  rerender(gameScreenAt(fakeSocket([], send, { sessionId: 2 })));
+  await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ takeover: true }));
+});
+
+test('GameScreen sends no rejoin while the socket is down, so none is queued twice', () => {
+  setStoredRole('abc123', 'white');
+  const send = vi.fn<GameSocket['send']>(() => false);
+  renderGameScreen('abc123', fakeSocket([], send, { status: 'reconnecting' }));
+  expect(send).not.toHaveBeenCalled();
+});
+
+test('GameScreen drops the seat-in-use dialog while "Play here" opens a fresh socket', () => {
+  setStoredRole('abc123', 'white');
+  const refused: WebSocketMessage[] = [
+    { type: 'error', code: 'seat_in_use', message: 'This game is open in another tab' },
+  ];
+  const { rerender } = renderGameScreen(
+    'abc123',
+    fakeSocket(refused, () => true),
+  );
+  expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  rerender(gameScreenAt(fakeSocket(refused, () => true, { status: 'connecting' })));
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+});
