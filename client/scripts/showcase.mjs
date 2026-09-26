@@ -106,6 +106,36 @@ const VIRTUAL_CLOCK = () => {
   };
 };
 
+/**
+ * Installed before any page script: drops the dev server's hot-update pushes,
+ * so a file saved elsewhere during a recording can't reload or patch the page.
+ */
+const NO_HOT_RELOAD = () => {
+  const Native = window.WebSocket;
+  window.WebSocket = class extends Native {
+    constructor(url, protocols) {
+      super(url, protocols);
+      this.hmr = protocols === 'vite-hmr';
+    }
+    addEventListener(type, listener, options) {
+      if (!this.hmr || type !== 'message') return super.addEventListener(type, listener, options);
+      return super.addEventListener(
+        type,
+        (event) => {
+          try {
+            const { type: kind } = JSON.parse(event.data);
+            if (kind === 'full-reload' || kind === 'update' || kind === 'prune') return;
+          } catch {
+            // Not a JSON push: pass it on
+          }
+          listener(event);
+        },
+        options,
+      );
+    }
+  };
+};
+
 /** Installed before any page script: scene queries, camera orbit, the cursor. */
 const SHOW_HELPERS = () => {
   const store = () => {
@@ -308,6 +338,7 @@ async function main() {
     [0, 1].map(() => browser.newContext({ viewport: { width: WIDTH, height: HEIGHT } })),
   );
   for (const ctx of contexts) {
+    await ctx.addInitScript(NO_HOT_RELOAD);
     await ctx.addInitScript(VIRTUAL_CLOCK);
     await ctx.addInitScript(SHOW_HELPERS);
   }
@@ -382,7 +413,8 @@ async function main() {
   const camera = (f) => {
     if (pose) return pose.split(',').map(Number);
     const t = f / FPS;
-    const intro = Math.min(t / 2.5, 1);
+    // Stills skip the opening swing and show each design from its own view
+    const intro = STILLS ? 1 : Math.min(t / 2.5, 1);
     const k = ease(intro);
     const yaw = -18 * (1 - k) + 8 * Math.sin((t - 2.5) * 0.3) * k;
     const pitch = 8 * (1 - k) + 2 * Math.sin(t * 0.21) * k;
@@ -397,8 +429,8 @@ async function main() {
     let pull = 0;
     if (finale) {
       const k = ease(Math.min((frame - finale.frame) / (FPS * 1.6), 1));
-      zoom *= 1 - 0.3 * k;
-      pull = 0.45 * k;
+      zoom *= 1 - 0.18 * k;
+      pull = 0.3 * k;
     }
     await white.evaluate(
       ({ ms, yaw, pitch, zoom, focus, pull, cx, cy, press }) => {

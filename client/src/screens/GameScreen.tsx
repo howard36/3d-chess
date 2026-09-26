@@ -103,22 +103,20 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     [...messages].reverse().find((m) => m.type === 'move_made' || m.type === 'game_state')?.type ===
     'move_made';
   const endDelayMs = endedLive && (design.Celebration || design.toppleMatedKing) ? 1800 : 0;
-  const [endModalReady, setEndModalReady] = React.useState(endDelayMs === 0);
+  // The game end whose delay has run out (the replay keeps the same object
+  // while the record is unchanged).
+  const [endShown, setEndShown] = React.useState<typeof gameOver>(null);
   React.useEffect(() => {
-    if (!gameOver) return;
-    if (endDelayMs === 0) {
-      setEndModalReady(true);
-      return;
-    }
+    if (!gameOver || endDelayMs === 0) return;
     // Timed on animation frames, the clock the mate animation itself runs on.
     const start = performance.now();
     let frame = requestAnimationFrame(function tick() {
-      if (performance.now() - start >= endDelayMs) setEndModalReady(true);
+      if (performance.now() - start >= endDelayMs) setEndShown(gameOver);
       else frame = requestAnimationFrame(tick);
     });
     return () => cancelAnimationFrame(frame);
   }, [gameOver, endDelayMs]);
-  const showEndModal = !!gameOver && endModalReady;
+  const showEndModal = !!gameOver && (endDelayMs === 0 || endShown === gameOver);
 
   const awaitingMove =
     moveSent !== null &&
