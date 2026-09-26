@@ -72,7 +72,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Side to move.** The color whose turn it is. White moves first, and the turn alternates with every recorded move.
 
-**Check.** The side to move's king is attacked. Its king glows red on the board. No text says "check".
+**Check.** The side to move's king is attacked. Its king glows red on the board, and the turn indicator adds " — in check" while the game is not over.
 
 **Checkmate.** The side to move is in check and has no legal move. The other side wins.
 
@@ -100,7 +100,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Check glow.** The red glow on a king in check. It takes precedence over the amber glow of a selected king.
 
-**The board takes input.** The board accepts presses only while all three hold: the connection is *connected*, the move record is not *frozen*, and none of this player's own moves is *in flight*. When it does not take input, presses on pieces and cells do nothing, any selection is cleared, and the promotion dialog closes. The view can still be turned. The board takes input on the opponent's turn too; there is simply nothing of the player's that can be selected.
+**The board takes input.** The board accepts presses only while all four hold: the connection is *connected*, this connection's create, join, or rejoin has been answered (so the position shown is the server's, not the one from before a drop), the move record is not *frozen*, and none of this player's own moves is *in flight*. The move box follows the same rule. When the board does not take input, presses on pieces and cells do nothing, any selection is cleared, and the promotion dialog closes. The view can still be turned. The board takes input on the opponent's turn too; there is simply nothing of the player's that can be selected.
 
 **Held.** The board does not take input because this player's move is in flight. It lasts until the answer arrives or the connection drops.
 
