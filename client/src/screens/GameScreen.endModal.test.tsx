@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -76,7 +75,10 @@ const beforeMate: WebSocketMessage[] = [
   { type: 'game_start', color: 'white' },
   ...records.slice(0, -1).map((r) => ({ type: 'move_made' as const, ...r })),
 ];
-const mated: WebSocketMessage[] = [...beforeMate, { type: 'move_made', ...records.at(-1)! }];
+const mated: WebSocketMessage[] = [
+  ...beforeMate,
+  { type: 'move_made', ...records[records.length - 1] },
+];
 
 const result = () => screen.queryByRole('dialog', { name: /wins by checkmate/ });
 
