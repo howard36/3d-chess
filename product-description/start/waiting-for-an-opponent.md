@@ -83,7 +83,7 @@ The answer is the server's [start notice](../glossary.md#requests), carrying the
 
 The stored seat is written again with the same color, which changes nothing. A creator seated as White can move at once ([making a move](../play/making-a-move.md)); a creator seated as Black waits for the joiner's first move ([the opponent's move](../play/the-opponents-move.md)).
 
-If the joiner's tab lost its answer and repeated its join, the page receives the start notice a second time. It changes nothing on screen.
+If the joiner's tab lost its answer and repeated its join, the server hands that tab its seat back without announcing the start again; this page only receives "Opponent: online" once more, and nothing else on screen changes.
 
 When the page learns of the start from a snapshot instead (after a reload, a drop, "Play here", or a return), the result is the same board screen with two differences: any moves the joiner has made meanwhile are already in place, drawn without a glide, and the presence line says whether the joiner is connected now. A joiner seated as White may already have moved by the time the creator returns.
 

@@ -947,3 +947,37 @@ test('GameScreen shows the real position when a re-sent join is answered with a 
   expect(screen.getByTestId('board')).toBeEnabled();
   expect(getStoredRole('abc123')).toBe('black');
 });
+
+test('GameScreen still takes the seat over when a fresh page loses its first rejoin to a drop', async () => {
+  setStoredRole('abc123', 'white');
+  const send = vi.fn<GameSocket['send']>(() => true);
+  const { rerender } = renderGameScreen('abc123', fakeSocket([], send));
+  await waitFor(() =>
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ takeover: true })),
+  );
+  rerender(gameScreenAt(fakeSocket([], send, { status: 'reconnecting' })));
+  rerender(gameScreenAt(fakeSocket([], send, { sessionId: 2 })));
+  await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ takeover: true }));
+});
+
+test('GameScreen sends no rejoin while the socket is down, so none is queued twice', () => {
+  setStoredRole('abc123', 'white');
+  const send = vi.fn<GameSocket['send']>(() => false);
+  renderGameScreen('abc123', fakeSocket([], send, { status: 'reconnecting' }));
+  expect(send).not.toHaveBeenCalled();
+});
+
+test('GameScreen drops the seat-in-use dialog while "Play here" opens a fresh socket', () => {
+  setStoredRole('abc123', 'white');
+  const refused: WebSocketMessage[] = [
+    { type: 'error', code: 'seat_in_use', message: 'This game is open in another tab' },
+  ];
+  const { rerender } = renderGameScreen(
+    'abc123',
+    fakeSocket(refused, () => true),
+  );
+  expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  rerender(gameScreenAt(fakeSocket(refused, () => true, { status: 'connecting' })));
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+});
