@@ -1,6 +1,6 @@
 # Verification harness
 
-The Playwright scripts that ran the verification passes (the second, against `c571311`, is the one in the checklists' Result columns). They are a record of how each result in the checklists was obtained and a way to rerun it; they are not part of the product's test suite, and nothing here is run by CI.
+The Playwright scripts that ran the verification passes (the second, against `4e18386`, is the one in the checklists' Result columns). They are a record of how each result in the checklists was obtained and a way to rerun it; they are not part of the product's test suite, and nothing here is run by CI.
 
 ## Running it
 

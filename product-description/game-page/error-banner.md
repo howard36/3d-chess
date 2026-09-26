@@ -145,4 +145,4 @@ For the error banner, "before sending" means while the banner is up and not dism
 - Whether screen readers announce a change of text in a banner that is already showing, as they do when it first appears, was not tried.
 - No test clicks "Dismiss error". The banner's appearance is covered by `client/src/App.test.tsx` ("Not your turn", "Cannot join", "No such seat to rejoin"); dismissal, the reappearance of a later error, and the banner's survival across a reconnect are read from `client/src/screens/GameScreen.tsx`, `client/src/game/session.ts`, and `client/src/hooks/useGameSocket.ts` (the page's record of what the server said is kept across reconnects and cleared only when the page leaves the game). The end-to-end suite does not exercise the banner.
 
-Verified against 3D Chess commit `c571311`
+Verified against 3D Chess commit `4e18386`

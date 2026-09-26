@@ -4,7 +4,7 @@ You are working in the `product-description/` directory of the 3D Chess reposito
 
 ## Source of truth
 
-The 3D Chess source is the parent directory of this one (`client/` and `server/`), at commit `c571311`. Describe the experience of a player using the web client (`client/src/App.tsx`: the start screen at `/` and the game page at `/game/{id}`) in a desktop browser, with the default settings and nothing customized, against a server built from the same commit. Server operations (deployment, `/health`, logs, CI), modified clients, and test hooks are out of scope; see the README's scope decisions.
+The 3D Chess source is the parent directory of this one (`client/` and `server/`), at commit `4e18386`. Describe the experience of a player using the web client (`client/src/App.tsx`: the start screen at `/` and the game page at `/game/{id}`) in a desktop browser, with the default settings and nothing customized, against a server built from the same commit. Server operations (deployment, `/health`, logs, CI), modified clients, and test hooks are out of scope; see the README's scope decisions.
 
 For each document, read in this order before writing:
 
@@ -26,7 +26,7 @@ Do not describe code. Describe what the player sees and does. Technical detail g
 - Sentence case for all headings. Direct, concrete language. No hedging, no marketing. Quote on-screen text exactly, including its capitalization and whether it ends in "..." or "…".
 - State surprising behavior plainly and say why if the reason is in the code or a comment. If it looks like a bug, say so in "Open questions" rather than smoothing it over.
 - Cross-reference other documents with relative links rather than repeating their content. The foundations own the facts listed below. Do not restate them; link.
-- Every document ends with "## Open questions and verification" listing what was read from code but not confirmed by hand, followed by `Verified against 3D Chess commit \`c571311\``.
+- Every document ends with "## Open questions and verification" listing what was read from code but not confirmed by hand, followed by `Verified against 3D Chess commit \`4e18386\``.
 - One Mermaid `stateDiagram-v2` per interaction. Keep it to the states the player passes through; omit internal bookkeeping.
 
 ## Things already established (do not re-derive, do not contradict)

@@ -44,4 +44,4 @@ The words " — in check" are checked in END-01.
 | BANNER-05 | P2 | second tab, drop | A rejoin refused because another tab holds the seat shows the replaced dialog, not the banner ([the answer arrives](../game-page/error-banner.md#the-answer-arrives)). | As TAB-02. | 1. Run TAB-02's steps.<br>2. Look at the bottom of the first tab. | The first tab shows the replaced dialog; no "Error: This game is open in another tab" appears in the banner. | pass (first tab: replaced dialog, no banner (no role=alert at all); second tab: board, no dialog) |
 | BANNER-06 | P3 | narrow | In a narrow window the banner takes a row of its own above the move box and the move list ([begin](../game-page/error-banner.md#begin)). | LIST-05. | 1. Measure the banner. | Centered on its own row directly above the move box and the move list, overlapping neither. | pass (banner x 61..314, y 511..555, centre 187.5; gap to the row below 8 px) |
 
-Verified against 3D Chess commit `c571311`
+Verified against 3D Chess commit `4e18386`

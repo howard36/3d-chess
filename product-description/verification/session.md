@@ -52,4 +52,4 @@ Not checkable by hand:
 - A move sent by the older tab at the instant of replacement: a race inside the server.
 - The one-round-trip wait for the snapshot after "Play here": too short to see without delayed answers.
 
-Verified against 3D Chess commit `c571311`
+Verified against 3D Chess commit `4e18386`

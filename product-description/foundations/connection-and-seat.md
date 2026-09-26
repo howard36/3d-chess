@@ -156,4 +156,4 @@ This is what guarantees that a new game, or another game's page, starts on a con
 - A tab shown the replaced dialog because of seat in use keeps its connection open without a seat. If that connection later drops and returns after the other tab has closed, its automatic rejoin gets the seat back and the dialog goes away without a click. Read from code; not tried.
 - The retry schedule, queueing, dropped moves, the replaced state, last-connection-wins, seat in use, re-sent joins and creates, and the wait for the snapshot are covered by `client/src/hooks/useGameSocket.test.ts`, `client/src/App.test.tsx`, `server/tests/test_local_ws.py`, and `client/e2e/session.spec.ts`.
 
-Verified against 3D Chess commit `c571311`
+Verified against 3D Chess commit `4e18386`

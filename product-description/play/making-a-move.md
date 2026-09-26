@@ -188,4 +188,4 @@ After an interrupt before sending, the player is always back to having nothing s
 - The move box's last message, "A pawn cannot promote to that piece." (`client/src/game/typedMove.ts:47`), cannot appear: the field only accepts the five promotion letters, and every promotion square offers all five.
 - Selection, markers, the click threshold and button filter, the promotion hand-off, and the held board are covered by `client/src/three/Board.test.tsx` and `client/src/App.test.tsx` (including the board held until the rejoin is answered, and the move box's send, error line, and turn gating); the full loop by `client/e2e/playMove.spec.ts`. Touch taps and two-finger gestures on a real device, and presses through the turn indicator, were not tried by hand.
 
-Verified against 3D Chess commit `c571311`
+Verified against 3D Chess commit `4e18386`

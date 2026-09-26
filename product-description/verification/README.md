@@ -25,7 +25,7 @@ Priorities: **P1** is an established fact, a claim many documents depend on, or 
    - `cd client && npm ci && VITE_WS_URL=ws://127.0.0.1:8000/ws npm run dev`, then open `http://localhost:5173`.
 
    `VITE_WS_URL` must be set before Vite starts; without it the client talks to the production server. The local server keeps games in memory, so restarting it is a clean slate (and is also how to simulate a server restart). Stopping it is how to simulate an outage.
-2. **Confirm the commit.** Every document says `Verified against 3D Chess commit c571311`. Run `git rev-parse --short HEAD` in the repository and `git diff c571311 -- client server`; if the diff is not empty, the documents describe a different build and some failures will be drift, not defects.
+2. **Confirm the commit.** Every document says `Verified against 3D Chess commit 4e18386`. Run `git rev-parse --short HEAD` in the repository and `git diff 4e18386 -- client server`; if the diff is not empty, the documents describe a different build and some failures will be drift, not defects.
 3. **Get two players.** Most items need both seats taken. Use two *browser contexts*: two different browsers, or one normal and one private window. Two tabs of the same window share the stored seat and will take the seat from each other; that is what the [second-tab](../session/second-tab.md) items test, and nothing else should use it.
 4. Keep the documents open beside the game. Read the linked section before each item; the item is a summary, the section is the claim.
 5. Work through P1 first across all files, then P2, then P3.
@@ -66,7 +66,7 @@ What this pass did **not** cover: anything that needs a human eye (whether color
 
 **Rerun after the fixes for B-01 to B-09, 2026-09-26.** Against the fixed build, before the documents were rewritten, the items that had confirmed those defects failed, as intended; this is superseded by the second pass below.
 
-**Second pass, 2026-09-26, scripted, against commit `c571311`.** After the documents and checklists were rewritten for the fixed build, the harness scripts were rewritten to match every item and the whole harness was run again, with the same setup as the first pass. The Result columns are this pass.
+**Second pass, 2026-09-26, scripted, against commit `c571311`** (the documents' `4e18386` adds only a server change to how a send to a client that has already gone ends its connection, which no item depends on). After the documents and checklists were rewritten for the fixed build, the harness scripts were rewritten to match every item and the whole harness was run again, with the same setup as the first pass. The Result columns are this pass.
 
 - **218 items: 216 pass, 0 fail, 2 blocked.** The blocked items need a real phone: a second finger landing during a touch (SIZE-08) and the browser toolbar of a real phone (SIZE-10).
 - Two claims are checked in an emulated form, and their notes say so. The missing "Copy link" on a plain-http network address (WAIT-11, SIZE-09) was served from this machine's own network address rather than another device. Items that call for stopping the local server were run by holding the page's connection down instead (SIZE-06, A11Y-04), except those in `server-restart.spec.ts`, which really stop and restart it.

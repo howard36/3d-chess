@@ -90,4 +90,4 @@ Not checkable by hand:
 - Whether the dialog should be dismissible is a product call.
 - "Start new game" reachable by Tab behind the replaced dialog: needs another tab to take the seat while the end-game dialog is up; read from code only.
 
-Verified against 3D Chess commit `c571311`
+Verified against 3D Chess commit `4e18386`

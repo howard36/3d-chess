@@ -65,4 +65,4 @@ Not checkable by hand:
 - Whether a visitor should learn anything about the game before clicking: a product call.
 - Whether "reopen closed tab" restores a tab's client id: browser-specific.
 
-Verified against 3D Chess commit `c571311`
+Verified against 3D Chess commit `4e18386`

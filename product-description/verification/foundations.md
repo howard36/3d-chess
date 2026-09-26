@@ -130,4 +130,4 @@ Not checkable by hand:
 - A glide that resumes when a hidden tab is shown again: headless and occluded windows stop drawing, so this needs a real browser and a watchful tester.
 - Orbit stopping at the poles, and looking up from under the board: checkable, but the claim is the 3D library's default, not the product's; low value.
 
-Verified against 3D Chess commit `c571311`
+Verified against 3D Chess commit `4e18386`

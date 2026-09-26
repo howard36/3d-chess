@@ -6,7 +6,7 @@ A consolidated list of the defects and inconsistencies that the feature document
 
 The documents raised about 60 questions; after merging by root cause, 23 entries remain. Three are **high**. All three can end a game or change it against the player's intent: a press on the board acts on pointer-down, so turning the view can play a move (B-01); a move made just after reconnecting can be recorded against a stale position and freeze the game for both players (B-02); and a join whose answer is lost leaves the joiner stranded and the game unplayable (B-03). The largest cluster is **the connection edge**: B-02, B-03, B-04, B-06, B-10, B-16, and B-17 are all a page's state and the server's getting out of step around a drop, a reset, or a second tab. The fixes are small and local: wait for the snapshot, resend or recover lost requests, reset on every game change. A second cluster is **input and layout**: B-01, B-07, B-08, B-09. Four entries are product calls about what the game should offer rather than defects (B-20 to B-23).
 
-**B-01 to B-10 were fixed on 2026-09-26** (B-10 as a side effect); the documents now describe the fixed build, commit `c571311`, while the entries below keep the file:line references of `d94507b`, where they were found; each carries a **Fix** line, and the table's last column says so. The two product calls among them were decided as described there (B-06: the tab the player chose keeps the seat; B-09: dialogs, live regions, reduced motion and typed moves, not keyboard navigation of the 3D board).
+**B-01 to B-10 were fixed on 2026-09-26** (B-10 as a side effect); the documents now describe the fixed build, commit `4e18386`, while the entries below keep the file:line references of `d94507b`, where they were found; each carries a **Fix** line, and the table's last column says so. The two product calls among them were decided as described there (B-06: the tab the player chose keeps the seat; B-09: dialogs, live regions, reduced motion and typed moves, not keyboard navigation of the 3D board).
 
 | ID | Title | Severity | Area | Decision needed | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -184,7 +184,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Show a separate rejoining state until the first snapshot.
 - **Raised by:** [the connection and seat model](foundations/connection-and-seat.md#open-questions-and-verification), [reloading and returning](session/reload-and-return.md#while-in-flight), [waiting for an opponent](start/waiting-for-an-opponent.md#edge-cases), [joining a game](start/joining-a-game.md#edge-cases).
 - **Status:** confirmed 2026-09-25 by the scripted pass: CONN-09.
-- **Status:** still present at `c571311` (CONN-09, second pass).
+- **Status:** still present at `4e18386` (CONN-09, second pass).
 
 ### B-13: Unknown addresses render an empty dark page
 
@@ -207,7 +207,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Keep a synchronous "move sent" flag in a ref. Fixing B-01 (acting on click) narrows it further.
 - **Raised by:** [making a move](play/making-a-move.md#open-questions-and-verification), [error messages](cross-cutting/error-messages.md).
 - **Status:** confirmed 2026-09-25 by the scripted pass: MOVE-07 (the first draft claimed one move; corrected).
-- **Status:** still present at `c571311`: two clicks with no pause both send the move, and the second is refused with "Not your turn" (MOVE-07, second pass). Acting on release makes it harder to do by accident.
+- **Status:** still present at `4e18386`: two clicks with no pause both send the move, and the second is refused with "Not your turn" (MOVE-07, second pass). Acting on release makes it harder to do by accident.
 
 ### B-15: Old errors keep acting: success never clears the banner, and earlier refusals steer later joins
 
