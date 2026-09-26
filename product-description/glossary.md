@@ -118,7 +118,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Echo.** The server's copy of a recorded move, sent to both players, including the one who made it. A move appears on a player's board only when its echo (or a snapshot that contains it) arrives; the mover's own board does not show the move early.
 
-**Seat confirmation.** The server's answer to a successful join, sent to the joiner alone just before the *start notice*, carrying the color the joiner got. The stored seat is written when it arrives, which is why a drop after it is recoverable and a drop before it is not.
+**Seat confirmation.** The server's answer to a successful join, sent to the joiner alone just before the *start notice*, carrying the color the joiner got. The stored seat is written when it arrives. A drop before it is recovered too: the join is *re-sent*, and the server hands the tab the seat it already claimed for it.
 
 **Start notice.** The server's message, sent the moment a game's second seat is taken, telling every player connected to the game that it has started, and each one its own color. It moves the share-link and joined screens to the board screen. A player whose page is not connected at that moment never receives it; the snapshot from their next rejoin says the game has started instead.
 
@@ -130,25 +130,29 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Queued.** A create, join, or rejoin request made while the connection is not open, held in the browser until it opens and then sent.
 
+**Re-sent.** A create or join whose answer never arrived because the connection dropped is sent again, once per new connection, until it is answered. A repeated create may leave an unused game on the server; a repeated join gets the same seat back.
+
+**Client id.** A random identifier each browser tab picks for itself and sends with every create, join, and rejoin. The server remembers which client id claimed each seat. It lasts as long as the tab (a reload keeps it), and it is not shared with other tabs, so two tabs of one browser are two clients even though they share the *stored seat*.
+
 **Dropped.** A move that is discarded without being sent because the connection was not open when it was made, or was still pending when a new connection opened. The board never showed it, so nothing visibly changes; the player simply moves again.
 
 ## Input
 
-**Press.** A pointer going down on the board: a mouse button (any of the three), a finger, or a pen. The board acts on the press itself, not on the release: selecting a piece, clearing a selection, and playing a move all happen the instant the button goes down, whether or not the press turns into a drag. See [the input model](foundations/input-model.md#a-press-acts-at-once).
+**Press.** A click on the board: the primary mouse button, a finger, or a pen going down and coming back up within 6 pixels of where it went down, on the same piece or cell. The board acts on the release: that is when a piece is selected, a selection is cleared, or a move is played. Holding the button down does nothing yet; moving more than 6 pixels first makes it a *drag*; the right and middle mouse buttons never act on the board. See [the input model](foundations/input-model.md).
 
 **Click.** A press and release on an HTML control (a button, a link, the dialog backdrop). HTML controls act on release, as usual in a browser.
 
-**Takes the press.** The first piece or legal destination along the line from the camera through the pointer receives the press, and nothing behind it does. See [the input model](foundations/input-model.md#what-takes-a-press).
+**Takes the press.** The first piece or legal destination along the line from the camera through the pointer receives the press, and nothing behind it does. It must be the same object at the release as when the pointer went down. See [the input model](foundations/input-model.md#what-takes-a-press).
 
-**Drag.** A press that moves before release. On the board, a drag turns the view; it never moves a piece. There is no dragging of pieces.
+**Drag.** A pointer that moves more than 6 pixels between going down and coming up, or any use of the right or middle mouse button, the wheel, or a second finger. On the board, a drag only turns the view: it never selects, clears a selection, or plays a move. There is no dragging of pieces.
 
 **Orbit, zoom, pan.** The three ways to turn the view: orbit rotates the camera around the board (left drag, or one-finger drag), zoom moves it closer or farther (wheel, middle drag, or pinch), and pan slides it sideways (right drag, Shift/Ctrl/Cmd with left drag, or two-finger drag). See [the view](foundations/the-view.md#turning-the-view).
 
-**HUD.** The HTML panels laid over the board: the *seat label* at the top left, the *turn indicator* at the top center, the *move list* at the bottom right, and the *error banner*, *reconnecting banner*, and *frozen-board banner* when they apply. Except for the turn indicator, a press on a HUD panel never reaches the board.
+**HUD.** The HTML panels laid over the board. Along the top: the *seat label* at the left, the *turn indicator* in the center, and the *reconnecting banner* at the right, with the *frozen-board banner* below them when it applies. Along the bottom: the *move box* at the left, the *error banner* in the center, and the *move list* at the right. In a window narrower than 640 pixels each row stacks: the turn indicator and the error banner take a row of their own above the other two panels. The gaps between panels let the pointer through to the board; the panels themselves, except the turn indicator, do not.
 
 ## Events that end or interrupt a request
 
-**Cancel.** The player abandons a request before it is sent: Escape, a Cancel button, a click on a dialog's backdrop, or a press on an empty part of the board. Nothing is sent and nothing is recorded. A request that has been sent cannot be cancelled.
+**Cancel.** The player abandons a request before it is sent: Escape, a Cancel button, a click on a dialog's backdrop, or a press on an empty cell of the board. Nothing is sent and nothing is recorded. A request that has been sent cannot be cancelled.
 
 **Complete.** A request's answer arrives. What happens next depends on whether it was accepted or refused.
 
@@ -156,7 +160,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Reset.** What returning to the start screen does to the connection: the page's knowledge of the old game is thrown away, the connection is closed, and a fresh one is opened. The opponent sees the player go offline. The stored seat is kept, so opening the share link again rejoins the game.
 
-**Replaced.** The state a tab is left in when another tab or window of the same browser opens the same game and takes the seat. The replaced tab shows "This game is open in another tab" and stays disconnected until the player clicks "Play here". See [a second tab](session/second-tab.md).
+**Replaced.** The state a tab is left in when another tab or window of the same browser holds the seat: either the other tab took it (the *replaced signal*), or this tab's connection came back after a drop and found the seat held by the other tab (*seat in use*). The tab shows "This game is open in another tab" and holds no seat until the player clicks "Play here". See [a second tab](session/second-tab.md).
 
 ## The connection
 
@@ -170,11 +174,15 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **One-hour limit.** The server ends every connection after at most one hour. The player sees it as an ordinary brief drop.
 
-**Rejoin.** The request that tells the server "this connection is the player in seat *color* of game *id*". The page sends it by itself, once per new connection, whenever it has a stored seat and the connection has not already been given a seat. The answer is a snapshot.
+**Rejoin.** The request that tells the server "this connection is the player in seat *color* of game *id*". The page sends it by itself, once per new connection, whenever it has a stored seat and the connection has not already been given a seat. The answer is a snapshot. The first rejoin of a page, and the one after "Play here", *take over* the seat; every automatic rejoin after a drop does not.
 
-**Last connection wins.** When a rejoin names a seat that another live connection holds, the server gives the seat to the new connection and closes the old one with a message that stops it retrying. This is what lets a reloaded tab recover at once, and what makes a second tab take the seat from the first.
+**Last connection wins.** When a rejoin that *takes over* names a seat that another live connection holds, the server gives the seat to the new connection and closes the old one with a message that stops it retrying. This is what lets a reloaded tab recover at once, and what makes a second tab take the seat from the first.
 
-**Replaced signal.** The way the server closes a connection whose seat a newer connection has taken (last connection wins). A tab that receives it does not retry and shows the replaced dialog; every other close starts the retry schedule. A connection that has already died never receives it, which is why a tab that was reconnecting when another tab took the seat takes the seat back by itself when its retry succeeds.
+**Take over.** Whether a rejoin may take the seat from another tab's live connection. A page load, a reload, and "Play here" take over; an automatic rejoin after a drop does not, so a tab that was offline while the player moved to another tab cannot take the seat back by itself. A rejoin that does not take over may still replace the same tab's own stale connection.
+
+**Seat in use.** The server's refusal of a rejoin that does not take over, when another tab's live connection holds the seat. It is not shown as an error; the tab shows the replaced dialog instead.
+
+**Replaced signal.** The way the server closes a connection whose seat a newer connection has taken (last connection wins). A tab that receives it does not retry and shows the replaced dialog; every other close starts the retry schedule. A connection that has already died never receives it; a tab that was reconnecting when another tab took the seat learns of it instead from *seat in use* when its retry succeeds.
 
 **Presence.** Whether the opponent currently has a live connection to the game, shown as "Opponent: online" or "Opponent: offline" under the seat label. The server announces it when a player joins or rejoins and when a player's connection drops. See [seat and opponent status](game-page/seat-and-opponent-status.md).
 
@@ -184,7 +192,9 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Presence line.** The smaller second line of the seat label, "Opponent: online" or "Opponent: offline". It is absent until the first presence report arrives, and after that shows the latest report about the opponent that this page has received, even while this page's own connection is down.
 
-**Turn indicator.** The light box at the top center of the board screen: "White to move" or "Black to move". It ignores the pointer, so presses pass through it to the board.
+**Turn indicator.** The light box at the top center of the board screen: "White to move" or "Black to move", followed by " — in check" when the side to move is in check. It ignores the pointer, so presses pass through it to the board. Screen readers announce each change.
+
+**Move box.** The dark panel at the bottom left of the board screen where a move can be typed ("Type a move (e.g. Ab2-Ab3)", a text field, and a "Move" button). It plays the move exactly as pressing its piece and destination would, and is how a player without a pointer plays. See [making a move](play/making-a-move.md).
 
 **Move list.** The dark panel at the bottom right of the board screen listing every move in the record, one numbered row per White–Black pair, in cell notation with an en dash (`Ab2–Ab3`) and `=` plus a letter for a promotion (`Da4–Ea5=U`). Hidden until the first move. See [the move list](game-page/move-list.md).
 
@@ -196,15 +206,15 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Promotion dialog.** The white dialog titled "Promote to" with the buttons "Queen", "Rook", "Bishop", "Knight", "Unicorn", and "Cancel", over a darkened board. See [promotion](play/promotion.md).
 
-**End-game dialog.** The white dialog over a darkened board announcing "White wins by checkmate!", "Black wins by checkmate!", or "Draw by stalemate!", with a "Start new game" button. It cannot be closed any other way.
+**End-game dialog.** The white dialog over a darkened board announcing "White wins by checkmate!", "Black wins by checkmate!", or "Draw by stalemate!", with a "Start new game" button, which has keyboard focus when the dialog opens. It cannot be closed any other way.
 
-**Replaced dialog.** The white dialog titled "This game is open in another tab", with the text "Your seat moved to the newer tab or window. Close this one, or take the game back here." and a "Play here" button.
+**Replaced dialog.** The white dialog titled "This game is open in another tab", with the text "Your seat moved to the newer tab or window. Close this one, or take the game back here." and a "Play here" button, which has keyboard focus when the dialog opens.
 
 ## The view
 
 **View.** What the camera shows of the board. Each player's view is independent and local; turning it changes nothing for the opponent and nothing on the server.
 
-**Default view.** The camera position every board screen starts from: up and to the right of the board, looking at its center, with most of the cube in frame (the nearest bottom edge runs slightly off the bottom of a typical window). Reloading returns to it; nothing else does.
+**Default view.** The view every board screen starts from: up and to the right of the board, looking at its center, at the distance that just fits the whole cube in the window, whatever its shape. Reloading returns to it. Resizing the window keeps the direction the player has turned to but moves the camera back to the distance that fits the new shape.
 
 **Orientation.** Each player sees the board from their own side: their own back ranks at the bottom of the screen, their own levels nearest the camera, and their army laid out left to right exactly as the other player sees theirs. See [the view](foundations/the-view.md#orientation).
 
