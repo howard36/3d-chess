@@ -189,23 +189,29 @@ const SHOW_HELPERS = () => {
       const V = cube.position.constructor;
       const box = cube.geometry.parameters;
       const offsets = kind === 'piece' ? [0.1, -0.1, 0.25, 0] : [0, 0.3, -0.3];
+      const canvas = document.querySelector('canvas');
+      const r = canvas.getBoundingClientRect();
       for (const oy of offsets)
         for (const ox of [0, 0.25, -0.25])
           for (const oz of [0, 0.25, -0.25]) {
             const p = new V(c.x + ox * box.width, c.y + oy * box.height, c.z + oz * box.depth);
             p.project(camera);
-            raycaster.setFromCamera({ x: p.x, y: p.y }, camera);
+            // Aim at a whole page pixel: a click event reports whole-pixel
+            // offsets, so the ray r3f casts for the click comes from there.
+            const x = Math.round(r.left + (p.x * 0.5 + 0.5) * size.width);
+            const y = Math.round(r.top + (-p.y * 0.5 + 0.5) * size.height);
+            const ndc = {
+              x: ((x - r.left) / size.width) * 2 - 1,
+              y: -((y - r.top) / size.height) * 2 + 1,
+            };
+            raycaster.setFromCamera(ndc, camera);
             let first = null;
             for (const hit of raycaster.intersectObjects(scene.children, true)) {
               first = interactive(hit.object);
               if (first) break;
             }
-            if (first && isTarget(first)) {
-              const px = { x: (p.x * 0.5 + 0.5) * size.width, y: (-p.y * 0.5 + 0.5) * size.height };
-              const canvas = document.querySelector('canvas');
-              const r = canvas.getBoundingClientRect();
-              const under = document.elementFromPoint(r.left + px.x, r.top + px.y);
-              if (under === canvas) return { x: r.left + px.x, y: r.top + px.y };
+            if (first && isTarget(first) && document.elementFromPoint(x, y) === canvas) {
+              return { x, y };
             }
           }
       return null;
@@ -220,6 +226,34 @@ const SHOW_HELPERS = () => {
         }
       });
       return found && [found.x, found.y, found.z];
+    },
+    /** What r3f itself hits at a page pixel: its interaction list, nearest first. */
+    probe(x, y) {
+      const st = store();
+      const canvas = document.querySelector('canvas');
+      const r = canvas.getBoundingClientRect();
+      const ndc = { x: ((x - r.left) / r.width) * 2 - 1, y: -((y - r.top) / r.height) * 2 + 1 };
+      st.raycaster.setFromCamera(ndc, st.camera);
+      const hits = st.raycaster.intersectObjects(st.internal.interaction, true);
+      const describe = (o) => {
+        let t = o;
+        while (t.parent && !t.userData.piece && !t.userData.cube) t = t.parent;
+        return `${t.name || t.type}:${Object.keys(t.userData).slice(0, 2).join('+')}(${t.position.x.toFixed(1)},${t.position.y.toFixed(1)},${t.position.z.toFixed(1)})`;
+      };
+      return {
+        initialClick: st.internal.initialClick,
+        initialHits: st.internal.initialHits.map(describe),
+        captured: st.internal.capturedMap?.size,
+        size: [st.size.width, st.size.height, r.width, r.height],
+        hovered: st.internal.hovered.size,
+        disabled: document.querySelector('[data-testid="turn-indicator"]')?.textContent,
+        hits: hits.slice(0, 5).map((h) => {
+          let o = h.object;
+          while (o.parent && !o.userData.piece && !o.userData.cube) o = o.parent;
+          const p = o.position;
+          return `${Object.keys(o.userData).slice(0, 2).join('+')}@${h.distance.toFixed(2)} (${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)})`;
+        }),
+      };
     },
     /** What the ray through a cell's centre hits first, for diagnosing a failed aim. */
     explain(zxy) {
@@ -513,7 +547,28 @@ async function main() {
       await glideTo(from, 'piece');
       await white.mouse.click(cursor.x, cursor.y);
       press = 1;
-      await white.waitForFunction((z) => window.__show.isDestination(z), to, POLL);
+      const selectedNow = () =>
+        white.waitForFunction((z) => window.__show.isDestination(z), to, {
+          ...POLL,
+          timeout: 8000,
+        });
+      await selectedNow()
+        .catch(async () => {
+          console.log(`retrying the click on ${from}`);
+          await step();
+          await white.mouse.click(cursor.x, cursor.y);
+          return selectedNow();
+        })
+        .catch(async (e) => {
+          const why = {
+            aim: await white.evaluate((z) => window.__show.explain(z), from),
+            r3f: await white.evaluate(({ x, y }) => window.__show.probe(x, y), cursor),
+          };
+          throw new Error(
+            `selecting ${from} at ${JSON.stringify(cursor)} did nothing: ${JSON.stringify(why)}`,
+            { cause: e },
+          );
+        });
       await hold(0.55);
       if (i === 0) await still('selected');
       await glideTo(to, 'cell', 0.5);
