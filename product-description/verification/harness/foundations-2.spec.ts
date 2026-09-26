@@ -78,7 +78,11 @@ test('rules-09 redo', async ({ browser }) => {
     expect(await kingGlow(g.black)).toBe('#ff2222');
     const res: string[] = [];
     for (const [sq, want] of [['Ec5', ['Ec4']], ['Dc5', ['Ec4']], ['Dd5', ['Ec4']], ['Ed4', []]] as const) {
-      try { await press(g.black, sq, 'black'); } catch { res.push(`${sq}: hidden from default view, skipped`); continue; }
+      let ok = false;
+      for (let turn = 0; turn < 6 && !ok; turn++) {
+        try { await press(g.black, sq, 'black'); ok = true; } catch { await drag(g.black, BG, 120, 0); await settle(g.black); if (turn === 0) res.push(`${sq} hidden from the default view, pressed after orbiting`); }
+      }
+      if (!ok) throw new Error(`${sq} not reachable`);
       await g.black.waitForTimeout(300);
       expect(await highlighted(g.black, 'black')).toEqual(want);
     }
@@ -124,6 +128,12 @@ test('conn', async ({ browser }) => {
   });
   await waitForBoard(black);
   await item('CONN-07', async () => {
+    // The joiner opened the link directly, so Back would leave the app; give Black's tab
+    // the start screen as its previous entry, as a player who came from it has.
+    const url = black.url();
+    await black.goto('/'); await expect(black.getByRole('button', { name: 'Start New Game' })).toBeVisible();
+    await black.goto(url); await waitForBoard(black);
+    await expect(presence(white)).toHaveText('Opponent: online');
     await black.goBack();
     await expect(black.getByRole('button', { name: 'Start New Game' })).toBeVisible();
     await expect(presence(white)).toHaveText('Opponent: offline');

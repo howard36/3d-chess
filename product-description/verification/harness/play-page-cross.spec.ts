@@ -599,6 +599,7 @@ test('banner: under the promotion dialog', async ({ browser }) => {
   await playLine(g, PROMO_LINE);
   await provokeError(w);
   await item('BANNER-04', async () => {
+    const s0 = await sentMoves(w);
     const banner = alertWith(w, 'Already in a game');
     const text0 = await banner.textContent();
     await openPromotion(w);
@@ -608,14 +609,16 @@ test('banner: under the promotion dialog', async ({ browser }) => {
     await w.mouse.click(x.x + x.width / 2, x.y + x.height / 2); await w.waitForTimeout(400);
     const dialogAfter = await dialog(w).count();
     const bannerAfter = await banner.count();
-    if (dialogAfter) await w.getByRole('button', { name: 'Cancel' }).click();
-    await expect(dialog(w)).toHaveCount(0);
     const text1 = await banner.textContent();
+    const sel = (await boardState(w)).selectionRings;
+    const s1 = await sentMoves(w);
+    // step 3: click "✕"
     await w.getByRole('button', { name: 'Dismiss error' }).click();
     await expect(alertWith(w, 'Already in a game')).toHaveCount(0);
-    const note = `banner darkened under the backdrop: ${covered}; click over "✕": banner ${bannerAfter ? 'stayed' : 'gone'}, promotion dialog ${dialogAfter ? 'stayed open' : 'closed (the click landed on the backdrop, which cancels)'}; afterwards the banner was unchanged and "✕" dismissed it`;
-    expect(covered, note).toBe(true); expect(bannerAfter, note).toBe(1); expect(text1, note).toBe(text0);
-    expect(dialogAfter, note).toBe(1);
+    const note = `1: banner darkened under the backdrop: ${covered}; 2: promotion ${dialogAfter ? 'dialog stayed open' : 'cancelled (the click landed on the backdrop)'}, nothing sent, ${sel} selected, banner ${bannerAfter ? (text1 === text0 ? 'unchanged' : 'changed') : 'gone'}; 3: "✕" dismissed it`;
+    expect(covered, note).toBe(true);
+    expect(dialogAfter, note).toBe(0); expect(sel, note).toBe(0); expect(s1, note).toBe(s0);
+    expect(bannerAfter, note).toBe(1); expect(text1, note).toBe(text0);
     return note;
   });
   await item('ERR-03', async () => {
