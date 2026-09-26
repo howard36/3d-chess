@@ -44,7 +44,11 @@ const MoveInput: React.FC<MoveInputProps> = ({ board, color, canMove, onMove }) 
         borderRadius: 8,
         padding: '8px 10px',
         fontSize: 13,
+        // Fills its HUD column up to a comfortable width; never wider, so in a
+        // narrow window it shrinks rather than running under the move list
+        width: '100%',
         maxWidth: 260,
+        boxSizing: 'border-box',
       }}
     >
       <label htmlFor="typed-move" style={{ display: 'block', marginBottom: 4, opacity: 0.85 }}>

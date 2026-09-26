@@ -419,7 +419,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             className="pointer-events-none absolute inset-x-2.5 bottom-4 grid grid-cols-2 items-end gap-2 sm:grid-cols-[1fr_auto_1fr]"
             style={{ zIndex: 1000 }}
           >
-            <div className="min-w-0 justify-self-start">
+            <div className="flex min-w-0 justify-start">
               <MoveInput
                 board={board}
                 color={color}
@@ -430,7 +430,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             <div className="order-first col-span-2 justify-self-center sm:order-none sm:col-span-1">
               {errorBanner}
             </div>
-            <div className="min-w-0 justify-self-end">
+            <div className="flex min-w-0 justify-end">
               <MoveList moves={moveRecords} />
             </div>
           </div>

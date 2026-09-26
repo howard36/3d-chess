@@ -42,6 +42,8 @@ const MoveList: React.FC<MoveListProps> = ({ moves }) => {
         listStyle: 'none',
         maxHeight: 'min(40vh, 320px)',
         pointerEvents: 'auto',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
         overflowY: 'auto',
         backgroundColor: 'rgba(0,0,0,0.55)',
         color: 'white',
