@@ -37,13 +37,11 @@ const MoveList: React.FC<MoveListProps> = ({ moves }) => {
       data-testid="move-list"
       aria-label="Move history"
       style={{
-        position: 'absolute',
-        bottom: '16px',
-        right: '10px',
         margin: 0,
         padding: '8px 12px',
         listStyle: 'none',
-        maxHeight: '40vh',
+        maxHeight: 'min(40vh, 320px)',
+        pointerEvents: 'auto',
         overflowY: 'auto',
         backgroundColor: 'rgba(0,0,0,0.55)',
         color: 'white',
@@ -51,7 +49,6 @@ const MoveList: React.FC<MoveListProps> = ({ moves }) => {
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         fontSize: '13px',
         lineHeight: 1.7,
-        zIndex: 1000,
       }}
     >
       {rows.map((row) => (

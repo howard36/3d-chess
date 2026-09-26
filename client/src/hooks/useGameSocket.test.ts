@@ -215,10 +215,14 @@ describe('useGameSocket', () => {
     });
 
     expect(result.current.messages).toEqual([]);
+    // No session until the fresh socket opens, so a screen can't rejoin on
+    // the one being torn down
+    expect(result.current.sessionId).toBe(0);
     // A new connection is established and works
     await server.connected;
+    await waitFor(() => expect(result.current.sessionId).toBeGreaterThan(1));
     act(() => {
-      result.current.send({ type: 'create_game' });
+      expect(result.current.send({ type: 'create_game' })).toBe(true);
     });
     await expect(server).toReceiveMessage(JSON.stringify({ type: 'create_game' }));
   });

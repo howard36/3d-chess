@@ -13,3 +13,13 @@ export const MOVE_ANIMATION = {
 
 export const easeInOutCubic = (t: number): number =>
   t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+
+/**
+ * Whether the player asked their system for less motion. The move glide and
+ * the captured piece's fade are then skipped: the position simply changes,
+ * and the last-move highlight still shows what moved.
+ */
+export const prefersReducedMotion = (): boolean =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
