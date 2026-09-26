@@ -33,6 +33,9 @@ vi.mock('@react-three/drei', () => ({
 vi.mock('./three/FitCameraToBoard', () => ({
   FitCameraToBoard: () => null,
 }));
+vi.mock('./three/DesignStage', () => ({
+  DesignStage: () => null,
+}));
 // The 3D board itself is covered by Board.test.tsx; here it is a button that
 // plays a fixed pawn move, so GameScreen's move wiring can be exercised.
 vi.mock('./three/Board', () => ({

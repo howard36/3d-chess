@@ -39,9 +39,12 @@ const MoveInput: React.FC<MoveInputProps> = ({ board, color, canMove, onMove }) 
       aria-label="Type a move"
       style={{
         pointerEvents: 'auto',
-        backgroundColor: 'rgba(0,0,0,0.55)',
-        color: 'white',
-        borderRadius: 8,
+        background: 'var(--hud-bg, rgba(0,0,0,0.55))',
+        color: 'var(--hud-fg, white)',
+        border: 'var(--hud-border, none)',
+        boxShadow: 'var(--hud-shadow, none)',
+        backdropFilter: 'var(--hud-blur, none)',
+        borderRadius: 'var(--hud-radius, 8px)',
         padding: '8px 10px',
         fontSize: 13,
         // Fills its HUD column up to a comfortable width; never wider, so in a
@@ -71,10 +74,10 @@ const MoveInput: React.FC<MoveInputProps> = ({ board, color, canMove, onMove }) 
             minWidth: 0,
             padding: '4px 6px',
             borderRadius: 4,
-            border: '1px solid rgba(255,255,255,0.4)',
+            border: '1px solid var(--hud-muted, rgba(255,255,255,0.4))',
             background: 'rgba(255,255,255,0.1)',
-            color: 'white',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            color: 'inherit',
+            fontFamily: 'var(--hud-mono, ui-monospace, SFMono-Regular, Menlo, monospace)',
           }}
         />
         <button
@@ -83,8 +86,8 @@ const MoveInput: React.FC<MoveInputProps> = ({ board, color, canMove, onMove }) 
           style={{
             padding: '4px 10px',
             borderRadius: 4,
-            background: 'white',
-            color: '#222',
+            background: 'var(--hud-accent, white)',
+            color: 'var(--hud-accent-fg, #222)',
             fontWeight: 600,
             opacity: !canMove || text.trim() === '' ? 0.5 : 1,
           }}

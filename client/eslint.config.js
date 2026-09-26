@@ -23,4 +23,11 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
+  {
+    // A design module is a data object whose fields are components, with the
+    // design context beside them; hot-reloading a design remounts the scene
+    // anyway, so component-only modules buy nothing here.
+    files: ['src/three/designs/**/*.{ts,tsx}'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 );

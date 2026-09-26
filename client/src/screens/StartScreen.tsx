@@ -5,6 +5,7 @@ import type { GameSocket } from '../hooks/useGameSocket';
 import { setStoredRole } from '../lib/playerRole';
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
+import DesignPicker from './DesignPicker';
 
 interface StartScreenProps {
   gameSocket: GameSocket;
@@ -48,9 +49,19 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8">
+    <div
+      className="relative flex flex-col items-center justify-center min-h-screen p-8"
+      style={{
+        background: 'var(--page-bg, #111827)',
+        color: 'var(--page-fg, white)',
+        fontFamily: 'var(--hud-font, inherit)',
+      }}
+    >
+      <div className="absolute top-2.5 right-2.5" style={{ zIndex: 1001 }}>
+        <DesignPicker />
+      </div>
       <div className="text-center flex flex-col items-center gap-8">
-        <h1 className="text-6xl font-bold text-white tracking-wide">3D Chess</h1>
+        <h1 className="text-6xl font-bold tracking-wide">3D Chess</h1>
         <button
           onClick={handleCreateGame}
           disabled={isLoading}

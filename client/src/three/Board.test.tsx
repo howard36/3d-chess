@@ -305,6 +305,31 @@ describe('Board', () => {
     expect(rings[0].props.position).toEqual([pawnPos[0], pawnPos[1] + CELL_FLOOR_Y, pawnPos[2]]);
   });
 
+  it('captures when the capturable piece itself is clicked, not just its cell', async () => {
+    const board = new EngineBoard();
+    board.setPiece({ x: 2, y: 2, z: 2 }, { type: PieceType.Rook, color: 'white' });
+    board.setPiece({ x: 2, y: 3, z: 2 }, { type: PieceType.Pawn, color: 'black' });
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
+    const onMove = vi.fn<(move: Move) => void>();
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={board} currentTurn="white" playerColor="white" onMove={onMove} />,
+    );
+
+    // Without a selection an opposing piece is inert
+    await press(findPiece(renderer, PieceType.Pawn, 'black'));
+    expect(onMove).not.toHaveBeenCalled();
+
+    await press(findPiece(renderer, PieceType.Rook, 'white'));
+    await press(findPiece(renderer, PieceType.Pawn, 'black'));
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onMove.mock.calls[0][0]).toMatchObject({
+      from: { x: 2, y: 2, z: 2 },
+      to: { x: 2, y: 3, z: 2 },
+    });
+    expect(highlightedCells(renderer)).toHaveLength(0);
+  });
+
   it('calls onMove with the from/to of the clicked destination and clears the selection', async () => {
     const onMove = vi.fn<(move: Move) => void>();
     const renderer = await ReactThreeTestRenderer.create(

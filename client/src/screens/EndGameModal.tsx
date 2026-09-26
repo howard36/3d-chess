@@ -25,7 +25,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner }) => {
         position: 'fixed',
         inset: 0,
         padding: 16,
-        background: 'rgba(0,0,0,0.5)',
+        background: 'var(--modal-backdrop, rgba(0,0,0,0.5))',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -34,11 +34,13 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner }) => {
     >
       <div
         style={{
-          background: 'white',
-          color: 'black',
+          background: 'var(--modal-bg, white)',
+          color: 'var(--modal-fg, black)',
+          border: 'var(--hud-border, none)',
+          fontFamily: 'var(--hud-font, inherit)',
           padding: '2rem 3rem',
-          borderRadius: 16,
-          boxShadow: '0 4px 32px rgba(0,0,0,0.18)',
+          borderRadius: 'var(--modal-radius, 16px)',
+          boxShadow: 'var(--modal-shadow, 0 4px 32px rgba(0,0,0,0.18))',
           textAlign: 'center',
           maxWidth: 420,
         }}
@@ -49,7 +51,16 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner }) => {
         {/* The dialog takes focus: a keyboard player lands on its only action */}
         <button
           autoFocus
-          style={{ marginTop: 16, fontSize: 18, padding: '0.7em 2em' }}
+          style={{
+            marginTop: 16,
+            fontSize: 18,
+            padding: '0.7em 2em',
+            background: 'var(--button-bg, revert)',
+            color: 'var(--button-fg, revert)',
+            border: 'var(--button-border, revert)',
+            borderRadius: 'var(--button-radius, revert)',
+            fontFamily: 'inherit',
+          }}
           onClick={() => navigate('/')}
         >
           Start new game

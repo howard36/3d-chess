@@ -1,74 +1,38 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
-import {
-  BoxGeometry,
-  BufferAttribute,
-  BufferGeometry,
-  EdgesGeometry,
-  MeshBasicMaterial,
-} from 'three';
+import { BoxGeometry, MeshBasicMaterial } from 'three';
 import { Board as EngineBoard } from '../engine';
 import type { Move, Piece } from '../engine';
 import { PieceMesh } from './PieceMesh';
 import React from 'react';
 import { PieceType } from '../engine/pieces';
 import { Coord, toZXY } from '../engine/coords';
-import { CELL_FLOOR_Y, CELLS, toWorld } from './layout';
+import { CELLS } from './layout';
 import { GhostPiece, MoveGlide } from './moveAnimation';
 import { prefersReducedMotion } from './motion';
 import { theme } from './theme';
 import { isTap } from './tap';
-
-// The grid is drawn as a single wireframe lattice rather than translucent cube
-// faces: stacked transparent faces compound into haze toward the center of the
-// board and sort badly against the pieces. One merged geometry keeps it to a
-// single draw call. The lattice is the same set of cell edges under either
-// orientation, so it is built once from White's view.
-const buildLatticeGeometry = () => {
-  const cellEdges = new EdgesGeometry(new BoxGeometry(1, 1, 1));
-  const src = cellEdges.getAttribute('position');
-  const merged = new Float32Array(CELLS.length * src.count * 3);
-  CELLS.forEach((cell, i) => {
-    const [cx, cy, cz] = toWorld(cell, 'white');
-    for (let v = 0; v < src.count; v++) {
-      const o = (i * src.count + v) * 3;
-      merged[o] = src.getX(v) + cx;
-      merged[o + 1] = src.getY(v) + cy;
-      merged[o + 2] = src.getZ(v) + cz;
-    }
-  });
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new BufferAttribute(merged, 3));
-  return geometry;
-};
-const latticeGeometry = buildLatticeGeometry();
+import { useDesign } from './designs/context';
+import type { BoardLayout, MarkerProps, Vec3 } from './designs/types';
 
 // The 125 cell boxes share one geometry and one of three materials instead of
 // owning a BoxGeometry and a transparent material each. A cell with nothing
 // to draw is `visible={false}`: three's Raycaster tests layers, not
 // visibility, so it still catches destination clicks and the empty-space
 // click that clears a selection, while the renderer never queues it. It keeps
-// a (never drawn) material because Mesh.raycast bails without one.
-const cellGeometry = new BoxGeometry(1, 1, 1);
-const cellFill = {
-  destination: new MeshBasicMaterial({
-    color: theme.highlightFill,
-    transparent: true,
-    opacity: theme.highlightFillOpacity,
-    depthWrite: false,
-  }),
-  lastMove: new MeshBasicMaterial({
-    color: theme.lastMoveFill,
-    transparent: true,
-    opacity: theme.lastMoveFillOpacity,
-    depthWrite: false,
-  }),
-  none: new MeshBasicMaterial(),
+// a (never drawn) material because Mesh.raycast bails without one. The fills
+// themselves come from the design.
+const cellGeometries = new Map<string, BoxGeometry>();
+const cellGeometryFor = (layout: BoardLayout) => {
+  const key = layout.cellSize.join(',');
+  let geometry = cellGeometries.get(key);
+  if (!geometry) {
+    geometry = new BoxGeometry(...layout.cellSize);
+    cellGeometries.set(key, geometry);
+  }
+  return geometry;
 };
-
-// Line raycasting has a generous default threshold that would steal pointer
-// events from the cells; markers are decorative too.
-const noRaycast = () => null;
+const noFill = new MeshBasicMaterial();
 
 // Drops a cell-centre position to the cell floor, the plane a piece's base disc
 // sits on. Both rings ride on it: a ring is read as lying on the ground, so at
@@ -76,11 +40,7 @@ const noRaycast = () => null;
 // different height for every piece. Pieces are all modeled base-at-y=0 and are
 // shorter than their cell, so they are bottom-aligned rather than centred in it,
 // and their tops range from ~0.55 (pawn) to 0.87 (king).
-const atCellFloor = ([x, y, z]: [number, number, number]): [number, number, number] => [
-  x,
-  y + CELL_FLOOR_Y,
-  z,
-];
+const atCellFloor = ([x, y, z]: Vec3, layout: BoardLayout): Vec3 => [x, y + layout.floorY, z];
 
 export type BoardTurn = 'white' | 'black';
 
@@ -108,10 +68,15 @@ export interface BoardProps {
   lastMove?: LastMoveInfo;
   /** Freezes interaction (selection and moves) while still rendering the position. */
   disabled?: boolean;
+  /** Set once the game has ended; a design may mark the mated king. */
+  gameOver?: { result: 'checkmate' | 'stalemate'; winner?: BoardTurn } | null;
 }
 
 const Board = (props: BoardProps) => {
   const board = props.board;
+  const design = useDesign();
+  const layout = design.layout;
+  const { Quiet, Capture, Selection, LastMove, Check } = design.markers;
   // Spectators (no assigned colour) get White's view.
   const orientation = props.playerColor ?? 'white';
 
@@ -119,10 +84,15 @@ const Board = (props: BoardProps) => {
   // memoized on a shallow prop comparison, so the position it receives has to
   // be the same array from one render to the next, not a fresh toWorld result.
   const worldPositions = useMemo(
-    () => new Map(CELLS.map((cell) => [toZXY(cell), toWorld(cell, orientation)])),
-    [orientation],
+    () => new Map(CELLS.map((cell) => [toZXY(cell), layout.toWorld(cell, orientation)])),
+    [orientation, layout],
   );
   const worldOf = (cell: Coord) => worldPositions.get(toZXY(cell))!;
+  const markerAt = (cell: Coord): MarkerProps => {
+    const centre = worldOf(cell);
+    return { centre, floor: atCellFloor(centre, layout) };
+  };
+  const cellGeometry = cellGeometryFor(layout);
 
   const lastMove = props.lastMove;
   // Moves already played when this board mounted are history (a rejoin
@@ -136,6 +106,8 @@ const Board = (props: BoardProps) => {
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | Coord>(null);
   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
+  // The piece under the pointer, when the design lifts pieces on hover.
+  const [hovered, setHovered] = useState<string | null>(null);
 
   // A selection made against an earlier position is stale once the board or
   // turn changes (e.g. the opponent's move arrives) — clear it so a stale
@@ -152,17 +124,27 @@ const Board = (props: BoardProps) => {
     return piece ? [{ ...piece, coord }] : [];
   });
 
-  // Handle piece selection
-  const handlePieceClick = (coord: Coord) => {
-    if (props.disabled) return;
+  // Whether the player may pick up the piece on this cell right now.
+  const canPick = (coord: Coord) => {
+    if (props.disabled) return false;
     const piece = board.getPiece(coord);
     // Only allow clicking pieces that match both the current turn and playerColor
-    if (
-      !piece ||
-      piece.color !== props.currentTurn ||
-      (props.playerColor && piece.color !== props.playerColor)
-    )
+    return (
+      !!piece &&
+      piece.color === props.currentTurn &&
+      (!props.playerColor || piece.color === props.playerColor)
+    );
+  };
+
+  // Handle piece selection. A click on an opposing piece that the selected
+  // piece can take is the capture itself: the piece stands in its cell and
+  // would otherwise swallow the click meant for the cell behind it.
+  const handlePieceClick = (coord: Coord) => {
+    if (selected && isHighlighted(coord) && !canPick(coord)) {
+      handleCubeClick(coord);
       return;
+    }
+    if (!canPick(coord)) return;
     setSelected(coord);
     // Directly call generateLegalMoves which already filters for checks
     const actualLegalMoves = board.generateLegalMoves(coord);
@@ -172,8 +154,10 @@ const Board = (props: BoardProps) => {
   // Same reason as worldPositions: each piece gets a handler whose identity
   // never changes, delegating to the latest closure through a ref.
   const latestPieceClick = useRef(handlePieceClick);
+  const latestCanPick = useRef(canPick);
   useLayoutEffect(() => {
     latestPieceClick.current = handlePieceClick;
+    latestCanPick.current = canPick;
   });
   const pieceHandlers = useMemo(
     () =>
@@ -185,6 +169,25 @@ const Board = (props: BoardProps) => {
             if (isTap(e)) latestPieceClick.current(cell);
           },
         ]),
+      ),
+    [],
+  );
+  const hoverHandlers = useMemo(
+    () =>
+      new Map(
+        CELLS.map((cell) => {
+          const key = toZXY(cell);
+          return [
+            key,
+            {
+              onPointerOver: (e: ThreeEvent<PointerEvent>) => {
+                e.stopPropagation();
+                if (latestCanPick.current(cell)) setHovered(key);
+              },
+              onPointerOut: () => setHovered((h) => (h === key ? null : h)),
+            },
+          ];
+        }),
       ),
     [],
   );
@@ -219,153 +222,180 @@ const Board = (props: BoardProps) => {
 
   const isSelected = (c: Coord) => !!selected && coordEquals(selected, c);
 
-  const selectedWorld = selected ? worldOf(selected) : null;
+  // Kings standing in check, with where they stand.
+  const checkedKings = pieces.filter(
+    ({ type, color }) => type === PieceType.King && board.inCheck(color),
+  );
+  const checked = checkedKings.map(({ color }) => color);
+  const matedColor =
+    props.gameOver?.result === 'checkmate' && props.gameOver.winner
+      ? props.gameOver.winner === 'white'
+        ? 'black'
+        : 'white'
+      : null;
+  // On a stacked board the ranks run away from the camera, so a knight looks
+  // along them — toward the opponent — turned a little to show its profile.
+  // (In the lattice the ranks run up the screen; PieceMesh's default turn
+  // already shows the profile.)
+  const knightFacing = (color: BoardTurn) =>
+    layout.kind === 'tower'
+      ? (color === orientation ? 1 : -1) * (Math.PI / 2 - (design.knightYaw ?? 0.5))
+      : undefined;
+  const matedKing = pieces.find(
+    ({ type, color }) => type === PieceType.King && color === matedColor,
+  );
 
   return (
-    <group
-      name="board-grid"
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (selected && isTap(e)) {
-          setSelected(null);
-          setLegalMoves([]);
-        }
-      }}
-    >
-      <lineSegments geometry={latticeGeometry} raycast={noRaycast}>
-        <lineBasicMaterial
-          color={theme.gridLine}
-          transparent
-          opacity={theme.gridLineOpacity}
-          depthWrite={false}
-        />
-      </lineSegments>
-      {/* Cell boxes: raycast targets for selecting a destination and for the
-          empty-space click that clears the selection. Destination cells get a
-          faint fill, the last move's cells a teal one, and every other cell is
-          not drawn at all; everything else visible about a destination is
-          drawn by the markers below. The flags reflect what is drawn: a
-          legal-destination fill replaces the last-move fill on a shared cell. */}
-      {CELLS.map((cell) => {
-        const cellKey = toZXY(cell);
-        const isDest = isHighlighted(cell);
-        const isLastTo = !isDest && cellKey === lastToKey;
-        const isLastFrom = !isDest && !isLastTo && cellKey === lastFromKey;
-        const material = isDest
-          ? cellFill.destination
-          : isLastTo || isLastFrom
-            ? cellFill.lastMove
-            : cellFill.none;
-        return (
-          <mesh
-            key={cellKey}
-            position={worldOf(cell)}
-            geometry={cellGeometry}
-            material={material}
-            visible={material !== cellFill.none}
-            userData={{
-              highlight: isDest,
-              lastMoveFrom: isLastFrom,
-              lastMoveTo: isLastTo,
-              cube: true,
-            }}
-            // Clicking a highlighted cube plays the move
-            onClick={
-              isDest
-                ? (e: ThreeEvent<MouseEvent>) => {
-                    e.stopPropagation();
-                    if (isTap(e)) handleCubeClick(cell);
-                  }
-                : undefined
-            }
-          />
-        );
-      })}
-      {/* Move markers: a dot for a quiet move, a ring around a capturable piece.
-          The dot marks empty space, so it sits at the cell centre; the ring
-          encircles an occupied cell's piece, so it drops to that piece's base. */}
-      {destinations.map(({ to, capture }) =>
-        capture ? (
-          <mesh
-            key={`capture-${toZXY(to)}`}
-            position={atCellFloor(worldOf(to))}
-            rotation={[Math.PI / 2, 0, 0]}
-            raycast={noRaycast}
-            userData={{ captureRing: true }}
-          >
-            <torusGeometry args={[0.42, 0.035, 8, 32]} />
-            <meshBasicMaterial color={theme.capture} transparent opacity={0.9} depthWrite={false} />
-          </mesh>
-        ) : (
-          <mesh key={`quiet-${toZXY(to)}`} position={worldOf(to)} raycast={noRaycast}>
-            <sphereGeometry args={[0.11, 16, 16]} />
-            <meshBasicMaterial
-              color={theme.quietMove}
-              transparent
-              opacity={0.9}
-              depthWrite={false}
-            />
-          </mesh>
-        ),
-      )}
-      {/* Ring around the foot of the selected piece. Slightly tighter than the
-          capture ring, so the two read as different markers where they sit in
-          neighbouring cells; the radius still clears the widest base (the
-          king's, 0.28) while staying inside the cell. */}
-      {selectedWorld && (
-        <mesh
-          position={atCellFloor(selectedWorld)}
-          rotation={[Math.PI / 2, 0, 0]}
-          raycast={noRaycast}
-          userData={{ selectionRing: true }}
-        >
-          <torusGeometry args={[0.38, 0.04, 8, 32]} />
-          <meshBasicMaterial color={theme.select} transparent opacity={0.95} depthWrite={false} />
-        </mesh>
-      )}
-      {pieces.map(({ type, color, coord }) => {
-        const mesh = (
-          <PieceMesh
-            key={`${type}-${color}-${toZXY(coord)}`}
-            type={type}
-            color={color}
-            position={worldOf(coord)}
-            onClick={pieceHandlers.get(toZXY(coord))}
-            // Check trumps selection for the king's glow
-            emissive={
-              type === PieceType.King && board.inCheck(color)
-                ? theme.check
-                : isSelected(coord)
-                  ? theme.selectEmissive
-                  : '#000000'
-            }
-          />
-        );
-        // The just-moved piece glides in from its source cell. Piece keys are
-        // position-derived and can recur across moves, so the wrapper is keyed
-        // by moveCount: every new move mounts a fresh tween, superseding one
-        // still in flight.
-        if (animate && lastMove && toZXY(coord) === lastToKey) {
+    <>
+      <group
+        name="board-grid"
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (selected && isTap(e)) {
+            setSelected(null);
+            setLegalMoves([]);
+          }
+        }}
+      >
+        {/* Cell boxes: raycast targets for selecting a destination and for the
+            empty-space click that clears the selection. Destination cells get a
+            faint fill, the last move's cells another, and every other cell is
+            not drawn at all; everything else visible about a destination is
+            drawn by the markers. The flags reflect what is drawn: a
+            legal-destination fill replaces the last-move fill on a shared cell. */}
+        {CELLS.map((cell) => {
+          const cellKey = toZXY(cell);
+          const isDest = isHighlighted(cell);
+          const isLastTo = !isDest && cellKey === lastToKey;
+          const isLastFrom = !isDest && !isLastTo && cellKey === lastFromKey;
+          const material = isDest
+            ? design.cellFills.destination
+            : isLastTo || isLastFrom
+              ? design.cellFills.lastMove
+              : noFill;
           return (
-            <MoveGlide
-              key={`anim-${lastMove.moveCount}`}
-              from={worldOf(lastMove.move.from)}
-              to={worldOf(coord)}
-            >
-              {mesh}
-            </MoveGlide>
+            <mesh
+              key={cellKey}
+              position={worldOf(cell)}
+              geometry={cellGeometry}
+              material={material}
+              visible={material !== noFill}
+              userData={{
+                highlight: isDest,
+                lastMoveFrom: isLastFrom,
+                lastMoveTo: isLastTo,
+                cube: true,
+                zxy: cellKey,
+              }}
+              // Clicking a highlighted cube plays the move
+              onClick={
+                isDest
+                  ? (e: ThreeEvent<MouseEvent>) => {
+                      e.stopPropagation();
+                      if (isTap(e)) handleCubeClick(cell);
+                    }
+                  : undefined
+              }
+            />
           );
-        }
-        return mesh;
-      })}
-      {animate && lastMove?.capturedPiece && (
-        <GhostPiece
-          key={`ghost-${lastMove.moveCount}`}
-          type={lastMove.capturedPiece.type}
-          color={lastMove.capturedPiece.color}
-          position={worldOf(lastMove.move.to)}
-        />
-      )}
-    </group>
+        })}
+        {pieces.map(({ type, color, coord }) => {
+          const key = toZXY(coord);
+          const inCheck = type === PieceType.King && checked.includes(color);
+          const mesh = (
+            <PieceMesh
+              key={`${type}-${color}-${key}`}
+              type={type}
+              color={color}
+              position={worldOf(coord)}
+              onClick={pieceHandlers.get(key)}
+              {...(design.hoverLift ? hoverHandlers.get(key) : {})}
+              selected={isSelected(coord)}
+              hovered={design.hoverLift === true && hovered === key && canPick(coord)}
+              inCheck={inCheck}
+              mated={type === PieceType.King && color === matedColor}
+              facing={knightFacing(color)}
+              // Check trumps selection for the king's glow
+              emissive={
+                inCheck ? theme.check : isSelected(coord) ? theme.selectEmissive : '#000000'
+              }
+            />
+          );
+          // The just-moved piece glides in from its source cell. Piece keys are
+          // position-derived and can recur across moves, so the wrapper is keyed
+          // by moveCount: every new move mounts a fresh tween, superseding one
+          // still in flight.
+          if (animate && lastMove && key === lastToKey) {
+            return (
+              <MoveGlide
+                key={`anim-${lastMove.moveCount}`}
+                from={worldOf(lastMove.move.from)}
+                to={worldOf(coord)}
+                motion={design.motion}
+                floorY={layout.floorY}
+              >
+                {mesh}
+              </MoveGlide>
+            );
+          }
+          return mesh;
+        })}
+      </group>
+      {/* Everything else is decoration, outside the group that takes pointer
+          events: r3f only raycasts objects with handlers and their children,
+          so nothing here can intercept a click meant for a cell or piece. */}
+      <group name="board-decor">
+        <design.Grid layout={layout} orientation={orientation} />
+        {destinations.map(({ to, capture }) =>
+          capture ? (
+            <Capture key={`capture-${toZXY(to)}`} {...markerAt(to)} />
+          ) : (
+            <Quiet key={`quiet-${toZXY(to)}`} {...markerAt(to)} />
+          ),
+        )}
+        {selected && <Selection {...markerAt(selected)} />}
+        {LastMove && lastMove && (
+          <LastMove from={markerAt(lastMove.move.from)} to={markerAt(lastMove.move.to)} />
+        )}
+        {Check &&
+          checkedKings.map(({ color, coord }) => (
+            <Check key={`check-${color}`} {...markerAt(coord)} />
+          ))}
+        {animate && lastMove && design.MoveFx && (
+          <design.MoveFx
+            key={`movefx-${lastMove.moveCount}`}
+            from={worldOf(lastMove.move.from)}
+            to={worldOf(lastMove.move.to)}
+            color={board.getPiece(lastMove.move.to)?.color ?? 'white'}
+            piece={board.getPiece(lastMove.move.to)?.type ?? PieceType.Pawn}
+            capture={!!lastMove.capturedPiece}
+            durationMs={design.motion.durationMs}
+          />
+        )}
+        {animate &&
+          lastMove?.capturedPiece &&
+          (design.CaptureFx ? (
+            <design.CaptureFx
+              key={`capturefx-${lastMove.moveCount}`}
+              {...markerAt(lastMove.move.to)}
+              victim={lastMove.capturedPiece}
+              durationMs={design.motion.durationMs}
+            />
+          ) : (
+            <GhostPiece
+              key={`ghost-${lastMove.moveCount}`}
+              type={lastMove.capturedPiece.type}
+              color={lastMove.capturedPiece.color}
+              position={worldOf(lastMove.move.to)}
+            />
+          ))}
+        {matedKing && design.Celebration && (
+          <design.Celebration
+            {...markerAt(matedKing.coord)}
+            winner={props.gameOver?.winner ?? null}
+          />
+        )}
+      </group>
+    </>
   );
 };
 

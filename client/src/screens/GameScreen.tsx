@@ -19,7 +19,10 @@ import type { GameSocket } from '../hooks/useGameSocket';
 import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole';
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
-import { theme } from '../three/theme';
+import { NoToneMapping } from 'three';
+import { DesignContext, useDesignChoice } from '../three/designs/context';
+import { DesignStage } from '../three/DesignStage';
+import DesignPicker from './DesignPicker';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
@@ -90,6 +93,31 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const history = deriveHistory(messages, historyRef.current);
   historyRef.current = history;
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
+
+  const { design } = useDesignChoice();
+  // A design that plays out the mate (the king topples, the winner
+  // celebrates) gets a moment to do it before the result covers the board —
+  // when the mate was just played, not when a finished game is reopened.
+  const endedLive =
+    [...messages].reverse().find((m) => m.type === 'move_made' || m.type === 'game_state')?.type ===
+    'move_made';
+  const endDelayMs = endedLive && (design.Celebration || design.toppleMatedKing) ? 1800 : 0;
+  const [endModalReady, setEndModalReady] = React.useState(endDelayMs === 0);
+  React.useEffect(() => {
+    if (!gameOver) return;
+    if (endDelayMs === 0) {
+      setEndModalReady(true);
+      return;
+    }
+    // Timed on animation frames, the clock the mate animation itself runs on.
+    const start = performance.now();
+    let frame = requestAnimationFrame(function tick() {
+      if (performance.now() - start >= endDelayMs) setEndModalReady(true);
+      else frame = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [gameOver, endDelayMs]);
+  const showEndModal = !!gameOver && endModalReady;
 
   const awaitingMove =
     moveSent !== null &&
@@ -329,52 +357,90 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     const inCheck = !gameOver && board.inCheck(currentTurn);
     // While a dialog is up, everything behind it is out of reach: not
     // clickable (the backdrop covers it) and not focusable or readable either.
-    const behindDialog = replaced || !!gameOver || (!!promotionChoices && !boardDisabled);
+    const behindDialog = replaced || showEndModal || (!!promotionChoices && !boardDisabled);
     return (
-      <div style={{ position: 'relative', height: '100dvh', width: '100vw', overflow: 'hidden' }}>
+      <div
+        style={{
+          position: 'relative',
+          height: '100dvh',
+          width: '100vw',
+          overflow: 'hidden',
+          fontFamily: 'var(--hud-font, inherit)',
+          ...(design.hud.vars as React.CSSProperties),
+        }}
+      >
         <div inert={behindDialog} style={{ position: 'absolute', inset: 0 }}>
           {/* Main 3D Board canvas. The camera starts on the viewing player's
               side (mostly +Z, up and to the right) so their levels stay
               nearest and the depth layers don't perfectly occlude;
               FitCameraToBoard then sets its distance so the whole cube fits
               whatever the window's shape. */}
-          <Canvas
-            data-testid="r3f-canvas"
-            role="img"
-            aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, type moves in the move box.`}
-            style={{ height: '100%', width: '100%' }}
-            camera={{ position: [6.5, 5, 8.5], fov: 40 }}
-            // A chess position is static: render only when something changes.
-            // React commits and OrbitControls invalidate on their own; the move
-            // animations (three/moveAnimation.tsx) request frames while they run.
-            frameloop="demand"
-            // Test hook: r3f v9 no longer exposes its store on the canvas
-            // element, so drivers (e2e/helpers/board.ts) read the live camera
-            // here to project board cells to pixels — correct even after the
-            // user orbits or the camera setup above changes.
-            onCreated={(state: RootState) => {
-              (window as Window & { __r3fState?: RootState }).__r3fState = state;
-            }}
-          >
-            <color attach="background" args={[theme.background]} />
-            {/* Fog matched to the background gently fades the far side of the
-                lattice, giving a depth cue the flat grid lines can't */}
-            <fog attach="fog" args={[theme.background, 10, 26]} />
-            <hemisphereLight args={['#f5f7fb', '#46506b', 1.1]} />
-            <directionalLight position={[6, 10, 6]} intensity={2.2} />
-            <directionalLight position={[-6, -4, -8]} intensity={1.0} color="#dfe6f2" />
-            <Board
-              board={board} // Pass the EngineBoard instance
-              currentTurn={currentTurn}
-              playerColor={color} // Pass the determined player color
-              onMove={handleMove}
-              onChoosePromotion={setPromotionChoices}
-              lastMove={lastMove}
-              disabled={boardDisabled}
+          <DesignContext.Provider value={design}>
+            <Canvas
+              // A new design is a new scene: fresh renderer settings and frame
+              // loop, rather than tearing the old design's objects down in place.
+              key={design.id}
+              data-testid="r3f-canvas"
+              role="img"
+              aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, type moves in the move box.`}
+              className={design.canvas?.pixelated ? 'pixelated-canvas' : undefined}
+              style={{ height: '100%', width: '100%' }}
+              camera={{ position: design.layout.viewDirection, fov: design.canvas?.fov ?? 40 }}
+              shadows={design.canvas?.shadows}
+              dpr={design.canvas?.dpr}
+              flat={design.canvas?.toneMapping === NoToneMapping}
+              gl={{
+                antialias: design.canvas?.antialias ?? true,
+                ...(design.canvas?.toneMapping !== undefined &&
+                design.canvas.toneMapping !== NoToneMapping
+                  ? { toneMapping: design.canvas.toneMapping }
+                  : {}),
+                ...(design.canvas?.exposure !== undefined
+                  ? { toneMappingExposure: design.canvas.exposure }
+                  : {}),
+              }}
+              // A chess position is static: render only when something changes.
+              // React commits and OrbitControls invalidate on their own; the move
+              // animations (three/moveAnimation.tsx) request frames while they run.
+              // Designs with ambient motion render every frame instead.
+              frameloop={design.continuous ? 'always' : 'demand'}
+              // Test hook: r3f v9 no longer exposes its store on the canvas
+              // element, so drivers (e2e/helpers/board.ts) read the live camera
+              // here to project board cells to pixels — correct even after the
+              // user orbits or the camera setup above changes.
+              onCreated={(state: RootState) => {
+                (window as Window & { __r3fState?: RootState }).__r3fState = state;
+              }}
+            >
+              <DesignStage orientation={color ?? 'white'} />
+              <Board
+                board={board} // Pass the EngineBoard instance
+                currentTurn={currentTurn}
+                playerColor={color} // Pass the determined player color
+                onMove={handleMove}
+                onChoosePromotion={setPromotionChoices}
+                lastMove={lastMove}
+                disabled={boardDisabled}
+                gameOver={gameOver}
+              />
+              <OrbitControls makeDefault minDistance={6} />
+              <FitCameraToBoard
+                halfExtents={design.layout.halfExtents}
+                viewDirection={design.layout.viewDirection}
+              />
+            </Canvas>
+          </DesignContext.Provider>
+          {design.hud.overlay && (
+            <div
+              aria-hidden
+              style={{
+                position: 'absolute',
+                inset: 0,
+                pointerEvents: 'none',
+                ...design.hud.overlay,
+              }}
             />
-            <OrbitControls makeDefault minDistance={6} />
-            <FitCameraToBoard />
-          </Canvas>
+          )}
           {/* HUD over the canvas. Its layers let the pointer through to the
               board except on the controls themselves. Three columns in a wide
               window (seat, turn centred, connection); in a narrow one the turn
@@ -390,9 +456,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
                   <div
                     style={{
                       padding: '10px',
-                      backgroundColor: 'rgba(0,0,0,0.7)',
-                      color: 'white',
-                      borderRadius: '5px',
+                      background: 'var(--hud-bg, rgba(0,0,0,0.7))',
+                      color: 'var(--hud-fg, white)',
+                      border: 'var(--hud-border, none)',
+                      borderRadius: 'var(--hud-radius, 5px)',
+                      boxShadow: 'var(--hud-shadow, none)',
+                      backdropFilter: 'var(--hud-blur, none)',
+                      textTransform:
+                        'var(--hud-case, none)' as React.CSSProperties['textTransform'],
+                      letterSpacing: 'var(--hud-tracking, normal)',
                     }}
                   >
                     You are playing as {color}.
@@ -411,7 +483,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               <div className="order-first col-span-2 justify-self-center sm:order-none sm:col-span-1">
                 <TurnIndicator turn={currentTurn} inCheck={inCheck} />
               </div>
-              <div className="justify-self-end">{reconnectingBanner}</div>
+              <div className="flex flex-col items-end gap-2 justify-self-end">
+                <DesignPicker />
+                {reconnectingBanner}
+              </div>
             </div>
             {replayErrorBanner}
           </div>
@@ -446,7 +521,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
           />
         )}
         {/* End Game Modal */}
-        {gameOver && <EndGameModal result={gameOver.result} winner={gameOver.winner} />}
+        {gameOver && showEndModal && (
+          <EndGameModal result={gameOver.result} winner={gameOver.winner} />
+        )}
         {replacedNotice}
       </div>
     );
@@ -456,12 +533,19 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
 
   // UI for waiting/joining phase
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8">
+    <div
+      className="flex flex-col items-center justify-center min-h-screen p-8"
+      style={{
+        background: 'var(--page-bg, #111827)',
+        color: 'var(--page-fg, white)',
+        fontFamily: 'var(--hud-font, inherit)',
+      }}
+    >
       <div
         inert={replaced}
         className="text-center flex flex-col items-center gap-8 w-full max-w-2xl"
       >
-        <h1 className="text-5xl sm:text-6xl font-bold text-white tracking-wide">3D Chess</h1>
+        <h1 className="text-5xl sm:text-6xl font-bold tracking-wide">3D Chess</h1>
         {phase === 'waiting' && !storedRole && (
           <button
             onClick={handleJoin}
