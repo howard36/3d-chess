@@ -23,6 +23,7 @@ import { NoToneMapping } from 'three';
 import { DesignContext, useDesignChoice } from '../three/designs/context';
 import { DesignStage } from '../three/DesignStage';
 import DesignPicker from './DesignPicker';
+import CapturedPieces from './CapturedPieces';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
@@ -478,6 +479,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
                         Opponent: {opponentOnline ? 'online' : 'offline'}
                       </div>
                     )}
+                    <CapturedPieces board={board} color={color} />
                   </div>
                 )}
               </div>
