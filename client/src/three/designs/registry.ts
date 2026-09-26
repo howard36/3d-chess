@@ -59,15 +59,15 @@ export const DESIGNS: DesignEntry[] = [
   {
     id: 'bauhaus',
     name: 'Bauhaus',
-    blurb: 'Primary colours and pure geometry on paper-white.',
-    swatch: ['#f2ecdf', '#e63b2e', '#1f4bd8', '#f6c62a'],
+    blurb: 'Primary-colour primitives on a floating cube of paper tiles, before a printed poster.',
+    swatch: ['#f1ebdd', '#e63b2e', '#1f4bd8', '#f6c62a'],
     load: () => import('./bauhaus'),
   },
   {
     id: 'blueprint',
     name: 'Blueprint',
-    blurb: 'Pieces drawn as technical line art on drafting blue.',
-    swatch: ['#0b3d91', '#ffffff', '#9cc7ff', '#ffe066'],
+    blurb: 'Pieces drawn as technical line art on drafting blue; moves measured, captures erased.',
+    swatch: ['#0d3f94', '#eef5ff', '#041536', '#ffe066'],
     load: () => import('./blueprint'),
   },
   {
