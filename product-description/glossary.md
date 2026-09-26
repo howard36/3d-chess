@@ -102,7 +102,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **The board takes input.** The board accepts presses only while all four hold: the connection is *connected*, this connection's create, join, or rejoin has been answered (so the position shown is the server's, not the one from before a drop), the move record is not *frozen*, and none of this player's own moves is *in flight*. The move box follows the same rule. When the board does not take input, presses on pieces and cells do nothing, any selection is cleared, and the promotion dialog closes. The view can still be turned. The board takes input on the opponent's turn too; there is simply nothing of the player's that can be selected.
 
-**Held.** The board does not take input because this player's move is in flight. It lasts until the answer arrives or the connection drops.
+**Held.** The board does not take input because this player's move is in flight. It lasts until the answer arrives or the connection drops; after a drop the board still waits for the new connection's snapshot before it takes input again.
 
 **Frozen.** The board does not take input because the move record contains a move this browser cannot replay. The position stops at the last move that could be replayed and a red banner explains. See [the broken game record](cross-cutting/broken-game-record.md). Not to be confused with the board simply not taking input while disconnected.
 
@@ -138,7 +138,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## Input
 
-**Press.** A click on the board: the primary mouse button, a finger, or a pen going down and coming back up within 6 pixels of where it went down, on the same piece or cell. The board acts on the release: that is when a piece is selected, a selection is cleared, or a move is played. Holding the button down does nothing yet; moving more than 6 pixels first makes it a *drag*; the right and middle mouse buttons never act on the board. See [the input model](foundations/input-model.md).
+**Press.** A click on the board: the primary mouse button, a finger, or a pen going down and coming back up within 6 pixels of where it went down, on the same piece or cell. The board acts on the release: that is when a piece is selected, a selection is cleared, or a move is played. Holding the button down does nothing yet; moving more than 6 pixels first makes it a *drag*; the right and middle mouse buttons never act on the board. See [the input model](foundations/input-model.md#a-press-acts-on-release).
 
 **Click.** A press and release on an HTML control (a button, a link, the dialog backdrop). HTML controls act on release, as usual in a browser.
 
@@ -148,7 +148,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Orbit, zoom, pan.** The three ways to turn the view: orbit rotates the camera around the board (left drag, or one-finger drag), zoom moves it closer or farther (wheel, middle drag, or pinch), and pan slides it sideways (right drag, Shift/Ctrl/Cmd with left drag, or two-finger drag). See [the view](foundations/the-view.md#turning-the-view).
 
-**HUD.** The HTML panels laid over the board. Along the top: the *seat label* at the left, the *turn indicator* in the center, and the *reconnecting banner* at the right, with the *frozen-board banner* below them when it applies. Along the bottom: the *move box* at the left, the *error banner* in the center, and the *move list* at the right. In a window narrower than 640 pixels each row stacks: the turn indicator and the error banner take a row of their own above the other two panels. The gaps between panels let the pointer through to the board; the panels themselves, except the turn indicator, do not.
+**HUD.** The HTML panels laid over the board. Along the top: the *seat label* at the left, the *turn indicator* in the center, and the *reconnecting banner* at the right, with the *frozen-board banner* below them when it applies. Along the bottom: the *move box* at the left, the *error banner* in the center, and the *move list* at the right. In a window narrower than 640 pixels each row stacks: the turn indicator and the error banner take a row of their own above the other two panels. Only the move box, the move list, and the error banner catch the pointer; everything else in the HUD (the seat label, the turn indicator, and the reconnecting and frozen-board banners) lets presses and drags through to the board.
 
 ## Events that end or interrupt a request
 
@@ -192,7 +192,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Presence line.** The smaller second line of the seat label, "Opponent: online" or "Opponent: offline". It is absent until the first presence report arrives, and after that shows the latest report about the opponent that this page has received, even while this page's own connection is down.
 
-**Turn indicator.** The light box at the top center of the board screen: "White to move" or "Black to move", followed by " — in check" when the side to move is in check. It ignores the pointer, so presses pass through it to the board. Screen readers announce each change.
+**Turn indicator.** The light box at the top center of the board screen: "White to move" or "Black to move", followed by " — in check" when the side to move is in check. Like the rest of the HUD except the move box, move list, and error banner, it lets presses through to the board. Screen readers announce each change.
 
 **Move box.** The dark panel at the bottom left of the board screen where a move can be typed ("Type a move (e.g. Ab2-Ab3)", a text field, and a "Move" button). It plays the move exactly as pressing its piece and destination would, and is how a player without a pointer plays. See [making a move](play/making-a-move.md).
 

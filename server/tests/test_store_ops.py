@@ -54,7 +54,7 @@ def test_create_game_never_reuses_an_id(monkeypatch):
 def test_claim_seat_takes_the_free_color(white_creator):
     store = {}
     gid, _ = create_game(store)
-    assert claim_seat(store, gid) == "black"
+    assert claim_seat(store, gid) == ("black", False)
     assert store[gid]["seats"] == ["white", "black"]
 
 
@@ -62,11 +62,11 @@ def test_claim_seat_remembers_and_recognises_the_claimant(white_creator):
     store = {}
     gid, _ = create_game(store, "tab-a")
     assert store[gid]["claimants"] == {"white": "tab-a"}
-    assert claim_seat(store, gid, "tab-b") == "black"
+    assert claim_seat(store, gid, "tab-b") == ("black", False)
     assert store[gid]["claimants"] == {"white": "tab-a", "black": "tab-b"}
     # Either claimant joining again gets its own seat back; nobody else gets in
-    assert claim_seat(store, gid, "tab-b") == "black"
-    assert claim_seat(store, gid, "tab-a") == "white"
+    assert claim_seat(store, gid, "tab-b") == ("black", True)
+    assert claim_seat(store, gid, "tab-a") == ("white", True)
     assert store[gid]["seats"] == ["white", "black"]
     with pytest.raises(GameError) as e:
         claim_seat(store, gid, "tab-c")

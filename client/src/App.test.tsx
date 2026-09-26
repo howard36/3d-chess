@@ -925,3 +925,25 @@ test('GameScreen moves focus into the replaced dialog and puts the game behind i
   expect(screen.getByRole('button', { name: 'Play here' })).toHaveFocus();
   expect(screen.getByTestId('r3f-canvas').closest('[inert]')).not.toBeNull();
 });
+
+test('GameScreen shows the real position when a re-sent join is answered with a snapshot', async () => {
+  const send = vi.fn<GameSocket['send']>(() => true);
+  const { rerender } = renderGameScreen('abc123', fakeSocket([], send));
+  await userEvent.click(screen.getByRole('button', { name: 'Join Game' }));
+  // The first answer was lost; the repeated join is answered with the seat
+  // and the whole record, in which White has already moved
+  const answered: WebSocketMessage[] = [
+    { type: 'game_joined', color: 'black' },
+    {
+      type: 'game_state',
+      color: 'black',
+      started: true,
+      moves: [{ by: 'white', from: 'Ab2', to: 'Ab3' }],
+    },
+  ];
+  rerender(gameScreenAt(fakeSocket(answered, send, { sessionId: 2 })));
+  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('Black to move');
+  expect(screen.getByTestId('move-list')).toHaveTextContent('Ab2–Ab3');
+  expect(screen.getByTestId('board')).toBeEnabled();
+  expect(getStoredRole('abc123')).toBe('black');
+});
