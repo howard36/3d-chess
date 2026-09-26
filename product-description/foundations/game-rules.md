@@ -16,7 +16,7 @@ The board has 125 [cells](../glossary.md#the-board). A cell is named by three ch
 | Second, lower case | File | a b c d e | left to right, a to e | the same files, drawn right to left (see [orientation](the-view.md#orientation)) |
 | Third, digit | Rank | 1 2 3 4 5 | 1 is White's back rank; *forward* is toward 5 | 5 is Black's back rank; *forward* is toward 1 |
 
-So `Aa1` is White's home corner and `Ee5` is Black's. The same notation appears in the [move list](../game-page/move-list.md) and in every message the server exchanges, but nowhere on the board itself: cells carry no labels, and a player who wants to find `Cc3` has to count. How the levels, files, and ranks are laid out on screen is in [the view](the-view.md#orientation).
+So `Aa1` is White's home corner and `Ee5` is Black's. The same notation appears in the [move list](../game-page/move-list.md), is what the player types into the [move box](input-model.md#the-move-box), and is used in every message the server exchanges, but it appears nowhere on the board itself: cells carry no labels, and a player who wants to find `Cc3` has to count. How the levels, files, and ranks are laid out on screen is in [the view](the-view.md#orientation).
 
 ## The starting position
 
@@ -71,7 +71,7 @@ A pawn reaches them by a quiet step (forward from rank 4 on the top level, or up
 
 These work as in standard chess, across all three dimensions.
 
-- **Check.** The side to move's King is attacked by at least one opposing piece. The player must answer it: every move offered is one that leaves the King unattacked. The board shows check only by the [check glow](the-view.md#markers-and-colors) on the King; no text says "check".
+- **Check.** The side to move's King is attacked by at least one opposing piece. The player must answer it: every move offered is one that leaves the King unattacked. The board shows check by the [check glow](the-view.md#markers-and-colors) on the King, and the [turn indicator](../game-page/turn-indicator.md) adds " — in check" after "White to move" or "Black to move" while the game is not over.
 - **Checkmate.** The side to move is in check and has no legal move. The other side wins.
 - **Stalemate.** The side to move is not in check and has no legal move. The game is a draw.
 
@@ -89,7 +89,7 @@ What happens on screen when the game ends is in [check and the end of the game](
 
 ## Who enforces the rules
 
-Each player's browser holds the complete rules and applies them in three places: it offers only legal destinations for the selected piece, it glows a King that is in check, and it decides after every move whether the game is over. The two browsers reach the same conclusions because they replay the same [move record](../glossary.md#games-and-seats) with the same rules.
+Each player's browser holds the complete rules and applies them in four places: it offers only legal destinations for the selected piece, it accepts only a legal move typed into the move box, it marks a King that is in check, and it decides after every move whether the game is over. The two browsers reach the same conclusions because they replay the same [move record](../glossary.md#games-and-seats) with the same rules.
 
 The server checks only that a move names two valid cells, carries a promotion letter only from the allowed five, and comes from the side whose turn it is. It does not check that the piece exists, that the move is legal, or that the game is still in progress. A correct client never sends anything else, so a player using the app never sees the difference; what a player sees if the record ever contains a move their browser cannot replay is described in [the broken game record](../cross-cutting/broken-game-record.md).
 
@@ -101,4 +101,4 @@ The server checks only that a move names two valid cells, carries a promotion le
 - A game reduced to two Kings never ends; there is no draw rule for it. This is by design (no draw rules exist) but a player may not expect it.
 - The board has no coordinate labels, so the move list's notation cannot be matched to cells without counting. Whether that is intended is a product call; see [the view](the-view.md).
 
-Verified against 3D Chess commit `d94507b`
+Verified against 3D Chess commit `4e18386`

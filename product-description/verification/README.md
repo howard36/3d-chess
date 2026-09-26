@@ -25,7 +25,7 @@ Priorities: **P1** is an established fact, a claim many documents depend on, or 
    - `cd client && npm ci && VITE_WS_URL=ws://127.0.0.1:8000/ws npm run dev`, then open `http://localhost:5173`.
 
    `VITE_WS_URL` must be set before Vite starts; without it the client talks to the production server. The local server keeps games in memory, so restarting it is a clean slate (and is also how to simulate a server restart). Stopping it is how to simulate an outage.
-2. **Confirm the commit.** Every document says `Verified against 3D Chess commit d94507b`. Run `git rev-parse --short HEAD` in the repository and `git diff d94507b -- client server`; if the diff is not empty, the documents describe a different build and some failures will be drift, not defects.
+2. **Confirm the commit.** Every document says `Verified against 3D Chess commit 4e18386`. Run `git rev-parse --short HEAD` in the repository and `git diff 4e18386 -- client server`; if the diff is not empty, the documents describe a different build and some failures will be drift, not defects.
 3. **Get two players.** Most items need both seats taken. Use two *browser contexts*: two different browsers, or one normal and one private window. Two tabs of the same window share the stored seat and will take the seat from each other; that is what the [second-tab](../session/second-tab.md) items test, and nothing else should use it.
 4. Keep the documents open beside the game. Read the linked section before each item; the item is a summary, the section is the claim.
 5. Work through P1 first across all files, then P2, then P3.
@@ -42,6 +42,7 @@ Priorities: **P1** is an established fact, a claim many documents depend on, or 
 - **second tab**: a second tab or window of the *same* browser context as the player.
 - **drop**: the page's connection closing while the page stays open and the game survives on the server. The [harness](harness/README.md) does this by closing the page's socket from inside the page. By hand there is no faithful local equivalent: the local server keeps games in memory, so stopping and restarting it (the obvious way to cut the connection) also deletes every game, and the page then gets "Cannot rejoin". Use a restart only for items about the retry schedule and the reconnecting indicators, and use the harness (or a staging deploy, see the repository README's "Deploy backend manually") for items about recovering into the same game. The browser's offline toggle does not reliably close an open WebSocket and should not be used.
 - **narrow**: a window 375 px wide (devtools' responsive mode) for layout items.
+- **reduced motion**: the operating system's (or the browser's emulated) "reduce motion" preference switched on.
 - **storage off**: the browser with site data blocked for `localhost` (block third- and first-party cookies and site data in the browser settings).
 
 ## Driving the product from a console or script
@@ -63,11 +64,17 @@ The [harness](harness/README.md) wraps this in Playwright: it seats two players 
 
 What this pass did **not** cover: anything that needs a human eye (whether colors, sizes, and animations look right, and whether text is readable), browsers other than Chromium, real touch devices and two-finger gestures, screen readers, real network loss and laptop sleep, the production deployment (cold starts, the one-hour limit, expiry), and every item listed under "Not checkable by hand". Because the pass was scripted, **no document has been marked `verified`**: the protocol requires a person to watch the P1 and P2 items, and that pass has not been run.
 
-**Rerun after the fixes for B-01 to B-09, 2026-09-26.** The harness was rerun against the fixed build. The items that confirmed those defects now fail, which is the intended outcome: the product no longer does what the old documents say. That covers INPUT-01 to INPUT-05, MOVE-08, PROMO-02, PROMO-04, PROMO-08, VIEW-03, VIEW-07, SIZE-01, SIZE-02, SEAT-03, A11Y-01 to A11Y-03, END-08, WAIT-01, CREATE-03 and JOIN-05. Items that compare the turn indicator's exact text fail where the side to move is in check, since it now adds "— in check" (RULES-08, RULES-09, END-01). A few fail only because an earlier item in the same script no longer plays a move, which leaves the game in a different position (INPUT-12, MOVE-03, OPP-01), and the scripts that waited on the old behavior stopped early. The fixes for DROP-02, TAB-02, RELOAD-03, JOIN-05 and CREATE-03 were checked separately with the same helpers:
-- a move pressed during the held-back rejoin is not sent, and play continues;
-- the reconnecting tab shows "Play here" instead of taking the seat back;
-- a history jump shows the finished game under its own address;
-- a join cut mid-flight ends on the board, with the seat kept across a reload;
-- a create cut mid-flight lands on the new game.
+**Rerun after the fixes for B-01 to B-09, 2026-09-26.** Against the fixed build, before the documents were rewritten, the items that had confirmed those defects failed, as intended; this is superseded by the second pass below.
 
-The checklists and documents have not yet been rewritten for the fixed build (see the coverage note in [the README](../README.md#coverage)).
+**Second pass, 2026-09-26, scripted, against commit `c571311`** (the documents' `4e18386` adds only a server change to how a send to a client that has already gone ends its connection, which no item depends on). After the documents and checklists were rewritten for the fixed build, the harness scripts were rewritten to match every item and the whole harness was run again, with the same setup as the first pass. The Result columns are this pass.
+
+- **218 items: 216 pass, 0 fail, 2 blocked.** The blocked items need a real phone: a second finger landing during a touch (SIZE-08) and the browser toolbar of a real phone (SIZE-10).
+- Two claims are checked in an emulated form, and their notes say so. The missing "Copy link" on a plain-http network address (WAIT-11, SIZE-09) was served from this machine's own network address rather than another device. Items that call for stopping the local server were run by holding the page's connection down instead (SIZE-06, A11Y-04), except those in `server-restart.spec.ts`, which really stop and restart it.
+- The pass found three defects in the fixes themselves, and they were fixed before it was completed:
+  - a join repeated after a lost answer was answered without the game's record, so the joiner saw the starting position;
+  - a history jump between two game pages could store the first game's seat for the second;
+  - a page whose first rejoin answer was lost stopped taking the seat over.
+- Checklist wording that the scripts showed to be wrong was corrected before the final run of the item concerned (for example BANNER-04: a click on the error banner behind the promotion dialog lands on the dialog's backdrop and cancels the promotion).
+- Several failures along the way were the harness's own (timing at about 9 frames per second, a check made before a screen had rendered, exact text compared where " — in check" now follows); they were corrected and the item rerun.
+
+What this pass did **not** cover is the same as for the first: anything that needs a human eye, browsers other than Chromium, real touch devices and multi-finger gestures, screen readers, real network loss and laptop sleep, and the production deployment. So no document is marked `verified`.

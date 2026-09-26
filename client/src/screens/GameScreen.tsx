@@ -82,7 +82,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // answered. Until then the page shows the position from before the socket
   // opened, which may be moves behind the server's.
   const sessionReady = hasSessionSince(messages, sessionStartIndex);
+  // (Only while connected: after "Play here" the old socket's refusal must not
+  // keep the dialog up while the new one opens.)
   const seatInUse =
+    status === 'connected' &&
     !sessionReady &&
     messages.slice(sessionStartIndex).some((m) => m.type === 'error' && m.code === 'seat_in_use');
 
@@ -150,8 +153,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // load with a stored role, and again after every mid-game reconnect (the
   // server forgets a socket the moment it drops). The creator arriving from
   // StartScreen is the exception — their session already has game_created.
+  // Only on an open socket: a rejoin queued on a closed one would be flushed
+  // on the next open and then sent again for that session.
   React.useEffect(() => {
-    if (!gameId || !storedRole || sessionId === 0) return;
+    if (!gameId || !storedRole || sessionId === 0 || status !== 'connected') return;
     if (rejoinSessionRef.current === sessionId) return;
     if (hasSessionSince(messages, sessionStartIndex)) return;
     rejoinSessionRef.current = sessionId;
@@ -162,8 +167,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       clientId: getClientId(),
       takeover: takeoverRef.current,
     });
-    takeoverRef.current = false;
-  }, [gameId, storedRole, messages, sessionId, sessionStartIndex, gameSocket]);
+    // takeoverRef stays set until a rejoin is answered (the effect above), so
+    // a page whose first answer is lost to a drop still takes the seat.
+  }, [gameId, storedRole, messages, sessionId, sessionStartIndex, status, gameSocket]);
 
   // Persist the assigned role the moment the server confirms it, so the
   // player can rejoin later (idempotent for a creator who already stored it).
@@ -523,7 +529,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         )}
         {/* End Game Modal */}
         {gameOver && showEndModal && (
-          <EndGameModal result={gameOver.result} winner={gameOver.winner} />
+          <div inert={replaced}>
+            <EndGameModal result={gameOver.result} winner={gameOver.winner} />
+          </div>
         )}
         {replacedNotice}
       </div>
@@ -573,7 +581,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         </div>
       )}
       {errorBanner && (
-        <div className="absolute inset-x-2.5 bottom-4 flex justify-center" style={{ zIndex: 1001 }}>
+        <div
+          inert={replaced}
+          className="absolute inset-x-2.5 bottom-4 flex justify-center"
+          style={{ zIndex: 1001 }}
+        >
           {errorBanner}
         </div>
       )}

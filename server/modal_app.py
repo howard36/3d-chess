@@ -6,6 +6,7 @@ import string
 import fastapi
 import modal
 from fastapi import WebSocket, WebSocketDisconnect
+from fastapi.websockets import WebSocketState
 from pydantic import ValidationError
 
 from messages import (
@@ -137,14 +138,14 @@ def create_game(store, client_id: str | None = None) -> tuple[str, str]:
     return gid, color
 
 
-def claim_seat(store, gid: str, client_id: str | None = None) -> str:
-    """Claim the free seat in `gid`; return its color.
+def claim_seat(store, gid: str, client_id: str | None = None) -> tuple[str, bool]:
+    """Claim the free seat in `gid`; return (its color, whether it was already ours).
 
     Seats are claimed for the life of the game, so a full game stays full
     even while a claimant is disconnected. The one exception is the claimant
     itself: a join from the client that already holds a seat returns that
-    seat again, so a tab whose game_joined was lost to a drop can simply
-    re-send its join instead of being told "Game full" by its own claim.
+    seat again (with True), so a tab whose game_joined was lost to a drop can
+    simply re-send its join instead of being told "Game full" by its own claim.
     """
     record = store.get(gid)
     if record is None:
@@ -153,7 +154,7 @@ def claim_seat(store, gid: str, client_id: str | None = None) -> str:
     if client_id is not None:
         for color, claimant in claimants.items():
             if claimant == client_id:
-                return color
+                return color, True
     free = [c for c in ("white", "black") if c not in record["seats"]]
     if not free:
         raise GameError(ErrorCode.game_full, "Game full")
@@ -161,7 +162,7 @@ def claim_seat(store, gid: str, client_id: str | None = None) -> str:
     if client_id is not None:
         record["claimants"] = {**claimants, free[0]: client_id}
     store[gid] = record
-    return free[0]
+    return free[0], False
 
 
 def find_seat(store, gid: str, color: str) -> dict:
@@ -310,7 +311,11 @@ def create_web_app(store=None) -> fastapi.FastAPI:
         player_color: str | None = None  # this connection's seat, once claimed
         gid: str | None = None  # this connection's game, once in one
         try:
-            while True:
+            # A send to a client that already closed (_safe_send swallows the
+            # failure) leaves Starlette considering the socket disconnected,
+            # and receiving on it would raise RuntimeError. That is a normal
+            # disconnect, so stop the loop and fall through to `finally`.
+            while ws.application_state == WebSocketState.CONNECTED:
                 try:
                     data = await ws.receive_json()
                 except (ValueError, KeyError):
@@ -350,7 +355,7 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                     elif isinstance(envelope, JoinGame):
                         _require_not_in_game(gid)
                         client_id = envelope.clientId.root if envelope.clientId else None
-                        player_color = claim_seat(store, envelope.gameId, client_id)
+                        player_color, reclaimed = claim_seat(store, envelope.gameId, client_id)
                         gid = envelope.gameId
                         ws.state.client_id = client_id
                         conns = connections.setdefault(gid, {})
@@ -360,19 +365,40 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         old_ws = conns.get(player_color)
                         conns[player_color] = ws
                         logger.info(
-                            "seat joined gid=%s color=%s client=%s", gid, player_color, client
+                            "seat joined gid=%s color=%s reclaimed=%s client=%s",
+                            gid,
+                            player_color,
+                            reclaimed,
+                            client,
                         )
                         # The joiner's seat is confirmed to it directly first, so a
                         # drop before the game_start below still leaves it able to
                         # rejoin (the seat is already claimed in the store).
                         joined = GameJoined(type="game_joined", color=Color(player_color))
                         await _safe_send(ws, joined.model_dump(mode="json"))
-                        # Send GameStart to the connected players, white first
-                        for col in ("white", "black"):
-                            sock = conns.get(col)
-                            if sock is not None:
-                                payload = GameStart(type="game_start", color=Color(col))
-                                await _safe_send(sock, payload.model_dump(mode="json"))
+                        if reclaimed:
+                            # A repeated join: the game may have started and moved on
+                            # since the first one, and the opponent already had its
+                            # start. Answer like a rejoin, with the whole record.
+                            record = find_seat(store, gid, player_color)
+                            state = GameState.model_validate(
+                                {
+                                    "type": "game_state",
+                                    "color": player_color,
+                                    "started": len(record["seats"]) == 2,
+                                    "moves": record["moves"],
+                                }
+                            )
+                            await _safe_send(
+                                ws, state.model_dump(mode="json", by_alias=True, exclude_none=True)
+                            )
+                        else:
+                            # Send GameStart to the connected players, white first
+                            for col in ("white", "black"):
+                                sock = conns.get(col)
+                                if sock is not None:
+                                    payload = GameStart(type="game_start", color=Color(col))
+                                    await _safe_send(sock, payload.model_dump(mode="json"))
                         await _notify_opponent_presence(gid, player_color, True)
                         await _send_opponent_presence(gid, ws, player_color)
                         if old_ws is not None and old_ws is not ws:

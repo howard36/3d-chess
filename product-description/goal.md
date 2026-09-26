@@ -4,7 +4,7 @@ You are working in the `product-description/` directory of the 3D Chess reposito
 
 ## Source of truth
 
-The 3D Chess source is the parent directory of this one (`client/` and `server/`), at commit `d94507b`. Describe the experience of a player using the web client (`client/src/App.tsx`: the start screen at `/` and the game page at `/game/{id}`) in a desktop browser, with the default settings and nothing customized, against a server built from the same commit. Server operations (deployment, `/health`, logs, CI), modified clients, and test hooks are out of scope; see the README's scope decisions.
+The 3D Chess source is the parent directory of this one (`client/` and `server/`), at commit `4e18386`. Describe the experience of a player using the web client (`client/src/App.tsx`: the start screen at `/` and the game page at `/game/{id}`) in a desktop browser, with the default settings and nothing customized, against a server built from the same commit. Server operations (deployment, `/health`, logs, CI), modified clients, and test hooks are out of scope; see the README's scope decisions.
 
 For each document, read in this order before writing:
 
@@ -26,7 +26,7 @@ Do not describe code. Describe what the player sees and does. Technical detail g
 - Sentence case for all headings. Direct, concrete language. No hedging, no marketing. Quote on-screen text exactly, including its capitalization and whether it ends in "..." or "…".
 - State surprising behavior plainly and say why if the reason is in the code or a comment. If it looks like a bug, say so in "Open questions" rather than smoothing it over.
 - Cross-reference other documents with relative links rather than repeating their content. The foundations own the facts listed below. Do not restate them; link.
-- Every document ends with "## Open questions and verification" listing what was read from code but not confirmed by hand, followed by `Verified against 3D Chess commit \`d94507b\``.
+- Every document ends with "## Open questions and verification" listing what was read from code but not confirmed by hand, followed by `Verified against 3D Chess commit \`4e18386\``.
 - One Mermaid `stateDiagram-v2` per interaction. Keep it to the states the player passes through; omit internal bookkeeping.
 
 ## Things already established (do not re-derive, do not contradict)
@@ -37,28 +37,29 @@ Numbers and timings:
 - The server ends every connection after at most one hour; games idle for about 30 days are deleted.
 - Game ids are 6 characters from A–Z and 0–9, random, case-sensitive in the address.
 - Glide and fade last 300 ms each, eased in and out; the glide lifts the piece by a fifth of the distance between neighboring cells at its midpoint. A stalled frame counts as at most 33 ms, so a backgrounded tab resumes an animation instead of skipping it.
-- Zoom is limited to between 6 and 25 units from the point the camera orbits; the board spans about 5.4 units. Orbit goes all the way around horizontally and from directly above to directly below the board, stopping at those two poles. The view keeps drifting briefly after a drag is released (damping).
-- The move list is at most 40% of the window's height and scrolls itself to the newest move whenever a move is added.
+- The default view's distance is fitted to the window: the camera stands just far enough back for all eight corners of the lattice to be in frame (with an 8% margin), on first render and again on every resize, keeping whatever direction the player has turned to. Zoom is limited to between 6 units and the larger of 25 and 1.5 times that fitted distance from the point the camera orbits; the board spans about 5.4 units. Orbit goes all the way around horizontally and from directly above to directly below the board, stopping at those two poles. The view keeps drifting briefly after a drag is released (damping).
+- The move list is at most 40% of the window's height or 320 pixels, whichever is less, and scrolls itself to the newest move whenever a move is added.
 - The starting position has 40 pieces, 20 per side, and White has 61 legal first moves.
 
 Input:
 
-- The board acts on the press (pointer down), for any mouse button, a finger, or a pen, never on the release. A press that goes on to become an orbit, zoom, or pan drag has already selected, cleared, or played a move. The wheel does not press, so zooming with the wheel never touches the selection.
-- The first piece or legal destination along the line from the camera through the pointer takes the press; nothing behind it sees it. A piece in front of a destination therefore blocks it. Every empty, non-destination cell the line passes through before that point clears the selection. A press that passes through the board and reaches no piece and no destination clears the selection; a press that misses the board entirely does nothing.
+- The board acts on the release of a press, never on pointer down: the primary mouse button, a finger, or a pen, released within 6 pixels of where it went down, over the same piece or cell. A pointer that moves further is a drag and only turns the view; the right and middle buttons, the wheel, and a second finger never select, clear, or play a move.
+- The first piece or legal destination along the line from the camera through the pointer takes the press; nothing behind it sees it. A piece in front of a destination therefore blocks it. An empty, non-destination cell the line passes through before that point clears the selection. A press that passes through the board and reaches no piece and no destination clears the selection; a press that misses the board entirely does nothing.
 - Pressing a piece that cannot be selected (the opponent's, or any piece when it is not your turn) clears the current selection, because its own cell is in front of it on the line. Pressing your own selectable piece while another is selected moves the selection to it.
-- The turn indicator lets presses through; the seat label, move list, and banners do not. The promotion dialog, end-game dialog, and replaced dialog cover the whole window and block the board completely.
-- The only keyboard input the app handles itself is Escape in the promotion dialog. The board cannot be played from the keyboard. Tab reaches the HTML buttons only.
+- The seat label, turn indicator, reconnecting banner, and frozen-board banner let presses and drags through to the board; the move box, move list, and error banner do not. The promotion dialog, end-game dialog, and replaced dialog cover the whole window, block the board completely, and make everything behind them unreachable by keyboard and assistive technology (inert).
+- The 3D board cannot be operated from the keyboard, but a move can be typed in the move box ("Ab2-Ab3", "=Q" to promote) and is played exactly as pressing its piece and destination would. The only other keyboard input the app handles itself is Escape in the promotion dialog. Each dialog puts keyboard focus on its first button when it opens.
 - Shift, Ctrl, or Cmd with a left drag pans instead of orbiting, and with a right drag orbits instead of panning. They change nothing about what a press does to the board.
 - The browser's context menu never opens over the board.
 
 The connection and the seat:
 
 - The connection opens as soon as the app loads, on either screen. Connection states are connecting, connected, reconnecting, and replaced.
-- A create, join, or rejoin made while the connection is not open is queued and sent when it opens. A move is never queued: the board does not take input while disconnected, and any move still pending when a new connection opens is dropped.
+- A create, join, or rejoin made while the connection is not open is queued and sent when it opens. A create or join whose connection drops before its answer is re-sent on each new connection until answered; the server hands a repeated join from the same tab (client id) the seat it already claimed. A move is never queued: the board does not take input while disconnected, and any move still pending when a new connection opens is dropped.
+- On a new connection the board does not take input until that connection's create, join, or rejoin has been answered, so no move is ever made against the snapshot from before a drop.
 - A move appears on either board only when its echo, or a snapshot containing it, arrives. The mover's own board holds (takes no input) from sending until the answer arrives or the connection drops; a drop frees it because the move was either recorded (and arrives in the next snapshot) or lost.
-- Every new connection with a stored seat, and without a seat already given on that connection, sends one rejoin automatically. The answer is a snapshot of the whole record. Last connection wins.
+- Every new connection with a stored seat, and without a seat already given on that connection, sends one rejoin automatically. The answer is a snapshot of the whole record. Last connection wins for a page's rejoins until one is answered, and after "Play here" (take over); an automatic rejoin after a drop, once the page has held the seat, does not take the seat from another tab's live connection and is refused with *seat in use*, which shows the replaced dialog.
 - The stored seat is written when the server assigns a seat and deleted only when a rejoin is refused ("No such seat to rejoin" or "Cannot rejoin") before any snapshot has arrived and before the game has started on this page.
-- Returning to the start screen by any route resets the connection (if anything has been sent or received on it): the old game is forgotten on this page, the opponent sees "Opponent: offline", and the stored seat is kept.
+- Returning to the start screen by any route, or going straight from one game's page to another's through history, resets the connection (if anything has been sent or received on it): the old game is forgotten on this page, the opponent sees "Opponent: offline", and the stored seat is kept.
 - The server records any move that is well formed and made in turn, without checking legality, and relays it to whichever players are connected. It never decides that a game is over.
 - Presence is not shown until the first presence message arrives; after that the latest one about the opponent wins. A connection replaced by the same player's new connection never reports the player offline.
 
@@ -69,12 +70,11 @@ The game page:
 - Only the latest server error is shown, as the error banner on the game page and as red text on the start screen. Dismissing hides every error so far; a later error shows again.
 - Game over is decided by each browser from the record. The end-game dialog covers the board and offers only "Start new game", which goes to the start screen.
 
-Established by the first verification pass (2026-09-25, scripted; see verification/README.md):
+Established by the verification passes (scripted; see verification/README.md):
 
-- Animations advance at most 33 ms per drawn frame, so below 30 frames per second the 300 ms glide and fade last longer (about 1.5 s at 9 frames per second).
-- The promotion dialog opens with nothing focused: the press that opens it takes focus back from "Queen". Escape and Enter work only after a Tab.
-- Two presses on a destination within about 20 ms both send the move; the copy is refused with "Not your turn".
-- The default view does not frame the whole cube: in a 1280 × 720 window the nearest bottom edge is cut off, and the vertical field of view is fixed, so narrow windows crop the sides.
+- Animations advance at most 33 ms per drawn frame, so below 30 frames per second the 300 ms glide and fade last longer (about 1.5 s at 9 frames per second). Under a reduced-motion preference they do not play at all.
+- The promotion dialog opens with "Queen" focused, because it opens on the release of the press rather than during it: Escape cancels and Enter picks the Queen straight away.
+- Two clicks on a destination with no pause between them both send the move; the copy is refused with "Not your turn" (bug-triage B-14). With a 100 ms pause only one is sent.
 - The dialogs' buttons render as plain words (no border or background) and their headings as body-size text.
 
 Naming decisions:

@@ -97,7 +97,7 @@ Progress is tracked in the [coverage table](#coverage) below.
 ### Scope decisions
 
 - **One surface.** The web client as a seated player (or a would-be player) sees it, at the source commit, against a server built from the same commit. Two players in two browser contexts is the normal setup; most features need both.
-- **Where this repo lives.** This description lives in `product-description/` on a branch of the 3D Chess repository itself, because the working environment could keep nothing else. Work on the description never changes `client/` or `server/`; every document cites the source commit `d94507b` it was written against (fixes to the product land separately, and the coverage note below says what they changed).
+- **Where this repo lives.** This description lives in `product-description/` on a branch of the 3D Chess repository itself, because the working environment could keep nothing else. Work on the description never changes `client/` or `server/`; every document cites the source commit it describes, `4e18386` (fixes to the product land separately, and the documents are then brought up to the new commit).
 - **Server operations are out of scope.** Deployment, `/health`, logging, CI, and the Modal and Cloudflare configuration are not experiences a player has. Where an operational fact reaches the player (the one-hour connection limit, the roughly 30-day expiry of an idle game, a server restart), it is described in [the connection and seat model](foundations/connection-and-seat.md).
 - **Modified clients are out of scope, except for what an honest client shows.** The server trusts clients and does not check move legality. What a player running the real client sees when the record holds a move it cannot replay is described in [the broken game record](cross-cutting/broken-game-record.md); how to write such a client is not.
 - **Test hooks are out of scope.** `window.__r3fState` and the Playwright helpers exist for testing and change nothing a player sees.
@@ -171,7 +171,7 @@ cross-cutting/
 
 Status is one of `not started`, `drafted`, or `verified`.
 
-**The documents describe commit `d94507b`, from before the fixes for B-01 to B-09** (see [`bug-triage.md`](bug-triage.md), each entry's **Fix** line). Where those fixes changed behavior, a document and its checklist items now describe the old build: the board acting on pointer-down, the fixed camera, the join and create that could be lost, the reconnecting tab taking the seat back, and the accessibility gaps. Bringing the documents up to the fixed build, and re-basing their `Verified against` footers, is the next piece of work here.
+The documents were first written against commit `d94507b` and have since been brought up to `4e18386`, which carries the fixes for B-01 to B-10 (see [`bug-triage.md`](bug-triage.md), each entry's **Fix** and **Follow-up** lines). The checklists were rewritten to match, and their Result columns come from the second scripted pass, against `c571311` (`4e18386` adds only a server change no item depends on) (216 of 218 items pass; 2 need a real phone). No document is marked `verified`, which still needs a person's pass.
 
 | Document | Status |
 | --- | --- |
@@ -204,14 +204,15 @@ Status is one of `not started`, `drafted`, or `verified`.
 
 ## Reference
 
-The source of truth is the 3D Chess repository (`howard36/3d-chess`), the parent directory of this one, at commit `d94507b`. The relevant locations are:
+The source of truth is the 3D Chess repository (`howard36/3d-chess`), the parent directory of this one, at commit `4e18386`. The relevant locations are:
 
 - `client/src/App.tsx`, `client/src/main.tsx`: the two routes and the crash screen that wraps them
-- `client/src/screens/`: the start screen, the game page and its overlays (turn indicator, move list, promotion dialog, end-game dialog)
-- `client/src/game/history.ts`, `client/src/game/session.ts`: how the position, the turn, the seat, presence, and errors are derived from the message log
+- `client/src/screens/`: the start screen, the game page and its overlays (move box, move list, promotion dialog, end-game dialog)
+- `client/src/hooks/useResendOnReconnect.ts`, `client/src/lib/clientId.ts`: re-sending a create or join lost to a drop, and the tab's client id
+- `client/src/game/history.ts`, `client/src/game/session.ts`, `client/src/game/typedMove.ts`: how the position, the turn, the seat, presence, and errors are derived from the message log, and how a typed move is read
 - `client/src/hooks/useGameSocket.ts`: the connection, its states, the retry timing, and what is queued or dropped
 - `client/src/lib/playerRole.ts`: the stored seat
-- `client/src/three/`: the 3D board, selection and markers, orientation, animation, colors
+- `client/src/three/`: the 3D board, what counts as a press (`tap.ts`), selection and markers, orientation, the fitted camera (`cameraFit.ts`), the turn indicator, animation, colors
 - `client/src/engine/`: the rules (move generation, check, checkmate, stalemate, promotion, starting position, coordinates)
 - `server/modal_app.py`, `server/schema.json`: what the server accepts, records, relays, and rejects, and with which messages
 - Tests: `client/src/App.test.tsx`, `client/src/three/Board.test.tsx`, `client/src/hooks/useGameSocket.test.ts`, `client/src/game/*.test.ts`, `client/src/engine/*.test.ts`, `server/tests/test_local_ws.py`, and the Playwright specs in `client/e2e/`
