@@ -40,15 +40,15 @@ const place = (g: BufferGeometry, p: V3 = [0, 0, 0], r: V3 = [0, 0, 0], s: V3 = 
     ),
   );
 
-const sphere = (r: number, p: V3, s?: V3) => place(new SphereGeometry(r, 24, 16), p, [0, 0, 0], s);
+const sphere = (r: number, p: V3, s?: V3) => place(new SphereGeometry(r, 16, 11), p, [0, 0, 0], s);
 const cylinder = (top: number, bottom: number, h: number, y: number, x = 0, z = 0) =>
-  place(new CylinderGeometry(top, bottom, h, 36), [x, y, z]);
+  place(new CylinderGeometry(top, bottom, h, 22), [x, y, z]);
 /** A torus lying flat at height `y`, the rounded bands of paint. */
 const band = (radius: number, tube: number, y: number) =>
-  place(new TorusGeometry(radius, tube, 14, 44), [0, y, 0], [Math.PI / 2, 0, 0]);
+  place(new TorusGeometry(radius, tube, 8, 28), [0, y, 0], [Math.PI / 2, 0, 0]);
 const block = (w: number, h: number, d: number, radius: number, p: V3, r?: V3) =>
-  place(new RoundedBoxGeometry(w, h, d, 3, radius), p, r);
-const cone = (r: number, h: number, p: V3, rot?: V3) => place(new ConeGeometry(r, h, 20), p, rot);
+  place(new RoundedBoxGeometry(w, h, d, 2, radius), p, r);
+const cone = (r: number, h: number, p: V3, rot?: V3) => place(new ConeGeometry(r, h, 16), p, rot);
 
 /** Tints every vertex, for the one mesh that carries several colours. */
 const tint = (g: BufferGeometry, color: string) => {
@@ -148,7 +148,7 @@ const PIECE_PARTS: Record<PieceType, () => Parts> = {
           return [
             block(0.13, 0.13, 0.04, 0.015, [s * 0.19, 0.165, c * 0.19], [0, a, 0]),
             place(
-              new CylinderGeometry(0.065, 0.065, 0.04, 24),
+              new CylinderGeometry(0.065, 0.065, 0.04, 16),
               [s * 0.19, 0.23, c * 0.19],
               [Math.PI / 2, 0, -a],
             ),

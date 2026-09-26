@@ -17,6 +17,8 @@
 // --stills skips the video and saves a PNG at each key moment (start,
 // selection, a capture mid-flight, check, mate, the result).
 // --plies N stops after N moves, for a quick look.
+// --profile times 20 frames of the opening position and reports what the
+// renderer draws (a slow recording is almost always a heavy scene).
 // --pose yaw,pitch,zoom holds the camera still at that offset from the
 // opening view (degrees, degrees, distance factor).
 // Needs ffmpeg with libx264 on PATH, or FFMPEG=/path/to/ffmpeg.
@@ -188,32 +190,37 @@ const SHOW_HELPERS = () => {
       };
       const V = cube.position.constructor;
       const box = cube.geometry.parameters;
-      const offsets = kind === 'piece' ? [0.1, -0.1, 0.25, 0] : [0, 0.3, -0.3];
+      // Points through the cell, nearest its middle first (a piece's from
+      // just above its middle, where its body is): on a crowded board the
+      // ray through the middle is often blocked while one near an edge is not.
+      const steps = [-0.4, -0.2, 0, 0.2, 0.4];
+      const lift = kind === 'piece' ? 0.1 : 0;
+      const samples = steps
+        .flatMap((ox) => steps.flatMap((oy) => steps.map((oz) => [ox, oy + lift, oz])))
+        .sort((a, b) => Math.hypot(a[0], a[1] - lift, a[2]) - Math.hypot(b[0], b[1] - lift, b[2]));
       const canvas = document.querySelector('canvas');
       const r = canvas.getBoundingClientRect();
-      for (const oy of offsets)
-        for (const ox of [0, 0.25, -0.25])
-          for (const oz of [0, 0.25, -0.25]) {
-            const p = new V(c.x + ox * box.width, c.y + oy * box.height, c.z + oz * box.depth);
-            p.project(camera);
-            // Aim at a whole page pixel: a click event reports whole-pixel
-            // offsets, so the ray r3f casts for the click comes from there.
-            const x = Math.round(r.left + (p.x * 0.5 + 0.5) * size.width);
-            const y = Math.round(r.top + (-p.y * 0.5 + 0.5) * size.height);
-            const ndc = {
-              x: ((x - r.left) / size.width) * 2 - 1,
-              y: -((y - r.top) / size.height) * 2 + 1,
-            };
-            raycaster.setFromCamera(ndc, camera);
-            let first = null;
-            for (const hit of raycaster.intersectObjects(scene.children, true)) {
-              first = interactive(hit.object);
-              if (first) break;
-            }
-            if (first && isTarget(first) && document.elementFromPoint(x, y) === canvas) {
-              return { x, y };
-            }
-          }
+      for (const [ox, oy, oz] of samples) {
+        const p = new V(c.x + ox * box.width, c.y + oy * box.height, c.z + oz * box.depth);
+        p.project(camera);
+        // Aim at a whole page pixel: a click event reports whole-pixel
+        // offsets, so the ray r3f casts for the click comes from there.
+        const x = Math.round(r.left + (p.x * 0.5 + 0.5) * size.width);
+        const y = Math.round(r.top + (-p.y * 0.5 + 0.5) * size.height);
+        const ndc = {
+          x: ((x - r.left) / size.width) * 2 - 1,
+          y: -((y - r.top) / size.height) * 2 + 1,
+        };
+        raycaster.setFromCamera(ndc, camera);
+        let first = null;
+        for (const hit of raycaster.intersectObjects(scene.children, true)) {
+          first = interactive(hit.object);
+          if (first) break;
+        }
+        if (first && isTarget(first) && document.elementFromPoint(x, y) === canvas) {
+          return { x, y };
+        }
+      }
       return null;
     },
     /** World position of a colour's king, if it is on the board. */
@@ -352,6 +359,20 @@ const SHOW_HELPERS = () => {
 // ---------------------------------------------------------------------------
 // Recording
 
+// How long each beat of the video lasts, in seconds.
+const PACE = {
+  intro: 1.8, // the opening swing onto the board and a moment's look
+  swing: 1.6,
+  aim: 0.35, // cursor onto the piece
+  consider: 0.45, // the legal moves on show
+  place: 0.4, // cursor onto the destination
+  afterWhite: 0.7,
+  afterBlack: 0.8,
+  mate: 1.2, // the mate playing out, before the result card
+  result: 2.0,
+  tail: 1.0,
+};
+
 // waitForFunction polls on requestAnimationFrame by default, which the
 // virtual clock holds still between frames: poll on a timer instead.
 const POLL = { polling: 50, timeout: 60000 };
@@ -407,6 +428,80 @@ async function main() {
   await white.evaluate(() => window.__vclock.enable());
 
   const cdp = await white.context().newCDPSession(white);
+  if (flag('profile')) {
+    // Where a frame's time goes: render (in the page, real clock) and capture.
+    const renders = [];
+    const captures = [];
+    for (let i = 0; i < 20; i++) {
+      renders.push(
+        await white.evaluate(() => {
+          const t = Date.now();
+          window.__r3fState.get().invalidate(); // on-demand designs draw too
+          window.__vclock.step(1000 / 30);
+          return Date.now() - t;
+        }),
+      );
+      const t = Date.now();
+      await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 92 });
+      captures.push(Date.now() - t);
+    }
+    const stats = await white.evaluate(() => {
+      const { gl, scene } = window.__r3fState.get();
+      // Count a whole frame, every pass (shadow maps, bloom) included
+      gl.info.autoReset = false;
+      gl.info.reset();
+      window.__r3fState.get().invalidate();
+      window.__vclock.step(1000 / 30);
+      gl.info.autoReset = true;
+      const shadows = [];
+      let meshes = 0;
+      let transparent = 0;
+      scene.traverse((o) => {
+        if (o.isMesh || o.isPoints || o.isLine) meshes++;
+        if (o.material?.transparent) transparent++;
+        if (o.isLight && o.castShadow) shadows.push(o.shadow.mapSize.x);
+      });
+      // The heaviest geometries in the scene, instances multiplied out
+      const heavy = new Map();
+      scene.traverse((o) => {
+        if (!o.isMesh || !o.visible) return;
+        const g = o.geometry;
+        const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
+        const n = o.isInstancedMesh ? o.count : 1;
+        const key = g.uuid;
+        const e = heavy.get(key) ?? { tris, uses: 0, type: g.type, shadow: o.castShadow };
+        e.uses += n;
+        heavy.set(key, e);
+      });
+      const top = [...heavy.values()]
+        .map((e) => ({ ...e, total: e.tris * e.uses }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 6)
+        .map((e) => `${e.type} ${e.tris}x${e.uses}${e.shadow ? ' +shadow' : ''}`);
+      return {
+        top,
+        calls: gl.info.render.calls,
+        triangles: gl.info.render.triangles,
+        programs: gl.info.programs?.length,
+        objects: meshes,
+        transparent,
+        shadowMaps: shadows,
+        shadowType: gl.shadowMap.enabled ? gl.shadowMap.type : 'off',
+        pixelRatio: gl.getPixelRatio(),
+      };
+    });
+    const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
+    console.log(
+      JSON.stringify({
+        design: DESIGN,
+        renderMs: med(renders),
+        captureMs: med(captures),
+        ...stats,
+      }),
+    );
+    await browser.close();
+    return;
+  }
   let ffmpeg = null;
   if (!STILLS) {
     ffmpeg = spawn(
@@ -448,9 +543,9 @@ async function main() {
     if (pose) return pose.split(',').map(Number);
     const t = f / FPS;
     // Stills skip the opening swing and show each design from its own view
-    const intro = STILLS ? 1 : Math.min(t / 2.5, 1);
+    const intro = STILLS ? 1 : Math.min(t / PACE.swing, 1);
     const k = ease(intro);
-    const yaw = -18 * (1 - k) + 8 * Math.sin((t - 2.5) * 0.3) * k;
+    const yaw = -18 * (1 - k) + 8 * Math.sin((t - PACE.swing) * 0.3) * k;
     const pitch = 8 * (1 - k) + 2 * Math.sin(t * 0.21) * k;
     const zoom = 1.12 - 0.12 * k;
     return [yaw, pitch, zoom];
@@ -507,7 +602,7 @@ async function main() {
     white.evaluate(({ zxy, kind }) => window.__show.pixelFor(zxy, kind), { zxy, kind });
   // Glides the cursor onto a piece or cell, re-aiming every frame (the camera
   // keeps swaying), and leaves it exactly on target for the click.
-  const glideTo = async (zxy, kind, seconds = 0.45) => {
+  const glideTo = async (zxy, kind, seconds = PACE.aim) => {
     const from = { ...cursor };
     const n = Math.max(1, Math.round(seconds * FPS));
     let target = null;
@@ -524,10 +619,18 @@ async function main() {
     target = await locate(zxy, kind);
     if (!target) {
       const why = await white.evaluate((z) => window.__show.explain(z), zxy);
-      throw new Error(`no pixel reaches ${kind} ${zxy}: ${JSON.stringify(why)}`);
+      console.log(`no pixel reaches ${kind} ${zxy}, typing the move: ${JSON.stringify(why)}`);
+      return false;
     }
     cursor = target;
     await white.mouse.move(cursor.x, cursor.y);
+    return true;
+  };
+  // The fallback for a square no ray reaches: the move box, as a keyboard
+  // player would.
+  const typeMove = async (page, from, to) => {
+    await page.fill('#typed-move', `${from}-${to}`);
+    await page.press('#typed-move', 'Enter');
   };
   const waitTurn = async (page, text) => {
     await page.waitForFunction((t) => window.__show.turnText().startsWith(t), text, {
@@ -536,7 +639,7 @@ async function main() {
     });
   };
 
-  await hold(STILLS ? 0.2 : 2.8);
+  await hold(STILLS ? 0.2 : PACE.intro);
   await still('start');
 
   for (let i = 0; i < Math.min(PLIES, GAME.length); i++) {
@@ -544,40 +647,43 @@ async function main() {
     const whiteMoves = i % 2 === 0;
     const next = whiteMoves ? 'Black to move' : 'White to move';
     if (whiteMoves) {
-      await glideTo(from, 'piece');
-      await white.mouse.click(cursor.x, cursor.y);
-      press = 1;
-      const selectedNow = () =>
-        white.waitForFunction((z) => window.__show.isDestination(z), to, {
-          ...POLL,
-          timeout: 8000,
-        });
-      await selectedNow()
-        .catch(async () => {
-          console.log(`retrying the click on ${from}`);
-          await step();
-          await white.mouse.click(cursor.x, cursor.y);
-          return selectedNow();
-        })
-        .catch(async (e) => {
-          const why = {
-            aim: await white.evaluate((z) => window.__show.explain(z), from),
-            r3f: await white.evaluate(({ x, y }) => window.__show.probe(x, y), cursor),
-          };
-          throw new Error(
-            `selecting ${from} at ${JSON.stringify(cursor)} did nothing: ${JSON.stringify(why)}`,
-            { cause: e },
-          );
-        });
-      await hold(0.55);
-      if (i === 0) await still('selected');
-      await glideTo(to, 'cell', 0.5);
-      await white.mouse.click(cursor.x, cursor.y);
-      press = 1;
+      if (await glideTo(from, 'piece')) {
+        await white.mouse.click(cursor.x, cursor.y);
+        press = 1;
+        const selectedNow = () =>
+          white.waitForFunction((z) => window.__show.isDestination(z), to, {
+            ...POLL,
+            timeout: 8000,
+          });
+        await selectedNow()
+          .catch(async () => {
+            console.log(`retrying the click on ${from}`);
+            await step();
+            await white.mouse.click(cursor.x, cursor.y);
+            return selectedNow();
+          })
+          .catch(async (e) => {
+            const why = {
+              aim: await white.evaluate((z) => window.__show.explain(z), from),
+              r3f: await white.evaluate(({ x, y }) => window.__show.probe(x, y), cursor),
+            };
+            throw new Error(
+              `selecting ${from} at ${JSON.stringify(cursor)} did nothing: ${JSON.stringify(why)}`,
+              { cause: e },
+            );
+          });
+        await hold(PACE.consider);
+        if (i === 0) await still('selected');
+      }
+      if (await glideTo(to, 'cell', PACE.place)) {
+        await white.mouse.click(cursor.x, cursor.y);
+        press = 1;
+      } else {
+        await typeMove(white, from, to);
+      }
       await waitTurn(white, next);
     } else {
-      await black.fill('#typed-move', `${from}-${to}`);
-      await black.press('#typed-move', 'Enter');
+      await typeMove(black, from, to);
       await waitTurn(white, next);
       // Drift the cursor aside while the opponent's piece moves
       cursor = {
@@ -591,7 +697,7 @@ async function main() {
       await still('capture-midflight');
     }
     if (i === GAME.length - 1) break;
-    await hold(whiteMoves ? 0.9 : 1.1);
+    await hold(whiteMoves ? PACE.afterWhite : PACE.afterBlack);
     if ((await white.evaluate(() => window.__show.turnText())).includes('check'))
       await still('check');
   }
@@ -601,11 +707,11 @@ async function main() {
     // (the app holds it back for a moment on designs with a mate animation).
     const loser = GAME.length % 2 === 1 ? 'black' : 'white';
     finale = { frame, king: await white.evaluate((c) => window.__show.kingAt(c), loser) };
-    await hold(1.3);
+    await hold(PACE.mate);
     await still('mate');
-    await hold(2.6);
+    await hold(PACE.result);
     await still('result');
-    await hold(1.5);
+    await hold(PACE.tail);
   } else {
     await hold(0.6);
     await still('end');

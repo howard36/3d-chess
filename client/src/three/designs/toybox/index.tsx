@@ -120,11 +120,11 @@ const postGeometry = (() => {
   ]) {
     const [x, z] = [sx * POST, sz * POST];
     parts.push(
-      new CylinderGeometry(0.1, 0.1, TOP - BASE_TOP, 28).translate(x, (TOP + BASE_TOP) / 2, z),
+      new CylinderGeometry(0.1, 0.1, TOP - BASE_TOP, 16).translate(x, (TOP + BASE_TOP) / 2, z),
     );
     for (const f of FLOORS) {
       parts.push(
-        new TorusGeometry(0.12, 0.045, 12, 28)
+        new TorusGeometry(0.12, 0.045, 8, 20)
           .rotateX(Math.PI / 2)
           .translate(x, f - 0.025 - TRAY_DEPTH - 0.04, z),
       );
@@ -135,7 +135,7 @@ const postGeometry = (() => {
   return g;
 })();
 const beech = paint('#f1c089', { roughness: 0.5, clearcoat: 0.35 });
-const capGeometry = new SphereGeometry(0.19, 28, 20);
+const capGeometry = new SphereGeometry(0.19, 18, 12);
 const capMaterials = ['#ff4b4b', '#ffc21f', '#3e95e6', '#2fae7e'].map((c) =>
   paint(c, { map: null }),
 );
@@ -220,8 +220,8 @@ const Grid = ({ orientation }: GridProps) => (
 
 const pegGeometry = (() => {
   const parts = [
-    new CylinderGeometry(0.115, 0.125, 0.1, 28).translate(0, 0.05, 0),
-    new SphereGeometry(0.115, 28, 14).scale(1, 0.65, 1).translate(0, 0.1, 0),
+    new CylinderGeometry(0.115, 0.125, 0.1, 18).translate(0, 0.05, 0),
+    new SphereGeometry(0.115, 18, 9).scale(1, 0.65, 1).translate(0, 0.1, 0),
   ];
   const g = mergeGeometries(parts);
   parts.forEach((p) => p.dispose());
@@ -504,7 +504,7 @@ const cloudGeometry = (seed: number, puffs: number) => {
   const parts = Array.from({ length: puffs }, (_, i) => {
     const u = i / (puffs - 1);
     const r = 0.55 + Math.sin(u * Math.PI) * 0.5 + random() * 0.18;
-    return new SphereGeometry(r, 20, 14).translate(
+    return new SphereGeometry(r, 14, 9).translate(
       (u - 0.5) * puffs * 0.62,
       r * 0.45 + random() * 0.1,
       (random() - 0.5) * 0.5,
@@ -565,13 +565,13 @@ const platformGeometry = (() => {
   // A broad flattened body the base sinks into, a ring of puffs hugging the
   // base (never taller than it) and a few heavier ones hanging underneath.
   const parts: BufferGeometry[] = [
-    new SphereGeometry(3.6, 36, 20).scale(1.3, 0.34, 1.2).translate(0, under - 1.05, 0),
+    new SphereGeometry(3.6, 24, 12).scale(1.3, 0.34, 1.2).translate(0, under - 1.05, 0),
   ];
   for (let i = 0; i < 13; i++) {
     const a = (i / 13) * Math.PI * 2 + random() * 0.25;
     const r = 0.85 + random() * 0.55;
     parts.push(
-      new SphereGeometry(r, 24, 16).translate(
+      new SphereGeometry(r, 14, 10).translate(
         Math.cos(a) * (3.9 + random() * 0.6),
         under + 0.35 - r + random() * 0.2,
         Math.sin(a) * (3.7 + random() * 0.5),
@@ -581,7 +581,7 @@ const platformGeometry = (() => {
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2 + 0.4;
     parts.push(
-      new SphereGeometry(1.5 + random() * 0.5, 24, 16).translate(
+      new SphereGeometry(1.5 + random() * 0.5, 14, 10).translate(
         Math.cos(a) * 2.6,
         under - 1.9 - random() * 0.4,
         Math.sin(a) * 2.4,
