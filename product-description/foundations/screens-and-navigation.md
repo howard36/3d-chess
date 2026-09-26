@@ -152,7 +152,7 @@ Navigation has no request of its own, but each interrupt row applies to the page
 - Unknown addresses show an empty dark page with no way back but the address bar. This may be worth treating as a bug rather than documenting.
 - The tab title never reflects the game's state (whose turn, opponent joined, game over). Whether a background indication is wanted is a product call.
 - The phase rules, the dialogs' focus, and the inert page behind them are covered by `client/src/App.test.tsx`; the reset on returning to the start screen by `client/e2e/gameOver.spec.ts`; the crash screen by `client/src/components/ErrorBoundary.test.tsx`. Which real failures reach the crash screen is unconfirmed.
-- The reset on moving from one game's page straight to another's, and the single rejoin after Back and Forward during an outage ([bug-triage B-10](../bug-triage.md)), are read from `client/src/App.tsx` and `client/src/hooks/useGameSocket.ts`; no test covers either, and neither was tried by hand.
+- The reset on moving from one game's page straight to another's, and the single rejoin after Back and Forward during an outage ([bug-triage B-10](../bug-triage.md)), are read from `client/src/App.tsx`, `client/src/hooks/useGameSocket.ts`, and `client/src/screens/GameScreen.tsx`. The jump is covered by `client/src/AppNavigation.test.tsx`, which also checks that the new game's page keeps its own stored seat; the single rejoin is not covered by a test.
 - The claim that the crash screen closes the page's connection (the crashed page is taken down along with everything it owned) is read from code; not observed.
 - Whether a browser without 3D support reaches the crash screen was not tried.
 

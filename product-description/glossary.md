@@ -174,11 +174,11 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **One-hour limit.** The server ends every connection after at most one hour. The player sees it as an ordinary brief drop.
 
-**Rejoin.** The request that tells the server "this connection is the player in seat *color* of game *id*". The page sends it by itself, once per new connection, whenever it has a stored seat and the connection has not already been given a seat. The answer is a snapshot. The first rejoin of a page, and the one after "Play here", *take over* the seat; every automatic rejoin after a drop does not.
+**Rejoin.** The request that tells the server "this connection is the player in seat *color* of game *id*". The page sends it by itself, once per new connection, whenever it has a stored seat and the connection has not already been given a seat. The answer is a snapshot. A page's rejoins *take over* the seat until one of them has been answered, and so does the one after "Play here"; once the page has held the seat, every automatic rejoin after a drop does not.
 
 **Last connection wins.** When a rejoin that *takes over* names a seat that another live connection holds, the server gives the seat to the new connection and closes the old one with a message that stops it retrying. This is what lets a reloaded tab recover at once, and what makes a second tab take the seat from the first.
 
-**Take over.** Whether a rejoin may take the seat from another tab's live connection. A page load, a reload, and "Play here" take over; an automatic rejoin after a drop does not, so a tab that was offline while the player moved to another tab cannot take the seat back by itself. A rejoin that does not take over may still replace the same tab's own stale connection.
+**Take over.** Whether a rejoin may take the seat from another tab's live connection. A page load, a reload, arriving through history, and "Play here" take over (until the page's rejoin is answered); an automatic rejoin after a drop, once the page has held the seat, does not, so a tab that was offline while the player moved to another tab cannot take the seat back by itself. A rejoin that does not take over may still replace the same tab's own stale connection.
 
 **Seat in use.** The server's refusal of a rejoin that does not take over, when another tab's live connection holds the seat. It is not shown as an error; the tab shows the replaced dialog instead.
 
