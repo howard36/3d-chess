@@ -6,6 +6,7 @@ import string
 import fastapi
 import modal
 from fastapi import WebSocket, WebSocketDisconnect
+from fastapi.websockets import WebSocketState
 from pydantic import ValidationError
 
 from messages import (
@@ -310,7 +311,11 @@ def create_web_app(store=None) -> fastapi.FastAPI:
         player_color: str | None = None  # this connection's seat, once claimed
         gid: str | None = None  # this connection's game, once in one
         try:
-            while True:
+            # A send to a client that already closed (_safe_send swallows the
+            # failure) leaves Starlette considering the socket disconnected,
+            # and receiving on it would raise RuntimeError. That is a normal
+            # disconnect, so stop the loop and fall through to `finally`.
+            while ws.application_state == WebSocketState.CONNECTED:
                 try:
                     data = await ws.receive_json()
                 except (ValueError, KeyError):

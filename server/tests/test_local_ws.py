@@ -12,6 +12,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
+from uvicorn.protocols.utils import ClientDisconnected
 
 import modal_app
 from modal_app import create_web_app
@@ -683,3 +684,70 @@ def test_unexpected_exception_is_logged_with_traceback_and_closes_socket(
     assert errors[0].exc_info[0] is RuntimeError
     # The connection was still detached from the live map
     assert wait_until(lambda: gid not in modal_app.connections)
+
+
+# A client can close its socket right after sending a request, before the reply
+# is written. uvicorn then fails the send with ClientDisconnected (an OSError),
+# which Starlette answers by marking the socket disconnected and raising
+# WebSocketDisconnect(1006). The TestClient never fails a send, so these tests
+# wrap the app to fail every send to a socket opened with GONE_HEADERS the way
+# uvicorn would.
+GONE_HEADERS = {"x-test-client-gone": "1"}
+
+
+@pytest.fixture()
+def gone_client(store):
+    """Like `client`, but sockets opened with GONE_HEADERS behave as if the
+    client already closed them: every send to them fails."""
+    app = create_web_app(store=store)
+
+    async def app_with_gone_clients(scope, receive, send):
+        gone = scope["type"] == "websocket" and (b"x-test-client-gone", b"1") in scope["headers"]
+
+        async def send_to_gone_client(message):
+            if message["type"] == "websocket.send":
+                raise ClientDisconnected
+            await send(message)
+
+        await app(scope, receive, send_to_gone_client if gone else send)
+
+    modal_app.connections.clear()
+    with TestClient(app_with_gone_clients) as c:
+        yield c
+    modal_app.connections.clear()
+
+
+def test_client_gone_before_game_created_is_a_normal_disconnect(gone_client, store, caplog):
+    def closed_logs():
+        return [m for m in app_logs(caplog, logging.INFO) if m.startswith("websocket closed ")]
+
+    with caplog.at_level(logging.INFO, logger="3d_chess"):
+        with gone_client.websocket_connect("/ws", headers=GONE_HEADERS) as ws:
+            ws.send_json({"type": "create_game"})
+            ws.close()
+            # The handler ends the connection on its own once the reply fails
+            assert wait_until(closed_logs)
+    (gid,) = store
+    assert any("type=game_created" in m for m in app_logs(caplog, logging.WARNING))
+    assert app_logs(caplog, logging.ERROR) == []
+    assert closed_logs()[0].startswith(f"websocket closed gid={gid} color=")
+    assert gid not in modal_app.connections
+
+
+def test_client_gone_before_game_joined_is_a_normal_disconnect(
+    gone_client, store, caplog, creator_is_white
+):
+    with caplog.at_level(logging.INFO, logger="3d_chess"):
+        with gone_client.websocket_connect("/ws") as ws1:
+            gid, _ = create_game(ws1)
+            with gone_client.websocket_connect("/ws", headers=GONE_HEADERS) as ws2:
+                ws2.send_json({"type": "join_game", "gameId": gid})
+                ws2.close()
+                # The creator still hears the game start, then the joiner leave
+                assert ws1.receive_json() == {"type": "game_start", "color": "white"}
+                assert ws1.receive_json() == presence("black", True)
+                assert ws1.receive_json() == presence("black", False)
+    assert any("type=game_joined" in m for m in app_logs(caplog, logging.WARNING))
+    assert app_logs(caplog, logging.ERROR) == []
+    # The seat stays claimed, so the joiner can rejoin
+    assert store[gid]["seats"] == ["white", "black"]
