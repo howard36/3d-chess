@@ -419,8 +419,8 @@ test('narrow window', async ({ browser }) => {
   await item('SEAT-03', async () => {
     const a = await bbox(seatLabel(w)); const t = await bbox(turn(w));
     await w.screenshot({ path: 'test-results/narrow-top.png' });
-    const lines = await seatLabel(w).evaluate((el) => { const r = document.createRange(); r.selectNodeContents(el.firstChild!); return r.getClientRects().length; });
-    const note = `turn indicator ${fmt(t)}; seat label ${fmt(a)}, first line on ${lines} line box(es)`;
+    const lines = await seatLabel(w).evaluate((el) => { const r = document.createRange(); r.setStartBefore(el.firstChild!); const pres = el.querySelector('[data-testid=opponent-presence]'); if (pres) r.setEndBefore(pres); else r.setEndAfter(el.lastChild!); const ys = new Set([...r.getClientRects()].filter((q) => q.width > 0).map((q) => Math.round(q.top))); return ys.size; });
+    const note = `turn indicator ${fmt(t)}; seat label ${fmt(a)}, "You are playing as white." on ${lines} line(s)`;
     expect(Math.abs(t.x + t.width / 2 - 187.5), note).toBeLessThan(3);
     expect(a.y, note).toBeGreaterThanOrEqual(t.y + t.height);
     expect(Math.abs(a.y - 60), note).toBeLessThan(12);
