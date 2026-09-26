@@ -10,7 +10,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Game page phase.** One of three: *before joining*, *joined*, and *playing*. The phase is worked out from what the server has said on the current page, not stored anywhere. Before joining, a player with a *stored seat* sees the *share-link screen* and a *visitor* sees the *join screen*; joined shows the *joined screen*; playing shows the *board screen*.
 
-**Share-link screen.** The game page before the game starts, for a player with a stored seat: "Game created! Share this link with a friend:" above the *share link* in a dark box. Despite the wording, a returning joiner sees it too for the moment between loading the page and the server's answer. See [waiting for an opponent](start/waiting-for-an-opponent.md).
+**Share-link screen.** The game page before the game starts, for a player with a stored seat: "Game created! Share this link with a friend:" above the *share link* in a dark box (wrapping onto as many lines as the window needs), with a "Copy link" button under it where the browser allows copying (https or localhost). Despite the wording, a returning joiner sees it too for the moment between loading the page and the server's answer. See [waiting for an opponent](start/waiting-for-an-opponent.md).
 
 **Join screen.** The game page for a *visitor*: the title and a "Join Game" button, nothing else. See [joining a game](start/joining-a-game.md).
 
