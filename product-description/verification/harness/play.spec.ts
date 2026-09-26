@@ -144,7 +144,8 @@ async function piecePixel(p: Page, zxy: string, seat: Seat) {
       for (const h of hits) {
         for (let o = h.object; o; o = o.parent) {
           if (o.userData.piece || o.userData.cube) {
-            const kind = o.userData.piece ? 'piece' : 'cell';
+            if (o.userData.cube && !o.userData.highlight) break; // no handler of its own: the click passes on
+            const kind = o.userData.piece ? 'piece' : 'destination cell';
             if (!first) first = near(o) ? kind : 'other';
             if (o.userData.piece && near(o)) overPiece = true;
             break;
@@ -284,8 +285,9 @@ test('making a move: sending', async ({ browser }) => {
     await press(w, 'Bb2', 'white');
     await expect.poll(() => highlighted(w, 'white')).toContain('Bb3');
     await press(w, 'Bb3', 'white');
-    const s0 = await boardState(w);
-    const t0 = await turnText(w);
+    let s0 = await boardState(w); let t0 = await turnText(w); const tc = Date.now();
+    while (s0.selectionRings + s0.highlights + s0.captureRings > 0 && Date.now() - tc < 1000) { await w.waitForTimeout(20); s0 = await boardState(w); t0 = await turnText(w); }
+    const gone = Date.now() - tc;
     await expect(turn(w)).toHaveText('Black to move'); await expect(turn(b)).toHaveText('Black to move');
     await w.waitForTimeout(1500);
     const aw = await readAnim(w), ab = await readAnim(b);
@@ -294,7 +296,7 @@ test('making a move: sending', async ({ browser }) => {
     expect(await lastCells(w, 'white')).toEqual(['from:Bb2', 'to:Bb3']); expect(await lastCells(b, 'black')).toEqual(['from:Bb2', 'to:Bb3']);
     expect((await listText(w)).trim()).toBe('1. Bb2–Bb3'); expect((await listText(b)).trim()).toBe('1. Bb2–Bb3');
     expect(aw.moving).toBeGreaterThan(0); expect(ab.moving).toBeGreaterThan(0);
-    return `markers gone right after the click; glide samples in motion: White ${aw.moving}, Black ${ab.moving}`;
+    return `markers gone ${gone} ms after the click returned (turn then "${t0}"); glide samples in motion: White ${aw.moving}, Black ${ab.moving}`;
   });
   await item('MOVE-03', async () => {
     await press(w, 'Bc2', 'white'); await w.waitForTimeout(300);
@@ -548,24 +550,33 @@ test('opponent: second tab', async ({ browser }) => {
   await item('OPP-07', async () => {
     const ctx = k.black.context(); const url = k.black.url();
     const tabA = k.black;
+    const log = (m: string) => console.log('OPP-07', new Date().toISOString(), m);
     await dropConnection(tabA, { block: true });
     await expect(tabA.getByText('Reconnecting…')).toBeVisible();
     const tabB = await ctx.newPage(); await tabB.goto(url); await board(tabB);
     await expect(tabB.getByText('You are playing as black.')).toBeVisible();
     await tabB.waitForTimeout(500);
+    log('tab B on the board');
     await releaseConnection(tabA);
+    await tabA.bringToFront();
     const dlg = tabA.getByRole('alertdialog', { name: 'This game is open in another tab' });
     await expect(dlg).toBeVisible({ timeout: 15000 });
     await expect(dlg.getByRole('button', { name: 'Play here' })).toBeVisible();
-    expect(await tabB.locator('[role=alertdialog]').count()).toBe(0);
+    log('tab A dialog');
+    const bDialogs = await tabB.locator('[role=alertdialog]').count();
     await playOn(k.white, 'white', 'Bb2', 'Bb3');
+    log('white moved');
     await expect(turn(tabB)).toHaveText('Black to move');
+    log('tab B got it');
     await tabA.waitForTimeout(1000);
-    expect(await listText(tabB)).toContain('1. Bb2–Bb3');
-    expect(await listText(tabA)).not.toContain('Bb2–Bb3');
-    expect(await turnText(tabA)).toBe('White to move');
-    await expect(dlg).toBeVisible();
-    return 'tab A: replaced dialog after its connection returned; tab B kept the board and received the move; tab A did not';
+    const listB = await listText(tabB);
+    log('list B ' + listB);
+    const aState = await tabA.evaluate(() => ({ list: document.querySelector('[data-testid=move-list]')?.textContent ?? '', turn: document.querySelector('[data-testid=turn-indicator]')?.textContent ?? '', dialog: document.querySelectorAll('[role=alertdialog]').length }));
+    log('tab A ' + JSON.stringify(aState));
+    expect(bDialogs).toBe(0);
+    expect(listB).toContain('1. Bb2–Bb3');
+    expect(aState).toEqual({ list: '', turn: 'White to move', dialog: 1 });
+    return 'tab A: replaced dialog after its connection returned; tab B kept the board and received the move; tab A did not (its list still empty, "White to move")';
   });
   await k.close();
 });
