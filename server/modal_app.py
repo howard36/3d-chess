@@ -118,31 +118,48 @@ class GameError(Exception):
 # access pattern.
 
 
-def create_game(store) -> tuple[str, str]:
-    """Create a game with one seat claimed; return (game id, creator's color)."""
+def create_game(store, client_id: str | None = None) -> tuple[str, str]:
+    """Create a game with one seat claimed; return (game id, creator's color).
+
+    `client_id`, when the client sent one, is remembered as the seat's
+    claimant (see claim_seat).
+    """
     while True:
         gid = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
         if gid not in store:
             break
     # Creator can be white or black, but white always moves first
     color = random.choice(["white", "black"])
-    store[gid] = {"seats": [color], "moves": []}
+    record: dict = {"seats": [color], "moves": []}
+    if client_id is not None:
+        record["claimants"] = {color: client_id}
+    store[gid] = record
     return gid, color
 
 
-def claim_seat(store, gid: str) -> str:
+def claim_seat(store, gid: str, client_id: str | None = None) -> str:
     """Claim the free seat in `gid`; return its color.
 
     Seats are claimed for the life of the game, so a full game stays full
-    even while a claimant is disconnected.
+    even while a claimant is disconnected. The one exception is the claimant
+    itself: a join from the client that already holds a seat returns that
+    seat again, so a tab whose game_joined was lost to a drop can simply
+    re-send its join instead of being told "Game full" by its own claim.
     """
     record = store.get(gid)
     if record is None:
         raise GameError(ErrorCode.invalid_game, "Cannot join")
+    claimants = record.get("claimants", {})
+    if client_id is not None:
+        for color, claimant in claimants.items():
+            if claimant == client_id:
+                return color
     free = [c for c in ("white", "black") if c not in record["seats"]]
     if not free:
         raise GameError(ErrorCode.game_full, "Game full")
     record["seats"].append(free[0])
+    if client_id is not None:
+        record["claimants"] = {**claimants, free[0]: client_id}
     store[gid] = record
     return free[0]
 
@@ -257,6 +274,19 @@ async def _send_opponent_presence(gid: str, ws: WebSocket, color: str) -> None:
     await _safe_send(ws, msg.model_dump(mode="json"))
 
 
+def _client_id(ws: WebSocket) -> str | None:
+    """The client id the socket announced when it took its seat, if any."""
+    return getattr(ws.state, "client_id", None)
+
+
+async def _close_replaced(old_ws: WebSocket) -> None:
+    """Tell a socket whose seat moved to a newer connection that it was replaced."""
+    try:
+        await old_ws.close(code=SEAT_REPLACED_CLOSE_CODE, reason="seat_replaced")
+    except Exception:
+        pass
+
+
 def _require_not_in_game(gid: str | None) -> None:
     if gid is not None:
         raise GameError(ErrorCode.already_in_game, "Already in a game")
@@ -306,7 +336,9 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                 try:
                     if isinstance(envelope, CreateGame):
                         _require_not_in_game(gid)
-                        gid, player_color = create_game(store)
+                        client_id = envelope.clientId.root if envelope.clientId else None
+                        gid, player_color = create_game(store, client_id)
+                        ws.state.client_id = client_id
                         connections[gid] = {player_color: ws}
                         logger.info(
                             "game created gid=%s color=%s client=%s", gid, player_color, client
@@ -317,9 +349,15 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         await _safe_send(ws, created.model_dump(mode="json"))
                     elif isinstance(envelope, JoinGame):
                         _require_not_in_game(gid)
-                        player_color = claim_seat(store, envelope.gameId)
+                        client_id = envelope.clientId.root if envelope.clientId else None
+                        player_color = claim_seat(store, envelope.gameId, client_id)
                         gid = envelope.gameId
+                        ws.state.client_id = client_id
                         conns = connections.setdefault(gid, {})
+                        # Only a repeated join from the seat's own claimant can
+                        # find the seat occupied: its first socket, which lost
+                        # the answer and may linger half-open. Replace it.
+                        old_ws = conns.get(player_color)
                         conns[player_color] = ws
                         logger.info(
                             "seat joined gid=%s color=%s client=%s", gid, player_color, client
@@ -337,14 +375,31 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                                 await _safe_send(sock, payload.model_dump(mode="json"))
                         await _notify_opponent_presence(gid, player_color, True)
                         await _send_opponent_presence(gid, ws, player_color)
+                        if old_ws is not None and old_ws is not ws:
+                            await _close_replaced(old_ws)
                     elif isinstance(envelope, RejoinGame):
                         _require_not_in_game(gid)
                         record = find_seat(store, envelope.gameId, envelope.color.value)
-                        gid = envelope.gameId
-                        player_color = envelope.color.value
+                        client_id = envelope.clientId.root if envelope.clientId else None
                         # Last connection wins: a refresh's old socket can linger
                         # half-open for minutes, and rejecting the new connection
-                        # would lock the returning player out.
+                        # would lock the returning player out. An automatic
+                        # reconnect (takeover=false) is the exception: if another
+                        # tab's connection holds the seat, that tab is the one the
+                        # player is using, and this one must not take it back
+                        # unasked. Its own stale socket (same client id) it may.
+                        live_ws = connections.get(envelope.gameId, {}).get(envelope.color.value)
+                        if (
+                            envelope.takeover is False
+                            and live_ws is not None
+                            and (client_id is None or _client_id(live_ws) != client_id)
+                        ):
+                            raise GameError(
+                                ErrorCode.seat_in_use, "This game is open in another tab"
+                            )
+                        gid = envelope.gameId
+                        player_color = envelope.color.value
+                        ws.state.client_id = client_id
                         conns = connections.setdefault(gid, {})
                         old_ws = conns.get(player_color)
                         conns[player_color] = ws
@@ -371,12 +426,7 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         await _send_opponent_presence(gid, ws, player_color)
                         await _notify_opponent_presence(gid, player_color, True)
                         if replaced:
-                            try:
-                                await old_ws.close(
-                                    code=SEAT_REPLACED_CLOSE_CODE, reason="seat_replaced"
-                                )
-                            except Exception:
-                                pass
+                            await _close_replaced(old_ws)
                     elif isinstance(envelope, Move):
                         # Recorded durably first, then relayed to whichever
                         # players are connected; an offline opponent catches up

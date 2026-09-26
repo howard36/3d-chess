@@ -58,6 +58,23 @@ def test_claim_seat_takes_the_free_color(white_creator):
     assert store[gid]["seats"] == ["white", "black"]
 
 
+def test_claim_seat_remembers_and_recognises_the_claimant(white_creator):
+    store = {}
+    gid, _ = create_game(store, "tab-a")
+    assert store[gid]["claimants"] == {"white": "tab-a"}
+    assert claim_seat(store, gid, "tab-b") == "black"
+    assert store[gid]["claimants"] == {"white": "tab-a", "black": "tab-b"}
+    # Either claimant joining again gets its own seat back; nobody else gets in
+    assert claim_seat(store, gid, "tab-b") == "black"
+    assert claim_seat(store, gid, "tab-a") == "white"
+    assert store[gid]["seats"] == ["white", "black"]
+    with pytest.raises(GameError) as e:
+        claim_seat(store, gid, "tab-c")
+    assert e.value.code.value == "game_full"
+    with pytest.raises(GameError):
+        claim_seat(store, gid)
+
+
 def test_claim_seat_errors():
     store = {"FULL00": {"seats": ["white", "black"], "moves": []}}
     with pytest.raises(GameError) as e:
