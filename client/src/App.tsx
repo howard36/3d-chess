@@ -4,6 +4,7 @@ import GameScreen from './screens/GameScreen';
 import { useGameSocket } from './hooks/useGameSocket';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
+import { useDesignChoice } from './three/designs/context';
 
 // One GameScreen per game: moving between two game pages (browser history can
 // jump straight from one to another) mounts a fresh screen, so nothing the
@@ -51,14 +52,19 @@ function App() {
     setReadyGameId(gameId);
   }, [location.pathname, gameId, reset]);
 
+  // The chosen board design dresses the pages around the board too.
+  const { design } = useDesignChoice();
+
   return (
-    <Routes>
-      <Route path="/" element={<StartScreen gameSocket={gameSocket} />} />
-      <Route
-        path="/game/:gameId"
-        element={<GameRoute gameSocket={gameSocket} readyGameId={readyGameId} />}
-      />
-    </Routes>
+    <div style={design.hud.vars as React.CSSProperties}>
+      <Routes>
+        <Route path="/" element={<StartScreen gameSocket={gameSocket} />} />
+        <Route
+          path="/game/:gameId"
+          element={<GameRoute gameSocket={gameSocket} readyGameId={readyGameId} />}
+        />
+      </Routes>
+    </div>
   );
 }
 

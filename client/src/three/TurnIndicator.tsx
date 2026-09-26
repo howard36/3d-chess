@@ -6,16 +6,22 @@ export interface TurnIndicatorProps {
   inCheck?: boolean;
 }
 
+// Dressed by the board design's HUD variables; the fallbacks are the classic look.
 const style: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.85)',
-  color: '#222',
+  background: 'var(--turn-bg, rgba(255,255,255,0.85))',
+  color: 'var(--turn-fg, #222)',
+  border: 'var(--turn-border, none)',
   padding: '6px 18px',
-  borderRadius: 8,
+  borderRadius: 'var(--hud-radius, 8px)',
   fontWeight: 600,
-  fontSize: 20,
+  fontSize: 'var(--turn-size, 20px)',
+  fontFamily: 'var(--hud-font, inherit)',
+  textTransform: 'var(--hud-case, none)' as React.CSSProperties['textTransform'],
+  letterSpacing: 'var(--hud-tracking, normal)',
   textAlign: 'center',
   pointerEvents: 'none',
-  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+  boxShadow: 'var(--turn-shadow, 0 2px 8px rgba(0,0,0,0.08))',
+  backdropFilter: 'var(--hud-blur, none)',
 };
 
 // A polite live region: screen readers announce each change of turn (and

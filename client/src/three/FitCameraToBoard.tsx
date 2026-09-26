@@ -14,7 +14,13 @@ interface OrbitControlsLike {
  * changes size, the camera moves along its current line of sight (so a turned
  * view stays turned) to the distance that fits the board in the new window.
  */
-export function FitCameraToBoard() {
+export function FitCameraToBoard({
+  halfExtents,
+  viewDirection,
+}: {
+  halfExtents?: readonly [number, number, number];
+  viewDirection?: readonly [number, number, number];
+} = {}) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as OrbitControlsLike | null;
   const width = useThree((s) => s.size.width);
@@ -25,9 +31,11 @@ export function FitCameraToBoard() {
     if (!(camera instanceof PerspectiveCamera) || width === 0 || height === 0) return;
     const target = controls?.target ?? new Vector3();
     const direction = camera.position.clone().sub(target);
-    if (direction.lengthSq() === 0) direction.copy(DEFAULT_VIEW_DIRECTION);
+    if (direction.lengthSq() === 0) {
+      direction.copy(viewDirection ? new Vector3(...viewDirection) : DEFAULT_VIEW_DIRECTION);
+    }
     direction.normalize();
-    const distance = fitDistance(direction, width / height, camera.fov);
+    const distance = fitDistance(direction, width / height, camera.fov, halfExtents);
     camera.position.copy(target).addScaledVector(direction, distance);
     camera.lookAt(target);
     if (controls) {
@@ -36,6 +44,7 @@ export function FitCameraToBoard() {
       controls.update();
     }
     invalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a design's extents are fixed per canvas
   }, [camera, controls, width, height, invalidate]);
 
   return null;

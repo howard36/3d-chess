@@ -112,8 +112,10 @@ Key decisions:
   and sends it with `create_game`, `join_game` and `rejoin_game`.
 - **Input.** The board acts on a click (primary button, released within a few pixels of
   the press), never on pointer-down, so a drag, right-drag or pinch that starts over the
-  cube only turns the view. A move can also be typed (`Ab2-Ab3`, `=Q` to promote) in the
-  move box, which is how a keyboard-only or screen-reader player plays.
+  cube only turns the view. With a piece selected, clicking an opposing piece it can take
+  plays the capture (the piece fills its cell, so it would otherwise hide the cell's click
+  target). A move can also be typed (`Ab2-Ab3`, `=Q` to promote) in the move box, which is
+  how a keyboard-only or screen-reader player plays.
 
 ## Protocol
 
@@ -195,12 +197,45 @@ levels A+B) are the second-from-bottom horizontal row of the cube, in the two sl
 nearest the camera; moving a pawn "up a level" moves it away from the viewer, not up the
 screen. Black sees the mirror image, with Black's pawns nearest. OrbitControls allows free
 rotation, so the default view is just a starting point. Only positions are transformed;
-piece meshes are never mirrored. If this mapping is ever changed (e.g. to make levels
-vertical), the position math is in `three/layout.ts`; the floor rings and the glide
+piece meshes are never mirrored. This is the classic (lattice) layout; a design may lay
+the cells out differently (see Board designs — the tower layout makes levels vertical).
+The classic position math is in `three/layout.ts`, the others in
+`three/designs/kit/layouts.ts`; the floor rings and the glide
 lift in `three/Board.tsx` and `three/motion.ts` assume world-Y-up, and the camera lives in
 `screens/GameScreen.tsx` (its starting direction) and `three/cameraFit.ts` (its distance,
 fitted to the window's shape so the whole cube is framed on a phone too). The engine and wire formats are independent of rendering, and
 the e2e click helpers project through the live camera.
+
+## Board designs
+
+The look of the game is a swappable **design** (`client/src/three/designs/`). The board
+style picker (top right, in game and on the start screen) switches between them; the
+choice is cosmetic, per browser (`localStorage`), and never sent to the opponent. A
+`?design=<id>` in any address selects and remembers one, so a shared link can carry a
+look. Classic is bundled; every other design is its own lazily loaded chunk.
+
+A design (`designs/types.ts`) is data plus components: a **layout** (where the 125 cells
+sit: the classic *lattice* above, or a *tower* of five stacked boards with levels going
+up, Raumschach style — Black walks around the tower rather than seeing it upside down),
+the **stage** (background, lights, atmosphere, post-processing), the visible **grid**,
+the **piece bodies**, the **markers** (legal move, capture, selection, last move, check),
+the **motion** of a move (`hop`, `bounce`, `slide`, `teleport`), optional move, capture
+and mate **effects**, and the **HUD** styling as CSS variables (`--hud-*`, `--turn-*`,
+`--modal-*`, `--page-*`; every one falls back to the classic look). `Board.tsx` keeps all
+interaction rules and renders a design's decoration outside its clickable group, so
+nothing decorative can take a click; designs share a kit (`designs/kit/`) of layouts,
+bloom, particles, confetti, labels and procedural textures. Adding one means a folder
+with an `index.tsx` default-exporting a `Design`, plus an entry in `designs/registry.ts`.
+
+To compare designs, `client/scripts/showcase.mjs` records one playing a scripted game
+(captures, a check, a queen trade, a mate) to an MP4, or saves stills of the key moments
+with `--stills`. It needs the app running against a local backend (see Development) and
+drives the page on a virtual clock, so a slow software renderer still yields a smooth,
+full-rate video:
+
+```bash
+cd client && node scripts/showcase.mjs --design royal --out /tmp/showcase   # ffmpeg on PATH
+```
 
 ## Repository layout
 

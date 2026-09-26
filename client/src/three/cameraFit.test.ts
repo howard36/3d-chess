@@ -51,3 +51,21 @@ describe('fitDistance', () => {
     expect(phone).toBeGreaterThan(wide * 1.3);
   });
 });
+
+describe("fitDistance for a design's board box", () => {
+  it('stands further back for a taller box, and matches the cube by default', () => {
+    const cube = fitDistance(DEFAULT_VIEW_DIRECTION, 16 / 9, 40);
+    const same = fitDistance(DEFAULT_VIEW_DIRECTION, 16 / 9, 40, [
+      BOARD_HALF_EXTENT,
+      BOARD_HALF_EXTENT,
+      BOARD_HALF_EXTENT,
+    ]);
+    const tower = fitDistance(DEFAULT_VIEW_DIRECTION, 16 / 9, 40, [
+      BOARD_HALF_EXTENT,
+      BOARD_HALF_EXTENT * 2,
+      BOARD_HALF_EXTENT,
+    ]);
+    expect(same).toBeCloseTo(cube);
+    expect(tower).toBeGreaterThan(cube);
+  });
+});

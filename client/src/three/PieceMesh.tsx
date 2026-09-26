@@ -1,30 +1,9 @@
 import React from 'react';
 import type { JSX } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
-import { Color } from 'three';
 import { PieceType } from '../engine';
-import { CELL_FLOOR_Y } from './layout';
-import { theme } from './theme';
-import {
-  bishopBodyGeometry,
-  bishopFinialGeometry,
-  bishopSlotGeometry,
-  kingBodyGeometry,
-  kingCrossHorizontalGeometry,
-  kingCrossVerticalGeometry,
-  knightBaseGeometry,
-  knightHeadGeometry,
-  pawnBodyGeometry,
-  pawnHeadGeometry,
-  queenBodyGeometry,
-  queenCoronetGeometry,
-  queenFinialGeometry,
-  rookBodyGeometry,
-  rookCrenellationGeometry,
-  unicornBodyGeometry,
-  unicornHornGeometry,
-  unicornSpiralGeometry,
-} from './pieceGeometry';
+import { useDesign } from './designs/context';
+import { Lift, Topple } from './designs/kit/motion';
 
 export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   type: PieceType;
@@ -32,123 +11,16 @@ export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   emissive?: string | number;
   position?: [number, number, number];
   onClick?: (event: ThreeEvent<MouseEvent>) => void;
+  selected?: boolean;
+  hovered?: boolean;
+  inCheck?: boolean;
+  /** This king has been checkmated. */
+  mated?: boolean;
+  /** Yaw for a knight's head, when the board decides which way it faces. */
+  facing?: number;
 };
 
-type PieceColor = 'white' | 'black';
-
-// The scene has no env map; black is slightly glossier so it still catches
-// the directional lights instead of reading as a silhouette. Near-dielectric
-// metalness — higher values go muddy without environment reflections.
-const PieceMaterial: React.FC<{ color: PieceColor; emissive?: string | number }> = ({
-  color,
-  emissive,
-}) => (
-  <meshStandardMaterial
-    color={color === 'white' ? theme.whitePiece : theme.blackPiece}
-    roughness={color === 'white' ? 0.45 : 0.35}
-    metalness={0.08}
-    emissive={emissive ?? 0x000000}
-  />
-);
-
-const darken = (color: PieceColor) =>
-  new Color(color === 'white' ? theme.whitePiece : theme.blackPiece).multiplyScalar(0.55);
-
-const CRENELLATION_ANGLES = [0, 1, 2, 3, 4].map((i) => (i * 2 * Math.PI) / 5);
-const CORONET_ANGLES = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => (i * 2 * Math.PI) / 8);
-
-const pieceBody = (type: PieceType, color: PieceColor, emissive?: string | number) => {
-  const material = <PieceMaterial color={color} emissive={emissive} />;
-  switch (type) {
-    case PieceType.Pawn:
-      return (
-        <>
-          <mesh geometry={pawnBodyGeometry}>{material}</mesh>
-          <mesh position={[0, 0.43, 0]} geometry={pawnHeadGeometry}>
-            {material}
-          </mesh>
-        </>
-      );
-    case PieceType.Rook:
-      return (
-        <>
-          <mesh geometry={rookBodyGeometry}>{material}</mesh>
-          {CRENELLATION_ANGLES.map((angle) => (
-            <mesh
-              key={angle}
-              position={[Math.cos(angle) * 0.17, 0.585, Math.sin(angle) * 0.17]}
-              rotation={[0, -angle, 0]}
-              geometry={rookCrenellationGeometry}
-            >
-              {material}
-            </mesh>
-          ))}
-        </>
-      );
-    case PieceType.Bishop:
-      return (
-        <>
-          <mesh geometry={bishopBodyGeometry}>{material}</mesh>
-          {/* Diagonal mitre groove, faked with a dark inset band instead of CSG */}
-          <mesh position={[0, 0.575, 0]} rotation={[0, 0, -0.6]} geometry={bishopSlotGeometry}>
-            <meshStandardMaterial color={darken(color)} roughness={0.6} metalness={0.08} />
-          </mesh>
-          <mesh position={[0, 0.725, 0]} geometry={bishopFinialGeometry}>
-            {material}
-          </mesh>
-        </>
-      );
-    case PieceType.Knight:
-      return (
-        <>
-          <mesh geometry={knightBaseGeometry}>{material}</mesh>
-          <mesh geometry={knightHeadGeometry}>{material}</mesh>
-        </>
-      );
-    case PieceType.Unicorn:
-      return (
-        <>
-          <mesh geometry={unicornBodyGeometry}>{material}</mesh>
-          <mesh position={[0, 0.67, 0]} geometry={unicornHornGeometry}>
-            {material}
-          </mesh>
-          <mesh geometry={unicornSpiralGeometry}>{material}</mesh>
-        </>
-      );
-    case PieceType.Queen:
-      return (
-        <>
-          <mesh geometry={queenBodyGeometry}>{material}</mesh>
-          {CORONET_ANGLES.map((angle) => (
-            <mesh
-              key={angle}
-              position={[Math.cos(angle) * 0.15, 0.715, Math.sin(angle) * 0.15]}
-              geometry={queenCoronetGeometry}
-            >
-              {material}
-            </mesh>
-          ))}
-          <mesh position={[0, 0.79, 0]} geometry={queenFinialGeometry}>
-            {material}
-          </mesh>
-        </>
-      );
-    case PieceType.King:
-      return (
-        <>
-          <mesh geometry={kingBodyGeometry}>{material}</mesh>
-          <mesh position={[0, 0.8, 0]} geometry={kingCrossVerticalGeometry}>
-            {material}
-          </mesh>
-          <mesh position={[0, 0.815, 0]} geometry={kingCrossHorizontalGeometry}>
-            {material}
-          </mesh>
-        </>
-      );
-    default:
-      return null;
-  }
-};
+const PIECE_TYPES = new Set<string>(Object.values(PieceType));
 
 // Memoized: a piece is up to 13 meshes, and the board re-renders on every
 // selection change and incoming message. Board passes referentially stable
@@ -159,18 +31,39 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   emissive,
   position,
   onClick,
+  selected = false,
+  hovered = false,
+  inCheck = false,
+  mated = false,
+  facing,
   ...rest
 }) {
-  const body = pieceBody(type, color, emissive);
-  if (body === null) return null;
+  const design = useDesign();
+  if (!PIECE_TYPES.has(type)) return null;
+  const Body = design.PieceBody;
 
   // Armies are separated along scene y (ranks point up the screen), so the
   // knight's profile should face the default camera; a slight opposing turn
   // per color keeps the two armies from looking like mirror stamps. Rotation
   // lives on the inner group so the outer group only carries the
   // position/userData/handler contract.
+  const yaw = design.knightYaw ?? 0.35;
   const rotation: [number, number, number] =
-    type === PieceType.Knight ? [0, color === 'white' ? -0.35 : 0.35, 0] : [0, 0, 0];
+    type === PieceType.Knight ? [0, facing ?? (color === 'white' ? -yaw : yaw), 0] : [0, 0, 0];
+
+  let body = (
+    <Body
+      type={type}
+      color={color}
+      emissive={emissive ?? 0x000000}
+      selected={selected}
+      hovered={hovered}
+      inCheck={inCheck}
+    />
+  );
+  // Picked up, a piece floats off its floor; under the pointer, it stirs.
+  if (design.hoverLift) body = <Lift height={selected ? 0.2 : hovered ? 0.08 : 0}>{body}</Lift>;
+  if (design.toppleMatedKing) body = <Topple active={mated}>{body}</Topple>;
 
   return (
     <group
@@ -180,7 +73,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
       {...rest}
     >
       {/* Pieces are modeled base-at-y=0; seat them on the cell floor */}
-      <group position={[0, CELL_FLOOR_Y, 0]} rotation={rotation}>
+      <group position={[0, design.layout.floorY, 0]} rotation={rotation}>
         {body}
       </group>
     </group>

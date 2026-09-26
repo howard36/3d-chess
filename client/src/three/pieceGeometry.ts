@@ -1,5 +1,6 @@
 import {
   BoxGeometry,
+  BufferGeometry,
   CatmullRomCurve3,
   ConeGeometry,
   ExtrudeGeometry,
@@ -23,7 +24,7 @@ const lathe = (pts: [number, number][], segments = 24) =>
   );
 
 // --- Pawn (top ~0.545) ---
-export const pawnBodyGeometry = lathe([
+const pawnBodyProfile: [number, number][] = [
   [0, 0],
   [0.23, 0],
   [0.23, 0.035],
@@ -37,12 +38,12 @@ export const pawnBodyGeometry = lathe([
   [0.065, 0.345],
   [0.05, 0.36],
   [0, 0.36],
-]);
+];
 export const pawnHeadGeometry = new SphereGeometry(0.115, 20, 14);
 
 // --- Rook (top ~0.64) ---
 // Rim at 0.54 with an inner well down to 0.50, so it reads hollow from above.
-export const rookBodyGeometry = lathe([
+const rookBodyProfile: [number, number][] = [
   [0, 0],
   [0.26, 0],
   [0.26, 0.05],
@@ -56,11 +57,11 @@ export const rookBodyGeometry = lathe([
   [0.13, 0.54],
   [0.13, 0.5],
   [0, 0.5],
-]);
+];
 export const rookCrenellationGeometry = new BoxGeometry(0.085, 0.1, 0.055);
 
 // --- Bishop (top ~0.77) ---
-export const bishopBodyGeometry = lathe([
+const bishopBodyProfile: [number, number][] = [
   [0, 0],
   [0.24, 0],
   [0.24, 0.04],
@@ -78,12 +79,12 @@ export const bishopBodyGeometry = lathe([
   [0.06, 0.68],
   [0.035, 0.7],
   [0, 0.7],
-]);
+];
 export const bishopFinialGeometry = new SphereGeometry(0.045, 12, 10);
 export const bishopSlotGeometry = new BoxGeometry(0.2, 0.014, 0.09);
 
 // --- Knight (top ~0.70) ---
-export const knightBaseGeometry = lathe([
+const knightBaseProfile: [number, number][] = [
   [0, 0],
   [0.24, 0],
   [0.24, 0.045],
@@ -92,7 +93,7 @@ export const knightBaseGeometry = lathe([
   [0.17, 0.115],
   [0.15, 0.14],
   [0, 0.14],
-]);
+];
 
 // Side profile of the horse head/neck in the XY plane (x = forward, y = up),
 // extruded along z and centered.
@@ -132,7 +133,7 @@ knightHeadGeometry.translate(0, 0, -knightHeadDepth / 2);
 
 // --- Unicorn (top ~0.82) ---
 // Bishop-like stem ending in a rounded dome, topped by a spiral-ridged horn.
-export const unicornBodyGeometry = lathe([
+const unicornBodyProfile: [number, number][] = [
   [0, 0],
   [0.25, 0],
   [0.25, 0.04],
@@ -147,7 +148,7 @@ export const unicornBodyGeometry = lathe([
   [0.1, 0.48],
   [0.095, 0.51],
   [0, 0.53],
-]);
+];
 export const unicornHornGeometry = new ConeGeometry(0.075, 0.3, 16);
 
 const hornSpiralPoints: Vector3[] = [];
@@ -167,7 +168,7 @@ export const unicornSpiralGeometry = new TubeGeometry(
 );
 
 // --- Queen (top ~0.84) ---
-export const queenBodyGeometry = lathe([
+const queenBodyProfile: [number, number][] = [
   [0, 0],
   [0.27, 0],
   [0.27, 0.045],
@@ -184,12 +185,12 @@ export const queenBodyGeometry = lathe([
   [0.175, 0.7],
   [0.12, 0.71],
   [0, 0.71],
-]);
+];
 export const queenCoronetGeometry = new SphereGeometry(0.028, 8, 6);
 export const queenFinialGeometry = new SphereGeometry(0.05, 12, 10);
 
 // --- King (top ~0.87, tallest) ---
-export const kingBodyGeometry = lathe([
+const kingBodyProfile: [number, number][] = [
   [0, 0],
   [0.28, 0],
   [0.28, 0.05],
@@ -206,6 +207,82 @@ export const kingBodyGeometry = lathe([
   [0.11, 0.72],
   [0.05, 0.73],
   [0, 0.73],
-]);
+];
 export const kingCrossVerticalGeometry = new BoxGeometry(0.045, 0.14, 0.045);
 export const kingCrossHorizontalGeometry = new BoxGeometry(0.13, 0.045, 0.045);
+
+/** Every geometry of a Staunton set, keyed by part. */
+export interface StauntonGeometries {
+  pawnBody: BufferGeometry;
+  pawnHead: BufferGeometry;
+  rookBody: BufferGeometry;
+  rookCrenellation: BufferGeometry;
+  bishopBody: BufferGeometry;
+  bishopFinial: BufferGeometry;
+  bishopSlot: BufferGeometry;
+  knightBase: BufferGeometry;
+  knightHead: BufferGeometry;
+  unicornBody: BufferGeometry;
+  unicornHorn: BufferGeometry;
+  unicornSpiral: BufferGeometry;
+  queenBody: BufferGeometry;
+  queenCoronet: BufferGeometry;
+  queenFinial: BufferGeometry;
+  kingBody: BufferGeometry;
+  kingCrossVertical: BufferGeometry;
+  kingCrossHorizontal: BufferGeometry;
+}
+
+/**
+ * Builds the Staunton set turned with `segments` sides. The default set
+ * uses 24; a handful gives a faceted, low-poly look (the round finials
+ * follow suit).
+ */
+export const buildStauntonGeometries = (segments = 24): StauntonGeometries => {
+  const round = (r: number, w: number, h: number) =>
+    new SphereGeometry(
+      r,
+      Math.max(4, Math.round((w * segments) / 24)),
+      Math.max(3, Math.round((h * segments) / 24)),
+    );
+  return {
+    pawnBody: lathe(pawnBodyProfile, segments),
+    pawnHead: round(0.115, 20, 14),
+    rookBody: lathe(rookBodyProfile, segments),
+    rookCrenellation: rookCrenellationGeometry,
+    bishopBody: lathe(bishopBodyProfile, segments),
+    bishopFinial: round(0.045, 12, 10),
+    bishopSlot: bishopSlotGeometry,
+    knightBase: lathe(knightBaseProfile, segments),
+    knightHead: knightHeadGeometry,
+    unicornBody: lathe(unicornBodyProfile, segments),
+    unicornHorn: new ConeGeometry(0.075, 0.3, Math.max(4, Math.round((16 * segments) / 24))),
+    unicornSpiral: unicornSpiralGeometry,
+    queenBody: lathe(queenBodyProfile, segments),
+    queenCoronet: round(0.028, 8, 6),
+    queenFinial: round(0.05, 12, 10),
+    kingBody: lathe(kingBodyProfile, segments),
+    kingCrossVertical: kingCrossVerticalGeometry,
+    kingCrossHorizontal: kingCrossHorizontalGeometry,
+  };
+};
+
+// The default set shares the named singletons above rather than building
+// second copies of the spheres and cone.
+export const STAUNTON: StauntonGeometries = {
+  ...buildStauntonGeometries(24),
+  pawnHead: pawnHeadGeometry,
+  bishopFinial: bishopFinialGeometry,
+  unicornHorn: unicornHornGeometry,
+  queenCoronet: queenCoronetGeometry,
+  queenFinial: queenFinialGeometry,
+};
+export const {
+  pawnBody: pawnBodyGeometry,
+  rookBody: rookBodyGeometry,
+  bishopBody: bishopBodyGeometry,
+  knightBase: knightBaseGeometry,
+  unicornBody: unicornBodyGeometry,
+  queenBody: queenBodyGeometry,
+  kingBody: kingBodyGeometry,
+} = STAUNTON;

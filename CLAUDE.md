@@ -9,6 +9,7 @@ Two independent projects, no root package.json: `client/` (React 19 + Vite + rea
 Client (run from `client/`):
 - `npm run lint` / `npm run build` (`tsc -b` is the only typecheck) / `npm run test` (vitest; `npx vitest run src/engine/board.test.ts` for one file)
 - `npm run e2e` — Playwright boots uvicorn on :8000 and Vite on :5173 itself; do not start servers first. See `/run-3d-chess` for driving the app and screenshots.
+- `node scripts/showcase.mjs --design <id> [--stills] --out <dir>` — records a design playing a scripted game (MP4, or PNG stills of key moments); needs a local backend and Vite already running (unlike e2e) and ffmpeg for video.
 - `npx prettier --write <file>` — `.prettierrc` is the style (single quotes, trailing commas, width 100). `npm run lint` runs `prettier --check .` after ESLint, so CI fails on unformatted files; `.prettierignore` skips the generated `src/types/schema.ts`.
 
 Server (run from repo root): `uv run --project server pytest` (spawns a real uvicorn on a random port). `uv sync --extra test` in `server/` once first. Lint/format: `uv run --project server ruff check server` and `ruff format server`.
@@ -30,6 +31,7 @@ Client code imports wire types from `client/src/types/messages.ts` (hand-written
 - The server validates message shape and turn parity only; the rules engine lives in `client/src/engine/`, which has a 90% coverage threshold in vitest.
 - `window.__r3fState`, published by the `Canvas onCreated` hook in `client/src/screens/GameScreen.tsx`, exists solely so e2e can project clicks. Removing it breaks the e2e suite.
 - Three coordinate systems: engine 0-indexed `(x,y,z)`, wire/display strings like `Aa1`, and the Three.js scene. Conversions live in `client/src/engine/coords.ts`; keep scene math inside `client/src/three/`.
+- **Board designs** (`client/src/three/designs/`, README "Board designs"): `Board.tsx` owns every interaction rule; a design only draws. Its Grid, markers and effects render in the `board-decor` group, outside the clickable `board-grid` group, so decoration can never take a click. Classic is the default and the only design unit tests and e2e exercise, so keep its output identical when changing shared code. Designs share material instances between pieces: anything that fades or recolours one piece (see `GhostPiece`) must clone first. Animations run on r3f's clock (never `setTimeout`) so `scripts/showcase.mjs`, which records on a virtual clock, captures them.
 
 ## Gotchas
 
