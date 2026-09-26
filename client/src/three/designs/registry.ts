@@ -1,3 +1,4 @@
+import classic from './classic';
 import type { DesignEntry } from './types';
 
 /**
@@ -10,7 +11,8 @@ export const DESIGNS: DesignEntry[] = [
     name: 'Classic',
     blurb: 'The original glacier-gray wireframe lattice.',
     swatch: ['#c2cbd8', '#f2ead8', '#413b35', '#14b8a6'],
-    load: () => import('./classic'),
+    // Bundled: it is the default, drawn before any other design has loaded.
+    load: async () => ({ default: classic }),
   },
   {
     id: 'royal',

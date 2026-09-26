@@ -381,6 +381,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               // loop, rather than tearing the old design's objects down in place.
               key={design.id}
               data-testid="r3f-canvas"
+              data-design={design.id}
               role="img"
               aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, type moves in the move box.`}
               className={design.canvas?.pixelated ? 'pixelated-canvas' : undefined}

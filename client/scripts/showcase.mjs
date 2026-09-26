@@ -115,7 +115,16 @@ const SHOW_HELPERS = () => {
   };
   let base = null;
   window.__show = {
-    ready: () => !!store(),
+    /** The chosen design's own canvas is up and its board is in the scene. */
+    ready(design) {
+      const el = document.querySelector('[data-testid="r3f-canvas"]');
+      if (!el || (design && el.dataset.design !== design)) return false;
+      let cubes = 0;
+      store()?.scene.traverse((o) => {
+        if (o.userData?.cube) cubes++;
+      });
+      return cubes === 125;
+    },
     cube(zxy) {
       let found = null;
       store()?.scene.traverse((o) => {
@@ -182,6 +191,41 @@ const SHOW_HELPERS = () => {
       });
       return found && [found.x, found.y, found.z];
     },
+    /** What the ray through a cell's centre hits first, for diagnosing a failed aim. */
+    explain(zxy) {
+      const st = store();
+      const cube = window.__show.cube(zxy);
+      if (!st) return 'no r3f state';
+      if (!cube) {
+        const zxys = [];
+        let n = 0;
+        st.scene.traverse((o) => {
+          n++;
+          if (o.userData?.cube) zxys.push(o.userData.zxy);
+        });
+        return { objects: n, cubes: zxys.length, sample: zxys.slice(0, 5) };
+      }
+      const { camera, scene, raycaster, size } = st;
+      const p = cube.position.clone();
+      p.project(camera);
+      raycaster.setFromCamera({ x: p.x, y: p.y }, camera);
+      const hits = raycaster
+        .intersectObjects(scene.children, true)
+        .slice(0, 6)
+        .map((h) => {
+          let o = h.object;
+          while (o.parent && !o.userData.piece && !o.userData.cube) o = o.parent;
+          return `${h.object.type}:${Object.keys(o.userData).join('+')}@${h.distance.toFixed(2)}`;
+        });
+      const canvas = document.querySelector('canvas');
+      const r = canvas.getBoundingClientRect();
+      const px = [
+        (p.x * 0.5 + 0.5) * size.width + r.left,
+        (-p.y * 0.5 + 0.5) * size.height + r.top,
+      ];
+      const under = document.elementFromPoint(px[0], px[1]);
+      return { px, under: `${under?.tagName}.${under?.className}`, hits };
+    },
     /**
      * Swings the camera around the board: yaw/pitch in degrees off the opening
      * view, distance scaled by `zoom`, and the look-at point pulled `pull` of
@@ -246,7 +290,7 @@ const SHOW_HELPERS = () => {
 
 // waitForFunction polls on requestAnimationFrame by default, which the
 // virtual clock holds still between frames: poll on a timer instead.
-const POLL = { polling: 50 };
+const POLL = { polling: 50, timeout: 60000 };
 
 const ease = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
@@ -277,7 +321,9 @@ async function main() {
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
   await pageB.goto(`${pageA.url()}?design=classic`);
   await pageB.getByRole('button', { name: 'Join Game' }).click();
-  for (const p of [pageA, pageB]) await p.waitForFunction(() => window.__show?.ready());
+  for (const p of [pageA, pageB]) {
+    await p.waitForFunction(() => window.__show?.ready(), null, { timeout: 120000 });
+  }
 
   const colorOf = async (p) =>
     (await p.locator('text=/You are playing as/').textContent()).match(/as (white|black)/)[1];
@@ -288,8 +334,8 @@ async function main() {
   if (white === pageB) {
     // The joiner opened the game with the classic look; switch it over.
     await white.goto(`${white.url().split('?')[0]}?design=${DESIGN}`);
-    await white.waitForFunction(() => window.__show?.ready());
   }
+  await white.waitForFunction((d) => window.__show?.ready(d), DESIGN, { timeout: 120000 });
   await white.evaluate(() => document.fonts.ready);
   // Let the design's chunk, fonts and first frames settle in real time
   await white.waitForTimeout(1500);
@@ -388,7 +434,7 @@ async function main() {
     if (!STILLS) return;
     await step(false);
     const file = path.join(OUT, `${DESIGN}-${name}.png`);
-    await white.screenshot({ path: file });
+    await white.screenshot({ path: file, timeout: 120000 });
     console.log(file);
   };
   const locate = (zxy, kind) =>
@@ -410,14 +456,17 @@ async function main() {
       await step();
     }
     target = await locate(zxy, kind);
-    if (!target) throw new Error(`no pixel reaches ${kind} ${zxy}`);
+    if (!target) {
+      const why = await white.evaluate((z) => window.__show.explain(z), zxy);
+      throw new Error(`no pixel reaches ${kind} ${zxy}: ${JSON.stringify(why)}`);
+    }
     cursor = target;
     await white.mouse.move(cursor.x, cursor.y);
   };
   const waitTurn = async (page, text) => {
     await page.waitForFunction((t) => window.__show.turnText().startsWith(t), text, {
       ...POLL,
-      timeout: 15000,
+      timeout: 60000,
     });
   };
 
