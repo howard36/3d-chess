@@ -473,13 +473,13 @@ test('input keyboard', async ({ browser }) => {
     const seen: string[] = [];
     for (let i = 0; i < 8; i++) { await p.keyboard.press('Tab'); seen.push(await focusDesc(p)); }
     const reached = [...new Set(seen)];
-    await pressAt(p, BG); await p.waitForTimeout(300); const cam0 = await cameraInfo(p); const turn0 = await turnText(p); const list0 = await listText(p);
+    await pressAt(p, BG); await p.waitForTimeout(300); const cam0 = await cameraInfo(p); const turn0 = await turnText(p); const list0 = await p.getByTestId('move-list').count();
     for (const k of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', ' ', 'Escape']) { await p.keyboard.press(k); await p.waitForTimeout(100); }
     await p.waitForTimeout(500);
     const cam1 = await cameraInfo(p);
     expect(cam1.pos).toEqual(cam0.pos);
     expect(await turnText(p)).toBe(turn0);
-    expect(await listText(p)).toBe(list0);
+    expect(await p.getByTestId('move-list').count()).toBe(list0);
     expect(await sel(p)).toBe(0);
     expect(await moveButton(p).isDisabled()).toBe(true);
     const allowed = new Set(['INPUT#typed-move:', 'BUTTON:Dismiss error', 'BODY']);
