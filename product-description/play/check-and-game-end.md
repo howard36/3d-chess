@@ -145,4 +145,4 @@ The finished game remains on the server unchanged until it expires, about 30 day
 - Whether a stray Enter can reach "Start new game" right after the mating move is typed depends on the echo's timing; read from code (`client/src/screens/EndGameModal.tsx:50-51`), not tried.
 - The mate line and both players' "Start new game" are exercised by `client/e2e/gameOver.spec.ts`; check detection and the glow by `client/src/engine/board.test.ts` and `client/src/three/Board.test.tsx`; the words " — in check" by `client/src/App.test.tsx`; stalemate detection by the engine tests only. The stalemate heading was not seen in a real game.
 
-Verified against 3D Chess commit `90142a3`
+Verified against 3D Chess commit `c571311`

@@ -141,4 +141,4 @@ After any interrupt the player stays on the start screen, or reaches the new gam
 - How long "Connecting to server…" lasts on a cold server (the first connection after the server has been idle or redeployed) is a property of the deployment and was not measured.
 - Everything else was read from `client/src/screens/StartScreen.tsx` (the re-send at `:43-48`), `client/src/hooks/useResendOnReconnect.ts`, `client/src/hooks/useGameSocket.ts`, `client/src/lib/clientId.ts`, `server/modal_app.py` (`create_game` at `:121-137`), `client/src/App.test.tsx` (including the create re-sent after a drop), and `client/e2e/createGame.spec.ts` / `gameOver.spec.ts`; the simple case is exercised by the end-to-end suite.
 
-Verified against 3D Chess commit `90142a3`
+Verified against 3D Chess commit `c571311`

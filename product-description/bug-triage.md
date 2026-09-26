@@ -6,7 +6,7 @@ A consolidated list of the defects and inconsistencies that the feature document
 
 The documents raised about 60 questions; after merging by root cause, 23 entries remain. Three are **high**. All three can end a game or change it against the player's intent: a press on the board acts on pointer-down, so turning the view can play a move (B-01); a move made just after reconnecting can be recorded against a stale position and freeze the game for both players (B-02); and a join whose answer is lost leaves the joiner stranded and the game unplayable (B-03). The largest cluster is **the connection edge**: B-02, B-03, B-04, B-06, B-10, B-16, and B-17 are all a page's state and the server's getting out of step around a drop, a reset, or a second tab. The fixes are small and local: wait for the snapshot, resend or recover lost requests, reset on every game change. A second cluster is **input and layout**: B-01, B-07, B-08, B-09. Four entries are product calls about what the game should offer rather than defects (B-20 to B-23).
 
-**B-01 to B-09, every high and medium entry, were fixed on 2026-09-26**; each carries a **Fix** line, and the table's last column says so. The two product calls among them were decided as described there (B-06: the tab the player chose keeps the seat; B-09: dialogs, live regions, reduced motion and typed moves, not keyboard navigation of the 3D board).
+**B-01 to B-10 were fixed on 2026-09-26** (B-10 as a side effect); the documents now describe the fixed build, commit `c571311`, while the entries below keep the file:line references of `d94507b`, where they were found; each carries a **Fix** line, and the table's last column says so. The two product calls among them were decided as described there (B-06: the tab the player chose keeps the seat; B-09: dialogs, live regions, reduced motion and typed moves, not keyboard navigation of the 3D board).
 
 | ID | Title | Severity | Area | Decision needed | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -19,7 +19,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 | B-07 | The promotion dialog loses keyboard focus to the press that opens it | medium | play | fix | fixed |
 | B-08 | The default view crops the board, badly on phones, and the HUD collides in narrow windows | medium | view | fix | fixed |
 | B-09 | The game cannot be played without a pointer, and dialogs and cues are not accessible | medium | cross-cutting | product call | fixed |
-| B-10 | Back then Forward before the start screen's connection opens shows "Error: Already in a game" | low | session | fix | — |
+| B-10 | Back then Forward before the start screen's connection opens shows "Error: Already in a game" | low | session | fix | fixed |
 | B-11 | With browser storage disabled, the creator lands on the join screen and a reload loses the seat | low | start | fix | — |
 | B-12 | Returning players see "Game created! Share this link with a friend:" while their rejoin is in flight | low | session | fix | — |
 | B-13 | Unknown addresses render an empty dark page | low | navigation | fix | — |
@@ -71,6 +71,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Raised by:** [joining a game](start/joining-a-game.md#open-questions-and-verification), [connection loss](session/connection-loss.md#open-questions-and-verification), [the connection and seat model](foundations/connection-and-seat.md#requests-while-disconnected).
 - **Status:** confirmed 2026-09-25 by the scripted pass: JOIN-05.
 - **Fix:** fixed 2026-09-26. Every tab sends a random `clientId` (per tab, kept in `sessionStorage`) with `join_game`; the server records which client claimed each seat and answers a repeated join from that client with its own seat instead of "Game full". The page re-sends an unanswered join on each new connection (`useResendOnReconnect`), and a reload followed by "Join Game" also gets the seat back.
+- **Follow-up:** fixed again 2026-09-26 (by `c571311`): a repeated join is now answered with the seat confirmation and a snapshot of the whole record, not a second start notice, so a joiner whose first answer was lost sees the moves made in the meantime. Checked by JOIN-10 and CONN-18 in the second pass.
 
 ## Medium
 
@@ -97,6 +98,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Raised by:** [reloading and returning](session/reload-and-return.md#open-questions-and-verification), [the broken game record](cross-cutting/broken-game-record.md#open-questions-and-verification).
 - **Status:** confirmed 2026-09-25 by the scripted pass: RELOAD-03.
 - **Fix:** fixed 2026-09-26. `App.tsx` resets the socket session whenever the game id in the address changes (not only on `/`), in a layout effect so the old game is never painted, and mounts a fresh game screen per game id.
+- **Follow-up:** fixed again 2026-09-26: the new game's page is only mounted once the connection has been reset for it, so it can no longer read (and store) the previous game's seat. Checked by RELOAD-05 in the second pass, and by `client/src/AppNavigation.test.tsx`.
 
 ### B-06: A tab that was reconnecting takes the seat back from the newer tab without a click
 
@@ -109,6 +111,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Raised by:** [a second tab](session/second-tab.md#open-questions-and-verification), [connection loss](session/connection-loss.md#edge-cases).
 - **Status:** confirmed 2026-09-25 by the scripted pass: TAB-02.
 - **Fix:** fixed 2026-09-26, deciding that the tab the player chose keeps the seat. `rejoin_game` gained `takeover`: page loads and "Play here" send `true` (last connection wins, as before); an automatic reconnect sends `false`, and the server refuses it with the new error `seat_in_use` if another client's live connection holds the seat. That tab then shows "This game is open in another tab" with "Play here". Its own half-open socket (same client id) is still replaced.
+- **Follow-up:** 2026-09-26: a page now takes the seat over until one of its rejoins is answered (not merely sent), so a fresh page whose first answer is lost still takes the seat (RELOAD-06).
 
 ### B-07: The promotion dialog loses keyboard focus to the press that opens it
 
@@ -158,6 +161,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Bump the session number on reset, or do not queue a rejoin.
 - **Raised by:** [waiting for an opponent](start/waiting-for-an-opponent.md#open-questions-and-verification), [reloading and returning](session/reload-and-return.md#open-questions-and-verification), [connection loss](session/connection-loss.md#open-questions-and-verification), [error messages](cross-cutting/error-messages.md).
 - **Status:** confirmed 2026-09-25 by the scripted pass: WAIT-06.
+- **Status:** fixed 2026-09-26 as a side effect of the B-05 and B-06 work: a reset now clears the connection's session, and a rejoin is only sent on an open connection, so Back then Forward sends exactly one. The second pass checked both paths (WAIT-06, WAIT-12, NAV-10); no "Already in a game" appears.
 
 ### B-11: With browser storage disabled, the creator lands on the join screen and a reload loses the seat
 
@@ -180,6 +184,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Show a separate rejoining state until the first snapshot.
 - **Raised by:** [the connection and seat model](foundations/connection-and-seat.md#open-questions-and-verification), [reloading and returning](session/reload-and-return.md#while-in-flight), [waiting for an opponent](start/waiting-for-an-opponent.md#edge-cases), [joining a game](start/joining-a-game.md#edge-cases).
 - **Status:** confirmed 2026-09-25 by the scripted pass: CONN-09.
+- **Status:** still present at `c571311` (CONN-09, second pass).
 
 ### B-13: Unknown addresses render an empty dark page
 
@@ -202,6 +207,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Keep a synchronous "move sent" flag in a ref. Fixing B-01 (acting on click) narrows it further.
 - **Raised by:** [making a move](play/making-a-move.md#open-questions-and-verification), [error messages](cross-cutting/error-messages.md).
 - **Status:** confirmed 2026-09-25 by the scripted pass: MOVE-07 (the first draft claimed one move; corrected).
+- **Status:** still present at `c571311`: two clicks with no pause both send the move, and the second is refused with "Not your turn" (MOVE-07, second pass). Acting on release makes it harder to do by accident.
 
 ### B-15: Old errors keep acting: success never clears the banner, and earlier refusals steer later joins
 

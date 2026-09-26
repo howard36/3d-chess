@@ -1,6 +1,6 @@
 # Verification harness
 
-The Playwright scripts that ran the first verification pass. They are a record of how each result in the checklists was obtained and a way to rerun it; they are not part of the product's test suite, and nothing here is run by CI.
+The Playwright scripts that ran the verification passes (the second, against `c571311`, is the one in the checklists' Result columns). They are a record of how each result in the checklists was obtained and a way to rerun it; they are not part of the product's test suite, and nothing here is run by CI.
 
 ## Running it
 
@@ -15,7 +15,7 @@ ln -sfn ../../../client/node_modules node_modules   # the harness borrows the cl
 Then:
 
 ```bash
-npx playwright test                         # everything except server-restart.spec.ts needs nothing running
+npx playwright test                         # starts (or reuses) the local server and Vite; see below for server-restart.spec.ts
 npx playwright test foundations-1           # one file
 ```
 
@@ -37,3 +37,11 @@ In a container whose Chromium does not match Playwright's version, prefix with `
 - Only Chromium. No Firefox, no Safari, no real touch device (touch was emulated, one finger at a time), no screen reader.
 - The server is the local one, which keeps games in memory. Production keeps them across restarts; the restart items check the page's handling only.
 - Presses are real pointer events; the connection controls act inside the page. Whether a real network outage looks exactly like a closed socket (for example after a laptop sleeps) was not checked.
+
+## Notes from the second pass
+
+- Each spec file adds the helpers it needs on top of `vh.ts` (for example a record of what the page sends, to prove that nothing was sent; a per-tab flag that makes a reload start with incoming messages lost; a sampler for glides and fades). They are local to the file that uses them.
+- A game page is taken to be loaded when its turn indicator and canvas are there; `window.__r3fState` alone is not enough, because it stays set across in-app navigation.
+- Reduced motion is emulated with `page.emulateMedia({ reducedMotion: 'reduce' })`, and the clipboard with `context.grantPermissions(['clipboard-read', 'clipboard-write'])`.
+- `results.jsonl` accumulates across runs; the latest line for an ID is its result.
+

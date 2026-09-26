@@ -185,4 +185,4 @@ After any interrupt the view stays where it was left, except when the board scre
 - The absence of coordinate labels on the board, and the absence of a "reset view" control, may be worth a product call.
 - Color is the only cue distinguishing the markers; see accessibility.
 
-Verified against 3D Chess commit `90142a3`
+Verified against 3D Chess commit `c571311`

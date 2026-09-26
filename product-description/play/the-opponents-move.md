@@ -144,4 +144,4 @@ How the move lands depends on when the player sees it:
 - Reduced motion is read from the system setting whenever the board is redrawn (`client/src/three/Board.tsx:131-132`, `client/src/three/motion.ts:22-25`), not watched for changes. Turning it on in the middle of a glide may end that glide early at the next redraw; not tried.
 - Moves while the opponent is disconnected, their arrival on rejoin, and presence are covered by `server/tests/test_local_ws.py` and `client/e2e/session.spec.ts`; animation on arrival versus on mount, and its absence under reduced motion, by `client/src/three/Board.test.tsx`.
 
-Verified against 3D Chess commit `90142a3`
+Verified against 3D Chess commit `c571311`

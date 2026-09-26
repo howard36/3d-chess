@@ -138,4 +138,4 @@ For this panel, "Before sending" is any time the player has no move in flight (t
 - That the indicator updates in a hidden tab before the glide is seen is read from how the page handles messages in the background and how the 3D scene pauses drawing; not observed.
 - Covered by tests: `client/src/game/history.test.ts` (the turn after zero, one, and two moves; after a checkmate, "black"; at a frozen record, the side at the last replayable position), `client/src/App.test.tsx` ("Black to move" after one replayed move, "White to move" when frozen, " — in check" when the side to move is in check, no double counting after a reconnect snapshot), and the Playwright specs `client/e2e/playMove.spec.ts`, `session.spec.ts`, and `promotion.spec.ts`, whose game helper waits for both players' indicators to change as its proof that a move went through the server. Presses passing through the indicator were not tried by hand.
 
-Verified against 3D Chess commit `90142a3`
+Verified against 3D Chess commit `c571311`

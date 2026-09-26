@@ -142,4 +142,4 @@ The move list never sends anything. Here "before sending" means the list as the 
 - Ctrl with the wheel, and a trackpad pinch, over the list are expected to zoom the whole page rather than the view, and a two-finger pinch on the list on a phone likely zooms the page too. Read from which element handles the gestures; not tried.
 - The list's content is covered by `client/src/App.test.tsx` (wire notation, and the full record when frozen) and by `client/e2e/session.spec.ts` (after a reload and after "Play here") and `client/e2e/promotion.spec.ts` ("=U"). Hiding the list before the first move, the height limit, and the automatic scroll have no test.
 
-Verified against 3D Chess commit `90142a3`
+Verified against 3D Chess commit `c571311`

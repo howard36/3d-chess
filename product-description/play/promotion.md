@@ -141,4 +141,4 @@ An error or a drop is handled as in [making a move](making-a-move.md#the-answer-
 - Clicking an error banner behind the backdrop cancels the promotion. Read from the drawing order and the inert page (`client/src/screens/GameScreen.tsx:335`, `client/src/screens/PromotionPicker.tsx:30-40`); not confirmed by hand.
 - The dialog, its cancel paths, the send, the automatic close on a drop or a new position, and the "=U" in the move list are covered by `client/src/App.test.tsx`, `client/src/three/Board.test.tsx`, and `client/e2e/promotion.spec.ts`; the typed form's parsing by `client/src/game/typedMove.test.ts`. The focus on "Queen" after a real click was confirmed by the rerun of the scripted pass against this build (PROMO-02, PROMO-04, PROMO-08 no longer reproduce the lost focus); see [`bug-triage.md`](../bug-triage.md) B-07, fixed.
 
-Verified against 3D Chess commit `90142a3`
+Verified against 3D Chess commit `c571311`

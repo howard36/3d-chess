@@ -101,4 +101,4 @@ The server checks only that a move names two valid cells, carries a promotion le
 - A game reduced to two Kings never ends; there is no draw rule for it. This is by design (no draw rules exist) but a player may not expect it.
 - The board has no coordinate labels, so the move list's notation cannot be matched to cells without counting. Whether that is intended is a product call; see [the view](the-view.md).
 
-Verified against 3D Chess commit `90142a3`
+Verified against 3D Chess commit `c571311`

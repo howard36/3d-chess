@@ -92,6 +92,8 @@ test('view and input leftovers', async ({ browser }) => {
     return `Bishop destinations ${dests.join(',')}; teal cells now ${teal.length} (Ed3 only); Ed4 amber`;
   });
   await item('VIEW-08', async () => {
+    await press(g.white, 'Bc1', 'white'); await g.white.waitForTimeout(300);
+    expect((await boardState(g.white)).captureRings).toBeGreaterThan(0);
     await g.white.screenshot({ path: 'test-results/markers.png' });
     const c = await g.white.evaluate(() => { const out: string[] = []; (window as any).__r3fState.get().scene.traverse((o: any) => { if (o.userData?.selectionRing || o.userData?.captureRing) out.push((o.userData.selectionRing ? 'select ' : 'capture ') + '#' + o.material.color.getHexString()); if (o.geometry?.type === 'SphereGeometry' && o.geometry.parameters?.radius === 0.11) out.push('dot #' + o.material.color.getHexString()); }); return [...new Set(out)]; });
     return `marker colors: ${c.join(', ')} (screenshot markers.png)`;

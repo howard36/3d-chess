@@ -156,4 +156,4 @@ Navigation has no request of its own, but each interrupt row applies to the page
 - The claim that the crash screen closes the page's connection (the crashed page is taken down along with everything it owned) is read from code; not observed.
 - Whether a browser without 3D support reaches the crash screen was not tried.
 
-Verified against 3D Chess commit `90142a3`
+Verified against 3D Chess commit `c571311`

@@ -108,4 +108,4 @@ Every feature document has the same eleven-row [cancel and interrupt](../README.
 - Two presses on a destination before the page redraws both send the move ([bug-triage B-14](../bug-triage.md), low). With presses now acting on release, a normal double click is probably slow enough for the redraw to come first; not measured.
 - The seat label, the reconnecting banner, and the frozen-board banner let presses through to the board, because only the move box, the error banner, and the move list take the pointer. That is read from the page's styles; whether it is intended for the seat label was not asked.
 
-Verified against 3D Chess commit `90142a3`
+Verified against 3D Chess commit `c571311`
