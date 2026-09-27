@@ -89,6 +89,11 @@ export interface ClarityTowerOptions {
   maxElevation?: number;
   /** Closest the camera can zoom to the tower's centre. */
   minDistance?: number;
+  /**
+   * Height of each cell's click box above its floor (BoardLayout.hitHeight).
+   * Thin, so a click lands on the square whose floor is under the pointer.
+   */
+  hitHeight?: number;
 }
 
 /**
@@ -100,7 +105,8 @@ export interface ClarityTowerOptions {
  * (19° here) the back row of one level interleaves on screen with the front
  * row of the level above it, so a piece at the back of A reads as standing on
  * B; much below it (12°–14°) the squares flatten into lines. 18° is the
- * steepest view before the rows interleave.
+ * steepest view before the rows interleave. Above about 50° nothing is
+ * readable (reviewed in all six clarity designs), so the orbit stops there.
  */
 export const CLARITY_TOWER_DEFAULTS = {
   pitch: 1,
@@ -109,8 +115,9 @@ export const CLARITY_TOWER_DEFAULTS = {
   elevation: 18,
   azimuth: 16,
   minElevation: 6,
-  maxElevation: 68,
+  maxElevation: 50,
   minDistance: 5,
+  hitHeight: 0.1,
 } as const satisfies Required<ClarityTowerOptions>;
 
 /**
@@ -122,8 +129,11 @@ export const CLARITY_TOWER_DEFAULTS = {
  * stay). The orbit is limited so the camera never dips under the bottom
  * platform or looks straight down the stack.
  *
- * A cell's raycast box is the lower part of the space above its square, so a
- * ray aimed at a far destination passes over the nearer cells' boxes.
+ * A cell's click box is a thin slab on its square (`hitHeight`): a taller
+ * box is entered by rays aimed at the square behind it, so a click on one
+ * floor marker could land on the square in front. Cell centres (and so
+ * `floorY` and MarkerProps.centre) are still half the level's lower part up,
+ * as before.
  */
 export const clarityTower = (options: ClarityTowerOptions = {}): BoardLayout => {
   const o = { ...CLARITY_TOWER_DEFAULTS, ...options };
@@ -142,6 +152,7 @@ export const clarityTower = (options: ClarityTowerOptions = {}): BoardLayout => 
     },
     floorY: -boxHeight / 2,
     cellSize: [o.pitch * 0.98, boxHeight, o.pitch * 0.98],
+    hitHeight: o.hitHeight,
     // Framed with room for the coordinate labels just outside the platforms
     halfExtents: [
       half + o.pitch * 0.5 + 0.3,

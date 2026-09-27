@@ -137,6 +137,18 @@ describe('clarityTower', () => {
     expect(viewDirectionFor(0, 90)[0]).toBeCloseTo(1);
   });
 
+  it('stops the orbit at 50° by default, where the levels are still readable', () => {
+    expect(CLARITY_TOWER_DEFAULTS.maxElevation).toBe(50);
+    expect(clarityTower().orbit?.minPolarAngle).toBeCloseTo((40 * Math.PI) / 180);
+  });
+
+  it('gives cells thin click boxes on their floors', () => {
+    const d = clarityTower();
+    expect(d.hitHeight).toBeGreaterThan(0);
+    expect(d.hitHeight).toBeLessThan(0.2);
+    expect(clarityTower({ hitHeight: 0.3 }).hitHeight).toBe(0.3);
+  });
+
   it('uses its documented defaults', () => {
     const d = clarityTower();
     expect(towerFrame(d).gap).toBeCloseTo(CLARITY_TOWER_DEFAULTS.levelGap);
