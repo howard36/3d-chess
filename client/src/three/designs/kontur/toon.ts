@@ -18,12 +18,16 @@ const LIGHT = new Vector3(-0.42, 0.84, 0.34).normalize();
 export const pixelScale = { value: 0.0012 };
 
 const fillVertex = /* glsl */ `
+  attribute float aFoot;
   varying vec3 vN;
   varying float vY;
+  varying float vFoot;
   void main() {
     vN = normalize(normalMatrix * normal);
     // Height above the piece's base (geometry is built base at y = 0)
     vY = position.y;
+    // 1 on the foot, painted in the level's colour (0 where a geometry has no feet)
+    vFoot = aFoot;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 
@@ -31,31 +35,52 @@ const fillFragment = /* glsl */ `
   uniform vec3 uLit;
   uniform vec3 uMid;
   uniform vec3 uShade;
+  uniform vec3 uFootLit;
+  uniform vec3 uFootMid;
+  uniform vec3 uFootShade;
   uniform vec3 uLight;
-  uniform float uFoot;
+  uniform float uDusk;
   varying vec3 vN;
   varying float vY;
+  varying float vFoot;
   void main() {
     float d = dot(normalize(vN), uLight);
     float w = fwidth(d) * 0.75 + 0.015;
     float lit = smoothstep(0.52 - w, 0.52 + w, d);
     float mid = smoothstep(-0.12 - w, -0.12 + w, d);
-    vec3 c = mix(uShade, mix(uMid, uLit, lit), mid);
-    // A soft dusk at the foot, where the piece meets its platform
-    c *= mix(0.84, 1.0, smoothstep(0.0, uFoot, vY));
+    float foot = step(0.5, vFoot);
+    vec3 hi = mix(uLit, uFootLit, foot);
+    vec3 me = mix(uMid, uFootMid, foot);
+    vec3 lo = mix(uShade, uFootShade, foot);
+    vec3 c = mix(lo, mix(me, hi, lit), mid);
+    // A soft dusk on the body just above its foot
+    c *= mix(1.0, mix(0.86, 1.0, smoothstep(uDusk, uDusk + 0.07, vY)), 1.0 - foot);
     gl_FragColor = vec4(c, 1.0);
     #include <colorspace_fragment>
   }`;
 
-/** A three-tone flat material in exact colours. */
-export const toonMaterial = (lit: string, mid: string, shade: string, foot = 0.07) =>
+export interface Tones {
+  lit: string;
+  mid: string;
+  shade: string;
+}
+
+/**
+ * A three-tone flat material in exact colours. `foot` paints the vertices a
+ * geometry marks as its foot (`aFoot`) in three other tones; `dusk` is the
+ * height above which the body's dusk fades out.
+ */
+export const toonMaterial = (tones: Tones, foot: Tones = tones, dusk = -10) =>
   new ShaderMaterial({
     uniforms: {
-      uLit: { value: new Color(lit) },
-      uMid: { value: new Color(mid) },
-      uShade: { value: new Color(shade) },
+      uLit: { value: new Color(tones.lit) },
+      uMid: { value: new Color(tones.mid) },
+      uShade: { value: new Color(tones.shade) },
+      uFootLit: { value: new Color(foot.lit) },
+      uFootMid: { value: new Color(foot.mid) },
+      uFootShade: { value: new Color(foot.shade) },
       uLight: { value: LIGHT },
-      uFoot: { value: foot },
+      uDusk: { value: dusk },
     },
     vertexShader: fillVertex,
     fragmentShader: fillFragment,

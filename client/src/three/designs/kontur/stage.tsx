@@ -24,6 +24,7 @@ const skyFragment = /* glsl */ `
   uniform vec3 uHorizon;
   uniform vec3 uBottom;
   uniform vec2 uResolution;
+  uniform vec2 uSun;
   uniform float uDisc;
   uniform float uDiscTone;
   varying vec3 vDir;
@@ -54,13 +55,16 @@ const skyFragment = /* glsl */ `
     // A gentle vignette toward the corners of the screen
     vec2 uv = gl_FragCoord.xy / uResolution - 0.5;
     c *= 1.0 - 0.1 * smoothstep(0.25, 0.75, length(uv * vec2(1.1, 1.0)));
-    // The poster's one printed form: a large disc of deeper paper behind the
-    // tower, fixed to the page (it never turns, so no angle is its best)
-    vec2 q = (gl_FragCoord.xy - 0.5 * uResolution) / uResolution.y;
-    float r = length(q - vec2(0.0, 0.015));
+    // The poster's one printed form: a sun of deeper paper high on the left,
+    // clear of the tower and fixed to the page (it never turns, so no angle
+    // is its best, and the tower never slides across it). Measured in screen
+    // heights from the top-left corner.
+    vec2 q = vec2(gl_FragCoord.x, uResolution.y - gl_FragCoord.y) / uResolution.y;
+    float r = length(q - uSun);
     float fw = fwidth(r) * 1.2;
     float disc = 1.0 - smoothstep(uDisc - fw, uDisc + fw, r);
-    c *= mix(1.0, uDiscTone, disc);
+    // printed in a warm ochre over the paper, not a grey shadow
+    c *= mix(vec3(1.0), vec3(0.97, 0.935, 0.87) * uDiscTone, disc);
     gl_FragColor = vec4(c, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -79,8 +83,9 @@ const PaperSky = () => {
           uHorizon: { value: new Color(SKY.horizon) },
           uBottom: { value: new Color(SKY.bottom) },
           uResolution: { value: new Vector2(1, 1) },
-          uDisc: { value: 0.44 },
-          uDiscTone: { value: 0.955 },
+          uSun: { value: new Vector2(0.21, 0.37) },
+          uDisc: { value: 0.165 },
+          uDiscTone: { value: 0.99 },
         },
         vertexShader: skyVertex,
         fragmentShader: skyFragment,

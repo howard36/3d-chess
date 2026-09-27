@@ -3,6 +3,7 @@ import {
   CanvasTexture,
   ConeGeometry,
   CylinderGeometry,
+  Float32BufferAttribute,
   MeshBasicMaterial,
   PlaneGeometry,
   Quaternion,
@@ -20,7 +21,7 @@ import { noRaycast } from '../kit/noRaycast';
 import type { PieceBodyProps, PieceColor } from '../types';
 import { floorBelow } from './layout';
 import { clamp01, useTimeline } from './motion';
-import { ARMY, COBALT, INK, KEYLINE, SHADOW, VERMILION } from './palette';
+import { ARMY, COBALT, INK, KEYLINE, LEVEL_FOOT, SHADOW, VERMILION } from './palette';
 import { inkMaterial, toonMaterial, withOutline } from './toon';
 
 // The Kontur set, after Josef Hartwig's 1923 Bauhaus chessmen: every piece
@@ -32,23 +33,37 @@ import { inkMaterial, toonMaterial, withOutline } from './toon';
 // - Knight: an L, neck and head, the shape of its jump.
 // - Bishop: a four-sided pyramid whose ridges run along the diagonals (an X
 //   from above), capped with a bead.
-// - Unicorn: a cube balanced on its corner, its space diagonal upright: the
-//   line it moves along (a hexagon from above).
+// - Unicorn: a cube balanced on its corner, its space diagonal upright (the
+//   line it moves along; a hexagon from above), with a short horn on top.
 // - Queen: a ball ringed like a planet on a tapering column.
 // - King: a cross on a square column, the tallest piece (a plus from above).
 //
-// Built at their final size: the king stands 0.74 tall, which leaves the
+// Every piece stands on a thin foot painted in its level's colour, the same
+// colour as that level's sheet edge and badge, so where the rows of two
+// levels overlap on screen, each piece still says which sheet it is on.
+// Built at their final size: the king stands 0.73 tall, which leaves the
 // pieces clear air under the platform above.
 
 // --- Geometry ------------------------------------------------------------------
 
-const part = (g: BufferGeometry, flat = false): BufferGeometry => {
+/** Height of every piece's foot. */
+const FOOT = 0.05;
+
+const part = (g: BufferGeometry, { flat = false, foot = false } = {}): BufferGeometry => {
   let out = g.index ? g.toNonIndexed() : g;
   if (out !== g) g.dispose();
   // Faceted solids (the pyramid) shade face by face
   if (flat) out.computeVertexNormals();
   out.deleteAttribute('uv');
   out = withOutline(out);
+  // Which vertices belong to the foot (painted in the level's colour)
+  out.setAttribute(
+    'aFoot',
+    new Float32BufferAttribute(
+      new Float32Array(out.getAttribute('position').count).fill(foot ? 1 : 0),
+      1,
+    ),
+  );
   return out;
 };
 
@@ -57,6 +72,12 @@ const box = (w: number, h: number, d: number, x: number, y: number, z: number) =
 const drum = (r: number, h: number, y: number, segments = 28, rTop = r) =>
   part(new CylinderGeometry(rTop, r, h, segments).translate(0, y + h / 2, 0));
 const ball = (r: number, y: number) => part(new SphereGeometry(r, 22, 14).translate(0, y, 0));
+
+/** A round or square foot, `FOOT` high, in the level's colour. */
+const roundFoot = (r: number) =>
+  part(new CylinderGeometry(r, r, FOOT, 32).translate(0, FOOT / 2, 0), { foot: true });
+const squareFoot = (w: number, d = w, x = 0) =>
+  part(new BoxGeometry(w, FOOT, d).translate(x, FOOT / 2, 0), { foot: true });
 
 const merge = (parts: BufferGeometry[]) => {
   const g = mergeGeometries(parts);
@@ -78,17 +99,26 @@ const cubeOnCorner = (edge: number, y: number) => {
   const half = (edge * Math.sqrt(3)) / 2;
   return part(g.translate(0, y + half, 0));
 };
+const UNICORN_CUBE = 0.3;
+const UNICORN_BASE = FOOT + 0.03;
+const UNICORN_TOP = UNICORN_BASE + UNICORN_CUBE * Math.sqrt(3);
 
 // The head, pivoted at the back of the neck and dipped toward the muzzle
 const HEAD_DIP = -0.24;
+const NECK_TOP = FOOT + 0.44;
 const headTransform = (g: BufferGeometry) =>
-  g.translate(0.2, 0, 0).rotateZ(HEAD_DIP).translate(-0.19, 0.49, 0);
+  g
+    .translate(0.2, 0, 0)
+    .rotateZ(HEAD_DIP)
+    .translate(-0.19, NECK_TOP - 0.02, 0);
 const knightHead = () => part(headTransform(new BoxGeometry(0.4, 0.17, 0.24)));
 
-const pyramid = (r: number, h: number) =>
+const pyramid = (r: number, h: number, y: number) =>
   // Four segments put the corners on the axes; a quarter turn puts the
   // ridges on the diagonals and the base square along the files and ranks
-  part(new ConeGeometry(r, h, 4, 1).rotateY(Math.PI / 4).translate(0, h / 2, 0), true);
+  part(new ConeGeometry(r, h, 4, 1).rotateY(Math.PI / 4).translate(0, y + h / 2, 0), {
+    flat: true,
+  });
 
 const ring = (radius: number, tube: number, y: number, tilt: number) =>
   part(
@@ -99,39 +129,50 @@ const ring = (radius: number, tube: number, y: number, tilt: number) =>
   );
 
 const GEOMETRY: Record<PieceType, BufferGeometry> = {
-  [PieceType.Pawn]: merge([drum(0.15, 0.12, 0), ball(0.135, 0.235)]),
+  [PieceType.Pawn]: merge([roundFoot(0.165), drum(0.15, 0.1, FOOT), ball(0.135, FOOT + 0.215)]),
   [PieceType.Rook]: merge([
-    box(0.38, 0.4, 0.38, 0, 0, 0),
+    squareFoot(0.42),
+    box(0.38, 0.36, 0.38, 0, FOOT, 0),
     ...[
       [-1, -1],
       [1, -1],
       [1, 1],
       [-1, 1],
-    ].map(([sx, sz]) => box(0.13, 0.12, 0.13, sx * 0.125, 0.4, sz * 0.125)),
+    ].map(([sx, sz]) => box(0.13, 0.12, 0.13, sx * 0.125, FOOT + 0.36, sz * 0.125)),
   ]),
   // Head toward +x (Board turns the knight to look along the ranks)
   [PieceType.Knight]: merge([
-    box(0.3, 0.07, 0.28, -0.04, 0, 0),
-    box(0.22, 0.44, 0.24, -0.08, 0.07, 0),
+    squareFoot(0.34, 0.3, -0.04),
+    box(0.22, 0.44, 0.24, -0.08, FOOT, 0),
     knightHead(),
     // Two ears
-    box(0.07, 0.08, 0.065, -0.14, 0.555, 0.07),
-    box(0.07, 0.08, 0.065, -0.14, 0.555, -0.07),
+    box(0.07, 0.08, 0.065, -0.14, NECK_TOP + 0.045, 0.07),
+    box(0.07, 0.08, 0.065, -0.14, NECK_TOP + 0.045, -0.07),
   ]),
-  [PieceType.Bishop]: merge([pyramid(0.26, 0.55), ball(0.062, 0.565)]),
-  [PieceType.Unicorn]: merge([drum(0.12, 0.07, 0, 24, 0.1), cubeOnCorner(0.3, 0.035)]),
+  [PieceType.Bishop]: merge([
+    squareFoot(0.4),
+    pyramid(0.26, 0.52, FOOT),
+    ball(0.062, FOOT + 0.535),
+  ]),
+  [PieceType.Unicorn]: merge([
+    roundFoot(0.14),
+    drum(0.12, 0.06, FOOT, 24, 0.1),
+    cubeOnCorner(UNICORN_CUBE, UNICORN_BASE),
+    // The horn, continuing the upright diagonal from the top corner
+    part(new ConeGeometry(0.035, 0.14, 12).translate(0, UNICORN_TOP + 0.05, 0)),
+  ]),
   [PieceType.Queen]: merge([
-    drum(0.2, 0.06, 0, 32),
-    drum(0.13, 0.4, 0.06, 24, 0.085),
-    ball(0.115, 0.56),
-    ring(0.18, 0.028, 0.56, 0.32),
+    roundFoot(0.21),
+    drum(0.13, 0.4, FOOT, 24, 0.085),
+    ball(0.115, FOOT + 0.5),
+    ring(0.18, 0.028, FOOT + 0.5, 0.32),
   ]),
   [PieceType.King]: merge([
-    box(0.36, 0.06, 0.36, 0, 0, 0),
-    box(0.2, 0.44, 0.2, 0, 0.06, 0),
-    box(0.1, 0.24, 0.1, 0, 0.5, 0),
-    box(0.34, 0.1, 0.1, 0, 0.55, 0),
-    box(0.1, 0.1, 0.34, 0, 0.55, 0),
+    squareFoot(0.38),
+    box(0.2, 0.44, 0.2, 0, FOOT, 0),
+    box(0.1, 0.24, 0.1, 0, FOOT + 0.44, 0),
+    box(0.34, 0.1, 0.1, 0, FOOT + 0.49, 0),
+    box(0.1, 0.1, 0.34, 0, FOOT + 0.49, 0),
   ]),
 };
 
@@ -151,9 +192,10 @@ const SHADOW_RADIUS: Record<PieceType, number> = {
 
 // --- Materials -----------------------------------------------------------------
 
-const FILL: Record<PieceColor, Material> = {
-  white: toonMaterial(ARMY.white.lit, ARMY.white.mid, ARMY.white.shade),
-  black: toonMaterial(ARMY.black.lit, ARMY.black.mid, ARMY.black.shade),
+// One fill per army and level: the body in the army's tones, the foot in the level's
+const FILL: Record<PieceColor, Material[]> = {
+  white: LEVEL_FOOT.map((foot) => toonMaterial(ARMY.white, foot, FOOT)),
+  black: LEVEL_FOOT.map((foot) => toonMaterial(ARMY.black, foot, FOOT)),
 };
 
 type Contour = 'rest' | 'hover' | 'selected' | 'check';
@@ -180,6 +222,7 @@ const eyeMaterial = new MeshBasicMaterial({ color: INK });
 export const KonturPiece = ({
   type,
   color,
+  level = 0,
   contour = 'rest',
   decor = false,
   fill,
@@ -187,6 +230,8 @@ export const KonturPiece = ({
 }: {
   type: PieceType;
   color: PieceColor;
+  /** The level (0 = A) whose colour the foot is painted in. */
+  level?: number;
   contour?: Contour;
   decor?: boolean;
   /** Override materials (an effect's faded copies). */
@@ -196,7 +241,7 @@ export const KonturPiece = ({
   <>
     <mesh
       geometry={GEOMETRY[type]}
-      material={fill ?? FILL[color]}
+      material={fill ?? FILL[color][Math.min(Math.max(level, 0), 4)]}
       raycast={decor ? noRaycast : undefined}
     />
     <mesh
@@ -246,11 +291,13 @@ const shadowMaterial = new MeshBasicMaterial({
  */
 function groundShadow(this: Object3D) {
   const m = this.matrixWorld.elements;
-  const y = m[13];
+  const [x, y, z] = [m[12], m[13], m[14]];
   const floor = floorBelow(y);
   const spread = 1 + Math.min(y - floor, 1) * 0.7;
-  for (const i of [0, 1, 2, 8, 9, 10]) m[i] *= spread;
-  m[13] = floor + 0.004;
+  // Lying flat whatever the piece does (a toppling king tips its base)
+  const sx = Math.hypot(m[0], m[1], m[2]) * spread;
+  const sz = Math.hypot(m[8], m[9], m[10]) * spread;
+  this.matrixWorld.set(sx, 0, 0, x, 0, 1, 0, floor + 0.004, 0, 0, sz, z, 0, 0, 0, 1);
 }
 
 const GroundedShadow = ({ radius }: { radius: number }) => (
@@ -286,7 +333,7 @@ const Boing = ({ target }: { target: RefObject<Group | null> }) => {
 };
 
 /** A piece standing on its soft contact shadow, which stays on the platform when it lifts. */
-export const PieceBody = ({ type, color, selected, hovered, inCheck }: PieceBodyProps) => {
+export const PieceBody = ({ type, color, selected, hovered, inCheck, level }: PieceBodyProps) => {
   const body = useRef<Group>(null);
   return (
     <>
@@ -295,6 +342,7 @@ export const PieceBody = ({ type, color, selected, hovered, inCheck }: PieceBody
         <KonturPiece
           type={type}
           color={color}
+          level={level}
           contour={inCheck ? 'check' : selected ? 'selected' : hovered ? 'hover' : 'rest'}
         />
       </group>

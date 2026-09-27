@@ -13,7 +13,8 @@ import {
 import type { Group, Mesh, ShaderMaterial } from 'three';
 import { ScreenShake, Shards } from '../kit/fx';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, Vec3 } from '../types';
-import { layout } from './layout';
+import { PieceType } from '../../../engine/pieces';
+import { layout, levelAt } from './layout';
 import { Mark } from './markers';
 import { clamp01, easeOutBack, easeOutCubic, useTimeline } from './motion';
 import { COBALT, INK, PAPER_LIGHT, SIGNAL, VERMILION } from './palette';
@@ -147,7 +148,12 @@ const Confetti = ({
 // --- Capture ---------------------------------------------------------------------------
 
 /** The captured piece stands its ground under the arriving capturer, then pops. */
-const Popped = ({ floor, victim, impactMs }: CaptureFxProps & { impactMs: number }) => {
+const Popped = ({
+  floor,
+  victim,
+  victimFacing,
+  impactMs,
+}: CaptureFxProps & { impactMs: number }) => {
   const group = useRef<Group>(null);
   const done = useTimeline(impactMs + 170, (t) => {
     const g = group.current;
@@ -160,7 +166,10 @@ const Popped = ({ floor, victim, impactMs }: CaptureFxProps & { impactMs: number
   if (done) return null;
   return (
     <group ref={group} position={floor}>
-      <KonturPiece type={victim.type} color={victim.color} decor />
+      {/* Turned as Board turned it (a knight faces along the ranks), on its level's foot */}
+      <group rotation={[0, victim.type === PieceType.Knight ? (victimFacing ?? 0) : 0, 0]}>
+        <KonturPiece type={victim.type} color={victim.color} level={levelAt(floor[1])} decor />
+      </group>
     </group>
   );
 };
@@ -188,29 +197,41 @@ export const CaptureFx = (props: CaptureFxProps) => {
 
 // --- Mate ------------------------------------------------------------------------------
 
+const BAND_SIZE = 'clamp(28px, 5.6vw, 80px)';
+
 const bandStyle: CSSProperties = {
   position: 'absolute',
   left: 0,
   right: 0,
-  top: '50%',
+  top: '52%',
+  transform: 'translateY(-50%)',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   pointerEvents: 'none',
   fontFamily: "'Jost', 'Futura', sans-serif",
+  fontSize: BAND_SIZE,
 };
+
+// When the strip docks: after it has had its moment, and before the result
+// card arrives (GameScreen shows it 1.8 s after a live mate)
+const DOCK_AT = 1000;
+const DOCK_MS = 320;
 
 /**
  * The poster strip: an ink band wiped across the screen, SCHACHMATT reversed
  * out of it in paper, the three Bauhaus shapes stamped at its head and the
- * winner under it. HUD-level DOM, animated on r3f's clock.
+ * winner under it. Then it docks, smaller, in the top of the screen and
+ * drops the winner tag, so the result card lands under it rather than on
+ * it and nothing is said twice. HUD-level DOM, animated on r3f's clock.
  */
 const Banner = ({ winner, delayMs }: { winner: CelebrationProps['winner']; delayMs: number }) => {
+  const frame = useRef<HTMLDivElement>(null);
   const band = useRef<HTMLDivElement>(null);
   const word = useRef<HTMLDivElement>(null);
   const shapes = useRef<HTMLDivElement>(null);
   const sub = useRef<HTMLDivElement>(null);
-  useTimeline(delayMs + 900, (t) => {
+  useTimeline(delayMs + DOCK_AT + DOCK_MS, (t) => {
     const ms = t * 1000 - delayMs;
     const b = band.current;
     if (!b) return;
@@ -230,17 +251,24 @@ const Banner = ({ winner, delayMs }: { winner: CelebrationProps['winner']; delay
         (c as HTMLElement).style.transform = `scale(${Math.max(easeOutBack(k, 2.4), 0)})`;
       });
     }
+    // Docking: up into the top band, smaller; the tag goes
+    const dock = easeOutCubic(clamp01((ms - DOCK_AT) / DOCK_MS));
+    const f = frame.current;
+    if (f) {
+      f.style.top = `${52 - 35 * dock}%`;
+      f.style.fontSize = `calc(${BAND_SIZE} * ${1 - 0.42 * dock})`;
+    }
     const s = sub.current;
     if (s) {
-      const k = clamp01((ms - 420) / 260);
+      const k = clamp01((ms - 420) / 260) * (1 - clamp01((ms - DOCK_AT) / 160));
       s.style.opacity = String(k);
-      s.style.transform = `rotate(-4deg) translateY(${(1 - easeOutCubic(k)) * -14}px)`;
+      s.style.transform = `rotate(-4deg) translateY(${(1 - easeOutCubic(clamp01((ms - 420) / 260))) * -14}px)`;
     }
   });
   const result = winner ? `${winner} wins` : 'checkmate';
   return (
     <Html fullscreen zIndexRange={[400, 0]} style={{ pointerEvents: 'none' }}>
-      <div style={bandStyle} aria-hidden>
+      <div ref={frame} style={bandStyle} aria-hidden>
         <div
           ref={band}
           style={{
@@ -254,7 +282,6 @@ const Banner = ({ winner, delayMs }: { winner: CelebrationProps['winner']; delay
             justifyContent: 'center',
             gap: '0.5em',
             padding: '0.18em 0',
-            fontSize: 'clamp(28px, 5.6vw, 80px)',
             fontWeight: 700,
             letterSpacing: '0.12em',
             boxShadow: `0 0.12em 0 ${SIGNAL}`,
@@ -301,7 +328,7 @@ const Banner = ({ winner, delayMs }: { winner: CelebrationProps['winner']; delay
             border: `2px solid ${INK}`,
             boxShadow: `4px 4px 0 ${INK}`,
             padding: '0.25em 0.9em',
-            fontSize: 'clamp(15px, 1.8vw, 24px)',
+            fontSize: '0.3em',
             fontWeight: 700,
             letterSpacing: '0.2em',
             textTransform: 'uppercase',
@@ -334,7 +361,7 @@ export const Celebration = ({ floor, winner }: CelebrationProps) => {
       <After delayMs={450}>
         <ScreenShake intensity={6} durationMs={320} />
       </After>
-      <Banner winner={winner} delayMs={650} />
+      <Banner winner={winner} delayMs={450} />
     </>
   );
 };

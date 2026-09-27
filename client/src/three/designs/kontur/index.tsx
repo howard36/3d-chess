@@ -2,6 +2,7 @@ import '@fontsource/jost/500.css';
 import '@fontsource/jost/600.css';
 import '@fontsource/jost/700.css';
 import { NoToneMapping } from 'three';
+import { focusLevelOf } from '../kit/focus';
 import type { Design, GridProps } from '../types';
 import { CaptureFx, Celebration, MoveFx } from './fx';
 import { KonturLabels } from './labels';
@@ -29,26 +30,35 @@ import { Stage } from './stage';
 
 const FONT = "'Jost', 'Futura', 'Century Gothic', sans-serif";
 
-/** Platforms and coordinates. Decorative only: Board draws this outside the clickable group. */
-const Grid = ({ layout: l, orientation }: GridProps) => (
-  <>
-    <AcrylicPlates washes={LEVEL_WASH} edges={LEVEL_EDGE} />
-    <KonturLabels
-      layout={l}
-      orientation={orientation}
-      font={FONT}
-      weight={600}
-      levelWeight={700}
-      color={INK}
-      outline={PAPER}
-      outlineWidth={0.09}
-      levelColors={LEVEL_EDGE}
-      levelScale={1.7}
-      size={0.34}
-      opacity={1}
-    />
-  </>
-);
+/**
+ * Platforms and coordinates. Decorative only: Board draws this outside the
+ * clickable group. The level under the pointer (or of the held piece) is
+ * picked out: its sheet's edge turns to a bold band of its colour and its
+ * badge grows, while the other levels fade back.
+ */
+const Grid = ({ layout: l, orientation, focus }: GridProps) => {
+  const focusLevel = focusLevelOf(focus);
+  return (
+    <>
+      <AcrylicPlates washes={LEVEL_WASH} edges={LEVEL_EDGE} focusLevel={focusLevel} />
+      <KonturLabels
+        layout={l}
+        orientation={orientation}
+        font={FONT}
+        weight={600}
+        levelWeight={700}
+        color={INK}
+        outline={PAPER}
+        outlineWidth={0.09}
+        levelColors={LEVEL_EDGE}
+        levelScale={1.7}
+        size={0.34}
+        opacity={1}
+        focusLevel={focusLevel}
+      />
+    </>
+  );
+};
 
 const kontur: Design = {
   id: 'kontur',
@@ -107,6 +117,9 @@ const kontur: Design = {
       '--page-bg': PAPER,
       '--page-fg': INK,
     },
+    // "Cc4 · White Unicorn" under the turn chip: the piece key for a set of
+    // unfamiliar shapes, and the level of whatever the pointer is on
+    readout: true,
   },
 };
 

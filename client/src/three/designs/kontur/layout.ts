@@ -17,3 +17,12 @@ export const floorBelow = (y: number): number => {
   for (const level of frame.levelY) if (level <= y + 0.02) floor = level;
   return floor;
 };
+
+/** The level (0 = A) whose platform is nearest world height `y`. */
+export const levelAt = (y: number): number => {
+  let best = 0;
+  frame.levelY.forEach((level, z) => {
+    if (Math.abs(level - y) < Math.abs(frame.levelY[best] - y)) best = z;
+  });
+  return best;
+};

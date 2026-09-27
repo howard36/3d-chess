@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { BoxGeometry, Color, DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
+import { BoxGeometry, Color, DoubleSide, PlaneGeometry, ShaderMaterial, Vector2 } from 'three';
 import type { Group, Mesh } from 'three';
 import type { ReactNode } from 'react';
 import { LAYER } from '../kit/layers';
@@ -49,11 +49,18 @@ const fragment = /* glsl */ `
   uniform float uToothLen;
   uniform float uToothHalf;
   uniform float uHover;
+  uniform vec2 uDir;
+  uniform float uChevron;
   varying vec2 vP;
 
   float roundBox(vec2 p, float b, float r) {
     vec2 q = abs(p) - vec2(b - r);
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+  }
+  float segment(vec2 p, vec2 a, vec2 b) {
+    vec2 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h);
   }
   // Isosceles triangle, apex at the origin, base (half width q.x) at y = q.y
   float triangle(vec2 p, vec2 q) {
@@ -85,6 +92,17 @@ const fragment = /* glsl */ `
       shape = length(p) - uRadius;
       inside = shape;
       edge = uRadius;
+    }
+    if (uChevron > 0.0) {
+      // Two chevrons across the square, pointing the way the piece came in:
+      // one inside each side, so one is always in front of the piece
+      vec2 d = normalize(uDir);
+      vec2 r = vec2(dot(p, d), abs(dot(p, vec2(-d.y, d.x))));
+      float arm = uChevron * 0.6;
+      // Between the widest foot (0.21) and the square's stroke
+      float c1 = segment(r - vec2(uChevron * 2.64, 0.0), vec2(0.0), vec2(-arm, arm));
+      float c2 = segment(r - vec2(-uChevron * 1.72, 0.0), vec2(0.0), vec2(-arm, arm));
+      shape = min(shape, min(c1, c2) - uLine * 0.42);
     }
     if (uTeeth > 0.5) {
       // Four solid teeth from the middle of each side, pointing in
@@ -129,6 +147,12 @@ export interface MarkStyle {
   toothLength?: number;
   toothWidth?: number;
   hovered?: boolean;
+  /**
+   * Travel direction on the floor (world x, z): draws two chevrons pointing
+   * that way inside the square. Size of a chevron, 0 for none.
+   */
+  direction?: [number, number];
+  chevron?: number;
 }
 
 const plane = new PlaneGeometry(pitch, pitch);
@@ -148,6 +172,8 @@ export const Mark = ({
   toothLength = 0.15,
   toothWidth = 0.2,
   hovered = false,
+  direction,
+  chevron = 0,
   lift = 0.012,
 }: MarkStyle & { floor?: Vec3; lift?: number }) => {
   const material = useMemo(
@@ -173,6 +199,8 @@ export const Mark = ({
           uToothLen: { value: 0.15 },
           uToothHalf: { value: 0.1 },
           uHover: { value: 0 },
+          uDir: { value: new Vector2(1, 0) },
+          uChevron: { value: 0 },
         },
         vertexShader: vertex,
         fragmentShader: fragment,
@@ -196,6 +224,10 @@ export const Mark = ({
   u.uToothLen.value = toothLength * pitch;
   u.uToothHalf.value = (toothWidth / 2) * pitch;
   u.uHover.value = hovered ? 1 : 0;
+  // The plane lies flat with its local y along world -z
+  const travel = direction && Math.hypot(direction[0], direction[1]) > 1e-3;
+  u.uChevron.value = travel ? chevron * pitch : 0;
+  if (travel) (u.uDir.value as Vector2).set(direction[0], -direction[1]);
   return (
     <mesh
       geometry={plane}
@@ -248,8 +280,19 @@ const Quiet = ({ floor, hovered }: MarkerProps) => (
   <Mark floor={floor} {...QUIET} hovered={hovered} />
 );
 
+// The teeth stop short of the victim's base (every foot is under 0.21 in
+// radius), so the whole cue shows round the piece standing there
 const Capture = ({ floor, hovered }: MarkerProps) => (
-  <Mark floor={floor} {...QUIET} color={VERMILION} fill={0.1} teeth hovered={hovered} />
+  <Mark
+    floor={floor}
+    {...QUIET}
+    color={VERMILION}
+    fill={0.1}
+    teeth
+    toothLength={0.12}
+    toothWidth={0.2}
+    hovered={hovered}
+  />
 );
 
 const LAST: MarkStyle = {
@@ -263,27 +306,48 @@ const LAST: MarkStyle = {
 /** The move animation's length, so the destination's mark lands with the piece. */
 export const MOVE_MS = 380;
 
-const LastMove = ({ from, to }: LastMoveMarkerProps) => (
-  // Keyed by the move, so each new move stamps its marks afresh
-  <group key={`${from.floor.join()}>${to.floor.join()}`}>
-    <Mark floor={from.floor} {...LAST} fill={0} />
-    <Stamp at={to.floor} delayMs={MOVE_MS * 0.85}>
-      <Mark {...LAST} fill={0.14} />
-    </Stamp>
-    <LastMoveTrace
-      from={from.floor}
-      to={to.floor}
-      color={SIGNAL}
-      edgeColor={INK}
-      width={0.12}
-      headLength={0.34}
-      headWidth={0.42}
-      chevrons={0.34}
-      lift={0.05}
-      arc={0.5}
-    />
-  </group>
-);
+/**
+ * The last move. Board mounts it afresh for every move; a live move (`fresh`)
+ * draws its ribbon in from the source as the piece flies and stamps the
+ * destination's square down as it lands, while a replayed or rejoined game
+ * shows both at rest.
+ */
+const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => {
+  const arrival: MarkStyle = {
+    ...LAST,
+    fill: 0.14,
+    direction: [to.floor[0] - from.floor[0], to.floor[2] - from.floor[2]],
+    chevron: 0.125,
+  };
+  return (
+    <>
+      <Mark floor={from.floor} {...LAST} fill={0} />
+      {fresh ? (
+        <Stamp at={to.floor} delayMs={MOVE_MS * 0.85}>
+          <Mark {...arrival} />
+        </Stamp>
+      ) : (
+        <Mark floor={to.floor} {...arrival} />
+      )}
+      <LastMoveTrace
+        from={from.floor}
+        to={to.floor}
+        color={SIGNAL}
+        edgeColor={INK}
+        width={0.12}
+        headLength={0.36}
+        headWidth={0.44}
+        chevrons={0.34}
+        // The head ends low, on the near edge of the destination's square,
+        // clear of the piece standing in it
+        lift={0.03}
+        endInset={0.4}
+        arc={0.5}
+        drawInMs={fresh ? MOVE_MS : 0}
+      />
+    </>
+  );
+};
 
 const Check = ({ floor }: MarkerProps) => (
   <Mark
@@ -302,7 +366,7 @@ const Check = ({ floor }: MarkerProps) => (
 
 // The satellite: a small cobalt cube circling the held piece
 const satellite = withOutline(new BoxGeometry(0.085, 0.085, 0.085));
-const satelliteFill = toonMaterial('#5d86f0', COBALT, '#10318f');
+const satelliteFill = toonMaterial({ lit: '#5d86f0', mid: COBALT, shade: '#10318f' });
 const satelliteInk = inkMaterial(INK, 1.8);
 
 const Selection = ({ floor }: MarkerProps) => {
@@ -334,11 +398,12 @@ const Selection = ({ floor }: MarkerProps) => {
   return (
     <group position={floor}>
       <Stamp at={[0, 0, 0]} from={0.2} durationMs={240}>
-        <Mark shape="disc" color={COBALT} radius={0.37} border={0.02} opacity={0.9} />
+        {/* Well inside the square, so it never reads as a filled destination */}
+        <Mark shape="disc" color={COBALT} radius={0.28} border={0.02} opacity={0.9} />
       </Stamp>
       <group ref={pulse}>
         <group ref={pulseMark}>
-          <Mark shape="ring" color={COBALT} radius={0.37} line={0.03} opacity={0.8} />
+          <Mark shape="ring" color={COBALT} radius={0.28} line={0.03} opacity={0.8} />
         </group>
       </group>
       <group ref={orbit}>

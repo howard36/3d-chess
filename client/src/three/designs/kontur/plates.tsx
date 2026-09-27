@@ -1,7 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   AddEquation,
-  BoxGeometry,
   Color,
   CustomBlending,
   DoubleSide,
@@ -10,9 +9,10 @@ import {
   SrcColorFactor,
   ZeroFactor,
 } from 'three';
-import type { BufferGeometry } from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Mesh } from 'three';
+import { useLevelFocus } from '../kit/focus';
 import { LAYER } from '../kit/layers';
+import { frameGeometry } from '../kit/plates';
 import { noRaycast } from '../kit/noRaycast';
 import { frame } from './layout';
 import { INK } from './palette';
@@ -73,10 +73,10 @@ const surfaceFragment = /* glsl */ `
   }`;
 
 const edgeVertex = /* glsl */ `
-  varying float vY;
+  varying vec3 vP;
   varying float vUp;
   void main() {
-    vY = position.y;
+    vP = position;
     vUp = normal.y;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
@@ -87,32 +87,57 @@ const edgeFragment = /* glsl */ `
   uniform float uThickness;
   uniform float uHairline;
   uniform float uOpacity;
-  varying float vY;
+  uniform float uInner;
+  uniform float uWidth;
+  uniform float uTopInk;
+  varying vec3 vP;
   varying float vUp;
   void main() {
-    // Top and bottom faces are ink; the cut face is the level's colour
-    // between ink hairlines at its top and bottom
-    float aa = max(fwidth(vY), 1e-4);
-    float top = smoothstep(-uHairline - aa, -uHairline + aa, vY);
-    float bottom = 1.0 - smoothstep(-uThickness + uHairline - aa, -uThickness + uHairline + aa, vY);
-    float ink = max(max(top, bottom), step(0.5, abs(vUp)));
+    // The cut face is the level's colour between ink hairlines at its top
+    // and bottom. The top face is ink, or (the focused edge) the level's
+    // colour between ink hairlines along its inner and outer borders.
+    float aa = max(fwidth(vP.y), 1e-4);
+    float top = smoothstep(-uHairline - aa, -uHairline + aa, vP.y);
+    float bottom = 1.0 - smoothstep(-uThickness + uHairline - aa, -uThickness + uHairline + aa, vP.y);
+    float across = max(abs(vP.x), abs(vP.z)) - uInner;
+    float ab = max(fwidth(across), 1e-4);
+    float rims = max(
+      1.0 - smoothstep(uHairline - ab, uHairline + ab, across),
+      smoothstep(uWidth - uHairline - ab, uWidth - uHairline + ab, across)
+    );
+    float face = step(0.5, abs(vUp));
+    float ink = mix(max(top, bottom), max(uTopInk, rims), face);
     gl_FragColor = vec4(mix(uColor, uInk, ink), uOpacity);
     #include <colorspace_fragment>
   }`;
 
-/** A square frame of four bars around a platform, its top flush with the surface. */
-const frameGeometry = (inner: number, width: number, height: number): BufferGeometry => {
-  const outer = inner + width;
-  const bars = [
-    new BoxGeometry(outer * 2, height, width).translate(0, -height / 2, inner + width / 2),
-    new BoxGeometry(outer * 2, height, width).translate(0, -height / 2, -inner - width / 2),
-    new BoxGeometry(width, height, inner * 2).translate(inner + width / 2, -height / 2, 0),
-    new BoxGeometry(width, height, inner * 2).translate(-inner - width / 2, -height / 2, 0),
-  ];
-  const merged = mergeGeometries(bars);
-  bars.forEach((b) => b.dispose());
-  return merged;
-};
+const edgeMaterial = (
+  color: string,
+  o: {
+    thickness: number;
+    hairline: number;
+    opacity: number;
+    inner: number;
+    width: number;
+    topInk: boolean;
+  },
+) =>
+  new ShaderMaterial({
+    uniforms: {
+      uColor: { value: new Color(color) },
+      uInk: { value: new Color(INK) },
+      uThickness: { value: o.thickness },
+      uHairline: { value: o.hairline },
+      uOpacity: { value: o.opacity },
+      uInner: { value: o.inner },
+      uWidth: { value: o.width },
+      uTopInk: { value: o.topInk ? 1 : 0 },
+    },
+    vertexShader: edgeVertex,
+    fragmentShader: edgeFragment,
+    transparent: true,
+    depthWrite: false,
+  });
 
 export interface AcrylicPlatesProps {
   /** Pale filter colours, A to E: what each sheet passes at full strength. */
@@ -134,34 +159,54 @@ export interface AcrylicPlatesProps {
   /** How far the slab reaches past its outer squares. */
   margin?: number;
   edgeOpacity?: number;
+  /**
+   * The level to emphasise (focusLevelOf(GridProps.focus)): its edge becomes
+   * a bold band of its colour, wider and deeper, and its fill deepens a
+   * little, while the other levels' edges fade back. Eased over `focusMs`.
+   */
+  focusLevel?: number | null;
+  /** Width of the focused edge's top face. */
+  focusRim?: number;
+  /** The other levels' edges keep this share of their opacity. */
+  focusDim?: number;
+  /** Extra fill strength on the focused level, as a fraction. */
+  focusFill?: number;
+  focusMs?: number;
 }
 
 export const AcrylicPlates = ({
   washes,
   edges,
-  strength = 0.15,
-  dark = 0.7,
+  strength = 0.1,
+  dark = 0.55,
   grazing = 0.8,
   thickness = 0.065,
   rim = 0.03,
   hairline = 0.014,
   margin = 0.05,
   edgeOpacity = 0.95,
+  focusLevel = null,
+  focusRim = 0.085,
+  focusDim = 0.6,
+  focusFill = 0.6,
+  focusMs = 150,
 }: AcrylicPlatesProps) => {
   const side = frame.half + margin;
-  const { surface, edge } = useMemo(
+  const { surface, edge, focusEdge } = useMemo(
     () => ({
       surface: new PlaneGeometry(side * 2, side * 2),
       edge: frameGeometry(side, rim, thickness),
+      focusEdge: frameGeometry(side, focusRim, thickness * 1.5),
     }),
-    [side, rim, thickness],
+    [side, rim, focusRim, thickness],
   );
   useEffect(
     () => () => {
       surface.dispose();
       edge.dispose();
+      focusEdge.dispose();
     },
-    [surface, edge],
+    [surface, edge, focusEdge],
   );
   // The checker is laid on the squares only; uv 0..1 spans the margin too,
   // so the squares' uv is rescaled from the slab's
@@ -194,29 +239,62 @@ export const AcrylicPlates = ({
           blendSrc: ZeroFactor,
           blendDst: SrcColorFactor,
         }),
-        edge: new ShaderMaterial({
-          uniforms: {
-            uColor: { value: new Color(edgeKey.split(',')[z]) },
-            uInk: { value: new Color(INK) },
-            uThickness: { value: thickness },
-            uHairline: { value: hairline },
-            uOpacity: { value: edgeOpacity },
-          },
-          vertexShader: edgeVertex,
-          fragmentShader: edgeFragment,
-          transparent: true,
-          depthWrite: false,
+        edge: edgeMaterial(edgeKey.split(',')[z], {
+          thickness,
+          hairline,
+          opacity: edgeOpacity,
+          inner: side,
+          width: rim,
+          topInk: true,
+        }),
+        focus: edgeMaterial(edgeKey.split(',')[z], {
+          thickness: thickness * 1.5,
+          hairline,
+          opacity: 0,
+          inner: side,
+          width: focusRim,
+          topInk: false,
         }),
       })),
-    [washKey, edgeKey, strength, dark, grazing, thickness, hairline, edgeOpacity, squares],
+    [
+      washKey,
+      edgeKey,
+      strength,
+      dark,
+      grazing,
+      thickness,
+      hairline,
+      edgeOpacity,
+      squares,
+      side,
+      rim,
+      focusRim,
+    ],
   );
   useEffect(
     () => () =>
       materials.forEach((m) => {
         m.surface.dispose();
         m.edge.dispose();
+        m.focus.dispose();
       }),
     [materials],
+  );
+  const focusMeshes = useRef<(Mesh | null)[]>([]);
+  useLevelFocus(
+    focusLevel,
+    (weights, any) => {
+      weights.forEach((w, z) => {
+        const m = materials[z];
+        if (!m) return;
+        m.surface.uniforms.uStrength.value = strength * (1 + focusFill * w);
+        m.edge.uniforms.uOpacity.value = edgeOpacity * (1 - any * (1 - focusDim) * (1 - w));
+        m.focus.uniforms.uOpacity.value = w;
+        const mesh = focusMeshes.current[z];
+        if (mesh) mesh.visible = w > 0.002;
+      });
+    },
+    { levels: frame.levelY.length, ms: focusMs, key: materials },
   );
   return (
     <group name="acrylic-plates">
@@ -234,6 +312,16 @@ export const AcrylicPlates = ({
             geometry={edge}
             material={materials[z].edge}
             renderOrder={LAYER.plateEdge}
+            raycast={noRaycast}
+          />
+          <mesh
+            ref={(m) => {
+              focusMeshes.current[z] = m;
+            }}
+            geometry={focusEdge}
+            material={materials[z].focus}
+            renderOrder={LAYER.plateEdge}
+            visible={false}
             raycast={noRaycast}
           />
         </group>

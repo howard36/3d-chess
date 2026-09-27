@@ -4,9 +4,11 @@
 // - The white army is brighter and cooler than the paper (L* 76-100) and is
 //   always drawn with an ink contour, so it never melts into the page.
 // - The black army is charcoal (L* 7-38), far below everything else.
-// - The platforms are translucent filters in a cool sequence (green, teal,
-//   steel, violet, magenta, A to E) that multiply what lies behind them, so a
-//   piece seen through a stack keeps its contrast with its surroundings.
+// - The platforms are faint translucent filters (green, teal, azure, violet,
+//   rose, A to E) that multiply what lies behind them, so a piece seen
+//   through a stack keeps its contrast with its surroundings; the level's
+//   colour at full strength is on the sheet's edge, its badge and the feet
+//   of the pieces standing on it.
 // - The three Bauhaus primaries are reserved for information and appear
 //   nowhere else: cobalt for where the selected piece can go, vermilion for
 //   captures and check, signal yellow (edged in ink) for the last move.
@@ -37,10 +39,26 @@ export const COBALT = '#1d4fd8';
 export const VERMILION = '#e5391f';
 export const SIGNAL = '#ffc414';
 
-/** Saturated level colours, A (bottom) to E: platform edges and level letters. */
-export const LEVEL_EDGE = ['#2e9a62', '#11919e', '#55739b', '#7550c6', '#b3418f'];
-/** Pale level washes: what each platform's filter passes at full strength. */
-export const LEVEL_WASH = ['#8fd0a8', '#86ccd3', '#b1c1d8', '#bca9ea', '#e6a7d1'];
+// The level ramp: five hues evenly spaced round the OKLCH wheel (150°, 198°,
+// 246°, 294°, 342°: green, teal, azure, violet, rose) at one lightness and
+// one chroma, so no level is louder or duller than another. It sits apart
+// from the information hues (cobalt 264° is darker and twice as saturated,
+// vermilion 32°, yellow 86°), and is carried at full strength by the sheets'
+// cut edges, the level badges and the pieces' feet; the sheets' fill is a
+// faint wash of it.
+
+/** Level colours, A (bottom) to E: sheet edges, level badges. OKLCH L 0.61, C 0.102. */
+export const LEVEL_EDGE = ['#539462', '#0c9599', '#4b89bd', '#8777ba', '#ad6a94'];
+/** Pale level washes: what each sheet's filter passes at full strength. OKLCH L 0.9, C 0.045. */
+export const LEVEL_WASH = ['#cae7cf', '#bce8e9', '#c6e2fb', '#dfd9fa', '#f4d3e6'];
+/** The pieces' feet, three flat tones per level (OKLCH L 0.75 / 0.61 / 0.45). */
+export const LEVEL_FOOT = [
+  { lit: '#8fbb97', mid: '#539462', shade: '#31623d' },
+  { lit: '#77bcbe', mid: '#0c9599', shade: '#006265' },
+  { lit: '#8ab3d8', mid: '#4b89bd', shade: '#2c597f' },
+  { lit: '#b0a6d7', mid: '#8777ba', shade: '#584c7d' },
+  { lit: '#ce9dba', mid: '#ad6a94', shade: '#734362' },
+];
 
 /** The warm dark of shadows on paper. */
 export const SHADOW = '#2b241c';
