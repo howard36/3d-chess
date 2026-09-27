@@ -2,9 +2,10 @@ import type { DesignEntry, DesignGroup } from './types';
 
 /** The picker's sections, in the order it shows them, with their headings. */
 export const DESIGN_GROUPS: { id: DesignGroup; label: string }[] = [
-  { id: 'clarity', label: 'Clarity' },
+  { id: 'round3', label: 'Round 3' },
+  { id: 'clarity', label: 'Round 2' },
   { id: 'classic', label: 'Classic' },
-  { id: 'earlier', label: 'Earlier concepts' },
+  { id: 'earlier', label: 'Round 1' },
 ];
 
 export interface PickerSection {

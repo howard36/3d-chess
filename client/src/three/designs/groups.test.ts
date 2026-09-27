@@ -28,7 +28,7 @@ describe('pickerSections', () => {
       ['royal', 'zen'],
     ]);
     // Classic alone under "Classic" needs no heading
-    expect(sections.map((s) => s.label)).toEqual(['Clarity', null, 'Earlier concepts']);
+    expect(sections.map((s) => s.label)).toEqual(['Round 2', null, 'Round 1']);
   });
 
   it('leaves hidden designs and empty groups out, and puts ungrouped ones last', () => {
