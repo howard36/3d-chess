@@ -3,9 +3,16 @@ import { act } from 'react';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
 import { Vector3 } from 'three';
-import type { Group } from 'three';
+import type { Group, Mesh } from 'three';
 import { MoveGlide } from './moveAnimation';
-import { LIFT_DEFAULTS, Lift, pieceLift, SELECTION_BOB, Topple } from './designs/kit/motion';
+import {
+  FLOOR_DECAL,
+  LIFT_DEFAULTS,
+  Lift,
+  pieceLift,
+  SELECTION_BOB,
+  Topple,
+} from './designs/kit/motion';
 import type { DesignMotion } from './designs/types';
 
 type Vec = { x: number; y: number; z: number };
@@ -166,5 +173,29 @@ describe('Lift and Topple', () => {
     pivot.localToWorld(top);
     expect(top.x).toBeGreaterThan(0.8);
     expect(Math.abs(top.z)).toBeLessThan(0.3);
+  });
+
+  it('hides the base decoration of a fallen king, and brings it back when it stands', async () => {
+    const King = ({ down }: { down: boolean }) => (
+      <Topple active={down}>
+        <mesh name="body" />
+        <mesh name="ring" userData={FLOOR_DECAL} />
+      </Topple>
+    );
+    const renderer = await ReactThreeTestRenderer.create(<King down={false} />);
+    const find = (name: string) =>
+      (renderer.scene as ReactThreeTestInstance).find((n) => n.props.name === name)
+        .instance as unknown as Mesh;
+    await act(async () => renderer.advanceFrames(2, 0.03));
+    expect(find('ring').visible).toBe(true);
+
+    await act(async () => renderer.update(<King down />));
+    await act(async () => renderer.advanceFrames(40, 0.03));
+    expect(find('ring').visible).toBe(false);
+    expect(find('body').visible).toBe(true);
+
+    await act(async () => renderer.update(<King down={false} />));
+    await act(async () => renderer.advanceFrames(2, 0.03));
+    expect(find('ring').visible).toBe(true);
   });
 });

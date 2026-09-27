@@ -285,7 +285,10 @@ to copy (hidden from the picker; open it with `?design=kit-demo`).
   two-tone checker coloured by x + y + z (so a bishop keeps its colour through the levels),
   a crisp perimeter edge and nothing else; optional per-level tints colour-code the levels.
   `ContactShadow` goes in a design's PieceBody, under the piece, to show which platform it
-  stands on. `frameGeometry` builds the perimeter frame for designs drawing their own plates.
+  stands on. It and `LevelFootprint` carry `FLOOR_DECAL` (`kit/motion.tsx`), so `Topple`
+  hides them while a mated king lies on its side instead of standing them up with it; spread
+  it onto a design's own base discs as `userData`. `frameGeometry` builds the perimeter
+  frame for designs drawing their own plates.
 - **Markers** (`kit/markers.tsx`): flat on the platform where a piece stands, never floating
   in the cell. `FloorMarker` draws an inset rounded square, corner brackets, a ring or a
   dot; `capture` adds a tint and four ticks to the same shape (inward on a square; on a

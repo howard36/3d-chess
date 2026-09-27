@@ -17,6 +17,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { GRID_SIZE } from '../../layout';
 import { useLevelFocus } from './focus';
 import { LAYER } from './layers';
+import { FLOOR_DECAL } from './motion';
 import { towerFrame } from './layouts';
 import { noRaycast } from './noRaycast';
 import type { BoardLayout } from '../types';
@@ -328,6 +329,7 @@ export const ContactShadow = ({
       scale={[radius * 2, 1, radius * 2]}
       renderOrder={LAYER.shadow}
       raycast={noRaycast}
+      userData={FLOOR_DECAL}
     />
   );
 };
@@ -382,6 +384,7 @@ export const LevelFootprint = ({
       position={[0, 0.006, 0]}
       renderOrder={LAYER.shadow}
       raycast={noRaycast}
+      userData={FLOOR_DECAL}
     />
   );
 };

@@ -1,8 +1,21 @@
 import React, { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Quaternion, Vector3 } from 'three';
-import type { Group } from 'three';
+import type { Group, Object3D } from 'three';
 import type { PieceLift } from '../types';
+
+/**
+ * userData for decoration lying on the floor at a piece's base (a contact
+ * shadow, a level ring): Topple hides it while the king is down, so it
+ * doesn't stand up on edge with the fallen piece. The kit's ContactShadow and
+ * LevelFootprint carry it; spread it onto a design's own base discs.
+ */
+export const FLOOR_DECAL = { floorDecal: true } as const;
+
+const showFloorDecals = (root: Object3D | null, show: boolean) =>
+  root?.traverse((o) => {
+    if (o.userData.floorDecal) o.visible = show;
+  });
 
 /** Board's piece lift (Design.hoverLift) when a design just says `true`. */
 export const LIFT_DEFAULTS: Required<PieceLift> = { hover: 0.08, selected: 0.2, bob: 0 };
@@ -75,6 +88,7 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
   const pivot = useRef<Group>(null);
   const elapsed = useRef(0);
   const aimed = useRef(false);
+  const decalsHidden = useRef(false);
   const invalidate = useThree((s) => s.invalidate);
 
   useEffect(() => {
@@ -90,6 +104,10 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
     if (!active) {
       g.rotation.x = 0;
       h.rotation.y = 0;
+      if (decalsHidden.current) {
+        showFloorDecals(g, true);
+        decalsHidden.current = false;
+      }
       return;
     }
     if (!aimed.current) {
@@ -110,6 +128,12 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
     // Accelerating fall, then a damped rebound off the floor
     const fall = t < 0.55 ? (t / 0.55) ** 2 : 1 - Math.sin((t - 0.55) * 14) * 0.06 * (1 - t);
     g.rotation.x = -1.42 * fall;
+    // Once it tips, what lay flat at its base would stand up with it (every
+    // frame, in case the body remounts a disc while the king is down)
+    if (fall > 0.05) {
+      showFloorDecals(g, false);
+      decalsHidden.current = true;
+    }
     if (t < 1) invalidate();
   });
 
