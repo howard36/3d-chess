@@ -54,7 +54,10 @@
 // top-down view only.
 // --poses "az,el;az,el" replaces the 12 poses: az in degrees round from the
 // seat's opening view, el the elevation in degrees (orbit limits apply),
-// e.g. --poses "0,18;180,18;0,45".
+// e.g. --poses "0,18;180,18;0,45". --select-white Bc2 and --select-black Db4
+// choose the piece each seat selects instead of one the rules engine picks;
+// it must be that side's piece at that point in the scripted game (the
+// selection is shot from the third ply on).
 
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
@@ -706,6 +709,8 @@ async function review(seats) {
       } catch (e) {
         console.log(`no rules engine in the page (${e.message.split('\n')[0]}); skipping`);
       }
+      const forced = opt(`select-${seat}`);
+      if (forced) candidates = [{ zxy: forced, quiet: '?', capture: '?' }];
       for (const { zxy, quiet, capture } of candidates) {
         await page.evaluate(() => window.__show.settle(2, 1000 / 30));
         const at = await page.evaluate((z) => window.__show.pixelFor(z, 'piece'), zxy);
@@ -845,6 +850,8 @@ async function main() {
   const [pageA, pageB] = await Promise.all(contexts.map((c) => c.newPage()));
   for (const p of [pageA, pageB]) {
     p.on('pageerror', (e) => console.error(`[page] ${e.message}`));
+    // A loaded machine can take well over Playwright's 30 s to start a game
+    p.setDefaultTimeout(120000);
   }
 
   await pageA.goto(`${BASE}/?${SETTINGS}`);
