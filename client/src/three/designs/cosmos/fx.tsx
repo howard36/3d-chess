@@ -228,7 +228,7 @@ const easeOut = (k: number) => 1 - (1 - Math.min(Math.max(k, 0), 1)) ** 3;
 /**
  * The taken piece heats as the attacker streaks in, flares white and
  * collapses, then goes supernova: a flash, a shockwave ring racing out
- * through its rank, a glowing shell and a spray of star-stuff.
+ * through its level, a glowing shell and a spray of star-stuff.
  */
 export const Supernova = ({
   floor,

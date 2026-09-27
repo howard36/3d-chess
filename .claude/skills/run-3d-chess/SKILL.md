@@ -6,7 +6,7 @@ description: Run and drive the 3D chess app — play moves on the board, screens
 A 5×5×5 3D-chess web app: Vite/React/three.js client plus a FastAPI
 WebSocket relay. The board is a WebGL canvas, so it is driven through
 Playwright with helpers in `client/e2e/helpers/` that click squares by
-ZXY notation (e.g. `Ab2`) by projecting through the live camera.
+ZXY notation (e.g. `Bb1`) by projecting through the live camera.
 Playwright's `webServer` config boots both the backend and Vite for
 you; nothing needs to be running first.
 
@@ -28,7 +28,7 @@ normal dev machine with browsers installed, omit it.
 ## Play moves and screenshot (most tasks)
 
 ```bash
-DRIVE_MOVES="Ab2-Ab3 Ed4-Ed3 Ab3-Ab4" npx playwright test drive
+DRIVE_MOVES="Bb1-Cb1 Dd5-Cd5 Cb1-Db1" npx playwright test drive
 ```
 
 `e2e/drive.spec.ts` creates a game, seats two players, plays the moves
@@ -55,9 +55,9 @@ import { clickSquare } from './helpers/board';
 
 test('inspect', async ({ browser }) => {
   const game = await startGame(browser);          // { white, black, play, screenshot, ... }
-  await game.playAll(['Ab2-Ab3', 'Ed4-Ed3']);
-  await clickSquare(game.white, 'Aa1', 'white');  // select only: shows legal-move dots
-  await game.screenshot('rook-selected');
+  await game.playAll(['Bb1-Cb1', 'Dd5-Cd5']);
+  await clickSquare(game.white, 'Ab1', 'white');  // select only: shows legal-move dots
+  await game.screenshot('knight-selected');
 
   // Orbit and zoom: left-drag on empty canvas (a click never counts as a drag).
   await game.white.mouse.move(1000, 550);
@@ -78,7 +78,7 @@ test('inspect', async ({ browser }) => {
 |---|---|
 | `white`, `black`, `page(seat)` | the Playwright page holding each seat (the creator's colour is random; this is already resolved) |
 | `play(from, to)` | select, wait for the destination to become legal, click, wait for both clients to flip the turn |
-| `playAll([...])` | `play` in sequence; items are `'Ab2-Ab3'` or `['Ab2','Ab3']` |
+| `playAll([...])` | `play` in sequence; items are `'Bb1-Cb1'` or `['Bb1','Cb1']` |
 | `turn()` | `'white'` or `'black'` from the turn indicator |
 | `screenshot(name, seat?)` | writes `test-results/<name>.png` from that seat's view |
 

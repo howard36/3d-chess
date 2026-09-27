@@ -50,15 +50,15 @@ const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 const GAME = (
   opt('moves') ??
   [
-    'Bb1-Ee4 Dd5-Aa2', // unicorns trade pawns across the whole cube
-    'Bc1-Dc3 Dc4-Cc4',
-    'Bd1-Ed4 Dc5-Ed4', // bishop takes with check; the queen takes back
-    'Aa1-Aa2 Ed4-Cb4', // rook takes the unicorn
-    'Dc3-Cb4 Db4-Db3', // queen trade
-    'Ad1-Bd3 Cc4-Cc3',
-    'Ba1-Ea4 Db5-Bd5',
-    'Ea4-Db4 Bd5-Bb3',
-    'Cb4-Dc5', // mate
+    'Ab2-De5 Ed4-Ba1', // unicorns trade pawns across the whole cube
+    'Ac2-Cc4 Dc4-Dc3',
+    'Ad2-Dd5 Ec4-Dd5', // bishop takes with check; the queen takes back
+    'Aa1-Ba1 Dd5-Db3', // rook takes the unicorn
+    'Cc4-Db3 Db4-Cb4', // queen trade
+    'Ad1-Cd2 Dc3-Cc3',
+    'Aa2-Da5 Eb4-Ed2',
+    'Da5-Db4 Ed2-Cb2',
+    'Db3-Ec4', // mate
   ].join(' ')
 )
   .split(/\s+/)

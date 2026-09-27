@@ -6,8 +6,8 @@ import { noRaycast } from '../kit/noRaycast';
 import type { BoardLayout, Vec3 } from '../types';
 
 // Coordinates as a draughtsman letters them: files and ranks in item
-// balloons (circles) along the near edges, levels in hexagon tags along the
-// edge that recedes into the drawing.
+// balloons (circles) along the near bottom edge and the edge that recedes
+// into the drawing, levels in hexagon tags up the near left edge.
 
 const draw = (text: string, font: string, ink: string, hex: boolean) => {
   const s = 128;
@@ -71,8 +71,8 @@ export const DraftLabels = ({
     const out: { text: string; at: Vec3; level: boolean }[] = [];
     for (let i = 0; i < 5; i++) {
       out.push({ text: FILES[i], at: [w(i, 0, 0)[0], -hy - 0.38, hz], level: false });
-      out.push({ text: RANKS[i], at: [-hx - 0.38, w(0, i, 0)[1] - 0.1, hz], level: false });
-      out.push({ text: LEVELS[i], at: [hx + 0.42, -hy - 0.12, w(0, 0, i)[2]], level: true });
+      out.push({ text: LEVELS[i], at: [-hx - 0.38, w(0, 0, i)[1] - 0.1, hz], level: true });
+      out.push({ text: RANKS[i], at: [hx + 0.42, -hy - 0.12, w(0, i, 0)[2]], level: false });
     }
     return out.map((l) => ({ ...l, texture: draw(l.text, font, ink, l.level) }));
   }, [ready, layout, orientation, font, ink]);

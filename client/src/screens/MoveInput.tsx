@@ -12,7 +12,7 @@ export interface MoveInputProps {
 }
 
 /**
- * Plays a move typed as text ("Ab2-Ab3", "=Q" to promote). The board itself
+ * Plays a move typed as text ("Bb1-Cb1", "=Q" to promote). The board itself
  * only takes pointer input, so this is how a keyboard-only or screen-reader
  * player makes a move; it also suits anyone who reads moves off the list.
  */
@@ -55,7 +55,7 @@ const MoveInput: React.FC<MoveInputProps> = ({ board, color, canMove, onMove }) 
       }}
     >
       <label htmlFor="typed-move" style={{ display: 'block', marginBottom: 4, opacity: 0.85 }}>
-        Type a move (e.g. Ab2-Ab3)
+        Type a move (e.g. Bb1-Cb1)
       </label>
       <div style={{ display: 'flex', gap: 6 }}>
         <input

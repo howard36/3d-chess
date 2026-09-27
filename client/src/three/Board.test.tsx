@@ -107,8 +107,9 @@ function rowLeftToRight(
     .map((node) => node.props.userData.piece.type as PieceType);
 }
 
-// A white pawn on level B (z=1) of the starting position: it can step
-// forward or up, so it has exactly two legal moves.
+// A white pawn on level B, rank 2 (Ba2) of the starting position: it can
+// step forward or up, so it has exactly two legal moves. (Its neighbour on
+// rank 1 is blocked forward by it.)
 const LEVEL_B_PAWN: Coord = { x: 0, y: 1, z: 1 };
 
 describe('Board', () => {
@@ -261,7 +262,7 @@ describe('Board', () => {
     const highlighted = highlightedCells(renderer);
     expect(highlighted).toHaveLength(2);
     expect(
-      highlighted.some((c) => sameVec(c.props.position, toWorld({ x: 1, y: 2, z: 1 }, 'white'))),
+      highlighted.some((c) => sameVec(c.props.position, toWorld({ x: 1, y: 1, z: 2 }, 'white'))),
     ).toBe(true);
     expect(selectionRings(renderer)).toHaveLength(1);
   });
@@ -337,9 +338,9 @@ describe('Board', () => {
     );
     await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
 
-    const forward: Coord = { x: 0, y: 2, z: 1 };
+    const up: Coord = { x: 0, y: 1, z: 2 };
     const dest = highlightedCells(renderer).find((c) =>
-      sameVec(c.props.position, toWorld(forward, 'white')),
+      sameVec(c.props.position, toWorld(up, 'white')),
     )!;
     expect(dest).toBeDefined();
     await press(dest);
@@ -347,7 +348,7 @@ describe('Board', () => {
     expect(onMove).toHaveBeenCalledTimes(1);
     expect(onMove.mock.calls[0][0]).toEqual({
       from: LEVEL_B_PAWN,
-      to: forward,
+      to: up,
       promotion: undefined,
     });
     // The board itself does not apply the move (state is event-sourced by the
@@ -464,8 +465,8 @@ describe('Board', () => {
   });
 
   // The viewing player's own army must read the same way for both colours:
-  // back rank on the bottom slab, pawns on the slab above it, both occupying
-  // the two layers nearest the camera (which looks down the +Z axis).
+  // pieces on the bottom level, pawns on the level above it, both occupying
+  // the two ranks nearest the camera (which looks down the +Z axis).
   describe.each([
     { playerColor: 'white' as const, opponent: 'black' as const },
     { playerColor: 'black' as const, opponent: 'white' as const },
@@ -494,9 +495,9 @@ describe('Board', () => {
     });
 
     // Black's army is White's inverted through the centre, files included, so
-    // only a file-mirrored view shows both players their own back ranks in the
-    // same order. Without the mirror Black would read U B Q U B here.
-    it("lays out the player's own back ranks the same way for both colours", async () => {
+    // only a file-mirrored view shows both players their own piece ranks in
+    // the same order. Without the mirror Black would read U B Q U B here.
+    it("lays out the player's own piece ranks the same way for both colours", async () => {
       const renderer = await ReactThreeTestRenderer.create(
         <Board board={createTestBoard()} currentTurn="white" playerColor={playerColor} />,
       );

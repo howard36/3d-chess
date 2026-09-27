@@ -47,7 +47,7 @@ import { drawPoster, FONT } from './poster';
 // cobalt primitives with ink outlines. Everything is flat colour.
 
 // Near-orthographic, from a little right of centre and above: a view that
-// keeps the pieces on the second level clear of the first level's.
+// keeps the pieces on the second rank clear of the first rank's.
 const SPACING = 1.25;
 const lattice = latticeLayout(SPACING);
 const layout = {

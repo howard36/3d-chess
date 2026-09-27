@@ -52,7 +52,7 @@ const YELLOW = '#ffe23d';
 const PINK = '#ff3fb4';
 const CYAN = '#2ee6ff';
 const RED = '#ff3355';
-// One neon per level, near (A) to far (E): the depth reads as colour.
+// One neon per level, A to E: each layer of the cube glows its own colour.
 const LEVEL_COLORS = ['#39ff88', '#2ef5c8', '#2ee6ff', '#3da0ff', '#7b7dff'];
 
 /** Colour boosted past 1, so the bloom picks it up. */
@@ -114,27 +114,26 @@ const floorLines = (orientation: Orientation) => {
   return g;
 };
 
-// A frame round each level's slice of the cube, like the layers of a
-// parallax backdrop.
+// A frame round each level's floor, like the decks of a stacked playfield.
 const levelFrames = (orientation: Orientation) => {
   const pos: number[] = [];
   const col: number[] = [];
   const c = new Color();
   const x0 = HX - 0.05;
-  const y0 = HY - 0.05;
+  const z0 = HZ - 0.05;
   for (let level = 0; level < 5; level++) {
-    const [, , z] = layout.toWorld({ x: 0, y: 0, z: level }, orientation);
+    const y = layout.toWorld({ x: 0, y: 0, z: level }, orientation)[1] + layout.floorY + 0.001;
     c.set(LEVEL_COLORS[level]);
     const corners = [
-      [-x0, -y0],
-      [x0, -y0],
-      [x0, y0],
-      [-x0, y0],
+      [-x0, -z0],
+      [x0, -z0],
+      [x0, z0],
+      [-x0, z0],
     ];
     for (let i = 0; i < 4; i++) {
-      const [ax, ay] = corners[i];
-      const [bx, by] = corners[(i + 1) % 4];
-      pos.push(ax, ay, z, bx, by, z);
+      const [ax, az] = corners[i];
+      const [bx, bz] = corners[(i + 1) % 4];
+      pos.push(ax, y, az, bx, y, bz);
       col.push(c.r, c.g, c.b, c.r, c.g, c.b);
     }
   }

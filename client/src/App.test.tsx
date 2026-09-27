@@ -52,7 +52,7 @@ vi.mock('./three/Board', () => ({
       <button
         data-testid="board"
         disabled={disabled}
-        onClick={() => onMove?.({ from: { x: 0, y: 1, z: 0 }, to: { x: 0, y: 2, z: 0 } })}
+        onClick={() => onMove?.({ from: { x: 0, y: 0, z: 1 }, to: { x: 0, y: 0, z: 2 } })}
       >
         board
       </button>
@@ -62,7 +62,7 @@ vi.mock('./three/Board', () => ({
         onClick={() =>
           onChoosePromotion?.(
             [PieceType.Queen, PieceType.Rook, PieceType.Unicorn].map((promotion) => ({
-              from: { x: 2, y: 3, z: 4 },
+              from: { x: 2, y: 4, z: 3 },
               to: { x: 2, y: 4, z: 4 },
               promotion,
             })),
@@ -325,7 +325,7 @@ test('GameScreen restores a started game from game_state', () => {
         type: 'game_state',
         color: 'white',
         started: true,
-        moves: [{ by: 'white', from: 'Aa2', to: 'Aa3' }],
+        moves: [{ by: 'white', from: 'Ba1', to: 'Ca1' }],
       },
     ]),
   );
@@ -401,9 +401,9 @@ test('GameScreen freezes at the last good position when history has an unplayabl
         type: 'game_state',
         color: 'white',
         started: true,
-        // Aa3 is empty in the starting position: no client version could have
+        // Ca1 is empty in the starting position: no client version could have
         // made this move, so replay must stop instead of throwing mid-render.
-        moves: [{ by: 'white', from: 'Aa3', to: 'Aa4' }],
+        moves: [{ by: 'white', from: 'Ca1', to: 'Da1' }],
       },
     ]),
   );
@@ -426,9 +426,9 @@ test('GameScreen freezes before a recorded king capture instead of crashing', ()
         // position after it has no black king to test for check, which used
         // to throw from the game-over check and white-screen the page.
         moves: [
-          { by: 'white', from: 'Aa2', to: 'Aa3' },
-          { by: 'black', from: 'Ed4', to: 'Ed3' },
-          { by: 'white', from: 'Bc1', to: 'Ec5' },
+          { by: 'white', from: 'Ba1', to: 'Ca1' },
+          { by: 'black', from: 'Dd5', to: 'Cd5' },
+          { by: 'white', from: 'Ac2', to: 'Ec5' },
         ],
       },
     ]),
@@ -436,7 +436,7 @@ test('GameScreen freezes before a recorded king capture instead of crashing', ()
   expect(screen.getByRole('alert')).toHaveTextContent(/Move 3 in this game's history/);
   expect(screen.getByTestId('turn-indicator')).toHaveTextContent('White to move');
   // The record itself is still listed in full
-  expect(screen.getByTestId('move-list')).toHaveTextContent('Bc1–Ec5');
+  expect(screen.getByTestId('move-list')).toHaveTextContent('Ac2–Ec5');
 });
 
 test('GameScreen lists played moves in wire notation', () => {
@@ -449,16 +449,16 @@ test('GameScreen lists played moves in wire notation', () => {
         color: 'white',
         started: true,
         moves: [
-          { by: 'white', from: 'Ab2', to: 'Ab3' },
-          { by: 'black', from: 'Ed4', to: 'Ed3' },
+          { by: 'white', from: 'Bb1', to: 'Cb1' },
+          { by: 'black', from: 'Dd5', to: 'Cd5' },
         ],
       },
     ]),
   );
   const list = screen.getByTestId('move-list');
   expect(list).toHaveTextContent('1.');
-  expect(list).toHaveTextContent('Ab2–Ab3');
-  expect(list).toHaveTextContent('Ed4–Ed3');
+  expect(list).toHaveTextContent('Bb1–Cb1');
+  expect(list).toHaveTextContent('Dd5–Cd5');
 });
 
 test('GameScreen does not double-count moves that predate a reconnect snapshot', () => {
@@ -468,15 +468,15 @@ test('GameScreen does not double-count moves that predate a reconnect snapshot',
     fakeSocket([
       // Live session: one move arrives normally...
       { type: 'game_start', color: 'white' },
-      { type: 'move_made', by: 'white', from: 'Aa2', to: 'Aa3' },
+      { type: 'move_made', by: 'white', from: 'Ba1', to: 'Ca1' },
       // ...then a reconnect replays the full history in a snapshot.
       {
         type: 'game_state',
         color: 'white',
         started: true,
         moves: [
-          { by: 'white', from: 'Ab2', to: 'Ab3' },
-          { by: 'black', from: 'Ed4', to: 'Ed3' },
+          { by: 'white', from: 'Bb1', to: 'Cb1' },
+          { by: 'black', from: 'Dd5', to: 'Cd5' },
         ],
       },
     ]),
@@ -630,7 +630,7 @@ test('GameScreen sends a move and holds the board until the server answers', asy
   const send = vi.fn();
   const { rerender } = renderGameScreen('abc123', fakeSocket(started, send));
   await userEvent.click(screen.getByTestId('board'));
-  expect(send).toHaveBeenCalledWith({ type: 'move', from: 'Aa2', to: 'Aa3', promotion: undefined });
+  expect(send).toHaveBeenCalledWith({ type: 'move', from: 'Ba1', to: 'Ca1', promotion: undefined });
   // Awaiting the echo: a second move must not go out into a turn that may
   // no longer be ours (the server would answer wrong_turn).
   expect(screen.getByTestId('board')).toBeDisabled();
@@ -639,7 +639,7 @@ test('GameScreen sends a move and holds the board until the server answers', asy
   // The echo arrives: the board is live again
   rerender(
     gameScreenAt(
-      fakeSocket([...started, { type: 'move_made', by: 'white', from: 'Aa2', to: 'Aa3' }], send),
+      fakeSocket([...started, { type: 'move_made', by: 'white', from: 'Ba1', to: 'Ca1' }], send),
     ),
   );
   expect(screen.getByTestId('board')).toBeEnabled();
@@ -694,7 +694,7 @@ test('GameScreen asks which piece to promote to and sends the chosen move', asyn
   expect(send).not.toHaveBeenCalled();
 
   await userEvent.click(screen.getByRole('button', { name: 'Unicorn' }));
-  expect(send).toHaveBeenCalledWith({ type: 'move', from: 'Ec4', to: 'Ec5', promotion: 'U' });
+  expect(send).toHaveBeenCalledWith({ type: 'move', from: 'Dc5', to: 'Ec5', promotion: 'U' });
   expect(screen.queryByRole('dialog', { name: 'Promote to' })).not.toBeInTheDocument();
   // The move is in flight, so the board holds like for any other move
   expect(screen.getByTestId('board')).toBeDisabled();
@@ -718,7 +718,7 @@ test('GameScreen closes the promotion prompt when the position moves on or the s
   expect(screen.getByRole('dialog', { name: 'Promote to' })).toBeInTheDocument();
   rerender(
     gameScreenAt(
-      fakeSocket([...started, { type: 'move_made', by: 'white', from: 'Aa2', to: 'Aa3' }], send),
+      fakeSocket([...started, { type: 'move_made', by: 'white', from: 'Ba1', to: 'Ca1' }], send),
     ),
   );
   expect(screen.queryByRole('dialog', { name: 'Promote to' })).not.toBeInTheDocument();
@@ -888,16 +888,16 @@ test('GameScreen holds the board until the rejoin on a fresh load is answered', 
 test('GameScreen plays a move typed into the move box, and explains one it cannot play', async () => {
   const send = vi.fn<GameSocket['send']>(() => true);
   renderGameScreen('abc123', fakeSocket(started, send));
-  const box = screen.getByRole('textbox', { name: 'Type a move (e.g. Ab2-Ab3)' });
+  const box = screen.getByRole('textbox', { name: 'Type a move (e.g. Bb1-Cb1)' });
 
-  await userEvent.type(box, 'Ba2-Ba5{Enter}');
+  await userEvent.type(box, 'Ba2-Ea2{Enter}');
   expect(send).not.toHaveBeenCalled();
-  expect(screen.getByText('The piece on Ba2 cannot move to Ba5.')).toBeInTheDocument();
+  expect(screen.getByText('The piece on Ba2 cannot move to Ea2.')).toBeInTheDocument();
   expect(box).toHaveAttribute('aria-invalid', 'true');
 
   await userEvent.clear(box);
-  await userEvent.type(box, 'ba2 ba3{Enter}');
-  expect(send).toHaveBeenCalledWith({ type: 'move', from: 'Ba2', to: 'Ba3', promotion: undefined });
+  await userEvent.type(box, 'ba2 ca2{Enter}');
+  expect(send).toHaveBeenCalledWith({ type: 'move', from: 'Ba2', to: 'Ca2', promotion: undefined });
   expect(box).toHaveValue('');
   // In flight: like the board, the box holds until the server answers
   expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled();
@@ -941,12 +941,12 @@ test('GameScreen shows the real position when a re-sent join is answered with a 
       type: 'game_state',
       color: 'black',
       started: true,
-      moves: [{ by: 'white', from: 'Ab2', to: 'Ab3' }],
+      moves: [{ by: 'white', from: 'Bb1', to: 'Cb1' }],
     },
   ];
   rerender(gameScreenAt(fakeSocket(answered, send, { sessionId: 2 })));
   expect(screen.getByTestId('turn-indicator')).toHaveTextContent('Black to move');
-  expect(screen.getByTestId('move-list')).toHaveTextContent('Ab2–Ab3');
+  expect(screen.getByTestId('move-list')).toHaveTextContent('Bb1–Cb1');
   expect(screen.getByTestId('board')).toBeEnabled();
   expect(getStoredRole('abc123')).toBe('black');
 });

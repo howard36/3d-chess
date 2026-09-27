@@ -31,10 +31,11 @@ const avg = (ps: Vec3[]): Vec3 =>
   [0, 1, 2].map((i) => ps.reduce((a, p) => a + p[i], 0) / ps.length) as Vec3;
 
 /**
- * Where each coordinate label goes: files along the near bottom edge,
- * ranks up (lattice) or along (tower) the near left edge, and levels beside
- * their layer. Worked out from the layout's own cell positions, so it
- * follows the orientation and any spacing a design picks.
+ * Where each coordinate label goes: files along the near bottom edge, ranks
+ * along the left edge running away from the camera, and levels beside their
+ * layer (lattice: up the near left edge). Worked out from the layout's own
+ * cell positions, so it follows the orientation and any spacing a design
+ * picks.
  */
 const anchorsFor = (layout: BoardLayout, orientation: Orientation): Anchor[] => {
   const n = GRID_SIZE;
@@ -54,12 +55,12 @@ const anchorsFor = (layout: BoardLayout, orientation: Orientation): Anchor[] => 
       out.push({ text: FILES[x], position: [px, -hy - gap, nearZ] });
     }
     for (let y = 0; y < n; y++) {
-      const [, py] = w(0, y, 0);
-      out.push({ text: RANKS[y], position: [-hx - gap, py, nearZ] });
+      const [, , pz] = w(0, y, 0);
+      out.push({ text: RANKS[y], position: [-hx - gap, -hy - gap, pz] });
     }
     for (let z = 0; z < n; z++) {
-      const [, , pz] = w(0, 0, z);
-      out.push({ text: LEVELS[z], position: [-hx - gap, -hy - gap, pz], level: true });
+      const [, py] = w(0, 0, z);
+      out.push({ text: LEVELS[z], position: [-hx - gap, py, nearZ], level: true });
     }
   } else {
     // Tower: labels on the bottom board's near and left edges, and each level

@@ -10,14 +10,14 @@ test('two players each play a move by clicking the board', async ({ browser }) =
   await expect(game.white.getByText('White to move')).toBeVisible();
   await expect(game.black.getByText('White to move')).toBeVisible();
 
-  // White: pawn Ab2 one step forward. play() waits for both clients to flip
+  // White: pawn Bb1 one step up. play() waits for both clients to flip
   // the turn, which proves the move round-tripped through the server.
-  await game.play('Ab2', 'Ab3');
+  await game.play('Bb1', 'Cb1');
   expect(await game.turn()).toBe('black');
 
-  // Black replies in kind (Ed4 -> Ed3), proving the mirrored-orientation
+  // Black replies in kind (Dd5 -> Cd5), proving the mirrored-orientation
   // projection and the reverse relay direction both work.
-  await game.play('Ed4', 'Ed3');
+  await game.play('Dd5', 'Cd5');
   expect(await game.turn()).toBe('white');
 
   await game.close();

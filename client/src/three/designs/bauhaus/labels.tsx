@@ -5,8 +5,8 @@ import type { Orientation } from '../../layout';
 import { noRaycast } from '../kit/noRaycast';
 import type { BoardLayout, Vec3 } from '../types';
 
-// Coordinates set like poster type: files along the front edge, ranks up the
-// left, and the level letters reversed out of black squares along the
+// Coordinates set like poster type: files along the front edge, the level
+// letters reversed out of black squares up the left, and ranks along the
 // right-hand edge that recedes into the picture.
 
 const draw = (text: string, font: string, ink: string, block: string | null) => {
@@ -59,8 +59,8 @@ export const PosterLabels = ({
     const out: { text: string; at: Vec3; level: boolean }[] = [];
     for (let i = 0; i < 5; i++) {
       out.push({ text: FILES[i], at: [w(i, 0, 0)[0], -hy - 0.42, hz], level: false });
-      out.push({ text: RANKS[i], at: [-hx - 0.42, w(0, i, 0)[1] - 0.12, hz], level: false });
-      out.push({ text: LEVELS[i], at: [hx + 0.5, -hy - 0.1, w(0, 0, i)[2]], level: true });
+      out.push({ text: LEVELS[i], at: [-hx - 0.42, w(0, 0, i)[1] - 0.12, hz], level: true });
+      out.push({ text: RANKS[i], at: [hx + 0.5, -hy - 0.1, w(0, i, 0)[2]], level: false });
     }
     return out.map((l) => ({
       ...l,

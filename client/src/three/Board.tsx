@@ -233,10 +233,9 @@ const Board = (props: BoardProps) => {
         ? 'black'
         : 'white'
       : null;
-  // On a stacked board the ranks run away from the camera, so a knight looks
-  // along them — toward the opponent — turned a little to show its profile.
-  // (In the lattice the ranks run up the screen; PieceMesh's default turn
-  // already shows the profile.)
+  // On a stacked board a knight looks along the ranks — toward the opponent —
+  // turned a little to show its profile. (The lattice keeps PieceMesh's
+  // default turn, which already shows the profile to the opening camera.)
   const knightFacing = (color: BoardTurn) =>
     layout.kind === 'tower'
       ? (color === orientation ? 1 : -1) * (Math.PI / 2 - (design.knightYaw ?? 0.5))

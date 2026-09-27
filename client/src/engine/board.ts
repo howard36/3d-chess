@@ -323,42 +323,43 @@ export class Board {
     return newBoard;
   }
 
+  /**
+   * The starting position: Raumschach's with ranks and levels exchanged, so
+   * each army's pawns stand on a level of their own. White holds level A
+   * (R N K N R on rank 1, B U Q B U on rank 2) with pawns filling ranks 1 and
+   * 2 of level B; Black's army is White's turned through the board's centre,
+   * (x, y, z) -> (4 - x, 4 - y, 4 - z), on levels E and D.
+   *
+   * Every rule treats rank and level alike (the move vectors, the pawn's
+   * forward and up steps and its captures, promotion on rank 5 of level E),
+   * so this is Raumschach's own game with two axes renamed.
+   */
   static setupStartingPosition(): Board {
     const board = new Board();
-    // White Pawns: (x, 1, 0) and (x, 1, 1) for x=0..4
+    const firstRank = [
+      PieceType.Rook,
+      PieceType.Knight,
+      PieceType.King,
+      PieceType.Knight,
+      PieceType.Rook,
+    ];
+    const secondRank = [
+      PieceType.Bishop,
+      PieceType.Unicorn,
+      PieceType.Queen,
+      PieceType.Bishop,
+      PieceType.Unicorn,
+    ];
+    const place = (x: number, y: number, z: number, type: PieceType) => {
+      board.setPiece({ x, y, z }, { type, color: 'white' });
+      board.setPiece({ x: 4 - x, y: 4 - y, z: 4 - z }, { type, color: 'black' });
+    };
     for (let x = 0; x < 5; x++) {
-      board.setPiece({ x, y: 1, z: 0 }, { type: PieceType.Pawn, color: 'white' });
-      board.setPiece({ x, y: 1, z: 1 }, { type: PieceType.Pawn, color: 'white' });
+      place(x, 0, 0, firstRank[x]);
+      place(x, 1, 0, secondRank[x]);
+      place(x, 0, 1, PieceType.Pawn);
+      place(x, 1, 1, PieceType.Pawn);
     }
-    // White Back Rank 1: y=0, z=0
-    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.Rook, color: 'white' });
-    board.setPiece({ x: 1, y: 0, z: 0 }, { type: PieceType.Knight, color: 'white' });
-    board.setPiece({ x: 2, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
-    board.setPiece({ x: 3, y: 0, z: 0 }, { type: PieceType.Knight, color: 'white' });
-    board.setPiece({ x: 4, y: 0, z: 0 }, { type: PieceType.Rook, color: 'white' });
-    // White Back Rank 2: y=0, z=1
-    board.setPiece({ x: 0, y: 0, z: 1 }, { type: PieceType.Bishop, color: 'white' });
-    board.setPiece({ x: 1, y: 0, z: 1 }, { type: PieceType.Unicorn, color: 'white' });
-    board.setPiece({ x: 2, y: 0, z: 1 }, { type: PieceType.Queen, color: 'white' });
-    board.setPiece({ x: 3, y: 0, z: 1 }, { type: PieceType.Bishop, color: 'white' });
-    board.setPiece({ x: 4, y: 0, z: 1 }, { type: PieceType.Unicorn, color: 'white' });
-    // Black Pawns: (x, 3, 4) and (x, 3, 3) for x=0..4
-    for (let x = 0; x < 5; x++) {
-      board.setPiece({ x, y: 3, z: 4 }, { type: PieceType.Pawn, color: 'black' });
-      board.setPiece({ x, y: 3, z: 3 }, { type: PieceType.Pawn, color: 'black' });
-    }
-    // Black Back Rank 1: y=4, z=4
-    board.setPiece({ x: 0, y: 4, z: 4 }, { type: PieceType.Rook, color: 'black' });
-    board.setPiece({ x: 1, y: 4, z: 4 }, { type: PieceType.Knight, color: 'black' });
-    board.setPiece({ x: 2, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
-    board.setPiece({ x: 3, y: 4, z: 4 }, { type: PieceType.Knight, color: 'black' });
-    board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.Rook, color: 'black' });
-    // Black Back Rank 2: y=4, z=3
-    board.setPiece({ x: 0, y: 4, z: 3 }, { type: PieceType.Unicorn, color: 'black' });
-    board.setPiece({ x: 1, y: 4, z: 3 }, { type: PieceType.Bishop, color: 'black' });
-    board.setPiece({ x: 2, y: 4, z: 3 }, { type: PieceType.Queen, color: 'black' });
-    board.setPiece({ x: 3, y: 4, z: 3 }, { type: PieceType.Unicorn, color: 'black' });
-    board.setPiece({ x: 4, y: 4, z: 3 }, { type: PieceType.Bishop, color: 'black' });
     return board;
   }
 }

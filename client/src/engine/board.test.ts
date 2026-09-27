@@ -1,6 +1,6 @@
 import { ALL_PROMOTION_TYPES, Board, Move } from './board';
 import { PieceType } from './pieces';
-import { Coord } from './coords';
+import { Coord, fromZXY, toZXY } from './coords';
 
 describe('Board move generation', () => {
   it('rook from center has 6 ray directions, each up to 2 squares', () => {
@@ -469,6 +469,85 @@ for (let z = 0; z < 5; z++)
 
 // In-bounds cells reachable from `from` under a rule on the absolute deltas
 // (|dx|, |dy|, |dz|), which is how README.md states each piece's movement.
+/** Exchanges rank and level: (x, y, z) -> (x, z, y). */
+const transpose = ({ x, y, z }: Coord): Coord => ({ x, y: z, z: y });
+
+const transposeBoard = (board: Board) => {
+  const out = new Board();
+  for (const cell of ALL_CELLS) out.setPiece(transpose(cell), board.getPiece(cell));
+  return out;
+};
+
+// A setup as rows of five squares, files a to e, keyed by level and rank
+// ('A1' is rank 1 of level A); upper case is White, lower case Black.
+type Layout = Record<string, string>;
+const LETTERS: Record<string, PieceType> = {
+  r: PieceType.Rook,
+  n: PieceType.Knight,
+  b: PieceType.Bishop,
+  u: PieceType.Unicorn,
+  q: PieceType.Queen,
+  k: PieceType.King,
+  p: PieceType.Pawn,
+};
+
+const boardFromLayout = (layout: Layout) => {
+  const board = new Board();
+  for (const [row, pieces] of Object.entries(layout)) {
+    [...pieces].forEach((letter, x) => {
+      const cell = fromZXY(`${row[0]}a${row[1]}`);
+      board.setPiece(
+        { ...cell, x },
+        {
+          type: LETTERS[letter.toLowerCase()],
+          color: letter === letter.toUpperCase() ? 'white' : 'black',
+        },
+      );
+    });
+  }
+  return board;
+};
+
+const layoutOf = (board: Board): Layout => {
+  const out: Layout = {};
+  for (const cell of ALL_CELLS) {
+    const piece = board.getPiece(cell);
+    if (!piece) continue;
+    const [level, , rank] = toZXY(cell);
+    const letter = Object.keys(LETTERS).find((l) => LETTERS[l] === piece.type)!;
+    const row = (out[level + rank] ??= '.....');
+    out[level + rank] =
+      row.slice(0, cell.x) +
+      (piece.color === 'white' ? letter.toUpperCase() : letter) +
+      row.slice(cell.x + 1);
+  }
+  return out;
+};
+
+// The game's starting position (see README, "Starting position").
+const START_LAYOUT: Layout = {
+  A1: 'RNKNR',
+  A2: 'BUQBU',
+  B1: 'PPPPP',
+  B2: 'PPPPP',
+  D4: 'ppppp',
+  D5: 'ppppp',
+  E4: 'ubqub',
+  E5: 'rnknr',
+};
+
+// Standard Raumschach: each army's pieces and pawns share two levels.
+const RAUMSCHACH_LAYOUT: Layout = {
+  A1: 'RNKNR',
+  A2: 'PPPPP',
+  B1: 'BUQBU',
+  B2: 'PPPPP',
+  D4: 'ppppp',
+  D5: 'ubqub',
+  E4: 'ppppp',
+  E5: 'rnknr',
+};
+
 const cellsWhere = (from: Coord, rule: (ax: number, ay: number, az: number) => boolean) =>
   new Set(
     ALL_CELLS.filter((c) =>
@@ -867,19 +946,124 @@ describe('Starting position baseline', () => {
     expect(board.inCheck('black')).toBe(false);
   });
 
+  it('puts each army on its own two levels, pawns on the inner one', () => {
+    expect(layoutOf(board)).toEqual(START_LAYOUT);
+  });
+
+  it("is Raumschach's setup with rank and level exchanged", () => {
+    const raumschach = boardFromLayout(RAUMSCHACH_LAYOUT);
+    for (const cell of ALL_CELLS) {
+      expect(board.getPiece(cell)).toEqual(raumschach.getPiece(transpose(cell)));
+    }
+  });
+
   // 61, computed once and hand-verified from the rules:
-  //   pawns    15  (5 on level A: forward only, up is blocked by the level-B
-  //                 pawn; 5 on level B: forward + up)
-  //   knights  12  (6 each; the (±2,±1,0) hops onto a2/b2-rank pawns, the
-  //                 bishop, and off-board are excluded)
+  //   pawns    15  (5 on rank 1: up only, forward is blocked by the rank-2
+  //                 pawn; 5 on rank 2: forward + up)
+  //   knights  12  (6 each; hops onto their own army and off the board are
+  //                 excluded)
   //   bishops  13  (a-file bishop 6, d-file bishop 7; each includes one
   //                 long-diagonal capture of a black pawn)
   //   unicorns  7  (4 + 3, again with one long-diagonal capture each)
   //   queen    14
   //   king      0, rooks 0  (fully surrounded)
   it('white has 61 legal moves, and black the same by symmetry', () => {
-    expect(board.generateAllLegalMoves('white')).toHaveLength(61);
+    const white = board.generateAllLegalMoves('white');
+    expect(white).toHaveLength(61);
     expect(board.generateAllLegalMoves('black')).toHaveLength(61);
+    const byType = (type: PieceType) =>
+      white.filter((m) => board.getPiece(m.from)!.type === type).length;
+    expect(
+      [
+        PieceType.Pawn,
+        PieceType.Knight,
+        PieceType.Bishop,
+        PieceType.Unicorn,
+        PieceType.Queen,
+        PieceType.King,
+        PieceType.Rook,
+      ].map(byType),
+    ).toEqual([15, 12, 13, 7, 14, 0, 0]);
+  });
+});
+
+describe('Exchanging rank and level is a symmetry of the rules', () => {
+  // The starting position is Raumschach's transposed, so the game stays the
+  // same only if the rules cannot tell rank from level: in any position, the
+  // legal moves of the transposed position are the transposed legal moves.
+  const moveKeys = (moves: Move[]) =>
+    moves.map((m) => `${toZXY(m.from)}-${toZXY(m.to)}${m.promotion ?? ''}`).sort();
+  const transposeMove = (m: Move): Move => ({
+    from: transpose(m.from),
+    to: transpose(m.to),
+    promotion: m.promotion,
+  });
+
+  const expectSymmetric = (board: Board) => {
+    const flipped = transposeBoard(board);
+    for (const color of ['white', 'black'] as const) {
+      const moves = board.generateAllLegalMoves(color);
+      expect(moveKeys(flipped.generateAllLegalMoves(color))).toEqual(
+        moveKeys(moves.map(transposeMove)),
+      );
+      expect(flipped.inCheck(color)).toBe(board.inCheck(color));
+    }
+  };
+
+  // Deterministic pseudo-random numbers (mulberry32), so a failure replays.
+  const rng = (seed: number) => () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  it('holds for the starting position', () => {
+    expectSymmetric(Board.setupStartingPosition());
+  });
+
+  it('holds along random games from the start', () => {
+    for (const seed of [1, 2, 3]) {
+      const random = rng(seed);
+      let board = Board.setupStartingPosition();
+      let color: 'white' | 'black' = 'white';
+      for (let ply = 0; ply < 24; ply++) {
+        if (ply % 4 === 3) expectSymmetric(board);
+        const moves = board.generateAllLegalMoves(color);
+        if (moves.length === 0) break;
+        board = board.applyMove(moves[Math.floor(random() * moves.length)]);
+        color = color === 'white' ? 'black' : 'white';
+      }
+      expectSymmetric(board);
+    }
+  });
+
+  it('holds for promotions, captures and checks', () => {
+    const board = new Board();
+    board.setPiece({ x: 0, y: 2, z: 0 }, { type: PieceType.King, color: 'white' });
+    board.setPiece({ x: 4, y: 2, z: 4 }, { type: PieceType.King, color: 'black' });
+    // Pawns one step from promoting along the rank or the level, and one on
+    // the diagonal whose rank and level steps do not promote
+    for (const [x, y, z] of [
+      [1, 3, 4],
+      [3, 4, 3],
+      [4, 3, 3],
+    ]) {
+      board.setPiece({ x, y, z }, { type: PieceType.Pawn, color: 'white' });
+      board.setPiece({ x: 4 - x, y: 4 - y, z: 4 - z }, { type: PieceType.Pawn, color: 'black' });
+    }
+    // Something for the pawns to capture, promoting or not
+    board.setPiece({ x: 0, y: 4, z: 4 }, { type: PieceType.Rook, color: 'black' });
+    board.setPiece({ x: 2, y: 1, z: 3 }, { type: PieceType.Unicorn, color: 'black' });
+    board.setPiece({ x: 2, y: 0, z: 0 }, { type: PieceType.Knight, color: 'white' });
+    expect(board.inCheck('white')).toBe(false);
+    expect(board.inCheck('black')).toBe(false);
+    expectSymmetric(board);
+
+    // A bishop checks Black along a rank-level diagonal
+    board.setPiece({ x: 2, y: 2, z: 2 }, { type: PieceType.Bishop, color: 'white' });
+    expect(board.inCheck('black')).toBe(true);
+    expectSymmetric(board);
   });
 });
 

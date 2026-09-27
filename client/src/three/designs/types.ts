@@ -14,7 +14,10 @@ export type PieceColor = 'white' | 'black';
 
 /** Where the 125 cells sit in world space. */
 export interface BoardLayout {
-  /** Lattice: levels recede into depth. Tower: levels stack upward. */
+  /**
+   * Both stack the levels upward. Lattice: one cube of evenly spaced cells.
+   * Tower: five boards with gaps between them.
+   */
   kind: 'lattice' | 'tower';
   /** Centre of a cell's (raycast) box. */
   toWorld(cell: Coord, orientation: Orientation): Vec3;

@@ -53,7 +53,7 @@ import { elementTime, flameMaterial, IceSpikes, Shockwave, Trail } from './fx';
 // rising; the lattice lines themselves cool from frost to flame. White's army
 // is carved ice, Black's is obsidian veined with live lava.
 
-// Wide gaps: in a lattice the levels stand one behind another, and every
+// Wide gaps: in a lattice the ranks stand one behind another, and every
 // piece needs a clear line of sight from the default view.
 const layout = latticeLayout(1.2);
 const HY = layout.halfExtents[1];

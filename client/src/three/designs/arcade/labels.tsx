@@ -7,8 +7,8 @@ import type { BoardLayout, Vec3 } from '../types';
 
 // The board's coordinates as crisp pixel glyphs: Press Start 2P drawn at its
 // native pixel grid with a hard drop shadow, sampled nearest-neighbour.
-// Files run under the front face, ranks up its left edge, and each level's
-// letter sits beside its slice on the right, in that level's neon.
+// Files run under the front face, each level's letter sits beside its layer
+// up the left edge, in that level's neon, and ranks run back along the right.
 
 const FONT = '"Press Start 2P"';
 
@@ -71,20 +71,20 @@ export const PixelLabels = ({
         map: glyph(text, color, shadow),
       }),
     );
-    RANKS.forEach((text, y) =>
-      out.push({
-        text,
-        position: [-hx - 0.62, w(0, y, 0)[1], hz + 0.1],
-        size: 0.42,
-        map: glyph(text, color, shadow),
-      }),
-    );
     LEVELS.forEach((text, z) =>
       out.push({
         text,
-        position: [hx + 0.7, -hy - 0.25, w(0, 0, z)[2]],
+        position: [-hx - 0.62, w(0, 0, z)[1], hz + 0.1],
         size: 0.56,
         map: glyph(text, levelColors[z], '#0a0314'),
+      }),
+    );
+    RANKS.forEach((text, y) =>
+      out.push({
+        text,
+        position: [hx + 0.7, -hy - 0.25, w(0, y, 0)[2]],
+        size: 0.42,
+        map: glyph(text, color, shadow),
       }),
     );
     return out;

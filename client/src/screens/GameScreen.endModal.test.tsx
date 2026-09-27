@@ -43,7 +43,7 @@ const { default: GameScreen } = await import('./GameScreen');
 
 // The showcase game: 17 plies ending in White's mate.
 const GAME =
-  'Bb1-Ee4 Dd5-Aa2 Bc1-Dc3 Dc4-Cc4 Bd1-Ed4 Dc5-Ed4 Aa1-Aa2 Ed4-Cb4 Dc3-Cb4 Db4-Db3 Ad1-Bd3 Cc4-Cc3 Ba1-Ea4 Db5-Bd5 Ea4-Db4 Bd5-Bb3 Cb4-Dc5'.split(
+  'Ab2-De5 Ed4-Ba1 Ac2-Cc4 Dc4-Dc3 Ad2-Dd5 Ec4-Dd5 Aa1-Ba1 Dd5-Db3 Cc4-Db3 Db4-Cb4 Ad1-Cd2 Dc3-Cc3 Aa2-Da5 Eb4-Ed2 Da5-Db4 Ed2-Cb2 Db3-Ec4'.split(
     ' ',
   );
 const records = GAME.map((m, i) => {

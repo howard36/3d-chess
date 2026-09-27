@@ -1,6 +1,6 @@
 // A move typed as text, for players who cannot use a pointer on the 3D board
 // (keyboard-only, screen readers). The notation is the one the move list
-// shows: two cells as level-file-rank, e.g. "Ab2-Ab3", with "=Q" (or R, B, N,
+// shows: two cells as level-file-rank, e.g. "Bb1-Cb1", with "=Q" (or R, B, N,
 // U) for a promotion.
 
 import { fromZXY, toZXY } from '../engine/coords';
@@ -21,7 +21,7 @@ const cell = (level: string, file: string, rank: string) =>
 /** Resolves typed text to one of `color`'s legal moves on `board`, or says why it isn't one. */
 export function parseTypedMove(text: string, board: Board, color: Color): TypedMoveResult {
   const m = PATTERN.exec(text);
-  if (!m) return { error: 'Type a move as two cells, like Ab2-Ab3.' };
+  if (!m) return { error: 'Type a move as two cells, like Bb1-Cb1.' };
   const from = cell(m[1], m[2], m[3]);
   const to = cell(m[4], m[5], m[6]);
   const promotion = m[7] ? PROMOTION_TO_PIECE[m[7].toUpperCase() as Promotion] : undefined;

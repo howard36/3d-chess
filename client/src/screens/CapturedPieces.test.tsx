@@ -21,14 +21,14 @@ describe('CapturedPieces', () => {
   it("lists each side's captures from the player's point of view, with the lead", () => {
     // White's unicorn takes a pawn, Black's unicorn takes one back, then
     // White's bishop takes a pawn with check.
-    const board = play('Bb1-Ee4', 'Dd5-Aa2', 'Bc1-Dc3', 'Dc4-Cc4', 'Bd1-Ed4');
+    const board = play('Ab2-De5', 'Ed4-Ba1', 'Ac2-Cc4', 'Dc4-Dc3', 'Ad2-Dd5');
     render(<CapturedPieces board={board} color="white" />);
     expect(screen.getByRole('listitem', { name: 'You captured: 2 pawns' })).toHaveTextContent('+1');
     expect(screen.getByRole('listitem', { name: 'You lost: 1 pawn' })).toBeInTheDocument();
   });
 
   it('flips for Black', () => {
-    const board = play('Bb1-Ee4', 'Dd5-Aa2', 'Bc1-Dc3', 'Dc4-Cc4', 'Bd1-Ed4');
+    const board = play('Ab2-De5', 'Ed4-Ba1', 'Ac2-Cc4', 'Dc4-Dc3', 'Ad2-Dd5');
     render(<CapturedPieces board={board} color="black" />);
     expect(screen.getByRole('listitem', { name: 'You captured: 1 pawn' })).not.toHaveTextContent(
       '+',

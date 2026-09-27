@@ -6,7 +6,7 @@ import type { BoardLayout, Vec3 } from '../types';
 const HALF = (GRID_SIZE - 1) / 2;
 
 /**
- * The classic lattice: files across, ranks up the screen, levels receding
+ * The classic lattice: files across, levels up the screen, ranks receding
  * into depth (see toWorld in layout.ts). `spacing` widens the gaps between
  * cells for designs that want the pieces to breathe.
  */

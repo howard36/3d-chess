@@ -8,9 +8,9 @@ import { startGame } from './helpers/game';
 // new request.
 
 // Shortest cooperative mate from the starting position (found by exhaustive
-// search with the engine): Black's queen lands on Ab2, defended along the
-// Cb4-Bb3 diagonal, and every other neighbour of White's king is White's own.
-const MATE = ['Ad1-Cc1', 'Dc5-Bc3', 'Bc1-Ad1', 'Bc3-Ab2'];
+// search with the engine): Black's queen lands on Bb1, defended along the
+// Db3-Cb2 diagonal, and every other neighbour of White's king is White's own.
+const MATE = ['Ad1-Ac3', 'Ec4-Cc2', 'Ac2-Ad1', 'Cc2-Bb1'];
 
 test('a finished game shows the result and lets both players start over', async ({ browser }) => {
   const game = await startGame(browser);

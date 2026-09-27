@@ -25,7 +25,7 @@ describe('materialBalance', () => {
   it('lists what each side has lost, most valuable first, and the balance', () => {
     // The showcase game's opening: unicorns take pawns, a bishop takes a pawn
     // with check, the queen takes the bishop, the rook takes the unicorn.
-    const board = play('Bb1-Ee4', 'Dd5-Aa2', 'Bc1-Dc3', 'Dc4-Cc4', 'Bd1-Ed4', 'Dc5-Ed4', 'Aa1-Aa2');
+    const board = play('Ab2-De5', 'Ed4-Ba1', 'Ac2-Cc4', 'Dc4-Dc3', 'Ad2-Dd5', 'Ec4-Dd5', 'Aa1-Ba1');
     const { lost, advantage } = materialBalance(board);
     expect(lost.white).toEqual([PieceType.Bishop, PieceType.Pawn]);
     expect(lost.black).toEqual([PieceType.Unicorn, PieceType.Pawn, PieceType.Pawn]);
@@ -38,7 +38,7 @@ describe('materialBalance', () => {
     board.setPiece(fromZXY('Ee5'), { type: PieceType.King, color: 'black' });
     // Two white queens: one is a promoted pawn
     board.setPiece(fromZXY('Cc3'), { type: PieceType.Queen, color: 'white' });
-    board.setPiece(fromZXY('Cc4'), { type: PieceType.Queen, color: 'white' });
+    board.setPiece(fromZXY('Dc3'), { type: PieceType.Queen, color: 'white' });
     const { lost } = materialBalance(board);
     expect(lost.white.filter((t) => t === PieceType.Pawn)).toHaveLength(9);
     expect(lost.white).not.toContain(PieceType.Queen);

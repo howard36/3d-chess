@@ -18,7 +18,7 @@ export async function getPlayerColor(page: Page): Promise<Orientation> {
 }
 
 /**
- * Clicks a board square (ZXY notation, e.g. 'Ab2') on the WebGL canvas with a
+ * Clicks a board square (ZXY notation, e.g. 'Bb1') on the WebGL canvas with a
  * real mouse event, so the click travels the app's actual raycasting path.
  *
  * The board renders mirrored per player (toWorld flips all three axes for

@@ -8,8 +8,8 @@ import type { BoardLayout, Vec3 } from '../types';
 
 // The kit's coordinate labels, re-anchored for a lattice seen from the
 // opening camera (up and to the right): files along the near bottom edge,
-// ranks up the near left edge, and levels along the bottom right edge,
-// which is on the cube's silhouette, so the letters never sit over pieces.
+// levels up the near left edge, and ranks along the bottom right edge,
+// which is on the cube's silhouette, so the labels never sit over pieces.
 
 interface Anchor {
   text: string;
@@ -26,12 +26,12 @@ const anchorsFor = (layout: BoardLayout, orientation: Orientation): Anchor[] => 
   for (let x = 0; x < n; x++) {
     out.push({ text: FILES[x], position: [w(x, 0, 0)[0], -hy - gap, hz + 0.1], level: false });
   }
-  for (let y = 0; y < n; y++) {
-    const floor = w(0, y, 0)[1] + layout.floorY + 0.25;
-    out.push({ text: RANKS[y], position: [-hx - gap, floor, hz + 0.1], level: false });
-  }
   for (let z = 0; z < n; z++) {
-    out.push({ text: LEVELS[z], position: [hx + gap, -hy - gap, w(0, 0, z)[2]], level: true });
+    const floor = w(0, 0, z)[1] + layout.floorY + 0.25;
+    out.push({ text: LEVELS[z], position: [-hx - gap, floor, hz + 0.1], level: true });
+  }
+  for (let y = 0; y < n; y++) {
+    out.push({ text: RANKS[y], position: [hx + gap, -hy - gap, w(0, y, 0)[2]], level: false });
   }
   return out;
 };

@@ -28,9 +28,19 @@ pieces):
 
 No castling. Check, checkmate, and stalemate work as in standard chess and are detected
 by the client engine. The starting position is defined in `Board.setupStartingPosition()`
-(`client/src/engine/board.ts`): White's back ranks on rank 1 are R N K N R (level A) and
-B U Q B U (level B), with ten pawns on rank 2 across levels A+B; Black mirrors this on
-ranks 4–5 / levels E+D, with its second back rank ordered U B Q U B.
+(`client/src/engine/board.ts`); each army's pawns stand on a level of their own:
+
+| Level | Rank 1    | Rank 2    | Rank 4    | Rank 5    |
+| ----- | --------- | --------- | --------- | --------- |
+| E     |           |           | u b q u b | r n k n r |
+| D     |           |           | 5 pawns   | 5 pawns   |
+| B     | 5 pawns   | 5 pawns   |           |           |
+| A     | R N K N R | B U Q B U |           |           |
+
+(files a→e left to right; upper case White, lower case Black). Black's army is White's
+turned through the centre, `(x, y, z) → (4 − x, 4 − y, 4 − z)`. This is standard
+Raumschach's setup (pieces on levels A/B rank 1, pawns on rank 2) with rank and level
+exchanged. Every rule treats the two axes alike, so the game is Raumschach's move for move.
 
 ## Scope and trust assumptions
 
@@ -114,7 +124,7 @@ Key decisions:
   the press), never on pointer-down, so a drag, right-drag or pinch that starts over the
   cube only turns the view. With a piece selected, clicking an opposing piece it can take
   plays the capture (the piece fills its cell, so it would otherwise hide the cell's click
-  target). A move can also be typed (`Ab2-Ab3`, `=Q` to promote) in the move box, which is
+  target). A move can also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is
   how a keyboard-only or screen-reader player plays.
 
 ## Protocol
@@ -178,27 +188,28 @@ So internal `(0,0,0)` = `Aa1`, `(4,4,4)` = `Ee5`. Conversions live in
 `client/src/engine/coords.ts`.
 
 **3. Rendering (Three.js scene):** `toWorld()` in `client/src/three/layout.ts` maps an
-engine coordinate to a world position, **oriented to the viewing player**. For White the
-engine axes map straight onto world axes, with the level axis negated so that level A is
-nearest the camera; for Black all three axes are mirrored (`v → 4 − v`), which is the
-symmetry the starting position is built on, so each player sees their own army laid out
-identically and their own levels nearest. The default camera sits at `[6.5, 5, 8.5]`
-(mostly on +Z, up and to the right) looking at the cube's centre, so:
+engine coordinate to a world position, **oriented to the viewing player**. For White,
+file → X, level → Y and rank → −Z, so level A is at the bottom and rank 1 nearest the
+camera; for Black all three axes are mirrored (`v → 4 − v`), which is the symmetry the
+starting position is built on, so each player sees their own army laid out identically,
+at the bottom and nearest. The default camera sits at `[6.5, 5, 8.5]` (mostly on +Z, up
+and to the right) looking at the cube's centre, so:
 
-| Game concept                      | Engine axis | World axis | On screen (default camera, viewing player) |
-| --------------------------------- | ----------- | ---------- | ------------------------------------------ |
-| File a–e                          | x           | X          | left → right (mirrored for Black)          |
-| Rank 1–5 (the player's "forward") | y           | Y          | bottom → top (own back rank at the bottom) |
-| Level A–E (the game's "up")       | z           | −Z         | near → far (own levels nearest the camera) |
+| Game concept                      | Engine axis | World axis | On screen (default camera, viewing player)   |
+| --------------------------------- | ----------- | ---------- | -------------------------------------------- |
+| File a–e                          | x           | X          | left → right (mirrored for Black)            |
+| Level A–E (the game's "up")       | z           | Y          | bottom → top (own first level at the bottom) |
+| Rank 1–5 (the player's "forward") | y           | −Z         | near → far (own first rank nearest)          |
 
-So the game's "vertical" (levels) is rendered as **depth**, and the game's "forward"
-(ranks) as **screen height**. Concretely, for White: the ten starting pawns (rank 2,
-levels A+B) are the second-from-bottom horizontal row of the cube, in the two slices
-nearest the camera; moving a pawn "up a level" moves it away from the viewer, not up the
-screen. Black sees the mirror image, with Black's pawns nearest. OrbitControls allows free
-rotation, so the default view is just a starting point. Only positions are transformed;
-piece meshes are never mirrored. This is the classic (lattice) layout; a design may lay
-the cells out differently (see Board designs — the tower layout makes levels vertical).
+So levels are **screen height** and ranks are **depth**, as in the tower layout.
+Concretely, for White: the ten starting pawns (level B, ranks 1–2) are the
+second-from-bottom horizontal layer of the cube, in the two slices nearest the camera,
+right above White's pieces on level A; moving a pawn "forward" moves it away from the
+viewer, "up" moves it up the screen. Black sees the mirror image. OrbitControls allows
+free rotation, so the default view is just a starting point. Only positions are
+transformed; piece meshes are never mirrored. This is the classic (lattice) layout; a
+design may lay the cells out differently (see Board designs — the tower layout spreads
+the levels out as five separate boards).
 The classic position math is in `three/layout.ts`, the others in
 `three/designs/kit/layouts.ts`; the floor rings and the glide
 lift in `three/Board.tsx` and `three/motion.ts` assume world-Y-up, and the camera lives in

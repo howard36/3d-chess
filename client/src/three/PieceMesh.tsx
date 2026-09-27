@@ -42,11 +42,11 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   if (!PIECE_TYPES.has(type)) return null;
   const Body = design.PieceBody;
 
-  // Armies are separated along scene y (ranks point up the screen), so the
-  // knight's profile should face the default camera; a slight opposing turn
-  // per color keeps the two armies from looking like mirror stamps. Rotation
-  // lives on the inner group so the outer group only carries the
-  // position/userData/handler contract.
+  // In the lattice the armies hold opposite edges of the cube (low and near,
+  // high and far), so the knight's profile should face the default camera; a
+  // slight opposing turn per color keeps the two armies from looking like
+  // mirror stamps. Rotation lives on the inner group so the outer group only
+  // carries the position/userData/handler contract.
   const yaw = design.knightYaw ?? 0.35;
   const rotation: [number, number, number] =
     type === PieceType.Knight ? [0, facing ?? (color === 'white' ? -yaw : yaw), 0] : [0, 0, 0];

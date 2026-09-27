@@ -8,7 +8,7 @@ import { clickSquare, waitForDestination } from './helpers/board';
 // Shortest legal line to a promotion (found with the engine): White's a-file
 // pawn takes two steps, then captures forward-up twice, the second onto the
 // black rook's square Ea5, which is rank 5 on level E. Black pushes a pawn.
-const APPROACH = ['Ba2-Ba3', 'Ee4-Ee3', 'Ba3-Ca3', 'Ee3-Ee2', 'Ca3-Da4', 'Ee2-Ee1'];
+const APPROACH = ['Ba2-Ca2', 'De5-Ce5', 'Ca2-Ca3', 'Ce5-Be5', 'Ca3-Da4', 'Be5-Ae5'];
 
 test('a promoting pawn lets the player pick the piece', async ({ browser }) => {
   const game = await startGame(browser);

@@ -22,7 +22,7 @@ export interface Game {
    * server. Throws if `to` never becomes legal (illegal move, wrong piece).
    */
   play(from: string, to: string): Promise<void>;
-  /** Plays several moves in order; each is `'Ab2-Ab3'` or `['Ab2', 'Ab3']`. */
+  /** Plays several moves in order; each is `'Bb1-Cb1'` or `['Bb1', 'Cb1']`. */
   playAll(moves: Array<string | [string, string]>): Promise<void>;
   /** Screenshots the board as seen by `seat` into client/test-results/. */
   screenshot(name: string, seat?: Orientation): Promise<string>;

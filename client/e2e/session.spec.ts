@@ -17,7 +17,7 @@ async function playFrom(page: Page, seat: Orientation, from: string, to: string)
 
 test('a reloaded page rejoins its seat and restores the position', async ({ browser }) => {
   const game = await startGame(browser);
-  await game.play('Ab2', 'Ab3');
+  await game.play('Bb1', 'Cb1');
 
   await game.white.reload();
   await waitForBoard(game.white);
@@ -25,13 +25,13 @@ test('a reloaded page rejoins its seat and restores the position', async ({ brow
   // Same seat, same position: role from localStorage, history from game_state
   await expect(game.white.getByText('You are playing as white.')).toBeVisible();
   await expect(game.white.getByText('Black to move')).toBeVisible();
-  await expect(game.white.getByTestId('move-list')).toContainText('Ab2–Ab3');
+  await expect(game.white.getByTestId('move-list')).toContainText('Bb1–Cb1');
 
   // The restored session is live: the opponent's next move arrives, and the
   // reloaded player can answer it.
-  await game.play('Ed4', 'Ed3');
-  await game.play('Ab3', 'Ab4');
-  await expect(game.white.getByTestId('move-list')).toContainText('Ab3–Ab4');
+  await game.play('Dd5', 'Cd5');
+  await game.play('Cb1', 'Db1');
+  await expect(game.white.getByTestId('move-list')).toContainText('Cb1–Db1');
 
   await game.close();
 });
@@ -62,9 +62,9 @@ test('a second tab takes the seat over; the first stops reconnecting until asked
 
   // The second tab holds a working seat: it moves, the opponent sees it and
   // replies, and the second tab sees the reply.
-  await playFrom(second, 'white', 'Ab2', 'Ab3');
+  await playFrom(second, 'white', 'Bb1', 'Cb1');
   await expect(game.black.getByText('Black to move')).toBeVisible();
-  await playFrom(game.black, 'black', 'Ed4', 'Ed3');
+  await playFrom(game.black, 'black', 'Dd5', 'Cd5');
   await expect(second.getByText('White to move')).toBeVisible();
 
   // Take the game back in the first tab: it rejoins with the full history,
@@ -73,14 +73,14 @@ test('a second tab takes the seat over; the first stops reconnecting until asked
   await expect(noticeIn(first)).toHaveCount(0);
   await expect(noticeIn(second)).toBeVisible();
   await expect(first.getByText('White to move')).toBeVisible();
-  await expect(first.getByTestId('move-list')).toContainText('Ed4–Ed3');
+  await expect(first.getByTestId('move-list')).toContainText('Dd5–Cd5');
   await first.waitForTimeout(1500);
   await expect(noticeIn(second)).toBeVisible();
   await expect(first.getByRole('alertdialog')).toHaveCount(0);
 
   // ...and the first tab's seat is live again.
-  await game.play('Ab3', 'Ab4');
-  await expect(game.black.getByTestId('move-list')).toContainText('Ab3–Ab4');
+  await game.play('Cb1', 'Db1');
+  await expect(game.black.getByTestId('move-list')).toContainText('Cb1–Db1');
 
   await second.close();
   await game.close();

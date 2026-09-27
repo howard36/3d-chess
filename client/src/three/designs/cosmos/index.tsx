@@ -159,7 +159,7 @@ const cornerGeometry = starPoints(
 );
 const cornerMaterial = starMaterial(spark, 1.2);
 
-// Faint lines joining the stars of each rank plane, along files and levels.
+// Faint lines joining the stars of each level's plane, along files and ranks.
 const constellationGeometry = (() => {
   const v: number[] = [];
   for (const y of floors) {
