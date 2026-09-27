@@ -16,6 +16,7 @@ import { noRaycast } from '../kit/noRaycast';
 import { fbm, paintedTexture, rng } from '../kit/textures';
 import { WATER } from './palette';
 import { TOWER_RADIUS } from './station';
+import { view } from './view';
 
 // The water outside the station, seen through its glass: a teal-black
 // gradient lit faintly from far above, shafts of that light slanting down,
@@ -299,6 +300,7 @@ const fragment = /* glsl */ `
   uniform float uBandTop;
   uniform float uBandBottom;
   uniform float uTower;
+  uniform float uRaised;
   varying vec3 vDir;
   varying vec3 vWorld;
 
@@ -356,9 +358,11 @@ const fragment = /* glsl */ `
     // Far below, the faint glow of life on the floor of the abyss
     col += uAbyssGlow * smoothstep(-50.0, -90.0, e);
 
-    // Behind the tower the water darkens a little, so the pieces' rims have
-    // something to stand out from
-    col *= mix(0.8, 1.0, clear);
+    // Seen from above the horizon, the water behind the tower darkens a
+    // little, so the pieces' rims have something to stand out from.
+    // At low views it lifts a touch instead: there the black glass stands
+    // against it, and the brighter water sets its edges off.
+    col *= mix(1.0 - 0.2 * uRaised + 0.1 * (1.0 - uRaised), 1.0, clear);
 
     // Specks of marine life, hanging still in the dark, never behind the
     // tower where they could pass for the selection's plankton
@@ -407,6 +411,7 @@ export const AbyssWater = () => {
         uLedge: { value: new Color('#2b6670').multiplyScalar(0.12) },
         uAbyssGlow: { value: new Color('#0f4a4a').multiplyScalar(0.28) },
         uTower: { value: TOWER_RADIUS },
+        uRaised: view.raised,
         uBandTop: { value: BAND_TOP },
         uBandBottom: { value: BAND_BOTTOM },
       },

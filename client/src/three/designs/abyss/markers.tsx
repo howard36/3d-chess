@@ -564,6 +564,7 @@ const swirlVertex = /* glsl */ `
   uniform float uPitch;
   uniform float uScale;
   uniform float uHalo;
+  uniform float uSteep;
   varying float vAlpha;
   const float TAU = 6.2831853;
   void main() {
@@ -572,7 +573,9 @@ const swirlVertex = /* glsl */ `
     // Once round the base, drawing in from wide; the beads settle evenly
     // spaced on the halo and turn very slowly, the dust fades on the way
     float angle = aSeed * TAU + TAU * e + uTime * 0.1;
-    float settle = aBead > 0.5 ? uHalo : uHalo + 0.05 + 0.1 * jitter;
+    // From above the halo opens wider, clear of any pieces stacked over it
+    float halo = mix(uHalo, 0.46, smoothstep(0.3, 0.7, uSteep));
+    float settle = aBead > 0.5 ? halo : halo + 0.05 + 0.1 * jitter;
     float radius = mix(0.66 + 0.12 * jitter, settle, e) * uPitch;
     // On the glass, never over the piece: additive light must not wash its body
     vec3 p = vec3(cos(angle) * radius, 0.02, sin(angle) * radius);
@@ -637,6 +640,7 @@ const PlanktonSwirl = ({ floor, pitch }: { floor: Vec3; pitch: number }) => {
           uPitch: { value: pitch },
           uScale: { value: 1 },
           uHalo: { value: HALO },
+          uSteep: view.steep,
         },
         vertexShader: swirlVertex,
         fragmentShader: swirlFragment,

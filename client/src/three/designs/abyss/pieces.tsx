@@ -53,6 +53,11 @@ export interface GlowUniforms {
   uCrown: { value: Color };
   /** Strength of the thin-film colours in the silhouette band (nacre). */
   uFilm: { value: number };
+  /** How much stronger the water's rim burns at the lowest views (1: no change). */
+  uLowRim: { value: number };
+  /** Shared view facts (view.ts): how top-down and how low the view is. */
+  uSteep: { value: number };
+  uLow: { value: number };
 }
 
 /**
@@ -64,7 +69,7 @@ export interface GlowUniforms {
  */
 export const withGlow = <M extends MeshPhysicalMaterial | MeshStandardMaterial>(
   m: M,
-  { rim = RIM, rimStrength = 0.3, rimPower = 2.5, film = 0 } = {},
+  { rim = RIM, rimStrength = 0.3, rimPower = 2.5, film = 0, lowRim = 1 } = {},
 ): M & { userData: { glow: GlowUniforms } } => {
   const glow: GlowUniforms = {
     uRim: { value: new Color(rim).multiplyScalar(rimStrength) },
@@ -74,6 +79,9 @@ export const withGlow = <M extends MeshPhysicalMaterial | MeshStandardMaterial>(
     uStateFrom: { value: -1 },
     uCrown: { value: new Color(0, 0, 0) },
     uFilm: { value: film },
+    uLowRim: { value: lowRim },
+    uSteep: view.steep,
+    uLow: view.low,
   };
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, glow);
@@ -91,6 +99,9 @@ export const withGlow = <M extends MeshPhysicalMaterial | MeshStandardMaterial>(
         uniform float uStateFrom;
         uniform vec3 uCrown;
         uniform float uFilm;
+        uniform float uLowRim;
+        uniform float uSteep;
+        uniform float uLow;
         varying float vLocalY;`,
       )
       .replace(
@@ -104,9 +115,14 @@ export const withGlow = <M extends MeshPhysicalMaterial | MeshStandardMaterial>(
           float band = facing * 1.9 + dot(normal, vec3(0.35, 0.55, 0.15)) * 0.7;
           vec3 film = 0.5 + 0.5 * cos(6.2831853 * (band + vec3(0.0, 0.33, 0.67)));
           diffuseColor.rgb *= mix(vec3(1.0), 0.66 + 0.68 * film, uFilm * pow(edge, 1.5));
-          totalEmissiveRadiance += uRim * pow(edge, uRimPower);
+          // At the lowest views a dark army's rim burns brighter but tighter, so
+          // the edge separates from the water while the body stays black glass
+          float lowRim = mix(1.0, uLowRim, uLow);
+          totalEmissiveRadiance += uRim * pow(edge, uRimPower + (lowRim - 1.0) * 3.0) * lowRim;
           float above = smoothstep(uStateFrom, uStateFrom + 0.06, vLocalY);
-          totalEmissiveRadiance += uStateRim * pow(edge, uStatePower) * above;
+          // From above every tier of a piece would take its own state rim (a
+          // bullseye): there the outline alone says it
+          totalEmissiveRadiance += uStateRim * pow(edge, uStatePower) * above * (1.0 - 0.7 * uSteep);
           // Up-facing edges only: seen from straight above, a face pointed at
           // the eye takes none of it, so a piece never greys from the top
           vec3 worldNormal = inverseTransformDirection(normal, viewMatrix);
@@ -114,7 +130,7 @@ export const withGlow = <M extends MeshPhysicalMaterial | MeshStandardMaterial>(
         }`,
       );
   };
-  m.customProgramCacheKey = () => `abyss-glow2-${m.type}`;
+  m.customProgramCacheKey = () => `abyss-glow3-${m.type}`;
   m.userData.glow = glow;
   return m as M & { userData: { glow: GlowUniforms } };
 };
@@ -145,7 +161,9 @@ const makeBody = (color: PieceColor) =>
           clearcoatRoughness: 0.1,
           specularIntensity: 1,
         }),
-        { rimStrength: 0.55, rimPower: 2.4 },
+        // At the lowest views the rim burns brighter (0.8), to hold the
+        // black glass off the water behind it
+        { rimStrength: 0.55, rimPower: 2.4, lowRim: 0.8 / 0.55 },
       );
 
 // The inlays (knight's mane, bishop's cut, unicorn's spiral, queen's pearls,
@@ -335,11 +353,16 @@ const POOL_RADIUS = 0.44;
 const POOL_EXTENT = 0.8;
 
 const poolPlane = new PlaneGeometry(POOL_EXTENT * 2, POOL_EXTENT * 2).rotateX(-Math.PI / 2);
-const poolMaterials = new Map<number, ShaderMaterial>();
+const poolMaterials = new Map<string, ShaderMaterial>();
 /** Half the footprint square, world units (clarityTower's pitch is 1). */
 const FOOTPRINT_HALF = 0.43;
-const poolMaterial = (level: number) => {
-  let m = poolMaterials.get(level);
+/**
+ * The pool of a level, brighter under a hovered piece: a hover cue that reads
+ * on both armies (a pale outline alone is lost on nacre).
+ */
+const poolMaterial = (level: number, hovered: boolean) => {
+  const key = `${level}/${hovered}`;
+  let m = poolMaterials.get(key);
   if (!m) {
     m = new ShaderMaterial({
       transparent: true,
@@ -351,7 +374,7 @@ const poolMaterial = (level: number) => {
         uColor: { value: new Color(LEVELS[level]) },
         uCount: { value: level + 1 },
         uRadius: { value: POOL_RADIUS },
-        uPool: { value: 0.3 },
+        uPool: { value: hovered ? 0.6 : 0.3 },
         uHalf: { value: FOOTPRINT_HALF },
         uSteep: view.steep,
         uTicks: view.ticks,
@@ -359,16 +382,16 @@ const poolMaterial = (level: number) => {
       vertexShader: poolVertex,
       fragmentShader: poolFragment,
     });
-    poolMaterials.set(level, m);
+    poolMaterials.set(key, m);
   }
   return m;
 };
 
 /** The foot band's light on the glass in the level's colour, its footprint and ticks. */
-export const LightPool = ({ level }: { level: number }) => (
+export const LightPool = ({ level, hovered = false }: { level: number; hovered?: boolean }) => (
   <mesh
     geometry={poolPlane}
-    material={poolMaterial(level)}
+    material={poolMaterial(level, hovered)}
     position={[0, 0.006, 0]}
     // Hidden by the kit's Topple when a mated king falls, so it never stands up on edge
     userData={FLOOR_DECAL}
@@ -382,8 +405,14 @@ export const LightPool = ({ level }: { level: number }) => (
 const hullVertex = /* glsl */ `
   uniform float uWidth;
   uniform vec2 uResolution;
+  uniform float uPush;
   void main() {
-    vec4 clip = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    // Pushed back along the line of sight (the same point on screen): where
+    // the piece overlaps itself (a crown over its base, seen from above) its
+    // own surface hides the outline, so only the outer silhouette is drawn
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    mv.xyz += normalize(mv.xyz) * uPush;
+    vec4 clip = projectionMatrix * mv;
     vec3 n = normalize(normalMatrix * normal);
     vec2 dir = (projectionMatrix * vec4(n, 0.0)).xy;
     float len = length(dir);
@@ -436,6 +465,7 @@ const hullMaterial = (strength: 'hover' | 'selected') => {
         uOpacity: { value: strength === 'selected' ? 1 : 0.7 },
         uWidth: { value: HULL_WIDTH[strength] },
         uResolution: { value: resolution },
+        uPush: { value: 0.45 },
       },
       vertexShader: hullVertex,
       fragmentShader: hullFragment,
@@ -513,7 +543,7 @@ export const AbyssPiece = ({
       {decor && (
         <>
           <ContactShadow radius={0.34} opacity={0.55} color="#01080b" />
-          <LightPool level={level} />
+          <LightPool level={level} hovered={state === 'hover'} />
         </>
       )}
       <ChessPiece type={type} parts={parts} />
