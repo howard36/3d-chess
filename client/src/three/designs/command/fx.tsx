@@ -20,7 +20,7 @@ import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, PieceColor, Vec3 } from '../types';
 import { CommandParts } from './pieces';
-import { KNIGHT_YAW, layout, MOTION, PALETTE, PIECE_SCALE } from './shared';
+import { layout, MOTION, PALETTE, PIECE_SCALE } from './shared';
 
 // Moments of motion, all on r3f's clock so a frame-stepped recording plays
 // them exactly: a move lifts off in a ring of its army's light, leaves a
@@ -548,20 +548,19 @@ const dissolveFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-// The orientation of the board being drawn (set by the stage), so a dissolving
-// knight faces the way it stood.
-export const view = { orientation: 'white' as PieceColor };
-
 const Victim = ({
   floor,
   type,
   color,
+  facing,
   delayMs,
   lifeMs,
 }: {
   floor: Vec3;
   type: PieceType;
   color: PieceColor;
+  /** A knight's yaw, as Board gave it on the board. */
+  facing: number;
   delayMs: number;
   lifeMs: number;
 }) => {
@@ -598,13 +597,9 @@ const Victim = ({
     }
   });
   if (done) return null;
-  const facing =
-    type === PieceType.Knight
-      ? (color === view.orientation ? 1 : -1) * (Math.PI / 2 - KNIGHT_YAW)
-      : 0;
   return (
     <group ref={group} position={floor}>
-      <group scale={PIECE_SCALE} rotation={[0, facing, 0]}>
+      <group scale={PIECE_SCALE} rotation={[0, type === PieceType.Knight ? facing : 0, 0]}>
         <CommandParts type={type} body={material} accent={material} />
       </group>
     </group>
@@ -615,7 +610,7 @@ const voxel = new BoxGeometry(0.06, 0.06, 0.06);
 const voxelMaterial = new MeshBasicMaterial({ color: '#ffffff', toneMapped: false });
 
 /** The captured piece stands until the capturer lands, then de-rezzes into voxels. */
-export const CaptureFx = ({ floor, victim, durationMs }: CaptureFxProps) => {
+export const CaptureFx = ({ floor, victim, victimFacing = 0, durationMs }: CaptureFxProps) => {
   const impact = durationMs * 0.8;
   const colors = useMemo(
     () => [BODY[victim.color], RIM[victim.color], RIM[victim.color], PALETTE.capture],
@@ -623,7 +618,14 @@ export const CaptureFx = ({ floor, victim, durationMs }: CaptureFxProps) => {
   );
   return (
     <>
-      <Victim floor={floor} type={victim.type} color={victim.color} delayMs={impact} lifeMs={300} />
+      <Victim
+        floor={floor}
+        type={victim.type}
+        color={victim.color}
+        facing={victimFacing}
+        delayMs={impact}
+        lifeMs={300}
+      />
       <Shards
         position={[floor[0], floor[1] + 0.2, floor[2]]}
         geometry={voxel}

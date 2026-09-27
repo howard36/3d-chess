@@ -5,8 +5,6 @@ import { BackSide, Color, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
 import type { DirectionalLight } from 'three';
 import { noRaycast } from '../kit/noRaycast';
 import { GradientSky } from '../kit/sky';
-import type { StageProps } from '../types';
-import { view } from './fx';
 import { PALETTE, ROOM_FLOOR_Y } from './shared';
 
 // The operations room: a navy-to-black dome, and far below the tower the
@@ -128,8 +126,24 @@ const CameraLights = () => {
   );
 };
 
-export const Stage = ({ orientation }: StageProps) => {
-  view.orientation = orientation;
+/**
+ * Rajdhani's lowercase "a" reads as "o" at HUD size. The move box's prompt is
+ * the one HUD line that stays lowercase, so while this design is up it is
+ * set in the mono face, like the coordinates.
+ */
+const HUD_CSS = `label[for="typed-move"] { font-family: "Share Tech Mono", ui-monospace, monospace; }`;
+const useHudStyle = () => {
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.dataset.design = 'command';
+    style.textContent = HUD_CSS;
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, []);
+};
+
+export const Stage = () => {
+  useHudStyle();
   return (
     <>
       <GradientSky

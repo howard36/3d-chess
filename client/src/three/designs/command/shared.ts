@@ -6,11 +6,14 @@ import type { DesignMotion } from '../types';
 // the effects, so the palette and the tower's measurements live in one place.
 //
 // Value plan, darkest to brightest:
-//   room (navy-black, 3–10%) < glass (a cyan veil, ~12% over the room)
-//   < amber army (mid value, warm) < ice army (near white, cool).
+//   room (navy-black, 3–10%) < glass (a cyan veil, ~10% over the room)
+//   < amber army (burnished, mid value, warm) < ice army (near white, cool).
 // Marker hues are kept out of all four, one meaning each, borrowed from
 // tactical and avionics symbology: green for a clear move, red for hostile
-// (capture, check), magenta for the route just flown (the last move).
+// (capture, check), violet for the route just flown (the last move).
+// Levels are told apart by a quiet ramp inside the glass's own family, teal
+// at A to ice blue at E, on the plate edges, the level letters and a thin
+// ring at every piece's base.
 
 export const PALETTE = {
   // The room: navy to black, low-frequency and cool
@@ -21,30 +24,45 @@ export const PALETTE = {
   floorGlow: '#0e4766',
 
   // Holographic glass
-  glassLight: '#a8ecff',
-  glassDark: '#3d93bd',
-  glassEdge: '#7fe4ff',
-  glassTick: '#7fe4ff',
+  glassLight: '#9fe6ff',
+  glassDark: '#5aa6cf',
+  glassTick: '#8fdcf5',
 
-  // The armies: ice against amber
-  white: '#e6f0f6',
+  // The armies: ice against burnished amber
+  white: '#e8f1f7',
+  whiteCore: '#98b2c4',
   whiteRim: '#62d8ff',
   whiteAccent: '#2c6f93',
-  black: '#d56d1c',
-  blackRim: '#ffb257',
-  blackAccent: '#4c1f05',
+  whiteInCheck: '#eb9aa4',
+  black: '#d9902e',
+  blackCore: '#7a3c0e',
+  blackRim: '#ffc56b',
+  blackAccent: '#4a1d04',
+  blackInCheck: '#b3121f',
 
   // Markers, one meaning each
   move: '#62ff9a',
   capture: '#ff4747',
-  lastMove: '#ff5ad2',
+  lastMove: '#bf74ff',
+  // The last move's chevrons and edge: a pale glint of the same violet
+  lastMoveGlint: '#f3e6ff',
+  lastMoveEdge: '#1c0833',
   select: '#dffaff',
   check: '#ff3a3a',
+  // The dark stroke under every marker, so it holds on bright glass and frames
+  underlay: '#020a16',
 
   // Type and HUD
   ink: '#d3eefb',
   cyan: '#39d0ff',
 } as const;
+
+/**
+ * One colour per level, A (bottom) to E: teal to ice blue, inside the glass's
+ * own family and clear of every marker hue. The plate edges, the level
+ * letters and the ring at each piece's base all use it.
+ */
+export const LEVEL_COLORS = ['#26cbb4', '#3cbfe8', '#4f9dff', '#7d9bff', '#c4dcff'];
 
 // The kit's compact tower, unchanged: the Staunton set at 0.8 leaves the king
 // clear air under the platform above.
@@ -55,7 +73,7 @@ export const FRAME = towerFrame(layout);
 /** How far each platform reaches past its outer squares, to the inside of its frame. */
 export const MARGIN = 0.06;
 /** Width of the frame's top face. */
-export const EDGE_WIDTH = 0.03;
+export const EDGE_WIDTH = 0.022;
 /** The floor of the ops room, well below the tower. */
 export const ROOM_FLOOR_Y = FRAME.levelY[0] - 3.2;
 

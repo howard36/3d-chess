@@ -1,45 +1,56 @@
-import '@fontsource/rajdhani/500.css';
 import '@fontsource/rajdhani/600.css';
 import '@fontsource/rajdhani/700.css';
 import '@fontsource/share-tech-mono/400.css';
 import { NeutralToneMapping } from 'three';
+import { focusLevelOf } from '../kit/focus';
 import { SmartLabels } from '../kit/smartLabels';
 import type { Design, GridProps } from '../types';
 import { CaptureFx, Celebration, MoveFx } from './fx';
 import { Capture, Check, LastMove, Quiet, Selection } from './markers';
 import { PieceBody } from './pieces';
 import { HoloPlates } from './plates';
-import { KNIGHT_YAW, layout, MOTION, PALETTE, PIECE_SCALE } from './shared';
+import { KNIGHT_YAW, layout, LEVEL_COLORS, MOTION, PALETTE, PIECE_SCALE } from './shared';
 import { Stage } from './stage';
 
 // Command: a naval tactical hologram in a dark operations room. Precise,
-// legible, cool. Ice-white and amber units stand on five sheets of cyan glass
-// over a plotting floor; green brackets mark where a unit can go, red teeth
-// mark a target, and the last move is drawn as a magenta route.
+// legible, cool. Ice and burnished-amber units stand on five sheets of glass,
+// teal at A to ice blue at E, over a plotting floor; green brackets mark where
+// a unit can go, red teeth mark a target, and the last move is drawn as a
+// violet route.
 
 // --- Board -------------------------------------------------------------------------
 
-/** Platforms and coordinates. Decorative only: Board draws this outside the clickable group. */
-const Grid = ({ layout: l, orientation }: GridProps) => (
-  <>
-    <HoloPlates />
-    <SmartLabels
-      layout={l}
-      orientation={orientation}
-      font='"Rajdhani", sans-serif'
-      weight={600}
-      levelWeight={700}
-      color={PALETTE.ink}
-      levelColors={Array(5).fill('#ffffff')}
-      outline="rgba(1, 6, 14, 0.9)"
-      outlineWidth={0.08}
-      shadow="rgba(57, 208, 255, 0.55)"
-      size={0.34}
-      levelScale={1.5}
-      opacity={0.92}
-    />
-  </>
-);
+/**
+ * Platforms and coordinates. Decorative only: Board draws this outside the
+ * clickable group. The level the player points at (or has a piece picked up
+ * on) brightens its frame and letter; the others dim a little.
+ */
+const Grid = ({ layout: l, orientation, focus }: GridProps) => {
+  const focusLevel = focusLevelOf(focus);
+  return (
+    <>
+      <HoloPlates focusLevel={focusLevel} />
+      <SmartLabels
+        layout={l}
+        orientation={orientation}
+        // A mono face: its double-storey "a" never reads as "o"
+        font='"Share Tech Mono", ui-monospace, monospace'
+        weight={400}
+        color={PALETTE.ink}
+        levelColors={LEVEL_COLORS}
+        outline="rgba(1, 6, 14, 0.92)"
+        outlineWidth={0.09}
+        shadow="rgba(57, 208, 255, 0.45)"
+        size={0.36}
+        levelScale={1.45}
+        opacity={0.94}
+        focusLevel={focusLevel}
+        focusScale={1.3}
+        focusDim={0.55}
+      />
+    </>
+  );
+};
 
 // --- HUD ---------------------------------------------------------------------------
 
@@ -117,6 +128,8 @@ const command: Design = {
       '--page-bg': 'radial-gradient(ellipse at 50% 65%, #0d2136 0%, #040a14 60%, #010309 100%)',
       '--page-fg': PALETTE.ink,
     },
+    // The cell under the pointer, e.g. "Cc4 · White Bishop"
+    readout: true,
     // A still vignette: the room falls away at the corners of the screen
     overlay: {
       background:
