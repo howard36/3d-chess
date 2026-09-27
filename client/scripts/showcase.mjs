@@ -43,8 +43,8 @@
 // the last move's line after a move between levels; and a check. Each is
 // shot from 13 poses: 8 azimuths round the tower at the design's own
 // elevation, a low and a high view at two azimuths, and straight down from
-// above (the design's orbit limits apply, so the labels give the elevation
-// actually reached). It
+// above, turned square to the seat so it reads like a 2D board (the design's
+// orbit limits apply, so the labels give the elevation actually reached). It
 // writes every shot as <seat>-<state>-<pose>.png plus labelled contact
 // sheets: review-states.png (every state from both seats, opening view),
 // review-white.png and review-black.png (every state, every pose, and the
@@ -359,11 +359,19 @@ const SHOW_HELPERS = () => {
      * view, distance scaled by `zoom`, and the look-at point pulled `pull` of
      * the way from the board's centre toward `focus`.
      */
-    /** As orbit, but to an absolute elevation (degrees above the horizon). */
-    orbitTo(yawDeg, elevationDeg, zoom = 1) {
+    /**
+     * As orbit, but to an absolute elevation (degrees above the horizon).
+     * `square` turns the heading to the seat's own axis first (the opening
+     * view sits a little off it), so a top-down view reads like a 2D board.
+     */
+    orbitTo(yawDeg, elevationDeg, zoom = 1, square = false) {
       window.__show.orbit(0, 0, 1, null, 0);
       const pitchDeg = elevationDeg - (base.pitch * 180) / Math.PI;
-      window.__show.orbit(yawDeg, pitchDeg, zoom, null, 0);
+      const quarter = Math.PI / 2;
+      const offDeg = square
+        ? ((Math.round(base.yaw / quarter) * quarter - base.yaw) * 180) / Math.PI
+        : 0;
+      window.__show.orbit(yawDeg + offDeg, pitchDeg, zoom, null, 0);
     },
     orbit(yawDeg, pitchDeg, zoom, focus, pull) {
       const st = store();
@@ -531,7 +539,7 @@ const REVIEW_STATES = {
 // as the design's orbit allows). --poses "az,el;az,el" replaces them: az in
 // degrees round from the seat's opening view, el the elevation in degrees
 // (the design's orbit limits still apply).
-const TOP_DOWN = { id: 'top', yaw: 0, elevation: 89.9 };
+const TOP_DOWN = { id: 'top', yaw: 0, elevation: 89.9, square: true };
 const CUSTOM_POSES = opt('poses');
 const REVIEW_POSES = CUSTOM_POSES
   ? CUSTOM_POSES.split(';')
@@ -574,8 +582,8 @@ async function review(seats) {
     shots[seat][state] = [];
     notes[seat][state] = note;
     for (const pose of REVIEW_POSES) {
-      const at = await page.evaluate(({ yaw, pitch, elevation }) => {
-        if (elevation !== undefined) window.__show.orbitTo(yaw, elevation);
+      const at = await page.evaluate(({ yaw, pitch, elevation, square }) => {
+        if (elevation !== undefined) window.__show.orbitTo(yaw, elevation, 1, square);
         else window.__show.orbit(yaw, pitch, 1, null, 0);
         // Labels crossfade to their new anchors over a few frames
         window.__show.settle(6, 50);
