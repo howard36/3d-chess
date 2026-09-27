@@ -7,12 +7,12 @@ import { noRaycast } from '../kit/noRaycast';
 import { GradientSky } from '../kit/sky';
 import { PALETTE, ROOM_FLOOR_Y } from './shared';
 
-// The operations room: a navy-to-black dome, and far below the tower the
-// plotting floor of a tactical display, a few range rings and bearing lines
-// that fade with distance, under a faint pool of light. Everything is radially
-// symmetric, so the room looks the same from every side and both seats. The
-// lights ride with the camera, so the pieces are lit the same way whichever
-// way the player turns the tower (no hot specular from one side only).
+// The studio: a navy-to-black dome, and far below the tower a softly lit
+// floor, an even grid of faint light seams (like the joints of floor panels)
+// that fades with distance, under a pool of light. The grid is square and
+// centred on the tower, so the room looks the same from both seats. The lights
+// ride with the camera, so the pieces are lit the same way whichever way the
+// player turns the tower (no hot specular from one side only).
 
 const floorVertex = /* glsl */ `
   varying vec2 vP;
@@ -25,27 +25,22 @@ const floorVertex = /* glsl */ `
 const floorFragment = /* glsl */ `
   uniform vec3 uLine;
   uniform vec3 uGlow;
-  uniform float uRingStep;
+  uniform float uCell;
   varying vec2 vP;
   void main() {
     float r = length(vP);
-    float fr = max(fwidth(r), 1e-4);
-    // Range rings; they thin out where they would shimmer at grazing angles
-    float ringD = abs(fract(r / uRingStep + 0.5) - 0.5) * uRingStep;
-    float ring = 1.0 - smoothstep(0.012, 0.012 + fr * 1.5, ringD);
-    ring *= 1.0 - smoothstep(0.08, 0.3, fr / uRingStep * 2.0);
-    // Every third ring is a major one
-    float major = step(abs(fract(r / (uRingStep * 3.0) + 0.5) - 0.5) * 3.0, 0.5);
-    // Bearing lines every 30 degrees, starting clear of the tower
-    float seg = 6.2831853 / 12.0;
-    float ang = atan(vP.y, vP.x);
-    float spokeD = abs(fract(ang / seg + 0.5) - 0.5) * seg * r;
-    float spoke = (1.0 - smoothstep(0.01, 0.01 + fr * 1.5, spokeD)) * smoothstep(4.5, 6.5, r);
-    spoke *= 1.0 - smoothstep(0.08, 0.3, fr * 2.0);
+    // An even square grid of soft seams, every one alike: a thin core in a
+    // wider halo. They thin out where they would shimmer at grazing angles.
+    vec2 g = vP / uCell + 0.5;
+    vec2 fw = max(fwidth(g), vec2(1e-4));
+    vec2 d = abs(fract(g) - 0.5) * uCell;
+    vec2 core = 1.0 - smoothstep(vec2(0.012), vec2(0.012) + fw * uCell * 1.5, d);
+    vec2 seam = max(core, exp(-d / 0.08) * 0.25);
+    seam *= 1.0 - smoothstep(vec2(0.08), vec2(0.3), fw * 2.0);
     // Nothing sharp directly under the tower, where it would show through the glass
     float clear = smoothstep(4.2, 7.0, r);
     float fade = 1.0 - smoothstep(8.0, 22.0, r);
-    float lines = max(ring * (0.4 + 0.6 * major), spoke * 0.5) * clear * fade;
+    float lines = max(seam.x, seam.y) * 0.32 * clear * fade;
     float glow = exp(-r * r / (2.0 * 4.2 * 4.2));
     vec3 col = uGlow * glow + uLine * lines;
     float a = clamp(glow * 0.9 + lines * 0.22, 0.0, 1.0);
@@ -56,8 +51,8 @@ const floorFragment = /* glsl */ `
 
 const floorPlane = new PlaneGeometry(70, 70).rotateX(-Math.PI / 2);
 
-/** The plotting floor far below the tower. */
-const PlotFloor = () => {
+/** The studio floor far below the tower. */
+const StudioFloor = () => {
   const material = useMemo(
     () =>
       new ShaderMaterial({
@@ -67,7 +62,7 @@ const PlotFloor = () => {
         uniforms: {
           uLine: { value: new Color(PALETTE.floorLine) },
           uGlow: { value: new Color(PALETTE.floorGlow) },
-          uRingStep: { value: 2.6 },
+          uCell: { value: 3.2 },
         },
         vertexShader: floorVertex,
         fragmentShader: floorFragment,
@@ -152,9 +147,9 @@ export const Stage = () => {
         bottom={PALETTE.skyBottom}
         exponent={0.55}
       />
-      <PlotFloor />
+      <StudioFloor />
       {/* What the pieces' lacquer reflects: a dark room, a soft panel overhead
-          and a ring of dim display walls, the same all the way round */}
+          and a ring of dim wall panels, the same all the way round */}
       <Environment resolution={64} frames={1}>
         <mesh scale={30}>
           <sphereGeometry args={[1, 16, 8]} />

@@ -16,24 +16,27 @@ import { LastMoveLine } from '../kit/line';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { FRAME, MOTION, PALETTE } from './shared';
 
-// Markers: targeting brackets flat on the glass, one family throughout, each
+// Markers: soft corner marks flat on the glass, one family throughout, each
 // drawn over a thin dark underlay so it holds on bright glass and frames.
-// - A move: green brackets. Under the pointer they brighten, thicken and fill.
-// - A capture: the same brackets in red, with teeth pointing in.
-// - The last move: violet brackets on both squares (set a little wider, so
-//   they nest round a move bracket on the same square), joined by a thin
-//   dashed course, straight from square to square, whose dashes drift gently
+// - A move: green corner marks. Under the pointer they brighten, thicken and fill.
+// - A capture: the same corner marks in red, with a dot at the middle of each
+//   side, so it differs from a move in shape as well as colour.
+// - The last move: violet corner marks on both squares (set a little wider,
+//   so they nest round a move's marks on the same square), joined by a thin
+//   dashed line, straight from square to square, whose dashes drift gently
 //   toward the destination.
-// - Check: bold red brackets, a ring and a short column of red light.
-// - The selection is the one place with lively motion: a bezel that locks on
-//   and sweeps like sonar, and a soft column of light through every level
-//   with a small cross where it meets each platform, so the squares directly
-//   above and below the piece are easy to find.
+// - Check: a calm red glow: bold red corner marks, a ring and a soft column of
+//   red light, all very slowly breathing.
+// - The selection is the one place with lively motion: a halo that settles
+//   onto the square with a glint of light travelling round it, and a soft
+//   column of light through every level with a small cross where it meets
+//   each platform, so the squares directly above and below the piece are
+//   easy to find.
 
 const { pitch } = FRAME;
 const MAX_FRAME = 1 / 30;
 
-// --- Brackets ----------------------------------------------------------------------
+// --- Corner marks ------------------------------------------------------------------
 
 const markerVertex = /* glsl */ `
   varying vec2 vP;
@@ -42,7 +45,7 @@ const markerVertex = /* glsl */ `
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 
-const bracketFragment = /* glsl */ `
+const cornerFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform vec3 uUnder;
   uniform float uOpacity;
@@ -50,9 +53,8 @@ const bracketFragment = /* glsl */ `
   uniform float uHalf;
   uniform float uLine;
   uniform float uRadius;
-  uniform float uBracket;
-  uniform float uTick;
-  uniform float uCapture;
+  uniform float uGap;
+  uniform float uDots;
   uniform float uHover;
   uniform float uUnderWidth;
   uniform float uUnderAlpha;
@@ -62,11 +64,6 @@ const bracketFragment = /* glsl */ `
   float roundBox(vec2 p, float b, float r) {
     vec2 q = abs(p) - vec2(b - r);
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
-  }
-  float segment(vec2 p, vec2 a, vec2 b) {
-    vec2 pa = p - a, ba = b - a;
-    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-    return length(pa - ba * h);
   }
   // Paints top over bottom (straight alpha)
   vec4 over(vec4 top, vec4 bottom) {
@@ -79,15 +76,12 @@ const bracketFragment = /* glsl */ `
     vec2 q = abs(vP);
     float line = uLine * (1.0 + 0.4 * uHover);
     float box = roundBox(vP, uHalf, uRadius);
-    // Corner brackets: the outline only where both coordinates near a corner
-    float stroke = max(abs(box) - line * 0.5, uBracket - min(q.x, q.y));
-    if (uCapture > 0.5) {
-      // Teeth pointing in from the middle of each side: the same marker, as a target
-      float t = min(
-        segment(q, vec2(uHalf - uTick, 0.0), vec2(uHalf + line * 0.5, 0.0)),
-        segment(q, vec2(0.0, uHalf - uTick), vec2(0.0, uHalf + line * 0.5))
-      ) - line * 0.5;
-      stroke = min(stroke, t);
+    // Corner marks: the outline only where both coordinates near a corner
+    float stroke = max(abs(box) - line * 0.5, uGap - min(q.x, q.y));
+    if (uDots > 0.5) {
+      // A round dot on the outline at the middle of each side
+      float dot = min(length(q - vec2(uHalf, 0.0)), length(q - vec2(0.0, uHalf))) - line * 0.8;
+      stroke = min(stroke, dot);
     }
     float aa = max(fwidth(stroke), 1e-4);
     float core = 1.0 - smoothstep(-aa, aa, stroke);
@@ -113,7 +107,7 @@ const markerPlane = (size: number) => {
   return g;
 };
 
-interface BracketStyle {
+interface CornerStyle {
   color: string;
   opacity?: number;
   fill?: number;
@@ -121,33 +115,34 @@ interface BracketStyle {
   inset?: number;
   /** Stroke width, as a fraction of the pitch. */
   lineWidth?: number;
-  /** Length of each bracket's arms, as a fraction of the outline's half side. */
-  bracketLength?: number;
-  capture?: boolean;
+  /** Length of each corner mark's arms, as a fraction of the outline's half side. */
+  armLength?: number;
+  /** A dot at the middle of each side (a capture). */
+  dots?: boolean;
   hovered?: boolean;
   /** Depth of a slow opacity breathe (0 = still). */
   breathe?: number;
   breathePeriod?: number;
 }
 
-// Every breathing bracket reads the same clock
+// Every breathing corner mark reads the same clock
 const breathClock = { t: 0 };
 
-/** Corner brackets flat on the floor of a square, over a thin dark underlay. */
-const Brackets = ({
+/** Corner marks flat on the floor of a square, over a thin dark underlay. */
+const CornerMarks = ({
   floor,
   color,
   opacity = 0.95,
   fill = 0,
   inset = 0.1,
   lineWidth = 0.08,
-  bracketLength = 0.5,
-  capture = false,
+  armLength = 0.5,
+  dots = false,
   hovered = false,
   breathe = 0,
   breathePeriod = 2.8,
   lift = 0.012,
-}: BracketStyle & { floor: Vec3; lift?: number }) => {
+}: CornerStyle & { floor: Vec3; lift?: number }) => {
   const invalidate = useThree((s) => s.invalidate);
   const material = useMemo(
     () =>
@@ -166,16 +161,15 @@ const Brackets = ({
           uHalf: { value: 0.4 },
           uLine: { value: 0.08 },
           uRadius: { value: 0.05 },
-          uBracket: { value: 0.2 },
-          uTick: { value: 0.1 },
-          uCapture: { value: 0 },
+          uGap: { value: 0.2 },
+          uDots: { value: 0 },
           uHover: { value: 0 },
           uUnderWidth: { value: 0.014 * pitch },
           uUnderAlpha: { value: 0.72 },
           uBreath: { value: 1 },
         },
         vertexShader: markerVertex,
-        fragmentShader: bracketFragment,
+        fragmentShader: cornerFragment,
       }),
     [],
   );
@@ -188,10 +182,9 @@ const Brackets = ({
   u.uFill.value = fill;
   u.uHalf.value = half;
   u.uLine.value = line;
-  u.uRadius.value = 0.06 * pitch;
-  u.uBracket.value = half * (1 - bracketLength);
-  u.uTick.value = 0.1 * pitch;
-  u.uCapture.value = capture ? 1 : 0;
+  u.uRadius.value = 0.1 * pitch;
+  u.uGap.value = half * (1 - armLength);
+  u.uDots.value = dots ? 1 : 0;
   u.uHover.value = hovered ? 1 : 0;
   useFrame((state) => {
     if (breathe <= 0) return;
@@ -212,40 +205,40 @@ const Brackets = ({
   );
 };
 
-const MOVE = { color: PALETTE.move, inset: 0.1, lineWidth: 0.08, bracketLength: 0.5 };
+const MOVE = { color: PALETTE.move, inset: 0.1, lineWidth: 0.08, armLength: 0.5 };
 
 export const Quiet = ({ floor, hovered }: MarkerProps) => (
-  <Brackets floor={floor} {...MOVE} fill={0.04} hovered={hovered} />
+  <CornerMarks floor={floor} {...MOVE} fill={0.04} hovered={hovered} />
 );
 
 export const Capture = ({ floor, hovered }: MarkerProps) => (
-  <Brackets floor={floor} {...MOVE} color={PALETTE.capture} fill={0.08} capture hovered={hovered} />
+  <CornerMarks floor={floor} {...MOVE} color={PALETTE.capture} fill={0.08} dots hovered={hovered} />
 );
 
 // --- Selection -------------------------------------------------------------------
 
-const bezelVertex = /* glsl */ `
+const haloVertex = /* glsl */ `
   varying vec2 vP;
   void main() {
     vP = position.xy;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 
-// A bezel: a solid ring with notches at the compass points reaching in and
-// out through a dashed outer ring that turns slowly, and inside it a sonar
-// sweep going round over a pool of light.
-const bezelFragment = /* glsl */ `
+// A halo: a solid ring with four notches reaching in and out through a dashed
+// outer ring that turns slowly, a pool of light inside it, and a soft glint
+// travelling round the rings.
+const haloFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uAlpha;
   uniform float uTurn;
-  uniform float uSweep;
+  uniform float uGlint;
   varying vec2 vP;
   void main() {
     float r = length(vP);
     float ang = atan(vP.y, vP.x);
     float fr = max(fwidth(r), 1e-4);
     float ring = 1.0 - smoothstep(0.024 - fr, 0.024 + fr, abs(r - 0.355));
-    // Notches at the compass points, from inside the ring out past the dashes
+    // Four notches, from inside the ring out past the dashes
     vec2 q = abs(vP);
     float across = min(q.x, q.y);
     float notch = (1.0 - smoothstep(0.018 - fr, 0.018 + fr, across))
@@ -253,12 +246,13 @@ const bezelFragment = /* glsl */ `
     // Dashed outer ring
     float a = ang + uTurn;
     float dash = step(0.45, fract(a / 6.2831853 * 28.0));
-    float outer = (1.0 - smoothstep(0.014 - fr, 0.014 + fr, abs(r - 0.44))) * dash;
+    // The glint: a soft arc of light travelling round the rings, closing the
+    // dashes where it passes and glowing either side of the solid ring
+    float along = fract((uGlint - ang) / 6.2831853);
+    float glint = exp(-min(along, 1.0 - along) * 9.0);
+    float outer = (1.0 - smoothstep(0.014 - fr, 0.014 + fr, abs(r - 0.44))) * max(dash, glint);
     float pool = exp(-r * r / 0.06) * 0.42;
-    // The sweep: bright at the beam, fading round behind it
-    float behind = fract((uSweep - ang) / 6.2831853);
-    float sweep = exp(-behind * 7.0) * 0.5 * (1.0 - smoothstep(0.32, 0.345, r));
-    pool = max(pool, sweep);
+    pool = max(pool, glint * exp(-abs(r - 0.355) / 0.035) * 0.55);
     float s = max(max(ring, notch), outer * 0.85);
     float alpha = max(s, pool) * uAlpha;
     if (alpha < 0.003) discard;
@@ -266,7 +260,7 @@ const bezelFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-const bezelPlane = new PlaneGeometry(1, 1);
+const haloPlane = new PlaneGeometry(1, 1);
 
 // A column of light through every level: a soft additive glow, brightest down
 // its middle and round the selected piece, gone at the top and bottom.
@@ -326,16 +320,16 @@ const columnTop = FRAME.levelY[4] + 1.5;
 const columnGeometry = new CylinderGeometry(1, 1, 1, 32, 1, true);
 const crossPlane = new PlaneGeometry(0.3, 0.3);
 
-const INTRO = 0.26; // seconds for the lock-on
+const INTRO = 0.26; // seconds for the halo to settle
 
-/** The selected piece: a bezel that locks on, a column of light, and its square on every other level. */
+/** The selected piece: a halo on its square, a column of light, and its square on every other level. */
 export const Selection = ({ floor }: MarkerProps) => {
   const invalidate = useThree((s) => s.invalidate);
-  const bezel = useRef<Group>(null);
+  const halo = useRef<Group>(null);
   const t = useRef(0);
-  const { bezelMaterial, columnMaterial, crossMaterial } = useMemo(
+  const { haloMaterial, columnMaterial, crossMaterial } = useMemo(
     () => ({
-      bezelMaterial: new ShaderMaterial({
+      haloMaterial: new ShaderMaterial({
         transparent: true,
         depthWrite: false,
         side: DoubleSide,
@@ -346,10 +340,10 @@ export const Selection = ({ floor }: MarkerProps) => {
           uColor: { value: new Color(PALETTE.select) },
           uAlpha: { value: 0 },
           uTurn: { value: 0 },
-          uSweep: { value: 0 },
+          uGlint: { value: 0 },
         },
-        vertexShader: bezelVertex,
-        fragmentShader: bezelFragment,
+        vertexShader: haloVertex,
+        fragmentShader: haloFragment,
       }),
       columnMaterial: new ShaderMaterial({
         transparent: true,
@@ -380,14 +374,14 @@ export const Selection = ({ floor }: MarkerProps) => {
   );
   useEffect(
     () => () => {
-      bezelMaterial.dispose();
+      haloMaterial.dispose();
       columnMaterial.dispose();
       crossMaterial.dispose();
     },
-    [bezelMaterial, columnMaterial, crossMaterial],
+    [haloMaterial, columnMaterial, crossMaterial],
   );
   columnMaterial.uniforms.uHome.value = floor[1];
-  // A new selection locks on afresh (Board passes a fresh array every render)
+  // A new selection settles afresh (Board passes a fresh array every render)
   const where = floor.join(',');
   useEffect(() => {
     t.current = 0;
@@ -397,13 +391,13 @@ export const Selection = ({ floor }: MarkerProps) => {
   useFrame((_, delta) => {
     t.current += Math.min(delta, MAX_FRAME);
     const k = Math.min(t.current / INTRO, 1);
-    // Lock-on: in from wide with a little overshoot, then a slow turn
+    // Settles in from wide with a little overshoot, then a slow turn
     const back = 1 + 2.4 * (k - 1) ** 3 + 1.4 * (k - 1) ** 2;
-    const g = bezel.current;
+    const g = halo.current;
     if (g) g.scale.setScalar(pitch * (1.9 - 0.9 * back));
-    bezelMaterial.uniforms.uAlpha.value = Math.min(k * 1.6, 1);
-    bezelMaterial.uniforms.uTurn.value = t.current * 0.35;
-    bezelMaterial.uniforms.uSweep.value = t.current * 2.1;
+    haloMaterial.uniforms.uAlpha.value = Math.min(k * 1.6, 1);
+    haloMaterial.uniforms.uTurn.value = t.current * 0.35;
+    haloMaterial.uniforms.uGlint.value = t.current * 2.1;
     columnMaterial.uniforms.uAlpha.value = Math.min(k * 1.2, 1);
     columnMaterial.uniforms.uGrow.value = Math.min(t.current / 0.45, 1);
     crossMaterial.uniforms.uAlpha.value = 0.3 * Math.min(Math.max(t.current - 0.15, 0) / 0.3, 1);
@@ -413,10 +407,10 @@ export const Selection = ({ floor }: MarkerProps) => {
   const others = FRAME.levelY.filter((y) => Math.abs(y - floor[1]) > 0.01);
   return (
     <>
-      <group ref={bezel} position={[floor[0], floor[1] + 0.014, floor[2]]}>
+      <group ref={halo} position={[floor[0], floor[1] + 0.014, floor[2]]}>
         <mesh
-          geometry={bezelPlane}
-          material={bezelMaterial}
+          geometry={haloPlane}
+          material={haloMaterial}
           rotation={[-Math.PI / 2, 0, 0]}
           renderOrder={LAYER.marker}
           raycast={noRaycast}
@@ -447,15 +441,15 @@ export const Selection = ({ floor }: MarkerProps) => {
 
 // --- Last move ---------------------------------------------------------------------
 
-const LAST = { color: PALETTE.lastMove, inset: 0.03, lineWidth: 0.07, bracketLength: 0.42 };
+const LAST = { color: PALETTE.lastMove, inset: 0.03, lineWidth: 0.07, armLength: 0.42 };
 
 /**
- * The last move: violet brackets on both squares and the course plotted
- * between them, a thin dashed line straight from square to square whose
- * dashes, bright at their fronts, drift gently toward the destination. A
- * live move's course is plotted as the piece lands (its own streak of light
- * flies the path first): the brackets lock on and the line shoots from source
- * to target. A replayed or rejoined move is simply there.
+ * The last move: violet corner marks on both squares and a thin dashed line
+ * straight from square to square whose dashes, bright at their fronts, drift
+ * gently toward the destination. A live move's line is drawn as the piece
+ * lands (its own streak of light travels the path first): the corner marks
+ * appear and the line draws itself from source to destination. A replayed or
+ * rejoined move is simply there.
  */
 export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
   const group = useRef<Group>(null);
@@ -475,8 +469,8 @@ export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerPro
   return (
     <>
       <group ref={group} visible={!fresh}>
-        <Brackets floor={from.floor} {...LAST} opacity={0.75} fill={0.04} />
-        <Brackets floor={to.floor} {...LAST} opacity={1} fill={0.06} />
+        <CornerMarks floor={from.floor} {...LAST} opacity={0.75} fill={0.04} />
+        <CornerMarks floor={to.floor} {...LAST} opacity={1} fill={0.06} />
       </group>
       <LastMoveLine
         from={from.floor}
@@ -499,11 +493,12 @@ export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerPro
 
 // --- Check ---------------------------------------------------------------------------
 
-const beaconGeometry = new CylinderGeometry(1, 1, 1, 32, 1, true);
-const CHECK_PERIOD = 2.8;
+const glowGeometry = new CylinderGeometry(1, 1, 1, 32, 1, true);
+// A calm glow, not an alarm: a long, shallow breath
+const CHECK_PERIOD = 4.2;
 
-/** A short red column of light standing on the checked king's square, breathing slowly. */
-const CheckBeacon = ({ floor }: { floor: MarkerProps['floor'] }) => {
+/** A soft red column of light standing on the checked king's square, breathing very slowly. */
+const CheckGlow = ({ floor }: { floor: MarkerProps['floor'] }) => {
   const invalidate = useThree((s) => s.invalidate);
   const material = useMemo(
     () =>
@@ -539,12 +534,12 @@ const CheckBeacon = ({ floor }: { floor: MarkerProps['floor'] }) => {
   useEffect(() => () => material.dispose(), [material]);
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-    material.uniforms.uBreath.value = 0.8 + 0.2 * Math.cos((2 * Math.PI * t) / CHECK_PERIOD);
+    material.uniforms.uBreath.value = 0.9 + 0.1 * Math.cos((2 * Math.PI * t) / CHECK_PERIOD);
     invalidate();
   });
   return (
     <mesh
-      geometry={beaconGeometry}
+      geometry={glowGeometry}
       material={material}
       position={[floor[0], floor[1] + 0.55, floor[2]]}
       scale={[0.4, 1.1, 0.4]}
@@ -555,21 +550,22 @@ const CheckBeacon = ({ floor }: { floor: MarkerProps['floor'] }) => {
 };
 
 /**
- * A king in check: bold red brackets round its square, a ring at its base
- * and a short column of red light, all breathing slowly together.
+ * A king in check: a calm red glow, with bold red corner marks round its
+ * square, a ring at its base and a soft column of red light, all breathing
+ * very gently together.
  */
 export const Check = ({ floor }: MarkerProps) => (
   <>
-    <CheckBeacon floor={floor} />
-    <Brackets
+    <CheckGlow floor={floor} />
+    <CornerMarks
       floor={floor}
       color={PALETTE.check}
       opacity={1}
       fill={0.14}
       inset={0.03}
       lineWidth={0.09}
-      bracketLength={0.5}
-      breathe={0.3}
+      armLength={0.5}
+      breathe={0.12}
       breathePeriod={CHECK_PERIOD}
     />
     <FloorMarker
@@ -580,7 +576,7 @@ export const Check = ({ floor }: MarkerProps) => (
       opacity={0.9}
       lineWidth={0.045}
       ringRadius={0.4}
-      breathe={0.3}
+      breathe={0.12}
       breathePeriod={CHECK_PERIOD}
     />
   </>

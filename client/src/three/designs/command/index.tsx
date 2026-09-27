@@ -13,11 +13,11 @@ import { KNIGHT_YAW, layout, LEVEL_COLORS, MOTION, PALETTE, PIECE_SCALE } from '
 import { Stage } from './stage';
 import { SELECTION_BOB } from '../kit/motion';
 
-// Command: a naval tactical hologram in a dark operations room. Precise,
-// legible, cool. Ice and burnished-amber units stand on five sheets of glass,
-// teal at A to ice blue at E, over a plotting floor; green brackets mark where
-// a unit can go, red teeth mark a target, and the last move is drawn as a
-// violet route.
+// Halo: a calm holographic studio in a dark room. Precise, legible, cool.
+// Ice and burnished-amber pieces stand on five sheets of glass, teal at A to
+// ice blue at E, over a softly lit studio floor; green corner marks show where
+// a piece can go, red ones with a dot on each side show a capture, and the
+// last move is drawn as a violet line.
 
 // --- Board -------------------------------------------------------------------------
 
@@ -55,7 +55,7 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
 
 // --- HUD ---------------------------------------------------------------------------
 
-/** Corner brackets drawn as CSS backgrounds, for the HUD's thin-line panels. */
+/** Corner marks drawn as CSS backgrounds, for the HUD's thin-line panels. */
 const corners = (c: string, len = 10, w = 1.5) =>
   [
     ['top left', `${len}px ${w}px`],
@@ -71,21 +71,22 @@ const corners = (c: string, len = 10, w = 1.5) =>
     .join(', ');
 
 const PANEL = 'linear-gradient(180deg, rgba(9, 22, 38, 0.84), rgba(4, 11, 21, 0.88))';
-const BRACKET = 'rgba(127, 228, 255, 0.9)';
+const CORNER = 'rgba(127, 228, 255, 0.9)';
 
 // --- Design ------------------------------------------------------------------------
 
-const command: Design = {
+// The id stays 'command' (the design's first name), so stored preferences still find it
+const halo: Design = {
   id: 'command',
-  name: 'Command',
+  name: 'Halo',
   blurb:
-    'A naval tactical hologram: ice and burnished-amber units on teal-to-ice glass over a dark plotting floor.',
+    'A calm holographic studio: ice and burnished-amber pieces on teal-to-ice glass over a softly lit floor.',
   layout,
   continuous: false,
   canvas: { fov: 36, toneMapping: NeutralToneMapping, exposure: 1 },
   Stage,
   Grid,
-  // No cell volumes: the brackets on the glass say it all
+  // No cell volumes: the corner marks on the glass say it all
   cellFills: { destination: null, lastMove: null },
   PieceBody,
   pieceScale: PIECE_SCALE,
@@ -103,7 +104,7 @@ const command: Design = {
     vars: {
       '--hud-font': '"Rajdhani", "Segoe UI", sans-serif',
       '--hud-mono': '"Share Tech Mono", ui-monospace, monospace',
-      '--hud-bg': `${corners(BRACKET)}, ${PANEL}`,
+      '--hud-bg': `${corners(CORNER)}, ${PANEL}`,
       '--hud-fg': PALETTE.ink,
       '--hud-muted': 'rgba(150, 205, 230, 0.55)',
       '--hud-accent': PALETTE.cyan,
@@ -119,7 +120,7 @@ const command: Design = {
       '--turn-size': '19px',
       '--turn-border': '1px solid rgba(127, 228, 255, 0.4)',
       '--turn-shadow': '0 0 24px rgba(57, 208, 255, 0.16), 0 10px 30px rgba(0, 0, 0, 0.4)',
-      '--modal-bg': `${corners(BRACKET, 16, 2)}, linear-gradient(180deg, rgba(10, 26, 44, 0.97), rgba(3, 9, 18, 0.98))`,
+      '--modal-bg': `${corners(CORNER, 16, 2)}, linear-gradient(180deg, rgba(10, 26, 44, 0.97), rgba(3, 9, 18, 0.98))`,
       '--modal-fg': PALETTE.ink,
       '--modal-backdrop': 'rgba(1, 5, 11, 0.55)',
       '--modal-radius': '2px',
@@ -141,4 +142,4 @@ const command: Design = {
   },
 };
 
-export default command;
+export default halo;

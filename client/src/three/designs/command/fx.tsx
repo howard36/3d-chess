@@ -19,17 +19,18 @@ import { Shards } from '../kit/fx';
 import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, PieceColor, Vec3 } from '../types';
-import { CommandParts } from './pieces';
+import { HaloParts } from './pieces';
 import { movePoint } from '../../movePath';
 import { layout, PALETTE, PIECE_SCALE } from './shared';
 
 // Moments of motion, all on r3f's clock so a frame-stepped recording plays
-// them exactly: a move lifts off in a ring of its army's light, leaves a
-// streak along its hop and lands with a bracket lock and a ripple; a captured
-// piece de-rezzes into a short burst of voxels; a mate sends one red alert
-// pulse across its level. Every beat is timed inside the frame loop (never by
-// mounting children later), so each effect is over within about 0.75 s of the
-// move, and a frame-stepped capture never catches a stale one.
+// them exactly: a move lifts off in a ring of its side's light, leaves a
+// streak along its hop and lands with corner marks settling round it and a
+// ripple; a captured piece dissolves into a short burst of voxels; a mate
+// wells up as a calm red glow round the king. Every beat is timed inside the
+// frame loop (never by mounting children later), so each move's effect is over
+// within about 0.75 s of the move, and a frame-stepped capture never catches
+// a stale one.
 
 const MAX_FRAME = 1 / 30;
 
@@ -215,19 +216,19 @@ const MoveTrail = ({
   );
 };
 
-// --- Brackets snapping onto a square ---------------------------------------------------
+// --- Corner marks settling onto a square ----------------------------------------------
 
-const lockVertex = /* glsl */ `
+const settleVertex = /* glsl */ `
   varying vec2 vP;
   void main() {
     vP = position.xy;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 
-const lockFragment = /* glsl */ `
+const settleFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uAlpha;
-  uniform float uTeeth;
+  uniform float uDots;
   varying vec2 vP;
   float roundBox(vec2 p, float b, float r) {
     vec2 q = abs(p) - vec2(b - r);
@@ -235,12 +236,12 @@ const lockFragment = /* glsl */ `
   }
   void main() {
     vec2 q = abs(vP);
-    float stroke = abs(roundBox(vP, 0.42, 0.05)) - 0.03;
+    float stroke = abs(roundBox(vP, 0.42, 0.09)) - 0.03;
     stroke = max(stroke, 0.24 - min(q.x, q.y));
-    if (uTeeth > 0.5) {
-      float tooth = max(min(q.x, q.y) - 0.03, max(q.x, q.y) - 0.42);
-      tooth = max(tooth, 0.26 - max(q.x, q.y));
-      stroke = min(stroke, tooth);
+    if (uDots > 0.5) {
+      // A dot at the middle of each side, as on the capture marker
+      float dot = min(length(q - vec2(0.42, 0.0)), length(q - vec2(0.0, 0.42))) - 0.045;
+      stroke = min(stroke, dot);
     }
     float aa = max(fwidth(stroke), 1e-4);
     float a = (1.0 - smoothstep(-aa, aa, stroke)) * uAlpha;
@@ -249,22 +250,22 @@ const lockFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-const lockPlane = new PlaneGeometry(1, 1);
+const settlePlane = new PlaneGeometry(1, 1);
 
-/** Target brackets closing in on a square from wide, then fading: a lock. */
-const BracketLock = ({
+/** Corner marks drawing in onto a square from wide, then fading: a piece has landed. */
+const CornerSettle = ({
   floor,
   color,
   delayMs,
   lifeMs,
-  teeth = false,
+  dots = false,
   from = 1.7,
 }: {
   floor: Vec3;
   color: string;
   delayMs: number;
   lifeMs: number;
-  teeth?: boolean;
+  dots?: boolean;
   from?: number;
 }) => {
   const group = useRef<Group>(null);
@@ -279,12 +280,12 @@ const BracketLock = ({
         uniforms: {
           uColor: { value: new Color(color).multiplyScalar(1.2) },
           uAlpha: { value: 0 },
-          uTeeth: { value: teeth ? 1 : 0 },
+          uDots: { value: dots ? 1 : 0 },
         },
-        vertexShader: lockVertex,
-        fragmentShader: lockFragment,
+        vertexShader: settleVertex,
+        fragmentShader: settleFragment,
       }),
-    [color, teeth],
+    [color, dots],
   );
   useEffect(() => () => material.dispose(), [material]);
   useFrame(() => {
@@ -300,7 +301,7 @@ const BracketLock = ({
   return (
     <group ref={group} position={[floor[0], floor[1] + 0.02, floor[2]]} scale={from}>
       <mesh
-        geometry={lockPlane}
+        geometry={settlePlane}
         material={material}
         rotation={[-Math.PI / 2, 0, 0]}
         renderOrder={LAYER.marker}
@@ -417,7 +418,7 @@ const LiftOff = ({ floor, color, lifeMs }: { floor: Vec3; color: string; lifeMs:
   );
 };
 
-/** Plays alongside a move's glide: lift-off, a streak of light, and a bracket lock on landing. */
+/** Plays alongside a move's glide: lift-off, a streak of light, and corner marks settling on landing. */
 export const MoveFx = ({ from, to, color, capture, durationMs, arc = 0 }: MoveFxProps) => {
   const rim = RIM[color];
   const f = useMemo(() => floorOf(from), [from]);
@@ -435,7 +436,7 @@ export const MoveFx = ({ from, to, color, capture, durationMs, arc = 0 }: MoveFx
         height={0.26}
         width={0.26}
       />
-      {!capture && <BracketLock floor={t} color={rim} delayMs={land} lifeMs={340} />}
+      {!capture && <CornerSettle floor={t} color={rim} delayMs={land} lifeMs={340} />}
       <Ripple
         position={t}
         color={rim}
@@ -453,7 +454,7 @@ export const MoveFx = ({ from, to, color, capture, durationMs, arc = 0 }: MoveFx
 
 const flareGeometry = new CylinderGeometry(1, 1, 1, 32, 1, true);
 
-/** A column of light that flares up from a square and fades (an impact, an alert). */
+/** A column of light that flares up from a square and fades (a capture, a mate). */
 const Flare = ({
   floor,
   lifeMs,
@@ -509,7 +510,7 @@ const Flare = ({
   );
 };
 
-// --- Capture: the target de-rezzes -----------------------------------------------------
+// --- Capture: the taken piece dissolves ------------------------------------------------
 
 const dissolveVertex = /* glsl */ `
   varying vec3 vN;
@@ -549,7 +550,7 @@ const dissolveFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-const Victim = ({
+const Captured = ({
   floor,
   type,
   color,
@@ -580,7 +581,7 @@ const Victim = ({
         vertexShader: dissolveVertex,
         fragmentShader: dissolveFragment,
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- a victim is configured once
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a captured piece is configured once
     [],
   );
   useEffect(() => () => material.dispose(), [material]);
@@ -592,7 +593,7 @@ const Victim = ({
     if (g) {
       g.visible = k < 1;
       g.position.y = floor[1] + k * 0.18;
-      // A jolt on impact
+      // A small shake as it is taken
       const jolt = since > 0 ? Math.sin(since * 0.09) * 0.02 * Math.exp(-since / 120) : 0;
       g.position.x = floor[0] + jolt;
     }
@@ -601,7 +602,7 @@ const Victim = ({
   return (
     <group ref={group} position={floor}>
       <group scale={PIECE_SCALE} rotation={[0, type === PieceType.Knight ? facing : 0, 0]}>
-        <CommandParts type={type} body={material} accent={material} />
+        <HaloParts type={type} body={material} accent={material} />
       </group>
     </group>
   );
@@ -610,21 +611,21 @@ const Victim = ({
 const voxel = new BoxGeometry(0.06, 0.06, 0.06);
 const voxelMaterial = new MeshBasicMaterial({ color: '#ffffff', toneMapped: false });
 
-/** The captured piece stands until the capturer lands, then de-rezzes into voxels. */
+/** The captured piece stands until the capturer lands, then dissolves into voxels. */
 export const CaptureFx = ({ floor, victim, victimFacing = 0, durationMs }: CaptureFxProps) => {
-  const impact = durationMs * 0.8;
+  const land = durationMs * 0.8;
   const colors = useMemo(
     () => [BODY[victim.color], RIM[victim.color], RIM[victim.color], PALETTE.capture],
     [victim.color],
   );
   return (
     <>
-      <Victim
+      <Captured
         floor={floor}
         type={victim.type}
         color={victim.color}
         facing={victimFacing}
-        delayMs={impact}
+        delayMs={land}
         lifeMs={300}
       />
       <Shards
@@ -640,28 +641,28 @@ export const CaptureFx = ({ floor, victim, victimFacing = 0, durationMs }: Captu
         spin={7}
         lifeMs={380}
         seed={13}
-        delayMs={impact}
+        delayMs={land}
       />
-      <BracketLock
+      <CornerSettle
         floor={floor}
         color={PALETTE.capture}
-        delayMs={impact}
+        delayMs={land}
         lifeMs={360}
-        teeth
+        dots
         from={1.45}
       />
       <Ripple
         position={floor}
         color={PALETTE.capture}
         radius={1.15}
-        delayMs={impact}
+        delayMs={land}
         lifeMs={380}
         width={0.06}
       />
       <Flare
         floor={floor}
         color={PALETTE.capture}
-        delayMs={impact}
+        delayMs={land}
         lifeMs={300}
         radius={0.34}
         height={1.1}
@@ -670,21 +671,77 @@ export const CaptureFx = ({ floor, victim, victimFacing = 0, durationMs }: Captu
   );
 };
 
-// --- Mate: one red alert pulse -------------------------------------------------------------
+// --- Mate: a calm red glow --------------------------------------------------------------
 
-/** Checkmate: one red alert pulse across the king's level, then the winner's light. */
+const glowPlane = new PlaneGeometry(2, 2);
+
+/** A soft pool of light on a platform that wells up slowly, then fades. */
+const GlowPool = ({
+  floor,
+  color,
+  radius,
+  lifeMs,
+  strength = 0.5,
+}: {
+  floor: Vec3;
+  color: string;
+  radius: number;
+  lifeMs: number;
+  strength?: number;
+}) => {
+  const group = useRef<Group>(null);
+  const { ms, done } = useClock(lifeMs);
+  const material = useMemo(
+    () =>
+      new ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending,
+        side: DoubleSide,
+        uniforms: { uColor: { value: new Color(color) }, uAlpha: { value: 0 } },
+        vertexShader: settleVertex,
+        fragmentShader: /* glsl */ `
+          uniform vec3 uColor;
+          uniform float uAlpha;
+          varying vec2 vP;
+          void main() {
+            float r = length(vP);
+            float a = exp(-r * r * 4.0) * (1.0 - smoothstep(0.8, 1.0, r)) * uAlpha;
+            if (a < 0.003) discard;
+            gl_FragColor = vec4(uColor, a);
+            #include <colorspace_fragment>
+          }`,
+      }),
+    [color],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+  useFrame(() => {
+    const k = clamp01(ms.current / lifeMs);
+    // Wells up over the first third, holds a moment, then fades gently
+    const rise = easeOut(clamp01(k / 0.3));
+    const fall = 1 - easeInOutCubic(clamp01((k - 0.45) / 0.55));
+    material.uniforms.uAlpha.value = strength * rise * fall;
+    group.current?.scale.setScalar(radius * (0.85 + 0.15 * easeOut(k)));
+  });
+  if (done) return null;
+  return (
+    <group ref={group} position={[floor[0], floor[1] + 0.02, floor[2]]} scale={radius * 0.85}>
+      <mesh
+        geometry={glowPlane}
+        material={material}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={LAYER.marker}
+        raycast={noRaycast}
+      />
+    </group>
+  );
+};
+
+/** Checkmate: a calm red glow wells up round the king, then the winner's light spreads out. */
 export const Celebration = ({ floor, winner }: CelebrationProps) => (
   <>
-    <Flare floor={floor} lifeMs={1100} />
-    <Ripple position={floor} color={PALETTE.check} radius={3.6} lifeMs={1300} width={0.03} />
-    <Ripple
-      position={floor}
-      color={PALETTE.check}
-      radius={2.4}
-      delayMs={180}
-      lifeMs={1000}
-      width={0.05}
-    />
+    <GlowPool floor={floor} color={PALETTE.check} radius={2.2} lifeMs={1800} />
+    <Flare floor={floor} lifeMs={1600} height={1.4} />
     {winner && (
       <Ripple
         position={floor}

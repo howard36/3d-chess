@@ -17,14 +17,14 @@ import { noRaycast } from '../kit/noRaycast';
 import type { PieceBodyProps, PieceColor } from '../types';
 import { LEVEL_COLORS, PALETTE } from './shared';
 
-// The armies are solid units (never see-through): ice against burnished
+// The two sets are solid pieces (never see-through): ice against burnished
 // amber. Each piece darkens toward its base (a core of deeper colour, like
-// polished resin), and a rim of its army's light wraps its silhouette, mixed
+// polished resin), and a rim of its side's light wraps its silhouette, mixed
 // into the shading so it shows even on the near-white ice. The rim comes from
 // the view, so it wraps every piece the same way from both seats. A king in
 // check turns red through, deep red for amber and rose for ice, so it never
 // reads as just another amber piece. Materials are shared by every piece of
-// an army and state; anything that fades one piece clones first.
+// a side and state; anything that fades one piece clones first.
 
 export type Glow = 'none' | 'hover' | 'selected' | 'check';
 
@@ -76,10 +76,10 @@ const makeBody = (side: PieceColor, glow: Glow) => {
     envMapIntensity: 0.9,
   });
   // A little light of its own, so the shadowed side never goes dead; picked
-  // up, a unit powers up, lit from within by its army's light
+  // up, a piece brightens, lit from within by its side's light
   m.emissive.set(check?.color ?? look.color).multiplyScalar(0.06);
   if (glow === 'selected') m.emissive.add(new Color(look.rim).multiplyScalar(0.16));
-  // Under the pointer, a unit a player may pick up glows a little
+  // Under the pointer, a piece a player may pick up glows a little
   if (glow === 'hover') m.emissive.add(new Color(look.rim).multiplyScalar(0.2));
   const uniforms = {
     uCore: { value: new Color(check?.core ?? look.core) },
@@ -115,7 +115,7 @@ const makeBody = (side: PieceColor, glow: Glow) => {
         #include <opaque_fragment>`,
       );
   };
-  m.customProgramCacheKey = () => 'command-body';
+  m.customProgramCacheKey = () => 'halo-body';
   return m;
 };
 
@@ -259,7 +259,7 @@ const SETS: Record<PieceType, { body: BufferGeometry; accent?: BufferGeometry }>
 };
 
 /** A piece's meshes, painted with `body`, its detail cut in `accent`. */
-export const CommandParts = ({
+export const HaloParts = ({
   type,
   body,
   accent,
@@ -353,7 +353,7 @@ const Footprint = ({ level, lit }: { level: number; lit: boolean }) => {
 export const PieceBody = (props: PieceBodyProps) => (
   <>
     <Footprint level={props.level ?? 0} lit={props.hovered || props.selected} />
-    <CommandParts
+    <HaloParts
       type={props.type}
       body={bodyMaterial(props.color, glowOf(props))}
       accent={accents[props.color]}

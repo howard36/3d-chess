@@ -230,7 +230,7 @@ export const HoloPlates = ({ focusLevel }: { focusLevel: number | null }) => {
     { key: materials },
   );
   return (
-    <group name="command-plates">
+    <group name="halo-plates">
       {FRAME.levelY.map((y, z) => (
         <group key={z} position={[0, y, 0]}>
           <mesh

@@ -1,16 +1,15 @@
 import { clarityTower, towerFrame } from '../kit/layouts';
 import type { DesignMotion } from '../types';
 
-// Command: a naval tactical display in a dark operations room. Everything
-// here is shared by the stage, the platforms, the pieces, the markers and
-// the effects, so the palette and the tower's measurements live in one place.
+// Halo: a calm holographic studio in a dark room. Everything here is shared
+// by the stage, the platforms, the pieces, the markers and the effects, so
+// the palette and the tower's measurements live in one place.
 //
 // Value plan, darkest to brightest:
 //   room (navy-black, 3–10%) < glass (a cyan veil, ~10% over the room)
-//   < amber army (burnished, mid value, warm) < ice army (near white, cool).
-// Marker hues are kept out of all four, one meaning each, borrowed from
-// tactical and avionics symbology: green for a clear move, red for hostile
-// (capture, check), violet for the route just flown (the last move).
+//   < amber set (burnished, mid value, warm) < ice set (near white, cool).
+// Marker hues are kept out of all four, one meaning each: green for a free
+// move, red for a capture or a check, violet for the last move.
 // Levels are told apart by a quiet ramp inside the glass's own family, teal
 // at A to ice blue at E, on the plate edges, the level letters and a thin
 // ring at every piece's base.
@@ -28,7 +27,7 @@ export const PALETTE = {
   glassDark: '#5aa6cf',
   glassTick: '#8fdcf5',
 
-  // The armies: ice against burnished amber
+  // The two sides: ice against burnished amber
   white: '#e8f1f7',
   whiteCore: '#98b2c4',
   whiteRim: '#62d8ff',
@@ -73,7 +72,7 @@ export const FRAME = towerFrame(layout);
 export const MARGIN = 0.06;
 /** Width of the frame's top face. */
 export const EDGE_WIDTH = 0.022;
-/** The floor of the ops room, well below the tower. */
+/** The studio floor, well below the tower. */
 export const ROOM_FLOOR_Y = FRAME.levelY[0] - 3.2;
 
 /** A quick, precise glide from square to square. */

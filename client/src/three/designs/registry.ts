@@ -99,9 +99,9 @@ export const DESIGNS: DesignEntry[] = [
   },
   {
     id: 'command',
-    name: 'Command',
+    name: 'Halo',
     blurb:
-      'A naval tactical hologram: ice and burnished-amber units on teal-to-ice glass over a dark plotting floor.',
+      'A calm holographic studio: ice and burnished-amber pieces on teal-to-ice glass over a softly lit floor.',
     swatch: ['#060e1a', '#e6f0f6', '#d56d1c', '#39d0ff'],
     load: () => import('./command'),
     group: 'clarity',
