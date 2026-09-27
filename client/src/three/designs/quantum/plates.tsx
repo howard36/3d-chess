@@ -107,7 +107,7 @@ const fragmentShader = /* glsl */ `
     float viaDot = fillOf(length(uv - nearest) - 0.055);
     float via = mix(viaPad, viaDot, uSteep) * onGrid;
     // (from above, the deeper lattices step back so the five do not streak)
-    float depth = 1.0 - uLattice * (4.0 - uLevel) * 0.1;
+    float depth = 1.0 - uLattice * (4.0 - uLevel) * 0.2;
     c = over(c, mix(uColor, vec3(1.0), 0.25), min(via * uTrace * 1.1 * depth, 1.0));
 
     // Bond pads round the rim, where each trace runs out (not from above)
@@ -203,6 +203,7 @@ export const Wafers = ({ colors, focusLevel }: WafersProps) => {
   );
 
   const focusWeights = useRef<number[]>([]);
+  const edgeBase = useRef<number[]>(FRAME.levelY.map(() => EDGE));
   useLevelFocus(
     focusLevel,
     (weights, any) => {
@@ -212,7 +213,7 @@ export const Wafers = ({ colors, focusLevel }: WafersProps) => {
         if (!m) return;
         const dim = 1 - any * 0.3 * (1 - w);
         m.surface.uniforms.uTrace.value = TRACE * dim + (FOCUS_TRACE - TRACE) * w;
-        m.edge.opacity = EDGE * dim + (1 - EDGE) * w;
+        edgeBase.current[z] = EDGE * dim + (1 - EDGE) * w;
       });
     },
     { levels: FRAME.levelY.length, ms: 160, key: materials },
@@ -229,7 +230,10 @@ export const Wafers = ({ colors, focusLevel }: WafersProps) => {
     const steep = smoothstep(52 * DEG, 68 * DEG, elevation);
     materials.forEach((m, z) => {
       m.surface.uniforms.uSteep.value = steep;
-      m.surface.uniforms.uLattice.value = steep * (1 - (focusWeights.current[z] ?? 0));
+      const w = focusWeights.current[z] ?? 0;
+      m.surface.uniforms.uLattice.value = steep * (1 - w);
+      // The unfocused levels' edge frames step back too
+      m.edge.opacity = edgeBase.current[z] * (1 - 0.6 * steep * (1 - w));
     });
   });
 

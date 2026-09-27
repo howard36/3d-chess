@@ -307,12 +307,13 @@ export const Celebration = ({ floor, winner }: CelebrationProps) => (
     ))}
     <Burst
       position={[floor[0], floor[1] + 0.4, floor[2]]}
-      colors={winner === 'black' ? ['#d8eeff', '#f4fbff'] : ['#ffe9b0', '#fff8e6']}
+      colors={winner === 'black' ? ['#7cc8ff', '#cfeaff'] : ['#ffc94d', '#ffe08a']}
       count={80}
       speed={1.3}
       gravity={-0.25}
       lifeMs={2400}
-      size={0.11}
+      size={0.09}
+      additive
       upward={0.85}
       delayMs={250}
     />

@@ -22,6 +22,7 @@ import { PieceType } from '../../../engine/pieces';
 import { prefersReducedMotion } from '../../motion';
 import { noRaycast } from '../kit/noRaycast';
 import { LAYER } from '../kit/layers';
+import { FLOOR_DECAL } from '../kit/motion';
 import { ContactShadow } from '../kit/plates';
 import type { PieceBodyProps, PieceColor } from '../types';
 import { LEVEL_COLORS, PALETTE } from './palette';
@@ -307,7 +308,7 @@ const Superposition = ({ type }: { type: PieceType }) => {
     const gone = still || t > RING_IN + SETTLE;
     ma.visible = mb.visible = !gone;
     if (gone) return;
-    time.current += Math.min(delta, 1 / 20);
+    time.current += Math.min(delta, 0.1);
     // Across the view and a little behind the piece, in its own frame
     const across = viewRight(camera, ma.parent);
     const back = viewForward(camera, ma.parent);
@@ -411,6 +412,8 @@ const LevelRing = ({ level }: { level: number }) => (
     position={[0, 0.006, 0]}
     renderOrder={LAYER.shadow}
     raycast={noRaycast}
+    // Hidden when the piece topples (a mated king), so it never stands up
+    userData={FLOOR_DECAL}
   />
 );
 

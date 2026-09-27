@@ -57,15 +57,16 @@ export const PALETTE = {
 } as const;
 
 /**
- * One colour per level, A (bottom) to E: levelRamp({ from: 195, to: 340,
+ * One colour per level, A (bottom) to E: levelRamp({ from: 195, to: 325,
  * lightness: [0.82, 0.64], chroma: 0.15 }), cyan through azure, periwinkle
  * and lavender to orchid, stepping down in lightness as well as round in hue
- * so neighbours stay about 0.1 apart in OKLab. No white or grey, and clear of
- * gold, mint and red. The wafer traces and edges, the level letters, the foot
- * of every piece and the ring round its base all use it; the ring also
- * carries the level as a count of electrons, A one to E five.
+ * so neighbours stay at least 0.093 apart in OKLab. No white or grey, and
+ * clear of gold, mint and the capture and check reds. The wafer traces and
+ * edges, the level letters, the foot of every piece and the ring round its
+ * base all use it; the ring also carries the level as a count of electrons,
+ * A one to E five.
  */
-export const LEVEL_COLORS = ['#00e0e0', '#3ac5ff', '#81a3ff', '#ae80e5', '#c664a8'];
+export const LEVEL_COLORS = ['#00e0e0', '#12c7ff', '#72a7ff', '#9e86ee', '#b969be'];
 
 // --- Layout ------------------------------------------------------------------------
 

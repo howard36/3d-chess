@@ -248,7 +248,7 @@ const CHANDELIER_FRAGMENT = /* glsl */ `
     vec3 col;
     if (uKind > 1.5) {
       // Lines: fine gold wires
-      col = uGold * 0.32;
+      col = uGold * 0.45;
     } else {
       vec3 n = normalize(vNormal);
       if (dot(n, v) < 0.0) n = -n;
@@ -290,7 +290,7 @@ const CHANDELIER_FRAGMENT = /* glsl */ `
         float turns = 12.0 * r;
         float streak = mix(0.5, 0.5 + 0.5 * sin(turns), clamp(1.0 - fwidth(turns) * 0.4, 0.0, 1.0));
         col = uPlate * detail * (0.75 + 0.45 * diff);
-        col += uGold * (gold * 0.34 + spec * streak * 0.2);
+        col += uGold * (gold * 0.45 + spec * streak * 0.2);
         col += uSteel * steel * 0.22;
         col += uGlow * max(-n.y, 0.0) * 0.12;
       } else {
