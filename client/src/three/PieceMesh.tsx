@@ -72,8 +72,15 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
       userData={{ piece: { type, color }, emissive }}
       {...rest}
     >
-      {/* Pieces are modeled base-at-y=0; seat them on the cell floor */}
-      <group position={[0, design.layout.floorY, 0]} rotation={rotation}>
+      {/* Pieces are modeled base-at-y=0; seat them on the cell floor, scaled
+          about the base when the design shrinks its pieces */}
+      <group
+        position={[0, design.layout.floorY, 0]}
+        rotation={rotation}
+        {...(design.pieceScale !== undefined && design.pieceScale !== 1
+          ? { scale: design.pieceScale }
+          : {})}
+      >
         {body}
       </group>
     </group>

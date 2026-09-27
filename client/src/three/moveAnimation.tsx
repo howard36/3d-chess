@@ -6,6 +6,7 @@ import { CELL_FLOOR_Y } from './layout';
 import { easeInOutCubic, MOVE_ANIMATION } from './motion';
 import type { DesignMotion } from './designs/types';
 import { PieceMesh } from './PieceMesh';
+import { useDesign } from './designs/context';
 
 type Vec3 = [number, number, number];
 
@@ -155,6 +156,7 @@ export const GhostPiece = ({
   const materials = useRef<MeshStandardMaterial[] | null>(null);
   const [finished, setFinished] = useState(false);
   const invalidate = useThree((s) => s.invalidate);
+  const floorY = useDesign().layout.floorY;
 
   useEffect(() => invalidate(), [invalidate]);
   // The faded copies are the ghost's own; free them with it.
@@ -197,10 +199,10 @@ export const GhostPiece = ({
   return (
     <group
       ref={group}
-      position={[position[0], position[1] + CELL_FLOOR_Y, position[2]]}
+      position={[position[0], position[1] + floorY, position[2]]}
       userData={{ ghostPiece: true }}
     >
-      <PieceMesh type={type} color={color} position={[0, -CELL_FLOOR_Y, 0]} />
+      <PieceMesh type={type} color={color} position={[0, -floorY, 0]} />
     </group>
   );
 };

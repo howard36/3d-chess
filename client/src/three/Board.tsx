@@ -108,6 +108,10 @@ const Board = (props: BoardProps) => {
   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
   // The piece under the pointer, when the design lifts pieces on hover.
   const [hovered, setHovered] = useState<string | null>(null);
+  // The cell (or the piece on it) under the pointer, when the design
+  // brightens the legal destination there.
+  const [hoveredCell, setHoveredCell] = useState<string | null>(null);
+  const trackPieces = design.hoverLift === true || design.hoverDestinations === true;
 
   // A selection made against an earlier position is stale once the board or
   // turn changes (e.g. the opponent's move arrives) — clear it so a stale
@@ -116,6 +120,9 @@ const Board = (props: BoardProps) => {
   React.useEffect(() => {
     setSelected(null);
     setLegalMoves([]);
+    // A cell that stops being a destination loses its handlers without a
+    // pointer-out; forget it so it cannot light up under a later selection.
+    setHoveredCell(null);
   }, [props.board, props.currentTurn, props.disabled]);
 
   // Collect all pieces with their coordinates from the provided board
@@ -183,8 +190,12 @@ const Board = (props: BoardProps) => {
               onPointerOver: (e: ThreeEvent<PointerEvent>) => {
                 e.stopPropagation();
                 if (latestCanPick.current(cell)) setHovered(key);
+                setHoveredCell(key);
               },
-              onPointerOut: () => setHovered((h) => (h === key ? null : h)),
+              onPointerOut: () => {
+                setHovered((h) => (h === key ? null : h));
+                setHoveredCell((h) => (h === key ? null : h));
+              },
             },
           ];
         }),
@@ -267,11 +278,12 @@ const Board = (props: BoardProps) => {
           const isDest = isHighlighted(cell);
           const isLastTo = !isDest && cellKey === lastToKey;
           const isLastFrom = !isDest && !isLastTo && cellKey === lastFromKey;
-          const material = isDest
-            ? design.cellFills.destination
-            : isLastTo || isLastFrom
-              ? design.cellFills.lastMove
-              : noFill;
+          const material =
+            (isDest
+              ? design.cellFills.destination
+              : isLastTo || isLastFrom
+                ? design.cellFills.lastMove
+                : noFill) ?? noFill;
           return (
             <mesh
               key={cellKey}
@@ -295,6 +307,7 @@ const Board = (props: BoardProps) => {
                     }
                   : undefined
               }
+              {...(isDest && design.hoverDestinations ? hoverHandlers.get(cellKey) : {})}
             />
           );
         })}
@@ -308,7 +321,7 @@ const Board = (props: BoardProps) => {
               color={color}
               position={worldOf(coord)}
               onClick={pieceHandlers.get(key)}
-              {...(design.hoverLift ? hoverHandlers.get(key) : {})}
+              {...(trackPieces ? hoverHandlers.get(key) : {})}
               selected={isSelected(coord)}
               hovered={design.hoverLift === true && hovered === key && canPick(coord)}
               inCheck={inCheck}
@@ -345,13 +358,15 @@ const Board = (props: BoardProps) => {
           so nothing here can intercept a click meant for a cell or piece. */}
       <group name="board-decor">
         <design.Grid layout={layout} orientation={orientation} />
-        {destinations.map(({ to, capture }) =>
-          capture ? (
-            <Capture key={`capture-${toZXY(to)}`} {...markerAt(to)} />
+        {destinations.map(({ to, capture }) => {
+          const key = toZXY(to);
+          const hover = design.hoverDestinations ? { hovered: hoveredCell === key } : {};
+          return capture ? (
+            <Capture key={`capture-${key}`} {...markerAt(to)} {...hover} />
           ) : (
-            <Quiet key={`quiet-${toZXY(to)}`} {...markerAt(to)} />
-          ),
-        )}
+            <Quiet key={`quiet-${key}`} {...markerAt(to)} {...hover} />
+          );
+        })}
         {selected && <Selection {...markerAt(selected)} />}
         {LastMove && lastMove && (
           <LastMove from={markerAt(lastMove.move.from)} to={markerAt(lastMove.move.to)} />

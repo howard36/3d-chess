@@ -24,6 +24,7 @@ import { DesignContext, useDesignChoice } from '../three/designs/context';
 import { DesignStage } from '../three/DesignStage';
 import DesignPicker from './DesignPicker';
 import CapturedPieces from './CapturedPieces';
+import type { OrbitLimits } from '../three/designs/types';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
@@ -429,10 +430,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
                 disabled={boardDisabled}
                 gameOver={gameOver}
               />
-              <OrbitControls makeDefault minDistance={6} />
+              <OrbitControls
+                makeDefault
+                minDistance={design.layout.orbit?.minDistance ?? 6}
+                // A design's orbit limits (the compact tower keeps the camera
+                // above its bottom platform and off the vertical); without
+                // them the controls keep three's defaults.
+                {...orbitAngles(design.layout.orbit)}
+              />
               <FitCameraToBoard
                 halfExtents={design.layout.halfExtents}
                 viewDirection={design.layout.viewDirection}
+                maxDistance={design.layout.orbit?.maxDistance}
               />
             </Canvas>
           </DesignContext.Provider>
@@ -593,6 +602,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     </div>
   );
 };
+
+/** The polar-angle limits a layout sets, as OrbitControls props (none when unset). */
+const orbitAngles = (orbit: OrbitLimits | undefined) => ({
+  ...(orbit?.minPolarAngle !== undefined ? { minPolarAngle: orbit.minPolarAngle } : {}),
+  ...(orbit?.maxPolarAngle !== undefined ? { maxPolarAngle: orbit.maxPolarAngle } : {}),
+});
 
 /** Copies the share link, for a phone where selecting a long address is fiddly. */
 const CopyLinkButton: React.FC<{ link: string }> = ({ link }) => {
