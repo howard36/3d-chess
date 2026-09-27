@@ -55,7 +55,7 @@ import {
 } from './pieces';
 import { ProjectorTable, RoomFloor, ScanPlane, Walls } from './stage';
 
-// Hologram: a war-room projection. Five boards of light hang in a tower
+// Hologram: a holographic projection. Five boards of light hang in a tower
 // over a round projector table, its engraved rings turning in the dark; the
 // armies are flickering holograms — ice-cyan against amber — with scanlines
 // crawling through them. Moves teleport, captures glitch apart.
@@ -781,7 +781,7 @@ const corners = (c: string, len = 12) =>
 const hologram: Design = {
   id: 'hologram',
   name: 'Hologram',
-  blurb: 'A war-room projection: flickering holo pieces over a projector table.',
+  blurb: 'A holographic projection: flickering holo pieces over a projector table.',
   layout,
   continuous: true,
   canvas: { fov: 38, toneMapping: NoToneMapping, antialias: true },
