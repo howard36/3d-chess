@@ -14,6 +14,7 @@ import { prefersReducedMotion } from '../../motion';
 import { PieceType } from '../../../engine/pieces';
 import { ChessPiece, pieceSet } from '../../pieces';
 import { LAYER } from '../kit/layers';
+import { FLOOR_DECAL } from '../kit/motion';
 import { noRaycast } from '../kit/noRaycast';
 import type { PieceBodyProps, PieceColor } from '../types';
 import { BEAM, CARBON, CERAMIC, GRAPHITE, LEVELS, STEEL, TITANIUM } from './palette';
@@ -398,6 +399,7 @@ export const PieceBody = (props: PieceBodyProps) => {
           position={[0, 0.005, 0]}
           renderOrder={LAYER.shadow}
           raycast={noRaycast}
+          userData={FLOOR_DECAL}
         />
       </OnFloor>
       <Spin active={props.selected}>
