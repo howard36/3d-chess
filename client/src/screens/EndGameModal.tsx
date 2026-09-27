@@ -34,7 +34,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner }) => {
     >
       <div
         style={{
-          background: 'var(--modal-bg, white)',
+          background: 'var(--result-bg, var(--modal-bg, white))',
           color: 'var(--modal-fg, black)',
           border: 'var(--hud-border, none)',
           fontFamily: 'var(--hud-font, inherit)',
@@ -45,7 +45,10 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner }) => {
           maxWidth: 420,
         }}
       >
-        <h2 id="end-game-title" style={{ marginBottom: 16 }}>
+        <h2
+          id="end-game-title"
+          style={{ marginBottom: 16, fontSize: 'var(--result-title-size, inherit)' }}
+        >
           {message}
         </h2>
         {/* The dialog takes focus: a keyboard player lands on its only action */}

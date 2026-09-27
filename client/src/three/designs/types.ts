@@ -230,6 +230,9 @@ export type HudVars = Partial<
     | '--modal-bg'
     | '--modal-fg'
     | '--modal-backdrop'
+    // The result card only (the promotion dialog keeps --modal-bg)
+    | '--result-bg'
+    | '--result-title-size'
     | '--page-bg'
     | '--page-fg',
     string
