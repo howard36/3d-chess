@@ -362,6 +362,15 @@ const Board = (props: BoardProps) => {
             setLegalMoves([]);
           }
         }}
+        // A click that hits nothing on the board (the sky, the gap between
+        // levels) puts the selection down too; r3f reports only taps as
+        // misses, never the end of a drag round the board
+        onPointerMissed={() => {
+          if (selected) {
+            setSelected(null);
+            setLegalMoves([]);
+          }
+        }}
       >
         {/* Cell boxes: raycast targets for selecting a destination and for the
             empty-space click that clears the selection. Destination cells get a

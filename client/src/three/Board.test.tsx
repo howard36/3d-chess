@@ -211,6 +211,21 @@ describe('Board', () => {
     expect(selectionRings(renderer)).toHaveLength(0);
   });
 
+  it('unselects a piece when a click misses the board altogether', async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
+    const boardGroup = (renderer.scene as ReactThreeTestInstance)
+      .children[0] as ReactThreeTestInstance;
+
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(highlightedCells(renderer)).toHaveLength(2);
+
+    await act(async () => boardGroup.props.onPointerMissed(new MouseEvent('click')));
+    expect(highlightedCells(renderer)).toHaveLength(0);
+    expect(selectionRings(renderer)).toHaveLength(0);
+  });
+
   it('puts the selected piece back down when it is clicked again', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" />,
