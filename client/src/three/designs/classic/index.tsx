@@ -5,6 +5,8 @@ import {
   EdgesGeometry,
   MeshBasicMaterial,
 } from 'three';
+import { useFrame } from '@react-three/fiber';
+import type { Fog } from 'three';
 import { CELLS } from '../../layout';
 import { MOVE_ANIMATION } from '../../motion';
 import { theme } from '../../theme';
@@ -50,12 +52,32 @@ const Grid = () => (
   </lineSegments>
 );
 
+// The fog's reach at the camera distance that fits the board in a landscape
+// window (14.5 units); it moves out with the camera, so a tall phone, which
+// frames the board from much farther, still sees the whole lattice
+const FOG_NEAR = 10;
+const FOG_FAR = 26;
+const FIT_DISTANCE = 14.5;
+
+/** Keeps the fog's band at the same depth into the board, however far the camera is. */
+const CameraFog = () => {
+  useFrame(({ camera, scene }) => {
+    const fog = scene.fog as Fog | null;
+    if (!fog) return;
+    const shift = camera.position.length() - FIT_DISTANCE;
+    fog.near = FOG_NEAR + shift;
+    fog.far = FOG_FAR + shift;
+  });
+  return null;
+};
+
 const Stage = () => (
   <>
     <color attach="background" args={[theme.background]} />
     {/* Fog matched to the background gently fades the far side of the
         lattice, giving a depth cue the flat grid lines can't */}
-    <fog attach="fog" args={[theme.background, 10, 26]} />
+    <fog attach="fog" args={[theme.background, FOG_NEAR, FOG_FAR]} />
+    <CameraFog />
     <hemisphereLight args={['#f5f7fb', '#46506b', 1.1]} />
     <directionalLight position={[6, 10, 6]} intensity={2.2} />
     <directionalLight position={[-6, -4, -8]} intensity={1.0} color="#dfe6f2" />
