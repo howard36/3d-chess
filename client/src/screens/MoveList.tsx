@@ -35,6 +35,8 @@ const MoveList: React.FC<MoveListProps> = ({ moves }) => {
     <ol
       ref={listRef}
       data-testid="move-list"
+      // Selectable on the game screen, which otherwise is not, so a game can be copied out
+      className="selectable"
       aria-label="Move history"
       style={{
         margin: 0,

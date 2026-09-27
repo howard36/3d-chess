@@ -3,9 +3,9 @@ import { useParams } from 'react-router-dom';
 import Board from '../three/Board';
 import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
 import TurnIndicator from '../three/TurnIndicator';
 import { FitCameraToBoard } from '../three/FitCameraToBoard';
+import { CameraControls } from '../three/CameraControls';
 import MoveInput from './MoveInput';
 import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
@@ -369,7 +369,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     // clickable (the backdrop covers it) and not focusable or readable either.
     const behindDialog = replaced || showEndModal || (!!promotionChoices && !boardDisabled);
     return (
+      // game-screen (index.css): no text selection, callout or double-tap
+      // zoom on a touch screen, except in the move box and the move list
       <div
+        className="game-screen"
         style={{
           position: 'relative',
           height: '100dvh',
@@ -395,7 +398,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               role="img"
               aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, type moves in the move box.`}
               className={design.canvas?.pixelated ? 'pixelated-canvas' : undefined}
-              style={{ height: '100%', width: '100%' }}
+              // Every touch on the board is the camera's or a tap on a
+              // square: never a page scroll or zoom, and no grey tap flash
+              style={{
+                height: '100%',
+                width: '100%',
+                touchAction: 'none',
+                WebkitTapHighlightColor: 'transparent',
+              }}
               camera={{ position: design.layout.viewDirection, fov: design.canvas?.fov ?? 40 }}
               shadows={design.canvas?.shadows}
               dpr={design.canvas?.dpr}
@@ -439,9 +449,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
                   board's centre, which never moves (no pan by mouse, touch or
                   keyboard), plus a zoom that FitCameraToBoard limits relative
                   to the fitted view. */}
-              <OrbitControls
-                makeDefault
-                enablePan={false}
+              <CameraControls
                 // A design's orbit limits (the compact tower keeps the camera
                 // above its bottom platform and off the vertical); without
                 // them the controls keep three's defaults.
@@ -613,7 +621,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   );
 };
 
-/** The polar-angle limits a layout sets, as OrbitControls props (none when unset). */
+/** The polar-angle limits a layout sets, as CameraControls props (none when unset). */
 const orbitAngles = (orbit: OrbitLimits | undefined) => ({
   ...(orbit?.minPolarAngle !== undefined ? { minPolarAngle: orbit.minPolarAngle } : {}),
   ...(orbit?.maxPolarAngle !== undefined ? { maxPolarAngle: orbit.maxPolarAngle } : {}),

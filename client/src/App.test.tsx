@@ -16,8 +16,8 @@ import { getStoredRole, setStoredRole } from './lib/playerRole';
 
 // The started phase mounts a WebGL canvas, which jsdom can't provide; stub the
 // three.js layer so these tests can assert on the surrounding UI. The Canvas
-// stub renders only component children (the Board stub below, OrbitControls),
-// not the raw three.js elements (lights, fog), which jsdom can't take.
+// stub renders only component children (the stubs below), not the raw
+// three.js elements (lights, fog), which jsdom can't take.
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children }: { children?: React.ReactNode }) => (
     <div data-testid="r3f-canvas">
@@ -27,8 +27,8 @@ vi.mock('@react-three/fiber', () => ({
     </div>
   ),
 }));
-vi.mock('@react-three/drei', () => ({
-  OrbitControls: () => null,
+vi.mock('./three/CameraControls', () => ({
+  CameraControls: () => null,
 }));
 vi.mock('./three/FitCameraToBoard', () => ({
   FitCameraToBoard: () => null,

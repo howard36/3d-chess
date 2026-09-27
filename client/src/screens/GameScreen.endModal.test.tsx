@@ -10,7 +10,7 @@ import type { Design, DesignEntry } from '../three/designs/types';
 vi.mock('@react-three/fiber', () => ({
   Canvas: () => <div data-testid="r3f-canvas" />,
 }));
-vi.mock('@react-three/drei', () => ({ OrbitControls: () => null }));
+vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
 vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
 vi.mock('../three/DesignStage', () => ({ DesignStage: () => null }));
 vi.mock('../three/Board', () => ({ default: () => null }));
