@@ -146,10 +146,13 @@ export const GhostPiece = ({
   type,
   color,
   position,
+  level,
 }: {
   type: PieceType;
   color: 'white' | 'black';
   position: Vec3;
+  /** The level of the cell it was taken on, for the design's piece body. */
+  level?: number;
 }) => {
   const group = useRef<Group>(null);
   const elapsedMs = useRef(0);
@@ -202,7 +205,7 @@ export const GhostPiece = ({
       position={[position[0], position[1] + floorY, position[2]]}
       userData={{ ghostPiece: true }}
     >
-      <PieceMesh type={type} color={color} position={[0, -floorY, 0]} />
+      <PieceMesh type={type} color={color} position={[0, -floorY, 0]} level={level} />
     </group>
   );
 };

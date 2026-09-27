@@ -46,6 +46,13 @@ export interface BoardLayout {
   viewDirection: Vec3;
   /** Orbit and zoom limits; without them the camera orbits freely (6 units in at most). */
   orbit?: OrbitLimits;
+  /**
+   * Height of each cell's click box, standing on the cell's floor. Without it
+   * the box fills `cellSize` about the cell's centre. A thin box makes a
+   * click land on the square whose floor is under the pointer, so markers
+   * drawn on the floor are exactly what a click aims at.
+   */
+  hitHeight?: number;
 }
 
 export interface PieceBodyProps {
@@ -60,6 +67,12 @@ export interface PieceBodyProps {
   hovered: boolean;
   /** This is a king and its side is in check. */
   inCheck: boolean;
+  /**
+   * The level (engine z, 0 = A) of the cell the piece stands on. Board always
+   * sets it; optional only so a design that draws a body itself (a captured
+   * victim, a celebration) need not.
+   */
+  level?: number;
 }
 
 export interface MarkerProps {
@@ -77,6 +90,14 @@ export interface MarkerProps {
 export interface LastMoveMarkerProps {
   from: MarkerProps;
   to: MarkerProps;
+  /**
+   * The move arrived live while this board was up (it animates), rather than
+   * being replayed from history or on a rejoin. Board keys the component by
+   * move, so an entrance played on mount when `fresh` plays once per move
+   * and never again on a reconnect. Board always sets it; optional only so a
+   * design's own wrappers need not pass it on.
+   */
+  fresh?: boolean;
 }
 
 export interface MoveFxProps {
@@ -111,9 +132,23 @@ export interface CelebrationProps {
   winner: PieceColor | null;
 }
 
+/**
+ * Levels (engine z, 0 = A) the player is attending to. `selected` is the
+ * selected piece's level; `hovered` is the level of the cell or piece under
+ * the pointer, reported only for designs with `hoverDestinations` or
+ * `hud.readout` (null otherwise). Hover wins over selection: see
+ * `focusLevelOf` in kit/focus.ts.
+ */
+export interface LevelFocus {
+  selected: number | null;
+  hovered: number | null;
+}
+
 export interface GridProps {
   layout: BoardLayout;
   orientation: Orientation;
+  /** Which level to emphasise (Board always passes it; optional for other callers). */
+  focus?: LevelFocus;
 }
 
 export interface StageProps {
@@ -181,6 +216,11 @@ export interface DesignHud {
   vars: HudVars;
   /** Extra layer drawn over the canvas under the HUD (scanlines, vignette, grain). */
   overlay?: CSSProperties;
+  /**
+   * Show a small readout of the cell under the pointer ("Cc4 · White Bishop")
+   * under the turn indicator, styled with the HUD vars.
+   */
+  readout?: boolean;
 }
 
 export interface CanvasSettings {

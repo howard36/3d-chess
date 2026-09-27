@@ -1,19 +1,23 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
-import { BoxGeometry, MeshBasicMaterial } from 'three';
+import { BoxGeometry, MeshBasicMaterial, Raycaster, Vector2 } from 'three';
+import type { Group, Object3D } from 'three';
 import { Board as EngineBoard } from '../engine';
 import type { Move, Piece } from '../engine';
 import { PieceMesh } from './PieceMesh';
 import React from 'react';
 import { PieceType } from '../engine/pieces';
-import { Coord, toZXY } from '../engine/coords';
+import { Coord, fromZXY, toZXY } from '../engine/coords';
 import { CELLS } from './layout';
 import { GhostPiece, MoveGlide } from './moveAnimation';
 import { prefersReducedMotion } from './motion';
 import { theme } from './theme';
 import { isTap } from './tap';
 import { useDesign } from './designs/context';
-import type { BoardLayout, MarkerProps, Vec3 } from './designs/types';
+import type { BoardLayout, LevelFocus, MarkerProps, Vec3 } from './designs/types';
+import { resolveHover } from './hover';
+import type { FloorSquare } from './hover';
 
 // The 125 cell boxes share one geometry and one of three materials instead of
 // owning a BoxGeometry and a transparent material each. A cell with nothing
@@ -22,12 +26,24 @@ import type { BoardLayout, MarkerProps, Vec3 } from './designs/types';
 // click that clears a selection, while the renderer never queues it. It keeps
 // a (never drawn) material because Mesh.raycast bails without one. The fills
 // themselves come from the design.
+//
+// A layout with a `hitHeight` gets thin boxes standing on each cell's floor
+// (the mesh stays at the cell's centre; its geometry is shifted down), so a
+// click lands on the square whose floor is under the pointer.
 const cellGeometries = new Map<string, BoxGeometry>();
 const cellGeometryFor = (layout: BoardLayout) => {
-  const key = layout.cellSize.join(',');
+  const { cellSize, hitHeight, floorY } = layout;
+  const key = `${cellSize.join(',')}/${hitHeight ?? ''}/${floorY}`;
   let geometry = cellGeometries.get(key);
   if (!geometry) {
-    geometry = new BoxGeometry(...layout.cellSize);
+    geometry =
+      hitHeight === undefined
+        ? new BoxGeometry(...cellSize)
+        : new BoxGeometry(cellSize[0], hitHeight, cellSize[2]).translate(
+            0,
+            floorY + hitHeight / 2,
+            0,
+          );
     cellGeometries.set(key, geometry);
   }
   return geometry;
@@ -54,6 +70,12 @@ export interface LastMoveInfo {
   capturedPiece: Piece | null;
 }
 
+/** The cell under the pointer, and what stands on it. */
+export interface HoveredCell {
+  zxy: string;
+  piece: Piece | null;
+}
+
 export interface BoardProps {
   currentTurn: BoardTurn;
   playerColor?: 'white' | 'black' | null;
@@ -70,6 +92,11 @@ export interface BoardProps {
   disabled?: boolean;
   /** Set once the game has ended; a design may mark the mated king. */
   gameOver?: { result: 'checkmate' | 'stalemate'; winner?: BoardTurn } | null;
+  /**
+   * Told which cell the pointer is on (null when it is on none), for designs
+   * with `hud.readout` or `hoverDestinations`.
+   */
+  onHoverCell?: (cell: HoveredCell | null) => void;
 }
 
 const Board = (props: BoardProps) => {
@@ -108,10 +135,10 @@ const Board = (props: BoardProps) => {
   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
   // The piece under the pointer, when the design lifts pieces on hover.
   const [hovered, setHovered] = useState<string | null>(null);
-  // The cell (or the piece on it) under the pointer, when the design
-  // brightens the legal destination there.
+  // The cell (or the piece on it) under the pointer, for designs that
+  // brighten the destination there, emphasise its level, or read it out.
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
-  const trackPieces = design.hoverLift === true || design.hoverDestinations === true;
+  const trackHover = design.hoverDestinations === true || design.hud.readout === true;
 
   // A selection made against an earlier position is stale once the board or
   // turn changes (e.g. the opponent's move arrives) — clear it so a stale
@@ -120,9 +147,6 @@ const Board = (props: BoardProps) => {
   React.useEffect(() => {
     setSelected(null);
     setLegalMoves([]);
-    // A cell that stops being a destination loses its handlers without a
-    // pointer-out; forget it so it cannot light up under a later selection.
-    setHoveredCell(null);
   }, [props.board, props.currentTurn, props.disabled]);
 
   // Collect all pieces with their coordinates from the provided board
@@ -190,12 +214,8 @@ const Board = (props: BoardProps) => {
               onPointerOver: (e: ThreeEvent<PointerEvent>) => {
                 e.stopPropagation();
                 if (latestCanPick.current(cell)) setHovered(key);
-                setHoveredCell(key);
               },
-              onPointerOut: () => {
-                setHovered((h) => (h === key ? null : h));
-                setHoveredCell((h) => (h === key ? null : h));
-              },
+              onPointerOut: () => setHovered((h) => (h === key ? null : h)),
             },
           ];
         }),
@@ -255,9 +275,73 @@ const Board = (props: BoardProps) => {
     ({ type, color }) => type === PieceType.King && color === matedColor,
   );
 
+  // --- Hover: the cell under the pointer, from the pointer's ray (see hover.ts)
+  const grid = useRef<Group>(null);
+  const floors = useMemo<FloorSquare[]>(
+    () => CELLS.map((cell) => ({ key: toZXY(cell), floor: atCellFloor(worldOf(cell), layout) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- worldOf reads worldPositions
+    [worldPositions, layout],
+  );
+  const cellAt = useMemo(
+    () => new Map([...worldPositions].map(([key, p]) => [p.join(','), key])),
+    [worldPositions],
+  );
+  const destinationKeys = new Set(destinations.map(({ to }) => toZXY(to)));
+  const probe = (raycaster: Raycaster | null) => {
+    if (!raycaster || !grid.current) return null;
+    // The pieces (a gliding piece sits in a MoveGlide wrapper)
+    const bodies: Object3D[] = [];
+    for (const child of grid.current.children) {
+      if (child.userData.piece) bodies.push(child);
+      else if (child.userData.moveGlide) {
+        child.traverse((o) => {
+          if (o.userData.piece) bodies.push(o);
+        });
+      }
+    }
+    let pieceHit: { key: string; distance: number } | null = null;
+    for (const hit of raycaster.intersectObjects(bodies, true)) {
+      let o: Object3D | null = hit.object;
+      while (o && !o.userData.piece) o = o.parent;
+      const key = o && cellAt.get(o.position.toArray().join(','));
+      if (key) {
+        pieceHit = { key, distance: hit.distance };
+        break;
+      }
+    }
+    const { origin, direction } = raycaster.ray;
+    return resolveHover(
+      { origin: origin.toArray(), direction: direction.toArray() },
+      floors,
+      [layout.cellSize[0] / 2 + 0.011, layout.cellSize[2] / 2 + 0.011],
+      pieceHit,
+      destinationKeys,
+    );
+  };
+  const latestProbe = useRef(probe);
+  useLayoutEffect(() => {
+    latestProbe.current = probe;
+  });
+  const onHoverCell = props.onHoverCell;
+  const hoveredPiece = hoveredCell ? board.getPiece(fromZXY(hoveredCell)) : null;
+  useEffect(() => {
+    if (trackHover) onHoverCell?.(hoveredCell ? { zxy: hoveredCell, piece: hoveredPiece } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the piece is read with the cell
+  }, [trackHover, onHoverCell, hoveredCell, hoveredPiece?.type, hoveredPiece?.color]);
+  useEffect(() => () => onHoverCell?.(null), [onHoverCell]);
+
+  const selectedLevel = selected?.z ?? null;
+  const hoveredLevel = hoveredCell ? fromZXY(hoveredCell).z : null;
+  const focus = useMemo<LevelFocus>(
+    () => ({ selected: selectedLevel, hovered: hoveredLevel }),
+    [selectedLevel, hoveredLevel],
+  );
+
   return (
     <>
+      {trackHover && <HoverProbe probe={latestProbe} onHover={setHoveredCell} />}
       <group
+        ref={grid}
         name="board-grid"
         onClick={(e: ThreeEvent<MouseEvent>) => {
           if (selected && isTap(e)) {
@@ -306,7 +390,6 @@ const Board = (props: BoardProps) => {
                     }
                   : undefined
               }
-              {...(isDest && design.hoverDestinations ? hoverHandlers.get(cellKey) : {})}
             />
           );
         })}
@@ -320,10 +403,11 @@ const Board = (props: BoardProps) => {
               color={color}
               position={worldOf(coord)}
               onClick={pieceHandlers.get(key)}
-              {...(trackPieces ? hoverHandlers.get(key) : {})}
+              {...(design.hoverLift ? hoverHandlers.get(key) : {})}
               selected={isSelected(coord)}
               hovered={design.hoverLift === true && hovered === key && canPick(coord)}
               inCheck={inCheck}
+              level={coord.z}
               mated={type === PieceType.King && color === matedColor}
               facing={knightFacing(color)}
               orientation={orientation}
@@ -357,7 +441,7 @@ const Board = (props: BoardProps) => {
           events: r3f only raycasts objects with handlers and their children,
           so nothing here can intercept a click meant for a cell or piece. */}
       <group name="board-decor">
-        <design.Grid layout={layout} orientation={orientation} />
+        <design.Grid layout={layout} orientation={orientation} focus={focus} />
         {destinations.map(({ to, capture }) => {
           const key = toZXY(to);
           const hover = design.hoverDestinations ? { hovered: hoveredCell === key } : {};
@@ -368,8 +452,15 @@ const Board = (props: BoardProps) => {
           );
         })}
         {selected && <Selection {...markerAt(selected)} />}
+        {/* Keyed by move: an entrance a design plays on mount (when fresh)
+            plays once per move, and not again on a reconnect */}
         {LastMove && lastMove && (
-          <LastMove from={markerAt(lastMove.move.from)} to={markerAt(lastMove.move.to)} />
+          <LastMove
+            key={`lastmove-${lastMove.moveCount}`}
+            from={markerAt(lastMove.move.from)}
+            to={markerAt(lastMove.move.to)}
+            fresh={animate}
+          />
         )}
         {Check &&
           checkedKings.map(({ color, coord }) => (
@@ -404,6 +495,7 @@ const Board = (props: BoardProps) => {
               type={lastMove.capturedPiece.type}
               color={lastMove.capturedPiece.color}
               position={worldOf(lastMove.move.to)}
+              level={lastMove.move.to.z}
             />
           ))}
         {matedKing && design.Celebration && (
@@ -416,6 +508,60 @@ const Board = (props: BoardProps) => {
       </group>
     </>
   );
+};
+
+/**
+ * Follows the pointer over the canvas and asks `probe` which cell is under
+ * it: on every pointer move, whenever the camera moves (a wheel zoom leaves
+ * the pointer still), and after every render of the board (a new position or
+ * selection changes what is there).
+ */
+const HoverProbe = ({
+  probe,
+  onHover,
+}: {
+  probe: React.RefObject<(raycaster: Raycaster | null) => string | null>;
+  onHover: (key: string | null) => void;
+}) => {
+  const gl = useThree((s) => s.gl);
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls) as unknown as EventTarget | null;
+  const pointer = useRef<Vector2 | null>(null);
+  const raycaster = useMemo(() => new Raycaster(), []);
+  const update = useRef(() => {});
+  update.current = () => {
+    if (!pointer.current) return onHover(null);
+    raycaster.setFromCamera(pointer.current, camera);
+    onHover(probe.current(raycaster));
+  };
+  useEffect(() => {
+    const el = gl.domElement;
+    const move = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return;
+      pointer.current = new Vector2(
+        ((e.clientX - r.left) / r.width) * 2 - 1,
+        -((e.clientY - r.top) / r.height) * 2 + 1,
+      );
+      update.current();
+    };
+    const leave = () => {
+      pointer.current = null;
+      update.current();
+    };
+    const moved = () => update.current();
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerleave', leave);
+    controls?.addEventListener?.('change', moved);
+    return () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerleave', leave);
+      controls?.removeEventListener?.('change', moved);
+    };
+  }, [gl, controls]);
+  // After the board's own effects, so the probe sees this render's position
+  useEffect(() => update.current());
+  return null;
 };
 
 export default Board;

@@ -1,9 +1,20 @@
+import React from 'react';
 import { describe, it, expect } from 'vitest';
 import Board from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
 import classic from './designs/classic';
 import { DesignContext } from './designs/context';
-import type { Design, MarkerProps } from './designs/types';
+import { useThree } from '@react-three/fiber';
+import { Vector3 } from 'three';
+import type { BufferGeometry, Camera, Scene } from 'three';
+import type {
+  Design,
+  GridProps,
+  LastMoveMarkerProps,
+  LevelFocus,
+  MarkerProps,
+  PieceBodyProps,
+} from './designs/types';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
 import { PieceType } from '../engine';
@@ -766,6 +777,48 @@ describe('Board', () => {
   });
 });
 
+const last = <T,>(list: T[]): T | undefined => list[list.length - 1];
+
+// Drives Board's hover probe with real pointer events on the test canvas:
+// `moveTo` points at a world position through the live camera.
+async function pointerOn(design: Design, props: Partial<BoardProps> = {}) {
+  let three: { camera: Camera; gl: { domElement: HTMLCanvasElement }; scene: Scene } | null = null;
+  const Grab = () => {
+    const camera = useThree((s) => s.camera);
+    const gl = useThree((s) => s.gl);
+    const scene = useThree((s) => s.scene);
+    three = { camera, gl, scene };
+    return null;
+  };
+  const renderer = await ReactThreeTestRenderer.create(
+    <DesignContext.Provider value={design}>
+      <Grab />
+      <Board board={createTestBoard()} currentTurn="white" {...props} />
+    </DesignContext.Provider>,
+  );
+  const { camera, gl, scene } = three!;
+  const canvas = gl.domElement;
+  const rect = { left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0 };
+  vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(rect as DOMRect);
+  const fire = async (type: string, x = 0, y = 0) => {
+    await act(async () => {
+      await renderer.advanceFrames(1, 0.016);
+      // The test renderer never draws, so world matrices are only as fresh as this
+      scene.updateMatrixWorld(true);
+      const event = new MouseEvent(type, { clientX: x, clientY: y });
+      canvas.dispatchEvent(event);
+    });
+  };
+  return {
+    renderer,
+    moveTo: async ([x, y, z]: [number, number, number]) => {
+      const p = new Vector3(x, y, z).project(camera);
+      await fire('pointermove', ((p.x + 1) / 2) * rect.width, ((1 - p.y) / 2) * rect.height);
+    },
+    leave: () => fire('pointerleave'),
+  };
+}
+
 describe('Board with a clarity-kit design', () => {
   // A design without cell volumes, tracking the pointer over destinations,
   // with shorter pieces. Its markers record what Board hands them.
@@ -802,20 +855,24 @@ describe('Board with a clarity-kit design', () => {
     expect(onMove).toHaveBeenCalledTimes(1);
   });
 
-  it('tells a destination marker when the pointer is over its cell', async () => {
-    const renderer = await renderWith(clarity);
-    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
-    expect(quietMarkers(renderer).map((m) => m.props.userData.hovered)).toEqual([false, false]);
+  it('tells a destination marker when the pointer is over its floor', async () => {
+    const pointer = await pointerOn(clarity);
+    await press(findPiece(pointer.renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(quietMarkers(pointer.renderer).map((m) => m.props.userData.hovered)).toEqual([
+      false,
+      false,
+    ]);
 
-    const [cell] = highlightedCells(renderer);
-    await act(async () => cell.props.onPointerOver?.({ stopPropagation: () => {} }));
-    const hovered = quietMarkers(renderer).filter((m) => m.props.userData.hovered);
+    // The pawn's step forward, on its own level: aim at the middle of its floor
+    const forward = { x: 0, y: 2, z: 1 };
+    const [fx, fy, fz] = toWorld(forward, 'white');
+    await pointer.moveTo([fx, fy + CELL_FLOOR_Y, fz]);
+    const hovered = quietMarkers(pointer.renderer).filter((m) => m.props.userData.hovered);
     expect(hovered).toHaveLength(1);
-    const [cx, cy, cz] = cell.props.position;
-    expect(hovered[0].props.position).toEqual([cx, cy + clarity.layout.floorY, cz]);
+    expect(hovered[0].props.position).toEqual([fx, fy + CELL_FLOOR_Y, fz]);
 
-    await act(async () => cell.props.onPointerOut?.({ stopPropagation: () => {} }));
-    expect(quietMarkers(renderer).some((m) => m.props.userData.hovered)).toBe(false);
+    await pointer.leave();
+    expect(quietMarkers(pointer.renderer).some((m) => m.props.userData.hovered)).toBe(false);
   });
 
   it('leaves the classic design without hover tracking', async () => {
@@ -836,5 +893,127 @@ describe('Board with a clarity-kit design', () => {
     };
     expect(await innerScales(clarity)).toEqual({ scale: 0.8, position: [0, CELL_FLOOR_Y, 0] });
     expect((await innerScales(classic)).scale).toBe(1);
+  });
+
+  it('reports the cell under the pointer, and its level as the hovered focus', async () => {
+    const onHoverCell = vi.fn();
+    const focusSeen: (LevelFocus | undefined)[] = [];
+    const Grid = ({ focus }: GridProps) => {
+      focusSeen.push(focus);
+      return null;
+    };
+    const design: Design = { ...clarity, Grid, hud: { ...clarity.hud, readout: true } };
+    const pointer = await pointerOn(design, { onHoverCell });
+
+    // Onto the level-B pawn's body
+    const [px, py, pz] = toWorld(LEVEL_B_PAWN, 'white');
+    await pointer.moveTo([px, py + CELL_FLOOR_Y + 0.25, pz]);
+    expect(onHoverCell).toHaveBeenLastCalledWith({
+      zxy: 'Ba2',
+      piece: { type: PieceType.Pawn, color: 'white' },
+    });
+    expect(last(focusSeen)).toEqual({ selected: null, hovered: 1 });
+
+    // Selecting it keeps the hover (it is still under the pointer)
+    await press(findPiece(pointer.renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(last(focusSeen)).toEqual({ selected: 1, hovered: 1 });
+
+    await pointer.leave();
+    expect(onHoverCell).toHaveBeenLastCalledWith(null);
+    expect(last(focusSeen)).toEqual({ selected: 1, hovered: null });
+  });
+
+  it('passes the selected level as focus even without hover tracking', async () => {
+    const focusSeen: (LevelFocus | undefined)[] = [];
+    const Grid = ({ focus }: GridProps) => {
+      focusSeen.push(focus);
+      return null;
+    };
+    const renderer = await renderWith({ ...classic, Grid });
+    expect(last(focusSeen)).toEqual({ selected: null, hovered: null });
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(last(focusSeen)).toEqual({ selected: 1, hovered: null });
+  });
+
+  it('tells each piece body the level it stands on', async () => {
+    const levels = new Map<string, number | undefined>();
+    const PieceBody = ({ type, color, level }: PieceBodyProps) => {
+      levels.set(`${color}-${type}-${level}`, level);
+      return null;
+    };
+    await renderWith({ ...classic, PieceBody });
+    // White's army starts on A and B, Black's on D and E
+    expect([...levels.values()].filter((l) => l === undefined)).toHaveLength(0);
+    const kings = [...levels.keys()].filter((k) => k.includes('King'));
+    expect(kings.sort()).toEqual(['black-King-4', 'white-King-0']);
+  });
+
+  it('sinks the click boxes onto the floor for a layout with a hitHeight', async () => {
+    const renderer = await renderWith({
+      ...classic,
+      layout: { ...classic.layout, hitHeight: 0.1 },
+    });
+    const cell = (renderer.scene as ReactThreeTestInstance).findAll(
+      (node) => node.type === 'Mesh' && node.props.userData?.zxy === 'Cc3',
+    )[0];
+    // The mesh stays at the cell's centre (where pieces and markers are
+    // placed); its geometry is a thin slab on the floor
+    expect(cell.props.position).toEqual(toWorld({ x: 2, y: 2, z: 2 }, 'white'));
+    const geometry = (cell.instance as unknown as { geometry: BufferGeometry }).geometry;
+    geometry.computeBoundingBox();
+    expect(geometry.boundingBox!.min.y).toBeCloseTo(CELL_FLOOR_Y);
+    expect(geometry.boundingBox!.max.y).toBeCloseTo(CELL_FLOOR_Y + 0.1);
+  });
+
+  describe('last move', () => {
+    const FROM = { x: 2, y: 2, z: 2 };
+    const TO = { x: 2, y: 3, z: 2 };
+    const mounts: string[] = [];
+    const seen: LastMoveMarkerProps[] = [];
+    const LastMove = (props: LastMoveMarkerProps) => {
+      seen.push(props);
+      React.useEffect(() => {
+        mounts.push(JSON.stringify(props.to.floor));
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+      }, []);
+      return null;
+    };
+    const design: Design = { ...classic, markers: { ...classic.markers, LastMove } };
+    const boardWith = (at: Coord) => {
+      const board = new EngineBoard();
+      board.setPiece(at, { type: PieceType.Rook, color: 'white' });
+      board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+      board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
+      return board;
+    };
+    const info = (moveCount: number, from: Coord, to: Coord): LastMoveInfo => ({
+      move: { from, to },
+      moveCount,
+      capturedPiece: null,
+    });
+    const view = (board: EngineBoard, lastMove: LastMoveInfo | undefined, turn: Color) => (
+      <DesignContext.Provider value={design}>
+        <Board board={board} currentTurn={turn} lastMove={lastMove} />
+      </DesignContext.Provider>
+    );
+
+    it('is not fresh when replayed at mount, fresh for a live move, and remounts per move', async () => {
+      mounts.length = 0;
+      seen.length = 0;
+      const renderer = await ReactThreeTestRenderer.create(
+        view(boardWith(TO), info(4, FROM, TO), 'black'),
+      );
+      expect(last(seen)!.fresh).toBe(false);
+      expect(mounts).toHaveLength(1);
+
+      const next = { x: 2, y: 4, z: 2 };
+      await renderer.update(view(boardWith(next), info(5, TO, next), 'white'));
+      expect(last(seen)!.fresh).toBe(true);
+      expect(mounts).toHaveLength(2);
+
+      // A re-render of the same move neither remounts it nor replays it
+      await renderer.update(view(boardWith(next), info(5, TO, next), 'white'));
+      expect(mounts).toHaveLength(2);
+    });
   });
 });

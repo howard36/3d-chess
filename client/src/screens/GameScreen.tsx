@@ -24,6 +24,8 @@ import { DesignContext, useDesignChoice } from '../three/designs/context';
 import { DesignStage } from '../three/DesignStage';
 import DesignPicker from './DesignPicker';
 import CapturedPieces from './CapturedPieces';
+import HoverReadout from './HoverReadout';
+import type { HoveredCell } from '../three/Board';
 import type { OrbitLimits } from '../three/designs/types';
 
 interface GameScreenProps {
@@ -100,6 +102,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
 
   const { design } = useDesignChoice();
+  // The cell under the pointer, for designs that read it out in the HUD
+  const [hoverCell, setHoverCell] = React.useState<HoveredCell | null>(null);
   // A design that plays out the mate (the king topples, the winner
   // celebrates) gets a moment to do it before the result covers the board —
   // when the mate was just played, not when a finished game is reopened.
@@ -429,6 +433,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
                 lastMove={lastMove}
                 disabled={boardDisabled}
                 gameOver={gameOver}
+                onHoverCell={design.hud.readout ? setHoverCell : undefined}
               />
               <OrbitControls
                 makeDefault
@@ -498,6 +503,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               </div>
               <div className="order-first col-span-2 justify-self-center sm:order-none sm:col-span-1">
                 <TurnIndicator turn={currentTurn} inCheck={inCheck} />
+                {design.hud.readout && <HoverReadout cell={hoverCell} />}
               </div>
               <div className="flex flex-col items-end gap-2 justify-self-end">
                 <DesignPicker />

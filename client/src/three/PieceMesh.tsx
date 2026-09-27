@@ -21,6 +21,8 @@ export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   facing?: number;
   /** The seat the board is drawn for, passed on to the design's piece body. */
   orientation?: Orientation;
+  /** The level (engine z) of the piece's cell, passed on to the design's piece body. */
+  level?: number;
 };
 
 const PIECE_TYPES = new Set<string>(Object.values(PieceType));
@@ -40,6 +42,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   mated = false,
   facing,
   orientation = 'white',
+  level,
   ...rest
 }) {
   const design = useDesign();
@@ -64,6 +67,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
       hovered={hovered}
       inCheck={inCheck}
       orientation={orientation}
+      level={level}
     />
   );
   // Picked up, a piece floats off its floor; under the pointer, it stirs.
