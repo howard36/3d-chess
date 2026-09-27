@@ -307,6 +307,8 @@ const columnFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uFrom;
   uniform float uReach;
+  uniform float uBottom;
+  uniform float uTop;
   uniform float uStrength;
   uniform float uGap;
   uniform float uSteep;
@@ -321,8 +323,11 @@ const columnFragment = /* glsl */ `
     // A fine bright core with a soft falloff: a beam, not a tube
     float beam = pow(facing, 6.0) + 0.25 * pow(facing, 1.5);
     float dy = abs(vY - uFrom);
-    if (dy > uReach) discard;
-    float fade = exp(-dy / 2.6) * (1.0 - smoothstep(uReach - 0.4, uReach, dy));
+    // Each way, the beam fades out by the end of the column (one side is
+    // shorter than the reach, and would otherwise stop dead, still bright)
+    float reach = min(uReach, vY > uFrom ? uTop - uFrom : uFrom - uBottom);
+    if (dy > reach) discard;
+    float fade = exp(-dy / 2.6) * (1.0 - smoothstep(reach - 0.4, reach, dy));
     float a = beam * fade * uStrength * (1.0 - 0.7 * uSteep);
     if (a < 0.003) discard;
     gl_FragColor = vec4(uColor * a, 1.0);
@@ -364,6 +369,8 @@ export const LightColumn = ({
           uColor: { value: new Color(color) },
           uFrom: { value: floor[1] },
           uReach: { value: 0 },
+          uBottom: { value: COLUMN_BOTTOM },
+          uTop: { value: COLUMN_TOP },
           uStrength: { value: strength },
           uGap: { value: COLUMN_GAP },
           uSteep: steepness,
