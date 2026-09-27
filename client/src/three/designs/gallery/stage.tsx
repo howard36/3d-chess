@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   BackSide,
@@ -189,13 +189,8 @@ const topBake = /* glsl */ `
  * Paints a fragment shader over a whole texture once (sRGB, so the dark
  * room keeps its gradations in 8 bits; mipmapped, so it minifies calmly).
  */
-const bake = (
-  gl: WebGLRenderer,
-  fragmentShader: string,
-  uniforms: Record<string, IUniform>,
-  [width, height]: [number, number],
-  wrap = false,
-): WebGLRenderTarget => {
+/** A texture to bake into: sRGB (the dark room keeps its gradations in 8 bits), mipmapped. */
+const bakeTarget = ([width, height]: [number, number], wrap = false): WebGLRenderTarget => {
   const target = new WebGLRenderTarget(width, height, {
     depthBuffer: false,
     generateMipmaps: true,
@@ -204,25 +199,46 @@ const bake = (
   });
   target.texture.colorSpace = SRGBColorSpace;
   target.texture.wrapS = wrap ? RepeatWrapping : ClampToEdgeWrapping;
-  const material = new ShaderMaterial({
-    uniforms,
-    vertexShader: bakeVertex,
-    fragmentShader,
-    depthTest: false,
-    depthWrite: false,
-    toneMapped: false,
-  });
-  const quad = new Mesh(new PlaneGeometry(2, 2), material);
+  return target;
+};
+
+/** A still part of the room: the shader that paints it and the texture it is painted into. */
+interface Bake {
+  target: WebGLRenderTarget;
+  fragmentShader: string;
+  uniforms: Record<string, IUniform>;
+}
+
+/** Paints each bake's shader over its whole texture. */
+const paint = (gl: WebGLRenderer, bakes: Bake[]) => {
+  const quad = new Mesh(new PlaneGeometry(2, 2));
   quad.frustumCulled = false;
   const scene = new Scene();
   scene.add(quad);
   const previous = gl.getRenderTarget();
-  gl.setRenderTarget(target);
-  gl.render(scene, BAKE_CAMERA);
+  for (const { target, fragmentShader, uniforms } of bakes) {
+    const material = new ShaderMaterial({
+      uniforms,
+      vertexShader: bakeVertex,
+      fragmentShader,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    quad.material = material;
+    gl.setRenderTarget(target);
+    gl.render(scene, BAKE_CAMERA);
+    material.dispose();
+  }
   gl.setRenderTarget(previous);
-  material.dispose();
   quad.geometry.dispose();
-  return target;
+};
+
+/** Whether a baked texture holds paint (every bake writes alpha > 0; an empty target reads 0). */
+const painted = (gl: WebGLRenderer, target: WebGLRenderTarget) => {
+  const texel = new Uint8Array(4);
+  gl.readRenderTargetPixels(target, target.width >> 1, target.height >> 1, 1, 1, texel);
+  return texel[3] > 0;
 };
 const BAKE_CAMERA = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
@@ -582,43 +598,48 @@ export const makeStage = (levelY: number[], platformHalf: number) => {
         0,
       );
       const floor = new CircleGeometry(ROOM_RADIUS, 96).rotateX(-Math.PI / 2);
-      // Paint the still room once
-      const wallTex = bake(
-        gl,
-        wallBake,
-        { ...roomUniforms(), uH: { value: WALL_H } },
-        WALL_TEX,
-        true,
-      );
-      const floorTex = bake(
-        gl,
-        floorBake,
+      // The still room, painted once (see the layout effect below)
+      const wallTex = bakeTarget(WALL_TEX, true);
+      const floorTex = bakeTarget([FLOOR_TEX, FLOOR_TEX]);
+      const daisTex = bakeTarget([1024, 1024]);
+      const plinthTex = bakeTarget([512, 512]);
+      const top = (half: number, round: boolean, inlayR: number, pool: number) => ({
+        ...roomUniforms(),
+        uBase: { value: new Color(ROOM.dais) },
+        uLight: { value: new Color(ROOM.wash) },
+        uPool: { value: pool },
+        uPoolR: { value: half * 0.8 },
+        uHalf: { value: half },
+        uRound: { value: round ? 1 : 0 },
+        uInlayR: { value: inlayR },
+        uInlay: { value: new Color('#5a4526').multiplyScalar(0.35) },
+      });
+      const bakes: Bake[] = [
         {
-          ...roomUniforms(),
-          uFloor: { value: new Color(ROOM.floor) },
-          uSculptR: { value: SCULPTURE_RING },
+          target: wallTex,
+          fragmentShader: wallBake,
+          uniforms: { ...roomUniforms(), uH: { value: WALL_H } },
         },
-        [FLOOR_TEX, FLOOR_TEX],
-      );
-      const topTex = (half: number, round: boolean, inlayR: number, pool: number, size: number) =>
-        bake(
-          gl,
-          topBake,
-          {
+        {
+          target: floorTex,
+          fragmentShader: floorBake,
+          uniforms: {
             ...roomUniforms(),
-            uBase: { value: new Color(ROOM.dais) },
-            uLight: { value: new Color(ROOM.wash) },
-            uPool: { value: pool },
-            uPoolR: { value: half * 0.8 },
-            uHalf: { value: half },
-            uRound: { value: round ? 1 : 0 },
-            uInlayR: { value: inlayR },
-            uInlay: { value: new Color('#5a4526').multiplyScalar(0.35) },
+            uFloor: { value: new Color(ROOM.floor) },
+            uSculptR: { value: SCULPTURE_RING },
           },
-          [size, size],
-        );
-      const daisTex = topTex(room.daisR, true, room.daisR - 0.35, 0.12, 1024);
-      const plinthTex = topTex(room.plinthHalf, false, 0, 0.2, 512);
+        },
+        {
+          target: daisTex,
+          fragmentShader: topBake,
+          uniforms: top(room.daisR, true, room.daisR - 0.35, 0.12),
+        },
+        {
+          target: plinthTex,
+          fragmentShader: topBake,
+          uniforms: top(room.plinthHalf, false, 0, 0.2),
+        },
+      ];
       const wallMat = new ShaderMaterial({
         side: BackSide,
         uniforms: { uTex: { value: wallTex.texture } },
@@ -636,7 +657,7 @@ export const makeStage = (levelY: number[], platformHalf: number) => {
         vertexShader: worldVertex,
         fragmentShader: floorFragment,
       });
-      const top = (tex: WebGLRenderTarget, half: number) =>
+      const topMaterial = (tex: WebGLRenderTarget, half: number) =>
         new ShaderMaterial({
           uniforms: { uTex: { value: tex.texture }, uHalf: { value: half } },
           vertexShader: worldVertex,
@@ -658,16 +679,41 @@ export const makeStage = (levelY: number[], platformHalf: number) => {
         wallMat,
         floorMat,
         daisTop,
-        daisMat: top(daisTex, room.daisR),
+        daisMat: topMaterial(daisTex, room.daisR),
         plinthTopG,
-        plinthMat: top(plinthTex, room.plinthHalf),
+        plinthMat: topMaterial(plinthTex, room.plinthHalf),
         props,
         propsMat,
+        bakes,
       };
-    }, [gl]);
+    }, []);
+    // Paint the room after the commit, never during render. Check the paint
+    // took (a texel read back), and paint again on a later frame if it did
+    // not, or if the GL context is lost and restored (render targets keep no
+    // copy to restore from).
+    const invalidate = useThree((s) => s.invalidate);
+    const pending = useRef(0);
+    useLayoutEffect(() => {
+      paint(gl, built.bakes);
+      pending.current = painted(gl, built.bakes[0].target) ? 0 : 5;
+      if (pending.current) invalidate();
+      const restored = () => {
+        pending.current = 5;
+        invalidate();
+      };
+      gl.domElement.addEventListener('webglcontextrestored', restored);
+      return () => gl.domElement.removeEventListener('webglcontextrestored', restored);
+    }, [gl, built, invalidate]);
+    useFrame(() => {
+      if (!pending.current) return;
+      paint(gl, built.bakes);
+      pending.current = painted(gl, built.bakes[0].target) ? 0 : pending.current - 1;
+      invalidate();
+    });
     useEffect(
       () => () => {
         Object.values(built).forEach((v) => (v as { dispose?: () => void }).dispose?.());
+        built.bakes.forEach((b) => b.target.dispose());
       },
       [built],
     );

@@ -1,9 +1,10 @@
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Color, MeshStandardMaterial, RingGeometry, ShaderMaterial } from 'three';
+import { Color, MeshStandardMaterial, PlaneGeometry, ShaderMaterial } from 'three';
 import type { Group, IUniform, Material } from 'three';
 import { ChessPiece } from '../../pieces';
 import { LAYER } from '../kit/layers';
+import { FLOOR_DECAL } from '../kit/motion';
 import { noRaycast } from '../kit/noRaycast';
 import { ContactShadow } from '../kit/plates';
 import type { PieceBodyProps, PieceColor } from '../types';
@@ -32,6 +33,8 @@ import type { StoneKind } from './stone';
  */
 export const SPOTLIGHT: IUniform<number> = { value: 0 };
 const HOVER_SPOT = 0.45;
+/** Distance between neighbouring squares (the tower's pitch, world units). */
+const PITCH = 1;
 
 type State = 'rest' | 'hover' | 'selected' | 'check';
 
@@ -76,9 +79,12 @@ export const pieceMaterials = (
 });
 
 // The level's ring round a piece's base: thin and unlit, quieter than any
-// gameplay mark, and a little stronger from high above, where it is what
-// tells the levels' pieces apart
-const FOOTPRINT = new RingGeometry(0.3, 0.337, 48).rotateX(-Math.PI / 2);
+// gameplay mark, and a little stronger from high above. From straight above
+// it turns into an outline of the piece's own square: perspective shifts the
+// lower levels inward under the upper grids, so the piece's square, drawn in
+// its level's colour, is what places it (lead note 14). Computed in world
+// space from the piece's centre, so a turned knight keeps its square true.
+const FOOTPRINT = new PlaneGeometry(1.3, 1.3).rotateX(-Math.PI / 2);
 const footprints = LEVELS.map(
   (c) =>
     new ShaderMaterial({
@@ -90,17 +96,35 @@ const footprints = LEVELS.map(
       uniforms: { uColor: { value: new Color(c) } },
       vertexShader: /* glsl */ `
         varying vec3 vWorld;
+        varying vec2 vOff;
+        varying float vScale;
         void main() {
           vec4 world = modelMatrix * vec4(position, 1.0);
           vWorld = world.xyz;
+          vOff = world.xz - (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
+          vScale = length(modelMatrix[0].xyz);
           gl_Position = projectionMatrix * viewMatrix * world;
         }`,
       fragmentShader: /* glsl */ `
         uniform vec3 uColor;
         varying vec3 vWorld;
+        varying vec2 vOff;
+        varying float vScale;
         void main() {
-          float steep = smoothstep(0.6, 0.95, normalize(cameraPosition - vWorld).y);
-          gl_FragColor = vec4(uColor, mix(0.45, 0.8, steep));
+          float up = normalize(cameraPosition - vWorld).y;
+          float steep = smoothstep(0.6, 0.95, up);
+          float square = smoothstep(0.8, 0.95, up);
+          // A ring round the base (piece units 0.30 to 0.337)...
+          float ring = abs(length(vOff) - 0.3185 * vScale) - 0.0185 * vScale;
+          // ...becoming the outline of the square (0.86 of a square, 0.03 wide)
+          vec2 q = abs(vOff);
+          float box = abs(max(q.x, q.y) - ${(0.43 * PITCH).toFixed(4)}) - ${(0.015 * PITCH).toFixed(4)};
+          float d = mix(ring, box, square);
+          float aa = max(fwidth(d), 1e-4);
+          float cover = 1.0 - smoothstep(-aa, aa, d);
+          float a = cover * mix(mix(0.45, 0.8, steep), 0.6, square);
+          if (a < 0.003) discard;
+          gl_FragColor = vec4(uColor, a);
           #include <colorspace_fragment>
         }`,
     }),
@@ -151,6 +175,7 @@ export const PieceBody = (props: PieceBodyProps) => {
         <ContactShadow radius={0.37} opacity={0.55} />
         <mesh
           geometry={FOOTPRINT}
+          userData={FLOOR_DECAL}
           material={footprints[level] ?? footprints[0]}
           position={[0, 0.006, 0]}
           renderOrder={LAYER.shadow}

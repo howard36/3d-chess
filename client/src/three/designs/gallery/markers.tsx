@@ -67,6 +67,8 @@ export const makeMarkers = (pitch: number, moveMs: number, levelY: number[]) => 
     uniform vec3 uColor;
     uniform vec3 uColor2;
     uniform vec3 uColor3;
+    uniform float uDot;
+    uniform float uInner;
     uniform float uRadius;
     uniform float uWidth;
     uniform float uOpacity;
@@ -95,7 +97,13 @@ export const makeMarkers = (pitch: number, moveMs: number, levelY: number[]) => 
         // the mark lies on, and a pool of warm light
         float w = uWidth * (1.0 + 0.45 * uHover);
         float ring = band(r - uRadius, w);
-        float inner = band(r - uRadius * 0.72, uWidth * 0.62) * 0.9;
+        float inner = band(r - uRadius * 0.72, uWidth * 0.62) * 0.9 * uInner;
+        // The level's jewel: a filled dot of its colour at the pool's heart
+        float jewelD = r - uDot;
+        float jewel = uDot > 0.0
+          ? (1.0 - smoothstep(-max(fwidth(jewelD), 1e-4), max(fwidth(jewelD), 1e-4), jewelD)) * 0.95
+          : 0.0;
+        inner = max(inner, jewel);
         // The ring's metal: a bright line along its middle, deeper at its edges
         float core = band(r - uRadius, w * 0.35);
         vec3 brass = mix(uColor2, uColor, 0.55 + 0.45 * core);
@@ -151,8 +159,12 @@ export const makeMarkers = (pitch: number, moveMs: number, levelY: number[]) => 
     kind: keyof typeof KIND;
     color: string;
     color2?: string;
-    /** The level's colour, for the brass ring's fine inner ring. */
+    /** The level's colour, for the brass ring's fine inner ring or its jewel. */
     color3?: string;
+    /** Radius of a jewel of the level's colour at the pool's heart (0: none). */
+    dot?: number;
+    /** Draw the fine inner ring in the level's colour. */
+    innerRing?: boolean;
     radius: number;
     width: number;
     opacity?: number;
@@ -184,6 +196,8 @@ export const makeMarkers = (pitch: number, moveMs: number, levelY: number[]) => 
     color,
     color2,
     color3,
+    dot = 0,
+    innerRing = false,
     radius,
     width,
     opacity = 0.9,
@@ -213,6 +227,8 @@ export const makeMarkers = (pitch: number, moveMs: number, levelY: number[]) => 
             uColor: { value: new Color(color) },
             uColor2: { value: new Color(color2 ?? color) },
             uColor3: { value: new Color(color3 ?? color) },
+            uDot: { value: dot },
+            uInner: { value: innerRing ? 1 : 0 },
             uRadius: { value: radius },
             uWidth: { value: width },
             uOpacity: { value: opacity },
@@ -271,6 +287,7 @@ export const makeMarkers = (pitch: number, moveMs: number, levelY: number[]) => 
       color={BRASS}
       color2={BRASS_DEEP}
       color3={LEVELS[levelAt(floor[1])]}
+      dot={0.07 * pitch}
       radius={RING}
       width={RING_W}
       opacity={0.95}
@@ -287,6 +304,7 @@ export const makeMarkers = (pitch: number, moveMs: number, levelY: number[]) => 
         color={BRASS}
         color2={BRASS_DEEP}
         color3={LEVELS[levelAt(floor[1])]}
+        innerRing
         radius={RING + 0.02 * pitch}
         width={RING_W}
         opacity={0.95}
@@ -497,46 +515,52 @@ export const makeMarkers = (pitch: number, moveMs: number, levelY: number[]) => 
 
   // --- The last move: a platinum wire --------------------------------------------
 
-  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
-    <>
-      <Mark
-        floor={from.floor}
-        kind="wire"
-        color={WIRE}
-        radius={0.3 * pitch}
-        width={0.024 * pitch}
-        opacity={0.95}
-        fill={0.05}
-        dots={18}
-      />
-      <Mark
-        floor={to.floor}
-        kind="wire"
-        color={WIRE}
-        radius={0.4 * pitch}
-        width={0.02 * pitch}
-        opacity={0.9}
-        fill={0.1}
-        drawMs={fresh ? 360 : 0}
-        delayMs={fresh ? moveMs * 0.75 : 0}
-      />
-      <LastMoveLine
-        from={from.floor}
-        to={to.floor}
-        arc={arc}
-        color={WIRE}
-        pulseColor={WIRE_GLINT}
-        radius={0.011}
-        opacity={0.9}
-        shade={0.45}
-        pulse={0.7}
-        pulseLength={0.35}
-        flowSpeed={0.55}
-        lift={0.03}
-        drawInMs={fresh ? 320 : 0}
-      />
-    </>
-  );
+  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
+    // A move straight up or down: the origin rings the arrival from outside,
+    // so both read from above (lead note 7)
+    const vertical =
+      Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3;
+    return (
+      <>
+        <Mark
+          floor={from.floor}
+          kind="wire"
+          color={WIRE}
+          radius={(vertical ? 0.46 : 0.3) * pitch}
+          width={0.024 * pitch}
+          opacity={0.95}
+          fill={vertical ? 0 : 0.05}
+          dots={vertical ? 28 : 18}
+        />
+        <Mark
+          floor={to.floor}
+          kind="wire"
+          color={WIRE}
+          radius={0.4 * pitch}
+          width={0.02 * pitch}
+          opacity={0.9}
+          fill={0.1}
+          drawMs={fresh ? 360 : 0}
+          delayMs={fresh ? moveMs * 0.75 : 0}
+        />
+        <LastMoveLine
+          from={from.floor}
+          to={to.floor}
+          arc={arc}
+          color={WIRE}
+          pulseColor={WIRE_GLINT}
+          radius={0.011}
+          opacity={0.9}
+          shade={0.45}
+          pulse={0.7}
+          pulseLength={0.35}
+          flowSpeed={0.55}
+          lift={0.03}
+          drawInMs={fresh ? 320 : 0}
+        />
+      </>
+    );
+  };
 
   // --- Check: do not touch --------------------------------------------------------
 

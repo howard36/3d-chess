@@ -1,4 +1,4 @@
-import { levelRamp } from '../kit/colors';
+import { hexToOklch, levelRamp, oklchToHex } from '../kit/colors';
 
 // Gallery's palette. The value structure, darkest to lightest:
 //
@@ -20,6 +20,15 @@ import { levelRamp } from '../kit/colors';
  * sit about 0.12 apart in OKLab.
  */
 export const LEVELS = levelRamp({ from: 320, to: 135, lightness: [0.64, 0.8], chroma: 0.15 });
+
+/**
+ * The level letters: the level colours, with the darker lower levels lifted a
+ * little so A and B hold beside their frames in the gloom.
+ */
+export const LABEL_LEVELS = LEVELS.map((c) => {
+  const o = hexToOklch(c);
+  return oklchToHex({ ...o, l: Math.max(o.l, 0.72) });
+});
 
 /** Ivory for the file and rank letters, like a wall label printed on card. */
 export const LABEL = '#e9e2d3';

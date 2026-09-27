@@ -4,7 +4,6 @@ import '@fontsource/cormorant-garamond/latin-700.css';
 import '@fontsource/jost/latin-400.css';
 import '@fontsource/jost/latin-500.css';
 import jost500 from '@fontsource/jost/files/jost-latin-500-normal.woff2';
-import jost600 from '@fontsource/jost/files/jost-latin-600-normal.woff2';
 import type { DesignHud } from '../types';
 import { BRASS } from './palette';
 
@@ -23,13 +22,15 @@ const LABEL_DIGITS = 'Gallery Label Digits';
 const FIGURES = 'Gallery Figures';
 if (typeof document !== 'undefined' && document.fonts && typeof FontFace !== 'undefined') {
   for (const [family, url, range] of [
-    [LABEL_DIGITS, jost600, 'U+20, U+30-39'],
+    [LABEL_DIGITS, jost500, 'U+20, U+30-39'],
     [FIGURES, jost500, 'U+30-39'],
   ]) {
     const face = new FontFace(family, `url(${url}) format('woff2')`, {
       weight: '100 900',
       unicodeRange: range,
-    });
+      // Jost's digits stand taller than Cormorant's letters at one size
+      sizeAdjust: '92%',
+    } as FontFaceDescriptors);
     document.fonts.add(face);
     face.load().catch(() => undefined);
   }
@@ -47,11 +48,17 @@ const RULE = 'rgba(230, 189, 106, 0.3)';
 
 const CARD = 'radial-gradient(ellipse at 50% 0%, #25231f 0%, #131315 72%)';
 
+/** Size of the result card's title (the result), set like a wall label's title. */
+const RESULT_TITLE_PX = 28;
+
 /**
- * The result card as a museum wall label: over the result (the card's own
- * title), a small italic "Final position"; under the button, the medium line
- * in tracked Jost capitals. The card's text is shared code, so the two lines
- * are drawn into images with the page's own fonts, once they have loaded.
+ * The result card (only: --result-bg) as a museum wall label: over the
+ * result, which is the card's own title, a small italic "Final position";
+ * between the result and the button, the medium line in tracked Jost
+ * capitals. The card's text is shared code, so the two lines are drawn into
+ * images with the page's own fonts once they have loaded, and placed by the
+ * card's fixed metrics: 32 px padding, the title's default top margin
+ * (0.83em) and line (Cormorant's 1.21), then 16 + 16 px to the button.
  */
 let label: string | null = null;
 const wallLabel = (): string => {
@@ -85,9 +92,11 @@ const wallLabel = (): string => {
     3,
   );
   if (!title || !medium) return CARD;
+  const titleBottom = 32 + RESULT_TITLE_PX * (0.83 + 1.21);
+  const captionTop = Math.round(titleBottom + 16 - 11);
   label =
-    `url("${title}") no-repeat center top 12px / 360px 22px, ` +
-    `url("${medium}") no-repeat center bottom 11px / 360px 22px, ` +
+    `url("${title}") no-repeat center top 16px / 360px 22px, ` +
+    `url("${medium}") no-repeat center top ${captionTop}px / 360px 22px, ` +
     CARD;
   return label;
 };
@@ -105,13 +114,16 @@ const vars: DesignHud['vars'] = {
   '--hud-shadow': '0 12px 32px rgba(0, 0, 0, 0.45)',
   '--hud-blur': 'blur(4px)',
   '--hud-tracking': '0.03em',
-  // A short brass rule under the turn, as under a label's title
-  '--turn-bg': `linear-gradient(${BRASS}, ${BRASS}) no-repeat center bottom 3px / 44px 1px, ${PLACARD}`,
+  // A brass hairline along the foot of the turn placard (full width, so it
+  // never underlines one word of a long title)
+  '--turn-bg': `linear-gradient(${RULE}, ${RULE}) no-repeat center bottom 3px / calc(100% - 24px) 1px, ${PLACARD}`,
   '--turn-fg': IVORY,
   '--turn-size': '23px',
   '--turn-border': `1px solid ${RULE}`,
   '--turn-shadow': '0 12px 32px rgba(0, 0, 0, 0.5)',
   '--modal-bg': CARD,
+  '--result-bg': CARD,
+  '--result-title-size': `${RESULT_TITLE_PX}px`,
   '--modal-fg': IVORY,
   '--modal-radius': '1px',
   // A title card in a double brass frame
@@ -126,7 +138,7 @@ const vars: DesignHud['vars'] = {
   '--page-fg': IVORY,
 };
 // Read each time the game screen renders: the wall label once fonts are in
-Object.defineProperty(vars, '--modal-bg', { get: wallLabel, enumerable: true });
+Object.defineProperty(vars, '--result-bg', { get: wallLabel, enumerable: true });
 
 export const hud: DesignHud = {
   readout: true,

@@ -7,7 +7,7 @@ import type { Design, GridProps } from '../types';
 import { makeFx } from './fx';
 import { hud, LABEL_FONT } from './hud';
 import { makeMarkers } from './markers';
-import { LABEL, LEVELS } from './palette';
+import { LABEL, LABEL_LEVELS, LEVELS } from './palette';
 import { PieceBody } from './pieces';
 import { GlassPlates } from './plates';
 import { makeStage } from './stage';
@@ -58,8 +58,8 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
         size={0.42}
         opacity={0.92}
         levelScale={1.4}
-        levelColors={LEVELS}
-        levelOffset={1.15}
+        levelColors={LABEL_LEVELS}
+        levelOffset={0.9}
         offset={0.44}
         focusLevel={focusLevel}
         focusScale={1.25}
@@ -87,7 +87,9 @@ const gallery: Design = {
   hoverDestinations: true,
   // Hover stirs a piece and selection raises it (the kit's heights, held
   // still); the selected piece also turns on its plinth (pieces.tsx)
-  hoverLift: true,
+  // A small lift: a high one detached the piece from its square of light at
+  // the opening view (lead note 9); the beam and the single turn carry it
+  hoverLift: { hover: 0.04, selected: 0.06 },
   motion: MOTION,
   ...makeFx(layout.floorY, PIECE_SCALE),
   toppleMatedKing: true,

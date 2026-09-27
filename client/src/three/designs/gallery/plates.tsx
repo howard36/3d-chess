@@ -16,9 +16,9 @@ import type { BoardLayout } from '../types';
 //   Raumschach colouring (Aa1 clear, the dark square), so the checker is a
 //   texture of the glass rather than a paint that tints what lies beneath.
 // - The inlay lines are drawn after every sheet of glass, so the squares of
-//   a level stay legible through the levels above it; seen from high above,
-//   where five grids would nest into a mesh, the deeper grids recede and the
-//   upper ones carry the picture.
+//   a level stay legible through the levels above it. Seen from high above,
+//   where five grids would nest into a plaid, every grid goes quiet (or all
+//   but the focused level's), and each piece outlines its own square.
 // - Like real glass, a sheet reflects more of the room the lower you look
 //   across it, and is almost invisible from straight above.
 // - The level under the pointer (or of the selected piece) brightens its
@@ -52,7 +52,8 @@ const glassFragment = /* glsl */ `
     vec3 view = normalize(cameraPosition - vWorld);
     float grazing = 1.0 - abs(view.y);
     // Reflection of the room: stronger the lower the view
-    float sheen = uSheen * pow(grazing, 3.0);
+    // (only seen from above the sheet: from below it would veil the pieces on it)
+    float sheen = uSheen * pow(grazing, 3.0) * smoothstep(-0.05, 0.05, cameraPosition.y - vWorld.y);
     float a = sheen;
     vec3 col = vec3(0.62, 0.68, 0.76) * 0.5;
     if (inside) {
@@ -165,8 +166,15 @@ const frameWithClamps = (side: number) => {
 /** Where the corner rods stand, for a platform of half side `half` (the tower's frame). */
 export const rodOffset = (half: number, margin = 0.07) => half + margin + 0.025;
 
-/** Share of each level's grid left from straight above, A to E, with nothing focused. */
-const DEEP = [0.09, 0.17, 0.3, 0.55, 1];
+/**
+ * Share of every level's grid and etching left from straight above with
+ * nothing focused: all alike and quiet, since favouring the top level's grid
+ * put the lower levels' pieces (shifted inward by perspective) on its lines.
+ * Each piece then shows its own square (pieces.tsx). A focused level keeps
+ * its grid whole; the others thin further.
+ */
+const DEEP_QUIET = 0.3;
+const DEEP_FOCUS_OTHERS = 0.2;
 
 export interface GlassPlatesProps {
   layout: BoardLayout;
@@ -229,7 +237,7 @@ export const GlassPlates = ({
               uSheen: { value: sheen },
               uFocus: { value: 0 },
               uTint: { value: new Color(colors[z]) },
-              uDeep: { value: DEEP[z] },
+              uDeep: { value: DEEP_QUIET },
             },
             vertexShader: glassVertex,
             fragmentShader: glassFragment,
@@ -243,8 +251,8 @@ export const GlassPlates = ({
               uColor: { value: new Color(colors[z]) },
               uOpacity: { value: inlay },
               uWidth: { value: inlayWidth },
-              // From straight above, the grids thin toward the top (or focused) level
-              uDeep: { value: DEEP[z] },
+              // From straight above, the grids go quiet (see DEEP_QUIET)
+              uDeep: { value: DEEP_QUIET },
             },
             vertexShader: glassVertex,
             fragmentShader: inlayFragment,
@@ -278,9 +286,9 @@ export const GlassPlates = ({
         m.inlay.uniforms.uOpacity.value = inlay * rest + (1 - inlay * rest) * w * 0.9;
         m.inlay.uniforms.uWidth.value = inlayWidth * (1 + 0.35 * w);
         m.glass.uniforms.uFocus.value = w;
-        // From high above, the grids thin toward the focused level (or the
-        // top one when none is), so five nested grids never read as a plaid
-        const deep = w + (1 - w) * (DEEP[z] * (1 - any) + 0.2 * any);
+        // From high above, the grids thin toward the focused level (all alike
+        // when none is), so five nested grids never read as a plaid
+        const deep = w + (1 - w) * (DEEP_QUIET * (1 - any) + DEEP_FOCUS_OTHERS * any);
         m.inlay.uniforms.uDeep.value = deep;
         m.glass.uniforms.uDeep.value = deep;
         // Frames stay below the gameplay marks; the focused one steps up
