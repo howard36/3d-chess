@@ -182,6 +182,12 @@ const Board = (props: BoardProps) => {
       handleCubeClick(coord);
       return;
     }
+    // A second click on the selected piece puts it back down
+    if (selected && coordEquals(selected, coord)) {
+      setSelected(null);
+      setLegalMoves([]);
+      return;
+    }
     if (!canPick(coord)) return;
     setSelected(coord);
     // Directly call generateLegalMoves which already filters for checks

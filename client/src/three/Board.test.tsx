@@ -211,6 +211,22 @@ describe('Board', () => {
     expect(selectionRings(renderer)).toHaveLength(0);
   });
 
+  it('puts the selected piece back down when it is clicked again', async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(highlightedCells(renderer)).toHaveLength(2);
+
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(highlightedCells(renderer)).toHaveLength(0);
+    expect(selectionRings(renderer)).toHaveLength(0);
+
+    // And a third picks it up again
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(highlightedCells(renderer)).toHaveLength(2);
+  });
+
   it('ignores piece clicks while disabled', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" disabled />,
