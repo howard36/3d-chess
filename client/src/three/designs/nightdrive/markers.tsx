@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   AdditiveBlending,
@@ -10,7 +10,7 @@ import {
   RingGeometry,
   ShaderMaterial,
 } from 'three';
-import type { Group, Mesh } from 'three';
+import type { Mesh } from 'three';
 import { LAYER } from '../kit/layers';
 import { LastMoveTrace } from '../kit/markers';
 import { noRaycast } from '../kit/noRaycast';
@@ -24,13 +24,13 @@ import { CAPTURE, CHECK, LAST_MOVE, MOVE, SELECT, frame, pitch } from './palette
 //
 // - can go: a cyan outline, still;
 // - can take: the same outline in red, doubled by an inner line, with four
-//   short teeth biting inward from the inner line;
+//   gunsight ticks across both lines (all of it outside the victim's base);
 // - last move: the same outline in amber on both squares (dimmer where the
 //   piece came from), set just outside the destination outline so a square
 //   that is both nests cleanly, joined by the kit's trace ribbon with
 //   chevrons drifting toward the destination; it appears as the piece lands;
-// - check: the capture's red double outline, filled faintly, with a ring
-//   round the king and a still red light column rising through it;
+// - check: the capture's red double outline, filled faintly, with a still
+//   red light column rising through the king;
 // - selection: a cyan ring round the piece's base that snaps out once when
 //   picked, and a soft cyan column of light, open at the top, with faint
 //   bands rising slowly through it.
@@ -72,7 +72,8 @@ const fragment = /* glsl */ `
   void main() {
     vec2 p = vP;
     vec2 q = abs(p);
-    float hw = uLine * 0.5;
+    // Under the pointer the tube thickens as well as brightening
+    float hw = uLine * 0.5 * (1.0 + 0.4 * uHover);
     float stroke;
     float inside;
     if (uRing > 0.0) {
@@ -87,11 +88,13 @@ const fragment = /* glsl */ `
         float inner = roundBox(p, uHalf - uInner, max(uRadius - uInner * 0.6, 0.02));
         stroke = min(stroke, abs(inner) - hw * 0.7);
         if (uTeeth > 0.0) {
-          // Four teeth biting inward from the middle of each inner side
+          // Four ticks across both lines at the middle of each side, like a
+          // gunsight's, reaching in only just past the inner line so they
+          // stay clear of the victim's base
           float e = uHalf - uInner;
           float t = min(
-            segment(q, vec2(e - uTeeth, 0.0), vec2(e, 0.0)),
-            segment(q, vec2(0.0, e - uTeeth), vec2(0.0, e))
+            segment(q, vec2(e - uTeeth, 0.0), vec2(uHalf + hw, 0.0)),
+            segment(q, vec2(0.0, e - uTeeth), vec2(0.0, uHalf + hw))
           ) - hw * 0.8;
           stroke = min(stroke, t);
         }
@@ -106,7 +109,7 @@ const fragment = /* glsl */ `
     float area = 1.0 - smoothstep(-ia, ia, inside);
     float breath = 1.0 - uBreathe * 0.5 + uBreathe * 0.5 * cos(6.2831853 * uTime / 3.0);
     float strength = uOpacity * breath * (1.0 + 0.35 * uHover);
-    float a = max(max(line, glow * (1.0 + uHover)) * strength, area * (uFill + 0.1 * uHover) * breath);
+    float a = max(max(line, glow * (1.0 + 2.2 * uHover)) * strength, area * (uFill + 0.2 * uHover) * breath);
     if (a < 0.004) discard;
     vec3 col = mix(uColor, vec3(1.0), line * core * core * (0.45 + 0.25 * uHover));
     gl_FragColor = vec4(col, min(a, 1.0));
@@ -239,14 +242,16 @@ const columnFragment = /* glsl */ `
   varying vec2 vUv;
   varying float vEdge;
   void main() {
-    float fall = pow(1.0 - vUv.y, 1.8);
-    float wall = 0.18 + 0.82 * pow(vEdge, 2.2);
+    // A soft volume of light rather than a tube: densest through its middle,
+    // thinning to nothing at its sides, its foot and its open top
+    float fall = pow(1.0 - vUv.y, 1.6) * smoothstep(0.0, 0.08, vUv.y);
+    float body = pow(1.0 - vEdge, 0.8);
     float bands = 1.0;
     if (uBands > 0.0) {
       float b = fract(vUv.y * 3.0 - uTime * 0.35);
-      bands = 0.7 + 0.6 * smoothstep(0.0, 0.08, b) * (1.0 - smoothstep(0.16, 0.3, b));
+      bands = 0.8 + 0.4 * smoothstep(0.0, 0.1, b) * (1.0 - smoothstep(0.2, 0.4, b));
     }
-    float a = fall * wall * bands * uOpacity;
+    float a = fall * body * bands * uOpacity;
     if (a < 0.003) discard;
     gl_FragColor = vec4(uColor, a);
   }`;
@@ -313,7 +318,7 @@ const Quiet = ({ floor, hovered }: MarkerProps) => (
   <NeonMarker floor={floor} color={MOVE} fill={0.05} hovered={hovered} />
 );
 
-const CAPTURE_STYLE = { inner: 0.075, teeth: 0.08 } as const;
+const CAPTURE_STYLE = { inner: 0.075, teeth: 0.035 } as const;
 
 const Capture = ({ floor, hovered }: MarkerProps) => (
   <NeonMarker floor={floor} color={CAPTURE} fill={0.07} {...CAPTURE_STYLE} hovered={hovered} />
@@ -380,27 +385,22 @@ const Selection = ({ floor }: MarkerProps) => (
 );
 
 /**
- * The last move's squares and trace, shown once the piece lands: while it
- * flies, its own light trail tells the story, and the amber record settles in
- * on touchdown. Board keeps one instance across moves, so a new move (new
- * ends) restarts the wait before the next frame is drawn.
+ * The last move's squares and trace. A live move keeps them back until the
+ * piece lands (its own light trail tells the story in flight), then the
+ * trace draws in from the source; a move replayed from history or on a
+ * rejoin shows them at once. Board mounts one per move.
  */
-const LastMove = ({ from, to }: LastMoveMarkerProps) => {
-  const group = useRef<Group>(null);
+const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => {
+  const [landed, setLanded] = useState(!fresh);
   const t = useRef(0);
-  const ends = `${from.floor.join()}/${to.floor.join()}`;
-  useLayoutEffect(() => {
-    t.current = 0;
-    if (group.current) group.current.visible = false;
-  }, [ends]);
   useFrame((_, delta) => {
-    const g = group.current;
-    if (!g || g.visible) return;
+    if (landed) return;
     t.current += Math.min(delta, 1 / 30) * 1000;
-    g.visible = t.current >= MOTION.durationMs * 0.85;
+    if (t.current >= MOTION.durationMs * 0.85) setLanded(true);
   });
+  if (!landed) return null;
   return (
-    <group ref={group} visible={false}>
+    <>
       <NeonMarker
         floor={from.floor}
         color={LAST_MOVE}
@@ -416,12 +416,16 @@ const LastMove = ({ from, to }: LastMoveMarkerProps) => {
         color={LAST_MOVE}
         edgeColor="#2a0b1c"
         width={0.1}
-        headLength={0.28}
-        headWidth={0.3}
+        // A big head that ends on the floor at the destination square's near
+        // edge, where the piece standing on it cannot hide it
+        headLength={0.38}
+        headWidth={0.36}
+        endInset={0.44}
         chevrons={0.36}
         flowSpeed={0.3}
+        drawInMs={fresh ? 240 : 0}
       />
-    </group>
+    </>
   );
 };
 
@@ -436,7 +440,6 @@ const Check = ({ floor }: MarkerProps) => (
       inner={0.075}
       breathe={0.25}
     />
-    <NeonMarker floor={floor} color={CHECK} ring={0.3} line={0.04} lift={0.016} breathe={0.25} />
     <LightColumn
       floor={floor}
       color={CHECK}

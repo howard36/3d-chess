@@ -1,27 +1,45 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import type { ReactNode } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
-import { Color, MeshPhysicalMaterial, MeshStandardMaterial, Vector3 } from 'three';
+import { useFrame } from '@react-three/fiber';
+import {
+  Color,
+  MeshBasicMaterial,
+  MeshPhysicalMaterial,
+  MeshStandardMaterial,
+  TorusGeometry,
+  Vector3,
+} from 'three';
 import type { Group } from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { StauntonParts } from '../classic/pieces';
 import { ContactShadow } from '../kit/plates';
+import { noRaycast } from '../kit/noRaycast';
 import type { PieceBodyProps, PieceColor } from '../types';
 import { knightGeometry, unicornGeometry } from './geometry';
-import { CHECK, INK, INK_RIM, PEARL, PEARL_RIM, SELECT } from './palette';
+import { CHECK, INK, INK_RIM, INK_RIM_EDGE, LEVEL_NEON, PEARL, PEARL_RIM, SELECT } from './palette';
 
 // The armies are painted like cars at night: pearl white and ink-indigo
 // clearcoat, each reflecting the dusk. Every piece carries a view-dependent
 // rim (a fresnel term added to its emission), so its silhouette is traced in
-// light from any angle, whatever lies behind it: a faint lilac sheen on the
-// pearl army, a hot-pink neon edge on the ink army. The rim is the one thing
-// that changes with a piece's state: cyan when it is picked up (with a glint
-// of light sweeping up it), red when its king is in check.
+// light from any angle, whatever lies behind it: a cool white edge on the
+// pearl army, a violet-magenta edge on the ink army whose outermost sliver
+// turns pale cyan (so it holds against the pink horizon). The rim is what
+// changes with a piece's state: a pale cyan under the pointer (a first hint
+// of the cyan that marks where it can go), full cyan when picked up (with a
+// glint sweeping up the piece), red when its king is in check.
+//
+// Round every base runs a thin neon band in the colour of the level the
+// piece stands on, the same colour as that level's plate edge and letter.
 
-export type PieceState = 'idle' | 'selected' | 'check';
+export type PieceState = 'idle' | 'hover' | 'selected' | 'check';
+
+/** The pointer's pale cyan: a softer version of the selection's. */
+const HOVER = '#a6f7ff';
 
 interface Look {
   rim: string;
+  /** Colour the rim turns toward at its very edge. */
+  rimEdge: string;
   rimStrength: number;
   /** Where the rim starts, in 1 - N·V (0 lights the whole body, ~0.4 only the edges). */
   rimStart: number;
@@ -30,64 +48,35 @@ interface Look {
   emissive: string;
 }
 
+const look = (rim: string, rimEdge: string, rimStrength: number, rimStart: number): Look => ({
+  rim,
+  rimEdge,
+  rimStrength,
+  rimStart,
+  rimPower: 1.5,
+  glint: 0,
+  emissive: '#000000',
+});
+
 const LOOKS: Record<PieceColor, Record<PieceState, Look>> = {
   white: {
-    idle: {
-      rim: PEARL_RIM,
-      rimStrength: 0.3,
-      rimStart: 0.4,
-      rimPower: 1.6,
-      glint: 0,
-      emissive: '#000000',
-    },
-    selected: {
-      rim: SELECT,
-      rimStrength: 2.2,
-      rimStart: 0.15,
-      rimPower: 1.4,
-      glint: 1,
-      emissive: '#0a3640',
-    },
-    check: {
-      rim: CHECK,
-      rimStrength: 1.6,
-      rimStart: 0.15,
-      rimPower: 1.5,
-      glint: 0,
-      emissive: '#2a0008',
-    },
+    idle: look(PEARL_RIM, '#ffffff', 0.8, 0.36),
+    hover: { ...look(HOVER, '#ffffff', 1.9, 0.18), emissive: '#0a3842' },
+    selected: { ...look(SELECT, '#ffffff', 2.2, 0.15), glint: 1, emissive: '#0a3640' },
+    check: { ...look(CHECK, '#ffd0d8', 1.6, 0.15), emissive: '#2a0008' },
   },
   black: {
-    idle: {
-      rim: INK_RIM,
-      rimStrength: 1.55,
-      rimStart: 0.32,
-      rimPower: 1.4,
-      glint: 0,
-      emissive: '#000000',
-    },
-    selected: {
-      rim: SELECT,
-      rimStrength: 1.9,
-      rimStart: 0.2,
-      rimPower: 1.5,
-      glint: 1,
-      emissive: '#031c22',
-    },
-    check: {
-      rim: CHECK,
-      rimStrength: 1.8,
-      rimStart: 0.2,
-      rimPower: 1.5,
-      glint: 0,
-      emissive: '#3a0010',
-    },
+    idle: look(INK_RIM, INK_RIM_EDGE, 2.3, 0.3),
+    hover: { ...look(HOVER, '#ffffff', 2.4, 0.16), emissive: '#052229' },
+    selected: { ...look(SELECT, '#ffffff', 1.9, 0.2), glint: 1, emissive: '#031c22' },
+    check: { ...look(CHECK, '#ffd0d8', 1.8, 0.2), emissive: '#3a0010' },
   },
 };
 
 /** Uniforms each piece material adds to three's physical shader. */
 interface RimUniforms {
   uRim: { value: Color };
+  uRimEdge: { value: Color };
   uRimStart: { value: number };
   uRimPower: { value: number };
   uGlint: { value: number };
@@ -104,6 +93,7 @@ const vertexBody = /* glsl */ `
 const fragmentHead = /* glsl */ `
   #include <common>
   uniform vec3 uRim;
+  uniform vec3 uRimEdge;
   uniform float uRimStart;
   uniform float uRimPower;
   uniform float uGlint;
@@ -115,9 +105,11 @@ const fragmentBody = /* glsl */ `
   {
     float facing = saturate(dot(normal, normalize(vViewPosition)));
     // Only the parts seen near edge-on light up, so broad flat faces (the
-    // knight's cheek) stay dark while the silhouette is traced
-    float rim = pow(smoothstep(uRimStart, 1.0, 1.0 - facing), uRimPower);
-    totalEmissiveRadiance += uRim * rim;
+    // knight's cheek) stay dark while the silhouette is traced; the last
+    // sliver of the edge turns toward uRimEdge
+    float edge = smoothstep(uRimStart, 1.0, 1.0 - facing);
+    float rim = pow(edge, uRimPower);
+    totalEmissiveRadiance += mix(uRim, uRimEdge * length(uRim) * 0.6, pow(edge, 3.5) * 0.8) * rim;
     if (uGlint > 0.0) {
       // A band of light climbing the piece
       float g = (vWorldY - uGlintY) / 0.05;
@@ -132,7 +124,7 @@ export const pieceMaterial = (color: PieceColor, state: PieceState): MeshPhysica
   const key = `${color}/${state}`;
   let m = materials.get(key);
   if (m) return m;
-  const look = LOOKS[color][state];
+  const l = LOOKS[color][state];
   m =
     color === 'white'
       ? new MeshPhysicalMaterial({
@@ -151,12 +143,13 @@ export const pieceMaterial = (color: PieceColor, state: PieceState): MeshPhysica
           clearcoatRoughness: 0.12,
           envMapIntensity: 1.0,
         });
-  m.emissive.set(look.emissive);
+  m.emissive.set(l.emissive);
   const uniforms: RimUniforms = {
-    uRim: { value: new Color(look.rim).multiplyScalar(look.rimStrength) },
-    uRimStart: { value: look.rimStart },
-    uRimPower: { value: look.rimPower },
-    uGlint: { value: look.glint },
+    uRim: { value: new Color(l.rim).multiplyScalar(l.rimStrength) },
+    uRimEdge: { value: new Color(l.rimEdge) },
+    uRimStart: { value: l.rimStart },
+    uRimPower: { value: l.rimPower },
+    uGlint: { value: l.glint },
     uGlintY: { value: -100 },
     uGlintColor: { value: new Color('#dffcff').multiplyScalar(0.9) },
   };
@@ -175,70 +168,113 @@ export const pieceMaterial = (color: PieceColor, state: PieceState): MeshPhysica
   return m;
 };
 
-// The bishop's mitre slot: a violet cut on the pearl army, a pink neon slit
-// on the ink army (a bishop tell from any side).
+// The bishop's mitre slot: a violet cut on the pearl army, a neon slit on the
+// ink army (a bishop tell from any side).
 const grooves: Record<PieceColor, MeshStandardMaterial> = {
   white: new MeshStandardMaterial({ color: '#5d4c9a', roughness: 0.5 }),
   black: new MeshStandardMaterial({
-    color: '#3a0a26',
+    color: '#2e0a36',
     emissive: new Color(INK_RIM).multiplyScalar(0.8),
     roughness: 0.4,
   }),
 };
 
-// --- Picking up ---------------------------------------------------------------------------
+// --- The level band ---------------------------------------------------------------------
 
-/** How high a picked-up piece floats, in piece units. */
-const RISE = 0.22;
+/** Radius of each piece's foot (piece units), which its level band wraps. */
+const FOOT: Record<PieceType, number> = {
+  [PieceType.Pawn]: 0.23,
+  [PieceType.Rook]: 0.26,
+  [PieceType.Knight]: 0.24,
+  [PieceType.Bishop]: 0.24,
+  [PieceType.Unicorn]: 0.25,
+  [PieceType.Queen]: 0.27,
+  [PieceType.King]: 0.28,
+};
+
+const bands = new Map<number, TorusGeometry>();
+const bandFor = (radius: number) => {
+  let g = bands.get(radius);
+  if (!g) {
+    g = new TorusGeometry(radius + 0.006, 0.016, 6, 40).rotateX(Math.PI / 2);
+    bands.set(radius, g);
+  }
+  return g;
+};
+
+/**
+ * One band material per level, shared by every piece on it. Grid brightens
+ * the focused level's bands and dims the others (see `focusBands`).
+ */
+export const bandMaterials = LEVEL_NEON.map(
+  (c) => new MeshBasicMaterial({ color: new Color(c).multiplyScalar(0.85), toneMapped: false }),
+);
+const BAND_BASE = LEVEL_NEON.map((c) => new Color(c));
+
+/** Eases the level bands with the level focus: the focused level glows, the others recede. */
+export const focusBands = (weights: number[], any: number) => {
+  bandMaterials.forEach((m, z) => {
+    const w = weights[z] ?? 0;
+    m.color.copy(BAND_BASE[z]).multiplyScalar(0.85 * (1 - any * 0.35 * (1 - w)) + w * 0.35);
+  });
+};
+
+/** A thin neon band round a piece's foot, in its level's colour. */
+const LevelBand = ({ type, level }: { type: PieceType; level: number }) => (
+  <mesh
+    geometry={bandFor(FOOT[type])}
+    material={bandMaterials[Math.min(Math.max(level, 0), 4)]}
+    position={[0, 0.022, 0]}
+    raycast={noRaycast}
+  />
+);
+
+// --- Picking up ------------------------------------------------------------------------
+
 const scratch = new Vector3();
 
 /**
- * Floats its children up off the floor while `lifted` (easing there, with a
- * slow bob), and sweeps the selected material's glint up the piece. Runs on
- * r3f's clock.
+ * Keeps its children on the floor while the piece above them is lifted (the
+ * kit's Lift raises the whole body): the contact shadow stays put, and
+ * shrinks and fades a little as the piece rises.
  */
-const Rise = ({
-  lifted,
-  color,
-  children,
-}: {
-  lifted: boolean;
-  color: PieceColor;
-  children: ReactNode;
-}) => {
+const Grounded = ({ children }: { children: ReactNode }) => {
   const group = useRef<Group>(null);
-  const invalidate = useThree((s) => s.invalidate);
-  const since = useRef(0);
-  useEffect(() => {
-    since.current = 0;
-    invalidate();
-  }, [lifted, invalidate]);
-  useFrame((_, delta) => {
+  useFrame(() => {
     const g = group.current;
+    const lift = g?.parent?.position.y ?? 0;
     if (!g) return;
-    const dt = Math.min(delta, 1 / 30);
-    since.current += dt;
-    const bob = lifted ? Math.sin(since.current * 2.2) * 0.025 : 0;
-    const target = (lifted ? RISE : 0) + bob;
-    const y = g.position.y + (target - g.position.y) * Math.min(1, dt * 10);
-    const settled = !lifted && Math.abs(y) < 1e-3;
-    g.position.y = settled ? 0 : y;
-    if (lifted) {
-      // The glint climbs the piece about every two seconds, then rests a beat
-      const rim = pieceMaterial(color, 'selected').userData.rim as RimUniforms;
-      g.getWorldPosition(scratch);
-      const k = (since.current * 0.5) % 1.25;
-      rim.uGlintY.value = scratch.y - 0.05 + k * 0.9;
-    }
-    if (!settled) invalidate();
+    g.position.y = -lift;
+    g.scale.setScalar(1 - Math.min(lift, 0.3) * 0.9);
   });
   return <group ref={group}>{children}</group>;
 };
 
+/** Sweeps the selected material's glint up the picked-up piece, on r3f's clock. */
+const Glint = ({ color }: { color: PieceColor }) => {
+  const group = useRef<Group>(null);
+  const since = useRef(0);
+  useFrame((_, delta) => {
+    const g = group.current;
+    if (!g) return;
+    since.current += Math.min(delta, 1 / 30);
+    const rim = pieceMaterial(color, 'selected').userData.rim as RimUniforms;
+    g.getWorldPosition(scratch);
+    // Climbs the piece about every two and a half seconds, then rests a beat
+    const k = (since.current * 0.5) % 1.25;
+    rim.uGlintY.value = scratch.y - 0.05 + k * 0.9;
+  });
+  return <group ref={group} />;
+};
+
 // --- The body ---------------------------------------------------------------------------
 
-export const pieceState = ({ inCheck, selected }: Pick<PieceBodyProps, 'inCheck' | 'selected'>) =>
-  inCheck ? 'check' : selected ? 'selected' : 'idle';
+export const pieceState = ({
+  inCheck,
+  selected,
+  hovered,
+}: Pick<PieceBodyProps, 'inCheck' | 'selected' | 'hovered'>): PieceState =>
+  inCheck ? 'check' : selected ? 'selected' : hovered ? 'hover' : 'idle';
 
 /**
  * A piece in one army's paint: the Staunton set, with Nightdrive's own
@@ -255,12 +291,35 @@ export const PieceParts = ({
   return <StauntonParts type={type} material={material} groove={grooves[color]} />;
 };
 
-/** A piece on its contact shadow; it floats up when picked. */
+/** A piece in its paint, with its level band. */
+export const PieceWithBand = ({
+  type,
+  color,
+  state,
+  level,
+}: Pick<PieceBodyProps, 'type' | 'color'> & { state?: PieceState; level: number }) => (
+  <>
+    <LevelBand type={type} level={level} />
+    <PieceParts type={type} color={color} state={state} />
+  </>
+);
+
+/**
+ * A piece on its contact shadow, banded in its level's colour. Board lifts
+ * it (hoverLift) under the pointer and when picked up; the shadow stays on
+ * the floor.
+ */
 export const PieceBody = (props: PieceBodyProps) => (
   <>
-    <ContactShadow radius={0.34} opacity={0.6} color="#040010" />
-    <Rise lifted={props.selected} color={props.color}>
-      <PieceParts type={props.type} color={props.color} state={pieceState(props)} />
-    </Rise>
+    <Grounded>
+      <ContactShadow radius={0.34} opacity={0.6} color="#040010" />
+    </Grounded>
+    {props.selected && <Glint color={props.color} />}
+    <PieceWithBand
+      type={props.type}
+      color={props.color}
+      state={pieceState(props)}
+      level={props.level ?? 0}
+    />
   </>
 );

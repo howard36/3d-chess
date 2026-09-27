@@ -24,8 +24,8 @@ import { dotTexture } from '../kit/textures';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, PieceColor, Vec3 } from '../types';
 import { PieceType } from '../../../engine/pieces';
 import { MOTION } from './motion';
-import { CHECK, INK_RIM, PIECE_SCALE, frame, layout } from './palette';
-import { PieceParts } from './pieces';
+import { CHECK, INK_RIM, PIECE_SCALE, frame, layout, levelAt } from './palette';
+import { PieceWithBand } from './pieces';
 
 // The moments of motion. A move is a quick hop that leaves a light trail
 // along its arc (pearl or pink, the mover's neon), and lands with a ring of
@@ -36,7 +36,7 @@ import { PieceParts } from './pieces';
 
 const MAX_FRAME = 1 / 30;
 /** Each army's neon, for its trails, rings and shards. */
-export const NEON: Record<PieceColor, string> = { white: '#e6ddff', black: INK_RIM };
+export const NEON: Record<PieceColor, string> = { white: '#e6f4ff', black: INK_RIM };
 
 /**
  * Seconds since mount on the frame clock; `done` once `endMs` have passed.
@@ -337,22 +337,19 @@ export const MoveFx = ({ from, to, color, durationMs }: MoveFxProps) => {
 
 // --- Captures ----------------------------------------------------------------------------
 
-/**
- * Which seat the board is drawn for, so a captured knight keeps facing the
- * way it stood. Set by the Grid, which is told the orientation.
- */
-export const seat = { orientation: 'white' as PieceColor, knightYaw: 0.45 };
-
 /** The victim, glitching harder as the attacker comes in; gone at the hit. */
 const Victim = ({
   floor,
   type,
   color,
+  facing,
   hitMs,
 }: {
   floor: Vec3;
   type: PieceType;
   color: PieceColor;
+  /** The yaw Board gives a knight of this colour. */
+  facing: number | undefined;
   hitMs: number;
 }) => {
   const group = useRef<Group>(null);
@@ -368,15 +365,12 @@ const Victim = ({
     g.scale.set(1 + k * 0.06, 1 - k * 0.04, 1 + k * 0.06);
   });
   if (done) return null;
-  const yaw =
-    type === PieceType.Knight
-      ? (color === seat.orientation ? 1 : -1) * (Math.PI / 2 - seat.knightYaw)
-      : 0;
+  const yaw = type === PieceType.Knight ? (facing ?? 0) : 0;
   return (
     <group position={floor}>
       <group ref={group}>
         <group scale={PIECE_SCALE} rotation={[0, yaw, 0]}>
-          <PieceParts type={type} color={color} />
+          <PieceWithBand type={type} color={color} level={levelAt(floor[1])} />
         </group>
       </group>
     </group>
@@ -386,14 +380,20 @@ const Victim = ({
 const shardGeometry = new TetrahedronGeometry(0.075).scale(1, 0.35, 1.6);
 const shardMaterial = new MeshBasicMaterial({ color: '#ffffff', toneMapped: false });
 
-export const CaptureFx = ({ floor, victim, durationMs }: CaptureFxProps) => {
+export const CaptureFx = ({ floor, victim, victimFacing, durationMs }: CaptureFxProps) => {
   const hit = durationMs * 0.9;
   const waist: Vec3 = [floor[0], floor[1] + 0.3, floor[2]];
   const neon = NEON[victim.color];
-  const body = victim.color === 'white' ? '#f2eeff' : '#2a1b4d';
+  const body = victim.color === 'white' ? '#f7f5fb' : '#2a1b4d';
   return (
     <>
-      <Victim floor={floor} type={victim.type} color={victim.color} hitMs={hit} />
+      <Victim
+        floor={floor}
+        type={victim.type}
+        color={victim.color}
+        facing={victimFacing}
+        hitMs={hit}
+      />
       <Shards
         position={[floor[0], floor[1] + 0.12, floor[2]]}
         geometry={shardGeometry}
@@ -490,7 +490,7 @@ const drawSign = () => {
   ctx.strokeText('CHECKMATE', x, y);
   ctx.shadowBlur = 12;
   ctx.lineWidth = 4;
-  ctx.strokeStyle = '#ffe3f4';
+  ctx.strokeStyle = '#fbe6ff';
   ctx.strokeText('CHECKMATE', x, y);
   ctx.shadowBlur = 0;
   ctx.fillStyle = 'rgba(40, 6, 40, 0.55)';

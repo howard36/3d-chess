@@ -21,11 +21,29 @@ import { SKY } from './palette';
 // tower, found by casting each pixel's view ray onto a ground plane. The
 // ground is part of the sky dome, so there is no backdrop plane, no seam and
 // no edge to find from any azimuth or elevation, and the horizon always sits
-// exactly where it should. The grid scrolls slowly away from the sun; nothing
-// else moves.
+// exactly where it should.
+//
+// The grid scrolls slowly away from the sun, but never where it could be
+// seen through the glass: every view ray that passes the tower's column
+// finds bare ground, and the grid also fades out round the tower's foot. So
+// the scroll only ever moves out to the sides, far from the board, and the
+// tower always stands on calm, dark ground (nothing moves behind the plates).
 
-/** Where the sun sets: behind the tower's left shoulder as both seats first see it. */
-export const SUN_DIR = new Vector3(-1, 0.035, -0.62).normalize();
+/**
+ * Where the sun sets: a little off the players' axis, behind the tower's
+ * left shoulder. The opening view's frame ends about 3° above the horizon,
+ * so there it is only a warm glow at the top left; tilt the view down
+ * toward the horizon (or swing an eighth of a turn round) and the whole
+ * striped disc stands beside the tower.
+ */
+export const SUN_DIR = new Vector3(-0.543, 0.078, -0.836).normalize();
+/** Angular radius of the sun's disc (radians). */
+const SUN_RADIUS = 0.14;
+/**
+ * Half-width of the calm corridor round the tower's column: the plates'
+ * half-diagonal plus a margin, so no ray through the glass sees the grid.
+ */
+const CALM_RADIUS = 4.3;
 
 /** World height of the grid plane: far below the bottom platform. */
 const FLOOR_Y = -16;
@@ -71,7 +89,7 @@ const fragment = /* glsl */ `
     float sunSide = toward * toward * toward;
     // The horizon glows all the way round, warmer and stronger on the sun's side
     vec3 glow = mix(uHorizon, uSunGlow, sunSide * 0.85);
-    float glowK = 0.62 + 0.38 * sunSide;
+    float glowK = 0.42 + 0.33 * sunSide;
 
     vec3 col;
     if (e >= 0.0) {
@@ -98,7 +116,11 @@ const fragment = /* glsl */ `
           float fw = fwidth(p.y * 5.0) * 1.2;
           gap = 1.0 - smoothstep(w - fw, w, band) * (1.0 - smoothstep(1.0 - fw, 1.0, band));
         }
-        float disc = (1.0 - smoothstep(1.0 - aa, 1.0, r)) * (1.0 - gap);
+        // It sinks into the horizon haze: its foot fades out over the lowest
+        // few degrees, so from the opening view (whose frame ends just above
+        // the horizon) only a warm glow shows, never a cut-off disc
+        float sink = smoothstep(0.004, 0.06, e);
+        float disc = (1.0 - smoothstep(1.0 - aa, 1.0, r)) * (1.0 - gap) * sink;
         float halo = exp(-max(r - 1.0, 0.0) * 2.4) * (1.0 - step(r, 1.0) * (1.0 - gap));
         col += uSunGlow * halo * 0.3;
         // Held below white, so a pearl piece in front of it still reads
@@ -124,18 +146,25 @@ const fragment = /* glsl */ `
         // Lines denser than a pixel fade out instead of shimmering
         vec2 fade = 1.0 - smoothstep(vec2(0.08), vec2(0.4), w);
         vec2 line = max(core, soft) * fade;
-        // A dark pool under the tower keeps the view straight down calm, and
-        // the near lines stay dimmer than the ones glowing toward the haze
-        float pool = smoothstep(10.0, 26.0, length(p));
+        // Bare ground round the tower's foot, and wherever the view ray
+        // passes the tower's column (in plan): whatever is seen through the
+        // glass is still
+        float foot = smoothstep(9.0, 20.0, length(p));
+        vec2 c = cameraPosition.xz;
+        vec2 v = normalize(d.xz);
+        float ahead = step(0.0, -dot(c, v));
+        float miss = abs(c.x * v.y - c.y * v.x);
+        float calm = ahead * (1.0 - smoothstep(${CALM_RADIUS.toFixed(1)}, ${(CALM_RADIUS + 2.4).toFixed(1)}, miss));
+        // The near lines stay dimmer than the ones glowing toward the haze
         float reach = mix(0.45, 1.0, smoothstep(20.0, 70.0, dist));
-        col += uLine * max(line.x, line.y) * pool * reach;
+        col += uLine * max(line.x, line.y) * foot * (1.0 - calm) * reach;
       }
       // Haze thickening toward the horizon, then the horizon's own glow
       col = mix(col, uHaze, smoothstep(18.0, 200.0, dist) * 0.92);
       col = mix(col, glow, glowK * exp(e * 38.0) * 0.9);
     }
     // A thin hot line right on the horizon
-    col += glow * 0.28 * exp(-abs(e) * 160.0);
+    col += glow * 0.2 * exp(-abs(e) * 220.0);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -149,7 +178,7 @@ const skyMaterial = (grid: boolean) =>
       uTime: { value: 0 },
       uGrid: { value: grid ? 1 : 0 },
       uSun: { value: SUN_DIR.clone() },
-      uSunSize: { value: Math.tan(0.105) },
+      uSunSize: { value: Math.tan(SUN_RADIUS) },
       uFloor: { value: FLOOR_Y },
       uCell: { value: CELL },
       uZenith: { value: new Color(SKY.zenith) },
@@ -159,7 +188,7 @@ const skyMaterial = (grid: boolean) =>
       uSunGlow: { value: new Color(SKY.sunGlow) },
       uGround: { value: new Color(SKY.ground) },
       uHaze: { value: new Color(SKY.haze) },
-      uLine: { value: new Color(SKY.grid).multiplyScalar(0.24) },
+      uLine: { value: new Color(SKY.grid).multiplyScalar(0.34) },
       uSunTop: { value: new Color('#ffb25c') },
       uSunBottom: { value: new Color('#ff3f86') },
     },
@@ -294,8 +323,8 @@ const envTexture = (() => {
     blob(column(SUN_DIR.x, SUN_DIR.z), row(0.06), 70, 22, SKY.sunGlow, 0.9);
     // Key: a broad lilac softbox up on the players' side
     blob(column(0.35, 1), row(0.75), 90, 34, '#ffffff', 0.75);
-    // Strips behind: hot pink on the left, violet on the right
-    blob(column(-0.8, -0.6), row(0.42), 10, 34, '#ff3cac', 0.32);
+    // Strips behind: magenta on the left, violet on the right
+    blob(column(-0.8, -0.6), row(0.42), 10, 34, '#d946ef', 0.3);
     blob(column(0.9, -0.5), row(0.42), 10, 34, '#8a6cff', 0.4);
     const tex = new CanvasTexture(c);
     tex.colorSpace = SRGBColorSpace;
@@ -320,12 +349,35 @@ const Reflections = () => {
 // --- HUD ----------------------------------------------------------------------------
 
 // The HUD variables dress the panels; the turn banner's display face and the
-// neon text glow need a few rules of their own, scoped to this design.
+// neon text glow need a few rules of their own, as does the result card's
+// title (an Orbitron line under a small 'Game over' kicker), scoped to this
+// design.
 const HUD_CSS = `
 [data-testid="turn-indicator"] {
   font-family: 'Orbitron', 'Rajdhani', sans-serif !important;
   font-weight: 700 !important;
-  text-shadow: 0 0 6px rgba(255, 60, 172, 0.55), 0 0 18px rgba(255, 60, 172, 0.3);
+  text-shadow: 0 0 6px rgba(217, 70, 239, 0.6), 0 0 18px rgba(217, 70, 239, 0.32);
+}
+#end-game-title {
+  font-family: 'Orbitron', 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.35;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fbeaff;
+  text-shadow: 0 0 8px rgba(217, 70, 239, 0.75), 0 0 22px rgba(217, 70, 239, 0.35);
+}
+#end-game-title::before {
+  content: 'Game over';
+  display: block;
+  margin-bottom: 10px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.42em;
+  color: rgba(214, 200, 255, 0.7);
+  text-shadow: none;
 }
 `;
 const useHudStyle = () => {

@@ -5,10 +5,13 @@ import { clarityTower, towerFrame } from '../kit/layouts';
 // - the world is a dusk: dark indigo overhead and on the ground, with a warm
 //   rose glow only at the horizon, so it sits in the middle-to-dark range;
 // - the armies sit at the two ends of the value scale: pearl white (very
-//   light) and ink indigo (darker than anything behind it), and the ink army
-//   carries a hot-pink neon rim so it never sinks into the night;
+//   light) and ink indigo (darker than anything behind it); both carry a neon
+//   rim, cool white on the pearl army and violet-magenta on the ink army,
+//   whose very edge turns pale cyan so it survives the pink horizon;
 // - the platforms are pale lilac glass: lighter than the night behind them,
 //   so they read as surfaces, but faint enough to see four levels down;
+// - each level owns a neon hue, on its plate edge, its letter and a band
+//   round the base of every piece standing on it;
 // - the markers own three hues nothing else uses: cyan for "can go", red for
 //   "can take" (and check), amber for "last move".
 
@@ -16,39 +19,43 @@ import { clarityTower, towerFrame } from '../kit/layouts';
 
 export const SKY = {
   zenith: '#060318',
-  high: '#140a33',
-  low: '#3a1152',
-  horizon: '#e0457f',
-  sunGlow: '#ff8a4c',
+  high: '#150a35',
+  low: '#3d1152',
+  horizon: '#b93a7c',
+  sunGlow: '#f0606a',
   ground: '#07031a',
-  haze: '#5a1a5e',
-  grid: '#7d4bff',
+  haze: '#431648',
+  grid: '#9a2a78',
 } as const;
 
 // --- Armies --------------------------------------------------------------------------
 
-export const PEARL = '#f6f3fb';
+export const PEARL = '#f7f5fb';
 export const INK = '#120d26';
-/** The ink army's neon edge. */
-export const INK_RIM = '#ff3cac';
-/** The pearl army's faint cool sheen at grazing angles. */
-export const PEARL_RIM = '#ece6ff';
+/** The ink army's neon edge: violet-magenta, well clear of capture red. */
+export const INK_RIM = '#d946ef';
+/** The outermost sliver of the ink army's rim, so it still reads against the pink horizon. */
+export const INK_RIM_EDGE = '#c9f6ff';
+/** The pearl army's neon edge: a cool white. */
+export const PEARL_RIM = '#e6f7ff';
 
-// --- Platforms -------------------------------------------------------------------------
+// --- Levels --------------------------------------------------------------------------
 
 /**
- * Perimeter neon per level, A (bottom) to E: a quiet colour code from warm
- * orchid at the bottom to cool periwinkle at the top, matched by the level
- * letters. Kept violet so it never collides with the marker hues or the ink
- * army's pink.
+ * One neon hue per level, A (bottom) to E, far enough apart to name: pink,
+ * violet, blue, green, lime, in spectral order so the stack reads as a
+ * sequence. Worn by the plate edge, the level letter and a band round the
+ * base of every piece on that level. The ramp steps round the marker hues
+ * (cyan, red, amber) rather than through them, and its brighter greens are
+ * held down so no level shouts over the others.
  */
-export const LEVEL_EDGES = ['#d77cff', '#c283ff', '#ab8bff', '#9894ff', '#8a9cff'];
+export const LEVEL_NEON = ['#ff6ec7', '#a57bff', '#5a8bff', '#33d17f', '#b4e33a'];
 
 // --- Markers ---------------------------------------------------------------------------
 
 export const MOVE = '#35f0ff';
 export const CAPTURE = '#ff2d55';
-export const LAST_MOVE = '#ffa630';
+export const LAST_MOVE = '#ffb000';
 export const CHECK = '#ff2d55';
 export const SELECT = '#6ff6ff';
 
@@ -61,6 +68,18 @@ export const HUD_MUTED = 'rgba(214, 200, 255, 0.62)';
 
 /** Pieces are scaled so the king clears the platform above with air to spare. */
 export const PIECE_SCALE = 0.8;
-export const layout = clarityTower({ pieceHeight: 0.87 * PIECE_SCALE });
+/**
+ * Two degrees under the kit's 18°: rows of neighbouring levels stay further
+ * apart on screen, and a sliver of dusk sky (and the sun, from its side)
+ * shows above the tower at the top of the frame.
+ */
+export const layout = clarityTower({ pieceHeight: 0.87 * PIECE_SCALE, elevation: 16 });
 export const frame = towerFrame(layout);
 export const { pitch } = frame;
+
+/** The level (0 = A) whose platform is at this world height. */
+export const levelAt = (y: number) =>
+  frame.levelY.reduce(
+    (best, ly, z) => (Math.abs(ly - y) < Math.abs(frame.levelY[best] - y) ? z : best),
+    0,
+  );
