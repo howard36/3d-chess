@@ -304,6 +304,60 @@ from both seats, laid out as contact sheets (usage at the top of the script; one
 minutes). `--stills-fast` takes `--stills`' pictures without drawing the frames between
 them, several times faster.
 
+### Piece set
+
+Every design can draw the same **Staunton set** (`client/src/three/pieces/`), modelled like
+a fine tournament set: turned profiles with a weighted base, collar rings and a clear
+hierarchy of heights (pawn, rook, knight, bishop, then unicorn and queen, and the king at
+0.87), and heads that name each piece from the side, from three-quarters and from directly
+above: the rook's crenels round a hollow turret, the knight's sculpted head (muzzle, jaw,
+ears, eyes and a carved mane, meshed from a signed-distance field), the bishop's mitre with
+its slanted cut, the unicorn's tall horn wound with a raised spiral, the queen's coronet of
+eight pearls and the king's cross, a plus from above. Pieces stand base-at-`y = 0`, face
+`+x` (Board turns the knight), and fit the envelope the layouts assume (radius 0.27 at most;
+`pieceScale` applies as before). Each piece is split into **parts** a design paints
+separately:
+
+- `body`: everything turned or carved that is not one of the parts below;
+- `collar`: the ring (or rings) where the stem meets the head;
+- `accent`: the details that identify the piece (knight's mane and eyes, bishop's cut,
+  unicorn's spiral, queen's pearls, king's cross, rook's crenel sills and hollow); pawns
+  have none;
+- `foot`: a thin band at the very bottom (`FOOT_HEIGHT`, 0.04), for the colour of the level
+  the piece stands on (`PieceBodyProps.level`).
+
+```tsx
+import { ChessPiece } from '../../pieces';
+
+// A part without its own material is painted (and drawn in one mesh) with the body
+<ChessPiece type={type} parts={{ body: ivory, accent: walnut, foot: levelColour[level] }} />
+```
+
+Parts that share a material are merged once and drawn as one mesh, so a piece costs one to
+four draw calls. Materials may be shared objects (the cheap way: one per army and state) or
+JSX elements; anything that fades or recolours one piece must clone first. The geometry is
+built once per quality and shared: `pieceSet('low' | 'medium' | 'high')` (medium, the
+default, keeps every piece within about 4k triangles and builds in a few hundred
+milliseconds; Classic warms it while the browser is idle with `preloadPieceSet()`).
+`buildPieceSet({ quality, segments, profiles, radius })` makes a variant: `segments` turns
+every shell with that many sides (a handful gives a cut-gem look), `profiles` replaces any
+of the turned profiles in `PROFILES`, and `radius(r, y, type)` reshapes them all (e.g.
+slimmer stems). `partsGeometry(set, type, parts)` hands back merged geometry for a design
+that draws its own meshes or shaders, and `pieceTop(set, type)` a piece's height. The
+round-1 geometry (`three/pieceGeometry.ts`, `StauntonParts` in `designs/classic/pieces.tsx`)
+is kept unchanged for the designs built on it.
+
+To look at the set, open `http://127.0.0.1:5173/pieces.html` while Vite runs (a dev-only page,
+left out of the build), or save it as a PNG; it needs no backend:
+
+```bash
+cd client && node scripts/pieces.mjs --out /tmp/pieces                  # the set: side, three-quarter, top; light and dark
+cd client && node scripts/pieces.mjs --design atelier --out /tmp/pieces # a design's own PieceBody
+cd client && node scripts/pieces.mjs --piece knight --out /tmp/pieces   # one piece from 8 sides at two heights
+```
+
+`--quality low|medium|high` and `--cell <px>` (the size of each picture) apply to all three.
+
 ## Repository layout
 
 ```
