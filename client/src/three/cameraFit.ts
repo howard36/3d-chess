@@ -10,6 +10,31 @@ export const DEFAULT_VIEW_DIRECTION = new Vector3(6.5, 5, 8.5).normalize();
 /** Breathing room around the board, as a fraction of the fitted distance. */
 const MARGIN = 1.08;
 
+/**
+ * How far the player may zoom, as fractions of the fitted distance: in until
+ * the nearest levels fill the window, out until the board sits small in the
+ * middle of it. Relative to the fit, so a phone held upright (which fits from
+ * farther away) zooms as far, proportionally, as a desktop window.
+ */
+export const ZOOM_IN = 0.7;
+export const ZOOM_OUT = 1.5;
+
+/**
+ * The distances from the board's centre the camera may stand at, given the
+ * distance that fits the board in the window. A design's own limits only
+ * narrow the range. Where a design's maximum is nearer than the fitted
+ * minimum (a room the camera must stay inside, seen on a tall phone), the
+ * maximum wins and the range closes up to it.
+ */
+export function zoomRange(
+  fit: number,
+  limits: { minDistance?: number; maxDistance?: number } = {},
+): { min: number; max: number } {
+  const max = Math.min(fit * ZOOM_OUT, limits.maxDistance ?? Infinity);
+  const min = Math.min(Math.max(fit * ZOOM_IN, limits.minDistance ?? 0), max);
+  return { min, max };
+}
+
 const cornersOf = ([hx, hy, hz]: readonly [number, number, number]) =>
   [-1, 1].flatMap((x) =>
     [-1, 1].flatMap((y) => [-1, 1].map((z) => new Vector3(x * hx, y * hy, z * hz))),

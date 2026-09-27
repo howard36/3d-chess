@@ -435,9 +435,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
                 gameOver={gameOver}
                 onHoverCell={design.hud.readout ? setHoverCell : undefined}
               />
+              {/* The only camera control is turning the view about the
+                  board's centre, which never moves (no pan by mouse, touch or
+                  keyboard), plus a zoom that FitCameraToBoard limits relative
+                  to the fitted view. */}
               <OrbitControls
                 makeDefault
-                minDistance={design.layout.orbit?.minDistance ?? 6}
+                enablePan={false}
                 // A design's orbit limits (the compact tower keeps the camera
                 // above its bottom platform and off the vertical); without
                 // them the controls keep three's defaults.
@@ -446,7 +450,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               <FitCameraToBoard
                 halfExtents={design.layout.halfExtents}
                 viewDirection={design.layout.viewDirection}
-                maxDistance={design.layout.orbit?.maxDistance}
+                limits={design.layout.orbit}
               />
             </Canvas>
           </DesignContext.Provider>

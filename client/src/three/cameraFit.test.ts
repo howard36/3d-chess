@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
-import { BOARD_HALF_EXTENT, DEFAULT_VIEW_DIRECTION, fitDistance } from './cameraFit';
+import {
+  BOARD_HALF_EXTENT,
+  DEFAULT_VIEW_DIRECTION,
+  ZOOM_IN,
+  ZOOM_OUT,
+  fitDistance,
+  zoomRange,
+} from './cameraFit';
 
 const corners = [-1, 1].flatMap((x) =>
   [-1, 1].flatMap((y) =>
@@ -67,5 +74,27 @@ describe("fitDistance for a design's board box", () => {
     ]);
     expect(same).toBeCloseTo(cube);
     expect(tower).toBeGreaterThan(cube);
+  });
+});
+
+describe('zoomRange', () => {
+  it('lets the player zoom a fixed fraction in and out of the fitted view', () => {
+    expect(zoomRange(20)).toEqual({ min: 20 * ZOOM_IN, max: 20 * ZOOM_OUT });
+    // Proportionally the same on an upright phone, which fits from farther away
+    const phone = fitDistance(DEFAULT_VIEW_DIRECTION, 375 / 667, 40);
+    const { min, max } = zoomRange(phone);
+    expect(min / phone).toBeCloseTo(ZOOM_IN);
+    expect(max / phone).toBeCloseTo(ZOOM_OUT);
+  });
+
+  it("only narrows the range by a design's own limits", () => {
+    expect(zoomRange(20, { minDistance: 5, maxDistance: 100 })).toEqual({ min: 14, max: 30 });
+    expect(zoomRange(20, { minDistance: 16, maxDistance: 25 })).toEqual({ min: 16, max: 25 });
+  });
+
+  it("closes up to a design's maximum when that is nearer than the fitted minimum", () => {
+    // A room of 21 seen from a phone whose fit is 40: the camera stays inside
+    expect(zoomRange(40, { maxDistance: 21 })).toEqual({ min: 21, max: 21 });
+    expect(zoomRange(25, { maxDistance: 21 })).toEqual({ min: 17.5, max: 21 });
   });
 });
