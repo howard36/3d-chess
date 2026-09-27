@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { Group, Mesh, MeshStandardMaterial } from 'three';
 import type { PieceType } from '../engine/pieces';
@@ -8,6 +8,7 @@ import { movePoint } from './movePath';
 import type { DesignMotion } from './designs/types';
 import { PieceMesh } from './PieceMesh';
 import { useDesign } from './designs/context';
+import { GlideContext } from './designs/kit/motion';
 
 type Vec3 = [number, number, number];
 
@@ -35,6 +36,8 @@ export const MoveGlide = ({
   motion = CLASSIC_MOTION,
   floorY = CELL_FLOOR_Y,
   arc = 0,
+  fromLevel,
+  toLevel,
 }: {
   from: Vec3;
   to: Vec3;
@@ -47,8 +50,20 @@ export const MoveGlide = ({
    * every move but a knight's when knights arc (moveArc in movePath.ts).
    */
   arc?: number;
+  /**
+   * The levels (engine z) the move leaves and lands on, handed to the piece
+   * body through useGlide (kit/motion.tsx) with the glide's progress.
+   */
+  fromLevel?: number;
+  toLevel?: number;
 }) => {
   const group = useRef<Group>(null);
+  const progress = useRef(0);
+  const glide = useMemo(
+    () =>
+      fromLevel === undefined || toLevel === undefined ? null : { fromLevel, toLevel, progress },
+    [fromLevel, toLevel],
+  );
   const scaler = useRef<Group>(null);
   const elapsedMs = useRef(0);
   const done = useRef(false);
@@ -74,7 +89,9 @@ export const MoveGlide = ({
     elapsedMs.current += Math.min(delta * 1000, MOVE_ANIMATION.maxFrameMs);
     const t = Math.min(elapsedMs.current / durationMs, 1);
     const s = scaler.current;
+    progress.current = style === 'teleport' ? (t < 0.5 ? 0 : 1) : easeInOutCubic(t);
     if (elapsedMs.current >= durationMs + settleMs) {
+      progress.current = 1;
       g.position.set(0, 0, 0);
       s?.scale.set(1, 1, 1);
       done.current = true;
@@ -112,15 +129,17 @@ export const MoveGlide = ({
   const scaled = style === 'bounce' || style === 'teleport';
   return (
     <group ref={group} userData={{ moveGlide: true }}>
-      {scaled ? (
-        <group position={[0, floorY, 0]}>
-          <group ref={scaler}>
-            <group position={[0, -floorY, 0]}>{children}</group>
+      <GlideContext.Provider value={glide}>
+        {scaled ? (
+          <group position={[0, floorY, 0]}>
+            <group ref={scaler}>
+              <group position={[0, -floorY, 0]}>{children}</group>
+            </group>
           </group>
-        </group>
-      ) : (
-        children
-      )}
+        ) : (
+          children
+        )}
+      </GlideContext.Provider>
     </group>
   );
 };

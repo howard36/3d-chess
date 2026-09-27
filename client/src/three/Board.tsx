@@ -452,6 +452,8 @@ const Board = (props: BoardProps) => {
                 motion={design.motion}
                 floorY={layout.floorY}
                 arc={lastArc}
+                fromLevel={lastMove.move.from.z}
+                toLevel={coord.z}
               >
                 {mesh}
               </MoveGlide>

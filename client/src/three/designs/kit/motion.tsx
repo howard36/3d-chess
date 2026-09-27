@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Quaternion, Vector3 } from 'three';
 import type { Group, Object3D } from 'three';
@@ -35,6 +35,29 @@ const showFloorDecals = (root: Object3D | null, show: boolean) =>
   root?.traverse((o) => {
     if (o.userData.floorDecal) o.visible = show;
   });
+
+/**
+ * What a piece body can know of the move glide carrying it: the level it left
+ * and the level it lands on, and how far along it is. A body whose base shows
+ * its level (a ring in the level colour) can change colour as the piece
+ * travels rather than wearing the destination's colour from the start.
+ */
+export interface GlideInfo {
+  /** Level (engine z, 0 = A) the move started on. */
+  fromLevel: number;
+  /** Level it lands on: the body's own `level`. */
+  toLevel: number;
+  /**
+   * Eased progress along the path, 0 at the source to 1 at rest. A ref: read
+   * it in useFrame (the glide requests frames while it runs).
+   */
+  progress: { readonly current: number };
+}
+
+export const GlideContext = createContext<GlideInfo | null>(null);
+
+/** The glide carrying this piece (see GlideInfo), or null when it is at rest. */
+export const useGlide = () => useContext(GlideContext);
 
 /** Board's piece lift (Design.hoverLift) when a design just says `true`. */
 export const LIFT_DEFAULTS: Required<PieceLift> = { hover: 0.08, selected: 0.2, bob: 0 };

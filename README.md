@@ -290,7 +290,9 @@ to copy (hidden from the picker; open it with `?design=kit-demo`).
   it onto a design's own base discs as `userData`. A group tagged `ON_FLOOR` instead stays
   on the floor while `Lift` raises the piece (pinned in the same frame, so a base ring
   neither rides up nor trails behind); `Lift` owns that group's height, so offset its
-  children. `frameGeometry` builds the perimeter
+  children. While a move glides, `useGlide()` tells the piece body the levels it leaves and
+  lands on and the glide's eased progress, so a base in the level colour can change colour on
+  the way rather than wearing the destination's from the start. `frameGeometry` builds the perimeter
   frame for designs drawing their own plates.
 - **Markers** (`kit/markers.tsx`): flat on the platform where a piece stands, never floating
   in the cell. `FloorMarker` draws an inset rounded square, corner brackets, a ring or a

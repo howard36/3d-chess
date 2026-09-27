@@ -13,6 +13,7 @@ import {
   pieceLift,
   SELECTION_BOB,
   Topple,
+  useGlide,
 } from './designs/kit/motion';
 import type { DesignMotion } from './designs/types';
 
@@ -100,6 +101,48 @@ describe('MoveGlide styles', () => {
     await frames(12);
     expect(scaler()).toBeNull();
     expect(pos()).toMatchObject({ x: 0, y: 0, z: 0 });
+  });
+});
+
+describe('useGlide', () => {
+  it('tells the gliding body the levels it leaves and lands on, and how far along it is', async () => {
+    let glide: ReturnType<typeof useGlide> = null;
+    const Body = () => {
+      glide = useGlide();
+      return <mesh />;
+    };
+    const renderer = await ReactThreeTestRenderer.create(
+      <MoveGlide
+        from={FROM}
+        to={TO}
+        motion={{ style: 'slide', durationMs: 300 }}
+        fromLevel={0}
+        toLevel={2}
+      >
+        <Body />
+      </MoveGlide>,
+    );
+    expect(glide).toMatchObject({ fromLevel: 0, toLevel: 2 });
+    const at: number[] = [glide!.progress.current];
+    for (let i = 0; i < 12; i++) {
+      await act(async () => renderer.advanceFrames(1, 0.03));
+      at.push(glide!.progress.current);
+    }
+    expect(at[0]).toBe(0);
+    expect(at[5]).toBeGreaterThan(0);
+    expect(at[5]).toBeLessThan(1);
+    expect(at[at.length - 1]).toBe(1);
+    for (let i = 1; i < at.length; i++) expect(at[i]).toBeGreaterThanOrEqual(at[i - 1]);
+  });
+
+  it('is null for a body at rest', async () => {
+    let glide: ReturnType<typeof useGlide> | undefined;
+    const Body = () => {
+      glide = useGlide();
+      return <mesh />;
+    };
+    await ReactThreeTestRenderer.create(<Body />);
+    expect(glide).toBeNull();
   });
 });
 
