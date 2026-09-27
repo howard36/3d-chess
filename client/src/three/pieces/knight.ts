@@ -26,12 +26,13 @@ import type { Sdf } from './sdf';
 // round over at the outline: broadly over the chest, tightly at the ears
 // and muzzle. On that block: two leaf-shaped ears pricked forward and
 // splayed apart, round cheek plates, a carved eye under its brow, flared
-// nostrils and an open mouth, and a mane carved in low relief down the
-// crest: a narrow band of locks laid in herringbone. Relief, not paint,
-// carries all of it; only the eyes are a separate shell (the knight's
-// accent). It faces +x, stands on the turned base (buried in its collar
-// below KNIGHT_SEAT), and is drawn at SCALE of its design size (so it
-// stands about 0.72 tall, below the bishop).
+// nostrils and an open mouth, and a mane down the crest: a narrow band of
+// locks laid in herringbone, standing proud enough to break the outline of
+// the neck. The relief names it in any finish; the mane and the eyes are
+// separate shells (the knight's accent), so a design can paint them too. It
+// faces +x, stands on the turned base (buried in its collar below
+// KNIGHT_SEAT), and is drawn at SCALE of its design size (so it stands about
+// 0.72 tall, below the bishop).
 
 /** Height at which the neck disappears into the base's collar. */
 export const KNIGHT_SEAT = 0.14;
@@ -133,7 +134,7 @@ const cross = (a: Vec3, b: Vec3): Vec3 => [
 ];
 
 /** Mane locks: pairs, each falling down the crest and out to one side. */
-const LOCK_PAIRS = 8;
+const LOCK_PAIRS = 6;
 const LOCK_SPLAY = (25 * Math.PI) / 180;
 
 /**
@@ -246,11 +247,12 @@ const sculpt = (() => {
         ]);
         const b = normalize(cross(a, n));
         const c: Vec3 = [
-          p[0] - n[0] * 0.004 + a[0] * 0.036,
-          p[1] - n[1] * 0.004 + a[1] * 0.036,
-          a[2] * 0.036,
+          // Out past the crest, so each lock breaks the neck's outline
+          p[0] + n[0] * 0.006 + a[0] * 0.042,
+          p[1] + n[1] * 0.006 + a[1] * 0.042,
+          a[2] * 0.042,
         ];
-        locks.push(orientedEllipsoid(c, [0.04, 0.013, 0.014], a, b, n));
+        locks.push(orientedEllipsoid(c, [0.05, 0.018, 0.018], a, b, n));
       }
     }
     const maneShape = cutBelow(
@@ -282,10 +284,10 @@ const sculpt = (() => {
 })();
 
 export interface KnightGeometry {
-  /** The head and neck, and the mane carved on them (both body). */
+  /** The head and neck (body). */
   head: BufferGeometry;
+  /** The mane and the eyes (the knight's accent). */
   mane: BufferGeometry;
-  /** The eyes (the knight's accent). */
   eyes: BufferGeometry;
 }
 
@@ -307,7 +309,8 @@ export const buildKnight = (step: number, budget?: number): KnightGeometry => {
     mane: surfaceNets(mane, {
       min: [-0.2, KNIGHT_SEAT, -0.06],
       max: [0.06, 0.71, 0.06],
-      step: step * 0.75,
+      // Fine enough (0.008 at medium) for each lock to resolve cleanly
+      step: step * 0.62,
       ...coarse,
     }),
     eyes: surfaceNets(eyes, {

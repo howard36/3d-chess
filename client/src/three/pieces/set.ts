@@ -289,10 +289,10 @@ export const PROFILES: PieceProfiles = {
     socket: [
       corner([0, 0.455]),
       [0.056, 0.458],
-      [0.068, 0.468],
-      [0.08, 0.482],
-      ...arc(0.078, 0.492, 0.011, -40, 140, 5),
-      corner([0.058, 0.505]),
+      [0.062, 0.468],
+      [0.07, 0.482],
+      ...arc(0.068, 0.492, 0.011, -40, 140, 5),
+      corner([0.056, 0.505]),
       corner([0, 0.505]),
     ],
   },
@@ -320,10 +320,11 @@ export const PROFILES: PieceProfiles = {
       [0.148, 0.668],
       [0.16, 0.684],
       ...arc(0.155, 0.69, 0.006, -20, 160, 3),
+      // The inner lip, kept at least 0.008 inside the outer wall
       [0.143, 0.68],
-      [0.137, 0.664],
-      corner([0.133, 0.646]),
-      corner([0, 0.642]),
+      [0.134, 0.666],
+      corner([0.122, 0.652]),
+      corner([0, 0.648]),
     ],
     // The dome inside the coronet, a bead, and the ball
     dome: [
@@ -404,7 +405,7 @@ interface Detail {
 
 const DETAIL: Record<PieceQuality, Detail> = {
   low: { segments: 14, tolerance: 0.003, step: 0.018, knight: 1400 },
-  medium: { segments: 24, tolerance: 0.002, step: 0.016, knight: 3100 },
+  medium: { segments: 24, tolerance: 0.002, step: 0.013, knight: 3300 },
   high: { segments: 48, tolerance: 0.0004, step: 0.0065, knight: 14000 },
 };
 
@@ -522,10 +523,10 @@ const rook = (c: Ctx): PieceParts => {
 const knight = (c: Ctx): PieceParts => {
   const k = buildKnight(c.d.step, c.d.knight);
   return {
-    // The mane is carved relief, part of the body; the eyes are the accent
-    body: mergeShells([turn(c, PieceType.Knight, c.profiles.knight.body), k.head, k.mane]),
+    // The mane and the eyes are the accent
+    body: mergeShells([turn(c, PieceType.Knight, c.profiles.knight.body), k.head]),
     collar: mergeShells([turn(c, PieceType.Knight, c.profiles.knight.collar)]),
-    accent: mergeShells([k.eyes]),
+    accent: mergeShells([k.mane, k.eyes]),
     foot: mergeShells([footOf(c, PieceType.Knight)]),
   };
 };
@@ -549,22 +550,29 @@ const bishop = (c: Ctx): PieceParts => {
   const mitre = turn(c, PieceType.Bishop, p.mitre, { segments: Math.round(c.segments * 1.5) });
   const { body: cutMitre, cut } = cutSlot(mitre, MITRE_CUT);
   mitre.dispose();
+  // The two walls of the cut are the accent: they read as a band from any
+  // side. Its floor stays body (painted, it hooks the band into a tick).
+  const [lowerWall, upperWall, floor] = cut;
   return {
     body: mergeShells([
       turn(c, PieceType.Bishop, p.body),
       cutMitre,
+      ...(floor ? [floor] : []),
       turn(c, PieceType.Bishop, p.finial, { segments: Math.max(8, Math.round(c.segments * 0.75)) }),
     ]),
     collar: mergeShells([turn(c, PieceType.Bishop, p.collar), turn(c, PieceType.Bishop, p.bead)]),
-    accent: mergeShells(cut),
+    accent: mergeShells([lowerWall, upperWall].filter(Boolean)),
     foot: mergeShells([footOf(c, PieceType.Bishop)]),
   };
 };
 
 /**
  * The unicorn's horn: a tapering cone rising from the socket to a blunted
- * tip, twisted by a two-start helical groove carved into it (a narwhal's
- * twist). A fine line of the accent lies in each groove, for the top view.
+ * tip, wound with a raised spiral (one start, HORN.turns turns): a
+ * half-round bead grown out of the horn's surface, standing about a fifth
+ * of the local radius proud, with a groove carved along its lower edge, so
+ * each turn casts a line of shadow under it like a twisted horn. The bead is
+ * the accent; the cone and its groove are body.
  */
 const HORN = {
   bottom: 0.49,
@@ -572,25 +580,34 @@ const HORN = {
   radius: 0.058,
   taper: 1.1,
   tip: 0.005,
-  /** Turns of the groove pattern up the horn (it has two starts). */
+  /** Turns of the spiral up the horn (t 0 to 1). */
   turns: 3,
-  /** How deep the groove cuts, as a fraction of the radius. */
+  /** How deep the groove under the bead cuts, as a fraction of the radius. */
   groove: 0.13,
+  /** How far the bead stands proud, as a fraction of the horn's radius at its foot... */
+  bead: 0.013,
+  /** ...and at least this, near the tip. */
+  beadMin: 0.004,
 };
 
-/** The horn's radius at t (0 at its foot, 1 at the tip), before the twist. */
+/** The horn's radius at t (0 at its foot, 1 at the tip), before the groove. */
 const hornRadius = (t: number) => Math.max(HORN.radius * (1 - t) ** HORN.taper, 0);
 /** Where the taper reaches the tip's radius: the blunted cap takes over there. */
 const HORN_END = 1 - (HORN.tip / HORN.radius) ** (1 / HORN.taper);
 const hornY = (t: number) => HORN.bottom + ((HORN.top - HORN.tip - HORN.bottom) * t) / HORN_END;
-/** The twist: 1 in the middle of a groove, 0 between them, fading out at the foot and tip. */
+/** The spiral's angle at t. */
+const spiralAngle = (t: number) => 2 * Math.PI * HORN.turns * t;
+/**
+ * The groove: 1 along its middle, a sixth of a turn below the bead (so just
+ * under its lower edge), fading out at the foot and toward the tip.
+ */
 const hornGroove = (theta: number, t: number) =>
-  (0.5 + 0.5 * Math.cos(2 * theta - 2 * Math.PI * HORN.turns * t)) ** 3 *
+  (0.5 + 0.5 * Math.cos(theta - spiralAngle(t) + Math.PI / 3)) ** 4 *
   ramp(0, 0.06, t) *
   (1 - ramp(0.8, 0.97, t / HORN_END));
 
 const hornCone = (c: Ctx): BufferGeometry => {
-  const rows = Math.max(24, Math.round(c.segments * 1.5));
+  const rows = Math.max(24, Math.round(c.segments * 1.25));
   const pts: [number, number][] = [[0, HORN.bottom]];
   const ts: number[] = [0];
   for (let j = 0; j <= rows; j++) {
@@ -657,25 +674,30 @@ const sweepTube = (
   });
 };
 
-/** A fine line in each of the horn's two grooves, just proud of the groove's floor. */
-const hornLines = (c: Ctx): BufferGeometry[] => {
-  const t0 = 0.07;
-  const t1 = HORN_END * 0.82;
-  const line = 0.0045;
+/**
+ * The spiral bead: a tube whose centre runs on the horn's surface, so half
+ * of it stands proud as a half-round bead, from low on the horn up to the
+ * tip's cap, tapering to nothing at both ends.
+ */
+const hornSpiral = (c: Ctx): BufferGeometry => {
+  const t0 = 0.04;
+  const t1 = HORN_END;
   const ease = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : Math.sin((x * Math.PI) / 2));
-  return [0, Math.PI].map((start) =>
-    sweepTube(
-      (s) => {
-        const t = t0 + (t1 - t0) * s;
-        // Along the middle of a groove: 2θ = 2π·turns·t (+ π for the second start)
-        const theta = Math.PI * HORN.turns * t + start;
-        const r = hornRadius(t) * (1 - HORN.groove * hornGroove(theta, t)) + 0.002 - line;
-        return [r * Math.cos(theta), hornY(t), r * Math.sin(theta)];
-      },
-      (s) => line * ease(s / 0.06) * ease((1 - s) / 0.06),
-      Math.round(c.segments * 1.25),
-      4,
-    ),
+  const at = (s: number) => t0 + (t1 - t0) * s;
+  return sweepTube(
+    (s) => {
+      const t = at(s);
+      const theta = spiralAngle(t);
+      const r = hornRadius(t);
+      return [r * Math.cos(theta), hornY(t), r * Math.sin(theta)];
+    },
+    (s) => {
+      const t = at(s);
+      const proud = Math.max(HORN.beadMin, (HORN.bead * hornRadius(t)) / HORN.radius);
+      return proud * ease(s / 0.04) * ease((1 - s) / 0.08);
+    },
+    Math.round(c.segments * HORN.turns * 1.25),
+    5,
   );
 };
 
@@ -688,7 +710,7 @@ const unicorn = (c: Ctx): PieceParts => {
       hornCone(c),
     ]),
     collar: mergeShells([turn(c, PieceType.Unicorn, p.collar)]),
-    accent: mergeShells(hornLines(c)),
+    accent: mergeShells([hornSpiral(c)]),
     foot: mergeShells([footOf(c, PieceType.Unicorn)]),
   };
 };
@@ -753,7 +775,7 @@ const kingCross = (c: Ctx): BufferGeometry[] => {
   const w = 0.011; // half the width of the arms at the centre
   const flare = 0.025; // half the width at an arm's end
   const arm = 0.05; // reach of a side arm from the centre
-  const top = 0.072; // reach of the upper arm
+  const top = 0.078; // reach of the upper arm
   const foot = 0.05; // reach of the lower arm
   const pts: [number, number][] = [
     [-w, -w],
@@ -787,7 +809,7 @@ const kingCross = (c: Ctx): BufferGeometry[] => {
     return g;
   };
   // Standing on the cap's bead (its top is at 0.748), a little into it
-  const centre = 0.795;
+  const centre = 0.789;
   const a = make().applyMatrix4(new Matrix4().makeTranslation(0, centre, 0));
   const b = make().applyMatrix4(
     new Matrix4().makeTranslation(0, centre, 0).multiply(new Matrix4().makeRotationY(Math.PI / 2)),

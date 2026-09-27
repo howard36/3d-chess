@@ -179,6 +179,31 @@ describe('the shared piece set', () => {
     expect(sectors.size).toBe(8);
   });
 
+  it("keeps the queen's cup wall whole: the inner lip stays inside the outer wall", () => {
+    const pts = sampleProfile(PROFILES.queen.crown, 0.0005);
+    // The rim's top splits the profile into the outer wall and the inner lip
+    const top = pts.reduce((best, p, k) => (p[1] > pts[best][1] ? k : best), 0);
+    const outer = pts.slice(0, top + 1).filter(([, y]) => y > 0.6);
+    // (the lip below the rolled rim, where the two walls meet by design)
+    const inner = pts.slice(top + 1).filter(([r, y]) => r > 0.05 && y < 0.682);
+    const outerAt = (y: number) => {
+      for (let k = 1; k < outer.length; k++) {
+        const [r0, y0] = outer[k - 1];
+        const [r1, y1] = outer[k];
+        if ((y - y0) * (y - y1) <= 0 && y1 !== y0) return r0 + ((r1 - r0) * (y - y0)) / (y1 - y0);
+      }
+      return null;
+    };
+    let checked = 0;
+    for (const [r, y] of inner) {
+      const wall = outerAt(y);
+      if (wall === null) continue;
+      expect(r, `inner lip at y ${y.toFixed(3)}`).toBeLessThanOrEqual(wall - 0.006);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(3);
+  });
+
   it('keeps the bishop free of crown features: a tall smooth mitre and a small ball', () => {
     const b = medium.Bishop.body;
     expect(radiusBetween(b, 0.52, 0.58)).toBeGreaterThan(0.085);
@@ -189,6 +214,19 @@ describe('the shared piece set', () => {
     const width = 2 * Math.max(...mitre.map((p) => p[0]));
     expect(height / width).toBeGreaterThan(1.3);
     expect(height / width).toBeLessThan(1.5);
+  });
+
+  it("puts the knight's mane in its accent, standing proud of the crest", () => {
+    const mane = medium.Knight.accent!.boundingBox!;
+    const body = medium.Knight.body;
+    // The mane runs down the back of the neck, behind the body's back edge
+    const p = body.getAttribute('position');
+    let back = 0;
+    for (let i = 0; i < p.count; i++) {
+      if (p.getY(i) > 0.35 && p.getY(i) < 0.55) back = Math.max(back, -p.getX(i));
+    }
+    expect(mane.max.y - mane.min.y).toBeGreaterThan(0.35);
+    expect(-mane.min.x).toBeGreaterThan(back + 0.004);
   });
 
   it('gives the knight a large head on its base', () => {
@@ -229,10 +267,12 @@ describe('the shared piece set', () => {
     }
     const horn = ring.filter((r) => r < 0.06);
     expect(Math.min(...horn) / Math.max(...horn)).toBeLessThan(0.9);
-    // The lines in the grooves climb most of the horn, winding all the way round it
+    // The spiral bead climbs most of the horn, winding all the way round it,
+    // and stands proud of it
     const s = u.accent!;
     const box = s.boundingBox!;
-    expect(box.max.y - box.min.y).toBeGreaterThan(0.2);
+    expect(box.max.y - box.min.y).toBeGreaterThan(0.25);
+    expect(radiusBetween(s, 0.55, 0.6)).toBeGreaterThan(radiusBetween(u.body, 0.55, 0.6) + 0.005);
     const p = s.getAttribute('position');
     const quadrants = new Set<number>();
     for (let i = 0; i < p.count; i++) {
