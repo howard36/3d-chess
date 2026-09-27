@@ -126,7 +126,9 @@ const skyFragment = /* glsl */ `
     float show = auroraShow(a, t, calm);
     for (int k = 0; k < 2; k++) {
       float fk = float(k);
-      float base = k == 0 ? 2.2 : 16.0;
+      // The low arc's hem sits just over the far peaks: at the opening view its
+      // brightest light falls between the HUD's panels and the ridge line
+      float base = k == 0 ? -0.3 : 16.0;
       float sway = k == 0 ? 1.4 : 4.0;
       float hemLive = base + sway * (fbmP(a + fk * 0.37, 3.0, fk * 7.0 + t * 0.02) - 0.5) * 2.0
         + 0.8 * sin(a * TAU * 5.0 + fk * 2.0 + t * 0.06);

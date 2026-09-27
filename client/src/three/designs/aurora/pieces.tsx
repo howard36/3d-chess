@@ -71,6 +71,16 @@ export class PolarMaterial extends MeshPhysicalMaterial {
       .replace('#include <common>', '#include <common>\nvarying vec3 vPolarObj;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPolarObj = position;');
     shader.fragmentShader = shader.fragmentShader
+      // Half the polish on faces turned up: from a high view a collar would
+      // otherwise mirror the room's strip lights as white bands
+      .replace(
+        '#include <lights_physical_fragment>',
+        `#include <lights_physical_fragment>
+        #ifdef USE_CLEARCOAT
+          float polarUp = inverseTransformDirection(normal, viewMatrix).y;
+          material.clearcoat *= 1.0 - 0.5 * smoothstep(0.3, 0.7, polarUp);
+        #endif`,
+      )
       .replace(
         '#include <common>',
         `#include <common>
@@ -147,7 +157,7 @@ const LOOKS: Record<PieceColor, Record<State, Look>> = {
   },
   black: {
     rest: { rim: RIM, strength: 0.3, power: 3.2 },
-    hover: { rim: '#d4e2f0', strength: 0.42, power: 3 },
+    hover: { rim: '#d4e2f0', strength: 0.55, power: 2.8 },
     selected: { rim: '#c9d8e8', strength: 0.5, power: 3, crown: [CROWN, 0.6] },
     check: { rim: CHECK, strength: 0.6, power: 3.4 },
   },

@@ -88,8 +88,10 @@ const Stage = ({ layout: l }: StageProps) => (
           form="rect"
           intensity={i % 2 ? 0.8 : 0.6}
           color="#dce2ea"
-          position={[Math.sin(az) * 7, 1.5, Math.cos(az) * 7]}
-          scale={[1.2, 5, 1]}
+          // Tops at 2.5: high enough to run down a stem, too low for a
+          // collar seen from above to mirror
+          position={[Math.sin(az) * 7, 0.3, Math.cos(az) * 7]}
+          scale={[1.2, 4.4, 1]}
         />
       ))}
       <Lightformer

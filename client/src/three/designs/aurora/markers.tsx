@@ -401,6 +401,13 @@ const coronaFragment = /* glsl */ `
   uniform vec3 uLevel;
   varying vec2 vUv;
   float hash(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
+  float sdHex(vec2 p, float r) {
+    const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
+    p = abs(p.yx);
+    p -= 2.0 * min(dot(k.xy, p), 0.0) * k.xy;
+    p -= vec2(clamp(p.x, -k.z * r, k.z * r), r);
+    return length(p) * sign(p.y);
+  }
   void main() {
     vec2 p = vUv - 0.5;
     float r = length(p) * 2.0;
@@ -419,13 +426,26 @@ const coronaFragment = /* glsl */ `
     ray *= smoothstep(0.5, 0.55, r) * (1.0 - smoothstep(reach - 0.04, reach, r));
     // A glow at the roots, in the held level's colour
     float root = exp(-pow((r - 0.56) / 0.09, 2.0)) * 0.6;
-    vec3 col = mix(uLevel, vec3(0.88, 1.0, 0.95), smoothstep(0.5, 0.6, r));
-    col = mix(col, uA, smoothstep(0.62, 0.74, r));
+    // Blades rooted in the held level's colour, running out through mint
+    // and ice to a lavender fringe
+    vec3 col = mix(uLevel, uA, smoothstep(0.62, 0.72, r));
     col = mix(col, uB, smoothstep(0.72, 0.86, r));
     col = mix(col, uC, smoothstep(0.86, 1.0, r));
     float a = max(root, ray) * uIn;
     // Depth-tested at low views, drawn through the pieces from overhead
     a *= uXray > 0.5 ? uSteep : 1.0 - uSteep;
+    // From overhead a piece stacked above may stand in the corona: a gem in
+    // the held level's colour at its heart, rimmed in ice, says which level
+    // is held
+    if (uXray > 0.5) {
+      float g = sdHex(p * 2.0, 0.16);
+      float ga = max(fwidth(g), 1e-4) * 1.1;
+      float gem = 1.0 - smoothstep(-ga, ga, g);
+      float rim = 1.0 - smoothstep(-ga, ga, abs(g) - 0.03);
+      col = mix(col, uLevel, gem);
+      col = mix(col, vec3(0.9, 0.97, 1.0), rim);
+      a = max(a, max(gem, rim) * uSteep * uIn);
+    }
     if (a < 0.003) discard;
     gl_FragColor = vec4(col, min(a, 1.0));
     #include <colorspace_fragment>

@@ -66,10 +66,12 @@ export const LAST_MOVE = '#ffc45c';
 /** Check: a red aurora. */
 export const CHECK = '#ff3b3b';
 /**
- * The selection runs up the aurora's colours. Aurora hues belong to two
- * roles only: the levels (at the base of things) and the held piece.
+ * The selection is aurora light itself, pale: mint ice at the hem, ice
+ * white through the body, a lavender fringe at the head. Each is at least
+ * 0.11 OKLab from every level colour, so the selection owns its light and
+ * borrows no level's hue.
  */
-export const SELECT = ['#46ffa6', '#39e4ff', '#b085ff'] as const;
+export const SELECT = ['#b4ffe2', '#dff6ff', '#d6c6ff'] as const;
 /** The cold mint light on the held piece's crown (obsidian; snow stone takes a deeper one to show). */
 export const CROWN = '#b4ffe2';
 export const CROWN_WHITE = '#3dffa8';
