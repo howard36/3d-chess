@@ -15,6 +15,7 @@ import {
 import { noRaycast } from '../kit/noRaycast';
 import { fbm, paintedTexture, rng } from '../kit/textures';
 import { WATER } from './palette';
+import { TOWER_RADIUS } from './station';
 
 // The water outside the station, seen through its glass: a teal-black
 // gradient lit faintly from far above, shafts of that light slanting down,
@@ -32,6 +33,8 @@ const BAND_TOP = 18;
 const BAND_BOTTOM = -30;
 const W = 4096;
 const H = 512;
+/** Painted past each end of the strip, then cropped, so the wrap has no seam. */
+const MARGIN = 64;
 
 const yOf = (e: number) => ((BAND_TOP - e) / (BAND_TOP - BAND_BOTTOM)) * H;
 const xOf = (u: number) => u * W;
@@ -59,11 +62,16 @@ interface Stack {
 const paintBand = (): HTMLCanvasElement => {
   const random = rng(29);
   const rough = fbm(5, 8, 4);
+  // Every layer is painted with a margin past both ends of the strip, from
+  // functions that repeat round the horizon, and cropped at the end, so the
+  // blur and the strokes run seamlessly across the wrap
   const layer = () => {
     const c = document.createElement('canvas');
-    c.width = W;
+    c.width = W + 2 * MARGIN;
     c.height = H;
-    return { c, ctx: c.getContext('2d')! };
+    const ctx = c.getContext('2d')!;
+    ctx.translate(MARGIN, 0);
+    return { c, ctx };
   };
 
   // --- The far ridge: low, hazy, close to the water's own colour ----------------
@@ -80,9 +88,9 @@ const paintBand = (): HTMLCanvasElement => {
   {
     const { ctx } = far;
     ctx.beginPath();
-    ctx.moveTo(0, H);
-    for (let x = 0; x <= W; x += 4) ctx.lineTo(x, yOf(farH(x / W)));
-    ctx.lineTo(W, H);
+    ctx.moveTo(-MARGIN, H);
+    for (let x = -MARGIN; x <= W + MARGIN; x += 4) ctx.lineTo(x, yOf(farH(x / W)));
+    ctx.lineTo(W + MARGIN, H);
     ctx.closePath();
     const g = ctx.createLinearGradient(0, yOf(6), 0, yOf(-16));
     g.addColorStop(0, hex(mix(WATER.horizon, '#021016', 0.3), 0.9));
@@ -118,11 +126,11 @@ const paintBand = (): HTMLCanvasElement => {
   {
     const { ctx } = near;
     const outline = new Path2D();
-    outline.moveTo(0, yOf(nearH(0)));
-    for (let x = 2; x <= W; x += 2) outline.lineTo(x, yOf(nearH(x / W)));
+    outline.moveTo(-MARGIN, yOf(nearH(-MARGIN / W)));
+    for (let x = -MARGIN + 2; x <= W + MARGIN; x += 2) outline.lineTo(x, yOf(nearH(x / W)));
     const body = new Path2D(outline);
-    body.lineTo(W, H);
-    body.lineTo(0, H);
+    body.lineTo(W + MARGIN, H);
+    body.lineTo(-MARGIN, H);
     body.closePath();
     const g = ctx.createLinearGradient(0, yOf(8), 0, yOf(-24));
     const rock = mix(WATER.horizon, '#010a0e', 0.5);
@@ -164,31 +172,43 @@ const paintBand = (): HTMLCanvasElement => {
     for (let i = 0; i < 150; i++) {
       const grove = stacks[Math.floor(random() * count)];
       const u = (((grove.u + (random() - 0.5) * 0.09) % 1) + 1) % 1;
-      const x0 = xOf(u);
       const y0 = yOf(nearH(u)) + 6;
       const height = (2.5 + random() ** 1.5 * 8) * (H / (BAND_TOP - BAND_BOTTOM));
       const lean = (random() - 0.5) * height * 0.5;
       const width = 1.2 + random() * 1.8;
-      ctx.beginPath();
-      ctx.moveTo(x0 - width, y0);
-      ctx.quadraticCurveTo(
-        x0 + lean * 0.2 - width * 0.5,
-        y0 - height * 0.6,
-        x0 + lean,
-        y0 - height,
-      );
-      ctx.quadraticCurveTo(x0 + lean * 0.2 + width * 0.5, y0 - height * 0.6, x0 + width, y0);
-      ctx.closePath();
-      ctx.fillStyle = hex(stalk, 0.85);
-      ctx.fill();
-      // Blades along the kelp
+      const blades: [number, number][] = [];
       if (random() < 0.45) {
         for (let b = 0.3; b < 0.95; b += 0.16 + random() * 0.1) {
-          const bx = x0 + lean * b * b;
-          const by = y0 - height * b;
-          const side = random() < 0.5 ? -1 : 1;
+          blades.push([b, random() < 0.5 ? -1 : 1]);
+        }
+      }
+      ctx.fillStyle = hex(stalk, 0.85);
+      // Once, and again a full turn either way where it crosses the wrap
+      for (const x0 of [xOf(u) - W, xOf(u), xOf(u) + W]) {
+        if (x0 < -MARGIN - 40 || x0 > W + MARGIN + 40) continue;
+        ctx.beginPath();
+        ctx.moveTo(x0 - width, y0);
+        ctx.quadraticCurveTo(
+          x0 + lean * 0.2 - width * 0.5,
+          y0 - height * 0.6,
+          x0 + lean,
+          y0 - height,
+        );
+        ctx.quadraticCurveTo(x0 + lean * 0.2 + width * 0.5, y0 - height * 0.6, x0 + width, y0);
+        ctx.closePath();
+        ctx.fill();
+        // Blades along the kelp
+        for (const [b, side] of blades) {
           ctx.beginPath();
-          ctx.ellipse(bx + side * 4, by, 5, 1.6, side * 0.5, 0, Math.PI * 2);
+          ctx.ellipse(
+            x0 + lean * b * b + side * 4,
+            y0 - height * b,
+            5,
+            1.6,
+            side * 0.5,
+            0,
+            Math.PI * 2,
+          );
           ctx.fill();
         }
       }
@@ -196,13 +216,20 @@ const paintBand = (): HTMLCanvasElement => {
   }
 
   // --- Composite: haze on the far ridge, a little on the near --------------------
-  const out = layer();
-  out.ctx.filter = 'blur(4px)';
-  out.ctx.drawImage(far.c, 0, 0);
-  out.ctx.filter = 'blur(1.2px)';
-  out.ctx.drawImage(near.c, 0, 0);
-  out.ctx.filter = 'none';
-  return out.c;
+  const hazy = document.createElement('canvas');
+  hazy.width = W + 2 * MARGIN;
+  hazy.height = H;
+  const hctx = hazy.getContext('2d')!;
+  hctx.filter = 'blur(4px)';
+  hctx.drawImage(far.c, 0, 0);
+  hctx.filter = 'blur(1.2px)';
+  hctx.drawImage(near.c, 0, 0);
+  // Cropped to one full turn: its two ends now meet without a seam
+  const out = document.createElement('canvas');
+  out.width = W;
+  out.height = H;
+  out.getContext('2d')!.drawImage(hazy, MARGIN, 0, W, H, 0, 0, W, H);
+  return out;
 };
 
 /** Shafts of faint light by azimuth (1D, tiling): a few broad and many thin. */
@@ -249,8 +276,10 @@ const noiseTexture = () => {
 
 const vertex = /* glsl */ `
   varying vec3 vDir;
+  varying vec3 vWorld;
   void main() {
     vDir = position;
+    vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 
@@ -269,7 +298,9 @@ const fragment = /* glsl */ `
   uniform vec3 uAbyssGlow;
   uniform float uBandTop;
   uniform float uBandBottom;
+  uniform float uTower;
   varying vec3 vDir;
+  varying vec3 vWorld;
 
   float hash13(vec3 p) {
     p = fract(p * 0.1031);
@@ -281,6 +312,12 @@ const fragment = /* glsl */ `
     vec3 d = normalize(vDir);
     float e = degrees(asin(clamp(d.y, -1.0, 1.0)));
     float u = atan(d.x, d.z) / 6.2831853 + 0.5;
+    // How far this point of the water is from the tower on screen: 0 behind
+    // it (its whole angular size from the camera), 1 well clear of it
+    vec3 toHere = normalize(vWorld - cameraPosition);
+    float angle = acos(clamp(dot(toHere, normalize(-cameraPosition)), -1.0, 1.0));
+    float tower = asin(clamp(uTower / length(cameraPosition), 0.0, 1.0));
+    float clear = smoothstep(tower * 1.0, tower * 1.4, angle);
 
     // The water: faint light far above, darkening into the abyss below
     vec3 col = e > 0.0
@@ -299,7 +336,8 @@ const fragment = /* glsl */ `
     // Rock formations and sea whips on the rim of the abyss
     if (e < uBandTop && e > uBandBottom) {
       vec4 band = texture2D(uBand, vec2(u, (e - uBandBottom) / (uBandTop - uBandBottom)));
-      col = mix(col, band.rgb, band.a);
+      // A notch darker at the edges of the view, fainter behind the tower
+      col = mix(col, band.rgb * mix(1.0, 0.72, clear), band.a * mix(0.75, 1.0, clear));
     }
 
     // The walls of the abyss, dropping away below the rim into the dark:
@@ -318,10 +356,15 @@ const fragment = /* glsl */ `
     // Far below, the faint glow of life on the floor of the abyss
     col += uAbyssGlow * smoothstep(-50.0, -90.0, e);
 
-    // Specks of marine life, hanging still in the dark
+    // Behind the tower the water darkens a little, so the pieces' rims have
+    // something to stand out from
+    col *= mix(0.8, 1.0, clear);
+
+    // Specks of marine life, hanging still in the dark, never behind the
+    // tower where they could pass for the selection's plankton
     vec3 cell = floor(d * 64.0);
     float h = hash13(cell);
-    if (h > 0.972) {
+    if (h > 0.972 && clear > 0.0) {
       vec3 spot = (cell + 0.35 + 0.3 * vec3(hash13(cell + 7.1), hash13(cell + 3.7), hash13(cell + 1.3))) / 64.0;
       float dist = length(d - normalize(spot)) * 64.0;
       float size = 0.035 + 0.05 * fract(h * 17.0);
@@ -330,7 +373,7 @@ const fragment = /* glsl */ `
       // A soft halo, kept well inside the cell so no cell edge ever shows
       float glow = exp(-dist / 0.07) * 0.3 * (1.0 - smoothstep(0.18, 0.3, dist));
       float depth = 0.3 + 0.7 * smoothstep(0.0, -45.0, e);
-      col += uSpeck * (speck + glow) * depth * (0.3 + 0.7 * fract(h * 53.0));
+      col += uSpeck * (speck + glow) * depth * (0.3 + 0.7 * fract(h * 53.0)) * clear;
     }
 
     gl_FragColor = vec4(col, 1.0);
@@ -363,6 +406,7 @@ export const AbyssWater = () => {
         uRock: { value: new Color('#0a1c21') },
         uLedge: { value: new Color('#2b6670').multiplyScalar(0.12) },
         uAbyssGlow: { value: new Color('#0f4a4a').multiplyScalar(0.28) },
+        uTower: { value: TOWER_RADIUS },
         uBandTop: { value: BAND_TOP },
         uBandBottom: { value: BAND_BOTTOM },
       },

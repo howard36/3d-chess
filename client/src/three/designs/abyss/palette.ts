@@ -43,15 +43,16 @@ export const CHECK = '#ff3f52';
 
 /** Text and labels: a pale sea-foam white. */
 export const INK = '#d8f3f1';
-/** The HUD's accent: a soft instrument green. */
-export const SIGNAL = '#6ff2c4';
+/** The HUD's accent: a pale aqua-white, clear of every level colour. */
+export const SIGNAL = '#bfeff2';
 
 /** Mother-of-pearl, inlaid with dark paua shell. */
-export const NACRE = '#efe7de';
+export const NACRE = '#f3ece3';
 export const PAUA = '#40616b';
 /** Volcanic glass, inlaid with pearl. */
-export const OBSIDIAN = '#272c37';
-export const PEARL = '#c3cacd';
+export const OBSIDIAN = '#323946';
+/** Pearl inlay, held a step below the nacre so the black army's details never read as stripes. */
+export const PEARL = '#959ca0';
 /** The cool light that rims every piece, so the dark army keeps its shape against the water. */
 export const RIM = '#8cc4d4';
 

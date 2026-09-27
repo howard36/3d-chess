@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
-  BoxGeometry,
+  CylinderGeometry,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -12,87 +12,133 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { noRaycast } from '../kit/noRaycast';
 import { rng } from '../kit/textures';
-import { WATER } from './palette';
 
 // The observation room round the board, and the life drifting outside it.
 //
-// - The room's glass wall: twelve titanium mullions standing in a ring well
-//   outside the tower on a floor ring, lost in the water with
-//   distance so they frame the view without taking it.
+// - The room's glass wall: twelve bevelled titanium mullions standing in a
+//   ring well outside the tower, on a slim floor lip with a thin seam of
+//   light, lost in the water with distance so they frame the view without
+//   taking it.
 // - A handful of bioluminescent motes drifting far out in the water, slowly
-//   pulsing. They fade out wherever they would pass behind or in front of
-//   the tower on screen, so nothing ever moves behind the platforms.
+//   pulsing.
+//
+// Both fade into the water wherever they would show behind or in front of
+// the tower on screen (its whole angular size from the camera), so no dark
+// bar reads as a spine through the decks and nothing moves behind them.
 
+/** Radius of a sphere holding the tower, its pieces and labels: nothing moving or dark may show inside it. */
+export const TOWER_RADIUS = 5.6;
 const WALL_RADIUS = 21;
 const FLOOR_Y = -10;
 const TOP_Y = 14;
+
+/** A part of the frame, tagged as structure (0) or light seam (1). */
+const tagged = (g: BufferGeometry, seam: number) => {
+  const flat = g.toNonIndexed();
+  g.dispose();
+  const n = flat.getAttribute('position').count;
+  flat.setAttribute('aSeam', new BufferAttribute(new Float32Array(n).fill(seam), 1));
+  flat.deleteAttribute('uv');
+  return flat;
+};
 
 const frameGeometry = () => {
   const parts: BufferGeometry[] = [];
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI * 2 + Math.PI / 12;
-    const bar = new BoxGeometry(0.34, TOP_Y - FLOOR_Y, 0.5)
-      .rotateY(-a)
+    // Octagonal: the facets catch a little light, like a bevelled bar
+    const bar = new CylinderGeometry(0.2, 0.2, TOP_Y - FLOOR_Y, 8, 1, true)
+      .rotateY(Math.PI / 8)
       .translate(Math.sin(a) * WALL_RADIUS, (TOP_Y + FLOOR_Y) / 2, Math.cos(a) * WALL_RADIUS);
-    parts.push(bar);
+    parts.push(tagged(bar, 0));
   }
+  // A slim floor lip, and a thin seam of light along its inner edge
   parts.push(
-    new TorusGeometry(WALL_RADIUS, 0.45, 8, 96).rotateX(Math.PI / 2).translate(0, FLOOR_Y, 0),
+    tagged(
+      new TorusGeometry(WALL_RADIUS, 0.16, 6, 128).rotateX(Math.PI / 2).translate(0, FLOOR_Y, 0),
+      0,
+    ),
   );
-  const merged = mergeGeometries(parts.map((p) => p.toNonIndexed()));
+  parts.push(
+    tagged(
+      new TorusGeometry(WALL_RADIUS - 0.26, 0.035, 4, 192)
+        .rotateX(Math.PI / 2)
+        .translate(0, FLOOR_Y + 0.08, 0),
+      1,
+    ),
+  );
+  const merged = mergeGeometries(parts);
   parts.forEach((p) => p.dispose());
   return merged;
 };
 
 const frameVertex = /* glsl */ `
+  attribute float aSeam;
   varying vec3 vNormal;
   varying vec3 vWorld;
+  varying float vSeam;
   void main() {
     vec4 w = modelMatrix * vec4(position, 1.0);
     vWorld = w.xyz;
     vNormal = normalize(mat3(modelMatrix) * normal);
+    vSeam = aSeam;
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
 const frameFragment = /* glsl */ `
   uniform vec3 uDark;
   uniform vec3 uEdge;
-  uniform vec3 uTop;
-  uniform vec3 uWaterHorizon;
-  uniform vec3 uWaterBelow;
+  uniform vec3 uInner;
+  uniform vec3 uSeam;
   uniform float uFog;
+  uniform float uTower;
   varying vec3 vNormal;
   varying vec3 vWorld;
+  varying float vSeam;
   void main() {
     vec3 toEye = cameraPosition - vWorld;
     float dist = length(toEye);
     vec3 n = normalize(vNormal);
     float f = pow(1.0 - abs(dot(n, toEye / dist)), 2.0);
-    vec3 c = uDark + uEdge * f + uTop * max(n.y, 0.0);
-    // Lost in the water with distance, toward the water's colour behind it
-    float down = clamp((cameraPosition.y - vWorld.y) / dist, 0.0, 1.0);
-    vec3 water = mix(uWaterHorizon, uWaterBelow, smoothstep(0.0, 0.55, down));
-    c = mix(c, water, 1.0 - exp(-dist * uFog));
-    gl_FragColor = vec4(c, 1.0);
+    // A faint edge light, and the facets turned toward the board catching its glow
+    float inward = max(dot(n, -normalize(vec3(vWorld.x, 0.0, vWorld.z))), 0.0);
+    vec3 c = uDark + uEdge * f + uInner * pow(inward, 3.0);
+    c = mix(c, uSeam, vSeam);
+    // Lost in the water with distance
+    float haze = 1.0 - exp(-dist * uFog);
+    // Never behind the tower, where it would read as part of it: gone
+    // wherever it would show through the platforms
+    vec3 toFrame = normalize(vWorld - cameraPosition);
+    vec3 toTower = normalize(-cameraPosition);
+    float angle = acos(clamp(dot(toFrame, toTower), -1.0, 1.0));
+    float tower = asin(clamp(uTower / length(cameraPosition), 0.0, 1.0));
+    float shown = smoothstep(tower * 1.05, tower * 1.4, angle);
+    // Blended over the water behind it (not painted in a water colour of its
+    // own), so where it fades there is nothing left to see
+    float alpha = (1.0 - haze) * shown;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(c, alpha);
     #include <colorspace_fragment>
   }`;
 
-/** The room's glass wall: mullions on a floor ring. Static. */
+/** The room's glass wall: bevelled mullions on a slim floor lip with a seam of light. Static. */
 export const RoomFrame = () => {
   const { geometry, material } = useMemo(
     () => ({
       geometry: frameGeometry(),
       material: new ShaderMaterial({
         uniforms: {
-          uDark: { value: new Color('#02090c') },
-          uEdge: { value: new Color('#5b7a82').multiplyScalar(0.22) },
-          uTop: { value: new Color('#5b7a82').multiplyScalar(0.08) },
-          uWaterHorizon: { value: new Color(WATER.horizon) },
-          uWaterBelow: { value: new Color(WATER.below) },
-          uFog: { value: 0.028 },
+          uDark: { value: new Color('#03090c') },
+          uEdge: { value: new Color('#6f858c').multiplyScalar(0.2) },
+          uInner: { value: new Color('#6f858c').multiplyScalar(0.16) },
+          uSeam: { value: new Color('#a9b4b6').multiplyScalar(0.55) },
+          uFog: { value: 0.024 },
+          uTower: { value: TOWER_RADIUS },
         },
         vertexShader: frameVertex,
         fragmentShader: frameFragment,
+        transparent: true,
+        depthWrite: false,
       }),
     }),
     [],
@@ -104,14 +150,13 @@ export const RoomFrame = () => {
     },
     [geometry, material],
   );
-  return <mesh geometry={geometry} material={material} raycast={noRaycast} />;
+  // Drawn first among the see-through layers: behind every platform and mark
+  return <mesh geometry={geometry} material={material} renderOrder={-500} raycast={noRaycast} />;
 };
 
 // --- Motes -----------------------------------------------------------------------
 
 const MOTES = 26;
-/** Radius of a sphere holding the tower and its pieces, for the mask. */
-const TOWER_RADIUS = 5.6;
 
 const motesVertex = /* glsl */ `
   attribute vec4 aMote;
@@ -206,8 +251,10 @@ export const DistantMotes = () => {
     },
     [geometry, material],
   );
-  useFrame((state) => {
-    material.uniforms.uTime.value = state.clock.elapsedTime;
+  // Their own clock, advanced only while frames render: after an idle spell
+  // the motes carry on from where they were rather than jumping
+  useFrame((_, delta) => {
+    material.uniforms.uTime.value += Math.min(delta, 0.25);
     const fov = 'fov' in camera ? (camera.fov as number) : 36;
     material.uniforms.uScale.value = (size.height * dpr * 0.5) / Math.tan((fov * Math.PI) / 360);
   });

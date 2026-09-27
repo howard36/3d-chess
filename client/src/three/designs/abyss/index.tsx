@@ -3,7 +3,7 @@ import { preloadPieceSet } from '../../pieces';
 import { clarityTower, towerFrame } from '../kit/layouts';
 import type { Design } from '../types';
 import { Grid } from './decks';
-import { Celebration, makeCaptureFx, makeLevelAt, makeMoveFx } from './fx';
+import { makeCaptureFx, makeCelebration, makeLevelAt, makeMoveFx } from './fx';
 import { hud } from './hud';
 import { makeMarkers } from './markers';
 import { PieceBody } from './pieces';
@@ -19,9 +19,10 @@ import { Stage } from './stage';
 // mark of play is bioluminescent: plankton rings where a piece may go, an
 // anglerfish's red for captures, a comb jelly's violet for the last move.
 //
-// Files: palette (colours), backdrop (the water), stage (lamps), decks (the
-// glass and labels), pieces (materials), markers (the marks), fx (motion),
-// hud (the terminal).
+// Files: palette (colours), backdrop (the water), station (the room's frame
+// and the distant motes), stage (lamps and reflections), decks (the glass
+// and labels), view (view facts the decks publish), pieces (materials and
+// floor marks), markers (the marks), fx (motion), hud (the terminal).
 
 preloadPieceSet();
 
@@ -37,8 +38,9 @@ const abyss: Design = {
   name: 'Abyss',
   blurb: 'A deep-sea research station lit by bioluminescence.',
   layout,
-  // Marks breathe, plankton drifts round the selection: slow ambience
-  continuous: true,
+  // Rendered on demand: animated marks ask for frames while they are up
+  // (markers.tsx), so an idle board stops rendering
+  continuous: false,
   canvas: { fov: 36, toneMapping: NeutralToneMapping, exposure: 1 },
   Stage,
   Grid,
@@ -48,12 +50,13 @@ const abyss: Design = {
   knightYaw: 1.2,
   markers: makeMarkers(frame.pitch, MOTION.durationMs, levelAt),
   hoverDestinations: true,
-  // Hover stirs a piece; selection floats it up, while it lights from within
-  hoverLift: { hover: 0.07, selected: 0.24 },
+  // Hover stirs a piece; selection floats it a little, kept low so the piece
+  // stays over its own square and its halo at the 18° opening view
+  hoverLift: { hover: 0.035, selected: 0.08 },
   motion: MOTION,
   MoveFx: makeMoveFx(layout.floorY, levelAt),
   CaptureFx: makeCaptureFx(PIECE_SCALE, levelAt),
-  Celebration,
+  Celebration: makeCelebration(levelAt, frame.pitch),
   toppleMatedKing: true,
   hud,
 };

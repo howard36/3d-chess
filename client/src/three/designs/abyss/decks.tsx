@@ -10,7 +10,6 @@ import {
   PlaneGeometry,
   ShaderMaterial,
 } from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GRID_SIZE } from '../../layout';
 import { focusLevelOf, useLevelFocus } from '../kit/focus';
 import { LAYER } from '../kit/layers';
@@ -20,6 +19,7 @@ import { frameGeometry } from '../kit/plates';
 import { SmartLabels } from '../kit/smartLabels';
 import type { GridProps } from '../types';
 import { INK, LEVELS, TITANIUM } from './palette';
+import { view } from './view';
 
 // The decks: one pane of pressure glass per level, held in a titanium bezel
 // with a light strip in the level's colour. Thin bioluminescent seams glow
@@ -27,8 +27,10 @@ import { INK, LEVELS, TITANIUM } from './palette';
 // squares are faintly frosted in the Raumschach colouring, so every square
 // reads on its own from any side. All of it stays quieter than the marks of
 // play: thin lines, no lit dots, no rings. Seen from straight above, only
-// the level in play keeps its glowing grid; the others thin to hairlines,
-// so the nested grids never read as a plaid.
+// the focused level keeps its glowing grid (with nothing focused, none
+// does); the others thin to hairlines, so the nested grids never read as a
+// plaid. The decks also publish the view's steepness and the focus for the
+// pieces and marks (view.ts).
 
 const MARGIN = 0.07;
 const BEZEL = 0.07;
@@ -98,6 +100,7 @@ const fragmentShader = /* glsl */ `
 
 const SEAM = 0.55;
 const HALO = 0.1;
+const BEZEL_OPACITY = 0.55;
 
 /** The five glass decks with their seams, bezels and light strips. */
 export const PressureDecks = ({
@@ -111,18 +114,14 @@ export const PressureDecks = ({
 
   const { plane, bezel, strip } = useMemo(() => {
     const reach = frame.half + 0.04;
-    const bezels = frame.levelY.map((y) =>
-      frameGeometry(side, BEZEL, BEZEL_DEPTH).translate(0, y - 0.004, 0),
-    );
-    const bezel = mergeGeometries(bezels);
-    bezels.forEach((b) => b.dispose());
+    const bezel = frameGeometry(side, BEZEL, BEZEL_DEPTH).translate(0, -0.004, 0);
     return {
       plane: new PlaneGeometry(reach * 2, reach * 2),
       bezel,
       // The light strip along the bezel's top, a hair above it
       strip: frameGeometry(side + BEZEL * 0.3, BEZEL * 0.34, 0.006),
     };
-  }, [frame.half, frame.levelY, side]);
+  }, [frame.half, side]);
 
   const materials = useMemo(
     () =>
@@ -168,18 +167,22 @@ export const PressureDecks = ({
       ),
     [],
   );
-  const bezelMaterial = useMemo(
+  // One bezel material per level, so a level's frame can recede on its own
+  const bezelMaterials = useMemo(
     () =>
-      new MeshStandardMaterial({
-        color: TITANIUM,
-        roughness: 0.45,
-        metalness: 0.7,
-        envMapIntensity: 0.4,
-        // See-through, so a bezel never hides a piece on the deck below
-        transparent: true,
-        opacity: 0.55,
-        depthWrite: false,
-      }),
+      LEVELS.map(
+        () =>
+          new MeshStandardMaterial({
+            color: TITANIUM,
+            roughness: 0.45,
+            metalness: 0.7,
+            envMapIntensity: 0.4,
+            // See-through, so a bezel never hides a piece on the deck below
+            transparent: true,
+            opacity: BEZEL_OPACITY,
+            depthWrite: false,
+          }),
+      ),
     [],
   );
   useEffect(
@@ -189,9 +192,9 @@ export const PressureDecks = ({
       strip.dispose();
       materials.forEach((m) => m.dispose());
       stripMaterials.forEach((m) => m.dispose());
-      bezelMaterial.dispose();
+      bezelMaterials.forEach((m) => m.dispose());
     },
-    [plane, bezel, strip, materials, stripMaterials, bezelMaterial],
+    [plane, bezel, strip, materials, stripMaterials, bezelMaterials],
   );
 
   // Focus: the level in play brightens its seams and strip, the others dim
@@ -207,9 +210,11 @@ export const PressureDecks = ({
   );
 
   // Seen from above, the grids would nest into a plaid: past about 60° of
-  // elevation every level but the one in play (the focused level, else the
-  // top one) thins to a quiet hairline lattice and loses its halo, and on the
-  // way up the lower decks recede a little into the water.
+  // elevation every level but the focused one thins to a quiet hairline
+  // lattice, loses its halo and dims its frame. With nothing focused, all
+  // five go quiet together (each piece then shows its own square's footprint,
+  // pieces.tsx), so no one level's grid organises the view. On the way up the
+  // lower decks also recede a little into the water.
   useFrame(() => {
     const p = camera.position;
     const el = Math.atan2(p.y, Math.hypot(p.x, p.z));
@@ -219,35 +224,36 @@ export const PressureDecks = ({
     };
     const DEG = Math.PI / 180;
     const rising = ease(35 * DEG, 70 * DEG);
-    const steep = ease(58 * DEG, 78 * DEG);
+    const steep = ease(58 * DEG, 75 * DEG);
+    view.steep.value = steep;
+    view.ticks.value = ease(50 * DEG, 62 * DEG);
+    view.anyFocus = anyFocus.current;
     const top = frame.levelY.length - 1;
     materials.forEach((m, z) => {
       const w = focus.current[z] ?? 0;
-      // The level in play: the focused one, or the top one when none is
-      const inPlay = w + (1 - anyFocus.current) * (z === top ? 1 : 0);
+      view.focus[z] = w;
       const below = (top - z) / top;
       const recede = 1 - rising * 0.3 * below;
-      const quiet = 1 - steep * 0.8 * (1 - inPlay);
+      const quiet = 1 - steep * 0.8 * (1 - w);
       const dim = 1 - anyFocus.current * 0.35 * (1 - w);
       m.uniforms.uStrength.value = recede * quiet * dim * (1 + 0.55 * w);
-      m.uniforms.uHalo.value = HALO * (1 - steep * (1 - inPlay));
+      m.uniforms.uHalo.value = HALO * (1 - steep * (1 - w));
       stripMaterials[z].opacity =
-        (0.55 + 0.45 * w) *
-        (1 - anyFocus.current * 0.3 * (1 - w)) *
-        (1 - steep * 0.6 * (1 - inPlay));
+        (0.55 + 0.45 * w) * (1 - anyFocus.current * 0.3 * (1 - w)) * (1 - steep * 0.65 * (1 - w));
+      bezelMaterials[z].opacity = BEZEL_OPACITY * (1 - steep * 0.8 * (1 - w));
     });
   });
 
   return (
     <group name="abyss-decks">
-      <mesh
-        geometry={bezel}
-        material={bezelMaterial}
-        renderOrder={LAYER.plateEdge}
-        raycast={noRaycast}
-      />
       {frame.levelY.map((y, z) => (
         <group key={z} position={[0, y, 0]}>
+          <mesh
+            geometry={bezel}
+            material={bezelMaterials[z]}
+            renderOrder={LAYER.plateEdge}
+            raycast={noRaycast}
+          />
           <mesh
             geometry={plane}
             material={materials[z]}

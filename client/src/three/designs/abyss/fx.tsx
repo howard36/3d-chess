@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
 import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, ShaderMaterial } from 'three';
 import type { Group } from 'three';
+import { toZXY } from '../../../engine/coords';
 import { PieceType } from '../../../engine/pieces';
+import { GRID_SIZE } from '../../layout';
 import { easeInOutCubic } from '../../motion';
 import { movePoint } from '../../movePath';
 import { Burst } from '../kit/fx';
@@ -11,20 +14,21 @@ import { noRaycast } from '../kit/noRaycast';
 import { rng } from '../kit/textures';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, Vec3 } from '../types';
 import { Ring } from './markers';
-import { CHECK, LEVELS, LURE, NACRE, PLANKTON } from './palette';
-import { ghostMaterials, FEET } from './pieces';
+import { CHECK, INK, LEVELS, LURE, NACRE, PLANKTON, SIGNAL } from './palette';
+import { ghostMaterials } from './pieces';
 import { ChessPiece } from '../../pieces';
 
 // Abyss's moments of motion, all short and all on r3f's clock:
 //
 // - a move leaves a faint wake of plankton along its path, and lands with a
 //   ripple spreading through the glass in its level's colour;
-// - a capture: the victim flares red as the capturer arrives, then dissolves
-//   upward into a swirl of red and pale sparks, with a red ripple;
-// - the mate: a column of plankton light rises round the fallen king and a
-//   slow ring spreads through its level.
+// - a capture: the victim's edges flare red as the capturer arrives, then it
+//   dissolves upward into a swirl of red and pale sparks, with a red ripple;
+// - the mate: a column of plankton light rises round the fallen king, a
+//   slow ring spreads through its level, and a CHECKMATE readout docks under
+//   the turn chip.
 
-const MAX_STEP = 1 / 30;
+const MAX_STEP = 0.25;
 const clamp01 = (t: number) => Math.min(Math.max(t, 0), 1);
 
 /** Milliseconds since mount on r3f's clock, handed to `onFrame`; true once `lifeMs` has run. */
@@ -92,7 +96,6 @@ const Ripple = ({
         opacity={0}
         glow={0}
         glowWidth={0.05}
-        lobeDepth={0.012}
         lift={0.018}
         renderOrder={LAYER.trace}
         onMaterial={(m) => {
@@ -259,7 +262,7 @@ const Victim = ({
   pieceScale,
 }: CaptureFxProps & { level: number; impactMs: number; pieceScale: number }) => {
   const group = useRef<Group>(null);
-  const mats = useMemo(() => ghostMaterials(victim.color), [victim.color]);
+  const mats = useMemo(() => ghostMaterials(victim.color, level), [victim.color, level]);
   useEffect(() => () => mats.dispose(), [mats]);
   const fadeMs = 420;
   const red = useMemo(() => new Color(LURE), []);
@@ -272,7 +275,8 @@ const Victim = ({
     g.scale.setScalar(pieceScale * (1 - 0.35 * e));
     g.position.y = floor[1] + 0.25 * e;
     mats.setOpacity(1 - e);
-    mats.setCore(red, 0.6 * flare * (1 - k) + 0.1);
+    // The edges flare red as the capturer arrives; the body keeps its army
+    mats.setFlare(red, 1.4 * flare * (1 - k));
   });
   if (done) return null;
   return (
@@ -283,7 +287,7 @@ const Victim = ({
           parts={{
             body: mats.body,
             accent: victim.type === PieceType.Rook ? mats.body : mats.accent,
-            foot: FEET[level] ?? FEET[0],
+            foot: mats.foot,
           }}
         />
       </group>
@@ -319,46 +323,117 @@ export const makeCaptureFx = (pieceScale: number, levelAt: (y: number) => number
 
 // --- Mate --------------------------------------------------------------------------
 
-/** A column of plankton light rising round the mated king, and a slow ring through its level. */
-export const Celebration = ({ floor, winner }: CelebrationProps) => {
-  // Keyed on the floor's values: a re-render with an equal array keeps the column
-  const [fx, fy, fz] = floor;
-  const column = useMemo(() => {
-    const random = rng(97);
-    return Array.from({ length: 70 }, (_, i): Mote => {
-      const a = random() * Math.PI * 2;
-      const r = 0.25 + random() * 0.35;
-      return {
-        at: [fx + Math.cos(a) * r, fy + random() * 0.2, fz + Math.sin(a) * r],
-        born: 250 + (i / 70) * 900,
-        life: 1300 + random() * 700,
-        drift: [Math.cos(a) * 0.1, 1.2 + random() * 0.9, Math.sin(a) * 0.1],
-        size: 0.035 + random() * 0.035,
-      };
-    });
-  }, [fx, fy, fz]);
-  const tint = winner === 'black' ? '#b6e9ff' : winner === 'white' ? NACRE : PLANKTON;
+const READOUT_IN_MS = 500;
+
+/**
+ * The station's log of the mate, docked under the turn chip: CHECKMATE in
+ * tracked mono capitals, the mated king's square in its level's colour, a
+ * keyline under it. HUD-level DOM, faded in on r3f's clock; the result card
+ * arrives under it later.
+ */
+const MateReadout = ({ square, level }: { square: string; level: number }) => {
+  const frame = useRef<HTMLDivElement>(null);
+  useTimeline(READOUT_IN_MS + 600, (ms) => {
+    const f = frame.current;
+    if (!f) return;
+    const k = clamp01((ms - READOUT_IN_MS) / 600);
+    f.style.opacity = String(k);
+    f.style.transform = `translate(-50%, ${(1 - k) * -8}px)`;
+  });
   return (
-    <>
-      <Motes motes={column} color={tint} />
-      <Ripple
-        at={floor}
-        color={CHECK}
-        delayMs={150}
-        lifeMs={1300}
-        from={0.35}
-        to={2.4}
-        width={0.04}
-      />
-      <Ripple
-        at={floor}
-        color={tint}
-        delayMs={650}
-        lifeMs={1500}
-        from={0.35}
-        to={2.9}
-        width={0.03}
-      />
-    </>
+    // Pinned to the screen (top centre, under the turn chip), not to the king
+    <Html
+      calculatePosition={(_, __, size) => [size.width / 2, 112]}
+      zIndexRange={[400, 0]}
+      style={{ pointerEvents: 'none' }}
+    >
+      <div
+        ref={frame}
+        aria-hidden
+        style={{
+          transform: 'translate(-50%, -8px)',
+          opacity: 0,
+          display: 'flex',
+          alignItems: 'baseline',
+          gap: '0.9em',
+          padding: '0.5em 1.2em 0.55em',
+          fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+          fontWeight: 500,
+          fontSize: 15,
+          letterSpacing: '0.32em',
+          color: INK,
+          background: 'rgba(4, 18, 23, 0.72)',
+          border: '1px solid rgba(191, 239, 242, 0.2)',
+          borderRadius: 6,
+          boxShadow: `inset 0 -1px 0 ${SIGNAL}55, 0 10px 30px rgba(0, 0, 0, 0.45)`,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <span>CHECKMATE</span>
+        <span style={{ color: LEVELS[level], letterSpacing: '0.08em', fontWeight: 600 }}>
+          {square}
+        </span>
+      </div>
+    </Html>
   );
+};
+
+/**
+ * The mate: a column of plankton light rising round the fallen king, a slow
+ * ring through its level, and the station's log of it (MateReadout).
+ */
+export const makeCelebration = (levelAt: (y: number) => number, pitch: number) => {
+  const Celebration = ({ floor, winner, orientation }: CelebrationProps) => {
+    // Keyed on the floor's values: a re-render with an equal array keeps the column
+    const [fx, fy, fz] = floor;
+    const column = useMemo(() => {
+      const random = rng(97);
+      return Array.from({ length: 70 }, (_, i): Mote => {
+        const a = random() * Math.PI * 2;
+        const r = 0.25 + random() * 0.35;
+        return {
+          at: [fx + Math.cos(a) * r, fy + random() * 0.2, fz + Math.sin(a) * r],
+          born: 250 + (i / 70) * 900,
+          life: 1300 + random() * 700,
+          drift: [Math.cos(a) * 0.1, 1.2 + random() * 0.9, Math.sin(a) * 0.1],
+          size: 0.035 + random() * 0.035,
+        };
+      });
+    }, [fx, fy, fz]);
+    const tint = winner === 'black' ? '#b6e9ff' : winner === 'white' ? NACRE : PLANKTON;
+    // The king's square, back from the tower's world position (Black's view
+    // walks round the tower: files and ranks flip)
+    const level = levelAt(fy);
+    const half = (GRID_SIZE - 1) / 2;
+    const x = Math.round(fx / pitch + half);
+    const y = Math.round(half - fz / pitch);
+    const square = toZXY(
+      orientation === 'white' ? { x, y, z: level } : { x: 4 - x, y: 4 - y, z: level },
+    );
+    return (
+      <>
+        <Motes motes={column} color={tint} />
+        <Ripple
+          at={floor}
+          color={CHECK}
+          delayMs={150}
+          lifeMs={1300}
+          from={0.35}
+          to={2.4}
+          width={0.04}
+        />
+        <Ripple
+          at={floor}
+          color={tint}
+          delayMs={650}
+          lifeMs={1500}
+          from={0.35}
+          to={2.9}
+          width={0.03}
+        />
+        <MateReadout square={square} level={level} />
+      </>
+    );
+  };
+  return Celebration;
 };
