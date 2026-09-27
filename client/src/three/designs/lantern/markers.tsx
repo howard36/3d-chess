@@ -483,55 +483,49 @@ export const lanternMarkers = ({
    * them with a slow pulse drifting along it. A fresh move threads the line
    * in as the piece lands.
    */
-  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
-    // Straight up or down: the origin ring goes round the arrival's, so
-    // from above both show
-    const vertical =
-      Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3;
-    return (
-      <>
-        <Mark
-          floor={from.floor}
-          color={FIREFLY}
-          rings={[[(vertical ? 0.45 : 0.2) * s, 0.03 * s, 0.85]]}
-          glow={[0.2 * s, vertical ? 0 : 0.14]}
-          quad={(vertical ? 1 : 0.6) * s}
-        />
-        <Mark
-          floor={to.floor}
-          color={FIREFLY}
-          rings={[[0.375 * s, 0.03 * s, 0.9]]}
-          quad={0.9 * s}
-          animate={
-            fresh
-              ? (u, t) => {
-                  const k = Math.min(t / 260, 1);
-                  u.uOpacity.value = easeOut(k);
-                  return k < 1;
-                }
-              : undefined
-          }
-          delayMs={fresh ? moveMs * 0.85 : 0}
-        />
-        <LastMoveLine
-          from={from.floor}
-          to={to.floor}
-          arc={arc}
-          color={FIREFLY}
-          pulseColor="#fbffd8"
-          opacity={0.9}
-          radius={0.013}
-          shade={0.3}
-          flowSpeed={0.45}
-          pulse={0.75}
-          pulseLength={0.32}
-          spacing={1.5}
-          drawInMs={fresh ? 380 : 0}
-          drawInDelayMs={fresh ? moveMs * 0.55 : 0}
-        />
-      </>
-    );
-  };
+  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
+    <>
+      <Mark
+        floor={from.floor}
+        color={FIREFLY}
+        rings={[[0.2 * s, 0.03 * s, 0.85]]}
+        glow={[0.2 * s, 0.14]}
+        quad={0.6 * s}
+      />
+      <Mark
+        floor={to.floor}
+        color={FIREFLY}
+        rings={[[0.375 * s, 0.03 * s, 0.9]]}
+        quad={0.9 * s}
+        animate={
+          fresh
+            ? (u, t) => {
+                const k = Math.min(t / 260, 1);
+                u.uOpacity.value = easeOut(k);
+                return k < 1;
+              }
+            : undefined
+        }
+        delayMs={fresh ? moveMs * 0.85 : 0}
+      />
+      <LastMoveLine
+        from={from.floor}
+        to={to.floor}
+        arc={arc}
+        color={FIREFLY}
+        pulseColor="#fbffd8"
+        opacity={0.9}
+        radius={0.013}
+        shade={0.3}
+        flowSpeed={0.45}
+        pulse={0.75}
+        pulseLength={0.32}
+        spacing={1.5}
+        drawInMs={fresh ? 380 : 0}
+        drawInDelayMs={fresh ? moveMs * 0.55 : 0}
+      />
+    </>
+  );
 
   /** Check: red lacquer under the king, a bold ring round it, and a bell struck once. */
   const Check = ({ floor }: MarkerProps) => (

@@ -51,7 +51,6 @@ const fragmentShader = /* glsl */ `
   uniform float uTime;
   uniform float uTurn;
   uniform float uCount;
-  uniform float uWide;
   varying vec2 vP;
 
   float stroke(float d, float w) {
@@ -130,12 +129,6 @@ const fragmentShader = /* glsl */ `
       vec2 q = rot(p, uTurn);
       a = max(a, stroke(ellipse(q, vec2(0.34, 0.14)), 0.016));
       a = max(a, stroke(r - 0.07, 0.014));
-      // Straight up or down: corner brackets out at the square's edge, so the
-      // start still shows round the arrival seen from above
-      vec2 b = abs(p) - vec2(0.46);
-      float sq = length(max(b, 0.0)) + min(max(b.x, b.y), 0.0);
-      float corners = step(0.3, min(abs(p.x), abs(p.y)));
-      a = max(a, stroke(sq, 0.016) * corners * uWide);
       fill = disc(ellipse(q, vec2(0.34, 0.14))) * 0.07;
     } else if (uKind == 4) {
       // Where it landed: a ring round the base
@@ -200,8 +193,6 @@ export interface GlyphProps {
   ripple?: boolean;
   /** Electrons on a capture ring: the victim's level, A one to E five. */
   count?: number;
-  /** A last move's start straight below or above its arrival: bracket the square. */
-  wide?: boolean;
 }
 
 /** One glyph of the qubit language, flat on the wafer at a cell's floor. */
@@ -218,7 +209,6 @@ export const Glyph = ({
   renderOrder = LAYER.marker,
   ripple = false,
   count = 2,
-  wide = false,
 }: GlyphProps) => {
   const invalidate = useThree((s) => s.invalidate);
   const material = useMemo(
@@ -242,7 +232,6 @@ export const Glyph = ({
           uCore: { value: new Color(PALETTE.moveCore) },
           uLevelColor: { value: new Color(LEVEL_COLORS[levelAt(floor[1])]) },
           uCount: { value: count },
-          uWide: { value: wide ? 1 : 0 },
         },
         vertexShader,
         fragmentShader,
@@ -258,7 +247,6 @@ export const Glyph = ({
   u.uHover.value = hovered ? 1 : 0;
   u.uQuad.value = quad * PITCH;
   u.uCount.value = count;
-  u.uWide.value = wide ? 1 : 0;
   (u.uLevelColor.value as Color).set(LEVEL_COLORS[levelAt(floor[1])]);
 
   const age = useRef(-delayMs);
@@ -329,16 +317,7 @@ export const Selection = ({ floor }: MarkerProps) => (
  */
 export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
   <>
-    <Glyph
-      floor={from.floor}
-      kind="from"
-      color={PALETTE.lastMove}
-      opacity={0.7}
-      growMs={0}
-      wide={
-        Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3
-      }
-    />
+    <Glyph floor={from.floor} kind="from" color={PALETTE.lastMove} opacity={0.7} growMs={0} />
     <Glyph
       floor={to.floor}
       kind="to"

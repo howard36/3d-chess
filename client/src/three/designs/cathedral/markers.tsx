@@ -867,57 +867,53 @@ export const makeMarkers = ({
    * The last move: a silver rosette on the square it left and on the square
    * it reached, joined by a thin thread of cool clear light from centre to
    * centre. A fresh move draws its thread in behind the gliding piece, and
-   * the destination's rosette blooms as it lands. A move straight up or
-   * down draws its origin wider than its arrival, so from above both show.
+   * the destination's rosette blooms as it lands. The origin's rosette is
+   * the smaller, whichever way the piece moved.
    */
-  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
-    const vertical =
-      Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3;
-    return (
-      <>
-        <GlassMark
-          floor={from.floor}
-          shape="rosette"
-          color={LAST_MOVE}
-          keyColor="#1a1d2a"
-          radius={vertical ? 0.47 * pitch : ROSETTE * 0.78}
-          width={0.028 * pitch}
-          opacity={vertical ? 0.8 : 0.62}
-          fill={0.07}
-          keyAlpha={0.3}
-        />
-        <GlassMark
-          floor={to.floor}
-          shape="rosette"
-          color={LAST_MOVE}
-          keyColor="#1a1d2a"
-          radius={ROSETTE}
-          width={0.032 * pitch}
-          opacity={0.88}
-          fill={0.05}
-          keyAlpha={0.3}
-          growMs={fresh ? 320 : 0}
-          delayMs={moveMs * 0.85}
-        />
-        <LastMoveLine
-          from={from.floor}
-          to={to.floor}
-          arc={arc}
-          color={LAST_MOVE}
-          pulseColor="#f4f6ff"
-          radius={0.013}
-          opacity={0.9}
-          shade={0.3}
-          pulse={0.55}
-          pulseLength={0.35}
-          flowSpeed={0.45}
-          outline="#1c2030"
-          outlineWidth={0.006}
-          drawInMs={fresh ? moveMs * 0.9 : 0}
-        />
-      </>
-    );
-  };
+  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
+    <>
+      <GlassMark
+        floor={from.floor}
+        shape="rosette"
+        color={LAST_MOVE}
+        keyColor="#1a1d2a"
+        radius={ROSETTE * 0.78}
+        width={0.028 * pitch}
+        opacity={0.62}
+        fill={0.07}
+        keyAlpha={0.3}
+      />
+      <GlassMark
+        floor={to.floor}
+        shape="rosette"
+        color={LAST_MOVE}
+        keyColor="#1a1d2a"
+        radius={ROSETTE}
+        width={0.032 * pitch}
+        opacity={0.88}
+        fill={0.05}
+        keyAlpha={0.3}
+        growMs={fresh ? 320 : 0}
+        delayMs={moveMs * 0.85}
+      />
+      <LastMoveLine
+        from={from.floor}
+        to={to.floor}
+        arc={arc}
+        color={LAST_MOVE}
+        pulseColor="#f4f6ff"
+        radius={0.013}
+        opacity={0.9}
+        shade={0.3}
+        pulse={0.55}
+        pulseLength={0.35}
+        flowSpeed={0.45}
+        outline="#1c2030"
+        outlineWidth={0.006}
+        drawInMs={fresh ? moveMs * 0.9 : 0}
+      />
+    </>
+  );
 
   /**
    * Check: the king's square turns to ruby glass inside a crown of red light,

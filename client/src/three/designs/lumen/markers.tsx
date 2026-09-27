@@ -31,9 +31,8 @@ import { leads, steepness } from './plates';
 //   other panes show the same square above and below), while the piece's
 //   scan shell (pieces.tsx) plays.
 // - The last move: a faint ring of ice dots where the piece left, a wider
-//   ring of ice dots round where it arrived, and the thin line between them.
-//   A move straight up or down, whose two squares stack from above, marks
-//   its origin with a wide continuous ring outside the arrival's dots.
+//   ring of ice dots round where it arrived, and the thin line between them,
+//   whichever way the piece moved.
 // - Check: a slow red glow ring round the king's square, breathing gently.
 
 const MODE = {
@@ -44,8 +43,6 @@ const MODE = {
   left: 4,
   check: 5,
   tick: 6,
-  leftBelow: 7,
-  arrivedAbove: 8,
 } as const;
 type Mode = keyof typeof MODE;
 
@@ -174,18 +171,6 @@ const fragmentShader = /* glsl */ `
       shape = max(cover(d, 0.019), cover(c, 0.022));
       glow = halo(min(d, c), 0.03) * 0.25;
       fill = (1.0 - smoothstep(0.2, 0.23, r)) * 0.05;
-    } else if (uMode == 7) {
-      // Where a move straight up or down left: a wide continuous ice ring,
-      // clear outside the arrival's dots when the two squares stack from above
-      float d = ring(p, 0.47, 0.014);
-      shape = cover(d, 0.007);
-      glow = halo(d, 0.04) * 0.35;
-    } else if (uMode == 8) {
-      // Where a move straight up or down arrived: the twelve dots drawn in
-      float d = dots(p, 0.34, 12.0, 0.024, 0.0);
-      float t = ring(p, 0.34, 0.007);
-      shape = max(cover(d, 0.024), cover(t, 0.0035) * 0.5);
-      glow = halo(d, 0.04) * 0.4;
     } else if (uMode == 5) {
       // Check: a slow red glow ring round the king's square
       float breath = 0.72 + 0.28 * cos(6.2831853 * uTime / 3.2);
@@ -438,43 +423,27 @@ export const Selection = ({ floor }: MarkerProps) => (
 
 // --- Last move and check ---------------------------------------------------------------
 
-export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
-  // A move straight up or down stacks its two squares from above: the origin
-  // then draws as a wide ring outside the arrival's (smaller) dots
-  const vertical =
-    Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3;
-  return (
-    <>
-      <Glyph
-        at={from.floor}
-        mode={vertical ? 'leftBelow' : 'left'}
-        color={PALETTE.trace}
-        opacity={0.75}
-      />
-      <Glyph
-        at={to.floor}
-        mode={vertical ? 'arrivedAbove' : 'arrived'}
-        color={PALETTE.trace}
-        opacity={0.85}
-      />
-      <LastMoveLine
-        from={from.floor}
-        to={to.floor}
-        arc={arc}
-        color={PALETTE.trace}
-        pulseColor="#ffffff"
-        opacity={0.85}
-        radius={0.011}
-        pulse={0.7}
-        pulseLength={0.35}
-        spacing={1.5}
-        flowSpeed={0.55}
-        shade={0.3}
-        drawInMs={fresh ? 360 : 0}
-      />
-    </>
-  );
-};
+export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
+  <>
+    <Glyph at={from.floor} mode="left" color={PALETTE.trace} opacity={0.75} />
+    <Glyph at={to.floor} mode="arrived" color={PALETTE.trace} opacity={0.85} />
+    <LastMoveLine
+      from={from.floor}
+      to={to.floor}
+      arc={arc}
+      color={PALETTE.trace}
+      pulseColor="#ffffff"
+      opacity={0.85}
+      radius={0.011}
+      pulse={0.7}
+      pulseLength={0.35}
+      spacing={1.5}
+      flowSpeed={0.55}
+      shade={0.3}
+      drawInMs={fresh ? 360 : 0}
+    />
+  </>
+);
 
 export const Check = ({ floor }: MarkerProps) => {
   const invalidate = useThree((s) => s.invalidate);

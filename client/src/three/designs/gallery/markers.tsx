@@ -515,52 +515,46 @@ export const makeMarkers = (pitch: number, moveMs: number, levelY: number[]) => 
 
   // --- The last move: a platinum wire --------------------------------------------
 
-  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
-    // A move straight up or down: the origin rings the arrival from outside,
-    // so both read from above (lead note 7)
-    const vertical =
-      Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3;
-    return (
-      <>
-        <Mark
-          floor={from.floor}
-          kind="wire"
-          color={WIRE}
-          radius={(vertical ? 0.46 : 0.3) * pitch}
-          width={0.024 * pitch}
-          opacity={0.95}
-          fill={vertical ? 0 : 0.05}
-          dots={vertical ? 28 : 18}
-        />
-        <Mark
-          floor={to.floor}
-          kind="wire"
-          color={WIRE}
-          radius={0.4 * pitch}
-          width={0.02 * pitch}
-          opacity={0.9}
-          fill={0.1}
-          drawMs={fresh ? 360 : 0}
-          delayMs={fresh ? moveMs * 0.75 : 0}
-        />
-        <LastMoveLine
-          from={from.floor}
-          to={to.floor}
-          arc={arc}
-          color={WIRE}
-          pulseColor={WIRE_GLINT}
-          radius={0.011}
-          opacity={0.9}
-          shade={0.45}
-          pulse={0.7}
-          pulseLength={0.35}
-          flowSpeed={0.55}
-          lift={0.03}
-          drawInMs={fresh ? 320 : 0}
-        />
-      </>
-    );
-  };
+  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
+    <>
+      <Mark
+        floor={from.floor}
+        kind="wire"
+        color={WIRE}
+        radius={0.3 * pitch}
+        width={0.024 * pitch}
+        opacity={0.95}
+        fill={0.05}
+        dots={18}
+      />
+      <Mark
+        floor={to.floor}
+        kind="wire"
+        color={WIRE}
+        radius={0.4 * pitch}
+        width={0.02 * pitch}
+        opacity={0.9}
+        fill={0.1}
+        drawMs={fresh ? 360 : 0}
+        delayMs={fresh ? moveMs * 0.75 : 0}
+      />
+      <LastMoveLine
+        from={from.floor}
+        to={to.floor}
+        arc={arc}
+        color={WIRE}
+        pulseColor={WIRE_GLINT}
+        radius={0.011}
+        opacity={0.9}
+        shade={0.45}
+        pulse={0.7}
+        pulseLength={0.35}
+        flowSpeed={0.55}
+        lift={0.03}
+        drawInMs={fresh ? 320 : 0}
+      />
+    </>
+  );
 
   // --- Check: do not touch --------------------------------------------------------
 

@@ -427,57 +427,51 @@ export const makeMarkers = (
   };
 
   /**
-   * The last move: a dashed violet ring where the piece left, a whole one
-   * round it where it landed, and the thin violet line between them. A move
-   * straight up or down draws its origin wider than the arrival, so from
-   * above the two nest as a pair instead of one hiding the other. A live
-   * move draws its line and landing ring in as the piece arrives.
+   * The last move: a small dashed violet ring where the piece left, a whole
+   * one round it where it landed, and the thin violet line between them. A
+   * live move draws its line and landing ring in as the piece arrives.
    */
-  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
-    const vertical =
-      Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3;
-    return (
-      <>
-        <Ring
-          floor={from.floor}
-          color={LAST_MOVE}
-          radius={(vertical ? 0.46 : 0.24) * pitch}
-          width={STROKE * 0.9}
-          opacity={0.85}
-          glow={0.25}
-          glowWidth={0.03 * pitch}
-          dashes={vertical ? 18 : 12}
-        />
-        <Ring
-          floor={to.floor}
-          color={LAST_MOVE}
-          radius={0.4 * pitch}
-          width={STROKE * 0.9}
-          opacity={0.9}
-          glow={0.3}
-          glowWidth={0.035 * pitch}
-          drawMs={fresh ? 360 : 0}
-          delayMs={motionMs * 0.75}
-        />
-        <LastMoveLine
-          from={from.floor}
-          to={to.floor}
-          arc={arc}
-          color={LAST_MOVE}
-          pulseColor="#f0e8ff"
-          opacity={0.9}
-          radius={0.013}
-          pulse={0.55}
-          pulseLength={0.35}
-          flowSpeed={0.5}
-          shade={0.3}
-          lift={0.03}
-          drawInMs={fresh ? 380 : 0}
-          drawInDelayMs={fresh ? motionMs * 0.55 : 0}
-        />
-      </>
-    );
-  };
+  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
+    <>
+      <Ring
+        floor={from.floor}
+        color={LAST_MOVE}
+        radius={0.24 * pitch}
+        width={STROKE * 0.9}
+        opacity={0.85}
+        glow={0.25}
+        glowWidth={0.03 * pitch}
+        dashes={12}
+      />
+      <Ring
+        floor={to.floor}
+        color={LAST_MOVE}
+        radius={0.4 * pitch}
+        width={STROKE * 0.9}
+        opacity={0.9}
+        glow={0.3}
+        glowWidth={0.035 * pitch}
+        drawMs={fresh ? 360 : 0}
+        delayMs={motionMs * 0.75}
+      />
+      <LastMoveLine
+        from={from.floor}
+        to={to.floor}
+        arc={arc}
+        color={LAST_MOVE}
+        pulseColor="#f0e8ff"
+        opacity={0.9}
+        radius={0.013}
+        pulse={0.55}
+        pulseLength={0.35}
+        flowSpeed={0.5}
+        shade={0.3}
+        lift={0.03}
+        drawInMs={fresh ? 380 : 0}
+        drawInDelayMs={fresh ? motionMs * 0.55 : 0}
+      />
+    </>
+  );
 
   /** Check: a red pulse spreads from the king across its level once, then a steady red ring holds. */
   const Check = ({ floor }: MarkerProps) => (

@@ -22,10 +22,9 @@ import { CAPTURE, CAPTURE_HOT, CHECK, INK, LASER, LASER_CORE, LASER_HOT, LEVEL }
 //   square (a different shape from a destination, so a move straight up or
 //   down still shows its own ring);
 // - the last move: graphite ink, like a measured drawing: a dashed origin
-//   circle where the piece left (a dashed square outline when it moved
-//   straight up or down, so the origin still shows from above), a ring where
-//   it stands with the level's jewels at its diagonals, and the kit's thin
-//   line between them with a slow gleam running along it;
+//   circle where the piece left, a ring where it stands with the level's
+//   jewels at its diagonals, and the kit's thin line between them with a
+//   slow gleam running along it;
 // - check: a still red ring round the king, its wash breathing slowly.
 
 const KIND = {
@@ -35,7 +34,6 @@ const KIND = {
   from: 3,
   to: 4,
   check: 5,
-  fromAbove: 6,
 } as const;
 type Kind = keyof typeof KIND;
 
@@ -131,17 +129,6 @@ const fragmentShader = /* glsl */ `
       float dash = step(0.5, fract(ang / TAU * 14.0));
       a = stroke(abs(r - R), 0.008) * dash * 0.9;
       paint(col, a, uLevel, stroke(r, 0.045));
-    } else if (uKind == 6) {
-      // The origin of a move straight up or down: a dashed square outline,
-      // wider than the arrival's ring so both read from above
-      vec2 q = abs(p);
-      float H = 0.44;
-      float box = max(q.x, q.y);
-      float along = q.x > q.y ? p.y : p.x;
-      float dash = step(0.45, fract(along * 7.0));
-      a = stroke(abs(box - H), 0.009) * dash * 0.9;
-      // The level's jewels at the outline's corners
-      paint(col, a, uLevel, stroke(length(q - vec2(H)), 0.03));
     } else if (uKind == 4) {
       // The arrival: a ring with the level's jewels at its four diagonals
       float R = 0.4;
@@ -237,16 +224,9 @@ const Selection = ({ floor }: MarkerProps) => (
   <Mark kind="selection" floor={floor} color={LASER} hot={LASER_HOT} />
 );
 
-/** From and to on the same file and rank: the move went straight up or down. */
-const vertical = (a: Vec3, b: Vec3) => Math.abs(a[0] - b[0]) < 1e-3 && Math.abs(a[2] - b[2]) < 1e-3;
-
 const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
   <>
-    <Mark
-      kind={vertical(from.floor, to.floor) ? 'fromAbove' : 'from'}
-      floor={from.floor}
-      color={INK}
-    />
+    <Mark kind="from" floor={from.floor} color={INK} />
     <Mark kind="to" floor={to.floor} color={INK} />
     <LastMoveLine
       from={from.floor}

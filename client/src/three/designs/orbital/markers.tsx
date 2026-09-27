@@ -525,65 +525,47 @@ export const Selection = ({ floor }: MarkerProps) => {
  * drawn in behind the piece as it travels.
  */
 export const makeLastMove = (durationMs: number) => {
-  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
-    // A move straight up or down: from above, the square left would hide
-    // under the arrival and the piece, so it is marked as a wider outline
-    const vertical =
-      Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3;
-    return (
-      <>
-        {vertical ? (
-          <LightRing
-            floor={from.floor}
-            color={TRAIL}
-            radius={0.44}
-            dot={0}
-            halo={0}
-            line={0.5}
-            lineWidth={0.004}
-          />
-        ) : (
-          <LightRing
-            floor={from.floor}
-            color={TRAIL}
-            count={8}
-            radius={0.24}
-            dot={0.022}
-            opacity={0.65}
-            halo={0.35}
-            line={0.3}
-            lineWidth={0.004}
-          />
-        )}
-        <LightRing
-          floor={to.floor}
-          color={TRAIL}
-          count={10}
-          radius={0.36}
-          dot={0.027}
-          opacity={1}
-          halo={0.5}
-          line={0.45}
-          lineWidth={0.004}
-          fill={0.05}
-        />
-        <LastMoveLine
-          from={from.floor}
-          to={to.floor}
-          arc={arc}
-          color={TRAIL}
-          pulseColor="#f1e4ff"
-          radius={0.013}
-          opacity={0.9}
-          shade={0.3}
-          pulse={0.65}
-          pulseLength={0.35}
-          flowSpeed={0.55}
-          drawInMs={fresh ? durationMs : 0}
-        />
-      </>
-    );
-  };
+  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
+    <>
+      <LightRing
+        floor={from.floor}
+        color={TRAIL}
+        count={8}
+        radius={0.24}
+        dot={0.022}
+        opacity={0.65}
+        halo={0.35}
+        line={0.3}
+        lineWidth={0.004}
+      />
+      <LightRing
+        floor={to.floor}
+        color={TRAIL}
+        count={10}
+        radius={0.36}
+        dot={0.027}
+        opacity={1}
+        halo={0.5}
+        line={0.45}
+        lineWidth={0.004}
+        fill={0.05}
+      />
+      <LastMoveLine
+        from={from.floor}
+        to={to.floor}
+        arc={arc}
+        color={TRAIL}
+        pulseColor="#f1e4ff"
+        radius={0.013}
+        opacity={0.9}
+        shade={0.3}
+        pulse={0.65}
+        pulseLength={0.35}
+        flowSpeed={0.55}
+        drawInMs={fresh ? durationMs : 0}
+      />
+    </>
+  );
   return LastMove;
 };
 

@@ -770,56 +770,49 @@ export const makeMarkers = (pitch: number, levelY: number[], motionMs: number) =
     />
   );
 
-  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
-    // A move straight up or down: seen from above the source plate would
-    // hide under the piece and the arrival plate, so it opens wider than both
-    const vertical =
-      Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3;
-    return (
-      <>
-        <Glyph
-          floor={from.floor}
-          kind="hex"
-          color={LAST_MOVE}
-          radius={(vertical ? 0.46 : 0.22) * pitch}
-          line={0.04 * pitch}
-          fill={0.16}
-          opacity={0.85}
-          level={levelColor(from.floor)}
-          gemRadius={vertical ? 0 : 0.07 * pitch}
-          innerHex={vertical}
-        />
-        <Glyph
-          floor={to.floor}
-          kind="hex"
-          color={LAST_MOVE}
-          radius={0.4 * pitch}
-          line={0.045 * pitch}
-          fill={0.06}
-          opacity={0.95}
-          level={levelColor(to.floor)}
-          innerHex
-        />
-        <LastMoveLine
-          from={from.floor}
-          to={to.floor}
-          arc={arc}
-          color={LAST_MOVE}
-          pulseColor="#fff3d1"
-          radius={0.015}
-          opacity={0.95}
-          shade={0.3}
-          pattern="solid"
-          flowSpeed={0.5}
-          pulse={0.6}
-          pulseLength={0.35}
-          lift={0.035}
-          drawInMs={fresh ? 320 : 0}
-          drawInDelayMs={fresh ? motionMs * 0.6 : 0}
-        />
-      </>
-    );
-  };
+  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
+    <>
+      <Glyph
+        floor={from.floor}
+        kind="hex"
+        color={LAST_MOVE}
+        radius={0.22 * pitch}
+        line={0.04 * pitch}
+        fill={0.16}
+        opacity={0.85}
+        level={levelColor(from.floor)}
+        gemRadius={0.07 * pitch}
+      />
+      <Glyph
+        floor={to.floor}
+        kind="hex"
+        color={LAST_MOVE}
+        radius={0.4 * pitch}
+        line={0.045 * pitch}
+        fill={0.06}
+        opacity={0.95}
+        level={levelColor(to.floor)}
+        innerHex
+      />
+      <LastMoveLine
+        from={from.floor}
+        to={to.floor}
+        arc={arc}
+        color={LAST_MOVE}
+        pulseColor="#fff3d1"
+        radius={0.015}
+        opacity={0.95}
+        shade={0.3}
+        pattern="solid"
+        flowSpeed={0.5}
+        pulse={0.6}
+        pulseLength={0.35}
+        lift={0.035}
+        drawInMs={fresh ? 320 : 0}
+        drawInDelayMs={fresh ? motionMs * 0.6 : 0}
+      />
+    </>
+  );
 
   return {
     Quiet,

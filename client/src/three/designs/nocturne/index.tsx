@@ -282,16 +282,13 @@ const crescentStart = (angle: number) => angle - (1 - CRESCENT_GAP) * Math.PI;
  */
 const LastMove = ({ from, to, fresh, arc = 0 }: LastMoveMarkerProps) => {
   const angle = heading(from.floor, to.floor);
-  // A move straight up or down the tower: from above, the source's crescent
-  // would hide under the arrival's, so it is drawn wider than a square's ring
-  const vertical = Math.hypot(to.floor[0] - from.floor[0], to.floor[2] - from.floor[2]) < 1e-3;
   return (
     <>
       <InkMark
         floor={from.floor}
         kind="crescent"
         color={LAST_MOVE}
-        radius={vertical ? 0.45 * pitch : CRESCENT * 0.94}
+        radius={CRESCENT * 0.94}
         width={STROKE * 1.1}
         gap={CRESCENT_GAP}
         start={crescentStart(angle)}
