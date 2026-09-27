@@ -458,8 +458,8 @@ export const makeMarkers = (pitch: number, moveMs: number, levelY: number[]) => 
     const invalidate = useThree((s) => s.invalidate);
     const size = useThree((s) => s.size);
     const elapsed = useRef(0);
-    // Board keeps this mounted when the selection moves to another piece:
-    // the lamp strikes up afresh over each new one
+    // Board mounts this anew for every selection (it is keyed by square),
+    // so the lamp strikes up afresh over each new piece
     const at = floor.join();
     useEffect(() => {
       elapsed.current = 0;
