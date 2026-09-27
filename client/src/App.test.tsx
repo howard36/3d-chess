@@ -915,6 +915,27 @@ test('the turn indicator says check in words and is announced politely', () => {
   expect(indicator).toHaveAttribute('aria-live', 'polite');
   rerender(<TurnIndicator turn="black" inCheck />);
   expect(indicator).toHaveTextContent('Black to move — in check');
+  expect(indicator).toHaveAttribute('data-turn', 'black');
+  expect(indicator).not.toHaveAttribute('data-result');
+});
+
+test('the turn indicator gives the result once the game is over', () => {
+  const { rerender } = render(
+    <TurnIndicator turn="black" gameOver={{ result: 'checkmate', winner: 'white' }} />,
+  );
+  const indicator = screen.getByTestId('turn-indicator');
+  expect(indicator).toHaveTextContent(/^Checkmate · White wins$/);
+  expect(indicator).toHaveAttribute('data-result', 'checkmate');
+  expect(indicator).toHaveAttribute('data-winner', 'white');
+  expect(indicator).not.toHaveAttribute('data-turn');
+  rerender(
+    <TurnIndicator turn="white" inCheck gameOver={{ result: 'checkmate', winner: 'black' }} />,
+  );
+  expect(indicator).toHaveTextContent(/^Checkmate · Black wins$/);
+  rerender(<TurnIndicator turn="white" gameOver={{ result: 'stalemate' }} />);
+  expect(indicator).toHaveTextContent(/^Stalemate · Draw$/);
+  expect(indicator).toHaveAttribute('data-result', 'stalemate');
+  expect(indicator).not.toHaveAttribute('data-winner');
 });
 
 test('GameScreen moves focus into the replaced dialog and puts the game behind it out of reach', () => {

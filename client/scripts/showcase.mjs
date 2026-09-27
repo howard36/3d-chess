@@ -428,6 +428,10 @@ const SHOW_HELPERS = () => {
       ring.style.transform = `scale(${1.6 - press * 0.8})`;
     },
     turnText: () => document.querySelector('[data-testid="turn-indicator"]')?.textContent ?? '',
+    /** The turn chip starts with `text` (e.g. "Black to move"), or gives the result: the game is over. */
+    turnReached: (text) =>
+      window.__show.turnText().startsWith(text) ||
+      !!document.querySelector('[data-testid="turn-indicator"][data-result]'),
     /**
      * Runs `frames` frames of `ms` each on the virtual clock, so animations
      * settle, but draws only the last (or none, without `drawLast`): under a
@@ -689,7 +693,7 @@ async function review(seats) {
     await mover.fill('#typed-move', `${from}-${to}`);
     await mover.press('#typed-move', 'Enter');
     for (const p of Object.values(seats)) {
-      await p.waitForFunction((t) => window.__show.turnText().startsWith(t), next, POLL);
+      await p.waitForFunction((t) => window.__show.turnReached(t), next, POLL);
     }
     const plies = i + 1;
     const last = i === GAME.length - 1;
@@ -1105,7 +1109,7 @@ async function main() {
     await page.press('#typed-move', 'Enter');
   };
   const waitTurn = async (page, text) => {
-    await page.waitForFunction((t) => window.__show.turnText().startsWith(t), text, {
+    await page.waitForFunction((t) => window.__show.turnReached(t), text, {
       ...POLL,
       timeout: 60000,
     });

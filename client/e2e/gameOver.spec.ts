@@ -18,6 +18,10 @@ test('a finished game shows the result and lets both players start over', async 
 
   for (const page of [game.white, game.black]) {
     await expect(page.getByText('Black wins by checkmate!')).toBeVisible();
+    // The turn chip gives the result too
+    const chip = page.getByTestId('turn-indicator');
+    await expect(chip).toHaveText('Checkmate · Black wins');
+    await expect(chip).toHaveAttribute('data-result', 'checkmate');
   }
 
   const oldUrl = game.white.url();

@@ -99,6 +99,15 @@ describe('the result card after a mate', () => {
     expect(result()).toBeInTheDocument();
   });
 
+  it('turns the turn chip into the result', () => {
+    const { rerender } = render(screenFor(beforeMate));
+    const chip = screen.getByTestId('turn-indicator');
+    expect(chip).toHaveTextContent('White to move');
+    rerender(screenFor(mated));
+    expect(chip).toHaveTextContent(/^Checkmate · White wins$/);
+    expect(chip).toHaveAttribute('data-result', 'checkmate');
+  });
+
   it('waits for a design to play the mate out, when it was just played', async () => {
     window.history.replaceState({}, '', '/?design=showy');
     const { rerender } = render(screenFor(beforeMate));

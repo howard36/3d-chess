@@ -514,7 +514,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
                 )}
               </div>
               <div className="order-first col-span-2 justify-self-center sm:order-none sm:col-span-1">
-                <TurnIndicator turn={currentTurn} inCheck={inCheck} />
+                <TurnIndicator turn={currentTurn} inCheck={inCheck} gameOver={gameOver} />
                 {design.hud.readout && <HoverReadout cell={hoverCell} />}
               </div>
               <div className="flex flex-col items-end gap-2 justify-self-end">
