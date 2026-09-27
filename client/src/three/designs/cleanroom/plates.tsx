@@ -162,7 +162,7 @@ export const Trays = ({ focusLevel }: TraysProps) => {
       // Past the rim, for the LED's glow in the air round the tray
       surface: new PlaneGeometry((TRAY_HALF + HALO) * 2, (TRAY_HALF + HALO) * 2),
       rim: frameGeometry(TRAY_HALF, 0.04, 0.045),
-      housing: frameGeometry(TRAY_HALF + 0.04, 0.035, 0.065).translate(0, 0.004, 0),
+      housing: frameGeometry(TRAY_HALF + 0.04, 0.035, 0.045).translate(0, 0.004, 0),
       focusRim: frameGeometry(TRAY_HALF, 0.04, 0.045).translate(0, 0.012, 0),
     }),
     [],
@@ -325,7 +325,7 @@ const LevelMeters = () => {
       }
     });
     const inst = new InstancedMesh(
-      new CylinderGeometry(0.024, 0.024, 0.008, 12),
+      new CylinderGeometry(0.024, 0.024, 0.008, 8),
       new MeshBasicMaterial({ toneMapped: false, fog: false }),
       pips.length,
     );

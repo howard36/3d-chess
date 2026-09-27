@@ -6,7 +6,7 @@ import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { levelAt, pitch } from './layout';
-import { CAPTURE, CHECK, INK, LASER, LASER_CORE, LASER_HOT, LEVEL } from './palette';
+import { CAPTURE, CAPTURE_HOT, CHECK, INK, LASER, LASER_CORE, LASER_HOT, LEVEL } from './palette';
 
 // Markers are projections on the tray, drawn as signed-distance shapes on one
 // quad each, so they stay crisp at any angle:
@@ -92,8 +92,8 @@ const fragmentShader = /* glsl */ `
       a = max(max(line, halo), fill);
       col = mix(uColor, uCore, core * 0.35);
       // The level's jewel at the heart, ringed in white so its hue holds
-      paint(col, a, vec3(1.0), stroke(r, 0.068) * 0.9);
-      paint(col, a, uLevel, stroke(r, 0.052));
+      paint(col, a, vec3(1.0), stroke(r, 0.085) * 0.9);
+      paint(col, a, uLevel, stroke(r, 0.07));
     } else if (uKind == 1) {
       // The kerf: two broken red rings round the victim, the outer one hot
       float R = 0.37;
@@ -101,14 +101,15 @@ const fragmentShader = /* glsl */ `
       float gaps = smoothstep(0.018, 0.034, fromSpokes(ang, 4.0, 0.7853982, R));
       float inner = stroke(abs(r - R), 0.013 + grow) * gaps;
       float outer = stroke(abs(r - R - 0.045), 0.013 + grow) * gaps;
-      float core = stroke(abs(r - R - 0.045), 0.004) * gaps;
+      // Hot cores in both rings: the capture's red is the bright one, check's the deep one
+      float core = max(stroke(abs(r - R), 0.004), stroke(abs(r - R - 0.045), 0.004)) * gaps;
       float dm = min(abs(r - R), abs(r - R - 0.045));
       float halo = exp(-(dm * dm) / (0.03 * 0.03)) * (0.18 + 0.14 * uHover);
       a = max(max(inner, outer), halo);
       col = mix(uColor, uHot, core * 0.9);
       // The level's jewels, set in the kerf's four gaps
       vec2 jewel = vec2(fromSpokes(ang, 4.0, 0.7853982, r), r - R - 0.0225);
-      paint(col, a, uLevel, stroke(length(jewel), 0.028));
+      paint(col, a, uLevel, stroke(length(jewel), 0.034));
     } else if (uKind == 2) {
       // The selection: four corner brackets framing the square (never a ring,
       // so a move straight up or down still shows its own ring inside)
@@ -151,12 +152,12 @@ const fragmentShader = /* glsl */ `
     } else {
       // Check: a still red ring; its wash breathes, once every four seconds
       float R = 0.41;
-      float line = stroke(abs(r - R), 0.011);
-      float core = stroke(abs(r - R), 0.004);
-      float breath = 0.1 + 0.04 * sin(uTime * TAU / 4.0);
+      float line = stroke(abs(r - R), 0.016);
+      float core = stroke(abs(r - R), 0.005);
+      float breath = 0.17 + 0.03 * sin(uTime * TAU / 4.0);
       float wash = (1.0 - smoothstep(R - 0.02, R, r)) * breath;
       a = max(line, wash);
-      col = mix(uColor, uHot, core * 0.6);
+      col = mix(uColor, uHot, core * 0.85);
     }
     if (a < 0.004) discard;
     gl_FragColor = vec4(col, min(a, 1.0));
@@ -229,7 +230,7 @@ const Quiet = ({ floor, hovered }: MarkerProps) => (
 );
 
 const Capture = ({ floor, hovered }: MarkerProps) => (
-  <Mark kind="capture" floor={floor} color={CAPTURE} hot="#ff6a55" hovered={hovered} />
+  <Mark kind="capture" floor={floor} color={CAPTURE} hot={CAPTURE_HOT} hovered={hovered} />
 );
 
 const Selection = ({ floor }: MarkerProps) => (
@@ -271,7 +272,7 @@ const Check = ({ floor }: MarkerProps) => {
     clock.value = state.clock.elapsedTime;
     invalidate();
   });
-  return <Mark kind="check" floor={floor} color={CHECK} hot="#ff8a7a" />;
+  return <Mark kind="check" floor={floor} color={CHECK} hot="#ffe3e6" />;
 };
 
 export const markers = { Quiet, Capture, Selection, LastMove, Check };

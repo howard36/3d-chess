@@ -10,7 +10,7 @@ import { levelRamp } from '../kit/colors';
 //   azure to violet (E, top);
 // - the laser: a rose-magenta projection for everything the player is doing
 //   right now (the selection and its legal destinations);
-// - red for a capture and a check;
+// - a bright red for a capture, a deep crimson for check;
 // - graphite ink for the record of the last move (a measured line, drawn like
 //   a technical drawing).
 //
@@ -40,8 +40,11 @@ export const LASER = '#f2077e';
 export const LASER_HOT = '#ff4fa6';
 /** The very centre of a laser line: near white, the brightest thing on the board. */
 export const LASER_CORE = '#ffd6ea';
-export const CAPTURE = '#ee2a22';
-export const CHECK = '#e1242b';
+export const CAPTURE = '#f52c1e';
+/** The capture kerf's hot core. */
+export const CAPTURE_HOT = '#ff7a5c';
+/** Check: a deep crimson, apart from the capture's bright red, with a white core line. */
+export const CHECK = '#c8102e';
 /** Graphite ink: the last move, the HUD's text, the white army's keyline. */
 export const INK = '#27303b';
 export const INK_SOFT = '#5d6a78';
@@ -79,9 +82,10 @@ export const CARBON = '#272c33';
 export const CARBON_WEAVE = '#454d58';
 /** The dark army's detail: a brushed-steel inlay, light enough to read at game size. */
 export const STEEL = '#a3aebb';
-/** The white army's keyline: a light hairline at rest, firmer (slate) on hover. */
+/** The white army's keyline: a light hairline. */
 export const KEYLINE = '#7d8896';
-export const KEYLINE_HOVER = '#4a5664';
+/** The light line round a hovered white piece, outside its hairline (never darker). */
+export const HOVER_HALO = '#f4f6f8';
 /** The dark army's hover keyline: light steel. */
 export const STEEL_HOVER = '#c3ccd6';
 /** The anodised instrument base the tower stands on. */

@@ -51,6 +51,8 @@ import { ROOM } from './palette';
 // Nothing here moves: the lab is still while nobody plays.
 
 export const FOG_RANGE: [number, number] = [16, 95];
+/** The tower's bounding radius about the orbit target, for the backdrop's mask. */
+const TOWER_RADIUS = 4.2;
 const CEILING_Y = FLOOR_Y + ROOM_HEIGHT;
 
 // --- Shared GLSL -----------------------------------------------------------------------
@@ -626,7 +628,12 @@ const shadowMaterial = () =>
  */
 const equipmentMaterial = () =>
   new ShaderMaterial({
-    uniforms: { ...fogUniforms(), uVeil: { value: 0.1 }, uFloorY: { value: FLOOR_Y } },
+    uniforms: {
+      ...fogUniforms(),
+      uVeil: { value: 0.1 },
+      uFloorY: { value: FLOOR_Y },
+      uTower: { value: TOWER_RADIUS },
+    },
     vertexShader: /* glsl */ `
       attribute vec3 aTone;
       varying vec3 vTone;
@@ -645,6 +652,7 @@ const equipmentMaterial = () =>
       ${header}
       uniform float uVeil;
       uniform float uFloorY;
+      uniform float uTower;
       varying vec3 vTone;
       varying vec3 vN;
       varying vec2 vUv;
@@ -662,7 +670,18 @@ const equipmentMaterial = () =>
         // Darker where it meets the floor
         c *= 1.0 - 0.28 * exp(-(vWorld.y - uFloorY) / 0.3) * step(abs(n.y), 0.5);
         float k = smoothstep(uFogRange.x, uFogRange.y, distance(cameraPosition, vWorld));
-        gl_FragColor = vec4(mix(c, uFog, uVeil + (1.0 - uVeil) * k), 1.0);
+        // Seen through the tower (inside its angular size from the camera), the
+        // equipment steps further back into the haze, so nothing behind the
+        // trays reads as part of a level
+        vec3 toTower = -cameraPosition;
+        float towerDist = length(toTower);
+        vec3 toFrag = vWorld - cameraPosition;
+        float angle = acos(clamp(dot(normalize(toFrag), toTower / towerDist), -1.0, 1.0));
+        float size = asin(clamp(uTower / towerDist, 0.0, 1.0));
+        float mask = (1.0 - smoothstep(size * 0.9, size * 1.25, angle)) * step(towerDist, length(toFrag));
+        float veil = uVeil + (1.0 - uVeil) * k;
+        veil = veil + (1.0 - veil) * 0.5 * mask;
+        gl_FragColor = vec4(mix(c, uFog, veil), 1.0);
         #include <colorspace_fragment>
       }`,
   });

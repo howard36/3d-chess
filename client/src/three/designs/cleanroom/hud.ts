@@ -40,7 +40,10 @@ export const hud: DesignHud = {
     '--turn-size': '15px',
     '--turn-border': `1px solid ${RULE}`,
     '--turn-shadow': '0 8px 22px rgba(40, 52, 66, 0.12)',
-    '--modal-bg': `${STRIP} no-repeat left top / 100% 3px, linear-gradient(180deg, #ffffff 0%, #f1f4f7 100%)`,
+    '--modal-bg': 'linear-gradient(180deg, #ffffff 0%, #f1f4f7 100%)',
+    // The result card alone carries the level strip (the promotion dialog shares --modal-bg)
+    '--result-bg': `${STRIP} no-repeat left top / 100% 3px, linear-gradient(180deg, #ffffff 0%, #f1f4f7 100%)`,
+    '--result-title-size': '22px',
     '--modal-fg': INK,
     '--modal-radius': '6px',
     '--modal-shadow': '0 24px 60px rgba(40, 52, 66, 0.22)',
@@ -85,7 +88,7 @@ export const HUD_CSS = `
 }
 [data-testid="turn-indicator"][data-cr-led='check']::before {
   background: ${CHECK};
-  box-shadow: 0 0 0 2px rgba(225, 36, 43, 0.18), 0 0 8px rgba(225, 36, 43, 0.7);
+  box-shadow: 0 0 0 2px rgba(200, 16, 46, 0.18), 0 0 8px rgba(200, 16, 46, 0.7);
 }
 [data-testid="hover-readout"] {
   font-family: ${MONO} !important;
@@ -94,7 +97,6 @@ export const HUD_CSS = `
 #end-game-title {
   font-family: ${FONT};
   font-weight: 700;
-  font-size: 22px;
   line-height: 1.3;
   letter-spacing: 0.01em;
 }
