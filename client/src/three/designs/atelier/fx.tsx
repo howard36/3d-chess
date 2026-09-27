@@ -16,7 +16,7 @@ import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import { rng } from '../kit/textures';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, PieceColor, Vec3 } from '../types';
-import type { PieceType } from '../../../engine/pieces';
+import { PieceType } from '../../../engine/pieces';
 import { ContactShadow } from '../kit/plates';
 import { PAL } from './palette';
 import { restingGlaze, StillPiece } from './pieces';
@@ -179,12 +179,13 @@ export const atelierFx = ({
     );
   };
 
-  const CaptureFx = ({ floor, victim, durationMs }: CaptureFxProps) => (
+  const CaptureFx = ({ floor, victim, victimFacing, durationMs }: CaptureFxProps) => (
     <>
       <Knockdown
         floor={floor}
         type={victim.type}
         color={victim.color}
+        facing={victim.type === PieceType.Knight ? (victimFacing ?? 0) : 0}
         scale={pieceScale}
         durationMs={durationMs}
         platformHalf={platformHalf}
@@ -214,6 +215,7 @@ const Knockdown = ({
   floor,
   type,
   color,
+  facing,
   scale,
   durationMs,
   platformHalf,
@@ -221,6 +223,8 @@ const Knockdown = ({
   floor: Vec3;
   type: PieceType;
   color: PieceColor;
+  /** The yaw Board gave the victim (a knight faces its seat's way). */
+  facing: number;
   scale: number;
   durationMs: number;
   platformHalf: number;
@@ -325,9 +329,11 @@ const Knockdown = ({
     <>
       <group ref={piece} position={floor}>
         <group scale={scale}>
-          <ContactShadow radius={0.36} opacity={0.4} color="#2b241c" />
+          <ContactShadow radius={0.32} opacity={0.58} color="#241e17" />
           <group ref={tipper}>
-            <StillPiece type={type} color={color} />
+            <group rotation={[0, facing, 0]}>
+              <StillPiece type={type} color={color} />
+            </group>
           </group>
         </group>
       </group>

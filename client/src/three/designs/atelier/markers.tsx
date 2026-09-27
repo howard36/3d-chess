@@ -17,17 +17,20 @@ import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { PAL } from './palette';
 
 // Atelier's markers are one family: a slim ring lying on the platform where a
-// piece stands.
+// piece stands, in hues nothing else in the scene uses.
 //
-//   can move    a graphite ring with a faint graphite spot inside
-//   capture     the same ring in vermilion, crossed by four reticle ticks
+//   can move    a teal ring round a faint teal landing spot
+//   capture     the same ring in vermilion, wide enough to clear the
+//               victim's base, with four reticle ticks out to the corners
 //   last move   the same ring in amber on both squares, joined by an amber
-//               ribbon with an arrowhead that draws itself along the flight
-//   check       the ring in crimson, doubled, over a crimson spot
-//   selection   a fine warm-white halo over a soft pool of light
+//               ribbon whose arrowhead lands on the floor at the ring's edge;
+//               a live move draws it along the flight
+//   check       the ring in crimson, doubled, round the king's base
+//   selection   a fine warm-white halo and watch bezel over a pool of light
 //
 // Each is one quad shaded by a signed distance, crisp at any angle. They pop
-// in over a fifth of a second and are still after that.
+// in over a fifth of a second (the last move only when it is live) and are
+// still after that.
 
 const markerVertex = /* glsl */ `
   varying vec2 vP;
@@ -45,6 +48,7 @@ const markerFragment = /* glsl */ `
   uniform float uRing2;
   uniform float uLine2;
   uniform float uTicks;
+  uniform float uDiagonal;
   uniform float uTickIn;
   uniform float uTickOut;
   uniform float uBezel;
@@ -71,12 +75,12 @@ const markerFragment = /* glsl */ `
   void main() {
     vec2 p = vP / uScale;
     float r = length(p);
-    float line = uLine * (1.0 + 0.3 * uHover);
+    float line = uLine * (1.0 + 0.5 * uHover);
     float stroke = abs(r - uRing) - line * 0.5;
     if (uRing2 > 0.0) stroke = min(stroke, abs(r - uRing2) - uLine2 * 0.5);
     if (uTicks > 0.5) {
-      // A reticle: four ticks across the ring, on the axes
-      vec2 q = abs(p);
+      // A reticle: four ticks on the axes, or out toward the corners
+      vec2 q = abs(uDiagonal > 0.5 ? vec2(p.x + p.y, p.x - p.y) * 0.70710678 : p);
       float t = min(
         segment(q, vec2(uTickIn, 0.0), vec2(uTickOut, 0.0)),
         segment(q, vec2(0.0, uTickIn), vec2(0.0, uTickOut))
@@ -98,8 +102,8 @@ const markerFragment = /* glsl */ `
     float key = uKey > 0.0 ? 1.0 - smoothstep(-aa, aa, stroke - uKey) : 0.0;
     float ia = max(fwidth(r), 1e-4);
     float area = 1.0 - smoothstep(uRing - ia, uRing + ia, r);
-    float strength = uOpacity * (1.0 + 0.35 * uHover);
-    float fill = uFill + 0.1 * uHover;
+    float strength = min(uOpacity * (1.0 + 0.35 * uHover), 1.0);
+    float fill = uFill + 0.2 * uHover;
     vec3 col = uColor;
     float a = max(ink * strength, area * fill);
     if (uGlow > 0.0) {
@@ -129,8 +133,9 @@ export interface RingStyle {
   /** A second, outer ring (0 for none). */
   ring2?: number;
   line2?: number;
-  /** Reticle ticks across the ring (the capture cue). */
+  /** Reticle ticks (the capture cue): on the axes, or out to the corners. */
   ticks?: boolean;
+  diagonal?: boolean;
   tickIn?: number;
   tickOut?: number;
   /** Watch-bezel ticks round the ring: how many (0 for none), where, how wide. */
@@ -169,6 +174,7 @@ export const Ring = ({
   ring2 = 0,
   line2 = 0.03,
   ticks = false,
+  diagonal = false,
   tickIn = 0.22,
   tickOut = 0.44,
   bezel = 0,
@@ -206,6 +212,7 @@ export const Ring = ({
           uRing2: { value: 0 },
           uLine2: { value: 0.03 },
           uTicks: { value: 0 },
+          uDiagonal: { value: 0 },
           uTickIn: { value: 0.2 },
           uTickOut: { value: 0.44 },
           uBezel: { value: 0 },
@@ -238,6 +245,7 @@ export const Ring = ({
   u.uRing2.value = ring2;
   u.uLine2.value = line2;
   u.uTicks.value = ticks ? 1 : 0;
+  u.uDiagonal.value = diagonal ? 1 : 0;
   u.uTickIn.value = tickIn;
   u.uTickOut.value = tickOut;
   u.uBezel.value = bezel;
@@ -280,22 +288,26 @@ export const Ring = ({
 // --- The family ----------------------------------------------------------------------
 
 export const QUIET: RingStyle = {
-  color: PAL.graphite,
-  opacity: 0.78,
-  fill: 0.09,
-  ring: 0.3,
-  line: 0.065,
+  color: PAL.teal,
+  opacity: 0.9,
+  fill: 0.08,
+  ring: 0.36,
+  line: 0.055,
 };
 
+// The victim hides whatever lies under its base, so the capture ring is wider
+// and its ticks point out to the square's corners, beyond the footprint
 export const CAPTURE: RingStyle = {
   ...QUIET,
   color: PAL.vermilion,
   opacity: 0.95,
-  fill: 0.14,
-  line: 0.07,
+  fill: 0.12,
+  ring: 0.43,
+  line: 0.06,
   ticks: true,
-  tickIn: 0.24,
-  tickOut: 0.45,
+  diagonal: true,
+  tickIn: 0.47,
+  tickOut: 0.62,
 };
 
 export const Quiet = ({ floor, hovered }: MarkerProps) => (
@@ -320,7 +332,7 @@ export const Selection = ({ floor }: MarkerProps) => (
     bezelSpin={0.3}
     keyline={0.014}
     keyColor="#2f2616"
-    glow={0.62}
+    glow={0.8}
     glowRadius={0.5}
     glowColor={PAL.pool}
     popMs={340}
@@ -333,11 +345,11 @@ export const Check = ({ floor }: MarkerProps) => (
     floor={floor}
     color={PAL.crimson}
     opacity={1}
-    fill={0.26}
-    ring={0.33}
+    fill={0.24}
+    ring={0.425}
     line={0.075}
-    ring2={0.43}
-    line2={0.03}
+    ring2={0.48}
+    line2={0.028}
     popMs={260}
     lift={0.016}
   />
@@ -399,6 +411,10 @@ const traceFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
+// The arrowhead's tip lands on the floor at the near edge of the destination
+// ring, clear of the piece standing in it
+const END_INSET = 0.36 + 0.06;
+
 /**
  * The last move's path, a camera-facing ribbon with a dark keyline and an
  * arrowhead beside the piece that moved. It draws itself from the source to
@@ -410,9 +426,9 @@ export const Trace = ({
   revealMs,
   color = PAL.amber,
   edgeColor = PAL.amberEdge,
-  width = 0.085,
-  headLength = 0.3,
-  headWidth = 0.28,
+  width = 0.06,
+  headLength = 0.34,
+  headWidth = 0.3,
   chevrons = 0.4,
 }: {
   from: Vec3;
@@ -428,7 +444,7 @@ export const Trace = ({
   const invalidate = useThree((s) => s.invalidate);
   const key = JSON.stringify([from, to, width, headLength, headWidth]);
   const { geometry, length, shaftEnd } = useMemo(() => {
-    const data = ribbonData(tracePath(from, to, { arc: 0.5, endInset: 0.38, lift: 0.05 }), {
+    const data = ribbonData(tracePath(from, to, { arc: 0.5, endInset: END_INSET, lift: 0.02 }), {
       width,
       headLength,
       headWidth,
@@ -459,7 +475,7 @@ export const Trace = ({
           uColor: { value: new Color(color) },
           uEdge: { value: new Color(edgeColor) },
           uOpacity: { value: 1 },
-          uEdgeWidth: { value: Math.min(width * 0.2, 0.03) },
+          uEdgeWidth: { value: Math.min(width * 0.24, 0.03) },
           uChevron: { value: chevrons },
           uShaftEnd: { value: 1 },
           uReveal: { value: revealMs > 0 ? 0 : 1e6 },
@@ -503,30 +519,33 @@ const LAST_FROM: RingStyle = {
   color: PAL.amber,
   opacity: 0.85,
   fill: 0.08,
-  ring: 0.3,
-  line: 0.06,
+  ring: 0.36,
+  line: 0.05,
 };
-const LAST_TO: RingStyle = { ...LAST_FROM, opacity: 1, fill: 0.12, line: 0.075 };
+const LAST_TO: RingStyle = { ...LAST_FROM, opacity: 1, fill: 0.12, line: 0.065 };
 
-/** Both squares of the last move, and the path between them, animated once per move. */
-const LastMoveOnce = ({ from, to, flightMs }: LastMoveMarkerProps & { flightMs: number }) => (
-  <>
-    <Ring floor={from.floor} {...LAST_FROM} popMs={160} />
-    <Ring floor={to.floor} {...LAST_TO} popMs={260} delayMs={flightMs * 0.85} />
-    <Trace from={from.floor} to={to.floor} revealMs={prefersReducedMotion() ? 0 : flightMs} />
-  </>
-);
-
-/** The last-move marker set for a design whose pieces take `flightMs` to move. */
+/**
+ * The last-move marker set for a design whose pieces take `flightMs` to move.
+ * Board keys it by move and says whether the move is live (`fresh`): only
+ * then does it play its entrance (the ribbon drawn along the flight, the
+ * destination ring set down as the piece lands). A replay or a rejoin shows
+ * it whole, at once.
+ */
 export const lastMoveMarker = (flightMs: number) => {
-  const LastMove = ({ from, to }: LastMoveMarkerProps) => (
-    // A new move remounts the set, so its entrance plays once per move
-    <LastMoveOnce
-      key={JSON.stringify([from.floor, to.floor])}
-      from={from}
-      to={to}
-      flightMs={flightMs}
-    />
-  );
+  const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => {
+    const live = fresh && !prefersReducedMotion();
+    return (
+      <>
+        <Ring floor={from.floor} {...LAST_FROM} popMs={live ? 160 : 0} />
+        <Ring
+          floor={to.floor}
+          {...LAST_TO}
+          popMs={live ? 260 : 0}
+          delayMs={live ? flightMs * 0.85 : 0}
+        />
+        <Trace from={from.floor} to={to.floor} revealMs={live ? flightMs : 0} />
+      </>
+    );
+  };
   return LastMove;
 };

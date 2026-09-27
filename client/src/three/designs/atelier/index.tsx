@@ -1,25 +1,27 @@
 import '@fontsource/jost/400.css';
 import '@fontsource/jost/500.css';
 import '@fontsource/jost/600.css';
-import '@fontsource/ibm-plex-mono/500.css';
 import { NeutralToneMapping } from 'three';
+import { focusLevelOf } from '../kit/focus';
 import { clarityTower, towerFrame } from '../kit/layouts';
 import { SmartLabels } from '../kit/smartLabels';
 import type { Design, GridProps } from '../types';
 import { atelierFx } from './fx';
 import { Capture, Check, lastMoveMarker, Quiet, Selection } from './markers';
-import { PAL } from './palette';
+import { LEVELS, PAL } from './palette';
 import { PieceBody } from './pieces';
 import { AcrylicPlates } from './plates';
 import { Stage } from './stage';
 
 // Atelier: a luxury modern chess set photographed in a daylight studio.
-// Glazed porcelain against ink-blue lacquer on frosted acrylic, a seamless
-// warm-grey cyclorama, and markers drawn like a designer's pencil: slim rings
-// where a piece would stand (graphite to move, vermilion to capture, amber for
-// the last move, crimson for check). Calm when nobody moves; a picked-up piece
-// rises, turns and catches the light; moves ripple the acrylic, and captures
-// shatter the loser into shards.
+// Glazed porcelain against ink-blue lacquer on tinted acrylic slabs, a warm
+// studio sweep with a floor and a pool of light under the tower, and markers
+// drawn as slim rings where a piece would stand (teal to move, vermilion to
+// capture, amber for the last move, crimson for check). Each level has its
+// own acrylic tint (taupe, sage, cornflower, lilac, dove), shown on its edge,
+// its letter and a ring at the base of every piece standing on it. Calm when
+// nobody moves; a picked-up piece rises, turns and catches the light; moves
+// ripple the acrylic, and captures shatter the loser into shards.
 //
 // Value plan (see palette.ts): ivory is the lightest thing on screen, ink the
 // darkest, the backdrop a mid band between them, the platforms only a few
@@ -46,25 +48,36 @@ const PLATE_MARGIN = 0.09;
 
 const FONT = "'Jost', 'Helvetica Neue', system-ui, sans-serif";
 
-/** Platforms and coordinates. Decorative only: Board draws this outside the clickable group. */
-const Grid = ({ layout: l, orientation }: GridProps) => (
-  <>
-    <AcrylicPlates layout={l} margin={PLATE_MARGIN} />
-    <SmartLabels
-      layout={l}
-      orientation={orientation}
-      font={FONT}
-      weight={600}
-      levelWeight={500}
-      color={PAL.text}
-      outline={PAL.textHalo}
-      outlineWidth={0.028}
-      size={0.36}
-      levelScale={1.55}
-      opacity={0.95}
-    />
-  </>
-);
+/**
+ * Platforms and coordinates. Decorative only: Board draws this outside the
+ * clickable group. The level under the pointer (or of the selected piece)
+ * deepens its tinted edge and enlarges its letter while the others dim.
+ */
+const Grid = ({ layout: l, orientation, focus }: GridProps) => {
+  const focusLevel = focusLevelOf(focus);
+  return (
+    <>
+      <AcrylicPlates layout={l} margin={PLATE_MARGIN} focusLevel={focusLevel} />
+      <SmartLabels
+        layout={l}
+        orientation={orientation}
+        font={FONT}
+        weight={500}
+        levelWeight={500}
+        color={PAL.text}
+        outline={PAL.textHalo}
+        outlineWidth={0.03}
+        size={0.43}
+        levelScale={1.4}
+        levelColors={LEVELS.map((v) => v.ink)}
+        opacity={0.96}
+        focusLevel={focusLevel}
+        focusDim={0.72}
+        focusScale={1.25}
+      />
+    </>
+  );
+};
 
 // --- Design ------------------------------------------------------------------------
 
@@ -92,20 +105,27 @@ const atelier: Design = {
   knightYaw: Math.PI / 2,
   markers: { Quiet, Capture, Selection, LastMove: lastMoveMarker(MOVE_MS), Check },
   hoverDestinations: true,
+  // Board reports the piece under the pointer only to hover-lifting designs;
+  // PieceBody stages the lift itself (see pieces.tsx)
+  hoverLift: true,
   motion: { style: 'hop', durationMs: MOVE_MS, lift: 0.5 },
   MoveFx,
   CaptureFx,
   Celebration,
   toppleMatedKing: true,
   hud: {
+    // "Cc4 · White Bishop" under the turn chip for the cell under the pointer
+    readout: true,
     vars: {
       '--hud-font': FONT,
-      '--hud-mono': "'IBM Plex Mono', ui-monospace, monospace",
+      // One voice: the notation is set in Jost too
+      '--hud-mono': FONT,
       '--hud-bg': 'rgba(250, 248, 244, 0.74)',
       '--hud-fg': PAL.text,
       '--hud-muted': 'rgba(38, 40, 45, 0.52)',
-      '--hud-accent': PAL.amber,
-      '--hud-accent-fg': '#241503',
+      // The Move button: graphite on paper (fades to a quiet grey when disabled)
+      '--hud-accent': '#2c2a27',
+      '--hud-accent-fg': PAL.paper,
       '--hud-border': '1px solid rgba(255, 255, 255, 0.75)',
       '--hud-radius': '14px',
       '--hud-shadow': '0 12px 32px rgba(58, 48, 36, 0.14), 0 1px 2px rgba(58, 48, 36, 0.08)',
