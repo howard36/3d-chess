@@ -1,28 +1,40 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Color, DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
+import {
+  BufferGeometry,
+  Color,
+  DoubleSide,
+  Float32BufferAttribute,
+  PlaneGeometry,
+  Points,
+  ShaderMaterial,
+} from 'three';
 import { PieceType } from '../../../engine/pieces';
-import { Burst } from '../kit/fx';
 import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
+import { rng } from '../kit/textures';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, Vec3 } from '../types';
-import { PIECE_SCALE, frame, layout } from './layout';
+import { PIECE_SCALE, layout, levelAt } from './layout';
 import { CAPTURE, CHECK, INK, LEVEL_LED } from './palette';
 import { DissolvePiece, Footprint, setDissolve } from './pieces';
+import { powerDownTray } from './plates';
 
 // Motion. Pieces glide (Board's straight line); these add the moments:
 //
 // - a landing: the tray registers the piece with a ripple of its level's LED
 //   colour inside a graphite ring, as a sensor pad would;
-// - a capture: the victim is cut away from the top down by a red-hot line
-//   while the attacker glides in, shedding a few sparks, and a red ring
-//   flashes out as it lands;
-// - mate: the king topples (Board) and three slow red rings roll out across
-//   its tray.
+// - a capture: a white-hot flash, then the victim is cut away from the top
+//   down by a red-hot line while the attacker glides in, shedding sparks; its
+//   LED foot powers down as the cut reaches it, and a red ring flashes out as
+//   the attacker lands;
+// - mate: the king topples (Board), its tray's LEDs power down to grey, and
+//   three red rings roll out across the tray.
 //
-// All of it runs on r3f's clock and ends on its own.
+// All of it runs on r3f's clock and ends on its own. A frame never advances an
+// effect by more than a quarter second, so a slow machine skips frames
+// rather than playing in slow motion.
 
-const MAX_STEP = 1 / 20;
+const MAX_STEP = 0.25;
 
 const rippleFragment = /* glsl */ `
   uniform vec3 uColor;
@@ -47,8 +59,6 @@ const rippleVertex = /* glsl */ `
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 
-const ripplePlane = new PlaneGeometry(3, 3);
-
 interface RippleSpec {
   color: string;
   /** When it starts and how long it lasts (ms). */
@@ -66,9 +76,9 @@ const Ripples = ({ floor, rings }: { floor: Vec3; rings: RippleSpec[] }) => {
   const invalidate = useThree((s) => s.invalidate);
   const elapsed = useRef(0);
   const [done, setDone] = useState(false);
-  const materials = useMemo(
-    () =>
-      rings.map(
+  const { materials, plane } = useMemo(
+    () => ({
+      materials: rings.map(
         (r) =>
           new ShaderMaterial({
             transparent: true,
@@ -84,11 +94,26 @@ const Ripples = ({ floor, rings }: { floor: Vec3; rings: RippleSpec[] }) => {
             fragmentShader: rippleFragment,
           }),
       ),
+      // Large enough for the widest ring
+      plane: new PlaneGeometry(1, 1).scale(
+        ...([2, 2, 1].map((k) => k * (Math.max(...rings.map((r) => r.to)) + 0.2)) as [
+          number,
+          number,
+          number,
+        ]),
+      ),
+    }),
     // Specs are literals made per mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
+  useEffect(
+    () => () => {
+      materials.forEach((m) => m.dispose());
+      plane.dispose();
+    },
+    [materials, plane],
+  );
   const end = Math.max(...rings.map((r) => r.delay + r.life));
   useFrame((_, delta) => {
     if (done) return;
@@ -110,7 +135,7 @@ const Ripples = ({ floor, rings }: { floor: Vec3; rings: RippleSpec[] }) => {
       {materials.map((m, i) => (
         <mesh
           key={i}
-          geometry={ripplePlane}
+          geometry={plane}
           material={m}
           rotation={[-Math.PI / 2, 0, 0]}
           renderOrder={LAYER.marker}
@@ -121,15 +146,110 @@ const Ripples = ({ floor, rings }: { floor: Vec3; rings: RippleSpec[] }) => {
   );
 };
 
-/** The level (0 = A) whose tray is at this world height. */
-const levelAt = (y: number) =>
-  Math.max(
-    0,
-    Math.min(
-      frame.levelY.length - 1,
-      Math.round((y - frame.levelY[0]) / Math.max(frame.gap, 1e-3)),
-    ),
+// --- Sparks ------------------------------------------------------------------------------
+
+const sparkVertex = /* glsl */ `
+  attribute vec3 aVel;
+  attribute vec3 aColor;
+  uniform float uTime;
+  uniform float uGravity;
+  uniform float uSize;
+  varying vec3 vColor;
+  varying float vFade;
+  void main() {
+    vColor = aColor;
+    vec3 p = position + aVel * uTime + vec3(0.0, -0.5 * uGravity * uTime * uTime, 0.0);
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    vFade = 1.0 - uTime / 0.65;
+    gl_PointSize = uSize * (720.0 / -mv.z) * max(vFade, 0.0);
+    gl_Position = projectionMatrix * mv;
+  }`;
+
+const sparkFragment = /* glsl */ `
+  varying vec3 vColor;
+  varying float vFade;
+  void main() {
+    float r = length(gl_PointCoord - 0.5);
+    float a = (1.0 - smoothstep(0.25, 0.5, r)) * clamp(vFade * 1.5, 0.0, 1.0);
+    if (a < 0.02) discard;
+    gl_FragColor = vec4(vColor, a);
+    #include <colorspace_fragment>
+  }`;
+
+const SPARK_LIFE = 0.65;
+
+/** A one-shot spray of hot sparks from a point, falling and fading, then gone. */
+const Sparks = ({
+  at,
+  colors,
+  count = 30,
+  size = 0.09,
+  delayMs = 0,
+}: {
+  at: Vec3;
+  colors: string[];
+  count?: number;
+  size?: number;
+  delayMs?: number;
+}) => {
+  const invalidate = useThree((s) => s.invalidate);
+  const elapsed = useRef(-delayMs / 1000);
+  const [done, setDone] = useState(false);
+  const points = useMemo(() => {
+    const random = rng(29);
+    const pos = new Float32Array(count * 3);
+    const vel = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    const c = new Color();
+    for (let i = 0; i < count; i++) {
+      const a = random() * Math.PI * 2;
+      const up = 0.4 + random() * 1.2;
+      const out = 0.8 + random() * 1.4;
+      pos.set([at[0], at[1], at[2]], i * 3);
+      vel.set([Math.cos(a) * out, up, Math.sin(a) * out], i * 3);
+      c.set(colors[i % colors.length]);
+      col.set([c.r, c.g, c.b], i * 3);
+    }
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+    g.setAttribute('aVel', new Float32BufferAttribute(vel, 3));
+    g.setAttribute('aColor', new Float32BufferAttribute(col, 3));
+    const m = new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      uniforms: { uTime: { value: 0 }, uGravity: { value: 5 }, uSize: { value: size } },
+      vertexShader: sparkVertex,
+      fragmentShader: sparkFragment,
+    });
+    const p = new Points(g, m);
+    p.frustumCulled = false;
+    p.renderOrder = LAYER.trace;
+    p.raycast = noRaycast;
+    p.visible = false;
+    return p;
+    // Made once per capture
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(
+    () => () => {
+      points.geometry.dispose();
+      (points.material as ShaderMaterial).dispose();
+    },
+    [points],
   );
+  useFrame((_, delta) => {
+    if (done) return;
+    elapsed.current += Math.min(delta, MAX_STEP);
+    const t = elapsed.current;
+    points.visible = t > 0;
+    (points.material as ShaderMaterial).uniforms.uTime.value = Math.max(t, 0);
+    if (t > SPARK_LIFE) setDone(true);
+    invalidate();
+  });
+  return done ? null : <primitive object={points} />;
+};
+
+// --- Moments ---------------------------------------------------------------------------
 
 const floorOf = (centre: Vec3): Vec3 => [centre[0], centre[1] + layout.floorY, centre[2]];
 
@@ -148,11 +268,20 @@ export const MoveFx = ({ to, durationMs, capture }: MoveFxProps) => {
               {
                 color: CAPTURE,
                 delay: land,
-                life: 560,
+                life: 600,
                 from: 0.36,
-                to: 0.85,
-                width: 0.024,
-                alpha: 0.9,
+                to: 1.0,
+                width: 0.03,
+                alpha: 1,
+              },
+              {
+                color: CAPTURE,
+                delay: land + 120,
+                life: 600,
+                from: 0.36,
+                to: 0.75,
+                width: 0.014,
+                alpha: 0.8,
               },
             ]
           : []),
@@ -160,6 +289,9 @@ export const MoveFx = ({ to, durationMs, capture }: MoveFxProps) => {
     />
   );
 };
+
+/** How long the white-hot flash lasts as the cut begins. */
+const FLASH_MS = 90;
 
 export const CaptureFx = ({ floor, victim, durationMs, victimFacing }: CaptureFxProps) => {
   const invalidate = useThree((s) => s.invalidate);
@@ -169,14 +301,15 @@ export const CaptureFx = ({ floor, victim, durationMs, victimFacing }: CaptureFx
   // Cut away while the attacker glides in, the last of it as it lands
   const cutMs = Math.max(durationMs + 120, 300);
   useEffect(() => {
-    setDissolve(victim.type, 1);
+    setDissolve(victim.type, 1, level, 1);
     invalidate();
-  }, [victim.type, invalidate]);
+  }, [victim.type, level, invalidate]);
   useFrame((_, delta) => {
     if (gone) return;
     elapsed.current += Math.min(delta, MAX_STEP) * 1000;
-    const k = Math.min(elapsed.current / cutMs, 1);
-    setDissolve(victim.type, 1 - k);
+    const t = elapsed.current;
+    const k = Math.min(t / cutMs, 1);
+    setDissolve(victim.type, 1 - k, level, Math.max(0, 1 - t / FLASH_MS));
     if (k >= 1) setGone(true);
     invalidate();
   });
@@ -189,33 +322,46 @@ export const CaptureFx = ({ floor, victim, durationMs, victimFacing }: CaptureFx
           <DissolvePiece type={victim.type} color={victim.color} level={level} />
         </group>
       )}
-      <Burst
-        position={[floor[0], floor[1] + 0.35, floor[2]]}
-        colors={[CAPTURE, '#ff9a7a', '#39414b']}
-        count={22}
-        speed={1.6}
-        gravity={4}
-        lifeMs={620}
-        size={0.07}
-        additive={false}
-        upward={0.35}
-        delayMs={durationMs * 0.25}
+      <Sparks
+        at={[floor[0], floor[1] + 0.4, floor[2]]}
+        colors={[CAPTURE, '#ffb09a', '#ffffff', '#3d454f']}
+        count={30}
+        size={0.09}
+        delayMs={60}
       />
     </>
   );
 };
 
-export const Celebration = ({ floor }: CelebrationProps) => (
-  <Ripples
-    floor={floor}
-    rings={[0, 1, 2].map((i) => ({
-      color: CHECK,
-      delay: 380 + i * 420,
-      life: 1400,
-      from: 0.42,
-      to: 2.4,
-      width: 0.02,
-      alpha: 0.85 - i * 0.2,
-    }))}
-  />
-);
+const POWER_DOWN_MS = 600;
+
+/** The mated king's tray powers down while three red rings roll out across it. */
+export const Celebration = ({ floor }: CelebrationProps) => {
+  const invalidate = useThree((s) => s.invalidate);
+  const level = levelAt(floor[1]);
+  const elapsed = useRef(0);
+  const done = useRef(false);
+  useEffect(() => () => powerDownTray(level, 0), [level]);
+  useFrame((_, delta) => {
+    if (done.current) return;
+    elapsed.current += Math.min(delta, MAX_STEP) * 1000;
+    const k = Math.min(Math.max((elapsed.current - 300) / POWER_DOWN_MS, 0), 1);
+    powerDownTray(level, k * k * (3 - 2 * k));
+    if (k >= 1) done.current = true;
+    invalidate();
+  });
+  return (
+    <Ripples
+      floor={floor}
+      rings={[0, 1, 2].map((i) => ({
+        color: CHECK,
+        delay: 380 + i * 420,
+        life: 1500,
+        from: 0.42,
+        to: 2.6,
+        width: 0.032,
+        alpha: 1 - i * 0.18,
+      }))}
+    />
+  );
+};

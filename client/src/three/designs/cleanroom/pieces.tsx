@@ -27,6 +27,8 @@ import {
 } from '../../pieces';
 import type { PieceSet } from '../../pieces';
 import { LAYER } from '../kit/layers';
+import { FLOOR_DECAL } from '../kit/motion';
+import { PIECE_SCALE } from './layout';
 import { noRaycast } from '../kit/noRaycast';
 import type { PieceBodyProps, PieceColor } from '../types';
 import {
@@ -36,10 +38,13 @@ import {
   CERAMIC_COLLAR,
   CHECK,
   STEEL,
+  STEEL_HOVER,
   KEYLINE,
+  KEYLINE_HOVER,
   LASER,
   LASER_HOT,
   LEVEL,
+  LEVEL_FOOT,
   TITANIUM,
 } from './palette';
 
@@ -59,24 +64,34 @@ import {
 //   shadow and the LED's light spilling round it on the tray (soft, with no
 //   edge, so it never competes with a marker).
 //
-// Selection is a measurement: a laser line scans up the piece, the piece
-// takes a laser keyline, and a thin caliper bracket stands beside it,
-// measuring its height, while the piece floats a little off the tray.
+// Selection is a measurement, taken once: the piece floats a little off the
+// tray and takes a hairline laser keyline; a thin laser line scans up it and a
+// caliper stands beside it for the length of the scan, then everything holds
+// still. The army's colour is never washed: only the silhouette's edge is lit.
+// Hover is neutral (a firmer keyline in the army's own family), so the laser
+// colour belongs to the held piece alone.
 
 // --- Geometry ------------------------------------------------------------------------
 
-// The shared set, turned with 18 sides instead of 24: indistinguishable at
-// play distance, and it keeps the scene near its triangle budget with the
-// white army's keylines. Built on first use.
+// The white army is turned with 16 sides instead of the set's 24 (its
+// keyline hides the facets, and it pays for the keylines' triangles); the
+// glossy carbon army is turned with 22, where facets would show in its
+// reflections. Built on first use.
 let set: PieceSet | null = null;
-export const cleanroomSet = (): PieceSet => (set ??= buildPieceSet({ segments: 18 }));
+let carbonSet: PieceSet | null = null;
+export const cleanroomSet = (): PieceSet => (set ??= buildPieceSet({ segments: 16 }));
+const setFor = (color: PieceColor): PieceSet =>
+  color === 'white' ? cleanroomSet() : (carbonSet ??= buildPieceSet({ segments: 22 }));
 
 // --- Shader hooks --------------------------------------------------------------------
 
 /** The selected piece's scan: x = height of the line (piece units), y = its strength. */
 const SCAN = { value: new Vector4(-1, 0, 0, 0) };
 const SCAN_COLOR = { value: new Color(LASER_HOT) };
-/** A captured piece dissolving: x = height of the cut (piece units); above it, nothing. */
+/**
+ * A captured piece dissolving: x = height of the cut (piece units), above
+ * which there is nothing; y = a white-hot flash as the cut starts.
+ */
 const CUT = { value: new Vector4(10, 0, 0, 0) };
 const CUT_COLOR = { value: new Color(CHECK) };
 
@@ -99,21 +114,24 @@ const fragmentHead = /* glsl */ `
   uniform vec3 uCutColor;
 `;
 
-// The 2×2 twill: tows two cells long, stepping one cell per row; each tow is
-// brighter along its crown. Fades to its average where a cell is under a pixel.
+// The 2×2 twill: tows two cells long, stepping one cell per row. As in real
+// carbon, the weave lives mostly in the finish (the tows along the light are
+// glossier than those across it), with only a faint difference in colour, so
+// it shows in the highlights rather than as a printed check. Fades to its
+// average where a cell is under a pixel.
 const twill = /* glsl */ `
   {
-    float around = atan(vObj.z, vObj.x) / 6.2831853 * 28.0;
-    vec2 q = vec2(around, vObj.y / 0.04);
+    float around = atan(vObj.z, vObj.x) / 6.2831853 * 56.0;
+    vec2 q = vec2(around, vObj.y / 0.02);
     vec2 id = floor(q);
     vec2 f = fract(q);
     float warp = step(mod(id.x + id.y, 4.0), 1.5);
     float across = mix(f.x, f.y, warp);
     float crown = sin(3.14159 * across);
     float k = 1.0 - smoothstep(0.35, 0.9, max(fwidth(q.x), fwidth(q.y)));
-    vec3 weave = mix(diffuseColor.rgb, uWeave, warp * (0.55 + 0.45 * crown));
-    diffuseColor.rgb = mix(mix(diffuseColor.rgb, uWeave, 0.35), weave, k);
-    twillWarp = mix(0.5, warp, k);
+    vec3 weave = mix(diffuseColor.rgb, uWeave, warp * 0.3 * (0.6 + 0.4 * crown));
+    diffuseColor.rgb = mix(mix(diffuseColor.rgb, uWeave, 0.12), weave, k);
+    twillWarp = mix(0.5, warp * (0.65 + 0.35 * crown), k);
   }
 `;
 
@@ -140,7 +158,7 @@ const hook =
       )
       .replace(
         '#include <roughnessmap_fragment>',
-        `#include <roughnessmap_fragment>\n${carbon ? 'roughnessFactor = mix(roughnessFactor + 0.12, roughnessFactor - 0.1, twillWarp);' : ''}`,
+        `#include <roughnessmap_fragment>\n${carbon ? 'roughnessFactor = mix(roughnessFactor + 0.18, roughnessFactor - 0.18, twillWarp);' : ''}`,
       )
       .replace(
         '#include <emissivemap_fragment>',
@@ -148,22 +166,15 @@ const hook =
         {
           float fres = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
           totalEmissiveRadiance += uRim.rgb * uRim.a * pow(fres, 2.5);
-          float s = (vObj.y - uScan.x) / 0.018;
-          float band = exp(-s * s) + 0.22 * exp(-max(uScan.x - vObj.y, 0.0) / 0.08) * step(vObj.y, uScan.x);
-          totalEmissiveRadiance += uScanColor * band * uScan.y * uScanOn;
-          ${dissolve ? 'float c = (uCut.x - vObj.y) / 0.03; totalEmissiveRadiance += uCutColor * 1.6 * exp(-c * c);' : ''}
+          // The scan: a thin line only, nothing washed behind it
+          float s = (vObj.y - uScan.x) / 0.012;
+          totalEmissiveRadiance += uScanColor * exp(-s * s) * uScan.y * uScanOn;
+          ${dissolve ? 'float c = (uCut.x - vObj.y) / 0.03; float hot = exp(-c * c); totalEmissiveRadiance += mix(uCutColor * 1.6, vec3(3.0), uCut.y) * hot + vec3(0.6) * uCut.y;' : ''}
         }`,
       );
   };
 
 // --- Materials -----------------------------------------------------------------------
-
-const RIM: Record<State, [string, number]> = {
-  rest: ['#dfe8f3', 0],
-  hover: [LASER_HOT, 0.08],
-  selected: [LASER_HOT, 0.12],
-  check: [CHECK, 0.1],
-};
 
 const materials = new Map<string, MeshPhysicalMaterial>();
 
@@ -175,17 +186,17 @@ const pieceMaterial = (kind: Kind, state: State | 'dissolve'): MeshPhysicalMater
     case 'ceramic':
       m = new MeshPhysicalMaterial({
         color: CERAMIC,
-        roughness: 0.3,
-        clearcoat: 0.8,
-        clearcoatRoughness: 0.12,
-        envMapIntensity: 0.75,
+        roughness: 0.38,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+        envMapIntensity: 0.14,
       });
       break;
     case 'collar':
       m = new MeshPhysicalMaterial({
         color: CERAMIC_COLLAR,
-        roughness: 0.55,
-        envMapIntensity: 0.7,
+        roughness: 0.5,
+        envMapIntensity: 0.65,
       });
       break;
     case 'titanium':
@@ -216,18 +227,16 @@ const pieceMaterial = (kind: Kind, state: State | 'dissolve'): MeshPhysicalMater
       break;
   }
   const dissolve = state === 'dissolve';
-  const [rim, strength] =
-    kind === 'carbon' && (state === 'rest' || dissolve)
-      ? ['#dfe8f3', 0.18]
-      : RIM[dissolve ? 'rest' : state];
-  const c = new Color(rim);
+  // A cool rim of room light on the carbon, in every state: it draws the dark
+  // forms. No state ever tints a body: selection, hover and check live in the
+  // keyline alone.
+  const c = new Color('#dfe8f3');
   const uniforms: Record<string, { value: unknown }> = {
-    uRim: { value: new Vector4(c.r, c.g, c.b, strength) },
+    uRim: { value: new Vector4(c.r, c.g, c.b, kind === 'carbon' ? 0.18 : 0) },
     uWeave: { value: new Color(CARBON_WEAVE) },
     uScanOn: { value: state === 'selected' ? 1 : 0 },
   };
   m.fog = false;
-  if (state === 'hover') m.emissive.set('#101010');
   m.onBeforeCompile = hook(kind, uniforms, dissolve);
   m.customProgramCacheKey = () => `cleanroom-${kind}${dissolve ? '-dissolve' : ''}`;
   materials.set(key, m);
@@ -238,16 +247,24 @@ const stateOf = ({ inCheck, selected, hovered }: PieceBodyProps): State =>
   inCheck ? 'check' : selected ? 'selected' : hovered ? 'hover' : 'rest';
 
 /** The LED foot band, one per level. */
-const feet = LEVEL.map(
+const feet = LEVEL_FOOT.map(
   (c) => new MeshBasicMaterial({ color: new Color(c), toneMapped: false, fog: false }),
 );
+/** A captured piece's own foot bands, which power down as the cut reaches them. */
+const dissolveFeet = LEVEL_FOOT.map(
+  (c) => new MeshBasicMaterial({ color: new Color(c), toneMapped: false, fog: false }),
+);
+const POWERED_DOWN = new Color('#5b6470');
 
 // --- Keyline -------------------------------------------------------------------------
 
 const hullVertex = /* glsl */ `
   attribute vec3 aOutline;
+  attribute float aT;
   uniform float uWidth;
+  varying float vT;
   void main() {
+    vT = aT;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     vec3 n = normalize(normalMatrix * aOutline);
     // In proportion to depth: the line keeps its width on screen
@@ -255,28 +272,62 @@ const hullVertex = /* glsl */ `
     gl_Position = projectionMatrix * mv;
   }`;
 
+// The keyline can change colour at a height (a share of the piece's own
+// height): a selected piece is outlined in laser up to its shoulders, so a
+// small crown (queen, king, unicorn) never turns the laser's colour, and a
+// checked king only on its top third. A part with no colour has no keyline.
 const hullFragment = /* glsl */ `
-  uniform vec3 uColor;
+  uniform vec4 uLow;
+  uniform vec4 uHigh;
+  uniform float uSplit;
+  varying float vT;
   void main() {
-    gl_FragColor = vec4(uColor, 1.0);
+    vec4 c = vT < uSplit ? uLow : uHigh;
+    if (c.a < 0.5) discard;
+    gl_FragColor = vec4(c.rgb, 1.0);
     #include <colorspace_fragment>
   }`;
 
-const hullMaterial = (color: string, width: number) =>
+const keyColor = (hex: string | null) => {
+  const c = new Color(hex ?? '#000000');
+  return new Vector4(c.r, c.g, c.b, hex ? 1 : 0);
+};
+
+const hullMaterial = (width: number, low: string | null, high = low, split = 1) =>
   new ShaderMaterial({
     side: BackSide,
-    uniforms: { uColor: { value: new Color(color) }, uWidth: { value: width } },
+    uniforms: {
+      uWidth: { value: width },
+      uLow: { value: keyColor(low) },
+      uHigh: { value: keyColor(high) },
+      uSplit: { value: split },
+    },
     vertexShader: hullVertex,
     fragmentShader: hullFragment,
   });
 
 /** Width of the keyline in radians of view (about a pixel at 720 px high). */
 const KEY = 0.0011;
-const hulls: Record<State, ShaderMaterial> = {
-  rest: hullMaterial(KEYLINE, KEY),
-  hover: hullMaterial(LASER, KEY * 1.1),
-  selected: hullMaterial(LASER, KEY * 1.25),
-  check: hullMaterial(CHECK, KEY * 1.1),
+// At rest only the ceramic has one: a light hairline, edge definition rather
+// than ink (the ceramic shades itself). Hover firms it up in the army's own
+// family; selection and check colour it, a pixel wide.
+/** Where a selected piece's laser keyline hands over to its own (a share of its height). */
+const SHOULDER = 0.6;
+/** A checked king's red keyline covers its top third. */
+const TOP_THIRD = 0.66;
+const hulls: Record<PieceColor, Record<State, ShaderMaterial | null>> = {
+  white: {
+    rest: hullMaterial(KEY * 0.7, KEYLINE),
+    hover: hullMaterial(KEY * 1.3, KEYLINE_HOVER),
+    selected: hullMaterial(KEY, LASER, KEYLINE, SHOULDER),
+    check: hullMaterial(KEY, KEYLINE, CHECK, TOP_THIRD),
+  },
+  black: {
+    rest: null,
+    hover: hullMaterial(KEY, STEEL_HOVER),
+    selected: hullMaterial(KEY, LASER, null, SHOULDER),
+    check: hullMaterial(KEY, null, CHECK, TOP_THIRD),
+  },
 };
 
 const hullGeometries = new Map<PieceType, BufferGeometry>();
@@ -311,6 +362,11 @@ const hullGeometry = (type: PieceType): BufferGeometry => {
     outline.set([s.x, s.y, s.z], i * 3);
   }
   g.setAttribute('aOutline', new BufferAttribute(outline, 3));
+  // Height as a share of the piece's own, for keylines that change colour
+  const top = pieceTop(cleanroomSet(), type);
+  const t = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) t[i] = pos.getY(i) / top;
+  g.setAttribute('aT', new BufferAttribute(t, 1));
   hullGeometries.set(type, g);
   return g;
 };
@@ -319,19 +375,45 @@ const hullGeometry = (type: PieceType): BufferGeometry => {
 
 // Quieter than any marker: a soft contact shadow, and round it the LED's
 // light spilling on the tray, a soft band with no edge, so it can never be
-// mistaken for a (crisp) laser ring
+// mistaken for a (crisp) laser ring. Seen from high above, where the
+// lower trays' engraving steps back, the pocket the piece stands in lights
+// up faintly in its level's colour, so every piece still sits in a square of
+// its own level. Drawn in world axes (a knight's turn does not turn it).
 const footprintFragment = /* glsl */ `
   uniform vec3 uColor;
-  varying vec2 vUv;
+  uniform float uScale;
+  varying vec3 vWorld;
+  varying vec2 vCentre;
+  float roundBox(vec2 p, float b, float r) {
+    vec2 q = abs(p) - vec2(b - r);
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+  }
   void main() {
-    float r = length(vUv - 0.5);
+    vec2 w = vWorld.xz - vCentre;
+    float r = length(w) / uScale;
     float shadow = 0.36 * (1.0 - smoothstep(0.08, 0.3, r));
     float spill = 0.28 * smoothstep(0.19, 0.29, r) * (1.0 - smoothstep(0.29, 0.44, r));
-    vec3 c = mix(vec3(0.08, 0.1, 0.13), uColor, spill / max(spill + shadow * (1.0 - spill), 1e-4));
-    float alpha = spill + shadow * (1.0 - spill);
+    vec3 view = normalize(cameraPosition - vWorld);
+    float steep = smoothstep(0.55, 0.85, abs(view.y));
+    float d = abs(roundBox(w, 0.44, 0.1));
+    float fw = max(fwidth(d), 1e-4);
+    float pocket = (1.0 - smoothstep(0.012 - fw * 0.5, 0.012 + fw * 0.5, d)) * steep * 0.85;
+    float glow = max(spill, pocket);
+    vec3 c = mix(vec3(0.08, 0.1, 0.13), uColor, glow / max(glow + shadow * (1.0 - glow), 1e-4));
+    float alpha = glow + shadow * (1.0 - glow);
     if (alpha < 0.003) discard;
     gl_FragColor = vec4(c, alpha);
     #include <colorspace_fragment>
+  }`;
+
+const footprintFragmentVertex = /* glsl */ `
+  varying vec3 vWorld;
+  varying vec2 vCentre;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    vCentre = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
+    gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
 const footprintVertex = /* glsl */ `
@@ -341,7 +423,8 @@ const footprintVertex = /* glsl */ `
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 
-const footprintPlane = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+// Wide enough for the pocket's outline (in world units, whatever the scale)
+const footprintPlane = new PlaneGeometry(1.5, 1.5).rotateX(-Math.PI / 2);
 const footprints = LEVEL.map(
   (c) =>
     new ShaderMaterial({
@@ -352,8 +435,9 @@ const footprints = LEVEL.map(
       polygonOffsetUnits: -1,
       uniforms: {
         uColor: { value: new Color(c) },
+        uScale: { value: PIECE_SCALE },
       },
-      vertexShader: footprintVertex,
+      vertexShader: footprintFragmentVertex,
       fragmentShader: footprintFragment,
     }),
 );
@@ -364,6 +448,7 @@ export const Footprint = ({ level }: { level: number }) => (
     geometry={footprintPlane}
     material={footprints[level] ?? footprints[0]}
     position={[0, 0.004, 0]}
+    userData={FLOOR_DECAL}
     renderOrder={LAYER.shadow}
     raycast={noRaycast}
   />
@@ -372,12 +457,17 @@ export const Footprint = ({ level }: { level: number }) => (
 // --- Selection: scan and caliper ----------------------------------------------------
 
 const SCAN_MS = 750;
-const SCAN_PERIOD_MS = 2600;
+const CALIPER_IN_MS = 260;
+const CALIPER_OUT_MS = 400;
+/** Longest step the effects take in one frame: a slow machine skips, never crawls. */
+const MAX_STEP_MS = 250;
 
+// The caliper: a rule with its two jaws turned toward the piece
 const caliperFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uTop;
   uniform float uGrow;
+  uniform float uAlpha;
   varying vec2 vP;
   float seg(vec2 p, vec2 a, vec2 b) {
     vec2 pa = p - a, ba = b - a;
@@ -387,16 +477,12 @@ const caliperFragment = /* glsl */ `
   void main() {
     vec2 p = vP;
     float top = uTop * uGrow;
-    // The rule, its end jaws pointing at the piece, and ticks every 0.1
     float d = seg(p, vec2(0.0, 0.0), vec2(0.0, top));
     d = min(d, seg(p, vec2(-0.12, 0.0), vec2(0.0, 0.0)));
     d = min(d, seg(p, vec2(-0.12, top), vec2(0.0, top)));
-    float tick = abs(fract(p.y / 0.1 + 0.5) - 0.5) * 0.1;
-    float ticks = step(p.y, top) * step(0.0, p.y) * step(p.x, 0.035) * step(0.0, p.x);
-    d = min(d, mix(1.0, tick, ticks));
     float w = 0.008;
     float fw = fwidth(d);
-    float a = 1.0 - smoothstep(w - fw, w + fw, d);
+    float a = (1.0 - smoothstep(w - fw, w + fw, d)) * uAlpha;
     if (a < 0.01) discard;
     gl_FragColor = vec4(uColor, a * 0.95);
     #include <colorspace_fragment>
@@ -433,14 +519,16 @@ const facing = new Quaternion();
 const at = new Vector3();
 
 /**
- * The selected piece's measurement: the scan line that sweeps up it, and a
- * caliper bracket standing beside it, on the camera's right, measuring its
- * height. Lives inside the piece's body, so it lifts with it.
+ * The selected piece's measurement, taken once: the scan line and its ring
+ * sweep up the piece while a caliper stands beside it (on the camera's side,
+ * right), measuring its height; then the caliper fades and all is still.
+ * Lives inside the piece's body, so it lifts with it.
  */
 const Measure = ({ type }: { type: PieceType }) => {
   const top = pieceTop(cleanroomSet(), type);
   const group = useRef<Group>(null);
   const elapsed = useRef(0);
+  const done = useRef(false);
   const invalidate = useThree((s) => s.invalidate);
   const scanner = useRef<Mesh>(null);
   const { geometry, material, ring } = useMemo(() => {
@@ -461,6 +549,7 @@ const Measure = ({ type }: { type: PieceType }) => {
         uColor: { value: new Color(LASER) },
         uTop: { value: top },
         uGrow: { value: 0 },
+        uAlpha: { value: 1 },
       },
       vertexShader: caliperVertex,
       fragmentShader: caliperFragment,
@@ -478,17 +567,6 @@ const Measure = ({ type }: { type: PieceType }) => {
   );
 
   useFrame(({ camera }, delta) => {
-    elapsed.current += Math.min(delta, 1 / 20) * 1000;
-    const t = elapsed.current;
-    // The scan: a sweep up, then a rest, repeating slowly
-    const phase = t % SCAN_PERIOD_MS;
-    const k = Math.min(phase / SCAN_MS, 1);
-    const ease = 1 - (1 - k) ** 2;
-    const height = -0.05 + ease * (top + 0.1);
-    SCAN.value.set(height, k < 1 ? 1 : 0, 0, 0);
-    if (scanner.current) scanner.current.position.y = Math.max(height, 0.01);
-    ring.uniforms.uAlpha.value = k < 1 ? 0.9 * Math.min(1, (1 - k) * 4) : 0;
-    material.uniforms.uGrow.value = Math.min(t / 260, 1);
     // Stand the caliper on the camera's right of the piece
     const g = group.current;
     if (g?.parent) {
@@ -498,6 +576,19 @@ const Measure = ({ type }: { type: PieceType }) => {
       facing.setFromAxisAngle(up, yaw);
       g.quaternion.copy(turn.multiply(facing));
     }
+    if (done.current) return;
+    elapsed.current += Math.min(delta * 1000, MAX_STEP_MS);
+    const t = elapsed.current;
+    const k = Math.min(t / SCAN_MS, 1);
+    const ease = 1 - (1 - k) ** 2;
+    const height = -0.05 + ease * (top + 0.1);
+    SCAN.value.set(height, k < 1 ? 1 : 0, 0, 0);
+    if (scanner.current) scanner.current.position.y = Math.max(height, 0.01);
+    ring.uniforms.uAlpha.value = k < 1 ? 0.9 * Math.min(1, (1 - k) * 4) : 0;
+    material.uniforms.uGrow.value = Math.min(t / CALIPER_IN_MS, 1);
+    const out = Math.min(Math.max((t - SCAN_MS) / CALIPER_OUT_MS, 0), 1);
+    material.uniforms.uAlpha.value = 1 - out;
+    if (out >= 1) done.current = true;
     invalidate();
   });
 
@@ -514,7 +605,7 @@ const Measure = ({ type }: { type: PieceType }) => {
         <mesh
           geometry={geometry}
           material={material}
-          position={[0.42, 0, 0]}
+          position={[0.5, 0, 0]}
           renderOrder={LAYER.marker}
           raycast={noRaycast}
         />
@@ -531,11 +622,10 @@ interface Army {
   accent: Kind;
   /** The rook's accent is its whole hollow: kept in the army's own value, so from above a rook still reads as its army. */
   hollow: Kind;
-  keyline: boolean;
 }
 const ARMY: Record<PieceColor, Army> = {
-  white: { body: 'ceramic', collar: 'collar', accent: 'titanium', hollow: 'collar', keyline: true },
-  black: { body: 'carbon', collar: 'carbon', accent: 'steel', hollow: 'carbon', keyline: false },
+  white: { body: 'ceramic', collar: 'collar', accent: 'titanium', hollow: 'collar' },
+  black: { body: 'carbon', collar: 'carbon', accent: 'steel', hollow: 'carbon' },
 };
 const accentOf = (army: Army, type: PieceType): Kind =>
   type === PieceType.Rook ? army.hollow : army.accent;
@@ -544,13 +634,13 @@ export const PieceBody = (props: PieceBodyProps) => {
   const { type, color, level = 0, selected } = props;
   const state = stateOf(props);
   const army = ARMY[color];
-  const keyline = army.keyline || state !== 'rest';
+  const hull = hulls[color][state];
   return (
     <>
       <Footprint level={level} />
       <ChessPiece
         type={type}
-        set={cleanroomSet()}
+        set={setFor(color)}
         parts={{
           body: pieceMaterial(army.body, state),
           collar: pieceMaterial(army.collar, state),
@@ -558,9 +648,7 @@ export const PieceBody = (props: PieceBodyProps) => {
           foot: feet[level] ?? feet[0],
         }}
       />
-      {keyline && (
-        <mesh geometry={hullGeometry(type)} material={hulls[state]} raycast={noRaycast} />
-      )}
+      {hull && <mesh geometry={hullGeometry(type)} material={hull} raycast={noRaycast} />}
       {selected && <Measure type={type} />}
     </>
   );
@@ -571,8 +659,14 @@ export const PieceBody = (props: PieceBodyProps) => {
  * cut there is nothing, and a red-hot line glows where it is cut. One capture
  * plays at a time, so the cut is one shared uniform.
  */
-export const setDissolve = (type: PieceType, left: number) => {
+export const setDissolve = (type: PieceType, left: number, level: number, flash: number) => {
   CUT.value.x = -0.03 + left * (pieceTop(cleanroomSet(), type) + 0.08);
+  CUT.value.y = flash;
+  // The LED foot powers down as the cut reaches it
+  const foot = dissolveFeet[level];
+  if (foot) {
+    foot.color.set(LEVEL_FOOT[level]).lerp(POWERED_DOWN, left < 0.12 ? 1 : 0);
+  }
 };
 
 /** A captured piece in its dissolving materials (see setDissolve). */
@@ -589,12 +683,12 @@ export const DissolvePiece = ({
   return (
     <ChessPiece
       type={type}
-      set={cleanroomSet()}
+      set={setFor(color)}
       parts={{
         body: pieceMaterial(army.body, 'dissolve'),
         collar: pieceMaterial(army.collar, 'dissolve'),
         accent: pieceMaterial(accentOf(army, type), 'dissolve'),
-        foot: feet[level] ?? feet[0],
+        foot: dissolveFeet[level] ?? dissolveFeet[0],
       }}
     />
   );

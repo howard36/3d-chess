@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useThree } from '@react-three/fiber';
 import {
   BoxGeometry,
   Color,
@@ -18,7 +19,15 @@ import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import { frameGeometry } from '../kit/plates';
 import { BASE_TOP, FLOOR_Y, TRAY_HALF, TRAY_MARGIN, frame } from './layout';
-import { LEVEL_DEEP, LEVEL_LED } from './palette';
+import {
+  ANODISED,
+  CHUCK,
+  HOUSING,
+  HOUSING_DARK,
+  LEVEL_DEEP,
+  LEVEL_LED,
+  LEVEL_RIM,
+} from './palette';
 
 // The board as a piece of lab equipment: five clear polycarbonate trays held
 // in a four-post cassette on a machined base.
@@ -96,11 +105,11 @@ const trayFragment = /* glsl */ `
     // Raumschach colouring (x + y + z even is dark, Aa1 dark)
     float dark = 1.0 - step(0.5, mod(id.x + id.y + uParity, 2.0));
 
-    // Seen from high above, the five grids would nest into a plaid: every
-    // tray but the one in play (the focused level, else the top) thins to a
+    // Seen from above (from about 33° up), the five grids would nest into a
+    // plaid: every tray but the one in play (the focused level) thins to a
     // quiet lattice and drops its smoke
     vec3 view = normalize(cameraPosition - vWorld);
-    float steep = smoothstep(0.8, 0.95, abs(view.y));
+    float steep = smoothstep(0.55, 0.85, abs(view.y));
     float lineA = uLine * mix(1.0, mix(0.2, 1.0, uKeep), steep);
     float smokeA = mix(1.0, uKeep, steep);
 
@@ -131,9 +140,23 @@ const LINE = 0.62;
 const LINE_FOCUS = 0.95;
 const LINE_DIM = 0.45;
 const GLOW = 0.2;
+/** How far the other trays' rims fade toward the housing while one is in focus. */
+const RIM_DIM = 0.6;
+
+const housingGrey = new Color(HOUSING);
+
+// Trays can be powered down (the mated king's, as the game ends): 0 lit, 1 off
+const powered = new Map<number, number>();
+let repower: (() => void) | null = null;
+/** Powers a tray's LEDs down (1) or back up (0): its rim goes grey and its engraving dark. */
+export const powerDownTray = (level: number, k: number) => {
+  powered.set(level, k);
+  repower?.();
+};
 
 /** The five edge-lit trays, their LED rims, and the cassette that holds them. */
 export const Trays = ({ focusLevel }: TraysProps) => {
+  const invalidate = useThree((s) => s.invalidate);
   const { surface, rim, housing, focusRim } = useMemo(
     () => ({
       // Past the rim, for the LED's glow in the air round the tray
@@ -171,15 +194,16 @@ export const Trays = ({ focusLevel }: TraysProps) => {
             uWidth: { value: 0.022 },
             uInset: { value: 0.06 },
             uRadius: { value: 0.1 },
-            uKeep: { value: z === frame.levelY.length - 1 ? 1 : 0 },
+            uKeep: { value: 0 },
             uHalo: { value: HALO_A },
           },
           vertexShader: trayVertex,
           fragmentShader: trayFragment,
         }),
-        rim: new MeshBasicMaterial({ color: LEVEL_LED[z], toneMapped: false, fog: false }),
+        led: new Color(LEVEL_RIM[z]),
+        rim: new MeshBasicMaterial({ color: LEVEL_RIM[z], toneMapped: false, fog: false }),
         focus: new MeshBasicMaterial({
-          color: new Color(LEVEL_LED[z]).lerp(new Color('#ffffff'), 0.35),
+          color: new Color(LEVEL_RIM[z]).lerp(new Color('#ffffff'), 0.3),
           transparent: true,
           opacity: 0,
           depthWrite: false,
@@ -199,25 +223,49 @@ export const Trays = ({ focusLevel }: TraysProps) => {
     [materials],
   );
   const housingMaterial = useMemo(
-    () => new MeshStandardMaterial({ color: '#cfd5dc', roughness: 0.38, metalness: 0.7 }),
+    () => new MeshStandardMaterial({ color: HOUSING_DARK, roughness: 0.42, metalness: 0.55 }),
     [],
   );
   useEffect(() => () => housingMaterial.dispose(), [housingMaterial]);
 
+  // The latest focus weights, so a power-down can be applied between focus changes
+  const focus = useRef({ weights: frame.levelY.map(() => 0), any: 0 });
+  const apply = () => {
+    const { weights, any } = focus.current;
+    weights.forEach((w, z) => {
+      const m = materials[z];
+      const off = powered.get(z) ?? 0;
+      const lit = 1 - off * 0.85;
+      const base = LINE * (1 - any * (1 - LINE_DIM / LINE) * (1 - w));
+      m.tray.uniforms.uLine.value = (base + (LINE_FOCUS - base) * w) * (1 - off * 0.5);
+      m.tray.uniforms.uGlow.value = (GLOW * (1 - any * 0.4 * (1 - w)) + 0.06 * w) * lit;
+      m.focus.opacity = w * lit;
+      // The tray that keeps its engraving from above: the focused one (with
+      // none in focus, every tray is quiet, and each piece's own pocket lights)
+      m.tray.uniforms.uKeep.value = w;
+      m.tray.uniforms.uHalo.value = (HALO_A * (1 - any * 0.35 * (1 - w)) + 0.06 * w) * lit;
+      // While a level is in focus (a piece held or pointed at), the other
+      // rims fade toward the housing, so the markers stay the brightest marks
+      m.rim.color.copy(m.led).lerp(housingGrey, Math.max(any * RIM_DIM * (1 - w), off));
+    });
+  };
+  // A new board starts with every tray lit
+  useEffect(() => powered.clear(), []);
+  useEffect(() => {
+    repower = () => {
+      apply();
+      invalidate();
+    };
+    return () => {
+      repower = null;
+    };
+  });
+
   useLevelFocus(
     focusLevel,
     (weights, any) => {
-      weights.forEach((w, z) => {
-        const m = materials[z];
-        const base = LINE * (1 - any * (1 - LINE_DIM / LINE) * (1 - w));
-        m.tray.uniforms.uLine.value = base + (LINE_FOCUS - base) * w;
-        m.tray.uniforms.uGlow.value = GLOW * (1 - any * 0.4 * (1 - w)) + 0.06 * w;
-        m.focus.opacity = w;
-        // The tray that keeps its engraving from above: the focused one, or the top
-        const top = z === weights.length - 1 ? 1 : 0;
-        m.tray.uniforms.uKeep.value = w + (1 - any) * top;
-        m.tray.uniforms.uHalo.value = HALO_A * (1 - any * 0.35 * (1 - w)) + 0.06 * w;
-      });
+      focus.current = { weights: [...weights], any };
+      apply();
     },
     { levels: frame.levelY.length, ms: 160, key: materials },
   );
@@ -244,45 +292,48 @@ export const Trays = ({ focusLevel }: TraysProps) => {
           <mesh geometry={housing} material={housingMaterial} raycast={noRaycast} />
         </group>
       ))}
-      <LevelTicks />
+      <LevelMeters />
       <Cassette />
     </group>
   );
 };
 
-// --- Level ticks ---------------------------------------------------------------------
+// --- Level meters ---------------------------------------------------------------------
 
 /**
- * A count beside the colour: at every corner of a tray, in the margin, one
- * to five small LED ticks (A has one, E five), so a level can be told
- * without its hue.
+ * A count beside the colour: centred on each side of a tray, in its margin,
+ * a meter of five small LED pips with one lit for A up to five for E
+ * ("●●●○○" is C), so a level can be told without its hue.
  */
-const LevelTicks = () => {
+const LevelMeters = () => {
   const mesh = useMemo(() => {
-    const ticks: { at: [number, number, number]; z: number }[] = [];
+    const pips: { at: [number, number, number]; lit: boolean; z: number }[] = [];
     const m = frame.half + TRAY_MARGIN / 2;
     frame.levelY.forEach((y, z) => {
-      for (const [sx, sz] of [
-        [1, 1],
-        [-1, 1],
-        [-1, -1],
-        [1, -1],
+      for (const [ax, az, sign] of [
+        [1, 0, 1],
+        [1, 0, -1],
+        [0, 1, 1],
+        [0, 1, -1],
       ]) {
-        for (let k = 0; k <= z; k++) {
-          ticks.push({ at: [sx * (m - 0.12 - k * 0.05), y + 0.003, sz * m], z });
+        for (let k = 0; k < 5; k++) {
+          const along = (k - 2) * 0.1;
+          const x = ax ? along : sign * m;
+          const zz = az ? along : sign * m;
+          pips.push({ at: [x, y + 0.004, zz], lit: k <= z, z });
         }
       }
     });
     const inst = new InstancedMesh(
-      new BoxGeometry(0.02, 0.008, 0.055),
+      new CylinderGeometry(0.024, 0.024, 0.008, 12),
       new MeshBasicMaterial({ toneMapped: false, fog: false }),
-      ticks.length,
+      pips.length,
     );
     const matrix = new Matrix4();
     const color = new Color();
-    ticks.forEach((t, i) => {
-      inst.setMatrixAt(i, matrix.makeTranslation(...t.at));
-      inst.setColorAt(i, color.set(LEVEL_LED[t.z]));
+    pips.forEach((pip, i) => {
+      inst.setMatrixAt(i, matrix.makeTranslation(...pip.at));
+      inst.setColorAt(i, color.set(pip.lit ? LEVEL_RIM[pip.z] : HOUSING));
     });
     inst.raycast = noRaycast;
     return inst;
@@ -335,11 +386,13 @@ const cassetteGeometry = (): {
     (BASE_TOP + FLOOR_Y) / 2,
     0,
   );
-  const chuck = new BoxGeometry(baseHalf * 2 - 0.08, 0.03, baseHalf * 2 - 0.08).translate(
+  const chuck = new BoxGeometry(baseHalf * 2 - 0.16, 0.03, baseHalf * 2 - 0.16).translate(
     0,
     BASE_TOP + 0.015,
     0,
   );
+  // The brushed chamfer round the base's top edge, catching the light
+  metal.push(frameGeometry(baseHalf - 0.05, 0.05, 0.035).translate(0, BASE_TOP + 0.004, 0));
   const merged = mergeGeometries(metal)!;
   metal.forEach((g) => g.dispose());
   return { metal: merged, base, chuck };
@@ -351,8 +404,9 @@ const Cassette = () => {
       geometry: cassetteGeometry(),
       materials: {
         metal: new MeshStandardMaterial({ color: '#e1e6ec', roughness: 0.35, metalness: 0.6 }),
-        base: new MeshStandardMaterial({ color: '#e3e7eb', roughness: 0.55, metalness: 0.1 }),
-        chuck: new MeshStandardMaterial({ color: '#98a2ad', roughness: 0.7, metalness: 0.2 }),
+        // Dark anodised: the white army stands over a dark plinth
+        base: new MeshStandardMaterial({ color: ANODISED, roughness: 0.4, metalness: 0.6 }),
+        chuck: new MeshStandardMaterial({ color: CHUCK, roughness: 0.75, metalness: 0.2 }),
       },
     }),
     [],

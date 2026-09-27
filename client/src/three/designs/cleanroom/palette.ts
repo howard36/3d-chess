@@ -23,16 +23,24 @@ const RAMP = { from: 72, to: 300 } as const;
 export const LEVEL = levelRamp({ ...RAMP, lightness: [0.72, 0.6], chroma: 0.17 });
 /** Deeper, for thin lines and letters that must hold on a pale ground. */
 export const LEVEL_DEEP = levelRamp({ ...RAMP, lightness: [0.56, 0.48], chroma: 0.15 });
-/** The LED itself: brighter, for strips and glows. */
+/** The LED itself: brighter, for glows and the engraving it lights. */
 export const LEVEL_LED = levelRamp({ ...RAMP, lightness: [0.8, 0.68], chroma: 0.16 });
+/**
+ * The rim strips and the pieces' foot bands: always on, so a step less vivid
+ * than the laser, which must stay the most saturated mark on the board.
+ */
+export const LEVEL_RIM = levelRamp({ ...RAMP, lightness: [0.76, 0.63], chroma: 0.13 });
+export const LEVEL_FOOT = levelRamp({ ...RAMP, lightness: [0.72, 0.6], chroma: 0.12 });
 
 // --- Signals -----------------------------------------------------------------------
 
 /** The laser: selection and legal destinations. */
-export const LASER = '#e0147c';
+export const LASER = '#f2077e';
 /** The laser's hot core, where it is brightest (hover, the scan line). */
 export const LASER_HOT = '#ff4fa6';
-export const CAPTURE = '#e3312b';
+/** The very centre of a laser line: near white, the brightest thing on the board. */
+export const LASER_CORE = '#ffd6ea';
+export const CAPTURE = '#ee2a22';
 export const CHECK = '#e1242b';
 /** Graphite ink: the last move, the HUD's text, the white army's keyline. */
 export const INK = '#27303b';
@@ -46,13 +54,15 @@ export const ROOM = {
   wall: '#e7ebef',
   wallShade: '#d6dce2',
   seam: '#b9c1ca',
-  kick: '#c3cad2',
+  kick: '#a3acb6',
+  /** Window frames and mullions: one of the room's few darks. */
+  frame: '#7c8793',
   glass: '#f1f5f8',
   /** The yellow-filtered light of the lithography bay, seen through glass. */
-  amber: '#efe2b0',
-  floor: '#cbd1d8',
-  floorPerf: '#c6ccd4',
-  floorHole: '#a4adb7',
+  amber: '#ece6cc',
+  floor: '#aab2bb',
+  floorPerf: '#a8b0b9',
+  floorHole: '#8a939e',
   ceiling: '#dfe4e9',
   panel: '#fbfdff',
   equipment: '#e9edf1',
@@ -61,7 +71,7 @@ export const ROOM = {
 
 // --- Pieces ------------------------------------------------------------------------
 
-export const CERAMIC = '#f3f3f0';
+export const CERAMIC = '#eaeae5';
 export const CERAMIC_COLLAR = '#e4e7ea';
 /** The white army's detail: satin titanium, dark enough to draw the details. */
 export const TITANIUM = '#7a8592';
@@ -69,8 +79,19 @@ export const CARBON = '#272c33';
 export const CARBON_WEAVE = '#454d58';
 /** The dark army's detail: a brushed-steel inlay, light enough to read at game size. */
 export const STEEL = '#a3aebb';
-/** The white army's keyline. */
-export const KEYLINE = '#4a5664';
+/** The white army's keyline: a light hairline at rest, firmer (slate) on hover. */
+export const KEYLINE = '#7d8896';
+export const KEYLINE_HOVER = '#4a5664';
+/** The dark army's hover keyline: light steel. */
+export const STEEL_HOVER = '#c3ccd6';
+/** The anodised instrument base the tower stands on. */
+export const ANODISED = '#2f363e';
+/** The chuck plate on top of the base: mid-dark, so both armies read against it from above. */
+export const CHUCK = '#4b545e';
+/** The unlit state of an LED, and what the other rims fade toward while a level is in focus. */
+export const HOUSING = '#9aa5b1';
+/** The trays' housings: graphite, lighter than the base. */
+export const HOUSING_DARK = '#66707b';
 
 /** Picker swatch: background, white army, black army, accent. */
 export const SWATCH: [string, string, string, string] = [ROOM.wall, CERAMIC, CARBON, LASER];

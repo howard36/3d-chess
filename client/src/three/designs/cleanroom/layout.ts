@@ -30,3 +30,13 @@ export const BASE_TOP = frame.levelY[0] - 0.95;
 export const ROOM_HALF = 30;
 /** Height of the ceiling above the floor. */
 export const ROOM_HEIGHT = 15;
+
+/** The level (0 = A) whose tray is at this world height (a floor's y). */
+export const levelAt = (y: number): number =>
+  Math.max(
+    0,
+    Math.min(
+      frame.levelY.length - 1,
+      Math.round((y - frame.levelY[0]) / Math.max(frame.gap, 1e-3)),
+    ),
+  );
