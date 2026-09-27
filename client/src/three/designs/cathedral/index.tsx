@@ -21,8 +21,8 @@ import { PieceBody } from './pieces';
 // army faces an ebony one, both with gilt details, both on bands of jewel
 // glass in their level's colour, both drawn by a candle-warm rim of light.
 // Play is in warm light over the cool glass: gilt quatrefoils where a piece
-// may go, ruby for a capture and a crown of ruby light for check, candle
-// ivory for the last move, and a shaft of sunlight falling on the piece in
+// may go, ruby for a capture and a crown of ruby light for check, grisaille
+// silver for the last move, and a shaft of sunlight falling on the piece in
 // hand. Far below, a labyrinth; all round, windows of old wine, amber and
 // cobalt glass, softened and dim, with faint shafts of their light. The
 // level colours belong to the tower alone, and the play marks are always the
@@ -87,7 +87,7 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
 
 const MOTION = { style: 'slide' as const, durationMs: 460 };
 /** How far a piece rises under the pointer and in hand (piece units). */
-const LIFT = { hover: 0.05, selected: 0.16, bob: 0 };
+const LIFT = { hover: 0.05, selected: 0.08, bob: 0 };
 
 const cathedral: Design = {
   id: 'cathedral',

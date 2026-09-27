@@ -33,7 +33,10 @@ if (typeof document !== 'undefined' && document.fonts && typeof FontFace !== 'un
     const face = new FontFace(FIGURES, `url(${url}) format('woff2')`, {
       unicodeRange: 'U+0030-0039',
       weight,
-    });
+      // Shippori's figures run a little large beside Cormorant's letters
+      // (size-adjust is not yet in TypeScript's FontFaceDescriptors)
+      sizeAdjust: '90%',
+    } as FontFaceDescriptors);
     document.fonts.add(face);
     return face.load().catch(() => undefined);
   });
@@ -110,7 +113,9 @@ export const hud: DesignHud = {
     '--turn-border': `1px solid ${RULE}`,
     '--turn-shadow':
       'inset 0 0 0 3px rgba(16, 12, 20, 0.84), inset 0 0 0 4px rgba(216, 176, 99, 0.2), 0 10px 30px rgba(0, 0, 0, 0.5)',
-    '--modal-bg': `${roseMark} no-repeat center 14px / 180px 180px, radial-gradient(ellipse at 50% 0%, #241b2c 0%, #120e17 70%)`,
+    // The promotion dialog shares --modal-bg: the rose watermark is the result card's alone
+    '--modal-bg': 'radial-gradient(ellipse at 50% 0%, #241b2c 0%, #120e17 70%)',
+    '--result-bg': `${roseMark} no-repeat center 14px / 180px 180px, radial-gradient(ellipse at 50% 0%, #241b2c 0%, #120e17 70%)`,
     '--modal-fg': PARCHMENT,
     '--modal-radius': '4px',
     '--modal-shadow': `0 0 0 1px ${RULE}, 0 0 0 5px rgba(18, 14, 23, 0.9), 0 0 0 6px rgba(216, 176, 99, 0.22), 0 30px 80px rgba(0, 0, 0, 0.6)`,

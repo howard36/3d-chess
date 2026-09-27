@@ -28,7 +28,7 @@ const WALL_H = 1600;
 const CIRCUMFERENCE = 2 * Math.PI * NAVE.wallRadius;
 const BAY = CIRCUMFERENCE / NAVE.bays;
 /** How bright the painted glass is (0–1): low, so the windows glow without glaring. */
-const GLOW = 0.27;
+const GLOW = 0.22;
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -80,7 +80,7 @@ const glaze = (
   const cx = (x0 + x1) / 2;
   const r = (x1 - x0) * 0.34;
   // Medallions only in wine and cobalt: round, warm-bright glass behind the
-  // platforms must never look like a gilt or ivory play mark
+  // platforms must never look like a gilt or silver play mark
   const ring = accent === 2 ? 2 : 0;
   for (let y = y0 + r * 1.6; y < y1 - r; y += r * 2.9) {
     ctx.beginPath();

@@ -50,7 +50,7 @@ const towerMask = /* glsl */ `
     vec3 toCentre = normalize(-cameraPosition);
     float ang = acos(clamp(dot(toFrag, toCentre), -1.0, 1.0));
     float cone = asin(clamp(${TOWER_R.toFixed(2)} / max(length(cameraPosition), ${(TOWER_R * 1.01).toFixed(3)}), 0.0, 1.0));
-    return mix(${MASK_DIM.toFixed(2)}, 1.0, smoothstep(cone, cone * 1.35, ang));
+    return mix(${MASK_DIM.toFixed(2)}, 1.0, smoothstep(cone, cone * 1.6, ang));
   }`;
 
 const hazeFragment = /* glsl */ `

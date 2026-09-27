@@ -16,7 +16,7 @@ import {
   TorusGeometry,
   Vector3,
 } from 'three';
-import type { Group } from 'three';
+import type { Group, Mesh } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PieceType } from '../../../engine/pieces';
 import { pieceSet, pieceTop } from '../../pieces';
@@ -25,12 +25,12 @@ import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import { rng } from '../kit/textures';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
-import { GILT, GILT_DEEP, IVORY, LEVEL, RUBY, RUBY_DEEP, SUNLIGHT } from './palette';
+import { GILT, GILT_DEEP, LAST_MOVE, LEVEL, RUBY, RUBY_DEEP, SUNLIGHT } from './palette';
 
 // Vitrail's marks, all lying flat on the glass like light and gilding laid
 // on a window: a gilt quatrefoil where a piece may go, a cabochon of its
 // level's jewel glass at its heart; the same quatrefoil in ruby, opened round
-// the victim's base and cusped with four thorns, for a capture; a candle-ivory
+// the victim's base and cusped with four thorns, for a capture; a grisaille-silver
 // rosette on each square of the last move, joined by a thin thread of the
 // same light; a crown of ruby light round a king in check, and a small
 // circlet of it floating over his cross; and for the selection, a column of
@@ -485,9 +485,12 @@ const shaftFragment = /* glsl */ `
     // A volume of lit dust: brightest where the view passes through most of
     // it (the middle), thinning softly to its edges
     float through = pow(abs(dot(n, view)), 0.9);
-    // Soft where it meets the glass; under a platform it runs full height
-    // from the glass above, and on the top level it fades out into the air
-    float along = smoothstep(0.0, 0.08, h) * mix(0.78 + 0.22 * h, pow(1.0 - h, 1.2), uOpenTop);
+    // Soft where it meets the glass; under a platform it falls from just
+    // below the glass above, and on the top level it fades out into the air
+    // (under a platform it fades out before reaching the glass above, so its
+    // top never rings a piece standing there)
+    float under = (0.85 + 0.15 * h) * (1.0 - smoothstep(0.72, 0.97, h));
+    float along = smoothstep(0.0, 0.08, h) * mix(under, pow(1.0 - h, 1.2), uOpenTop);
     // Slow bands of brighter dust drifting down the beam
     float bands = 0.86 + 0.14 * sin(h * 14.0 + uTime * 0.9 + vUv.x * 12.566);
     // The near side of the beam never lies over the piece it lights
@@ -690,14 +693,36 @@ const circletGeometry = (() => {
 const circletMaterial = new MeshBasicMaterial({ color: RUBY, toneMapped: false, fog: false });
 
 /** A small, still circlet of ruby light floating over the king's cross. */
-const Circlet = ({ floor, height }: { floor: Vec3; height: number }) => (
-  <mesh
-    geometry={circletGeometry}
-    material={circletMaterial}
-    position={[floor[0], floor[1] + height, floor[2]]}
-    raycast={noRaycast}
-  />
-);
+/** Set while a mate is on the board (by the Celebration), so the circlet can come down. */
+export const mate = { over: false };
+
+/**
+ * A small, still circlet of ruby light floating over the king's cross. At
+ * mate, when the king topples, it settles onto the glass round his square.
+ */
+const Circlet = ({ floor, height }: { floor: Vec3; height: number }) => {
+  const invalidate = useThree((s) => s.invalidate);
+  const mesh = useRef<Mesh>(null);
+  const fall = useRef(mate.over ? 1 : 0);
+  const place = () => {
+    const m = mesh.current;
+    if (!m) return;
+    const k = fall.current;
+    const e = 1 - (1 - k) ** 3;
+    m.position.set(floor[0], floor[1] + height + (0.03 - height) * e, floor[2]);
+    m.scale.setScalar(1 + 0.3 * e);
+  };
+  useLayoutEffect(place);
+  useFrame((_, delta) => {
+    if (!mate.over || fall.current >= 1) return;
+    fall.current = Math.min(1, fall.current + Math.min(delta, MAX_FRAME) / 0.35);
+    place();
+    invalidate();
+  });
+  return (
+    <mesh ref={mesh} geometry={circletGeometry} material={circletMaterial} raycast={noRaycast} />
+  );
+};
 
 // --- The set -------------------------------------------------------------------------
 
@@ -839,8 +864,8 @@ export const makeMarkers = ({
   };
 
   /**
-   * The last move: an ivory rosette on the square it left and on the square
-   * it reached, joined by a thin thread of candlelight from centre to
+   * The last move: a silver rosette on the square it left and on the square
+   * it reached, joined by a thin thread of cool clear light from centre to
    * centre. A fresh move draws its thread in behind the gliding piece, and
    * the destination's rosette blooms as it lands. A move straight up or
    * down draws its origin wider than its arrival, so from above both show.
@@ -853,8 +878,8 @@ export const makeMarkers = ({
         <GlassMark
           floor={from.floor}
           shape="rosette"
-          color={IVORY}
-          keyColor="#2a1d10"
+          color={LAST_MOVE}
+          keyColor="#1a1d2a"
           radius={vertical ? 0.47 * pitch : ROSETTE * 0.78}
           width={0.028 * pitch}
           opacity={vertical ? 0.8 : 0.62}
@@ -864,8 +889,8 @@ export const makeMarkers = ({
         <GlassMark
           floor={to.floor}
           shape="rosette"
-          color={IVORY}
-          keyColor="#2a1d10"
+          color={LAST_MOVE}
+          keyColor="#1a1d2a"
           radius={ROSETTE}
           width={0.032 * pitch}
           opacity={0.88}
@@ -878,15 +903,15 @@ export const makeMarkers = ({
           from={from.floor}
           to={to.floor}
           arc={arc}
-          color={IVORY}
-          pulseColor="#fff7e2"
+          color={LAST_MOVE}
+          pulseColor="#f4f6ff"
           radius={0.013}
           opacity={0.9}
           shade={0.3}
           pulse={0.55}
           pulseLength={0.35}
           flowSpeed={0.45}
-          outline="#3a2a18"
+          outline="#1c2030"
           outlineWidth={0.006}
           drawInMs={fresh ? moveMs * 0.9 : 0}
         />

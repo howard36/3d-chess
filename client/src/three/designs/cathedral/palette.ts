@@ -5,8 +5,8 @@ import { oklchToHex } from '../kit/colors';
 // - cool jewel glass for structure: the five levels, emerald at the bottom
 //   through aquamarine, sapphire and amethyst to fuchsia at the top, the same
 //   hues the nave's windows are glazed in;
-// - warm light for play: gilt for where a piece may go, ruby for a capture
-//   and a check, candle ivory for the last move, sunlight for the selection.
+// - light for play: gilt for where a piece may go, ruby for a capture and a
+//   check, grisaille silver for the last move, sunlight for the selection.
 //
 // Every level colour is a real hue (no white, no grey), stepped round the
 // cool half of the wheel so it stays clear of the warm gameplay colours, and
@@ -35,8 +35,13 @@ export const GILT_DEEP = '#8a5d16';
 /** Captures and check: ruby glass. */
 export const RUBY = '#ff4b3e';
 export const RUBY_DEEP = '#7a0f12';
-/** The last move: candle ivory. */
+/** Candle ivory (the mate's motes). */
 export const IVORY = '#f6e7c6';
+/**
+ * The last move: grisaille silver, the cool clear glass of a Gothic window,
+ * so it can never be taken for the selection's warm sunlight.
+ */
+export const LAST_MOVE = '#d8def0';
 /** The selection's shaft of sunlight. */
 export const SUNLIGHT = '#ffdc9c';
 

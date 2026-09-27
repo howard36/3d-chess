@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
@@ -22,7 +22,8 @@ import { towerFrame } from '../kit/layouts';
 import { noRaycast } from '../kit/noRaycast';
 import { rng } from '../kit/textures';
 import type { BoardLayout, CaptureFxProps, CelebrationProps, MoveFxProps, Vec3 } from '../types';
-import { ALABASTER, EBONY, GILT, IVORY, LEVEL, RUBY, SUNLIGHT } from './palette';
+import { ALABASTER, EBONY, GILT, IVORY, LAST_MOVE, LEVEL, RUBY, SUNLIGHT } from './palette';
+import { mate } from './markers';
 import { accentMaterial, bodyMaterial, footMaterials } from './pieces';
 
 // Motion: a piece glides, trailing a few motes of gilt dust that settle and
@@ -292,7 +293,7 @@ export const makeMoveFx = (layout: BoardLayout, pieceScale: number) => {
         <Ripple
           floor={floorTo}
           pitch={pitch}
-          ring={IVORY}
+          ring={LAST_MOVE}
           pane={LEVEL[level]}
           delay={(durationMs / 1000) * 0.92}
         />
@@ -440,6 +441,14 @@ export const makeCelebration = (layout: BoardLayout) => {
   const { pitch } = towerFrame(layout);
   const Celebration = ({ floor }: CelebrationProps) => {
     const invalidate = useThree((s) => s.invalidate);
+    // Tell the check's circlet to come down onto the glass
+    useLayoutEffect(() => {
+      mate.over = true;
+      invalidate();
+      return () => {
+        mate.over = false;
+      };
+    }, [invalidate]);
     const material = useMemo(
       () =>
         new ShaderMaterial({
