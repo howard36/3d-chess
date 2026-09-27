@@ -344,7 +344,7 @@ export interface PieceLift {
 }
 
 /** Picker sections, listed in this order (see DESIGN_GROUPS in registry.ts). */
-export type DesignGroup = 'round3' | 'clarity' | 'classic' | 'earlier';
+export type DesignGroup = 'round4' | 'round3' | 'clarity' | 'classic' | 'earlier';
 
 export interface DesignEntry {
   id: string;

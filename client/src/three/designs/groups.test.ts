@@ -39,4 +39,13 @@ describe('pickerSections', () => {
     ]);
     expect(sections.map((s) => s.entries.map((e) => e.id))).toEqual([['classic'], ['loose']]);
   });
+
+  it('lists the newest round first', () => {
+    const sections = pickerSections([
+      entry('lumen', 'Lumen', { group: 'round3' }),
+      entry('classic', 'Classic', { group: 'classic' }),
+      entry('lumina', 'Lumina', { group: 'round4' }),
+    ]);
+    expect(sections.map((s) => s.label)).toEqual(['Round 4', 'Round 3', null]);
+  });
 });

@@ -10,6 +10,46 @@ import type { DesignEntry } from './types';
  */
 export const DESIGNS: DesignEntry[] = [
   {
+    id: 'lumina',
+    name: 'Lumina',
+    blurb: 'A holographic chess studio.',
+    swatch: ['#05070f', '#e9edf4', '#3a3450', '#4cc9f0'],
+    load: () => import('./lumina'),
+    group: 'round4',
+  },
+  {
+    id: 'meridian',
+    name: 'Meridian',
+    blurb: 'A chess observatory under constellations of pieces.',
+    swatch: ['#05070f', '#e9edf4', '#3a3450', '#4cc9f0'],
+    load: () => import('./meridian'),
+    group: 'round4',
+  },
+  {
+    id: 'simul',
+    name: 'Simul',
+    blurb: 'A hall of light where a simultaneous exhibition plays on.',
+    swatch: ['#05070f', '#e9edf4', '#3a3450', '#4cc9f0'],
+    load: () => import('./simul'),
+    group: 'round4',
+  },
+  {
+    id: 'monolith',
+    name: 'Monolith',
+    blurb: 'A light-art garden of colossal chess sculptures.',
+    swatch: ['#05070f', '#e9edf4', '#3a3450', '#4cc9f0'],
+    load: () => import('./monolith'),
+    group: 'round4',
+  },
+  {
+    id: 'codex',
+    name: 'Codex',
+    blurb: 'An opening book written in light.',
+    swatch: ['#05070f', '#e9edf4', '#3a3450', '#4cc9f0'],
+    load: () => import('./codex'),
+    group: 'round4',
+  },
+  {
     id: 'lumen',
     name: 'Lumen',
     blurb: 'A holographic studio after hours: pearl and graphite hard-light pieces on light panes.',
