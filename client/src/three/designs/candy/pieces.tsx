@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   BufferGeometry,
@@ -7,9 +7,12 @@ import {
   Color,
   ConeGeometry,
   Euler,
+  BackSide,
   LatheGeometry,
   Matrix4,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
+  ShaderMaterial,
   Quaternion,
   SphereGeometry,
   TorusGeometry,
@@ -24,7 +27,7 @@ import { PieceType } from '../../../engine/pieces';
 import type { Orientation } from '../../layout';
 import { ContactShadow } from '../kit/plates';
 import type { PieceBodyProps, PieceColor } from '../types';
-import { CHECK_RED, CREAM, GRAPE, INK, NAVY, ORCHID } from './palette';
+import { CHECK_RED, CREAM, GRAPE, INK, LEVEL_COLORS, NAVY, ORCHID, SPARKLE } from './palette';
 
 // Chunky vinyl toys, turned and moulded from a handful of rounded parts. Each
 // keeps the Staunton archetype a chess player reads at a glance, pushed to a
@@ -37,8 +40,12 @@ import { CHECK_RED, CREAM, GRAPE, INK, NAVY, ORCHID } from './palette';
 //   mane in the army's trim colour (so it never reads as a knight);
 // - queen: a coronet of seven beads;
 // - king: a crown and a cross, the tallest piece.
-// Every part of a piece that shares a paint is merged into one geometry, so a
-// piece is three draw calls (body, trim, eyes) plus its shadow.
+// Round every piece's foot (and a pawn's collar, a rook's battlements, a
+// bishop's neck) runs a band in the colour of the level it stands on, the
+// same colour as that level's rim and letter; the army's own trim (grape or
+// orchid) stays on crowns, mitres, horns and manes. Every part of a piece
+// that shares a paint is merged into one geometry, so a piece is at most
+// four draw calls (body, trim, bands, eyes) plus its shadow.
 
 type V3 = [number, number, number];
 
@@ -125,7 +132,10 @@ const merge = (parts: BufferGeometry[]) => {
 
 interface Parts {
   body: BufferGeometry[];
+  /** Painted in the army's trim colour. */
   trim: BufferGeometry[];
+  /** Painted in the colour of the level the piece stands on. */
+  bands: BufferGeometry[];
   eyes: BufferGeometry[];
 }
 
@@ -193,8 +203,8 @@ const horse = (upright: boolean): Parts => {
           [-0.12, 0.5],
         ].map(([x, y]) => sphere(0.058, [x, y, 0], [1, 1, 0.8])),
       ],
+      bands: [band(0.2, 0.028, 0.1)],
       trim: [
-        band(0.2, 0.024, 0.1),
         // A bridle round the nose
         band(0.084, 0.022, 0, [0, 0, 0]).applyMatrix4(
           new Matrix4().compose(
@@ -217,8 +227,8 @@ const horse = (upright: boolean): Parts => {
       place(new ConeGeometry(0.035, 0.1, 10), [-0.03, 0.64, 0.05], [0.25, 0, 0.25]),
       place(new ConeGeometry(0.035, 0.1, 10), [-0.03, 0.64, -0.05], [-0.25, 0, 0.25]),
     ],
+    bands: [band(0.2, 0.028, 0.1)],
     trim: [
-      band(0.2, 0.024, 0.1),
       // The horn, and a flowing mane in the army's trim colour
       place(spiralHorn(0.045, 0.3), [0.1, 0.72, 0], [0, 0, -0.55]),
       mane(),
@@ -233,7 +243,8 @@ const PIECE_PARTS: Record<PieceType, () => Parts> = {
       turned([...puck(0.2), [0.14, 0.13, 0.04], [0.085, 0.29, 0.03], [0.07, 0.33], [0, 0.33]]),
       sphere(0.13, [0, 0.43, 0]),
     ],
-    trim: [band(0.175, 0.022, 0.095), band(0.095, 0.034, 0.315)],
+    trim: [],
+    bands: [band(0.175, 0.026, 0.095), band(0.095, 0.034, 0.315)],
     eyes: [],
   }),
   [PieceType.Rook]: () => ({
@@ -248,8 +259,12 @@ const PIECE_PARTS: Record<PieceType, () => Parts> = {
         [-1, -1],
       ].map(([x, z]) => block(0.13, 0.13, 0.13, 0.035, [x * 0.145, 0.585, z * 0.145])),
     ],
-    // A painted band under the battlements
-    trim: [block(0.37, 0.05, 0.37, 0.02, [0, 0.44, 0])],
+    trim: [],
+    // Painted bands round the foot and under the battlements
+    bands: [
+      block(0.435, 0.035, 0.435, 0.015, [0, 0.085, 0]),
+      block(0.37, 0.05, 0.37, 0.02, [0, 0.44, 0]),
+    ],
     eyes: [],
   }),
   [PieceType.Bishop]: () => ({
@@ -264,13 +279,9 @@ const PIECE_PARTS: Record<PieceType, () => Parts> = {
         [0, 0.645],
       ]),
     ],
-    trim: [
-      band(0.185, 0.022, 0.095),
-      band(0.09, 0.03, 0.31),
-      // The mitre's slanted band and its bobble
-      band(0.138, 0.022, 0.45, [0.5, 0, 0]),
-      sphere(0.05, [0, 0.675, 0]),
-    ],
+    // The mitre's slanted band and its bobble
+    trim: [band(0.138, 0.022, 0.45, [0.5, 0, 0]), sphere(0.05, [0, 0.675, 0])],
+    bands: [band(0.185, 0.026, 0.095), band(0.09, 0.03, 0.31)],
     eyes: [],
   }),
   [PieceType.Knight]: () => horse(false),
@@ -288,8 +299,8 @@ const PIECE_PARTS: Record<PieceType, () => Parts> = {
       ]),
       sphere(0.1, [0, 0.6, 0], [1, 0.85, 1]),
     ],
+    bands: [band(0.205, 0.026, 0.095)],
     trim: [
-      band(0.205, 0.022, 0.095),
       // The coronet: a flared band ringed with beads, and a bead on top
       turned(
         [
@@ -322,8 +333,8 @@ const PIECE_PARTS: Record<PieceType, () => Parts> = {
       ]),
       sphere(0.112, [0, 0.64, 0], [1, 0.82, 1]),
     ],
+    bands: [band(0.215, 0.026, 0.095)],
     trim: [
-      band(0.215, 0.022, 0.095),
       turned(
         [
           [0.12, 0.53],
@@ -345,6 +356,7 @@ const PIECE_PARTS: Record<PieceType, () => Parts> = {
 interface PieceGeometries {
   body: BufferGeometry;
   trim: BufferGeometry | null;
+  bands: BufferGeometry;
   eyes: BufferGeometry | null;
 }
 
@@ -356,6 +368,7 @@ export const geometriesFor = (type: PieceType): PieceGeometries => {
     g = {
       body: merge(p.body),
       trim: p.trim.length ? merge(p.trim) : null,
+      bands: merge(p.bands),
       eyes: p.eyes.length ? merge(p.eyes) : null,
     };
     built.set(type, g);
@@ -366,20 +379,22 @@ export const geometriesFor = (type: PieceType): PieceGeometries => {
 // --- Paint --------------------------------------------------------------------
 
 /**
- * Glossy vinyl with an edge: a fresnel term mixes the silhouette toward a
- * rim colour, so cream toys get a soft ink line and navy toys a cool sheen
- * where they turn away from the camera. It keeps both armies crisp against
- * the sky, through glass, and against each other.
+ * Glossy vinyl: a thin clearcoat over the paint, and a fresnel term that
+ * mixes the silhouette toward a rim colour, so cream toys get a soft ink line
+ * and navy toys a cool sheen where they turn away from the camera. It keeps
+ * both armies crisp against the sky, through glass, and against each other.
  */
 const vinyl = (
   color: string,
   { rim, rimStrength, roughness = 0.36, emissive = '#000000', emissiveIntensity = 0 }: VinylOptions,
 ) => {
-  const m = new MeshStandardMaterial({
+  const m = new MeshPhysicalMaterial({
     color,
     roughness,
     metalness: 0,
-    envMapIntensity: 0.75,
+    clearcoat: 0.55,
+    clearcoatRoughness: 0.22,
+    envMapIntensity: 0.7,
     emissive,
     emissiveIntensity,
   });
@@ -419,7 +434,7 @@ const ARMY: Record<
   PieceColor,
   { body: string; trim: string; eye: string; rim: string; k: number }
 > = {
-  white: { body: CREAM, trim: GRAPE, eye: INK, rim: '#7b6796', k: 0.32 },
+  white: { body: CREAM, trim: GRAPE, eye: INK, rim: '#6f5d8e', k: 0.4 },
   black: { body: NAVY, trim: ORCHID, eye: CREAM, rim: '#a9b8ff', k: 0.55 },
 };
 
@@ -428,7 +443,7 @@ const GLOW: Record<Glow, [string, number]> = {
   check: ['#ff1f3d', 0.1],
 };
 
-const bodies = new Map<string, MeshStandardMaterial>();
+const bodies = new Map<string, MeshPhysicalMaterial>();
 export const bodyMaterial = (color: PieceColor, glow: Glow) => {
   const key = `${color}/${glow}`;
   let m = bodies.get(key);
@@ -437,7 +452,7 @@ export const bodyMaterial = (color: PieceColor, glow: Glow) => {
     m = vinyl(a.body, {
       rim: glow === 'check' ? CHECK_RED : a.rim,
       rimStrength: glow === 'check' ? 0.6 : a.k,
-      roughness: color === 'white' ? 0.4 : 0.32,
+      roughness: color === 'white' ? 0.42 : 0.34,
       emissive: GLOW[glow][0],
       emissiveIntensity: GLOW[glow][1],
     });
@@ -446,63 +461,110 @@ export const bodyMaterial = (color: PieceColor, glow: Glow) => {
   return m;
 };
 
-const trims: Record<PieceColor, MeshStandardMaterial> = {
+const trims: Record<PieceColor, MeshPhysicalMaterial> = {
   white: vinyl(ARMY.white.trim, { rim: '#3a2a8a', rimStrength: 0.35, roughness: 0.3 }),
   black: vinyl(ARMY.black.trim, { rim: '#ffd0f2', rimStrength: 0.35, roughness: 0.3 }),
 };
+/** The bands round a piece's base, in its level's colour (the same for both armies). */
+const bands = LEVEL_COLORS.map((c) =>
+  vinyl(c, {
+    rim: '#ffffff',
+    rimStrength: 0.2,
+    roughness: 0.3,
+    emissive: c,
+    emissiveIntensity: 0.12,
+  }),
+);
 const eyes: Record<PieceColor, MeshStandardMaterial> = {
   white: new MeshStandardMaterial({ color: ARMY.white.eye, roughness: 0.2 }),
   black: new MeshStandardMaterial({ color: ARMY.black.eye, roughness: 0.2 }),
 };
 
+// --- Hover outline ----------------------------------------------------------------
+
+/**
+ * A die-cut sticker outline round a toy under the pointer, like the markers'
+ * stickers: a white band edged in ink. Each is the toy's back faces pushed
+ * out along their normals, drawn behind it; the ink shell is wider, so it
+ * shows only beyond the white one. It reads on both armies and any sky.
+ */
+const shell = (color: string, width: number) =>
+  new ShaderMaterial({
+    side: BackSide,
+    uniforms: { uColor: { value: new Color(color) }, uWidth: { value: width } },
+    vertexShader: /* glsl */ `
+      uniform float uWidth;
+      void main() {
+        vec3 p = position + normal * uWidth;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      void main() {
+        gl_FragColor = vec4(uColor, 1.0);
+        #include <colorspace_fragment>
+      }`,
+  });
+const outlineWhite = shell(SPARKLE, 0.022);
+const outlineInk = shell(INK, 0.038);
+
 // --- Facing ---------------------------------------------------------------------
 
-// Board turns knights to look at the other army, but not unicorns, and a
-// piece body is not told which seat is watching. The Grid publishes the seat
-// here, so a unicorn can face the same way as its army's knights.
-let seat: Orientation = 'white';
-const listeners = new Set<() => void>();
-export const publishSeat = (o: Orientation) => {
-  if (o === seat) return;
-  seat = o;
-  listeners.forEach((l) => l());
-};
-const subscribe = (l: () => void) => {
-  listeners.add(l);
-  return () => listeners.delete(l);
-};
-const useSeat = () => useSyncExternalStore(subscribe, () => seat);
-
 export const KNIGHT_YAW = 0.5;
-const facingFor = (color: PieceColor, orientation: Orientation) =>
+/** The yaw Board gives a knight: looking toward the other army, turned to show its profile. */
+export const facingFor = (color: PieceColor, orientation: Orientation) =>
   (color === orientation ? 1 : -1) * (Math.PI / 2 - KNIGHT_YAW);
 
 // --- The toy -------------------------------------------------------------------
 
-/**
- * One toy. A unicorn turns itself to face the other army; a knight is turned
- * by Board, so an effect copy of one (a captured knight) asks for `turnKnight`.
- */
+export interface ToyProps {
+  type: PieceType;
+  color: PieceColor;
+  orientation: Orientation;
+  /** The level it stands on, for the colour of its bands (A when unknown). */
+  level?: number;
+  glow?: Glow;
+  /** Draw the white hover outline. */
+  outlined?: boolean;
+  /**
+   * Yaw for a knight redrawn outside Board (Board turns the real ones);
+   * a unicorn always turns itself, the same way as its army's knights.
+   */
+  knightFacing?: number;
+}
+
+/** One toy, standing at its base (y = 0). */
 export const ToyPiece = ({
   type,
   color,
+  orientation,
+  level = 0,
   glow = 'none',
-  turnKnight = false,
-}: {
-  type: PieceType;
-  color: PieceColor;
-  glow?: Glow;
-  turnKnight?: boolean;
-}) => {
+  outlined = false,
+  knightFacing,
+}: ToyProps) => {
   const g = geometriesFor(type);
-  const orientation = useSeat();
-  const faces = type === PieceType.Unicorn || (turnKnight && type === PieceType.Knight);
-  const yaw = faces ? facingFor(color, orientation) : 0;
+  const yaw =
+    type === PieceType.Unicorn
+      ? facingFor(color, orientation)
+      : type === PieceType.Knight
+        ? (knightFacing ?? 0)
+        : 0;
+  const band = bands[Math.min(Math.max(level, 0), bands.length - 1)];
   return (
     <group rotation={[0, yaw, 0]}>
       <mesh geometry={g.body} material={bodyMaterial(color, glow)} />
       {g.trim && <mesh geometry={g.trim} material={trims[color]} />}
+      <mesh geometry={g.bands} material={band} />
       {g.eyes && <mesh geometry={g.eyes} material={eyes[color]} />}
+      {outlined &&
+        [outlineWhite, outlineInk].map((m, i) => (
+          <group key={i}>
+            <mesh geometry={g.body} material={m} />
+            {g.trim && <mesh geometry={g.trim} material={m} />}
+            <mesh geometry={g.bands} material={m} />
+          </group>
+        ))}
     </group>
   );
 };
@@ -520,12 +582,21 @@ const SHADOW_RADIUS: Record<PieceType, number> = {
 };
 
 /**
- * A piece body: the toy on its contact shadow. Picked up, the toy does a
- * happy hop (a crouch, a stretch on the way up, a wobble as it settles into
- * its hover) and sways gently while it hovers; Board's Lift carries the
- * hover itself. The shadow stays on the floor, shrinking as the toy rises.
+ * A piece body: the toy on its contact shadow. Under the pointer it lifts a
+ * little (Board's Lift) and wears a white-and-ink sticker outline. Picked up,
+ * it does a happy hop (a crouch, a stretch on the way up, a wobble as it
+ * settles into its hover) and sways gently while it hovers. The shadow stays
+ * on the floor, shrinking as the toy rises.
  */
-export const PieceBody = ({ type, color, selected, inCheck }: PieceBodyProps) => {
+export const PieceBody = ({
+  type,
+  color,
+  selected,
+  hovered,
+  inCheck,
+  orientation,
+  level,
+}: PieceBodyProps) => {
   const root = useRef<Group>(null);
   const toy = useRef<Group>(null);
   const shadow = useRef<Group>(null);
@@ -576,7 +647,14 @@ export const PieceBody = ({ type, color, selected, inCheck }: PieceBodyProps) =>
         <ContactShadow radius={SHADOW_RADIUS[type]} opacity={0.42} color="#1b2160" />
       </group>
       <group ref={toy}>
-        <ToyPiece type={type} color={color} glow={inCheck ? 'check' : 'none'} />
+        <ToyPiece
+          type={type}
+          color={color}
+          orientation={orientation}
+          level={level}
+          glow={inCheck ? 'check' : 'none'}
+          outlined={hovered && !selected}
+        />
       </group>
     </group>
   );

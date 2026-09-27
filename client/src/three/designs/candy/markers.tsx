@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   BufferAttribute,
@@ -9,24 +9,35 @@ import {
   PlaneGeometry,
   ShaderMaterial,
   SRGBColorSpace,
+  Vector3,
 } from 'three';
 import type { Sprite, SpriteMaterial } from 'three';
 import { LAYER } from '../kit/layers';
 import { ribbonData, tracePath } from '../kit/markerGeometry';
 import { noRaycast } from '../kit/noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
-import { CHECK_RED, CHERRY, INK, MINT, PIECE_SCALE, pitch, SPARKLE, SUNFLOWER } from './palette';
+import {
+  CHECK_RED,
+  CHERRY,
+  INK,
+  MINT,
+  ORCHID,
+  PIECE_SCALE,
+  pitch,
+  SPARKLE,
+  SUNFLOWER,
+} from './palette';
 
 // Stickers: every marker is a die-cut candy sticker lying flat on the glass,
 // a rounded outline in one gameplay colour with a dark ink border (so it
 // reads on sky, glass, cream or navy) and a glossy highlight down the middle
 // of its stroke, like a candy rope. One shape, four meanings:
 // - mint: the selected piece can go here;
-// - the same sticker in cherry red, with four teeth biting inward: it can
-//   take here;
-// - sunflower: the last move's two squares, joined by a striped candy path
-//   with an arrowhead;
-// - red and filled, with a "!" badge over the king: check.
+// - the same sticker in cherry red, with four teeth biting in from its sides
+//   (they stop short of the victim's base, so they show): it can take here;
+// - sunflower: the last move's two squares, joined by a board-game path of
+//   round dots ending in an arrowhead on the glass;
+// - red and filled, with a "!" bubble beside the king: check.
 // A sticker pops onto the glass when it appears (a quick overshoot) and then
 // holds perfectly still.
 
@@ -77,7 +88,9 @@ const stickerFragment = /* glsl */ `
   void main() {
     vec2 p = vP / max(uPop, 1e-3);
     float shape = uShape == 1 ? length(p) - uRing : roundBox(p, uHalf, uRadius);
-    float stroke = abs(shape) - uLine * 0.5;
+    // Under the pointer the stroke thickens a little
+    float line = uLine * (1.0 + 0.3 * uHover);
+    float stroke = abs(shape) - line * 0.5;
     if (uDash > 0.0) {
       // Dashes round the outline (for the square a piece left)
       float f = fract(atan(p.y, p.x) / 6.2831853 * uDash + 0.125);
@@ -85,26 +98,27 @@ const stickerFragment = /* glsl */ `
       stroke = max(stroke, (0.42 - gap) * uHalf * 0.8);
     }
     if (uTeeth > 0.5) {
-      // Four teeth biting in from the middle of each side
+      // Four teeth biting in from the middle of each side, stopping short of
+      // a piece's base so they show round the victim
       vec2 q = abs(p);
-      float depth = uHalf * 0.46;
-      vec2 size = vec2(uHalf * 0.26, depth + uLine * 0.5);
+      float depth = uHalf * 0.3;
+      vec2 size = vec2(uHalf * 0.24, depth + line * 0.5);
       float tx = tri(vec2(q.y, q.x - (uHalf - depth)), size);
       float ty = tri(vec2(q.x, q.y - (uHalf - depth)), size);
       stroke = min(stroke, min(tx, ty));
     }
     float inkShape = stroke - uInkWidth;
     float aa = max(fwidth(stroke), 1e-4);
-    float line = 1.0 - smoothstep(-aa, aa, stroke);
+    float body = 1.0 - smoothstep(-aa, aa, stroke);
     float ink = 1.0 - smoothstep(-aa, aa, inkShape);
     float area = 1.0 - smoothstep(-aa, aa, shape);
     // Candy-rope gloss: lighter down the middle of the stroke
-    float mid = clamp(-stroke / (uLine * 0.5), 0.0, 1.0);
-    vec3 col = uColor * (1.0 + 0.2 * uHover);
+    float mid = clamp(-stroke / (line * 0.5), 0.0, 1.0);
+    vec3 col = uColor * (1.0 + 0.25 * uHover);
     col = mix(col, vec3(1.0), 0.38 * mid * mid);
-    vec4 c = vec4(uColor, area * (uFill + 0.1 * uHover));
+    vec4 c = vec4(uColor, area * (uFill + 0.2 * uHover));
     c = over(vec4(uInk, ink * 0.9), c);
-    c = over(vec4(col, line), c);
+    c = over(vec4(col, body), c);
     c.a *= uOpacity;
     if (c.a < 0.004) discard;
     gl_FragColor = c;
@@ -215,7 +229,7 @@ export const Sticker = ({
           : Math.max(goal, hover.current - step);
       moving = true;
     }
-    u.uPop.value = (0.55 + 0.45 * easeOutBack(age.current)) * (1 + 0.06 * hover.current);
+    u.uPop.value = (0.55 + 0.45 * easeOutBack(age.current)) * (1 + 0.07 * hover.current);
     u.uHover.value = hover.current;
     if (moving) invalidate();
   });
@@ -239,26 +253,21 @@ export const Quiet = ({ floor, hovered }: MarkerProps) => (
   <Sticker floor={floor} color={MINT} fill={0.07} hovered={hovered} />
 );
 
+// A capture's sticker reaches a little further out than a quiet one, so it
+// shows well clear of the victim standing on it
 export const Capture = ({ floor, hovered }: MarkerProps) => (
-  <Sticker floor={floor} color={CHERRY} fill={0.1} teeth hovered={hovered} />
+  <Sticker floor={floor} color={CHERRY} fill={0.1} inset={0.075} teeth hovered={hovered} />
 );
 
 // --- Selection: a sparkle ring ------------------------------------------------------
 
-const sparkleFragment = /* glsl */ `
+const ringFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform vec3 uInk;
-  uniform vec3 uGlint;
   uniform float uRing;
   uniform float uLine;
-  uniform float uTime;
   uniform float uPop;
   varying vec2 vP;
-  float star(vec2 p, float r) {
-    // A four-pointed twinkle: thin where both coordinates are large
-    p = abs(p);
-    return pow(p.x, 0.55) + pow(p.y, 0.55) - pow(r, 0.55);
-  }
   vec4 over(vec4 top, vec4 bottom) {
     float a = top.a + bottom.a * (1.0 - top.a);
     vec3 c = (top.rgb * top.a + bottom.rgb * bottom.a * (1.0 - top.a)) / max(a, 1e-4);
@@ -277,27 +286,82 @@ const sparkleFragment = /* glsl */ `
     vec4 c = vec4(uColor, pool);
     c = over(vec4(uInk, ink * 0.85), c);
     c = over(vec4(mix(uColor, vec3(1.0), 0.3 * mid), line), c);
-    // Six twinkles circling slowly just outside the ring
-    for (int i = 0; i < 6; i++) {
-      float fi = float(i);
-      float a = uTime * 0.55 + fi * 1.0471976;
-      vec2 at = vec2(cos(a), sin(a)) * (uRing + uLine * 1.9);
-      float tw = 0.55 + 0.45 * sin(uTime * 2.2 + fi * 2.3);
-      float s = star(p - at, 0.07 * tw);
-      float sa = fwidth(s);
-      float glint = 1.0 - smoothstep(-sa, sa, s);
-      c = over(vec4(uGlint, glint * (0.6 + 0.4 * tw)), c);
-    }
     if (c.a < 0.004) discard;
     gl_FragColor = c;
     #include <colorspace_fragment>
   }`;
 
-const selectQuad = new PlaneGeometry(1, 1);
+/** Sticker-sparkle textures, drawn once: a white five-point star, and a pink twinkle. */
+const sparkTextures = (() => {
+  let made: { star: CanvasTexture; twinkle: CanvasTexture } | null = null;
+  const canvas = (draw: (ctx: CanvasRenderingContext2D, h: number) => void) => {
+    const size = 96;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d')!;
+    ctx.lineJoin = 'round';
+    draw(ctx, size / 2);
+    const t = new CanvasTexture(c);
+    t.colorSpace = SRGBColorSpace;
+    return t;
+  };
+  const points = (
+    ctx: CanvasRenderingContext2D,
+    h: number,
+    n: number,
+    outer: number,
+    inner: number,
+  ) => {
+    ctx.beginPath();
+    for (let i = 0; i < n * 2; i++) {
+      const r = i % 2 === 0 ? h * outer : h * inner;
+      const a = -Math.PI / 2 + (i * Math.PI) / n;
+      ctx.lineTo(h + Math.cos(a) * r, h + Math.sin(a) * r + (n === 5 ? 3 : 0));
+    }
+    ctx.closePath();
+  };
+  return () => {
+    made ??= {
+      star: canvas((ctx, h) => {
+        points(ctx, h, 5, 0.8, 0.38);
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = INK;
+        ctx.stroke();
+        ctx.fillStyle = SPARKLE;
+        ctx.fill();
+        ctx.fillStyle = ORCHID;
+        ctx.beginPath();
+        ctx.arc(h + 7, h + 6, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }),
+      twinkle: canvas((ctx, h) => {
+        points(ctx, h, 4, 0.85, 0.2);
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = INK;
+        ctx.stroke();
+        ctx.fillStyle = ORCHID;
+        ctx.fill();
+      }),
+    };
+    return made;
+  };
+})();
+
+// Sparkles round a picked-up toy: phase, height above the floor, orbit
+// radius, size, and whether it is a pink twinkle. Every one stays within
+// 0.45 of the piece's axis, inside its own square.
+const SPARKS: [number, number, number, number, boolean][] = [
+  [0, 0.24, 0.34, 0.2, false],
+  [1.25, 0.56, 0.32, 0.12, true],
+  [2.5, 0.38, 0.35, 0.18, false],
+  [3.75, 0.66, 0.3, 0.1, true],
+  [5.0, 0.16, 0.34, 0.16, false],
+];
 
 export const Selection = ({ floor }: MarkerProps) => {
   const invalidate = useThree((s) => s.invalidate);
   const age = useRef(0);
+  const sparks = useRef<(Sprite | null)[]>([]);
   const material = useMemo(
     () =>
       new ShaderMaterial({
@@ -310,29 +374,26 @@ export const Selection = ({ floor }: MarkerProps) => {
         uniforms: {
           uColor: { value: new Color(SPARKLE) },
           uInk: { value: new Color(INK) },
-          uGlint: { value: new Color('#fff6c8') },
           uRing: { value: 0.35 * pitch },
           uLine: { value: 0.07 * pitch },
-          uTime: { value: 0 },
           uPop: { value: 1 },
-          uQuad: { value: pitch * 1.1 },
+          uQuad: { value: pitch },
         },
         vertexShader: stickerVertex,
-        fragmentShader: sparkleFragment,
+        fragmentShader: ringFragment,
       }),
     [],
   );
   useEffect(() => () => material.dispose(), [material]);
-  const stars = useRef<(Sprite | null)[]>([]);
+  const textures = sparkTextures();
   useFrame((state, delta) => {
     age.current = Math.min(1, age.current + Math.min(delta, 1 / 30) / 0.3);
     const pop = 0.5 + 0.5 * easeOutBack(age.current);
     const t = state.clock.elapsedTime;
     material.uniforms.uPop.value = pop;
-    material.uniforms.uTime.value = t;
-    // Sticker stars circling the lifted toy, each on its own height and beat
-    STARS.forEach(([phase, height, radius, size], i) => {
-      const s = stars.current[i];
+    // Sparkles circling the lifted toy, each on its own height and beat
+    SPARKS.forEach(([phase, height, radius, size], i) => {
+      const s = sparks.current[i];
       if (!s) return;
       const a = t * 0.9 + phase;
       s.position.set(
@@ -340,7 +401,7 @@ export const Selection = ({ floor }: MarkerProps) => {
         floor[1] + height * pop,
         floor[2] + Math.sin(a) * radius * pitch,
       );
-      const twinkle = 0.75 + 0.25 * Math.sin(t * 2.6 + phase * 3);
+      const twinkle = 0.78 + 0.22 * Math.sin(t * 2.6 + phase * 3);
       s.scale.setScalar(size * twinkle * Math.min(1, age.current * 1.6));
       (s.material as SpriteMaterial).rotation = Math.sin(t * 1.3 + phase) * 0.35;
     });
@@ -349,74 +410,36 @@ export const Selection = ({ floor }: MarkerProps) => {
   return (
     <>
       <mesh
-        geometry={selectQuad}
+        geometry={quad}
         material={material}
         position={[floor[0], floor[1] + 0.014, floor[2]]}
         rotation={[-Math.PI / 2, 0, 0]}
-        scale={[pitch * 1.1, pitch * 1.1, 1]}
+        scale={[pitch, pitch, 1]}
         renderOrder={LAYER.marker}
         raycast={noRaycast}
       />
-      {STARS.map((_, i) => (
+      {SPARKS.map(([, , , , pink], i) => (
         <sprite
           key={i}
           ref={(s) => {
-            stars.current[i] = s;
+            sparks.current[i] = s;
           }}
           scale={0.0001}
           renderOrder={LAYER.trace}
           raycast={noRaycast}
         >
-          <spriteMaterial map={starTexture()} depthWrite={false} toneMapped={false} />
+          <spriteMaterial
+            map={pink ? textures.twinkle : textures.star}
+            depthWrite={false}
+            toneMapped={false}
+          />
         </sprite>
       ))}
     </>
   );
 };
 
-// Phase, height above the floor, orbit radius, size
-const STARS: [number, number, number, number][] = [
-  [0, 0.22, 0.44, 0.25],
-  [1.3, 0.52, 0.4, 0.2],
-  [2.5, 0.34, 0.46, 0.23],
-  [3.8, 0.64, 0.38, 0.18],
-  [5.0, 0.12, 0.44, 0.2],
-];
-
-/** A cartoon five-pointed sticker star: warm white, ink border, a gloss dot. */
-const starTexture = (() => {
-  let t: CanvasTexture | null = null;
-  return () => {
-    if (t) return t;
-    const size = 96;
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    const ctx = c.getContext('2d')!;
-    const h = size / 2;
-    ctx.beginPath();
-    for (let i = 0; i < 10; i++) {
-      const r = i % 2 === 0 ? h * 0.8 : h * 0.38;
-      const a = -Math.PI / 2 + (i * Math.PI) / 5;
-      ctx.lineTo(h + Math.cos(a) * r, h + Math.sin(a) * r * 0.98 + 3);
-    }
-    ctx.closePath();
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = 9;
-    ctx.strokeStyle = INK;
-    ctx.stroke();
-    ctx.fillStyle = '#fff0a8';
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.beginPath();
-    ctx.arc(h - 8, h - 4, 5, 0, Math.PI * 2);
-    ctx.fill();
-    t = new CanvasTexture(c);
-    t.colorSpace = SRGBColorSpace;
-    return t;
-  };
-})();
-
-// --- Last move: a striped candy path ------------------------------------------------
+// --- Last move: a board-game path ----------------------------------------------------
 
 const traceVertex = /* glsl */ `
   attribute vec3 aTangent;
@@ -442,45 +465,65 @@ const traceVertex = /* glsl */ `
 
 const traceFragment = /* glsl */ `
   uniform vec3 uColor;
-  uniform vec3 uStripe;
   uniform vec3 uInk;
   uniform float uInkWidth;
-  uniform float uPeriod;
+  uniform float uDot;
+  uniform float uSpacing;
   uniform float uShaftEnd;
   uniform float uReveal;
   varying float vAcross;
   varying float vHalf;
   varying float vAlong;
   void main() {
-    if (vAlong > uReveal) discard;
-    float d = abs(vAcross);
-    float aa = max(fwidth(vAcross), 1e-4);
-    float body = 1.0 - smoothstep(vHalf - aa, vHalf + aa * 0.5, d);
-    float rim = smoothstep(vHalf - uInkWidth - aa, vHalf - uInkWidth + aa, d);
-    vec3 col = uColor;
-    if (vAlong < uShaftEnd - uPeriod * 0.3) {
-      // Candy stripes bent into chevrons, all pointing the way the piece went
-      float phase = fract((vAlong - d * 1.4) / uPeriod);
-      float ab = max(fwidth(phase), 1e-4);
-      float stripe = smoothstep(0.0, ab, phase) * (1.0 - smoothstep(0.4 - ab, 0.4, phase));
-      col = mix(col, uStripe, stripe);
+    vec3 col;
+    float a;
+    if (vAlong < uShaftEnd) {
+      // Round dots, like the spaces of a board-game path, popping in one by
+      // one as the path is drawn from the square the piece left
+      float k = floor(vAlong / uSpacing);
+      float centre = (k + 0.5) * uSpacing;
+      float grow = clamp((uReveal - centre) / (uSpacing * 1.5) + 0.5, 0.0, 1.0);
+      float r = uDot * grow;
+      float d = length(vec2(vAlong - centre, vAcross));
+      float aa = max(fwidth(d), 1e-4);
+      float body = 1.0 - smoothstep(r - aa, r + aa, d);
+      float disc = 1.0 - smoothstep(r + uInkWidth - aa, r + uInkWidth + aa, d);
+      if (grow <= 0.0 || disc < 0.004) discard;
+      // A gloss spot toward each dot's top
+      float gloss = 1.0 - smoothstep(0.0, r * 0.7, length(vec2(vAlong - centre, vAcross - r * 0.35)));
+      col = mix(uInk, mix(uColor, vec3(1.0), 0.35 * gloss), body);
+      a = disc;
     } else {
-      // The arrowhead: glossy, lighter toward its centre line
-      col = mix(col, vec3(1.0), 0.25 * (1.0 - clamp(d / max(vHalf, 1e-4), 0.0, 1.0)));
+      if (uReveal < uShaftEnd) discard;
+      // The arrowhead: solid, inked round its edge
+      float d = abs(vAcross);
+      float aa = max(fwidth(vAcross), 1e-4);
+      float body = 1.0 - smoothstep(vHalf - aa, vHalf + aa * 0.5, d);
+      float rim = smoothstep(vHalf - uInkWidth - aa, vHalf - uInkWidth + aa, d);
+      col = mix(mix(uColor, vec3(1.0), 0.2 * (1.0 - d / max(vHalf, 1e-4))), uInk, rim);
+      a = body;
+      if (a < 0.004) discard;
     }
-    col = mix(col, uInk, rim);
-    if (body < 0.004) discard;
-    gl_FragColor = vec4(col, body);
+    gl_FragColor = vec4(col, a);
     #include <colorspace_fragment>
   }`;
 
-const TRACE = { width: 0.13, headLength: 0.42, headWidth: 0.46 };
+// The path: dots of this radius and spacing, and a head that ends on the
+// glass at the near edge of the destination's sticker, not under its piece
+const PATH = { dot: 0.05, spacing: 0.18, ink: 0.022, headLength: 0.34, headWidth: 0.36 };
+const PATH_SHAPE = { arc: 0.5, endInset: 0.4, startInset: 0.2, lift: 0.03 };
+const DRAW_IN_MS = 420;
 
-export const CandyPath = ({ from, to }: { from: Vec3; to: Vec3 }) => {
+export const CandyPath = ({ from, to, fresh }: { from: Vec3; to: Vec3; fresh: boolean }) => {
   const invalidate = useThree((s) => s.invalidate);
   const key = JSON.stringify([from, to]);
-  const { geometry, length, shaftEnd } = useMemo(() => {
-    const data = ribbonData(tracePath(from, to, { arc: 0.5, endInset: 0.4, lift: 0.05 }), TRACE);
+  const { geometry, length, shaftEnd, spacing } = useMemo(() => {
+    const width = (PATH.dot + PATH.ink) * 2;
+    const data = ribbonData(tracePath(from, to, PATH_SHAPE), {
+      width,
+      headLength: PATH.headLength,
+      headWidth: PATH.headWidth,
+    });
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(data.position, 3));
     g.setAttribute('aTangent', new BufferAttribute(data.tangent, 3));
@@ -489,11 +532,10 @@ export const CandyPath = ({ from, to }: { from: Vec3; to: Vec3 }) => {
     g.setAttribute('aAlong', new BufferAttribute(data.along, 1));
     g.setIndex(data.index);
     g.computeBoundingSphere();
-    return {
-      geometry: g,
-      length: data.length,
-      shaftEnd: data.length - Math.min(TRACE.headLength, data.length * 0.6),
-    };
+    const shaft = data.length - Math.min(PATH.headLength, data.length * 0.6);
+    // Whole dots only: stretch the spacing a touch so the last one ends at the head
+    const n = Math.max(1, Math.round(shaft / PATH.spacing));
+    return { geometry: g, length: data.length, shaftEnd: shaft, spacing: shaft / n };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
   }, [key]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -505,12 +547,12 @@ export const CandyPath = ({ from, to }: { from: Vec3; to: Vec3 }) => {
         side: DoubleSide,
         uniforms: {
           uColor: { value: new Color(SUNFLOWER) },
-          uStripe: { value: new Color('#fff4c4') },
           uInk: { value: new Color(INK) },
-          uInkWidth: { value: 0.028 },
-          uPeriod: { value: 0.3 },
+          uInkWidth: { value: PATH.ink },
+          uDot: { value: PATH.dot },
+          uSpacing: { value: PATH.spacing },
           uShaftEnd: { value: 1 },
-          uReveal: { value: 0 },
+          uReveal: { value: 1e6 },
         },
         vertexShader: traceVertex,
         fragmentShader: traceFragment,
@@ -519,18 +561,17 @@ export const CandyPath = ({ from, to }: { from: Vec3; to: Vec3 }) => {
   );
   useEffect(() => () => material.dispose(), [material]);
   material.uniforms.uShaftEnd.value = shaftEnd;
-  // The path draws itself from the square left to the square reached, once
-  const drawn = useRef({ key: '', t: 0 });
+  material.uniforms.uSpacing.value = spacing;
+  // A live move draws its path in, dot by dot; a replayed one shows it whole
+  const drawn = useRef(fresh ? 0 : 1);
+  useEffect(() => invalidate(), [invalidate]);
   useFrame((_, delta) => {
-    const d = drawn.current;
-    if (d.key !== key) {
-      d.key = key;
-      d.t = 0;
+    if (drawn.current >= 1) {
+      material.uniforms.uReveal.value = 1e6;
+      return;
     }
-    if (d.t >= 1) return;
-    d.t = Math.min(1, d.t + Math.min(delta, 1 / 30) / 0.42);
-    const e = 1 - (1 - d.t) ** 3;
-    material.uniforms.uReveal.value = d.t >= 1 ? length + 1 : e * length;
+    drawn.current = Math.min(1, drawn.current + (Math.min(delta, 1 / 30) * 1000) / DRAW_IN_MS);
+    material.uniforms.uReveal.value = drawn.current >= 1 ? 1e6 : drawn.current * length;
     invalidate();
   });
   return (
@@ -544,21 +585,41 @@ export const CandyPath = ({ from, to }: { from: Vec3; to: Vec3 }) => {
   );
 };
 
-export const LastMove = ({ from, to }: LastMoveMarkerProps) => (
+export const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => (
   <>
     <Sticker floor={from.floor} color={SUNFLOWER} fill={0.06} dashes={12} pop={false} />
-    <Sticker floor={to.floor} color={SUNFLOWER} fill={0.12} pop={false} />
-    <CandyPath from={from.floor} to={to.floor} />
+    <Sticker floor={to.floor} color={SUNFLOWER} fill={0.12} pop={fresh} />
+    <CandyPath from={from.floor} to={to.floor} fresh={fresh} />
   </>
 );
 
 // --- Check --------------------------------------------------------------------------
 
-/** A red speech bubble with a white "!", drawn once. */
-const alertTexture = (() => {
-  let t: CanvasTexture | null = null;
-  return () => {
-    if (t) return t;
+// A mated king's square, while its Celebration is up: the check bubble
+// there gives way to the mate badge. Set and cleared by the Celebration.
+const mated = new Set<string>();
+const mateListeners = new Set<() => void>();
+const floorKey = (floor: Vec3) => floor.map((v) => v.toFixed(3)).join(',');
+export const markMated = (floor: Vec3, on: boolean) => {
+  if (on) mated.add(floorKey(floor));
+  else mated.delete(floorKey(floor));
+  mateListeners.forEach((l) => l());
+};
+const subscribeMated = (l: () => void) => {
+  mateListeners.add(l);
+  return () => mateListeners.delete(l);
+};
+const useMated = (floor: Vec3) => {
+  const key = floorKey(floor);
+  return useSyncExternalStore(subscribeMated, () => mated.has(key));
+};
+
+/** A speech bubble in ink and a fill colour, drawn once per `key`. */
+export const bubbleTexture = (() => {
+  const made = new Map<string, CanvasTexture>();
+  return (key: string, fill: string, draw: (ctx: CanvasRenderingContext2D, w: number) => void) => {
+    const cached = made.get(key);
+    if (cached) return cached;
     const w = 128;
     const h = 160;
     const c = document.createElement('canvas');
@@ -578,49 +639,77 @@ const alertTexture = (() => {
     ctx.lineWidth = 14;
     ctx.strokeStyle = INK;
     ctx.stroke();
-    ctx.fillStyle = CHECK_RED;
+    ctx.fillStyle = fill;
     ctx.fill();
-    // Gloss
     ctx.save();
     bubble();
     ctx.clip();
     ctx.fillStyle = 'rgba(255,255,255,0.22)';
     ctx.fillRect(14, 10, w - 28, 30);
     ctx.restore();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '700 84px "Fredoka", "Trebuchet MS", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('!', w / 2, 58);
-    t = new CanvasTexture(c);
+    draw(ctx, w);
+    const t = new CanvasTexture(c);
     t.colorSpace = SRGBColorSpace;
+    made.set(key, t);
     return t;
   };
 })();
 
-const BADGE_HEIGHT = 0.86 * PIECE_SCALE + 0.2;
+const drawBang = (ctx: CanvasRenderingContext2D, w: number) => {
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 84px "Fredoka", "Trebuchet MS", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('!', w / 2, 58);
+};
+
+const right = new Vector3();
+
+/**
+ * A bubble beside a king's head, on the camera's right, low enough to stay
+ * under the level above and tested against depth, so it never covers a
+ * piece standing in front of it.
+ */
+export const KingBubble = ({
+  floor,
+  map,
+  size = 1,
+}: {
+  floor: Vec3;
+  map: CanvasTexture;
+  size?: number;
+}) => {
+  const sprite = useRef<Sprite>(null);
+  useFrame(({ camera }) => {
+    const s = sprite.current;
+    if (!s) return;
+    right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+    s.position.set(floor[0] + right.x * 0.33, floor[1] + BUBBLE_HEIGHT, floor[2] + right.z * 0.33);
+  });
+  return (
+    <sprite
+      ref={sprite}
+      position={[floor[0], floor[1] + BUBBLE_HEIGHT, floor[2]]}
+      scale={[0.3 * size, 0.375 * size, 1]}
+      center={[0.5, 0]}
+      renderOrder={LAYER.label}
+      raycast={noRaycast}
+    >
+      <spriteMaterial map={map} depthWrite={false} toneMapped={false} />
+    </sprite>
+  );
+};
+
+// The bubble's foot sits at the king's shoulder; its top stays well under the level above
+const BUBBLE_HEIGHT = 0.55 * PIECE_SCALE;
 
 export const Check = ({ floor }: MarkerProps) => {
-  const badge = useRef<Sprite>(null);
+  const isMated = useMated(floor);
   return (
     <>
       <Sticker floor={floor} color={CHECK_RED} fill={0.26} line={0.09} inset={0.07} />
       <Sticker floor={floor} shape="ring" ring={0.31} line={0.05} color={CHECK_RED} lift={0.016} />
-      <sprite
-        ref={badge}
-        position={[floor[0], floor[1] + BADGE_HEIGHT, floor[2]]}
-        scale={[0.4, 0.5, 1]}
-        center={[0.5, 0]}
-        renderOrder={LAYER.label}
-        raycast={noRaycast}
-      >
-        <spriteMaterial
-          map={alertTexture()}
-          depthWrite={false}
-          depthTest={false}
-          toneMapped={false}
-        />
-      </sprite>
+      {!isMated && <KingBubble floor={floor} map={bubbleTexture('check', CHECK_RED, drawBang)} />}
     </>
   );
 };

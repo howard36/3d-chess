@@ -5,15 +5,17 @@ import { clarityTower, towerFrame } from '../kit/layouts';
 // Value plan, chosen before anything else:
 // - the armies sit at the two ends of the value range: vanilla cream (very
 //   light, warm) against blueberry navy (very dark, cool);
-// - the world behind them stays in the middle: a mid-blue sky over a
-//   periwinkle sea of clouds, nothing near white or near black;
+// - behind them, a sunny sky over a sea of cumulus. The opening view looks
+//   toward the sun, so the clouds behind the tower are backlit: mid-value
+//   lilac bodies with cream linings, and the brightest cream stays in thin
+//   rims, away from the cream army's value;
 // - the platforms are clear sugar glass that multiplies (like tinted glass)
 //   instead of hazing, so a piece three levels down keeps its contrast and
-//   its colour;
-// - the world (sky, glass, armies) lives in blue, violet, orchid and cream,
-//   so the three gameplay colours are the only mint, cherry and sunflower on
-//   screen: mint for "can go", cherry red for "can take", sunflower for "just
-//   moved".
+//   its colour; the checker is faint enough that three stacked plates swing
+//   by about 10% at most;
+// - three gameplay colours appear nowhere else: mint for "can go", cherry
+//   red for "can take", sunflower for "just moved". The level ramp
+//   (candy-floss to aqua) and the armies' trims stay clear of all three.
 
 // --- Armies ---------------------------------------------------------------------
 
@@ -37,23 +39,40 @@ export const CHECK_RED = '#ff2f45';
 // --- World ----------------------------------------------------------------------
 
 export const SKY = {
-  zenith: '#3a7bdc',
-  horizon: '#93c4f6',
-  haze: '#94b7ef',
-  sun: '#fff1c9',
-  sunHaze: '#f4d6c6',
-  seaLight: '#bcc6f3',
-  seaMid: '#8096de',
-  seaShadow: '#6679ca',
-  seaDeep: '#5063b5',
+  zenith: '#5aa9f0',
+  upper: '#8cc6f6',
+  horizon: '#ffd9b8',
+  haze: '#dcbcc8',
+  sun: '#fff1d2',
+  /** Between the clouds, far below: the blue shade under the cloud sea. */
+  below: '#7189d6',
 };
 
-/** Clear sugar glass, as a multiply tint (the checker's two tones). */
-export const GLASS = { light: '#fcfbfa', dark: '#e6e4ef' };
-export const RIM = '#f7f2ff';
+/** The cloud sea's paint: cream where the sun catches it, lilac and periwinkle only in shadow. */
+export const CLOUD = {
+  light: '#fff3e6',
+  warm: '#cdbfe6',
+  mid: '#aaa6e0',
+  shadow: '#8e95d8',
+  deep: '#7a84cf',
+};
 
-/** Level letters, bottom (A) to top (E): one candy ramp, cool to warm. */
-export const LEVEL_COLORS = ['#9fd0ff', '#b7b4ff', '#d3a8ff', '#f3a6ec', '#ffb3c9'];
+/**
+ * Clear sugar glass, as a multiply tint, leaning faintly toward each level's
+ * colour (see plates.tsx), so each slab matches its letter; its checker is
+ * kept faint so stacked plates stay clean from above.
+ */
+export const GLASS = { light: '#fdfcfb' };
+
+/**
+ * One candy colour per level, bottom (A) to top (E): the gummy rim, the
+ * letter, a faint tint in the glass and the band round every piece's base.
+ * Candy-floss, lavender, periwinkle, sky, aqua: a warm-to-cool ramp that
+ * keeps at least 30° of hue from the marker colours (mint, cherry,
+ * sunflower), with the cool end at the top, where its rim sits against the
+ * warm horizon.
+ */
+export const LEVEL_COLORS = ['#f59eef', '#c8a8ff', '#a3adff', '#80c0ff', '#6fdcea'];
 
 /** Confetti, sprinkles and puffs. */
 export const CANDY = ['#ff85d8', '#7a5cf5', '#3ee8a2', '#ffcc2e', '#5ab8ff', '#ff8a5c'];

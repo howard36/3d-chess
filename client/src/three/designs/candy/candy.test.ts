@@ -1,19 +1,21 @@
-import { Box3 } from 'three';
+import { Box3, Color } from 'three';
 import { describe, expect, it } from 'vitest';
 import { PieceType } from '../../../engine/pieces';
-import { frame, PIECE_SCALE, TALLEST } from './palette';
+import { CHERRY, frame, LEVEL_COLORS, MINT, PIECE_SCALE, SUNFLOWER, TALLEST } from './palette';
 import { geometriesFor } from './pieces';
+import { glassTones } from './plates';
 
 // The toy set's measurements: what keeps every piece clear of the platform
 // above, inside its own square, and the whole army inside the triangle
-// budget of a software renderer.
+// budget of a software renderer; and the rules the glass and the level
+// colours keep.
 
 const TYPES = Object.values(PieceType);
 
 const bounds = (type: PieceType) => {
   const g = geometriesFor(type);
   const box = new Box3();
-  for (const part of [g.body, g.trim, g.eyes]) {
+  for (const part of [g.body, g.trim, g.bands, g.eyes]) {
     if (!part) continue;
     part.computeBoundingBox();
     box.union(part.boundingBox!);
@@ -23,7 +25,7 @@ const bounds = (type: PieceType) => {
 
 const triangles = (type: PieceType) => {
   const g = geometriesFor(type);
-  return [g.body, g.trim, g.eyes].reduce((n, part) => {
+  return [g.body, g.trim, g.bands, g.eyes].reduce((n, part) => {
     if (!part) return n;
     return n + (part.index ? part.index.count : part.getAttribute('position').count) / 3;
   }, 0);
@@ -67,5 +69,30 @@ describe('candy toys', () => {
       triangles(PieceType.Queen) +
       triangles(PieceType.King);
     expect(army * 2).toBeLessThan(110_000);
+  });
+});
+
+describe('candy glass and level colours', () => {
+  it('keeps the checker faint enough that three stacked plates swing by about 10% at most', () => {
+    for (let z = 0; z < 5; z++) {
+      const { light, dark } = glassTones(z);
+      for (const k of ['r', 'g', 'b'] as const) {
+        expect((dark[k] / light[k]) ** 3).toBeGreaterThan(0.88);
+      }
+    }
+  });
+
+  it('keeps every level colour clear of the marker hues', () => {
+    const hue = (c: string) => {
+      const hsl = { h: 0, s: 0, l: 0 };
+      new Color(c).getHSL(hsl);
+      return hsl.h * 360;
+    };
+    const apart = (a: number, b: number) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
+    for (const level of LEVEL_COLORS) {
+      for (const marker of [MINT, CHERRY, SUNFLOWER]) {
+        expect(apart(hue(level), hue(marker))).toBeGreaterThan(30);
+      }
+    }
   });
 });
