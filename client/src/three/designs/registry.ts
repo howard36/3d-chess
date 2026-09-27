@@ -21,7 +21,7 @@ export const DESIGNS: DesignEntry[] = [
     id: 'command',
     name: 'Command',
     blurb:
-      'A naval tactical hologram: ice and amber units on cyan glass over a dark plotting floor.',
+      'A naval tactical hologram: ice and burnished-amber units on teal-to-ice glass over a dark plotting floor.',
     swatch: ['#060e1a', '#e6f0f6', '#d56d1c', '#39d0ff'],
     load: () => import('./command'),
     group: 'clarity',
@@ -37,8 +37,8 @@ export const DESIGNS: DesignEntry[] = [
   {
     id: 'candy',
     name: 'Candy Tower',
-    blurb: 'Chunky vinyl toys on sugar-glass platforms, floating above the clouds.',
-    swatch: ['#8096de', '#fbe9c9', '#252a66', '#ffcc2e'],
+    blurb: 'Chunky vinyl toys on candy-glass platforms, floating over sunny clouds.',
+    swatch: ['#aaa6e0', '#fbe9c9', '#252a66', '#ffcc2e'],
     load: () => import('./candy'),
     group: 'clarity',
   },
@@ -46,7 +46,7 @@ export const DESIGNS: DesignEntry[] = [
     id: 'nightdrive',
     name: 'Nightdrive',
     blurb: 'Pearl and neon-edged ink on glass floors, over an endless grid at dusk.',
-    swatch: ['#2b0d3a', '#f6f3fb', '#120d26', '#ff3cac'],
+    swatch: ['#2b0d3a', '#f7f5fb', '#120d26', '#d946ef'],
     load: () => import('./nightdrive'),
     group: 'clarity',
   },
