@@ -2,6 +2,7 @@ import { Color, MeshStandardMaterial } from 'three';
 import { ChessPiece } from '../../pieces';
 import { focusLevelOf } from '../kit/focus';
 import { clarityTower, towerFrame } from '../kit/layouts';
+import { LevelGrid } from '../kit/grid';
 import { clarityMarkers } from '../kit/markers';
 import { ContactShadow, LevelFootprint, LevelPlates } from '../kit/plates';
 import { GradientSky } from '../kit/sky';
@@ -16,7 +17,8 @@ import type { Design, GridProps, PieceBodyProps, PieceColor } from '../types';
 //
 // - a compact tower (clarityTower) seen from a low, slightly turned camera,
 //   with orbit limits;
-// - one see-through platform per level (LevelPlates), tinted per level;
+// - one see-through platform per level (LevelPlates), tinted per level, with
+//   hairlines between its squares (LevelGrid) in the level's colour;
 // - labels that follow the camera (SmartLabels);
 // - markers flat on the platforms (clarityMarkers): destinations, the same
 //   marker with a capture cue, the selection, the last move's squares and
@@ -50,7 +52,8 @@ const WHITE_ARMY = '#f1ebdf';
 const BLACK_ARMY = '#1f2329';
 const ACCENT = '#4cc9f0';
 // Faint per-level tints, bottom to top: a quiet colour code for the levels,
-// matched by the level letters.
+// matched by the level letters. levelRamp (kit/colors.ts) makes such a set
+// from two hues, evenly spaced and equally bright.
 const LEVEL_TINTS = ['#9fc3ff', '#a6e3d4', '#e9e3a6', '#f4c3a0', '#e8b0d0'];
 
 // --- Layout ----------------------------------------------------------------------
@@ -94,6 +97,7 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
         edgeColors={LEVEL_TINTS}
         focusLevel={focusLevel}
       />
+      <LevelGrid layout={l} colors={LEVEL_TINTS} opacity={0.3} focusLevel={focusLevel} />
       <SmartLabels
         layout={l}
         orientation={orientation}

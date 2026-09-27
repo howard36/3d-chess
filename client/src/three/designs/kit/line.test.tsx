@@ -5,6 +5,9 @@ import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/dec
 import { BackSide, Matrix4, Vector3 } from 'three';
 import type { BufferGeometry, InstancedMesh, Mesh, ShaderMaterial } from 'three';
 import { LastMoveLine } from './line';
+import { LevelGrid } from './grid';
+import { LevelBand, levelBandGeometry } from './plates';
+import { clarityTower, towerFrame } from './layouts';
 import { LAYER } from './layers';
 import type { Vec3 } from '../types';
 
@@ -79,5 +82,35 @@ describe('LastMoveLine', () => {
       expect(p.x).toBeGreaterThanOrEqual(0);
       expect(p.x).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('LevelGrid and LevelBand', () => {
+  it('draws one grid per level, on its platform, in its level’s colour', async () => {
+    const layout = clarityTower();
+    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#00ffff'];
+    const r = await ReactThreeTestRenderer.create(<LevelGrid layout={layout} colors={colors} />);
+    const grids = meshes(r.scene as ReactThreeTestInstance);
+    expect(grids).toHaveLength(5);
+    const { levelY } = towerFrame(layout);
+    grids.forEach((g, z) => {
+      expect(g.position.y).toBeCloseTo(levelY[z] + 0.003);
+      const c = (g.material as ShaderMaterial).uniforms.uColor.value;
+      expect(`#${c.getHexString()}`).toBe(colors[z]);
+    });
+  });
+
+  it('builds a thin band at a piece’s foot', async () => {
+    const r = await ReactThreeTestRenderer.create(
+      <LevelBand color="#ff8800" radius={0.3} height={0.05} />,
+    );
+    const [band] = meshes(r.scene as ReactThreeTestInstance);
+    const g = band.geometry as BufferGeometry;
+    g.computeBoundingBox();
+    expect(g.boundingBox!.min.y).toBeCloseTo(0);
+    expect(g.boundingBox!.max.y).toBeCloseTo(0.05);
+    expect(g.boundingBox!.max.x).toBeCloseTo(0.3);
+    // Shared per shape
+    expect(levelBandGeometry({ radius: 0.3, height: 0.05 })).toBe(g);
   });
 });

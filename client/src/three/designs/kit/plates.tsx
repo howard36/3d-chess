@@ -3,9 +3,11 @@ import {
   BoxGeometry,
   CanvasTexture,
   Color,
+  CylinderGeometry,
   DoubleSide,
   LinearMipmapLinearFilter,
   MeshBasicMaterial,
+  MeshStandardMaterial,
   PlaneGeometry,
   RingGeometry,
   SRGBColorSpace,
@@ -377,4 +379,82 @@ export const LevelFootprint = ({
       raycast={noRaycast}
     />
   );
+};
+
+export interface LevelBandProps {
+  /** The level's colour (PieceBodyProps.level through the design's level colours). */
+  color: string;
+  /** Radius of the band (piece units): a touch wider than the base to ring it, or as wide to stand it on. */
+  radius?: number;
+  /** Height of the band (piece units): thin. */
+  height?: number;
+  /** Height of the band's bottom above the piece's origin (its floor). */
+  y?: number;
+  /** A square band (a box), for square-footed pieces. */
+  square?: boolean;
+  /** How much the colour glows on its own, so it holds in shadow (0–1). */
+  glow?: number;
+  roughness?: number;
+  metalness?: number;
+}
+
+const bandGeometries = new Map<string, BufferGeometry>();
+const bandMaterials = new Map<string, MeshStandardMaterial>();
+
+/**
+ * The geometry of a level band, for a design that merges it into its own
+ * piece geometry (and paints it itself) rather than using LevelBand.
+ */
+export const levelBandGeometry = ({
+  radius = 0.3,
+  height = 0.04,
+  y = 0,
+  square = false,
+}: Pick<LevelBandProps, 'radius' | 'height' | 'y' | 'square'> = {}): BufferGeometry => {
+  const key = `${radius}/${height}/${y}/${square}`;
+  let g = bandGeometries.get(key);
+  if (!g) {
+    g = (
+      square
+        ? new BoxGeometry(radius * 2, height, radius * 2)
+        : new CylinderGeometry(radius, radius, height, 48)
+    ).translate(0, y + height / 2, 0);
+    bandGeometries.set(key, g);
+  }
+  return g;
+};
+
+/**
+ * A thin band of solid colour built into the foot of a piece, in its
+ * level's colour, so the platform a piece stands on reads from the piece
+ * itself (Kontur paints its feet this way). Place it in a design's PieceBody
+ * at the piece's base: either a touch wider than the base, ringing it, or
+ * as wide, with the rest of the piece raised by `height` to stand on it. It
+ * is part of the piece: it moves, lifts and fades with it. The material is
+ * shared per colour, so anything that fades a piece clones first (GhostPiece
+ * does). For a flat ring on the floor instead, see LevelFootprint.
+ */
+export const LevelBand = ({
+  color,
+  radius = 0.3,
+  height = 0.04,
+  y = 0,
+  square = false,
+  glow = 0.25,
+  roughness = 0.5,
+  metalness = 0,
+}: LevelBandProps) => {
+  const key = `${color}/${glow}/${roughness}/${metalness}`;
+  let material = bandMaterials.get(key);
+  if (!material) {
+    material = new MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: glow,
+      roughness,
+      metalness,
+    });
+    bandMaterials.set(key, material);
+  }
+  return <mesh geometry={levelBandGeometry({ radius, height, y, square })} material={material} />;
 };
