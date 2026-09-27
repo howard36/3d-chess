@@ -40,16 +40,18 @@
 // are photographed from both White's and Black's page: the opening; a piece
 // of the side to move selected that has both quiet and capture destinations
 // (picked with the rules engine, from Vite's /src, once a few moves are in);
-// the last move's trace after a move between levels; and a check. Each is
-// shot from 12 poses: 8 azimuths round the tower at the design's own
-// elevation, and a low and a high view at two azimuths (the design's orbit
-// limits apply, so the labels give the elevation actually reached). It
+// the last move's line after a move between levels; and a check. Each is
+// shot from 13 poses: 8 azimuths round the tower at the design's own
+// elevation, a low and a high view at two azimuths, and straight down from
+// above (the design's orbit limits apply, so the labels give the elevation
+// actually reached). It
 // writes every shot as <seat>-<state>-<pose>.png plus labelled contact
 // sheets: review-states.png (every state from both seats, opening view),
 // review-white.png and review-black.png (every state, every pose, and the
 // selection twice more from the opening view: the pointer on one of its
 // destinations, then on another of the side's pieces). One to three minutes
-// for a moderately heavy scene; --quick shoots the opening view only.
+// for a moderately heavy scene; --quick shoots the opening view and the
+// top-down view only.
 // --poses "az,el;az,el" replaces the 12 poses: az in degrees round from the
 // seat's opening view, el the elevation in degrees (orbit limits apply),
 // e.g. --poses "0,18;180,18;0,45".
@@ -385,7 +387,8 @@ const SHOW_HELPERS = () => {
         );
       }
       const yaw = base.yaw + (yawDeg * Math.PI) / 180;
-      const pitch = Math.max(-1.4, Math.min(1.4, base.pitch + (pitchDeg * Math.PI) / 180));
+      // Up to a bird's-eye view (a hair off vertical, so the view keeps its heading)
+      const pitch = Math.max(-1.4, Math.min(1.5691, base.pitch + (pitchDeg * Math.PI) / 180));
       const r = base.r * zoom;
       camera.position.set(
         target.x + r * Math.cos(pitch) * Math.sin(yaw),
@@ -524,9 +527,11 @@ const REVIEW_STATES = {
 };
 
 // Camera poses, as offsets from the seat's opening view: 8 azimuths round the
-// board, then a low and a high view at two azimuths. --poses "az,el;az,el"
-// replaces them: az in degrees round from the seat's opening view, el the
-// elevation in degrees (the design's orbit limits still apply).
+// board, then a low and a high view at two azimuths, then top-down (as far
+// as the design's orbit allows). --poses "az,el;az,el" replaces them: az in
+// degrees round from the seat's opening view, el the elevation in degrees
+// (the design's orbit limits still apply).
+const TOP_DOWN = { id: 'top', yaw: 0, elevation: 89.9 };
 const CUSTOM_POSES = opt('poses');
 const REVIEW_POSES = CUSTOM_POSES
   ? CUSTOM_POSES.split(';')
@@ -534,13 +539,14 @@ const REVIEW_POSES = CUSTOM_POSES
       .filter(([a, e]) => Number.isFinite(a) && Number.isFinite(e))
       .map(([a, e]) => ({ id: `az${a}-el${e}`, yaw: a, elevation: e }))
   : QUICK
-    ? [{ id: 'az0', yaw: 0, pitch: 0 }]
+    ? [{ id: 'az0', yaw: 0, pitch: 0 }, TOP_DOWN]
     : [
         ...[0, 45, 90, 135, 180, 225, 270, 315].map((a) => ({ id: `az${a}`, yaw: a, pitch: 0 })),
         { id: 'low-az0', yaw: 0, pitch: -14 },
         { id: 'high-az0', yaw: 0, pitch: 26 },
         { id: 'low-az135', yaw: 135, pitch: -14 },
         { id: 'high-az135', yaw: 135, pitch: 26 },
+        TOP_DOWN,
       ];
 
 const HOVER_CAPTIONS = {

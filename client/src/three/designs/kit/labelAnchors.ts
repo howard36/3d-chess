@@ -1,13 +1,13 @@
 import { FILES, LEVELS, RANKS } from '../../../engine/coords';
-import { GRID_SIZE } from '../../layout';
 import type { Orientation } from '../../layout';
 import { towerFrame } from './layouts';
 import type { BoardLayout, Vec3 } from '../types';
 
 // Where a tower's coordinate labels go, as a pure function of the camera:
 // files and ranks along the two edges of a platform nearest the camera, just
-// outside it, and each level letter beside its platform's screen-left corner,
-// outside the tower's silhouette. Choices only change past a hysteresis band,
+// outside it (the bottom platform, or the top one from high above), and each
+// level letter beside its platform's screen-left corner, outside the tower's
+// silhouette. Choices only change past a hysteresis band,
 // so an orbit that wavers around a boundary never makes the labels flicker.
 
 /** Which platform edges carry the axis labels: the sign of the edge's z (files) and x (ranks). */
@@ -90,6 +90,84 @@ export const chooseLevelCorner = (
   return best;
 };
 
+/**
+ * How far `p` lies inside the convex quad `q` (screen points, in order round
+ * it): the distance to its nearest side, negative outside.
+ */
+const depthInside = (p: [number, number], q: [number, number][]): number => {
+  let area = 0;
+  for (let i = 0; i < q.length; i++) {
+    const [ax, ay] = q[i];
+    const [bx, by] = q[(i + 1) % q.length];
+    area += ax * by - bx * ay;
+  }
+  const turn = area >= 0 ? 1 : -1;
+  let depth = Infinity;
+  for (let i = 0; i < q.length; i++) {
+    const [ax, ay] = q[i];
+    const [bx, by] = q[(i + 1) % q.length];
+    const l = Math.hypot(bx - ax, by - ay) || 1;
+    depth = Math.min(depth, (turn * ((bx - ax) * (p[1] - ay) - (by - ay) * (p[0] - ax))) / l);
+  }
+  return depth;
+};
+
+/**
+ * Which platform carries a row of axis labels (the files, or the ranks). The
+ * bottom one (A) is their home, below everything from the usual low camera;
+ * but from high above, perspective makes the nearer platforms wider on
+ * screen, so the bottom one's labels would land on top of them. Then they
+ * move to the top platform (E), whose edges are outermost from up there.
+ * `placements(z)` gives where the labels would sit on level `z`. A move
+ * needs the other platform clearly better (by `margin`, in units of the
+ * tangent of the view angle), so the labels never flicker between the two;
+ * below `minElevation` (radians) they stay home whatever happens, as they
+ * always have.
+ */
+export const chooseAxisLevel = (
+  camera: Vec3,
+  target: Vec3,
+  half: number,
+  levelY: number[],
+  placements: (z: number) => Vec3[],
+  prev: number | null,
+  margin = 0.01,
+  minElevation = (40 * Math.PI) / 180,
+): number => {
+  const forward = norm(sub(target, camera));
+  if (-forward[1] < Math.sin(minElevation)) return 0;
+  const right = cameraRight(camera, target);
+  const up: Vec3 = [
+    right[1] * forward[2] - right[2] * forward[1],
+    right[2] * forward[0] - right[0] * forward[2],
+    right[0] * forward[1] - right[1] * forward[0],
+  ];
+  const screen = (p: Vec3): [number, number] => {
+    const v = sub(p, camera);
+    const depth = Math.max(dot(v, forward), 1e-3);
+    return [dot(v, right) / depth, dot(v, up) / depth];
+  };
+  const plates = levelY.map((y) => CORNERS.map(([sx, sz]) => screen([sx * half, y, sz * half])));
+  // How far the deepest label on level z lies inside any platform (negative:
+  // every label is clear of every platform by at least that much)
+  const worst = (z: number) => {
+    let w = -Infinity;
+    for (const p of placements(z)) {
+      const s = screen(p);
+      for (const q of plates) w = Math.max(w, depthInside(s, q));
+    }
+    return w;
+  };
+  const top = levelY.length - 1;
+  const bottom = worst(0);
+  if (prev === top) {
+    // Back home as soon as the bottom platform's labels are clearly clear
+    return bottom < -margin || worst(top) > margin ? 0 : top;
+  }
+  if (prev === 0) return bottom > margin && worst(top) < -margin ? top : 0;
+  return bottom <= 0 || worst(top) > 0 ? 0 : top;
+};
+
 export interface LabelAnchor {
   /** Stable identity of the label (one sprite pair per id). */
   id: string;
@@ -104,6 +182,8 @@ export interface LabelAnchor {
 export interface AnchorState {
   edges: EdgeChoice;
   corners: number[];
+  /** The platforms carrying the file and the rank labels (see chooseAxisLevel). */
+  axisLevels?: { files: number; ranks: number };
 }
 
 export interface AnchorOptions {
@@ -141,30 +221,43 @@ export const labelAnchors = (
   const corners = frame.levelY.map((y, z) =>
     chooseLevelCorner(camera, target, frame.half, y, prev?.corners[z] ?? null, o.cornerHysteresis),
   );
-  const labels: LabelAnchor[] = [];
-  const levels = o.everyLevel ? [0, 1, 2, 3, 4] : [0];
   const fileZ = edges.files * (frame.half + offset);
   const rankX = edges.ranks * (frame.half + offset);
+  const fileX = FILES.map((_, x) => layout.toWorld({ x, y: 0, z: 0 }, orientation)[0]);
+  const rankZ = RANKS.map((_, r) => layout.toWorld({ x: 0, y: r, z: 0 }, orientation)[2]);
+  // The files and the ranks each take the platform that keeps them clear of
+  // the tower on screen (usually the bottom one)
+  const fileAt = (z: number): Vec3[] => fileX.map((px) => [px, frame.levelY[z], fileZ]);
+  const rankAt = (z: number): Vec3[] => rankZ.map((pz) => [rankX, frame.levelY[z], pz]);
+  const pick = (at: (z: number) => Vec3[], was: number | undefined) =>
+    o.everyLevel ? 0 : chooseAxisLevel(camera, target, frame.half, frame.levelY, at, was ?? null);
+  const axisLevels = {
+    files: pick(fileAt, prev?.axisLevels?.files),
+    ranks: pick(rankAt, prev?.axisLevels?.ranks),
+  };
+  const labels: LabelAnchor[] = [];
+  // One set of axis labels (ids from level A, whichever platform carries
+  // them), or one per platform
+  const levels = o.everyLevel ? [0, 1, 2, 3, 4] : [0];
   for (const z of levels) {
-    const y = frame.levelY[z];
-    for (let x = 0; x < GRID_SIZE; x++) {
-      const [px] = layout.toWorld({ x, y: 0, z }, orientation);
+    const files = o.everyLevel ? z : axisLevels.files;
+    const ranks = o.everyLevel ? z : axisLevels.ranks;
+    FILES.forEach((text, x) =>
       labels.push({
-        id: `file-${FILES[x]}-${z}`,
-        text: FILES[x],
-        key: `z${edges.files}`,
-        position: [px, y, fileZ],
-      });
-    }
-    for (let r = 0; r < GRID_SIZE; r++) {
-      const [, , pz] = layout.toWorld({ x: 0, y: r, z }, orientation);
+        id: `file-${text}-${z}`,
+        text,
+        key: `z${edges.files}l${files}`,
+        position: [fileX[x], frame.levelY[files], fileZ],
+      }),
+    );
+    RANKS.forEach((text, r) =>
       labels.push({
-        id: `rank-${RANKS[r]}-${z}`,
-        text: RANKS[r],
-        key: `x${edges.ranks}`,
-        position: [rankX, y, pz],
-      });
-    }
+        id: `rank-${text}-${z}`,
+        text,
+        key: `x${edges.ranks}l${ranks}`,
+        position: [rankX, frame.levelY[ranks], rankZ[r]],
+      }),
+    );
   }
   const left = cameraRight(camera, target).map((v) => -v) as Vec3;
   frame.levelY.forEach((y, z) => {
@@ -181,5 +274,5 @@ export const labelAnchors = (
       level: z,
     });
   });
-  return { state: { edges, corners }, labels };
+  return { state: { edges, corners, axisLevels }, labels };
 };

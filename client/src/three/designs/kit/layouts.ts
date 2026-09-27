@@ -105,8 +105,9 @@ export interface ClarityTowerOptions {
  * (19° here) the back row of one level interleaves on screen with the front
  * row of the level above it, so a piece at the back of A reads as standing on
  * B; much below it (12°–14°) the squares flatten into lines. 18° is the
- * steepest view before the rows interleave. Above about 50° nothing is
- * readable (reviewed in all six clarity designs), so the orbit stops there.
+ * steepest view before the rows interleave. The orbit goes all the way up to
+ * a bird's-eye view (89.9°, a hair off vertical so the view keeps its
+ * heading), where the levels nest like a 2D board seen through glass.
  */
 export const CLARITY_TOWER_DEFAULTS = {
   pitch: 1,
@@ -115,7 +116,7 @@ export const CLARITY_TOWER_DEFAULTS = {
   elevation: 18,
   azimuth: 16,
   minElevation: 6,
-  maxElevation: 50,
+  maxElevation: 89.9,
   minDistance: 5,
   hitHeight: 0.1,
 } as const satisfies Required<ClarityTowerOptions>;
@@ -127,7 +128,7 @@ export const CLARITY_TOWER_DEFAULTS = {
  * that looks between the levels rather than down through them. Rank 1 is
  * nearest White; Black walks around the tower (files and ranks flip, levels
  * stay). The orbit is limited so the camera never dips under the bottom
- * platform or looks straight down the stack.
+ * platform; it may rise to look straight down the stack.
  *
  * A cell's click box is a thin slab on its square (`hitHeight`): a taller
  * box is entered by rays aimed at the square behind it, so a click on one

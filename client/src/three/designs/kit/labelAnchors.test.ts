@@ -180,3 +180,111 @@ describe('hysteresis', () => {
     expect(cameraRight([0, 3, 10], TARGET)).toEqual([1, 0, 0]);
   });
 });
+
+describe('axis labels seen from above', () => {
+  const axisLabels = (camera: Vec3, orientation: 'white' | 'black' = 'white') =>
+    labelAnchors(layout, orientation, camera, TARGET, null).labels.filter(
+      (l) => l.level === undefined,
+    );
+  /** Screen position (tangents of the view angles) of `p`, as the camera sees it. */
+  const screen = (camera: Vec3, p: Vec3): [number, number] => {
+    const f = [TARGET[0] - camera[0], TARGET[1] - camera[1], TARGET[2] - camera[2]];
+    const fl = Math.hypot(f[0], f[1], f[2]);
+    const fw = [f[0] / fl, f[1] / fl, f[2] / fl];
+    const r = cameraRight(camera, TARGET);
+    const up = [
+      r[1] * fw[2] - r[2] * fw[1],
+      r[2] * fw[0] - r[0] * fw[2],
+      r[0] * fw[1] - r[1] * fw[0],
+    ];
+    const v = [p[0] - camera[0], p[1] - camera[1], p[2] - camera[2]];
+    const depth = v[0] * fw[0] + v[1] * fw[1] + v[2] * fw[2];
+    return [
+      (v[0] * r[0] + v[1] * r[1] + v[2] * r[2]) / depth,
+      (v[0] * up[0] + v[1] * up[1] + v[2] * up[2]) / depth,
+    ];
+  };
+
+  it('keeps them on the bottom platform from low, and puts them on the top one from overhead', () => {
+    for (const orientation of ['white', 'black'] as const) {
+      for (const azimuth of [0, 16, 135, 200]) {
+        for (const elevation of [8, 18, 30]) {
+          for (const l of axisLabels(cameraAt(azimuth, elevation), orientation)) {
+            expect(l.position[1]).toBeCloseTo(frame.levelY[0]);
+          }
+        }
+        for (const l of axisLabels(cameraAt(azimuth, 89.9), orientation)) {
+          expect(l.position[1]).toBeCloseTo(frame.levelY[4]);
+        }
+      }
+    }
+  });
+
+  it('keeps every file and rank label off every platform on screen, from 45° to overhead', () => {
+    // Inside the convex quad `q` (screen points, in order round it)
+    const inside = (p: [number, number], q: [number, number][]) => {
+      let sign = 0;
+      for (let i = 0; i < q.length; i++) {
+        const [ax, ay] = q[i];
+        const [bx, by] = q[(i + 1) % q.length];
+        const c = Math.sign((bx - ax) * (p[1] - ay) - (by - ay) * (p[0] - ax));
+        if (c !== 0 && sign !== 0 && c !== sign) return false;
+        if (c !== 0) sign = c;
+      }
+      return true;
+    };
+    const bad: string[] = [];
+    for (const azimuth of [0, 16, 60, 135, 250]) {
+      for (const elevation of [45, 50, 55, 60, 65, 70, 75, 80, 85, 89.9]) {
+        const camera = cameraAt(azimuth, elevation);
+        const plates = frame.levelY.map((y) =>
+          CORNERS.map(([sx, sz]) => screen(camera, [sx * frame.half, y, sz * frame.half])),
+        );
+        for (const label of axisLabels(camera)) {
+          const p = screen(camera, label.position);
+          plates.forEach((q, z) => {
+            if (inside(p, q)) bad.push(`${label.id} on ${z} from ${azimuth}°/${elevation}°`);
+          });
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('changes platform once each way through an orbit, and later going up than coming down', () => {
+    for (const azimuth of [16, 60, 135]) {
+      const sweep = (elevations: number[]) => {
+        let state: AnchorState | null = null;
+        const changes: number[] = [];
+        for (const e of elevations) {
+          const next: AnchorState = labelAnchors(
+            layout,
+            'white',
+            cameraAt(azimuth, e),
+            TARGET,
+            state,
+          ).state;
+          if (state && next.axisLevels!.files !== state.axisLevels!.files) changes.push(e);
+          state = next;
+        }
+        return changes;
+      };
+      const up = Array.from({ length: 140 }, (_, i) => 20 + i * 0.5);
+      const climbing = sweep(up);
+      const descending = sweep([...up].reverse());
+      expect(climbing).toHaveLength(1);
+      expect(descending).toHaveLength(1);
+      expect(climbing[0]).toBeGreaterThan(50);
+      expect(climbing[0]).toBeGreaterThan(descending[0]);
+    }
+  });
+
+  it('crossfades a label when it moves to the other platform', () => {
+    const low = labelAnchors(layout, 'white', cameraAt(16, 18), TARGET, null);
+    const high = labelAnchors(layout, 'white', cameraAt(16, 89.9), TARGET, low.state);
+    expect(high.state.axisLevels).toEqual({ files: 4, ranks: 4 });
+    const a = low.labels.find((l) => l.id === 'file-a-0')!;
+    const b = high.labels.find((l) => l.id === 'file-a-0')!;
+    expect(a.key).not.toBe(b.key);
+  });
+});
