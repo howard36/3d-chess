@@ -939,6 +939,24 @@ describe('Board with a clarity-kit design', () => {
     expect(last(focusSeen)).toEqual({ selected: 1, hovered: null });
   });
 
+  it('tells a piece body it is under the pointer for any hover lift, heights or `true`', async () => {
+    const hoveredBodies = (renderer: Renderer) =>
+      (renderer.scene as ReactThreeTestInstance).findAll(
+        (node) => node.props.userData?.hoveredBody,
+      );
+    const PieceBody = ({ hovered }: PieceBodyProps) => (
+      <group userData={{ hoveredBody: hovered === true }} />
+    );
+    for (const hoverLift of [true, { hover: 0.05, selected: 0.16 }] as const) {
+      const renderer = await renderWith({ ...classic, PieceBody, hoverLift });
+      const pawn = findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN);
+      await act(async () => pawn.props.onPointerOver({ stopPropagation: () => {} }));
+      expect(hoveredBodies(renderer).filter((b) => b.props.userData.hoveredBody)).toHaveLength(1);
+      await act(async () => pawn.props.onPointerOut());
+      expect(hoveredBodies(renderer).some((b) => b.props.userData.hoveredBody)).toBe(false);
+    }
+  });
+
   it('tells each piece body the level it stands on', async () => {
     const levels = new Map<string, number | undefined>();
     const PieceBody = ({ type, color, level }: PieceBodyProps) => {

@@ -412,7 +412,7 @@ const Board = (props: BoardProps) => {
               onClick={pieceHandlers.get(key)}
               {...(design.hoverLift ? hoverHandlers.get(key) : {})}
               selected={isSelected(coord)}
-              hovered={design.hoverLift === true && hovered === key && canPick(coord)}
+              hovered={!!design.hoverLift && hovered === key && canPick(coord)}
               inCheck={inCheck}
               level={coord.z}
               mated={type === PieceType.King && color === matedColor}
