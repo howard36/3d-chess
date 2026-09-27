@@ -22,6 +22,25 @@
 // --pose yaw,pitch,zoom holds the camera still at that offset from the
 // opening view (degrees, degrees, distance factor).
 // Needs ffmpeg with libx264 on PATH, or FFMPEG=/path/to/ffmpeg.
+//
+// --review is a clarity review instead of a recording (no ffmpeg needed):
+//
+//   node scripts/showcase.mjs --design kit-demo --review --out /tmp/review
+//
+// Both seats open the design, the scripted game is typed in, and four states
+// are photographed from both White's and Black's page: the opening; a piece
+// of the side to move selected that has both quiet and capture destinations
+// (picked with the rules engine, from Vite's /src, once a few moves are in);
+// the last move's trace after a move between levels; and a check. Each is
+// shot from 12 poses: 8 azimuths round the tower at the design's own
+// elevation, and a low and a high view at two azimuths (the design's orbit
+// limits apply, so the labels give the elevation actually reached). It
+// writes every shot as <seat>-<state>-<pose>.png plus labelled contact
+// sheets: review-states.png (every state from both seats, opening view),
+// review-white.png and review-black.png (every state, every pose, and the
+// selection once more with the pointer on a destination). About
+// three minutes for a moderately heavy scene; --quick shoots the opening
+// view only (under a minute).
 
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
@@ -38,6 +57,8 @@ const opt = (name, fallback) => {
 const DESIGN = opt('design', 'classic');
 const OUT = path.resolve(opt('out', 'showcase'));
 const STILLS = flag('stills');
+const REVIEW = flag('review');
+const QUICK = flag('quick');
 const FPS = Number(opt('fps', 30));
 const WIDTH = Number(opt('width', 1280));
 const HEIGHT = Number(opt('height', 720));
@@ -353,6 +374,78 @@ const SHOW_HELPERS = () => {
       ring.style.transform = `scale(${1.6 - press * 0.8})`;
     },
     turnText: () => document.querySelector('[data-testid="turn-indicator"]')?.textContent ?? '',
+    /**
+     * Runs `frames` frames of `ms` each on the virtual clock, so animations
+     * settle, but draws only the last: under a software renderer the draws
+     * are nearly all of a frame's cost, and only the last one is seen.
+     */
+    settle(frames, ms) {
+      const st = store();
+      const gl = st?.gl;
+      const draw = gl?.render;
+      for (let i = 0; i < frames; i++) {
+        if (gl && i < frames - 1) gl.render = () => {};
+        try {
+          st?.invalidate();
+          window.__vclock.step(ms);
+        } finally {
+          if (gl) gl.render = draw;
+        }
+      }
+    },
+    /** The camera's azimuth and elevation about the orbit target, in degrees. */
+    pose() {
+      const st = store();
+      const { camera, controls } = st;
+      const t = controls?.target ?? new camera.position.constructor();
+      const d = camera.position.clone().sub(t);
+      return {
+        azimuth: Math.round((Math.atan2(d.x, d.z) * 180) / Math.PI),
+        elevation: Math.round((Math.asin(d.y / d.length()) * 180) / Math.PI),
+      };
+    },
+    /**
+     * The pieces of `color` with both quiet and capture destinations in the
+     * position on screen, best first, found with the rules engine (served by
+     * Vite from /src). The position is read off the scene: each piece stands
+     * exactly on its cell's box.
+     */
+    async richPieces(color) {
+      const { Board } = await import('/src/engine/index.ts');
+      const { fromZXY } = await import('/src/engine/coords.ts');
+      const st = store();
+      const cubes = [];
+      const pieces = [];
+      st.scene.traverse((o) => {
+        if (o.userData?.cube) cubes.push(o);
+        else if (o.userData?.piece) {
+          for (let a = o.parent; a; a = a.parent) if (a.userData?.ghostPiece) return;
+          pieces.push(o);
+        }
+      });
+      const board = new Board();
+      const where = new Map();
+      for (const p of pieces) {
+        const cube = cubes.find((c) => c.position.distanceTo(p.position) < 1e-4);
+        if (!cube) continue;
+        board.setPiece(fromZXY(cube.userData.zxy), p.userData.piece);
+        where.set(cube.userData.zxy, p.userData.piece);
+      }
+      const found = [];
+      for (const [zxy, piece] of where) {
+        if (piece.color !== color) continue;
+        const moves = board.generateLegalMoves(fromZXY(zxy));
+        const to = new Set(moves.map((m) => `${m.to.x},${m.to.y},${m.to.z}`));
+        const targets = [...to].map((k) => k.split(',').map(Number));
+        const capture = targets.filter(([x, y, z]) => board.getPiece({ x, y, z })).length;
+        const quiet = targets.length - capture;
+        if (capture > 0 && quiet > 0) found.push({ zxy, quiet, capture });
+      }
+      // Both kinds on show, without a queen's worth of clutter
+      const score = (f) =>
+        Math.min(f.capture, 3) * 20 + Math.min(f.quiet, 10) - Math.max(f.quiet - 16, 0) * 2;
+      return found.sort((a, b) => score(b) - score(a));
+    },
   };
 };
 
@@ -378,6 +471,247 @@ const PACE = {
 const POLL = { polling: 50, timeout: 60000 };
 
 const ease = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+
+// ---------------------------------------------------------------------------
+// Review
+
+const REVIEW_STATES = {
+  opening: 'Opening position',
+  selected: 'Selected: quiet and capture destinations',
+  lastmove: 'Last move, between levels',
+  check: 'Check',
+};
+
+// Camera poses, as offsets from the seat's opening view: 8 azimuths round the
+// board, then a low and a high view at two azimuths.
+const REVIEW_POSES = QUICK
+  ? [{ id: 'az0', yaw: 0, pitch: 0 }]
+  : [
+      ...[0, 45, 90, 135, 180, 225, 270, 315].map((a) => ({ id: `az${a}`, yaw: a, pitch: 0 })),
+      { id: 'low-az0', yaw: 0, pitch: -14 },
+      { id: 'high-az0', yaw: 0, pitch: 26 },
+      { id: 'low-az135', yaw: 135, pitch: -14 },
+      { id: 'high-az135', yaw: 135, pitch: 26 },
+    ];
+
+async function review(seats) {
+  const started = Date.now();
+  const elapsed = () => `${((Date.now() - started) / 1000).toFixed(0)}s`;
+  const cdps = {};
+  for (const [seat, page] of Object.entries(seats)) {
+    cdps[seat] = await page.context().newCDPSession(page);
+  }
+  // shots[seat][state] = [{ pose, file, azimuth, elevation }]
+  const shots = { white: {}, black: {} };
+  const notes = { white: {}, black: {} };
+
+  const shoot = async (seat, state, note) => {
+    const page = seats[seat];
+    // Nothing under the pointer: park it on the page's edge
+    await page.mouse.move(WIDTH - 2, HEIGHT / 2);
+    // Moves and captures finish playing before the first shot
+    await page.evaluate(() => window.__show.settle(24, 1000 / 30));
+    shots[seat][state] = [];
+    notes[seat][state] = note;
+    for (const pose of REVIEW_POSES) {
+      const at = await page.evaluate(({ yaw, pitch }) => {
+        window.__show.orbit(yaw, pitch, 1, null, 0);
+        // Labels crossfade to their new anchors over a few frames
+        window.__show.settle(6, 50);
+        return window.__show.pose();
+      }, pose);
+      const { data } = await cdps[seat].send('Page.captureScreenshot', { format: 'png' });
+      const file = path.join(OUT, `${seat}-${state}-${pose.id}.png`);
+      fs.writeFileSync(file, Buffer.from(data, 'base64'));
+      shots[seat][state].push({ pose: pose.id, file, ...at });
+    }
+    // Back to the opening view for whatever comes next
+    await page.evaluate(() => {
+      window.__show.orbit(0, 0, 1, null, 0);
+      window.__show.settle(2, 50);
+    });
+    console.log(`${elapsed()} ${seat} ${state}${note ? ` (${note})` : ''}`);
+  };
+
+  // The selection once more from the opening view, the pointer resting on
+  // one of its quiet destinations (how a design shows hover)
+  const shootHover = async (seat) => {
+    const page = seats[seat];
+    const at = await page.evaluate(() => {
+      const cells = [];
+      const pieces = [];
+      window.__r3fState.get().scene.traverse((o) => {
+        if (o.userData?.cube && o.userData.highlight) cells.push(o);
+        if (o.userData?.piece) pieces.push(o.position);
+      });
+      for (const cell of cells) {
+        if (pieces.some((p) => p.distanceTo(cell.position) < 1e-4)) continue;
+        const px = window.__show.pixelFor(cell.userData.zxy, 'cell');
+        if (px) return px;
+      }
+      return null;
+    });
+    if (!at) return;
+    await page.mouse.move(at.x, at.y);
+    const pose = await page.evaluate(() => {
+      window.__show.settle(3, 50);
+      return window.__show.pose();
+    });
+    const { data } = await cdps[seat].send('Page.captureScreenshot', { format: 'png' });
+    const file = path.join(OUT, `${seat}-selected-hover.png`);
+    fs.writeFileSync(file, Buffer.from(data, 'base64'));
+    shots[seat].selected.push({ pose: 'hover', file, ...pose });
+  };
+
+  const has = (state) => !!shots.white[state] && !!shots.black[state];
+  await shoot('white', 'opening');
+  await shoot('black', 'opening');
+
+  const turn = (p) => p.evaluate(() => window.__show.turnText());
+  for (let i = 0; i < GAME.length; i++) {
+    if (has('selected') && has('lastmove') && has('check')) break;
+    const [from, to] = GAME[i].split('-');
+    const mover = i % 2 === 0 ? seats.white : seats.black;
+    const next = i % 2 === 0 ? 'Black to move' : 'White to move';
+    await mover.fill('#typed-move', `${from}-${to}`);
+    await mover.press('#typed-move', 'Enter');
+    for (const p of Object.values(seats)) {
+      await p.waitForFunction((t) => window.__show.turnText().startsWith(t), next, POLL);
+    }
+    const plies = i + 1;
+    const last = i === GAME.length - 1;
+    if (!has('check') && (await turn(seats.white)).includes('check')) {
+      for (const seat of ['white', 'black']) await shoot(seat, 'check', `after ${GAME[i]}`);
+    }
+    if (!has('lastmove') && ((plies >= 3 && from[0] !== to[0]) || last)) {
+      for (const seat of ['white', 'black']) await shoot(seat, 'lastmove', `${from}-${to}`);
+    }
+    // The side to move shows a piece with both kinds of destination
+    const seat = i % 2 === 0 ? 'black' : 'white';
+    if (!shots[seat].selected && (plies >= 3 || GAME.length - plies < 2)) {
+      const page = seats[seat];
+      let candidates = [];
+      try {
+        candidates = await page.evaluate((c) => window.__show.richPieces(c), seat);
+      } catch (e) {
+        console.log(`no rules engine in the page (${e.message.split('\n')[0]}); skipping`);
+      }
+      for (const { zxy, quiet, capture } of candidates) {
+        await page.evaluate(() => window.__show.settle(2, 1000 / 30));
+        const at = await page.evaluate((z) => window.__show.pixelFor(z, 'piece'), zxy);
+        if (!at) continue;
+        await page.mouse.click(at.x, at.y);
+        const selected = await page
+          .waitForFunction(
+            () => {
+              let n = 0;
+              window.__r3fState.get().scene.traverse((o) => o.userData?.highlight && n++);
+              return n > 0;
+            },
+            null,
+            { ...POLL, timeout: 5000 },
+          )
+          .then(
+            () => true,
+            () => false,
+          );
+        if (!selected) continue;
+        await shoot(seat, 'selected', `${zxy}: ${quiet} quiet, ${capture} capture`);
+        await shootHover(seat);
+        break;
+      }
+    }
+  }
+  console.log(`${elapsed()} states done, building sheets`);
+  await sheets(seats.white.context(), shots, notes);
+  console.log(`review of ${DESIGN} took ${elapsed()}`);
+}
+
+/** Lays the shots out as labelled contact sheets, drawn by the browser itself. */
+async function sheets(context, shots, notes) {
+  const page = await context.newPage();
+  const files = new Map();
+  await page.route('http://review.local/**', (route) => {
+    const name = decodeURIComponent(new URL(route.request().url()).pathname.slice(1));
+    if (files.has(name)) return route.fulfill({ path: files.get(name) });
+    return route.fulfill({ body: files.get('/html') ?? '', contentType: 'text/html' });
+  });
+  const img = (shot) => {
+    const name = path.basename(shot.file);
+    files.set(name, shot.file);
+    return `http://review.local/${encodeURIComponent(name)}`;
+  };
+  const style = `
+    body { margin: 0; padding: 20px 24px; background: #111418; color: #e6eaf0;
+      font: 14px/1.35 system-ui, sans-serif; }
+    h1 { font-size: 22px; margin: 0 0 14px; }
+    h2 { font-size: 16px; margin: 22px 0 8px; color: #fff; }
+    h2 small { font-weight: 400; color: #9aa4b2; margin-left: 8px; }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; }
+    figure { margin: 0; }
+    figure img { display: block; border-radius: 4px; }
+    /* Pose thumbnails show the board, not the HUD round it */
+    img.board { object-fit: cover; object-view-box: inset(7% 22% 3% 22%); }
+    figcaption { font-size: 12px; color: #aeb7c4; padding: 3px 2px 0; }
+    .missing { color: #ff8a80; }`;
+  const caption = (s) =>
+    `${s.pose === 'hover' ? 'pointer on a destination' : s.pose} · azimuth ${s.azimuth}° · elevation ${s.elevation}°`;
+  const render = async (name, html) => {
+    files.set(
+      '/html',
+      `<!doctype html><meta charset="utf-8"><style>${style}</style><body>${html}</body>`,
+    );
+    await page.setViewportSize({ width: 800, height: 600 });
+    await page.goto('http://review.local/index.html');
+    await page.waitForFunction(() => [...document.images].every((i) => i.complete));
+    const width = await page.evaluate(() => document.body.scrollWidth);
+    await page.setViewportSize({ width, height: 600 });
+    const file = path.join(OUT, name);
+    await page.screenshot({ path: file, fullPage: true });
+    console.log(file);
+  };
+  const title = (state, seat) =>
+    `${REVIEW_STATES[state]}${notes[seat]?.[state] ? `<small>${notes[seat][state]}</small>` : ''}`;
+
+  // Every state from both seats, from each seat's opening view
+  let html = `<h1>${DESIGN}: states from both seats (opening view)</h1>`;
+  for (const state of Object.keys(REVIEW_STATES)) {
+    html += `<h2>${REVIEW_STATES[state]}</h2><div class="row">`;
+    for (const seat of ['white', 'black']) {
+      const s = shots[seat][state]?.[0];
+      html += s
+        ? `<figure><img src="${img(s)}" width="720"><figcaption>${seat} · ${notes[seat][state] ?? ''}</figcaption></figure>`
+        : `<figure class="missing">${seat}: not reached in the scripted game</figure>`;
+    }
+    html += '</div>';
+  }
+  await render('review-states.png', html);
+
+  // Per seat: every state from every pose
+  for (const seat of ['white', 'black']) {
+    html = `<h1>${DESIGN}: ${seat}'s seat, ${REVIEW_POSES.length} poses</h1>`;
+    for (const state of Object.keys(REVIEW_STATES)) {
+      const list = shots[seat][state];
+      html += `<h2>${title(state, seat)}</h2>`;
+      if (!list) {
+        html += '<p class="missing">Not reached in the scripted game.</p>';
+        continue;
+      }
+      const azimuths = list.filter((s) => s.pose.startsWith('az'));
+      const others = list.filter((s) => !s.pose.startsWith('az'));
+      for (const group of [azimuths, others]) {
+        if (!group.length) continue;
+        html += '<div class="row">';
+        for (const s of group) {
+          html += `<figure><img class="board" src="${img(s)}" width="300" height="300"><figcaption>${caption(s)}</figcaption></figure>`;
+        }
+        html += '</div>';
+      }
+    }
+    await render(`review-${seat}.png`, html);
+  }
+  await page.close();
+}
 
 async function main() {
   const browser = await chromium.launch({
@@ -405,7 +739,8 @@ async function main() {
   await pageA.goto(`${BASE}/?design=${DESIGN}`);
   await pageA.getByRole('button', { name: 'Start New Game' }).click();
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
-  await pageB.goto(`${pageA.url()}?design=classic`);
+  // A review shows the design from both seats; a recording only needs one
+  await pageB.goto(`${pageA.url()}?design=${REVIEW ? DESIGN : 'classic'}`);
   await pageB.getByRole('button', { name: 'Join Game' }).click();
   for (const p of [pageA, pageB]) {
     await p.waitForFunction(() => window.__show?.ready(), null, { timeout: 120000 });
@@ -415,6 +750,17 @@ async function main() {
     (await p.locator('text=/You are playing as/').textContent()).match(/as (white|black)/)[1];
   const white = (await colorOf(pageA)) === 'white' ? pageA : pageB;
   const black = white === pageA ? pageB : pageA;
+  if (REVIEW) {
+    for (const p of [white, black]) {
+      await p.waitForFunction((d) => window.__show?.ready(d), DESIGN, { timeout: 120000 });
+      await p.evaluate(() => document.fonts.ready);
+    }
+    await white.waitForTimeout(1500);
+    for (const p of [white, black]) await p.evaluate(() => window.__vclock.enable());
+    await review({ white, black });
+    await browser.close();
+    return;
+  }
   // The opponent's page is only there to answer; keep its renderer cheap.
   await black.setViewportSize({ width: 400, height: 300 });
   if (white === pageB) {
