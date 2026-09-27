@@ -34,8 +34,8 @@ async function render(type: PieceType, color: PieceColor, emissive?: string) {
     scene,
     meshes: scene.findAllByType('Mesh').map((node) => node.instance as unknown as Mesh),
     materials,
-    // The bishop's mitre groove uses a darkened band; everything else is the
-    // army colour.
+    // The details that name a piece are inlaid in another colour; the rest
+    // is the army colour.
     armyMaterials: materials.filter((m) => hex(m.color) === armyColor(color)),
   };
 }

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Color } from 'three';
 import { PieceType } from '../../../engine';
 import { theme } from '../../theme';
 import { STAUNTON } from '../../pieceGeometry';
@@ -32,8 +31,13 @@ const PieceMaterial: React.FC<{ color: PieceColor; emissive?: string | number }>
   />
 );
 
-const darken = (color: PieceColor) =>
-  new Color(color === 'white' ? theme.whitePiece : theme.blackPiece).multiplyScalar(0.55);
+// The inlay that names a piece: walnut in ivory, brass in graphite. A shade
+// of the army's own colour was too faint to show the unicorn's spiral at
+// game size. Low metalness for the same reason as the body.
+const INLAY: Record<PieceColor, { color: string; roughness: number; metalness: number }> = {
+  white: { color: '#7a5a3c', roughness: 0.5, metalness: 0.05 },
+  black: { color: '#b89a6a', roughness: 0.4, metalness: 0.1 },
+};
 
 const CRENELLATION_ANGLES = [0, 1, 2, 3, 4].map((i) => (i * 2 * Math.PI) / 5);
 const CORONET_ANGLES = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => (i * 2 * Math.PI) / 8);
@@ -161,16 +165,18 @@ export const StauntonParts = ({
 /**
  * Classic's pieces: the shared Staunton set (three/pieces) in ivory and
  * graphite. The details that name a piece (the bishop's cut, the knight's
- * eyes, the lines in the unicorn's twist, the queen's pearls, the king's
- * cross, the rook's crenels and hollow) are in a deeper shade of the army's
- * colour; the foot band is left in the army's colour.
+ * mane and eyes, the unicorn's spiral, the queen's pearls, the king's cross)
+ * are inlaid, walnut in ivory and brass in graphite; the rook and the foot
+ * band are left in the army's colour.
  */
 export const ClassicPieceBody = ({ type, color, emissive }: PieceBodyProps) => (
   <ChessPiece
     type={type}
     parts={{
       body: <PieceMaterial color={color} emissive={emissive} />,
-      accent: <meshStandardMaterial color={darken(color)} roughness={0.55} metalness={0.08} />,
+      // Not the rook: its accent is the whole hollow, which from above would
+      // read as a disc of the other army's tone
+      ...(type !== PieceType.Rook && { accent: <meshStandardMaterial {...INLAY[color]} /> }),
     }}
   />
 );

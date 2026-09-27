@@ -550,18 +550,16 @@ const bishop = (c: Ctx): PieceParts => {
   const mitre = turn(c, PieceType.Bishop, p.mitre, { segments: Math.round(c.segments * 1.5) });
   const { body: cutMitre, cut } = cutSlot(mitre, MITRE_CUT);
   mitre.dispose();
-  // The two walls of the cut are the accent: they read as a band from any
-  // side. Its floor stays body (painted, it hooks the band into a tick).
-  const [lowerWall, upperWall, floor] = cut;
+  // The whole cut is the accent, floor and walls: the floor is the face an
+  // elevated camera sees, so it carries the band at game size
   return {
     body: mergeShells([
       turn(c, PieceType.Bishop, p.body),
       cutMitre,
-      ...(floor ? [floor] : []),
       turn(c, PieceType.Bishop, p.finial, { segments: Math.max(8, Math.round(c.segments * 0.75)) }),
     ]),
     collar: mergeShells([turn(c, PieceType.Bishop, p.collar), turn(c, PieceType.Bishop, p.bead)]),
-    accent: mergeShells([lowerWall, upperWall].filter(Boolean)),
+    accent: mergeShells(cut),
     foot: mergeShells([footOf(c, PieceType.Bishop)]),
   };
 };
