@@ -16,6 +16,11 @@
 //
 // --stills skips the video and saves a PNG at each key moment (start,
 // selection, a capture mid-flight, check, mate, the result).
+// --stills-fast saves the same stills several times faster: the game still
+// plays out frame by frame on the virtual clock, but only the saved frames
+// are drawn (a full --stills draws every frame, 15 minutes and more on a
+// busy machine). A design that renders to a texture once, when something
+// mounts mid-game, may need plain --stills.
 // --plies N stops after N moves, for a quick look.
 // --profile times 20 frames of the opening position and reports what the
 // renderer draws (a slow recording is almost always a heavy scene).
@@ -40,9 +45,12 @@
 // writes every shot as <seat>-<state>-<pose>.png plus labelled contact
 // sheets: review-states.png (every state from both seats, opening view),
 // review-white.png and review-black.png (every state, every pose, and the
-// selection once more with the pointer on a destination). About
-// three minutes for a moderately heavy scene; --quick shoots the opening
-// view only (under a minute).
+// selection twice more from the opening view: the pointer on one of its
+// destinations, then on another of the side's pieces). One to three minutes
+// for a moderately heavy scene; --quick shoots the opening view only.
+// --poses "az,el;az,el" replaces the 12 poses: az in degrees round from the
+// seat's opening view, el the elevation in degrees (orbit limits apply),
+// e.g. --poses "0,18;180,18;0,45".
 
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
@@ -58,7 +66,9 @@ const opt = (name, fallback) => {
 
 const DESIGN = opt('design', 'classic');
 const OUT = path.resolve(opt('out', 'showcase'));
-const STILLS = flag('stills');
+// --stills-fast takes the same stills, but draws only the frames it saves
+const STILLS_FAST = flag('stills-fast');
+const STILLS = flag('stills') || STILLS_FAST;
 const TOUR = flag('tour');
 const REVIEW = flag('review');
 const QUICK = flag('quick');
@@ -213,8 +223,24 @@ const SHOW_HELPERS = () => {
         return null;
       };
       const V = cube.position.constructor;
-      const box = cube.geometry.parameters;
-      // Points through the cell, nearest its middle first (a piece's from
+      // The volume to aim through, in world space: the cell's click box, or,
+      // for a piece on a layout whose click boxes are thin slabs on the
+      // floor (a hitHeight), the piece's own bounds
+      const g = cube.geometry;
+      if (!g.boundingBox) g.computeBoundingBox();
+      let bounds = g.boundingBox.clone().applyMatrix4(cube.matrixWorld);
+      if (kind === 'piece' && Math.abs(g.boundingBox.getCenter(new V()).y) > 1e-6) {
+        scene.traverse((o) => {
+          if (o.userData?.piece && at(o)) {
+            const b = g.boundingBox.clone().setFromObject(o);
+            if (!b.isEmpty()) bounds = b;
+          }
+        });
+      }
+      const mid = bounds.getCenter(new V());
+      const extent = bounds.getSize(new V());
+      const box = { width: extent.x, height: extent.y, depth: extent.z };
+      // Points through that volume, nearest its middle first (a piece's from
       // just above its middle, where its body is): on a crowded board the
       // ray through the middle is often blocked while one near an edge is not.
       const steps = [-0.4, -0.2, 0, 0.2, 0.4];
@@ -225,7 +251,7 @@ const SHOW_HELPERS = () => {
       const canvas = document.querySelector('canvas');
       const r = canvas.getBoundingClientRect();
       for (const [ox, oy, oz] of samples) {
-        const p = new V(c.x + ox * box.width, c.y + oy * box.height, c.z + oz * box.depth);
+        const p = new V(mid.x + ox * box.width, mid.y + oy * box.height, mid.z + oz * box.depth);
         p.project(camera);
         // Aim at a whole page pixel: a click event reports whole-pixel
         // offsets, so the ray r3f casts for the click comes from there.
@@ -326,6 +352,12 @@ const SHOW_HELPERS = () => {
      * view, distance scaled by `zoom`, and the look-at point pulled `pull` of
      * the way from the board's centre toward `focus`.
      */
+    /** As orbit, but to an absolute elevation (degrees above the horizon). */
+    orbitTo(yawDeg, elevationDeg, zoom = 1) {
+      window.__show.orbit(0, 0, 1, null, 0);
+      const pitchDeg = elevationDeg - (base.pitch * 180) / Math.PI;
+      window.__show.orbit(yawDeg, pitchDeg, zoom, null, 0);
+    },
     orbit(yawDeg, pitchDeg, zoom, focus, pull) {
       const st = store();
       if (!st) return;
@@ -379,15 +411,16 @@ const SHOW_HELPERS = () => {
     turnText: () => document.querySelector('[data-testid="turn-indicator"]')?.textContent ?? '',
     /**
      * Runs `frames` frames of `ms` each on the virtual clock, so animations
-     * settle, but draws only the last: under a software renderer the draws
-     * are nearly all of a frame's cost, and only the last one is seen.
+     * settle, but draws only the last (or none, without `drawLast`): under a
+     * software renderer the draws are nearly all of a frame's cost, and only
+     * the last one is seen.
      */
-    settle(frames, ms) {
+    settle(frames, ms, drawLast = true) {
       const st = store();
       const gl = st?.gl;
       const draw = gl?.render;
       for (let i = 0; i < frames; i++) {
-        if (gl && i < frames - 1) gl.render = () => {};
+        if (gl && (i < frames - 1 || !drawLast)) gl.render = () => {};
         try {
           st?.invalidate();
           window.__vclock.step(ms);
@@ -486,16 +519,29 @@ const REVIEW_STATES = {
 };
 
 // Camera poses, as offsets from the seat's opening view: 8 azimuths round the
-// board, then a low and a high view at two azimuths.
-const REVIEW_POSES = QUICK
-  ? [{ id: 'az0', yaw: 0, pitch: 0 }]
-  : [
-      ...[0, 45, 90, 135, 180, 225, 270, 315].map((a) => ({ id: `az${a}`, yaw: a, pitch: 0 })),
-      { id: 'low-az0', yaw: 0, pitch: -14 },
-      { id: 'high-az0', yaw: 0, pitch: 26 },
-      { id: 'low-az135', yaw: 135, pitch: -14 },
-      { id: 'high-az135', yaw: 135, pitch: 26 },
-    ];
+// board, then a low and a high view at two azimuths. --poses "az,el;az,el"
+// replaces them: az in degrees round from the seat's opening view, el the
+// elevation in degrees (the design's orbit limits still apply).
+const CUSTOM_POSES = opt('poses');
+const REVIEW_POSES = CUSTOM_POSES
+  ? CUSTOM_POSES.split(';')
+      .map((p) => p.split(',').map(Number))
+      .filter(([a, e]) => Number.isFinite(a) && Number.isFinite(e))
+      .map(([a, e]) => ({ id: `az${a}-el${e}`, yaw: a, elevation: e }))
+  : QUICK
+    ? [{ id: 'az0', yaw: 0, pitch: 0 }]
+    : [
+        ...[0, 45, 90, 135, 180, 225, 270, 315].map((a) => ({ id: `az${a}`, yaw: a, pitch: 0 })),
+        { id: 'low-az0', yaw: 0, pitch: -14 },
+        { id: 'high-az0', yaw: 0, pitch: 26 },
+        { id: 'low-az135', yaw: 135, pitch: -14 },
+        { id: 'high-az135', yaw: 135, pitch: 26 },
+      ];
+
+const HOVER_CAPTIONS = {
+  hover: 'pointer on a destination',
+  'hover-piece': 'pointer on a piece',
+};
 
 async function review(seats) {
   const started = Date.now();
@@ -517,8 +563,9 @@ async function review(seats) {
     shots[seat][state] = [];
     notes[seat][state] = note;
     for (const pose of REVIEW_POSES) {
-      const at = await page.evaluate(({ yaw, pitch }) => {
-        window.__show.orbit(yaw, pitch, 1, null, 0);
+      const at = await page.evaluate(({ yaw, pitch, elevation }) => {
+        if (elevation !== undefined) window.__show.orbitTo(yaw, elevation);
+        else window.__show.orbit(yaw, pitch, 1, null, 0);
         // Labels crossfade to their new anchors over a few frames
         window.__show.settle(6, 50);
         return window.__show.pose();
@@ -534,6 +581,45 @@ async function review(seats) {
       window.__show.settle(2, 50);
     });
     console.log(`${elapsed()} ${seat} ${state}${note ? ` (${note})` : ''}`);
+  };
+
+  // The selection once more from the opening view, the pointer resting on
+  // one of the side's other pieces (piece hover feedback, the HUD readout)
+  const shootPieceHover = async (seat, selectedZxy) => {
+    const page = seats[seat];
+    const at = await page.evaluate(
+      ({ color, exclude }) => {
+        const cubes = [];
+        const own = [];
+        window.__r3fState.get().scene.traverse((o) => {
+          if (o.userData?.cube) cubes.push(o);
+          const p = o.userData?.piece;
+          if (!p || p.color !== color) return;
+          for (let a = o.parent; a; a = a.parent) if (a.userData?.ghostPiece) return;
+          own.push(o);
+        });
+        for (const piece of own) {
+          const cube = cubes.find((c) => c.position.distanceTo(piece.position) < 1e-4);
+          if (!cube || cube.userData.zxy === exclude) continue;
+          const px = window.__show.pixelFor(cube.userData.zxy, 'piece');
+          if (px) return px;
+        }
+        return null;
+      },
+      { color: seat, exclude: selectedZxy },
+    );
+    if (!at) return;
+    await page.mouse.move(at.x, at.y);
+    // HUD fades (the readout's) run on the real clock, not the virtual one
+    await page.waitForTimeout(250);
+    const pose = await page.evaluate(() => {
+      window.__show.settle(4, 50);
+      return window.__show.pose();
+    });
+    const { data } = await cdps[seat].send('Page.captureScreenshot', { format: 'png' });
+    const file = path.join(OUT, `${seat}-selected-hover-piece.png`);
+    fs.writeFileSync(file, Buffer.from(data, 'base64'));
+    shots[seat].selected.push({ pose: 'hover-piece', file, ...pose });
   };
 
   // The selection once more from the opening view, the pointer resting on
@@ -556,6 +642,8 @@ async function review(seats) {
     });
     if (!at) return;
     await page.mouse.move(at.x, at.y);
+    // HUD fades (the readout's) run on the real clock, not the virtual one
+    await page.waitForTimeout(250);
     const pose = await page.evaluate(() => {
       window.__show.settle(3, 50);
       return window.__show.pose();
@@ -621,6 +709,7 @@ async function review(seats) {
         if (!selected) continue;
         await shoot(seat, 'selected', `${zxy}: ${quiet} quiet, ${capture} capture`);
         await shootHover(seat);
+        await shootPieceHover(seat, zxy);
         break;
       }
     }
@@ -658,7 +747,7 @@ async function sheets(context, shots, notes) {
     figcaption { font-size: 12px; color: #aeb7c4; padding: 3px 2px 0; }
     .missing { color: #ff8a80; }`;
   const caption = (s) =>
-    `${s.pose === 'hover' ? 'pointer on a destination' : s.pose} · azimuth ${s.azimuth}° · elevation ${s.elevation}°`;
+    `${HOVER_CAPTIONS[s.pose] ?? s.pose} · azimuth ${s.azimuth}° · elevation ${s.elevation}°`;
   const render = async (name, html) => {
     files.set(
       '/html',
@@ -906,7 +995,9 @@ async function main() {
 
   // The finale: once mate lands, the camera leans in on the fallen king.
   let finale = null;
-  const step = async (capture = !STILLS) => {
+  // --stills-fast draws only the frames it saves: the clock, the animations
+  // and the camera still advance every frame, just without a picture.
+  const step = async (capture = !STILLS, draw = !STILLS_FAST || capture) => {
     let [yaw, pitch, zoom] = camera(frame);
     let pull = 0;
     if (finale) {
@@ -915,10 +1006,11 @@ async function main() {
       pull = 0.3 * k;
     }
     await white.evaluate(
-      ({ ms, yaw, pitch, zoom, focus, pull, cx, cy, press }) => {
+      ({ ms, yaw, pitch, zoom, focus, pull, cx, cy, press, draw }) => {
         window.__show.orbit(yaw, pitch, zoom, focus, pull);
         window.__show.cursor(cx, cy, press);
-        window.__vclock.step(ms);
+        if (draw) window.__vclock.step(ms);
+        else window.__show.settle(1, ms, false);
       },
       {
         ms: 1000 / FPS,
@@ -930,6 +1022,7 @@ async function main() {
         cx: cursor.x,
         cy: cursor.y,
         press,
+        draw,
       },
     );
     frame++;
@@ -946,7 +1039,7 @@ async function main() {
   };
   const still = async (name) => {
     if (!STILLS) return;
-    await step(false);
+    await step(false, true);
     const file = path.join(OUT, `${DESIGN}-${name}.png`);
     await white.screenshot({ path: file, timeout: 120000 });
     console.log(file);
