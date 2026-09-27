@@ -1,0 +1,310 @@
+import { describe, expect, it } from 'vitest';
+import { Box3, BufferAttribute, BufferGeometry, Vector3 } from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { PieceType } from '../../engine/pieces';
+import { cutSlot } from './cut';
+import { decimate } from './decimate';
+import { triangleCount } from './mesh';
+import { PIECE_PARTS, partsGeometry, pieceTop } from './parts';
+import { corner, revolve, sampleProfile } from './profile';
+import { ellipsoid, surfaceNets } from './sdf';
+import { FOOT_HEIGHT, PROFILES, buildPieceSet, pieceSet } from './set';
+import type { PieceSet } from './set';
+
+const TYPES = Object.values(PieceType);
+const medium = pieceSet('medium');
+
+const boxOf = (set: PieceSet, type: PieceType) => {
+  const box = new Box3();
+  for (const part of PIECE_PARTS) {
+    const g = set[type][part];
+    if (g) box.union(g.boundingBox!);
+  }
+  return box;
+};
+
+const total = (set: PieceSet, type: PieceType) =>
+  PIECE_PARTS.reduce((n, p) => n + (set[type][p] ? triangleCount(set[type][p]!) : 0), 0);
+
+/** Largest distance from the axis among vertices with y in [lo, hi]. */
+const radiusBetween = (g: BufferGeometry, lo: number, hi: number) => {
+  const p = g.getAttribute('position');
+  let r = 0;
+  for (let i = 0; i < p.count; i++) {
+    if (p.getY(i) >= lo && p.getY(i) <= hi) r = Math.max(r, Math.hypot(p.getX(i), p.getZ(i)));
+  }
+  return r;
+};
+
+/** Every edge of a mesh (welded by position) belongs to exactly two triangles. */
+const isClosed = (g: BufferGeometry) => {
+  const bare = new BufferGeometry();
+  bare.setAttribute('position', g.getAttribute('position'));
+  if (g.index) bare.setIndex(g.index);
+  const w = mergeVertices(bare, 1e-5);
+  const idx = w.index!;
+  const edges = new Map<string, number>();
+  for (let t = 0; t < idx.count; t += 3) {
+    const tri = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)];
+    if (new Set(tri).size < 3) continue;
+    for (let k = 0; k < 3; k++) {
+      const a = tri[k];
+      const b = tri[(k + 1) % 3];
+      const key = a < b ? `${a},${b}` : `${b},${a}`;
+      edges.set(key, (edges.get(key) ?? 0) + 1);
+    }
+  }
+  return [...edges.values()].every((n) => n === 2);
+};
+
+describe('the shared piece set', () => {
+  it('has every piece, each with a body, a collar and a foot', () => {
+    for (const type of TYPES) {
+      for (const part of ['body', 'collar', 'foot'] as const) {
+        expect(medium[type][part]?.isBufferGeometry, `${type} ${part}`).toBe(true);
+      }
+    }
+  });
+
+  it('carries accents where a piece is identified by them', () => {
+    const withAccent = TYPES.filter((t) => medium[t].accent);
+    expect(withAccent.sort()).toEqual(
+      [
+        PieceType.Rook,
+        PieceType.Knight,
+        PieceType.Bishop,
+        PieceType.Unicorn,
+        PieceType.Queen,
+        PieceType.King,
+      ].sort(),
+    );
+  });
+
+  it('builds indexed geometry with finite positions, unit normals and uvs', () => {
+    for (const type of TYPES) {
+      for (const part of PIECE_PARTS) {
+        const g = medium[type][part];
+        if (!g) continue;
+        expect(g.index, `${type} ${part}`).not.toBeNull();
+        const p = g.getAttribute('position');
+        const n = g.getAttribute('normal');
+        expect(g.getAttribute('uv').count).toBe(p.count);
+        for (let i = 0; i < p.count; i++) {
+          expect(Number.isFinite(p.getX(i) + p.getY(i) + p.getZ(i))).toBe(true);
+          expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 2);
+        }
+      }
+    }
+  });
+
+  it('stays inside the envelope the layouts assume', () => {
+    for (const type of TYPES) {
+      const box = boxOf(medium, type);
+      // Base at y = 0
+      expect(box.min.y, type).toBeGreaterThan(-1e-4);
+      expect(box.min.y, type).toBeLessThan(1e-3);
+      expect(box.max.y, type).toBeLessThanOrEqual(0.875);
+      // Turned pieces are round and no wider than 0.27; the knight's muzzle
+      // reaches a little past its base, well inside the cell
+      const reach = Math.max(-box.min.x, box.max.x, -box.min.z, box.max.z);
+      expect(reach, type).toBeLessThanOrEqual(type === PieceType.Knight ? 0.32 : 0.27);
+    }
+    expect(pieceTop(medium, PieceType.King)).toBeCloseTo(0.87, 2);
+  });
+
+  it('stands in a clear hierarchy of heights', () => {
+    const h = (t: PieceType) => pieceTop(medium, t);
+    expect(h(PieceType.Pawn)).toBeLessThan(h(PieceType.Rook));
+    expect(h(PieceType.Rook)).toBeLessThan(h(PieceType.Knight));
+    expect(h(PieceType.Knight)).toBeLessThan(h(PieceType.Bishop));
+    expect(h(PieceType.Bishop)).toBeLessThan(h(PieceType.Queen));
+    expect(h(PieceType.Bishop)).toBeLessThan(h(PieceType.Unicorn));
+    for (const t of TYPES.filter((t) => t !== PieceType.King)) {
+      expect(h(t), t).toBeLessThan(h(PieceType.King) - 0.04);
+    }
+  });
+
+  it('puts a thin foot band at the very bottom of every piece, as wide as its base', () => {
+    for (const type of TYPES) {
+      const foot = medium[type].foot.boundingBox!;
+      expect(foot.min.y).toBeCloseTo(0, 5);
+      expect(foot.max.y).toBeCloseTo(FOOT_HEIGHT, 5);
+      expect(foot.max.x).toBeCloseTo(PROFILES.radius[type], 3);
+      expect(foot.max.x).toBeCloseTo(boxOf(medium, type).max.x, type === PieceType.Knight ? 0 : 3);
+    }
+  });
+
+  it('keeps every piece within about 4k triangles at the default quality', () => {
+    for (const type of TYPES) expect(total(medium, type), type).toBeLessThanOrEqual(4200);
+  });
+
+  it('scales its detail with the quality', () => {
+    const low = pieceSet('low');
+    for (const type of TYPES) expect(total(low, type)).toBeLessThan(total(medium, type));
+    const faceted = buildPieceSet({ quality: 'low', segments: 8 });
+    expect(total(faceted, PieceType.Pawn)).toBeLessThan(total(low, PieceType.Pawn));
+  });
+
+  it('shares one set per quality', () => {
+    expect(pieceSet('medium')).toBe(medium);
+    expect(pieceSet()).toBe(medium);
+  });
+
+  it('draws the unicorn as a pointed horn with a spiral, unlike the bishop', () => {
+    const u = medium[PieceType.Unicorn];
+    const b = medium[PieceType.Bishop];
+    // Where the bishop's mitre is widest, the unicorn has only its slim horn
+    expect(radiusBetween(b.body, 0.56, 0.62)).toBeGreaterThan(0.1);
+    expect(radiusBetween(u.body, 0.56, 0.62)).toBeLessThan(0.06);
+    // The horn comes to a point
+    expect(radiusBetween(u.body, 0.8, 1)).toBeLessThan(0.01);
+    // The spiral climbs most of the horn, winding all the way round it
+    const s = u.accent!;
+    const box = s.boundingBox!;
+    expect(box.max.y - box.min.y).toBeGreaterThan(0.25);
+    const p = s.getAttribute('position');
+    const quadrants = new Set<number>();
+    for (let i = 0; i < p.count; i++) {
+      quadrants.add(Math.floor(((Math.atan2(p.getZ(i), p.getX(i)) + Math.PI) / Math.PI) * 2) % 4);
+    }
+    expect(quadrants.size).toBe(4);
+  });
+
+  it('faces the knight along +x', () => {
+    const box = medium[PieceType.Knight].body.boundingBox!;
+    expect(box.max.x).toBeGreaterThan(-box.min.x + 0.05);
+    expect(box.max.z).toBeCloseTo(-box.min.z, 2);
+  });
+
+  it('takes a reshaped profile (a slimmer stem) without touching the heads', () => {
+    const slim = buildPieceSet({
+      quality: 'low',
+      radius: (r, y) => (y > 0.2 && y < 0.4 ? r * 0.8 : r),
+    });
+    const low = pieceSet('low');
+    expect(radiusBetween(slim.King.body, 0.25, 0.35)).toBeLessThan(
+      radiusBetween(low.King.body, 0.25, 0.35) * 0.85,
+    );
+    expect(pieceTop(slim, PieceType.King)).toBeCloseTo(pieceTop(low, PieceType.King), 5);
+  });
+
+  it('merges parts that share a material once, and hands back a single part as is', () => {
+    const merged = partsGeometry(medium, PieceType.Bishop, ['body', 'collar', 'foot']);
+    expect(partsGeometry(medium, PieceType.Bishop, ['body', 'collar', 'foot'])).toBe(merged);
+    expect(triangleCount(merged!)).toBe(
+      triangleCount(medium.Bishop.body) +
+        triangleCount(medium.Bishop.collar) +
+        triangleCount(medium.Bishop.foot),
+    );
+    expect(partsGeometry(medium, PieceType.Bishop, ['accent'])).toBe(medium.Bishop.accent);
+    expect(partsGeometry(medium, PieceType.Pawn, ['accent'])).toBeNull();
+  });
+});
+
+describe('piece geometry builders', () => {
+  it('samples a profile, keeping its ends and doubling its corners', () => {
+    const pts = sampleProfile(
+      [corner([0, 0]), [0.2, 0], corner([0.2, 0.1]), [0.1, 0.2], [0.05, 0.3], [0, 0.35]],
+      0.001,
+    );
+    expect(pts[0]).toEqual([0, 0]);
+    expect(pts[pts.length - 1]).toEqual([0, 0.35]);
+    const doubled = pts.filter((p, k) => k > 0 && p[0] === pts[k - 1][0] && p[1] === pts[k - 1][1]);
+    expect(doubled).toEqual([[0.2, 0.1]]);
+    // A looser tolerance keeps fewer points
+    expect(
+      sampleProfile(
+        [
+          [0, 0],
+          [0.1, 0.05],
+          [0.15, 0.2],
+          [0, 0.3],
+        ],
+        0.01,
+      ).length,
+    ).toBeLessThan(
+      sampleProfile(
+        [
+          [0, 0],
+          [0.1, 0.05],
+          [0.15, 0.2],
+          [0, 0.3],
+        ],
+        0.0005,
+      ).length,
+    );
+  });
+
+  it('turns a closed profile into a closed shell with outward normals', () => {
+    const g = revolve(
+      [
+        [0, 0],
+        [0.1, 0],
+        [0.1, 0.2],
+        [0, 0.2],
+      ],
+      { segments: 12 },
+    );
+    expect(isClosed(g)).toBe(true);
+    const p = g.getAttribute('position');
+    const n = g.getAttribute('normal');
+    for (let i = 0; i < p.count; i++) {
+      const out = new Vector3(p.getX(i), p.getY(i) - 0.1, p.getZ(i));
+      expect(out.dot(new Vector3(n.getX(i), n.getY(i), n.getZ(i)))).toBeGreaterThan(0);
+    }
+  });
+
+  it('meshes a field with surface nets onto its surface', () => {
+    const f = ellipsoid([0, 0, 0], [0.1, 0.1, 0.1]);
+    const g = surfaceNets(f, { min: [-0.12, -0.12, -0.12], max: [0.12, 0.12, 0.12], step: 0.01 });
+    expect(isClosed(g)).toBe(true);
+    const p = g.getAttribute('position');
+    for (let i = 0; i < p.count; i++) {
+      expect(Math.hypot(p.getX(i), p.getY(i), p.getZ(i))).toBeCloseTo(0.1, 3);
+    }
+  });
+
+  it('decimates a closed mesh to its budget, closed and on the surface', () => {
+    const f = ellipsoid([0, 0, 0], [0.12, 0.08, 0.06]);
+    const nets = surfaceNets(f, {
+      min: [-0.13, -0.09, -0.07],
+      max: [0.13, 0.09, 0.07],
+      step: 0.006,
+    });
+    const g = decimate(nets, 600, f);
+    expect(triangleCount(g)).toBeLessThanOrEqual(600);
+    expect(triangleCount(g)).toBeGreaterThan(500);
+    expect(isClosed(g)).toBe(true);
+    const p = g.getAttribute('position');
+    for (let i = 0; i < p.count; i++) {
+      expect(Math.abs(f(p.getX(i), p.getY(i), p.getZ(i)))).toBeLessThan(0.002);
+    }
+  });
+
+  it('cuts a slot into a convex shell, leaving it closed by the cut faces', () => {
+    const egg = revolve(
+      sampleProfile(
+        [corner([0, 0]), [0.08, 0.03], [0.1, 0.1], [0.06, 0.18], corner([0, 0.2])],
+        0.001,
+      ),
+      { segments: 24 },
+    );
+    const { body, cut } = cutSlot(egg, {
+      at: [0, 0.12, 0],
+      normal: [-Math.SQRT1_2, Math.SQRT1_2, 0],
+      mouth: [Math.SQRT1_2, Math.SQRT1_2, 0],
+      width: 0.02,
+      depth: 0.04,
+    });
+    expect(cut).toHaveLength(3);
+    expect(triangleCount(body)).toBeLessThan(triangleCount(egg) * 1.5);
+    // The clipped surface and the cut's faces meet edge for edge
+    const soup = [body, ...cut].map((g) => (g.index ? g.toNonIndexed() : g));
+    const positions = new Float32Array(
+      soup.flatMap((g) => [...(g.getAttribute('position').array as Float32Array)]),
+    );
+    const whole = new BufferGeometry();
+    whole.setAttribute('position', new BufferAttribute(positions, 3));
+    expect(isClosed(whole)).toBe(true);
+  });
+});
