@@ -19,13 +19,15 @@ import { noRaycast } from '../kit/noRaycast';
 import { dotTexture, rng } from '../kit/textures';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, PieceColor, Vec3 } from '../types';
 import { KNIGHT_YAW, layout, PALETTE, PIECE_SCALE } from './palette';
+import { LightColumn } from './markers';
 import { wholePiece } from './pieces';
 
 // Motion in light. A moving piece trails a brief echo of itself, a few
-// fading after-images of its silhouette along the straight path, and lands
-// with a ripple of light on the pane. A captured piece dissolves from the
-// crown down into drifting light fragments. At mate, a ring of the winner's
-// light sweeps out across the mated king's pane and fragments rise.
+// fading after-images of its silhouette in its own army's value along the
+// straight path, and lands with a ripple of light on the pane. A captured
+// piece dissolves from the crown down into drifting light fragments. At mate,
+// two rings of the winner's light sweep out across the mated king's pane,
+// fragments rise, and a column of dim red climbs through the tower once.
 
 const RIM: Record<PieceColor, string> = { white: PALETTE.whiteRim, black: PALETTE.blackRim };
 const BODY: Record<PieceColor, string> = { white: PALETTE.white, black: PALETTE.black };
@@ -65,25 +67,33 @@ const echoVertex = /* glsl */ `
     gl_Position = projectionMatrix * mv;
   }`;
 
+// An echo is its army's own value (a dark ghost of a graphite piece, a pale
+// one of a pearl piece), edged in the army's light: never a white ghost of a
+// dark piece
 const echoFragment = /* glsl */ `
-  uniform vec3 uColor;
+  uniform vec3 uBody;
+  uniform vec3 uRim;
   uniform float uOpacity;
   varying vec3 vNormal;
   varying vec3 vView;
   void main() {
     float facing = abs(dot(normalize(vNormal), normalize(vView)));
-    float a = (0.12 + 0.88 * pow(1.0 - facing, 1.8)) * uOpacity;
+    float rim = pow(1.0 - facing, 1.8);
+    float a = (0.3 + 0.7 * rim) * uOpacity;
     if (a < 0.004) discard;
-    gl_FragColor = vec4(uColor * a, 1.0);
+    gl_FragColor = vec4(mix(uBody, uRim, rim * 0.8), a);
     #include <colorspace_fragment>
   }`;
 
-const echoMaterial = (color: string) =>
+const echoMaterial = (side: PieceColor) =>
   new ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: AdditiveBlending,
-    uniforms: { uColor: { value: new Color(color) }, uOpacity: { value: 0 } },
+    uniforms: {
+      uBody: { value: new Color(BODY[side]) },
+      uRim: { value: new Color(RIM[side]) },
+      uOpacity: { value: 0 },
+    },
     vertexShader: echoVertex,
     fragmentShader: echoFragment,
   });
@@ -145,7 +155,7 @@ export const MoveFx = ({
   const ripple = useRef<Mesh>(null);
   const mats = useMemo(
     () => ({
-      echo: ECHOES.map(() => echoMaterial(RIM[color])),
+      echo: ECHOES.map(() => echoMaterial(color)),
       ripple: rippleMaterial(PALETTE.trace, 0.05),
     }),
     [color],
@@ -433,10 +443,16 @@ export const CaptureFx = ({
 
 const MATE_MS = 1300;
 
+/**
+ * Mate, one clear beat: two rings of the winner's light sweep out across the
+ * mated king's pane, a fast one and a slower one behind it, fragments rise,
+ * and a column of dim red light climbs once through the tower at the king's
+ * square and fades.
+ */
 export const Celebration = ({ floor, winner }: CelebrationProps) => {
   const color = winner ? RIM[winner] : PALETTE.trace;
-  const material = useMemo(() => rippleMaterial(color, 0.08), [color]);
-  useEffect(() => () => material.dispose(), [material]);
+  const rings = useMemo(() => [rippleMaterial(color, 0.09), rippleMaterial(color, 0.14)], [color]);
+  useEffect(() => () => rings.forEach((m) => m.dispose()), [rings]);
   const fragments = useMemo(() => {
     const ring = new BufferGeometry();
     const n = 64;
@@ -446,25 +462,35 @@ export const Celebration = ({ floor, winner }: CelebrationProps) => {
       pos.set([Math.cos(a) * 0.4, 0.02, Math.sin(a) * 0.4], i * 3);
     }
     ring.setAttribute('position', new BufferAttribute(pos, 3));
-    return fragmentsOf(ring, 40, 3, 0.25, 1);
+    return fragmentsOf(ring, 56, 3, 0.3, 1);
   }, []);
   const alive = useLife(MATE_MS, (ms) => {
     const t = ms / MATE_MS;
-    material.uniforms.uRadius.value = 0.4 + 2.6 * (1 - (1 - t) ** 2);
-    material.uniforms.uOpacity.value = 0.9 * (1 - t) ** 1.4;
+    const [fast, slow] = rings.map((m) => m.uniforms);
+    fast.uRadius.value = 0.4 + 2.8 * (1 - (1 - t) ** 2);
+    fast.uOpacity.value = Math.min(1, 1.35 * (1 - t) ** 1.4);
+    const k = Math.max(t - 0.12, 0) / 0.88;
+    slow.uRadius.value = 0.3 + 1.9 * (1 - (1 - k) ** 2);
+    slow.uOpacity.value = k > 0 ? 0.8 * Math.min(k * 5, 1) * (1 - k) ** 1.2 : 0;
   });
   if (!alive) return null;
   return (
-    <group position={floor}>
-      <mesh
-        geometry={matePlane}
-        material={material}
-        position={[0, 0.016, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        renderOrder={LAYER.marker}
-        raycast={noRaycast}
-      />
-      <Drift fragments={fragments} color={color} lifeMs={MATE_MS} size={0.07} />
-    </group>
+    <>
+      <group position={floor}>
+        {rings.map((m, i) => (
+          <mesh
+            key={i}
+            geometry={matePlane}
+            material={m}
+            position={[0, 0.016, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            renderOrder={LAYER.marker}
+            raycast={noRaycast}
+          />
+        ))}
+        <Drift fragments={fragments} color={color} lifeMs={MATE_MS} size={0.08} />
+      </group>
+      <LightColumn floor={floor} color={PALETTE.check} strength={0.4} fadeMs={MATE_MS - 380} />
+    </>
   );
 };

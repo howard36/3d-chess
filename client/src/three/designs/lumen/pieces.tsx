@@ -11,10 +11,10 @@ import { LEVEL_COLORS, PALETTE } from './palette';
 
 // Hard-light ceramic: solid, matte, opaque bodies (never see-through), each
 // army carrying a luminous edge of its own light along its silhouette. Pearl
-// pieces take a cool cyan edge and deep indigo inlays; graphite-violet
-// pieces a bright lilac edge and inlays that glow, so the details that name
+// pieces take a silver-ice edge and deep indigo inlays; graphite-violet
+// pieces a cool silver edge and soft lilac inlays that glow, so the details that name
 // a piece (the unicorn's spiral, the bishop's cut, the queen's pearls, the
-// king's cross, the knight's eyes) read on the dark army from anywhere. Each
+// king's cross, the knight's mane) read on the dark army from anywhere. Each
 // body deepens toward its base, and its foot band glows in its level's
 // colour, above a footprint of the same light on the pane.
 //
@@ -87,7 +87,10 @@ const ceramicFragment = /* glsl */ `
     col += uKeyColor * pow(max(dot(n, h), 0.0), uShine) * uSpec * key;
     col += uEmissive;
     // The army's light along the silhouette
+    // Seen from above, a turned piece is nearly all silhouette to this term;
+    // it gives way there, so an army keeps its own colour from any height
     float rim = pow(1.0 - abs(dot(n, v)), uRimPower);
+    rim *= mix(1.0, 0.35, smoothstep(0.55, 0.95, abs(v.y)));
     col = mix(col, uRim, clamp(uRimMix * rim, 0.0, 1.0));
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
@@ -153,8 +156,8 @@ const LOOK: Record<PieceColor, Look> = {
     base: PALETTE.whiteBase,
     rim: PALETTE.whiteRim,
     self: 0.04,
-    spec: 0.22,
-    rimMix: { none: 0.55, hover: 0.85, selected: 0.9, check: 0.6 },
+    spec: 0.3,
+    rimMix: { none: 0.6, hover: 0.85, selected: 0.6, check: 0.4 },
     rimPower: 2.6,
   },
   black: {
@@ -163,22 +166,24 @@ const LOOK: Record<PieceColor, Look> = {
     rim: PALETTE.blackRim,
     self: 0.1,
     spec: 0.35,
-    rimMix: { none: 0.85, hover: 1, selected: 0.7, check: 0.5 },
-    rimPower: 1.8,
+    rimMix: { none: 0.78, hover: 0.95, selected: 0.72, check: 0.3 },
+    rimPower: 2,
   },
 };
 
 const makeBody = (side: PieceColor, glow: Glow) => {
   const look = LOOK[side];
   const emissive = new Color(look.color).multiplyScalar(look.self);
-  if (glow === 'check') emissive.add(new Color(PALETTE.check).multiplyScalar(0.05));
+  // Selection, hover and check light a piece's edge only, never its body
+  // (no glow of their own: on the dark army even a trace of red emission
+  // turns the body wine-red): held, a piece keeps its own edge light (the
+  // scan shell's outline carries the gold); in check, a narrow red edge
   return ceramic({
     color: look.color,
     base: look.base,
-    rim: glow === 'check' ? PALETTE.check : glow === 'selected' ? PALETTE.select : look.rim,
+    rim: glow === 'check' ? PALETTE.check : look.rim,
     rimMix: look.rimMix[glow],
-    // A narrower edge in check: red, but the army still reads
-    rimPower: look.rimPower + (glow === 'check' ? 1.2 : glow === 'selected' ? 0.6 : 0),
+    rimPower: look.rimPower + (glow === 'check' ? 2 : 0),
     emissive,
     spec: look.spec,
   });
@@ -210,7 +215,7 @@ export const accents: Record<PieceColor, ShaderMaterial> = {
     rim: PALETTE.blackRim,
     rimMix: 0.4,
     rimPower: 2,
-    emissive: new Color(PALETTE.blackRim).multiplyScalar(0.75),
+    emissive: new Color(PALETTE.blackInlay).multiplyScalar(0.6),
     spec: 0.2,
   }),
 };
@@ -332,14 +337,15 @@ const Grounded = ({ children }: { children: React.ReactNode }) => {
 
 // --- The scan shell --------------------------------------------------------------------
 
-// Picked up, a piece is scanned: a wireframe shell of its own form, slightly
-// proud of its surface, builds from the base up behind a bright scan line
-// while its meridians turn once round it, then fades, leaving only a fine
-// outline of gold light round the silhouette (the shell's back faces, which
-// the piece itself hides but for a thin band at its edge), so the held piece
-// keeps its own army's colour. The wireframe is drawn by the shader (rings of
-// latitude, meridians), so it follows the real form of every piece at no
-// extra geometry.
+// Picked up, a piece is scanned: a wireframe shell of its own form, proud
+// of its surface, builds from the base up behind a bright scan line while its
+// meridians turn once round it, then fades, leaving only a fine outline of
+// gold light round the silhouette. Both are drawn on the shell's back faces,
+// which the piece itself hides but for a band at its edge: the scan plays
+// round the piece's outline, never over its body, so the held piece keeps
+// its own army's colour throughout. The wireframe is drawn by the shader
+// (rings of latitude, meridians), so it follows the real form of every piece
+// at no extra geometry.
 
 const shellVertex = /* glsl */ `
   uniform float uInflate;
@@ -412,13 +418,15 @@ const ScanShell = ({ type }: { type: PieceType }) => {
         transparent: true,
         depthWrite: false,
         blending: AdditiveBlending,
+        side: BackSide,
         uniforms: {
           uColor: { value: new Color(PALETTE.select) },
           uTop: { value: pieceTop(pieceSet(), type) },
           uScan: { value: 0 },
           uTurn: { value: 0 },
           uHold: { value: 0 },
-          uInflate: { value: 0.022 },
+          // Wide enough that the build shows as a band round the silhouette
+          uInflate: { value: 0.04 },
         },
         vertexShader: shellVertex,
         fragmentShader: shellFragment,
@@ -432,8 +440,8 @@ const ScanShell = ({ type }: { type: PieceType }) => {
         depthWrite: false,
         blending: AdditiveBlending,
         side: BackSide,
-        // Shares the build's uniforms: its colour, inflation and hold
-        uniforms: material.uniforms,
+        // Shares the build's colour and hold, closer in to the surface
+        uniforms: { ...material.uniforms, uInflate: { value: 0.022 } },
         vertexShader: shellVertex,
         fragmentShader: outlineFragment,
       }),

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   Color,
@@ -69,6 +69,9 @@ const fragmentShader = /* glsl */ `
     float edgeLit = exp(-max(rim, 0.0) * 5.0);
     float fill = uFill * (0.7 + 0.6 * dark) * onBoard + edgeLit * 0.12;
     fill *= 1.0 + 0.25 * uFocus;
+    // From above, only the lead level keeps its veil and checker
+    float reach = uSteep * (1.0 - uLead);
+    fill *= 1.0 - 0.8 * reach;
 
     // The threads between squares (not the border: the frame is the border),
     // coverage-correct at any distance (Ben Golus's pristine grid)
@@ -93,8 +96,7 @@ const fragmentShader = /* glsl */ `
 
     // Seen from above, the threads of every level but the attended one
     // fade to a whisper, and their nodes go out
-    float reach = uSteep * (1.0 - uLead);
-    float keepX = 1.0 - 0.62 * reach;
+    float keepX = 1.0 - 0.85 * reach;
     float keepY = keepX;
     float thread = max(lines.x * keepX, lines.y * keepY);
 
@@ -115,7 +117,7 @@ const fragmentShader = /* glsl */ `
     node *= onBoard > 0.0 || nd < 0.2 ? 1.0 : 0.0;
 
     node *= 1.0 - reach;
-    float lit = (thread + node * 0.55) * uThread * (1.0 + 0.7 * uFocus);
+    float lit = (thread + node * 0.55) * uThread * (1.0 + 0.35 * uFocus);
     float dim = 1.0 - uDim;
     float a = (fill + glow + lit) * dim;
     if (a < 0.003) discard;
@@ -125,6 +127,18 @@ const fragmentShader = /* glsl */ `
   }`;
 
 const up = new Vector3();
+
+/**
+ * How far the view looks straight down the stack (0 at 53° and below, 1 from
+ * 76°), shared with the markers, which quieten on levels other than the lead.
+ */
+export const steepness = { value: 0 };
+/**
+ * Per level, 1 for the lead level: the one the player is attending to (the
+ * hovered or selected level), else the top one. From above, only it keeps
+ * its grid, veil and frame whole, and its destinations full size.
+ */
+export const leads = LEVEL_COLORS.map((_, z) => ({ value: z === LEVEL_COLORS.length - 1 ? 1 : 0 }));
 
 export const HoloPanes = ({ focusLevel }: { focusLevel: number | null }) => {
   const edge = FRAME.half + MARGIN;
@@ -158,11 +172,9 @@ export const HoloPanes = ({ focusLevel }: { focusLevel: number | null }) => {
               uThread: { value: 0.62 },
               uWidth: { value: 0.022 },
               uFocus: { value: 0 },
-              // The level that keeps its grid whole from above: the focused
-              // one, or the top one when nothing is focused
-              uLead: { value: z === LEVEL_COLORS.length - 1 ? 1 : 0 },
+              uLead: leads[z],
               uDim: { value: 0 },
-              uSteep: { value: 0 },
+              uSteep: steepness,
             },
             vertexShader,
             fragmentShader,
@@ -193,25 +205,30 @@ export const HoloPanes = ({ focusLevel }: { focusLevel: number | null }) => {
     [panes, frames],
   );
 
+  // Each frame's opacity by focus, before the view's steepness takes its share
+  const frameBase = useRef(LEVEL_COLORS.map(() => 0.8));
   useLevelFocus(
     focusLevel,
     (weights, any) => {
       weights.forEach((w, z) => {
         panes[z].uniforms.uFocus.value = w;
-        panes[z].uniforms.uLead.value = w + (1 - any) * (z === weights.length - 1 ? 1 : 0);
+        leads[z].value = w + (1 - any) * (z === weights.length - 1 ? 1 : 0);
         panes[z].uniforms.uDim.value = any * (1 - w) * 0.3;
-        frames[z].opacity = 0.8 * (1 - any * (1 - w) * 0.4) + 0.2 * w;
+        frameBase.current[z] = 0.8 * (1 - any * (1 - w) * 0.4) + 0.2 * w;
       });
     },
     { key: panes },
   );
 
-  // The threads draw back toward their nodes as the view looks down the stack
+  // As the view looks down the stack, every level but the lead thins out
   useFrame(({ camera }) => {
     camera.getWorldDirection(up);
-    const steep = Math.min(Math.max((-up.y - 0.8) / (0.985 - 0.8), 0), 1);
+    const steep = Math.min(Math.max((-up.y - 0.8) / (0.97 - 0.8), 0), 1);
     const s = steep * steep * (3 - 2 * steep);
-    for (const m of panes) m.uniforms.uSteep.value = s;
+    steepness.value = s;
+    frames.forEach((m, z) => {
+      m.opacity = frameBase.current[z] * (1 - 0.85 * s * (1 - leads[z].value));
+    });
   });
 
   return (

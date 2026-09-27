@@ -34,18 +34,22 @@ import type { Profile } from '../../pieces';
 import { noRaycast } from '../kit/noRaycast';
 import { GradientSky } from '../kit/sky';
 import { rng } from '../kit/textures';
+import { TOWER_MASK, withTowerMask } from './mask';
 import { rig } from './pieces';
 import { APERTURE, FLOOR_Y, FRAME, PALETTE, TABLE_RADIUS, TABLE_Y } from './palette';
 
-// The studio after hours. The tower stands over a round projector table
-// whose aperture ring glows softly, a faint curtain of light rising from it.
+// The studio after hours. The tower stands over a round projector table, a
+// quiet dark-steel emitter, a faint curtain of striated light rising from it.
 // Round the room, in the gloom: plinths bearing holographic studies (wire
 // forms, an architectural model), a glass wall of tall windows onto a night
 // city blurred to bokeh, a few soft light panels and quiet indicator glows,
 // and a floor of dark tiles with the projection bay marked out in light.
 // Everything is still (nothing moves behind the tower), low in contrast, and
 // arranged all the way round, so the room reads the same from every side,
-// low down and from straight above.
+// low down and from straight above. Whatever lies behind the tower, seen
+// through its panes, is held down by the tower mask (mask.ts): props to
+// nothing, the wall and the floor's reflection to a murmur. The tower is the
+// one lit object in a dark room.
 
 // --- The glass wall -------------------------------------------------------------------
 
@@ -77,10 +81,10 @@ const panorama = (): CanvasTexture => {
   ctx.fillRect(0, 0, W, H);
   // Through the glass: a night sky, hazier toward the horizon
   const sky = ctx.createLinearGradient(0, head, 0, sill);
-  sky.addColorStop(0, '#05070f');
-  sky.addColorStop(0.55, '#0c1024');
-  sky.addColorStop(0.62, '#110f26');
-  sky.addColorStop(1, '#070913');
+  sky.addColorStop(0, '#070a15');
+  sky.addColorStop(0.5, '#11172e');
+  sky.addColorStop(0.62, '#141a33');
+  sky.addColorStop(1, '#090c18');
   ctx.fillStyle = sky;
   ctx.fillRect(0, head, W, sill - head);
 
@@ -98,8 +102,9 @@ const panorama = (): CanvasTexture => {
 
   // City lights, blurred to bokeh: small and dense at the horizon, larger
   // and sparser nearer
-  // Warm streetlight and pale white, none of them a level's hue
-  const hues = ['#ff9f66', '#ffb27a', '#ffd8b8', '#ffe9d6', '#dfe6f2', '#c8d2e2'];
+  // Amber-white streetlight and pale white: none of them a level's hue, and
+  // none near the gold, coral or ice of the markers
+  const hues = ['#ffd2a8', '#ffdcb8', '#ffe6cc', '#fff0e0', '#dfe6f2', '#c8d2e2'];
   const disc = (x: number, y: number, r: number, color: string, alpha: number) => {
     // Copies across the seam only where the disc reaches it
     for (const dx of [0, -W, W]) {
@@ -135,7 +140,7 @@ const panorama = (): CanvasTexture => {
       random() * W,
       horizon - 4 - random() * 50,
       1 + random() * 2,
-      '#ffcf99',
+      '#ffe2c2',
       0.08 + random() * 0.1,
     );
   }
@@ -165,6 +170,12 @@ const panorama = (): CanvasTexture => {
     ctx.fillRect(x - 3, head - 8, 7, sill - head + 16);
     ctx.fillStyle = 'rgba(120, 130, 160, 0.16)';
     ctx.fillRect(x + 4, head - 8, 1, sill - head + 16);
+    // The room's own light, softly caught in the glass beside each mullion
+    const sheen = ctx.createLinearGradient(x + 5, 0, x + 40, 0);
+    sheen.addColorStop(0, 'rgba(170, 180, 205, 0.07)');
+    sheen.addColorStop(1, 'rgba(170, 180, 205, 0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(x + 5, head, 35, sill - head);
   }
   ctx.fillStyle = '#03050a';
   ctx.fillRect(0, transom - 3, W, 5);
@@ -176,7 +187,7 @@ const panorama = (): CanvasTexture => {
   cove.addColorStop(1, 'rgba(215, 222, 235, 0)');
   ctx.fillStyle = cove;
   ctx.fillRect(0, sill + 6, W, 20);
-  const leds = ['#58f0a8', '#ffc46a', '#e8ecf4'];
+  const leds = ['#9fe8c4', '#e8ecf4', '#e8ecf4'];
   for (let i = 0; i < bays; i++) {
     if (random() < 0.45) continue;
     const x = i * bay + bay * (0.2 + random() * 0.6);
@@ -194,21 +205,7 @@ const panorama = (): CanvasTexture => {
   return t;
 };
 
-/** Radius of a sphere round the tower (pieces and labels), for the backdrop's mask. */
-const TOWER_RADIUS = 4.4;
-
-// Behind the tower the wall is held down to a murmur, with a long, full fade
-// out to the tower's edge from wherever the camera is, so nothing bright in
-// the room shows through the panes
-const MASK = /* glsl */ `
-  float towerMask(vec3 world) {
-    vec3 ray = normalize(world - cameraPosition);
-    vec3 toTower = normalize(-cameraPosition);
-    float angle = acos(clamp(dot(ray, toTower), -1.0, 1.0));
-    float size = asin(clamp(uTower / length(cameraPosition), 0.0, 1.0));
-    return mix(0.3, 1.0, smoothstep(size * 0.85, size * 1.45, angle));
-  }`;
-
+// Behind the tower the wall is held down to a murmur (mask.ts)
 const wallVertex = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vWorld;
@@ -221,12 +218,11 @@ const wallVertex = /* glsl */ `
 
 const wallFragment = /* glsl */ `
   uniform sampler2D uMap;
-  uniform float uTower;
   varying vec2 vUv;
   varying vec3 vWorld;
-  ${MASK}
+  ${TOWER_MASK}
   void main() {
-    vec3 col = texture2D(uMap, vUv).rgb * towerMask(vWorld);
+    vec3 col = texture2D(uMap, vUv).rgb * towerMask(vWorld, 0.3);
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -243,7 +239,7 @@ const GlassWall = () => {
     const material = new ShaderMaterial({
       side: BackSide,
       depthWrite: false,
-      uniforms: { uMap: { value: panoramaTexture() }, uTower: { value: TOWER_RADIUS } },
+      uniforms: { uMap: { value: panoramaTexture() } },
       vertexShader: wallVertex,
       fragmentShader: wallFragment,
     });
@@ -260,6 +256,16 @@ const GlassWall = () => {
 };
 
 // --- The floor --------------------------------------------------------------------------
+
+/** Warm pools of light on the floor (x, z, radius), under lamps over three of the studies. */
+const LAMPS = [
+  [158, 18.5],
+  [240, 16.5],
+  [22, 16.5],
+].map(([deg, r]) => {
+  const a = (deg * Math.PI) / 180;
+  return new Vector3(Math.sin(a) * r, Math.cos(a) * r, 2.4);
+});
 
 const floorVertex = /* glsl */ `
   varying vec2 vP;
@@ -279,8 +285,9 @@ const floorFragment = /* glsl */ `
   uniform float uTable;
   uniform sampler2D uPano;
   uniform vec3 uWall;
-  uniform float uTower;
-  ${MASK}
+  uniform vec3 uLamp;
+  uniform vec3 uLamps[3];
+  ${TOWER_MASK}
   varying vec2 vP;
   varying vec3 vWorld;
   // The glass wall as the polished floor reflects it: the view ray bounced
@@ -328,13 +335,22 @@ const floorFragment = /* glsl */ `
     // The table's light spilling onto the floor round its foot
     float pool = exp(-pow(max(r - uTable, 0.0) / 3.2, 2.0)) * 0.55;
     float away = 1.0 - smoothstep(10.0, 28.0, r);
+    // Warm pools under the lamps over a few of the studies
+    float lamps = 0.0;
+    for (int i = 0; i < 3; i++) {
+      vec2 dl = vP - uLamps[i].xy;
+      lamps += exp(-dot(dl, dl) / (uLamps[i].z * uLamps[i].z));
+    }
     vec3 col = uFloor * (0.9 + 0.25 * inBay);
     // Clear floor round the table: nothing sharp shows through the panes
     float clear = smoothstep(uTable + 0.8, uTable + 3.0, r);
-    col += uSeam * seam * 0.3 * away * clear;
-    col += uLight * (bay * 0.1 + bayGlow * 0.2) * away;
-    col += uLight * pool * 0.06;
-    col += reflection() * 1.1 * towerMask(vWorld);
+    // Nothing on the floor shows through the tower; the reflection only a murmur
+    float hidden = towerMask(vWorld, 0.0);
+    col += uSeam * seam * 0.3 * away * clear * mix(0.3, 1.0, hidden);
+    col += uLight * (bay * 0.1 + bayGlow * 0.2) * away * hidden;
+    col += uLight * pool * 0.05 * hidden;
+    col += uLamp * lamps * 0.07 * hidden;
+    col += reflection() * 1.1 * towerMask(vWorld, 0.3);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -352,7 +368,8 @@ const Floor = () => {
           uTable: { value: TABLE_RADIUS },
           uPano: { value: panoramaTexture() },
           uWall: { value: new Vector3(WALL_RADIUS, FLOOR_Y, WALL_HEIGHT) },
-          uTower: { value: TOWER_RADIUS },
+          uLamp: { value: new Color(PALETTE.lamp) },
+          uLamps: { value: LAMPS },
         },
         vertexShader: floorVertex,
         fragmentShader: floorFragment,
@@ -382,6 +399,7 @@ const tableTopFragment = /* glsl */ `
   uniform float uRadius;
   varying vec2 vP;
   varying vec3 vWorld;
+  ${TOWER_MASK}
   float hexCell(vec2 p) {
     // Distance to the edge of the nearest cell of a hexagonal lattice
     vec2 s = vec2(1.0, 1.7320508);
@@ -406,12 +424,14 @@ const tableTopFragment = /* glsl */ `
     float ringGlow = exp(-pow((r - uAperture) / 0.14, 2.0));
     float inner = 1.0 - smoothstep(0.005, 0.005 + fr * 1.5, abs(r - (uAperture - 0.8)));
     float bezel = 1.0 - smoothstep(0.006, 0.006 + fr * 1.5, abs(r - (uRadius - 0.08)));
-    vec3 col = uGlass * (0.8 + 0.4 * smoothstep(0.0, uAperture, r));
-    col += uDeep * band * (0.05 + lattice * 0.3) * toward;
-    // Quieter from straight above, where the ring passes under the panes' corners
+    // Whatever of it the panes lie in front of goes out; seen from high up,
+    // what remains quietens further
+    float hidden = towerMask(vWorld, 0.0);
     float steep = abs(normalize(vWorld - cameraPosition).y);
-    float quiet = 1.0 - 0.55 * smoothstep(0.6, 0.95, steep);
-    col += uLight * (ring * 0.6 + ringGlow * 0.16 + inner * 0.08 + bezel * 0.1) * quiet;
+    float quiet = hidden * (1.0 - 0.5 * smoothstep(0.5, 0.9, steep));
+    vec3 col = uGlass * (0.8 + 0.4 * smoothstep(0.0, uAperture, r));
+    col += uDeep * band * (0.05 + lattice * 0.3) * toward * quiet;
+    col += uLight * (ring * 0.18 + ringGlow * 0.05 + inner * 0.03 + bezel * 0.04) * quiet;
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -423,7 +443,7 @@ const TableTop = () => {
       material: new ShaderMaterial({
         uniforms: {
           uGlass: { value: new Color('#05080f') },
-          uLight: { value: new Color(PALETTE.projector) },
+          uLight: { value: new Color(PALETTE.emitter) },
           uDeep: { value: new Color(PALETTE.projectorDeep) },
           uAperture: { value: APERTURE },
           uRadius: { value: TABLE_RADIUS },
@@ -457,11 +477,14 @@ const TableBody = () => {
       ),
       band: new CylinderGeometry(TABLE_RADIUS + 0.004, TABLE_RADIUS + 0.004, 0.025, 96, 1, true),
       sideMaterial: new MeshLambertMaterial({ color: '#0b0f1a' }),
-      bandMaterial: new MeshBasicMaterial({
-        color: new Color(PALETTE.projector).multiplyScalar(0.55),
-        toneMapped: false,
-        fog: false,
-      }),
+      bandMaterial: withTowerMask(
+        new MeshBasicMaterial({
+          color: new Color(PALETTE.emitter).multiplyScalar(0.3),
+          toneMapped: false,
+          fog: false,
+        }),
+        0,
+      ),
     };
   }, []);
   useEffect(
@@ -490,9 +513,11 @@ const TableBody = () => {
 const curtainVertex = /* glsl */ `
   varying vec3 vNormal;
   varying vec3 vView;
+  varying vec3 vWorld;
   varying float vY;
   void main() {
     vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
     vY = world.y;
     vNormal = normalize(mat3(modelMatrix) * normal);
     vView = cameraPosition - world.xyz;
@@ -505,15 +530,22 @@ const curtainFragment = /* glsl */ `
   uniform float uHeight;
   varying vec3 vNormal;
   varying vec3 vView;
+  varying vec3 vWorld;
   varying float vY;
+  ${TOWER_MASK}
   void main() {
     float facing = abs(dot(normalize(vNormal), normalize(vView)));
     float edge = pow(1.0 - facing, 1.6);
     float k = (vY - uBase) / uHeight;
-    float rise = exp(-k * 3.2) * (1.0 - smoothstep(0.7, 1.0, k));
+    float rise = exp(-k * 5.0) * (1.0 - smoothstep(0.6, 1.0, k));
+    // Projected light, not haze: fine vertical striations round the ring
+    float ang = atan(vWorld.z, vWorld.x);
+    float rays = 0.5 + 0.5 * sin(ang * 120.0 + 2.0 * sin(ang * 37.0));
+    rays = mix(0.25, 1.0, rays * rays);
     // Seen from above, the curtain's wall would stack into a bright ring
     float steep = abs(normalize(vView).y);
-    float a = (0.004 + edge * 0.028) * rise * (1.0 - smoothstep(0.5, 0.8, steep));
+    float a = (0.003 + edge * 0.014) * rise * rays * (1.0 - smoothstep(0.5, 0.8, steep));
+    a *= towerMask(vWorld, 0.0);
     gl_FragColor = vec4(uColor * a, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -533,7 +565,7 @@ const Curtain = () => {
         blending: AdditiveBlending,
         side: BackSide,
         uniforms: {
-          uColor: { value: new Color(PALETTE.projector) },
+          uColor: { value: new Color(PALETTE.curtain) },
           uBase: { value: TABLE_Y },
           uHeight: { value: height },
         },
@@ -572,6 +604,9 @@ const gyroscope = (radius: number, steps: number): BufferGeometry => {
   return g;
 };
 
+// Angles chosen against the opening view (the same camera for both seats):
+// the studies in frame stand clear of the tower's outline, and any study
+// behind the tower from another side is hidden by the tower mask.
 const STUDIES: { angle: number; radius: number; height: number; form: () => BufferGeometry }[] = [
   {
     angle: 22,
@@ -586,7 +621,7 @@ const STUDIES: { angle: number; radius: number; height: number; form: () => Buff
     form: () => new EdgesGeometry(new IcosahedronGeometry(0.62, 1)),
   },
   {
-    angle: 128,
+    angle: 120,
     radius: 17,
     height: 1.1,
     // An architectural model: stacked, turned slabs
@@ -600,20 +635,20 @@ const STUDIES: { angle: number; radius: number; height: number; form: () => Buff
     },
   },
   {
-    angle: 178,
+    angle: 158,
     radius: 18.5,
     height: 1.5,
     form: () => new EdgesGeometry(new DodecahedronGeometry(0.55, 0)),
   },
   {
-    angle: 232,
+    angle: 240,
     radius: 16.5,
     height: 1.25,
     // A gyroscope: three rings, each turned a quarter from the last
     form: () => gyroscope(0.5, 48),
   },
   {
-    angle: 284,
+    angle: 290,
     radius: 18,
     height: 1.8,
     // A twisted tower study
@@ -627,7 +662,7 @@ const STUDIES: { angle: number; radius: number; height: number; form: () => Buff
     },
   },
   {
-    angle: 330,
+    angle: 335,
     radius: 17.5,
     height: 1.2,
     form: () => new EdgesGeometry(new OctahedronGeometry(0.55, 0)),
@@ -638,11 +673,12 @@ const Studies = () => {
   const parts = useMemo(() => {
     const plinth = new BoxGeometry(1.5, 1, 1.5).translate(0, 0.5, 0);
     const cap = new BoxGeometry(1.26, 0.02, 1.26);
-    const plinthMaterial = new MeshLambertMaterial({ color: PALETTE.plinth });
+    const plinthMaterial = withTowerMask(new MeshLambertMaterial({ color: PALETTE.plinth }), 0);
     const capMaterial = new MeshBasicMaterial({
-      color: new Color(PALETTE.holo).multiplyScalar(0.18),
+      color: new Color(PALETTE.holo).multiplyScalar(0.07),
       toneMapped: false,
     });
+    withTowerMask(capMaterial, 0);
     const lineMaterial = new LineBasicMaterial({
       color: PALETTE.holo,
       transparent: true,
@@ -650,6 +686,7 @@ const Studies = () => {
       blending: AdditiveBlending,
       depthWrite: false,
     });
+    withTowerMask(lineMaterial, 0);
     const forms = STUDIES.map((s) => s.form());
     return { plinth, cap, plinthMaterial, capMaterial, lineMaterial, forms };
   }, []);
@@ -810,26 +847,28 @@ const drafting = (profiles: Profile[], name: string): CanvasTexture => {
 
 const DISPLAYS = [
   { angle: 52, radius: 21, y: 0.2 },
-  { angle: 152, radius: 22, y: 0.8 },
-  { angle: 206, radius: 21.5, y: -0.2 },
-  { angle: 308, radius: 22, y: 0.5 },
+  { angle: 142, radius: 22, y: 0.8 },
+  { angle: 205, radius: 21.5, y: -0.2 },
+  { angle: 262, radius: 22, y: 0.5 },
 ];
 
 const DraftingDisplays = () => {
   const materials = useMemo(
     () =>
-      DRAWINGS.map(
-        (d) =>
+      DRAWINGS.map((d) =>
+        withTowerMask(
           new MeshBasicMaterial({
             map: drafting(d.profiles, d.name),
             transparent: true,
-            opacity: 0.2,
+            opacity: 0.32,
             blending: AdditiveBlending,
             depthWrite: false,
             side: DoubleSide,
             color: new Color(PALETTE.holo),
             fog: false,
           }),
+          0,
+        ),
       ),
     [],
   );

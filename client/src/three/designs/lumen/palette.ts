@@ -30,17 +30,27 @@ export const PALETTE = {
   // glow crossing a pane never reads as part of it
   projector: '#e2e6ee',
   projectorDeep: '#3b4557',
+  // The table's emitter ring: a dim steel, part of the projector, not a lamp
+  emitter: '#8f9bb3',
+  // The curtain of light rising from it: cooler and darker still
+  curtain: '#5d6a84',
+  // The warm pools under the studies' lamps: amber-white, far from the gold
+  lamp: '#f3dcc4',
   holo: '#c9d2e0',
 
   // The armies
   white: '#e9edf4',
   whiteBase: '#b4bdd0',
-  whiteRim: '#86d6ff',
+  // Each army's edge light: silver-ice and cool silver, nearly colourless,
+  // so it reads as light and never as a level's colour
+  whiteRim: '#e4ecfa',
   whiteAccent: '#2a3558',
   whiteAccentGlow: '#1a2f6a',
-  black: '#3a3450',
+  black: '#383548',
   blackBase: '#15121e',
-  blackRim: '#c5acff',
+  blackRim: '#cfc9e2',
+  // The glow of the graphite army's inlays: a small, soft lilac
+  blackInlay: '#c5acff',
   blackAccent: '#d9ccff',
 
   // Markers, one meaning each, all off the level ramp's arc
