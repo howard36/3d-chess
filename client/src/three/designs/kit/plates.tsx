@@ -266,11 +266,16 @@ const shadowTexture = (() => {
     c.width = c.height = size;
     const ctx = c.getContext('2d')!;
     const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    // Dense under the base, fading smoothly to nothing at the rim
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.45, 'rgba(255,255,255,0.8)');
-    g.addColorStop(0.75, 'rgba(255,255,255,0.25)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
+    // Dense under the base, fading smoothly to nothing at the rim. An alpha
+    // map reads the green channel, so the falloff is painted as grey on
+    // black: white with falling alpha would upload as solid white wherever
+    // alpha is above zero, and draw a hard-edged disc.
+    g.addColorStop(0, 'rgb(255,255,255)');
+    g.addColorStop(0.45, 'rgb(204,204,204)');
+    g.addColorStop(0.75, 'rgb(64,64,64)');
+    g.addColorStop(1, 'rgb(0,0,0)');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, size, size);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
     t = new CanvasTexture(c);
