@@ -1,8 +1,9 @@
 import { MeshStandardMaterial } from 'three';
 import { StauntonParts } from '../classic/pieces';
+import { focusLevelOf } from '../kit/focus';
 import { clarityTower, towerFrame } from '../kit/layouts';
 import { clarityMarkers } from '../kit/markers';
-import { ContactShadow, LevelPlates } from '../kit/plates';
+import { ContactShadow, LevelFootprint, LevelPlates } from '../kit/plates';
 import { GradientSky } from '../kit/sky';
 import { SmartLabels } from '../kit/smartLabels';
 import type { Design, GridProps, PieceBodyProps, PieceColor } from '../types';
@@ -20,7 +21,11 @@ import type { Design, GridProps, PieceBodyProps, PieceColor } from '../types';
 // - markers flat on the platforms (clarityMarkers): destinations, the same
 //   marker with a capture cue, the selection, the last move's squares and
 //   trace, and the check;
-// - a contact shadow under every piece, and pieces scaled to fit the gap.
+// - a contact shadow under every piece and a footprint ring in its level's
+//   colour (PieceBodyProps.level), and pieces scaled to fit the gap;
+// - level focus: the level under the pointer (or of the selected piece)
+//   brightens its platform edge and letter (GridProps.focus);
+// - the HUD readout of the cell under the pointer (hud.readout).
 //
 // Keep the scene cheap (the showcase renders in software) and calm: nothing
 // moves while nobody is moving.
@@ -29,6 +34,12 @@ import type { Design, GridProps, PieceBodyProps, PieceColor } from '../types';
 // add an entry to designs/registry.ts with `group: 'clarity'`, restyle the
 // palette, stage, pieces and markers, and check it from both seats with
 //   node scripts/showcase.mjs --design <id> --review --out <dir>
+// Before calling it done, check in the review's sheets that:
+// - every level can be told apart by more than its height (tints, footprints,
+//   the focused edge and letter);
+// - hovering a piece and a destination both visibly respond;
+// - a capture marker shows round the victim's base, not under it;
+// - label glyphs are unambiguous at label size (a/o, D/O, 1/l).
 
 // --- Palette -------------------------------------------------------------------
 
@@ -64,26 +75,36 @@ const Stage = () => (
 
 // --- Board -----------------------------------------------------------------------
 
-/** Platforms and coordinates. Decorative only: Board draws this outside the clickable group. */
-const Grid = ({ layout: l, orientation }: GridProps) => (
-  <>
-    <LevelPlates
-      layout={l}
-      tints={LEVEL_TINTS}
-      opacity={0.12}
-      edgeColor="#dfe7f2"
-      edgeOpacity={0.55}
-    />
-    <SmartLabels
-      layout={l}
-      orientation={orientation}
-      color={INK}
-      levelColors={LEVEL_TINTS}
-      weight={600}
-      levelWeight={700}
-    />
-  </>
-);
+/**
+ * Platforms and coordinates. Decorative only: Board draws this outside the
+ * clickable group. The level the player is pointing at (or has a piece
+ * selected on) lights its platform edge and its letter.
+ */
+const Grid = ({ layout: l, orientation, focus }: GridProps) => {
+  const focusLevel = focusLevelOf(focus);
+  return (
+    <>
+      <LevelPlates
+        layout={l}
+        tints={LEVEL_TINTS}
+        opacity={0.12}
+        edgeColor="#dfe7f2"
+        edgeOpacity={0.55}
+        edgeColors={LEVEL_TINTS}
+        focusLevel={focusLevel}
+      />
+      <SmartLabels
+        layout={l}
+        orientation={orientation}
+        color={INK}
+        levelColors={LEVEL_TINTS}
+        weight={600}
+        levelWeight={700}
+        focusLevel={focusLevel}
+      />
+    </>
+  );
+};
 
 // --- Pieces ----------------------------------------------------------------------
 
@@ -114,10 +135,14 @@ const groove = {
 const glow = ({ inCheck, selected }: PieceBodyProps) =>
   inCheck ? '#7a1414' : selected ? '#4a3a12' : '#000000';
 
-/** A Staunton piece standing on its contact shadow (the shadow is part of the body). */
+/**
+ * A Staunton piece standing on its contact shadow and a thin ring in its
+ * level's colour (both part of the body, so they travel with it).
+ */
 const PieceBody = (props: PieceBodyProps) => (
   <>
     <ContactShadow radius={0.36} opacity={0.38} />
+    <LevelFootprint color={LEVEL_TINTS[props.level ?? 0]} radius={0.4} width={0.05} />
     <StauntonParts
       type={props.type}
       material={material(props.color, glow(props))}
@@ -136,6 +161,8 @@ const markers = clarityMarkers({
   selectColor: '#fff0c2',
   lastMoveColor: ACCENT,
   checkColor: '#ff4040',
+  // A fresh move draws its trace in; a replayed one shows it whole
+  trace: { drawInMs: 320 },
 });
 
 // --- Design ----------------------------------------------------------------------
@@ -158,6 +185,7 @@ const kitDemo: Design = {
   hoverDestinations: true,
   motion: { style: 'hop', durationMs: 380, lift: 0.3 },
   hud: {
+    readout: true,
     vars: {
       '--hud-font': 'system-ui, sans-serif',
       '--hud-bg': 'rgba(22, 26, 34, 0.78)',
