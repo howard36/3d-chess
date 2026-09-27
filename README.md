@@ -234,7 +234,13 @@ the **motion** of a move (`hop`, `bounce`, `slide`, `teleport`), optional move, 
 and mate **effects**, and the **HUD** styling as CSS variables (`--hud-*`, `--turn-*`,
 `--modal-*`, `--page-*`; every one falls back to the classic look). `Board.tsx` keeps all
 interaction rules and renders a design's decoration outside its clickable group, so
-nothing decorative can take a click; designs share a kit (`designs/kit/`) of layouts,
+nothing decorative can take a click. Every move but a teleport glides in a straight line
+from square to square (`three/movePath.ts`); a knight arcs instead when the player sets
+**Knight moves: Arc** at the foot of the style picker (also `?knight=arc|straight`,
+remembered like the design), and the glide, the last-move line and a design's move effects
+(`MoveFxProps.arc`) all follow that one path. Pointer events hit an invisible, still
+stand-in fitted round each piece at rest and lifted (`PieceMesh`), never the moving body,
+so a piece that rises under the pointer cannot slip out from under it; designs share a kit (`designs/kit/`) of layouts,
 bloom, particles, confetti, labels and procedural textures. Adding one means a folder
 with an `index.tsx` default-exporting a `Design`, plus an entry in `designs/registry.ts`.
 
@@ -259,8 +265,10 @@ to copy (hidden from the picker; open it with `?design=kit-demo`).
   the bottom, with a level gap of 1.35 cell pitches (the classic tower's is 1.9), so the
   stack stays close to a cube and diagonals look natural; seen from a low camera (18°)
   turned 16° off the players' axis, so the view looks *between* the levels and ranks do not
-  stack into columns. `BoardLayout.orbit` limits the camera (6°–50° elevation) so it never
-  dips under the bottom platform or looks down the stack from where no level is readable.
+  stack into columns. `BoardLayout.orbit` limits the camera (6°–89.9° elevation) so it
+  never dips under the bottom platform; at the top it looks straight down, like a 2D board
+  with the levels nested under it (the file and rank labels move to the top platform's
+  edges once the bottom one's would land on the platforms above it).
   Its click boxes are thin slabs on each square (`BoardLayout.hitHeight`), so a click lands
   on the square whose floor is under the pointer. Pieces are drawn at `Design.pieceScale`
   (0.8 in the demo) to fit the gap. `towerFrame(layout)` measures any tower layout (pitch,
@@ -283,23 +291,40 @@ to copy (hidden from the picker; open it with `?design=kit-demo`).
   dot; `capture` adds a tint and four ticks to the same shape (inward on a square; on a
   ring, which widens to 0.42 of a pitch so it shows round the victim's base, outward to the
   corners), and `hovered` brightens it (Board passes it to designs with
-  `hoverDestinations`). `LastMoveTrace` joins the last move's squares with a ribbon of real
-  width and an arrowhead, straight along a platform or arcing between levels, and can draw
-  itself in (`drawInMs`). Board keys the LastMove marker by move and passes `fresh` (the move
+  `hoverDestinations`). `LastMoveLine` (`kit/line.tsx`) joins the centres of the last move's
+  squares with a thin tube of real geometry, straight (or along a knight's arc: pass
+  `LastMoveMarkerProps.arc`), with no arrowhead: the destination's marker says where the
+  move ended, and the piece standing there hides the end of the line. A calm flow runs along
+  it from source to destination (a soft pulse, drifting dashes, or a row of beads:
+  `pattern`), with `color`, `radius`, `flowSpeed`, `pulse`, `outline` and `drawInMs` to style
+  it; `tracePath` and `tubeData` (`kit/markerGeometry.ts`) build a design's own line on the
+  same path. Board keys the LastMove marker by move and passes `fresh` (the move
   arrived live), so an entrance plays once per move and never on a reload or rejoin.
   `clarityMarkers({ pitch, … })` returns a design's whole marker set. Designs set
   `cellFills` to `null` to draw no cell volumes.
 - **Labels** (`SmartLabels`, `kit/smartLabels.tsx`): files and ranks follow the camera to the
-  two edges of the bottom platform nearest it, and each level letter sits beside its own
+  two edges of the bottom platform nearest it (the top platform's, seen from high above),
+  and each level letter sits beside its own
   platform at the corner furthest left on screen, with hysteresis and a short crossfade as
   the camera orbits; the placement is a pure function (`kit/labelAnchors.ts`).
 - **Layers** (`kit/layers.ts`): every see-through part writes no depth and draws in a fixed
-  order (platforms, edges, shadows, markers, trace, labels), so platforms never hide or tint
-  a marker, and pieces under several platforms keep their colour.
+  order (platforms, edges, shadows, markers, the last-move line, labels), so platforms never
+  hide or tint a marker, and pieces under several platforms keep their colour.
+- **Optional parts**: `LevelGrid` (`kit/grid.tsx`) draws hairlines between each level's
+  squares, colour-coded per level, antialiased at any distance and optionally fading with it;
+  `levelRamp` (`kit/colors.ts`) returns five evenly spaced colours for the levels, one
+  lightness and chroma along an OKLCH hue ramp, never white or grey; `LevelBand`
+  (`kit/plates.tsx`) builds a thin band of the level's colour into a piece's foot, beside
+  the flat `LevelFootprint`.
+- **Lift**: `hoverLift: true` raises a piece under the pointer (0.08) and the selected one
+  (0.2) and holds it still; `hoverLift: { hover, selected, bob }` sets the heights and opts
+  into a bob while held (the round-2 designs use `SELECTION_BOB`). Leave it off to express
+  hover and selection in the piece body.
 
 `showcase.mjs --review` photographs a design for a clarity review: the opening, a selected
 piece with quiet and capture destinations (and the pointer on a destination and on a piece),
-the last move's trace and a check, each from 12 camera poses (or `--poses "az,el;…"`) and
+the last move's line and a check, each from 13 camera poses, top-down included (or
+`--poses "az,el;…"`), and
 from both seats, laid out as contact sheets (usage at the top of the script; one to three
 minutes). `--stills-fast` takes `--stills`' pictures without drawing the frames between
 them, several times faster.
