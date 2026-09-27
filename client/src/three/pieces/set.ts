@@ -5,7 +5,7 @@ import { buildKnight } from './knight';
 import { flatPolygon, gridSurface, mergeShells } from './mesh';
 import type { Vec3 } from './mesh';
 import { arc, corner, revolve, sampleProfile } from './profile';
-import type { Profile, ProfileNode } from './profile';
+import type { Profile, ProfileNode, RevolveOptions } from './profile';
 
 // The shared Staunton set (round 3). Every piece is modelled base-at-y=0,
 // facing +x (the knight's muzzle, the bishop's cut), inside the envelope the
@@ -32,6 +32,10 @@ export type PieceSet = Record<PieceType, PieceParts>;
 
 /** Height of the foot band. */
 export const FOOT_HEIGHT = 0.04;
+
+const smoothstep = (t: number) => t * t * (3 - 2 * t);
+const ramp = (a: number, b: number, x: number) =>
+  smoothstep(Math.min(Math.max((x - a) / (b - a), 0), 1));
 
 // --- Profiles ------------------------------------------------------------------
 
@@ -93,6 +97,29 @@ const ring = (y: number, r: number, h: number): Profile => [
   corner([0, y + h / 2]),
 ];
 
+/**
+ * A grand collar, for the king and queen: a bead, a broad disc with a
+ * half-round edge, and another bead, centred at `y` with radius `r`.
+ */
+const grandCollar = (y: number, r: number, h: number): Profile => {
+  const bead = h * 0.26;
+  const disc = h - 2 * bead;
+  const y0 = y - h / 2;
+  const rb = r - disc / 2 - 0.02;
+  return [
+    corner([0, y0]),
+    [rb, y0],
+    ...arc(rb, y0 + bead / 2, bead / 2, -90, 90, 3),
+    corner([rb, y0 + bead]),
+    [r - disc / 2, y0 + bead],
+    ...arc(r - disc / 2, y0 + bead + disc / 2, disc / 2, -90, 90, 4),
+    corner([r - disc / 2, y0 + bead + disc]),
+    [rb, y0 + bead + disc],
+    ...arc(rb, y0 + h - bead / 2, bead / 2, -90, 90, 3),
+    corner([0, y0 + h]),
+  ];
+};
+
 /** The foot band: a short cylinder with softened edges, closed underneath. */
 const foot = (R: number): Profile => [
   corner([0, 0]),
@@ -114,7 +141,9 @@ export interface PieceProfiles {
   knight: { body: Profile; collar: Profile };
   bishop: { body: Profile; collar: Profile; mitre: Profile; finial: Profile };
   unicorn: { body: Profile; collar: Profile; socket: Profile };
+  /** `coronet` is one of the crown's tines, turned upright from y = 0. */
   queen: { body: Profile; collar: Profile; crown: Profile; coronet: Profile };
+  /** The crown's flare is ribbed as it is turned (see KING_RIBS). */
   king: { body: Profile; collar: Profile; crown: Profile };
 }
 
@@ -146,30 +175,44 @@ export const PROFILES: PieceProfiles = {
   },
   rook: {
     body: [
-      ...base(R.Rook, 0.135, 0.15),
-      [0.145, 0.16],
-      [0.133, 0.24],
-      [0.128, 0.32],
-      [0.132, 0.38],
-      [0.15, 0.412],
-      corner([0.168, 0.428]),
-      // The turret: a plain drum; the floor of each crenel slopes outward
-      [0.172, 0.44],
-      corner([0.172, 0.505]),
+      ...base(R.Rook, 0.14, 0.158),
+      [0.152, 0.17],
+      [0.142, 0.23],
+      [0.136, 0.29],
+      [0.138, 0.34],
+      [0.146, 0.375],
+      [0.15, 0.4],
+      // The corbel, flaring out under the turret
+      [0.153, 0.418],
+      [0.166, 0.438],
+      [0.184, 0.453],
+      corner([0.195, 0.462]),
+      // The turret's drum, with a course of masonry cut round it
+      corner([0.195, 0.488]),
+      corner([0.187, 0.4945]),
+      corner([0.195, 0.501]),
+      corner([0.195, 0.532]),
     ],
     // The sills of the crenels (sloping outward) and the hollow they surround
-    well: [corner([0.172, 0.505]), corner([0.12, 0.517]), corner([0.12, 0.47]), corner([0, 0.47])],
-    collar: collar(0.42, 0.182, 0.036),
+    // (the floor dished, so from above it shades apart from the merlons' tops)
+    well: [
+      corner([0.195, 0.532]),
+      corner([0.146, 0.543]),
+      corner([0.146, 0.5]),
+      [0.1, 0.49],
+      [0, 0.484],
+    ],
+    collar: collar(0.398, 0.166, 0.032),
     // A merlon's cross-section (r, y), counter-clockwise, before it is swept
     // (a hair inside the turret's walls, so no two faces coincide)
     merlon: [
-      corner([0.1225, 0.498]),
-      corner([0.1718, 0.498]),
-      [0.1718, 0.56],
-      ...arc(0.1598, 0.56, 0.012, 0, 90, 3),
-      [0.1345, 0.572],
-      ...arc(0.1345, 0.56, 0.012, 90, 180, 3),
-      corner([0.1225, 0.498]),
+      corner([0.1485, 0.525]),
+      corner([0.1948, 0.525]),
+      [0.1948, 0.588],
+      ...arc(0.1828, 0.588, 0.012, 0, 90, 3),
+      [0.1605, 0.6],
+      ...arc(0.1605, 0.588, 0.012, 90, 180, 3),
+      corner([0.1485, 0.525]),
     ],
   },
   knight: {
@@ -245,37 +288,38 @@ export const PROFILES: PieceProfiles = {
       [0.096, 0.28],
       [0.086, 0.37],
       [0.08, 0.44],
-      [0.076, 0.49],
+      [0.077, 0.48],
       corner([0.075, 0.52]),
       corner([0, 0.52]),
     ],
-    collar: collar(0.49, 0.156, 0.05),
-    // Neck, the flared cup, and the dome and ball inside the coronet
+    collar: grandCollar(0.49, 0.158, 0.062),
+    // Neck, the flared cup with a rolled rim, and the dome and ball inside
     crown: [
       corner([0, 0.47]),
-      corner([0.07, 0.47]),
-      [0.068, 0.53],
-      [0.072, 0.56],
-      [0.09, 0.61],
-      [0.118, 0.65],
-      [0.142, 0.675],
-      corner([0.15, 0.688]),
-      corner([0.118, 0.69]),
-      [0.108, 0.712],
-      [0.082, 0.738],
-      [0.045, 0.752],
-      [0.022, 0.758],
-      [0.018, 0.768],
-      ...arc(0, 0.788, 0.028, -45, 90, 7),
+      corner([0.068, 0.47]),
+      [0.066, 0.53],
+      [0.07, 0.555],
+      [0.088, 0.6],
+      [0.115, 0.638],
+      [0.14, 0.664],
+      [0.154, 0.68],
+      ...arc(0.151, 0.688, 0.009, -40, 150, 4),
+      corner([0.134, 0.692]),
+      [0.12, 0.706],
+      [0.094, 0.728],
+      [0.06, 0.744],
+      [0.03, 0.751],
+      [0.018, 0.757],
+      ...arc(0, 0.787, 0.032, -40, 90, 7),
     ],
-    // The coronet's band (r, y), counter-clockwise; its top is cut into points
+    // One tine of the coronet, upright; a pearl crowns each
     coronet: [
-      corner([0.128, 0.672]),
-      corner([0.153, 0.672]),
-      [0.158, 0.7],
-      ...arc(0.152, 0.7, 0.006, 0, 180, 3),
-      [0.138, 0.698],
-      corner([0.128, 0.672]),
+      corner([0, 0]),
+      [0.018, 0],
+      [0.017, 0.018],
+      [0.012, 0.035],
+      [0.006, 0.048],
+      corner([0, 0.05]),
     ],
   },
   king: {
@@ -284,30 +328,32 @@ export const PROFILES: PieceProfiles = {
       [0.118, 0.2],
       [0.1, 0.3],
       [0.09, 0.4],
-      [0.084, 0.47],
-      [0.081, 0.52],
-      corner([0.08, 0.55]),
-      corner([0, 0.55]),
+      [0.085, 0.46],
+      [0.082, 0.49],
+      corner([0.08, 0.53]),
+      corner([0, 0.53]),
     ],
-    collar: collar(0.515, 0.166, 0.054),
-    // Neck, the flared crown with its rim, the cap and the cross's seat
+    collar: grandCollar(0.497, 0.17, 0.064),
+    // Neck, the ribbed flare with its rim, the domed cap and the boss the cross stands on
     crown: [
-      corner([0, 0.5]),
-      corner([0.074, 0.5]),
-      [0.072, 0.56],
-      [0.078, 0.59],
-      [0.1, 0.635],
-      [0.13, 0.668],
-      [0.156, 0.69],
-      ...arc(0.154, 0.698, 0.009, -40, 110, 4),
-      corner([0.138, 0.705]),
-      [0.126, 0.72],
-      [0.098, 0.738],
-      [0.06, 0.75],
-      [0.034, 0.755],
-      corner([0.03, 0.757]),
-      ...arc(0.024, 0.76, 0.008, -60, 90, 3),
-      corner([0, 0.768]),
+      corner([0, 0.48]),
+      corner([0.072, 0.48]),
+      [0.07, 0.535],
+      [0.074, 0.555],
+      [0.088, 0.582],
+      [0.11, 0.612],
+      [0.135, 0.642],
+      [0.154, 0.664],
+      ...arc(0.151, 0.672, 0.01, -40, 120, 4),
+      corner([0.139, 0.68]),
+      [0.137, 0.694],
+      [0.125, 0.716],
+      [0.1, 0.737],
+      [0.066, 0.751],
+      [0.036, 0.757],
+      corner([0.03, 0.759]),
+      ...arc(0.022, 0.766, 0.012, -30, 90, 3),
+      corner([0, 0.778]),
     ],
   },
 };
@@ -329,7 +375,7 @@ interface Detail {
 
 const DETAIL: Record<PieceQuality, Detail> = {
   low: { segments: 14, tolerance: 0.003, step: 0.018, knight: 1400 },
-  medium: { segments: 24, tolerance: 0.002, step: 0.0115, knight: 2800 },
+  medium: { segments: 24, tolerance: 0.002, step: 0.013, knight: 2900 },
   high: { segments: 48, tolerance: 0.0004, step: 0.0065, knight: 14000 },
 };
 
@@ -361,13 +407,13 @@ const turn = (
   c: Ctx,
   type: PieceType,
   profile: Profile,
-  opts: { segments?: number; phase?: number } = {},
+  opts: Partial<RevolveOptions> = {},
 ): BufferGeometry => {
   const pts = sampleProfile(profile, c.d.tolerance).map(([r, y]): [number, number] => [
     c.radius ? c.radius(r, y, type) : r,
     y,
   ]);
-  return revolve(pts, { segments: opts.segments ?? c.segments, phase: opts.phase });
+  return revolve(pts, { ...opts, segments: opts.segments ?? c.segments });
 };
 
 const footOf = (c: Ctx, type: PieceType) =>
@@ -420,8 +466,8 @@ const pawn = (c: Ctx): PieceParts => ({
 });
 
 /** Merlons of the rook's turret, and how much of the circle they fill. */
-const MERLONS = 5;
-const MERLON_FILL = 0.56;
+const MERLONS = 6;
+const MERLON_FILL = 0.52;
 
 const rook = (c: Ctx): PieceParts => {
   const span = ((Math.PI * 2) / MERLONS) * MERLON_FILL;
@@ -569,40 +615,37 @@ const unicorn = (c: Ctx): PieceParts => {
   };
 };
 
-/** The queen's coronet: eight points, a pearl on each. */
-const POINTS = 8;
-const POINT_RISE = 0.04;
+/** The queen's coronet: eight tines round the rim, leaning out, a pearl on each. */
+const TINES = 8;
+const TINE = { radius: 0.147, y: 0.684, lean: (7 * Math.PI) / 180, pearl: 0.0195 };
 
 const queen = (c: Ctx): PieceParts => {
   const p = c.profiles.queen;
-  const q = p.coronet;
-  const yb = Math.min(...q.map((n) => n[1]));
-  const yt = Math.max(...q.map((n) => n[1]));
-  // Points: a narrow raised cosine, so the valleys between them stay broad
-  const peak = (theta: number) => (0.5 + 0.5 * Math.cos(POINTS * theta)) ** 2.2;
-  const bandSegments = POINTS * Math.max(4, Math.round(c.segments / 5));
-  const band = revolve(sampleProfile(p.coronet, c.d.tolerance), {
-    segments: bandSegments,
-    modulate: (theta, _row, r, y) => {
-      const w = Math.min(1, Math.max(0, (y - yb) / (yt - yb))) ** 1.5;
-      const lift = POINT_RISE * peak(theta) * w;
-      // The points lean out a little, like a crown's
-      return [r + lift * 0.25, y + lift];
-    },
-  });
-  const pearlR = 0.019;
+  const tineSegments = Math.max(6, Math.round(c.segments / 3));
+  const tineLength = Math.max(...p.coronet.map((n) => n[1]));
   const sphereSeg = Math.max(6, Math.round(c.segments / 3));
-  const pearls = Array.from({ length: POINTS }, (_, k) => {
-    const theta = (k * Math.PI * 2) / POINTS;
-    const r = 0.153 + POINT_RISE * 0.25;
-    return new SphereGeometry(
-      pearlR,
-      sphereSeg,
-      Math.max(4, Math.round(sphereSeg * 0.75)),
-    ).translate(r * Math.cos(theta), yt + POINT_RISE + pearlR * 0.55, r * Math.sin(theta));
-  });
+  const tines: BufferGeometry[] = [];
+  const pearls: BufferGeometry[] = [];
+  for (let k = 0; k < TINES; k++) {
+    const theta = (k * Math.PI * 2) / TINES;
+    // An upright tine, leaned out, then set in its place round the rim
+    const place = new Matrix4()
+      .makeRotationY(-theta)
+      .multiply(new Matrix4().makeTranslation(TINE.radius, TINE.y, 0))
+      .multiply(new Matrix4().makeRotationZ(-TINE.lean));
+    tines.push(turn(c, PieceType.Queen, p.coronet, { segments: tineSegments }).applyMatrix4(place));
+    pearls.push(
+      new SphereGeometry(TINE.pearl, sphereSeg, Math.max(4, Math.round(sphereSeg * 0.75)))
+        .translate(0, tineLength + TINE.pearl * 0.45, 0)
+        .applyMatrix4(place),
+    );
+  }
   return {
-    body: mergeShells([turn(c, PieceType.Queen, p.body), turn(c, PieceType.Queen, p.crown), band]),
+    body: mergeShells([
+      turn(c, PieceType.Queen, p.body),
+      turn(c, PieceType.Queen, p.crown),
+      ...tines,
+    ]),
     collar: mergeShells([turn(c, PieceType.Queen, p.collar)]),
     accent: mergeShells(pearls),
     foot: mergeShells([footOf(c, PieceType.Queen)]),
@@ -613,11 +656,13 @@ const queen = (c: Ctx): PieceParts => {
 const kingCross = (c: Ctx): BufferGeometry[] => {
   const s = new Shape();
   // Half the cross in x-y (x across, y up), arms flaring toward their ends
-  const w = 0.018; // half the width of the arms at the centre
-  const flare = 0.034; // half the width at an arm's end
-  const arm = 0.06; // reach of a side arm from the centre
-  const top = 0.058; // reach of the upper arm
-  const foot = 0.046; // reach of the lower arm
+  // Slender arms, barely flared, so the notches between them stay open
+  // (and the cross reads as one) from every side, the diagonals included
+  const w = 0.0145; // half the width of the arms at the centre
+  const flare = 0.02; // half the width at an arm's end
+  const arm = 0.068; // reach of a side arm from the centre
+  const top = 0.054; // reach of the upper arm
+  const foot = 0.044; // reach of the lower arm
   const pts: [number, number][] = [
     [-w, -w],
     [-flare * 0.8, -foot],
@@ -649,8 +694,8 @@ const kingCross = (c: Ctx): BufferGeometry[] => {
     g.translate(0, 0, -depth / 2);
     return g;
   };
-  // Seated on the cap (its top is at 0.768), a little buried
-  const centre = 0.762 + foot;
+  // Seated on the boss (its top is at 0.778), a little buried
+  const centre = 0.767 + foot;
   const a = make().applyMatrix4(new Matrix4().makeTranslation(0, centre, 0));
   const b = make().applyMatrix4(
     new Matrix4().makeTranslation(0, centre, 0).multiply(new Matrix4().makeRotationY(Math.PI / 2)),
@@ -658,10 +703,23 @@ const kingCross = (c: Ctx): BufferGeometry[] => {
   return [a, b];
 };
 
+/** The ribs round the king's crown: how many, how proud, and the heights they span. */
+const KING_RIBS = { count: 12, depth: 0.09, from: 0.565, to: 0.668 };
+
 const king = (c: Ctx): PieceParts => {
   const p = c.profiles.king;
+  const { count, depth, from, to } = KING_RIBS;
+  const crown = turn(c, PieceType.King, p.crown, {
+    // Enough sides to carry the ribs
+    segments: count * Math.max(3, Math.round(c.segments / 6)),
+    modulate: (theta, _row, r, y) => {
+      const along = ramp(from, from + 0.03, y) * (1 - ramp(to - 0.012, to, y));
+      const rib = (0.5 + 0.5 * Math.cos(count * theta)) ** 2;
+      return [r * (1 + depth * rib * along), y];
+    },
+  });
   return {
-    body: mergeShells([turn(c, PieceType.King, p.body), turn(c, PieceType.King, p.crown)]),
+    body: mergeShells([turn(c, PieceType.King, p.body), crown]),
     collar: mergeShells([turn(c, PieceType.King, p.collar)]),
     accent: mergeShells(kingCross(c)),
     foot: mergeShells([footOf(c, PieceType.King)]),

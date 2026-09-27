@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Euler, MeshStandardMaterial } from 'three';
+import { Euler, MeshBasicMaterial, MeshStandardMaterial } from 'three';
 import { PieceType } from '../engine/pieces';
 import { DesignContext } from '../three/designs/context';
 import { DESIGNS } from '../three/designs/registry';
@@ -18,6 +18,9 @@ import type { PieceQuality, PieceSet } from '../three/pieces';
 //   piece=<type>    one piece (e.g. knight) from 8 sides at two heights
 //   quality=<q>     low | medium (default) | high
 //   cell=<px>       size of each picture (default 200)
+//   silhouette      every piece in solid black on white, one row per piece,
+//                   from 8 sides, low down and from above: the test that each
+//                   can be named by its outline alone
 //
 // Materials here are neutral on purpose: ivory and ebony, the accent in
 // walnut and brass, the foot band in the five level colours in turn.
@@ -39,6 +42,8 @@ interface View {
   /** Turn about the piece's axis, then tilt toward the camera (degrees). */
   yaw: number;
   elevation: number;
+  /** In the silhouette sheet: shade this one in plain grey (relief, not outline). */
+  relief?: boolean;
 }
 const SHEET_VIEWS: View[] = [
   { label: 'side', yaw: 0, elevation: 6 },
@@ -57,16 +62,40 @@ const neutral = {
   },
 };
 const feet = LEVELS.map((c) => new MeshStandardMaterial({ color: c, roughness: 0.5 }));
+const ink = new MeshBasicMaterial({ color: '#000000' });
+const clay = new MeshStandardMaterial({ color: '#9a9ea6', roughness: 0.55 });
+
+// The silhouette sheet: the pieces most easily confused first
+const SILHOUETTE_ORDER = [
+  PieceType.Queen,
+  PieceType.King,
+  PieceType.Bishop,
+  PieceType.Unicorn,
+  PieceType.Pawn,
+  PieceType.Rook,
+  PieceType.Knight,
+];
+const SILHOUETTE_VIEWS: View[] = [
+  ...[0, 45, 90, 135, 180, 225, 270, 315].map((a) => ({ label: `${a}°`, yaw: -a, elevation: 15 })),
+  { label: 'low', yaw: -30, elevation: 0 },
+  { label: 'top', yaw: 0, elevation: 90 },
+  // From above, every turned piece's outline is its base: what names it there
+  // is its relief, shown in one plain material (no accent colours)
+  { label: 'top, relief', yaw: 0, elevation: 90, relief: true },
+];
 
 interface Cell {
   type: PieceType;
   color: PieceColor;
   view: View;
   level: number;
+  silhouette?: boolean;
 }
 
 const Piece = ({ cell, design, set }: { cell: Cell; design: Design | null; set: PieceSet }) =>
-  design ? (
+  cell.silhouette ? (
+    <ChessPiece type={cell.type} set={set} parts={{ body: cell.view.relief ? clay : ink }} />
+  ) : design ? (
     <design.PieceBody
       type={cell.type}
       color={cell.color}
@@ -137,24 +166,36 @@ export const PieceGallery = ({ params }: { params: URLSearchParams }) => {
   const set = useMemo(() => pieceSet(quality), [quality]);
 
   const type = ORDER.find((t) => t.toLowerCase() === only?.toLowerCase());
-  const rows: { label: string; cells: Cell[] }[] = type
-    ? (['white', 'black'] as const).flatMap((color) =>
-        [8, 40].map((elevation) => ({
-          label: `${color === 'white' ? 'light' : 'dark'} ${elevation}°`,
-          cells: [0, 45, 90, 135, 180, 225, 270, 315].map((yaw, k) => ({
-            type,
-            color,
-            view: { label: `${yaw}°`, yaw: -yaw, elevation },
-            level: k % 5,
+  const silhouette = params.has('silhouette');
+  const rows: { label: string; cells: Cell[] }[] = silhouette
+    ? SILHOUETTE_ORDER.map((t) => ({
+        label: t,
+        cells: SILHOUETTE_VIEWS.map((view) => ({
+          type: t,
+          color: 'white' as const,
+          view,
+          level: 0,
+          silhouette,
+        })),
+      }))
+    : type
+      ? (['white', 'black'] as const).flatMap((color) =>
+          [8, 40].map((elevation) => ({
+            label: `${color === 'white' ? 'light' : 'dark'} ${elevation}°`,
+            cells: [0, 45, 90, 135, 180, 225, 270, 315].map((yaw, k) => ({
+              type,
+              color,
+              view: { label: `${yaw}°`, yaw: -yaw, elevation },
+              level: k % 5,
+            })),
           })),
-        })),
-      )
-    : (['white', 'black'] as const).flatMap((color) =>
-        SHEET_VIEWS.map((view) => ({
-          label: `${color === 'white' ? 'light' : 'dark'} ${view.label}`,
-          cells: ORDER.map((t, k) => ({ type: t, color, view, level: k % 5 })),
-        })),
-      );
+        )
+      : (['white', 'black'] as const).flatMap((color) =>
+          SHEET_VIEWS.map((view) => ({
+            label: `${color === 'white' ? 'light' : 'dark'} ${view.label}`,
+            cells: ORDER.map((t, k) => ({ type: t, color, view, level: k % 5 })),
+          })),
+        );
   const cols = rows[0].cells.length;
   const labelW = 110;
   const headH = 28;
@@ -163,7 +204,7 @@ export const PieceGallery = ({ params }: { params: URLSearchParams }) => {
   const style: React.CSSProperties = {
     font: '13px system-ui, sans-serif',
     color: '#3b3f46',
-    background: 'linear-gradient(#d9dce1, #b9bec6)',
+    background: silhouette ? '#ffffff' : 'linear-gradient(#d9dce1, #b9bec6)',
     width: labelW + cols * cellPx,
     padding: '0 0 8px',
   };
@@ -175,7 +216,7 @@ export const PieceGallery = ({ params }: { params: URLSearchParams }) => {
         </div>
         {rows[0].cells.map((c, k) => (
           <div key={k} style={{ width: cellPx, textAlign: 'center' }}>
-            {type ? c.view.label : c.type}
+            {type || silhouette ? c.view.label : c.type}
           </div>
         ))}
       </div>

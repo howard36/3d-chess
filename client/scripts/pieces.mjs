@@ -6,6 +6,7 @@
 //   node scripts/pieces.mjs --design atelier --out /tmp/pieces # a design's own PieceBody
 //   node scripts/pieces.mjs --piece knight --out /tmp/pieces   # one piece, 8 sides x 2 heights
 //   node scripts/pieces.mjs --quality high --cell 320 --out /tmp/pieces
+//   node scripts/pieces.mjs --silhouette --out /tmp/pieces        # solid black, 8 sides, low, top
 //
 // Needs Vite running (SHOWCASE_URL, default http://127.0.0.1:5173); no
 // backend. Writes pieces[-<design>][-<piece>]-<quality>.png into --out.
@@ -27,6 +28,7 @@ const DESIGN = opt('design');
 const PIECE = opt('piece');
 const QUALITY = opt('quality', 'medium');
 const CELL = opt('cell', '200');
+const SILHOUETTE = argv.includes('--silhouette');
 const BASE = process.env.SHOWCASE_URL ?? 'http://127.0.0.1:5173';
 const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
@@ -35,7 +37,10 @@ fs.mkdirSync(OUT, { recursive: true });
 const query = new URLSearchParams({ quality: QUALITY, cell: CELL });
 if (DESIGN) query.set('design', DESIGN);
 if (PIECE) query.set('piece', PIECE);
-const name = ['pieces', DESIGN, PIECE, QUALITY].filter(Boolean).join('-');
+if (SILHOUETTE) query.set('silhouette', '');
+const name = ['pieces', DESIGN, PIECE, SILHOUETTE && 'silhouette', QUALITY]
+  .filter(Boolean)
+  .join('-');
 
 const browser = await chromium.launch({
   executablePath: EXECUTABLE,

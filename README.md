@@ -335,10 +335,15 @@ Every design can draw the same **Staunton set** (`client/src/three/pieces/`), mo
 a fine tournament set: turned profiles with a weighted base, collar rings and a clear
 hierarchy of heights (pawn, rook, knight, bishop, then unicorn and queen, and the king at
 0.87), and heads that name each piece from the side, from three-quarters and from directly
-above: the rook's crenels round a hollow turret, the knight's sculpted head (muzzle, jaw,
-ears, eyes and a carved mane, meshed from a signed-distance field), the bishop's mitre with
-its slanted cut, the unicorn's tall horn wound with a raised spiral, the queen's coronet of
-eight pearls and the king's cross, a plus from above. Pieces stand base-at-`y = 0`, face
+above: the rook's six merlons on a corbelled turret round a hollow; the knight carved as
+the classic Staunton knight (one arched head-and-neck profile with a broad chest, given
+thickness and sculpted with pricked ears, a deep-set eye, flared nostrils and a mane of
+carved locks, meshed from a signed-distance field); the bishop's smooth mitre with its
+slanted cut and ball; the unicorn's tall horn wound with a raised spiral; the queen's flared
+crown of eight ball-tipped tines round a ball finial; and the king's ribbed, domed crown
+under a cross with arms both ways, so it reads as a cross from every side and as a plus
+from above. Queen, king, bishop, unicorn and pawn can be told apart by silhouette alone.
+Pieces stand base-at-`y = 0`, face
 `+x` (Board turns the knight), and fit the envelope the layouts assume (radius 0.27 at most;
 `pieceScale` applies as before). Each piece is split into **parts** a design paints
 separately:
@@ -379,9 +384,13 @@ left out of the build), or save it as a PNG; it needs no backend:
 cd client && node scripts/pieces.mjs --out /tmp/pieces                  # the set: side, three-quarter, top; light and dark
 cd client && node scripts/pieces.mjs --design atelier --out /tmp/pieces # a design's own PieceBody
 cd client && node scripts/pieces.mjs --piece knight --out /tmp/pieces   # one piece from 8 sides at two heights
+cd client && node scripts/pieces.mjs --silhouette --out /tmp/pieces     # every piece in solid black: 8 sides, low, top
 ```
 
-`--quality low|medium|high` and `--cell <px>` (the size of each picture) apply to all three.
+`--quality low|medium|high` and `--cell <px>` (the size of each picture) apply to all of
+them. The silhouette sheet is the legibility test: every piece must be nameable from its
+outline alone, from any side (from directly above an outline is only the base, so its last
+column shows the relief in one plain material instead).
 
 ## Repository layout
 

@@ -113,6 +113,22 @@ export const sampleProfile = (profile: Profile, tolerance: number): P2[] => {
   return out;
 };
 
+/**
+ * A closed smooth curve through `points` (centripetal Catmull-Rom), as a
+ * polyline of `steps` segments per span: an outline to extrude or carve.
+ */
+export const smoothLoop = (points: readonly (readonly [number, number])[], steps = 8): P2[] => {
+  const n = points.length;
+  const at = (k: number): P2 => {
+    const p = points[((k % n) + n) % n];
+    return [p[0], p[1]];
+  };
+  const out: P2[] = [];
+  for (let k = 0; k < n; k++)
+    out.push(...catmullRom(at(k - 1), at(k), at(k + 1), at(k + 2), steps));
+  return out;
+};
+
 export interface RevolveOptions {
   /** Sides around. */
   segments: number;

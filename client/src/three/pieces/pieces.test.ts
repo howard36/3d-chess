@@ -134,8 +134,43 @@ describe('the shared piece set', () => {
     }
   });
 
-  it('keeps every piece within about 4k triangles at the default quality', () => {
-    for (const type of TYPES) expect(total(medium, type), type).toBeLessThanOrEqual(4200);
+  it('keeps every piece within about 4-5k triangles at the default quality', () => {
+    for (const type of TYPES) expect(total(medium, type), type).toBeLessThanOrEqual(4800);
+  });
+
+  it('crowns the king with a cross that has arms both ways, over a closed crown', () => {
+    const cross = medium.King.accent!.boundingBox!;
+    // Arms across x and across z: a cross from every side and a plus from above
+    expect(cross.max.x - cross.min.x).toBeGreaterThan(0.13);
+    expect(cross.max.z - cross.min.z).toBeGreaterThan(0.13);
+    expect(cross.max.y).toBeCloseTo(pieceTop(medium, PieceType.King), 5);
+    // Above the arms, only the slim upper arm
+    expect(radiusBetween(medium.King.accent!, 0.845, 1)).toBeLessThan(0.03);
+    expect(radiusBetween(medium.King.accent!, 0.785, 0.84)).toBeGreaterThan(0.06);
+  });
+
+  it("rings the queen's crown with eight pearls, well clear of its finial", () => {
+    const p = medium.Queen.accent!.getAttribute('position');
+    const sectors = new Set<number>();
+    for (let i = 0; i < p.count; i++) {
+      expect(Math.hypot(p.getX(i), p.getZ(i))).toBeGreaterThan(0.12);
+      const a = (Math.atan2(p.getZ(i), p.getX(i)) + Math.PI * 2 + Math.PI / 8) % (Math.PI * 2);
+      sectors.add(Math.floor(a / (Math.PI / 4)));
+    }
+    expect(sectors.size).toBe(8);
+  });
+
+  it('keeps the bishop free of crown features: a smooth mitre and a small ball', () => {
+    const b = medium.Bishop.body;
+    expect(radiusBetween(b, 0.56, 0.62)).toBeGreaterThan(0.1);
+    expect(radiusBetween(b, 0.735, 1)).toBeLessThan(0.03);
+  });
+
+  it('gives the knight a large head on its base', () => {
+    const box = medium.Knight.body.boundingBox!;
+    // From the back of the neck to the muzzle, near the width of the base
+    expect(box.max.x - box.min.x).toBeGreaterThan(0.44);
+    expect(box.max.y).toBeGreaterThan(0.72);
   });
 
   it('scales its detail with the quality', () => {

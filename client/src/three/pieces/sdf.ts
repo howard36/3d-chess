@@ -163,6 +163,94 @@ export const carve =
   (x, y, z) =>
     smax(f(x, y, z), -cut(x, y, z), k);
 
+/** A 2D field: signed distance to a closed outline, negative inside. */
+export type Field2 = (x: number, y: number) => number;
+
+/** Exact signed distance from (x, y) to a closed polygon. */
+const polygonDistance = (poly: readonly (readonly [number, number])[], x: number, y: number) => {
+  let d = Infinity;
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    const ex = xj - xi;
+    const ey = yj - yi;
+    const wx = x - xi;
+    const wy = y - yi;
+    const h = clamp((wx * ex + wy * ey) / (ex * ex + ey * ey || 1), 0, 1);
+    const bx = wx - ex * h;
+    const by = wy - ey * h;
+    d = Math.min(d, bx * bx + by * by);
+    if (yi > y !== yj > y && x < xi + ((y - yi) * ex) / ey) inside = !inside;
+  }
+  return (inside ? -1 : 1) * Math.sqrt(d);
+};
+
+/**
+ * The signed distance to a closed outline, sampled once on a grid over the
+ * box and read back bilinearly (exact outside the box): cheap enough to
+ * evaluate a few hundred thousand times while meshing.
+ */
+export const outlineField = (
+  poly: readonly (readonly [number, number])[],
+  { min, max, step }: { min: [number, number]; max: [number, number]; step: number },
+): Field2 => {
+  const nx = Math.ceil((max[0] - min[0]) / step) + 1;
+  const ny = Math.ceil((max[1] - min[1]) / step) + 1;
+  const grid = new Float32Array(nx * ny);
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      grid[j * nx + i] = polygonDistance(poly, min[0] + i * step, min[1] + j * step);
+    }
+  }
+  return (x, y) => {
+    const fx = (x - min[0]) / step;
+    const fy = (y - min[1]) / step;
+    const i = Math.floor(fx);
+    const j = Math.floor(fy);
+    if (i < 0 || j < 0 || i >= nx - 1 || j >= ny - 1) return polygonDistance(poly, x, y);
+    const tx = fx - i;
+    const ty = fy - j;
+    const o = j * nx + i;
+    const a = grid[o] + (grid[o + 1] - grid[o]) * tx;
+    const b = grid[o + nx] + (grid[o + nx + 1] - grid[o + nx]) * tx;
+    return a + (b - a) * ty;
+  };
+};
+
+/**
+ * An outline in the x-y plane given thickness across z, as carved from a
+ * board: flat sides `halfWidth(x, y)` from the middle, rounding over to the
+ * outline within `round` of it (an elliptical edge, like a carver's
+ * roundover). An approximate distance, never above the true one.
+ */
+export const carvedSlab = (
+  side: Field2,
+  halfWidth: (x: number, y: number) => number,
+  round: number,
+): Sdf => {
+  return (x, y, z) => {
+    const w = halfWidth(x, y);
+    const u = Math.max(round + side(x, y), 0) / round;
+    const v = Math.abs(z) / w;
+    return (Math.sqrt(u * u + v * v) - 1) * Math.min(round, w);
+  };
+};
+
+/** An ellipsoid turned by `angle` (radians) about the z axis. */
+export const tiltedEllipsoid = (c: Vec3, r: Vec3, angle: number): Sdf => {
+  const e = ellipsoid([0, 0, 0], r);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const f: Sdf = (x, y, z) => {
+    const dx = x - c[0];
+    const dy = y - c[1];
+    return e(dx * cos + dy * sin, -dx * sin + dy * cos, z - c[2]);
+  };
+  f.bound = { c, r: Math.max(...r), s: e.bound!.s };
+  return f;
+};
+
 export interface NetsOptions {
   min: Vec3;
   max: Vec3;
