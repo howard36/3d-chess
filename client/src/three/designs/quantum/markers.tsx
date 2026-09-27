@@ -6,17 +6,21 @@ import { LAYER } from '../kit/layers';
 import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
-import { MOTION, PALETTE, PITCH } from './palette';
+import { FRAME, LEVEL_COLORS, MOTION, PALETTE, PITCH } from './palette';
 
 // Markers in the language of a qubit, lying on the wafer. A move you may make
-// is a qubit: a bright dot inside a tilted orbit, with its electron. A capture
-// is the same glyph collapsed round the victim: the orbit falls into a red
-// ring. The held piece stands in a gold ring. The move just made leaves a
-// small mint orbit where it started and a mint ring where it landed, joined by
-// a thin mint line with a slow photon flowing along it. Check is a red
-// interference ripple round the king's base.
+// is a qubit: a bright dot with a white-hot core, ringed in its level's
+// colour, inside a tilted orbit with its electron, over a faint dark disc so
+// it holds among gold pieces. A
+// capture is the same glyph collapsed round the victim: the orbit falls into
+// a red ring carrying the victim's level as a count of electrons, as its
+// level ring does. The held piece stands in a gold ring whose two electrons
+// orbit slowly. The move just made leaves an emptied mint orbit where it
+// started and a mint ring where it landed, joined by a thin mint line with a
+// slow photon flowing along it. Check is a red interference ripple round the
+// king's base, inside its outlined square.
 
-export type GlyphKind = 'quiet' | 'capture' | 'select' | 'from' | 'to' | 'check' | 'pulse';
+export type GlyphKind = 'quiet' | 'capture' | 'select' | 'from' | 'to' | 'check';
 
 const KIND_ID: Record<GlyphKind, number> = {
   quiet: 0,
@@ -25,7 +29,6 @@ const KIND_ID: Record<GlyphKind, number> = {
   from: 3,
   to: 4,
   check: 5,
-  pulse: 6,
 };
 
 const vertexShader = /* glsl */ `
@@ -40,11 +43,15 @@ const vertexShader = /* glsl */ `
 const fragmentShader = /* glsl */ `
   uniform int uKind;
   uniform vec3 uColor;
+  uniform vec3 uCore;
+  uniform vec3 uLevelColor;
   uniform float uOpacity;
   uniform float uHover;
   uniform float uGrow;
   uniform float uTime;
   uniform float uTurn;
+  uniform float uCount;
+  uniform float uWide;
   varying vec2 vP;
 
   float stroke(float d, float w) {
@@ -66,6 +73,16 @@ const fragmentShader = /* glsl */ `
     float c = cos(a), s = sin(a);
     return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
   }
+  // n electrons evenly round a ring of radius R, the first at angle a0
+  float electrons(vec2 p, float n, float R, float a0, float size) {
+    float step = 6.2831853 / n;
+    float k = floor((atan(p.y, p.x) - a0) / step + 0.5);
+    float a = a0 + k * step;
+    return disc(length(p - R * vec2(cos(a), sin(a))) - size);
+  }
+  vec4 over(vec4 dst, vec3 c, float a) {
+    return vec4(c * a + dst.rgb * (1.0 - a), a + dst.a * (1.0 - a));
+  }
 
   void main() {
     // Grow in from a little smaller on appearing
@@ -73,50 +90,59 @@ const fragmentShader = /* glsl */ `
     float r = length(p);
     float a = 0.0;
     float fill = 0.0;
+    float core = 0.0;
+    float under = 0.0;
+    float cue = 0.0;
     if (uKind == 0) {
-      // A qubit: dot, tilted orbit, electron
+      // A qubit: a dark disc under a gold dot with a white-hot core, ringed
+      // in its level's colour, a tilted orbit, and its electron
+      under = disc(r - 0.2);
+      cue = stroke(r - 0.19, 0.011);
       float dotR = 0.1 + 0.015 * uHover;
       a = max(a, disc(r - dotR));
+      core = disc(r - dotR * 0.55);
       vec2 q = rot(p, uTurn);
       vec2 ab = vec2(0.34, 0.14) * (1.0 + 0.06 * uHover);
       float orbit = ellipse(q, ab);
       a = max(a, stroke(orbit, 0.016 + 0.005 * uHover) * 0.9);
       vec2 e = vec2(cos(0.9), sin(0.9)) * ab;
       a = max(a, disc(length(q - e) - 0.038));
-      fill = disc(orbit) * (0.1 + 0.1 * uHover);
+      fill = disc(orbit) * (0.08 + 0.1 * uHover);
     } else if (uKind == 1) {
-      // Collapsed: the orbit falls into a ring round the victim's base, the
-      // electron stays on it, and the old orbit lingers faintly outside
+      // Collapsed: the orbit falls into a ring round the victim's base,
+      // carrying the victim's level in electrons; the old orbit lingers
+      // faintly outside
       float ring = 0.425;
       a = max(a, stroke(r - ring, 0.02 + 0.005 * uHover));
+      a = max(a, electrons(p, uCount, ring, uTurn, 0.036));
       vec2 q = rot(p, uTurn);
-      a = max(a, disc(length(q - vec2(ring, 0.0)) - 0.034));
-      a = max(a, disc(length(q + vec2(ring, 0.0)) - 0.034));
       float orbit = stroke(ellipse(q, vec2(0.47, 0.2)), 0.009) * step(ring + 0.02, r);
       a = max(a, orbit * 0.7);
       fill = disc(r - ring) * (0.09 + 0.08 * uHover);
     } else if (uKind == 2) {
-      // The held piece: a gold ring with two electrons opposite
+      // The held piece: a gold ring with two electrons orbiting slowly
       float ring = 0.43;
       a = max(a, stroke(r - ring, 0.018));
-      vec2 q = rot(p, uTurn);
-      a = max(a, disc(length(q - vec2(0.0, ring)) - 0.03));
-      a = max(a, disc(length(q + vec2(0.0, ring)) - 0.03));
+      a = max(a, electrons(p, 2.0, ring, uTurn + uTime * 0.75, 0.032));
       fill = disc(r - ring) * 0.12;
     } else if (uKind == 3) {
-      // Where the last move started: a small, emptied orbit
+      // Where the last move started: the qubit's orbit, emptied
       vec2 q = rot(p, uTurn);
-      a = max(a, stroke(ellipse(q, vec2(0.25, 0.1)), 0.012) * 0.9);
-      a = max(a, stroke(r - 0.06, 0.012) * 0.9);
-      fill = disc(r - 0.3) * 0.06;
+      a = max(a, stroke(ellipse(q, vec2(0.34, 0.14)), 0.016));
+      a = max(a, stroke(r - 0.07, 0.014));
+      // Straight up or down: corner brackets out at the square's edge, so the
+      // start still shows round the arrival seen from above
+      vec2 b = abs(p) - vec2(0.46);
+      float sq = length(max(b, 0.0)) + min(max(b.x, b.y), 0.0);
+      float corners = step(0.3, min(abs(p.x), abs(p.y)));
+      a = max(a, stroke(sq, 0.016) * corners * uWide);
+      fill = disc(ellipse(q, vec2(0.34, 0.14))) * 0.07;
     } else if (uKind == 4) {
-      // Where it landed: a ring round the base, with its electron
+      // Where it landed: a ring round the base
       float ring = 0.42;
-      a = max(a, stroke(r - ring, 0.016));
-      vec2 q = rot(p, uTurn);
-      a = max(a, disc(length(q - vec2(ring, 0.0)) - 0.028));
-      fill = disc(r - ring) * 0.07;
-    } else if (uKind == 5) {
+      a = max(a, stroke(r - ring, 0.018));
+      fill = disc(r - ring) * 0.08;
+    } else {
       // Check: an interference ripple, two sources beating round the base
       float k = 62.0;
       float w = uTime * 2.2;
@@ -132,13 +158,15 @@ const fragmentShader = /* glsl */ `
       float sq = length(max(b, 0.0)) + min(max(b.x, b.y), 0.0);
       a = max(a, stroke(sq, 0.012) * 0.8);
       fill = (1.0 - smoothstep(0.0, 0.01, sq)) * 0.12;
-    } else {
-      // A ripple pulse (landing, capture): one ring, uTime its radius
-      a = stroke(r - uTime, 0.02) * (1.0 - smoothstep(0.2, 0.55, uTime));
     }
-    float alpha = max(a * uOpacity * (1.0 + 0.35 * uHover), fill * uOpacity) * uGrow;
-    if (alpha < 0.003) discard;
-    gl_FragColor = vec4(uColor * (1.0 + 0.25 * uHover), min(alpha, 1.0));
+    float main = max(a * uOpacity * (1.0 + 0.35 * uHover), fill * uOpacity) * uGrow;
+    vec4 c = vec4(0.0);
+    c = over(c, vec3(0.0), under * 0.25 * uOpacity * uGrow);
+    c = over(c, uColor * (1.0 + 0.25 * uHover), min(main, 1.0));
+    c = over(c, uLevelColor, cue * uOpacity * uGrow);
+    c = over(c, uCore, core * uOpacity * uGrow);
+    if (c.a < 0.003) discard;
+    gl_FragColor = vec4(c.rgb / c.a, c.a);
     #include <colorspace_fragment>
   }`;
 
@@ -168,8 +196,12 @@ export interface GlyphProps {
   quad?: number;
   lift?: number;
   renderOrder?: number;
-  /** Animate the check ripple (keeps frames coming while it is up). */
+  /** Animate (the check's ripple, the held ring's electrons): keeps frames coming while up. */
   ripple?: boolean;
+  /** Electrons on a capture ring: the victim's level, A one to E five. */
+  count?: number;
+  /** A last move's start straight below or above its arrival: bracket the square. */
+  wide?: boolean;
 }
 
 /** One glyph of the qubit language, flat on the wafer at a cell's floor. */
@@ -185,6 +217,8 @@ export const Glyph = ({
   lift = 0.012,
   renderOrder = LAYER.marker,
   ripple = false,
+  count = 2,
+  wide = false,
 }: GlyphProps) => {
   const invalidate = useThree((s) => s.invalidate);
   const material = useMemo(
@@ -205,6 +239,10 @@ export const Glyph = ({
           uTime: { value: 0 },
           uTurn: { value: TURN },
           uQuad: { value: quad * PITCH },
+          uCore: { value: new Color(PALETTE.moveCore) },
+          uLevelColor: { value: new Color(LEVEL_COLORS[levelAt(floor[1])]) },
+          uCount: { value: count },
+          uWide: { value: wide ? 1 : 0 },
         },
         vertexShader,
         fragmentShader,
@@ -219,6 +257,9 @@ export const Glyph = ({
   u.uOpacity.value = opacity;
   u.uHover.value = hovered ? 1 : 0;
   u.uQuad.value = quad * PITCH;
+  u.uCount.value = count;
+  u.uWide.value = wide ? 1 : 0;
+  (u.uLevelColor.value as Color).set(LEVEL_COLORS[levelAt(floor[1])]);
 
   const age = useRef(-delayMs);
   const still = prefersReducedMotion();
@@ -256,6 +297,13 @@ export const Quiet = ({ floor, hovered }: MarkerProps) => (
   <Glyph floor={floor} kind="quiet" color={PALETTE.move} opacity={0.95} hovered={hovered} />
 );
 
+/** The level (engine z) of the wafer nearest a floor height. */
+export const levelAt = (y: number) =>
+  FRAME.levelY.reduce(
+    (best, ly, z) => (Math.abs(ly - y) < Math.abs(FRAME.levelY[best] - y) ? z : best),
+    0,
+  );
+
 export const Capture = ({ floor, hovered }: MarkerProps) => (
   <Glyph
     floor={floor}
@@ -264,22 +312,33 @@ export const Capture = ({ floor, hovered }: MarkerProps) => (
     opacity={1}
     hovered={hovered}
     quad={1.1}
+    count={levelAt(floor[1]) + 1}
   />
 );
 
+/** The held piece's ring: its two electrons orbit slowly while it is held. */
 export const Selection = ({ floor }: MarkerProps) => (
-  <Glyph floor={floor} kind="select" color={PALETTE.select} opacity={0.95} growMs={220} />
+  <Glyph floor={floor} kind="select" color={PALETTE.select} opacity={0.95} growMs={220} ripple />
 );
 
 /**
- * The last move: a small emptied orbit where it started, a ring round the
+ * The last move: an emptied orbit where it started, a ring round the
  * piece where it landed, and the thin mint line between their centres. A
  * live move draws its line in behind the gliding piece; a replayed one shows
  * whole.
  */
 export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
   <>
-    <Glyph floor={from.floor} kind="from" color={PALETTE.lastMove} opacity={0.9} growMs={0} />
+    <Glyph
+      floor={from.floor}
+      kind="from"
+      color={PALETTE.lastMove}
+      opacity={0.7}
+      growMs={0}
+      wide={
+        Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3
+      }
+    />
     <Glyph
       floor={to.floor}
       kind="to"

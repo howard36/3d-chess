@@ -62,9 +62,23 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
 // --- HUD ---------------------------------------------------------------------------
 
 const PANEL = 'rgba(5, 9, 17, 0.84)';
-/** A hairline gold rule along the top of a panel, fading out at both ends. */
-const rule = (alpha: number) =>
-  `linear-gradient(90deg, transparent, rgba(231, 184, 95, ${alpha}) 18%, rgba(231, 184, 95, ${alpha}) 82%, transparent) top / 100% 1px no-repeat`;
+const GOLD = (alpha: number) => `rgba(231, 184, 95, ${alpha})`;
+/** A hairline gold rule across a panel, at its top or bottom, with a tick at each end. */
+const rule = (alpha: number, at: 'top' | 'bottom' = 'top') =>
+  [
+    `linear-gradient(90deg, transparent 3%, ${GOLD(alpha)} 9%, ${GOLD(alpha)} 91%, transparent 97%) ${at} / 100% 1px no-repeat`,
+    `linear-gradient(${GOLD(alpha)}, ${GOLD(alpha)}) left 9% ${at} / 1px 5px no-repeat`,
+    `linear-gradient(${GOLD(alpha)}, ${GOLD(alpha)}) right 9% ${at} / 1px 5px no-repeat`,
+  ].join(', ');
+/** A faint qubit, orbit and electron, watermarked on the result card. */
+const watermark = `url("data:image/svg+xml,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'>" +
+    "<g fill='none' stroke='rgb(231,184,95)' stroke-opacity='0.16' stroke-width='1.2'>" +
+    "<circle cx='60' cy='60' r='46'/>" +
+    "<ellipse cx='60' cy='60' rx='46' ry='16' transform='rotate(-24 60 60)'/></g>" +
+    "<g fill='rgb(231,184,95)' fill-opacity='0.2'><circle cx='60' cy='60' r='5'/>" +
+    "<circle cx='99' cy='42' r='3'/></g></svg>",
+)}") right 22px center / 112px 112px no-repeat`;
 
 // --- Design ------------------------------------------------------------------------
 
@@ -97,7 +111,7 @@ const quantum: Design = {
     vars: {
       '--hud-font': FONT,
       '--hud-mono': '"IBM Plex Mono", ui-monospace, monospace',
-      '--hud-bg': `${rule(0.55)}, ${PANEL}`,
+      '--hud-bg': `${rule(0.7)}, ${PANEL}`,
       '--hud-fg': PALETTE.ink,
       '--hud-muted': PALETTE.inkMuted,
       '--hud-accent': PALETTE.gold,
@@ -107,19 +121,20 @@ const quantum: Design = {
       '--hud-shadow': '0 12px 32px rgba(0, 0, 0, 0.45)',
       '--hud-blur': 'blur(8px)',
       '--hud-tracking': '0.02em',
-      '--turn-bg': `${rule(0.9)}, ${PANEL}`,
+      '--turn-bg': `${rule(0.95)}, ${PANEL}`,
       '--turn-fg': '#f4ead6',
       '--turn-size': '18px',
       '--turn-border': '1px solid rgba(231, 184, 95, 0.45)',
       '--turn-shadow': '0 0 28px rgba(231, 184, 95, 0.1), 0 12px 32px rgba(0, 0, 0, 0.45)',
-      '--modal-bg': `${rule(0.9)}, linear-gradient(180deg, rgba(10, 17, 30, 0.97), rgba(4, 7, 14, 0.98))`,
+      '--modal-bg': `${rule(1)}, ${rule(0.8, 'bottom')}, ${watermark}, linear-gradient(180deg, rgba(10, 17, 30, 0.97), rgba(4, 7, 14, 0.98))`,
       '--modal-fg': PALETTE.ink,
       '--modal-backdrop': 'rgba(2, 4, 9, 0.55)',
       '--modal-radius': '2px',
-      '--modal-shadow': '0 0 60px rgba(231, 184, 95, 0.12), 0 20px 50px rgba(0, 0, 0, 0.6)',
+      '--modal-shadow':
+        '0 0 70px rgba(231, 184, 95, 0.2), 0 0 0 1px rgba(231, 184, 95, 0.28), 0 20px 50px rgba(0, 0, 0, 0.6)',
       '--button-bg': 'rgba(231, 184, 95, 0.12)',
       '--button-fg': '#f7e7c4',
-      '--button-border': '1px solid rgba(231, 184, 95, 0.7)',
+      '--button-border': '1px solid rgb(231, 184, 95)',
       '--button-radius': '2px',
       '--page-bg': 'radial-gradient(ellipse at 50% 70%, #0c1a2c 0%, #050912 60%, #020409 100%)',
       '--page-fg': PALETTE.ink,

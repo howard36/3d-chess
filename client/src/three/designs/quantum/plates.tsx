@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Color, DoubleSide, MeshBasicMaterial, PlaneGeometry, ShaderMaterial } from 'three';
 import { useLevelFocus } from '../kit/focus';
@@ -15,7 +15,10 @@ import { FRAME } from './palette';
 // clear seen from above and shows as glass toward grazing angles, so lower
 // pieces stay visible through four wafers while every level still reads as
 // a solid plate from the side. Looking straight down, where the five grids
-// nest, the lower levels' traces step back so the stack stays calm.
+// would nest into a plaid, the rim decoration goes and every level but the
+// focused one (under the pointer or holding the selection) thins to a
+// lattice of dots inside its border: the focused level reads as a clean 2D
+// board, the others as quiet dot grids.
 
 /** How far the die reaches past its outer squares (in pitches): room for the bond pads. */
 export const DIE_MARGIN = 0.24;
@@ -41,9 +44,8 @@ const fragmentShader = /* glsl */ `
   uniform float uFill;
   uniform float uGlass;
   uniform float uDark;
-  uniform float uMargin;
-  uniform float uStack;
   uniform float uSteep;
+  uniform float uLattice;
   varying vec2 vCell;
   varying vec3 vWorld;
 
@@ -74,8 +76,6 @@ const fragmentShader = /* glsl */ `
     // the wafer it stands on must not be veiled
     float grazing = pow(1.0 - abs(view.y), 2.5) * (view.y > 0.0 ? 1.0 : 0.25);
     float inside = step(0.0, uv.x) * step(uv.x, 5.0) * step(0.0, uv.y) * step(uv.y, 5.0);
-    // Toward the top-down view, the lower levels' traces step back
-    float stack = 1.0 - uStack;
 
     // Looking straight down through all five, every wash thins, so the
     // armies on the lowest levels keep their colour
@@ -87,22 +87,31 @@ const fragmentShader = /* glsl */ `
     // Dark squares metallised, a faint wash of the level's colour
     vec2 cell = floor(uv);
     float dark = inside * (1.0 - mod(cell.x + cell.y + uLevel, 2.0));
-    c = over(c, uColor, dark * uDark * stack * thin);
+    c = over(c, uColor, dark * uDark * thin);
 
-    // Traces between the squares, and the border round them
+    // Traces between the squares, and the border round them. From above, a
+    // level that is not in focus keeps only a trace of its inner lines: its
+    // vias become a calm lattice of dots that still bounds the 25 squares
     vec2 nearest = floor(uv + 0.5);
     vec2 g = abs(uv - nearest);
     float onGrid = step(-0.02, nearest.x) * step(nearest.x, 5.02) * step(-0.02, nearest.y) * step(nearest.y, 5.02);
     float inX = step(-0.01, uv.y) * step(uv.y, 5.01);
     float inY = step(-0.01, uv.x) * step(uv.x, 5.01);
-    float traces = max(hairline(g.x, 0.011) * inX, hairline(g.y, 0.011) * inY) * onGrid;
-    c = over(c, uColor, traces * uTrace * mix(0.55, 1.0, stack));
+    vec2 edge = step(4.5, abs(nearest - 2.5) + 2.0);
+    vec2 keep = mix(vec2(1.0 - 0.75 * uLattice), vec2(1.0), edge);
+    float traces = max(hairline(g.x, 0.011) * inX * keep.x, hairline(g.y, 0.011) * inY * keep.y) * onGrid;
+    c = over(c, uColor, traces * uTrace);
 
-    // A via pad on every crossing
-    float via = fillOf(box(uv - nearest, vec2(0.035)) - 0.012) * onGrid;
-    c = over(c, mix(uColor, vec3(1.0), 0.25), via * uTrace * 1.1 * mix(0.5, 1.0, stack));
+    // A via pad on every crossing: square on the die, a round dot from above
+    float viaPad = fillOf(box(uv - nearest, vec2(0.035)) - 0.012);
+    float viaDot = fillOf(length(uv - nearest) - 0.055);
+    float via = mix(viaPad, viaDot, uSteep) * onGrid;
+    // (from above, the deeper lattices step back so the five do not streak)
+    float depth = 1.0 - uLattice * (4.0 - uLevel) * 0.1;
+    c = over(c, mix(uColor, vec3(1.0), 0.25), min(via * uTrace * 1.1 * depth, 1.0));
 
-    // Bond pads round the rim, where each trace runs out
+    // Bond pads round the rim, where each trace runs out (not from above)
+    float rim = 1.0 - uSteep;
     float pads = 0.0;
     for (int k = 1; k < 5; k++) {
       float t = float(k);
@@ -115,7 +124,7 @@ const fragmentShader = /* glsl */ `
     vec2 corner = abs(uv - 2.5) - 2.5 - 0.13;
     float cross = max(hairline(corner.x, 0.012) * step(abs(corner.y), 0.07),
                       hairline(corner.y, 0.012) * step(abs(corner.x), 0.07));
-    c = over(c, uColor, max(pads * 0.7, cross * 0.8) * uTrace * mix(0.4, 1.0, stack));
+    c = over(c, uColor, max(pads * 0.7, cross * 0.8) * uTrace * rim);
 
     if (c.a < 0.002) discard;
     gl_FragColor = vec4(c.rgb / c.a, c.a);
@@ -137,7 +146,7 @@ export const Wafers = ({ colors, focusLevel }: WafersProps) => {
   const { plane, edge } = useMemo(
     () => ({
       plane: new PlaneGeometry(reach * 2, reach * 2).rotateX(-Math.PI / 2),
-      edge: frameGeometry(reach, 0.022, 0.035),
+      edge: frameGeometry(reach, 0.014, 0.03),
     }),
     [reach],
   );
@@ -164,9 +173,8 @@ export const Wafers = ({ colors, focusLevel }: WafersProps) => {
             uFill: { value: 0.032 },
             uGlass: { value: 0.13 },
             uDark: { value: 0.055 },
-            uMargin: { value: DIE_MARGIN },
-            uStack: { value: 0 },
             uSteep: { value: 0 },
+            uLattice: { value: 0 },
             uHalf: { value: FRAME.half },
             uPitch: { value: FRAME.pitch },
           },
@@ -194,9 +202,11 @@ export const Wafers = ({ colors, focusLevel }: WafersProps) => {
     [materials],
   );
 
+  const focusWeights = useRef<number[]>([]);
   useLevelFocus(
     focusLevel,
     (weights, any) => {
+      focusWeights.current = weights;
       weights.forEach((w, z) => {
         const m = materials[z];
         if (!m) return;
@@ -208,16 +218,18 @@ export const Wafers = ({ colors, focusLevel }: WafersProps) => {
     { levels: FRAME.levelY.length, ms: 160, key: materials },
   );
 
-  // Toward the top-down view the five grids nest; the lower they are, the
-  // more their traces and washes step back
+  // Toward the top-down view (from about 60°) the five grids would nest into
+  // a plaid: the rim decoration goes, and every level but the focused one
+  // thins to its dot lattice
   useFrame(({ camera }) => {
-    const dy = camera.position.y;
-    const flat = Math.hypot(camera.position.x, camera.position.z);
-    const elevation = Math.atan2(dy, flat);
-    const steep = smoothstep(55 * DEG, 86 * DEG, elevation);
+    const elevation = Math.atan2(
+      camera.position.y,
+      Math.hypot(camera.position.x, camera.position.z),
+    );
+    const steep = smoothstep(52 * DEG, 68 * DEG, elevation);
     materials.forEach((m, z) => {
-      m.surface.uniforms.uStack.value = steep * ((4 - z) / 4) * 0.6;
       m.surface.uniforms.uSteep.value = steep;
+      m.surface.uniforms.uLattice.value = steep * (1 - (focusWeights.current[z] ?? 0));
     });
   });
 
@@ -246,7 +258,7 @@ export const Wafers = ({ colors, focusLevel }: WafersProps) => {
 
 const TRACE = 0.62;
 const FOCUS_TRACE = 0.95;
-const EDGE = 0.7;
+const EDGE = 0.45;
 const DEG = Math.PI / 180;
 const smoothstep = (a: number, b: number, x: number) => {
   const t = Math.min(Math.max((x - a) / (b - a), 0), 1);

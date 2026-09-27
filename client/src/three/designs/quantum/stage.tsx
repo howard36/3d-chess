@@ -165,16 +165,33 @@ interface Plate {
   holes: number;
 }
 
-// Top to bottom, narrowing toward the cold end. The zoom (orbit.maxDistance)
-// keeps the camera inside every inner rim.
+// Top to bottom, narrowing toward the cold end. The opening view sits
+// between the second and third, so the plates bracket it above and below
+// rather than crossing its middle. The zoom (orbit.maxDistance) keeps the
+// camera inside every inner rim.
 const PLATES: Plate[] = [
-  { y: 19, inner: 33, outer: 48, thick: 0.9, holes: 30 },
-  { y: 8.5, inner: 30, outer: 42, thick: 0.8, holes: 28 },
-  { y: -8.5, inner: 25.5, outer: 36, thick: 0.7, holes: 24 },
-  { y: -18, inner: 18.5, outer: 28, thick: 0.6, holes: 18 },
-  { y: -27, inner: 11.5, outer: 20, thick: 0.5, holes: 14 },
-  { y: -35.5, inner: 4.5, outer: 13, thick: 0.5, holes: 8 },
+  { y: 15, inner: 32, outer: 46, thick: 0.9, holes: 30 },
+  { y: 3.5, inner: 29, outer: 41, thick: 0.8, holes: 28 },
+  { y: -16, inner: 22, outer: 33, thick: 0.7, holes: 24 },
+  { y: -24.5, inner: 15.5, outer: 25, thick: 0.6, holes: 18 },
+  { y: -32, inner: 9, outer: 17, thick: 0.5, holes: 12 },
+  { y: -39, inner: 3.5, outer: 11, thick: 0.5, holes: 8 },
 ];
+
+/**
+ * The mist is complete across the tower's whole angular size from wherever
+ * the camera is (the orbit's target is the tower's centre, the origin), so
+ * no part of the chandelier ever shows through the see-through wafers.
+ * TOWER_R is the tower's half-diagonal with its labels.
+ */
+const TOWER_MASK_GLSL = /* glsl */ `
+  float towerMask(vec3 world) {
+    vec3 toWorld = normalize(world - cameraPosition);
+    float axis = acos(clamp(dot(toWorld, normalize(-cameraPosition)), -1.0, 1.0));
+    float towerAng = atan(4.4 / length(cameraPosition));
+    return 1.0 - smoothstep(towerAng, towerAng + 0.22, axis);
+  }
+`;
 
 const CHANDELIER_VERTEX = /* glsl */ `
   varying vec3 vWorld;
@@ -187,21 +204,25 @@ const CHANDELIER_VERTEX = /* glsl */ `
   }`;
 
 /**
- * Gold, lit by a soft light from above and the blue glow from below, with a
- * rim where surfaces turn away; the faces of plates are dark metal whose
- * grooves, bolt circles, feedthrough collars and polished lips glint. Faded
- * into the sky's own colour by distance and depth, and more so straight
- * behind the tower.
+ * The chandelier as gold line-work on cool dark metal. Plate faces are near
+ * the mist's own colour, with a lathe-turned sheen catching a light from
+ * behind the tower; the gold is in their polished lips, bolt circles, rims
+ * and posts, and the coaxial lines. Feedthrough holes are dark recesses in
+ * steel collars (never gold, so none can pass for a move glyph). Everything
+ * fades into the sky's colour with distance and depth, and completely
+ * across the tower (towerMask).
  */
 const CHANDELIER_FRAGMENT = /* glsl */ `
   ${SKY_GLSL}
+  ${TOWER_MASK_GLSL}
   uniform vec3 uGold;
+  uniform vec3 uPlate;
+  uniform vec3 uSteel;
   uniform float uKind;
   uniform float uInner;
   uniform float uOuter;
   uniform float uHoles;
   uniform float uDensity;
-  uniform float uBright;
   varying vec3 vWorld;
   varying vec3 vNormal;
 
@@ -214,68 +235,76 @@ const CHANDELIER_FRAGMENT = /* glsl */ `
     vec3 toCam = cameraPosition - vWorld;
     float dist = length(toCam);
     vec3 v = toCam / dist;
-    vec3 n = normalize(vNormal);
-    if (dot(n, v) < 0.0) n = -n;
-    float detail = 1.0;
-    float shine = 0.0;
-    if (uKind < 0.5 && abs(n.y) > 0.7) {
-      float r = length(vWorld.xz);
-      float a = atan(vWorld.z, vWorld.x);
-      float span = uOuter - uInner;
-      // Feedthrough holes round the middle, each with a polished collar
-      float mid = uInner + span * 0.52;
-      float cell = 6.2831853 / uHoles;
-      float k = (fract(a / cell + 0.5) - 0.5) * cell * mid;
-      float hr = min(span * 0.09, 0.95);
-      float d = length(vec2(k, r - mid));
-      // A dark recess, with a polished collar round it
-      float aaH = max(fwidth(d), 1e-4);
-      detail *= mix(1.0, 0.35, 1.0 - smoothstep(hr - aaH, hr + aaH, d));
-      shine += ring(d - hr - 0.12, 0.1) * 0.9;
-      // Bolt circles near both rims
-      float bolts = 0.0;
-      for (int j = 0; j < 2; j++) {
-        float br = j == 0 ? uInner + 0.55 : uOuter - 0.6;
-        float bn = floor(6.2831853 * br / 1.3);
-        float bc = 6.2831853 / bn;
-        float bk = (fract(a / bc + 0.5) - 0.5) * bc * br;
-        bolts = max(bolts, ring(length(vec2(bk, r - br)), 0.1));
-      }
-      shine += bolts * 0.7;
-      // Machined grooves
-      detail -= 0.35 * ring(r - (uInner + span * 0.2), 0.05);
-      detail -= 0.35 * ring(r - (uInner + span * 0.84), 0.05);
-      detail -= 0.18 * ring(r - (uInner + span * 0.3), 0.03);
-      // A faint lathe-turned sheen that varies with radius
-      detail *= 0.9 + 0.1 * sin(r * 9.0);
-      // The polished lip of each rim, a fine line of light
-      shine += ring(r - uInner - 0.07, 0.05) * 1.4 + ring(r - uOuter + 0.07, 0.05) * 0.7;
+    vec3 sky = skyBase(-v);
+    float mask = towerMask(vWorld);
+    if (mask > 0.999) {
+      gl_FragColor = vec4(sky, 1.0);
+      #include <colorspace_fragment>
+      return;
     }
-    vec3 L = normalize(vec3(0.3, 1.0, 0.2));
-    float diff = max(dot(n, L), 0.0);
-    float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+    // Lit from above and from behind the tower, whichever way the camera faces
+    vec2 away = -normalize(cameraPosition.xz + vec2(1e-4, 0.0));
+    vec3 L = normalize(vec3(away.x, 1.1, away.y));
     vec3 col;
     if (uKind > 1.5) {
       // Lines: fine gold wires
-      col = uGold * 0.3;
-    } else if (uKind < 0.5 && abs(n.y) > 0.7) {
-      // A plate's face: dark metal in shadow, its bolts and collars glinting
-      col = uGold * (detail * (0.05 + 0.05 * diff) + shine * 0.28);
-      col += uGlow * max(-n.y, 0.0) * 0.14;
+      col = uGold * 0.32;
     } else {
-      // Rims and posts: the edges that catch the light
-      col = uGold * (0.07 + 0.2 * diff + 0.4 * fres);
-      col += uGlow * max(-n.y, 0.0) * 0.16;
+      vec3 n = normalize(vNormal);
+      if (dot(n, v) < 0.0) n = -n;
+      float diff = max(dot(n, L), 0.0);
+      float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+      if (uKind < 0.5 && abs(n.y) > 0.7) {
+        float r = length(vWorld.xz);
+        float a = atan(vWorld.z, vWorld.x);
+        float span = uOuter - uInner;
+        float detail = 1.0;
+        float gold = 0.0;
+        float steel = 0.0;
+        // Feedthrough holes round the middle: dark recesses in steel collars
+        float mid = uInner + span * 0.52;
+        float cell = 6.2831853 / uHoles;
+        float k = (fract(a / cell + 0.5) - 0.5) * cell * mid;
+        float hr = min(span * 0.09, 0.95);
+        float d = length(vec2(k, r - mid));
+        float aaH = max(fwidth(d), 1e-4);
+        detail *= mix(1.0, 0.4, 1.0 - smoothstep(hr - aaH, hr + aaH, d));
+        steel += ring(d - hr - 0.12, 0.1);
+        // Bolt circles near both rims
+        for (int j = 0; j < 2; j++) {
+          float br = j == 0 ? uInner + 0.55 : uOuter - 0.6;
+          float bn = floor(6.2831853 * br / 1.3);
+          float bc = 6.2831853 / bn;
+          float bk = (fract(a / bc + 0.5) - 0.5) * bc * br;
+          gold = max(gold, ring(length(vec2(bk, r - br)), 0.1) * 0.6);
+        }
+        // Machined grooves
+        detail -= 0.3 * ring(r - (uInner + span * 0.2), 0.05);
+        detail -= 0.3 * ring(r - (uInner + span * 0.84), 0.05);
+        // The polished lip of each rim, a fine line of gold
+        gold = max(gold, ring(r - uInner - 0.07, 0.05));
+        gold = max(gold, ring(r - uOuter + 0.07, 0.05) * 0.6);
+        // A lathe-turned sheen: fine concentric streaks catching the light
+        vec3 h = normalize(L + v);
+        float spec = pow(max(dot(n, h), 0.0), 10.0);
+        float turns = 12.0 * r;
+        float streak = mix(0.5, 0.5 + 0.5 * sin(turns), clamp(1.0 - fwidth(turns) * 0.4, 0.0, 1.0));
+        col = uPlate * detail * (0.75 + 0.45 * diff);
+        col += uGold * (gold * 0.34 + spec * streak * 0.2);
+        col += uSteel * steel * 0.22;
+        col += uGlow * max(-n.y, 0.0) * 0.12;
+      } else {
+        // Rims and posts: the edges that catch the light
+        col = uGold * (0.06 + 0.2 * diff + 0.45 * fres);
+        col += uGlow * max(-n.y, 0.0) * 0.14;
+      }
     }
-    col *= uBright;
-    // Mist: with distance, and thicker the deeper down
+    // Mist: with distance, thicker the deeper down, and complete across
+    // the tower
     float fog = 1.0 - exp(-dist * uDensity);
     fog = max(fog, smoothstep(-4.0, -44.0, vWorld.y) * 0.92);
-    // And thicker straight behind the tower (the orbit's target is its
-    // centre, the origin), so nothing crosses behind the see-through wafers
-    float behind = smoothstep(0.9, 0.985, dot(-v, normalize(-cameraPosition)));
-    fog = max(fog, behind * 0.82);
-    col = mix(col, skyBase(-v), clamp(fog, 0.0, 1.0));
+    fog = max(fog, mask);
+    col = mix(col, sky, clamp(fog, 0.0, 1.0));
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -287,12 +316,13 @@ const chandelierMaterial = (kind: number, plate?: Plate) =>
     uniforms: {
       ...skyUniforms(),
       uGold: { value: new Color(PALETTE.chandelier) },
+      uPlate: { value: new Color(PALETTE.plate) },
+      uSteel: { value: new Color(PALETTE.steel) },
       uKind: { value: kind },
       uInner: { value: plate?.inner ?? 0 },
       uOuter: { value: plate?.outer ?? 1 },
       uHoles: { value: plate?.holes ?? 1 },
-      uDensity: { value: 0.042 },
-      uBright: { value: 1 },
+      uDensity: { value: 0.04 },
     },
     vertexShader: CHANDELIER_VERTEX,
     fragmentShader: CHANDELIER_FRAGMENT,
@@ -347,55 +377,106 @@ const postsGeometry = () => {
 };
 
 /**
- * The coaxial lines: bundles hanging from each plate to the next, just
+ * The coaxial lines: dense bundles hanging from each plate to the next, just
  * inside the lower plate's rim, and from the top plate up into the dark.
- * Each line drops straight, then kinks inward where the stages narrow.
+ * Each line drops from an attenuator under its plate (a bead, drawn as a
+ * point), swings out through a thermal U-bend, kinks inward where the stages
+ * narrow, and drops to the next plate.
  */
 const linesGeometry = () => {
   const random = rng(42);
   const pos: number[] = [];
+  const beads: number[] = [];
   for (let i = 0; i < PLATES.length - 1; i++) {
     const top = PLATES[i];
     const bottom = PLATES[i + 1];
-    const bundles = i < 3 ? 12 : 8;
+    const bundles = i < 3 ? 22 : 14;
     const rTop = top.inner + 0.9;
     const rBottom = Math.min(bottom.outer - 0.9, rTop);
     const y0 = top.y - top.thick;
     const y1 = bottom.y;
     for (let b = 0; b < bundles; b++) {
       const a0 = ((b + 0.25 + i * 0.5) / bundles) * Math.PI * 2;
-      const lines = 5 + Math.floor(random() * 4);
+      const lines = 8 + Math.floor(random() * 5);
       for (let l = 0; l < lines; l++) {
-        const a = a0 + ((l - lines / 2) * 0.32) / rTop;
+        const a = a0 + ((l - lines / 2) * 0.22) / rTop;
         const r0 = rTop + (random() - 0.5) * 0.3;
         const r1 = rBottom + (random() - 0.5) * 0.3;
-        const kink = y0 - (y0 - y1) * (0.35 + random() * 0.3);
         const p = (r: number, y: number) => [Math.cos(a) * r, y, Math.sin(a) * r];
-        // Straight down, a slanted kink inward, straight down again
-        pos.push(...p(r0, y0), ...p(r0, kink));
-        pos.push(...p(r0, kink), ...p(r1, kink - 1.2));
-        pos.push(...p(r1, kink - 1.2), ...p(r1, y1));
+        const path: number[][] = [p(r0, y0)];
+        // The U-bend: a smooth swing outward and back
+        const bend = y0 - 1.2 - random() * 0.8;
+        for (let k = 0; k <= 6; k++) {
+          const y = bend - (k / 6) * 1.1;
+          path.push(p(r0 + 0.45 * Math.sin((k / 6) * Math.PI), y));
+        }
+        // The kink inward, then straight down to the next plate
+        const kink = y0 - (y0 - y1) * (0.45 + random() * 0.25);
+        path.push(p(r0, kink), p(r1, kink - 1.2), p(r1, y1));
+        for (let k = 1; k < path.length; k++) pos.push(...path[k - 1], ...path[k]);
+        beads.push(...p(r0, y0 - 0.35), ...p(r1, y1 + 0.25));
       }
     }
   }
   // Up from the top plate, into the dark
   const top = PLATES[0];
-  for (let b = 0; b < 16; b++) {
-    const a0 = (b / 16) * Math.PI * 2;
-    for (let l = 0; l < 6; l++) {
-      const a = a0 + ((l - 3) * 0.3) / (top.inner + 2);
+  for (let b = 0; b < 22; b++) {
+    const a0 = (b / 22) * Math.PI * 2;
+    for (let l = 0; l < 9; l++) {
+      const a = a0 + ((l - 4.5) * 0.22) / (top.inner + 2);
       const r = top.inner + 2 + random() * 0.4;
       pos.push(Math.cos(a) * r, top.y, Math.sin(a) * r, Math.cos(a) * r, 60, Math.sin(a) * r);
+      beads.push(Math.cos(a) * r, top.y + 0.35, Math.sin(a) * r);
     }
   }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setAttribute('normal', new BufferAttribute(new Float32Array(pos.length), 3));
-  return g;
+  const lineGeometry = new BufferGeometry();
+  lineGeometry.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  lineGeometry.setAttribute('normal', new BufferAttribute(new Float32Array(pos.length), 3));
+  const beadGeometry = new BufferGeometry();
+  beadGeometry.setAttribute('position', new BufferAttribute(new Float32Array(beads), 3));
+  return { lineGeometry, beadGeometry };
 };
 
+/** The attenuators: small gold beads on the lines, a few pixels across, misted like the rest. */
+const beadMaterial = () =>
+  new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    fog: false,
+    uniforms: {
+      ...skyUniforms(),
+      uGold: { value: new Color(PALETTE.chandelier) },
+      uDensity: { value: 0.04 },
+    },
+    vertexShader: /* glsl */ `
+      ${TOWER_MASK_GLSL}
+      uniform float uDensity;
+      varying float vFog;
+      varying vec3 vDir;
+      void main() {
+        vec4 world = modelMatrix * vec4(position, 1.0);
+        float dist = distance(world.xyz, cameraPosition);
+        vFog = max(max(1.0 - exp(-dist * uDensity), smoothstep(-4.0, -44.0, world.y) * 0.92), towerMask(world.xyz));
+        vDir = normalize(world.xyz - cameraPosition);
+        gl_PointSize = clamp(90.0 / dist, 1.5, 3.5);
+        gl_Position = projectionMatrix * viewMatrix * world;
+      }`,
+    fragmentShader: /* glsl */ `
+      ${SKY_GLSL}
+      uniform vec3 uGold;
+      varying float vFog;
+      varying vec3 vDir;
+      void main() {
+        float d = length(gl_PointCoord - 0.5) * 2.0;
+        float a = 1.0 - smoothstep(0.5, 1.0, d);
+        if (a < 0.01 || vFog > 0.995) discard;
+        gl_FragColor = vec4(mix(uGold * 0.5, skyBase(vDir), vFog), a);
+        #include <colorspace_fragment>
+      }`,
+  });
+
 const Chandelier = () => {
-  const { plates, posts, lines } = useMemo(
+  const { plates, posts, lines, beads } = useMemo(
     () => ({
       plates: PLATES.map((p) => ({
         geometry: plateGeometry(p),
@@ -403,18 +484,24 @@ const Chandelier = () => {
         y: p.y,
       })),
       posts: { geometry: postsGeometry(), material: chandelierMaterial(1) },
-      lines: { geometry: linesGeometry(), material: chandelierMaterial(2) },
+      ...(() => {
+        const { lineGeometry, beadGeometry } = linesGeometry();
+        return {
+          lines: { geometry: lineGeometry, material: chandelierMaterial(2) },
+          beads: { geometry: beadGeometry, material: beadMaterial() },
+        };
+      })(),
     }),
     [],
   );
   useEffect(
     () => () => {
-      for (const p of [...plates, posts, lines]) {
+      for (const p of [...plates, posts, lines, beads]) {
         p.geometry.dispose();
         p.material.dispose();
       }
     },
-    [plates, posts, lines],
+    [plates, posts, lines, beads],
   );
   return (
     <group name="chandelier">
@@ -438,6 +525,13 @@ const Chandelier = () => {
         geometry={lines.geometry}
         material={lines.material}
         renderOrder={-900}
+        raycast={noRaycast}
+        frustumCulled={false}
+      />
+      <points
+        geometry={beads.geometry}
+        material={beads.material}
+        renderOrder={-890}
         raycast={noRaycast}
         frustumCulled={false}
       />
@@ -471,6 +565,7 @@ const FrostMotes = ({ count = 380 }: { count?: number }) => {
       fog: false,
       uniforms: { uColor: { value: new Color(PALETTE.frost) }, uDensity: { value: 0.042 } },
       vertexShader: /* glsl */ `
+        ${TOWER_MASK_GLSL}
         attribute float aBright;
         uniform float uDensity;
         varying float vA;
@@ -480,7 +575,7 @@ const FrostMotes = ({ count = 380 }: { count?: number }) => {
           // Thinned by the mist, and gone before it could come near the eye
           vA = aBright * exp(-dist * uDensity) * smoothstep(5.0, 10.0, dist)
             * (1.0 - smoothstep(-4.0, -30.0, world.y) * 0.8)
-            * (1.0 - smoothstep(0.9, 0.985, dot(normalize(world.xyz - cameraPosition), normalize(-cameraPosition))));
+            * (1.0 - towerMask(world.xyz));
           gl_PointSize = 1.0 + aBright * 1.6;
           gl_Position = projectionMatrix * viewMatrix * world;
         }`,
@@ -544,10 +639,10 @@ const ReflectionRoom = () => {
             vec3 c = vec3(0.012, 0.018, 0.03);
             // A ring of softbox overhead, cool white, round a dimmer warm
             // zenith: tops seen from above stay a rich gold, not a white glare
-            c += vec3(1.9, 2.0, 2.15) * smoothstep(0.55, 0.75, h) * (1.0 - smoothstep(0.86, 0.96, h));
+            c += vec3(1.36, 1.3, 1.22) * smoothstep(0.55, 0.75, h) * (1.0 - smoothstep(0.86, 0.96, h));
             c += vec3(0.55, 0.45, 0.32) * smoothstep(0.86, 0.96, h);
             // A thin bright ring round it, for a crisp highlight on the shoulders
-            c += vec3(1.3, 1.25, 1.2) * exp(-pow((h - 0.42) / 0.04, 2.0));
+            c += vec3(1.1, 1.02, 0.9) * exp(-pow((h - 0.42) / 0.04, 2.0));
             // The chandelier's gold in a band above the horizon
             c += vec3(0.55, 0.36, 0.14) * exp(-pow((h - 0.12) / 0.1, 2.0));
             // A cool bounce from the wafers below the horizon

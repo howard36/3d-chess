@@ -10,8 +10,9 @@ import { Burst } from '../kit/fx';
 import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, PieceColor, Vec3 } from '../types';
-import { FRAME, KNIGHT_YAW, layout, PALETTE, PIECE_SCALE } from './palette';
-import { armyMaterials, echoMaterial, footMaterial, viewRight, wholePiece } from './pieces';
+import { KNIGHT_YAW, layout, PALETTE, PIECE_SCALE } from './palette';
+import { levelAt } from './markers';
+import { armyMaterials, echoMaterial, pieceParts, viewRight, wholePiece } from './pieces';
 
 // Motion: a moving piece travels as a wave packet, trailed by fading mint
 // echoes of itself, and lands with a ripple across the wafer. A captured
@@ -214,11 +215,7 @@ export const CaptureFx = ({ floor, victim, durationMs, victimFacing }: CaptureFx
   useEffect(() => () => material.dispose(), [material]);
   const geometry = wholePiece(victim.type);
   const m = armyMaterials(victim.color, 'rest');
-  // The level it stood on: the wafer nearest its floor
-  const level = FRAME.levelY.reduce(
-    (best, y, z) => (Math.abs(y - floor[1]) < Math.abs(FRAME.levelY[best] - floor[1]) ? z : best),
-    0,
-  );
+  const level = levelAt(floor[1]);
   const yaw = victim.type === PieceType.Knight ? (victimFacing ?? 0) : 0;
   const [burst, setBurst] = useState(false);
   const camera = useThree((s) => s.camera);
@@ -252,15 +249,7 @@ export const CaptureFx = ({ floor, victim, durationMs, victimFacing }: CaptureFx
   return (
     <group position={floor}>
       <group ref={solid} rotation={[0, yaw, 0]} scale={PIECE_SCALE}>
-        <ChessPiece
-          type={victim.type}
-          parts={{
-            body: m.body,
-            collar: m.collar,
-            accent: m.accent,
-            foot: footMaterial(level),
-          }}
-        />
+        <ChessPiece type={victim.type} parts={pieceParts(victim.type, m, level)} />
       </group>
       {[echoA, echoB].map((ref, i) => (
         <group key={i} ref={ref} visible={false}>
@@ -272,12 +261,12 @@ export const CaptureFx = ({ floor, victim, durationMs, victimFacing }: CaptureFx
       {burst && (
         <Burst
           position={[0, 0.3, 0]}
-          colors={victim.color === 'white' ? ['#ffd27a', '#fff0c8'] : ['#a9d8ff', '#e6f4ff']}
+          colors={victim.color === 'white' ? ['#ffe2a0', '#fff4d8'] : ['#c4e4ff', '#eef8ff']}
           count={46}
           speed={1.5}
           gravity={0.6}
           lifeMs={700}
-          size={0.07}
+          size={0.085}
           upward={0.25}
         />
       )}
@@ -289,17 +278,27 @@ export const CaptureFx = ({ floor, victim, durationMs, victimFacing }: CaptureFx
 // --- Mate ---------------------------------------------------------------------------
 
 /**
- * Interference rings roll slowly out across the mated king's wafer, three
- * of them, in the colour of check, and the winner's sparks rise once.
+ * The measurement: a warm gold ring rolls out first across the mated king's
+ * wafer, the winner's; then three interference rings in the colour of
+ * check follow it, and the winner's sparks rise once, bright.
  */
 export const Celebration = ({ floor, winner }: CelebrationProps) => (
   <>
+    <Ripple
+      floor={floor}
+      color={PALETTE.select}
+      delayMs={120}
+      ms={1700}
+      from={0.3}
+      to={3.3}
+      width={0.028}
+    />
     {[0, 1, 2].map((i) => (
       <Ripple
         key={i}
         floor={floor}
         color={PALETTE.check}
-        delayMs={300 + i * 420}
+        delayMs={520 + i * 420}
         ms={1500}
         from={0.35}
         to={2.9}
@@ -308,12 +307,12 @@ export const Celebration = ({ floor, winner }: CelebrationProps) => (
     ))}
     <Burst
       position={[floor[0], floor[1] + 0.4, floor[2]]}
-      colors={winner === 'black' ? ['#a9d8ff', '#e6f4ff'] : ['#ffd27a', '#fff0c8']}
-      count={70}
-      speed={1.2}
+      colors={winner === 'black' ? ['#d8eeff', '#f4fbff'] : ['#ffe9b0', '#fff8e6']}
+      count={80}
+      speed={1.3}
       gravity={-0.25}
-      lifeMs={1600}
-      size={0.07}
+      lifeMs={2400}
+      size={0.11}
       upward={0.85}
       delayMs={250}
     />

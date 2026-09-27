@@ -6,7 +6,8 @@ import type { BoardLayout, DesignMotion } from '../types';
 // pieces, markers and effects share lives here.
 //
 // Value plan, darkest to brightest:
-//   cryostat (blue-black, 3–9%) < gold chandelier (dim, misted, ~12–20%)
+//   cryostat (blue-black, 3–9%) < chandelier (cool dark plates near the
+//   mist, its gold only in fine line-work, all of it hidden behind the tower)
 //   < sapphire wafers (a faint blue veil) < black ceramic army (dark, but
 //   lifted by a frosty rim and gold inlays) < level traces (mid, cool)
 //   < gold army (bright, warm, brushed) < markers (the brightest, most
@@ -22,12 +23,19 @@ export const PALETTE = {
   voidBottom: '#050b16',
   glow: '#1a4a78',
   mist: '#0b1a2c',
-  chandelier: '#c8953a',
+  chandelier: '#c28536',
+  /** The chandelier's plates: cool dark metal, near the mist. */
+  plate: '#141c28',
+  /** Feedthrough collars: cool steel, so no backdrop ellipse reads as a gold glyph. */
+  steel: '#6d7f94',
 
   // The armies
   gold: '#e7b85f',
   goldPolished: '#f3c872',
-  ceramic: '#17191f',
+  ceramic: '#1e2129',
+  /** The gold army's rim: warm, so polished gold never turns silver-blue. */
+  goldRim: '#ffd9a0',
+  /** The ceramic army's rim. */
   frost: '#a9d8ff',
   /** The echoes of superposition and of a moving piece's wave packet. */
   echo: '#cfeaff',
@@ -35,6 +43,8 @@ export const PALETTE = {
 
   // Markers, one meaning each
   move: '#fccd73',
+  /** The white-hot core of a legal move's dot. */
+  moveCore: '#fff3d0',
   capture: '#ff5a4f',
   select: '#ffd88a',
   lastMove: '#79f1a8',
@@ -47,13 +57,15 @@ export const PALETTE = {
 } as const;
 
 /**
- * One colour per level, A (bottom) to E: levelRamp({ from: 195, to: 335,
- * lightness: 0.74, chroma: 0.135 }), cyan through azure, periwinkle and
- * lavender to orchid. Equal steps of hue at one lightness, no white or grey,
- * clear of gold, mint and red. The wafer traces and edges, the level
- * letters, the foot of every piece and the ring round its base all use it.
+ * One colour per level, A (bottom) to E: levelRamp({ from: 195, to: 340,
+ * lightness: [0.82, 0.64], chroma: 0.15 }), cyan through azure, periwinkle
+ * and lavender to orchid, stepping down in lightness as well as round in hue
+ * so neighbours stay about 0.1 apart in OKLab. No white or grey, and clear of
+ * gold, mint and red. The wafer traces and edges, the level letters, the foot
+ * of every piece and the ring round its base all use it; the ring also
+ * carries the level as a count of electrons, A one to E five.
  */
-export const LEVEL_COLORS = ['#00c3c3', '#31baef', '#81a8ff', '#b896f3', '#df89cc'];
+export const LEVEL_COLORS = ['#00e0e0', '#3ac5ff', '#81a3ff', '#ae80e5', '#c664a8'];
 
 // --- Layout ------------------------------------------------------------------------
 
