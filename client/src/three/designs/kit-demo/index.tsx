@@ -1,5 +1,5 @@
-import { MeshStandardMaterial } from 'three';
-import { StauntonParts } from '../classic/pieces';
+import { Color, MeshStandardMaterial } from 'three';
+import { ChessPiece } from '../../pieces';
 import { focusLevelOf } from '../kit/focus';
 import { clarityTower, towerFrame } from '../kit/layouts';
 import { clarityMarkers } from '../kit/markers';
@@ -21,8 +21,9 @@ import type { Design, GridProps, PieceBodyProps, PieceColor } from '../types';
 // - markers flat on the platforms (clarityMarkers): destinations, the same
 //   marker with a capture cue, the selection, the last move's squares and
 //   trace, and the check;
-// - a contact shadow under every piece and a footprint ring in its level's
-//   colour (PieceBodyProps.level), and pieces scaled to fit the gap;
+// - the shared Staunton set (ChessPiece, three/pieces) with its foot band in
+//   the colour of the piece's level (PieceBodyProps.level), standing on a
+//   contact shadow and a footprint ring of that colour, scaled to fit the gap;
 // - level focus: the level under the pointer (or of the selected piece)
 //   brightens its platform edge and letter (GridProps.focus);
 // - the HUD readout of the cell under the pointer (hud.readout).
@@ -125,10 +126,23 @@ const material = (color: PieceColor, emissive: string) => {
   }
   return m;
 };
-const groove = {
+// The details that name a piece (the bishop's cut, the knight's mane, the
+// unicorn's spiral, the queen's pearls, the king's cross, the rook's crenels)
+const accent = {
   white: new MeshStandardMaterial({ color: '#8f8676', roughness: 0.6 }),
-  black: new MeshStandardMaterial({ color: '#0f1115', roughness: 0.6 }),
+  black: new MeshStandardMaterial({ color: '#5d6573', roughness: 0.45, metalness: 0.2 }),
 };
+// The foot band, one per level: the level's tint, deepened so it shows on the
+// ivory army, glowing a little so it holds in shade
+const feet = LEVEL_TINTS.map((tint) => {
+  const c = new Color(tint).offsetHSL(0, 0.25, -0.16);
+  return new MeshStandardMaterial({
+    color: c,
+    emissive: c,
+    emissiveIntensity: 0.2,
+    roughness: 0.5,
+  });
+});
 
 // Board suggests a strong glow for check and selection; the markers on the
 // floor already say both, so the pieces only warm a little.
@@ -143,10 +157,13 @@ const PieceBody = (props: PieceBodyProps) => (
   <>
     <ContactShadow radius={0.36} opacity={0.38} />
     <LevelFootprint color={LEVEL_TINTS[props.level ?? 0]} radius={0.4} width={0.05} />
-    <StauntonParts
+    <ChessPiece
       type={props.type}
-      material={material(props.color, glow(props))}
-      groove={groove[props.color]}
+      parts={{
+        body: material(props.color, glow(props)),
+        accent: accent[props.color],
+        foot: feet[props.level ?? 0],
+      }}
     />
   </>
 );

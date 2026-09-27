@@ -1,12 +1,21 @@
 import React from 'react';
 import { Color } from 'three';
-import type { Material } from 'three';
-import type { ThreeElements } from '@react-three/fiber';
 import { PieceType } from '../../../engine';
 import { theme } from '../../theme';
 import { STAUNTON } from '../../pieceGeometry';
 import type { StauntonGeometries } from '../../pieceGeometry';
+import { ChessPiece, Part, preloadPieceSet } from '../../pieces';
+import type { PartMaterial } from '../../pieces';
 import type { PieceBodyProps, PieceColor } from '../types';
+
+// Part and PartMaterial moved to the shared piece set (three/pieces); they
+// are re-exported here for the designs that import them from Classic.
+export { Part };
+export type { PartMaterial };
+
+// Classic is the default design, bundled with the app: build the shared set
+// while the browser is idle (on the start screen), before the first board.
+preloadPieceSet();
 
 // The scene has no env map; black is slightly glossier so it still catches
 // the directional lights instead of reading as a silhouette. Near-dielectric
@@ -29,21 +38,12 @@ const darken = (color: PieceColor) =>
 const CRENELLATION_ANGLES = [0, 1, 2, 3, 4].map((i) => (i * 2 * Math.PI) / 5);
 const CORONET_ANGLES = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => (i * 2 * Math.PI) / 8);
 
-/** A material to paint a part with: a JSX material (one instance per mesh) or a shared object. */
-export type PartMaterial = React.ReactElement | Material;
-
-type PartProps = Omit<ThreeElements['mesh'], 'material' | 'children'> & { mat: PartMaterial };
-
-const isMaterial = (m: PartMaterial): m is Material => (m as Material).isMaterial === true;
-
-/** One mesh of a piece, painted with either kind of material. */
-export const Part = ({ mat, ...props }: PartProps) =>
-  isMaterial(mat) ? <mesh {...props} material={mat} /> : <mesh {...props}>{mat}</mesh>;
-
 /**
- * The Staunton set's meshes for one piece, every part in `material` except
- * the bishop's mitre groove, which is drawn in `groove`. Designs that only
- * restyle the classic silhouettes pass their own materials.
+ * The round-1 Staunton set's meshes for one piece (pieceGeometry.ts), kept
+ * as it was for the designs built on it (new designs draw the shared set's
+ * ChessPiece, three/pieces): every part in `material` except the bishop's
+ * mitre groove, which is drawn in `groove`. Designs that only restyle these
+ * silhouettes pass their own materials.
  */
 export const StauntonParts = ({
   type,
@@ -158,10 +158,19 @@ export const StauntonParts = ({
   }
 };
 
+/**
+ * Classic's pieces: the shared Staunton set (three/pieces) in ivory and
+ * graphite. The details that name a piece (the bishop's cut, the knight's
+ * mane and eyes, the unicorn's spiral, the queen's pearls, the king's cross,
+ * the rook's crenels and hollow) are cut in a deeper shade of the army's
+ * colour; the foot band is left in the army's colour.
+ */
 export const ClassicPieceBody = ({ type, color, emissive }: PieceBodyProps) => (
-  <StauntonParts
+  <ChessPiece
     type={type}
-    material={<PieceMaterial color={color} emissive={emissive} />}
-    groove={<meshStandardMaterial color={darken(color)} roughness={0.6} metalness={0.08} />}
+    parts={{
+      body: <PieceMaterial color={color} emissive={emissive} />,
+      accent: <meshStandardMaterial color={darken(color)} roughness={0.55} metalness={0.08} />,
+    }}
   />
 );
