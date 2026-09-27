@@ -77,7 +77,7 @@ const { MoveFx, CaptureFx, Celebration } = atelierFx({
 const atelier: Design = {
   id: 'atelier',
   name: 'Atelier',
-  blurb: 'Porcelain and ink-blue lacquer on frosted acrylic, in a daylight studio.',
+  blurb: 'Porcelain and ink-blue lacquer on frosted acrylic, lit like a studio product shot.',
   layout,
   continuous: false,
   canvas: { fov: 34, toneMapping: NeutralToneMapping, exposure: 1 },

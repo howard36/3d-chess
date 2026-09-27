@@ -274,7 +274,8 @@ const MOTION = { style: 'hop' as const, durationMs: 440, lift: 0.34 };
 const sumi: Design = {
   id: 'sumi',
   name: 'Sumi',
-  blurb: 'Ink and paper: porcelain and lacquer on washi floors, brush-circle markers.',
+  blurb:
+    'Ink and paper: porcelain and lacquer on washi sheets, brush-stroke markers, misty ink mountains.',
   layout,
   continuous: false,
   canvas: { fov: 36, toneMapping: NeutralToneMapping, exposure: 1 },

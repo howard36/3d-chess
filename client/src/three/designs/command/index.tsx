@@ -66,7 +66,7 @@ const BRACKET = 'rgba(127, 228, 255, 0.9)';
 const command: Design = {
   id: 'command',
   name: 'Command',
-  blurb: 'A tactical hologram: ice-white against amber on cyan glass, in a dark ops room.',
+  blurb: 'A naval tactical hologram: ice and amber units on cyan glass over a dark plotting floor.',
   layout,
   continuous: false,
   canvas: { fov: 36, toneMapping: NeutralToneMapping, exposure: 1 },
