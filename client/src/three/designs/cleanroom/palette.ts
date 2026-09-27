@@ -1,0 +1,76 @@
+import { levelRamp } from '../kit/colors';
+
+// Cleanroom's colours. The world is a bright, cool, low-contrast lab (walls,
+// floor and haze within a narrow band of pale greys), so the two armies sit at
+// the ends of the value scale: glossy white ceramic with a slate keyline, and
+// dark carbon fibre. Colour is reserved for meaning:
+//
+// - the five levels: the LED strips that edge-light each polycarbonate tray,
+//   in a real-colour gradient from amber (A, bottom) through green, teal and
+//   azure to violet (E, top);
+// - the laser: a rose-magenta projection for everything the player is doing
+//   right now (the selection and its legal destinations);
+// - red for a capture and a check;
+// - graphite ink for the record of the last move (a measured line, drawn like
+//   a technical drawing).
+//
+// The level hues run 72° to 300° in OKLCH; the laser sits at about 355° and
+// red at 27°, both clear of the ramp's ends.
+
+const RAMP = { from: 72, to: 300 } as const;
+
+/** The level colour at its truest: letters' fill, foot bands, the tray tint. */
+export const LEVEL = levelRamp({ ...RAMP, lightness: [0.72, 0.6], chroma: 0.17 });
+/** Deeper, for thin lines and letters that must hold on a pale ground. */
+export const LEVEL_DEEP = levelRamp({ ...RAMP, lightness: [0.56, 0.48], chroma: 0.15 });
+/** The LED itself: brighter, for strips and glows. */
+export const LEVEL_LED = levelRamp({ ...RAMP, lightness: [0.8, 0.68], chroma: 0.16 });
+
+// --- Signals -----------------------------------------------------------------------
+
+/** The laser: selection and legal destinations. */
+export const LASER = '#e0147c';
+/** The laser's hot core, where it is brightest (hover, the scan line). */
+export const LASER_HOT = '#ff4fa6';
+export const CAPTURE = '#e3312b';
+export const CHECK = '#e1242b';
+/** Graphite ink: the last move, the HUD's text, the white army's keyline. */
+export const INK = '#27303b';
+export const INK_SOFT = '#5d6a78';
+
+// --- World -------------------------------------------------------------------------
+
+export const ROOM = {
+  /** Haze: everything far fades toward this. */
+  fog: '#dfe4ea',
+  wall: '#e7ebef',
+  wallShade: '#d6dce2',
+  seam: '#b9c1ca',
+  kick: '#c3cad2',
+  glass: '#f1f5f8',
+  /** The yellow-filtered light of the lithography bay, seen through glass. */
+  amber: '#efe2b0',
+  floor: '#cbd1d8',
+  floorPerf: '#c6ccd4',
+  floorHole: '#a4adb7',
+  ceiling: '#dfe4e9',
+  panel: '#fbfdff',
+  equipment: '#e9edf1',
+  equipmentShade: '#c9d0d8',
+};
+
+// --- Pieces ------------------------------------------------------------------------
+
+export const CERAMIC = '#f3f3f0';
+export const CERAMIC_COLLAR = '#e4e7ea';
+/** The white army's detail: satin titanium, dark enough to draw the details. */
+export const TITANIUM = '#7a8592';
+export const CARBON = '#272c33';
+export const CARBON_WEAVE = '#454d58';
+/** The dark army's detail: a brushed-steel inlay, light enough to read at game size. */
+export const STEEL = '#a3aebb';
+/** The white army's keyline. */
+export const KEYLINE = '#4a5664';
+
+/** Picker swatch: background, white army, black army, accent. */
+export const SWATCH: [string, string, string, string] = [ROOM.wall, CERAMIC, CARBON, LASER];
