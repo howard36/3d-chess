@@ -14,6 +14,19 @@
 export const INK = '#211c19';
 /** A thinner ink, for washes. */
 export const INK_WASH = '#3b3631';
+/** Blue-black ink, for the bloom under a selected piece. */
+export const BLUE_BLACK = '#1f2430';
+
+/**
+ * Each level's own ink, A (bottom) to E, warm earth to cool sky: sepia,
+ * plum, plain sumi, teal and indigo. Neighbouring levels are the ones whose
+ * rows interleave on screen, so each step turns the hue decisively rather
+ * than creeping along one ramp. Low key by design; it tones the platform's brushed edge, the level letter and
+ * the ring at each piece's foot, so a piece's level reads from its base even
+ * where two levels' rows interleave on screen. None of these is a marker hue:
+ * they are dark inks, the markers bright mineral pigments.
+ */
+export const LEVEL_INKS = ['#7a563a', '#62455a', '#474541', '#3e5a5f', '#404664'];
 
 /** The paper world: backdrop from zenith to horizon to the mist below. */
 export const PAPER = {
@@ -29,10 +42,10 @@ export const PORCELAIN = '#f7f6f2';
 /** Black army: urushi lacquer, a warm black. */
 export const LACQUER = '#15100d';
 /** Gold leaf: the unicorn's horn on both sides, so it never reads as a bishop. */
-export const GOLD_LEAF = '#c9973c';
+export const GOLD_LEAF = '#b98322';
 
 /** Legal destinations: malachite green. */
-export const MOVE = '#17734e';
+export const MOVE = '#0d6b44';
 /** Captures: vermilion, the same ensō with a seal-red treatment. */
 export const CAPTURE = '#d13a22';
 /** The last move: azurite blue. */

@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useRef, useState } from 'react';
+import type React from 'react';
+import { useFrame } from '@react-three/fiber';
 import {
   BackSide,
   BufferAttribute,
@@ -7,8 +8,10 @@ import {
   Euler,
   ExtrudeGeometry,
   Matrix4,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   Quaternion,
+  RingGeometry,
   ShaderMaterial,
   Shape,
   SphereGeometry,
@@ -19,6 +22,7 @@ import type { BufferGeometry, Group, Material } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PieceType } from '../../../engine/pieces';
 import { STAUNTON } from '../../pieceGeometry';
+import { LAYER } from '../kit/layers';
 import { ContactShadow } from '../kit/plates';
 import { noRaycast } from '../kit/noRaycast';
 import type { PieceBodyProps, PieceColor } from '../types';
@@ -29,8 +33,6 @@ import { CHECK, GOLD_LEAF, INK, LACQUER, PORCELAIN, SELECT } from './palette';
 // an ink drawing against paper, glass or the other army. The unicorn's horn
 // is gold leaf on both sides, the one accent in the set, so it can never be
 // taken for a bishop, even from above.
-
-const MAX_FRAME = 1 / 30;
 
 // --- Geometry ------------------------------------------------------------------
 
@@ -219,10 +221,12 @@ export const pieceGeometry = (type: PieceType): PieceGeometry => {
 
 // --- Materials -------------------------------------------------------------------
 
-export type PieceState = 'rest' | 'selected' | 'check';
+export type PieceState = 'rest' | 'hovered' | 'selected' | 'check';
 
 const EMISSIVE: Record<PieceState, string> = {
   rest: '#000000',
+  // Under the pointer the glaze catches a little more light
+  hovered: '#16120c',
   selected: '#2e1f04',
   check: '#3a030a',
 };
@@ -304,6 +308,8 @@ export const hullMaterial = (color: string, width: number) =>
 const OUTLINE = 0.0015;
 export const hulls: Record<PieceState, ShaderMaterial> = {
   rest: hullMaterial(INK, OUTLINE),
+  // A piece the player may pick up, under the pointer: the same ink, drawn bolder
+  hovered: hullMaterial(INK, OUTLINE * 2.1),
   selected: hullMaterial(SELECT, OUTLINE * 1.7),
   check: hullMaterial(CHECK, OUTLINE * 1.9),
 };
@@ -340,55 +346,97 @@ export const PieceMeshes = ({
   );
 };
 
-/** Height the selected piece rises to, in piece units. */
-const LIFT = 0.17;
+/**
+ * Keeps its children on the floor while the piece above them is lifted. Board
+ * wraps a piece body in the kit's Lift (hoverLift); this reads how far that
+ * Lift has raised the body and moves back down by as much, so the shadow and
+ * the level ring stay on the platform and keep saying which level the piece
+ * belongs to. It mounts a frame late on purpose: frame callbacks run in the
+ * order they subscribe, and subscribing after the Lift means it reads the
+ * Lift's height for this frame, not the last.
+ */
+const OnFloor = ({ children }: { children: React.ReactNode }) => {
+  const [late, setLate] = useState(false);
+  useEffect(() => setLate(true), []);
+  const group = useRef<Group>(null);
+  return (
+    <group ref={group}>
+      {children}
+      {late && <FollowFloor group={group} />}
+    </group>
+  );
+};
+
+const FollowFloor = ({ group }: { group: React.RefObject<Group | null> }) => {
+  useFrame(() => {
+    const g = group.current;
+    // The body's parent is the Lift's group (or the piece's own, unlifted)
+    const lift = g?.parent?.position.y ?? 0;
+    if (g && g.position.y !== -lift) g.position.y = -lift;
+  });
+  return null;
+};
+
+const footprintRing = new RingGeometry(0.34, 0.382, 48).rotateX(-Math.PI / 2);
+const footprints = new Map<string, MeshBasicMaterial>();
+/** The ring of the level's ink at a piece's foot (piece units). */
+const footprintMaterial = (color: string) => {
+  let m = footprints.get(color);
+  if (!m) {
+    m = new MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+      toneMapped: false,
+      fog: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    footprints.set(color, m);
+  }
+  return m;
+};
 
 /**
- * A piece on its platform: its soft contact shadow on the floor, and the
- * piece above it, which rises on a spring when selected (a small overshoot,
- * then still) while its shadow spreads beneath it.
+ * A piece on its platform: a soft contact shadow and a thin ring of its
+ * level's ink on the floor, and the piece above them. Hovered (a piece the
+ * player may pick up) its ink outline goes bolder and it stirs up a little;
+ * selected it rises, gold-outlined. Both lifts are the kit's (hoverLift); the
+ * shadow and ring stay down on the floor.
  */
-export const SumiPieceBody = ({ type, color, selected, inCheck }: PieceBodyProps) => {
-  const state: PieceState = inCheck ? 'check' : selected ? 'selected' : 'rest';
-  const piece = useRef<Group>(null);
-  const shadow = useRef<Group>(null);
-  const motion = useRef({ y: 0, v: 0 });
-  const invalidate = useThree((s) => s.invalidate);
-  const target = selected ? LIFT : 0;
-
-  useEffect(() => invalidate(), [target, invalidate]);
-
-  useFrame((_, delta) => {
-    const m = motion.current;
-    if (m.y === target && m.v === 0) return;
-    const dt = Math.min(delta, MAX_FRAME);
-    // A lively spring (a little overshoot) up, a softer landing down
-    const k = target > 0 ? 210 : 260;
-    const c = target > 0 ? 17 : 30;
-    m.v += (k * (target - m.y) - c * m.v) * dt;
-    m.y += m.v * dt;
-    if (Math.abs(target - m.y) < 5e-4 && Math.abs(m.v) < 5e-3) {
-      m.y = target;
-      m.v = 0;
-    }
-    if (piece.current) piece.current.position.y = m.y;
-    if (shadow.current) shadow.current.scale.setScalar(1 + m.y * 0.9);
-    invalidate();
-  });
-
-  return (
-    <>
-      <group ref={shadow}>
-        <ContactShadow radius={0.37} opacity={0.34} color="#2a1c10" />
-      </group>
-      <group ref={piece}>
+export const makePieceBody = (levelInks: string[]) => {
+  const SumiPieceBody = ({ type, color, selected, hovered, inCheck, level }: PieceBodyProps) => {
+    const state: PieceState = inCheck
+      ? 'check'
+      : selected
+        ? 'selected'
+        : hovered
+          ? 'hovered'
+          : 'rest';
+    return (
+      <>
+        <OnFloor>
+          <ContactShadow radius={0.37} opacity={0.55} color="#2a1c10" />
+          {level !== undefined && (
+            <mesh
+              geometry={footprintRing}
+              material={footprintMaterial(levelInks[level] ?? levelInks[0])}
+              position={[0, 0.007, 0]}
+              renderOrder={LAYER.shadow + 0.5}
+              raycast={noRaycast}
+            />
+          )}
+        </OnFloor>
         <PieceMeshes
           type={type}
           body={bodyMaterial(color, state)}
           groove={grooveMaterial[color]}
           hull={hulls[state]}
         />
-      </group>
-    </>
-  );
+      </>
+    );
+  };
+  return SumiPieceBody;
 };

@@ -305,12 +305,8 @@ const easeOut = (x: number) => 1 - (1 - clamp01(x)) ** 3;
  * air; the attacker lands in the pool and throws out drops and streaks; the
  * ink then soaks into the paper and fades away.
  */
-export const makeCaptureFx = (
-  pieceScale: number,
-  orientation: () => 'white' | 'black',
-  knightYaw: number,
-) => {
-  const CaptureFx = ({ floor, victim, durationMs }: CaptureFxProps) => {
+export const makeCaptureFx = (pieceScale: number) => {
+  const CaptureFx = ({ floor, victim, victimFacing, durationMs }: CaptureFxProps) => {
     const invalidate = useThree((s) => s.invalidate);
     const body = useRef<Group>(null);
     const pool = useRef<Mesh>(null);
@@ -371,11 +367,8 @@ export const makeCaptureFx = (
     });
 
     if (phase === 'done') return null;
-    // Facing as Board turned it: toward the opponent, profile to the camera
-    const yaw =
-      victim.type === PieceType.Knight
-        ? (victim.color === orientation() ? 1 : -1) * (Math.PI / 2 - knightYaw)
-        : 0;
+    // Facing as Board turned it (a knight looks toward the opponent)
+    const yaw = victim.type === PieceType.Knight ? (victimFacing ?? 0) : 0;
     const spin = (floor[0] * 3.1 + floor[2] * 1.7) % Math.PI;
     return (
       <>

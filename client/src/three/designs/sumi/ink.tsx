@@ -68,11 +68,18 @@ const inkFragment = /* glsl */ `
     vec2 q = abs(p) - vec2(b - r);
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
   }
-  // A tick along +x out from the ring, tapering to a point as it leaves
+  // A tick out from the ring toward a corner of the square (q = abs(p)),
+  // tapering to a point as it leaves
   float tick(vec2 q, float r, float len, float w) {
-    float k = clamp((q.x - r) / len, 0.0, 1.0);
+    float along = (q.x + q.y) * 0.70710678;
+    float across = abs(q.x - q.y) * 0.70710678;
+    float k = clamp((along - r) / len, 0.0, 1.0);
     float tw = w * mix(1.0, 0.3, k);
-    return max(abs(q.y) - tw * 0.5, max((r - w * 0.3) - q.x, q.x - (r + len)));
+    return max(across - tw * 0.5, max((r - w * 0.3) - along, along - (r + len)));
+  }
+  // Finer unsteadiness, for a ragged, brushy edge
+  float ragged(float a, float s) {
+    return 0.4 * sin(13.0 * a + s * 3.3) + 0.35 * sin(21.0 * a + s * 1.9) + 0.25 * sin(34.0 * a + s * 5.7);
   }
 
   void main() {
@@ -80,8 +87,10 @@ const inkFragment = /* glsl */ `
     float r = length(p);
     float aa = max(fwidth(r), 1e-4) * 1.25;
     float a = atan(p.y, p.x);
-    // Under the pointer: a bolder stroke and a faint wash of its colour inside
-    float hover = 1.0 + 0.25 * uHover;
+    // Under the pointer: a much bolder stroke, a touch wider, and a wash of
+    // its colour inside
+    float hover = 1.0 + 0.55 * uHover;
+    float reach = 1.0 + 0.05 * uHover;
     float line = 0.0;   // stroke coverage
     float rim = 0.0;    // pooled ink at a stroke's edges (darker)
     float area = 0.0;   // wash inside the mark
@@ -92,7 +101,7 @@ const inkFragment = /* glsl */ `
       float span = 1.0 - uGap;
       float t = mod(a - uStart, TAU) / TAU;
       float s = t / span;
-      float rr = uR * (1.0 + 0.035 * (s - 0.5) + 0.012 * wobble(a, uSeed));
+      float rr = uR * reach * (1.0 + 0.035 * (s - 0.5) + 0.012 * wobble(a, uSeed));
       float w = uW * hover * mix(1.16, 0.46, pow(clamp(s, 0.0, 1.0), 1.25));
       // Lifting off: the tip tapers to a point where the stroke ends
       float drawn = uProgress;
@@ -100,7 +109,7 @@ const inkFragment = /* glsl */ `
       float d = s <= drawn ? abs(r - rr) - w * 0.5 : 1.0;
       // The brush's touch-down: a round head
       float w0 = uW * hover * 1.16;
-      vec2 p0 = uR * (1.0 - 0.0175) * vec2(cos(uStart), sin(uStart));
+      vec2 p0 = uR * reach * (1.0 - 0.0175) * vec2(cos(uStart), sin(uStart));
       if (drawn > 0.0) d = min(d, length(p - p0) - w0 * 0.5);
       line = 1.0 - smoothstep(-aa, aa, d);
       // Dry brush: fine gaps along the stroke, opening up as the ink runs out
@@ -112,10 +121,9 @@ const inkFragment = /* glsl */ `
       dens = 0.88 + 0.12 * vnoise(s * 13.0 + uSeed * 3.0);
       area = 1.0 - smoothstep(-aa, aa, r - rr + w * 0.5);
       if (uCapture > 0.5) {
-        // The capture cue: four brushed ticks out from the ring, a crosshair
-        // round the piece to be taken (outward, so the piece never hides them)
-        vec2 q = abs(p);
-        float tk = min(tick(q, uR, uTick, uW * hover), tick(q.yx, uR, uTick, uW * hover));
+        // The capture cue: four brushed ticks out from the ring toward the
+        // square's corners, outside the victim's footprint so it never hides them
+        float tk = tick(abs(p), uR * reach, uTick, uW * hover);
         line = max(line, 1.0 - smoothstep(-aa, aa, tk));
       }
     } else if (uKind == 1) {
@@ -127,15 +135,18 @@ const inkFragment = /* glsl */ `
       area = 1.0 - smoothstep(-aa, aa, box);
       rim = smoothstep(0.2, 0.5, abs(box) / max(w, 1e-4)) * line;
     } else {
-      // Bloom: ink dropped on damp paper, spreading to a ragged edge where it pools
+      // Bloom: ink dropped on damp paper, spreading to a ragged, brushy edge
+      // where it pools, with a faint feathered bleed beyond it
       float k = uProgress;
-      float rb = uR * k * (1.0 + 0.06 * wobble(a, uSeed));
-      area = (1.0 - smoothstep(rb - 0.05, rb, r)) * (0.75 + 0.25 * smoothstep(0.0, rb, r));
-      line = exp(-pow((r - (rb - 0.022)) / 0.018, 2.0)) * step(0.001, k);
+      float rb = uR * k * (1.0 + 0.06 * wobble(a, uSeed) + 0.025 * ragged(a, uSeed));
+      area = (1.0 - smoothstep(rb - 0.03, rb, r)) * (0.7 + 0.3 * smoothstep(0.0, rb, r));
+      float bleed = (1.0 - smoothstep(rb, rb + 0.06, r)) * step(rb, r);
+      area = max(area, bleed * 0.35 * smoothstep(0.35, 0.75, vnoise(a * 9.0 + uSeed * 3.0)));
+      line = exp(-pow((r - (rb - 0.02)) / 0.016, 2.0)) * step(0.001, k);
     }
 
     float strength = uOpacity * dens * (1.0 + 0.3 * uHover);
-    float alpha = max(line * strength, area * (uFill + 0.16 * uHover));
+    float alpha = max(line * strength, area * (uFill + 0.2 * uHover));
     if (alpha < 0.003) discard;
     vec3 col = uColor * mix(1.0, 0.72, rim);
     gl_FragColor = vec4(col, min(alpha, 1.0));
@@ -297,13 +308,15 @@ const traceVertex = /* glsl */ `
   attribute float aHalf;
   attribute float aAlong;
   uniform float uShaftEnd;
+  uniform float uLength;
   varying float vAcross;
   varying float vHalf;
   varying float vAlong;
   void main() {
-    // The brush enters light and presses down: thin at the source, full by a third of the way
-    float taper = aAlong < uShaftEnd ? mix(0.38, 1.0, smoothstep(0.0, uShaftEnd * 0.45, aAlong)) : 1.0;
-    float halfWidth = aHalf * taper;
+    // Brush pressure: a hairline where the brush enters at the source,
+    // swelling to full width about 70% of the way, full into the head
+    float taper = mix(0.1, 1.0, smoothstep(0.0, uLength * 0.7, aAlong));
+    float halfWidth = aHalf * (aAlong < uShaftEnd ? taper : 1.0);
     vec4 world = modelMatrix * vec4(position, 1.0);
     vec3 t = normalize(mat3(modelMatrix) * aTangent);
     vec3 toCamera = normalize(cameraPosition - world.xyz);
@@ -322,7 +335,7 @@ const traceFragment = /* glsl */ `
   uniform vec3 uEdge;
   uniform float uOpacity;
   uniform float uShaftEnd;
-  uniform float uChevron;
+  uniform float uLength;
   uniform float uSeed;
   uniform float uDraw;
   varying float vAcross;
@@ -340,26 +353,25 @@ const traceFragment = /* glsl */ `
   void main() {
     // Brushed in from the source: nothing beyond the brush's tip yet
     if (vAlong > uDraw) discard;
+    float head = step(uShaftEnd, vAlong);
+    // The flicked head: its flanks frayed, as the brush lifts off sideways
+    float fray = head * 0.12 * (vnoise(vAlong * 90.0 + uSeed) - 0.5);
+    float halfWidth = vHalf * (1.0 + fray);
     float d = abs(vAcross);
     float aa = max(fwidth(vAcross), 1e-4);
-    float body = 1.0 - smoothstep(vHalf - aa, vHalf + aa * 0.5, d);
+    float body = 1.0 - smoothstep(halfWidth - aa, halfWidth + aa * 0.5, d);
     float u = vHalf > 1e-4 ? vAcross / vHalf : 0.0;
-    // A crisp indigo edge keeps the stroke legible over paper and glass
-    float edgeW = min(0.022, vHalf * 0.3);
-    float rim = smoothstep(vHalf - edgeW - aa, vHalf - edgeW + aa, d);
-    vec3 col = uColor;
-    // Dry-brush streaks where the brush entered light
-    float dry = 1.0 - smoothstep(0.0, uShaftEnd * 0.4, vAlong);
-    float n = vnoise(u * 5.0 + 5.0 + uSeed) * 0.75 + vnoise(vAlong * 14.0) * 0.25;
-    body *= mix(1.0, smoothstep(0.32, 0.5, n), dry * 0.85);
-    if (uChevron > 0.0 && vAlong < uShaftEnd - uChevron * 0.35) {
-      // Paler chevrons along the shaft, pointing the way the piece went
-      float phase = fract((vAlong - d * 1.3) / uChevron);
-      float ab = max(fwidth(phase), 1e-4);
-      float band = smoothstep(0.0, ab, phase) * (1.0 - smoothstep(0.3 - ab, 0.3, phase));
-      col = mix(col, vec3(1.0), band * 0.42 * (1.0 - rim));
-    }
-    col = mix(col, uEdge, rim);
+    // Bristle gaps running along the stroke: many where the brush entered
+    // light and dry, a few all the way to the head
+    float s = vAlong / max(uLength, 1e-4);
+    float dry = mix(0.6, 0.2, smoothstep(0.0, 0.6, s)) * (1.0 - head * 0.6);
+    float n = vnoise(u * 5.5 + 3.0 + uSeed) * 0.75 + vnoise(vAlong * 11.0 + u * 2.0) * 0.25;
+    body *= smoothstep(dry - 0.07, dry + 0.07, n);
+    // Ink density varies with the brush's load
+    body *= 0.9 + 0.1 * vnoise(vAlong * 17.0 + uSeed * 2.0);
+    // A crisp indigo edge keeps it legible over paper and every sheet
+    float rim = smoothstep(0.62, 0.92, abs(u));
+    vec3 col = mix(uColor, uEdge, rim);
     float a = body * uOpacity;
     if (a < 0.003) discard;
     gl_FragColor = vec4(col, a);
@@ -375,7 +387,6 @@ export interface BrushTraceProps extends TracePathOptions {
   width?: number;
   headLength?: number;
   headWidth?: number;
-  chevrons?: number;
   /** Brush the stroke in from the source over this long (0: at once). */
   drawMs?: number;
   delayMs?: number;
@@ -384,8 +395,9 @@ export interface BrushTraceProps extends TracePathOptions {
 /**
  * The last move as one brush stroke from the source square to the
  * destination: straight along a platform, arcing between levels (the kit's
- * path), thin where the brush enters and full-bodied at the arrowhead
- * beside the piece that moved, with pale chevrons pointing the way.
+ * path): a hairline where the brush enters, swelling to full by about 70%,
+ * bristle gaps along its length, and a flicked arrowhead that lands on the
+ * floor at the near edge of the destination's ensō, clear of the piece.
  */
 export const BrushTrace = ({
   from,
@@ -394,9 +406,8 @@ export const BrushTrace = ({
   edgeColor,
   opacity = 1,
   width = 0.11,
-  headLength = 0.3,
-  headWidth = 0.32,
-  chevrons = 0.4,
+  headLength = 0.4,
+  headWidth = 0.36,
   drawMs = 0,
   delayMs = 0,
   ...pathOptions
@@ -429,7 +440,7 @@ export const BrushTrace = ({
           uEdge: { value: new Color() },
           uOpacity: { value: 1 },
           uShaftEnd: { value: 1 },
-          uChevron: { value: 0 },
+          uLength: { value: 1 },
           uSeed: { value: 0 },
           uDraw: { value: drawMs > 0 ? -1 : 1e6 },
         },
@@ -444,12 +455,12 @@ export const BrushTrace = ({
   (u.uColor.value as Color).set(color);
   (u.uEdge.value as Color).set(edgeColor);
   u.uOpacity.value = opacity;
+  const total = useMemo(() => lengthOf(geometry), [geometry]);
   u.uShaftEnd.value = shaftEnd;
-  u.uChevron.value = chevrons;
+  u.uLength.value = total;
   u.uSeed.value = seedOf(from) * 10;
 
   // The brush sweeps from the source, quick then settling, and flicks the head on last
-  const total = useMemo(() => lengthOf(geometry), [geometry]);
   const elapsed = useRef(-delayMs / 1000);
   const done = useRef(drawMs <= 0);
   useFrame((_, delta) => {

@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Environment, Lightformer } from '@react-three/drei';
 import { NeutralToneMapping } from 'three';
 import type { DirectionalLight } from 'three';
+import { focusLevelOf } from '../kit/focus';
 import { LAYER } from '../kit/layers';
 import { clarityTower, towerFrame } from '../kit/layouts';
 import { SmartLabels } from '../kit/smartLabels';
@@ -10,8 +11,18 @@ import type { Design, GridProps, LastMoveMarkerProps, MarkerProps } from '../typ
 import { Celebration, makeCaptureFx, makeMoveFx } from './fx';
 import { hud } from './hud';
 import { BrushTrace, InkMark } from './ink';
-import { CAPTURE, CHECK, INK, INK_WASH, LAST_MOVE, LAST_MOVE_EDGE, MOVE, SELECT } from './palette';
-import { SumiPieceBody } from './pieces';
+import {
+  BLUE_BLACK,
+  CAPTURE,
+  CHECK,
+  INK,
+  LAST_MOVE,
+  LAST_MOVE_EDGE,
+  LEVEL_INKS,
+  MOVE,
+  SELECT,
+} from './palette';
+import { makePieceBody } from './pieces';
 import { WashiPlates } from './plates';
 import { PaperSky } from './sky';
 
@@ -100,14 +111,17 @@ const Stage = () => (
 
 // --- Board -------------------------------------------------------------------------
 
-/** Washi platforms and ink coordinates. Decorative only: Board draws this outside the clickable group. */
-const Grid = ({ layout: l, orientation }: GridProps) => {
-  useEffect(() => {
-    view.orientation = orientation;
-  }, [orientation]);
+/**
+ * Washi platforms and ink coordinates. Decorative only: Board draws this
+ * outside the clickable group. The level the player points at (or holds a
+ * piece on) brushes its edge bolder and grows its letter, both in the
+ * level's own ink, while the other levels fade back.
+ */
+const Grid = ({ layout: l, orientation, focus }: GridProps) => {
+  const focusLevel = focusLevelOf(focus);
   return (
     <>
-      <WashiPlates layout={l} />
+      <WashiPlates layout={l} inks={LEVEL_INKS} focusLevel={focusLevel} />
       <SmartLabels
         layout={l}
         orientation={orientation}
@@ -116,27 +130,31 @@ const Grid = ({ layout: l, orientation }: GridProps) => {
         levelWeight={800}
         color={INK}
         outline="rgba(244, 238, 227, 0.9)"
-        outlineWidth={0.07}
+        outlineWidth={0.055}
         size={0.44}
         opacity={0.95}
         levelScale={1.35}
+        levelColors={LEVEL_INKS}
         // The letters are set larger than the kit's: give them more room
         levelOffset={0.7}
         offset={0.46}
+        focusLevel={focusLevel}
+        focusScale={1.25}
+        focusDim={0.62}
       />
     </>
   );
 };
 
-/** The seat the board is seen from, for effects that redraw a piece (a captured knight's facing). */
-const view = { orientation: 'white' as 'white' | 'black' };
-
 // --- Markers -----------------------------------------------------------------------
 
+/** Radius of an ensō where a piece would stand. */
 const RING = 0.34 * pitch;
-const STROKE = 0.07 * pitch;
+/** Radius of a capture's ensō: wide enough to show round the victim's base. */
+const CAPTURE_RING = 0.44 * pitch;
+const STROKE = 0.08 * pitch;
 
-/** A legal destination: a malachite ensō where the piece would stand. */
+/** A legal destination: a bold malachite ensō where the piece would stand, over a faint wash. */
 const Quiet = ({ floor, hovered }: MarkerProps) => (
   <InkMark
     floor={floor}
@@ -144,25 +162,28 @@ const Quiet = ({ floor, hovered }: MarkerProps) => (
     radius={RING}
     width={STROKE}
     opacity={0.95}
-    fill={0.05}
+    fill={0.1}
     hovered={hovered}
-    quad={pitch}
+    quad={pitch * 1.1}
   />
 );
 
-/** A capture: the same ensō in vermilion, with four crosshair ticks and a faint red wash. */
+/**
+ * A capture: the same ensō in vermilion, opened wide round the victim's
+ * base, with four ticks out toward the square's corners and a red wash.
+ */
 const Capture = ({ floor, hovered }: MarkerProps) => (
   <InkMark
     floor={floor}
     color={CAPTURE}
-    radius={RING}
-    width={STROKE}
+    radius={CAPTURE_RING}
+    width={STROKE * 0.95}
     opacity={0.95}
-    fill={0.17}
+    fill={0.16}
     capture
-    tick={0.11 * pitch}
+    tick={0.14 * pitch}
     hovered={hovered}
-    quad={pitch}
+    quad={pitch * 1.2}
   />
 );
 
@@ -172,10 +193,10 @@ const Selection = ({ floor }: MarkerProps) => (
     <InkMark
       floor={floor}
       kind="bloom"
-      color={INK_WASH}
+      color={BLUE_BLACK}
       radius={0.47 * pitch}
       fill={0.3}
-      opacity={0.55}
+      opacity={0.6}
       drawMs={520}
       quad={pitch}
       renderOrder={LAYER.shadow}
@@ -196,47 +217,46 @@ const Selection = ({ floor }: MarkerProps) => (
 );
 
 /**
- * The last move: azurite ensō on both squares, joined by a brush stroke with
- * an arrowhead. While the piece is in flight its own ink trail tells the
- * story; as it lands, the destination's ensō and the stroke are brushed in
- * from the source, and then hold still.
+ * The last move: azurite ensō of equal weight on both squares, joined by a
+ * brush stroke whose flicked head lands on the floor at the near edge of the
+ * destination's ensō. While a live move's piece is in flight its own ink
+ * trail tells the story; as it lands, the destination's ensō and the stroke
+ * are brushed in from the source. A replayed move (history, a rejoin) shows
+ * them whole. Board keys this by move, so the entrance plays once.
  */
-const LastMove = ({ from, to }: LastMoveMarkerProps) => (
-  <LastMoveMarks key={JSON.stringify([from.floor, to.floor])} from={from} to={to} />
-);
-
-const LastMoveMarks = ({ from, to }: LastMoveMarkerProps) => (
+const LastMove = ({ from, to, fresh }: LastMoveMarkerProps) => (
   <>
     <InkMark
       floor={from.floor}
       color={LAST_MOVE}
       radius={RING}
-      width={STROKE * 0.85}
-      opacity={0.8}
-      quad={pitch}
+      width={STROKE * 0.95}
+      opacity={0.95}
+      quad={pitch * 1.1}
     />
     <InkMark
       floor={to.floor}
       color={LAST_MOVE}
       radius={RING}
-      width={STROKE}
+      width={STROKE * 0.95}
       opacity={0.95}
-      drawMs={260}
+      drawMs={fresh ? 260 : 0}
       delayMs={MOTION.durationMs * 0.8}
-      quad={pitch}
+      quad={pitch * 1.1}
     />
     <BrushTrace
       from={from.floor}
       to={to.floor}
       color={LAST_MOVE}
       edgeColor={LAST_MOVE_EDGE}
-      width={0.1}
-      headLength={0.3}
-      headWidth={0.3}
-      chevrons={0.42}
-      endInset={0.38}
+      width={0.11}
+      headLength={0.4}
+      headWidth={0.36}
+      // The tip touches the ensō's outer edge, on the floor
+      endInset={RING + STROKE * 0.5}
       startInset={0.16}
-      drawMs={300}
+      lift={0.03}
+      drawMs={fresh ? 320 : 0}
       delayMs={MOTION.durationMs * 0.7}
     />
   </>
@@ -283,14 +303,17 @@ const sumi: Design = {
   Grid,
   // No cell volumes: the brush marks on the platforms say it all
   cellFills: { destination: null, lastMove: null },
-  PieceBody: SumiPieceBody,
+  PieceBody: makePieceBody(LEVEL_INKS),
   pieceScale: PIECE_SCALE,
   knightYaw: KNIGHT_YAW,
   markers: { Quiet, Capture, Selection, LastMove, Check },
   hoverDestinations: true,
+  // Hover lifts a piece you may pick up (and its ink outline goes bolder);
+  // selection lifts it higher. The kit's Lift does both.
+  hoverLift: true,
   motion: MOTION,
   MoveFx: makeMoveFx(layout.floorY, MOTION.lift),
-  CaptureFx: makeCaptureFx(PIECE_SCALE, () => view.orientation, KNIGHT_YAW),
+  CaptureFx: makeCaptureFx(PIECE_SCALE),
   Celebration,
   toppleMatedKing: true,
   hud,

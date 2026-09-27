@@ -56,15 +56,26 @@ const fragment = /* glsl */ `
       float line = exp(-max(below, 0.0) / 0.5) * 0.3;
       // ...and the wash, fading down into the mist, streaked by the brush's hairs
       float wash = exp(-max(below, 0.0) / uFade[k]);
-      float hair = 0.72 + 0.28 * r.g;
+      float hair = 0.86 + 0.14 * r.g;
       // Only peaks are inked: between them the range dissolves into mist
       float land = smoothstep(0.08, 0.4, r.b);
       float a = clamp(uAlpha[k] * edge * land * (wash * hair + line), 0.0, 1.0);
       col = col * (1.0 - a) + uInk[k] * a;
       alpha = alpha * (1.0 - a) + a;
     }
+    vec3 ink = col / max(alpha, 1e-4);
+    // Horizontal banks of mist drifting across the ranges (still: they are
+    // painted, not animated), thicker in some directions than others
+    float mist = 0.0;
+    for (int j = 0; j < 3; j++) {
+      float m = -3.6 - float(j) * 4.4;
+      float band = exp(-pow((e - m) / (0.7 + 0.25 * float(j)), 2.0));
+      float drift = 0.55 + 0.45 * sin(vUv.x * 6.2831853 * (2.0 + float(j)) + float(j) * 2.1);
+      mist = max(mist, band * drift);
+    }
+    alpha *= 1.0 - 0.7 * mist;
     if (alpha < 0.002) discard;
-    gl_FragColor = vec4(col / alpha, alpha);
+    gl_FragColor = vec4(ink, alpha);
     #include <colorspace_fragment>
   }`;
 
