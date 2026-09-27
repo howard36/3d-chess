@@ -259,22 +259,36 @@ to copy (hidden from the picker; open it with `?design=kit-demo`).
   the bottom, with a level gap of 1.35 cell pitches (the classic tower's is 1.9), so the
   stack stays close to a cube and diagonals look natural; seen from a low camera (18°)
   turned 16° off the players' axis, so the view looks *between* the levels and ranks do not
-  stack into columns. `BoardLayout.orbit` limits the camera (6°–68° elevation) so it never
-  dips under the bottom platform or looks straight down the stack. Pieces are drawn at
-  `Design.pieceScale` (0.8 in the demo) to fit the gap. `towerFrame(layout)` measures any
-  tower layout (pitch, gap, platform heights) for the parts below.
+  stack into columns. `BoardLayout.orbit` limits the camera (6°–50° elevation) so it never
+  dips under the bottom platform or looks down the stack from where no level is readable.
+  Its click boxes are thin slabs on each square (`BoardLayout.hitHeight`), so a click lands
+  on the square whose floor is under the pointer. Pieces are drawn at `Design.pieceScale`
+  (0.8 in the demo) to fit the gap. `towerFrame(layout)` measures any tower layout (pitch,
+  gap, platform heights) for the parts below.
+- **Level identity**: Board tells each piece body its `level`, so a design can mark which
+  platform a piece stands on (`LevelFootprint`, a ring in the level's colour), and gives the
+  Grid a `focus` (`{ selected, hovered }` levels); `focusLevelOf(focus)` picks the one to
+  emphasise, hover first. `LevelPlates` and `SmartLabels` take it as `focusLevel` and ease
+  that level's edge and letter up (150 ms, no pulsing). `hud.readout` shows the cell under
+  the pointer under the turn indicator ("Cc4 · White Bishop"). Hover is found from the
+  pointer's ray against the floors and pieces (`three/hover.ts`) for designs with
+  `hoverDestinations` or `hud.readout`.
 - **Platforms** (`LevelPlates`, `kit/plates.tsx`): one see-through slab per level, a faint
   two-tone checker coloured by x + y + z (so a bishop keeps its colour through the levels),
   a crisp perimeter edge and nothing else; optional per-level tints colour-code the levels.
   `ContactShadow` goes in a design's PieceBody, under the piece, to show which platform it
-  stands on.
+  stands on. `frameGeometry` builds the perimeter frame for designs drawing their own plates.
 - **Markers** (`kit/markers.tsx`): flat on the platform where a piece stands, never floating
   in the cell. `FloorMarker` draws an inset rounded square, corner brackets, a ring or a
-  dot; `capture` adds a tint and four inward ticks to the same shape, and `hovered`
-  brightens it (Board passes it to designs with `hoverDestinations`). `LastMoveTrace` joins
-  the last move's squares with a ribbon of real width and an arrowhead, straight along a
-  platform or arcing between levels. `clarityMarkers({ pitch, … })` returns a design's whole
-  marker set. Designs set `cellFills` to `null` to draw no cell volumes.
+  dot; `capture` adds a tint and four ticks to the same shape (inward on a square; on a
+  ring, which widens to 0.42 of a pitch so it shows round the victim's base, outward to the
+  corners), and `hovered` brightens it (Board passes it to designs with
+  `hoverDestinations`). `LastMoveTrace` joins the last move's squares with a ribbon of real
+  width and an arrowhead, straight along a platform or arcing between levels, and can draw
+  itself in (`drawInMs`). Board keys the LastMove marker by move and passes `fresh` (the move
+  arrived live), so an entrance plays once per move and never on a reload or rejoin.
+  `clarityMarkers({ pitch, … })` returns a design's whole marker set. Designs set
+  `cellFills` to `null` to draw no cell volumes.
 - **Labels** (`SmartLabels`, `kit/smartLabels.tsx`): files and ranks follow the camera to the
   two edges of the bottom platform nearest it, and each level letter sits beside its own
   platform at the corner furthest left on screen, with hysteresis and a short crossfade as
@@ -284,9 +298,11 @@ to copy (hidden from the picker; open it with `?design=kit-demo`).
   a marker, and pieces under several platforms keep their colour.
 
 `showcase.mjs --review` photographs a design for a clarity review: the opening, a selected
-piece with quiet and capture destinations, the last move's trace and a check, each from 12
-camera poses and from both seats, laid out as contact sheets (usage at the top of the
-script; about three minutes).
+piece with quiet and capture destinations (and the pointer on a destination and on a piece),
+the last move's trace and a check, each from 12 camera poses (or `--poses "az,el;…"`) and
+from both seats, laid out as contact sheets (usage at the top of the script; one to three
+minutes). `--stills-fast` takes `--stills`' pictures without drawing the frames between
+them, several times faster.
 
 ## Repository layout
 
