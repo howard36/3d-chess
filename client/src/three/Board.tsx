@@ -326,6 +326,7 @@ const Board = (props: BoardProps) => {
               inCheck={inCheck}
               mated={type === PieceType.King && color === matedColor}
               facing={knightFacing(color)}
+              orientation={orientation}
               // Check trumps selection for the king's glow
               emissive={
                 inCheck ? theme.check : isSelected(coord) ? theme.selectEmissive : '#000000'
@@ -383,6 +384,7 @@ const Board = (props: BoardProps) => {
             piece={board.getPiece(lastMove.move.to)?.type ?? PieceType.Pawn}
             capture={!!lastMove.capturedPiece}
             durationMs={design.motion.durationMs}
+            orientation={orientation}
           />
         )}
         {animate &&
@@ -392,7 +394,9 @@ const Board = (props: BoardProps) => {
               key={`capturefx-${lastMove.moveCount}`}
               {...markerAt(lastMove.move.to)}
               victim={lastMove.capturedPiece}
+              victimFacing={knightFacing(lastMove.capturedPiece.color)}
               durationMs={design.motion.durationMs}
+              orientation={orientation}
             />
           ) : (
             <GhostPiece
@@ -406,6 +410,7 @@ const Board = (props: BoardProps) => {
           <design.Celebration
             {...markerAt(matedKing.coord)}
             winner={props.gameOver?.winner ?? null}
+            orientation={orientation}
           />
         )}
       </group>

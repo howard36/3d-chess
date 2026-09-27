@@ -684,7 +684,8 @@ const Shatter = ({
   victim,
   centre,
   durationMs,
-}: Pick<CaptureFxProps, 'victim' | 'centre' | 'durationMs'>) => {
+  orientation,
+}: Pick<CaptureFxProps, 'victim' | 'centre' | 'durationMs' | 'orientation'>) => {
   const group = useRef<Group>(null);
   const elapsed = useRef(0);
   const breakAt = durationMs * 0.82;
@@ -718,6 +719,7 @@ const Shatter = ({
           emissive="#000000"
           selected={false}
           hovered={false}
+          orientation={orientation}
           inCheck={false}
         />
       </group>
@@ -725,12 +727,12 @@ const Shatter = ({
   );
 };
 
-const CaptureFx = ({ centre, floor, victim, durationMs }: CaptureFxProps) => {
+const CaptureFx = ({ centre, floor, victim, durationMs, orientation }: CaptureFxProps) => {
   const white = victim.color === 'white';
   const at = durationMs * 0.82;
   return (
     <>
-      <Shatter victim={victim} centre={centre} durationMs={durationMs} />
+      <Shatter victim={victim} centre={centre} durationMs={durationMs} orientation={orientation} />
       <Shards
         position={[floor[0], floor[1] + 0.3, floor[2]]}
         geometry={shardGeometry}

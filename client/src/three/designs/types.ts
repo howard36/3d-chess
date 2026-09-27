@@ -49,6 +49,8 @@ export interface BoardLayout {
 }
 
 export interface PieceBodyProps {
+  /** The seat the board is drawn for (Black's view walks round the board). */
+  orientation: Orientation;
   type: PieceType;
   color: PieceColor;
   /** Emissive tint the classic body paints (check red, selection amber, or black). */
@@ -78,6 +80,8 @@ export interface LastMoveMarkerProps {
 }
 
 export interface MoveFxProps {
+  /** The seat the board is drawn for (Black's view walks round the board). */
+  orientation: Orientation;
   from: Vec3;
   to: Vec3;
   /** Colour of the side that moved. */
@@ -88,6 +92,10 @@ export interface MoveFxProps {
 }
 
 export interface CaptureFxProps {
+  /** The seat the board is drawn for (Black's view walks round the board). */
+  orientation: Orientation;
+  /** The yaw Board gives a knight of the victim's colour, so a redrawn knight faces the same way. */
+  victimFacing?: number;
   /** Floor of the cell where the capture happened. */
   floor: Vec3;
   centre: Vec3;
@@ -96,6 +104,8 @@ export interface CaptureFxProps {
 }
 
 export interface CelebrationProps {
+  /** The seat the board is drawn for (Black's view walks round the board). */
+  orientation: Orientation;
   /** Floor of the mated king's cell. */
   floor: Vec3;
   winner: PieceColor | null;

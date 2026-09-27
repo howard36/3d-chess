@@ -4,6 +4,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { PieceType } from '../engine';
 import { useDesign } from './designs/context';
 import { Lift, Topple } from './designs/kit/motion';
+import type { Orientation } from './layout';
 
 export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   type: PieceType;
@@ -18,6 +19,8 @@ export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   mated?: boolean;
   /** Yaw for a knight's head, when the board decides which way it faces. */
   facing?: number;
+  /** The seat the board is drawn for, passed on to the design's piece body. */
+  orientation?: Orientation;
 };
 
 const PIECE_TYPES = new Set<string>(Object.values(PieceType));
@@ -36,6 +39,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   inCheck = false,
   mated = false,
   facing,
+  orientation = 'white',
   ...rest
 }) {
   const design = useDesign();
@@ -59,6 +63,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
       selected={selected}
       hovered={hovered}
       inCheck={inCheck}
+      orientation={orientation}
     />
   );
   // Picked up, a piece floats off its floor; under the pointer, it stirs.

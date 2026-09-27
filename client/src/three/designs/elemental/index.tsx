@@ -638,10 +638,12 @@ const Victim = ({
   victim,
   centre,
   breakAt,
+  orientation,
 }: {
   victim: CaptureFxProps['victim'];
   centre: MarkerProps['centre'];
   breakAt: number;
+  orientation: CaptureFxProps['orientation'];
 }) => {
   const group = useRef<Group>(null);
   const elapsed = useRef(0);
@@ -673,6 +675,7 @@ const Victim = ({
           emissive="#000000"
           selected={false}
           hovered={false}
+          orientation={orientation}
           inCheck={false}
         />
       </group>
@@ -680,13 +683,13 @@ const Victim = ({
   );
 };
 
-const CaptureFx = ({ centre, floor, victim, durationMs }: CaptureFxProps) => {
+const CaptureFx = ({ centre, floor, victim, durationMs, orientation }: CaptureFxProps) => {
   const ice = victim.color === 'white';
   const at = durationMs * 0.85;
   const base: [number, number, number] = [floor[0], floor[1] + 0.3, floor[2]];
   return (
     <>
-      <Victim victim={victim} centre={centre} breakAt={at} />
+      <Victim victim={victim} centre={centre} breakAt={at} orientation={orientation} />
       <Shards
         position={base}
         geometry={ice ? iceShard : rockChunk}
