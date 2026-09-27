@@ -1,6 +1,7 @@
 import React from 'react';
 import { useDesignChoice } from '../three/designs/context';
 import { DESIGNS } from '../three/designs/registry';
+import { pickerSections } from '../three/designs/groups';
 import type { DesignEntry } from '../three/designs/types';
 
 const Swatch = ({ colors }: { colors: DesignEntry['swatch'] }) => (
@@ -105,37 +106,60 @@ const DesignPicker: React.FC = () => {
             zIndex: 1003,
           }}
         >
-          {DESIGNS.map((d) => (
-            <li key={d.id}>
-              <button
-                type="button"
-                aria-current={d.id === id}
-                onClick={() => {
-                  choose(d.id);
-                  setOpen(false);
-                }}
-                style={{
-                  display: 'flex',
-                  gap: 10,
-                  width: '100%',
-                  textAlign: 'left',
-                  alignItems: 'flex-start',
-                  padding: '8px 10px',
-                  borderRadius: 6,
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'inherit',
-                  font: 'inherit',
-                  background: d.id === id ? 'rgba(127,127,127,0.25)' : 'transparent',
-                }}
-              >
-                <Swatch colors={d.swatch} />
-                <span>
-                  <span style={{ display: 'block', fontWeight: 600, fontSize: 14 }}>{d.name}</span>
-                  <span style={{ display: 'block', fontSize: 12, opacity: 0.75 }}>{d.blurb}</span>
-                </span>
-              </button>
-            </li>
+          {pickerSections(DESIGNS).map((section, i) => (
+            <React.Fragment key={section.label ?? `section-${i}`}>
+              {section.label && (
+                <li
+                  role="presentation"
+                  style={{
+                    padding: i === 0 ? '4px 10px 2px' : '12px 10px 2px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    opacity: 0.6,
+                  }}
+                >
+                  {section.label}
+                </li>
+              )}
+              {section.entries.map((d) => (
+                <li key={d.id}>
+                  <button
+                    type="button"
+                    aria-current={d.id === id}
+                    onClick={() => {
+                      choose(d.id);
+                      setOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      gap: 10,
+                      width: '100%',
+                      textAlign: 'left',
+                      alignItems: 'flex-start',
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'inherit',
+                      font: 'inherit',
+                      background: d.id === id ? 'rgba(127,127,127,0.25)' : 'transparent',
+                    }}
+                  >
+                    <Swatch colors={d.swatch} />
+                    <span>
+                      <span style={{ display: 'block', fontWeight: 600, fontSize: 14 }}>
+                        {d.name}
+                      </span>
+                      <span style={{ display: 'block', fontSize: 12, opacity: 0.75 }}>
+                        {d.blurb}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </React.Fragment>
           ))}
         </ul>
       )}

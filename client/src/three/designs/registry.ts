@@ -2,10 +2,22 @@ import classic from './classic';
 import type { DesignEntry } from './types';
 
 /**
- * Every design the picker offers, in the order it lists them. The classic
- * design is bundled with the app; each other design is a separate chunk.
+ * Every design, listed by the picker under its group (in DESIGN_GROUPS
+ * order, see groups.ts) and in this order within it; `hidden` ones are only
+ * reachable by `?design=<id>`.
+ * The classic design is bundled with the app; each other design is a
+ * separate chunk.
  */
 export const DESIGNS: DesignEntry[] = [
+  {
+    id: 'kit-demo',
+    name: 'Kit Demo',
+    blurb: 'The clarity kit on neutral styling: the template for new designs.',
+    swatch: ['#2c333f', '#f1ebdf', '#262a31', '#4cc9f0'],
+    load: () => import('./kit-demo'),
+    group: 'clarity',
+    hidden: true,
+  },
   {
     id: 'classic',
     name: 'Classic',
@@ -13,6 +25,7 @@ export const DESIGNS: DesignEntry[] = [
     swatch: ['#c2cbd8', '#f2ead8', '#413b35', '#14b8a6'],
     // Bundled: it is the default, drawn before any other design has loaded.
     load: async () => ({ default: classic }),
+    group: 'classic',
   },
   {
     id: 'royal',
@@ -20,6 +33,7 @@ export const DESIGNS: DesignEntry[] = [
     blurb: 'Marble and onyx on five glass boards framed in gold, in a candlelit salon.',
     swatch: ['#1c1416', '#efe6d6', '#1d1b1c', '#d9ae55'],
     load: () => import('./royal'),
+    group: 'earlier',
   },
   {
     id: 'synthwave',
@@ -27,6 +41,7 @@ export const DESIGNS: DesignEntry[] = [
     blurb: 'Neon wireframes over an endless retro grid at sunset.',
     swatch: ['#120021', '#27e3ff', '#ff2bd6', '#ffb400'],
     load: () => import('./synthwave'),
+    group: 'earlier',
   },
   {
     id: 'crystal',
@@ -34,6 +49,7 @@ export const DESIGNS: DesignEntry[] = [
     blurb: 'Clear crystal against amethyst on frosted glass, in pastel light.',
     swatch: ['#f3e8ff', '#ffffff', '#8b5cf6', '#f472b6'],
     load: () => import('./crystal'),
+    group: 'earlier',
   },
   {
     id: 'cosmos',
@@ -41,6 +57,7 @@ export const DESIGNS: DesignEntry[] = [
     blurb: 'A constellation board adrift in a nebula; suns against dark stars.',
     swatch: ['#050716', '#ffd27a', '#6d5dfc', '#7dd3fc'],
     load: () => import('./cosmos'),
+    group: 'earlier',
   },
   {
     id: 'toybox',
@@ -48,6 +65,7 @@ export const DESIGNS: DesignEntry[] = [
     blurb: 'Chunky painted-wood toys on stacked candy-coloured trays.',
     swatch: ['#8fd3ff', '#fff4dc', '#2b3a67', '#ff6b6b'],
     load: () => import('./toybox'),
+    group: 'earlier',
   },
   {
     id: 'hologram',
@@ -55,6 +73,7 @@ export const DESIGNS: DesignEntry[] = [
     blurb: 'A war-room projection: flickering holo pieces over a projector table.',
     swatch: ['#020b14', '#3cf2ff', '#ff9a3c', '#9dfcff'],
     load: () => import('./hologram'),
+    group: 'earlier',
   },
   {
     id: 'bauhaus',
@@ -62,6 +81,7 @@ export const DESIGNS: DesignEntry[] = [
     blurb: 'Primary-colour primitives on a floating cube of paper tiles, before a printed poster.',
     swatch: ['#f1ebdd', '#e63b2e', '#1f4bd8', '#f6c62a'],
     load: () => import('./bauhaus'),
+    group: 'earlier',
   },
   {
     id: 'blueprint',
@@ -69,6 +89,7 @@ export const DESIGNS: DesignEntry[] = [
     blurb: 'Pieces drawn as technical line art on drafting blue; moves measured, captures erased.',
     swatch: ['#0d3f94', '#eef5ff', '#041536', '#ffe066'],
     load: () => import('./blueprint'),
+    group: 'earlier',
   },
   {
     id: 'arcade',
@@ -76,6 +97,7 @@ export const DESIGNS: DesignEntry[] = [
     blurb: 'Chunky voxels, pixel rendering and a CRT glow.',
     swatch: ['#1a0b2e', '#ffe9a8', '#b04cff', '#39ff88'],
     load: () => import('./arcade'),
+    group: 'earlier',
   },
   {
     id: 'elemental',
@@ -83,6 +105,7 @@ export const DESIGNS: DesignEntry[] = [
     blurb: 'Carved ice against molten obsidian, with snow and embers.',
     swatch: ['#0d0f1a', '#bfe9ff', '#ff5a1f', '#7ad7ff'],
     load: () => import('./elemental'),
+    group: 'earlier',
   },
   {
     id: 'zen',
@@ -90,5 +113,6 @@ export const DESIGNS: DesignEntry[] = [
     blurb: 'River stones on pale maple trays, drifting blossoms.',
     swatch: ['#e9e4d8', '#f4f1ea', '#3b3a38', '#c44536'],
     load: () => import('./zen'),
+    group: 'earlier',
   },
 ];
