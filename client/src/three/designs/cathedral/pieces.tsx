@@ -11,7 +11,7 @@ import {
   RingGeometry,
   Vector3,
 } from 'three';
-import type { Group } from 'three';
+import type { Camera, Group } from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { ChessPiece } from '../../pieces';
 import { LAYER } from '../kit/layers';
@@ -270,9 +270,26 @@ const beadMaterials = LEVEL.map((c) => glassMaterial(c, 1));
 /** Under the pointer: the level's own ring, wider and brighter (gilt means "go here"). */
 const hoverMaterials = LEVEL.map((c) => glassMaterial(c, 1));
 
-const toCamera = new Vector3();
+const toViewer = new Vector3();
 const parentTurn = new Quaternion();
 const turn = new Euler();
+
+/**
+ * Toward the viewer along the board: the camera's view direction reversed
+ * and laid flat, one heading for every piece (not the way to the camera
+ * from each piece, which from above fans out round the board). Looking
+ * straight down that has no horizontal part, so the bottom of the screen
+ * stands in for it.
+ */
+const towardViewer = (camera: Camera, out: Vector3) => {
+  camera.getWorldDirection(out).negate();
+  out.y = 0;
+  if (out.lengthSq() < 1e-10) {
+    out.set(0, -1, 0).applyQuaternion(camera.quaternion);
+    out.y = 0;
+  }
+  return out;
+};
 
 /**
  * The square a piece stands on, outlined faintly in its level's colour and
@@ -301,21 +318,23 @@ export const setFootprintStrength = (k: number) => {
 
 /**
  * The level's number as beads on the ring (one on A, five on E), a short
- * row that always turns to face the camera, so it lies in front of the
- * piece from any side and can be counted from above; and, from high above,
- * the piece's square, kept square to the board whichever way the piece faces.
+ * row turned toward the viewer along the camera's heading, so it lies in
+ * front of the piece from any side, and every piece's row lies the same way
+ * from above; and, from high above, the piece's square, kept square to the
+ * board whichever way the piece faces.
  */
 const LevelBeads = ({ level }: { level: number }) => {
   const group = useRef<Group>(null);
   const squared = useRef<Group>(null);
+  // Frames come when the camera moves (the controls ask for one), so the
+  // rows follow it without keeping the scene rendering
   useFrame(({ camera }) => {
     const g = group.current;
     if (!g?.parent) return;
-    g.getWorldPosition(toCamera);
-    toCamera.subVectors(camera.position, toCamera);
+    towardViewer(camera, toViewer);
     g.parent.getWorldQuaternion(parentTurn);
     turn.setFromQuaternion(parentTurn, 'YXZ');
-    g.rotation.y = Math.atan2(toCamera.x, toCamera.z) - turn.y;
+    g.rotation.y = Math.atan2(toViewer.x, toViewer.z) - turn.y;
     if (squared.current) squared.current.rotation.y = -turn.y;
   });
   const n = level + 1;
