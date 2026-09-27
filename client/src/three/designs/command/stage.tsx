@@ -1,0 +1,176 @@
+import { useEffect, useMemo, useRef } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import { Environment, Lightformer } from '@react-three/drei';
+import { BackSide, Color, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
+import type { DirectionalLight } from 'three';
+import { noRaycast } from '../kit/noRaycast';
+import { GradientSky } from '../kit/sky';
+import type { StageProps } from '../types';
+import { view } from './fx';
+import { PALETTE, ROOM_FLOOR_Y } from './shared';
+
+// The operations room: a navy-to-black dome, and far below the tower the
+// plotting floor of a tactical display, a few range rings and bearing lines
+// that fade with distance, under a faint pool of light. Everything is radially
+// symmetric, so the room looks the same from every side and both seats. The
+// lights ride with the camera, so the pieces are lit the same way whichever
+// way the player turns the tower (no hot specular from one side only).
+
+const floorVertex = /* glsl */ `
+  varying vec2 vP;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vP = w.xz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }`;
+
+const floorFragment = /* glsl */ `
+  uniform vec3 uLine;
+  uniform vec3 uGlow;
+  uniform float uRingStep;
+  varying vec2 vP;
+  void main() {
+    float r = length(vP);
+    float fr = max(fwidth(r), 1e-4);
+    // Range rings; they thin out where they would shimmer at grazing angles
+    float ringD = abs(fract(r / uRingStep + 0.5) - 0.5) * uRingStep;
+    float ring = 1.0 - smoothstep(0.012, 0.012 + fr * 1.5, ringD);
+    ring *= 1.0 - smoothstep(0.08, 0.3, fr / uRingStep * 2.0);
+    // Every third ring is a major one
+    float major = step(abs(fract(r / (uRingStep * 3.0) + 0.5) - 0.5) * 3.0, 0.5);
+    // Bearing lines every 30 degrees, starting clear of the tower
+    float seg = 6.2831853 / 12.0;
+    float ang = atan(vP.y, vP.x);
+    float spokeD = abs(fract(ang / seg + 0.5) - 0.5) * seg * r;
+    float spoke = (1.0 - smoothstep(0.01, 0.01 + fr * 1.5, spokeD)) * smoothstep(4.5, 6.5, r);
+    spoke *= 1.0 - smoothstep(0.08, 0.3, fr * 2.0);
+    // Nothing sharp directly under the tower, where it would show through the glass
+    float clear = smoothstep(4.2, 7.0, r);
+    float fade = 1.0 - smoothstep(8.0, 22.0, r);
+    float lines = max(ring * (0.4 + 0.6 * major), spoke * 0.5) * clear * fade;
+    float glow = exp(-r * r / (2.0 * 4.2 * 4.2));
+    vec3 col = uGlow * glow + uLine * lines;
+    float a = clamp(glow * 0.9 + lines * 0.22, 0.0, 1.0);
+    if (a < 0.002) discard;
+    gl_FragColor = vec4(col / max(a, 1e-3), a);
+    #include <colorspace_fragment>
+  }`;
+
+const floorPlane = new PlaneGeometry(70, 70).rotateX(-Math.PI / 2);
+
+/** The plotting floor far below the tower. */
+const PlotFloor = () => {
+  const material = useMemo(
+    () =>
+      new ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        fog: false,
+        uniforms: {
+          uLine: { value: new Color(PALETTE.floorLine) },
+          uGlow: { value: new Color(PALETTE.floorGlow) },
+          uRingStep: { value: 2.6 },
+        },
+        vertexShader: floorVertex,
+        fragmentShader: floorFragment,
+      }),
+    [],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+  return (
+    <mesh
+      geometry={floorPlane}
+      material={material}
+      position={[0, ROOM_FLOOR_Y, 0]}
+      renderOrder={-900}
+      raycast={noRaycast}
+    />
+  );
+};
+
+const UP = new Vector3(0, 1, 0);
+const forward = new Vector3();
+const right = new Vector3();
+const origin = new Vector3();
+
+/**
+ * A key light above the camera's left shoulder and a cool fill low on its
+ * right, both following the camera round the tower.
+ */
+const CameraLights = () => {
+  const key = useRef<DirectionalLight>(null);
+  const fill = useRef<DirectionalLight>(null);
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls) as unknown as { target?: Vector3 } | null;
+  useFrame(() => {
+    const target = controls?.target ?? origin;
+    forward.copy(target).sub(camera.position).normalize();
+    right.crossVectors(forward, UP).normalize();
+    for (const [light, back, side, up] of [
+      [key.current, 8, -5, 9],
+      [fill.current, 6, 7, 1],
+    ] as const) {
+      if (!light) continue;
+      light.position
+        .copy(target)
+        .addScaledVector(forward, -back)
+        .addScaledVector(right, side)
+        .addScaledVector(UP, up);
+      light.target.position.copy(target);
+      light.target.updateMatrixWorld();
+    }
+  });
+  return (
+    <>
+      <directionalLight ref={key} intensity={2.2} color="#fff6ea" />
+      <directionalLight ref={fill} intensity={0.7} color="#9fd0ff" />
+    </>
+  );
+};
+
+export const Stage = ({ orientation }: StageProps) => {
+  view.orientation = orientation;
+  return (
+    <>
+      <GradientSky
+        top={PALETTE.skyTop}
+        horizon={PALETTE.skyHorizon}
+        bottom={PALETTE.skyBottom}
+        exponent={0.55}
+      />
+      <PlotFloor />
+      {/* What the pieces' lacquer reflects: a dark room, a soft panel overhead
+          and a ring of dim display walls, the same all the way round */}
+      <Environment resolution={64} frames={1}>
+        <mesh scale={30}>
+          <sphereGeometry args={[1, 16, 8]} />
+          <meshBasicMaterial side={BackSide} color="#050b14" />
+        </mesh>
+        <Lightformer
+          form="rect"
+          intensity={1.6}
+          color="#eaf4ff"
+          position={[0, 9, 0]}
+          rotation-x={Math.PI / 2}
+          scale={[9, 9, 1]}
+        />
+        {[0, 1, 2, 3, 4, 5].map((i) => {
+          const a = (i / 6) * Math.PI * 2;
+          return (
+            <Lightformer
+              key={i}
+              form="rect"
+              intensity={0.7}
+              color="#5fcfff"
+              position={[Math.sin(a) * 9, 1.2, Math.cos(a) * 9]}
+              rotation-y={a + Math.PI}
+              scale={[6, 0.8, 1]}
+            />
+          );
+        })}
+      </Environment>
+      <hemisphereLight args={['#c4ddf2', '#0a1420', 0.7]} />
+      <CameraLights />
+    </>
+  );
+};
