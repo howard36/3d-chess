@@ -97,6 +97,7 @@ const fragmentShader = /* glsl */ `
     float area = 0.0;
     float rim = 0.0;
     float dens = 1.0;
+    float key = 0.0;   // a dark keyline (the closed ring)
 
     if (uKind == 0 || uKind == 1) {
       // s runs 0..1 along the stroke from where the brush came down
@@ -105,9 +106,12 @@ const fragmentShader = /* glsl */ `
       float s = t / span;
       float rr = uR * (1.0 + 0.012 * wobble(a, uSeed) + (uKind == 0 ? 0.03 * (s - 0.5) : 0.0));
       float w;
+      // Toward top-down the ensō's brush thins: seen from above the near
+      // levels' marks are larger on screen and would crowd their neighbours
+      float thin = uKind == 0 ? mix(1.0, 0.72, smoothstep(0.7, 0.95, normalize(cameraPosition - vWorld).y)) : 1.0;
       if (uKind == 0) {
         // Ensō: loaded at the touch-down, thinning hard as the brush lifts
-        w = uW * hover * mix(1.35, 0.3, pow(clamp(s, 0.0, 1.0), 1.1));
+        w = uW * thin * hover * mix(1.35, 0.3, pow(clamp(s, 0.0, 1.0), 1.1));
       } else {
         // Crescent: swelling to its middle, a point at each end
         w = uW * hover * pow(max(sin(3.14159 * clamp(s, 0.0, 1.0)), 0.0), 0.75);
@@ -118,7 +122,7 @@ const fragmentShader = /* glsl */ `
       if (uKind == 0 && drawn > 0.0) {
         // The brush's round head where it touched down
         vec2 p0 = rr * vec2(cos(uStart), sin(uStart));
-        d = min(d, length(p - p0) - uW * hover * 0.7);
+        d = min(d, length(p - p0) - uW * thin * hover * 0.7);
       }
       line = cover(d, aa);
       // Dry brush toward the lift
@@ -146,16 +150,25 @@ const fragmentShader = /* glsl */ `
       area = exp(-pow(r / max(rr, 1e-4), 2.0) * 2.2) * step(0.001, uProgress);
       line = cover(abs(r - rr) - uW * 0.5, aa) * step(0.001, uProgress);
     } else {
-      // A closed, even ring, drawn in as it appears
+      // A closed, even ring, drawn in as it appears, with a fine dark keyline
+      // on both sides so it holds apart from any mark or square under it
       float rr = uR * (0.85 + 0.15 * uProgress);
       line = cover(abs(r - rr) - uW * 0.5, aa) * uProgress;
+      float px = max(fwidth(r), 1e-4);
+      key = cover(abs(r - rr) - uW * 0.5 - px * 1.2, aa) * uProgress;
     }
 
     float strength = uOpacity * dens * (1.0 + 0.3 * uHover);
     float alpha = max(line * strength, area * (uFill + 0.2 * uHover));
-    if (alpha < 0.003 && uJewel <= 0.0) discard;
     // Under the pointer the pigment brightens toward moonlight
     vec3 col = mix(uColor, vec3(1.0), 0.35 * uHover) * mix(1.0, 0.8, rim);
+    if (key > 0.0) {
+      // The keyline under the line: ink where only the keyline covers
+      float ka = max(alpha, key * 0.8);
+      col = mix(vec3(0.02, 0.027, 0.055), col, alpha / max(ka, 1e-4));
+      alpha = ka;
+    }
+    if (alpha < 0.003 && uJewel <= 0.0) discard;
     // Mica: flecks in the stroke that catch the light as the view turns
     if (uMica > 0.0) {
       vec2 cell = floor(p * 90.0);

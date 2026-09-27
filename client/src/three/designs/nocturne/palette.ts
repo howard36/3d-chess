@@ -59,12 +59,12 @@ export const LACQUER = '#1c2236';
 export const SILVER = '#c3cde0';
 export const RIM = '#9fb2dc';
 /**
- * Inlay at the collars and the pieces' details: cobalt underglaze on
- * porcelain (blue-and-white, sometsuke), pewter on lacquer. Never a marker
- * colour: no gold (the last move), no bright silver (a destination), and the
- * cobalt is far deeper than any level's pigment.
+ * Inlay at the collars and the pieces' details: an ink blue on porcelain (a
+ * low-chroma cobalt, too grey to be taken for lapis, level D's pigment), and
+ * pewter on lacquer. Never a marker colour: no gold (the last move), no
+ * bright silver (a destination).
  */
-export const INLAY_INK = '#34508f';
+export const INLAY_INK = '#2e3a5e';
 export const INLAY_PEWTER = '#737d95';
 
 /** Legal destinations: a silver ensō, the full moon. */

@@ -175,10 +175,10 @@ export const bodyMaterial = (color: PieceColor) => {
 
 /**
  * The inlay and painted details (collar, knight's mane, bishop's cut,
- * unicorn's spiral, queen's pearls, king's cross), one material per army so
- * they draw as one mesh: sumi ink on porcelain, pewter on lacquer. Neither is
- * a marker colour (no gold, no bright silver), and each contrasts with its
- * own body, so the details read at game size.
+ * unicorn's spiral, and on lacquer the queen's pearls and king's cross), one
+ * material per army so they draw as one mesh: ink blue on porcelain, pewter
+ * on lacquer. Neither is a marker or level colour, and each contrasts with
+ * its own body, so the details read at game size.
  */
 export const detailMaterial: Record<PieceColor, MeshStandardMaterial> = {
   white: new MeshStandardMaterial({ color: INLAY_INK, roughness: 0.4, envMapIntensity: 0.6 }),
@@ -523,6 +523,11 @@ const floorMaterial = (color: string, pitch: number) => {
   return m;
 };
 
+/** Whether a piece's accent keeps its body's glaze rather than the inlay. */
+const glazedAccent = (type: PieceType, color: PieceColor) =>
+  type === PieceType.Rook ||
+  (color === 'white' && (type === PieceType.Queen || type === PieceType.King));
+
 /** One piece's meshes, with its line. */
 export const PieceMeshes = ({
   type,
@@ -544,9 +549,11 @@ export const PieceMeshes = ({
       parts={{
         body,
         collar: detailMaterial[color],
-        // The rook's accent is its whole hollow: left in the body's glaze, so
-        // from above a rook still reads as its own army
-        accent: type === PieceType.Rook ? body : detailMaterial[color],
+        // The rook's accent is its whole hollow, left in the body's glaze so
+        // from above a rook still reads as its own army; on porcelain the
+        // queen's pearls and the king's cross stay porcelain too (drawn by
+        // the line), so a white royal keeps its army's value
+        accent: glazedAccent(type, color) ? body : detailMaterial[color],
         foot,
       }}
     />

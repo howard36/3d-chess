@@ -227,7 +227,8 @@ const Capture = ({ floor, hovered }: MarkerProps) => (
  * it). From the side, the moon halo rising behind the piece says the rest.
  * From above, where the halo fades and the piece (or one stacked over it)
  * hides the pool, a closed, even silver ring, the full moon's disc, fades in
- * and shows through the whole stack.
+ * and shows through the whole stack: outside every other mark (a capture's
+ * vermilion ring is at 0.43), drawn last, with a dark keyline each side.
  */
 const Selection = ({ floor }: MarkerProps) => (
   <>
@@ -247,14 +248,14 @@ const Selection = ({ floor }: MarkerProps) => (
       floor={floor}
       kind="ring"
       color={SELECT}
-      radius={0.44 * pitch}
+      radius={0.47 * pitch}
       width={0.03 * pitch}
       opacity={0.9}
       drawMs={300}
       topOnly
       depthTest={false}
-      quad={pitch}
-      renderOrder={LAYER.trace + 0.5}
+      quad={pitch * 1.1}
+      renderOrder={LAYER.trace + 0.9}
     />
   </>
 );

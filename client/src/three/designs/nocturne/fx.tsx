@@ -396,19 +396,28 @@ const mistFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-/** Puffs of mist rising from where a piece stood, thinning away. */
+/**
+ * Puffs of mist rising from where a piece stood, thinning away. With
+ * `clearMs`, every puff has faded by then (counted from mount): the moment
+ * the capturer lands, so the mist never lies over it.
+ */
 const MistPuffs = ({
   at,
   color,
   count = 36,
   delayMs = 0,
   height = 0.6,
+  lift = 0,
+  clearMs,
 }: {
   at: Vec3;
   color: string;
   count?: number;
   delayMs?: number;
   height?: number;
+  /** Start this much higher than the piece's own volume (world units). */
+  lift?: number;
+  clearMs?: number;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
   const size = useThree((s) => s.size);
@@ -465,6 +474,12 @@ const MistPuffs = ({
     if (done.current) return;
     elapsed.current += Math.min(delta, MAX_FRAME);
     material.uniforms.uTime.value = elapsed.current;
+    if (clearMs !== undefined) {
+      // Thinning to nothing over the last 0.2 s before the capturer lands
+      const since = elapsed.current + delayMs / 1000;
+      const left = clearMs / 1000 - since;
+      material.uniforms.uOpacity.value = 0.32 * clamp01(left / 0.2);
+    }
     // Point sizes are in pixels: scale world size by the view's pixels per unit at depth 1
     const camera = state.camera as { fov?: number };
     const fov = ((camera.fov ?? 36) * Math.PI) / 180;
@@ -480,7 +495,7 @@ const MistPuffs = ({
       ref={points}
       geometry={geometry}
       material={material}
-      position={at}
+      position={[at[0], at[1] + lift, at[2]]}
       renderOrder={LAYER.trace}
       raycast={noRaycast}
       frustumCulled={false}
@@ -490,7 +505,8 @@ const MistPuffs = ({
 
 /**
  * The taken piece dissolves into mist as the capturer glides in: holes open
- * through it from the top down with silver edges, its mist rises and thins,
+ * through it from the top down with silver edges, its mist rises and thins
+ * away before the capturer lands (never over it),
  * and a vermilion ripple spreads under the capturer as it lands.
  */
 export const makeCaptureFx = (pieceScale: number) => {
@@ -544,6 +560,8 @@ export const makeCaptureFx = (pieceScale: number) => {
           color={victim.color === 'white' ? '#aeb8d2' : '#6c7898'}
           delayMs={start * 1000}
           height={0.62 * pieceScale}
+          lift={0.1}
+          clearMs={land * 1000}
         />
         <Ripple
           floor={floor}
