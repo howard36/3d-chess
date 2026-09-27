@@ -12,8 +12,8 @@ import type { Group } from 'three';
 import { LAYER } from '../kit/layers';
 import { FloorMarker } from '../kit/markers';
 import { noRaycast } from '../kit/noRaycast';
+import { LastMoveLine } from '../kit/line';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
-import { Route } from './route';
 import { FRAME, MOTION, PALETTE } from './shared';
 
 // Markers: targeting brackets flat on the glass, one family throughout, each
@@ -21,8 +21,9 @@ import { FRAME, MOTION, PALETTE } from './shared';
 // - A move: green brackets. Under the pointer they brighten, thicken and fill.
 // - A capture: the same brackets in red, with teeth pointing in.
 // - The last move: violet brackets on both squares (set a little wider, so
-//   they nest round a move bracket on the same square), joined by a route
-//   whose bright chevrons flow gently toward the destination.
+//   they nest round a move bracket on the same square), joined by a thin
+//   dashed course, straight from square to square, whose dashes drift gently
+//   toward the destination.
 // - Check: bold red brackets, a ring and a short column of red light.
 // - The selection is the one place with lively motion: a bezel that locks on
 //   and sweeps like sonar, and a soft column of light through every level
@@ -449,13 +450,14 @@ export const Selection = ({ floor }: MarkerProps) => {
 const LAST = { color: PALETTE.lastMove, inset: 0.03, lineWidth: 0.07, bracketLength: 0.42 };
 
 /**
- * The last move: violet brackets on both squares and the route between them,
- * its bright chevrons flowing gently to the destination. A live move's route
- * is plotted as the piece lands (its own streak of light flies the path
- * first): the brackets lock on and the route shoots from source to target. A
- * replayed or rejoined move is simply there.
+ * The last move: violet brackets on both squares and the course plotted
+ * between them, a thin dashed line straight from square to square whose
+ * dashes, bright at their fronts, drift gently toward the destination. A
+ * live move's course is plotted as the piece lands (its own streak of light
+ * flies the path first): the brackets lock on and the line shoots from source
+ * to target. A replayed or rejoined move is simply there.
  */
-export const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => {
+export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
   const group = useRef<Group>(null);
   const since = useRef(0);
   const invalidate = useThree((s) => s.invalidate);
@@ -476,21 +478,18 @@ export const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => {
         <Brackets floor={from.floor} {...LAST} opacity={0.75} fill={0.04} />
         <Brackets floor={to.floor} {...LAST} opacity={1} fill={0.06} />
       </group>
-      <Route
+      <LastMoveLine
         from={from.floor}
         to={to.floor}
+        arc={arc}
         color={PALETTE.lastMove}
-        glint={PALETTE.lastMoveGlint}
-        edge={PALETTE.lastMoveEdge}
-        width={0.1}
-        headLength={0.4}
-        headWidth={0.36}
-        chevrons={0.42}
+        pulseColor={PALETTE.lastMoveGlint}
+        pattern="dashed"
+        radius={0.018}
+        spacing={0.2}
+        dash={0.62}
+        pulse={0.85}
         flowSpeed={0.3}
-        arc={0.4}
-        lift={0.03}
-        endInset={0.44}
-        startInset={0.12}
         drawInMs={fresh ? 260 : 0}
         drawInDelayMs={land}
       />

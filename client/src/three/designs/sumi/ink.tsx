@@ -9,8 +9,9 @@ import {
   ShaderMaterial,
 } from 'three';
 import { LAYER } from '../kit/layers';
-import { ribbonData, tracePath } from '../kit/markerGeometry';
+import { tracePath, tubeData } from '../kit/markerGeometry';
 import type { TracePathOptions } from '../kit/markerGeometry';
+import { prefersReducedMotion } from '../../motion';
 import { noRaycast } from '../kit/noRaycast';
 import type { Vec3 } from '../types';
 
@@ -18,8 +19,9 @@ import type { Vec3 } from '../types';
 // circle, heavy where the brush touches down and thinning as it lifts), the
 // same ensō turned into a target for a capture, a square seal for check, an
 // ink bloom under the selected piece, and the last move's brush stroke. Each
-// is a flat quad shaded procedurally, so it stays crisp at any distance, and
-// is drawn on the kit's layers, over every platform.
+// mark is a flat quad shaded procedurally, so it stays crisp at any distance;
+// the stroke is a thin inked tube. All are drawn on the kit's layers, over
+// every platform.
 
 const MAX_FRAME = 1 / 30;
 
@@ -294,53 +296,36 @@ export const InkMark = ({
 
 // --- The last move's brush stroke ---------------------------------------------
 
-/** Length of a trace along its path (the largest `aAlong`). */
-const lengthOf = (g: BufferGeometry) => {
-  const along = g.getAttribute('aAlong');
-  let max = 0;
-  for (let i = 0; i < along.count; i++) max = Math.max(max, along.getX(i));
-  return max;
-};
-
-const traceVertex = /* glsl */ `
-  attribute vec3 aTangent;
-  attribute float aSide;
-  attribute float aHalf;
+const strokeVertex = /* glsl */ `
   attribute float aAlong;
-  uniform float uShaftEnd;
-  uniform float uLength;
-  varying float vAcross;
-  varying float vHalf;
+  attribute float aAngle;
   varying float vAlong;
+  varying float vAngle;
+  varying vec3 vNormal;
+  varying vec3 vView;
   void main() {
-    // Brush pressure: a hairline where the brush enters at the source,
-    // swelling to full width about 70% of the way, full into the head
-    float taper = mix(0.1, 1.0, smoothstep(0.0, uLength * 0.7, aAlong));
-    float halfWidth = aHalf * (aAlong < uShaftEnd ? taper : 1.0);
     vec4 world = modelMatrix * vec4(position, 1.0);
-    vec3 t = normalize(mat3(modelMatrix) * aTangent);
-    vec3 toCamera = normalize(cameraPosition - world.xyz);
-    vec3 across = cross(t, toCamera);
-    float l = length(across);
-    across = l > 1e-4 ? across / l : vec3(1.0, 0.0, 0.0);
-    world.xyz += across * aSide * halfWidth;
-    vAcross = aSide * halfWidth;
-    vHalf = halfWidth;
     vAlong = aAlong;
+    vAngle = aAngle;
+    vNormal = normalize(mat3(modelMatrix) * normal);
+    vView = cameraPosition - world.xyz;
     gl_Position = projectionMatrix * viewMatrix * world;
   }`;
 
-const traceFragment = /* glsl */ `
+const strokeFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform vec3 uEdge;
+  uniform vec3 uWet;
   uniform float uOpacity;
-  uniform float uShaftEnd;
   uniform float uLength;
   uniform float uSeed;
   uniform float uDraw;
-  varying float vAcross;
-  varying float vHalf;
+  uniform float uTime;
+  uniform float uFlow;
   varying float vAlong;
+  varying float vAngle;
+  varying vec3 vNormal;
+  varying vec3 vView;
 
   float hash(float n) { return fract(sin(n) * 43758.5453123); }
   float vnoise(float x) {
@@ -353,78 +338,89 @@ const traceFragment = /* glsl */ `
   void main() {
     // Brushed in from the source: nothing beyond the brush's tip yet
     if (vAlong > uDraw) discard;
-    float head = step(uShaftEnd, vAlong);
-    // The flicked head: its flanks frayed, as the brush lifts off sideways
-    float fray = head * 0.12 * (vnoise(vAlong * 90.0 + uSeed) - 0.5);
-    float halfWidth = vHalf * (1.0 + fray);
-    float d = abs(vAcross);
-    float aa = max(fwidth(vAcross), 1e-4);
-    float body = 1.0 - smoothstep(halfWidth - aa, halfWidth + aa * 0.5, d);
-    float u = vHalf > 1e-4 ? vAcross / vHalf : 0.0;
-    // Bristle gaps running along the stroke: many where the brush entered
-    // light and dry, a few all the way to the head
-    float s = vAlong / max(uLength, 1e-4);
-    float dry = mix(0.6, 0.2, smoothstep(0.0, 0.6, s)) * (1.0 - head * 0.6);
-    float n = vnoise(u * 5.5 + 3.0 + uSeed) * 0.75 + vnoise(vAlong * 11.0 + u * 2.0) * 0.25;
-    body *= smoothstep(dry - 0.07, dry + 0.07, n);
+    float s = clamp(vAlong / max(uLength, 1e-4), 0.0, 1.0);
+    // Bristle gaps running along the stroke, round the tube: many where the
+    // brush entered light and dry, a few all the way to the end
+    float dry = mix(0.55, 0.18, smoothstep(0.0, 0.6, s));
+    float a8 = vAngle * 8.0;
+    float n = vnoise(a8 * 1.7 + uSeed) * 0.75 + vnoise(vAlong * 11.0 + a8 * 0.5) * 0.25;
+    float ink = smoothstep(dry - 0.08, dry + 0.08, n);
+    if (ink < 0.02) discard;
     // Ink density varies with the brush's load
-    body *= 0.9 + 0.1 * vnoise(vAlong * 17.0 + uSeed * 2.0);
-    // A crisp indigo edge keeps it legible over paper and every sheet
-    float rim = smoothstep(0.62, 0.92, abs(u));
-    vec3 col = mix(uColor, uEdge, rim);
-    float a = body * uOpacity;
-    if (a < 0.003) discard;
+    float load = 0.88 + 0.12 * vnoise(vAlong * 17.0 + uSeed * 2.0);
+    // Round: the flanks of the stroke darken to the indigo edge
+    float facing = abs(dot(normalize(vNormal), normalize(vView)));
+    vec3 col = mix(uEdge, uColor * load, smoothstep(0.15, 0.7, facing));
+    // Still wet: a faint sheen drifting from the source toward the destination
+    float x = (fract((vAlong - uTime * uFlow) / 1.8) - 0.5) * 1.8 / 0.35;
+    col = mix(col, uWet, 0.3 * exp(-x * x * 4.0) * facing);
+    float a = ink * uOpacity;
     gl_FragColor = vec4(col, a);
     #include <colorspace_fragment>
   }`;
 
-export interface BrushTraceProps extends TracePathOptions {
+// The stroke's sheen reads one clock
+const sheenClock = { value: 0 };
+
+export interface BrushTraceProps extends Omit<TracePathOptions, 'arc'> {
   from: Vec3;
   to: Vec3;
+  /** The move's arc (LastMoveMarkerProps.arc): a knight's stroke follows its arc. */
+  arc?: number;
   color: string;
   edgeColor: string;
+  /** The wet sheen drifting along the stroke. */
+  wetColor?: string;
   opacity?: number;
-  width?: number;
-  headLength?: number;
-  headWidth?: number;
+  /** Radius of the stroke at full pressure. */
+  radius?: number;
+  /** Speed of the sheen (world units a second; 0: still). */
+  flowSpeed?: number;
   /** Brush the stroke in from the source over this long (0: at once). */
   drawMs?: number;
   delayMs?: number;
 }
 
 /**
- * The last move as one brush stroke from the source square to the
- * destination: straight along a platform, arcing between levels (the kit's
- * path): a hairline where the brush enters, swelling to full by about 70%,
- * bristle gaps along its length, and a flicked arrowhead that lands on the
- * floor at the near edge of the destination's ensō, clear of the piece.
+ * The last move as one brush stroke, a thin inked tube straight from the
+ * centre of the source square to the centre of the destination (or along a
+ * knight's arc): a hairline where the brush enters, swelling to full by
+ * about 70%, bristle gaps along its length, and a faint wet sheen drifting
+ * toward the destination. It ends in the piece that moved, which hides it.
  */
 export const BrushTrace = ({
   from,
   to,
+  arc = 0,
   color,
   edgeColor,
+  wetColor = '#a9c2f0',
   opacity = 1,
-  width = 0.11,
-  headLength = 0.4,
-  headWidth = 0.36,
+  radius = 0.028,
+  flowSpeed = 0.4,
   drawMs = 0,
   delayMs = 0,
-  ...pathOptions
+  lift,
+  segments,
 }: BrushTraceProps) => {
   const invalidate = useThree((s) => s.invalidate);
-  const key = JSON.stringify([from, to, width, headLength, headWidth, pathOptions]);
-  const { geometry, shaftEnd } = useMemo(() => {
-    const data = ribbonData(tracePath(from, to, pathOptions), { width, headLength, headWidth });
+  const key = JSON.stringify([from, to, arc, radius, lift, segments]);
+  const { geometry, length } = useMemo(() => {
+    const points = tracePath(from, to, { lift: lift ?? radius + 0.012, arc, segments });
+    const data = tubeData(points, {
+      radius,
+      radialSegments: 10,
+      // Brush pressure: a hairline where the brush enters, full by 70%
+      radiusAt: (s, total) => radius * (0.35 + 0.65 * smoothstep(0, total * 0.7, s)),
+    });
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(data.position, 3));
-    g.setAttribute('aTangent', new BufferAttribute(data.tangent, 3));
-    g.setAttribute('aSide', new BufferAttribute(data.side, 1));
-    g.setAttribute('aHalf', new BufferAttribute(data.halfWidth, 1));
+    g.setAttribute('normal', new BufferAttribute(data.normal, 3));
     g.setAttribute('aAlong', new BufferAttribute(data.along, 1));
-    g.setIndex(data.index);
+    g.setAttribute('aAngle', new BufferAttribute(data.angle, 1));
+    g.setIndex(new BufferAttribute(data.index, 1));
     g.computeBoundingSphere();
-    return { geometry: g, shaftEnd: data.length - Math.min(headLength, data.length * 0.6) };
+    return { geometry: g, length: data.length };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
   }, [key]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -434,40 +430,47 @@ export const BrushTrace = ({
       new ShaderMaterial({
         transparent: true,
         depthWrite: false,
-        side: DoubleSide,
         uniforms: {
           uColor: { value: new Color() },
           uEdge: { value: new Color() },
+          uWet: { value: new Color() },
           uOpacity: { value: 1 },
-          uShaftEnd: { value: 1 },
           uLength: { value: 1 },
           uSeed: { value: 0 },
           uDraw: { value: drawMs > 0 ? -1 : 1e6 },
+          uTime: sheenClock,
+          uFlow: { value: 0 },
         },
-        vertexShader: traceVertex,
-        fragmentShader: traceFragment,
+        vertexShader: strokeVertex,
+        fragmentShader: strokeFragment,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one material per stroke
     [],
   );
   useEffect(() => () => material.dispose(), [material]);
+  const flow = prefersReducedMotion() ? 0 : flowSpeed;
   const u = material.uniforms;
   (u.uColor.value as Color).set(color);
   (u.uEdge.value as Color).set(edgeColor);
+  (u.uWet.value as Color).set(wetColor);
   u.uOpacity.value = opacity;
-  const total = useMemo(() => lengthOf(geometry), [geometry]);
-  u.uShaftEnd.value = shaftEnd;
-  u.uLength.value = total;
+  u.uLength.value = length;
   u.uSeed.value = seedOf(from) * 10;
+  u.uFlow.value = flow;
 
-  // The brush sweeps from the source, quick then settling, and flicks the head on last
+  // The brush sweeps from the source, quick then settling
   const elapsed = useRef(-delayMs / 1000);
   const done = useRef(drawMs <= 0);
-  useFrame((_, delta) => {
+  useEffect(() => invalidate(), [invalidate]);
+  useFrame((state, delta) => {
+    if (flow !== 0) {
+      sheenClock.value = state.clock.elapsedTime;
+      invalidate();
+    }
     if (done.current) return;
     elapsed.current += Math.min(delta, MAX_FRAME);
     const k = Math.min(Math.max((elapsed.current * 1000) / drawMs, 0), 1);
-    u.uDraw.value = elapsed.current < 0 ? -1 : (1 - (1 - k) ** 2) * total + (k >= 1 ? 1 : 0);
+    u.uDraw.value = elapsed.current < 0 ? -1 : k >= 1 ? 1e6 : (1 - (1 - k) ** 2) * length;
     if (k >= 1) done.current = true;
     invalidate();
   });
@@ -481,4 +484,9 @@ export const BrushTrace = ({
       frustumCulled={false}
     />
   );
+};
+
+const smoothstep = (a: number, b: number, x: number) => {
+  const t = Math.min(Math.max((x - a) / (b - a || 1), 0), 1);
+  return t * t * (3 - 2 * t);
 };

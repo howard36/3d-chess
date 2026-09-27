@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
-  BufferAttribute,
-  BufferGeometry,
   CanvasTexture,
   Color,
   DoubleSide,
@@ -13,7 +11,7 @@ import {
 } from 'three';
 import type { Sprite, SpriteMaterial } from 'three';
 import { LAYER } from '../kit/layers';
-import { ribbonData, tracePath } from '../kit/markerGeometry';
+import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import {
@@ -36,7 +34,7 @@ import {
 // - the same sticker in cherry red, with four teeth biting in from its sides
 //   (they stop short of the victim's base, so they show): it can take here;
 // - sunflower: the last move's two squares, joined by a board-game path of
-//   round dots ending in an arrowhead on the glass;
+//   glossy beads running straight from square to square;
 // - red and filled, with a "!" bubble beside the king: check.
 // A sticker pops onto the glass when it appears (a quick overshoot) and then
 // holds perfectly still.
@@ -441,155 +439,28 @@ export const Selection = ({ floor }: MarkerProps) => {
 
 // --- Last move: a board-game path ----------------------------------------------------
 
-const traceVertex = /* glsl */ `
-  attribute vec3 aTangent;
-  attribute float aSide;
-  attribute float aHalf;
-  attribute float aAlong;
-  varying float vAcross;
-  varying float vHalf;
-  varying float vAlong;
-  void main() {
-    vec4 world = modelMatrix * vec4(position, 1.0);
-    vec3 t = normalize(mat3(modelMatrix) * aTangent);
-    vec3 toCamera = normalize(cameraPosition - world.xyz);
-    vec3 across = cross(t, toCamera);
-    float l = length(across);
-    across = l > 1e-4 ? across / l : vec3(1.0, 0.0, 0.0);
-    world.xyz += across * aSide * aHalf;
-    vAcross = aSide * aHalf;
-    vHalf = aHalf;
-    vAlong = aAlong;
-    gl_Position = projectionMatrix * viewMatrix * world;
-  }`;
-
-const traceFragment = /* glsl */ `
-  uniform vec3 uColor;
-  uniform vec3 uInk;
-  uniform float uInkWidth;
-  uniform float uDot;
-  uniform float uSpacing;
-  uniform float uShaftEnd;
-  uniform float uReveal;
-  varying float vAcross;
-  varying float vHalf;
-  varying float vAlong;
-  void main() {
-    vec3 col;
-    float a;
-    if (vAlong < uShaftEnd) {
-      // Round dots, like the spaces of a board-game path, popping in one by
-      // one as the path is drawn from the square the piece left
-      float k = floor(vAlong / uSpacing);
-      float centre = (k + 0.5) * uSpacing;
-      float grow = clamp((uReveal - centre) / (uSpacing * 1.5) + 0.5, 0.0, 1.0);
-      float r = uDot * grow;
-      float d = length(vec2(vAlong - centre, vAcross));
-      float aa = max(fwidth(d), 1e-4);
-      float body = 1.0 - smoothstep(r - aa, r + aa, d);
-      float disc = 1.0 - smoothstep(r + uInkWidth - aa, r + uInkWidth + aa, d);
-      if (grow <= 0.0 || disc < 0.004) discard;
-      // A gloss spot toward each dot's top
-      float gloss = 1.0 - smoothstep(0.0, r * 0.7, length(vec2(vAlong - centre, vAcross - r * 0.35)));
-      col = mix(uInk, mix(uColor, vec3(1.0), 0.35 * gloss), body);
-      a = disc;
-    } else {
-      if (uReveal < uShaftEnd) discard;
-      // The arrowhead: solid, inked round its edge
-      float d = abs(vAcross);
-      float aa = max(fwidth(vAcross), 1e-4);
-      float body = 1.0 - smoothstep(vHalf - aa, vHalf + aa * 0.5, d);
-      float rim = smoothstep(vHalf - uInkWidth - aa, vHalf - uInkWidth + aa, d);
-      col = mix(mix(uColor, vec3(1.0), 0.2 * (1.0 - d / max(vHalf, 1e-4))), uInk, rim);
-      a = body;
-      if (a < 0.004) discard;
-    }
-    gl_FragColor = vec4(col, a);
-    #include <colorspace_fragment>
-  }`;
-
-// The path: dots of this radius and spacing, and a head that ends on the
-// glass at the near edge of the destination's sticker, not under its piece
-const PATH = { dot: 0.05, spacing: 0.18, ink: 0.022, headLength: 0.34, headWidth: 0.36 };
-const PATH_SHAPE = { arc: 0.5, endInset: 0.4, startInset: 0.2, lift: 0.03 };
-const DRAW_IN_MS = 420;
-
-export const CandyPath = ({ from, to, fresh }: { from: Vec3; to: Vec3; fresh: boolean }) => {
-  const invalidate = useThree((s) => s.invalidate);
-  const key = JSON.stringify([from, to]);
-  const { geometry, length, shaftEnd, spacing } = useMemo(() => {
-    const width = (PATH.dot + PATH.ink) * 2;
-    const data = ribbonData(tracePath(from, to, PATH_SHAPE), {
-      width,
-      headLength: PATH.headLength,
-      headWidth: PATH.headWidth,
-    });
-    const g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(data.position, 3));
-    g.setAttribute('aTangent', new BufferAttribute(data.tangent, 3));
-    g.setAttribute('aSide', new BufferAttribute(data.side, 1));
-    g.setAttribute('aHalf', new BufferAttribute(data.halfWidth, 1));
-    g.setAttribute('aAlong', new BufferAttribute(data.along, 1));
-    g.setIndex(data.index);
-    g.computeBoundingSphere();
-    const shaft = data.length - Math.min(PATH.headLength, data.length * 0.6);
-    // Whole dots only: stretch the spacing a touch so the last one ends at the head
-    const n = Math.max(1, Math.round(shaft / PATH.spacing));
-    return { geometry: g, length: data.length, shaftEnd: shaft, spacing: shaft / n };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
-  }, [key]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  const material = useMemo(
-    () =>
-      new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        side: DoubleSide,
-        uniforms: {
-          uColor: { value: new Color(SUNFLOWER) },
-          uInk: { value: new Color(INK) },
-          uInkWidth: { value: PATH.ink },
-          uDot: { value: PATH.dot },
-          uSpacing: { value: PATH.spacing },
-          uShaftEnd: { value: 1 },
-          uReveal: { value: 1e6 },
-        },
-        vertexShader: traceVertex,
-        fragmentShader: traceFragment,
-      }),
-    [],
-  );
-  useEffect(() => () => material.dispose(), [material]);
-  material.uniforms.uShaftEnd.value = shaftEnd;
-  material.uniforms.uSpacing.value = spacing;
-  // A live move draws its path in, dot by dot; a replayed one shows it whole
-  const drawn = useRef(fresh ? 0 : 1);
-  useEffect(() => invalidate(), [invalidate]);
-  useFrame((_, delta) => {
-    if (drawn.current >= 1) {
-      material.uniforms.uReveal.value = 1e6;
-      return;
-    }
-    drawn.current = Math.min(1, drawn.current + (Math.min(delta, 1 / 30) * 1000) / DRAW_IN_MS);
-    material.uniforms.uReveal.value = drawn.current >= 1 ? 1e6 : drawn.current * length;
-    invalidate();
-  });
-  return (
-    <mesh
-      geometry={geometry}
-      material={material}
-      renderOrder={LAYER.trace}
-      raycast={noRaycast}
-      frustumCulled={false}
-    />
-  );
-};
-
-export const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => (
+/**
+ * The last move: sunflower stickers on both squares, joined by a row of
+ * glossy candy beads, like the spaces of a board-game path, running straight
+ * from square to square and drifting slowly toward the destination. A live
+ * move lays the beads down one by one from the square the piece left.
+ */
+export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
   <>
     <Sticker floor={from.floor} color={SUNFLOWER} fill={0.06} dashes={12} pop={false} />
     <Sticker floor={to.floor} color={SUNFLOWER} fill={0.12} pop={fresh} />
-    <CandyPath from={from.floor} to={to.floor} fresh={fresh} />
+    <LastMoveLine
+      from={from.floor}
+      to={to.floor}
+      arc={arc}
+      pattern="dotted"
+      color={SUNFLOWER}
+      beadRadius={0.042}
+      spacing={0.17}
+      shade={0.4}
+      flowSpeed={0.22}
+      drawInMs={fresh ? 420 : 0}
+    />
   </>
 );
 

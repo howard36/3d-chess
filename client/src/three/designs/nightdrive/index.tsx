@@ -28,7 +28,7 @@ import { Stage } from './stage';
 // in violet-magenta neon, every piece banded at its foot in its level's
 // neon. The markers are neon tubes on the glass: cyan where the piece can
 // go, the same tube doubled and red where it can take, amber for the last
-// move with a trace between its squares.
+// move with a thin neon line between its squares.
 
 // Knights look along the ranks turned well toward the files, so the camera
 // sees each horse's profile rather than the back of its neck.

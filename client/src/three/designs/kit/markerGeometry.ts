@@ -1,6 +1,7 @@
+import { movePoint } from '../../movePath';
 import type { Vec3 } from '../types';
 
-// Pure geometry behind the floor markers and the last-move trace, kept apart
+// Pure geometry behind the floor markers and the last-move line, kept apart
 // from the components so it can be unit tested without WebGL.
 
 export type MarkerShape = 'square' | 'brackets' | 'ring' | 'dot';
@@ -74,158 +75,180 @@ export const markerMetrics = (pitch: number, o: MarkerMetricsOptions = {}): Mark
 };
 
 export interface TracePathOptions {
-  /** Height of the path above the floors it joins. */
+  /**
+   * Height of the line's centre above the floors it joins: enough to clear
+   * the platform (at least the line's radius), and no more.
+   */
   lift?: number;
   /**
-   * Horizontal distance the path stops short of the destination's centre, so
-   * the arrowhead lands beside the piece that moved rather than inside it.
+   * Height of the move's arc above the straight line (LastMoveMarkerProps.arc):
+   * 0 (the default) for a straight line, a knight's arc when knights arc.
    */
-  endInset?: number;
-  /** Horizontal distance the path starts away from the source's centre. */
-  startInset?: number;
-  /** For a move between levels: how far the arc rises above the higher end. */
   arc?: number;
-  /** Samples along a curved path. */
+  /** Samples along an arc (a straight line is its two ends). */
   segments?: number;
 }
+
+/**
+ * The centreline of the last-move line, from the centre of the source
+ * square's floor to the centre of the destination's, raised `lift` off the
+ * platforms: a straight segment, whatever the level change (a vertical move
+ * runs straight up or down through the squares' centres), or, for a knight
+ * when knights arc, exactly the arc the piece flew (movePoint in movePath.ts,
+ * the same curve as the glide). It ends inside the piece that moved, which
+ * hides the end of the line standing over it.
+ */
+export const tracePath = (from: Vec3, to: Vec3, o: TracePathOptions = {}): Vec3[] => {
+  const lift = o.lift ?? 0.03;
+  const arc = o.arc ?? 0;
+  const a: Vec3 = [from[0], from[1] + lift, from[2]];
+  const b: Vec3 = [to[0], to[1] + lift, to[2]];
+  if (arc <= 0) return [a, b];
+  const n = Math.max(2, Math.round(o.segments ?? 32));
+  return Array.from({ length: n + 1 }, (_, i) => movePoint(a, b, i / n, arc));
+};
 
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const scale = (a: Vec3, k: number): Vec3 => [a[0] * k, a[1] * k, a[2] * k];
 const len = (a: Vec3) => Math.hypot(a[0], a[1], a[2]);
+const unit = (a: Vec3): Vec3 => scale(a, 1 / (len(a) || 1));
+const cross = (a: Vec3, b: Vec3): Vec3 => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
 
-/**
- * The centreline of the last-move trace between two cell floors, start to
- * end. A move on one level runs straight along it; a move between levels is
- * a gentle arc (a quadratic curve peaking above the higher level), so it
- * reads as lifted off one platform and set down on the other rather than as
- * a line through the platforms. A purely vertical move runs up or down the
- * front of its column (toward +z, the side both players' cameras open on).
- */
-export const tracePath = (from: Vec3, to: Vec3, o: TracePathOptions = {}): Vec3[] => {
-  const lift = o.lift ?? 0.04;
-  const endInset = o.endInset ?? 0.36;
-  const startInset = o.startInset ?? 0.12;
-  const arc = o.arc ?? 0.45;
-  const segments = o.segments ?? 40;
-  const flat: Vec3 = [to[0] - from[0], 0, to[2] - from[2]];
-  const across = len(flat);
-  const rise = to[1] - from[1];
-  let a: Vec3;
-  let b: Vec3;
-  if (across > 1e-6) {
-    const dir = scale(flat, 1 / across);
-    // Never let the insets eat the whole path of a one-square move
-    const room = Math.max(across - 0.2, 0);
-    const k = Math.min(1, room / (startInset + endInset || 1));
-    a = add(from, add(scale(dir, startInset * k), [0, lift, 0]));
-    b = add(to, add(scale(dir, -endInset * k), [0, lift, 0]));
-  } else {
-    const front: Vec3 = [0, 0, endInset];
-    a = add(from, add(front, [0, lift, 0]));
-    b = add(to, add(front, [0, lift, 0]));
-  }
-  if (Math.abs(rise) < 1e-6 || across <= 1e-6) return [a, b];
-  const mid = scale(add(a, b), 0.5);
-  // The control height that puts the curve's apex exactly `arc` above the
-  // higher end: for ends at heights ya, yb and apex m, the quadratic peaks
-  // at m when its control sits at m + sqrt((m - ya)(m - yb)).
-  const apex = Math.max(a[1], b[1]) + arc;
-  const control: Vec3 = [mid[0], apex + Math.sqrt((apex - a[1]) * (apex - b[1])), mid[2]];
-  const points: Vec3[] = [];
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    const u = 1 - t;
-    points.push(add(add(scale(a, u * u), scale(control, 2 * u * t)), scale(b, t * t)));
-  }
-  return points;
+/** Distance along `points` at each of them, from the first (the last is the total length). */
+export const pathDistances = (points: Vec3[]): number[] => {
+  const at = [0];
+  for (let i = 1; i < points.length; i++) at.push(at[i - 1] + len(sub(points[i], points[i - 1])));
+  return at;
 };
 
-export interface RibbonOptions {
-  /** Full width of the ribbon (world units). */
-  width: number;
-  /** Length of the arrowhead along the path. */
-  headLength: number;
-  /** Full width of the arrowhead's base. */
-  headWidth: number;
+/**
+ * The point `s` world units along `points` (clamped to its ends) and the
+ * unit direction of travel there: for placing beads, dots or anything else
+ * along the last-move line.
+ */
+export const pointAlong = (
+  points: Vec3[],
+  s: number,
+  distances: number[] = pathDistances(points),
+): { point: Vec3; tangent: Vec3 } => {
+  let i = 1;
+  while (i < points.length - 1 && distances[i] < s) i++;
+  const span = distances[i] - distances[i - 1] || 1;
+  const k = Math.min(Math.max((s - distances[i - 1]) / span, 0), 1);
+  const d = sub(points[i], points[i - 1]);
+  return { point: add(points[i - 1], scale(d, k)), tangent: unit(d) };
+};
+
+export interface TubeOptions {
+  /** Radius of the tube (world units). */
+  radius: number;
+  /** Vertices round each ring (default 8: thin lines need few). */
+  radialSegments?: number;
+  /** Rings in each rounded end cap (default 3; 0 leaves the ends open). */
+  capSegments?: number;
+  /**
+   * The radius at distance `s` along a path of length `length`, for a line
+   * that tapers or swells (a brush stroke); default the constant `radius`.
+   * The end caps take the radius at their end.
+   */
+  radiusAt?: (s: number, length: number) => number;
 }
 
-export interface RibbonData {
+export interface TubeData {
   position: Float32Array;
-  tangent: Float32Array;
-  /** -1 or +1: which side of the centreline a vertex is pushed to. */
-  side: Float32Array;
-  /** Half the ribbon's width at the vertex (0 at the arrow's tip). */
-  halfWidth: Float32Array;
-  /** Distance along the path from its start. */
+  normal: Float32Array;
+  /**
+   * Distance along the path from its start, for every vertex (the caps run
+   * a radius past either end: negative at the start).
+   */
   along: Float32Array;
-  index: number[];
-  /** Total length of the path. */
+  /** Where round the tube each vertex sits, 0 to 1 (for texture across the line). */
+  angle: Float32Array;
+  index: Uint16Array | Uint32Array;
+  /** Length of the path (without the caps). */
   length: number;
 }
 
 /**
- * Vertex data for a camera-facing ribbon along `points` that ends in an
- * arrowhead whose tip is the last point. Each centreline sample becomes two
- * vertices; the vertex shader pushes them apart across the path, facing the
- * camera, so the ribbon keeps its full world-space width from any angle.
+ * A round tube of real geometry along `points`, with rounded ends, for the
+ * last-move line: lit and depth-tested like any solid, so it looks the same
+ * from every side and a piece standing on it hides it. The rings are framed
+ * in the plane that holds the path (a straight line or a knight's arc, both
+ * vertical planes), so the tube never twists.
  */
-export const ribbonData = (points: Vec3[], o: RibbonOptions): RibbonData => {
-  // Arc length at every sample
-  const at = [0];
-  for (let i = 1; i < points.length; i++) at.push(at[i - 1] + len(sub(points[i], points[i - 1])));
+export const tubeData = (points: Vec3[], o: TubeOptions): TubeData => {
+  const radial = Math.max(3, Math.round(o.radialSegments ?? 8));
+  const caps = Math.max(0, Math.round(o.capSegments ?? 3));
+  const at = pathDistances(points);
   const total = at[at.length - 1];
-  const head = Math.min(o.headLength, total * 0.6);
-  const shaftEnd = total - head;
-  const tangentAt = (i: number): Vec3 => {
-    const d = sub(points[Math.min(i + 1, points.length - 1)], points[Math.max(i - 1, 0)]);
-    const l = len(d) || 1;
-    return scale(d, 1 / l);
-  };
-  // Where along the path a given distance falls
-  const sample = (s: number): { p: Vec3; t: Vec3 } => {
-    let i = 1;
-    while (i < points.length - 1 && at[i] < s) i++;
-    const span = at[i] - at[i - 1] || 1;
-    const k = Math.min(Math.max((s - at[i - 1]) / span, 0), 1);
-    const p = add(points[i - 1], scale(sub(points[i], points[i - 1]), k));
-    const t = sub(points[i], points[i - 1]);
-    return { p, t: scale(t, 1 / (len(t) || 1)) };
-  };
+  const radiusAt = (s: number) => (o.radiusAt ? o.radiusAt(s, total) : o.radius);
+  const chord = sub(points[points.length - 1], points[0]);
+  // The path's plane is vertical: its normal is horizontal, across the chord
+  // (any horizontal axis will do for a vertical line)
+  const flat: Vec3 = [chord[0], 0, chord[2]];
+  const side: Vec3 = len(flat) > 1e-6 ? unit(cross(flat, [0, 1, 0])) : [1, 0, 0];
+  const tangentAt = (i: number): Vec3 =>
+    unit(sub(points[Math.min(i + 1, points.length - 1)], points[Math.max(i - 1, 0)]));
 
-  const rows: { p: Vec3; t: Vec3; half: number; s: number }[] = [];
-  points.forEach((p, i) => {
-    if (at[i] < shaftEnd) rows.push({ p, t: tangentAt(i), half: o.width / 2, s: at[i] });
-  });
-  const neck = sample(shaftEnd);
-  rows.push({ p: neck.p, t: neck.t, half: o.width / 2, s: shaftEnd });
-  // The arrowhead: its base (wider than the shaft) at the neck, its tip at the end
-  rows.push({ p: neck.p, t: neck.t, half: o.headWidth / 2, s: shaftEnd });
-  const tip = sample(total);
-  rows.push({ p: points[points.length - 1], t: tip.t, half: 0, s: total });
+  // Rings: centre, tangent, radius, and how far along the path it sits
+  // `lean` is how far a cap's ring leans its normals along the path (-1 to 1)
+  const rings: { c: Vec3; t: Vec3; r: number; s: number; lean: number }[] = [];
+  const t0 = tangentAt(0);
+  const t1 = tangentAt(points.length - 1);
+  const r0 = radiusAt(0);
+  const r1 = radiusAt(total);
+  for (let k = caps; k >= 1; k--) {
+    const phi = (k / caps) * (Math.PI / 2);
+    const back = r0 * Math.sin(phi);
+    const c = add(points[0], scale(t0, -back));
+    rings.push({ c, t: t0, r: r0 * Math.cos(phi), s: -back, lean: -Math.sin(phi) });
+  }
+  points.forEach((p, i) =>
+    rings.push({ c: p, t: tangentAt(i), r: radiusAt(at[i]), s: at[i], lean: 0 }),
+  );
+  for (let k = 1; k <= caps; k++) {
+    const phi = (k / caps) * (Math.PI / 2);
+    const ahead = r1 * Math.sin(phi);
+    const c = add(points[points.length - 1], scale(t1, ahead));
+    rings.push({ c, t: t1, r: r1 * Math.cos(phi), s: total + ahead, lean: Math.sin(phi) });
+  }
 
-  const n = rows.length * 2;
+  const perRing = radial + 1;
+  const n = rings.length * perRing;
   const position = new Float32Array(n * 3);
-  const tangent = new Float32Array(n * 3);
-  const side = new Float32Array(n);
-  const halfWidth = new Float32Array(n);
+  const normal = new Float32Array(n * 3);
   const along = new Float32Array(n);
-  rows.forEach((r, i) => {
-    for (let s = 0; s < 2; s++) {
-      const v = i * 2 + s;
-      position.set(r.p, v * 3);
-      tangent.set(r.t, v * 3);
-      side[v] = s === 0 ? -1 : 1;
-      halfWidth[v] = r.half;
-      along[v] = r.s;
+  const angle = new Float32Array(n);
+  rings.forEach((ring, i) => {
+    const up = unit(cross(side, ring.t));
+    // Where the ring curls into a cap, its normals lean along the path with it
+    const round = Math.sqrt(Math.max(1 - ring.lean * ring.lean, 0));
+    for (let j = 0; j <= radial; j++) {
+      const theta = (j / radial) * Math.PI * 2;
+      const dir = add(scale(side, Math.cos(theta)), scale(up, Math.sin(theta)));
+      const v = i * perRing + j;
+      position.set(add(ring.c, scale(dir, ring.r)), v * 3);
+      normal.set(unit(add(scale(dir, round), scale(ring.t, ring.lean))), v * 3);
+      along[v] = ring.s;
+      angle[v] = j / radial;
     }
   });
-  const index: number[] = [];
-  for (let i = 0; i < rows.length - 1; i++) {
-    // The shaft's last row and the head's base share a position: no quad between them
-    if (i === rows.length - 3) continue;
-    const a = i * 2;
-    index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  const quads = (rings.length - 1) * radial;
+  const index = n > 65535 ? new Uint32Array(quads * 6) : new Uint16Array(quads * 6);
+  let q = 0;
+  for (let i = 0; i < rings.length - 1; i++) {
+    for (let j = 0; j < radial; j++) {
+      const a = i * perRing + j;
+      const b = a + perRing;
+      // Counter-clockwise seen from outside the tube
+      index.set([a, b, a + 1, a + 1, b, b + 1], q);
+      q += 6;
+    }
   }
-  return { position, tangent, side, halfWidth, along, index, length: total };
+  return { position, normal, along, angle, index, length: total };
 };

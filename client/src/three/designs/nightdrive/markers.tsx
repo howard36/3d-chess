@@ -12,7 +12,7 @@ import {
 } from 'three';
 import type { Mesh } from 'three';
 import { LAYER } from '../kit/layers';
-import { LastMoveTrace } from '../kit/markers';
+import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { MOTION } from './motion';
@@ -27,8 +27,9 @@ import { CAPTURE, CHECK, LAST_MOVE, MOVE, SELECT, frame, pitch } from './palette
 //   gunsight ticks across both lines (all of it outside the victim's base);
 // - last move: the same outline in amber on both squares (dimmer where the
 //   piece came from), set just outside the destination outline so a square
-//   that is both nests cleanly, joined by the kit's trace ribbon with
-//   chevrons drifting toward the destination; it appears as the piece lands;
+//   that is both nests cleanly, joined by a thin amber neon line, straight
+//   from square to square, with a hot pulse drifting toward the destination;
+//   it appears as the piece lands;
 // - check: the capture's red double outline, filled faintly, with a still
 //   red light column rising through the king;
 // - selection: a cyan ring round the piece's base that snaps out once when
@@ -385,12 +386,12 @@ const Selection = ({ floor }: MarkerProps) => (
 );
 
 /**
- * The last move's squares and trace. A live move keeps them back until the
+ * The last move's squares and line. A live move keeps them back until the
  * piece lands (its own light trail tells the story in flight), then the
- * trace draws in from the source; a move replayed from history or on a
+ * line draws in from the source; a move replayed from history or on a
  * rejoin shows them at once. Board mounts one per move.
  */
-const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => {
+const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
   const [landed, setLanded] = useState(!fresh);
   const t = useRef(0);
   useFrame((_, delta) => {
@@ -410,19 +411,16 @@ const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => {
         fill={0.05}
       />
       <NeonMarker floor={to.floor} color={LAST_MOVE} inset={0.025} line={0.07} fill={0.11} />
-      <LastMoveTrace
+      <LastMoveLine
         from={from.floor}
         to={to.floor}
+        arc={arc}
         color={LAST_MOVE}
-        edgeColor="#2a0b1c"
-        width={0.1}
-        // A big head that ends on the floor at the destination square's near
-        // edge, where the piece standing on it cannot hide it
-        headLength={0.38}
-        headWidth={0.36}
-        endInset={0.44}
-        chevrons={0.36}
-        flowSpeed={0.3}
+        // A neon tube: flat, bright, with a white-hot pulse
+        pulseColor="#fff4d6"
+        shade={0.15}
+        radius={0.02}
+        pulse={0.7}
         drawInMs={fresh ? 240 : 0}
       />
     </>

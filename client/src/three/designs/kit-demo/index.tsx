@@ -20,7 +20,7 @@ import type { Design, GridProps, PieceBodyProps, PieceColor } from '../types';
 // - labels that follow the camera (SmartLabels);
 // - markers flat on the platforms (clarityMarkers): destinations, the same
 //   marker with a capture cue, the selection, the last move's squares and
-//   trace, and the check;
+//   the thin line between them, and the check;
 // - the shared Staunton set (ChessPiece, three/pieces) with its foot band in
 //   the colour of the piece's level (PieceBodyProps.level), standing on a
 //   contact shadow and a footprint ring of that colour, scaled to fit the gap;
@@ -178,8 +178,8 @@ const markers = clarityMarkers({
   selectColor: '#fff0c2',
   lastMoveColor: ACCENT,
   checkColor: '#ff4040',
-  // A fresh move draws its trace in; a replayed one shows it whole
-  trace: { drawInMs: 320 },
+  // A fresh move draws its line in; a replayed one shows it whole
+  line: { drawInMs: 320 },
 });
 
 // --- Design ----------------------------------------------------------------------
@@ -200,7 +200,7 @@ const kitDemo: Design = {
   knightYaw: 0.45,
   markers,
   hoverDestinations: true,
-  motion: { style: 'hop', durationMs: 380, lift: 0.3 },
+  motion: { style: 'hop', durationMs: 380 },
   hud: {
     readout: true,
     vars: {

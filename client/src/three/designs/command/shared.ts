@@ -44,9 +44,8 @@ export const PALETTE = {
   move: '#62ff9a',
   capture: '#ff4747',
   lastMove: '#bf74ff',
-  // The last move's chevrons and edge: a pale glint of the same violet
+  // The fronts of the last move's dashes: a pale glint of the same violet
   lastMoveGlint: '#f3e6ff',
-  lastMoveEdge: '#1c0833',
   select: '#dffaff',
   check: '#ff3a3a',
   // The dark stroke under every marker, so it holds on bright glass and frames

@@ -218,13 +218,13 @@ const Selection = ({ floor }: MarkerProps) => (
 
 /**
  * The last move: azurite ensō of equal weight on both squares, joined by a
- * brush stroke whose flicked head lands on the floor at the near edge of the
- * destination's ensō. While a live move's piece is in flight its own ink
- * trail tells the story; as it lands, the destination's ensō and the stroke
- * are brushed in from the source. A replayed move (history, a rejoin) shows
- * them whole. Board keys this by move, so the entrance plays once.
+ * thin brush stroke straight from centre to centre, which the piece that
+ * moved stands on the end of. While a live move's piece is in flight its own
+ * ink trail tells the story; as it lands, the destination's ensō and the
+ * stroke are brushed in from the source. A replayed move (history, a rejoin)
+ * shows them whole. Board keys this by move, so the entrance plays once.
  */
-const LastMove = ({ from, to, fresh }: LastMoveMarkerProps) => (
+const LastMove = ({ from, to, fresh, arc = 0 }: LastMoveMarkerProps) => (
   <>
     <InkMark
       floor={from.floor}
@@ -247,15 +247,10 @@ const LastMove = ({ from, to, fresh }: LastMoveMarkerProps) => (
     <BrushTrace
       from={from.floor}
       to={to.floor}
+      arc={arc}
       color={LAST_MOVE}
       edgeColor={LAST_MOVE_EDGE}
-      width={0.11}
-      headLength={0.4}
-      headWidth={0.36}
-      // The tip touches the ensō's outer edge, on the floor
-      endInset={RING + STROKE * 0.5}
-      startInset={0.16}
-      lift={0.03}
+      radius={0.028}
       drawMs={fresh ? 320 : 0}
       delayMs={MOTION.durationMs * 0.7}
     />

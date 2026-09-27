@@ -1,16 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import {
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  DoubleSide,
-  PlaneGeometry,
-  ShaderMaterial,
-} from 'three';
-import type { Mesh } from 'three';
+import { Color, DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
 import { LAYER } from '../kit/layers';
-import { ribbonData, tracePath } from '../kit/markerGeometry';
+import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import { prefersReducedMotion } from '../../motion';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
@@ -22,9 +14,9 @@ import { PAL } from './palette';
 //   can move    a teal ring round a faint teal landing spot
 //   capture     the same ring in vermilion, wide enough to clear the
 //               victim's base, with four reticle ticks out to the corners
-//   last move   the same ring in amber on both squares, joined by an amber
-//               ribbon whose arrowhead lands on the floor at the ring's edge;
-//               a live move draws it along the flight
+//   last move   the same ring in amber on both squares, joined by a thin
+//               amber line from centre to centre; a live move draws it along
+//               the flight
 //   check       the ring in crimson, doubled, round the king's base
 //   selection   a fine warm-white halo and watch bezel over a pool of light
 //
@@ -357,164 +349,6 @@ export const Check = ({ floor }: MarkerProps) => (
 
 // --- The last move ---------------------------------------------------------------------
 
-const traceVertex = /* glsl */ `
-  attribute vec3 aTangent;
-  attribute float aSide;
-  attribute float aHalf;
-  attribute float aAlong;
-  varying float vAcross;
-  varying float vHalf;
-  varying float vAlong;
-  void main() {
-    vec4 world = modelMatrix * vec4(position, 1.0);
-    vec3 t = normalize(mat3(modelMatrix) * aTangent);
-    vec3 toCamera = normalize(cameraPosition - world.xyz);
-    vec3 across = cross(t, toCamera);
-    float l = length(across);
-    across = l > 1e-4 ? across / l : vec3(1.0, 0.0, 0.0);
-    world.xyz += across * aSide * aHalf;
-    vAcross = aSide * aHalf;
-    vHalf = aHalf;
-    vAlong = aAlong;
-    gl_Position = projectionMatrix * viewMatrix * world;
-  }`;
-
-const traceFragment = /* glsl */ `
-  uniform vec3 uColor;
-  uniform vec3 uEdge;
-  uniform float uOpacity;
-  uniform float uEdgeWidth;
-  uniform float uChevron;
-  uniform float uShaftEnd;
-  uniform float uReveal;
-  varying float vAcross;
-  varying float vHalf;
-  varying float vAlong;
-  void main() {
-    if (vAlong > uReveal) discard;
-    float d = abs(vAcross);
-    float aa = max(fwidth(vAcross), 1e-4);
-    float body = 1.0 - smoothstep(vHalf - aa, vHalf + aa * 0.5, d);
-    float rim = smoothstep(vHalf - uEdgeWidth - aa, vHalf - uEdgeWidth + aa, d);
-    vec3 col = uColor;
-    if (uChevron > 0.0 && vAlong < uShaftEnd - uChevron * 0.4) {
-      // Chevrons pointing ahead, a shade deeper than the ribbon
-      float phase = fract((vAlong - d * 1.2) / uChevron);
-      float ab = max(fwidth(phase), 1e-4);
-      float band = smoothstep(0.0, ab, phase) * (1.0 - smoothstep(0.3 - ab, 0.3, phase));
-      col = mix(col, uEdge, band * 0.32);
-    }
-    col = mix(col, uEdge, rim);
-    float a = body * uOpacity;
-    if (a < 0.003) discard;
-    gl_FragColor = vec4(col, a);
-    #include <colorspace_fragment>
-  }`;
-
-// The arrowhead's tip lands on the floor at the near edge of the destination
-// ring, clear of the piece standing in it
-const END_INSET = 0.36 + 0.06;
-
-/**
- * The last move's path, a camera-facing ribbon with a dark keyline and an
- * arrowhead beside the piece that moved. It draws itself from the source to
- * the destination over `revealMs` (the piece's flight), then holds still.
- */
-export const Trace = ({
-  from,
-  to,
-  revealMs,
-  color = PAL.amber,
-  edgeColor = PAL.amberEdge,
-  width = 0.06,
-  headLength = 0.34,
-  headWidth = 0.3,
-  chevrons = 0.4,
-}: {
-  from: Vec3;
-  to: Vec3;
-  revealMs: number;
-  color?: string;
-  edgeColor?: string;
-  width?: number;
-  headLength?: number;
-  headWidth?: number;
-  chevrons?: number;
-}) => {
-  const invalidate = useThree((s) => s.invalidate);
-  const key = JSON.stringify([from, to, width, headLength, headWidth]);
-  const { geometry, length, shaftEnd } = useMemo(() => {
-    const data = ribbonData(tracePath(from, to, { arc: 0.5, endInset: END_INSET, lift: 0.02 }), {
-      width,
-      headLength,
-      headWidth,
-    });
-    const g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(data.position, 3));
-    g.setAttribute('aTangent', new BufferAttribute(data.tangent, 3));
-    g.setAttribute('aSide', new BufferAttribute(data.side, 1));
-    g.setAttribute('aHalf', new BufferAttribute(data.halfWidth, 1));
-    g.setAttribute('aAlong', new BufferAttribute(data.along, 1));
-    g.setIndex(data.index);
-    g.computeBoundingSphere();
-    return {
-      geometry: g,
-      length: data.length,
-      shaftEnd: data.length - Math.min(headLength, data.length * 0.6),
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
-  }, [key]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  const material = useMemo(
-    () =>
-      new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        side: DoubleSide,
-        uniforms: {
-          uColor: { value: new Color(color) },
-          uEdge: { value: new Color(edgeColor) },
-          uOpacity: { value: 1 },
-          uEdgeWidth: { value: Math.min(width * 0.24, 0.03) },
-          uChevron: { value: chevrons },
-          uShaftEnd: { value: 1 },
-          uReveal: { value: revealMs > 0 ? 0 : 1e6 },
-        },
-        vertexShader: traceVertex,
-        fragmentShader: traceFragment,
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one trace per move (keyed by its parent)
-    [],
-  );
-  useEffect(() => () => material.dispose(), [material]);
-  material.uniforms.uShaftEnd.value = shaftEnd;
-
-  const elapsed = useRef(0);
-  const done = useRef(revealMs <= 0);
-  const mesh = useRef<Mesh>(null);
-  useFrame((_, delta) => {
-    if (done.current) return;
-    elapsed.current += Math.min(delta, 1 / 30) * 1000;
-    const t = Math.min(elapsed.current / revealMs, 1);
-    // Ease in and out, like the piece's own glide
-    const e = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
-    material.uniforms.uReveal.value = t >= 1 ? 1e6 : e * length;
-    if (t >= 1) done.current = true;
-    invalidate();
-  });
-
-  return (
-    <mesh
-      ref={mesh}
-      geometry={geometry}
-      material={material}
-      renderOrder={LAYER.trace}
-      raycast={noRaycast}
-      frustumCulled={false}
-    />
-  );
-};
-
 const LAST_FROM: RingStyle = {
   color: PAL.amber,
   opacity: 0.85,
@@ -527,12 +361,12 @@ const LAST_TO: RingStyle = { ...LAST_FROM, opacity: 1, fill: 0.12, line: 0.065 }
 /**
  * The last-move marker set for a design whose pieces take `flightMs` to move.
  * Board keys it by move and says whether the move is live (`fresh`): only
- * then does it play its entrance (the ribbon drawn along the flight, the
+ * then does it play its entrance (the line drawn along the flight, the
  * destination ring set down as the piece lands). A replay or a rejoin shows
  * it whole, at once.
  */
 export const lastMoveMarker = (flightMs: number) => {
-  const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => {
+  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
     const live = fresh && !prefersReducedMotion();
     return (
       <>
@@ -543,7 +377,16 @@ export const lastMoveMarker = (flightMs: number) => {
           popMs={live ? 260 : 0}
           delayMs={live ? flightMs * 0.85 : 0}
         />
-        <Trace from={from.floor} to={to.floor} revealMs={live ? flightMs : 0} />
+        <LastMoveLine
+          from={from.floor}
+          to={to.floor}
+          arc={arc}
+          color={PAL.amber}
+          pulseColor="#ffe2ad"
+          radius={0.02}
+          // Drawn along the flight
+          drawInMs={live ? flightMs : 0}
+        />
       </>
     );
   };
