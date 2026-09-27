@@ -248,6 +248,46 @@ full-rate video:
 cd client && node scripts/showcase.mjs --design royal --out /tmp/showcase   # ffmpeg on PATH
 ```
 
+### Clarity kit
+
+Round-2 designs build on a shared **clarity kit** (`designs/kit/`), whose rules come from
+play-testing: the player must read the whole position at a glance, from any angle and
+either seat. `designs/kit-demo/` uses every part with neutral styling and is the template
+to copy (hidden from the picker; open it with `?design=kit-demo`).
+
+- **Compact tower** (`clarityTower` in `kit/layouts.ts`): five continuous platforms, A at
+  the bottom, with a level gap of 1.35 cell pitches (the classic tower's is 1.9), so the
+  stack stays close to a cube and diagonals look natural; seen from a low camera (18°)
+  turned 16° off the players' axis, so the view looks *between* the levels and ranks do not
+  stack into columns. `BoardLayout.orbit` limits the camera (6°–68° elevation) so it never
+  dips under the bottom platform or looks straight down the stack. Pieces are drawn at
+  `Design.pieceScale` (0.8 in the demo) to fit the gap. `towerFrame(layout)` measures any
+  tower layout (pitch, gap, platform heights) for the parts below.
+- **Platforms** (`LevelPlates`, `kit/plates.tsx`): one see-through slab per level, a faint
+  two-tone checker coloured by x + y + z (so a bishop keeps its colour through the levels),
+  a crisp perimeter edge and nothing else; optional per-level tints colour-code the levels.
+  `ContactShadow` goes in a design's PieceBody, under the piece, to show which platform it
+  stands on.
+- **Markers** (`kit/markers.tsx`): flat on the platform where a piece stands, never floating
+  in the cell. `FloorMarker` draws an inset rounded square, corner brackets, a ring or a
+  dot; `capture` adds a tint and four inward ticks to the same shape, and `hovered`
+  brightens it (Board passes it to designs with `hoverDestinations`). `LastMoveTrace` joins
+  the last move's squares with a ribbon of real width and an arrowhead, straight along a
+  platform or arcing between levels. `clarityMarkers({ pitch, … })` returns a design's whole
+  marker set. Designs set `cellFills` to `null` to draw no cell volumes.
+- **Labels** (`SmartLabels`, `kit/smartLabels.tsx`): files and ranks follow the camera to the
+  two edges of the bottom platform nearest it, and each level letter sits beside its own
+  platform at the corner furthest left on screen, with hysteresis and a short crossfade as
+  the camera orbits; the placement is a pure function (`kit/labelAnchors.ts`).
+- **Layers** (`kit/layers.ts`): every see-through part writes no depth and draws in a fixed
+  order (platforms, edges, shadows, markers, trace, labels), so platforms never hide or tint
+  a marker, and pieces under several platforms keep their colour.
+
+`showcase.mjs --review` photographs a design for a clarity review: the opening, a selected
+piece with quiet and capture destinations, the last move's trace and a check, each from 12
+camera poses and from both seats, laid out as contact sheets (usage at the top of the
+script; about three minutes).
+
 ## Repository layout
 
 ```

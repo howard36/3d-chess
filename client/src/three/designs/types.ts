@@ -12,6 +12,18 @@ import type { Orientation } from '../layout';
 export type Vec3 = [number, number, number];
 export type PieceColor = 'white' | 'black';
 
+/**
+ * Limits on how far the player may orbit and zoom, applied to the game's
+ * OrbitControls. Angles are polar angles in radians, measured from straight
+ * overhead (0) down to the horizon (PI / 2) and below.
+ */
+export interface OrbitLimits {
+  minPolarAngle?: number;
+  maxPolarAngle?: number;
+  minDistance?: number;
+  maxDistance?: number;
+}
+
 /** Where the 125 cells sit in world space. */
 export interface BoardLayout {
   /**
@@ -32,6 +44,8 @@ export interface BoardLayout {
   halfExtents: Vec3;
   /** Direction from the board's centre to the camera when a game opens. */
   viewDirection: Vec3;
+  /** Orbit and zoom limits; without them the camera orbits freely (6 units in at most). */
+  orbit?: OrbitLimits;
 }
 
 export interface PieceBodyProps {
@@ -51,6 +65,11 @@ export interface MarkerProps {
   centre: Vec3;
   /** The floor of the cell, where a piece's base sits. */
   floor: Vec3;
+  /**
+   * The pointer is over this legal destination (or the piece it would
+   * capture). Only set for designs with `hoverDestinations`.
+   */
+  hovered?: boolean;
 }
 
 export interface LastMoveMarkerProps {
@@ -183,8 +202,12 @@ export interface Design {
   Stage: ComponentType<StageProps>;
   /** The visible structure of the board. Decorative: never takes pointer events. */
   Grid: ComponentType<GridProps>;
-  /** Fills of the raycast boxes: legal destinations and the last move's cells. */
-  cellFills: { destination: Material; lastMove: Material };
+  /**
+   * Fills of the raycast boxes: legal destinations and the last move's cells.
+   * `null` draws no fill at all (the cell still takes clicks), for designs
+   * whose markers say everything on the floor.
+   */
+  cellFills: { destination: Material | null; lastMove: Material | null };
   PieceBody: ComponentType<PieceBodyProps>;
   /** Knight yaw per colour, so its profile faces the camera. */
   knightYaw?: number;
@@ -208,8 +231,21 @@ export interface Design {
   toppleMatedKing?: boolean;
   /** Lift a piece under the pointer / the selected piece off its floor. */
   hoverLift?: boolean;
+  /**
+   * Track the pointer over legal destinations, so the Quiet and Capture
+   * markers get `hovered` and can brighten under it.
+   */
+  hoverDestinations?: boolean;
+  /**
+   * Uniform scale of every piece about its base (default 1). Staunton
+   * pieces stand up to 0.87 tall at 1; a compact tower wants them shorter.
+   */
+  pieceScale?: number;
   hud: DesignHud;
 }
+
+/** Picker sections, listed in this order (see DESIGN_GROUPS in registry.ts). */
+export type DesignGroup = 'clarity' | 'classic' | 'earlier';
 
 export interface DesignEntry {
   id: string;
@@ -218,4 +254,8 @@ export interface DesignEntry {
   /** Swatch colours for the picker: background, white army, black army, accent. */
   swatch: [string, string, string, string];
   load: () => Promise<{ default: Design }>;
+  /** The picker section it is listed under (ungrouped entries come last). */
+  group?: DesignGroup;
+  /** Left out of the picker; still reachable with `?design=<id>` (dev references). */
+  hidden?: boolean;
 }

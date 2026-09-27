@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import Board from './Board';
-import type { LastMoveInfo } from './Board';
+import type { BoardProps, LastMoveInfo } from './Board';
+import classic from './designs/classic';
+import { DesignContext } from './designs/context';
+import type { Design, MarkerProps } from './designs/types';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
 import { PieceType } from '../engine';
@@ -760,5 +763,78 @@ describe('Board', () => {
       expect(group.position.y).toBeCloseTo(fy - ty);
       expect(group.position.z).toBeCloseTo(fz - tz);
     });
+  });
+});
+
+describe('Board with a clarity-kit design', () => {
+  // A design without cell volumes, tracking the pointer over destinations,
+  // with shorter pieces. Its markers record what Board hands them.
+  const Quiet = ({ floor, hovered }: MarkerProps) => (
+    <group userData={{ quiet: true, hovered: hovered === true }} position={floor} />
+  );
+  const clarity: Design = {
+    ...classic,
+    id: 'clarity-test',
+    cellFills: { destination: null, lastMove: null },
+    hoverDestinations: true,
+    pieceScale: 0.8,
+    markers: { ...classic.markers, Quiet },
+  };
+  const renderWith = (design: Design, props: Partial<BoardProps> = {}) =>
+    ReactThreeTestRenderer.create(
+      <DesignContext.Provider value={design}>
+        <Board board={createTestBoard()} currentTurn="white" {...props} />
+      </DesignContext.Provider>,
+    );
+  const quietMarkers = (renderer: Renderer) =>
+    (renderer.scene as ReactThreeTestInstance).findAll((node) => node.props.userData?.quiet);
+
+  it('draws no fill for a null cell fill, yet keeps the destination clickable', async () => {
+    const onMove = vi.fn();
+    const renderer = await renderWith(clarity, { onMove });
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    const highlighted = highlightedCells(renderer);
+    expect(highlighted).toHaveLength(2);
+    for (const cell of highlighted) {
+      expect((cell.instance as unknown as { visible: boolean }).visible).toBe(false);
+    }
+    await press(highlighted[0]);
+    expect(onMove).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells a destination marker when the pointer is over its cell', async () => {
+    const renderer = await renderWith(clarity);
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    expect(quietMarkers(renderer).map((m) => m.props.userData.hovered)).toEqual([false, false]);
+
+    const [cell] = highlightedCells(renderer);
+    await act(async () => cell.props.onPointerOver?.({ stopPropagation: () => {} }));
+    const hovered = quietMarkers(renderer).filter((m) => m.props.userData.hovered);
+    expect(hovered).toHaveLength(1);
+    const [cx, cy, cz] = cell.props.position;
+    expect(hovered[0].props.position).toEqual([cx, cy + clarity.layout.floorY, cz]);
+
+    await act(async () => cell.props.onPointerOut?.({ stopPropagation: () => {} }));
+    expect(quietMarkers(renderer).some((m) => m.props.userData.hovered)).toBe(false);
+  });
+
+  it('leaves the classic design without hover tracking', async () => {
+    const renderer = await renderWith(classic);
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    for (const cell of highlightedCells(renderer)) {
+      expect(cell.props.onPointerOver).toBeUndefined();
+    }
+  });
+
+  it('scales every piece about its base by the design’s piece scale, and classic not at all', async () => {
+    const innerScales = async (design: Design) => {
+      const renderer = await renderWith(design);
+      const piece = findPiece(renderer, PieceType.King, 'white');
+      const inner = piece.children[0].instance as unknown as { scale: { x: number } };
+      const position = piece.children[0].props.position;
+      return { scale: inner.scale.x, position };
+    };
+    expect(await innerScales(clarity)).toEqual({ scale: 0.8, position: [0, CELL_FLOOR_Y, 0] });
+    expect((await innerScales(classic)).scale).toBe(1);
   });
 });

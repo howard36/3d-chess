@@ -17,9 +17,12 @@ interface OrbitControlsLike {
 export function FitCameraToBoard({
   halfExtents,
   viewDirection,
+  maxDistance,
 }: {
   halfExtents?: readonly [number, number, number];
   viewDirection?: readonly [number, number, number];
+  /** The furthest the player may zoom out, when the design limits it. */
+  maxDistance?: number;
 } = {}) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as OrbitControlsLike | null;
@@ -40,7 +43,7 @@ export function FitCameraToBoard({
     camera.lookAt(target);
     if (controls) {
       // Leave room to zoom out past the fitted view even in a narrow window
-      controls.maxDistance = Math.max(25, distance * 1.5);
+      controls.maxDistance = maxDistance ?? Math.max(25, distance * 1.5);
       controls.update();
     }
     invalidate();
