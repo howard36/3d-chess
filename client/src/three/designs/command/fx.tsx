@@ -20,7 +20,8 @@ import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, PieceColor, Vec3 } from '../types';
 import { CommandParts } from './pieces';
-import { layout, MOTION, PALETTE, PIECE_SCALE } from './shared';
+import { movePoint } from '../../movePath';
+import { layout, PALETTE, PIECE_SCALE } from './shared';
 
 // Moments of motion, all on r3f's clock so a frame-stepped recording plays
 // them exactly: a move lifts off in a ring of its army's light, leaves a
@@ -109,13 +110,13 @@ const trailFragment = /* glsl */ `
 
 const TRAIL_FADE_MS = 220;
 
-/** A tapering streak of light that follows a moving piece along its hop, then fades. */
+/** A tapering streak of light that follows a moving piece along its path, then fades. */
 const MoveTrail = ({
   from,
   to,
   color,
   durationMs,
-  lift,
+  arc,
   height,
   width,
 }: {
@@ -123,23 +124,23 @@ const MoveTrail = ({
   to: Vec3;
   color: string;
   durationMs: number;
-  lift: number;
+  /** The move's arc (MoveFxProps.arc). */
+  arc: number;
   height: number;
   width: number;
 }) => {
   const { ms, done } = useClock(durationMs + TRAIL_FADE_MS);
-  const key = JSON.stringify([from, to, lift, height]);
+  const key = JSON.stringify([from, to, arc, height]);
   const geometry = useMemo(() => {
     const pos: number[] = [];
     const tan: number[] = [];
     const side: number[] = [];
     const s: number[] = [];
-    // The same path MoveGlide flies a 'hop' along
-    const at = (e: number): Vec3 => [
-      to[0] + (from[0] - to[0]) * (1 - e),
-      to[1] + (from[1] - to[1]) * (1 - e) + lift * 4 * e * (1 - e) + height,
-      to[2] + (from[2] - to[2]) * (1 - e),
-    ];
+    // The same path MoveGlide takes, raised to the piece's middle
+    const at = (e: number): Vec3 => {
+      const [x, y, z] = movePoint(from, to, e, arc);
+      return [x, y + height, z];
+    };
     for (let i = 0; i <= TRAIL_SAMPLES; i++) {
       const e = i / TRAIL_SAMPLES;
       const p = at(e);
@@ -416,8 +417,8 @@ const LiftOff = ({ floor, color, lifeMs }: { floor: Vec3; color: string; lifeMs:
   );
 };
 
-/** Plays alongside a move's hop: lift-off, a streak of light, and a bracket lock on landing. */
-export const MoveFx = ({ from, to, color, capture, durationMs }: MoveFxProps) => {
+/** Plays alongside a move's glide: lift-off, a streak of light, and a bracket lock on landing. */
+export const MoveFx = ({ from, to, color, capture, durationMs, arc = 0 }: MoveFxProps) => {
   const rim = RIM[color];
   const f = useMemo(() => floorOf(from), [from]);
   const t = useMemo(() => floorOf(to), [to]);
@@ -430,7 +431,7 @@ export const MoveFx = ({ from, to, color, capture, durationMs }: MoveFxProps) =>
         to={t}
         color={rim}
         durationMs={durationMs}
-        lift={MOTION.lift}
+        arc={arc}
         height={0.26}
         width={0.26}
       />

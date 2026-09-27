@@ -630,7 +630,7 @@ const MOTION = { style: 'hop' as const, durationMs: 520, lift: 0.6 };
 // The height of a piece's heart above its cell centre, where the trail flows.
 const BODY_Y = layout.floorY + 0.32;
 
-const MoveFx = ({ from, to, color, durationMs }: MoveFxProps) => {
+const MoveFx = ({ from, to, color, durationMs, arc = 0 }: MoveFxProps) => {
   const white = color === 'white';
   // Painted, not glowing: saturated sparks read against the pale sky
   const colors = white ? GLITTER : AMETHYST_GLITTER;
@@ -639,7 +639,8 @@ const MoveFx = ({ from, to, color, durationMs }: MoveFxProps) => {
       <SparkleTrail
         from={[from[0], from[1] + BODY_Y, from[2]]}
         to={[to[0], to[1] + BODY_Y, to[2]]}
-        lift={MOTION.lift}
+        // Along the piece's path: straight, or a knight's arc
+        lift={arc}
         durationMs={durationMs}
         colors={colors}
         size={0.17}

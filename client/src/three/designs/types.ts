@@ -98,6 +98,13 @@ export interface LastMoveMarkerProps {
    * design's own wrappers need not pass it on.
    */
   fresh?: boolean;
+  /**
+   * Height of the move's arc above the straight line between the two floors
+   * (world units): 0 for every move but a knight's when the player has
+   * knights arc. Pass it to the kit's line (`tracePath`, `LastMoveLine`) so
+   * the line follows exactly the path the piece took. Board always sets it.
+   */
+  arc?: number;
 }
 
 export interface MoveFxProps {
@@ -110,6 +117,13 @@ export interface MoveFxProps {
   piece: PieceType;
   capture: boolean;
   durationMs: number;
+  /**
+   * Height of the move's arc above the straight line from `from` to `to`
+   * (world units; see LastMoveMarkerProps.arc). The piece travels along
+   * `movePoint(from, to, easeInOutCubic(t), arc)` (movePath.ts); a trail
+   * that follows it should too. Board always sets it.
+   */
+  arc?: number;
 }
 
 export interface CaptureFxProps {
@@ -156,12 +170,18 @@ export interface StageProps {
   orientation: Orientation;
 }
 
+/**
+ * How a move plays out. Every style but 'teleport' glides in a straight line
+ * from the source square to the destination, eased in and out, whatever the
+ * level change (a knight arcs instead when the player sets knight moves to
+ * 'arc'; see movePath.ts).
+ */
 export type MoveStyle =
-  /** A parabolic lift from source to destination (classic). */
+  /** A plain eased glide (classic). */
   | 'hop'
-  /** A higher arc that lands with a squash-and-stretch bounce. */
+  /** A glide that stretches as it travels and lands with a squash-and-stretch bounce. */
   | 'bounce'
-  /** Straight line, fast out and eased in, no lift. */
+  /** A plain eased glide (the same as 'hop'). */
   | 'slide'
   /** Shrinks away at the source and pops in at the destination. */
   | 'teleport';
@@ -169,8 +189,12 @@ export type MoveStyle =
 export interface DesignMotion {
   style: MoveStyle;
   durationMs: number;
-  /** Peak height of the lift, world units ('hop' and 'bounce'). */
-  lift: number;
+  /**
+   * Unused by Board: moves no longer lift (a knight's arc, when the player
+   * asks for one, is the same height in every design). Kept so a design can
+   * size its own effects by it.
+   */
+  lift?: number;
 }
 
 /**

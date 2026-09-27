@@ -17,18 +17,18 @@ import {
 } from 'three';
 import type { Group, Mesh, PerspectiveCamera, Sprite } from 'three';
 import { easeInOutCubic } from '../../motion';
+import { movePoint } from '../../movePath';
 import { Shards } from '../kit/fx';
 import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import { dotTexture } from '../kit/textures';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, PieceColor, Vec3 } from '../types';
 import { PieceType } from '../../../engine/pieces';
-import { MOTION } from './motion';
 import { CHECK, INK_RIM, PIECE_SCALE, frame, layout, levelAt } from './palette';
 import { PieceWithBand } from './pieces';
 
-// The moments of motion. A move is a quick hop that leaves a light trail
-// along its arc (pearl or pink, the mover's neon), and lands with a ring of
+// The moments of motion. A move is a quick glide that leaves a light trail
+// along its path (pearl or pink, the mover's neon), and lands with a ring of
 // light racing out across the glass. A capture: the victim glitches as the
 // attacker comes in, then shatters into a handful of neon shards, with a red
 // ring and a small jolt. Mate: the king topples and a neon CHECKMATE sign
@@ -99,17 +99,16 @@ const trailFragment = /* glsl */ `
     gl_FragColor = vec4(col, a);
   }`;
 
-/** Where the hop puts the piece's waist at spatial progress `s` (0 at the source). */
-const hopPoint = (from: Vec3, to: Vec3, lift: number, s: number, waist: number): Vec3 => [
-  from[0] + (to[0] - from[0]) * s,
-  from[1] + (to[1] - from[1]) * s + lift * 4 * s * (1 - s) + waist,
-  from[2] + (to[2] - from[2]) * s,
-];
+/** Where the glide puts the piece's waist at progress `s` (0 at the source): its path, raised. */
+const glidePoint = (from: Vec3, to: Vec3, arc: number, s: number, waist: number): Vec3 => {
+  const [x, y, z] = movePoint(from, to, s, arc);
+  return [x, y + waist, z];
+};
 
-/** A camera-facing ribbon along the whole hop; uniforms light the span behind the piece. */
-const trailGeometry = (from: Vec3, to: Vec3, lift: number, waist: number) => {
+/** A camera-facing ribbon along the whole glide; uniforms light the span behind the piece. */
+const trailGeometry = (from: Vec3, to: Vec3, arc: number, waist: number) => {
   const n = 40;
-  const pts = Array.from({ length: n + 1 }, (_, i) => hopPoint(from, to, lift, i / n, waist));
+  const pts = Array.from({ length: n + 1 }, (_, i) => glidePoint(from, to, arc, i / n, waist));
   const position = new Float32Array((n + 1) * 2 * 3);
   const tangent = new Float32Array((n + 1) * 2 * 3);
   const side = new Float32Array((n + 1) * 2);
@@ -144,24 +143,22 @@ const trailGeometry = (from: Vec3, to: Vec3, lift: number, waist: number) => {
 const LightTrail = ({
   from,
   to,
+  arc,
   color,
   durationMs,
 }: {
   from: Vec3;
   to: Vec3;
+  /** The move's arc (MoveFxProps.arc): the trail runs where the piece does. */
+  arc: number;
   color: string;
   durationMs: number;
 }) => {
   const floorY = layout.floorY;
   const geometry = useMemo(
     () =>
-      trailGeometry(
-        [from[0], from[1] + floorY, from[2]],
-        [to[0], to[1] + floorY, to[2]],
-        MOTION.lift,
-        0.3,
-      ),
-    [from, to, floorY],
+      trailGeometry([from[0], from[1] + floorY, from[2]], [to[0], to[1] + floorY, to[2]], arc, 0.3),
+    [from, to, arc, floorY],
   );
   const material = useMemo(
     () =>
@@ -319,11 +316,11 @@ const Flash = ({
 
 // --- Moves ---------------------------------------------------------------------------------
 
-export const MoveFx = ({ from, to, color, durationMs }: MoveFxProps) => {
+export const MoveFx = ({ from, to, color, durationMs, arc = 0 }: MoveFxProps) => {
   const floor: Vec3 = [to[0], to[1] + layout.floorY, to[2]];
   return (
     <>
-      <LightTrail from={from} to={to} color={NEON[color]} durationMs={durationMs} />
+      <LightTrail from={from} to={to} arc={arc} color={NEON[color]} durationMs={durationMs} />
       <Shockwave
         floor={floor}
         color={NEON[color]}

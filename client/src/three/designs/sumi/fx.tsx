@@ -12,6 +12,7 @@ import {
 import type { Group, Mesh, Texture } from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { easeInOutCubic } from '../../motion';
+import { movePoint } from '../../movePath';
 import { Burst, ScreenShake } from '../kit/fx';
 import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
@@ -89,7 +90,7 @@ const trailFragment = /* glsl */ `
 const SAMPLES = 48;
 
 /**
- * A brush trail along a piece's hop, at the height of its body: it grows
+ * A brush trail along a piece's path, at the height of its body: it grows
  * behind the piece, thin and broken where it has dried, and is gone a
  * moment after the piece lands.
  */
@@ -97,25 +98,25 @@ const InkTrail = ({
   from,
   to,
   durationMs,
-  lift,
+  arc,
   height,
 }: {
   from: Vec3;
   to: Vec3;
   durationMs: number;
-  lift: number;
+  /** The move's arc (MoveFxProps.arc). */
+  arc: number;
   height: number;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
   const [done, setDone] = useState(false);
   const elapsed = useRef(0);
   const { geometry, material } = useMemo(() => {
-    // The hop's path as MoveGlide flies it, parametrised by its eased progress
-    const at = (e: number): Vec3 => [
-      from[0] + (to[0] - from[0]) * e,
-      from[1] + (to[1] - from[1]) * e + lift * 4 * e * (1 - e) + height,
-      from[2] + (to[2] - from[2]) * e,
-    ];
+    // The path as MoveGlide takes it, parametrised by its eased progress
+    const at = (e: number): Vec3 => {
+      const [x, y, z] = movePoint(from, to, e, arc);
+      return [x, y + height, z];
+    };
     const n = SAMPLES + 1;
     const position = new Float32Array(n * 2 * 3);
     const tangent = new Float32Array(n * 2 * 3);
@@ -260,8 +261,8 @@ const InkRipple = ({
   );
 };
 
-export const makeMoveFx = (floorY: number, lift: number) => {
-  const MoveFx = ({ from, to, durationMs }: MoveFxProps) => {
+export const makeMoveFx = (floorY: number) => {
+  const MoveFx = ({ from, to, durationMs, arc = 0 }: MoveFxProps) => {
     const floor: Vec3 = [to[0], to[1] + floorY, to[2]];
     return (
       <>
@@ -269,7 +270,7 @@ export const makeMoveFx = (floorY: number, lift: number) => {
           from={[from[0], from[1] + floorY, from[2]]}
           to={floor}
           durationMs={durationMs}
-          lift={lift}
+          arc={arc}
           height={0.24}
         />
         <InkRipple floor={floor} delayMs={durationMs * 0.96} />

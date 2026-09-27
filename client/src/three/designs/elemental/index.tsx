@@ -576,7 +576,7 @@ const After = ({ delayMs, children }: { delayMs: number; children: ReactNode }) 
   return ready ? <>{children}</> : null;
 };
 
-const MoveFx = ({ from, to, color, durationMs }: MoveFxProps) => {
+const MoveFx = ({ from, to, color, durationMs, arc = 0 }: MoveFxProps) => {
   const white = color === 'white';
   const land: [number, number, number] = [to[0], to[1] + layout.floorY + 0.04, to[2]];
   return (
@@ -584,7 +584,8 @@ const MoveFx = ({ from, to, color, durationMs }: MoveFxProps) => {
       <Trail
         from={[from[0], from[1] + BODY_Y, from[2]]}
         to={[to[0], to[1] + BODY_Y, to[2]]}
-        lift={MOTION.lift}
+        // Along the piece's path: straight, or a knight's arc
+        lift={arc}
         durationMs={durationMs}
         colors={white ? SNOW : SPARKS}
         drift={white ? [0, -0.35, 0] : [0, 0.55, 0]}

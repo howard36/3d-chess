@@ -28,6 +28,8 @@
 // show a design from several sides.
 // --pose yaw,pitch,zoom holds the camera still at that offset from the
 // opening view (degrees, degrees, distance factor).
+// --knight arc|straight sets how knights move (the picker's setting;
+// straight by default), e.g. to compare the two.
 // Needs ffmpeg with libx264 on PATH, or FFMPEG=/path/to/ffmpeg.
 //
 // --review is a clarity review instead of a recording (no ffmpeg needed):
@@ -65,6 +67,9 @@ const opt = (name, fallback) => {
 };
 
 const DESIGN = opt('design', 'classic');
+// The player's knight setting, carried in every address the pages open
+const KNIGHT = opt('knight', 'straight');
+const SETTINGS = `design=${DESIGN}&knight=${KNIGHT}`;
 const OUT = path.resolve(opt('out', 'showcase'));
 // --stills-fast takes the same stills, but draws only the frames it saves
 const STILLS_FAST = flag('stills-fast');
@@ -828,11 +833,11 @@ async function main() {
     p.on('pageerror', (e) => console.error(`[page] ${e.message}`));
   }
 
-  await pageA.goto(`${BASE}/?design=${DESIGN}`);
+  await pageA.goto(`${BASE}/?${SETTINGS}`);
   await pageA.getByRole('button', { name: 'Start New Game' }).click();
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
   // A review shows the design from both seats; a recording only needs one
-  await pageB.goto(`${pageA.url()}?design=${REVIEW ? DESIGN : 'classic'}`);
+  await pageB.goto(`${pageA.url()}?${REVIEW ? SETTINGS : 'design=classic'}`);
   await pageB.getByRole('button', { name: 'Join Game' }).click();
   for (const p of [pageA, pageB]) {
     await p.waitForFunction(() => window.__show?.ready(), null, { timeout: 120000 });
@@ -857,7 +862,7 @@ async function main() {
   await black.setViewportSize({ width: 400, height: 300 });
   if (white === pageB) {
     // The joiner opened the game with the classic look; switch it over.
-    await white.goto(`${white.url().split('?')[0]}?design=${DESIGN}`);
+    await white.goto(`${white.url().split('?')[0]}?${SETTINGS}`);
   }
   await white.waitForFunction((d) => window.__show?.ready(d), DESIGN, { timeout: 120000 });
   await white.evaluate(() => document.fonts.ready);

@@ -3,6 +3,7 @@ import { useDesignChoice } from '../three/designs/context';
 import { DESIGNS } from '../three/designs/registry';
 import { pickerSections } from '../three/designs/groups';
 import type { DesignEntry } from '../three/designs/types';
+import { KNIGHT_MOVES } from '../three/movePath';
 
 const Swatch = ({ colors }: { colors: DesignEntry['swatch'] }) => (
   <span
@@ -34,13 +35,16 @@ const panel: React.CSSProperties = {
   fontFamily: 'var(--hud-font, inherit)',
 };
 
+const KNIGHT_LABEL = { straight: 'Straight', arc: 'Arc' } as const;
+
 /**
- * Chooses the look of the board. The choice applies at once and is
- * remembered in this browser; it is purely cosmetic and never sent to the
+ * Chooses the look of the board, and at its foot how knights move (straight
+ * like every other piece, or over an arc). Both apply at once and are
+ * remembered in this browser; they are purely cosmetic and never sent to the
  * opponent, who keeps their own.
  */
 const DesignPicker: React.FC = () => {
-  const { id, choose } = useDesignChoice();
+  const { id, choose, knightMoves, chooseKnightMoves } = useDesignChoice();
   const [open, setOpen] = React.useState(false);
   const root = React.useRef<HTMLDivElement | null>(null);
   const current = DESIGNS.find((d) => d.id === id) ?? DESIGNS[0];
@@ -161,6 +165,56 @@ const DesignPicker: React.FC = () => {
               ))}
             </React.Fragment>
           ))}
+          <li
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              margin: '8px 4px 2px',
+              padding: '10px 6px 4px',
+              borderTop: '1px solid rgba(127,127,127,0.3)',
+            }}
+          >
+            <span id="knight-moves-label" style={{ fontSize: 13, fontWeight: 600 }}>
+              Knight moves
+            </span>
+            <span
+              role="radiogroup"
+              aria-labelledby="knight-moves-label"
+              style={{
+                display: 'inline-flex',
+                borderRadius: 6,
+                overflow: 'hidden',
+                boxShadow: '0 0 0 1px rgba(127,127,127,0.5)',
+              }}
+            >
+              {KNIGHT_MOVES.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={knightMoves === m}
+                  data-testid={`knight-moves-${m}`}
+                  onClick={() => chooseKnightMoves(m)}
+                  style={{
+                    padding: '4px 10px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    font: 'inherit',
+                    fontSize: 12,
+                    color: knightMoves === m ? 'var(--hud-accent-fg, #111)' : 'inherit',
+                    background:
+                      knightMoves === m
+                        ? 'var(--hud-accent, rgba(255,255,255,0.85))'
+                        : 'transparent',
+                  }}
+                >
+                  {KNIGHT_LABEL[m]}
+                </button>
+              ))}
+            </span>
+          </li>
         </ul>
       )}
     </div>

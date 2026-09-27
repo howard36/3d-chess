@@ -4,6 +4,7 @@ import type { Group, Mesh, MeshStandardMaterial } from 'three';
 import type { PieceType } from '../engine/pieces';
 import { CELL_FLOOR_Y } from './layout';
 import { easeInOutCubic, MOVE_ANIMATION } from './motion';
+import { movePoint } from './movePath';
 import type { DesignMotion } from './designs/types';
 import { PieceMesh } from './PieceMesh';
 import { useDesign } from './designs/context';
@@ -11,7 +12,9 @@ import { useDesign } from './designs/context';
 type Vec3 = [number, number, number];
 
 /**
- * Glides its children from the `from` cell into their resting place.
+ * Glides its children from the `from` cell into their resting place, in a
+ * straight line (see movePath.ts), or over an `arc` for a knight when the
+ * player has knights jump.
  *
  * The children keep their own declarative world `position`; this wrapper only
  * carries the animated remainder of the journey, easing from `from - to` to
@@ -31,6 +34,7 @@ export const MoveGlide = ({
   children,
   motion = CLASSIC_MOTION,
   floorY = CELL_FLOOR_Y,
+  arc = 0,
 }: {
   from: Vec3;
   to: Vec3;
@@ -38,6 +42,11 @@ export const MoveGlide = ({
   motion?: DesignMotion;
   /** Cell-local floor height: squash and pop scale about the piece's base. */
   floorY?: number;
+  /**
+   * Height of the path's arc above the straight line (world units): 0 for
+   * every move but a knight's when knights arc (moveArc in movePath.ts).
+   */
+  arc?: number;
 }) => {
   const group = useRef<Group>(null);
   const scaler = useRef<Group>(null);
@@ -47,7 +56,7 @@ export const MoveGlide = ({
   const dx = from[0] - to[0];
   const dy = from[1] - to[1];
   const dz = from[2] - to[2];
-  const { style, durationMs, lift } = motion;
+  const { style, durationMs } = motion;
   // A bounce keeps going after touchdown while the squash settles.
   const settleMs = style === 'bounce' ? SQUASH_MS : 0;
 
@@ -78,18 +87,11 @@ export const MoveGlide = ({
       if (out) g.position.set(dx, dy, dz);
       else g.position.set(0, 0, 0);
       s?.scale.setScalar(Math.max(k, 1e-4));
-    } else if (style === 'slide') {
-      const remain = 1 - easeInOutCubic(t);
-      g.position.set(dx * remain, dy * remain, dz * remain);
     } else {
-      const e = easeInOutCubic(t);
-      const remain = 1 - e;
-      g.position.set(
-        dx * remain,
-        // Parabolic lift with its apex at the spatial midpoint of the glide
-        dy * remain + lift * 4 * e * remain,
-        dz * remain,
-      );
+      // Straight from the source (offset d) to rest (0), eased; a knight's
+      // arc rises over the line's midpoint
+      const [x, y, z] = movePoint([dx, dy, dz], ORIGIN, easeInOutCubic(t), arc);
+      g.position.set(x, y, z);
       if (style === 'bounce' && s) {
         const after = elapsedMs.current - durationMs;
         if (after >= 0) {
@@ -98,7 +100,7 @@ export const MoveGlide = ({
           const squash = Math.sin(k * Math.PI * 2.5) * Math.exp(-k * 4) * 0.22;
           s.scale.set(1 + squash * 0.6, 1 - squash, 1 + squash * 0.6);
         } else {
-          // Stretched along the flight while airborne
+          // Stretched while it travels
           const stretch = Math.sin(t * Math.PI) * 0.1;
           s.scale.set(1 - stretch * 0.4, 1 + stretch, 1 - stretch * 0.4);
         }
@@ -124,6 +126,7 @@ export const MoveGlide = ({
 };
 
 const SQUASH_MS = 320;
+const ORIGIN: Vec3 = [0, 0, 0];
 
 const easeOutBack = (t: number) => {
   const c1 = 1.9;
@@ -131,11 +134,7 @@ const easeOutBack = (t: number) => {
   return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
 };
 
-const CLASSIC_MOTION: DesignMotion = {
-  style: 'hop',
-  durationMs: MOVE_ANIMATION.durationMs,
-  lift: MOVE_ANIMATION.liftWorld,
-};
+const CLASSIC_MOTION: DesignMotion = { style: 'hop', durationMs: MOVE_ANIMATION.durationMs };
 
 /**
  * The piece just captured on the last move, fading and shrinking away under

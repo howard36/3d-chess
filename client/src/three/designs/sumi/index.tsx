@@ -289,7 +289,7 @@ const Check = ({ floor }: MarkerProps) => (
 
 // --- Design ------------------------------------------------------------------------
 
-const MOTION = { style: 'hop' as const, durationMs: 440, lift: 0.34 };
+const MOTION = { style: 'hop' as const, durationMs: 440 };
 
 const sumi: Design = {
   id: 'sumi',
@@ -312,7 +312,7 @@ const sumi: Design = {
   // selection lifts it higher. The kit's Lift does both.
   hoverLift: true,
   motion: MOTION,
-  MoveFx: makeMoveFx(layout.floorY, MOTION.lift),
+  MoveFx: makeMoveFx(layout.floorY),
   CaptureFx: makeCaptureFx(PIECE_SCALE),
   Celebration,
   toppleMatedKing: true,

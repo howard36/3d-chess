@@ -27,7 +27,9 @@ vi.mock('./registry', () => ({
   ] satisfies DesignEntry[],
 }));
 
-const { DesignChoiceProvider, useDesignChoice, useDesign } = await import('./context');
+const { DesignChoiceProvider, useDesignChoice, useDesign, useKnightMoves } = await import(
+  './context'
+);
 const { default: DesignPicker } = await import('../../screens/DesignPicker');
 
 const Show = () => {
@@ -120,5 +122,67 @@ describe('design choice', () => {
     });
     await waitFor(() => expect(screen.queryByRole('list')).not.toBeInTheDocument());
     expect(screen.getByText('chosen:classic drawn:classic')).toBeInTheDocument();
+  });
+});
+
+describe('knight moves setting', () => {
+  const ShowKnight = () => {
+    const { knightMoves } = useDesignChoice();
+    return (
+      <p>
+        knights:{knightMoves} scene:{useKnightMoves()}
+      </p>
+    );
+  };
+  const renderIt = (withPicker = false) =>
+    render(
+      <DesignChoiceProvider>
+        {withPicker && <DesignPicker />}
+        <ShowKnight />
+      </DesignChoiceProvider>,
+    );
+
+  it('is straight by default, and without a provider', () => {
+    const Bare = () => <p>bare:{useKnightMoves()}</p>;
+    render(<Bare />);
+    expect(screen.getByText('bare:straight')).toBeInTheDocument();
+    renderIt();
+    expect(screen.getByText('knights:straight scene:straight')).toBeInTheDocument();
+  });
+
+  it('opens with ?knight= and remembers it; ignores anything else', () => {
+    window.history.replaceState({}, '', '/game/ABC?knight=arc');
+    const first = renderIt();
+    expect(screen.getByText('knights:arc scene:arc')).toBeInTheDocument();
+    expect(localStorage.getItem('3dchess.knightMoves')).toBe('arc');
+    first.unmount();
+
+    // Remembered, and an unknown value in the address changes nothing
+    window.history.replaceState({}, '', '/?knight=sideways');
+    renderIt();
+    expect(screen.getByText('knights:arc scene:arc')).toBeInTheDocument();
+  });
+
+  it('switches from the picker’s toggle, keeps the choice and leaves the picker open', async () => {
+    const user = userEvent.setup();
+    renderIt(true);
+    await user.click(screen.getByRole('button', { name: 'Board style: Classic' }));
+    const group = screen.getByRole('radiogroup', { name: 'Knight moves' });
+    expect(group).toBeInTheDocument();
+    const straight = screen.getByRole('radio', { name: 'Straight' });
+    const arc = screen.getByRole('radio', { name: 'Arc' });
+    expect(straight).toHaveAttribute('aria-checked', 'true');
+    expect(arc).toHaveAttribute('aria-checked', 'false');
+
+    await user.click(arc);
+    expect(screen.getByText('knights:arc scene:arc')).toBeInTheDocument();
+    expect(arc).toHaveAttribute('aria-checked', 'true');
+    expect(localStorage.getItem('3dchess.knightMoves')).toBe('arc');
+    // Still open, and the design untouched
+    expect(screen.getByRole('list', { name: 'Board styles' })).toBeInTheDocument();
+
+    await user.click(straight);
+    expect(screen.getByText('knights:straight scene:straight')).toBeInTheDocument();
+    expect(localStorage.getItem('3dchess.knightMoves')).toBe('straight');
   });
 });

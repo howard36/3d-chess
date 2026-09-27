@@ -25,7 +25,7 @@ import { ToyPiece } from './pieces';
 // Candy Tower's moments. All run on r3f's clock with the frame step clamped,
 // so a frame-stepped recording plays them exactly, and all end: nothing is
 // left moving once a move has played out.
-// - A move: the toy bounces over (Board's squash-and-stretch hop) and lands
+// - A move: the toy glides over (Board's squash-and-stretch bounce) and lands
 //   with a soft ring of sugar dust and a ripple across the glass.
 // - A capture: the victim flinches as the attacker drops in, is squashed,
 //   pops straight up spinning and bursts into sprinkles, all inside its own

@@ -12,9 +12,9 @@ type Vec = { x: number; y: number; z: number };
 const FROM: [number, number, number] = [0, 0, 2];
 const TO: [number, number, number] = [0, 0, 0];
 
-async function glide(motion: DesignMotion) {
+async function glide(motion: DesignMotion, arc = 0, from = FROM) {
   const renderer = await ReactThreeTestRenderer.create(
-    <MoveGlide from={FROM} to={TO} motion={motion} floorY={-0.5}>
+    <MoveGlide from={from} to={TO} motion={motion} floorY={-0.5} arc={arc}>
       <mesh userData={{ body: true }} />
     </MoveGlide>,
   );
@@ -55,10 +55,37 @@ describe('MoveGlide styles', () => {
     expect(scaler()).toBeNull(); // back to full size
   });
 
+  it('glides every style but teleport in a straight line, even between levels', async () => {
+    for (const style of ['hop', 'slide', 'bounce'] as const) {
+      // Two levels up and two ranks back: the offset shrinks along one line
+      const { frames, pos } = await glide({ style, durationMs: 300, lift: 0.6 }, 0, [0, 2, 2]);
+      for (let i = 0; i < 9; i++) {
+        await frames(1);
+        const { x, y, z } = pos();
+        expect(x).toBe(0);
+        expect(y).toBeCloseTo(z, 6);
+        expect(z).toBeGreaterThanOrEqual(0);
+        expect(z).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+
+  it('arcs a knight over a constant height above the line, whatever the level change', async () => {
+    for (const from of [FROM, [0, 2, 1] as [number, number, number]]) {
+      const { frames, pos } = await glide({ style: 'hop', durationMs: 300 }, 0.6, from);
+      // Halfway through the glide (the ease is symmetric): the arc's peak
+      await frames(5);
+      expect(pos().y - from[1] / 2).toBeCloseTo(0.6, 1);
+      await frames(8);
+      expect(pos()).toMatchObject({ x: 0, y: 0, z: 0 });
+    }
+  });
+
   it('bounces: squashes on landing and settles back to shape', async () => {
     const { frames, pos, scaler } = await glide({ style: 'bounce', durationMs: 300, lift: 0.6 });
     await frames(5);
-    expect(pos().y).toBeGreaterThan(0.3); // airborne
+    expect(pos().y).toBe(0); // gliding, not lifted
+    expect(scaler()).not.toBeNull(); // stretched as it travels
     await frames(6); // landed, squashing
     expect(pos().z).toBeCloseTo(0);
     expect(scaler()).not.toBeNull();

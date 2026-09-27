@@ -3,7 +3,9 @@ import { describe, it, expect } from 'vitest';
 import Board from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
 import classic from './designs/classic';
-import { DesignContext } from './designs/context';
+import { DesignContext, KnightMovesContext } from './designs/context';
+import { knightArcHeight } from './movePath';
+import type { KnightMoves } from './movePath';
 import { useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import type { BufferGeometry, Camera, Scene } from 'three';
@@ -13,6 +15,7 @@ import type {
   LastMoveMarkerProps,
   LevelFocus,
   MarkerProps,
+  MoveFxProps,
   PieceBodyProps,
 } from './designs/types';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
@@ -23,7 +26,6 @@ import { act } from 'react';
 import { vi } from 'vitest';
 import { Board as EngineBoard } from '../engine';
 import { CELL_FLOOR_Y, SPACING, toWorld } from './layout';
-import { MOVE_ANIMATION } from './motion';
 import { theme } from './theme';
 
 type Renderer = { scene: unknown };
@@ -683,7 +685,7 @@ describe('Board', () => {
       }
     });
 
-    it('glides a newly arrived move from its source cell with a lift', async () => {
+    it('glides a newly arrived move from its source cell in a straight line', async () => {
       const renderer = await ReactThreeTestRenderer.create(
         <Board board={boardBeforeMove()} currentTurn="white" />,
       );
@@ -703,12 +705,14 @@ describe('Board', () => {
       expect(group.position.y).toBeCloseTo(fy - ty);
       expect(group.position.z).toBeCloseTo(fz - tz);
 
-      // Half-way (150ms of 300ms): eased midpoint plus the full lift. Frame
-      // deltas are clamped, so simulate several small frames.
+      // Half-way (150ms of 300ms): the eased midpoint of the straight line,
+      // not lifted. Frame deltas are clamped, so simulate several small frames.
       await act(async () => {
         await renderer.advanceFrames(5, 0.03);
       });
-      expect(group.position.y).toBeCloseTo((fy - ty) / 2 + MOVE_ANIMATION.liftWorld);
+      expect(group.position.x).toBeCloseTo((fx - tx) / 2);
+      expect(group.position.y).toBeCloseTo((fy - ty) / 2);
+      expect(group.position.z).toBeCloseTo((fz - tz) / 2);
 
       // Past the duration: snapped home, resting position untouched
       await act(async () => {
@@ -996,6 +1000,68 @@ describe('Board with a clarity-kit design', () => {
         <Board board={board} currentTurn={turn} lastMove={lastMove} />
       </DesignContext.Provider>
     );
+
+    it('hands the last move and its effects a knight’s arc only when knights arc', async () => {
+      const fxSeen: MoveFxProps[] = [];
+      const MoveFx = (props: MoveFxProps) => {
+        fxSeen.push(props);
+        return null;
+      };
+      const knightBoard = (at: Coord, type = PieceType.Knight) => {
+        const board = new EngineBoard();
+        board.setPiece(at, { type, color: 'white' });
+        board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+        board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
+        return board;
+      };
+      const jump = { x: 3, y: 4, z: 2 };
+      const arcFor = async (
+        knightMoves: KnightMoves | undefined,
+        type = PieceType.Knight,
+        promotion?: PieceType,
+      ) => {
+        seen.length = 0;
+        fxSeen.length = 0;
+        const d: Design = { ...design, MoveFx };
+        const at = (board: EngineBoard, lastMove?: LastMoveInfo) => {
+          const inner = (
+            <DesignContext.Provider value={d}>
+              <Board board={board} currentTurn={lastMove ? 'black' : 'white'} lastMove={lastMove} />
+            </DesignContext.Provider>
+          );
+          return knightMoves ? (
+            <KnightMovesContext.Provider value={knightMoves}>{inner}</KnightMovesContext.Provider>
+          ) : (
+            inner
+          );
+        };
+        const renderer = await ReactThreeTestRenderer.create(at(knightBoard(FROM, type)));
+        const move: LastMoveInfo = {
+          move: { from: FROM, to: jump, ...(promotion ? { promotion } : {}) },
+          moveCount: 1,
+          capturedPiece: null,
+        };
+        await renderer.update(at(knightBoard(jump, type), move));
+        const glide = (renderer.scene as ReactThreeTestInstance).findAll(
+          (node) => node.props.userData?.moveGlide === true,
+        )[0].instance as unknown as { position: { y: number } };
+        // Half-way through the glide (both squares are on one level): the arc's peak
+        await act(async () => {
+          await renderer.advanceFrames(5, 0.03);
+        });
+        expect(last(fxSeen)!.arc).toBe(last(seen)!.arc);
+        return { arc: last(seen)!.arc, glideArc: Math.round(glide.position.y * 1e3) / 1e3 };
+      };
+      const height = knightArcHeight(classic.layout);
+      expect(height).toBeCloseTo(0.6 * SPACING);
+      expect(await arcFor('arc')).toEqual({ arc: height, glideArc: height });
+      // Straight is the default, with or without the setting
+      expect(await arcFor('straight')).toEqual({ arc: 0, glideArc: 0 });
+      expect(await arcFor(undefined)).toEqual({ arc: 0, glideArc: 0 });
+      // Only a knight arcs: not a rook, nor a pawn that promotes to a knight
+      expect((await arcFor('arc', PieceType.Rook)).arc).toBe(0);
+      expect((await arcFor('arc', PieceType.Knight, PieceType.Knight)).arc).toBe(0);
+    });
 
     it('is not fresh when replayed at mount, fresh for a live move, and remounts per move', async () => {
       mounts.length = 0;

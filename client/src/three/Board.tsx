@@ -14,7 +14,8 @@ import { GhostPiece, MoveGlide } from './moveAnimation';
 import { prefersReducedMotion } from './motion';
 import { theme } from './theme';
 import { isTap } from './tap';
-import { useDesign } from './designs/context';
+import { useDesign, useKnightMoves } from './designs/context';
+import { moveArc } from './movePath';
 import type { BoardLayout, LevelFocus, MarkerProps, Vec3 } from './designs/types';
 import { resolveHover } from './hover';
 import type { FloorSquare } from './hover';
@@ -129,6 +130,12 @@ const Board = (props: BoardProps) => {
     !!lastMove && lastMove.moveCount > mountMoveCount.current && !prefersReducedMotion();
   const lastFromKey = lastMove ? toZXY(lastMove.move.from) : null;
   const lastToKey = lastMove ? toZXY(lastMove.move.to) : null;
+  // Every move runs straight; a knight arcs when the player asks for it. The
+  // glide, the last-move line and the move's effects all take this one arc.
+  const knightMoves = useKnightMoves();
+  const lastArc = lastMove
+    ? moveArc(layout, board.getPiece(lastMove.move.to)?.type, lastMove.move.promotion, knightMoves)
+    : 0;
 
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | Coord>(null);
@@ -429,6 +436,7 @@ const Board = (props: BoardProps) => {
                 to={worldOf(coord)}
                 motion={design.motion}
                 floorY={layout.floorY}
+                arc={lastArc}
               >
                 {mesh}
               </MoveGlide>
@@ -460,6 +468,7 @@ const Board = (props: BoardProps) => {
             from={markerAt(lastMove.move.from)}
             to={markerAt(lastMove.move.to)}
             fresh={animate}
+            arc={lastArc}
           />
         )}
         {Check &&
@@ -476,6 +485,7 @@ const Board = (props: BoardProps) => {
             capture={!!lastMove.capturedPiece}
             durationMs={design.motion.durationMs}
             orientation={orientation}
+            arc={lastArc}
           />
         )}
         {animate &&

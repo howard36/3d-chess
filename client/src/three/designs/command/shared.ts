@@ -77,7 +77,7 @@ export const EDGE_WIDTH = 0.022;
 /** The floor of the ops room, well below the tower. */
 export const ROOM_FLOOR_Y = FRAME.levelY[0] - 3.2;
 
-/** A quick hop: lifted clear of the glass, set down precisely. */
-export const MOTION: DesignMotion = { style: 'hop', durationMs: 400, lift: 0.32 };
+/** A quick, precise glide from square to square. */
+export const MOTION: DesignMotion = { style: 'hop', durationMs: 400 };
 /** Knights turn this far off the rank line, to show their profile. */
 export const KNIGHT_YAW = 1.0;
