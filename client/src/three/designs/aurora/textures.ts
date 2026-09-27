@@ -164,8 +164,9 @@ export const frostTexture = (): Texture => {
     // Ridged: thin bright veins where the noise crosses its middle
     const va = 1 - Math.abs(a(u, v) * 2 - 1);
     const vb = 1 - Math.abs(b(u, v) * 2 - 1);
-    const veins = Math.max(va ** 8, vb ** 10 * 0.8);
-    const rime = random() * 0.5 + b(u, v) * 0.5;
+    // Fewer, crisper feathers, and a light rime
+    const veins = Math.max(va ** 14, vb ** 18 * 0.7);
+    const rime = random() * 0.3 + b(u, v) * 0.3;
     return [veins, rime, 0, 1];
   });
   return frost;

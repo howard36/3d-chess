@@ -24,6 +24,7 @@ import { dotTexture, rng } from '../kit/textures';
 import { LAYER } from '../kit/layers';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, Vec3 } from '../types';
 import { MOVE, RIM, SELECT } from './palette';
+import { underPieces } from './markers';
 import { PolarMaterial } from './pieces';
 
 // Motion: pieces glide like skaters on ice. A glide leaves a wake of
@@ -33,7 +34,7 @@ import { PolarMaterial } from './pieces';
 // mate raises the aurora itself round the fallen king.
 
 const MAX_FRAME = 1 / 20;
-const DUST = { white: ['#ffffff', '#d8efff', '#bfe4ff'], black: [RIM, '#9dffe0', '#c8fff0'] };
+const DUST = { white: ['#ffffff', '#d8efff', '#bfe4ff'], black: [RIM, '#d4e2f0', '#9fb3c8'] };
 
 // --- The glide's wake -----------------------------------------------------------
 
@@ -434,8 +435,7 @@ const crownFragment = /* glsl */ `
     vec3 col = mix(uA, uB, smoothstep(0.05, 0.4, v));
     col = mix(col, uC, smoothstep(0.35, 0.9, v));
     float a = hem * rays * folds * 0.75;
-    if (a < 0.003) discard;
-    gl_FragColor = vec4(col, a);
+    gl_FragColor = vec4(col * a, 1.0);
     #include <colorspace_fragment>
   }`;
 
@@ -443,24 +443,16 @@ const crownFragment = /* glsl */ `
 export const Celebration = ({ floor }: CelebrationProps) => {
   const invalidate = useThree((s) => s.invalidate);
   const elapsed = useRef(0);
+  // Added on before the pieces are drawn, and only its far wall: it rises
+  // behind the fallen king and glows in the gaps, never over a piece
   const material = useMemo(
     () =>
-      new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        side: DoubleSide,
-        blending: AdditiveBlending,
-        uniforms: {
-          uTime: { value: 0 },
-          uRise: { value: 0 },
-          uA: { value: new Color(SELECT[0]) },
-          uB: { value: new Color(SELECT[1]) },
-          uC: { value: new Color(SELECT[2]) },
-        },
-        vertexShader: /* glsl */ `
-          varying vec2 vUv;
-          void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-        fragmentShader: crownFragment,
+      underPieces(crownFragment, {
+        uTime: { value: 0 },
+        uRise: { value: 0 },
+        uA: { value: new Color(SELECT[0]) },
+        uB: { value: new Color(SELECT[1]) },
+        uC: { value: new Color(SELECT[2]) },
       }),
     [],
   );
@@ -478,7 +470,7 @@ export const Celebration = ({ floor }: CelebrationProps) => {
         geometry={crownGeometry}
         material={material}
         position={floor}
-        renderOrder={LAYER.trace}
+        renderOrder={-1}
         raycast={noRaycast}
       />
       <FrostRing floor={floor} color={SELECT[0]} lifeMs={1100} from={0.3} to={2.2} opacity={0.8} />

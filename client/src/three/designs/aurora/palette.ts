@@ -24,13 +24,15 @@ export const LEVEL_FEET = levelRamp({ from: 140, to: 330, lightness: [0.66, 0.58
 export const NIGHT = {
   zenith: '#02050c',
   sky: '#060d1b',
-  horizon: '#1a2b40',
-  haze: '#172739',
+  horizon: '#1b2a3e',
+  haze: '#172537',
   /** Moonless snow: blue in the hollows, a little brighter on the wind's faces. */
   snowLow: '#131f2f',
   snowHigh: '#3a4e68',
-  rock: '#080d15',
-  mountainSnow: '#2b4058',
+  rock: '#0b111b',
+  /** Moonlit snow on the ranges: a neutral cold grey-blue, well away from every level hue. */
+  mountainSnow: '#4a5d78',
+  mountainShade: '#1a2434',
   /** The aurora, as the sky shows it (dim: it lights the world, it is not a light show). */
   auroraLow: '#39f5a0',
   auroraMid: '#2fd6c8',
@@ -44,23 +46,32 @@ export const NIGHT = {
 export const SNOW_STONE = '#e9eef3';
 /** Glacier-blue ice inlaid in the snow stone: the cut, the mane, the spiral, the pearls, the cross. */
 export const SNOW_ACCENT = '#7f9ec0';
-export const OBSIDIAN = '#171e29';
-/** Green aurora glass inlaid in the obsidian. */
-export const OBSIDIAN_ACCENT = '#1e4a42';
-/** The cold light that edges the obsidian army from behind. */
-export const RIM = '#5dffc0';
+export const OBSIDIAN = '#252321';
+/** Deep ice-grey inlaid in the obsidian: the cut, the mane, the spiral, the pearls, the cross. */
+export const OBSIDIAN_ACCENT = '#2e3f52';
+/**
+ * Moonlight: the cold silver that edges the obsidian army. Low in chroma, so
+ * the army's edge never reads as a level's colour or as the selection's.
+ */
+export const RIM = '#c0c9d4';
 
 // --- Marks on the board ---------------------------------------------------------
 
 /** A legal destination: the frost star, white-hot ice. */
 export const MOVE = '#e8f6ff';
-/** The capture: the same star gone red, with a red core. */
-export const CAPTURE = '#ff5b45';
+/** The capture: the same star gone crimson, with a crimson core (well clear of the gold). */
+export const CAPTURE = '#ff3f5e';
 /** Polaris gold: the last move's squares and the line between them. */
 export const LAST_MOVE = '#ffc45c';
 /** Check: a red aurora. */
 export const CHECK = '#ff3b3b';
-/** The selection's ribbon runs up the aurora's colours. */
+/**
+ * The selection runs up the aurora's colours. Aurora hues belong to two
+ * roles only: the levels (at the base of things) and the held piece.
+ */
 export const SELECT = ['#46ffa6', '#39e4ff', '#b085ff'] as const;
+/** The cold mint light on the held piece's crown (obsidian; snow stone takes a deeper one to show). */
+export const CROWN = '#b4ffe2';
+export const CROWN_WHITE = '#3dffa8';
 
 export const INK = '#e6f0fa';

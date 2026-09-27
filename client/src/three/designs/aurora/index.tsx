@@ -7,13 +7,14 @@ import { preloadPieceSet } from '../../pieces';
 import { focusLevelOf } from '../kit/focus';
 import { clarityTower, towerFrame } from '../kit/layouts';
 import { SmartLabels } from '../kit/smartLabels';
-import type { Design, GridProps } from '../types';
+import type { Design, GridProps, StageProps } from '../types';
 import { Celebration, makeCaptureFx, makeMoveFx } from './fx';
 import { FONT, hud } from './hud';
 import { makeMarkers } from './markers';
 import { INK, LEVELS, RIM } from './palette';
 import { PieceBody } from './pieces';
 import { IcePlates } from './plates';
+import { LIFT, PIECE_SCALE, useSteep } from './shared';
 import { PolarNight } from './sky';
 
 // Polaris: a glass observatory on a polar plateau at night. Five panes of
@@ -30,8 +31,10 @@ preloadPieceSet();
 
 // --- Layout ----------------------------------------------------------------------
 
-const PIECE_SCALE = 0.8;
-const layout = clarityTower({ pieceHeight: 0.87 * PIECE_SCALE });
+// A little lower than the kit's 18°: the frame's top edge then clears the
+// horizon by a few degrees, so the aurora's arc shows over the far ranges
+// in the opening view (rows still stand well apart at 15°)
+const layout = clarityTower({ pieceHeight: 0.87 * PIECE_SCALE, elevation: 15 });
 const { pitch, levelY } = towerFrame(layout);
 
 // --- Stage -----------------------------------------------------------------------
@@ -41,7 +44,8 @@ const DEG = Math.PI / 180;
 /**
  * Lights that travel with the camera, so every piece is modelled the same
  * from any orbit and either seat: a cold moonlight key over the viewer's
- * left shoulder, and an aurora-green rim from behind the tower.
+ * left shoulder (well off the view's axis even from overhead), and a
+ * silver rim from behind the tower.
  */
 const CameraLights = () => {
   const key = useRef<DirectionalLight>(null);
@@ -62,46 +66,42 @@ const CameraLights = () => {
   return (
     <>
       <directionalLight ref={key} intensity={2.3} color="#eef4ff" />
-      <directionalLight ref={rim} intensity={1.5} color={RIM} />
+      <directionalLight ref={rim} intensity={1.3} color={RIM} />
     </>
   );
 };
 
-const Stage = () => (
+// Tall, narrow moonlit strips round the room, two to a quadrant, and no
+// light overhead: obsidian shows long soft highlights down its stems and
+// bulbs from every side, while its tops (all a view from overhead sees)
+// stay dark
+const STRIPS = Array.from({ length: 8 }, (_, i) => (i / 8) * Math.PI * 2 + Math.PI / 8);
+
+const Stage = ({ layout: l }: StageProps) => (
   <>
-    <PolarNight />
-    {/* Reflections: a dark room with a soft skylight and a band of aurora
-        high round it, so obsidian shows long soft highlights, never points */}
+    <PolarNight layout={l} />
     <Environment resolution={64} frames={1}>
       <color attach="background" args={['#04070d']} />
-      <Lightformer
-        form="rect"
-        intensity={1.1}
-        color="#dce8ff"
-        position={[0, 8, 0]}
-        rotation-x={Math.PI / 2}
-        scale={[9, 9, 1]}
-      />
-      {[0, 1, 2, 3].map((i) => (
+      {STRIPS.map((az, i) => (
         <Lightformer
           key={i}
           form="rect"
-          intensity={i % 2 ? 0.9 : 0.6}
-          color={i % 2 ? '#3dffae' : '#8f7bff'}
-          position={[Math.sin((i * Math.PI) / 2) * 7, 3.5, Math.cos((i * Math.PI) / 2) * 7]}
-          scale={[6, 1.6, 1]}
+          intensity={i % 2 ? 0.8 : 0.6}
+          color="#dce2ea"
+          position={[Math.sin(az) * 7, 1.5, Math.cos(az) * 7]}
+          scale={[1.2, 5, 1]}
         />
       ))}
       <Lightformer
         form="rect"
-        intensity={0.35}
+        intensity={0.3}
         color="#9fb4d0"
         position={[0, -6, 0]}
         rotation-x={-Math.PI / 2}
         scale={[12, 12, 1]}
       />
     </Environment>
-    <hemisphereLight args={['#a9c2e6', '#1a2638', 0.85]} />
+    <hemisphereLight args={['#c4cad2', '#1e2228', 0.85]} />
     <CameraLights />
   </>
 );
@@ -110,6 +110,7 @@ const Stage = () => (
 
 const Grid = ({ layout: l, orientation, focus }: GridProps) => {
   const focusLevel = focusLevelOf(focus);
+  useSteep();
   return (
     <>
       <IcePlates layout={l} colors={LEVELS} focusLevel={focusLevel} />
@@ -141,8 +142,9 @@ const aurora: Design = {
   name: 'Polaris',
   blurb: 'A polar observatory under the aurora: sea-ice levels, snow stone and obsidian.',
   layout,
-  continuous: true,
-  canvas: { fov: 36, toneMapping: NeutralToneMapping, exposure: 1.05 },
+  // On demand: the aurora asks for its own frames, about ten a second (sky.tsx)
+  continuous: false,
+  canvas: { fov: 38, toneMapping: NeutralToneMapping, exposure: 1.05 },
   Stage,
   Grid,
   cellFills: { destination: null, lastMove: null },
@@ -151,7 +153,7 @@ const aurora: Design = {
   knightYaw: 1.3,
   markers: makeMarkers(pitch, levelY, MOTION.durationMs),
   hoverDestinations: true,
-  hoverLift: true,
+  hoverLift: LIFT,
   motion: MOTION,
   MoveFx: makeMoveFx(layout.floorY),
   CaptureFx: makeCaptureFx(PIECE_SCALE),

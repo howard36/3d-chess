@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
   BackSide,
@@ -10,22 +10,29 @@ import {
   DoubleSide,
   ShaderMaterial,
   SphereGeometry,
+  Vector2,
+  Vector3,
+  Vector4,
 } from 'three';
+import { towerFrame } from '../kit/layouts';
 import { noRaycast } from '../kit/noRaycast';
 import { dotTexture, rng } from '../kit/textures';
+import type { BoardLayout } from '../types';
 import { NIGHT } from './palette';
+import { elevationOf } from './shared';
 import { snowDetailTexture, snowMacroTexture } from './textures';
 
 // The world round the tower: a polar plateau at night, seen from an
 // observatory high above it. Far below lies a snowfield cut into sastrugi
-// by the wind, with dark rock breaking through here and there and the
-// aurora's colour lying faintly on it; two rings of snowy ranges rise from
-// it all round the compass, with three small observatory domes on the near
-// ridges (spread round, so no view is dressed and none is bare); above the
-// horizon, a deep night with the aurora hung high in it. Everything is low
-// in value and contrast so the board always wins. Only the aurora moves,
-// slowly, and only well above the horizon, never behind the platforms from
-// the opening view.
+// by the wind, with a little rock breaking through; two rings of snowy
+// ranges rise from it all round the compass, moonlit on their windward
+// faces, with three small observatories on the near crests (spread round,
+// so no view is dressed and none is bare); above them the night, and low
+// over the far ranges the aurora's arc, its green hem just clearing the
+// peaks and its curtains rising into violet. Everything is low in value and
+// contrast so the board always wins. Only the aurora moves, slowly, and
+// never behind the tower: inside the tower's outline on screen (with a
+// margin) it holds still, whatever the orbit.
 
 /** Height of the snowfield (world units): far below the tower, a real floor that parallaxes. */
 export const GROUND_Y = -26;
@@ -33,8 +40,20 @@ const SKY_RADIUS = 520;
 
 const hex = (c: string) => new Color(c);
 
+/**
+ * Where the tower lies on screen, as a rectangle in drawing-buffer pixels
+ * (x0, y0, x1, y1, from the bottom left), grown by a margin: the aurora
+ * holds still inside it. Shared by every backdrop material.
+ */
+export const towerMask = {
+  rect: { value: new Vector4(0, 0, 0, 0) },
+  soft: { value: 40 },
+};
+
 const common = /* glsl */ `
   #define TAU 6.28318530718
+  uniform vec4 uMask;
+  uniform float uMaskSoft;
   float hash(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
   // Value noise on a lattice of 'period' cells round the circle, so it wraps
   float noiseP(float x, float period) {
@@ -45,7 +64,7 @@ const common = /* glsl */ `
   }
   float fbmP(float a, float period, float seed) {
     float s = 0.0, amp = 0.5, total = 0.0;
-    for (int k = 0; k < 5; k++) {
+    for (int k = 0; k < 4; k++) {
       s += amp * noiseP(a * period + seed, period);
       total += amp;
       amp *= 0.5;
@@ -53,9 +72,23 @@ const common = /* glsl */ `
     }
     return s / total;
   }
-  // Where the aurora is showing round the sky (azimuth in turns), 0–1: drifts very slowly
-  float auroraShow(float a, float t) {
-    return smoothstep(0.28, 0.75, noiseP(a * 4.0 + t * 0.004, 4.0));
+  // 1 well outside the tower's outline on screen, 0 inside it: where the aurora may move
+  float live() {
+    vec2 lo = uMask.xy - gl_FragCoord.xy;
+    vec2 hi = gl_FragCoord.xy - uMask.zw;
+    return smoothstep(0.0, uMaskSoft, max(max(lo.x, hi.x), max(lo.y, hi.y)));
+  }
+  // How strongly the aurora shows above this azimuth (turns), 0.35–1: all
+  // round the sky. calm (0–1) blends toward its average over time, which is
+  // what the aurora shows behind the tower: there it neither moves nor
+  // carries detail, so its edge meets the moving part softly
+  float auroraShow(float a, float t, float calm) {
+    float s = 0.35 + 0.65 * smoothstep(0.2, 0.8, noiseP(a * 5.0 + t * 0.01, 5.0));
+    return mix(s, 0.68, calm);
+  }
+  // The curtains' folds along the arc: bright sheets and dim gaps, drifting
+  float auroraFolds(float a, float t, float calm) {
+    return mix(smoothstep(0.3, 0.75, fbmP(a, 16.0, t * 0.035)), 0.5, calm);
   }
 `;
 
@@ -85,30 +118,31 @@ const skyFragment = /* glsl */ `
   varying vec3 vWorld;
   ${common}
 
-  // The aurora: curtains hanging from a wavering lower hem, brightest there
-  // and fading upward from green through teal to violet, softly folded and
-  // combed into rays. Two curtains at different heights.
-  vec3 aurora(float a, float e, float t) {
+  // The aurora at time t: a low arc whose green hem just clears the far
+  // peaks, its curtains rising through teal into violet, and a fainter
+  // band high overhead. Rays comb both.
+  vec3 aurora(float a, float e, float t, float calm) {
     vec3 c = vec3(0.0);
+    float show = auroraShow(a, t, calm);
     for (int k = 0; k < 2; k++) {
       float fk = float(k);
-      float hemAt = 11.5 + fk * 9.0
-        + 2.5 * (fbmP(a + fk * 0.37, 3.0, fk * 7.0 + t * 0.01) - 0.5) * 2.0
-        + 1.6 * sin(a * TAU * 4.0 + fk * 2.0 + t * 0.04);
+      float base = k == 0 ? 2.2 : 16.0;
+      float sway = k == 0 ? 1.4 : 4.0;
+      float hemLive = base + sway * (fbmP(a + fk * 0.37, 3.0, fk * 7.0 + t * 0.02) - 0.5) * 2.0
+        + 0.8 * sin(a * TAU * 5.0 + fk * 2.0 + t * 0.06);
+      float hemCalm = base + sway * (fbmP(a + fk * 0.37, 3.0, fk * 7.0) - 0.5) * 2.0
+        + 0.8 * sin(a * TAU * 5.0 + fk * 2.0);
+      float hemAt = calm > 0.999 ? hemCalm : mix(hemLive, hemCalm, calm);
       float h = e - hemAt;
-      if (h < -3.0) continue;
-      float show = smoothstep(0.18, 0.65, noiseP(a * 4.0 + fk * 2.3 + t * 0.004, 4.0));
-      // A sharp lower hem, brightest just above it, fading upward
-      float hem = smoothstep(-1.0, 0.4, h) * (1.0 + 0.8 * exp(-max(h, 0.0) / 1.6));
-      float fall = exp(-max(h, 0.0) / (6.0 + 5.0 * fk));
-      // Folds: distinct bright sheets with dark gaps between, and fine rays within them
-      float fold = fbmP(a, 18.0, fk * 13.0 + t * 0.012);
-      float folds = smoothstep(0.35, 0.75, fold);
-      float rays = 0.5 + 0.5 * noiseP(a * 220.0 + t * 0.05 + fk * 50.0, 220.0);
-      rays = mix(1.0, rays, smoothstep(0.0, 4.0, h) * 0.8);
-      vec3 col = mix(uAurLow, uAurMid, smoothstep(2.0, 9.0, h));
-      col = mix(col, uAurHigh, smoothstep(7.0, 20.0, h));
-      c += col * hem * fall * folds * rays * show;
+      if (h < -2.0) continue;
+      float hem = smoothstep(-0.9, 0.25, h) * (1.0 + 0.9 * exp(-max(h, 0.0) / 1.1));
+      float fall = exp(-max(h, 0.0) / (k == 0 ? 7.0 : 10.0));
+      float folds = mix(0.25, 1.0, auroraFolds(a + fk * 0.21, t, calm));
+      float rays = 0.55 + 0.45 * noiseP(a * 260.0 + t * 0.06 + fk * 50.0, 260.0);
+      rays = mix(1.0, mix(rays, 0.78, calm), smoothstep(0.0, 2.5, h));
+      vec3 col = mix(uAurLow, uAurMid, smoothstep(1.5, 7.0, h));
+      col = mix(col, uAurHigh, smoothstep(5.0, 16.0, h));
+      c += col * hem * fall * folds * rays * show * (k == 0 ? 1.0 : 0.55);
     }
     return c;
   }
@@ -117,20 +151,19 @@ const skyFragment = /* glsl */ `
     vec3 dir = normalize(vWorld - cameraPosition);
     float e = degrees(asin(clamp(dir.y, -1.0, 1.0)));
     float a = fract(atan(dir.x, dir.z) / TAU + 1.0);
-    float t = uTime;
-    float show = auroraShow(a, t);
     vec3 col;
     if (dir.y > 0.0) {
-      // The night: near-black at the zenith, a little bluer toward the
-      // horizon, with a faint green airglow low down where the aurora is
+      // The night: near-black at the zenith, a little bluer toward the horizon
       float up = e / 90.0;
-      col = mix(uHorizon, uSky, smoothstep(0.0, 0.18, up));
+      col = mix(uHorizon, uSky, smoothstep(0.0, 0.16, up));
       col = mix(col, uZenith, smoothstep(0.15, 0.85, up));
-      // A faint cold glow low down (not green: nothing near the tower may read as a level's colour)
-      col += vec3(0.05, 0.08, 0.12) * exp(-pow((e - 3.0) / 6.0, 2.0));
-      if (e > 7.0) col += aurora(a, e, t) * 0.24 * smoothstep(7.0, 11.0, e);
+      col += vec3(0.04, 0.06, 0.09) * exp(-pow(e / 5.0, 2.0));
+      // The aurora: moving outside the tower's outline, still inside it
+      float m = live();
+      vec3 aur = aurora(a, e, uTime, 1.0 - m);
+      col += aur * 0.34 * smoothstep(0.3, 1.5, e);
     } else {
-      // The snowfield: the plane far below, met by this view ray
+      // The snowfield: the plane far below, met by this view ray. Still.
       float depth = (cameraPosition.y - uGround) / max(-dir.y, 1e-4);
       vec2 p = cameraPosition.xz + dir.xz * depth;
       vec4 d1 = texture2D(uDetail, p / 16.0);
@@ -141,19 +174,15 @@ const skyFragment = /* glsl */ `
       float detail = d1.r * 0.55 + d2.r * 0.45;
       float shade = 0.5 + (m.r - 0.5) * 0.22 + (mix(0.5, detail, near) - 0.5) * 0.6;
       col = mix(uSnowLow, uSnowHigh, shade);
-      // Rock breaking through the snow, with a rim of drift on its lee
+      // Rock breaking through the snow
       float rock = smoothstep(0.8, 0.84, m.b + d1.b * 0.06);
       col = mix(col, mix(uRock, uSnowLow, 0.55), rock * 0.4);
-      // The aurora's light lying on the snow, in patches, tinted along the plain
-      float tint = 0.5 + 0.5 * sin(p.x * 0.011 + p.y * 0.007);
-      col += mix(uAurLow, uAurHigh, tint * 0.6) * m.g * 0.045 * (0.5 + show);
+      // The aurora's light lying on the snow, faintly, in patches
+      col += mix(uAurLow, uAurHigh, 0.35) * m.g * 0.03;
       // Ice grains glinting close by
       col += vec3(0.6, 0.8, 1.0) * d1.g * 0.07 * (1.0 - smoothstep(30.0, 70.0, depth));
-      // Into the haze, which the aurora colours faintly where it shows
-      float haze = 1.0 - exp(-depth / 260.0);
-      vec3 hz = uHaze + uAurLow * 0.012 * show;
-      col = mix(col, hz, haze);
-      // Right at the horizon, the haze glows a little
+      // Into the haze toward the horizon
+      col = mix(col, uHaze, 1.0 - exp(-depth / 260.0));
       col = mix(col, uHorizon, smoothstep(-1.2, 0.0, e));
     }
     gl_FragColor = vec4(col, 1.0);
@@ -175,74 +204,92 @@ const rangeFragment = /* glsl */ `
   uniform vec3 uSnow;
   uniform vec3 uShade;
   uniform vec3 uAurLow;
+  uniform vec3 uAurHigh;
   uniform vec3 uWindow;
   varying vec3 vWorld;
   ${common}
 
   // Ridge height as a fraction of the ring's height, at azimuth a (turns):
-  // broad massifs, sharp peaks on them (ridged noise), a little crag
+  // ridged octaves (sharp crests, every one a peak) over broad massifs
   float ridge(float a) {
-    float P = uPeriod;
-    float n1 = noiseP(a * P + uSeed, P);
-    float n2 = noiseP(a * P * 2.0 + uSeed * 2.0, P * 2.0);
-    float n3 = noiseP(a * P * 7.0 + uSeed * 3.0, P * 7.0);
-    float n4 = noiseP(a * P * 23.0 + uSeed * 5.0, P * 23.0);
-    // Ridged: every crossing of the noise's middle is a sharp peak
-    float peaks = n1 * 0.38 + pow(1.0 - abs(n2 * 2.0 - 1.0), 1.5) * 0.42
-      + (1.0 - abs(n3 * 2.0 - 1.0)) * 0.14 + n4 * 0.06;
-    return uLow + (1.0 - uLow) * smoothstep(0.2, 0.95, peaks);
+    float h = 0.0, amp = 0.5, total = 0.0, f = uPeriod;
+    for (int i = 0; i < 5; i++) {
+      float n = noiseP(a * f + uSeed * float(i + 1), f);
+      float r = 1.0 - abs(n * 2.0 - 1.0);
+      h += amp * r * r;
+      total += amp;
+      amp *= 0.5;
+      f *= 2.0;
+    }
+    h /= total;
+    float massif = noiseP(a * uPeriod * 0.5 + uSeed * 7.0, uPeriod * 0.5);
+    // Stretched to the full range and sharpened, so the ranges stand as peaks
+    float peak = pow(smoothstep(0.12, 0.7, h), 1.6) * (0.3 + 0.7 * massif);
+    return uLow + (1.0 - uLow) * peak;
+  }
+
+  // The aurora's light on the snow at time t: bands sweeping slowly along the ranges
+  vec3 auroraLight(float a, float v, float t, float calm) {
+    float band = auroraFolds(a, t, calm) * auroraShow(a, t, calm);
+    return mix(uAurLow, uAurHigh, smoothstep(0.4, 1.0, v)) * band;
   }
 
   void main() {
     float a = fract(atan(vWorld.x, vWorld.z) / TAU + 1.0);
     float v = (vWorld.y - uBase) / uHeight;
     float r = ridge(a);
-    // Three small observatories on the ridges: the ridge levelled for
-    // each, a drum, and a dome with its slit lit warm
-    float top = -1.0;
-    float slit = 0.0;
-    float metal = 0.0;
+    // Three small observatories on the near crests: the crest levelled for
+    // each, a dark drum and dome with a lit slit, and a low hut beside it
+    // with one lit window
+    float building = 0.0;
+    float light = 0.0;
     if (uDomes > 0.5) {
       for (int k = 0; k < 3; k++) {
         float a0 = 0.105 + float(k) * 0.3337 + float(k * k) * 0.021;
         float da = (fract(a - a0 + 0.5) - 0.5) / uDomeW;
         float seat = ridge(a0);
-        if (abs(da) < 3.5) r = mix(seat, r, smoothstep(1.4, 3.5, abs(da)));
-        if (abs(da) < 1.0 && v > seat - 0.01) {
-          float drum = seat + 0.018;
-          float t = drum + sqrt(max(1.0 - da * da, 0.0)) * 0.032;
-          if (v <= t) {
-            top = t;
-            metal = 1.0;
-            if (abs(da - 0.2) < 0.12 && v > drum + 0.004 && v < t - 0.006) slit = 1.0;
+        if (abs(da) < 4.0) r = mix(seat, r, smoothstep(2.6, 4.0, abs(da)));
+        float drum = seat + 0.035;
+        float dome = drum + sqrt(max(1.0 - da * da, 0.0)) * 0.07;
+        float hut = abs(da - 1.9) < 0.75 && v < seat + 0.03 ? 1.0 : 0.0;
+        if ((abs(da) < 1.0 && v <= dome) || hut > 0.5) {
+          if (v > seat - 0.02) {
+            building = 1.0;
+            if (abs(da - 0.18) < 0.12 && v > drum + 0.008 && v < dome - 0.012) light = 1.0;
+            if (abs(da - 2.1) < 0.14 && abs(v - seat - 0.014) < 0.007) light = 1.0;
           }
         }
       }
     }
-    if (v > max(r, top)) discard;
-    float depth = r - v;
+    if (v > r && building < 0.5) discard;
+    float depth = max(r - v, 0.0);
     // Faces: the ridge's slope measured over a span that widens with depth,
-    // so each peak's two faces spread down from it as triangles, one lit
-    // and one in shade, the way a range reads from afar
-    float span = 0.0012 + depth * 0.05;
+    // so each peak's two faces spread down from it as triangles, the
+    // windward one moonlit, the lee in shadow
+    float span = 0.001 + depth * 0.045;
     float slope = (ridge(a + span) - ridge(a - span)) / (2.0 * span);
-    float lit = clamp(0.5 + slope * 0.035, 0.0, 1.0);
-    // Snow holds further down the lit faces
-    float line = 0.1 + 0.22 * lit;
-    float snow = smoothstep(line + 0.04, line - 0.04, depth) * (0.5 + 0.5 * lit);
-    vec3 col = mix(uRock, uShade, smoothstep(0.0, 0.35, lit));
-    col = mix(col, uSnow, snow);
-    // The aurora's light on the snowfields
-    col += mix(uAurLow, vec3(0.3, 0.9, 0.85), 0.4) * 0.07 * snow * (0.35 + 0.65 * auroraShow(a, uTime));
-    // The ridge's crest catches the light: a thin line along the skyline
-    float crest = 1.0 - smoothstep(0.0, 0.012, depth);
-    col = mix(col, uSnow * 1.15, crest * (0.15 + 0.3 * lit));
-    // Domes stay dark and low: never a pale shape a piece could be mistaken for
-    if (metal > 0.5) col = mix(uShade, uSnow, 0.3);
-    col = mix(col, uWindow * 0.3, slit);
+    float lit = clamp(0.5 + slope * 0.03, 0.0, 1.0);
+    // Snow holds on the upper faces, further down the lit ones, and in the
+    // couloirs that score the rock below
+    float line = 0.08 + 0.2 * lit;
+    float gully = noiseP(a * uPeriod * 44.0 + depth * 4.0, uPeriod * 44.0);
+    float below = depth - line;
+    float couloir = smoothstep(0.72, 0.86, gully) * smoothstep(0.0, 0.02, below)
+      * (1.0 - smoothstep(0.04, 0.16, below)) * lit;
+    float snow = max(smoothstep(line + 0.03, line - 0.03, depth), couloir * 0.5);
+    vec3 col = mix(uRock, uShade, smoothstep(0.1, 0.6, lit));
+    col = mix(col, mix(uShade, uSnow, 0.25 + 0.75 * lit), snow);
+    // The crest catches the moonlight: a fine line along the skyline
+    col = mix(col, uSnow * 1.1, (1.0 - smoothstep(0.0, 0.01, depth)) * lit * 0.5);
+    // The aurora's light passing along the snow (still inside the tower's outline)
+    float m = live();
+    vec3 aur = auroraLight(a, v, uTime, 1.0 - m);
+    col += aur * snow * (0.3 + 0.7 * lit) * 0.16;
+    if (building > 0.5) col = vec3(0.035, 0.05, 0.075);
+    col = mix(col, uWindow, light * 0.85);
     // Mist in the valleys, haze with distance
-    col = mix(col, uHaze, smoothstep(0.18, 0.75, depth) * 0.75);
-    col = mix(col, uHaze, uFog);
+    col = mix(col, uHaze, smoothstep(0.2, 0.8, depth) * 0.8 * (1.0 - building));
+    col = mix(col, uHaze, uFog * (1.0 - light * 0.6));
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -275,6 +322,8 @@ const Sky = () => {
           uAurHigh: { value: hex(NIGHT.auroraHigh) },
           uDetail: { value: snowDetailTexture() },
           uMacro: { value: snowMacroTexture() },
+          uMask: towerMask.rect,
+          uMaskSoft: towerMask.soft,
         },
         vertexShader: vertex,
         fragmentShader: skyFragment,
@@ -319,31 +368,32 @@ interface RangeSpec {
 }
 
 // Far to near. From the opening view (camera about 4 above the tower's
-// centre) the far ring's peaks just touch the horizon, and the near ring's
-// ridges stand in the band between the top of the tower and the horizon.
+// centre) the far ring's peaks reach just past the horizon, under the
+// aurora's hem, and the near ring's crests stand in the band between the
+// top of the tower and the horizon.
 const RANGES: RangeSpec[] = [
   {
     radius: 440,
-    height: 40,
-    low: 0.62,
+    height: 42,
+    low: 0.5,
     seed: 3,
-    period: 12,
-    fog: 0.55,
+    period: 14,
+    fog: 0.42,
     domes: false,
-    snow: '#2b3f57',
-    shade: '#17243a',
+    snow: '#43556f',
+    shade: '#1b2537',
     order: -998,
   },
   {
     radius: 250,
-    height: 28,
-    low: 0.58,
+    height: 30,
+    low: 0.42,
     seed: 41,
-    period: 8,
-    fog: 0.22,
+    period: 10,
+    fog: 0.12,
     domes: true,
-    snow: '#2c425c',
-    shade: '#142137',
+    snow: NIGHT.mountainSnow,
+    shade: NIGHT.mountainShade,
     order: -997,
   },
 ];
@@ -373,8 +423,11 @@ const Range = ({ spec }: { spec: RangeSpec }) => {
         uPeriod: { value: spec.period },
         uFog: { value: spec.fog },
         uDomes: { value: spec.domes ? 1 : 0 },
-        // A dome about 2.4 units across
-        uDomeW: { value: 1.2 / (Math.PI * 2 * spec.radius) },
+        // A dome about 4.4 units across
+        uDomeW: { value: 2.2 / (Math.PI * 2 * spec.radius) },
+        uAurHigh: { value: hex(NIGHT.auroraHigh) },
+        uMask: towerMask.rect,
+        uMaskSoft: towerMask.soft,
         uHaze: { value: hex(NIGHT.haze) },
         uRock: { value: hex(NIGHT.rock) },
         uSnow: { value: hex(spec.snow) },
@@ -494,9 +547,82 @@ const Stars = () => {
   );
 };
 
+const corner = new Vector3();
+const size = new Vector2();
+
+/**
+ * Measures where the tower lies on screen each frame (its bounding box,
+ * pieces and a held piece's lift included, projected), grown by 15% of its
+ * size, for the backdrop's still zone.
+ */
+const TowerMask = ({ layout }: { layout: BoardLayout }) => {
+  const { half, levelY } = towerFrame(layout);
+  useFrame(({ camera, gl }) => {
+    gl.getDrawingBufferSize(size);
+    const reach = half + 0.1;
+    const y0 = levelY[0] - 0.1;
+    const y1 = levelY[levelY.length - 1] + 0.95;
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let ya = Infinity;
+    let yb = -Infinity;
+    let behind = false;
+    for (let i = 0; i < 8; i++) {
+      corner.set(i & 1 ? reach : -reach, i & 2 ? y1 : y0, i & 4 ? reach : -reach);
+      corner.applyMatrix4(camera.matrixWorldInverse);
+      if (corner.z > -0.01) behind = true;
+      corner.applyMatrix4(camera.projectionMatrix);
+      const px = (corner.x * 0.5 + 0.5) * size.x;
+      const py = (corner.y * 0.5 + 0.5) * size.y;
+      x0 = Math.min(x0, px);
+      x1 = Math.max(x1, px);
+      ya = Math.min(ya, py);
+      yb = Math.max(yb, py);
+    }
+    const rect = towerMask.rect.value;
+    if (behind) {
+      rect.set(-1e5, -1e5, 1e5, 1e5);
+    } else {
+      const gx = (x1 - x0) * 0.075;
+      const gy = (yb - ya) * 0.075;
+      rect.set(x0 - gx, ya - gy, x1 + gx, yb + gy);
+    }
+    towerMask.soft.value = size.y * 0.05;
+  });
+  return null;
+};
+
+/**
+ * The aurora drifts slowly, so it needs no more than about ten frames a
+ * second, and none at all while the view looks down past the ranges (from
+ * there nothing in the backdrop moves). The canvas renders on demand; this
+ * asks for a frame at that pace. The request rides the display's frame
+ * callback; the aurora itself moves on r3f's clock.
+ */
+const AmbientPace = ({ fps = 10 }: { fps?: number }) => {
+  const invalidate = useThree((s) => s.invalidate);
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    let id = 0;
+    let last = -Infinity;
+    const tick = (now: number) => {
+      if (now - last >= 1000 / fps && elevationOf(camera.position) < 32) {
+        last = now;
+        invalidate();
+      }
+      id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [fps, invalidate, camera]);
+  return null;
+};
+
 /** The whole backdrop: sky and aurora, stars, snowfield, ranges and observatories. */
-export const PolarNight = () => (
+export const PolarNight = ({ layout }: { layout: BoardLayout }) => (
   <>
+    <TowerMask layout={layout} />
+    <AmbientPace />
     <Sky />
     <Stars />
     {RANGES.map((spec) => (

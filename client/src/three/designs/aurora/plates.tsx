@@ -9,6 +9,7 @@ import { towerFrame } from '../kit/layouts';
 import { noRaycast } from '../kit/noRaycast';
 import { frameGeometry } from '../kit/plates';
 import type { BoardLayout } from '../types';
+import { elevationOf } from './shared';
 import { frostTexture } from './textures';
 
 // The platforms: five panes of sea ice, each laid as 25 tiles. Every tile
@@ -42,6 +43,7 @@ const fragment = /* glsl */ `
   uniform float uFocus;
   uniform float uKeep;
   uniform float uTop;
+  uniform float uHigh;
   uniform float uClear;
   uniform float uFrosted;
   uniform sampler2D uFrost;
@@ -70,8 +72,8 @@ const fragment = /* glsl */ `
     float d = min(d2.x, d2.y);
 
     // Seen from straight above, the five grids would nest into a plaid: every
-    // pane but the one in play (the focused level, else the top) thins to
-    // its joints alone, as hairlines
+    // pane but the one in play (the focused level) thins to its joints
+    // alone, as hairlines
     float quiet = 1.0 - uTop * (1.0 - uKeep) * 0.92;
 
     vec3 c = uIce;
@@ -81,7 +83,9 @@ const fragment = /* glsl */ `
     vec4 fr = texture2D(uFrost, uv * 0.43 + cell * vec2(0.173, 0.291));
     float corner = smoothstep(0.62, 0.0, length(d2));
     float frost = fr.r * corner * (0.55 + 0.45 * frosted) + fr.g * frosted * 0.3;
-    over(c, a, uFrostColor, clamp(frost * 0.32 * quiet, 0.0, 1.0));
+    // Higher views look through more panes at once: the frost of those not in play thins
+    float thin = 1.0 - 0.5 * uHigh * (1.0 - uFocus);
+    over(c, a, uFrostColor, clamp(frost * 0.22 * quiet * thin, 0.0, 1.0));
 
     // The bevel just inside each tile, catching the light
     float bevel = line(abs(d - 0.05), 0.008);
@@ -124,7 +128,7 @@ export const IcePlates = ({ layout, colors, focusLevel }: IcePlatesProps) => {
       // The tiles; the margin out to the glowing edge is left clear
       surface: new PlaneGeometry(frame.half * 2, frame.half * 2),
       edge: frameGeometry(side, 0.03, 0.06),
-      focusEdge: frameGeometry(side, 0.06, 0.075),
+      focusEdge: frameGeometry(side, 0.042, 0.07),
     }),
     [frame.half, side],
   );
@@ -147,8 +151,9 @@ export const IcePlates = ({ layout, colors, focusLevel }: IcePlatesProps) => {
             uPitch: { value: frame.pitch },
             uFocus: { value: 0 },
             // 1 for the pane that keeps its detail when the view is straight down
-            uKeep: { value: z === 4 ? 1 : 0 },
+            uKeep: { value: 0 },
             uTop: { value: 0 },
+            uHigh: { value: 0 },
             uClear: { value: 0.05 },
             uFrosted: { value: 0.11 },
             uFrost: { value: frostTexture() },
@@ -187,8 +192,8 @@ export const IcePlates = ({ layout, colors, focusLevel }: IcePlatesProps) => {
   );
 
   const focusMeshes = useRef<(Mesh | null)[]>([]);
-  // The pane in play: the focused level, or the top one when none is
-  const keep = useRef<number[]>(frame.levelY.map((_, z) => (z === 4 ? 1 : 0)));
+  // The pane in play: the focused level, if any
+  const keep = useRef<number[]>(frame.levelY.map(() => 0));
   const top = useRef(0);
   const edgeBase = useRef<number[]>(frame.levelY.map(() => 0.7));
   const applyEdges = () =>
@@ -204,9 +209,12 @@ export const IcePlates = ({ layout, colors, focusLevel }: IcePlatesProps) => {
         if (!m) return;
         m.surface.uniforms.uFocus.value = w;
         edgeBase.current[z] = 0.7 * (1 - any * 0.45 * (1 - w));
-        keep.current[z] = w + (1 - any) * (z === frame.levelY.length - 1 ? 1 : 0);
+        // Nothing in play: from overhead every grid steps back (perspective
+        // would slide lower pieces onto the top grid's lines); each piece's
+        // own square is framed at its foot instead
+        keep.current[z] = w;
         m.surface.uniforms.uKeep.value = keep.current[z];
-        m.focus.opacity = w * 0.95;
+        m.focus.opacity = w * 0.55;
         const mesh = focusMeshes.current[z];
         if (mesh) mesh.visible = w > 0.002;
       });
@@ -215,11 +223,13 @@ export const IcePlates = ({ layout, colors, focusLevel }: IcePlatesProps) => {
     { levels: frame.levelY.length, ms: 160, key: materials },
   );
 
-  // How close the view is to straight down (0 below 60°, 1 from 80°)
+  // How close the view is to straight down (0 below 60°, 1 from 80°), and
+  // how high it is at all (0 below 35°, 1 from 60°)
   useFrame(({ camera }) => {
-    const { x, y, z } = camera.position;
-    const el = Math.atan2(y, Math.hypot(x, z)) * (180 / Math.PI);
+    const el = elevationOf(camera.position);
     const t = Math.min(Math.max((el - 60) / 20, 0), 1);
+    const h = Math.min(Math.max((el - 35) / 25, 0), 1);
+    for (const m of materials) m.surface.uniforms.uHigh.value = h * h * (3 - 2 * h);
     if (t === top.current) return;
     top.current = t;
     for (const m of materials) m.surface.uniforms.uTop.value = t;

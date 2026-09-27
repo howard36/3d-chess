@@ -11,26 +11,29 @@ import {
   PlaneGeometry,
   ShaderMaterial,
 } from 'three';
-import type { Group } from 'three';
+import type { Group, Mesh } from 'three';
 import { LAYER } from '../kit/layers';
 import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { CAPTURE, CHECK, LAST_MOVE, LEVELS, MOVE, SELECT } from './palette';
+import { held, steep } from './shared';
 
 // The marks on the ice, in one language of ice crystals:
 // - a legal destination is a frost star, a small six-pointed crystal lying
-//   where the piece would stand;
-// - a capture is the same star grown past the victim's base, gone red, with
-//   a red core;
+//   where the piece would stand, with a gem at its heart in its level's
+//   colour, seated on a soft disc of dark ice so it holds on frosted tiles;
+// - a capture is the same star grown past the victim's base, gone crimson,
+//   with a crimson core;
 // - the last move's squares are hexagonal plates of Polaris gold, joined by
-//   the thin gold line (the source a small plate, the destination a wide one
-//   round the piece that moved);
-// - the selection is an aurora ribbon winding slowly up round the piece,
-//   over a ring of aurora light on the ice;
-// - check is a red aurora curtain hanging round the king's square, over a
-//   red hexagonal plate.
-// Everything but the ribbon and the curtain holds still.
+//   the thin gold line; each carries its level's colour (a gem on the
+//   source, an inner hexagon round the piece that moved);
+// - the selection is the aurora itself: a corona of rays on the ice round
+//   the held piece (seen through the pieces above it from overhead) and a
+//   ribbon of curtain winding up it;
+// - check is a red hexagon under the king and a red aurora glowing in the
+//   gaps behind him.
+// Everything but the selection and the check holds still.
 
 const markerVertex = /* glsl */ `
   varying vec2 vP;
@@ -45,6 +48,7 @@ const markerFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform vec3 uCore;
   uniform float uRadius;
+  uniform float uRadiusSteep;
   uniform float uInner;
   uniform float uLine;
   uniform float uFill;
@@ -54,6 +58,9 @@ const markerFragment = /* glsl */ `
   uniform float uGlow;
   uniform vec3 uGem;
   uniform float uGemR;
+  uniform float uInnerHex;
+  uniform float uSeat;
+  uniform float uSteep;
   varying vec2 vP;
 
   // A six-pointed star: tips at radius R, notches at radius r
@@ -76,34 +83,44 @@ const markerFragment = /* glsl */ `
     p -= vec2(clamp(p.x, -k.z * r, k.z * r), r);
     return length(p) * sign(p.y);
   }
+  float fill(float d) {
+    float a = max(fwidth(d), 1e-4) * 1.1;
+    return 1.0 - smoothstep(-a, a, d);
+  }
 
   void main() {
     vec2 p = vP;
-    float shape;
-    if (uKind == 0) shape = sdStar6(p, uRadius, uInner);
-    else shape = sdHex(p, uRadius);
-    float stroke = abs(shape) - uLine * 0.5;
-    float aa = max(fwidth(shape), 1e-4) * 1.1;
-    float line = 1.0 - smoothstep(-aa, aa, stroke);
-    float inside = 1.0 - smoothstep(-aa, aa, shape);
+    // From overhead, where every square shows at once, marks draw in a little
+    float R = mix(uRadius, uRadiusSteep, uSteep);
+    float glow = uGlow * (1.0 - 0.5 * uSteep);
+    float shape = uKind == 0 ? sdStar6(p, R, R * uInner) : sdHex(p, R);
+    float line = fill(abs(shape) - uLine * 0.5);
+    float inside = fill(shape);
     // A faint halo just outside the outline: light in the ice
-    float halo = exp(-max(shape, 0.0) / (uLine * 2.5)) * (1.0 - inside) * uGlow;
-    // The core: a soft disc at the centre (the capture's red heart)
-    float core = exp(-pow(length(p) / (uRadius * 0.45), 2.0)) * uCoreAmt;
+    float halo = exp(-max(shape, 0.0) / (uLine * 2.5)) * (1.0 - inside) * glow;
+    // The core: a soft disc at the centre (the capture's crimson heart)
+    float core = exp(-pow(length(p) / (R * 0.45), 2.0)) * uCoreAmt;
     float k = 1.0 + 0.5 * uHover;
     vec3 col = uColor;
     float a = max(line * uOpacity * k, inside * (uFill + 0.1 * uHover));
     a = max(a, halo * 0.35 * k);
     col = mix(col, uCore, clamp(core * (1.0 - line), 0.0, 1.0));
     a = max(a, core * 0.8);
-    // The gem at the heart of a destination's star, in its level's colour
+    // The level: a gem at the heart, or a thin hexagon just inside the outline
     if (uGemR > 0.0) {
-      float g = sdHex(p, uGemR);
-      float ga = max(fwidth(g), 1e-4) * 1.1;
-      float gem = 1.0 - smoothstep(-ga, ga, g);
+      float gem = fill(sdHex(p, uGemR));
       col = mix(col, uGem, gem);
       a = max(a, gem);
     }
+    if (uInnerHex > 0.0) {
+      float ring = fill(abs(sdHex(p, R - uLine * 1.6)) - uLine * 0.3) * uInnerHex;
+      col = mix(col, uGem, ring * (1.0 - line));
+      a = max(a, ring);
+    }
+    // Seated on a soft disc of dark ice, so a white star holds on frosted tiles
+    float seat = uSeat * (1.0 - smoothstep(R * 0.9, R * 1.4, length(p)));
+    col = mix(vec3(0.027, 0.063, 0.11), col, a / max(a + seat * (1.0 - a), 1e-4));
+    a = a + seat * (1.0 - a);
     if (a < 0.003) discard;
     gl_FragColor = vec4(col * (1.0 + 0.2 * uHover), min(a, 1.0));
     #include <colorspace_fragment>
@@ -126,19 +143,24 @@ interface GlyphProps {
   core?: string;
   /** Outer radius (star tips; hexagon apothem), world units. */
   radius: number;
-  /** Star notch radius. */
+  /** The same, seen from overhead (default: `radius`). */
+  steepRadius?: number;
+  /** Star notch radius, as a share of the tips'. */
   inner?: number;
   line: number;
   fill?: number;
   coreAmount?: number;
   opacity?: number;
   glow?: number;
-  /** A small hexagonal gem at the centre in this colour (the destination's level). */
-  gem?: string;
-  gemRadius?: number;
   hovered?: boolean;
-  /** Turn about the vertical, radians. */
-  turn?: number;
+  /** The level's colour, for the gem or the inner hexagon. */
+  level?: string;
+  /** A hexagonal gem at the centre, this radius. */
+  gemRadius?: number;
+  /** A thin hexagon in the level's colour just inside the outline. */
+  innerHex?: boolean;
+  /** Opacity of the dark ice disc under the glyph. */
+  seat?: number;
 }
 
 /** One flat crystal glyph on the floor of a cell. */
@@ -148,18 +170,20 @@ const Glyph = ({
   color,
   core = color,
   radius,
-  inner = radius * 0.42,
+  steepRadius = radius,
+  inner = 0.42,
   line,
   fill = 0,
   coreAmount = 0,
   opacity = 0.95,
   glow = 0.6,
-  gem,
-  gemRadius = 0,
   hovered = false,
-  turn = 0,
+  level,
+  gemRadius = 0,
+  innerHex = false,
+  seat = 0,
 }: GlyphProps) => {
-  const size = (radius + line * 4) * 2.2;
+  const size = (Math.max(radius, steepRadius) * 1.45 + line * 4) * 2;
   const material = useMemo(
     () =>
       new ShaderMaterial({
@@ -174,6 +198,7 @@ const Glyph = ({
           uColor: { value: new Color() },
           uCore: { value: new Color() },
           uRadius: { value: 0 },
+          uRadiusSteep: { value: 0 },
           uInner: { value: 0 },
           uLine: { value: 0 },
           uFill: { value: 0 },
@@ -183,6 +208,9 @@ const Glyph = ({
           uGlow: { value: 0 },
           uGem: { value: new Color() },
           uGemR: { value: 0 },
+          uInnerHex: { value: 0 },
+          uSeat: { value: 0 },
+          uSteep: steep,
           uQuad: { value: 1 },
         },
         vertexShader: markerVertex,
@@ -196,6 +224,7 @@ const Glyph = ({
   (u.uColor.value as Color).set(color);
   (u.uCore.value as Color).set(core);
   u.uRadius.value = radius;
+  u.uRadiusSteep.value = steepRadius;
   u.uInner.value = inner;
   u.uLine.value = line;
   u.uFill.value = fill;
@@ -203,30 +232,57 @@ const Glyph = ({
   u.uOpacity.value = opacity;
   u.uHover.value = hovered ? 1 : 0;
   u.uGlow.value = glow;
-  if (gem) (u.uGem.value as Color).set(gem);
-  u.uGemR.value = gem ? gemRadius : 0;
+  if (level) (u.uGem.value as Color).set(level);
+  u.uGemR.value = level ? gemRadius : 0;
+  u.uInnerHex.value = level && innerHex ? 1 : 0;
+  u.uSeat.value = seat;
   u.uQuad.value = size;
   return (
     <mesh
       geometry={quad(size)}
       material={material}
       position={[floor[0], floor[1] + 0.014, floor[2]]}
-      rotation={[-Math.PI / 2, 0, turn]}
+      rotation={[-Math.PI / 2, 0, 0]}
       renderOrder={LAYER.marker}
       raycast={noRaycast}
     />
   );
 };
 
-// --- The aurora ribbon (selection) ----------------------------------------------
+// --- Light behind the pieces ---------------------------------------------------
+
+const curtainVertex = /* glsl */ `
+  varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vWorld;
+  void main() {
+    vUv = uv;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }`;
 
 /**
- * Where the held piece stands (x, z). A destination straight above or below
- * it would hide under the piece (or inside the ribbon) seen from above, so
- * its star grows past the piece's base, like a capture's.
+ * A light added onto the scene before any piece is drawn: pieces (the
+ * king, and anyone behind him) are drawn over it, so it glows only in the
+ * gaps between them and never tints a piece.
  */
-const held = { x: NaN, z: NaN };
+export const underPieces = (fragmentShader: string, uniforms: Record<string, { value: unknown }>) =>
+  new ShaderMaterial({
+    // Opaque pass, drawn first (renderOrder below the pieces'), added on
+    transparent: false,
+    depthWrite: false,
+    side: BackSide,
+    blending: AdditiveBlending,
+    uniforms,
+    vertexShader: curtainVertex,
+    fragmentShader,
+  });
 
+// --- The selection: the aurora's corona and a ribbon of curtain -----------------
+
+/** Whether this floor is straight above or below the held piece. */
 const useInHeldColumn = (floor: Vec3) => {
   const [inColumn, setInColumn] = useState(false);
   useFrame(() => {
@@ -236,37 +292,43 @@ const useInHeldColumn = (floor: Vec3) => {
   return inColumn;
 };
 
-const RIBBON = { turns: 1.85, radius: 0.36, bottom: 0.01, top: 1.0, band: 0.13, segments: 200 };
+const RIBBON = { turns: 1.7, radius: 0.36, flare: 0.42, bottom: 0.01, band: 0.24, segments: 180 };
 
-/** A helical band, vertical like a strip of curtain, winding up round the axis. */
-const ribbonGeometry = (() => {
-  let g: BufferGeometry | null = null;
-  return () => {
-    if (g) return g;
-    const { turns, radius, bottom, top, band, segments } = RIBBON;
-    const pos: number[] = [];
-    const uv: number[] = [];
-    const index: number[] = [];
-    for (let i = 0; i <= segments; i++) {
-      const s = i / segments;
-      const th = s * turns * Math.PI * 2;
-      const y = bottom + (top - bottom - band) * s;
-      const x = Math.cos(th) * radius;
-      const z = Math.sin(th) * radius;
-      pos.push(x, y, z, x, y + band, z);
-      uv.push(s, 0, s, 1);
-      if (i < segments) {
-        const a = i * 2;
-        index.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
-      }
+const ribbons = new Map<number, BufferGeometry>();
+/**
+ * A helical band, vertical like a strip of curtain, winding up round the
+ * axis to `top` (world units, fitted to the held piece) and flaring a little
+ * as it climbs, so from near eye level its turns show as loops.
+ */
+const ribbonGeometry = (top: number) => {
+  const key = Math.round(top * 100);
+  let g = ribbons.get(key);
+  if (g) return g;
+  const { turns, radius, flare, bottom, band, segments } = RIBBON;
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const index: number[] = [];
+  for (let i = 0; i <= segments; i++) {
+    const s = i / segments;
+    const th = s * turns * Math.PI * 2;
+    const y = bottom + (top - bottom - band) * s;
+    const r = radius + (flare - radius) * s * s;
+    const x = Math.cos(th) * r;
+    const z = Math.sin(th) * r;
+    pos.push(x, y, z, x * 1.03, y + band, z * 1.03);
+    uv.push(s, 0, s, 1);
+    if (i < segments) {
+      const a = i * 2;
+      index.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
     }
-    g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-    g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
-    g.setIndex(index);
-    return g;
-  };
-})();
+  }
+  g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
+  g.setIndex(index);
+  ribbons.set(key, g);
+  return g;
+};
 
 const ribbonVertex = /* glsl */ `
   varying vec2 vUv;
@@ -300,12 +362,12 @@ const ribbonFragment = /* glsl */ `
     vec2 rel = (vWorld.xz - uAxis) / uRadius;
     float front = dot(rel, e);
     float lateral = abs(rel.x * e.y - rel.y * e.x);
-    float over = smoothstep(0.0, 0.35, front) * (1.0 - smoothstep(0.55, 0.85, lateral));
+    float over = smoothstep(0.0, 0.35, front) * (1.0 - smoothstep(0.45, 0.72, lateral));
     // From straight above nothing lies over the piece
     float side = level / max(length(cameraPosition - vWorld), 1e-4);
     over *= smoothstep(0.15, 0.5, side);
-    // Fades in at the foot and out at the head
-    float ends = smoothstep(0.0, 0.06, s) * smoothstep(1.0, 0.7, s);
+    // Fades in at the foot, and out toward the crown so it never floats off it
+    float ends = smoothstep(0.0, 0.06, s) * (1.0 - smoothstep(0.6, 0.88, s));
     // A curtain: a bright lower hem, fading upward
     float hem = pow(1.0 - v, 2.0) * 0.8 + (1.0 - smoothstep(0.1, 0.22, v)) * 0.9;
     // Fine vertical rays and a slow bright pulse climbing the ribbon
@@ -313,51 +375,59 @@ const ribbonFragment = /* glsl */ `
     float climb = 0.7 + 0.3 * sin((s * 2.2 - uTime * 0.35) * 6.2831853);
     // It draws itself up from the foot when the piece is picked up
     float grow = smoothstep(uIn * 1.25 - 0.25, uIn * 1.25, s);
-    vec3 col = mix(uA, uB, smoothstep(0.1, 0.55, s));
-    col = mix(col, uC, smoothstep(0.55, 0.95, s));
+    vec3 col = mix(uA, uB, smoothstep(0.1, 0.5, s));
+    col = mix(col, uC, smoothstep(0.45, 0.85, s));
     // The hem burns almost white
     col = mix(col, vec3(0.9, 1.0, 0.96), (1.0 - smoothstep(0.0, 0.18, v)) * 0.45);
-    float a = ends * hem * rays * climb * (1.0 - grow) * 2.4 * (1.0 - 0.9 * over);
+    float a = ends * hem * rays * climb * (1.0 - grow) * 2.8 * (1.0 - 0.9 * over);
     if (a < 0.003) discard;
     gl_FragColor = vec4(col * (1.0 + max(a - 1.0, 0.0)), min(a, 1.0));
     #include <colorspace_fragment>
   }`;
 
-// The aurora's corona, as seen looking straight up into it: rays of
-// light radiating from the held piece, green at their roots and violet at
-// their tips, turning slowly. Nothing else on the
-// board has rays, so a top-down view knows the selection at once.
-const haloFragment = /* glsl */ `
+// The aurora's corona, as seen looking straight up into it: rays of light
+// radiating from the held piece, rooted in its level's colour and running
+// out through the aurora's green, cyan and violet, turning slowly. Nothing
+// else on the board has rays. Seen from overhead it is also drawn through
+// any piece that stands above it, so the selection can never be hidden.
+const coronaFragment = /* glsl */ `
   uniform float uTime;
   uniform float uIn;
+  uniform float uSteep;
+  uniform float uXray;
   uniform vec3 uA;
   uniform vec3 uB;
   uniform vec3 uC;
+  uniform vec3 uLevel;
   varying vec2 vUv;
   float hash(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
   void main() {
     vec2 p = vUv - 0.5;
     float r = length(p) * 2.0;
-    const float N = 22.0;
-    float k = (atan(p.y, p.x) / 6.2831853 + 0.5) * N + uTime * 0.2;
+    const float N = 12.0;
+    float k = (atan(p.y, p.x) / 6.2831853 + 0.5) * N + uTime * 0.1;
     float cell = mod(floor(k), N);
     float f = fract(k) - 0.5;
-    float len = 0.84 + 0.14 * hash(cell + 3.0);
-    float w = 0.13 + 0.1 * hash(cell + 11.0);
+    float len = 0.8 + 0.18 * hash(cell + 3.0);
+    // Tapered blades: broad at the root, a point at the tip
+    float t = clamp((r - 0.52) / max(len - 0.52, 1e-3), 0.0, 1.0);
+    float w = (0.32 + 0.1 * hash(cell + 11.0)) * (1.0 - 0.85 * t);
     float fa = max(fwidth(k), 1e-4);
     float ray = 1.0 - smoothstep(w - fa, w + fa, abs(f));
-    // Rays grow outward from the hem as the piece is picked up
-    float reach = 0.7 + (len - 0.7) * uIn;
-    float ra = max(fwidth(r), 1e-4);
-    ray *= smoothstep(0.7, 0.74, r) * (1.0 - smoothstep(reach - 0.16, reach, r));
-    // A soft glow at the rays' roots (no ring: rings are the levels' mark)
-    float root = exp(-pow((r - 0.7) / 0.07, 2.0)) * 0.3;
-    vec3 col = mix(uA, uB, smoothstep(0.7, 0.84, r));
-    col = mix(col, uC, smoothstep(0.82, 0.98, r));
-    col = mix(col, vec3(0.85, 1.0, 0.95), (1.0 - smoothstep(0.7, 0.8, r)) * 0.4 * ray);
-    float a = max(root, ray * 0.95) * uIn;
+    // Rays grow outward from the root as the piece is picked up
+    float reach = 0.52 + (len - 0.52) * uIn;
+    ray *= smoothstep(0.5, 0.55, r) * (1.0 - smoothstep(reach - 0.04, reach, r));
+    // A glow at the roots, in the held level's colour
+    float root = exp(-pow((r - 0.56) / 0.09, 2.0)) * 0.6;
+    vec3 col = mix(uLevel, vec3(0.88, 1.0, 0.95), smoothstep(0.5, 0.6, r));
+    col = mix(col, uA, smoothstep(0.62, 0.74, r));
+    col = mix(col, uB, smoothstep(0.72, 0.86, r));
+    col = mix(col, uC, smoothstep(0.86, 1.0, r));
+    float a = max(root, ray) * uIn;
+    // Depth-tested at low views, drawn through the pieces from overhead
+    a *= uXray > 0.5 ? uSteep : 1.0 - uSteep;
     if (a < 0.003) discard;
-    gl_FragColor = vec4(col, a);
+    gl_FragColor = vec4(col, min(a, 1.0));
     #include <colorspace_fragment>
   }`;
 
@@ -376,17 +446,87 @@ const auroraUniforms = () => ({
   uC: { value: new Color(SELECT[2]) },
 });
 
+// The held piece's own aurora: a curtain of light hanging behind it, green
+// at the hem and violet above, its rays drifting. Added on under the
+// pieces, so it glows in the gaps round the held piece and never over it:
+// from eye level, where the corona lies flat, this is what marks it.
+const heldCurtainFragment = /* glsl */ `
+  uniform float uTime;
+  uniform float uIn;
+  uniform vec3 uA;
+  uniform vec3 uB;
+  uniform vec3 uC;
+  varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vWorld;
+  float hash(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
+  float noise(float x, float period) {
+    float i = floor(x);
+    float f = fract(x);
+    float u = f * f * (3.0 - 2.0 * f);
+    return mix(hash(mod(i, period)), hash(mod(i + 1.0, period)), u);
+  }
+  void main() {
+    float u = vUv.x;
+    float v = vUv.y;
+    if (v > uIn) discard;
+    float hem = smoothstep(0.0, 0.03, v) * (0.5 + 0.5 * exp(-v / 0.12));
+    float body = pow(1.0 - v, 1.6);
+    float rays = 0.35 + 0.65 * noise(u * 36.0 + uTime * 0.25, 36.0);
+    float face = smoothstep(0.05, 0.5, abs(dot(normalize(vNormalW), normalize(cameraPosition - vWorld))));
+    vec3 col = mix(uA, uB, smoothstep(0.1, 0.5, v));
+    col = mix(col, uC, smoothstep(0.45, 0.95, v));
+    float a = hem * body * rays * face * 0.75;
+    gl_FragColor = vec4(col * a, 1.0);
+    #include <colorspace_fragment>
+  }`;
+
+const curtains = new Map<number, CylinderGeometry>();
+/** A unit-tall open cylinder round the held square (scaled to the piece's height). */
+const heldCurtainGeometry = (pitch: number) => {
+  let g = curtains.get(pitch);
+  if (!g) {
+    g = new CylinderGeometry(0.43 * pitch, 0.43 * pitch, 1, 48, 1, true).translate(0, 0.5, 0);
+    curtains.set(pitch, g);
+  }
+  return g;
+};
+
+/** Drawn after everything else, labels included: the corona seen through the pieces. */
+const XRAY_ORDER = LAYER.label + 2;
+
 /**
- * The selection: an aurora ribbon that draws itself up round the held
- * piece and keeps winding slowly upward, over a ring of aurora light on the
- * ice (which is what a top-down view sees).
+ * The selection: a corona of aurora rays on the ice round the held piece,
+ * and a ribbon of curtain that draws itself up round the piece and keeps
+ * winding slowly upward.
  */
-export const makeSelection = (pitch: number) => {
+export const makeSelection = (pitch: number, levelOf: (y: number) => number) => {
   const Selection = ({ floor }: MarkerProps) => {
     const spin = useRef<Group>(null);
+    const ribbonMesh = useRef<Mesh>(null);
+    const curtainMesh = useRef<Mesh>(null);
     const invalidate = useThree((s) => s.invalidate);
-    const { ribbon, halo } = useMemo(
-      () => ({
+    const [fx, fy, fz] = floor;
+    const { ribbon, corona, xray, curtain } = useMemo(() => {
+      const coronaMaterial = (x: boolean) =>
+        new ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          depthTest: !x,
+          side: DoubleSide,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -2,
+          uniforms: {
+            ...auroraUniforms(),
+            uLevel: { value: new Color(LEVELS[levelOf(fy)]) },
+            uSteep: steep,
+            uXray: { value: x ? 1 : 0 },
+          },
+          vertexShader: passVertex,
+          fragmentShader: coronaFragment,
+        });
+      return {
         ribbon: new ShaderMaterial({
           transparent: true,
           depthWrite: false,
@@ -400,28 +540,20 @@ export const makeSelection = (pitch: number) => {
           vertexShader: ribbonVertex,
           fragmentShader: ribbonFragment,
         }),
-        halo: new ShaderMaterial({
-          transparent: true,
-          depthWrite: false,
-          side: DoubleSide,
-          polygonOffset: true,
-          polygonOffsetFactor: -2,
-          polygonOffsetUnits: -2,
-          uniforms: auroraUniforms(),
-          vertexShader: passVertex,
-          fragmentShader: haloFragment,
-        }),
-      }),
-      [],
-    );
+        corona: coronaMaterial(false),
+        xray: coronaMaterial(true),
+        curtain: underPieces(heldCurtainFragment, auroraUniforms()),
+      };
+    }, [fy]);
     useEffect(
       () => () => {
         ribbon.dispose();
-        halo.dispose();
+        corona.dispose();
+        xray.dispose();
+        curtain.dispose();
       },
-      [ribbon, halo],
+      [ribbon, corona, xray, curtain],
     );
-    const [fx, , fz] = floor;
     useLayoutEffect(() => {
       ribbon.uniforms.uAxis.value = [fx, fz];
       held.x = fx;
@@ -435,28 +567,49 @@ export const makeSelection = (pitch: number) => {
       t.current += Math.min(delta, 1 / 20);
       const grow = Math.min(t.current / 0.45, 1);
       const ease = 1 - (1 - grow) ** 3;
-      for (const m of [ribbon, halo]) {
+      for (const m of [ribbon, corona, xray, curtain]) {
         m.uniforms.uTime.value = state.clock.elapsedTime;
         m.uniforms.uIn.value = ease;
       }
+      const r = ribbonMesh.current;
+      const g = ribbonGeometry(held.top);
+      if (r && r.geometry !== g) r.geometry = g;
+      curtainMesh.current?.scale.set(1, held.top + 0.3, 1);
       if (spin.current) spin.current.rotation.y = -state.clock.elapsedTime * 0.55;
       invalidate();
     });
-    const r = pitch * 0.5;
+    const size = pitch;
     return (
       <group position={floor}>
         <mesh
-          material={halo}
+          material={corona}
           rotation={[-Math.PI / 2, 0, 0]}
           position={[0, 0.012, 0]}
           renderOrder={LAYER.marker}
           raycast={noRaycast}
         >
-          <planeGeometry args={[r * 2, r * 2]} />
+          <planeGeometry args={[size, size]} />
         </mesh>
+        <mesh
+          material={xray}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0.012, 0]}
+          renderOrder={XRAY_ORDER}
+          raycast={noRaycast}
+        >
+          <planeGeometry args={[size, size]} />
+        </mesh>
+        <mesh
+          ref={curtainMesh}
+          geometry={heldCurtainGeometry(pitch)}
+          material={curtain}
+          renderOrder={-1}
+          raycast={noRaycast}
+        />
         <group ref={spin} scale={[pitch, 1, pitch]}>
           <mesh
-            geometry={ribbonGeometry()}
+            ref={ribbonMesh}
+            geometry={ribbonGeometry(held.top)}
             material={ribbon}
             renderOrder={LAYER.trace}
             raycast={noRaycast}
@@ -468,19 +621,7 @@ export const makeSelection = (pitch: number) => {
   return Selection;
 };
 
-// --- Check: a red aurora curtain ------------------------------------------------
-
-const curtainVertex = /* glsl */ `
-  varying vec2 vUv;
-  varying vec3 vNormalW;
-  varying vec3 vWorld;
-  void main() {
-    vUv = uv;
-    vNormalW = normalize(mat3(modelMatrix) * normal);
-    vec4 w = modelMatrix * vec4(position, 1.0);
-    vWorld = w.xyz;
-    gl_Position = projectionMatrix * viewMatrix * w;
-  }`;
+// --- Check: a red aurora behind the king ----------------------------------------
 
 const curtainFragment = /* glsl */ `
   uniform float uTime;
@@ -498,39 +639,32 @@ const curtainFragment = /* glsl */ `
   void main() {
     float u = vUv.x;
     float v = vUv.y;
-    // The hem wavers a little round the curtain; above it, rays fade upward
+    // The hem wavers a little round the curtain; above it, rays fade out by the top
     float hemAt = 0.03 + 0.05 * noise(u * 10.0 + uTime * 0.2, 10.0);
     float hem = smoothstep(hemAt - 0.03, hemAt + 0.015, v);
-    float glowHem = exp(-max(v - hemAt, 0.0) / 0.08);
-    float body = pow(1.0 - v, 2.0);
+    float glowHem = exp(-max(v - hemAt, 0.0) / 0.1);
+    float body = pow(1.0 - v, 2.2);
     float rays = 0.3 + 0.7 * noise(u * 40.0 - uTime * 0.3, 40.0);
     // Soft where the wall turns edge-on, so it never shows a hard outline
     float face = smoothstep(0.05, 0.55, abs(dot(normalize(vNormalW), normalize(cameraPosition - vWorld))));
     float a = hem * (body * rays * 0.6 + glowHem * 0.5) * face;
-    if (a < 0.003) discard;
-    gl_FragColor = vec4(uColor, min(a, 1.0));
+    gl_FragColor = vec4(uColor * a, 1.0);
     #include <colorspace_fragment>
   }`;
 
 const makeCheck = (pitch: number) => {
-  const geometry = new CylinderGeometry(0.44 * pitch, 0.44 * pitch, 1.05, 48, 1, true).translate(
+  const geometry = new CylinderGeometry(0.44 * pitch, 0.44 * pitch, 0.8, 48, 1, true).translate(
     0,
-    0.525,
+    0.4,
     0,
   );
   const Check = ({ floor }: MarkerProps) => {
     const invalidate = useThree((s) => s.invalidate);
     const material = useMemo(
       () =>
-        new ShaderMaterial({
-          transparent: true,
-          depthWrite: false,
-          // Only the far wall: the curtain hangs behind the king, never over it
-          side: BackSide,
-          blending: AdditiveBlending,
-          uniforms: { uTime: { value: 0 }, uColor: { value: new Color(CHECK) } },
-          vertexShader: curtainVertex,
-          fragmentShader: curtainFragment,
+        underPieces(curtainFragment, {
+          uTime: { value: 0 },
+          uColor: { value: new Color(CHECK) },
         }),
       [],
     );
@@ -554,7 +688,7 @@ const makeCheck = (pitch: number) => {
           geometry={geometry}
           material={material}
           position={floor}
-          renderOrder={LAYER.trace}
+          renderOrder={-1}
           raycast={noRaycast}
         />
       </>
@@ -566,16 +700,18 @@ const makeCheck = (pitch: number) => {
 // --- The set --------------------------------------------------------------------
 
 /**
- * The marker set. `levelY` (towerFrame) tells a destination's level from
- * its floor's height, for the gem at the heart of its star.
+ * The marker set. `levelY` (towerFrame) tells a mark's level from its
+ * floor's height, for the level colour it carries.
  */
 export const makeMarkers = (pitch: number, levelY: number[], motionMs: number) => {
   const STAR = 0.25 * pitch;
+  const STROKE = 0.045 * pitch;
   const levelOf = (y: number) =>
     levelY.reduce((best, ly, z) => (Math.abs(ly - y) < Math.abs(levelY[best] - y) ? z : best), 0);
-  const STROKE = 0.045 * pitch;
+  const levelColor = (floor: Vec3) => LEVELS[levelOf(floor[1])];
 
   const Quiet = ({ floor, hovered }: MarkerProps) => {
+    // Straight above or below the held piece: grown out from under it
     const column = useInHeldColumn(floor);
     const radius = column ? 0.45 * pitch : STAR;
     return (
@@ -584,18 +720,19 @@ export const makeMarkers = (pitch: number, levelY: number[], motionMs: number) =
         kind="star"
         color={MOVE}
         radius={hovered ? radius * 1.12 : radius}
-        inner={column ? 0.24 * pitch : STAR * 0.4}
+        inner={column ? 0.53 : 0.4}
         line={STROKE}
         fill={column ? 0.1 : 0.2}
         glow={0.7}
-        gem={LEVELS[levelOf(floor[1])]}
+        level={levelColor(floor)}
         gemRadius={0.075 * pitch}
+        seat={column ? 0 : 0.25}
         hovered={hovered}
       />
     );
   };
 
-  // Grown past the victim's base, so its red points show all round it
+  // Grown past the victim's base, so its crimson points show all round it
   const Capture = ({ floor, hovered }: MarkerProps) => (
     <Glyph
       floor={floor}
@@ -603,7 +740,8 @@ export const makeMarkers = (pitch: number, levelY: number[], motionMs: number) =
       color={CAPTURE}
       core={CAPTURE}
       radius={0.47 * pitch}
-      inner={0.3 * pitch}
+      steepRadius={0.42 * pitch}
+      inner={0.64}
       line={STROKE * 1.1}
       fill={0.14}
       coreAmount={0.55}
@@ -627,6 +765,9 @@ export const makeMarkers = (pitch: number, levelY: number[], motionMs: number) =
           line={0.04 * pitch}
           fill={0.16}
           opacity={0.85}
+          level={levelColor(from.floor)}
+          gemRadius={vertical ? 0 : 0.07 * pitch}
+          innerHex={vertical}
         />
         <Glyph
           floor={to.floor}
@@ -636,6 +777,8 @@ export const makeMarkers = (pitch: number, levelY: number[], motionMs: number) =
           line={0.045 * pitch}
           fill={0.06}
           opacity={0.95}
+          level={levelColor(to.floor)}
+          innerHex
         />
         <LastMoveLine
           from={from.floor}
@@ -658,5 +801,11 @@ export const makeMarkers = (pitch: number, levelY: number[], motionMs: number) =
     );
   };
 
-  return { Quiet, Capture, LastMove, Selection: makeSelection(pitch), Check: makeCheck(pitch) };
+  return {
+    Quiet,
+    Capture,
+    LastMove,
+    Selection: makeSelection(pitch, levelOf),
+    Check: makeCheck(pitch),
+  };
 };
