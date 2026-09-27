@@ -1,6 +1,10 @@
+import '@fontsource/cinzel/700.css';
 import '@fontsource/cormorant-garamond/600.css';
 import '@fontsource/cormorant-garamond/700.css';
+import figuresBold from '@fontsource/shippori-mincho/files/shippori-mincho-latin-800-normal.woff2';
+import figuresRegular from '@fontsource/shippori-mincho/files/shippori-mincho-latin-600-normal.woff2';
 import type { DesignHud } from '../types';
+import './hud.css';
 import { GILT, HUD_GOLD, LEVEL, PARCHMENT } from './palette';
 
 // The HUD as the margins of an illuminated manuscript read by candlelight:
@@ -8,6 +12,38 @@ import { GILT, HUD_GOLD, LEVEL, PARCHMENT } from './palette';
 // colours, set in Cormorant (a true lower case, so a file's letter never
 // reads as a level's), with a small gilt quatrefoil at each end of the turn
 // like a rubricated flourish. Restrained: the board is the page.
+//
+// Cormorant's figures are old-style: its "1" is a small capital I, so
+// "Ba1" read "BaI". Vitrail registers Shippori Mincho's lining figures as a
+// digits-only face and sets it first in every stack, so the numbers (and
+// only the numbers) come from it: its "1" has a clear flag and foot, where
+// Cinzel's, at HUD size, still reads as an l. A small stylesheet (hud.css, scoped to
+// this design's canvas) gives the move box a gilt focus ring and the result
+// card a proper title.
+
+/** The digits-only face: Shippori Mincho's lining figures. */
+export const FIGURES = 'Vitrail Figures';
+let figures: Promise<unknown> = Promise.resolve();
+if (typeof document !== 'undefined' && document.fonts && typeof FontFace !== 'undefined') {
+  // Regular figures beside the HUD's text, bold ones for the board's labels
+  const faces = [
+    [figuresRegular, '100 599'],
+    [figuresBold, '600 900'],
+  ].map(([url, weight]) => {
+    const face = new FontFace(FIGURES, `url(${url}) format('woff2')`, {
+      unicodeRange: 'U+0030-0039',
+      weight,
+    });
+    document.fonts.add(face);
+    return face.load().catch(() => undefined);
+  });
+  figures = Promise.all(faces);
+}
+/** Resolves once the figures can be drawn (canvas labels must wait for it). */
+export const figuresReady = () => figures;
+
+/** Every text in the HUD and on the board: Shippori's figures, Cormorant's letters. */
+export const SERIF = `"${FIGURES}", "Cormorant Garamond", Georgia, serif`;
 
 const svg = (body: string, viewBox: string, extra = '') =>
   `url("data:image/svg+xml,${encodeURIComponent(
@@ -51,7 +87,6 @@ const roseMark = svg(
 
 const PANEL = 'rgba(16, 12, 20, 0.84)';
 const RULE = 'rgba(216, 176, 99, 0.34)';
-const SERIF = '"Cormorant Garamond", Georgia, serif';
 
 export const hud: DesignHud = {
   readout: true,
@@ -61,7 +96,7 @@ export const hud: DesignHud = {
     '--hud-bg': PANEL,
     '--hud-fg': PARCHMENT,
     '--hud-muted': 'rgba(239, 227, 200, 0.58)',
-    '--hud-accent': HUD_GOLD,
+    '--hud-accent': 'linear-gradient(180deg, #f6dc98 0%, #e2bd6a 55%, #c39a4c 100%)',
     '--hud-accent-fg': '#1a1208',
     '--hud-border': `1px solid ${RULE}`,
     '--hud-radius': '3px',
@@ -69,7 +104,7 @@ export const hud: DesignHud = {
       'inset 0 0 0 3px rgba(16, 12, 20, 0.84), inset 0 0 0 4px rgba(216, 176, 99, 0.16), 0 10px 30px rgba(0, 0, 0, 0.45)',
     '--hud-blur': 'blur(6px)',
     '--hud-tracking': '0.04em',
-    '--turn-bg': `${quatrefoil} no-repeat left 4px center / 12px 12px, ${quatrefoil} no-repeat right 4px center / 12px 12px, ${glassRule} no-repeat center bottom / calc(100% - 24px) 2px, ${PANEL}`,
+    '--turn-bg': `${quatrefoil} no-repeat left 3px center / 15px 15px, ${quatrefoil} no-repeat right 3px center / 15px 15px, ${glassRule} no-repeat center bottom 3px / calc(100% - 16px) 3px, ${PANEL}`,
     '--turn-fg': PARCHMENT,
     '--turn-size': '20px',
     '--turn-border': `1px solid ${RULE}`,
@@ -80,7 +115,7 @@ export const hud: DesignHud = {
     '--modal-radius': '4px',
     '--modal-shadow': `0 0 0 1px ${RULE}, 0 0 0 5px rgba(18, 14, 23, 0.9), 0 0 0 6px rgba(216, 176, 99, 0.22), 0 30px 80px rgba(0, 0, 0, 0.6)`,
     '--modal-backdrop': 'rgba(6, 4, 10, 0.45)',
-    '--button-bg': `linear-gradient(180deg, #e3c071 0%, ${HUD_GOLD} 55%, #b58d44 100%)`,
+    '--button-bg': 'linear-gradient(180deg, #f6dc98 0%, #e2bd6a 55%, #c39a4c 100%)',
     '--button-fg': '#1a1208',
     '--button-border': '1px solid rgba(255, 230, 170, 0.5)',
     '--button-radius': '3px',

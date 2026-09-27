@@ -9,6 +9,7 @@ import { noRaycast } from '../kit/noRaycast';
 import { frameGeometry } from '../kit/plates';
 import type { BoardLayout } from '../types';
 import { GLASS_DEEP, GLASS_PALE, GLEAM, LEAD, LEVEL } from './palette';
+import { setFootprintStrength } from './pieces';
 
 // The platforms: five panels of leaded glass. Each of a level's 25 squares
 // is its own pane of antique glass, deep or pale in the level's jewel colour
@@ -23,9 +24,11 @@ import { GLASS_DEEP, GLASS_PALE, GLEAM, LEAD, LEVEL } from './palette';
 // Glass reflects more at a grazing angle than head-on, so the panes are
 // clearest seen from above, where the lower levels must show through all
 // the others. From high above, every level but the one in play (the one the
-// player points at or holds a piece on, else the top one) thins to quiet
-// hairlines, so the five nested grids never tangle into a plaid: the view
-// reads like a 2D board seen through a glass table.
+// player points at or holds a piece on) thins to a faint dot at each
+// crossing of its cames, while the one in play thickens its glass into a
+// clear light-and-dark checker, so the five nested grids never tangle into a
+// plaid: the view reads like a 2D board on a glass table. With no level in
+// play, each piece outlines its own square instead (see pieces.tsx).
 
 const vertexShader = /* glsl */ `
   uniform float uHalf;
@@ -50,6 +53,7 @@ const fragmentShader = /* glsl */ `
   uniform float uGleamAlpha;
   uniform float uFocus;
   uniform float uQuiet;
+  uniform float uAnchor;
   uniform float uCells;
   varying vec2 vCell;
   varying vec3 vWorld;
@@ -94,8 +98,12 @@ const fragmentShader = /* glsl */ `
     vec3 view = normalize(cameraPosition - vWorld);
     float facing = abs(view.y);
     float fresnel = pow(1.0 - facing, 3.0);
-    float ga = uGlass * mix(0.55, 1.7, fresnel) * (1.0 + 0.45 * uFocus) * mix(0.6, 1.0, parity < 0.5 ? 1.0 : 0.0);
-    ga *= mix(1.0, 0.45, uQuiet) * inside;
+    // From above, the level in play carries the checker like a 2D board: its
+    // glass thickens and its pale panes (the light squares) come up to just
+    // above the deep ones
+    float paleA = mix(0.6, 1.1, uAnchor);
+    float ga = uGlass * mix(0.55, 1.7, fresnel) * (1.0 + 0.45 * uFocus) * (parity < 0.5 ? 1.0 : paleA);
+    ga *= mix(1.0, 2.4, uAnchor) * mix(1.0, 0.45, uQuiet) * inside;
 
     // --- The lead ---
     vec2 nearest = floor(uv + 0.5);
@@ -110,6 +118,12 @@ const fragmentShader = /* glsl */ `
     float came = max(line(d.x, cameW.x, px.x) * alongX, line(d.y, cameW.y, px.y) * alongY);
     float thread = max(line(d.x, threadW.x, px.x) * alongX, line(d.y, threadW.y, px.y) * alongY);
     float onBorder = max(border.x * line(d.x, cameW.x, px.x) * alongX, border.y * line(d.y, cameW.y, px.y) * alongY);
+    // A quietened level keeps only a dot of lead where its cames cross, and
+    // no thread of light: 36 faint dots, never lines, so nothing slices the
+    // level in play
+    float crossing = line(d.x, 0.07, px.x) * line(d.y, 0.07, px.y) * alongX * alongY;
+    came = mix(came, crossing, uQuiet);
+    thread *= 1.0 - uQuiet;
 
     float quiet = mix(1.0, 0.22, uQuiet);
     float leadA = uLeadAlpha * came * mix(1.0, 0.45, uQuiet);
@@ -144,6 +158,9 @@ const MARGIN = 0.04;
 const DEG = Math.PI / 180;
 /** How much of a quietened level's rim glow goes. */
 const RIM_QUIET = 0.85;
+/** The rim's glow at rest and in focus. */
+const RIM_GLOW = 0.16;
+const RIM_FOCUS = 0.4;
 const smooth = (a: number, b: number, x: number) => {
   const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
   return t * t * (3 - 2 * t);
@@ -159,7 +176,7 @@ export const GlassPlates = ({ layout, focusLevel = null }: GlassPlatesProps) => 
   // A little past the squares, so the heavy outer came is drawn whole
   const reach = frame.half + frame.pitch * 0.12;
   const plane = useMemo(() => new PlaneGeometry(reach * 2, reach * 2), [reach]);
-  const rim = useMemo(() => frameGeometry(frame.half + MARGIN, 0.045, 0.07), [frame.half]);
+  const rim = useMemo(() => frameGeometry(frame.half + MARGIN, 0.03, 0.05), [frame.half]);
   useEffect(
     () => () => {
       plane.dispose();
@@ -188,6 +205,7 @@ export const GlassPlates = ({ layout, focusLevel = null }: GlassPlatesProps) => 
               uGleamAlpha: { value: GLEAM_ALPHA },
               uFocus: { value: 0 },
               uQuiet: { value: 0 },
+              uAnchor: { value: 0 },
               uCells: { value: GRID_SIZE },
               uHalf: { value: frame.half },
               uPitch: { value: frame.pitch },
@@ -198,7 +216,7 @@ export const GlassPlates = ({ layout, focusLevel = null }: GlassPlatesProps) => 
       ),
     [frame.half, frame.pitch, levels],
   );
-  // The rim: solid lead, lit in the level's colour
+  // The rim: solid lead, faintly lit in the level's colour (a glow, never a neon tube)
   const rims = useMemo(
     () =>
       LEVEL.map(
@@ -208,7 +226,7 @@ export const GlassPlates = ({ layout, focusLevel = null }: GlassPlatesProps) => 
             roughness: 0.38,
             metalness: 0.7,
             emissive: new Color(c),
-            emissiveIntensity: 0.28,
+            emissiveIntensity: RIM_GLOW,
           }),
       ),
     [],
@@ -223,7 +241,7 @@ export const GlassPlates = ({ layout, focusLevel = null }: GlassPlatesProps) => 
 
   // Rim glow from focus, the eased focus itself, and how far each level is
   // quietened from above
-  const glow = useRef<number[]>(Array.from({ length: levels }, () => 0.28));
+  const glow = useRef<number[]>(Array.from({ length: levels }, () => RIM_GLOW));
   const quiet = useRef<number[]>(Array.from({ length: levels }, () => 0));
   const focus = useRef({ weights: Array.from({ length: levels }, () => 0), any: 0 });
 
@@ -237,7 +255,7 @@ export const GlassPlates = ({ layout, focusLevel = null }: GlassPlatesProps) => 
         const m = materials[z];
         if (!m) return;
         m.uniforms.uFocus.value = w - any * 0.25 * (1 - w);
-        glow.current[z] = 0.28 + 0.5 * w - 0.08 * any * (1 - w);
+        glow.current[z] = RIM_GLOW + (RIM_FOCUS - RIM_GLOW) * w - 0.05 * any * (1 - w);
         rims[z].emissiveIntensity = glow.current[z] * (1 - RIM_QUIET * quiet.current[z]);
       });
     },
@@ -245,18 +263,24 @@ export const GlassPlates = ({ layout, focusLevel = null }: GlassPlatesProps) => 
   );
 
   // From high above, five nested grids would read as a plaid: every level
-  // but the one in focus (or, with none, the top one) thins to a quiet
-  // lattice of hairlines, its panes and rim fading back
+  // but the one in play (pointed at, or holding the selected piece) thins to
+  // a lattice of faint dots, its panes and rim fading back, while the one in
+  // play carries a clear checker
   useFrame(({ camera }) => {
     const len = camera.position.length() || 1;
     const elevation = Math.asin(Math.min(Math.max(camera.position.y / len, -1), 1));
-    const k = smooth(48 * DEG, 72 * DEG, elevation);
-    const top = materials.length - 1;
-    const { weights, any } = focus.current;
+    // From about 32 degrees up: by 44 the lower levels no longer slice the top one
+    const k = smooth(32 * DEG, 58 * DEG, elevation);
+    const { weights } = focus.current;
+    setFootprintStrength(smooth(55 * DEG, 75 * DEG, elevation));
     materials.forEach((m, z) => {
-      const anchor = Math.min(1, (weights[z] ?? 0) + (1 - any) * (z === top ? 1 : 0));
+      // Only a level in play anchors: with none, every grid stays quiet
+      // (defaulting to the top one would put lower pieces on its lines, seen
+      // in perspective) and each piece shows its own square instead
+      const anchor = weights[z] ?? 0;
       quiet.current[z] = k * (1 - anchor);
       m.uniforms.uQuiet.value = quiet.current[z];
+      m.uniforms.uAnchor.value = k * anchor;
       rims[z].emissiveIntensity = glow.current[z] * (1 - RIM_QUIET * quiet.current[z]);
     });
   });

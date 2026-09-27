@@ -7,6 +7,7 @@ import {
   Color,
   DoubleSide,
   MeshStandardMaterial,
+  TetrahedronGeometry,
   PlaneGeometry,
   ShaderMaterial,
 } from 'three';
@@ -30,7 +31,8 @@ import { accentMaterial, bodyMaterial, footMaterials } from './pieces';
 // shards of its own stone and chips of jewel glass. At mate a rose of light
 // in every level colour blooms under the fallen king, and gilt motes rise.
 
-const MAX_FRAME = 1 / 20;
+// Generous, so a slow device still ends every effect on time
+const MAX_FRAME = 1 / 8;
 
 /** The level whose platform lies nearest a height. */
 const levelAt = (layout: BoardLayout, y: number) => {
@@ -302,26 +304,16 @@ export const makeMoveFx = (layout: BoardLayout, pieceScale: number) => {
 
 // --- Capture: the victim shatters -----------------------------------------------------
 
-const shardGeometry = (() => {
-  // A sliver of glass or stone: a thin, sharp triangle
-  const g = new BufferGeometry();
-  g.setAttribute(
-    'position',
-    new BufferAttribute(
-      new Float32Array([0, 0.07, 0, -0.03, -0.035, 0.008, 0.035, -0.03, -0.008]),
-      3,
-    ),
-  );
-  g.computeVertexNormals();
-  return g;
-})();
+/** A sliver of stone or glass: a flattened tetrahedron, thick enough to catch a glint. */
+const shardGeometry = new TetrahedronGeometry(0.06).scale(0.75, 1.5, 0.4);
 
 const shardMaterial = new MeshStandardMaterial({
   color: '#ffffff',
-  roughness: 0.3,
-  metalness: 0.1,
-  side: DoubleSide,
-  emissive: '#1a0c06',
+  roughness: 0.14,
+  metalness: 0.25,
+  envMapIntensity: 1.6,
+  flatShading: true,
+  emissive: '#120906',
 });
 
 /**
@@ -334,14 +326,17 @@ export const makeCaptureFx = (layout: BoardLayout, pieceScale: number) => {
   const CaptureFx = ({ floor, victim, victimFacing, durationMs }: CaptureFxProps) => {
     const group = useRef<Group>(null);
     const level = levelAt(layout, floor[1]);
-    const impact = (durationMs / 1000) * 0.88;
+    // It breaks just before the attacker arrives, so the two never overlap
+    const impact = (durationMs / 1000) * 0.78;
     const [broken, setBroken] = useState(false);
     const done = useTimeline((t) => {
       const g = group.current;
       if (g && !broken) {
-        // A shiver just before it breaks
+        // A shiver, then it gives way over its last moment
         const k = Math.max(0, (t - impact + 0.12) / 0.12);
         g.rotation.z = Math.sin(t * 90) * 0.02 * k;
+        const give = Math.max(0, (t - impact + 0.06) / 0.06);
+        g.scale.setScalar(pieceScale * (1 - 0.35 * give));
       }
       if (t >= impact && !broken) setBroken(true);
       return t < impact + 1.2;
@@ -376,14 +371,14 @@ export const makeCaptureFx = (layout: BoardLayout, pieceScale: number) => {
               geometry={shardGeometry}
               material={shardMaterial}
               colors={colors}
-              count={40}
-              speed={2.4}
+              count={24}
+              speed={2.2}
               gravity={5}
               lifeMs={900}
-              spin={9}
+              spin={7}
               upward={0.55}
-              spread={0.2}
-              scale={1.5}
+              spread={0.22}
+              scale={1.6}
               seed={9}
             />
             <Burst

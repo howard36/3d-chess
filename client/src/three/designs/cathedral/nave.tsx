@@ -39,7 +39,22 @@ const hazeVertex = /* glsl */ `
     gl_Position = projectionMatrix * viewMatrix * world;
   }`;
 
+/** The tower's bounding radius, and how dim the nave is behind it. */
+const TOWER_R = 4.3;
+const MASK_DIM = 0.35;
+
+/** Dims whatever lies behind the tower from the camera (the tower's centre is the origin). */
+const towerMask = /* glsl */ `
+  float towerMask(vec3 world) {
+    vec3 toFrag = normalize(world - cameraPosition);
+    vec3 toCentre = normalize(-cameraPosition);
+    float ang = acos(clamp(dot(toFrag, toCentre), -1.0, 1.0));
+    float cone = asin(clamp(${TOWER_R.toFixed(2)} / max(length(cameraPosition), ${(TOWER_R * 1.01).toFixed(3)}), 0.0, 1.0));
+    return mix(${MASK_DIM.toFixed(2)}, 1.0, smoothstep(cone, cone * 1.35, ang));
+  }`;
+
 const hazeFragment = /* glsl */ `
+  ${towerMask}
   uniform sampler2D uMap;
   uniform float uIntensity;
   uniform vec3 uHaze;
@@ -48,6 +63,11 @@ const hazeFragment = /* glsl */ `
   varying vec3 vWorld;
   void main() {
     vec3 c = texture2D(uMap, vUv).rgb * uIntensity;
+    // Whatever lies behind the tower from here (the rose, a lancet, the
+    // labyrinth from above) is dimmed, so nothing bright shows through the
+    // platforms: a cone round the tower's centre as wide as the tower looks,
+    // fading out beyond it. The piers and shafts are masked the same way.
+    c *= towerMask(vWorld);
     float d = distance(cameraPosition, vWorld);
     float haze = 1.0 - exp(-d * uDensity);
     c = mix(c, uHaze, haze * 0.75);
@@ -85,6 +105,7 @@ const pierVertex = /* glsl */ `
   }`;
 
 const pierFragment = /* glsl */ `
+  ${towerMask}
   uniform vec3 uGlass[5];
   uniform vec3 uStone;
   uniform vec3 uHaze;
@@ -121,6 +142,7 @@ const pierFragment = /* glsl */ `
     float h = vWorld.y;
     lit *= 1.0 - smoothstep(8.0, 26.0, h);
     lit *= 0.55 + 0.45 * smoothstep(uFloor, uFloor + 12.0, h);
+    lit *= towerMask(vWorld);
     float d = distance(cameraPosition, vWorld);
     lit = mix(lit, uHaze, (1.0 - exp(-d * 0.022)) * 0.7);
     gl_FragColor = vec4(lit, 1.0);
@@ -208,6 +230,7 @@ const beamVertex = /* glsl */ `
   }`;
 
 const beamFragment = /* glsl */ `
+  ${towerMask}
   uniform vec3 uColor;
   uniform float uStrength;
   varying vec2 vUv;
@@ -219,7 +242,7 @@ const beamFragment = /* glsl */ `
     float through = pow(abs(dot(normalize(vNormalW), view)), 2.2);
     // Born at the window, spent before it reaches the floor
     float along = smoothstep(1.0, 0.8, vUv.y) * smoothstep(0.0, 0.45, vUv.y);
-    float a = uStrength * through * along;
+    float a = uStrength * through * along * towerMask(vWorld);
     gl_FragColor = vec4(uColor * a, a);
     #include <colorspace_fragment>
   }`;

@@ -129,7 +129,7 @@ const halo = (ctx: Ctx, x: number, y: number, rx: number, ry: number, color: str
 const ARCADE_APEX = -13.2;
 const TRIFORIUM = [-12.4, -9.6] as const;
 const CLERESTORY = [-8.8, 5.2, 8] as const; // sill, spring, apex
-const ROSE_Y = -1.5;
+const ROSE_Y = 1.5;
 const ROSE_R = 8.2;
 
 /** Three lancets under an oculus, in a hood of stone. */
@@ -234,18 +234,31 @@ const rose = (ctx: Ctx, random: () => number, cx: number, cy: number, R: number,
   stroke(ctx, 'rgba(10, 8, 12, 0.9)', 0.24);
 };
 
-/** Softens a canvas in place, as if seen a little out of focus. */
-const soften = (canvas: HTMLCanvasElement, px: number) => {
+/**
+ * Softens a canvas in place, as if seen a little out of focus. With `wrap`
+ * the blur runs across the left and right edges as across any other column
+ * (the wall wraps round), so the seam never shows.
+ */
+const soften = (canvas: HTMLCanvasElement, px: number, wrap = false) => {
+  const pad = wrap ? Math.ceil(px * 4) : 0;
   const copy = document.createElement('canvas');
-  copy.width = canvas.width;
+  copy.width = canvas.width + pad * 2;
   copy.height = canvas.height;
   const c = copy.getContext('2d')!;
-  c.drawImage(canvas, 0, 0);
+  c.drawImage(canvas, pad, 0);
+  if (wrap) {
+    c.drawImage(canvas, canvas.width - pad, 0, pad, canvas.height, 0, 0, pad, canvas.height);
+    c.drawImage(canvas, 0, 0, pad, canvas.height, canvas.width + pad, 0, pad, canvas.height);
+  }
+  const blurred = document.createElement('canvas');
+  blurred.width = copy.width;
+  blurred.height = copy.height;
+  const b = blurred.getContext('2d')!;
+  b.filter = `blur(${px}px)`;
+  b.drawImage(copy, 0, 0);
   const ctx = canvas.getContext('2d')!;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.filter = `blur(${px}px)`;
-  ctx.drawImage(copy, 0, 0);
-  ctx.filter = 'none';
+  ctx.drawImage(blurred, pad, 0, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
 };
 
 let wall: Texture | null = null;
@@ -353,7 +366,7 @@ export const wallTexture = (): Texture => {
     stroke(ctx, 'rgba(44, 38, 52, 0.4)', 0.45);
   }
 
-  soften(c, 2.5);
+  soften(c, 2.5, true);
   wall = new CanvasTexture(c);
   wall.colorSpace = SRGBColorSpace;
   wall.wrapS = RepeatWrapping;
@@ -361,6 +374,9 @@ export const wallTexture = (): Texture => {
   wall.anisotropy = 4;
   return wall;
 };
+
+/** Where the labyrinth lies on the floor (world x, z): a bay off the crossing. */
+const LABYRINTH: [number, number] = [9.5, -8];
 
 let floor: Texture | null = null;
 
@@ -384,12 +400,18 @@ export const floorTexture = (): Texture => {
   // World units, centred: x to the right, z down the canvas
   ctx.setTransform(s, 0, 0, s, size / 2, size / 2);
 
+  // The labyrinth and the rings of paving round it lie off to one side of
+  // the crossing, so from above they read as a floor, not a target under
+  // the board
+  ctx.save();
+  ctx.translate(LABYRINTH[0], LABYRINTH[1]);
+
   // Paving in rings, each slab its own shade
   const inner = 1.9;
   const step = 0.58;
   const rings = 11;
   const outer = inner + rings * step;
-  for (let r = outer + 0.9; r < R; r += 1.7) {
+  for (let r = outer + 0.9; r < R + Math.hypot(...LABYRINTH); r += 1.7) {
     const n = Math.max(8, Math.round((2 * Math.PI * r) / 2.6));
     const offset = random() * Math.PI;
     for (let i = 0; i < n; i++) {
@@ -397,13 +419,15 @@ export const floorTexture = (): Texture => {
       const a1 = offset + ((i + 1) / n) * Math.PI * 2;
       const k = 0.7 + random() * 0.55;
       ctx.beginPath();
-      ctx.arc(0, 0, r + 1.64, a0 + 0.02 / r, a1 - 0.02 / r);
-      ctx.arc(0, 0, r + 0.06, a1 - 0.02 / r, a0 + 0.02 / r, true);
+      ctx.arc(0, 0, r + 1.62, a0 + 0.06 / r, a1 - 0.06 / r);
+      ctx.arc(0, 0, r + 0.08, a1 - 0.06 / r, a0 + 0.06 / r, true);
       ctx.closePath();
       ctx.fillStyle = `rgb(${Math.round(20 * k)}, ${Math.round(18 * k)}, ${Math.round(24 * k)})`;
       ctx.fill();
     }
   }
+
+  ctx.restore();
 
   // Light from the windows, lying on the floor in soft coloured pools
   for (let b = 0; b < NAVE.bays; b++) {
@@ -423,6 +447,8 @@ export const floorTexture = (): Texture => {
   }
 
   // The labyrinth: pale stone paths between dark lines
+  ctx.save();
+  ctx.translate(LABYRINTH[0], LABYRINTH[1]);
   ctx.beginPath();
   ctx.arc(0, 0, outer + 0.3, 0, Math.PI * 2);
   ctx.fillStyle = '#1d1a22';
@@ -465,6 +491,7 @@ export const floorTexture = (): Texture => {
   ctx.beginPath();
   ctx.arc(0, 0, 0.55, 0, Math.PI * 2);
   ctx.stroke();
+  ctx.restore();
 
   // Toward the walls the floor falls into shadow
   const shade = ctx.createRadialGradient(0, 0, R * 0.25, 0, 0, R);
