@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { act } from 'react';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
+import { Vector3 } from 'three';
 import type { Group } from 'three';
 import { MoveGlide } from './moveAnimation';
 import { Lift, Topple } from './designs/kit/motion';
@@ -94,8 +95,15 @@ describe('Lift and Topple', () => {
       </Topple>,
     );
     await act(async () => renderer.advanceFrames(40, 0.03));
-    const pivot = (renderer.scene as ReactThreeTestInstance).children[0].children[0]
-      .instance as unknown as Group;
+    const heading = (renderer.scene as ReactThreeTestInstance).children[0];
+    const pivot = heading.children[0].children[0].instance as unknown as Group;
     expect(pivot.rotation.x).toBeLessThan(-1.2);
+    // It falls across the view: the default camera looks down -z, so the
+    // king tips toward +x (the camera's right), not toward or away from it.
+    const top = new Vector3(0, 1, 0);
+    (heading.instance as unknown as Group).updateMatrixWorld(true);
+    pivot.localToWorld(top);
+    expect(top.x).toBeGreaterThan(0.8);
+    expect(Math.abs(top.z)).toBeLessThan(0.3);
   });
 });

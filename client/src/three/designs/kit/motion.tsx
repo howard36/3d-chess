@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { Quaternion, Vector3 } from 'three';
 import type { Group } from 'three';
 
 /**
@@ -35,23 +36,45 @@ const TOPPLE_MS = 900;
 // real one tips over, rather than sinking through the board around its centre.
 const PIVOT = 0.22;
 
-/** Tips a mated king onto its side, with a small settling bounce. */
+/**
+ * Tips a mated king onto its side, with a small settling bounce. It falls
+ * across the view (toward the camera's right, as seen when the mate lands),
+ * so the fallen king shows its profile rather than its base.
+ */
 export const Topple = ({ active, children }: { active: boolean; children: React.ReactNode }) => {
+  const heading = useRef<Group>(null);
   const pivot = useRef<Group>(null);
   const elapsed = useRef(0);
+  const aimed = useRef(false);
   const invalidate = useThree((s) => s.invalidate);
 
   useEffect(() => {
     elapsed.current = 0;
+    aimed.current = false;
     invalidate();
   }, [active, invalidate]);
 
-  useFrame((_, delta) => {
+  useFrame(({ camera }, delta) => {
     const g = pivot.current;
-    if (!g) return;
+    const h = heading.current;
+    if (!g || !h) return;
     if (!active) {
       g.rotation.x = 0;
+      h.rotation.y = 0;
       return;
+    }
+    if (!aimed.current) {
+      aimed.current = true;
+      // The camera's right, level with the board, in the parent's frame: the
+      // pivot tips toward local -z, so turn -z onto that direction.
+      const at = h.getWorldPosition(new Vector3());
+      const view = at.sub(camera.position);
+      const right = new Vector3(-view.z, 0, view.x);
+      if (right.lengthSq() > 1e-9 && h.parent) {
+        const parentTurn = h.parent.getWorldQuaternion(new Quaternion()).invert();
+        right.applyQuaternion(parentTurn);
+        h.rotation.y = Math.atan2(-right.x, -right.z);
+      }
     }
     elapsed.current += Math.min(delta, 1 / 30) * 1000;
     const t = Math.min(elapsed.current / TOPPLE_MS, 1);
@@ -62,9 +85,11 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
   });
 
   return (
-    <group position={[0, 0, -PIVOT]}>
-      <group ref={pivot}>
-        <group position={[0, 0, PIVOT]}>{children}</group>
+    <group ref={heading}>
+      <group position={[0, 0, -PIVOT]}>
+        <group ref={pivot}>
+          <group position={[0, 0, PIVOT]}>{children}</group>
+        </group>
       </group>
     </group>
   );
