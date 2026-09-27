@@ -11,6 +11,7 @@ import { PieceBody } from './pieces';
 import { HoloPlates } from './plates';
 import { KNIGHT_YAW, layout, LEVEL_COLORS, MOTION, PALETTE, PIECE_SCALE } from './shared';
 import { Stage } from './stage';
+import { SELECTION_BOB } from '../kit/motion';
 
 // Command: a naval tactical hologram in a dark operations room. Precise,
 // legible, cool. Ice and burnished-amber units stand on five sheets of glass,
@@ -91,7 +92,8 @@ const command: Design = {
   knightYaw: KNIGHT_YAW,
   markers: { Quiet, Capture, Selection, LastMove, Check },
   hoverDestinations: true,
-  hoverLift: true,
+  // Lifted like every round-2 design, with the gentle bob of a held piece
+  hoverLift: { bob: SELECTION_BOB },
   motion: MOTION,
   MoveFx,
   CaptureFx,

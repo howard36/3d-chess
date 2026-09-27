@@ -5,7 +5,7 @@ import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/dec
 import { Vector3 } from 'three';
 import type { Group } from 'three';
 import { MoveGlide } from './moveAnimation';
-import { Lift, Topple } from './designs/kit/motion';
+import { LIFT_DEFAULTS, Lift, pieceLift, SELECTION_BOB, Topple } from './designs/kit/motion';
 import type { DesignMotion } from './designs/types';
 
 type Vec = { x: number; y: number; z: number };
@@ -113,6 +113,40 @@ describe('Lift and Topple', () => {
     );
     await act(async () => renderer.advanceFrames(40, 0.03));
     expect(group().position.y).toBe(0);
+  });
+
+  it('holds a lifted piece still, and bobs it only when asked', async () => {
+    const heights = async (bob?: number) => {
+      const renderer = await ReactThreeTestRenderer.create(
+        <Lift height={0.2} bob={bob}>
+          <mesh />
+        </Lift>,
+      );
+      const group = (renderer.scene as ReactThreeTestInstance).children[0]
+        .instance as unknown as Group;
+      await act(async () => renderer.advanceFrames(40, 0.03));
+      const seen: number[] = [];
+      // A little over one bob (about two seconds)
+      for (let i = 0; i < 70; i++) {
+        await act(async () => renderer.advanceFrames(1, 0.03));
+        seen.push(group.position.y);
+      }
+      return seen;
+    };
+    const still = await heights();
+    expect(new Set(still)).toEqual(new Set([0.2]));
+    const bobbing = await heights(SELECTION_BOB);
+    expect(Math.max(...bobbing) - Math.min(...bobbing)).toBeGreaterThan(SELECTION_BOB);
+    for (const y of bobbing) expect(Math.abs(y - 0.2)).toBeLessThanOrEqual(SELECTION_BOB + 1e-3);
+  });
+
+  it('fills in a design’s piece lift: no bob unless it opts in', () => {
+    expect(pieceLift(undefined)).toBeNull();
+    expect(pieceLift(false)).toBeNull();
+    expect(pieceLift(true)).toEqual(LIFT_DEFAULTS);
+    expect(LIFT_DEFAULTS.bob).toBe(0);
+    expect(pieceLift({ bob: SELECTION_BOB })).toEqual({ ...LIFT_DEFAULTS, bob: SELECTION_BOB });
+    expect(pieceLift({ selected: 0.3 })).toEqual({ hover: 0.08, selected: 0.3, bob: 0 });
   });
 
   it('tips a mated king onto its side', async () => {

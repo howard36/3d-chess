@@ -9,6 +9,7 @@ import { CLOUD, CREAM, GRAPE, INK, layout, PIECE_SCALE, SKY, SUNFLOWER } from '.
 import { KNIGHT_YAW, PieceBody } from './pieces';
 import { Grid } from './plates';
 import { Stage } from './stage';
+import { SELECTION_BOB } from '../kit/motion';
 
 // Candy Tower: a toy-box Raumschach set floating over a sea of cumulus on a
 // sunny afternoon. Five slabs of clear sugar glass with gummy rims (one candy
@@ -42,7 +43,8 @@ const candy: Design = {
   knightYaw: KNIGHT_YAW,
   markers: { Quiet, Capture, Selection, LastMove, Check },
   hoverDestinations: true,
-  hoverLift: true,
+  // Lifted like every round-2 design, with the gentle bob of a held piece
+  hoverLift: { bob: SELECTION_BOB },
   motion: { style: 'bounce', durationMs: 440, lift: 0.5 },
   MoveFx,
   CaptureFx,

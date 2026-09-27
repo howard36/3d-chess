@@ -20,6 +20,7 @@ import { markers } from './markers';
 import { HUD_FG, HUD_MUTED, LEVEL_NEON, PIECE_SCALE, frame, layout } from './palette';
 import { PieceBody, focusBands } from './pieces';
 import { Stage } from './stage';
+import { SELECTION_BOB } from '../kit/motion';
 
 // Nightdrive: a synthwave dusk. Five pale glass floors, each rimmed in its own
 // neon (pink, violet, blue, jade, lime from A up), float high over an endless
@@ -232,7 +233,8 @@ const nightdrive: Design = {
   markers,
   hoverDestinations: true,
   // Pieces stir under the pointer (and their rim brightens); picked up, they float
-  hoverLift: true,
+  // Lifted like every round-2 design, with the gentle bob of a held piece
+  hoverLift: { bob: SELECTION_BOB },
   motion: MOTION,
   MoveFx,
   CaptureFx,

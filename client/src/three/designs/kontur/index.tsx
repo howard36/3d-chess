@@ -21,6 +21,7 @@ import {
 import { PieceBody } from './pieces';
 import { AcrylicPlates } from './plates';
 import { Stage } from './stage';
+import { SELECTION_BOB } from '../kit/motion';
 
 // Kontur: a Bauhaus board game. Five sheets of coloured acrylic stacked on
 // warm paper, geometric pieces after Hartwig's 1923 set drawn in ink, and
@@ -79,7 +80,8 @@ const kontur: Design = {
   knightYaw: 1.05,
   markers,
   hoverDestinations: true,
-  hoverLift: true,
+  // Lifted like every round-2 design, with the gentle bob of a held piece
+  hoverLift: { bob: SELECTION_BOB },
   motion: { style: 'bounce', durationMs: MOVE_MS, lift: 0.42 },
   MoveFx,
   CaptureFx,

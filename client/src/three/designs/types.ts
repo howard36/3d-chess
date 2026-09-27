@@ -303,8 +303,14 @@ export interface Design {
   Celebration?: ComponentType<CelebrationProps>;
   /** Tip the mated king over when the game ends. */
   toppleMatedKing?: boolean;
-  /** Lift a piece under the pointer / the selected piece off its floor. */
-  hoverLift?: boolean;
+  /**
+   * Lift a piece the player may pick up off its floor when the pointer is on
+   * it, and the selected piece higher. `true` takes the kit's heights and
+   * holds the selected piece still; a PieceLift sets the heights and, if
+   * wanted, a gentle bob while selected. Leave it off to stage hover and
+   * selection in the piece body instead (PieceBodyProps.hovered, .selected).
+   */
+  hoverLift?: boolean | PieceLift;
   /**
    * Track the pointer over legal destinations, so the Quiet and Capture
    * markers get `hovered` and can brighten under it.
@@ -316,6 +322,22 @@ export interface Design {
    */
   pieceScale?: number;
   hud: DesignHud;
+}
+
+/**
+ * How Board lifts pieces (Design.hoverLift). Heights are in piece units
+ * (before `pieceScale`).
+ */
+export interface PieceLift {
+  /** Under the pointer (default 0.08). */
+  hover?: number;
+  /** Selected (default 0.2). */
+  selected?: number;
+  /**
+   * How far the selected piece bobs up and down while held (default 0:
+   * still). The round-2 designs use SELECTION_BOB from kit/motion.
+   */
+  bob?: number;
 }
 
 /** Picker sections, listed in this order (see DESIGN_GROUPS in registry.ts). */

@@ -106,8 +106,10 @@ const atelier: Design = {
   markers: { Quiet, Capture, Selection, LastMove: lastMoveMarker(MOVE_MS), Check },
   hoverDestinations: true,
   // Board reports the piece under the pointer only to hover-lifting designs;
-  // PieceBody stages the lift itself (see pieces.tsx)
-  hoverLift: true,
+  // PieceBody stages the lift itself, a springy rise (see pieces.tsx), and
+  // stands back on its floor against Board's. These heights, its own plus
+  // the spring's overshoot, size the piece's hit proxy to cover it
+  hoverLift: { hover: 0.08, selected: 0.34 },
   motion: { style: 'hop', durationMs: MOVE_MS, lift: 0.5 },
   MoveFx,
   CaptureFx,

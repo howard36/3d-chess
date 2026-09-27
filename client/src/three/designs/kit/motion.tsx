@@ -2,33 +2,62 @@ import React, { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Quaternion, Vector3 } from 'three';
 import type { Group } from 'three';
+import type { PieceLift } from '../types';
+
+/** Board's piece lift (Design.hoverLift) when a design just says `true`. */
+export const LIFT_DEFAULTS: Required<PieceLift> = { hover: 0.08, selected: 0.2, bob: 0 };
+
+/**
+ * The gentle bob of a held piece that the round-2 designs were reviewed
+ * with; a design opts in with `hoverLift: { bob: SELECTION_BOB }`.
+ */
+export const SELECTION_BOB = 0.035;
+
+/** A design's piece lift with its defaults filled in, or null for none. */
+export const pieceLift = (
+  hoverLift: boolean | PieceLift | undefined,
+): Required<PieceLift> | null =>
+  !hoverLift ? null : hoverLift === true ? LIFT_DEFAULTS : { ...LIFT_DEFAULTS, ...hoverLift };
 
 /**
  * Raises its children `height` above their resting place, easing there, and
- * bobs them gently while raised high (a picked-up piece). Requests frames
+ * bobs them `bob` up and down while there (0: held still). Requests frames
  * only while moving, so a demand-driven canvas idles once it settles.
  */
-export const Lift = ({ height, children }: { height: number; children: React.ReactNode }) => {
+export const Lift = ({
+  height,
+  bob = 0,
+  children,
+}: {
+  height: number;
+  bob?: number;
+  children: React.ReactNode;
+}) => {
   const group = useRef<Group>(null);
   const clock = useRef(0);
   const invalidate = useThree((s) => s.invalidate);
-  const bob = height >= 0.15;
 
-  useEffect(() => invalidate(), [height, invalidate]);
+  useEffect(() => invalidate(), [height, bob, invalidate]);
 
   useFrame((_, delta) => {
     const g = group.current;
     if (!g) return;
     const dt = Math.min(delta, 1 / 30);
     clock.current += dt;
-    const target = height + (bob ? Math.sin(clock.current * 3.2) * 0.035 : 0);
+    const bobbing = bob > 0;
+    const target = height + (bobbing ? Math.sin(clock.current * 3.2) * bob : 0);
     const y = g.position.y + (target - g.position.y) * Math.min(1, dt * 12);
-    const settled = !bob && Math.abs(y - target) < 1e-3;
+    const settled = !bobbing && Math.abs(y - target) < 1e-3;
     g.position.y = settled ? target : y;
     if (!settled) invalidate();
   });
 
-  return <group ref={group}>{children}</group>;
+  // Tagged so a piece's hit proxy is measured without the lift (PieceMesh)
+  return (
+    <group ref={group} userData={{ lift: true }}>
+      {children}
+    </group>
+  );
 };
 
 const TOPPLE_MS = 900;

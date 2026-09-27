@@ -25,6 +25,7 @@ import {
 import { makePieceBody } from './pieces';
 import { WashiPlates } from './plates';
 import { PaperSky } from './sky';
+import { SELECTION_BOB } from '../kit/motion';
 
 // Sumi: ink and paper. A Raumschach tower of five washi sheets floating in
 // a paper sky above ink-wash mountains; porcelain against black lacquer,
@@ -305,7 +306,8 @@ const sumi: Design = {
   hoverDestinations: true,
   // Hover lifts a piece you may pick up (and its ink outline goes bolder);
   // selection lifts it higher. The kit's Lift does both.
-  hoverLift: true,
+  // Lifted like every round-2 design, with the gentle bob of a held piece
+  hoverLift: { bob: SELECTION_BOB },
   motion: MOTION,
   MoveFx: makeMoveFx(layout.floorY),
   CaptureFx: makeCaptureFx(PIECE_SCALE),
