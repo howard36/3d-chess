@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   BufferAttribute,
@@ -111,12 +111,21 @@ const markerFragment = /* glsl */ `
       }
     }
     if (uCapture > 0.5) {
-      // Four ticks pointing inward from the middle of each side: the same
-      // marker, turned into a target
-      float t = min(
-        segment(q, vec2(edge - uTick, 0.0), vec2(edge + uLine * 0.5, 0.0)),
-        segment(q, vec2(0.0, edge - uTick), vec2(0.0, edge + uLine * 0.5))
-      ) - uLine * 0.5;
+      float t;
+      if (uShape == 2) {
+        // A capture ring: four ticks pointing out toward the corners, so the
+        // cue shows round the victim's base rather than under it
+        vec2 d = vec2(0.70710678);
+        float r = edge + uLine * 0.5;
+        t = segment(q, d * r, d * (r + uTick)) - uLine * 0.5;
+      } else {
+        // Four ticks pointing inward from the middle of each side: the same
+        // marker, turned into a target
+        t = min(
+          segment(q, vec2(edge - uTick, 0.0), vec2(edge + uLine * 0.5, 0.0)),
+          segment(q, vec2(0.0, edge - uTick), vec2(0.0, edge + uLine * 0.5))
+        ) - uLine * 0.5;
+      }
       stroke = min(stroke, t);
     }
     float aa = max(fwidth(stroke), 1e-4);
@@ -212,11 +221,12 @@ export const FloorMarker = ({
   u.uQuad.value = m.quad;
   u.uHalf.value = m.half;
   u.uLine.value = m.lineWidth;
-  u.uRing.value = m.ringRadius;
+  const captureRing = capture && shape === 'ring';
+  u.uRing.value = captureRing ? m.captureRing : m.ringRadius;
   u.uDot.value = m.dotRadius;
   u.uRadius.value = m.cornerRadius;
   u.uBracket.value = m.bracketStart;
-  u.uTick.value = m.tickLength;
+  u.uTick.value = captureRing ? m.captureTick : m.tickLength;
   u.uCapture.value = capture ? 1 : 0;
   u.uHover.value = hovered ? 1 : 0;
   u.uBreathe.value = breathe;
@@ -253,6 +263,12 @@ export interface TraceStyle extends TracePathOptions {
   chevrons?: number;
   /** Speed the chevrons drift toward the destination, world units a second (0 = still). */
   flowSpeed?: number;
+  /**
+   * Draw the trace in from its source over this long when it mounts (0 = all
+   * at once). Pass it only for a fresh move (LastMoveMarkerProps.fresh), so
+   * a replayed or rejoined game shows the trace whole.
+   */
+  drawInMs?: number;
 }
 
 const traceVertex = /* glsl */ `
@@ -286,10 +302,12 @@ const traceFragment = /* glsl */ `
   uniform float uShaftEnd;
   uniform float uFlow;
   uniform float uTime;
+  uniform float uReveal;
   varying float vAcross;
   varying float vHalf;
   varying float vAlong;
   void main() {
+    if (vAlong > uReveal) discard;
     float d = abs(vAcross);
     float aa = max(fwidth(vAcross), 1e-4);
     float body = 1.0 - smoothstep(vHalf - aa, vHalf + aa * 0.5, d);
@@ -310,6 +328,8 @@ const traceFragment = /* glsl */ `
   }`;
 
 const traceClock = { value: 0 };
+// A reveal past any trace's length: the whole trace
+const ALL = 1e6;
 
 /**
  * The last move's path from `from` to `to` (cell floors): straight along a
@@ -328,11 +348,14 @@ export const LastMoveTrace = ({
   headWidth = 0.3,
   chevrons = 0.42,
   flowSpeed = 0,
+  drawInMs = 0,
   ...pathOptions
 }: TraceStyle & { from: Vec3; to: Vec3 }) => {
   const invalidate = useThree((s) => s.invalidate);
+  // How much of the trace is drawn, from its source (world units)
+  const revealed = useRef(drawInMs > 0 ? 0 : ALL);
   const key = JSON.stringify([from, to, width, headLength, headWidth, pathOptions]);
-  const { geometry, shaftEnd } = useMemo(() => {
+  const { geometry, shaftEnd, length } = useMemo(() => {
     const data = ribbonData(tracePath(from, to, pathOptions), { width, headLength, headWidth });
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(data.position, 3));
@@ -342,7 +365,11 @@ export const LastMoveTrace = ({
     g.setAttribute('aAlong', new BufferAttribute(data.along, 1));
     g.setIndex(data.index);
     g.computeBoundingSphere();
-    return { geometry: g, shaftEnd: data.length - Math.min(headLength, data.length * 0.6) };
+    return {
+      geometry: g,
+      shaftEnd: data.length - Math.min(headLength, data.length * 0.6),
+      length: data.length,
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
   }, [key]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -362,6 +389,7 @@ export const LastMoveTrace = ({
           uShaftEnd: { value: 1 },
           uFlow: { value: 0 },
           uTime: traceClock,
+          uReveal: { value: ALL },
         },
         vertexShader: traceVertex,
         fragmentShader: traceFragment,
@@ -378,7 +406,17 @@ export const LastMoveTrace = ({
   u.uShaftEnd.value = shaftEnd;
   u.uFlow.value = flowSpeed;
 
-  useFrame((state) => {
+  useEffect(() => {
+    if (drawInMs > 0) invalidate();
+  }, [drawInMs, invalidate]);
+  u.uReveal.value = revealed.current;
+  useFrame((state, delta) => {
+    if (revealed.current < length) {
+      revealed.current += (Math.min(delta, 1 / 20) * length * 1000) / drawInMs;
+      if (revealed.current >= length) revealed.current = ALL;
+      u.uReveal.value = revealed.current;
+      invalidate();
+    }
     if (flowSpeed === 0) return;
     traceClock.value = state.clock.elapsedTime;
     invalidate();
@@ -505,7 +543,9 @@ export const clarityMarkers = ({
       lineWidth={0.07}
     />
   );
-  const LastMove = ({ from, to }: LastMoveMarkerProps) => (
+  // A fresh move draws its trace in when `trace.drawInMs` is set; a replayed
+  // one (history, a rejoin) shows it whole
+  const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => (
     <>
       {[from, to].map((m, i) => (
         <FloorMarker
@@ -517,7 +557,13 @@ export const clarityMarkers = ({
           fill={i === 0 ? 0.1 : 0.06}
         />
       ))}
-      <LastMoveTrace from={from.floor} to={to.floor} color={lastMoveColor} {...trace} />
+      <LastMoveTrace
+        from={from.floor}
+        to={to.floor}
+        color={lastMoveColor}
+        {...trace}
+        drawInMs={fresh ? (trace.drawInMs ?? 0) : 0}
+      />
     </>
   );
   const Check = ({ floor }: MarkerProps) => (

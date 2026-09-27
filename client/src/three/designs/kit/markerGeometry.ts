@@ -19,6 +19,11 @@ export interface MarkerMetricsOptions {
   cornerRadius?: number;
   /** Length of each corner bracket's arms, as a fraction of the outline's half side. */
   bracketLength?: number;
+  /**
+   * Radius of a capture ring, as a fraction of the pitch: wider than the
+   * plain ring so it shows outside the victim's base (at least 0.42).
+   */
+  captureRingRadius?: number;
 }
 
 export interface MarkerMetrics {
@@ -34,6 +39,10 @@ export interface MarkerMetrics {
   bracketStart: number;
   /** Length of the capture cue's inward ticks. */
   tickLength: number;
+  /** Radius of a capture ring (the ring shape with the capture cue). */
+  captureRing: number;
+  /** Length of a capture ring's ticks, pointing outward toward the square's corners. */
+  captureTick: number;
 }
 
 /**
@@ -44,6 +53,12 @@ export const markerMetrics = (pitch: number, o: MarkerMetricsOptions = {}): Mark
   const inset = (o.inset ?? 0.1) * pitch;
   const lineWidth = (o.lineWidth ?? 0.06) * pitch;
   const half = pitch / 2 - inset - lineWidth / 2;
+  const captureRing = Math.min(
+    Math.max((o.captureRingRadius ?? 0.42) * pitch, (o.ringRadius ?? 0.34) * pitch),
+    pitch / 2 - lineWidth / 2,
+  );
+  // Diagonal ticks end short of the square's corner (at 0.707 of the pitch)
+  const cornerRoom = (pitch / 2 - lineWidth / 2) * Math.SQRT2 - captureRing - lineWidth / 2;
   return {
     quad: pitch,
     half,
@@ -53,6 +68,8 @@ export const markerMetrics = (pitch: number, o: MarkerMetricsOptions = {}): Mark
     cornerRadius: Math.min((o.cornerRadius ?? 0.1) * pitch, half),
     bracketStart: half * (1 - (o.bracketLength ?? 0.42)),
     tickLength: Math.max(half * 0.42, lineWidth * 2),
+    captureRing,
+    captureTick: Math.max(Math.min(0.16 * pitch, cornerRoom - 0.02 * pitch), 0),
   };
 };
 

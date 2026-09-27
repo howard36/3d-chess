@@ -17,6 +17,21 @@ describe('markerMetrics', () => {
     expect(markerMetrics(1).ringRadius).toBeGreaterThan(0.28);
   });
 
+  it('widens a capture ring past the victim’s base, its ticks pointing out and inside the square', () => {
+    for (const pitch of [1, 1.2]) {
+      const m = markerMetrics(pitch);
+      expect(m.captureRing).toBeGreaterThanOrEqual(0.42 * pitch);
+      expect(m.captureRing).toBeGreaterThan(m.ringRadius);
+      expect(m.captureRing + m.lineWidth / 2).toBeLessThanOrEqual(pitch / 2);
+      // Outward along the diagonal, ending before the square's corner
+      expect(m.captureTick).toBeGreaterThan(0.1 * pitch);
+      const end = (m.captureRing + m.lineWidth / 2 + m.captureTick) / Math.SQRT2;
+      expect(end + m.lineWidth / 2).toBeLessThanOrEqual(pitch / 2);
+    }
+    // Never smaller than an explicitly larger plain ring
+    expect(markerMetrics(1, { ringRadius: 0.45 }).captureRing).toBeCloseTo(0.45);
+  });
+
   it('stops the brackets short of the middle of each side, where the capture ticks go', () => {
     const m = markerMetrics(1);
     expect(m.bracketStart).toBeGreaterThan(m.lineWidth);

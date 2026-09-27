@@ -48,6 +48,15 @@ export interface SmartLabelsProps extends SmartLabelStyle, AnchorOptions {
   fadeMs?: number;
   /** Test against depth, so pieces can hide labels (they sit outside the tower, so off by default). */
   depthTest?: boolean;
+  /**
+   * The level whose letter to emphasise (usually `focusLevelOf(focus)` from
+   * GridProps): it grows by `focusScale` while the other letters dim to
+   * `focusDim` of their opacity, eased over `focusMs`. Null or unset for none.
+   */
+  focusLevel?: number | null;
+  focusScale?: number;
+  focusDim?: number;
+  focusMs?: number;
 }
 
 const drawGlyph = (
@@ -125,6 +134,10 @@ export const SmartLabels = ({
   referenceDistance,
   fadeMs = 240,
   depthTest = false,
+  focusLevel = null,
+  focusScale = 1.3,
+  focusDim = 0.5,
+  focusMs = 150,
   ...anchorOptions
 }: SmartLabelsProps) => {
   const camera = useThree((s) => s.camera);
@@ -190,6 +203,10 @@ export const SmartLabels = ({
   const reference = useRef<number | null>(referenceDistance ?? null);
   const options = useRef(anchorOptions);
   options.current = anchorOptions;
+  // Eased emphasis per level letter, and how much any level is focused
+  const emphasis = useRef<number[]>([0, 0, 0, 0, 0]);
+  const anyFocus = useRef(0);
+  useEffect(() => invalidate(), [focusLevel, invalidate]);
 
   // New anchors (another orientation or layout) start over without a fade
   useEffect(() => {
@@ -217,6 +234,18 @@ export const SmartLabels = ({
     const grow = Math.min(Math.max((distance / reference.current) ** distanceScaling, 0.6), 2);
     const step = fadeMs > 0 ? Math.min(delta, 1 / 20) / (fadeMs / 1000) : 1;
     let moving = false;
+    const focusStep = focusMs > 0 ? Math.min(delta, 1 / 20) / (focusMs / 1000) : 1;
+    const ease = (v: number, goal: number) =>
+      goal > v ? Math.min(goal, v + focusStep) : Math.max(goal, v - focusStep);
+    emphasis.current = emphasis.current.map((w, z) => {
+      const goal = z === focusLevel ? 1 : 0;
+      const next = ease(w, goal);
+      if (next !== goal) moving = true;
+      return next;
+    });
+    const anyGoal = focusLevel === null ? 0 : 1;
+    anyFocus.current = ease(anyFocus.current, anyGoal);
+    if (anyFocus.current !== anyGoal) moving = true;
     for (const label of labels) {
       let slot = slots.current.get(label.id);
       if (!slot) {
@@ -244,9 +273,12 @@ export const SmartLabels = ({
         const fade = slot.fades[i];
         sprite.visible = fade > 0.001;
         sprite.position.set(...slot.positions[i]);
-        const s = size * grow * (label.level !== undefined ? levelScale : 1);
+        const w = label.level !== undefined ? emphasis.current[label.level] : 0;
+        const s =
+          size * grow * (label.level !== undefined ? levelScale * (1 + (focusScale - 1) * w) : 1);
         sprite.scale.set(s, s, 1);
-        (sprite.material as SpriteMaterial).opacity = opacity * fade;
+        const dim = label.level !== undefined ? 1 - anyFocus.current * (1 - focusDim) * (1 - w) : 1;
+        (sprite.material as SpriteMaterial).opacity = opacity * fade * dim;
       }
     }
     if (moving) invalidate();
