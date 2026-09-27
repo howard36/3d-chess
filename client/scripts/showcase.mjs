@@ -19,6 +19,8 @@
 // --plies N stops after N moves, for a quick look.
 // --profile times 20 frames of the opening position and reports what the
 // renderer draws (a slow recording is almost always a heavy scene).
+// --tour swings the camera about ±40° around the board during the game, to
+// show a design from several sides.
 // --pose yaw,pitch,zoom holds the camera still at that offset from the
 // opening view (degrees, degrees, distance factor).
 // Needs ffmpeg with libx264 on PATH, or FFMPEG=/path/to/ffmpeg.
@@ -57,6 +59,7 @@ const opt = (name, fallback) => {
 const DESIGN = opt('design', 'classic');
 const OUT = path.resolve(opt('out', 'showcase'));
 const STILLS = flag('stills');
+const TOUR = flag('tour');
 const REVIEW = flag('review');
 const QUICK = flag('quick');
 const FPS = Number(opt('fps', 30));
@@ -891,8 +894,12 @@ async function main() {
     // Stills skip the opening swing and show each design from its own view
     const intro = STILLS ? 1 : Math.min(t / PACE.swing, 1);
     const k = ease(intro);
-    const yaw = -18 * (1 - k) + 8 * Math.sin((t - PACE.swing) * 0.3) * k;
-    const pitch = 8 * (1 - k) + 2 * Math.sin(t * 0.21) * k;
+    // --tour swings wide (about ±40°) so a video shows the board from several
+    // sides; otherwise the camera only sways.
+    const sway = TOUR ? 40 : 8;
+    const rate = TOUR ? (2 * Math.PI) / 26 : 0.3;
+    const yaw = -18 * (1 - k) + sway * Math.sin((t - PACE.swing) * rate) * k;
+    const pitch = 8 * (1 - k) + (TOUR ? 5 : 2) * Math.sin(t * 0.21) * k;
     const zoom = 1.12 - 0.12 * k;
     return [yaw, pitch, zoom];
   };
