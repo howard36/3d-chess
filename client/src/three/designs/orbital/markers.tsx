@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
@@ -17,7 +17,7 @@ import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import { dotTexture, rng } from '../kit/textures';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
-import { BEAM, CAPTURE, CHECK, DOCK, TRAIL } from './palette';
+import { BEAM, CAPTURE, CHECK, DOCK, LEVELS, TRAIL } from './palette';
 
 // Orbital's marker language is a ring of small lights on the glass, like the
 // lights round a docking port, on a stroked ring of its own (the decks'
@@ -57,6 +57,8 @@ const fragment = /* glsl */ `
   uniform float uFill;
   uniform float uChevron;
   uniform float uPulse;
+  uniform vec3 uTickColor;
+  uniform float uTick;
   varying vec2 vP;
 
   float segment(vec2 p, vec2 a, vec2 b) {
@@ -95,11 +97,19 @@ const fragment = /* glsl */ `
     float lfw = max(fwidth(lr), 1e-4);
     float ring = (1.0 - smoothstep(-lfw, lfw, lr)) * uLine;
     float pad = (1.0 - smoothstep(uRadius - 0.03, uRadius, rho)) * uFill;
+    // Four short ticks inside the ring, at the diagonals, in another colour
+    // (a destination's deck)
+    float tsec = 1.5707963;
+    float ta = (floor((atan(p.y, p.x) - 0.7853982) / tsec + 0.5)) * tsec + 0.7853982;
+    vec2 td = vec2(cos(ta), sin(ta));
+    float tdist = segment(p, td * uRadius * 0.56, td * uRadius * 0.8) - 0.008;
+    float tfw = max(fwidth(tdist), 1e-4);
+    float tick = (1.0 - smoothstep(-tfw, tfw, tdist)) * uTick;
     float strength = uOpacity * (1.0 + 0.8 * uPulse);
-    float a = max(max(core, halo), max(ring, pad)) * strength;
+    float a = max(max(max(core, halo), max(ring, pad)) * strength, tick);
     if (a < 0.003) discard;
     // Each light's core runs hot, toward white
-    vec3 col = mix(uColor, vec3(1.0), core * 0.35);
+    vec3 col = mix(mix(uColor, vec3(1.0), core * 0.35), uTickColor, tick);
     gl_FragColor = vec4(col, min(a, 1.0));
     #include <colorspace_fragment>
   }`;
@@ -136,6 +146,9 @@ export interface LightRingStyle {
   pulse?: number;
   /** Order among the see-through layers. */
   renderOrder?: number;
+  /** Four short ticks inside the ring in this colour (a destination's deck). */
+  tickColor?: string;
+  tickOpacity?: number;
 }
 
 /** A ring of lights lying on the floor at `floor` (see above). */
@@ -153,6 +166,8 @@ export const LightRing = ({
   chevron = false,
   pulse = 0,
   renderOrder = LAYER.marker,
+  tickColor,
+  tickOpacity = 0.85,
   lift = 0.012,
   materialRef,
 }: LightRingStyle & {
@@ -183,6 +198,8 @@ export const LightRing = ({
           uFill: { value: 0 },
           uChevron: { value: 0 },
           uPulse: { value: 0 },
+          uTickColor: { value: new Color() },
+          uTick: { value: 0 },
           uQuad: { value: 1 },
         },
         vertexShader: vertex,
@@ -204,6 +221,8 @@ export const LightRing = ({
   u.uFill.value = fill;
   u.uChevron.value = chevron ? 1 : 0;
   u.uPulse.value = pulse;
+  if (tickColor) (u.uTickColor.value as Color).set(tickColor);
+  u.uTick.value = tickColor ? tickOpacity : 0;
   u.uQuad.value = quad;
   return (
     <mesh
@@ -244,30 +263,63 @@ const usePulse = (ms: number, envelope: (t: number) => number) => {
 // --- Destinations ----------------------------------------------------------------------
 
 const QUIET_RADIUS = 0.3;
+const QUIET_BELOW_RADIUS = 0.36;
 const CAPTURE_RADIUS = 0.42;
 /** Destinations draw over the tractor beam, so one straight above or below the held piece shows through it. */
 const OVER_BEAM = LAYER.trace + 0.8;
 
+// Where the held piece stands, for the destination straight below it (half
+// hidden under the piece from above, so it opens wider). Set by Selection.
+let held: Vec3 | null = null;
+const heldListeners = new Set<() => void>();
+const setHeld = (at: Vec3 | null) => {
+  held = at;
+  heldListeners.forEach((l) => l());
+};
+const subscribeHeld = (l: () => void) => {
+  heldListeners.add(l);
+  return () => heldListeners.delete(l);
+};
+const useHeld = () => useSyncExternalStore(subscribeHeld, () => held);
+
 /**
  * A legal destination: eight ice-white lights on a stroked ring (the ring
  * keeps it one circle where destinations on several decks overlap from
- * above). Under the pointer it brightens and fills in at a glance.
+ * above), with four short ticks inside in its deck's colour, so a ring on
+ * deck A seen among deck B's pieces, or two rings nested from above, say
+ * which deck they are on. Under the pointer it brightens and fills in at a
+ * glance. Straight below the held piece it opens wider, clear of its base.
  */
-export const Quiet = ({ floor, hovered }: MarkerProps) => (
-  <LightRing
-    floor={floor}
-    color={DOCK}
-    count={8}
-    radius={QUIET_RADIUS}
-    dot={hovered ? 0.04 : 0.032}
-    opacity={1}
-    halo={hovered ? 0.6 : 0.4}
-    line={hovered ? 0.85 : 0.4}
-    lineWidth={hovered ? 0.007 : 0.005}
-    fill={hovered ? 0.18 : 0.08}
-    renderOrder={OVER_BEAM}
-  />
-);
+export const makeQuiet = (levelY: number[]) => {
+  const levelAt = (y: number) =>
+    levelY.reduce((best, ly, z) => (Math.abs(ly - y) < Math.abs(levelY[best] - y) ? z : best), 0);
+  const Quiet = ({ floor, hovered }: MarkerProps) => {
+    const at = useHeld();
+    const below =
+      !!at &&
+      Math.abs(at[0] - floor[0]) < 1e-3 &&
+      Math.abs(at[2] - floor[2]) < 1e-3 &&
+      floor[1] < at[1];
+    return (
+      <LightRing
+        floor={floor}
+        color={DOCK}
+        count={8}
+        radius={below ? QUIET_BELOW_RADIUS : QUIET_RADIUS}
+        dot={hovered ? 0.04 : 0.032}
+        opacity={1}
+        halo={hovered ? 0.6 : 0.4}
+        line={hovered ? 0.85 : 0.4}
+        lineWidth={hovered ? 0.007 : 0.005}
+        fill={hovered ? 0.18 : 0.08}
+        tickColor={LEVELS[levelAt(floor[1])]}
+        tickOpacity={hovered ? 1 : 0.9}
+        renderOrder={OVER_BEAM}
+      />
+    );
+  };
+  return Quiet;
+};
 
 const CAPTURE_PULSE_MS = 700;
 const capturePulse = (t: number) => {
@@ -442,21 +494,28 @@ const TractorBeam = ({ floor }: { floor: Vec3 }) => {
  * The selection: a continuous pale stroke round the square where the beam
  * meets the glass (no lights: those mean a destination), and the beam.
  */
-export const Selection = ({ floor }: MarkerProps) => (
-  <>
-    <LightRing
-      floor={floor}
-      color={BEAM}
-      radius={SELECT_RADIUS}
-      dot={0}
-      halo={0}
-      line={0.85}
-      lineWidth={0.009}
-      fill={0.05}
-    />
-    <TractorBeam floor={floor} />
-  </>
-);
+export const Selection = ({ floor }: MarkerProps) => {
+  const [x, y, z] = floor;
+  useLayoutEffect(() => {
+    setHeld([x, y, z]);
+    return () => setHeld(null);
+  }, [x, y, z]);
+  return (
+    <>
+      <LightRing
+        floor={floor}
+        color={BEAM}
+        radius={SELECT_RADIUS}
+        dot={0}
+        halo={0}
+        line={0.85}
+        lineWidth={0.009}
+        fill={0.05}
+      />
+      <TractorBeam floor={floor} />
+    </>
+  );
+};
 
 // --- The last move -------------------------------------------------------------------
 
@@ -466,47 +525,65 @@ export const Selection = ({ floor }: MarkerProps) => (
  * drawn in behind the piece as it travels.
  */
 export const makeLastMove = (durationMs: number) => {
-  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
-    <>
-      <LightRing
-        floor={from.floor}
-        color={TRAIL}
-        count={8}
-        radius={0.24}
-        dot={0.022}
-        opacity={0.65}
-        halo={0.35}
-        line={0.3}
-        lineWidth={0.004}
-      />
-      <LightRing
-        floor={to.floor}
-        color={TRAIL}
-        count={10}
-        radius={0.36}
-        dot={0.027}
-        opacity={1}
-        halo={0.5}
-        line={0.45}
-        lineWidth={0.004}
-        fill={0.05}
-      />
-      <LastMoveLine
-        from={from.floor}
-        to={to.floor}
-        arc={arc}
-        color={TRAIL}
-        pulseColor="#f1e4ff"
-        radius={0.013}
-        opacity={0.9}
-        shade={0.3}
-        pulse={0.65}
-        pulseLength={0.35}
-        flowSpeed={0.55}
-        drawInMs={fresh ? durationMs : 0}
-      />
-    </>
-  );
+  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
+    // A move straight up or down: from above, the square left would hide
+    // under the arrival and the piece, so it is marked as a wider outline
+    const vertical =
+      Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3;
+    return (
+      <>
+        {vertical ? (
+          <LightRing
+            floor={from.floor}
+            color={TRAIL}
+            radius={0.44}
+            dot={0}
+            halo={0}
+            line={0.5}
+            lineWidth={0.004}
+          />
+        ) : (
+          <LightRing
+            floor={from.floor}
+            color={TRAIL}
+            count={8}
+            radius={0.24}
+            dot={0.022}
+            opacity={0.65}
+            halo={0.35}
+            line={0.3}
+            lineWidth={0.004}
+          />
+        )}
+        <LightRing
+          floor={to.floor}
+          color={TRAIL}
+          count={10}
+          radius={0.36}
+          dot={0.027}
+          opacity={1}
+          halo={0.5}
+          line={0.45}
+          lineWidth={0.004}
+          fill={0.05}
+        />
+        <LastMoveLine
+          from={from.floor}
+          to={to.floor}
+          arc={arc}
+          color={TRAIL}
+          pulseColor="#f1e4ff"
+          radius={0.013}
+          opacity={0.9}
+          shade={0.3}
+          pulse={0.65}
+          pulseLength={0.35}
+          flowSpeed={0.55}
+          drawInMs={fresh ? durationMs : 0}
+        />
+      </>
+    );
+  };
   return LastMove;
 };
 

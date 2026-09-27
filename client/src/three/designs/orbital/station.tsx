@@ -17,9 +17,10 @@ import { noRaycast } from '../kit/noRaycast';
 // a round floor window, a cupola's frame of eight struts radiating from its
 // rim to a second ring, and high above the horizon the rim where the
 // ceiling begins. Dark metal caught only at its edges by the light inside
-// the bay. All of it lies well below or above the tower as seen from the
-// playing views (nothing crosses behind the board), is the same from every
-// side, and frames the planet in a bird's-eye view.
+// the bay. All of it lies well below or above the tower from the low
+// playing views; where a high view (40–75°) puts a strut behind the board,
+// the strut steps back to a dark silhouette. It is the same from every side,
+// and frames the planet in a bird's-eye view.
 
 const DEG = Math.PI / 180;
 const RADIUS = 52;
@@ -28,6 +29,8 @@ const INNER = -64 * DEG;
 const OUTER = -40 * DEG;
 const CEILING = 12 * DEG;
 const STRUTS = 8;
+/** The tower's bounding sphere (see the sky's mask in stage.tsx). */
+const TOWER_RADIUS = 5.4;
 
 const vertex = /* glsl */ `
   varying vec3 vNormal;
@@ -39,18 +42,35 @@ const vertex = /* glsl */ `
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
+// How far a point of the backdrop lies behind the tower as seen from the
+// camera (1 behind it, 0 clear of it): the same mask as the sky's
+const behindTower = /* glsl */ `
+  uniform float uTowerRadius;
+  float behindTower(vec3 world) {
+    vec3 d = normalize(world - cameraPosition);
+    float toTower = max(length(cameraPosition), 1e-4);
+    float off = acos(clamp(dot(d, -cameraPosition / toTower), -1.0, 1.0));
+    float span = asin(clamp(uTowerRadius / toTower, 0.0, 1.0));
+    return 1.0 - smoothstep(span * 0.8, span * 1.3, off);
+  }
+`;
+
 const fragment = /* glsl */ `
   uniform vec3 uBase;
   uniform vec3 uEdge;
   varying vec3 vNormal;
   varying vec3 vWorld;
+  ${behindTower}
   void main() {
     vec3 v = normalize(cameraPosition - vWorld);
     vec3 n = normalize(vNormal);
     float facing = abs(dot(n, v));
     // Lit a little from the bay (toward the centre) and at the grazing edges
     float inward = max(dot(n, normalize(-vWorld)), 0.0);
-    vec3 col = uBase * (0.55 + 0.45 * inward) + uEdge * pow(1.0 - facing, 4.0);
+    // Seen through the decks from high up, the struts step back to silhouettes
+    float behind = behindTower(vWorld);
+    vec3 col = uBase * (0.55 + 0.45 * inward) * (1.0 - 0.3 * behind)
+      + uEdge * pow(1.0 - facing, 4.0) * (1.0 - 0.7 * behind);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -85,6 +105,7 @@ export const Station = () => {
       uniforms: {
         uBase: { value: new Color('#070a10') },
         uEdge: { value: new Color('#26344a') },
+        uTowerRadius: { value: TOWER_RADIUS },
       },
       vertexShader: vertex,
       fragmentShader: fragment,
@@ -115,16 +136,20 @@ export const Station = () => {
 const lightVertex = /* glsl */ `
   attribute float aSize;
   uniform float uDpr;
+  varying float vBehind;
+  ${behindTower}
   void main() {
+    vBehind = behindTower((modelMatrix * vec4(position, 1.0)).xyz);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     gl_PointSize = aSize * uDpr;
   }`;
 
 const lightFragment = /* glsl */ `
   uniform vec3 uColor;
+  varying float vBehind;
   void main() {
     vec2 q = gl_PointCoord * 2.0 - 1.0;
-    float a = exp(-dot(q, q) * 3.5);
+    float a = exp(-dot(q, q) * 3.5) * (1.0 - 0.8 * vBehind);
     if (a < 0.02) discard;
     gl_FragColor = vec4(uColor, a);
     #include <colorspace_fragment>
@@ -156,7 +181,11 @@ const RunningLights = () => {
       transparent: true,
       depthWrite: false,
       fog: false,
-      uniforms: { uColor: { value: new Color('#b89a74') }, uDpr: { value: 1 } },
+      uniforms: {
+        uColor: { value: new Color('#b89a74') },
+        uDpr: { value: 1 },
+        uTowerRadius: { value: TOWER_RADIUS },
+      },
       vertexShader: lightVertex,
       fragmentShader: lightFragment,
     });

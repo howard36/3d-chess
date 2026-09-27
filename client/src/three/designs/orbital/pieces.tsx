@@ -235,8 +235,8 @@ const FLOOR_RADIUS = 0.4;
 const floorTextures = new Map<number, CanvasTexture>();
 /**
  * One texture per deck, both in one: a soft shadow under the base and, just
- * round the foot, a thin quiet ring of the deck's colour. One plane per
- * piece instead of two.
+ * round the foot, a thin quiet ring of the deck's colour, notched once per
+ * deck (A one notch, E five). One plane per piece instead of two.
  */
 const floorTexture = (level: number) => {
   let t = floorTextures.get(level);
@@ -263,6 +263,20 @@ const floorTexture = (level: number) => {
   grad.addColorStop(1, lit(0));
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
+  // The deck's number, not only its colour: the ring is cut by one notch on
+  // deck A, up to five on deck E
+  const notches = level + 1;
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = '#000';
+  const half = (9 * Math.PI) / 180;
+  for (let k = 0; k < notches; k++) {
+    const at = -Math.PI / 2 + (k * 2 * Math.PI) / notches;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.41, at - half, at + half);
+    ctx.arc(size / 2, size / 2, size * 0.335, at + half, at - half, true);
+    ctx.closePath();
+    ctx.fill();
+  }
   t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
   floorTextures.set(level, t);

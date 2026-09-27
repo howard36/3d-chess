@@ -1,12 +1,12 @@
 import { NeutralToneMapping } from 'three';
 import { preloadPieceSet } from '../../pieces';
 import { focusLevelOf } from '../kit/focus';
-import { clarityTower } from '../kit/layouts';
+import { clarityTower, towerFrame } from '../kit/layouts';
 import { SmartLabels } from '../kit/smartLabels';
 import type { Design, GridProps } from '../types';
 import { Celebration, makeCaptureFx, makeMoveFx } from './fx';
 import { FONT, hud } from './hud';
-import { Capture, Check, makeLastMove, Quiet, Selection } from './markers';
+import { Capture, Check, makeLastMove, makeQuiet, Selection } from './markers';
 import { INK, LEVELS } from './palette';
 import { PieceBody } from './pieces';
 import { preloadPlanetMap } from './planet';
@@ -80,7 +80,13 @@ const orbital: Design = {
   PieceBody,
   pieceScale: PIECE_SCALE,
   knightYaw: 0.55,
-  markers: { Quiet, Capture, Selection, LastMove: makeLastMove(MOTION.durationMs), Check },
+  markers: {
+    Quiet: makeQuiet(towerFrame(layout).levelY),
+    Capture,
+    Selection,
+    LastMove: makeLastMove(MOTION.durationMs),
+    Check,
+  },
   hoverDestinations: true,
   // Held in the beam: lifted clear of the glass (and turning, see PieceBody)
   hoverLift: { hover: 0.06, selected: 0.2, bob: 0 },
