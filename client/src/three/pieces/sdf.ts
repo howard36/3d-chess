@@ -221,20 +221,53 @@ export const outlineField = (
 /**
  * An outline in the x-y plane given thickness across z, as carved from a
  * board: flat sides `halfWidth(x, y)` from the middle, rounding over to the
- * outline within `round` of it (an elliptical edge, like a carver's
- * roundover). An approximate distance, never above the true one.
+ * outline within `round(x, y)` of it (an elliptical edge, like a carver's
+ * roundover: broad and soft on a chest, tight on an ear). An approximate
+ * distance, never far above the true one.
  */
 export const carvedSlab = (
   side: Field2,
   halfWidth: (x: number, y: number) => number,
-  round: number,
+  round: number | ((x: number, y: number) => number),
 ): Sdf => {
+  const roundAt = typeof round === 'number' ? () => round : round;
   return (x, y, z) => {
     const w = halfWidth(x, y);
-    const u = Math.max(round + side(x, y), 0) / round;
+    const r = roundAt(x, y);
+    const u = Math.max(r + side(x, y), 0) / r;
     const v = Math.abs(z) / w;
-    return (Math.sqrt(u * u + v * v) - 1) * Math.min(round, w);
+    return (Math.sqrt(u * u + v * v) - 1) * Math.min(r, w);
   };
+};
+
+/**
+ * An ellipsoid with radii r along the orthonormal axes a, b, n (a lock of
+ * a mane, lying in any direction).
+ */
+export const orientedEllipsoid = (c: Vec3, r: Vec3, a: Vec3, b: Vec3, n: Vec3): Sdf => {
+  const e = ellipsoid([0, 0, 0], r);
+  const f: Sdf = (x, y, z) => {
+    const dx = x - c[0];
+    const dy = y - c[1];
+    const dz = z - c[2];
+    return e(
+      dx * a[0] + dy * a[1] + dz * a[2],
+      dx * b[0] + dy * b[1] + dz * b[2],
+      dx * n[0] + dy * n[1] + dz * n[2],
+    );
+  };
+  f.bound = { c, r: Math.max(...r), s: e.bound!.s };
+  return f;
+};
+
+/**
+ * Scales a shape about `origin` in x and y (its profile) by s, leaving its
+ * thickness across z as it is.
+ */
+export const scaleProfile = (f: Sdf, s: number, origin: [number, number]): Sdf => {
+  const g: Sdf = (x, y, z) =>
+    f(origin[0] + (x - origin[0]) / s, origin[1] + (y - origin[1]) / s, z) * Math.min(1, s);
+  return g;
 };
 
 /** An ellipsoid turned by `angle` (radians) about the z axis. */
@@ -275,13 +308,67 @@ export const surfaceNets = (
   const [nx, ny, nz] = n;
   const at = (i: number, j: number, k: number) => i + nx * (j + ny * k);
   const values = new Float32Array(nx * ny * nz);
+  const sample = (i: number, j: number, k: number) => {
+    const edge = i === 0 || j === 0 || k === 0 || i === nx - 1 || j === ny - 1 || k === nz - 1;
+    const v = f(o[0] + i * h, o[1] + j * h, o[2] + k * h);
+    // The padding is always outside, so the net closes
+    return edge ? Math.max(v, 1e-6) : v;
+  };
+  // Narrow band: sample every other node first; a node whose coarse cell is
+  // far from the surface at every corner (and on one side of it) takes the
+  // nearest of them, and only nodes near the surface are evaluated exactly.
+  // (The shapes here are distance bounds, so a coarse value of d means no
+  // surface within d.)
+  const coarse = (n: number, c: number) => Math.min(c, n - 1);
+  for (let k = 0; k < nz; k += 2) {
+    for (let j = 0; j < ny; j += 2) {
+      for (let i = 0; i < nx; i += 2) values[at(i, j, k)] = sample(i, j, k);
+    }
+  }
+  // Last planes, where a dimension is even (so its end is not a coarse node)
   for (let k = 0; k < nz; k++) {
     for (let j = 0; j < ny; j++) {
       for (let i = 0; i < nx; i++) {
-        const edge = i === 0 || j === 0 || k === 0 || i === nx - 1 || j === ny - 1 || k === nz - 1;
-        const v = f(o[0] + i * h, o[1] + j * h, o[2] + k * h);
-        // The padding is always outside, so the net closes
-        values[at(i, j, k)] = edge ? Math.max(v, 1e-6) : v;
+        const onCoarse =
+          (i % 2 === 0 || i === nx - 1) &&
+          (j % 2 === 0 || j === ny - 1) &&
+          (k % 2 === 0 || k === nz - 1);
+        if (onCoarse && (i % 2 !== 0 || j % 2 !== 0 || k % 2 !== 0))
+          values[at(i, j, k)] = sample(i, j, k);
+      }
+    }
+  }
+  const far = 4 * h;
+  for (let k = 0; k < nz; k++) {
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        if (i % 2 === 0 && j % 2 === 0 && k % 2 === 0) continue;
+        const onCoarse =
+          (i % 2 === 0 || i === nx - 1) &&
+          (j % 2 === 0 || j === ny - 1) &&
+          (k % 2 === 0 || k === nz - 1);
+        if (onCoarse) continue;
+        const i0 = i - (i % 2);
+        const j0 = j - (j % 2);
+        const k0 = k - (k % 2);
+        let nearest = Infinity;
+        let sign = 0;
+        let mixed = false;
+        for (let c = 0; c < 8 && !mixed; c++) {
+          const v =
+            values[
+              at(
+                coarse(nx, i0 + (c & 1) * 2),
+                coarse(ny, j0 + ((c >> 1) & 1) * 2),
+                coarse(nz, k0 + ((c >> 2) & 1) * 2),
+              )
+            ];
+          const sg = v < 0 ? -1 : 1;
+          if (sign === 0) sign = sg;
+          if (sg !== sign || Math.abs(v) < far) mixed = true;
+          nearest = Math.min(nearest, Math.abs(v));
+        }
+        values[at(i, j, k)] = mixed ? sample(i, j, k) : sign * (nearest - far / 2);
       }
     }
   }

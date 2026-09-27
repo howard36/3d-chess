@@ -130,8 +130,8 @@ const material = (color: PieceColor, emissive: string) => {
   }
   return m;
 };
-// The details that name a piece (the bishop's cut, the knight's mane, the
-// unicorn's spiral, the queen's pearls, the king's cross, the rook's crenels)
+// The details that name a piece (the bishop's cut, the knight's eyes, the
+// unicorn's twist, the queen's pearls, the king's cross, the rook's crenels)
 const accent = {
   white: new MeshStandardMaterial({ color: '#8f8676', roughness: 0.6 }),
   black: new MeshStandardMaterial({ color: '#5d6573', roughness: 0.45, metalness: 0.2 }),

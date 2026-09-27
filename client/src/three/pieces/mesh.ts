@@ -1,5 +1,4 @@
-import { BufferAttribute, BufferGeometry, Vector3 } from 'three';
-import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { BufferAttribute, BufferGeometry } from 'three';
 
 // Low-level mesh building for the piece set: a parametric grid surface with
 // smooth, seam-free normals (lathes, sweeps, the horn's ridge), flat
@@ -77,36 +76,49 @@ export const gridSurface = ({
     }
   }
   const acc = new Float32Array(count * 3);
-  const pa = new Vector3();
-  const pb = new Vector3();
-  const pc = new Vector3();
-  const e1 = new Vector3();
-  const e2 = new Vector3();
   const canonOf = new Int32Array(count);
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i <= cols; i++) canonOf[j * stride + i] = canon(i, j);
   }
   for (let t = 0; t < index.length; t += 3) {
-    const [a, b, c] = [index[t], index[t + 1], index[t + 2]];
-    pa.fromArray(position, a * 3);
-    pb.fromArray(position, b * 3);
-    pc.fromArray(position, c * 3);
-    e1.subVectors(pb, pa);
-    e2.subVectors(pc, pa);
-    e1.cross(e2);
-    for (const v of [a, b, c]) {
-      const o = canonOf[v] * 3;
-      acc[o] += e1.x;
-      acc[o + 1] += e1.y;
-      acc[o + 2] += e1.z;
+    const a = index[t] * 3;
+    const b = index[t + 1] * 3;
+    const c = index[t + 2] * 3;
+    const ux = position[b] - position[a];
+    const uy = position[b + 1] - position[a + 1];
+    const uz = position[b + 2] - position[a + 2];
+    const vx = position[c] - position[a];
+    const vy = position[c + 1] - position[a + 1];
+    const vz = position[c + 2] - position[a + 2];
+    const nx = uy * vz - uz * vy;
+    const ny = uz * vx - ux * vz;
+    const nz = ux * vy - uy * vx;
+    for (let q = 0; q < 3; q++) {
+      const o = canonOf[index[t + q]] * 3;
+      acc[o] += nx;
+      acc[o + 1] += ny;
+      acc[o + 2] += nz;
     }
   }
   const normal = new Float32Array(count * 3);
-  const n = new Vector3();
-  for (let k = 0; k < count; k++) {
-    n.fromArray(acc, canonOf[k] * 3);
-    if (n.lengthSq() === 0) n.set(0, 1, 0);
-    n.normalize().toArray(normal, k * 3);
+  for (let v = 0; v < count; v++) {
+    const o = canonOf[v] * 3;
+    let x = acc[o];
+    let y = acc[o + 1];
+    let z = acc[o + 2];
+    const len = Math.sqrt(x * x + y * y + z * z);
+    if (len === 0) {
+      x = 0;
+      y = 1;
+      z = 0;
+    } else {
+      x /= len;
+      y /= len;
+      z /= len;
+    }
+    normal[v * 3] = x;
+    normal[v * 3 + 1] = y;
+    normal[v * 3 + 2] = z;
   }
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(position, 3));
@@ -140,38 +152,65 @@ export const flatPolygon = (points: Vec3[], normal: Vec3): BufferGeometry => {
   return g;
 };
 
-/** Keeps only position, normal and uv (adding planar uvs if missing), indexed. */
-const normalise = (g: BufferGeometry): BufferGeometry => {
-  const c = g.clone();
-  for (const name of Object.keys(c.attributes)) {
-    if (!['position', 'normal', 'uv'].includes(name)) c.deleteAttribute(name);
-  }
-  if (!c.getAttribute('normal')) c.computeVertexNormals();
-  if (!c.getAttribute('uv')) {
-    const p = c.getAttribute('position');
-    const uv = new Float32Array(p.count * 2);
-    for (let i = 0; i < p.count; i++) uv.set([p.getX(i) + p.getZ(i), p.getY(i)], i * 2);
-    c.setAttribute('uv', new BufferAttribute(uv, 2));
-  }
-  if (!c.index) c.setIndex([...Array(c.getAttribute('position').count).keys()]);
-  c.morphAttributes = {} as BufferGeometry['morphAttributes'];
-  return c;
-};
-
 /**
- * Merges shells into one indexed geometry (welding identical vertices, which
- * keeps hard edges hard: their normals differ), with bounds computed.
+ * Merges shells into one indexed geometry: position, normal and uv only
+ * (planar uvs where a shell has none), with bounds computed. The shells'
+ * own vertices are kept as they are (no welding): each builder already
+ * shares what should be shared and keeps apart what should not (seams for
+ * uvs, hard edges), and welding every piece at load would cost more than
+ * the rest of the build.
  */
 export const mergeShells = (shells: BufferGeometry[]): BufferGeometry => {
-  const parts = shells.map(normalise);
-  const merged = parts.length === 1 ? parts[0] : mergeGeometries(parts);
-  if (parts.length > 1) parts.forEach((p) => p.dispose());
-  if (!merged) throw new Error('mergeShells: incompatible shells');
-  const welded = mergeVertices(merged, 1e-6);
-  if (welded !== merged) merged.dispose();
-  welded.computeBoundingBox();
-  welded.computeBoundingSphere();
-  return welded;
+  let vertices = 0;
+  let indices = 0;
+  for (const g of shells) {
+    const n = g.getAttribute('position').count;
+    vertices += n;
+    indices += g.index ? g.index.count : n;
+  }
+  const position = new Float32Array(vertices * 3);
+  const normal = new Float32Array(vertices * 3);
+  const uv = new Float32Array(vertices * 2);
+  const index = vertices > 65535 ? new Uint32Array(indices) : new Uint16Array(indices);
+  let v = 0;
+  let k = 0;
+  for (const shell of shells) {
+    let g = shell;
+    if (!g.getAttribute('normal')) {
+      g = g.clone();
+      g.computeVertexNormals();
+    }
+    const p = g.getAttribute('position');
+    const n = g.getAttribute('normal');
+    const t = g.getAttribute('uv');
+    for (let i = 0; i < p.count; i++) {
+      const o = (v + i) * 3;
+      position[o] = p.getX(i);
+      position[o + 1] = p.getY(i);
+      position[o + 2] = p.getZ(i);
+      normal[o] = n.getX(i);
+      normal[o + 1] = n.getY(i);
+      normal[o + 2] = n.getZ(i);
+      uv[(v + i) * 2] = t ? t.getX(i) : p.getX(i) + p.getZ(i);
+      uv[(v + i) * 2 + 1] = t ? t.getY(i) : p.getY(i);
+    }
+    if (g.index) {
+      const src = g.index;
+      for (let i = 0; i < src.count; i++) index[k++] = src.getX(i) + v;
+    } else {
+      for (let i = 0; i < p.count; i++) index[k++] = i + v;
+    }
+    if (g !== shell) g.dispose();
+    v += p.count;
+  }
+  const merged = new BufferGeometry();
+  merged.setAttribute('position', new BufferAttribute(position, 3));
+  merged.setAttribute('normal', new BufferAttribute(normal, 3));
+  merged.setAttribute('uv', new BufferAttribute(uv, 2));
+  merged.setIndex(new BufferAttribute(index, 1));
+  merged.computeBoundingBox();
+  merged.computeBoundingSphere();
+  return merged;
 };
 
 /** Triangles in a geometry (indexed or not). */

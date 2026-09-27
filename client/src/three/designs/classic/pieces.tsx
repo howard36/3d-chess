@@ -161,8 +161,8 @@ export const StauntonParts = ({
 /**
  * Classic's pieces: the shared Staunton set (three/pieces) in ivory and
  * graphite. The details that name a piece (the bishop's cut, the knight's
- * mane and eyes, the unicorn's spiral, the queen's pearls, the king's cross,
- * the rook's crenels and hollow) are cut in a deeper shade of the army's
+ * eyes, the lines in the unicorn's twist, the queen's pearls, the king's
+ * cross, the rook's crenels and hollow) are in a deeper shade of the army's
  * colour; the foot band is left in the army's colour.
  */
 export const ClassicPieceBody = ({ type, color, emissive }: PieceBodyProps) => (

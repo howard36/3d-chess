@@ -333,16 +333,20 @@ them, several times faster.
 
 Every design can draw the same **Staunton set** (`client/src/three/pieces/`), modelled like
 a fine tournament set: turned profiles with a weighted base, collar rings and a clear
-hierarchy of heights (pawn, rook, knight, bishop, then unicorn and queen, and the king at
-0.87), and heads that name each piece from the side, from three-quarters and from directly
-above: the rook's six merlons on a corbelled turret round a hollow; the knight carved as
-the classic Staunton knight (one arched head-and-neck profile with a broad chest, given
-thickness and sculpted with pricked ears, a deep-set eye, flared nostrils and a mane of
-carved locks, meshed from a signed-distance field); the bishop's smooth mitre with its
-slanted cut and ball; the unicorn's tall horn wound with a raised spiral; the queen's flared
-crown of eight ball-tipped tines round a ball finial; and the king's ribbed, domed crown
-under a cross with arms both ways, so it reads as a cross from every side and as a plus
-from above. Queen, king, bishop, unicorn and pawn can be told apart by silhouette alone.
+hierarchy of heights (pawn 0.52, rook 0.60, knight 0.72, bishop 0.75, unicorn 0.79, queen
+0.825 and king 0.87), and heads that name each piece from the side, from three-quarters and
+from directly above, in carved relief rather than paint: the rook's six merlons on a
+corbelled turret round a hollow; the knight carved as the classic Staunton knight (one
+arched head-and-neck profile bowed forward and down, a full chest, the face falling steeply
+to a deep, blunt muzzle, given thickness and sculpted with leaf ears pricked forward and
+splayed apart, a carved eye under its brow, flared nostrils, an open mouth and a narrow
+mane of locks laid in herringbone, meshed from a signed-distance field); the bishop's tall
+mitre with its bold slanted cut, on a bead, and its ball; the unicorn's horn with a
+two-start twist carved into it, to a blunted tip; the queen's open tulip crown, its rim
+drawn up into eight pointed tines with pearls, round a ball finial; and the king's
+fluted bucket crown, a low dome behind its rim, under a slim cross pattée taller than
+wide, with arms both ways, so it reads as a cross from every side and as a plus from
+above. Every piece can be told apart by silhouette alone.
 Pieces stand base-at-`y = 0`, face
 `+x` (Board turns the knight), and fit the envelope the layouts assume (radius 0.27 at most;
 `pieceScale` applies as before). Each piece is split into **parts** a design paints
@@ -350,9 +354,10 @@ separately:
 
 - `body`: everything turned or carved that is not one of the parts below;
 - `collar`: the ring (or rings) where the stem meets the head;
-- `accent`: the details that identify the piece (knight's mane and eyes, bishop's cut,
-  unicorn's spiral, queen's pearls, king's cross, rook's crenel sills and hollow); pawns
-  have none;
+- `accent`: the details that identify the piece (knight's eyes, bishop's cut, the lines
+  in the unicorn's twist, queen's pearls, king's cross, rook's crenel sills and hollow);
+  pawns have none. The relief names every piece on its own, so an accent may be painted
+  like the body;
 - `foot`: a thin band at the very bottom (`FOOT_HEIGHT`, 0.04), for the colour of the level
   the piece stands on (`PieceBodyProps.level`).
 
@@ -367,8 +372,9 @@ Parts that share a material are merged once and drawn as one mesh, so a piece co
 four draw calls. Materials may be shared objects (the cheap way: one per army and state) or
 JSX elements; anything that fades or recolours one piece must clone first. The geometry is
 built once per quality and shared: `pieceSet('low' | 'medium' | 'high')` (medium, the
-default, keeps every piece within about 4k triangles and builds in a few hundred
-milliseconds; Classic warms it while the browser is idle with `preloadPieceSet()`).
+default, keeps every piece within about 5k triangles; each piece is built the first time
+it is drawn, the sculpted knight in a few hundred milliseconds, and Classic warms the set
+while the browser is idle with `preloadPieceSet()`).
 `buildPieceSet({ quality, segments, profiles, radius })` makes a variant: `segments` turns
 every shell with that many sides (a handful gives a cut-gem look), `profiles` replaces any
 of the turned profiles in `PROFILES`, and `radius(r, y, type)` reshapes them all (e.g.

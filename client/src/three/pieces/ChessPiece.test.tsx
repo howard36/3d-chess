@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
 import { MeshStandardMaterial } from 'three';
@@ -20,6 +20,14 @@ const walnut = new MeshStandardMaterial({ color: '#553311' });
 const level = new MeshStandardMaterial({ color: '#3377ff' });
 
 describe('ChessPiece', () => {
+  // Building the shared set takes a moment the first time (the knight is
+  // sculpted); do it once, outside the tests' own time limits
+  beforeAll(() => {
+    for (const set of [pieceSet(), pieceSet('low')]) {
+      for (const type of Object.values(PieceType)) void set[type];
+    }
+  }, 60000);
+
   it('draws a piece in one mesh when only the body is painted', async () => {
     const [mesh, ...rest] = await meshes(
       <ChessPiece type={PieceType.Bishop} parts={{ body: ivory }} />,

@@ -13,6 +13,10 @@ import type { PieceSet } from './set';
 
 const TYPES = Object.values(PieceType);
 const medium = pieceSet('medium');
+// Pieces are built on first use: build them all now, while the file loads,
+// rather than inside the first test's time limit
+for (const type of Object.values(PieceType)) void medium[type];
+for (const type of Object.values(PieceType)) void pieceSet('low')[type];
 
 const boxOf = (set: PieceSet, type: PieceType) => {
   const box = new Box3();
@@ -89,10 +93,13 @@ describe('the shared piece set', () => {
         const p = g.getAttribute('position');
         const n = g.getAttribute('normal');
         expect(g.getAttribute('uv').count).toBe(p.count);
+        let bad = 0;
         for (let i = 0; i < p.count; i++) {
-          expect(Number.isFinite(p.getX(i) + p.getY(i) + p.getZ(i))).toBe(true);
-          expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 2);
+          const finite = Number.isFinite(p.getX(i) + p.getY(i) + p.getZ(i));
+          const unit = Math.abs(Math.hypot(n.getX(i), n.getY(i), n.getZ(i)) - 1) < 0.005;
+          if (!finite || !unit) bad++;
         }
+        expect(bad, `${type} ${part}: vertices with a bad position or normal`).toBe(0);
       }
     }
   });
@@ -119,6 +126,10 @@ describe('the shared piece set', () => {
     expect(h(PieceType.Knight)).toBeLessThan(h(PieceType.Bishop));
     expect(h(PieceType.Bishop)).toBeLessThan(h(PieceType.Queen));
     expect(h(PieceType.Bishop)).toBeLessThan(h(PieceType.Unicorn));
+    expect(h(PieceType.Unicorn)).toBeLessThan(h(PieceType.Queen));
+    // Well spread: each step up the hierarchy is one a player can see
+    expect(h(PieceType.Bishop) - h(PieceType.Knight)).toBeGreaterThan(0.02);
+    expect(h(PieceType.Queen) - h(PieceType.Bishop)).toBeGreaterThan(0.05);
     for (const t of TYPES.filter((t) => t !== PieceType.King)) {
       expect(h(t), t).toBeLessThan(h(PieceType.King) - 0.04);
     }
@@ -135,18 +146,26 @@ describe('the shared piece set', () => {
   });
 
   it('keeps every piece within about 4-5k triangles at the default quality', () => {
-    for (const type of TYPES) expect(total(medium, type), type).toBeLessThanOrEqual(4800);
+    for (const type of TYPES) expect(total(medium, type), type).toBeLessThanOrEqual(5000);
   });
 
   it('crowns the king with a cross that has arms both ways, over a closed crown', () => {
     const cross = medium.King.accent!.boundingBox!;
     // Arms across x and across z: a cross from every side and a plus from above
-    expect(cross.max.x - cross.min.x).toBeGreaterThan(0.13);
-    expect(cross.max.z - cross.min.z).toBeGreaterThan(0.13);
+    expect(cross.max.x - cross.min.x).toBeGreaterThan(0.1);
+    expect(cross.max.z - cross.min.z).toBeGreaterThan(0.1);
+    // Taller than it is wide (a cross, not a plus), topping the piece
+    expect(cross.max.y - cross.min.y).toBeGreaterThan(cross.max.x - cross.min.x);
     expect(cross.max.y).toBeCloseTo(pieceTop(medium, PieceType.King), 5);
-    // Above the arms, only the slim upper arm
-    expect(radiusBetween(medium.King.accent!, 0.845, 1)).toBeLessThan(0.03);
-    expect(radiusBetween(medium.King.accent!, 0.785, 0.84)).toBeGreaterThan(0.06);
+    // Above the arms, only the upper arm; the arms themselves reach out
+    expect(radiusBetween(medium.King.accent!, 0.845, 1)).toBeLessThan(0.035);
+    expect(radiusBetween(medium.King.accent!, 0.765, 0.825)).toBeGreaterThan(0.045);
+    // Thin plates, not blocks: out along the arms across x, the plate is
+    // a fraction of the arms' width thick
+    const p = medium.King.accent!.getAttribute('position');
+    for (let i = 0; i < p.count; i++) {
+      if (Math.abs(p.getX(i)) > 0.035) expect(Math.abs(p.getZ(i))).toBeLessThan(0.012);
+    }
   });
 
   it("rings the queen's crown with eight pearls, well clear of its finial", () => {
@@ -160,17 +179,25 @@ describe('the shared piece set', () => {
     expect(sectors.size).toBe(8);
   });
 
-  it('keeps the bishop free of crown features: a smooth mitre and a small ball', () => {
+  it('keeps the bishop free of crown features: a tall smooth mitre and a small ball', () => {
     const b = medium.Bishop.body;
-    expect(radiusBetween(b, 0.56, 0.62)).toBeGreaterThan(0.1);
-    expect(radiusBetween(b, 0.735, 1)).toBeLessThan(0.03);
+    expect(radiusBetween(b, 0.52, 0.58)).toBeGreaterThan(0.085);
+    expect(radiusBetween(b, 0.725, 1)).toBeLessThan(0.03);
+    // The mitre stands 1.3 to 1.5 times as tall as it is wide
+    const mitre = sampleProfile(PROFILES.bishop.mitre, 0.001);
+    const height = Math.max(...mitre.map((p) => p[1])) - Math.min(...mitre.map((p) => p[1]));
+    const width = 2 * Math.max(...mitre.map((p) => p[0]));
+    expect(height / width).toBeGreaterThan(1.3);
+    expect(height / width).toBeLessThan(1.5);
   });
 
   it('gives the knight a large head on its base', () => {
     const box = medium.Knight.body.boundingBox!;
     // From the back of the neck to the muzzle, near the width of the base
     expect(box.max.x - box.min.x).toBeGreaterThan(0.44);
-    expect(box.max.y).toBeGreaterThan(0.72);
+    expect(box.max.y).toBeGreaterThan(0.68);
+    // A full chest: from the front it covers over half the base
+    expect(2 * box.max.z).toBeGreaterThan(PROFILES.radius.Knight);
   });
 
   it('scales its detail with the quality', () => {
@@ -189,14 +216,23 @@ describe('the shared piece set', () => {
     const u = medium[PieceType.Unicorn];
     const b = medium[PieceType.Bishop];
     // Where the bishop's mitre is widest, the unicorn has only its slim horn
-    expect(radiusBetween(b.body, 0.56, 0.62)).toBeGreaterThan(0.1);
-    expect(radiusBetween(u.body, 0.56, 0.62)).toBeLessThan(0.06);
-    // The horn comes to a point
-    expect(radiusBetween(u.body, 0.8, 1)).toBeLessThan(0.01);
-    // The spiral climbs most of the horn, winding all the way round it
+    expect(radiusBetween(b.body, 0.52, 0.58)).toBeGreaterThan(0.085);
+    expect(radiusBetween(u.body, 0.52, 0.58)).toBeLessThan(0.06);
+    // The horn comes to a blunted point
+    expect(radiusBetween(u.body, 0.775, 1)).toBeLessThan(0.01);
+    // The twist is carved into the horn: at one height its radius varies
+    // round it (the grooves), by more than a tenth
+    const p0 = u.body.getAttribute('position');
+    const ring: number[] = [];
+    for (let i = 0; i < p0.count; i++) {
+      if (Math.abs(p0.getY(i) - 0.62) < 0.004) ring.push(Math.hypot(p0.getX(i), p0.getZ(i)));
+    }
+    const horn = ring.filter((r) => r < 0.06);
+    expect(Math.min(...horn) / Math.max(...horn)).toBeLessThan(0.9);
+    // The lines in the grooves climb most of the horn, winding all the way round it
     const s = u.accent!;
     const box = s.boundingBox!;
-    expect(box.max.y - box.min.y).toBeGreaterThan(0.25);
+    expect(box.max.y - box.min.y).toBeGreaterThan(0.2);
     const p = s.getAttribute('position');
     const quadrants = new Set<number>();
     for (let i = 0; i < p.count; i++) {
@@ -206,8 +242,17 @@ describe('the shared piece set', () => {
   });
 
   it('faces the knight along +x', () => {
+    // Above its base, the head reaches forward much further than the neck back
+    const p = medium[PieceType.Knight].body.getAttribute('position');
+    let front = 0;
+    let back = 0;
+    for (let i = 0; i < p.count; i++) {
+      if (p.getY(i) < 0.3) continue;
+      front = Math.max(front, p.getX(i));
+      back = Math.max(back, -p.getX(i));
+    }
+    expect(front).toBeGreaterThan(back + 0.05);
     const box = medium[PieceType.Knight].body.boundingBox!;
-    expect(box.max.x).toBeGreaterThan(-box.min.x + 0.05);
     expect(box.max.z).toBeCloseTo(-box.min.z, 2);
   });
 
@@ -294,9 +339,11 @@ describe('piece geometry builders', () => {
     const g = surfaceNets(f, { min: [-0.12, -0.12, -0.12], max: [0.12, 0.12, 0.12], step: 0.01 });
     expect(isClosed(g)).toBe(true);
     const p = g.getAttribute('position');
+    let off = 0;
     for (let i = 0; i < p.count; i++) {
-      expect(Math.hypot(p.getX(i), p.getY(i), p.getZ(i))).toBeCloseTo(0.1, 3);
+      if (Math.abs(Math.hypot(p.getX(i), p.getY(i), p.getZ(i)) - 0.1) > 0.0005) off++;
     }
+    expect(off).toBe(0);
   });
 
   it('decimates a closed mesh to its budget, closed and on the surface', () => {
@@ -311,9 +358,11 @@ describe('piece geometry builders', () => {
     expect(triangleCount(g)).toBeGreaterThan(500);
     expect(isClosed(g)).toBe(true);
     const p = g.getAttribute('position');
+    let off = 0;
     for (let i = 0; i < p.count; i++) {
-      expect(Math.abs(f(p.getX(i), p.getY(i), p.getZ(i)))).toBeLessThan(0.002);
+      if (Math.abs(f(p.getX(i), p.getY(i), p.getZ(i))) >= 0.002) off++;
     }
+    expect(off).toBe(0);
   });
 
   it('cuts a slot into a convex shell, leaving it closed by the cut faces', () => {

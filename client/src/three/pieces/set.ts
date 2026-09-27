@@ -18,8 +18,11 @@ import type { Profile, ProfileNode, RevolveOptions } from './profile';
 //   body    everything else that is turned or carved
 //   collar  the ring (or rings) where the stem meets the head
 //   accent  the details that identify a piece up close and from above: the
-//           knight's mane and eyes, the bishop's cut, the unicorn's spiral,
-//           the queen's pearls, the king's cross (pawn and rook have none)
+//           knight's eyes, the bishop's cut, the lines in the unicorn's
+//           twist, the queen's pearls, the king's cross, the rook's crenel
+//           sills and hollow (the pawn has none). Every piece is also named
+//           by its carved relief alone, so an accent painted like the body
+//           loses nothing that matters.
 //
 // The turned shells come from PROFILES (exported, so a design can derive
 // its own cut); the knight's head is sculpted (knight.ts).
@@ -139,12 +142,21 @@ export interface PieceProfiles {
   /** `body` ends at the turret's rim; `well` (the accent) is the crenels' sills and the hollow. */
   rook: { body: Profile; well: Profile; collar: Profile; merlon: Profile };
   knight: { body: Profile; collar: Profile };
-  bishop: { body: Profile; collar: Profile; mitre: Profile; finial: Profile };
+  /** `bead` rings the neck at the mitre's foot; the mitre is convex, for the cut. */
+  bishop: { body: Profile; collar: Profile; bead: Profile; mitre: Profile; finial: Profile };
   unicorn: { body: Profile; collar: Profile; socket: Profile };
-  /** `coronet` is one of the crown's tines, turned upright from y = 0. */
-  queen: { body: Profile; collar: Profile; crown: Profile; coronet: Profile };
-  /** The crown's flare is ribbed as it is turned (see KING_RIBS). */
-  king: { body: Profile; collar: Profile; crown: Profile };
+  /**
+   * `crown` is the open tulip cup, whose rim is drawn up into the coronet's
+   * pointed tines as it is turned (see CORONET); `dome` is the dome, bead
+   * and ball inside it.
+   */
+  queen: { body: Profile; collar: Profile; crown: Profile; dome: Profile };
+  /**
+   * `crown` is the straight-sided bucket, fluted as it is turned (see
+   * KING_FLUTES); `cap` is the rolled rim, the ledge inside it, the low dome
+   * and the bead the cross stands on.
+   */
+  king: { body: Profile; collar: Profile; crown: Profile; cap: Profile };
 }
 
 const R = {
@@ -222,38 +234,41 @@ export const PROFILES: PieceProfiles = {
   bishop: {
     body: [
       ...base(R.Bishop, 0.14, 0.116),
-      [0.102, 0.18],
-      [0.086, 0.26],
-      [0.076, 0.34],
-      [0.07, 0.41],
-      [0.064, 0.455],
+      [0.102, 0.176],
+      [0.086, 0.248],
+      [0.076, 0.32],
+      [0.07, 0.383],
+      [0.064, 0.424],
       // The neck, up into the mitre
-      [0.05, 0.5],
-      [0.048, 0.52],
-      corner([0.048, 0.54]),
-      corner([0, 0.54]),
+      [0.05, 0.464],
+      [0.048, 0.482],
+      corner([0.048, 0.5]),
+      corner([0, 0.5]),
     ],
-    collar: collar(0.445, 0.14),
-    // A tall egg, pointed at the top (convex, for the cut)
+    collar: collar(0.415, 0.14),
+    bead: ring(0.462, 0.058, 0.014),
+    // A tall mitre (about 1.33 times as tall as it is wide), pointed at the
+    // top, and convex, for the cut
     mitre: [
-      corner([0, 0.488]),
-      [0.04, 0.498],
-      [0.078, 0.52],
-      [0.103, 0.548],
-      [0.113, 0.58],
-      [0.11, 0.612],
-      [0.096, 0.645],
-      [0.072, 0.678],
-      [0.042, 0.705],
-      [0.016, 0.722],
-      corner([0, 0.727]),
+      corner([0, 0.458]),
+      [0.036, 0.467],
+      [0.068, 0.487],
+      [0.088, 0.513],
+      [0.096, 0.542],
+      [0.094, 0.572],
+      [0.086, 0.602],
+      [0.072, 0.634],
+      [0.054, 0.664],
+      [0.034, 0.69],
+      [0.016, 0.708],
+      corner([0, 0.714]),
     ],
     finial: [
-      corner([0, 0.71]),
-      [0.02, 0.71],
-      [0.015, 0.722],
-      corner([0.018, 0.726]),
-      ...arc(0, 0.745, 0.026, -45, 90, 7),
+      corner([0, 0.689]),
+      [0.019, 0.689],
+      [0.014, 0.7],
+      corner([0.017, 0.704]),
+      ...arc(0, 0.721, 0.024, -45, 90, 7),
     ],
   },
   unicorn: {
@@ -293,33 +308,37 @@ export const PROFILES: PieceProfiles = {
       corner([0, 0.52]),
     ],
     collar: grandCollar(0.49, 0.158, 0.062),
-    // Neck, the flared cup with a rolled rim, and the dome and ball inside
+    // The neck and an open tulip cup (its rim becomes the coronet's tines)
     crown: [
       corner([0, 0.47]),
       corner([0.068, 0.47]),
       [0.066, 0.53],
       [0.07, 0.555],
-      [0.088, 0.6],
-      [0.115, 0.638],
-      [0.14, 0.664],
-      [0.154, 0.68],
-      ...arc(0.151, 0.688, 0.009, -40, 150, 4),
-      corner([0.134, 0.692]),
-      [0.12, 0.706],
-      [0.094, 0.728],
-      [0.06, 0.744],
-      [0.03, 0.751],
-      [0.018, 0.757],
-      ...arc(0, 0.787, 0.032, -40, 90, 7),
+      [0.084, 0.59],
+      [0.104, 0.622],
+      [0.128, 0.648],
+      [0.148, 0.668],
+      [0.16, 0.684],
+      ...arc(0.155, 0.69, 0.006, -20, 160, 3),
+      [0.143, 0.68],
+      [0.137, 0.664],
+      corner([0.133, 0.646]),
+      corner([0, 0.642]),
     ],
-    // One tine of the coronet, upright; a pearl crowns each
-    coronet: [
-      corner([0, 0]),
-      [0.018, 0],
-      [0.017, 0.018],
-      [0.012, 0.035],
-      [0.006, 0.048],
-      corner([0, 0.05]),
+    // The dome inside the coronet, a bead, and the ball
+    dome: [
+      corner([0, 0.655]),
+      corner([0.126, 0.655]),
+      [0.124, 0.672],
+      [0.116, 0.694],
+      [0.1, 0.716],
+      [0.076, 0.738],
+      [0.05, 0.754],
+      [0.03, 0.762],
+      corner([0.02, 0.764]),
+      ...arc(0.012, 0.772, 0.01, -60, 90, 3),
+      corner([0.012, 0.782]),
+      ...arc(0, 0.797, 0.028, -30, 90, 6),
     ],
   },
   king: {
@@ -334,26 +353,36 @@ export const PROFILES: PieceProfiles = {
       corner([0, 0.53]),
     ],
     collar: grandCollar(0.497, 0.17, 0.064),
-    // Neck, the ribbed flare with its rim, the domed cap and the boss the cross stands on
+    // The neck and a straight-sided bucket, fluted (its top hides in the cap)
     crown: [
       corner([0, 0.48]),
       corner([0.072, 0.48]),
       [0.07, 0.535],
-      [0.074, 0.555],
-      [0.088, 0.582],
-      [0.11, 0.612],
-      [0.135, 0.642],
-      [0.154, 0.664],
-      ...arc(0.151, 0.672, 0.01, -40, 120, 4),
-      corner([0.139, 0.68]),
-      [0.137, 0.694],
-      [0.125, 0.716],
-      [0.1, 0.737],
-      [0.066, 0.751],
-      [0.036, 0.757],
-      corner([0.03, 0.759]),
-      ...arc(0.022, 0.766, 0.012, -30, 90, 3),
-      corner([0, 0.778]),
+      [0.074, 0.556],
+      [0.084, 0.576],
+      [0.1, 0.6],
+      [0.116, 0.622],
+      [0.13, 0.64],
+      [0.139, 0.655],
+      corner([0.142, 0.666]),
+      corner([0, 0.666]),
+    ],
+    // The rolled rim, a flat ledge inside it, a low dome and the cross's bead
+    cap: [
+      corner([0, 0.648]),
+      corner([0.126, 0.648]),
+      corner([0.132, 0.654]),
+      ...arc(0.141, 0.664, 0.0095, -130, 100, 5),
+      corner([0.134, 0.673]),
+      corner([0.118, 0.673]),
+      [0.116, 0.686],
+      [0.106, 0.704],
+      [0.088, 0.719],
+      [0.062, 0.729],
+      [0.036, 0.733],
+      corner([0.022, 0.734]),
+      ...arc(0.012, 0.74, 0.008, -50, 90, 3),
+      corner([0, 0.748]),
     ],
   },
 };
@@ -375,7 +404,7 @@ interface Detail {
 
 const DETAIL: Record<PieceQuality, Detail> = {
   low: { segments: 14, tolerance: 0.003, step: 0.018, knight: 1400 },
-  medium: { segments: 24, tolerance: 0.002, step: 0.013, knight: 2900 },
+  medium: { segments: 24, tolerance: 0.002, step: 0.016, knight: 3100 },
   high: { segments: 48, tolerance: 0.0004, step: 0.0065, knight: 14000 },
 };
 
@@ -493,9 +522,10 @@ const rook = (c: Ctx): PieceParts => {
 const knight = (c: Ctx): PieceParts => {
   const k = buildKnight(c.d.step, c.d.knight);
   return {
-    body: mergeShells([turn(c, PieceType.Knight, c.profiles.knight.body), k.head]),
+    // The mane is carved relief, part of the body; the eyes are the accent
+    body: mergeShells([turn(c, PieceType.Knight, c.profiles.knight.body), k.head, k.mane]),
     collar: mergeShells([turn(c, PieceType.Knight, c.profiles.knight.collar)]),
-    accent: mergeShells([k.mane, k.eyes]),
+    accent: mergeShells([k.eyes]),
     foot: mergeShells([footOf(c, PieceType.Knight)]),
   };
 };
@@ -504,11 +534,11 @@ const knight = (c: Ctx): PieceParts => {
 const MITRE_CUT = (() => {
   const a = (40 * Math.PI) / 180;
   return {
-    at: [0.0, 0.615, 0] as Vec3,
+    at: [0.0, 0.595, 0] as Vec3,
     normal: [-Math.sin(a), Math.cos(a), 0] as Vec3,
     mouth: [Math.cos(a), Math.sin(a), 0] as Vec3,
-    width: 0.03,
-    depth: 0.052,
+    width: 0.034,
+    depth: 0.045,
   };
 })();
 
@@ -525,42 +555,68 @@ const bishop = (c: Ctx): PieceParts => {
       cutMitre,
       turn(c, PieceType.Bishop, p.finial, { segments: Math.max(8, Math.round(c.segments * 0.75)) }),
     ]),
-    collar: mergeShells([turn(c, PieceType.Bishop, p.collar)]),
+    collar: mergeShells([turn(c, PieceType.Bishop, p.collar), turn(c, PieceType.Bishop, p.bead)]),
     accent: mergeShells(cut),
     foot: mergeShells([footOf(c, PieceType.Bishop)]),
   };
 };
 
-/** The unicorn's horn: a tall cone rising from the socket, its tip at HORN.top. */
-const HORN = { bottom: 0.49, top: 0.815, radius: 0.064, turns: 3.25, ridge: 0.0115 };
-
-const hornRadius = (t: number) => HORN.radius * (1 - t) ** 0.95;
-
-const hornCone = (c: Ctx): BufferGeometry => {
-  const rows = Math.max(8, Math.round(c.segments * 0.6));
-  const pts: [number, number][] = [[0, HORN.bottom]];
-  for (let j = 0; j <= rows; j++) {
-    const t = j / rows;
-    pts.push([hornRadius(t), HORN.bottom + (HORN.top - HORN.bottom) * t]);
-  }
-  return revolve(pts, { segments: c.segments });
+/**
+ * The unicorn's horn: a tapering cone rising from the socket to a blunted
+ * tip, twisted by a two-start helical groove carved into it (a narwhal's
+ * twist). A fine line of the accent lies in each groove, for the top view.
+ */
+const HORN = {
+  bottom: 0.49,
+  top: 0.79,
+  radius: 0.058,
+  taper: 1.1,
+  tip: 0.005,
+  /** Turns of the groove pattern up the horn (it has two starts). */
+  turns: 3,
+  /** How deep the groove cuts, as a fraction of the radius. */
+  groove: 0.13,
 };
 
-/** The raised spiral round the horn: a tube that tapers to nothing at both ends. */
-const hornSpiral = (c: Ctx): BufferGeometry => {
-  const along = Math.round(c.segments * HORN.turns);
-  const around = Math.max(5, Math.round(c.segments / 4));
-  const H = HORN.top - HORN.bottom;
-  const t0 = 0.04;
-  const t1 = 0.96;
-  const centre = (s: number): Vec3 => {
-    const t = t0 + (t1 - t0) * s;
-    const phi = HORN.turns * Math.PI * 2 * s;
-    const r = hornRadius(t) + ridge(s) * 0.35;
-    return [r * Math.cos(phi), HORN.bottom + H * t, r * Math.sin(phi)];
-  };
-  const ease = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : Math.sin((x * Math.PI) / 2));
-  const ridge = (s: number) => HORN.ridge * (1 - 0.55 * s) * ease(s / 0.05) * ease((1 - s) / 0.08);
+/** The horn's radius at t (0 at its foot, 1 at the tip), before the twist. */
+const hornRadius = (t: number) => Math.max(HORN.radius * (1 - t) ** HORN.taper, 0);
+/** Where the taper reaches the tip's radius: the blunted cap takes over there. */
+const HORN_END = 1 - (HORN.tip / HORN.radius) ** (1 / HORN.taper);
+const hornY = (t: number) => HORN.bottom + ((HORN.top - HORN.tip - HORN.bottom) * t) / HORN_END;
+/** The twist: 1 in the middle of a groove, 0 between them, fading out at the foot and tip. */
+const hornGroove = (theta: number, t: number) =>
+  (0.5 + 0.5 * Math.cos(2 * theta - 2 * Math.PI * HORN.turns * t)) ** 3 *
+  ramp(0, 0.06, t) *
+  (1 - ramp(0.8, 0.97, t / HORN_END));
+
+const hornCone = (c: Ctx): BufferGeometry => {
+  const rows = Math.max(24, Math.round(c.segments * 1.5));
+  const pts: [number, number][] = [[0, HORN.bottom]];
+  const ts: number[] = [0];
+  for (let j = 0; j <= rows; j++) {
+    const t = (HORN_END * j) / rows;
+    pts.push([hornRadius(t), hornY(t)]);
+    ts.push(t);
+  }
+  // The blunted tip: a small round cap
+  for (let k = 1; k <= 3; k++) {
+    const a = (k * Math.PI) / 2 / 3;
+    pts.push([HORN.tip * Math.cos(a), HORN.top - HORN.tip + HORN.tip * Math.sin(a)]);
+    ts.push(HORN_END);
+  }
+  return revolve(pts, {
+    segments: c.segments,
+    modulate: (theta, row, r, y) => [r * (1 - HORN.groove * hornGroove(theta, ts[row])), y],
+  });
+};
+
+/** A tube along a curve, its radius tapering to nothing at both ends. */
+const sweepTube = (
+  centre: (s: number) => Vec3,
+  radius: (s: number) => number,
+  along: number,
+  around: number,
+): BufferGeometry => {
   const frame = (s: number) => {
     const e = 1e-4;
     const a = centre(Math.max(0, s - e));
@@ -588,7 +644,7 @@ const hornSpiral = (c: Ctx): BufferGeometry => {
     wrapV: true,
     point: (i, j) => {
       const { p, N, B } = frames[i];
-      const rho = ridge(i / along);
+      const rho = radius(i / along);
       const a = (j / around) * Math.PI * 2;
       const cn = Math.cos(a) * rho;
       const sn = Math.sin(a) * rho;
@@ -601,6 +657,28 @@ const hornSpiral = (c: Ctx): BufferGeometry => {
   });
 };
 
+/** A fine line in each of the horn's two grooves, just proud of the groove's floor. */
+const hornLines = (c: Ctx): BufferGeometry[] => {
+  const t0 = 0.07;
+  const t1 = HORN_END * 0.82;
+  const line = 0.0045;
+  const ease = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : Math.sin((x * Math.PI) / 2));
+  return [0, Math.PI].map((start) =>
+    sweepTube(
+      (s) => {
+        const t = t0 + (t1 - t0) * s;
+        // Along the middle of a groove: 2θ = 2π·turns·t (+ π for the second start)
+        const theta = Math.PI * HORN.turns * t + start;
+        const r = hornRadius(t) * (1 - HORN.groove * hornGroove(theta, t)) + 0.002 - line;
+        return [r * Math.cos(theta), hornY(t), r * Math.sin(theta)];
+      },
+      (s) => line * ease(s / 0.06) * ease((1 - s) / 0.06),
+      Math.round(c.segments * 1.25),
+      4,
+    ),
+  );
+};
+
 const unicorn = (c: Ctx): PieceParts => {
   const p = c.profiles.unicorn;
   return {
@@ -610,59 +688,73 @@ const unicorn = (c: Ctx): PieceParts => {
       hornCone(c),
     ]),
     collar: mergeShells([turn(c, PieceType.Unicorn, p.collar)]),
-    accent: mergeShells([hornSpiral(c)]),
+    accent: mergeShells(hornLines(c)),
     foot: mergeShells([footOf(c, PieceType.Unicorn)]),
   };
 };
 
-/** The queen's coronet: eight tines round the rim, leaning out, a pearl on each. */
-const TINES = 8;
-const TINE = { radius: 0.147, y: 0.684, lean: (7 * Math.PI) / 180, pearl: 0.0195 };
+/**
+ * The queen's coronet: the cup's rim drawn up into eight pointed tines with
+ * V-notches between them, flaring out a little as they rise, and a small
+ * pearl seated on each tip.
+ */
+const CORONET = { tines: 8, rise: 0.05, flare: 0.24, from: 0.64, to: 0.68, pearl: 0.016 };
 
 const queen = (c: Ctx): PieceParts => {
   const p = c.profiles.queen;
-  const tineSegments = Math.max(6, Math.round(c.segments / 3));
-  const tineLength = Math.max(...p.coronet.map((n) => n[1]));
-  const sphereSeg = Math.max(6, Math.round(c.segments / 3));
-  const tines: BufferGeometry[] = [];
-  const pearls: BufferGeometry[] = [];
-  for (let k = 0; k < TINES; k++) {
-    const theta = (k * Math.PI * 2) / TINES;
-    // An upright tine, leaned out, then set in its place round the rim
-    const place = new Matrix4()
-      .makeRotationY(-theta)
-      .multiply(new Matrix4().makeTranslation(TINE.radius, TINE.y, 0))
-      .multiply(new Matrix4().makeRotationZ(-TINE.lean));
-    tines.push(turn(c, PieceType.Queen, p.coronet, { segments: tineSegments }).applyMatrix4(place));
-    pearls.push(
-      new SphereGeometry(TINE.pearl, sphereSeg, Math.max(4, Math.round(sphereSeg * 0.75)))
-        .translate(0, tineLength + TINE.pearl * 0.45, 0)
-        .applyMatrix4(place),
+  const { tines, rise, flare, from, to, pearl } = CORONET;
+  // A pointed tine: a triangle wave, sharp at the tip and at the notch
+  const point = (theta: number) => {
+    const f = ((((theta * tines) / (Math.PI * 2)) % 1) + 1) % 1;
+    return Math.abs(2 * f - 1) ** 1.2;
+  };
+  const lift = (theta: number, y: number) => rise * point(theta) * ramp(from, to, y);
+  const cup = turn(c, PieceType.Queen, p.crown, {
+    // Six sides per tine: one at each tip and each notch
+    segments: tines * 6,
+    modulate: (theta, _row, r, y) => {
+      const l = lift(theta, y);
+      return [r + flare * l, y + l];
+    },
+  });
+  // The tips: the rim's highest point, lifted
+  const rimTop = sampleProfile(p.crown, c.d.tolerance).reduce((a, q) => (q[1] > a[1] ? q : a));
+  const tipR = rimTop[0] + flare * rise;
+  const tipY = rimTop[1] + rise;
+  const sphereSeg = Math.max(6, Math.round(c.segments / 4));
+  const pearls = Array.from({ length: tines }, (_, k) => {
+    const theta = (k * Math.PI * 2) / tines;
+    return new SphereGeometry(
+      pearl,
+      sphereSeg,
+      Math.max(4, Math.round(sphereSeg * 0.75)),
+    ).translate(
+      (tipR - 0.002) * Math.cos(theta),
+      tipY + pearl * 0.55,
+      (tipR - 0.002) * Math.sin(theta),
     );
-  }
+  });
   return {
-    body: mergeShells([
-      turn(c, PieceType.Queen, p.body),
-      turn(c, PieceType.Queen, p.crown),
-      ...tines,
-    ]),
+    body: mergeShells([turn(c, PieceType.Queen, p.body), cup, turn(c, PieceType.Queen, p.dome)]),
     collar: mergeShells([turn(c, PieceType.Queen, p.collar)]),
     accent: mergeShells(pearls),
     foot: mergeShells([footOf(c, PieceType.Queen)]),
   };
 };
 
-/** The king's cross: a cross pattée in each of two planes, so it reads as a cross from every side and as a plus from above. */
+/**
+ * The king's cross: a cross pattée, taller than it is wide, in each of two
+ * planes (thin plates, so they stay two crosses from any side rather than
+ * a knot), standing on the cap's bead; a plus from above.
+ */
 const kingCross = (c: Ctx): BufferGeometry[] => {
   const s = new Shape();
-  // Half the cross in x-y (x across, y up), arms flaring toward their ends
-  // Slender arms, barely flared, so the notches between them stay open
-  // (and the cross reads as one) from every side, the diagonals included
-  const w = 0.0145; // half the width of the arms at the centre
-  const flare = 0.02; // half the width at an arm's end
-  const arm = 0.068; // reach of a side arm from the centre
-  const top = 0.054; // reach of the upper arm
-  const foot = 0.044; // reach of the lower arm
+  // The cross in x-y (x across, y up), its arms flaring toward their ends
+  const w = 0.011; // half the width of the arms at the centre
+  const flare = 0.025; // half the width at an arm's end
+  const arm = 0.05; // reach of a side arm from the centre
+  const top = 0.072; // reach of the upper arm
+  const foot = 0.05; // reach of the lower arm
   const pts: [number, number][] = [
     [-w, -w],
     [-flare * 0.8, -foot],
@@ -680,22 +772,22 @@ const kingCross = (c: Ctx): BufferGeometry[] => {
   s.moveTo(...pts[0]);
   pts.slice(1).forEach((p) => s.lineTo(...p));
   s.closePath();
-  const depth = 0.026;
-  const bevel = 0.005;
+  const depth = 0.012;
+  const bevel = 0.003;
   const make = () => {
     const g = new ExtrudeGeometry(s, {
       depth,
       bevelEnabled: true,
       bevelThickness: bevel,
       bevelSize: bevel,
-      bevelSegments: c.segments >= 32 ? 3 : 2,
+      bevelSegments: c.segments >= 32 ? 2 : 1,
       curveSegments: 1,
     });
     g.translate(0, 0, -depth / 2);
     return g;
   };
-  // Seated on the boss (its top is at 0.778), a little buried
-  const centre = 0.767 + foot;
+  // Standing on the cap's bead (its top is at 0.748), a little into it
+  const centre = 0.795;
   const a = make().applyMatrix4(new Matrix4().makeTranslation(0, centre, 0));
   const b = make().applyMatrix4(
     new Matrix4().makeTranslation(0, centre, 0).multiply(new Matrix4().makeRotationY(Math.PI / 2)),
@@ -703,23 +795,23 @@ const kingCross = (c: Ctx): BufferGeometry[] => {
   return [a, b];
 };
 
-/** The ribs round the king's crown: how many, how proud, and the heights they span. */
-const KING_RIBS = { count: 12, depth: 0.09, from: 0.565, to: 0.668 };
+/** The flutes cut round the king's crown: how many, how deep, and the heights they span. */
+const KING_FLUTES = { count: 16, depth: 0.05, from: 0.575, to: 0.653 };
 
 const king = (c: Ctx): PieceParts => {
   const p = c.profiles.king;
-  const { count, depth, from, to } = KING_RIBS;
+  const { count, depth, from, to } = KING_FLUTES;
   const crown = turn(c, PieceType.King, p.crown, {
-    // Enough sides to carry the ribs
-    segments: count * Math.max(3, Math.round(c.segments / 6)),
+    // Enough sides to carry the flutes
+    segments: count * Math.max(2, Math.round(c.segments / 6)),
     modulate: (theta, _row, r, y) => {
-      const along = ramp(from, from + 0.03, y) * (1 - ramp(to - 0.012, to, y));
-      const rib = (0.5 + 0.5 * Math.cos(count * theta)) ** 2;
-      return [r * (1 + depth * rib * along), y];
+      const along = ramp(from, from + 0.015, y) * (1 - ramp(to - 0.013, to, y));
+      const flute = (0.5 + 0.5 * Math.cos(count * theta)) ** 4;
+      return [r * (1 - depth * flute * along), y];
     },
   });
   return {
-    body: mergeShells([turn(c, PieceType.King, p.body), crown]),
+    body: mergeShells([turn(c, PieceType.King, p.body), crown, turn(c, PieceType.King, p.cap)]),
     collar: mergeShells([turn(c, PieceType.King, p.collar)]),
     accent: mergeShells(kingCross(c)),
     foot: mergeShells([footOf(c, PieceType.King)]),
@@ -736,7 +828,10 @@ const BUILDERS: Record<PieceType, (c: Ctx) => PieceParts> = {
   [PieceType.King]: king,
 };
 
-/** Builds a whole set (every piece, every part). Prefer `pieceSet`, which shares one per quality. */
+/**
+ * A whole set (every piece, every part), each piece built on first use.
+ * Prefer `pieceSet`, which shares one per quality.
+ */
 export const buildPieceSet = (options: PieceSetOptions = {}): PieceSet => {
   const d = DETAIL[options.quality ?? 'medium'];
   const c: Ctx = {
@@ -745,8 +840,16 @@ export const buildPieceSet = (options: PieceSetOptions = {}): PieceSet => {
     profiles: { ...PROFILES, ...options.profiles },
     radius: options.radius,
   };
+  // Each piece is built when it is first asked for, then kept: a design or
+  // a test that draws only pawns never pays for the sculpted knight
   const set = {} as PieceSet;
-  for (const type of Object.values(PieceType)) set[type] = BUILDERS[type](c);
+  for (const type of Object.values(PieceType)) {
+    let parts: PieceParts | undefined;
+    Object.defineProperty(set, type, {
+      enumerable: true,
+      get: () => (parts ??= BUILDERS[type](c)),
+    });
+  }
   return set;
 };
 
@@ -766,12 +869,21 @@ export const pieceSet = (quality: PieceQuality = 'medium'): PieceSet => {
 };
 
 /**
- * Builds the shared set when the browser is next idle, so the first board
- * does not wait for it (building the medium set takes a few hundred ms).
- * Does nothing where there is no idle callback (tests, old browsers): the set
- * is then built on first use.
+ * Builds the shared set's pieces while the browser is idle, one piece per
+ * idle moment, so the first board does not wait for them (the sculpted
+ * knight takes a few hundred milliseconds). Does nothing where there is no
+ * idle callback (tests, some browsers): each piece is then built when it is
+ * first drawn.
  */
 export const preloadPieceSet = (quality: PieceQuality = 'medium') => {
   if (typeof window === 'undefined' || typeof window.requestIdleCallback !== 'function') return;
-  window.requestIdleCallback(() => pieceSet(quality), { timeout: 4000 });
+  const set = pieceSet(quality);
+  const pending = Object.values(PieceType);
+  const next = () => {
+    const type = pending.shift();
+    if (!type) return;
+    void set[type];
+    window.requestIdleCallback(next, { timeout: 4000 });
+  };
+  window.requestIdleCallback(next, { timeout: 4000 });
 };
