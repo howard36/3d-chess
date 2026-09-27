@@ -9,7 +9,7 @@ import {
   NormalBlending,
   ShaderMaterial,
 } from 'three';
-import type { Group, Mesh } from 'three';
+import type { Group, Mesh, Points } from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { easeInOutCubic } from '../../motion';
 import { movePoint } from '../../movePath';
@@ -113,7 +113,10 @@ const SilverTrail = ({
   height: number;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
-  const [done, setDone] = useState(false);
+  // Finished effects hide themselves on the frame clock (never through React
+  // state, which a recording's virtual clock may not flush in time)
+  const done = useRef(false);
+  const mesh = useRef<Mesh>(null);
   const elapsed = useRef(0);
   const { geometry, material } = useMemo(() => {
     const at = (e: number): Vec3 => {
@@ -178,7 +181,7 @@ const SilverTrail = ({
 
   const lag = 0.28;
   useFrame((_, delta) => {
-    if (done) return;
+    if (done.current) return;
     elapsed.current += Math.min(delta, MAX_FRAME);
     const t = (elapsed.current * 1000) / durationMs;
     const e = (x: number) => easeInOutCubic(clamp01(x));
@@ -186,13 +189,16 @@ const SilverTrail = ({
     // seems to come from it rather than run through it
     material.uniforms.uHead.value = e(t) * 0.97;
     material.uniforms.uTail.value = e(t - lag - Math.max(0, t - 1) * 1.4);
-    if (t > 1 + lag + 0.4) setDone(true);
-    else invalidate();
+    if (t > 1 + lag + 0.4) {
+      done.current = true;
+      if (mesh.current) mesh.current.visible = false;
+    }
+    invalidate();
   });
 
-  if (done) return null;
   return (
     <mesh
+      ref={mesh}
       geometry={geometry}
       material={material}
       renderOrder={LAYER.trace}
@@ -222,7 +228,7 @@ const Ripple = ({
 }) => {
   const mesh = useRef<Mesh>(null);
   const invalidate = useThree((s) => s.invalidate);
-  const [done, setDone] = useState(false);
+  const done = useRef(false);
   const elapsed = useRef(-delayMs / 1000);
   const material = useMemo(
     () =>
@@ -242,7 +248,7 @@ const Ripple = ({
   useEffect(() => () => material.dispose(), [material]);
   useEffect(() => invalidate(), [invalidate]);
   useFrame((_, delta) => {
-    if (done) return;
+    if (done.current) return;
     elapsed.current += Math.min(delta, MAX_FRAME);
     const k = (elapsed.current * 1000) / lifeMs;
     const m = mesh.current;
@@ -252,12 +258,11 @@ const Ripple = ({
       // The ring thins as it spreads
       m.scale.set(r, r, 1);
       material.opacity = k < 0 ? 0 : opacity * (1 - clamp01(k)) ** 1.6;
-      m.visible = k >= 0;
+      m.visible = k >= 0 && k < 1;
     }
-    if (k >= 1) setDone(true);
-    else invalidate();
+    if (k >= 1) done.current = true;
+    invalidate();
   });
-  if (done) return null;
   const inner = 1 - width / radius;
   return (
     <mesh
@@ -407,7 +412,8 @@ const MistPuffs = ({
 }) => {
   const invalidate = useThree((s) => s.invalidate);
   const size = useThree((s) => s.size);
-  const [done, setDone] = useState(false);
+  const done = useRef(false);
+  const points = useRef<Points>(null);
   const elapsed = useRef(-delayMs / 1000);
   const { geometry, material } = useMemo(() => {
     const random = rng(5);
@@ -456,19 +462,22 @@ const MistPuffs = ({
   );
   useEffect(() => invalidate(), [invalidate]);
   useFrame((state, delta) => {
-    if (done) return;
+    if (done.current) return;
     elapsed.current += Math.min(delta, MAX_FRAME);
     material.uniforms.uTime.value = elapsed.current;
     // Point sizes are in pixels: scale world size by the view's pixels per unit at depth 1
     const camera = state.camera as { fov?: number };
     const fov = ((camera.fov ?? 36) * Math.PI) / 180;
     material.uniforms.uScale.value = (size.height * state.viewport.dpr) / (2 * Math.tan(fov / 2));
-    if (elapsed.current > 1.8) setDone(true);
-    else invalidate();
+    if (elapsed.current > 1.8) {
+      done.current = true;
+      if (points.current) points.current.visible = false;
+    }
+    invalidate();
   });
-  if (done) return null;
   return (
     <points
+      ref={points}
       geometry={geometry}
       material={material}
       position={at}
@@ -536,28 +545,24 @@ export const makeCaptureFx = (pieceScale: number) => {
           delayMs={start * 1000}
           height={0.62 * pieceScale}
         />
-        {phase === 'landed' && (
-          <>
-            <Ripple
-              floor={floor}
-              delayMs={0}
-              radius={0.6}
-              width={0.06}
-              color={CAPTURE}
-              opacity={0.6}
-            />
-            <Ripple
-              floor={floor}
-              delayMs={150}
-              radius={0.78}
-              width={0.04}
-              color={CAPTURE}
-              opacity={0.3}
-              lifeMs={820}
-            />
-            <ScreenShake intensity={1.6} durationMs={170} />
-          </>
-        )}
+        <Ripple
+          floor={floor}
+          delayMs={land * 1000}
+          radius={0.6}
+          width={0.06}
+          color={CAPTURE}
+          opacity={0.6}
+        />
+        <Ripple
+          floor={floor}
+          delayMs={land * 1000 + 150}
+          radius={0.78}
+          width={0.04}
+          color={CAPTURE}
+          opacity={0.3}
+          lifeMs={820}
+        />
+        {phase === 'landed' && <ScreenShake intensity={1.6} durationMs={170} />}
       </>
     );
   };

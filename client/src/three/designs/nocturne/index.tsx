@@ -75,7 +75,7 @@ const CameraLights = () => {
   });
   return (
     <>
-      <directionalLight ref={key} intensity={2.3} color="#dbe3f5" />
+      <directionalLight ref={key} intensity={2.55} color="#dbe3f5" />
       <directionalLight ref={rim} intensity={2.1} color="#a9bdf0" />
     </>
   );
@@ -88,13 +88,15 @@ const Stage = () => (
         stays black and shows long moonlit highlights rather than points */}
     <Environment resolution={64} frames={1}>
       <color attach="background" args={['#0a0d18']} />
+      {/* A modest panel overhead: a big one would mirror in every glossy top
+          and turn a black piece seen from above to steel */}
       <Lightformer
         form="rect"
-        intensity={1.3}
+        intensity={0.9}
         color="#dfe7fb"
         position={[0, 8, 0]}
         rotation-x={Math.PI / 2}
-        scale={[10, 10, 1]}
+        scale={[5, 5, 1]}
       />
       {[0, 1, 2, 3].map((i) => (
         <Lightformer
@@ -151,18 +153,21 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
 
 // --- Markers -----------------------------------------------------------------------
 
-/** Radius of the silver ensō where a piece would stand: clear of a piece's level ring. */
+/** Radius of the silver ensō where a piece would stand: clear of a piece's foot wash. */
 const RING = 0.31 * pitch;
-const STROKE = 0.058 * pitch;
+/** A bold brush: as wide as Sumi's at touch-down, a hairline at the lift. */
+const STROKE = 0.075 * pitch;
+/** The level jewel at a mark's heart or on its brush head. */
+const JEWEL = 0.06 * pitch;
 /** The capture's vermilion ensō, round the silver one. */
 const CAPTURE_RING = 0.43 * pitch;
 /** The last move's crescents, round the base of the piece that moved. */
 const CRESCENT = 0.37 * pitch;
 
 /**
- * A legal destination: a silver ensō, the full moon, where the piece would
- * stand, with a fine ring of its level's pigment inside it, so a destination
- * says which level it is on even where levels overlap on screen.
+ * A legal destination: one bold, open silver ensō, the full moon, where the
+ * piece would stand, with a jewel of its level's pigment at its heart, so a
+ * destination says which level it is on even where levels overlap on screen.
  */
 const Quiet = ({ floor, hovered }: MarkerProps) => (
   <InkMark
@@ -170,18 +175,20 @@ const Quiet = ({ floor, hovered }: MarkerProps) => (
     color={MOVE}
     radius={RING}
     width={STROKE}
-    opacity={0.88}
-    fill={0.05}
+    opacity={0.9}
+    fill={0.04}
     mica={0.55}
     levelColor={LEVELS[levelAt(floor)]}
+    jewelRadius={JEWEL}
     hovered={hovered}
     quad={pitch * 0.9}
   />
 );
 
 /**
- * A capture: the same silver ensō round the victim's base, inside a wider
- * vermilion one brushed the other way round.
+ * A capture: the same silver ensō round the victim's base (its jewel on the
+ * brush head, clear of the victim), inside a wider vermilion one brushed the
+ * other way round.
  */
 const Capture = ({ floor, hovered }: MarkerProps) => (
   <>
@@ -190,8 +197,11 @@ const Capture = ({ floor, hovered }: MarkerProps) => (
       color={MOVE}
       radius={RING}
       width={STROKE * 0.9}
-      opacity={0.85}
+      opacity={0.88}
       mica={0.55}
+      levelColor={LEVELS[levelAt(floor)]}
+      jewelRadius={JEWEL * 0.9}
+      jewel="head"
       hovered={hovered}
       quad={pitch * 0.9}
     />
@@ -199,11 +209,11 @@ const Capture = ({ floor, hovered }: MarkerProps) => (
       floor={floor}
       color={CAPTURE}
       radius={CAPTURE_RING}
-      width={STROKE * 1.15}
+      width={STROKE * 0.95}
       opacity={0.95}
       fill={0.07}
       start={-0.9}
-      gap={0.1}
+      gap={0.12}
       hovered={hovered}
       quad={pitch * 1.1}
     />
@@ -213,23 +223,40 @@ const Capture = ({ floor, hovered }: MarkerProps) => (
 /**
  * The selection: a pool of moonlight spreads on the paper under the piece,
  * soft-edged and filled, so it can never be taken for a destination's ring
- * (and a destination straight above or below it still shows through, drawn
- * over it). From the side, the moon halo rising behind the piece says the
- * rest.
+ * (a destination straight above or below still shows through, drawn over
+ * it). From the side, the moon halo rising behind the piece says the rest.
+ * From above, where the halo fades and the piece (or one stacked over it)
+ * hides the pool, a closed, even silver ring, the full moon's disc, fades in
+ * and shows through the whole stack.
  */
 const Selection = ({ floor }: MarkerProps) => (
-  <InkMark
-    floor={floor}
-    kind="pool"
-    color={SELECT}
-    radius={0.46 * pitch}
-    fill={0.32}
-    opacity={0}
-    drawMs={380}
-    quad={pitch}
-    lift={0.008}
-    renderOrder={LAYER.shadow + 0.8}
-  />
+  <>
+    <InkMark
+      floor={floor}
+      kind="pool"
+      color={SELECT}
+      radius={0.46 * pitch}
+      fill={0.32}
+      opacity={0}
+      drawMs={380}
+      quad={pitch}
+      lift={0.008}
+      renderOrder={LAYER.shadow + 0.8}
+    />
+    <InkMark
+      floor={floor}
+      kind="ring"
+      color={SELECT}
+      radius={0.44 * pitch}
+      width={0.03 * pitch}
+      opacity={0.9}
+      drawMs={300}
+      topOnly
+      depthTest={false}
+      quad={pitch}
+      renderOrder={LAYER.trace + 0.5}
+    />
+  </>
 );
 
 /** Angle (in a mark's plane) that points along the move, for the crescents. */
@@ -246,7 +273,8 @@ const crescentStart = (angle: number) => angle - (1 - CRESCENT_GAP) * Math.PI;
 
 /**
  * The last move: a gold crescent on each square, swelling toward where the
- * piece went (the source's thin and faint, the destination's full), joined
+ * piece went (the source's thinner, the destination's full), each with its
+ * level's jewel at its fullest point, joined
  * by a thin gold thread from centre to centre along which a brighter glint
  * slowly flows. A live move draws its thread and destination crescent in as
  * the piece lands; a replayed one shows them whole.
@@ -266,8 +294,10 @@ const LastMove = ({ from, to, fresh, arc = 0 }: LastMoveMarkerProps) => {
         width={STROKE * 1.1}
         gap={CRESCENT_GAP}
         start={crescentStart(angle)}
-        opacity={0.72}
+        opacity={0.85}
         mica={0.5}
+        levelColor={LEVELS[levelAt(from.floor)]}
+        jewelRadius={JEWEL * 0.85}
         quad={pitch * 1.1}
       />
       <InkMark
@@ -280,6 +310,8 @@ const LastMove = ({ from, to, fresh, arc = 0 }: LastMoveMarkerProps) => {
         start={crescentStart(angle)}
         opacity={0.95}
         mica={0.5}
+        levelColor={LEVELS[levelAt(to.floor)]}
+        jewelRadius={JEWEL}
         drawMs={fresh ? 280 : 0}
         delayMs={MOTION.durationMs * 0.85}
         quad={pitch}
@@ -328,22 +360,23 @@ const nocturne: Design = {
   blurb:
     'Sumi by moonlight: porcelain and silver-lined lacquer on night paper, a moon behind the mist.',
   layout,
-  // The mist drifts (outside the tower's silhouette only)
-  continuous: true,
+  // Nothing moves at rest: the sky is a painting, repainted only when the
+  // camera moves (the last move's thread asks for its own frames)
+  continuous: false,
   canvas: { fov: 36, toneMapping: NeutralToneMapping, exposure: 1 },
   Stage,
   Grid,
   // No cell volumes: the brush marks on the paper say it all
   cellFills: { destination: null, lastMove: null },
-  PieceBody: makePieceBody(LEVELS),
+  PieceBody: makePieceBody(LEVELS, pitch),
   pieceScale: PIECE_SCALE,
   knightYaw: KNIGHT_YAW,
   markers: { Quiet, Capture, Selection, LastMove, Check },
   hoverDestinations: true,
-  // The kit's lift, held still (no bob): the moon halo rising behind the
-  // piece is the selection's signature. `true` (not a PieceLift) also makes
-  // Board report `hovered`, which lights the faint hover ring.
-  hoverLift: true,
+  // A small lift, held still (no bob), so a raised piece never seems to
+  // float a rank back or into the sheet above: the moon halo rising behind
+  // it is the selection's signature
+  hoverLift: { hover: 0.05, selected: 0.075 },
   motion: MOTION,
   MoveFx: makeMoveFx(layout.floorY),
   CaptureFx: makeCaptureFx(PIECE_SCALE),

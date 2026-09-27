@@ -55,6 +55,13 @@ const brushStroke = (color: string) =>
     "preserveAspectRatio='none'",
   );
 
+/** A large open ensō, brushed in one stroke with a dry tail. */
+const enso = (color: string) =>
+  svg(
+    `<path d='M28 34 C 44 12, 82 8, 104 26 C 126 44, 124 84, 100 104 C 76 122, 36 118, 20 94 C 10 78, 12 58, 18 46' fill='none' stroke='${color}' stroke-width='9' stroke-linecap='round'/>`,
+    '0 0 130 130',
+  );
+
 /** A small crescent moon. */
 const crescent = (color: string) =>
   svg(`<path d='M13 2 A 10 10 0 1 0 22 16 A 8 8 0 1 1 13 2 Z' fill='${color}'/>`, '0 0 24 24');
@@ -111,8 +118,12 @@ export const hud: DesignHud = {
     '--turn-size': '21px',
     '--turn-border': '1px solid transparent',
     '--turn-shadow': `${DOUBLE_RULE}, 0 10px 28px rgba(0, 0, 0, 0.45)`,
-    // The result card, sealed in its top-right corner like a letter
-    '--modal-bg': `${hanko} no-repeat right 6px top 7px / 40px 40px, radial-gradient(ellipse at 28% 10%, #1d2442 0%, #0d1020 100%)`,
+    // Dialogs (promotion, result) on night paper
+    '--modal-bg': `radial-gradient(ellipse at 28% 10%, #1d2442 0%, #0d1020 100%)`,
+    // The result card: a large title in silver, under a faint brushed ensō
+    // (a full moon) and sealed in its top-right corner like a letter
+    '--result-bg': `${hanko} no-repeat right 8px top 8px / 48px 48px, ${enso('rgba(214, 222, 238, 0.13)')} no-repeat center 30% / 190px 190px, radial-gradient(ellipse at 28% 10%, #1d2442 0%, #0d1020 100%)`,
+    '--result-title-size': '30px',
     '--modal-fg': TEXT,
     '--modal-radius': '2px',
     '--modal-shadow': `${DOUBLE_RULE}, 0 24px 60px rgba(0, 0, 0, 0.6)`,

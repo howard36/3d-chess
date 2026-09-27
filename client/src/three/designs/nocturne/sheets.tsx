@@ -26,8 +26,10 @@ import { fibreTexture, noiseTexture } from './textures';
 // framed by four strokes with a small break at each crossing. The sheet's
 // edge is a bolder stroke of the same pigment, drawn as a camera-facing
 // ribbon so it keeps its width even edge-on. Looking straight down, the five
-// grids would nest into a plaid: there only the focused level (or the top
-// one) keeps its grid, checker and full edge; the others thin to hairlines.
+// grids would nest into a plaid: there only the focused level keeps its
+// grid, checker and full edge, the others (all five when none is focused)
+// thin to hairlines, and every piece draws its own square in its level's
+// pigment (pieces.tsx).
 
 export interface PaperSheetsProps {
   layout: BoardLayout;
@@ -96,9 +98,9 @@ const sheetFragment = /* glsl */ `
     vec2 c = vCell;
     vec3 v = normalize(cameraPosition - vWorld);
     float grazing = 1.0 - abs(v.y);
-    // Looking steeply down the stack (above about 60°), only the reference
-    // level (the focused one, else the top) keeps its grid; the others thin
-    // to a quiet hairline lattice
+    // Looking steeply down the stack (above about 60°), only the focused
+    // level keeps its grid; the others (all five when none is focused) thin
+    // to a quiet hairline lattice, and each piece carries its own square
     float birdsEye = smoothstep(0.84, 0.96, normalize(cameraPosition).y);
     float quiet = birdsEye * (1.0 - uRef);
 
@@ -114,9 +116,14 @@ const sheetFragment = /* glsl */ `
     vec2 cell = floor(c);
     float inside = step(0.0, c.x) * step(c.x, 5.0) * step(0.0, c.y) * step(c.y, 5.0);
     float light = mod(cell.x + cell.y + uLevel, 2.0) * inside * (1.0 - quiet);
-    float paperA = 0.035 + 0.16 * pow(grazing, 2.2) + 0.035 * fib.g;
-    paperA += light * 0.045 + fib.r * 0.065;
-    vec3 paper = uPaper + uSilver * (light * 0.12 + fib.r * 0.25);
+    // Faint and never silvered at grazing angles, where the sheet above lies
+    // over the pieces below: a veil there would pull the armies together
+    float down = 1.0 - grazing;
+    float paperA = 0.03 + 0.07 * pow(grazing, 2.2) + 0.03 * fib.g;
+    paperA += (light * 0.045 + fib.r * 0.06) * down;
+    // Past the outer squares only the deckle's fibres remain
+    paperA *= inside > 0.5 ? 1.0 : 0.45;
+    vec3 paper = uPaper + uSilver * (light * 0.12 + fib.r * 0.25) * down;
 
     // The brushed grid: the four inner lines each way
     float lines = 0.0;
@@ -126,13 +133,14 @@ const sheetFragment = /* glsl */ `
     vec2 fw = fwidth(c);
     // (the strokes are only worked out near a line)
     if (inside > 0.0 && min(abs(c.x - kx), abs(c.y - ky)) < 0.08) {
-      float width = 0.034 * (1.0 + 0.35 * uFocus) * (1.0 - 0.15 * birdsEye) * (1.0 - 0.55 * quiet);
+      float width = 0.034 * (1.0 + 0.12 * uFocus) * (1.0 - 0.15 * birdsEye) * (1.0 - 0.55 * quiet);
       lines = max(stroke(c.x - kx, c.y, kx, width, fw.x), stroke(c.y - ky, c.x + 0.37, ky + 5.0, width, fw.y));
     }
     float emphasis = mix(1.0 - uDim, 1.0, uFocus);
     float bird = 1.0 - 0.75 * quiet;
-    float lineA = lines * min(1.0, uLine * emphasis * bird + uFocus * 0.3);
-    vec3 lineCol = mix(uColor, vec3(1.0), 0.12 + 0.1 * uFocus);
+    // Focus deepens the pigment but never whitens it: the marks stay brighter
+    float lineA = lines * min(1.0, uLine * emphasis * bird + uFocus * 0.08);
+    vec3 lineCol = mix(uColor, vec3(1.0), 0.04);
 
     // Paper under, line over (premultiplied)
     float a = paperA * (1.0 - lineA) + lineA;
@@ -165,7 +173,7 @@ const edgeVertex = /* glsl */ `
     float near = smoothstep(-0.2, 0.6, dot(aNormal.xz, normalize(ground + 1e-5)));
     float wobble = 1.0 + 0.16 * sin(aAlong * 6.0 + aSeed * 4.3) + 0.07 * sin(aAlong * 19.0 + aSeed);
     float quiet = smoothstep(0.84, 0.96, normalize(cameraPosition).y) * (1.0 - uRef);
-    float halfWidth = 0.5 * uWidth * wobble * mix(0.85, 1.2, near) * (1.0 + 0.7 * uFocus) * (1.0 - 0.4 * quiet);
+    float halfWidth = 0.5 * uWidth * wobble * mix(0.85, 1.2, near) * (1.0 + 0.22 * uFocus) * (1.0 - 0.4 * quiet);
     vQuiet = quiet;
     vec3 across = cross(normalize(mat3(modelMatrix) * aTangent), toCamera);
     float l = length(across);
@@ -208,10 +216,10 @@ const edgeFragment = /* glsl */ `
     float n = vnoise(u * 6.0 + vSeed * 13.0) * 0.8 + vnoise(vAlong * 40.0 + u) * 0.2;
     body *= smoothstep(dry * 0.85 - 0.08, dry * 0.85 + 0.08, n);
     body *= 0.86 + 0.14 * vnoise(vAlong * 55.0 + vSeed * 7.0);
-    // Pigment pooled toward the stroke's middle, a silvery bloom at its heart
-    vec3 col = mix(uColor, vec3(1.0), 0.18 * (1.0 - abs(u)) + 0.12 * uFocus);
+    // Pigment pooled toward the stroke's middle, a touch paler at its heart
+    vec3 col = mix(uColor, vec3(1.0), 0.06 * (1.0 - abs(u)));
     float strength = uOpacity * mix(0.8, 1.0, vNear) * mix(1.0 - uDim, 1.0, uFocus) * (1.0 - 0.45 * vQuiet);
-    float a = body * min(1.0, strength + uFocus * 0.2);
+    float a = body * min(1.0, strength);
     if (a < 0.003) discard;
     gl_FragColor = vec4(col, a);
     #include <colorspace_fragment>
@@ -282,8 +290,6 @@ const perimeterGeometry = (side: number): BufferGeometry => {
 /** Paper colour of the sheets: a silvery indigo, laid on very thin. */
 const PAPER = '#39426a';
 const SILVER = '#c8d2ea';
-/** The top level: the one a bird's-eye view keeps when no level is focused. */
-const TOP = 4;
 /** How far the paper reaches past the outer squares (in squares). */
 const MARGIN = 0.14;
 
@@ -310,7 +316,7 @@ export const PaperSheets = ({ layout, colors, focusLevel = null }: PaperSheetsPr
               uFocus: { value: 0 },
               uDim: { value: 0 },
               uLine: { value: 0.62 },
-              uRef: { value: z === TOP ? 1 : 0 },
+              uRef: { value: 0 },
             },
             vertexShader: sheetVertex,
             fragmentShader: sheetFragment,
@@ -330,10 +336,10 @@ export const PaperSheets = ({ layout, colors, focusLevel = null }: PaperSheetsPr
             side: DoubleSide,
             uniforms: {
               uColor: { value: new Color(colors[z] ?? colors[colors.length - 1]) },
-              uOpacity: { value: 0.9 },
+              uOpacity: { value: 0.78 },
               uWidth: { value: 0.055 },
               uFocus: { value: 0 },
-              uRef: { value: z === TOP ? 1 : 0 },
+              uRef: { value: 0 },
               uDim: { value: 0 },
             },
             vertexShader: edgeVertex,
@@ -366,9 +372,9 @@ export const PaperSheets = ({ layout, colors, focusLevel = null }: PaperSheetsPr
         for (const m of [sheets[z], edges[z]]) {
           if (!m) continue;
           m.uniforms.uFocus.value = w;
-          m.uniforms.uDim.value = any * 0.35;
-          // The level the bird's-eye view keeps: the focused one, else the top
-          m.uniforms.uRef.value = w + (1 - any) * (z === TOP ? 1 : 0);
+          m.uniforms.uDim.value = any * 0.5;
+          // The level the bird's-eye view keeps: the focused one only
+          m.uniforms.uRef.value = w;
         }
       });
     },

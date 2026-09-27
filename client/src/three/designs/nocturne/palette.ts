@@ -1,4 +1,4 @@
-import { levelRamp } from '../kit/colors';
+import { oklchToHex } from '../kit/colors';
 
 // Nocturne's palette, planned by value before hue. It is Sumi by moonlight:
 // the paper has gone indigo-black and the ink has turned to silver, so the
@@ -29,34 +29,42 @@ export const NIGHT = {
 export const MOUNTAINS = ['#1c2341', '#151a33', '#0f1329', '#090c19'];
 /** The silver of a moonlit ridge line, and of the ink the world is drawn in. */
 export const RIDGE_SILVER = '#8e9bbd';
-/** The moon: a cool silver disc, with a warmer haze round it. */
-export const MOON = '#dfe5f1';
+/** The moon: a greyed silver disc (the pure silver is the marks'), with a haze round it. */
+export const MOON = '#c7ccd7';
 export const MOON_HAZE = '#6e7aa3';
 
 /**
  * Each level's own pigment, A (bottom) to E (top): malachite, verdigris,
- * azurite, lapis and amethyst, evenly spaced in hue and lightening a little
- * with height (toward the moon), so they read as one gradient up the tower
- * while neighbours stay at least 0.1 apart in OKLab. They colour a level's brushed edge and grid, its letter and the
- * band at the foot of every piece standing on it.
+ * azurite, lapis and amethyst. A cool gradient up the tower, each a real
+ * colour at full strength (lapis is set deeper and more saturated so it
+ * never greys toward the silver marks), neighbours at least 0.1 apart in
+ * OKLab. They colour a level's brushed edge and grid, its letter, the foot
+ * band and wash of every piece on it, and the jewel in every mark on it.
  */
-export const LEVELS = levelRamp({ from: 138, to: 318, lightness: [0.7, 0.82], chroma: 0.135 });
+export const LEVELS = [
+  { l: 0.7, c: 0.135, h: 140 },
+  { l: 0.74, c: 0.13, h: 182 },
+  { l: 0.79, c: 0.12, h: 234 },
+  { l: 0.66, c: 0.175, h: 266 },
+  { l: 0.8, c: 0.13, h: 320 },
+].map(oklchToHex);
 
 /** White army: porcelain, a touch cool under the moon. */
 export const PORCELAIN = '#eceef2';
 /** Its drawn line and painted details: sumi ink, blue-black. */
 export const INK = '#0b0d16';
 /** Black army: urushi lacquer, a deep blue-black. */
-export const LACQUER = '#171b2c';
+export const LACQUER = '#1c2236';
 /** Its drawn line, painted details and moonlit rim: silver. */
 export const SILVER = '#c3cde0';
 export const RIM = '#9fb2dc';
 /**
- * Inlay at the collars and the pieces' details: indigo sumi on porcelain,
- * pewter on lacquer. Never a marker colour: no gold (the last move), no
- * bright silver (a destination).
+ * Inlay at the collars and the pieces' details: cobalt underglaze on
+ * porcelain (blue-and-white, sometsuke), pewter on lacquer. Never a marker
+ * colour: no gold (the last move), no bright silver (a destination), and the
+ * cobalt is far deeper than any level's pigment.
  */
-export const INLAY_INK = '#1e2436';
+export const INLAY_INK = '#34508f';
 export const INLAY_PEWTER = '#737d95';
 
 /** Legal destinations: a silver ensō, the full moon. */

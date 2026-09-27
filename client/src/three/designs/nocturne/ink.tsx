@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Color, DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
+import { Color, DoubleSide, PlaneGeometry, ShaderMaterial, Vector2 } from 'three';
 import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import type { Vec3 } from '../types';
@@ -9,21 +9,25 @@ import type { Vec3 } from '../types';
 // pigment, drawn procedurally on a flat quad so it stays crisp at any
 // distance and lies exactly on the paper:
 //
-// - 'enso'     one open brush circle, heavy where the brush comes down and
-//              thinning as it lifts (the full moon: where a piece may go);
+// - 'enso'     one bold, open brush circle, loaded where the brush comes
+//              down and thinning to a dry, broken tail as it lifts (the full
+//              moon: where a piece may go);
 // - 'crescent' a stroke swelling in the middle and tapering to two points
 //              (the last move's squares), turned to face along the move;
 // - 'seal'     a square hanko with a double border, pressed a little
 //              unevenly (check);
-// - 'pool'     a pool of moonlight with a fine ring at its rim (selection).
+// - 'pool'     a pool of moonlight (selection);
+// - 'ring'     a closed, even ring (the selection, seen from above).
 //
+// A mark may carry a jewel: a drop of the level's pigment with a fine ink
+// rim, at its heart or on its brush head, saying which level it lies on.
 // Silver and gold marks carry flecks of mica that glint as the view turns,
 // as mica does on a woodblock print: still while the camera is.
 
 const MAX_FRAME = 1 / 30;
 
-export type InkKind = 'enso' | 'crescent' | 'seal' | 'pool';
-const KIND: Record<InkKind, number> = { enso: 0, crescent: 1, seal: 2, pool: 3 };
+export type InkKind = 'enso' | 'crescent' | 'seal' | 'pool' | 'ring';
+const KIND: Record<InkKind, number> = { enso: 0, crescent: 1, seal: 2, pool: 3, ring: 4 };
 
 const vertexShader = /* glsl */ `
   varying vec2 vP;
@@ -51,7 +55,9 @@ const fragmentShader = /* glsl */ `
   uniform float uDry;
   uniform float uMica;
   uniform vec3 uLevelColor;
-  uniform float uLevelRing;
+  uniform float uJewel;
+  uniform vec2 uJewelAt;
+  uniform float uTopOnly;
   varying vec2 vP;
   varying vec3 vWorld;
 
@@ -100,8 +106,8 @@ const fragmentShader = /* glsl */ `
       float rr = uR * (1.0 + 0.012 * wobble(a, uSeed) + (uKind == 0 ? 0.03 * (s - 0.5) : 0.0));
       float w;
       if (uKind == 0) {
-        // Ensō: loaded at the touch-down, thinning as the brush lifts
-        w = uW * hover * mix(1.15, 0.5, pow(clamp(s, 0.0, 1.0), 1.2));
+        // Ensō: loaded at the touch-down, thinning hard as the brush lifts
+        w = uW * hover * mix(1.35, 0.3, pow(clamp(s, 0.0, 1.0), 1.1));
       } else {
         // Crescent: swelling to its middle, a point at each end
         w = uW * hover * pow(max(sin(3.14159 * clamp(s, 0.0, 1.0)), 0.0), 0.75);
@@ -112,12 +118,12 @@ const fragmentShader = /* glsl */ `
       if (uKind == 0 && drawn > 0.0) {
         // The brush's round head where it touched down
         vec2 p0 = rr * vec2(cos(uStart), sin(uStart));
-        d = min(d, length(p - p0) - uW * hover * 0.58);
+        d = min(d, length(p - p0) - uW * hover * 0.7);
       }
       line = cover(d, aa);
       // Dry brush toward the lift
       float across = clamp((r - rr) / max(w, 1e-4) + 0.5, 0.0, 1.0);
-      float dry = uDry * smoothstep(0.55, 1.0, s) * (uKind == 0 ? 1.0 : 0.0);
+      float dry = uDry * smoothstep(0.42, 1.0, s) * (uKind == 0 ? 1.0 : 0.0);
       float n = vnoise(vec2(across * 9.0 + uSeed * 7.0, s * 3.0)) * 0.7 + vnoise(vec2(s * 30.0, across * 3.0)) * 0.3;
       line *= smoothstep(dry * 0.8 - 0.08, dry * 0.8 + 0.08, n);
       rim = smoothstep(0.3, 0.5, abs(across - 0.5)) * line;
@@ -134,16 +140,20 @@ const fragmentShader = /* glsl */ `
       line = max(outer, inner) * mix(0.55, 1.0, bite);
       area = cover(box + w * 1.8, aa) * (0.75 + 0.25 * vnoise(p * 18.0 + uSeed));
       rim = 0.0;
-    } else {
+    } else if (uKind == 3) {
       // A pool of moonlight, and the fine ring of its rim
       float rr = uR * uProgress;
       area = exp(-pow(r / max(rr, 1e-4), 2.0) * 2.2) * step(0.001, uProgress);
       line = cover(abs(r - rr) - uW * 0.5, aa) * step(0.001, uProgress);
+    } else {
+      // A closed, even ring, drawn in as it appears
+      float rr = uR * (0.85 + 0.15 * uProgress);
+      line = cover(abs(r - rr) - uW * 0.5, aa) * uProgress;
     }
 
     float strength = uOpacity * dens * (1.0 + 0.3 * uHover);
     float alpha = max(line * strength, area * (uFill + 0.2 * uHover));
-    if (alpha < 0.003 && uLevelRing <= 0.0) discard;
+    if (alpha < 0.003 && uJewel <= 0.0) discard;
     // Under the pointer the pigment brightens toward moonlight
     vec3 col = mix(uColor, vec3(1.0), 0.35 * uHover) * mix(1.0, 0.8, rim);
     // Mica: flecks in the stroke that catch the light as the view turns
@@ -157,12 +167,22 @@ const fragmentShader = /* glsl */ `
       }
     }
     alpha = min(alpha, 1.0);
-    // The destination's level: a fine ring of its pigment inside the ensō
-    if (uLevelRing > 0.0) {
-      float lr = cover(abs(r - uR * 0.6) - uW * 0.16, aa) * uLevelRing;
-      float a2 = alpha + lr * (1.0 - alpha);
-      col = (col * alpha + uLevelColor * lr * (1.0 - alpha)) / max(a2, 1e-4);
-      alpha = a2;
+    // The jewel: a drop of the level's pigment with a fine ink rim, laid over
+    // the stroke once the brush has passed it
+    if (uJewel > 0.0) {
+      float dj = length(p - uJewelAt);
+      float ajj = max(fwidth(dj), 1e-4);
+      float drop = cover(dj - uJewel, ajj) * step(0.001, uProgress);
+      float inner = cover(dj - (uJewel - ajj * 1.4), ajj);
+      vec3 jc = mix(vec3(0.02, 0.03, 0.06), uLevelColor, inner);
+      col = mix(col, jc, drop);
+      alpha = max(alpha, drop);
+      if (alpha < 0.003) discard;
+    }
+    // Some marks are only for the bird's-eye view
+    if (uTopOnly > 0.0) {
+      float up = normalize(cameraPosition - vWorld).y;
+      alpha *= mix(1.0, smoothstep(0.7, 0.9, up), uTopOnly);
       if (alpha < 0.003) discard;
     }
     gl_FragColor = vec4(col, alpha);
@@ -202,9 +222,16 @@ export interface InkMarkProps {
   dry?: number;
   /** Mica glints in the stroke (0: none). */
   mica?: number;
-  /** A fine ring of this colour inside an ensō: the level of the square it marks. */
+  /** The level of the square it marks: a jewel of this pigment. */
   levelColor?: string;
-  levelOpacity?: number;
+  /** Radius of the jewel (world units). */
+  jewelRadius?: number;
+  /** Where the jewel sits: the mark's heart, its brush head, or (auto) the heart of an ensō only. */
+  jewel?: 'centre' | 'head' | 'auto';
+  /** Show only in steep views (the bird's-eye view), fading in from about 45°. */
+  topOnly?: boolean;
+  /** Test against depth (off: shows through pieces and platforms). */
+  depthTest?: boolean;
   /** Draw the stroke in (or spread the pool) over this long; 0 shows it at once. */
   drawMs?: number;
   delayMs?: number;
@@ -223,13 +250,16 @@ export const InkMark = ({
   fill = 0,
   radius = 0.3,
   width = 0.06,
-  gap = 0.08,
+  gap = 0.16,
   start,
   hovered = false,
-  dry = 0.45,
+  dry = 0.6,
   mica = 0,
   levelColor,
-  levelOpacity = 0.9,
+  jewelRadius = 0.06,
+  jewel = 'auto',
+  topOnly = false,
+  depthTest = true,
   drawMs = 0,
   delayMs = 0,
   quad = 1,
@@ -263,7 +293,9 @@ export const InkMark = ({
           uDry: { value: 0.45 },
           uMica: { value: 0 },
           uLevelColor: { value: new Color() },
-          uLevelRing: { value: 0 },
+          uJewel: { value: 0 },
+          uJewelAt: { value: new Vector2() },
+          uTopOnly: { value: 0 },
         },
         vertexShader,
         fragmentShader,
@@ -288,8 +320,18 @@ export const InkMark = ({
   u.uSeed.value = seed * 10;
   u.uDry.value = dry;
   u.uMica.value = mica;
-  u.uLevelRing.value = levelColor ? levelOpacity : 0;
+  // The jewel sits at the mark's heart, or on its brush head
+  const touchDown = u.uStart.value as number;
+  const jewelAngle = kind === 'crescent' ? touchDown + (1 - gap) * Math.PI : touchDown;
+  const head = jewel === 'head' || (jewel === 'auto' && kind !== 'enso');
+  u.uJewel.value = levelColor ? jewelRadius : 0;
+  (u.uJewelAt.value as Vector2).set(
+    head ? Math.cos(jewelAngle) * radius : 0,
+    head ? Math.sin(jewelAngle) * radius : 0,
+  );
   if (levelColor) (u.uLevelColor.value as Color).set(levelColor);
+  u.uTopOnly.value = topOnly ? 1 : 0;
+  material.depthTest = depthTest;
 
   // Brush-in: eased once, then the mark holds still
   const elapsed = useRef(-delayMs / 1000);

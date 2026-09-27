@@ -16,19 +16,10 @@ import { PieceType } from '../../../engine/pieces';
 import { ChessPiece, buildPieceSet, partsGeometry, pieceTop } from '../../pieces';
 import type { PieceSet } from '../../pieces';
 import { LAYER } from '../kit/layers';
+import { FLOOR_DECAL } from '../kit/motion';
 import { noRaycast } from '../kit/noRaycast';
 import type { PieceBodyProps, PieceColor } from '../types';
-import {
-  CHECK,
-  INLAY_INK,
-  INLAY_PEWTER,
-  INK,
-  LACQUER,
-  PORCELAIN,
-  RIM,
-  SELECT,
-  SILVER,
-} from './palette';
+import { CHECK, INLAY_INK, INLAY_PEWTER, INK, LACQUER, PORCELAIN, RIM, SELECT } from './palette';
 import { floorTexture } from './textures';
 
 // The armies: glazed porcelain against black urushi lacquer, on the shared
@@ -43,9 +34,10 @@ import { floorTexture } from './textures';
 // The foot band is the level's pigment.
 //
 // Selection is a moonrise: a silver halo rises behind the piece, a ring of
-// light with a faint disc inside it, and the piece's line thickens. A piece
-// under the pointer gets the ring alone, faintly. In check, the king's line
-// turns vermilion over its seal.
+// light with a faint disc inside it, while the piece itself (line and all)
+// keeps its army's value. A piece under the pointer gets the ring alone,
+// faintly. In check, the line round the king's head turns vermilion over its
+// seal.
 
 // --- Geometry ------------------------------------------------------------------
 
@@ -95,35 +87,50 @@ export const hullGeometry = (type: PieceType): BufferGeometry => {
 
 // --- Materials -------------------------------------------------------------------
 
-export type PieceState = 'rest' | 'hovered' | 'selected' | 'check';
-
 /**
  * A standard material with a fresnel rim added after lighting: a soft edge
- * of `rim` colour where the surface turns away from the viewer.
+ * of `rim` colour where the surface turns away from the viewer. With `band`,
+ * also a broad soft clear-coat highlight down the key side (the viewer's
+ * left, where the camera's key light is), as a tall strip light would lay on
+ * lacquer: it follows the camera, and it spares surfaces facing the viewer,
+ * so a top-down view keeps every top dark.
  */
-const withRim = (m: MeshStandardMaterial, rim: string, strength: number, power: number) => {
+const withRim = (
+  m: MeshStandardMaterial,
+  rim: string,
+  strength: number,
+  power: number,
+  band = 0,
+) => {
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uRim = { value: new Color(rim) };
     shader.uniforms.uRimStrength = { value: strength };
     shader.uniforms.uRimPower = { value: power };
+    shader.uniforms.uBand = { value: band };
     shader.fragmentShader = shader.fragmentShader
       .replace(
         'void main() {',
-        'uniform vec3 uRim;\nuniform float uRimStrength;\nuniform float uRimPower;\nvoid main() {',
+        'uniform vec3 uRim;\nuniform float uRimStrength;\nuniform float uRimPower;\nuniform float uBand;\nvoid main() {',
       )
       .replace(
         '#include <opaque_fragment>',
         `{
           vec3 rimView = normalize(vViewPosition);
-          float rimK = pow(1.0 - clamp(abs(dot(normal, rimView)), 0.0, 1.0), uRimPower);
+          float facing = clamp(abs(dot(normal, rimView)), 0.0, 1.0);
+          float rimK = pow(1.0 - facing, uRimPower);
           // Stronger toward the top: moonlight comes from above
           rimK *= 0.6 + 0.4 * clamp(normal.y * 0.5 + 0.5, 0.0, 1.0);
           outgoingLight += uRim * rimK * uRimStrength;
+          if (uBand > 0.0) {
+            float strip = exp(-pow((normal.x + 0.5) / 0.2, 2.0));
+            strip *= 1.0 - smoothstep(0.55, 0.85, abs(normal.y));
+            outgoingLight += uRim * strip * uBand;
+          }
         }
         #include <opaque_fragment>`,
       );
   };
-  m.customProgramCacheKey = () => `nocturne-rim-${rim}-${strength}-${power}`;
+  m.customProgramCacheKey = () => `nocturne-rim-${rim}-${strength}-${power}-${band}`;
   return m;
 };
 
@@ -143,7 +150,7 @@ export const bodyMaterial = (color: PieceColor) => {
               color: PORCELAIN,
               roughness: 0.26,
               metalness: 0,
-              envMapIntensity: 0.75,
+              envMapIntensity: 1.0,
             }),
             '#b8c6e6',
             0.18,
@@ -159,6 +166,7 @@ export const bodyMaterial = (color: PieceColor) => {
             RIM,
             0.45,
             2.8,
+            0.16,
           );
     bodies.set(color, m);
   }
@@ -202,7 +210,9 @@ export const footMaterial = (color: string) => {
 const hullVertex = /* glsl */ `
   attribute vec3 aOutline;
   uniform float uWidth;
+  varying float vY;
   void main() {
+    vY = position.y;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     vec3 n = normalize(normalMatrix * aOutline);
     // Inflate in proportion to depth: the line keeps one width on screen
@@ -212,24 +222,42 @@ const hullVertex = /* glsl */ `
 
 const hullFragment = /* glsl */ `
   uniform vec3 uColor;
+  uniform vec3 uTopColor;
+  uniform float uSplit;
   uniform float uOpacity;
+  varying float vY;
   void main() {
-    gl_FragColor = vec4(uColor, uOpacity);
+    // Above the split (a king's head, in check) the line takes the top colour
+    vec3 col = mix(uColor, uTopColor, smoothstep(uSplit - 0.02, uSplit + 0.02, vY));
+    gl_FragColor = vec4(col, uOpacity);
     #include <colorspace_fragment>
   }`;
 
 /**
  * The drawn line: the piece's own mesh, inflated and drawn from the back, so
  * only a rim of it shows round the silhouette. `width` is an angle (radians
- * of view per unit of depth); 0.0015 is about 1.6 px at a 720 px view.
+ * of view per unit of depth); 0.0015 is about 1.6 px at a 720 px view. Above
+ * `split` (piece units) it is drawn in `top` instead.
  */
-export const hullMaterial = (color: string, width: number) =>
+export const hullMaterial = (
+  color: string,
+  width: number,
+  {
+    top = color,
+    split = 1e3,
+    opacity = 1,
+  }: { top?: string; split?: number; opacity?: number } = {},
+) =>
   new ShaderMaterial({
     side: BackSide,
+    transparent: opacity < 1,
+    depthWrite: opacity >= 1,
     uniforms: {
       uColor: { value: new Color(color) },
+      uTopColor: { value: new Color(top) },
+      uSplit: { value: split },
       uWidth: { value: width },
-      uOpacity: { value: 1 },
+      uOpacity: { value: opacity },
     },
     vertexShader: hullVertex,
     fragmentShader: hullFragment,
@@ -238,18 +266,26 @@ export const hullMaterial = (color: string, width: number) =>
 const LINE = 0.0014;
 /** The lacquer's line: silver, a little dimmer than the marks, so black still reads as black. */
 const SILVER_LINE = '#97a3c2';
-export const hulls: Record<PieceColor, Record<PieceState, ShaderMaterial>> = {
+/** Where a king's head begins (piece units): in check, only the line above it turns vermilion. */
+const CROWN = 0.56;
+
+/**
+ * Each army's drawn line, the same in every state: a piece keeps its army's
+ * value whatever happens to it (a thicker ink line would turn a small
+ * porcelain piece to the black army's value, a glow round a lacquer one
+ * would pale it toward porcelain). Hover and selection are said behind and
+ * under the piece instead (the moon halo, the pool, the ring from above). In
+ * check only the line round the king's head turns vermilion; the seal under
+ * it carries the rest.
+ */
+export const lines: Record<PieceColor, { rest: ShaderMaterial; check: ShaderMaterial }> = {
   white: {
     rest: hullMaterial(INK, LINE),
-    hovered: hullMaterial(INK, LINE * 1.35),
-    selected: hullMaterial(INK, LINE * 1.6),
-    check: hullMaterial(CHECK, LINE * 1.3),
+    check: hullMaterial(INK, LINE, { top: CHECK, split: CROWN }),
   },
   black: {
     rest: hullMaterial(SILVER_LINE, LINE * 0.85),
-    hovered: hullMaterial(SILVER, LINE * 1.2),
-    selected: hullMaterial(SILVER, LINE * 1.25),
-    check: hullMaterial(CHECK, LINE * 1.25),
+    check: hullMaterial(SILVER_LINE, LINE * 0.85, { top: CHECK, split: CROWN }),
   },
 };
 
@@ -368,9 +404,11 @@ const MoonHalo = ({ level, height }: { level: 0 | 1 | 2; height: number }) => {
 
 /**
  * Keeps its children on the floor while the piece above them is lifted
- * (Board wraps a body in the kit's Lift): it reads how far that Lift has
- * raised the body and moves back down by as much. It mounts a frame late on
- * purpose, so its frame callback runs after the Lift's.
+ * (Board wraps a lifted body in the kit's Lift, tagged `userData.lift`): it
+ * reads how far that Lift has raised the body and moves back down by as
+ * much. Anywhere else (a gallery, an effect) it leaves them where they are.
+ * It mounts a frame late on purpose, so its frame callback runs after the
+ * Lift's.
  */
 const OnFloor = ({ children }: { children: React.ReactNode }) => {
   const [late, setLate] = useState(false);
@@ -387,19 +425,35 @@ const OnFloor = ({ children }: { children: React.ReactNode }) => {
 const FollowFloor = ({ group }: { group: React.RefObject<Group | null> }) => {
   useFrame(() => {
     const g = group.current;
-    const lift = g?.parent?.position.y ?? 0;
+    const parent = g?.parent;
+    const lift = parent?.userData.lift ? parent.position.y : 0;
     if (g && g.position.y !== -lift) g.position.y = -lift;
   });
   return null;
 };
 
-const floorQuad = new PlaneGeometry(0.9, 0.9).rotateX(-Math.PI / 2);
+/**
+ * The floor quad's side (piece units): room for the square footprint (0.92
+ * of a square, in world units), even under a knight turned a little.
+ */
+const FLOOR = 1.5;
+const floorQuad = new PlaneGeometry(FLOOR, FLOOR).rotateX(-Math.PI / 2);
 
 const floorVertex = /* glsl */ `
+  uniform float uSize;
   varying vec2 vUv;
+  varying vec2 vOffset;
+  varying float vUp;
   void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    // The wash texture covers the middle 0.9 of a piece unit
+    vUv = (uv - 0.5) * (uSize / 0.9) + 0.5;
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vec4 centre = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+    // World offset from the piece's centre: the square stays square to the
+    // board even under a turned knight
+    vOffset = world.xz - centre.xz;
+    vUp = normalize(cameraPosition - centre.xyz).y;
+    gl_Position = projectionMatrix * viewMatrix * world;
   }`;
 
 const floorFragment = /* glsl */ `
@@ -408,11 +462,23 @@ const floorFragment = /* glsl */ `
   uniform vec3 uShadow;
   uniform float uShadowOpacity;
   uniform float uWashOpacity;
+  uniform float uHalf;
+  uniform float uLine;
   varying vec2 vUv;
+  varying vec2 vOffset;
+  varying float vUp;
   void main() {
-    vec4 t = texture2D(uMap, vUv);
+    vec2 inTex = step(vec2(0.0), vUv) * step(vUv, vec2(1.0));
+    vec4 t = texture2D(uMap, clamp(vUv, 0.0, 1.0)) * inTex.x * inTex.y;
     float wash = t.r * uWashOpacity;
     float shadow = t.g * uShadowOpacity;
+    // Seen from above, the piece's own square in its level's pigment, so it
+    // reads against the right grid whatever level it stands on
+    float birdsEye = smoothstep(0.84, 0.96, vUp);
+    float box = max(abs(vOffset.x), abs(vOffset.y));
+    float aa = max(fwidth(box), 1e-4);
+    float square = (1.0 - smoothstep(uLine * 0.5 - aa, uLine * 0.5 + aa, abs(box - uHalf))) * birdsEye;
+    wash = max(wash, square * 0.42);
     // The pigment laid over the shadow
     float a = wash + shadow * (1.0 - wash);
     if (a < 0.003) discard;
@@ -423,11 +489,14 @@ const floorFragment = /* glsl */ `
 
 const floors = new Map<string, ShaderMaterial>();
 /**
- * What a piece leaves on the paper, in one mesh: a soft shadow and a wash of
- * its level's pigment bled into the paper round its foot (piece units).
+ * What a piece leaves on the paper, in one mesh: a soft shadow, a wash of
+ * its level's pigment bled into the paper round its foot, and (seen from
+ * above) the outline of its square in that pigment. `pitch` is the board's,
+ * in world units.
  */
-const floorMaterial = (color: string) => {
-  let m = floors.get(color);
+const floorMaterial = (color: string, pitch: number) => {
+  const key = `${color}/${pitch}`;
+  let m = floors.get(key);
   if (!m) {
     m = new ShaderMaterial({
       transparent: true,
@@ -442,27 +511,30 @@ const floorMaterial = (color: string) => {
         uShadowOpacity: { value: 0.62 },
         // Quieter than any marker: a level's pigment, never its highlight
         uWashOpacity: { value: 0.36 },
+        uSize: { value: FLOOR },
+        uHalf: { value: pitch * 0.46 },
+        uLine: { value: pitch * 0.03 },
       },
       vertexShader: floorVertex,
       fragmentShader: floorFragment,
     });
-    floors.set(color, m);
+    floors.set(key, m);
   }
   return m;
 };
 
-/** One piece's meshes, with its line, in the given materials. */
+/** One piece's meshes, with its line. */
 export const PieceMeshes = ({
   type,
   color,
   body,
-  hull,
+  line,
   foot,
 }: {
   type: PieceType;
   color: PieceColor;
   body: Material;
-  hull: Material;
+  line: Material;
   foot: Material;
 }) => (
   <>
@@ -478,7 +550,7 @@ export const PieceMeshes = ({
         foot,
       }}
     />
-    <mesh geometry={hullGeometry(type)} material={hull} raycast={noRaycast} />
+    <mesh geometry={hullGeometry(type)} material={line} raycast={noRaycast} />
   </>
 );
 
@@ -487,11 +559,12 @@ const haloHeight = (type: PieceType) => pieceTop(nocturneSet(), type) * 0.5;
 
 /**
  * A piece on its platform: a soft shadow and a wash of its level's pigment
- * on the paper (both stay down when the piece lifts), the piece with
- * its line and its foot band in the same pigment, and the moon halo that
- * rises behind it when it is picked up.
+ * on the paper (both stay down when the piece lifts, and are floor decals,
+ * so the kit hides them under a toppled king), the piece with its line and
+ * its foot band in the same pigment, and the moon halo that rises behind it
+ * when it is picked up. `pitch` is the board's square, in world units.
  */
-export const makePieceBody = (levels: string[]) => {
+export const makePieceBody = (levels: string[], pitch: number) => {
   const NocturnePieceBody = ({
     type,
     color,
@@ -500,30 +573,24 @@ export const makePieceBody = (levels: string[]) => {
     inCheck,
     level,
   }: PieceBodyProps) => {
-    const state: PieceState = inCheck
-      ? 'check'
-      : selected
-        ? 'selected'
-        : hovered
-          ? 'hovered'
-          : 'rest';
     const pigment = levels[level ?? 0] ?? levels[0];
     return (
       <>
         <OnFloor>
           <mesh
             geometry={floorQuad}
-            material={floorMaterial(pigment)}
+            material={floorMaterial(pigment, pitch)}
             position={[0, 0.006, 0]}
             renderOrder={LAYER.shadow}
             raycast={noRaycast}
+            userData={FLOOR_DECAL}
           />
         </OnFloor>
         <PieceMeshes
           type={type}
           color={color}
           body={bodyMaterial(color)}
-          hull={hulls[color][state]}
+          line={inCheck ? lines[color].check : lines[color].rest}
           foot={footMaterial(pigment)}
         />
         <MoonHalo level={selected ? 2 : hovered ? 1 : 0} height={haloHeight(type)} />

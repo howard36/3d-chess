@@ -14,7 +14,6 @@ import {
   WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
-import { prefersReducedMotion } from '../../motion';
 import { MOON, MOON_HAZE, MOUNTAINS, NIGHT, RIDGE_SILVER } from './palette';
 import { noiseTexture, ridgeTexture } from './textures';
 
@@ -28,24 +27,30 @@ import { noiseTexture, ridgeTexture } from './textures';
 // a few dark peaks breaking through it.
 //
 // Everything is computed from the view direction, so it is crisp at any zoom
-// and right from every side. The mist drifts, very slowly, but never behind
-// the tower: every view ray is tested against the tower's own box (from the
-// current camera, at any distance and angle), and where it passes through
-// or near it the drifting mist gives way to a still copy, the silver lines
-// (ridges, contours, stars, the moon's ring) fade out entirely and the moon
-// dims, so nothing bright or moving ever shows through the platforms.
+// and right from every side. Nothing in it moves: it is a painting. Every
+// view ray is tested against the tower's own box (from the current camera,
+// at any distance and angle), and where it passes through or near it the
+// silver lines (ridges, contours, stars, the moon's ring) and the
+// piece-like shapes (pines, the pagoda) give way entirely and the moon all
+// but vanishes, so nothing bright or shaped like a piece ever shows through
+// the platforms.
 
 const RADIUS = 160;
 const DEG = Math.PI / 180;
 
 /** The world's horizon sits a little below eye level: we are high above the valley. */
 const HORIZON = -3;
-/** The moon: azimuth and elevation in degrees (to the upper left of the opening view). */
-const MOON_AZ = 214;
-const MOON_EL = -4.6;
-const MOON_R = 3.2;
-/** The pagoda: azimuth (to the right of the opening view, on the second range). */
-const TEMPLE_AZ = 178;
+/**
+ * The moon: azimuth and elevation in degrees. Low over the far ranges to the
+ * right of the tower in the opening view (which looks toward azimuth 196°,
+ * its top edge on the horizon), clear of every HUD panel, and small and dim:
+ * the brightest silver belongs to the marks.
+ */
+const MOON_AZ = 176;
+const MOON_EL = -6.2;
+const MOON_R = 2.4;
+/** The pagoda: azimuth (on the second range, off to the left of the opening view). */
+const TEMPLE_AZ = 242;
 /**
  * The calm zone: the tower's box (half its width and height, world units,
  * platforms, pieces on the top level and a margin included) and how far past
@@ -83,7 +88,6 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uMoonDir;
   uniform float uMoonR;
   uniform float uTempleAz;
-  uniform float uTime;
   uniform sampler2D uRidges;
   uniform sampler2D uNoise;
   uniform vec2 uTowerHalf;
@@ -201,8 +205,8 @@ const fragmentShader = /* glsl */ `
     // --- The moon -------------------------------------------------------------
     float mAng = degrees(acos(clamp(dot(d, uMoonDir), -1.0, 1.0)));
     // Haze: a wide soft glow and a tighter one, and the faint 22° halo ring
-    float moonCalm = mix(0.35, 1.0, outside);
-    col += uHaze * (0.16 * exp(-mAng / 9.0) + 0.16 * exp(-mAng / 2.6)) * moonCalm;
+    float moonCalm = mix(0.06, 1.0, outside);
+    col += uHaze * (0.08 * exp(-mAng / 9.0) + 0.06 * exp(-mAng / 2.6)) * moonCalm;
     col += uHaze * 0.035 * exp(-pow((mAng - 22.0) / 1.1, 2.0)) * outside;
     float disc = 1.0 - smoothstep(uMoonR - 0.25 - aa, uMoonR + 0.1 + aa, mAng);
     if (disc > 0.0) {
@@ -211,7 +215,7 @@ const fragmentShader = /* glsl */ `
       float maria = smoothstep(0.45, 0.75, fbm3(mp * 0.55 + 3.0));
       float limb = sqrt(max(0.0, 1.0 - pow(mAng / uMoonR, 2.0)));
       vec3 moon = uMoon * (0.8 + 0.2 * limb) * (1.0 - 0.13 * maria);
-      col = mix(col, moon, disc * 0.52 * moonCalm);
+      col = mix(col, moon, disc * 0.25 * moonCalm);
     }
 
     // --- Stars, sparse and still, above the horizon --------------------------
@@ -246,7 +250,8 @@ const fragmentShader = /* glsl */ `
           float daz = degrees(atan(sin(az - uTempleAz), cos(az - uTempleAz)));
           if (abs(daz) < 2.0) {
             vec2 q = vec2(daz * cos(radians(e)), e - (r - 0.25));
-            inside = max(inside, pagoda(q * 1.15));
+            // (like every piece-like shape, it gives way behind the tower)
+            inside = max(inside, pagoda(q * 1.15) * outside);
           }
         }
         // Pines along the two nearest ridges, in clusters (only near the ridge)
@@ -260,10 +265,12 @@ const fragmentShader = /* glsl */ `
             float idx = floor(t) + float(j);
             float grove = rangeAt((idx + 0.5) / count, fk).a;
             float here = hash(vec2(mod(idx, count), fk));
-            if (grove > 0.52 && here > 0.25) {
-              float th = h * (0.6 + 0.6 * here);
+            // Groves with gaps between them, trees of uneven size
+            if (grove > 0.58 && here > 0.35) {
+              float th = h * (0.4 + 1.0 * (here - 0.35) / 0.65) * (0.8 + 0.5 * grove);
               vec2 q = vec2((t - idx - 0.5) * spacing * cos(radians(e)), e - (r - 0.15));
-              inside = max(inside, pine(q, th, (hash(vec2(mod(idx, count), 9.0)) - 0.5) * 0.35));
+              float lean = (hash(vec2(mod(idx, count), 9.0)) - 0.5) * 0.35;
+              inside = max(inside, pine(q, th, lean) * outside);
             }
           }
         }
@@ -277,17 +284,12 @@ const fragmentShader = /* glsl */ `
         float dry = smoothstep(0.4, 0.6, range.b);
         float line = exp(-pow(max(below, 0.0) / (0.12 + 0.03 * fk), 2.0)) * step(-aa, below);
         col += uSilver * line * (0.08 + 0.05 * fk) * toMoon * dry * detail;
-        // Mist gathering at the foot of this range, drifting slowly
+        // Mist gathering at the foot of this range, in banks (a whole number
+        // of tiles round the horizon, so the mist closes)
         float mist = exp(-pow((e - (base - 1.8)) / (1.6 + 0.4 * fk), 2.0));
-        // (a drifting copy crossfades in only outside the tower's silhouette)
-        // (a whole number of tiles round the horizon, so the mist closes)
         vec2 mp = vec2(u * (3.0 + fk), e * 0.06 + fk * 0.31);
         float m1 = texture2D(uNoise, mp).r;
-        if (outside > 0.002) {
-          float moving = texture2D(uNoise, mp + vec2(uTime * (0.002 + fk * 0.0006), 0.0)).r;
-          m1 = mix(m1, moving, outside);
-        }
-        col = mix(col, uMist, mist * smoothstep(0.35, 0.8, m1) * 0.42);
+        col = mix(col, uMist, mist * smoothstep(0.3, 0.75, m1) * 0.55);
       }
     }
 
@@ -307,10 +309,10 @@ const fragmentShader = /* glsl */ `
       col += uSilver * c * 0.028 * fade * detail;
       // Dark peaks breaking through, their moonward edge lit
       float isl = texture2D(uNoise, g * 0.036 + vec2(0.4, 0.12)).b;
-      float land = smoothstep(0.66, 0.68, isl);
-      col = mix(col, uRange[3], land * fade * 0.9);
-      float edge = exp(-pow((isl - 0.67) / 0.006, 2.0));
-      col += uSilver * edge * 0.03 * fade * detail;
+      float land = smoothstep(0.6, 0.72, isl);
+      col = mix(col, uRange[3], land * fade * 0.45);
+      float edge = exp(-pow((isl - 0.68) / 0.02, 2.0));
+      col += uSilver * edge * 0.015 * fade * detail;
       // The moon's glow on the cloud tops toward it
       float path = max(0.0, dot(normalize(d.xz), normalize(uMoonDir.xz)));
       col += uHaze * pow(path, 12.0) * 0.1 * smoothstep(HZ - 6.0, HZ - 30.0, e) * n;
@@ -320,16 +322,11 @@ const fragmentShader = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-/** How often the drifting mist is repainted while nothing else moves (per second). */
-const MIST_RATE = 6;
-
 /**
  * The backdrop. The painting is costly (it is computed per pixel, crisp at
- * any zoom), so it is painted into a texture the size of the canvas and
- * shown as the scene's background, and only repainted when the camera moves
- * (or the canvas resizes), and a few times a second for the drifting mist,
- * which moves at a painter's pace outside the tower's silhouette (and not at
- * all for reduced motion). The rest of the time a frame only copies it.
+ * any zoom), so it is painted into a texture the size of the canvas, shown
+ * as the scene's background, and repainted only when the camera moves or
+ * the canvas resizes. The rest of the time a frame only copies it.
  */
 export const NightSky = () => {
   const scene = useThree((s) => s.scene);
@@ -356,7 +353,6 @@ export const NightSky = () => {
         uMoonDir: { value: dir(MOON_AZ, MOON_EL) },
         uMoonR: { value: MOON_R },
         uTempleAz: { value: TEMPLE_AZ * DEG },
-        uTime: { value: 0 },
         uRidges: { value: ridgeTexture() },
         uNoise: { value: noiseTexture() },
         uTowerHalf: { value: TOWER_HALF },
@@ -389,7 +385,7 @@ export const NightSky = () => {
     };
   }, [scene, target]);
 
-  const painted = useRef({ view: new Matrix4(), projection: new Matrix4(), time: -Infinity });
+  const painted = useRef({ view: new Matrix4(), projection: new Matrix4() });
   const dirty = useRef(true);
   useEffect(() => {
     target.setSize(
@@ -399,8 +395,6 @@ export const NightSky = () => {
     dirty.current = true;
   }, [target, size.width, size.height, dpr]);
 
-  const still = prefersReducedMotion();
-  const clock = useThree((s) => s.clock);
   // Painted from inside the scene's own render, just before its background
   // is drawn: never a frame late, and never when a frame is skipped
   useEffect(() => {
@@ -408,25 +402,21 @@ export const NightSky = () => {
     scene.onBeforeRender = function (this: Scene, ...args) {
       previous.apply(this, args);
       const [renderer, , camera] = args as unknown as [WebGLRenderer, Scene, Camera];
-      const time = clock.elapsedTime;
       const last = painted.current;
       const moved =
         !last.view.equals(camera.matrixWorld) || !last.projection.equals(camera.projectionMatrix);
-      const mist = !still && time - last.time >= 1 / MIST_RATE;
-      if (!moved && !mist && !dirty.current) return;
-      if (!still) material.uniforms.uTime.value = time;
+      if (!moved && !dirty.current) return;
       const current = renderer.getRenderTarget();
       renderer.setRenderTarget(target);
       renderer.render(sky, camera);
       renderer.setRenderTarget(current);
       last.view.copy(camera.matrixWorld);
       last.projection.copy(camera.projectionMatrix);
-      last.time = time;
       dirty.current = false;
     };
     return () => {
       scene.onBeforeRender = previous;
     };
-  }, [scene, clock, still, material, sky, target]);
+  }, [scene, sky, target]);
   return null;
 };
