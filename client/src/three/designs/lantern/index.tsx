@@ -44,9 +44,10 @@ const MOTION = { style: 'slide' as const, durationMs: 440 };
  */
 const Grid = ({ layout: l, orientation, focus }: GridProps) => {
   const focusLevel = focusLevelOf(focus);
-  // Seen from high above, the level letters crowd one corner: a second set,
-  // smaller and further out, takes over. Switched per frame on the groups'
-  // visibility (not React state), so the switch is in the very next frame.
+  // Seen from high above, the level letters crowd one corner: a second set
+  // of them, smaller and further out, takes over (the files and ranks stay
+  // one set). Switched per frame on the groups' visibility (not React
+  // state), so the switch is in the very next frame.
   const camera = useThree((s) => s.camera);
   const low = useRef<Group>(null);
   const high = useRef<Group>(null);
@@ -65,25 +66,38 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
     font: FONT,
     weight: 700,
     levelWeight: 800,
-    color: WASHI,
-    outline: 'rgba(8, 10, 22, 0.9)',
-    outlineWidth: 0.07,
     size: 0.4,
     opacity: 0.95,
-    levelColors: LEVELS,
     offset: 0.44,
     focusLevel,
     focusScale: 1.28,
     focusDim: 0.55,
   };
+  // The level letters alone: file and rank glyphs drawn clear, the letters
+  // held off the scene by a dark glow rather than an outline
+  const letters = {
+    ...labels,
+    color: 'rgba(0, 0, 0, 0)',
+    outlineWidth: 0,
+    shadow: 'rgba(6, 8, 20, 0.95)',
+    levelColors: LEVELS,
+  };
   return (
     <>
       <ShojiPlates layout={l} colors={LEVELS} focusLevel={focusLevel} />
+      {/* Files and ranks, from every angle (their level letters too small to see) */}
+      <SmartLabels
+        {...labels}
+        color={WASHI}
+        outline="rgba(8, 10, 22, 0.9)"
+        outlineWidth={0.07}
+        levelScale={1e-4}
+      />
       <group ref={low}>
-        <SmartLabels {...labels} levelScale={1.4} levelOffset={0.66} />
+        <SmartLabels {...letters} levelScale={1.4} levelOffset={0.66} />
       </group>
       <group ref={high} visible={false}>
-        <SmartLabels {...labels} levelScale={1.0} levelOffset={1.6} />
+        <SmartLabels {...letters} levelScale={1.0} levelOffset={1.6} />
       </group>
     </>
   );

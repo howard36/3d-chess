@@ -159,7 +159,7 @@ const grainChunk = /* glsl */ `
 const glowChunk = /* glsl */ `
   {
     float below = exp(-vObj.y * 9.0) * 0.5 + max(-vObjNormal.y, 0.0) * exp(-vObj.y * 3.5) * 0.7;
-    totalEmissiveRadiance += uGlowColor * (uGlow * below + lanternEmber * 3.0);
+    totalEmissiveRadiance += uGlowColor * (uGlow * below + lanternEmber * 4.5);
   }
 `;
 
@@ -273,14 +273,22 @@ export const FELT = LEVELS.map((hex) => {
 /** Radius of the footprint's pool of level colour and of its shadow, in piece units. */
 const FOOT_RING = 0.4;
 const FOOT_SHADOW = 0.36;
-const footGeometry = new PlaneGeometry(FOOT_RING * 2 + 0.04, FOOT_RING * 2 + 0.04).rotateX(
-  -Math.PI / 2,
-);
+/**
+ * Half the side of the square a piece shows from above (world units: 0.86
+ * of a square), and half the footprint quad (piece units), wide enough for
+ * the square turned under a knight.
+ */
+const FOOT_SQUARE = 0.43;
+const FOOT_HALF = 0.8;
+const footGeometry = new PlaneGeometry(FOOT_HALF * 2, FOOT_HALF * 2).rotateX(-Math.PI / 2);
 
 /**
  * Under every piece, in one quad: a soft contact shadow in a faint pool of
  * the level's colour, so the level reads from straight above, where the
- * felt foot hides under the piece. One material per level, shared.
+ * felt foot hides under the piece. From high above, the pool widens into a
+ * square of the level's colour (the grids are then quiet), so every piece
+ * stands inside its own square, whatever level it is on. One material per
+ * level, shared.
  */
 const footMaterials = LEVELS.map(
   (hex) =>
@@ -292,30 +300,52 @@ const footMaterials = LEVELS.map(
       polygonOffsetUnits: -1,
       uniforms: {
         uColor: { value: new Color(hex) },
-        uHalf: { value: FOOT_RING + 0.02 },
+        uHalf: { value: FOOT_HALF },
       },
       vertexShader: /* glsl */ `
         uniform float uHalf;
         varying vec2 vP;
+        varying vec2 vSquare;
+        varying float vSteep;
         void main() {
           vP = (uv - 0.5) * 2.0 * uHalf;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          // The square lies square to the board, in world units, however
+          // the piece is turned
+          vec3 at = (modelMatrix * vec4(position, 1.0)).xyz;
+          vec3 origin = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+          vSquare = at.xz - origin.xz;
+          float elevation = degrees(asin(clamp(normalize(cameraPosition).y, -1.0, 1.0)));
+          vSteep = smoothstep(50.0, 70.0, elevation);
+          gl_Position = projectionMatrix * viewMatrix * vec4(at, 1.0);
         }`,
       fragmentShader: /* glsl */ `
         uniform vec3 uColor;
         varying vec2 vP;
+        varying vec2 vSquare;
+        varying float vSteep;
+        vec4 over(vec4 acc, vec3 c, float k) {
+          return vec4(c * k + acc.rgb * (1.0 - k), k + acc.a * (1.0 - k));
+        }
         void main() {
+          vec4 acc = vec4(0.0);
+          if (vSteep > 0.001) {
+            vec2 q = abs(vSquare) - vec2(${(FOOT_SQUARE - 0.08).toFixed(3)});
+            float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - 0.08;
+            float aa = max(fwidth(d), 1e-4);
+            float inside = 1.0 - smoothstep(-aa, aa, d);
+            float edge = inside * smoothstep(-0.035 - aa, -0.035 + aa, d);
+            acc = over(acc, uColor, (inside * 0.12 + edge * 0.38) * vSteep);
+          }
           float r = length(vP);
           // A soft pool of the level's colour round the base, fading out:
           // quieter than any marker, and no crisp ring to be taken for one
-          float pool = 0.4 * (1.0 - smoothstep(0.22, ${FOOT_RING.toFixed(3)}, r));
+          float pool = 0.4 * (1.0 - smoothstep(0.22, ${FOOT_RING.toFixed(3)}, r)) * (1.0 - 0.5 * vSteep);
+          acc = over(acc, uColor, pool);
           float k = r / ${FOOT_SHADOW.toFixed(3)};
           float shadow = 0.55 * (1.0 - smoothstep(0.35, 1.0, k)) * (0.75 + 0.25 * (1.0 - smoothstep(0.0, 0.45, k)));
-          // The shadow darkens the pool near the base
-          float a = pool + shadow * (1.0 - pool);
-          if (a < 0.003) discard;
-          vec3 color = uColor * pool * (1.0 - shadow * 0.6) / a;
-          gl_FragColor = vec4(color, a);
+          acc = over(acc, vec3(0.0), shadow);
+          if (acc.a < 0.003) discard;
+          gl_FragColor = vec4(acc.rgb / acc.a, acc.a);
           #include <colorspace_fragment>
         }`,
     }),

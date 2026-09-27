@@ -55,7 +55,7 @@ export const ROSEWOOD = { base: '#51261f', grain: '#2a100b', accent: '#c98a52' }
 /** A legal destination: the glow of a paper lantern. */
 export const LANTERN = '#ffd58a';
 /** The selection: the warmer glow of a lantern held under the piece. */
-export const SELECT = '#ffb347';
+export const SELECT = '#ff9a3c';
 /** A capture and a check: red lacquer. */
 export const LACQUER = '#ff5b3a';
 export const CHECK = '#ff4436';

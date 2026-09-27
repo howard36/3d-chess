@@ -120,11 +120,11 @@ const Burning = ({
     elapsed.current += Math.min(delta, MAX_FRAME) * 1000;
     const k = Math.min(elapsed.current / BURN_MS, 1);
     // Catches slowly, then goes quickly
-    const burnt = -0.08 + 1.05 * k ** 1.6;
+    const burnt = -0.08 + 1.05 * k ** 1.3;
     for (const m of [materials.body, materials.accent]) {
       const u = m.userData.uniforms as WoodUniforms;
       u.uBurn.value = burnt;
-      u.uGlow.value = 0.6 * Math.min(k * 4, 1);
+      u.uGlow.value = 0.9 * Math.min(k * 5, 1);
     }
     if (k < 1) invalidate();
   });

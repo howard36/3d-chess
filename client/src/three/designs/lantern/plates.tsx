@@ -24,11 +24,11 @@ import type { BoardLayout } from '../types';
 import { PAPER } from './palette';
 
 // The platforms: five shoji screens laid flat. A frame of dark lacquered
-// wood, inlaid on top and banded on its outer face in the level's colour;
-// kumiko slats in the same colour dividing it into its 25 panes, with a
-// small diamond where the slats cross; and between them washi so thin the
-// pieces below show through, glowing faintly warm, a little brighter at the
-// heart of each pane and a little denser on the light squares.
+// wood, inlaid along its top in the level's colour; kumiko slats in the
+// same colour dividing it into its 25 panes, with a small diamond where the
+// slats cross; and between them washi so thin the pieces below show
+// through, glowing faintly warm, a little brighter at the heart of each pane
+// and a little denser on the light squares.
 
 /** How far the frame reaches past the outer squares, and its size. */
 const MARGIN = 0.035;
@@ -176,9 +176,9 @@ const WOOD_COLOR = new Color('#2e1c15');
  * Five shoji platforms, colour-coded per level. Decorative (never raycast).
  * The paper and slats are one quad per level, drawn with the platforms
  * (LAYER.plate), so shadows and markers lie over them; the frames are solid.
- * Seen from high above, every level but one (the focused level, else the
- * top) quietens to hairlines, so the nested grids never tangle; the level
- * in focus lights its slats and inlay.
+ * Seen from high above, every level but the focused one quietens to
+ * hairlines, so the nested grids never tangle; the level in focus lights its
+ * slats and inlay.
  */
 export const ShojiPlates = ({ layout, colors, focusLevel = null }: ShojiPlatesProps) => {
   const frame = towerFrame(layout);
@@ -278,13 +278,14 @@ export const ShojiPlates = ({ layout, colors, focusLevel = null }: ShojiPlatesPr
   const capMeshes = useRef<(Mesh | null)[]>([]);
   const apply = () => {
     const { w, any, steep } = weights;
-    const top = materials.levels.length - 1;
     materials.levels.forEach((m, z) => {
       const wz = w[z] ?? 0;
-      // From above, one level keeps its full screen: the focused one, else
-      // the top; the others thin to hairlines over a plain veil of paper,
-      // so the nested grids never read as a plaid
-      const primary = any * wz + (1 - any) * (z === top ? 1 : 0);
+      // From above, only the focused level keeps its full screen; the
+      // others (all of them, when nothing is focused) thin to hairlines over
+      // a plain veil of paper, so the nested grids never read as a plaid and
+      // no piece seems to stand on another level's lines. Each piece then
+      // carries its own square (see the foot in pieces.tsx).
+      const primary = any * wz;
       const quiet = steep * (1 - primary);
       const base = LINE_OPACITY * (1 - any * (1 - FOCUS_DIM) * (1 - wz));
       m.paper.uniforms.uLineOpacity.value = (base + (FOCUS_LINE - base) * wz) * (1 - 0.78 * quiet);

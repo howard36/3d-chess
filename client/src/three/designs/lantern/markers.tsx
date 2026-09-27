@@ -60,8 +60,19 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uColor2;
   uniform vec3 uAlt;
   uniform vec4 uTicks;
+  uniform vec3 uJewel;
   varying vec2 vP;
   varying vec3 vWorld;
+
+  // Coverage of a filled shape of signed distance d
+  float fill(float d) {
+    float aa = max(fwidth(d), 1e-4);
+    return 1.0 - smoothstep(-aa, aa, d);
+  }
+  // Paints colour c at coverage k over the premultiplied colour acc
+  vec4 over(vec4 acc, vec3 c, float k) {
+    return vec4(c * k + acc.rgb * (1.0 - k), k + acc.a * (1.0 - k));
+  }
 
   // 1 on COUNT arcs, each DUTY of its share of the circle, centred on the axes
   float arcs(vec2 p, float count, float duty) {
@@ -98,22 +109,37 @@ const fragmentShader = /* glsl */ `
     if (uDash.x > 0.0) a *= arcs(vP, uDash.x, uDash.y);
     if (uGlow.y > 0.0) {
       float g = exp(-(r * r) / (uGlow.x * uGlow.x) * 2.4);
+      // Round a jewel the heart stays clear, so the jewels of crests on the
+      // levels below show through it
+      if (uJewel.x > 0.0) g *= smoothstep(0.115, 0.175, r);
       a = a + g * uGlow.y * (1.0 - a);
     }
+    float lift = uOpacity * (1.0 + 0.45 * uHover);
+    // Layered, bottom up: the marker's own rings, ribs and glow; the ring in
+    // uColor2; the seals (in uColor2 when uJewel.z is set); and the jewel
+    vec4 acc = over(vec4(0.0), uColor, min(a * lift, 1.0));
+    if (uJewel.x > 0.0) {
+      // Seen from high above, where crests of several levels stack on one
+      // square, the level's arcs would cover the jewels below: the jewels
+      // alone say the level there
+      float elevation = degrees(asin(clamp(normalize(cameraPosition - vWorld).y, -1.0, 1.0)));
+      alt *= 1.0 - smoothstep(55.0, 72.0, elevation);
+    }
+    acc = over(acc, uColor2, min(alt * lift, 1.0));
     if (uSeals.z > 0.0) {
       // Four small square seals out toward the corners
       vec2 q = abs(vP) - vec2(0.70710678 * uSeals.x);
       float d = max(abs(q.x), abs(q.y)) - uSeals.y;
-      float aa = max(fwidth(d), 1e-4);
-      a = max(a, (1.0 - smoothstep(-aa, aa, d)) * uSeals.z);
+      acc = over(acc, uJewel.z > 0.5 ? uColor2 : uColor, fill(d) * min(uSeals.z * lift, 1.0));
     }
-    float lift = uOpacity * (1.0 + 0.45 * uHover);
-    a *= lift;
-    alt = min(alt * lift, 1.0);
-    float total = alt + min(a, 1.0) * (1.0 - alt);
-    if (total < 0.003) discard;
-    vec3 color = (uColor2 * alt + uColor * min(a, 1.0) * (1.0 - alt)) / max(total, 1e-4);
-    gl_FragColor = vec4(color * (1.0 + 0.25 * uHover), min(total, 1.0));
+    if (uJewel.x > 0.0) {
+      // A jewel of the level's colour at the heart, in a dark setting so it
+      // holds against the gold
+      acc = over(acc, vec3(0.102, 0.078, 0.133), fill(r - uJewel.x - uJewel.y) * min(lift, 1.0));
+      acc = over(acc, uColor2, fill(r - uJewel.x) * min(lift, 1.0));
+    }
+    if (acc.a < 0.003) discard;
+    gl_FragColor = vec4(acc.rgb / acc.a * (1.0 + 0.2 * uHover), min(acc.a, 1.0));
     #include <colorspace_fragment>
   }`;
 
@@ -143,6 +169,7 @@ export interface MarkUniforms {
   uColor2: { value: Color };
   uAlt: { value: Vector3 };
   uTicks: { value: Vector4 };
+  uJewel: { value: Vector3 };
 }
 
 export interface MarkProps {
@@ -162,6 +189,10 @@ export interface MarkProps {
   alt?: { ring: number; color: string; arcs: number; duty: number };
   /** Radial ribs: how many, from and to which radius, how wide. */
   ticks?: [number, number, number, number];
+  /** A filled jewel in `alt`'s colour at the centre: its radius and its dark setting's width. */
+  jewel?: [number, number];
+  /** Draw the seals in `alt`'s colour. */
+  altSeals?: boolean;
   /** Four square seals toward the corners: distance from centre, half size, opacity. */
   seals?: [number, number, number];
   hovered?: boolean;
@@ -198,6 +229,8 @@ export const Mark = ({
   dashes = [0, 0],
   alt,
   ticks = [0, 0, 0, 0],
+  jewel = [0, 0],
+  altSeals = false,
   hovered = false,
   quad = 1,
   clip = 0,
@@ -232,6 +265,7 @@ export const Mark = ({
           uColor2: { value: new Color() },
           uAlt: { value: new Vector3(-1, 0, 0) },
           uTicks: { value: new Vector4() },
+          uJewel: { value: new Vector3() },
         },
         vertexShader,
         fragmentShader,
@@ -249,6 +283,7 @@ export const Mark = ({
   u.uAlt.value.set(alt ? alt.ring : -1, alt?.arcs ?? 0, alt?.duty ?? 0);
   if (alt) u.uColor2.value.set(alt.color);
   u.uTicks.value.set(...ticks);
+  u.uJewel.value.set(jewel[0], jewel[1], altSeals ? 1 : 0);
   u.uHover.value = hovered ? 1 : 0;
   u.uClip.value = clip;
   u.uQuad.value = quad;
@@ -336,6 +371,12 @@ export const lanternMarkers = ({
   /** The level (0 = A) whose floor is at this height. */
   const levelAt = (y: number) =>
     levelY.reduce((best, h, z) => (Math.abs(h - y) < Math.abs(levelY[best] - y) ? z : best), 0);
+  /**
+   * The jewel's radius: largest on A, smallest on E, so crests stacked on
+   * one square from different levels show every jewel from above, nested
+   * like a target (the nearest level's, drawn last, is the smallest).
+   */
+  const jewelFor = (floor: Vec3) => 0.1 - 0.015 * levelAt(floor[1]);
   /** A ring in the level's colour, broken into one arc per level (A: 1, E: 5). */
   const levelRib = (floor: Vec3, ring: number) => {
     const z = levelAt(floor[1]);
@@ -344,9 +385,11 @@ export const lanternMarkers = ({
 
   /**
    * A legal destination: the crest of a paper lantern seen from above, a
-   * gold rim with eight short ribs over a warm glow, and inside it a ring in
-   * the destination level's colour, in one arc per level (A: 1 ... E: 5), so
-   * from any angle, top-down too, it says which level the move lands on.
+   * gold rim with eight short ribs over a warm glow, and at its heart a
+   * jewel in the destination level's colour (smaller the higher the level),
+   * ringed by the same colour in one arc per level (A: 1 ... E: 5): from
+   * any angle, top-down too, and however many crests stack on one square,
+   * each says its level.
    */
   const Quiet = ({ floor, hovered }: MarkerProps) => (
     <Mark
@@ -354,9 +397,10 @@ export const lanternMarkers = ({
       color={LANTERN}
       rings={[
         [(hovered ? 0.345 : 0.3) * s, (hovered ? 0.09 : 0.08) * s, 1],
-        [0.15 * s, 0.032 * s, hovered ? 1 : 0.9],
+        [0.15 * s, 0.05 * s, hovered ? 1 : 0.9],
       ]}
       alt={levelRib(floor, 1)}
+      jewel={[jewelFor(floor) * s, 0.012 * s]}
       ticks={[8, 0.19 * s, 0.27 * s, 0.022 * s]}
       glow={[(hovered ? 0.36 : 0.32) * s, hovered ? 0.62 : 0.32]}
       hovered={hovered}
@@ -365,8 +409,9 @@ export const lanternMarkers = ({
   );
 
   /**
-   * A capture: the lantern opened round the victim, in red lacquer, sealed
-   * at the corners, with the level's ring inside it.
+   * A capture: the lantern opened round the victim, in red lacquer, with
+   * the level's ring inside it and its four corner seals in the level's
+   * colour (the victim covers the heart, where a move's jewel would be).
    */
   const Capture = ({ floor, hovered }: MarkerProps) => (
     <Mark
@@ -378,7 +423,8 @@ export const lanternMarkers = ({
       ]}
       alt={levelRib(floor, 1)}
       glow={[0.42 * s, hovered ? 0.5 : 0.2]}
-      seals={[0.56 * s, 0.035 * s, 0.95]}
+      seals={[0.56 * s, 0.04 * s, 1]}
+      altSeals
       hovered={hovered}
       quad={1.02 * s}
     />
