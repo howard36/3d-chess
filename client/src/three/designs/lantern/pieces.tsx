@@ -5,6 +5,7 @@ import type { IUniform, WebGLProgramParametersWithUniforms } from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { ChessPiece } from '../../pieces';
 import { LAYER } from '../kit/layers';
+import { FLOOR_DECAL } from '../kit/motion';
 import { noRaycast } from '../kit/noRaycast';
 import type { PieceBodyProps, PieceColor } from '../types';
 import { Mark } from './markers';
@@ -28,7 +29,8 @@ const GLOW = '#ff9636';
 //
 // Selected, a piece is lit from below by a lantern: a warm glow swells up
 // its foot and underside and settles low, so the wood keeps its army's
-// value. In check, the king's rim and a light tint turn to red lacquer.
+// value. In check, only the king's crown and cross take a thin edge of red
+// lacquer: the wood keeps its army's colour, and the floor mark says check.
 
 export type PieceState = 'rest' | 'hover' | 'selected' | 'check';
 type Part = 'body' | 'accent';
@@ -71,11 +73,11 @@ const WOODS: Record<PieceColor, Record<Part, WoodSpec>> = {
     body: {
       base: ROSEWOOD.base,
       grain: ROSEWOOD.grain,
-      contrast: 0.5,
-      rings: 30,
+      contrast: 0.35,
+      rings: 26,
       roughness: 0.34,
-      rim: '#8fa6ff',
-      rimStrength: 0.45,
+      rim: '#9aaeff',
+      rimStrength: 0.55,
     },
     accent: {
       base: ROSEWOOD.accent,
@@ -83,8 +85,8 @@ const WOODS: Record<PieceColor, Record<Part, WoodSpec>> = {
       contrast: 0.3,
       rings: 30,
       roughness: 0.3,
-      rim: '#8fa6ff',
-      rimStrength: 0.3,
+      rim: '#9aaeff',
+      rimStrength: 0.35,
     },
   },
 };
@@ -103,7 +105,8 @@ const fragmentHead = /* glsl */ `
   uniform vec3 uGlowColor;
   uniform float uGlow;
   uniform float uBurn;
-  uniform vec3 uTint;
+  uniform vec3 uCrown;
+  uniform float uCrownFrom;
   varying vec3 vObj;
   float lanternEmber = 0.0;
   varying vec3 vObjNormal;
@@ -128,10 +131,12 @@ const fragmentHead = /* glsl */ `
 const grainChunk = /* glsl */ `
   {
     vec3 p = vObj;
-    float wobble = woodNoise(p * vec3(7.0, 1.6, 7.0)) * 2.2 + woodNoise(p * vec3(18.0, 3.0, 18.0)) * 0.6;
+    float wobble = woodNoise(p * vec3(5.0, 1.2, 5.0)) * 3.2 + woodNoise(p * vec3(17.0, 2.6, 17.0)) * 0.8;
     float r = length(p.xz - vec2(0.61, -0.37)) * uRings + wobble + p.y * 0.8;
     float ring = fract(r);
-    float late = smoothstep(0.45, 0.62, ring) * (1.0 - smoothstep(0.82, 1.0, ring));
+    // Each year's late wood a different width, so the figure never stripes evenly
+    float width = 0.12 + 0.3 * woodHash(vec3(floor(r), 3.1, 7.7));
+    float late = smoothstep(1.0 - width - 0.14, 1.0 - width, ring) * (1.0 - smoothstep(0.86, 1.0, ring));
     float fleck = woodNoise(p * vec3(90.0, 12.0, 90.0));
     float aa = fwidth(r);
     float k = uContrast * (1.0 - smoothstep(0.35, 0.9, aa));
@@ -154,14 +159,16 @@ const grainChunk = /* glsl */ `
 const glowChunk = /* glsl */ `
   {
     float below = exp(-vObj.y * 9.0) * 0.5 + max(-vObjNormal.y, 0.0) * exp(-vObj.y * 3.5) * 0.7;
-    totalEmissiveRadiance += uGlowColor * (uGlow * below + lanternEmber * 3.0) + uTint;
+    totalEmissiveRadiance += uGlowColor * (uGlow * below + lanternEmber * 3.0);
   }
 `;
 
 const rimChunk = /* glsl */ `
   {
     float facing = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
-    outgoingLight += uRim * uRimStrength * pow(1.0 - facing, 2.6);
+    // The moonlit rim, turning to uCrown above uCrownFrom (a king in check)
+    float crown = smoothstep(uCrownFrom, uCrownFrom + 0.14, vObj.y);
+    outgoingLight += mix(uRim * uRimStrength, uCrown, crown) * pow(1.0 - facing, 2.6);
   }
 `;
 
@@ -175,8 +182,10 @@ export interface WoodUniforms {
   uGlow: IUniform<number>;
   /** Height (piece units) the piece has burnt away to from its foot; below 0 for none. */
   uBurn: IUniform<number>;
-  /** A glow over the whole piece (red lacquer for a king in check). */
-  uTint: IUniform<Color>;
+  /** The rim's colour (strength included) above `uCrownFrom`: red lacquer on a checked king's crown. */
+  uCrown: IUniform<Color>;
+  /** Height (piece units) where the rim turns to `uCrown`; above any piece for none. */
+  uCrownFrom: IUniform<number>;
 }
 
 /** The glow of the selected piece of each army, shared by its parts, swelling when picked up. */
@@ -192,15 +201,22 @@ export const woodMaterial = (color: PieceColor, part: Part, state: PieceState) =
     uGrain: { value: new Color(spec.grain) },
     uContrast: { value: spec.contrast },
     uRings: { value: spec.rings },
-    uRim: { value: new Color(state === 'check' ? CHECK : spec.rim) },
-    uRimStrength: { value: state === 'check' ? 1.0 : spec.rimStrength },
+    uRim: { value: new Color(spec.rim) },
+    uRimStrength: { value: spec.rimStrength },
     uGlowColor: { value: new Color(state === 'check' ? CHECK : GLOW) },
     uGlow:
       state === 'selected'
         ? swell[color]
-        : { value: state === 'hover' ? 0.5 : state === 'check' ? 0.9 : 0 },
+        : { value: state === 'hover' ? 0.5 : state === 'check' ? 0.35 : 0 },
     uBurn: { value: -1 },
-    uTint: { value: new Color(state === 'check' ? CHECK : '#000000').multiplyScalar(0.1) },
+    // In check, a thin red edge on the top third only (the king's crown and cross)
+    uCrown: {
+      value:
+        state === 'check'
+          ? new Color(CHECK).multiplyScalar(0.6)
+          : new Color(spec.rim).multiplyScalar(spec.rimStrength),
+    },
+    uCrownFrom: { value: state === 'check' ? 0.56 : 9 },
   };
   const m = new MeshStandardMaterial({
     color: spec.base,
@@ -347,6 +363,8 @@ export const PieceBody = (props: PieceBodyProps) => {
         position={[0, 0.005, 0]}
         renderOrder={LAYER.shadow}
         raycast={noRaycast}
+        // Hidden when a mated king topples, rather than stood on edge
+        userData={FLOOR_DECAL}
       />
       {props.selected && <Swell color={color} />}
       {/* Under the pointer, a lantern is brought near: a soft warm pool on the paper */}
@@ -359,6 +377,7 @@ export const PieceBody = (props: PieceBodyProps) => {
           quad={1.5}
           renderOrder={LAYER.shadow + 0.5}
           lift={0.008}
+          decal
         />
       )}
       <ChessPiece

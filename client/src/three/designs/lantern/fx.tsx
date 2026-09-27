@@ -1,25 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import {
-  AdditiveBlending,
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  CylinderGeometry,
-  InstancedMesh,
-  MeshBasicMaterial,
-  Object3D,
-  ShaderMaterial,
-} from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { ChessPiece } from '../../pieces';
 import { Burst } from '../kit/fx';
 import { LAYER } from '../kit/layers';
-import { noRaycast } from '../kit/noRaycast';
-import { dotTexture, rng } from '../kit/textures';
 import type { CaptureFxProps, CelebrationProps, MoveFxProps, PieceColor, Vec3 } from '../types';
 import { MAX_FRAME, Mark, ripple } from './markers';
-import { CHECK, LACQUER, LANTERN, LANTERN_LIGHT, SELECT } from './palette';
+import { CHECK, LACQUER, LANTERN, SELECT } from './palette';
+import { mateWave } from './stage';
 import { woodMaterial } from './pieces';
 import type { WoodUniforms } from './pieces';
 
@@ -27,8 +15,8 @@ import type { WoodUniforms } from './pieces';
 // touches the paper, two ripples roll out from it, as from a stone set in
 // still water. A captured piece catches like paper in a lantern: it glows
 // from its foot, burns away and its embers drift up. A mate strikes the
-// temple bell: three red rings roll across the platform, and a flight of
-// small sky lanterns rises from the fallen king and drifts off.
+// temple bell: three red rings roll across the platform, a thread of embers
+// rises from the fallen king, and the garden's lanterns go out, one by one.
 
 /** Unmounts its children once `ms` of r3f time have passed. */
 const useDone = (ms: number) => {
@@ -158,7 +146,7 @@ export const makeCaptureFx =
         <Burning type={victim.type} color={victim.color} facing={knightFacing} scale={pieceScale} />
         <Burst
           position={[0, 0.25, 0]}
-          colors={[LANTERN_LIGHT, SELECT, '#ff8a4c', '#ffe3b0']}
+          colors={[SELECT, '#ff8a4c', '#ffe3b0']}
           count={30}
           speed={0.9}
           gravity={-0.7}
@@ -172,115 +160,33 @@ export const makeCaptureFx =
     );
   };
 
-// --- Mate: the bell, and sky lanterns ---------------------------------------------------------
+// --- Mate: the bell, and the garden goes dark ------------------------------------------------
 
-const SKY_LANTERNS = 18;
-const FLIGHT_MS = 3600;
+const EMBERS = ['#ffb347', '#ff8a4c', '#ffd9a0'];
 
-/** Small paper lanterns rising from the king's square, swaying, fading into the dusk. */
-const SkyLanterns = ({ floor }: { floor: Vec3 }) => {
-  const mesh = useRef<InstancedMesh>(null);
-  const elapsed = useRef(0);
-  const invalidate = useThree((s) => s.invalidate);
-  const { lantern, material, flights, halo, haloMaterial } = useMemo(() => {
-    const random = rng(53);
-    const flights = Array.from({ length: SKY_LANTERNS }, () => ({
-      angle: random() * Math.PI * 2,
-      spread: 0.2 + random() * 0.9,
-      rise: 2.2 + random() * 2.2,
-      delay: random() * 900,
-      sway: random() * Math.PI * 2,
-      size: 0.8 + random() * 0.5,
-    }));
-    const lantern = new CylinderGeometry(0.045, 0.035, 0.09, 8);
-    const material = new MeshBasicMaterial({
-      color: new Color(LANTERN_LIGHT),
-      transparent: true,
-      toneMapped: false,
-    });
-    const halo = new BufferGeometry();
-    halo.setAttribute('position', new BufferAttribute(new Float32Array(SKY_LANTERNS * 3), 3));
-    const haloMaterial = new ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: AdditiveBlending,
-      uniforms: {
-        uMap: { value: dotTexture(0.9) },
-        uColor: { value: new Color(LANTERN_LIGHT) },
-        uAlpha: { value: 1 },
-      },
-      vertexShader: /* glsl */ `
-        void main() {
-          vec4 mv = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = 260.0 / -mv.z;
-          gl_Position = projectionMatrix * mv;
-        }`,
-      fragmentShader: /* glsl */ `
-        uniform sampler2D uMap;
-        uniform vec3 uColor;
-        uniform float uAlpha;
-        void main() {
-          float a = texture2D(uMap, gl_PointCoord).a * uAlpha * 0.35;
-          gl_FragColor = vec4(uColor * a, 1.0);
-          #include <colorspace_fragment>
-        }`,
-    });
-    return { lantern, material, flights, halo, haloMaterial };
-  }, []);
-  useEffect(
-    () => () => {
-      lantern.dispose();
-      material.dispose();
-      halo.dispose();
-      haloMaterial.dispose();
-    },
-    [lantern, material, halo, haloMaterial],
-  );
-  const o = useMemo(() => new Object3D(), []);
-  useFrame((_, delta) => {
-    const m = mesh.current;
-    if (!m) return;
-    elapsed.current += Math.min(delta, MAX_FRAME) * 1000;
-    const pos = halo.getAttribute('position') as BufferAttribute;
-    flights.forEach((f, i) => {
-      const t = Math.max(elapsed.current - f.delay, 0) / 1000;
-      const up = f.rise * (1 - Math.exp(-t * 0.45)) + t * 0.12;
-      const r = f.spread * (0.4 + 0.6 * Math.min(t / 2, 1));
-      const x = floor[0] + Math.cos(f.angle) * r + Math.sin(t * 1.3 + f.sway) * 0.08;
-      const z = floor[2] + Math.sin(f.angle) * r + Math.cos(t * 1.1 + f.sway) * 0.08;
-      const y = floor[1] + 0.3 + up;
-      const shown = elapsed.current > f.delay ? f.size : 1e-4;
-      o.position.set(x, y, z);
-      o.scale.setScalar(shown);
-      o.updateMatrix();
-      m.setMatrixAt(i, o.matrix);
-      pos.setXYZ(i, x, y, z);
-    });
-    m.instanceMatrix.needsUpdate = true;
-    pos.needsUpdate = true;
-    const k = Math.min(elapsed.current / FLIGHT_MS, 1);
-    const fade = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
-    material.opacity = fade;
-    haloMaterial.uniforms.uAlpha.value = fade;
-    if (k < 1) invalidate();
-  });
-  return (
-    <>
-      <instancedMesh
-        ref={mesh}
-        args={[lantern, material, SKY_LANTERNS]}
-        raycast={noRaycast}
-        frustumCulled={false}
-      />
-      <points geometry={halo} material={haloMaterial} raycast={noRaycast} frustumCulled={false} />
-    </>
-  );
-};
-
+/**
+ * The mate: the temple bell is struck three times, three red rings rolling
+ * out across the platform; a thin thread of embers rises from the fallen
+ * king and is gone within two seconds; and one by one, in a slow wave from
+ * the tower outward, every lantern in the garden goes out.
+ */
 export const makeCelebration =
   (clip: number) =>
   ({ floor }: CelebrationProps) => {
-    const done = useDone(FLIGHT_MS + 1200);
+    const invalidate = useThree((s) => s.invalidate);
+    useEffect(() => {
+      mateWave.value = 0;
+      invalidate();
+      return () => {
+        mateWave.value = -1;
+      };
+    }, [invalidate]);
+    useFrame((_, delta) => {
+      // Once the last lamp is out there is nothing more to animate
+      if (mateWave.value < 0 || mateWave.value > 8) return;
+      mateWave.value += Math.min(delta, MAX_FRAME);
+      invalidate();
+    });
     return (
       <>
         {[0, 1, 2].map((i) => (
@@ -294,7 +200,18 @@ export const makeCelebration =
             delayMs={300 + i * 320}
           />
         ))}
-        {!done && <SkyLanterns floor={floor} />}
+        <Burst
+          position={[floor[0], floor[1] + 0.2, floor[2]]}
+          colors={EMBERS}
+          count={16}
+          speed={0.5}
+          gravity={-0.5}
+          lifeMs={1800}
+          size={0.05}
+          upward={0.95}
+          seed={31}
+          delayMs={500}
+        />
       </>
     );
   };

@@ -1,4 +1,7 @@
+import { useRef } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import { NeutralToneMapping } from 'three';
+import type { Group } from 'three';
 import { preloadPieceSet } from '../../pieces';
 import { focusLevelOf } from '../kit/focus';
 import { clarityTower, towerFrame } from '../kit/layouts';
@@ -41,28 +44,47 @@ const MOTION = { style: 'slide' as const, durationMs: 440 };
  */
 const Grid = ({ layout: l, orientation, focus }: GridProps) => {
   const focusLevel = focusLevelOf(focus);
+  // Seen from high above, the level letters crowd one corner: a second set,
+  // smaller and further out, takes over. Switched per frame on the groups'
+  // visibility (not React state), so the switch is in the very next frame.
+  const camera = useThree((s) => s.camera);
+  const low = useRef<Group>(null);
+  const high = useRef<Group>(null);
+  const steep = useRef(false);
+  useFrame(() => {
+    const y = camera.position.y / Math.max(camera.position.length(), 1e-6);
+    const elevation = (Math.asin(Math.min(Math.max(y, -1), 1)) * 180) / Math.PI;
+    if (!steep.current && elevation > 62) steep.current = true;
+    else if (steep.current && elevation < 56) steep.current = false;
+    if (low.current) low.current.visible = !steep.current;
+    if (high.current) high.current.visible = steep.current;
+  });
+  const labels = {
+    layout: l,
+    orientation,
+    font: FONT,
+    weight: 700,
+    levelWeight: 800,
+    color: WASHI,
+    outline: 'rgba(8, 10, 22, 0.9)',
+    outlineWidth: 0.07,
+    size: 0.4,
+    opacity: 0.95,
+    levelColors: LEVELS,
+    offset: 0.44,
+    focusLevel,
+    focusScale: 1.28,
+    focusDim: 0.55,
+  };
   return (
     <>
       <ShojiPlates layout={l} colors={LEVELS} focusLevel={focusLevel} />
-      <SmartLabels
-        layout={l}
-        orientation={orientation}
-        font={FONT}
-        weight={700}
-        levelWeight={800}
-        color={WASHI}
-        outline="rgba(8, 10, 22, 0.9)"
-        outlineWidth={0.07}
-        size={0.4}
-        opacity={0.95}
-        levelScale={1.4}
-        levelColors={LEVELS}
-        levelOffset={0.66}
-        offset={0.44}
-        focusLevel={focusLevel}
-        focusScale={1.28}
-        focusDim={0.55}
-      />
+      <group ref={low}>
+        <SmartLabels {...labels} levelScale={1.4} levelOffset={0.66} />
+      </group>
+      <group ref={high} visible={false}>
+        <SmartLabels {...labels} levelScale={1.0} levelOffset={1.6} />
+      </group>
     </>
   );
 };
@@ -81,11 +103,18 @@ const lantern: Design = {
   PieceBody,
   pieceScale: PIECE_SCALE,
   knightYaw: 0.45,
-  markers: lanternMarkers({ pitch, clip: CLIP, moveMs: MOTION.durationMs }),
+  markers: lanternMarkers({
+    pitch,
+    clip: CLIP,
+    moveMs: MOTION.durationMs,
+    levelY: frame.levelY,
+    levels: LEVELS,
+  }),
   hoverDestinations: true,
-  // Hover stirs a piece, selection lifts it, held still: the lantern glow
-  // under it is the selection's signature
-  hoverLift: true,
+  // Hover stirs a piece and selection raises it only a little, so it stays
+  // seated in its lantern's light (at the low opening view a higher lift
+  // floats it a rank back, off its own glow)
+  hoverLift: { hover: 0.03, selected: 0.06 },
   motion: MOTION,
   MoveFx: makeMoveFx(layout.floorY, CLIP),
   CaptureFx: makeCaptureFx(PIECE_SCALE),

@@ -9,12 +9,15 @@ import {
   ShaderMaterial,
   Vector2,
   Vector3,
+  Vector4,
 } from 'three';
 import type { Mesh } from 'three';
 import { LAYER } from '../kit/layers';
 import { LastMoveLine } from '../kit/line';
+import { FLOOR_DECAL } from '../kit/motion';
 import { noRaycast } from '../kit/noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
+import { CheckFlag } from './hud';
 import { CHECK, FIREFLY, LACQUER, LANTERN, SELECT } from './palette';
 
 // Lantern's marks on the paper, all of one family: rings of light, like the
@@ -54,25 +57,45 @@ const fragmentShader = /* glsl */ `
   uniform float uHover;
   uniform float uClip;
   uniform vec2 uDash;
+  uniform vec3 uColor2;
+  uniform vec3 uAlt;
+  uniform vec4 uTicks;
   varying vec2 vP;
   varying vec3 vWorld;
+
+  // 1 on COUNT arcs, each DUTY of its share of the circle, centred on the axes
+  float arcs(vec2 p, float count, float duty) {
+    float t = fract(atan(p.y, p.x) / 6.2831853 * count + 0.5 * duty);
+    float ta = max(fwidth(t), 1e-4) * 1.5;
+    return smoothstep(0.0, ta, t) * (1.0 - smoothstep(duty - ta, duty, t));
+  }
+
   void main() {
     if (uClip > 0.0 && (abs(vWorld.x) > uClip || abs(vWorld.z) > uClip)) discard;
     float r = length(vP);
     float a = 0.0;
+    // The ring numbered uAlt.x is drawn apart, in uColor2, broken into uAlt.y arcs
+    float alt = 0.0;
     for (int i = 0; i < 3; i++) {
       vec3 ring = uRings[i];
       if (ring.z <= 0.0) continue;
       float d = abs(r - ring.x) - ring.y * 0.5;
       float aa = max(fwidth(d), 1e-4);
-      a = max(a, (1.0 - smoothstep(-aa, aa, d)) * ring.z);
+      float ra = (1.0 - smoothstep(-aa, aa, d)) * ring.z;
+      if (abs(float(i) - uAlt.x) < 0.5) alt = max(alt, ra * arcs(vP, uAlt.y, uAlt.z));
+      else a = max(a, ra);
     }
-    if (uDash.x > 0.0) {
-      // Broken into arcs, centred on the axes
-      float t = fract(atan(vP.y, vP.x) / 6.2831853 * uDash.x + 0.5 * uDash.y);
-      float ta = max(fwidth(t), 1e-4) * 1.5;
-      a *= smoothstep(0.0, ta, t) * (1.0 - smoothstep(uDash.y - ta, uDash.y, t));
+    if (uTicks.x > 0.0) {
+      // Short radial ribs, as on the top of a paper lantern
+      float sector = 6.2831853 / uTicks.x;
+      float k = floor(atan(vP.y, vP.x) / sector) * sector + sector * 0.5;
+      vec2 dir = vec2(cos(k), sin(k));
+      float along = clamp(dot(vP, dir), uTicks.y, uTicks.z);
+      float d = length(vP - dir * along) - uTicks.w * 0.5;
+      float aa = max(fwidth(d), 1e-4);
+      a = max(a, 1.0 - smoothstep(-aa, aa, d));
     }
+    if (uDash.x > 0.0) a *= arcs(vP, uDash.x, uDash.y);
     if (uGlow.y > 0.0) {
       float g = exp(-(r * r) / (uGlow.x * uGlow.x) * 2.4);
       a = a + g * uGlow.y * (1.0 - a);
@@ -84,9 +107,13 @@ const fragmentShader = /* glsl */ `
       float aa = max(fwidth(d), 1e-4);
       a = max(a, (1.0 - smoothstep(-aa, aa, d)) * uSeals.z);
     }
-    a *= uOpacity * (1.0 + 0.45 * uHover);
-    if (a < 0.003) discard;
-    gl_FragColor = vec4(uColor * (1.0 + 0.25 * uHover), min(a, 1.0));
+    float lift = uOpacity * (1.0 + 0.45 * uHover);
+    a *= lift;
+    alt = min(alt * lift, 1.0);
+    float total = alt + min(a, 1.0) * (1.0 - alt);
+    if (total < 0.003) discard;
+    vec3 color = (uColor2 * alt + uColor * min(a, 1.0) * (1.0 - alt)) / max(total, 1e-4);
+    gl_FragColor = vec4(color * (1.0 + 0.25 * uHover), min(total, 1.0));
     #include <colorspace_fragment>
   }`;
 
@@ -113,6 +140,9 @@ export interface MarkUniforms {
   uClip: { value: number };
   uQuad: { value: number };
   uDash: { value: Vector2 };
+  uColor2: { value: Color };
+  uAlt: { value: Vector3 };
+  uTicks: { value: Vector4 };
 }
 
 export interface MarkProps {
@@ -125,6 +155,13 @@ export interface MarkProps {
   glow?: [number, number];
   /** Break the rings into this many arcs, each this share of its period (e.g. [4, 0.6]). */
   dashes?: [number, number];
+  /**
+   * Draw one ring apart, in its own colour, broken into arcs: the ring's
+   * index, the colour, how many arcs and each one's share of its period.
+   */
+  alt?: { ring: number; color: string; arcs: number; duty: number };
+  /** Radial ribs: how many, from and to which radius, how wide. */
+  ticks?: [number, number, number, number];
   /** Four square seals toward the corners: distance from centre, half size, opacity. */
   seals?: [number, number, number];
   hovered?: boolean;
@@ -142,6 +179,8 @@ export interface MarkProps {
    */
   animate?: (u: MarkUniforms, ms: number) => boolean;
   delayMs?: number;
+  /** A floor decal inside a piece body: hidden when a mated king topples. */
+  decal?: boolean;
 }
 
 /**
@@ -157,6 +196,8 @@ export const Mark = ({
   glow = [0.3, 0],
   seals = [0, 0, 0],
   dashes = [0, 0],
+  alt,
+  ticks = [0, 0, 0, 0],
   hovered = false,
   quad = 1,
   clip = 0,
@@ -165,6 +206,7 @@ export const Mark = ({
   lift = 0.012,
   animate,
   delayMs = 0,
+  decal = false,
 }: MarkProps) => {
   const invalidate = useThree((s) => s.invalidate);
   const material = useMemo(
@@ -187,6 +229,9 @@ export const Mark = ({
           uClip: { value: 0 },
           uQuad: { value: 1 },
           uDash: { value: new Vector2() },
+          uColor2: { value: new Color() },
+          uAlt: { value: new Vector3(-1, 0, 0) },
+          uTicks: { value: new Vector4() },
         },
         vertexShader,
         fragmentShader,
@@ -201,6 +246,9 @@ export const Mark = ({
   u.uGlow.value.set(glow[0], glow[1]);
   u.uSeals.value.set(...seals);
   u.uDash.value.set(...dashes);
+  u.uAlt.value.set(alt ? alt.ring : -1, alt?.arcs ?? 0, alt?.duty ?? 0);
+  if (alt) u.uColor2.value.set(alt.color);
+  u.uTicks.value.set(...ticks);
   u.uHover.value = hovered ? 1 : 0;
   u.uClip.value = clip;
   u.uQuad.value = quad;
@@ -228,6 +276,7 @@ export const Mark = ({
     <mesh
       ref={mesh}
       visible={!waiting}
+      {...(decal ? { userData: FLOOR_DECAL } : {})}
       geometry={planeFor(quad)}
       material={material}
       position={[floor[0], floor[1] + lift, floor[2]]}
@@ -272,41 +321,66 @@ export const lanternMarkers = ({
   pitch,
   clip,
   moveMs,
+  levelY,
+  levels,
 }: {
   pitch: number;
   clip: number;
   moveMs: number;
+  /** Height of each level's floor, A to E, to tell which level a mark lies on. */
+  levelY: number[];
+  /** Each level's colour, A to E. */
+  levels: string[];
 }): LanternMarkers => {
   const s = pitch;
+  /** The level (0 = A) whose floor is at this height. */
+  const levelAt = (y: number) =>
+    levelY.reduce((best, h, z) => (Math.abs(h - y) < Math.abs(levelY[best] - y) ? z : best), 0);
+  /** A ring in the level's colour, broken into one arc per level (A: 1, E: 5). */
+  const levelRib = (floor: Vec3, ring: number) => {
+    const z = levelAt(floor[1]);
+    return { ring, color: levels[z], arcs: z + 1, duty: z === 0 ? 0.86 : 0.7 };
+  };
 
-  /** A legal destination: a small paper lantern's light, rim and rib. */
+  /**
+   * A legal destination: the crest of a paper lantern seen from above, a
+   * gold rim with eight short ribs over a warm glow, and inside it a ring in
+   * the destination level's colour, in one arc per level (A: 1 ... E: 5), so
+   * from any angle, top-down too, it says which level the move lands on.
+   */
   const Quiet = ({ floor, hovered }: MarkerProps) => (
     <Mark
       floor={floor}
       color={LANTERN}
       rings={[
-        [0.3 * s, 0.062 * s, 1],
-        [0.18 * s, 0.026 * s, 0.7],
+        [(hovered ? 0.345 : 0.3) * s, (hovered ? 0.09 : 0.08) * s, 1],
+        [0.15 * s, 0.032 * s, hovered ? 1 : 0.9],
       ]}
-      glow={[0.3 * s, hovered ? 0.42 : 0.22]}
+      alt={levelRib(floor, 1)}
+      ticks={[8, 0.19 * s, 0.27 * s, 0.022 * s]}
+      glow={[(hovered ? 0.36 : 0.32) * s, hovered ? 0.62 : 0.32]}
       hovered={hovered}
-      quad={0.7 * s}
+      quad={0.8 * s}
     />
   );
 
-  /** A capture: the lantern opened round the victim, in red lacquer, sealed at the corners. */
+  /**
+   * A capture: the lantern opened round the victim, in red lacquer, sealed
+   * at the corners, with the level's ring inside it.
+   */
   const Capture = ({ floor, hovered }: MarkerProps) => (
     <Mark
       floor={floor}
       color={LACQUER}
       rings={[
-        [0.435 * s, 0.05 * s, 1],
-        [0.37 * s, 0.018 * s, 0.55],
+        [(hovered ? 0.45 : 0.435) * s, 0.055 * s, 1],
+        [0.37 * s, 0.026 * s, hovered ? 1 : 0.85],
       ]}
-      glow={[0.42 * s, hovered ? 0.34 : 0.2]}
+      alt={levelRib(floor, 1)}
+      glow={[0.42 * s, hovered ? 0.5 : 0.2]}
       seals={[0.56 * s, 0.035 * s, 0.95]}
       hovered={hovered}
-      quad={1 * s}
+      quad={1.02 * s}
     />
   );
 
@@ -363,53 +437,60 @@ export const lanternMarkers = ({
    * them with a slow pulse drifting along it. A fresh move threads the line
    * in as the piece lands.
    */
-  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
-    <>
-      <Mark
-        floor={from.floor}
-        color={FIREFLY}
-        rings={[[0.2 * s, 0.03 * s, 0.85]]}
-        glow={[0.2 * s, 0.14]}
-        quad={0.6 * s}
-      />
-      <Mark
-        floor={to.floor}
-        color={FIREFLY}
-        rings={[[0.375 * s, 0.03 * s, 0.9]]}
-        quad={0.9 * s}
-        animate={
-          fresh
-            ? (u, t) => {
-                const k = Math.min(t / 260, 1);
-                u.uOpacity.value = easeOut(k);
-                return k < 1;
-              }
-            : undefined
-        }
-        delayMs={fresh ? moveMs * 0.85 : 0}
-      />
-      <LastMoveLine
-        from={from.floor}
-        to={to.floor}
-        arc={arc}
-        color={FIREFLY}
-        pulseColor="#fbffd8"
-        opacity={0.9}
-        radius={0.013}
-        shade={0.3}
-        flowSpeed={0.45}
-        pulse={0.75}
-        pulseLength={0.32}
-        spacing={1.5}
-        drawInMs={fresh ? 380 : 0}
-        drawInDelayMs={fresh ? moveMs * 0.55 : 0}
-      />
-    </>
-  );
+  const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
+    // Straight up or down: the origin ring goes round the arrival's, so
+    // from above both show
+    const vertical =
+      Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3;
+    return (
+      <>
+        <Mark
+          floor={from.floor}
+          color={FIREFLY}
+          rings={[[(vertical ? 0.45 : 0.2) * s, 0.03 * s, 0.85]]}
+          glow={[0.2 * s, vertical ? 0 : 0.14]}
+          quad={(vertical ? 1 : 0.6) * s}
+        />
+        <Mark
+          floor={to.floor}
+          color={FIREFLY}
+          rings={[[0.375 * s, 0.03 * s, 0.9]]}
+          quad={0.9 * s}
+          animate={
+            fresh
+              ? (u, t) => {
+                  const k = Math.min(t / 260, 1);
+                  u.uOpacity.value = easeOut(k);
+                  return k < 1;
+                }
+              : undefined
+          }
+          delayMs={fresh ? moveMs * 0.85 : 0}
+        />
+        <LastMoveLine
+          from={from.floor}
+          to={to.floor}
+          arc={arc}
+          color={FIREFLY}
+          pulseColor="#fbffd8"
+          opacity={0.9}
+          radius={0.013}
+          shade={0.3}
+          flowSpeed={0.45}
+          pulse={0.75}
+          pulseLength={0.32}
+          spacing={1.5}
+          drawInMs={fresh ? 380 : 0}
+          drawInDelayMs={fresh ? moveMs * 0.55 : 0}
+        />
+      </>
+    );
+  };
 
   /** Check: red lacquer under the king, a bold ring round it, and a bell struck once. */
   const Check = ({ floor }: MarkerProps) => (
     <>
+      <CheckFlag />
       <Mark
         floor={floor}
         color={CHECK}

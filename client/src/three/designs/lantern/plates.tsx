@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   BoxGeometry,
@@ -11,7 +11,7 @@ import {
   RepeatWrapping,
   ShaderMaterial,
 } from 'three';
-import type { Texture } from 'three';
+import type { Mesh, Texture } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GRID_SIZE } from '../../layout';
 import { useLevelFocus } from '../kit/focus';
@@ -133,9 +133,12 @@ const fragmentShader = /* glsl */ `
     float paper = uPaperOpacity * mix(1.0, 0.4, darkSquare * uPattern);
     paper *= mix(0.9, 0.62 + 0.6 * heart, uPattern) * (0.55 + 0.9 * fibre);
     vec3 paperColor = uPaper * mix(1.0, 0.82, darkSquare * uPattern);
-    // The kumiko: slats between the panes and round them, and a small
-    // diamond where two cross
+    // The kumiko: slats between the panes, and a small diamond where two
+    // cross
     vec2 lines = gridLines(uv, uWidth);
+    // Only the slats between panes: the frame's inlay is the border
+    vec2 nearestLine = floor(uv + 0.5);
+    lines *= step(0.5, nearestLine) * step(nearestLine, vec2(uCells - 0.5));
     float slat = max(lines.x, lines.y);
     vec2 g = uv - floor(uv + 0.5);
     float dia = abs(g.x) + abs(g.y) - 0.075;
@@ -164,6 +167,10 @@ const LINE_OPACITY = 0.5;
 const FOCUS_LINE = 0.95;
 const FOCUS_DIM = 0.6;
 const LINE_WIDTH = 0.018;
+/** The inlay's glow at rest, and what focus adds. */
+const INLAY_GLOW = 0.1;
+const INLAY_FOCUS = 0.5;
+const WOOD_COLOR = new Color('#2e1c15');
 
 /**
  * Five shoji platforms, colour-coded per level. Decorative (never raycast).
@@ -182,12 +189,9 @@ export const ShojiPlates = ({ layout, colors, focusLevel = null }: ShojiPlatesPr
   const geometries = useMemo(() => {
     const paper = new PlaneGeometry(frame.half * 2 + 0.04, frame.half * 2 + 0.04);
     const wood = frameGeometry(side, FRAME_WIDTH, FRAME_DEPTH);
-    // The lacquer band on the frame's outer face and the inlay along its top
-    const band = frameGeometry(side + FRAME_WIDTH, 0.008, 0.032).translate(0, -0.018, 0);
-    const inlay = frameGeometry(side + FRAME_WIDTH * 0.32, 0.028, 0.004).translate(0, 0.0035, 0);
-    const accent = mergeGeometries([band, inlay]);
-    band.dispose();
-    inlay.dispose();
+    // The level's colour, inlaid along the frame's top (the outer face stays
+    // plain wood: a lit band there outshone the markers)
+    const accent = frameGeometry(side + FRAME_WIDTH * 0.3, 0.03, 0.004).translate(0, 0.0035, 0);
     // Bronze fittings capping the four corners, each with a short arm along
     // both sides, as on a lacquered box
     const mid = side + FRAME_WIDTH / 2;
@@ -217,7 +221,7 @@ export const ShojiPlates = ({ layout, colors, focusLevel = null }: ShojiPlatesPr
         fog: false,
       }),
       wood: new MeshStandardMaterial({
-        color: '#2e1c15',
+        color: WOOD_COLOR,
         roughness: 0.34,
         metalness: 0.05,
         fog: false,
@@ -243,11 +247,13 @@ export const ShojiPlates = ({ layout, colors, focusLevel = null }: ShojiPlatesPr
           vertexShader,
           fragmentShader,
         }),
+        base: new Color(hex),
         accent: new MeshStandardMaterial({
-          color: hex,
-          emissive: hex,
-          emissiveIntensity: 0.5,
-          roughness: 0.4,
+          color: new Color(hex).multiplyScalar(0.6),
+          emissive: new Color(hex).multiplyScalar(0.6),
+          emissiveIntensity: INLAY_GLOW,
+          // Matte lacquer: no glint along the edge to outshine a marker
+          roughness: 0.75,
           fog: false,
         }),
       })),
@@ -269,6 +275,7 @@ export const ShojiPlates = ({ layout, colors, focusLevel = null }: ShojiPlatesPr
   // Focus, and how far the view looks straight down: both set each level's
   // slats and glow
   const weights = useMemo(() => ({ w: [0, 0, 0, 0, 0], any: 0, steep: 0 }), []);
+  const capMeshes = useRef<(Mesh | null)[]>([]);
   const apply = () => {
     const { w, any, steep } = weights;
     const top = materials.levels.length - 1;
@@ -283,7 +290,17 @@ export const ShojiPlates = ({ layout, colors, focusLevel = null }: ShojiPlatesPr
       m.paper.uniforms.uLineOpacity.value = (base + (FOCUS_LINE - base) * wz) * (1 - 0.78 * quiet);
       m.paper.uniforms.uPattern.value = 1 - 0.9 * quiet;
       m.paper.uniforms.uPaperOpacity.value = PAPER_OPACITY * (1 + 0.45 * wz) * (1 - 0.4 * quiet);
-      m.accent.emissiveIntensity = 0.5 + 0.9 * wz - 0.2 * any * (1 - wz);
+      // The inlay glows only a little at rest (the markers must outshine
+      // it), more in focus; from above, a set-back level's inlay and bronze
+      // sink into the wood, so the border never steps like a plaid
+      const inlay = 1 - 0.9 * quiet;
+      m.accent.color
+        .copy(m.base)
+        .multiplyScalar(0.72)
+        .lerp(WOOD_COLOR, 1 - inlay);
+      m.accent.emissiveIntensity = (INLAY_GLOW + INLAY_FOCUS * wz - 0.08 * any * (1 - wz)) * inlay;
+      const caps = capMeshes.current[z];
+      if (caps) caps.visible = quiet < 0.5;
     });
   };
   useLevelFocus(
@@ -319,7 +336,14 @@ export const ShojiPlates = ({ layout, colors, focusLevel = null }: ShojiPlatesPr
             raycast={noRaycast}
           />
           <mesh geometry={geometries.wood} material={materials.wood} raycast={noRaycast} />
-          <mesh geometry={geometries.corners} material={materials.bronze} raycast={noRaycast} />
+          <mesh
+            ref={(m) => {
+              capMeshes.current[z] = m;
+            }}
+            geometry={geometries.corners}
+            material={materials.bronze}
+            raycast={noRaycast}
+          />
           <mesh
             geometry={geometries.accent}
             material={materials.levels[z].accent}

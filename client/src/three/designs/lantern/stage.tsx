@@ -23,11 +23,17 @@ import {
   Vector3,
   Vector4,
 } from 'three';
-import type { DirectionalLight, Material, Texture } from 'three';
+import type {
+  DirectionalLight,
+  Material,
+  Texture,
+  WebGLProgramParametersWithUniforms,
+} from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { noRaycast } from '../kit/noRaycast';
 import { dotTexture, fbm, paintedTexture, rng } from '../kit/textures';
-import { FIREFLY, GARDEN, LANTERN_LIGHT, SKY } from './palette';
+import { HudFlag } from './hud';
+import { CANDLE, GARDEN, DRIFT_LIGHT, SKY } from './palette';
 
 // The world round the tower: a zen garden at blue hour, far below. Raked
 // gravel ripples out round a still pond under the tower (the tower is the
@@ -75,17 +81,21 @@ const onIsland = ([x, z, r]: [number, number, number], k: number, a: number) =>
   [x + Math.cos(a) * r * k, z + Math.sin(a) * r * k] as const;
 
 /** Stone lanterns: x, z, scale, turn. Each stands at an island's edge, toward the pond. */
-const LANTERNS: Placed[] = ISLANDS.filter((_, i) => i % 3 !== 2).map(([x, z, r]) => {
-  const d = Math.hypot(x, z);
-  const side = (layoutRandom() - 0.5) * 1.2;
-  const k = (d - r * 1.1) / d;
-  return [
-    x * k - (z / d) * side * r,
-    z * k + (x / d) * side * r,
-    1.2 + layoutRandom() * 0.25,
-    layoutRandom() * 6,
-  ];
-});
+// A few only, and none close to the tower, where one would crowd a corner
+// of the view from low seats
+const LANTERNS: Placed[] = ISLANDS.filter(([x, z], i) => i % 3 === 0 && Math.hypot(x, z) > 20).map(
+  ([x, z, r]) => {
+    const d = Math.hypot(x, z);
+    const side = (layoutRandom() - 0.5) * 1.2;
+    const k = (d - r * 1.1) / d;
+    return [
+      x * k - (z / d) * side * r,
+      z * k + (x / d) * side * r,
+      1.2 + layoutRandom() * 0.25,
+      layoutRandom() * 6,
+    ];
+  },
+);
 
 /** Maples: x, z, scale, turn, on a few of the larger islands. */
 const MAPLES: Placed[] = ISLANDS.filter(([x, z], i) => i % 3 === 1 && Math.hypot(x, z) > 24).map(
@@ -149,7 +159,51 @@ const towerMask = /* glsl */ `
   float towerMask(vec2 ndc) {
     vec4 r = uTowerRect;
     float outside = max(max(r.x - ndc.x, ndc.x - r.z), max(r.y - ndc.y, ndc.y - r.w));
-    return smoothstep(0.0, 0.15, outside);
+    return smoothstep(0.0, 0.3, outside);
+  }
+`;
+
+/**
+ * Fades a garden material out wherever it shows on screen within the
+ * tower's outline, leaving the gravel behind it, so no lantern, rock or tree
+ * ever stands among the pieces seen through the platforms.
+ */
+export const masked = <T extends MeshStandardMaterial>(m: T): T => {
+  m.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms) => {
+    shader.uniforms.uTowerRect = towerRect;
+    shader.vertexShader =
+      'varying vec3 vMaskClip;\n' +
+      shader.vertexShader.replace(
+        '#include <project_vertex>',
+        '#include <project_vertex>\n  vMaskClip = gl_Position.xyw;',
+      );
+    shader.fragmentShader =
+      `varying vec3 vMaskClip;\n${towerMask}\n` +
+      shader.fragmentShader.replace(
+        '#include <opaque_fragment>',
+        '#include <opaque_fragment>\n  gl_FragColor.a *= towerMask(vMaskClip.xy / vMaskClip.z);\n  if (gl_FragColor.a < 0.01) discard;',
+      );
+  };
+  m.customProgramCacheKey = () => 'lantern-garden-mask';
+  // Fades out rather than to a flat colour, so what lies behind it (the
+  // gravel) shows instead, and no shape is left
+  m.transparent = true;
+  return m;
+};
+
+/**
+ * Seconds since the mate (below 0: no mate). The garden's lanterns go out in
+ * one slow wave from the tower outward as it grows.
+ */
+export const mateWave = { value: -1 };
+const WAVE_SPEED = 11;
+
+/** GLSL: how lit a lantern this far from the tower is, as the mate's wave passes. */
+const lampWave = /* glsl */ `
+  uniform float uMateWave;
+  float lampLit(float radius) {
+    if (uMateWave < 0.0) return 1.0;
+    return 1.0 - 0.88 * smoothstep(radius / ${WAVE_SPEED}.0 - 0.4, radius / ${WAVE_SPEED}.0 + 0.4, uMateWave);
   }
 `;
 
@@ -271,7 +325,9 @@ const horizonTexture = (): Texture => {
   const fillRidge = (h: (x: number) => number) => {
     ctx.beginPath();
     ctx.moveTo(0, H);
-    for (let x = 0; x <= W; x += 6) ctx.lineTo(x, yOf(h(x)));
+    for (let x = 0; x < W; x += 6) ctx.lineTo(x, yOf(h(x)));
+    // The last point exactly on the seam (fbm tiles, so it meets x = 0)
+    ctx.lineTo(W, yOf(h(W)));
     ctx.lineTo(W, H);
     ctx.closePath();
     ctx.fill();
@@ -473,6 +529,7 @@ const groundFragment = /* glsl */ `
   uniform vec3 uLight;
   varying vec3 vClip;
   ${towerMask}
+  ${lampWave}
   uniform vec3 uIslands[${ISLANDS.length}];
   uniform vec3 uLanterns[${LANTERNS.length}];
   uniform float uPond;
@@ -509,7 +566,10 @@ const groundFragment = /* glsl */ `
     float field = smin(pond - 0.5, isl, 2.2);
     float f = max(field, 0.0) / 0.36;
     float w = fwidth(f);
-    float groove = cos(6.2831853 * f) * (1.0 - smoothstep(0.18, 0.5, w));
+    // Out where they would show through the platforms: the lamps' pools
+    // entirely, the rakes' ridges mostly
+    float behind = towerMask(vClip.xy / vClip.z);
+    float groove = cos(6.2831853 * f) * (1.0 - smoothstep(0.18, 0.5, w)) * mix(0.3, 1.0, behind);
     vec3 col = mix(uGravel, uGravelLit, 0.25 + 0.35 * big.r) * (0.9 + 0.2 * fine.g);
     col *= 1.0 + 0.16 * groove;
     // Moss, soft at its edge, mottled
@@ -540,10 +600,9 @@ const groundFragment = /* glsl */ `
     for (int i = 0; i < ${LANTERNS.length}; i++) {
       vec3 l = uLanterns[i];
       vec2 d = p - l.xy;
-      light += l.z * exp(-dot(d, d) / 14.0);
+      light += l.z * exp(-dot(d, d) / 14.0) * lampLit(length(l.xy));
     }
-    // Dimmed where they would show through the platforms
-    light *= mix(0.2, 1.0, towerMask(vClip.xy / vClip.z));
+    light *= behind;
     col += uLight * light * (0.05 + col * 1.8);
     // Mist over the distance
     float dist = distance(cameraPosition, vWorld);
@@ -566,11 +625,12 @@ const Ground = () => {
         uWater: { value: new Color(GARDEN.water) },
         uStone: { value: new Color(GARDEN.stone) },
         uMist: { value: new Color(SKY.mist) },
-        uLight: { value: new Color(LANTERN_LIGHT) },
+        uLight: { value: new Color(CANDLE) },
         uIslands: { value: ISLANDS.map(([x, z, r]) => new Vector3(x, z, r)) },
-        uLanterns: { value: LANTERNS.map(([x, z, s]) => new Vector3(x, z, s * 0.75)) },
+        uLanterns: { value: LANTERNS.map(([x, z, s]) => new Vector3(x, z, s * 0.6)) },
         uPond: { value: POND },
         uTowerRect: towerRect,
+        uMateWave: mateWave,
       },
       vertexShader: groundVertex,
       fragmentShader: groundFragment,
@@ -651,19 +711,23 @@ const Wall = () => {
       GROUND_Y + WALL_H + 0.2,
       0,
     );
-    const plasterMat = new MeshStandardMaterial({
-      map: wallTexture(),
-      color: '#34374a',
-      roughness: 1,
-      envMapIntensity: 0.3,
-      side: BackSide,
-    });
-    const capMat = new MeshStandardMaterial({
-      color: '#17161c',
-      roughness: 0.8,
-      envMapIntensity: 0.3,
-      side: BackSide,
-    });
+    const plasterMat = masked(
+      new MeshStandardMaterial({
+        map: wallTexture(),
+        color: '#34374a',
+        roughness: 1,
+        envMapIntensity: 0.3,
+        side: BackSide,
+      }),
+    );
+    const capMat = masked(
+      new MeshStandardMaterial({
+        color: '#17161c',
+        roughness: 0.8,
+        envMapIntensity: 0.3,
+        side: BackSide,
+      }),
+    );
     return { plaster, cap, plasterMat, capMat };
   }, []);
   useEffect(
@@ -762,60 +826,62 @@ const mapleGeometry = () => {
 const GardenObjects = () => {
   const parts = useMemo(() => {
     const stone = lanternGeometry();
-    const stoneMat = new MeshStandardMaterial({
-      color: '#3e3b39',
-      roughness: 0.95,
-      envMapIntensity: 0.3,
-    });
+    const stoneMat = masked(
+      new MeshStandardMaterial({ color: '#33302e', roughness: 0.95, envMapIntensity: 0.25 }),
+    );
     // The paper of the fire box, lit from inside
     const box = new CylinderGeometry(0.25, 0.25, 0.4, 6).translate(0, 1.55, 0);
     // Lamps behind the tower (on screen) burn low, so no bright spot shows
     // through the platforms
     const boxMat = new ShaderMaterial({
-      uniforms: { uColor: { value: new Color('#e0a860') }, uTowerRect: towerRect },
+      uniforms: {
+        uColor: { value: new Color(CANDLE) },
+        uMist: { value: new Color(SKY.mist) },
+        uTowerRect: towerRect,
+        uMateWave: mateWave,
+      },
       vertexShader: /* glsl */ `
         varying vec3 vClip;
+        varying float vRadius;
         void main() {
           vec4 p = vec4(position, 1.0);
           #ifdef USE_INSTANCING
             p = instanceMatrix * p;
           #endif
+          vRadius = length((modelMatrix * p).xz);
           gl_Position = projectionMatrix * modelViewMatrix * p;
           vClip = gl_Position.xyw;
         }`,
       fragmentShader: /* glsl */ `
         uniform vec3 uColor;
+        uniform vec3 uMist;
         varying vec3 vClip;
+        varying float vRadius;
         ${towerMask}
+        ${lampWave}
         void main() {
-          gl_FragColor = vec4(uColor * mix(0.22, 1.0, towerMask(vClip.xy / vClip.z)), 1.0);
+          vec3 lamp = uColor * mix(0.12, 1.0, lampLit(vRadius));
+          gl_FragColor = vec4(mix(uMist, lamp, towerMask(vClip.xy / vClip.z)), 1.0);
           #include <colorspace_fragment>
         }`,
     });
     const rock = lumpGeometry(0, 0.62, -0.25);
-    const rockMat = new MeshStandardMaterial({
-      color: '#34312f',
-      roughness: 0.9,
-      envMapIntensity: 0.3,
-    });
+    const rockMat = masked(
+      new MeshStandardMaterial({ color: '#302d2b', roughness: 0.9, envMapIntensity: 0.25 }),
+    );
     const shrub = lumpGeometry(3, 0.58, -0.1);
-    const shrubMat = new MeshStandardMaterial({
-      color: '#16261c',
-      roughness: 1,
-      envMapIntensity: 0.3,
-    });
+    const shrubMat = masked(
+      new MeshStandardMaterial({ color: '#131f18', roughness: 1, envMapIntensity: 0.2 }),
+    );
     const maple = mapleGeometry();
-    const trunkMat = new MeshStandardMaterial({
-      color: '#2b1e19',
-      roughness: 0.9,
-      envMapIntensity: 0.3,
-    });
-    // Momiji at dusk: deep crimson going dark
-    const leafMat = new MeshStandardMaterial({
-      color: '#40171e',
-      roughness: 1,
-      envMapIntensity: 0.3,
-    });
+    // Maples gone to silhouettes against the dusk: near black, a hint of
+    // their red, edged only by the moonlit rim light
+    const trunkMat = masked(
+      new MeshStandardMaterial({ color: '#15100e', roughness: 0.9, envMapIntensity: 0.15 }),
+    );
+    const leafMat = masked(
+      new MeshStandardMaterial({ color: '#110a0c', roughness: 1, envMapIntensity: 0.1 }),
+    );
     // A soft halo round each fire box
     const halo = new BufferGeometry();
     halo.setAttribute(
@@ -835,20 +901,22 @@ const GardenObjects = () => {
       blending: AdditiveBlending,
       uniforms: {
         uMap: { value: dotTexture(0.95) },
-        uColor: { value: new Color(LANTERN_LIGHT) },
+        uColor: { value: new Color(CANDLE) },
         uScale: { value: 1 },
         uTowerRect: towerRect,
+        uMateWave: mateWave,
       },
       vertexShader: /* glsl */ `
         attribute float aSize;
         uniform float uScale;
         varying float vShow;
         ${towerMask}
+        ${lampWave}
         void main() {
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = aSize * uScale * 300.0 / -mv.z;
           gl_Position = projectionMatrix * mv;
-          vShow = towerMask(gl_Position.xy / gl_Position.w);
+          vShow = towerMask(gl_Position.xy / gl_Position.w) * lampLit(length(position.xz));
         }`,
       fragmentShader: /* glsl */ `
         uniform sampler2D uMap;
@@ -857,7 +925,7 @@ const GardenObjects = () => {
         void main() {
           float a = texture2D(uMap, gl_PointCoord).a * vShow;
           if (a < 0.004) discard;
-          gl_FragColor = vec4(uColor * a * 0.2, 1.0);
+          gl_FragColor = vec4(uColor * a * 0.16, 1.0);
           #include <colorspace_fragment>
         }`,
     });
@@ -922,7 +990,7 @@ const GardenObjects = () => {
 
 // --- Fireflies ------------------------------------------------------------------------------
 
-const FIREFLIES = 36;
+const FIREFLIES = 12;
 /**
  * A few fireflies drifting low over the garden, blinking slowly. Each one
  * fades out wherever it would appear on screen within the tower's outline,
@@ -950,7 +1018,7 @@ const Fireflies = () => {
       uniforms: {
         uTime: { value: 0 },
         uTowerRect: towerRect,
-        uColor: { value: new Color(FIREFLY) },
+        uColor: { value: new Color(DRIFT_LIGHT) },
         uMap: { value: dotTexture(0.8) },
         uScale: { value: 1 },
       },
@@ -979,7 +1047,7 @@ const Fireflies = () => {
         void main() {
           float a = texture2D(uMap, gl_PointCoord).a * vAlpha;
           if (a < 0.004) discard;
-          gl_FragColor = vec4(uColor * a, 1.0);
+          gl_FragColor = vec4(uColor * a * 0.5, 1.0);
           #include <colorspace_fragment>
         }`,
     });
@@ -1043,6 +1111,7 @@ const CameraLights = () => {
 
 export const Stage = () => (
   <>
+    <HudFlag />
     <TowerRect />
     <Sky />
     <Horizon />

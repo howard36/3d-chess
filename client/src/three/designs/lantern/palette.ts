@@ -36,14 +36,19 @@ export const GARDEN = {
   stone: '#2b2c33',
 };
 
-/** Warm light: lantern windows, the pools they cast, the paper's glow. */
-export const LANTERN_LIGHT = '#ffc978';
+/**
+ * The garden's lamps: a deep, red candle amber, well clear of the move gold,
+ * so a lamp far below never reads as a marker.
+ */
+export const CANDLE = '#d9803c';
+/** The few fireflies over the garden, seen by moonlight: a dim, cool white, no gameplay hue. */
+export const DRIFT_LIGHT = '#cfe3d6';
 export const PAPER = '#f8d9a2';
 
 // --- Armies ----------------------------------------------------------------------
 
 export const BOXWOOD = { base: '#e7cb93', grain: '#c49a5c', accent: '#6e4a2c' };
-export const ROSEWOOD = { base: '#7a3725', grain: '#3e170d', accent: '#c98a52' };
+export const ROSEWOOD = { base: '#51261f', grain: '#2a100b', accent: '#c98a52' };
 
 // --- Markers ----------------------------------------------------------------------
 
@@ -55,7 +60,7 @@ export const SELECT = '#ffb347';
 export const LACQUER = '#ff5b3a';
 export const CHECK = '#ff4436';
 /** The last move: firefly light. */
-export const FIREFLY = '#d7f56b';
+export const FIREFLY = '#9ef269';
 
 // --- HUD ---------------------------------------------------------------------------
 

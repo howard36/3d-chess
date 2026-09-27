@@ -1,6 +1,7 @@
 import '@fontsource/shippori-mincho/latin-500.css';
 import '@fontsource/shippori-mincho/latin-700.css';
 import '@fontsource/shippori-mincho/latin-800.css';
+import { useEffect } from 'react';
 import type { DesignHud } from '../types';
 import { INK, LACQUER, SKY, WASHI } from './palette';
 
@@ -34,6 +35,64 @@ const litPaper = (glow: string) =>
   `repeating-linear-gradient(180deg, transparent 0 9px, rgba(122, 74, 34, 0.13) 9px 10px), ` +
   `radial-gradient(ellipse at 50% 55%, ${glow} 0%, #f6e4c0 55%, #e9d2a8 100%)`;
 
+/**
+ * What the HUD variables cannot say, as a small stylesheet that applies only
+ * while this design is on screen (its stage flags the document, see
+ * HudFlag): the move box's focus ring in lantern gold, and the turn chip
+ * edged in red lacquer while a king is in check (flagged by the check
+ * marker, see CheckFlag).
+ */
+const STYLE = `
+html[data-lantern-hud] input:focus, html[data-lantern-hud] input:focus-visible {
+  outline: 2px solid #ffc978; outline-offset: 1px;
+}
+html[data-lantern-check] [data-testid="turn-indicator"] {
+  border-color: ${LACQUER} !important;
+  box-shadow: inset 0 4px 0 #2b1911, inset 0 -4px 0 #2b1911, inset 0 0 0 2px ${LACQUER},
+    0 0 24px rgba(255, 91, 58, 0.45), 0 6px 18px rgba(0, 0, 0, 0.4) !important;
+}
+`;
+if (typeof document !== 'undefined' && !document.getElementById('lantern-hud-style')) {
+  const style = document.createElement('style');
+  style.id = 'lantern-hud-style';
+  style.textContent = STYLE;
+  document.head.appendChild(style);
+}
+
+/** A flag on the document while `name` is mounted (counted, so two mounts are fine). */
+const useDocumentFlag = (name: 'lanternHud' | 'lanternCheck') => {
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    const count = Number(root.dataset[`${name}Count`] ?? 0) + 1;
+    root.dataset[`${name}Count`] = String(count);
+    root.dataset[name] = '';
+    return () => {
+      const left = Number(root.dataset[`${name}Count`] ?? 1) - 1;
+      if (left > 0) {
+        root.dataset[`${name}Count`] = String(left);
+        return;
+      }
+      delete root.dataset[`${name}Count`];
+      delete root.dataset[name];
+    };
+  }, [name]);
+};
+
+/** Mounted with the stage: this design's HUD stylesheet applies while it is. */
+export const HudFlag = () => {
+  useDocumentFlag('lanternHud');
+  return null;
+};
+/**
+ * Mounted with the check marker: flags the document while a king is in
+ * check, so the turn chip can take its red lacquer edge.
+ */
+export const CheckFlag = () => {
+  useDocumentFlag('lanternCheck');
+  return null;
+};
+
 const PANEL = 'linear-gradient(180deg, rgba(34, 27, 36, 0.86) 0%, rgba(16, 17, 32, 0.86) 100%)';
 const EDGE = '1px solid rgba(255, 201, 120, 0.26)';
 
@@ -60,7 +119,11 @@ export const hud: DesignHud = {
     // Lacquer caps top and bottom, and the lantern's glow in the dark
     '--turn-shadow':
       'inset 0 4px 0 #2b1911, inset 0 -4px 0 #2b1911, 0 0 26px rgba(255, 184, 96, 0.38), 0 6px 18px rgba(0, 0, 0, 0.4)',
-    '--modal-bg': `${seal} no-repeat center top 12px / 30px 30px, ${litPaper('#ffe6b0')}`,
+    // The result card: a lit lantern with a red lacquer seal in its side
+    // padding (48 px), clear of the title; the promotion dialog is plain lit paper
+    '--result-bg': `${seal} no-repeat right 9px top 10px / 34px 34px, ${litPaper('#ffe6b0')}`,
+    '--result-title-size': '24px',
+    '--modal-bg': litPaper('#ffe6b0'),
     '--modal-fg': INK,
     '--modal-radius': '4px',
     '--modal-shadow':
