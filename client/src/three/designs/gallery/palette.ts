@@ -14,8 +14,12 @@ import { levelRamp } from '../kit/colors';
 // crimson velvet rope for a capture and for check, platinum wire for the
 // last move, warm spotlight white for the selection.
 
-/** A (bottom) to E: amethyst, sapphire, azure, teal, emerald. */
-export const LEVELS = levelRamp({ from: 305, to: 155, lightness: 0.72, chroma: 0.135 });
+/**
+ * A (bottom) to E: amethyst, sapphire, azure, teal, peridot. Hue and
+ * lightness both step (dark at the bottom, light at the top), so neighbours
+ * sit about 0.12 apart in OKLab.
+ */
+export const LEVELS = levelRamp({ from: 320, to: 135, lightness: [0.64, 0.8], chroma: 0.15 });
 
 /** Ivory for the file and rank letters, like a wall label printed on card. */
 export const LABEL = '#e9e2d3';
@@ -41,9 +45,9 @@ export const ROOM = {
   dais: '#101113',
   plinth: '#0f1012',
   moon: '#8fa6c8',
-  exit: '#3fd88a',
+  exit: '#5f9c86',
 };
 
 /** The armies. */
-export const MARBLE = { base: '#eee9e0', vein: '#8d939c', warm: '#fff4e2' };
-export const BASALT = { base: '#34363b', grain: '#50545b', rim: '#b9cbe6' };
+export const MARBLE = { base: '#eee9e0', vein: '#a4a9b1', warm: '#fff4e2' };
+export const BASALT = { base: '#2c2f35', grain: '#50545b', rim: '#b9cbe6' };

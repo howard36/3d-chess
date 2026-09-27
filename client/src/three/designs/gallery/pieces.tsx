@@ -1,12 +1,14 @@
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Color, MeshStandardMaterial } from 'three';
+import { Color, MeshStandardMaterial, RingGeometry, ShaderMaterial } from 'three';
 import type { Group, IUniform, Material } from 'three';
 import { ChessPiece } from '../../pieces';
-import { ContactShadow, LevelFootprint } from '../kit/plates';
+import { LAYER } from '../kit/layers';
+import { noRaycast } from '../kit/noRaycast';
+import { ContactShadow } from '../kit/plates';
 import type { PieceBodyProps, PieceColor } from '../types';
 import { LEVELS } from './palette';
-import { CHECK_RIM, makeStone } from './stone';
+import { makeStone } from './stone';
 import type { StoneKind } from './stone';
 
 // The armies: the shared Staunton set carved in Carrara marble and in
@@ -18,9 +20,10 @@ import type { StoneKind } from './stone';
 // colour.
 //
 // Selected, a piece becomes the exhibit: the spotlight strikes up over it
-// (see markers.tsx), its upward faces warm in the light, and it turns slowly
-// on its plinth, as a sculpture on a gallery turntable. Let go, it turns
-// back to face the way it stood. Hovered, it warms a little in anticipation.
+// (see markers.tsx), its rim and upward faces warm in the light (never its
+// body: the army's value is sacred), and it turns once on its plinth, as a
+// sculpture on a gallery turntable, then rests facing the way it stood.
+// Hovered, its rim warms a little in anticipation.
 
 /**
  * The selection's spotlight on the piece, 0 (off) to 1: one uniform shared
@@ -42,11 +45,8 @@ const stone = (kind: StoneKind, state: State) => {
   if (!m) {
     m = makeStone(kind, {
       spot: state === 'selected' ? SPOTLIGHT : { value: state === 'hover' ? HOVER_SPOT : 0 },
-      ...(state === 'check' ? { rimColor: CHECK_RIM, rimScale: 1.05 } : {}),
+      check: state === 'check',
     });
-    // The marble's rim is a glow; in check it needs to be strong enough to see
-    if (state === 'check' && kind === 'marble') m.userData.stone.uRim.value = 0.4;
-    if (state === 'check' && kind === 'bardiglio') m.userData.stone.uRim.value = 0.32;
     cache.set(key, m);
   }
   return m;
@@ -59,7 +59,7 @@ export const FEET = LEVELS.map((c) => {
     color,
     emissive: color,
     emissiveIntensity: 0.28,
-    metalness: 0.55,
+    metalness: 0.2,
     roughness: 0.32,
   });
 });
@@ -75,18 +75,51 @@ export const pieceMaterials = (
   foot: FEET[level] ?? FEET[0],
 });
 
-// One turn every 9 seconds: slow enough to be calm, quick enough to be seen
-const TURN_SPEED = (Math.PI * 2) / 9;
+// The level's ring round a piece's base: thin and unlit, quieter than any
+// gameplay mark, and a little stronger from high above, where it is what
+// tells the levels' pieces apart
+const FOOTPRINT = new RingGeometry(0.3, 0.337, 48).rotateX(-Math.PI / 2);
+const footprints = LEVELS.map(
+  (c) =>
+    new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+      uniforms: { uColor: { value: new Color(c) } },
+      vertexShader: /* glsl */ `
+        varying vec3 vWorld;
+        void main() {
+          vec4 world = modelMatrix * vec4(position, 1.0);
+          vWorld = world.xyz;
+          gl_Position = projectionMatrix * viewMatrix * world;
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uColor;
+        varying vec3 vWorld;
+        void main() {
+          float steep = smoothstep(0.6, 0.95, normalize(cameraPosition - vWorld).y);
+          gl_FragColor = vec4(uColor, mix(0.45, 0.8, steep));
+          #include <colorspace_fragment>
+        }`,
+    }),
+);
+
+// One slow turn on the turntable when a piece is picked up, then rest
+const TURN_MS = 4800;
 const TAU = Math.PI * 2;
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
 /**
- * A piece standing on its level: contact shadow, level inlay ring, and the
- * carved piece on a turntable that turns while it is selected.
+ * A piece standing on its level: contact shadow, level ring, and the carved
+ * piece on a turntable that turns once when it is selected.
  */
 export const PieceBody = (props: PieceBodyProps) => {
   const { type, color, selected, hovered, inCheck, level = 0 } = props;
   const turn = useRef<Group>(null);
   const ground = useRef<Group>(null);
+  const turned = useRef(0);
   const invalidate = useThree((s) => s.invalidate);
   useFrame((_, delta) => {
     // The shadow and the level ring stay on the floor while Board lifts the piece
@@ -94,16 +127,20 @@ export const PieceBody = (props: PieceBodyProps) => {
     if (ground.current && lift?.userData.lift) ground.current.position.y = -lift.position.y;
     const g = turn.current;
     if (!g) return;
-    const dt = Math.min(delta, 1 / 20);
-    if (selected) {
-      g.rotation.y = (g.rotation.y + dt * TURN_SPEED) % TAU;
+    const dt = Math.min(delta, 1 / 20) * 1000;
+    if (selected && turned.current < TURN_MS) {
+      turned.current = Math.min(turned.current + dt, TURN_MS);
+      g.rotation.y = (TAU * easeInOut(turned.current / TURN_MS)) % TAU;
       invalidate();
-    } else if (g.rotation.y !== 0) {
-      // Turn back the short way, easing in to rest
-      const r = g.rotation.y > Math.PI ? g.rotation.y - TAU : g.rotation.y;
-      const next = r * Math.max(0, 1 - dt * 7);
-      g.rotation.y = Math.abs(next) < 1e-3 ? 0 : (next + TAU) % TAU;
-      invalidate();
+    } else if (!selected) {
+      turned.current = 0;
+      if (g.rotation.y !== 0) {
+        // Let go mid-turn: turn back the short way, easing in to rest
+        const r = g.rotation.y > Math.PI ? g.rotation.y - TAU : g.rotation.y;
+        const next = r * Math.max(0, 1 - (dt / 1000) * 7);
+        g.rotation.y = Math.abs(next) < 1e-3 ? 0 : (next + TAU) % TAU;
+        invalidate();
+      }
     }
   });
   const state: State = inCheck ? 'check' : selected ? 'selected' : hovered ? 'hover' : 'rest';
@@ -112,11 +149,12 @@ export const PieceBody = (props: PieceBodyProps) => {
     <>
       <group ref={ground}>
         <ContactShadow radius={0.37} opacity={0.55} />
-        <LevelFootprint
-          color={LEVELS[level] ?? LEVELS[0]}
-          radius={0.335}
-          width={0.026}
-          opacity={0.5}
+        <mesh
+          geometry={FOOTPRINT}
+          material={footprints[level] ?? footprints[0]}
+          position={[0, 0.006, 0]}
+          renderOrder={LAYER.shadow}
+          raycast={noRaycast}
         />
       </group>
       <group ref={turn}>

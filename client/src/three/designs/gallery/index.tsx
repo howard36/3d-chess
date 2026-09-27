@@ -5,7 +5,7 @@ import { clarityTower, towerFrame } from '../kit/layouts';
 import { SmartLabels } from '../kit/smartLabels';
 import type { Design, GridProps } from '../types';
 import { makeFx } from './fx';
-import { hud, SERIF } from './hud';
+import { hud, LABEL_FONT } from './hud';
 import { makeMarkers } from './markers';
 import { LABEL, LEVELS } from './palette';
 import { PieceBody } from './pieces';
@@ -49,7 +49,7 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
       <SmartLabels
         layout={l}
         orientation={orientation}
-        font={SERIF}
+        font={LABEL_FONT}
         weight={700}
         levelWeight={700}
         color={LABEL}
@@ -59,7 +59,7 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
         opacity={0.92}
         levelScale={1.4}
         levelColors={LEVELS}
-        levelOffset={0.66}
+        levelOffset={1.15}
         offset={0.44}
         focusLevel={focusLevel}
         focusScale={1.25}
@@ -83,7 +83,7 @@ const gallery: Design = {
   PieceBody,
   pieceScale: PIECE_SCALE,
   knightYaw: 0.45,
-  markers: makeMarkers(pitch, MOTION.durationMs),
+  markers: makeMarkers(pitch, MOTION.durationMs, levelY),
   hoverDestinations: true,
   // Hover stirs a piece and selection raises it (the kit's heights, held
   // still); the selected piece also turns on its plinth (pieces.tsx)

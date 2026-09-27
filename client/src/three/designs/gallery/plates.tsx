@@ -66,7 +66,7 @@ const glassFragment = /* glsl */ `
       frost *= 0.85 + 0.35 * smoothstep(0.3, 0.5, max(f.x, f.y));
       frost *= 1.0 + uFocus * 0.5;
       // From high above, the deeper sheets' etching recedes with their inlay
-      frost *= mix(1.0, uDeep, smoothstep(0.62, 0.97, view.y) * (1.0 - uFocus));
+      frost *= mix(1.0, uDeep, smoothstep(0.62, 0.97, view.y));
       vec3 frostCol = mix(vec3(0.86, 0.9, 0.95), uTint, 0.18);
       col = (col * a + frostCol * frost) / max(a + frost, 1e-4);
       a = a + frost - a * frost;
@@ -81,7 +81,6 @@ const inlayFragment = /* glsl */ `
   uniform float uOpacity;
   uniform float uWidth;
   uniform float uDeep;
-  uniform float uFocus;
   varying vec2 vCell;
   varying vec3 vWorld;
   void main() {
@@ -110,7 +109,7 @@ const inlayFragment = /* glsl */ `
     vec3 view = normalize(cameraPosition - vWorld);
     // Seen from high above, the deeper grids recede
     float steep = smoothstep(0.62, 0.97, view.y);
-    float a = line * uOpacity * mix(1.0, mix(uDeep, 1.0, uFocus), steep);
+    float a = line * uOpacity * mix(1.0, uDeep, steep);
     if (a < 0.003) discard;
     vec3 col = mix(uColor, vec3(1.0), 0.28 * shine);
     gl_FragColor = vec4(col, a);
@@ -165,6 +164,9 @@ const frameWithClamps = (side: number) => {
 
 /** Where the corner rods stand, for a platform of half side `half` (the tower's frame). */
 export const rodOffset = (half: number, margin = 0.07) => half + margin + 0.025;
+
+/** Share of each level's grid left from straight above, A to E, with nothing focused. */
+const DEEP = [0.09, 0.17, 0.3, 0.55, 1];
 
 export interface GlassPlatesProps {
   layout: BoardLayout;
@@ -227,7 +229,7 @@ export const GlassPlates = ({
               uSheen: { value: sheen },
               uFocus: { value: 0 },
               uTint: { value: new Color(colors[z]) },
-              uDeep: { value: 0.55 ** (levels - 1 - z) },
+              uDeep: { value: DEEP[z] },
             },
             vertexShader: glassVertex,
             fragmentShader: glassFragment,
@@ -241,15 +243,14 @@ export const GlassPlates = ({
               uColor: { value: new Color(colors[z]) },
               uOpacity: { value: inlay },
               uWidth: { value: inlayWidth },
-              // From straight above, deeper grids recede: A keeps half its lines
-              uDeep: { value: 0.55 ** (levels - 1 - z) },
-              uFocus: { value: 0 },
+              // From straight above, the grids thin toward the top (or focused) level
+              uDeep: { value: DEEP[z] },
             },
             vertexShader: glassVertex,
             fragmentShader: inlayFragment,
           }),
           frame: new ShaderMaterial({
-            uniforms: { uColor: { value: new Color(colors[z]) }, uBright: { value: 1 } },
+            uniforms: { uColor: { value: new Color(colors[z]) }, uBright: { value: 0.72 } },
             vertexShader: frameVertex,
             fragmentShader: frameFragment,
           }),
@@ -277,8 +278,13 @@ export const GlassPlates = ({
         m.inlay.uniforms.uOpacity.value = inlay * rest + (1 - inlay * rest) * w * 0.9;
         m.inlay.uniforms.uWidth.value = inlayWidth * (1 + 0.35 * w);
         m.glass.uniforms.uFocus.value = w;
-        m.inlay.uniforms.uFocus.value = w;
-        m.frame.uniforms.uBright.value = (1 - any * 0.3 * (1 - w)) * (1 + 0.45 * w);
+        // From high above, the grids thin toward the focused level (or the
+        // top one when none is), so five nested grids never read as a plaid
+        const deep = w + (1 - w) * (DEEP[z] * (1 - any) + 0.2 * any);
+        m.inlay.uniforms.uDeep.value = deep;
+        m.glass.uniforms.uDeep.value = deep;
+        // Frames stay below the gameplay marks; the focused one steps up
+        m.frame.uniforms.uBright.value = 0.72 * (1 - any * 0.3 * (1 - w)) + 0.55 * w;
       });
     },
     { levels, ms: 160, key: materials },

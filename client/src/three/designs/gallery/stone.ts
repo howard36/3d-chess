@@ -14,8 +14,9 @@ import { BASALT, MARBLE, ROPE, SPOT } from './palette';
 //   light from above and behind the viewer's line of sight, so every dark
 //   piece reads as a carved form against the dark room, never a silhouette.
 //
-// Both take the selection's spotlight (uSpot: warm light pouring onto the
-// piece's upward faces) and a rim colour, which check turns crimson.
+// Both keep their army's value in every state: the selection's spotlight
+// (uSpot) warms only the rim and the upward faces, and check adds only a
+// narrow crimson rim round the upper half.
 
 export type StoneKind = 'marble' | 'basalt' | 'bardiglio' | 'graphite';
 
@@ -24,6 +25,8 @@ export interface StoneUniforms {
   uRim: IUniform<number>;
   uRimColor: IUniform<Color>;
   uFade: IUniform<number>;
+  /** 1 on a king in check: a narrow crimson rim round its upper half. */
+  uCheck: IUniform<number>;
 }
 
 const NOISE = /* glsl */ `
@@ -34,6 +37,8 @@ const NOISE = /* glsl */ `
   uniform vec3 uRimColor;
   uniform vec3 uSpotColor;
   uniform float uFade;
+  uniform float uCheck;
+  uniform vec3 uCheckColor;
   float gHash(vec3 p) {
     p = fract(p * 0.3183099 + 0.1);
     p *= 17.0;
@@ -60,6 +65,9 @@ const NOISE = /* glsl */ `
     }
     return s / 0.875;
   }
+  float gFbm2(vec3 p) {
+    return (gNoise(p) * 0.5 + gNoise(p * 2.07 + vec3(11.7, 3.1, 7.3)) * 0.25) / 0.75;
+  }
 `;
 
 /** The surface of each stone, painted over `diffuseColor` (after color_fragment). */
@@ -70,19 +78,19 @@ const SURFACE: Record<StoneKind, string> = {
     {
       vec3 p = vObj * vec3(1.0, 0.9, 1.0) + vec3(0.37, 0.0, 0.61);
       float turb = gFbm(p * 7.0);
-      float wave = sin((p.x * 3.1 + p.y * 5.3 + p.z * 1.9) * 3.4 + turb * 7.5);
-      float thread = pow(1.0 - abs(wave), 22.0);
-      float halo = pow(1.0 - abs(wave), 5.0);
-      float cloud = gFbm(p * 3.0 + 4.0);
-      vec3 stone = diffuseColor.rgb * (0.94 + 0.08 * cloud);
-      stone = mix(stone, uVein, clamp(thread * 0.7 + halo * 0.22, 0.0, 1.0));
+      float wave = sin((p.x * 3.1 + p.y * 5.3 + p.z * 1.9) * 1.7 + turb * 6.0);
+      float thread = pow(1.0 - abs(wave), 9.0);
+      float halo = pow(1.0 - abs(wave), 3.0);
+      float cloud = gNoise(p * 3.0 + 4.0);
+      vec3 stone = diffuseColor.rgb * (0.95 + 0.07 * cloud);
+      stone = mix(stone, uVein, clamp(thread * 0.5 + halo * 0.35, 0.0, 1.0));
       diffuseColor.rgb = stone;
     }`,
   // A darker grey marble for the details that name a piece, with denser veins
   bardiglio: /* glsl */ `
     {
       vec3 p = vObj + vec3(1.3, 0.2, 0.8);
-      float turb = gFbm(p * 9.0);
+      float turb = gFbm2(p * 9.0);
       float wave = sin((p.x * 2.0 + p.y * 6.0 + p.z * 2.6) * 4.0 + turb * 6.0);
       float band = pow(1.0 - abs(wave), 6.0);
       diffuseColor.rgb *= 0.9 + 0.12 * turb;
@@ -92,10 +100,10 @@ const SURFACE: Record<StoneKind, string> = {
   basalt: /* glsl */ `
     {
       vec3 p = vObj + vec3(2.1, 0.0, 5.3);
-      float mottle = gFbm(p * 9.0);
+      float mottle = gFbm2(p * 9.0);
       float fine = gNoise(p * 46.0);
-      float fleck = smoothstep(0.78, 0.94, fine) * (0.55 + 0.45 * gNoise(p * 17.0));
-      float pit = smoothstep(0.2, 0.06, gNoise(p * 31.0 + 9.0));
+      float fleck = smoothstep(0.78, 0.94, fine) * (0.55 + 0.45 * mottle);
+      float pit = smoothstep(0.12, 0.03, fine);
       vec3 stone = diffuseColor.rgb * (0.8 + 0.42 * mottle);
       stone = mix(stone, uVein, fleck * 0.55);
       stone *= 1.0 - pit * 0.35;
@@ -106,7 +114,7 @@ const SURFACE: Record<StoneKind, string> = {
   graphite: /* glsl */ `
     {
       vec3 p = vObj + vec3(0.4, 1.0, 2.2);
-      float mottle = gFbm(p * 12.0);
+      float mottle = gFbm2(p * 12.0);
       float fleck = smoothstep(0.8, 0.95, gNoise(p * 52.0));
       diffuseColor.rgb *= 0.85 + 0.3 * mottle;
       diffuseColor.rgb = mix(diffuseColor.rgb, uVein, fleck * 0.5);
@@ -126,6 +134,10 @@ interface StoneSpec {
   /** A soft, even glow from within (marble's translucency). */
   glow: number;
   glowColor: string;
+  /** Dark stone: the spotlight lights only a narrow top highlight. */
+  dark: boolean;
+  /** Strength of the skylight's soft reflection. */
+  sheen: number;
 }
 
 export const STONES: Record<StoneKind, StoneSpec> = {
@@ -139,10 +151,12 @@ export const STONES: Record<StoneKind, StoneSpec> = {
     rimPower: 2.2,
     glow: 0.03,
     glowColor: MARBLE.warm,
+    dark: false,
+    sheen: 0.05,
   },
   bardiglio: {
-    color: '#b4b7bd',
-    vein: '#5d636d',
+    color: '#cfcac1',
+    vein: '#8d939c',
     roughness: 0.32,
     metalness: 0,
     rim: 0.12,
@@ -150,6 +164,8 @@ export const STONES: Record<StoneKind, StoneSpec> = {
     rimPower: 2.5,
     glow: 0.02,
     glowColor: MARBLE.warm,
+    dark: false,
+    sheen: 0.05,
   },
   basalt: {
     color: BASALT.base,
@@ -161,9 +177,11 @@ export const STONES: Record<StoneKind, StoneSpec> = {
     rimPower: 3.2,
     glow: 0,
     glowColor: '#000000',
+    dark: true,
+    sheen: 0.045,
   },
   graphite: {
-    color: '#5c6067',
+    color: '#46494f',
     vein: '#9aa0a8',
     roughness: 0.4,
     metalness: 0.05,
@@ -172,11 +190,22 @@ export const STONES: Record<StoneKind, StoneSpec> = {
     rimPower: 3.2,
     glow: 0,
     glowColor: '#000000',
+    dark: true,
+    sheen: 0.045,
   },
 };
 
-/** The rim colour of a king in check: the crimson of the museum rope. */
+/** The colour of a checked king's narrow second rim: the crimson of the museum rope. */
 export const CHECK_RIM = ROPE;
+
+// The selection's spotlight (uSpot) on each army, lighting only its top and
+// edges so the army's value never changes. Marble: a small warm lift, more on
+// the upward faces, capped so a crown or mitre stays legible. Dark stone: a
+// narrow warm highlight on the upward faces, strongest where they turn away.
+const SPOT_LIGHT = /* glsl */ `
+          totalEmissiveRadiance += uSpot * uSpotColor * diffuseColor.rgb * (0.04 + 0.13 * up);`;
+const SPOT_DARK = /* glsl */ `
+          totalEmissiveRadiance += uSpot * uSpotColor * 0.09 * pow(up, 4.0) * (0.35 + 0.65 * fres);`;
 
 /**
  * A new stone material. `uniforms` may share a uniform object between
@@ -187,13 +216,11 @@ export const makeStone = (
   kind: StoneKind,
   {
     spot,
-    rimColor,
-    rimScale = 1,
+    check = false,
     transparent = false,
   }: {
     spot?: IUniform<number>;
-    rimColor?: string;
-    rimScale?: number;
+    check?: boolean;
     transparent?: boolean;
   } = {},
 ) => {
@@ -206,19 +233,19 @@ export const makeStone = (
     emissiveIntensity: s.glow,
     transparent,
   });
-  // Marble takes less of the room's fill, so its forms model more
-  if (kind === 'marble' || kind === 'bardiglio') m.envMapIntensity = 0.7;
   const uniforms: StoneUniforms = {
     uSpot: spot ?? { value: 0 },
-    uRim: { value: s.rim * rimScale },
-    uRimColor: { value: new Color(rimColor ?? s.rimColor) },
+    uRim: { value: s.rim },
+    uRimColor: { value: new Color(s.rimColor) },
     uFade: { value: 1 },
+    uCheck: { value: check ? 1 : 0 },
   };
   m.userData.stone = uniforms;
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, {
       uVein: { value: new Color(s.vein) },
       uSpotColor: { value: new Color(SPOT) },
+      uCheckColor: { value: new Color(CHECK_RIM) },
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vObj;\nvarying vec3 vObjN;`)
@@ -245,13 +272,23 @@ export const makeStone = (
           float ndv = clamp(dot(normal, V), 0.0, 1.0);
           float fres = pow(1.0 - ndv, ${s.rimPower.toFixed(2)});
           vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
-          // A light from above: the upper edges catch it most
-          float above = mix(0.4, 1.0, smoothstep(-0.3, 0.7, dot(normal, upV)));
-          totalEmissiveRadiance += uRimColor * fres * above * uRim;
-          // The selection's spotlight, pouring onto the upward faces
-          float top = smoothstep(-0.2, 0.9, normalize(vObjN).y);
-          totalEmissiveRadiance += uSpot * uSpotColor *
-            (diffuseColor.rgb * (0.12 + 0.5 * top) + 0.02 * top);
+          // A light from above: the upper edges catch it most, the undersides
+          // (a foot's flare seen from below) hardly at all
+          float above = mix(0.15, 1.0, smoothstep(-0.3, 0.7, dot(normal, upV)));
+          // The spotlight warms the rim a little; the body keeps its army's value
+          vec3 rimCol = mix(uRimColor, uSpotColor, uSpot * 0.45);
+          totalEmissiveRadiance += rimCol * fres * above * uRim;
+          float up = max(normalize(vObjN).y, 0.0);
+          // The room's reflection, without an environment map (too costly per
+          // pixel in software): a soft cool sheen where the surface mirrors
+          // the moonlit skylight overhead, stronger the smoother the stone
+          vec3 R = inverseTransformDirection(reflect(-V, normal), viewMatrix);
+          float sky = smoothstep(0.05, 0.9, R.y);
+          totalEmissiveRadiance += vec3(0.5, 0.58, 0.72) * ${s.sheen.toFixed(3)} * sky * (0.35 + 0.65 * fres);
+          ${s.dark ? SPOT_DARK : SPOT_LIGHT}
+          // Check: a second, narrow crimson rim round the upper half only
+          float crown = smoothstep(0.34, 0.5, vObj.y);
+          totalEmissiveRadiance += uCheck * uCheckColor * pow(1.0 - ndv, 6.0) * 0.3 * crown;
         }`,
       )
       .replace(

@@ -1,35 +1,43 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Environment, Lightformer } from '@react-three/drei';
 import {
   BackSide,
   BoxGeometry,
+  ClampToEdgeWrapping,
   BufferAttribute,
   CatmullRomCurve3,
   CircleGeometry,
   Color,
   CylinderGeometry,
   LatheGeometry,
+  LinearFilter,
+  LinearMipmapLinearFilter,
+  Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   OctahedronGeometry,
+  OrthographicCamera,
   PlaneGeometry,
+  RepeatWrapping,
   RingGeometry,
+  Scene,
   ShaderMaterial,
   SphereGeometry,
+  SRGBColorSpace,
   TorusGeometry,
   TorusKnotGeometry,
   TubeGeometry,
   Vector2,
   Vector3,
+  WebGLRenderTarget,
 } from 'three';
-import type { BufferGeometry, DirectionalLight } from 'three';
+import type { BufferGeometry, DirectionalLight, IUniform, WebGLRenderer } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { noRaycast } from '../kit/noRaycast';
 import type { Vec3 } from '../types';
 import { paintingAtlas } from './art';
 import { rodOffset } from './plates';
-import { BRASS, ROOM } from './palette';
+import { ROOM } from './palette';
 import { ROOM_GLSL, ROOM_RADIUS, SCULPTURE_PHASE, SCULPTURE_RING, SCULPTURES } from './room';
 
 // The world: the tower is the centrepiece of a dark sculpture rotunda after
@@ -69,44 +77,52 @@ const CameraLights = () => {
   });
   return (
     <>
-      <directionalLight ref={key} intensity={2.9} color="#ffe9cc" />
+      <directionalLight ref={key} intensity={2.8} color="#fff1e0" />
       <directionalLight ref={rim} intensity={1.2} color="#c9d8f2" />
     </>
   );
 };
 
 // --- Walls and floor ---------------------------------------------------------------
+//
+// The room is still, so everything but the floor's reflection is painted
+// once, when the stage mounts, into textures (the walls into a strip round
+// the rotunda, the floor, the dais and the plinth top into squares), and
+// drawn each frame with a single lookup. The floor's polish looks up the
+// walls' strip, blurred, where the reflected view ray meets them.
 
-const worldVertex = /* glsl */ `
-  varying vec3 vWorld;
+/** The walls' height, and the size of every baked texture. */
+const WALL_H = 22;
+const WALL_TEX: [number, number] = [4096, 768];
+const FLOOR_TEX = 2048;
+
+const bakeVertex = /* glsl */ `
+  varying vec2 vUv;
   void main() {
-    vec4 world = modelMatrix * vec4(position, 1.0);
-    vWorld = world.xyz;
-    gl_Position = projectionMatrix * viewMatrix * world;
+    vUv = uv;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
   }`;
 
-const wallFragment = /* glsl */ `
+// A texel of the walls' strip: u runs round the room as the cylinder's own
+// u does (world angle PI/2 - u * TAU), v up the wall
+const wallBake = /* glsl */ `
   ${ROOM_GLSL}
-  uniform float uFloorY;
-  varying vec3 vWorld;
+  uniform float uH;
+  varying vec2 vUv;
   void main() {
-    float theta = atan(vWorld.z, vWorld.x);
-    if (theta < 0.0) theta += TAU;
-    vec3 col = wallRadiance(theta, vWorld.y - uFloorY, 1.0);
-    gl_FragColor = vec4(col, 1.0);
-    #include <tonemapping_fragment>
-    #include <colorspace_fragment>
+    float theta = mod(1.5707963 - vUv.x * TAU, TAU);
+    gl_FragColor = vec4(wallRadiance(theta, vUv.y * uH, 1.0), 1.0);
   }`;
 
-const floorFragment = /* glsl */ `
+// A texel of the floor: polished concrete, joints, pools of light; the
+// polish's cloudiness goes in alpha, for the reflection
+const floorBake = /* glsl */ `
   ${ROOM_GLSL}
-  uniform float uFloorY;
   uniform vec3 uFloor;
-  uniform float uGloss;
   uniform float uSculptR;
-  varying vec3 vWorld;
+  varying vec2 vUv;
   void main() {
-    vec2 p = vWorld.xz;
+    vec2 p = (vUv - 0.5) * 2.0 * uR;
     float r = length(p);
     float th = atan(p.y, p.x);
     if (th < 0.0) th += TAU;
@@ -133,34 +149,17 @@ const floorFragment = /* glsl */ `
       float a = ${SCULPTURE_PHASE.toFixed(5)} + float(j) * TAU / ${SCULPTURES}.0;
       vec2 c = vec2(cos(a), sin(a)) * uSculptR;
       vec2 d = p - c;
-      pool += 0.2 * exp(-dot(d, d) / (2.0 * 1.7 * 1.7));
+      pool += 0.12 * exp(-dot(d, d) / (2.0 * 1.6 * 1.6));
     }
     col += uWash * pool * (0.85 + 0.3 * cloud);
-    // The walls, mirrored in the polish (their light only, softly)
-    vec3 dir = normalize(vWorld - cameraPosition);
-    vec3 rd = vec3(dir.x, -dir.y, dir.z);
-    vec2 v = rd.xz;
-    float a2 = max(dot(v, v), 1e-5);
-    float b2 = 2.0 * dot(p, v);
-    float c2 = dot(p, p) - uR * uR;
-    float t = (-b2 + sqrt(max(b2 * b2 - 4.0 * a2 * c2, 0.0))) / (2.0 * a2);
-    vec2 hit = p + v * t;
-    float hh = t * rd.y;
-    float ht = atan(hit.y, hit.x);
-    if (ht < 0.0) ht += TAU;
-    vec3 refl = wallRadiance(ht, hh, 0.0);
-    float fres = 0.04 + 0.5 * pow(1.0 - abs(dir.y), 5.0);
-    col += refl * fres * uGloss * (0.55 + 0.6 * cloud);
     // Darker toward the walls
     col *= mix(1.0, 0.75, smoothstep(22.0, uR, r));
-    gl_FragColor = vec4(col, 1.0);
-    #include <tonemapping_fragment>
-    #include <colorspace_fragment>
+    gl_FragColor = vec4(col, cloud);
   }`;
 
-// The tops of the dais and the plinth: honed dark stone with a pool of the
-// exhibit's light, a soft bevel at the edge, and (the dais) a brass inlay ring
-const topFragment = /* glsl */ `
+// A texel of the dais or the plinth top: honed dark stone with a pool of the
+// exhibit's light, a soft bevel at the edge, and (the dais) an inlay ring
+const topBake = /* glsl */ `
   ${ROOM_GLSL}
   uniform vec3 uBase;
   uniform vec3 uLight;
@@ -170,9 +169,9 @@ const topFragment = /* glsl */ `
   uniform float uRound;
   uniform float uInlayR;
   uniform vec3 uInlay;
-  varying vec3 vWorld;
+  varying vec2 vUv;
   void main() {
-    vec2 p = vWorld.xz;
+    vec2 p = (vUv - 0.5) * 2.0 * uHalf;
     float r = length(p);
     float edge = uRound > 0.5 ? uHalf - r : uHalf - max(abs(p.x), abs(p.y));
     vec3 col = uBase * (0.8 + 0.3 * f2(p * 1.1) + 0.08 * (n2(p * 24.0) - 0.5));
@@ -183,6 +182,112 @@ const topFragment = /* glsl */ `
       float d = abs(r - uInlayR);
       col = mix(col, uInlay, (1.0 - smoothstep(0.025, 0.025 + fwidth(r) * 1.5, d)) * 0.8);
     }
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+
+/**
+ * Paints a fragment shader over a whole texture once (sRGB, so the dark
+ * room keeps its gradations in 8 bits; mipmapped, so it minifies calmly).
+ */
+const bake = (
+  gl: WebGLRenderer,
+  fragmentShader: string,
+  uniforms: Record<string, IUniform>,
+  [width, height]: [number, number],
+  wrap = false,
+): WebGLRenderTarget => {
+  const target = new WebGLRenderTarget(width, height, {
+    depthBuffer: false,
+    generateMipmaps: true,
+    minFilter: LinearMipmapLinearFilter,
+    magFilter: LinearFilter,
+  });
+  target.texture.colorSpace = SRGBColorSpace;
+  target.texture.wrapS = wrap ? RepeatWrapping : ClampToEdgeWrapping;
+  const material = new ShaderMaterial({
+    uniforms,
+    vertexShader: bakeVertex,
+    fragmentShader,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const quad = new Mesh(new PlaneGeometry(2, 2), material);
+  quad.frustumCulled = false;
+  const scene = new Scene();
+  scene.add(quad);
+  const previous = gl.getRenderTarget();
+  gl.setRenderTarget(target);
+  gl.render(scene, BAKE_CAMERA);
+  gl.setRenderTarget(previous);
+  material.dispose();
+  quad.geometry.dispose();
+  return target;
+};
+const BAKE_CAMERA = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+const uvVertex = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }`;
+
+const worldVertex = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }`;
+
+/** The walls: one lookup in their baked strip. */
+const wallFragment = /* glsl */ `
+  uniform sampler2D uTex;
+  varying vec2 vUv;
+  void main() {
+    gl_FragColor = vec4(texture2D(uTex, vUv).rgb, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }`;
+
+/** A flat top (the dais, the plinth): one lookup by position. */
+const topFragment = /* glsl */ `
+  uniform sampler2D uTex;
+  uniform float uHalf;
+  varying vec3 vWorld;
+  void main() {
+    gl_FragColor = vec4(texture2D(uTex, vWorld.xz / (2.0 * uHalf) + 0.5).rgb, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }`;
+
+/** The floor: its baked texture, and the walls mirrored softly in its polish. */
+const floorFragment = /* glsl */ `
+  #define TAU 6.28318530718
+  uniform sampler2D uTex;
+  uniform sampler2D uWalls;
+  uniform float uR;
+  uniform float uH;
+  uniform float uGloss;
+  varying vec3 vWorld;
+  void main() {
+    vec2 p = vWorld.xz;
+    vec4 base = texture2D(uTex, p / (2.0 * uR) + 0.5);
+    vec3 dir = normalize(vWorld - cameraPosition);
+    vec3 rd = vec3(dir.x, -dir.y, dir.z);
+    vec2 v = rd.xz;
+    float a2 = max(dot(v, v), 1e-5);
+    float b2 = 2.0 * dot(p, v);
+    float c2 = dot(p, p) - uR * uR;
+    float t = (-b2 + sqrt(max(b2 * b2 - 4.0 * a2 * c2, 0.0))) / (2.0 * a2);
+    vec2 hit = p + v * t;
+    float h = t * rd.y / uH;
+    float u = fract((1.5707963 - atan(hit.y, hit.x)) / TAU);
+    // A blurred level of the walls' strip: the polish is not a mirror
+    vec3 refl = textureLod(uWalls, vec2(u, clamp(h, 0.0, 1.0)), 4.5).rgb * step(h, 1.0);
+    float fres = 0.04 + 0.5 * pow(1.0 - abs(dir.y), 5.0);
+    vec3 col = base.rgb + refl * fres * uGloss * (0.55 + 0.6 * base.a);
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -206,6 +311,8 @@ interface Light {
   ambient: number;
   /** A glow from the lit exhibit at the centre of the room. */
   glowK?: number;
+  /** How far the colour sinks into the room's gloom (0–1, toward the wall's colour). */
+  fade?: number;
 }
 
 /**
@@ -237,13 +344,17 @@ const baked = (
     l.set(-p.x, 2 - p.y, -p.z).normalize();
     const glow = Math.max(n.dot(l), 0) * (light.glowK ?? 0);
     const k = light.ambient * (0.75 + 0.25 * n.y) + spot + glow;
-    colors[i * 3] = base.r * k;
-    colors[i * 3 + 1] = base.g * k;
-    colors[i * 3 + 2] = base.b * k;
+    const f = light.fade ?? 0;
+    colors[i * 3] = base.r * k * (1 - f) + GLOOM.r * f;
+    colors[i * 3 + 1] = base.g * k * (1 - f) + GLOOM.g * f;
+    colors[i * 3 + 2] = base.b * k * (1 - f) + GLOOM.b * f;
   }
   g.setAttribute('color', new BufferAttribute(colors, 3));
   return g;
 };
+
+/** The room's gloom, that far things sink into. */
+const GLOOM = new Color(ROOM.wall);
 
 const lathe = (points: [number, number][], segments = 20) =>
   new LatheGeometry(
@@ -268,7 +379,7 @@ const sculpture = (i: number): [BufferGeometry, string][] => {
             [0.03, 2.6],
             [0, 2.62],
           ]),
-          '#8a6c3c',
+          '#4a3a22',
         ],
       ];
     case 1:
@@ -279,14 +390,14 @@ const sculpture = (i: number): [BufferGeometry, string][] => {
             .scale(1.5, 1, 0.9)
             .rotateY(0.4)
             .translate(0, 0.62, 0),
-          '#9a9488',
+          '#3c3b39',
         ],
       ];
     case 2:
       // A sphere resting on a cube
       return [
-        [new BoxGeometry(0.62, 0.62, 0.62).translate(0, 0.31, 0), '#8f8b84'],
-        [new SphereGeometry(0.4, 20, 14).translate(0, 1.02, 0), '#b4b0a8'],
+        [new BoxGeometry(0.62, 0.62, 0.62).translate(0, 0.31, 0), '#34332f'],
+        [new SphereGeometry(0.4, 20, 14).translate(0, 1.02, 0), '#403f3b'],
       ];
     case 3:
       // A tall thin standing figure
@@ -304,12 +415,12 @@ const sculpture = (i: number): [BufferGeometry, string][] => {
             [0.08, 2.32],
             [0, 2.36],
           ]),
-          '#5d4b37',
+          '#3a2f23',
         ],
       ];
     case 4:
       // A knot of dark steel
-      return [[new TorusKnotGeometry(0.42, 0.11, 72, 8).translate(0, 0.72, 0), '#5d626a']];
+      return [[new TorusKnotGeometry(0.42, 0.11, 72, 8).translate(0, 0.72, 0), '#33363b']];
     case 5: {
       // A cube balanced on its corner
       const cube = new BoxGeometry(0.8, 0.8, 0.8);
@@ -338,7 +449,7 @@ const sculpture = (i: number): [BufferGeometry, string][] => {
             .scale(1, 1.35, 1)
             .rotateY(Math.PI / 4)
             .translate(0, 0.4 + k * 0.8, 0),
-          '#6f5a3e',
+          '#3f3322',
         ]);
       }
       return beads;
@@ -346,7 +457,9 @@ const sculpture = (i: number): [BufferGeometry, string][] => {
   }
 };
 
-const PLINTH = { w: 1.15, h: 1.25 };
+const PLINTH = { w: 1.05, h: 0.9 };
+/** Sculptures are kept small and low, so they stay down in the gloom. */
+const SCULPTURE_SCALE = 0.8;
 
 const buildProps = (floorY: number, plinthTop: number, daisR: number, plinthHalf: number) => {
   const parts: BufferGeometry[] = [];
@@ -360,17 +473,18 @@ const buildProps = (floorY: number, plinthTop: number, daisR: number, plinthHalf
       spotK: 0.42,
       ambient: 0.09,
       glowK: 0.05,
+      fade: 0.5,
     };
     parts.push(
       baked(
         new BoxGeometry(PLINTH.w, PLINTH.h, PLINTH.w).translate(0, PLINTH.h / 2, 0),
-        '#6a6864',
+        '#2c2c2d',
         light,
         [x, floorY, z],
       ),
     );
     for (const [g, color] of sculpture(i)) {
-      g.rotateY(-a + i);
+      g.scale(SCULPTURE_SCALE, SCULPTURE_SCALE, SCULPTURE_SCALE).rotateY(-a + i);
       parts.push(baked(g, color, light, [x, floorY + PLINTH.h, z]));
     }
   }
@@ -398,7 +512,7 @@ const buildProps = (floorY: number, plinthTop: number, daisR: number, plinthHalf
     const plaque = new BoxGeometry(1.1, 0.32, 0.03)
       .translate(0, 0, plinthHalf + 0.015)
       .rotateY((f * Math.PI) / 2);
-    parts.push(baked(plaque, '#7d6538', exhibit, [0, plinthTop - plinthH * 0.42, 0]));
+    parts.push(baked(plaque, '#4d3b22', exhibit, [0, plinthTop - plinthH * 0.42, 0]));
   }
   // Stanchions and velvet rope round the dais
   const posts = 16;
@@ -409,17 +523,17 @@ const buildProps = (floorY: number, plinthTop: number, daisR: number, plinthHalf
     const a = (i / posts) * Math.PI * 2;
     const at: Vec3 = [Math.cos(a) * ringR, floorY, Math.sin(a) * ringR];
     parts.push(
-      baked(new CylinderGeometry(0.15, 0.17, 0.04, 18).translate(0, 0.02, 0), '#8c6d3a', brass, at),
+      baked(new CylinderGeometry(0.15, 0.17, 0.04, 18).translate(0, 0.02, 0), '#4d3b22', brass, at),
     );
     parts.push(
       baked(
         new CylinderGeometry(0.028, 0.028, 0.92, 8).translate(0, 0.48, 0),
-        '#8c6d3a',
+        '#4d3b22',
         brass,
         at,
       ),
     );
-    parts.push(baked(new SphereGeometry(0.062, 12, 8).translate(0, 0.96, 0), '#a8864a', brass, at));
+    parts.push(baked(new SphereGeometry(0.062, 12, 8).translate(0, 0.96, 0), '#5a4526', brass, at));
     tops.push(new Vector3(at[0], floorY + 0.86, at[2]));
   }
   for (let i = 0; i < posts; i++) {
@@ -432,7 +546,7 @@ const buildProps = (floorY: number, plinthTop: number, daisR: number, plinthHalf
       return p;
     });
     const rope = new TubeGeometry(new CatmullRomCurve3(points), 14, 0.03, 6, false);
-    parts.push(baked(rope, '#7a1826', brass));
+    parts.push(baked(rope, '#3a1016', brass));
   }
   const merged = mergeGeometries(parts);
   parts.forEach((p) => p.dispose());
@@ -460,34 +574,37 @@ export const makeStage = (levelY: number[], platformHalf: number) => {
     daisR: 5.8,
   };
   const Room = () => {
+    const gl = useThree((s) => s.gl);
     const built = useMemo(() => {
-      const wallH = 22;
-      const walls = new CylinderGeometry(ROOM_RADIUS, ROOM_RADIUS, wallH, 160, 1, true).translate(
+      const walls = new CylinderGeometry(ROOM_RADIUS, ROOM_RADIUS, WALL_H, 160, 1, true).translate(
         0,
-        room.floorY + wallH / 2,
+        room.floorY + WALL_H / 2,
         0,
       );
       const floor = new CircleGeometry(ROOM_RADIUS, 96).rotateX(-Math.PI / 2);
-      const wallMat = new ShaderMaterial({
-        side: BackSide,
-        uniforms: { ...roomUniforms(), uFloorY: { value: room.floorY } },
-        vertexShader: worldVertex,
-        fragmentShader: wallFragment,
-      });
-      const floorMat = new ShaderMaterial({
-        uniforms: {
+      // Paint the still room once
+      const wallTex = bake(
+        gl,
+        wallBake,
+        { ...roomUniforms(), uH: { value: WALL_H } },
+        WALL_TEX,
+        true,
+      );
+      const floorTex = bake(
+        gl,
+        floorBake,
+        {
           ...roomUniforms(),
-          uFloorY: { value: room.floorY },
           uFloor: { value: new Color(ROOM.floor) },
-          uGloss: { value: 1.0 },
           uSculptR: { value: SCULPTURE_RING },
         },
-        vertexShader: worldVertex,
-        fragmentShader: floorFragment,
-      });
-      const top = (half: number, round: boolean, inlayR: number, pool: number) =>
-        new ShaderMaterial({
-          uniforms: {
+        [FLOOR_TEX, FLOOR_TEX],
+      );
+      const topTex = (half: number, round: boolean, inlayR: number, pool: number, size: number) =>
+        bake(
+          gl,
+          topBake,
+          {
             ...roomUniforms(),
             uBase: { value: new Color(ROOM.dais) },
             uLight: { value: new Color(ROOM.wash) },
@@ -496,8 +613,32 @@ export const makeStage = (levelY: number[], platformHalf: number) => {
             uHalf: { value: half },
             uRound: { value: round ? 1 : 0 },
             uInlayR: { value: inlayR },
-            uInlay: { value: new Color(BRASS).multiplyScalar(0.3) },
+            uInlay: { value: new Color('#5a4526').multiplyScalar(0.35) },
           },
+          [size, size],
+        );
+      const daisTex = topTex(room.daisR, true, room.daisR - 0.35, 0.12, 1024);
+      const plinthTex = topTex(room.plinthHalf, false, 0, 0.2, 512);
+      const wallMat = new ShaderMaterial({
+        side: BackSide,
+        uniforms: { uTex: { value: wallTex.texture } },
+        vertexShader: uvVertex,
+        fragmentShader: wallFragment,
+      });
+      const floorMat = new ShaderMaterial({
+        uniforms: {
+          uTex: { value: floorTex.texture },
+          uWalls: { value: wallTex.texture },
+          uR: { value: ROOM_RADIUS },
+          uH: { value: WALL_H },
+          uGloss: { value: 1.0 },
+        },
+        vertexShader: worldVertex,
+        fragmentShader: floorFragment,
+      });
+      const top = (tex: WebGLRenderTarget, half: number) =>
+        new ShaderMaterial({
+          uniforms: { uTex: { value: tex.texture }, uHalf: { value: half } },
           vertexShader: worldVertex,
           fragmentShader: topFragment,
         });
@@ -510,16 +651,20 @@ export const makeStage = (levelY: number[], platformHalf: number) => {
       return {
         walls,
         floor,
+        wallTex,
+        floorTex,
+        daisTex,
+        plinthTex,
         wallMat,
         floorMat,
         daisTop,
-        daisMat: top(room.daisR, true, room.daisR - 0.35, 0.12),
+        daisMat: top(daisTex, room.daisR),
         plinthTopG,
-        plinthMat: top(room.plinthHalf, false, 0, 0.2),
+        plinthMat: top(plinthTex, room.plinthHalf),
         props,
         propsMat,
       };
-    }, []);
+    }, [gl]);
     useEffect(
       () => () => {
         Object.values(built).forEach((v) => (v as { dispose?: () => void }).dispose?.());
@@ -573,38 +718,18 @@ export const makeStage = (levelY: number[], platformHalf: number) => {
       ]),
     ),
   );
-  const bronze = new MeshStandardMaterial({ color: '#6b5638', metalness: 0.75, roughness: 0.38 });
+  const bronze = new MeshStandardMaterial({ color: '#4a3b27', metalness: 0.3, roughness: 0.45 });
 
   const Stage = () => (
     <>
       <color attach="background" args={[ROOM.background]} />
       <Room />
       <mesh geometry={rods} material={bronze} raycast={noRaycast} />
-      {/* Reflections: a dark room with a moonlit skylight overhead and the
-          soft warm panels of the gallery's lights, so stone shows long soft
-          highlights rather than points */}
-      <Environment resolution={64} frames={1}>
-        <color attach="background" args={['#0c0d10']} />
-        <Lightformer
-          form="rect"
-          intensity={1.1}
-          color="#b8c8e6"
-          position={[0, 9, 0]}
-          rotation-x={Math.PI / 2}
-          scale={[7, 7, 1]}
-        />
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <Lightformer
-            key={i}
-            form="rect"
-            intensity={0.7}
-            color="#ffdcb0"
-            position={[Math.sin((i * Math.PI) / 3) * 8, 3, Math.cos((i * Math.PI) / 3) * 8]}
-            scale={[2.5, 3.5, 1]}
-          />
-        ))}
-      </Environment>
-      <hemisphereLight args={['#a9b9d6', '#1d1a17', 0.38]} />
+      {/* No environment map: under a software renderer its per-pixel lookup
+          cost a fifth of the frame. The stone is honed, so the lights below
+          (and each stone's own rim term) model it; the few metals carry a
+          little glow of their own instead of reflections. */}
+      <hemisphereLight args={['#a9b9d6', '#1a1b1e', 0.45]} />
       {/* Moonlight from the skylight, straight down */}
       <directionalLight position={[0, 10, 0]} intensity={0.55} color="#aebfdd" />
       <CameraLights />

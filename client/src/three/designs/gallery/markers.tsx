@@ -23,7 +23,7 @@ import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import { rng } from '../kit/textures';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
-import { BRASS, BRASS_DEEP, ROPE, ROPE_DEEP, SPOT, WIRE, WIRE_GLINT } from './palette';
+import { BRASS, BRASS_DEEP, LEVELS, ROPE, ROPE_DEEP, SPOT, WIRE, WIRE_GLINT } from './palette';
 import { SPOTLIGHT } from './pieces';
 
 // Gallery's marks, in the language of a museum floor:
@@ -46,7 +46,11 @@ import { SPOTLIGHT } from './pieces';
 // Every flat mark is one quad shaded by a signed distance, crisp at any
 // angle, drawn after the glass so it reads through the levels above.
 
-export const makeMarkers = (pitch: number, moveMs: number) => {
+export const makeMarkers = (pitch: number, moveMs: number, levelY: number[]) => {
+  /** The level whose platform a floor point lies on. */
+  const levelAt = (y: number) =>
+    levelY.reduce((best, ly, z) => (Math.abs(ly - y) < Math.abs(levelY[best] - y) ? z : best), 0);
+
   // --- Flat marks ------------------------------------------------------------------
 
   const vertex = /* glsl */ `
@@ -62,6 +66,7 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
     uniform int uKind;
     uniform vec3 uColor;
     uniform vec3 uColor2;
+    uniform vec3 uColor3;
     uniform float uRadius;
     uniform float uWidth;
     uniform float uOpacity;
@@ -86,17 +91,20 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
       vec3 col = uColor;
       float a = 0.0;
       if (uKind == 0) {
-        // Brass inlay ring, a finer ring inside it, a pool of warm light
+        // Brass inlay ring, a finer ring inside it in the colour of the level
+        // the mark lies on, and a pool of warm light
         float w = uWidth * (1.0 + 0.45 * uHover);
         float ring = band(r - uRadius, w);
-        float inner = band(r - uRadius * 0.74, w * 0.32) * 0.55;
+        float inner = band(r - uRadius * 0.72, uWidth * 0.62) * 0.9;
         // The ring's metal: a bright line along its middle, deeper at its edges
         float core = band(r - uRadius, w * 0.35);
-        col = mix(uColor2, uColor, 0.55 + 0.45 * core);
-        col = mix(col, vec3(1.0, 0.96, 0.86), 0.25 * core);
+        vec3 brass = mix(uColor2, uColor, 0.55 + 0.45 * core);
+        brass = mix(brass, vec3(1.0, 0.96, 0.86), 0.25 * core);
+        vec3 stroke = (brass * ring + uColor3 * inner) / max(ring + inner, 1e-4);
+        float strokeA = max(ring, inner);
         float pool = exp(-r * r / (uRadius * uRadius * 0.45)) * (uFill + 0.5 * uHover);
-        a = max(max(ring, inner) * uOpacity * (1.0 + 0.3 * uHover), pool);
-        col = mix(uColor * 1.15, col, clamp(max(ring, inner) * 2.0, 0.0, 1.0));
+        a = max(strokeA * uOpacity * (1.0 + 0.3 * uHover), pool);
+        col = mix(uColor * 1.15, stroke, clamp(strokeA * 2.0, 0.0, 1.0));
         col *= 1.0 + 0.35 * uHover;
       } else if (uKind == 1) {
         // Twisted velvet rope: strands on a slant round the ring
@@ -143,6 +151,8 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
     kind: keyof typeof KIND;
     color: string;
     color2?: string;
+    /** The level's colour, for the brass ring's fine inner ring. */
+    color3?: string;
     radius: number;
     width: number;
     opacity?: number;
@@ -173,6 +183,7 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
     kind,
     color,
     color2,
+    color3,
     radius,
     width,
     opacity = 0.9,
@@ -201,6 +212,7 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
             uKind: { value: KIND[kind] },
             uColor: { value: new Color(color) },
             uColor2: { value: new Color(color2 ?? color) },
+            uColor3: { value: new Color(color3 ?? color) },
             uRadius: { value: radius },
             uWidth: { value: width },
             uOpacity: { value: opacity },
@@ -258,6 +270,7 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
       kind="pool"
       color={BRASS}
       color2={BRASS_DEEP}
+      color3={LEVELS[levelAt(floor[1])]}
       radius={RING}
       width={RING_W}
       opacity={0.95}
@@ -273,6 +286,7 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
         kind="pool"
         color={BRASS}
         color2={BRASS_DEEP}
+        color3={LEVELS[levelAt(floor[1])]}
         radius={RING + 0.02 * pitch}
         width={RING_W}
         opacity={0.95}
@@ -334,7 +348,10 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
       void main() {
         float v = vUv.y;
         // Brightest low in the beam, fading away up toward its far source
-        float along = smoothstep(1.0, 0.86, v) * (0.45 + 0.55 * v);
+        // The beam starts above the tallest piece, so it never lies over the
+        // selected piece's body; below that, the square of light on the glass
+        // and the motes carry it down
+        float along = smoothstep(1.0, 0.86, v) * (0.45 + 0.55 * v) * smoothstep(0.6, 0.75, v);
         float a = 0.075 * along * pow(vFacing, 1.4) * uI;
         gl_FragColor = vec4(uColor * a, 1.0);
         #include <colorspace_fragment>
@@ -370,6 +387,7 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
       uTop: { value: 0.06 * pitch },
       uColor: { value: new Color('#fff1d0') },
       uScale: { value: 1 },
+      uFade: { value: 1 },
     },
     vertexShader: /* glsl */ `
       attribute vec4 aSeed;
@@ -396,10 +414,11 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
     fragmentShader: /* glsl */ `
       uniform vec3 uColor;
       uniform float uI;
+      uniform float uFade;
       varying float vGlint;
       void main() {
         vec2 c = gl_PointCoord - 0.5;
-        float a = smoothstep(0.5, 0.0, length(c)) * vGlint * uI * 0.9;
+        float a = smoothstep(0.5, 0.0, length(c)) * vGlint * uI * uFade * 0.9;
         gl_FragColor = vec4(uColor * a, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -414,22 +433,35 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
     return 1;
   };
 
+  const MOTES_MS = 6000;
+  const MOTES_FADE_MS = 1500;
+
   const Selection = ({ floor }: MarkerProps) => {
     const invalidate = useThree((s) => s.invalidate);
     const size = useThree((s) => s.size);
     const elapsed = useRef(0);
+    // Board keeps this mounted when the selection moves to another piece:
+    // the lamp strikes up afresh over each new one
+    const at = floor.join();
     useEffect(() => {
+      elapsed.current = 0;
       SPOTLIGHT.value = 0;
+      invalidate();
       return () => {
         SPOTLIGHT.value = 0;
       };
-    }, []);
+    }, [at, invalidate]);
     // Point size in pixels at 1 world unit away
     moteMaterial.uniforms.uScale.value = size.height * 0.03;
+    // The motes drift while the player first considers, then settle out of
+    // the beam: after that the scene holds still until something changes
     useFrame((state, delta) => {
+      if (elapsed.current > MOTES_MS + MOTES_FADE_MS) return;
       elapsed.current += Math.min(delta, 1 / 20) * 1000;
       SPOTLIGHT.value = strike(elapsed.current);
       moteClock.value = state.clock.elapsedTime;
+      moteMaterial.uniforms.uFade.value =
+        1 - Math.min(Math.max((elapsed.current - MOTES_MS) / MOTES_FADE_MS, 0), 1);
       invalidate();
     });
     return (
@@ -473,7 +505,7 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
         color={WIRE}
         radius={0.3 * pitch}
         width={0.024 * pitch}
-        opacity={0.85}
+        opacity={0.95}
         fill={0.05}
         dots={18}
       />
@@ -484,6 +516,7 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
         radius={0.4 * pitch}
         width={0.02 * pitch}
         opacity={0.9}
+        fill={0.1}
         drawMs={fresh ? 360 : 0}
         delayMs={fresh ? moveMs * 0.75 : 0}
       />
@@ -543,7 +576,7 @@ export const makeMarkers = (pitch: number, moveMs: number) => {
   );
   const postMaterial = new MeshStandardMaterial({
     color: BRASS,
-    metalness: 0.85,
+    metalness: 0.35,
     roughness: 0.3,
     emissive: new Color(BRASS_DEEP),
     emissiveIntensity: 0.35,

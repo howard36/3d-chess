@@ -13,13 +13,11 @@ export const DOOR_BAYS = [3, 11];
 export const SCULPTURE_RING = 21;
 export const SCULPTURES = 6;
 /**
- * Angle (round the room, from +x toward +z) of the first sculpture. Both
- * seats open looking the same way across the room (Black's board is walked
- * round, the camera is not), so the ring is turned to flank the tower in
- * that opening view rather than stand behind it, where it would show
- * through the glass among the pieces.
+ * Angle (round the room, from +x toward +z) of the first sculpture. Any
+ * angle does: the sculptures are dark, small and sunk in the gloom, so one
+ * standing behind the tower never reads through the glass as a piece.
  */
-export const SCULPTURE_PHASE = (44 * Math.PI) / 180;
+export const SCULPTURE_PHASE = 0.3;
 
 export const ROOM_GLSL = /* glsl */ `
   #define TAU 6.28318530718
@@ -114,9 +112,9 @@ export const ROOM_GLSL = /* glsl */ `
         vec2 q = vec2(dx, h - 8.3);
         if (abs(q.x) < 0.62 && abs(q.y) < 0.22) {
           float letters = step(0.08, abs(q.y)) + step(0.4, abs(fract(q.x * 3.2) - 0.5) * 2.0);
-          col = uExit * mix(0.12, 0.45, clamp(letters, 0.0, 1.0));
+          col = uExit * mix(0.05, 0.22, clamp(letters, 0.0, 1.0));
         } else {
-          col += uExit * 0.02 * exp(-dot(q, q) / 1.2);
+          col += uExit * 0.01 * exp(-dot(q, q) / 1.2);
         }
       }
     } else if (detail > 0.5) {
@@ -134,6 +132,8 @@ export const ROOM_GLSL = /* glsl */ `
         float cell = mod(k * 3.0 + 1.0, 8.0);
         vec2 auv = (vec2(mod(cell, 4.0), floor(cell / 4.0)) + uv) / vec2(4.0, 2.0);
         vec3 art = texture2D(uArt, auv).rgb;
+        // Art in the gloom, not colour: muted toward grey and dimmed
+        art = mix(art, vec3(dot(art, vec3(0.2126, 0.7152, 0.0722))), 0.4) * 0.7;
         col = art * (0.012 + 0.11 * wash);
       } else if (outside < ft) {
         vec3 frameCol = rh(k * 5.3) > 0.5 ? vec3(0.09, 0.065, 0.03) : vec3(0.012);
