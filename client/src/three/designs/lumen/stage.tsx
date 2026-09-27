@@ -205,24 +205,26 @@ const panorama = (): CanvasTexture => {
   return t;
 };
 
-// Behind the tower the wall is held down to a murmur (mask.ts)
+// Behind the tower the wall is held down to a murmur (mask.ts). The mask is
+// smooth, so the room's big surfaces take it per vertex, on a finer mesh,
+// rather than per pixel: the review machine renders in software.
 const wallVertex = /* glsl */ `
   varying vec2 vUv;
-  varying vec3 vWorld;
+  varying float vCover;
+  ${TOWER_MASK}
   void main() {
     vUv = uv;
     vec4 w = modelMatrix * vec4(position, 1.0);
-    vWorld = w.xyz;
+    vCover = towerCover(w.xyz);
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
 const wallFragment = /* glsl */ `
   uniform sampler2D uMap;
   varying vec2 vUv;
-  varying vec3 vWorld;
-  ${TOWER_MASK}
+  varying float vCover;
   void main() {
-    vec3 col = texture2D(uMap, vUv).rgb * towerMask(vWorld, 0.3);
+    vec3 col = texture2D(uMap, vUv).rgb * mix(1.0, 0.3, vCover);
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -234,7 +236,7 @@ const panoramaTexture = () => (pano ??= panorama());
 
 const GlassWall = () => {
   const { geometry, material } = useMemo(() => {
-    const geometry = new CylinderGeometry(WALL_RADIUS, WALL_RADIUS, WALL_HEIGHT, 96, 1, true);
+    const geometry = new CylinderGeometry(WALL_RADIUS, WALL_RADIUS, WALL_HEIGHT, 128, 16, true);
     geometry.translate(0, FLOOR_Y + WALL_HEIGHT / 2, 0);
     const material = new ShaderMaterial({
       side: BackSide,
@@ -277,6 +279,50 @@ const floorVertex = /* glsl */ `
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
+// The floor's vertices carry the tower mask, the reflection's hit on the
+// wall and the soft pools of light; its pixels draw only what is fine: the
+// panel seams, the bay line and the reflection's sample
+const floorMaskedVertex = /* glsl */ `
+  uniform vec3 uWall;
+  uniform vec3 uLight;
+  uniform vec3 uLamp;
+  uniform vec3 uLamps[3];
+  uniform float uTable;
+  varying vec2 vP;
+  varying float vCover;
+  varying vec3 vHit;
+  varying float vFresnel;
+  varying vec3 vGlow;
+  ${TOWER_MASK}
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vP = w.xz;
+    vCover = towerCover(w.xyz);
+    // Where the floor's reflection meets the glass wall: the view ray
+    // bounced off the floor, met with the wall's cylinder
+    vec3 view = normalize(w.xyz - cameraPosition);
+    vec3 d = reflect(view, vec3(0.0, 1.0, 0.0));
+    vec2 o = w.xz;
+    float a = max(dot(d.xz, d.xz), 1e-5);
+    float b = dot(o, d.xz);
+    float c = dot(o, o) - uWall.x * uWall.x;
+    float t = (-b + sqrt(max(b * b - a * c, 0.0))) / a;
+    vHit = w.xyz + d * t;
+    vFresnel = 0.06 + 0.94 * pow(1.0 - abs(view.y), 3.0);
+    // The soft pools of light (the table's spill, the studies' lamps), which
+    // vary slowly enough to shade per vertex
+    float r = length(o);
+    float spill = max(r - uTable, 0.0) / 3.2;
+    float pool = exp(-spill * spill) * 0.55;
+    float lamps = 0.0;
+    for (int i = 0; i < 3; i++) {
+      vec2 dl = o - uLamps[i].xy;
+      lamps += exp(-dot(dl, dl) / (uLamps[i].z * uLamps[i].z));
+    }
+    vGlow = (uLight * pool * 0.05 + uLamp * lamps * 0.07) * (1.0 - vCover);
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }`;
+
 const floorFragment = /* glsl */ `
   uniform vec3 uFloor;
   uniform vec3 uSeam;
@@ -285,29 +331,18 @@ const floorFragment = /* glsl */ `
   uniform float uTable;
   uniform sampler2D uPano;
   uniform vec3 uWall;
-  uniform vec3 uLamp;
-  uniform vec3 uLamps[3];
-  ${TOWER_MASK}
   varying vec2 vP;
-  varying vec3 vWorld;
-  // The glass wall as the polished floor reflects it: the view ray bounced
-  // off the floor, met with the wall's cylinder, and sampled from a small
+  varying float vCover;
+  varying vec3 vHit;
+  varying float vFresnel;
+  varying vec3 vGlow;
+  // The glass wall as the polished floor reflects it, sampled from a small
   // mip of its panorama, so the city and the light panels come back blurred
   vec3 reflection() {
-    vec3 view = normalize(vWorld - cameraPosition);
-    vec3 d = reflect(view, vec3(0.0, 1.0, 0.0));
-    vec2 o = vWorld.xz;
-    float a = max(dot(d.xz, d.xz), 1e-5);
-    float b = dot(o, d.xz);
-    float c = dot(o, o) - uWall.x * uWall.x;
-    float t = (-b + sqrt(max(b * b - a * c, 0.0))) / a;
-    vec3 hit = vWorld + d * t;
-    float v = (hit.y - uWall.y) / uWall.z;
-    float u = atan(hit.x, hit.z) / 6.2831853;
+    float v = (vHit.y - uWall.y) / uWall.z;
+    float u = atan(vHit.x, vHit.z) / 6.2831853;
     vec3 col = textureLod(uPano, vec2(u, clamp(v, 0.0, 1.0)), 2.2).rgb;
-    col *= 1.0 - smoothstep(0.8, 1.0, v);
-    float fresnel = 0.06 + 0.94 * pow(1.0 - abs(view.y), 3.0);
-    return col * fresnel;
+    return col * (1.0 - smoothstep(0.8, 1.0, v)) * vFresnel;
   }
   // Seams of floor panels laid in a running bond (not a chessboard)
   float seams(vec2 p, vec2 size, float width) {
@@ -332,25 +367,16 @@ const floorFragment = /* glsl */ `
     float bay = 1.0 - smoothstep(0.012, 0.012 + fwb * 1.5, bayD);
     float bayGlow = exp(-bayD * bayD / 0.08) * 0.25;
     float inBay = 1.0 - smoothstep(uBay - 0.05, uBay + 0.05, max(q.x, q.y));
-    // The table's light spilling onto the floor round its foot
-    float pool = exp(-pow(max(r - uTable, 0.0) / 3.2, 2.0)) * 0.55;
     float away = 1.0 - smoothstep(10.0, 28.0, r);
-    // Warm pools under the lamps over a few of the studies
-    float lamps = 0.0;
-    for (int i = 0; i < 3; i++) {
-      vec2 dl = vP - uLamps[i].xy;
-      lamps += exp(-dot(dl, dl) / (uLamps[i].z * uLamps[i].z));
-    }
     vec3 col = uFloor * (0.9 + 0.25 * inBay);
     // Clear floor round the table: nothing sharp shows through the panes
     float clear = smoothstep(uTable + 0.8, uTable + 3.0, r);
     // Nothing on the floor shows through the tower; the reflection only a murmur
-    float hidden = towerMask(vWorld, 0.0);
+    float hidden = 1.0 - vCover;
     col += uSeam * seam * 0.3 * away * clear * mix(0.3, 1.0, hidden);
     col += uLight * (bay * 0.1 + bayGlow * 0.2) * away * hidden;
-    col += uLight * pool * 0.05 * hidden;
-    col += uLamp * lamps * 0.07 * hidden;
-    col += reflection() * 1.1 * towerMask(vWorld, 0.3);
+    col += vGlow;
+    col += reflection() * 1.1 * mix(1.0, 0.3, vCover);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -358,7 +384,7 @@ const floorFragment = /* glsl */ `
 const Floor = () => {
   const { geometry, material } = useMemo(
     () => ({
-      geometry: new PlaneGeometry(64, 64).rotateX(-Math.PI / 2),
+      geometry: new PlaneGeometry(64, 64, 64, 64).rotateX(-Math.PI / 2),
       material: new ShaderMaterial({
         uniforms: {
           uFloor: { value: new Color(PALETTE.floor) },
@@ -371,7 +397,7 @@ const Floor = () => {
           uLamp: { value: new Color(PALETTE.lamp) },
           uLamps: { value: LAMPS },
         },
-        vertexShader: floorVertex,
+        vertexShader: floorMaskedVertex,
         fragmentShader: floorFragment,
       }),
     }),
@@ -515,10 +541,13 @@ const curtainVertex = /* glsl */ `
   varying vec3 vView;
   varying vec3 vWorld;
   varying float vY;
+  varying float vCover;
+  ${TOWER_MASK}
   void main() {
     vec4 world = modelMatrix * vec4(position, 1.0);
     vWorld = world.xyz;
     vY = world.y;
+    vCover = towerCover(world.xyz);
     vNormal = normalize(mat3(modelMatrix) * normal);
     vView = cameraPosition - world.xyz;
     gl_Position = projectionMatrix * viewMatrix * world;
@@ -532,12 +561,13 @@ const curtainFragment = /* glsl */ `
   varying vec3 vView;
   varying vec3 vWorld;
   varying float vY;
-  ${TOWER_MASK}
+  varying float vCover;
   void main() {
     float facing = abs(dot(normalize(vNormal), normalize(vView)));
     float edge = pow(1.0 - facing, 1.6);
     float k = (vY - uBase) / uHeight;
-    float rise = exp(-k * 5.0) * (1.0 - smoothstep(0.6, 1.0, k));
+    float rise = exp(-k * 5.0) * (1.0 - smoothstep(0.6, 1.0, k)) * (1.0 - vCover);
+    if ((0.003 + edge * 0.014) * rise < 0.0008) discard;
     // Projected light, not haze: fine vertical striations round the ring
     float ang = atan(vWorld.z, vWorld.x);
     float rays = 0.5 + 0.5 * sin(ang * 120.0 + 2.0 * sin(ang * 37.0));
@@ -545,7 +575,6 @@ const curtainFragment = /* glsl */ `
     // Seen from above, the curtain's wall would stack into a bright ring
     float steep = abs(normalize(vView).y);
     float a = (0.003 + edge * 0.014) * rise * rays * (1.0 - smoothstep(0.5, 0.8, steep));
-    a *= towerMask(vWorld, 0.0);
     gl_FragColor = vec4(uColor * a, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -554,7 +583,7 @@ const Curtain = () => {
   const height = FRAME.levelY[4] + 1.2 - TABLE_Y;
   const { geometry, material } = useMemo(
     () => ({
-      geometry: new CylinderGeometry(APERTURE + 0.05, APERTURE, height, 96, 1, true).translate(
+      geometry: new CylinderGeometry(APERTURE + 0.05, APERTURE, height, 96, 8, true).translate(
         0,
         TABLE_Y + height / 2,
         0,

@@ -12,7 +12,7 @@ import {
 } from 'three';
 import type { Group, Mesh } from 'three';
 import { PieceType } from '../../../engine/pieces';
-import { easeInOutCubic } from '../../motion';
+import { easeInOutCubic, MOVE_ANIMATION } from '../../motion';
 import { movePoint } from '../../movePath';
 import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
@@ -36,16 +36,30 @@ const BODY: Record<PieceColor, string> = { white: PALETTE.white, black: PALETTE.
 const knightYaw = (piece: PieceType, color: PieceColor, orientation: PieceColor) =>
   piece === PieceType.Knight ? (color === orientation ? 1 : -1) * (Math.PI / 2 - KNIGHT_YAW) : 0;
 
-/** Advances a one-shot effect on r3f's clock; returns false once it has run its course. */
-const useLife = (lifeMs: number, step: (ms: number) => void) => {
+/** A frame's step of loose time: once a glide is over, a slow frame may take up to this much. */
+const LOOSE_MS = 125;
+
+/**
+ * Advances a one-shot effect on r3f's clock; returns false once it has run
+ * its course. Until `tightUntil` (the piece's glide) time is clamped as the
+ * glide's is, so a trail keeps pace with its piece on a slow frame; after it,
+ * loosely, so what follows a landing clears in about its own time even on a
+ * machine drawing a frame a second.
+ */
+const useLife = (lifeMs: number, step: (ms: number) => void, tightUntil = 0) => {
   const invalidate = useThree((s) => s.invalidate);
   const elapsed = useRef(0);
   const [alive, setAlive] = useState(true);
   useEffect(() => invalidate(), [invalidate]);
   useFrame((_, delta) => {
     if (!alive) return;
-    elapsed.current += Math.min(delta, 1 / 20) * 1000;
+    const clamp = elapsed.current < tightUntil ? MOVE_ANIMATION.maxFrameMs : LOOSE_MS;
+    elapsed.current += Math.min(delta * 1000, clamp);
     if (elapsed.current >= lifeMs) {
+      // A last step at the end of life settles every uniform (a ripple at
+      // zero), in case the unmount lags a frame
+      step(lifeMs);
+      invalidate();
       setAlive(false);
       return;
     }
@@ -167,26 +181,30 @@ export const MoveFx = ({
     },
     [mats],
   );
-  const alive = useLife(durationMs + RIPPLE_MS + 40, (ms) => {
-    const t = ms / durationMs;
-    ECHOES.forEach((lag, k) => {
-      const mesh = echoes.current[k];
-      if (!mesh) return;
-      const s = Math.min(Math.max(t - lag, 0), 1);
-      const [x, y, z] = movePoint(from, to, easeInOutCubic(s), arc);
-      mesh.position.set(x, y + floorY, z);
-      // Bright while the piece is travelling, gone as it lands
-      const travel = Math.sin(Math.PI * Math.min(t, 1));
-      mats.echo[k].uniforms.uOpacity.value =
-        t - lag > 0 ? 0.42 * (1 - k / ECHOES.length) * travel : 0;
-    });
-    const r = (ms - durationMs * 0.92) / RIPPLE_MS;
-    const u = mats.ripple.uniforms;
-    if (r > 0 && r < 1) {
-      u.uRadius.value = 0.3 + 0.5 * (1 - (1 - r) ** 2);
-      u.uOpacity.value = 0.8 * (1 - r) ** 1.5;
-    } else u.uOpacity.value = 0;
-  });
+  const alive = useLife(
+    durationMs + RIPPLE_MS + 40,
+    (ms) => {
+      const t = ms / durationMs;
+      ECHOES.forEach((lag, k) => {
+        const mesh = echoes.current[k];
+        if (!mesh) return;
+        const s = Math.min(Math.max(t - lag, 0), 1);
+        const [x, y, z] = movePoint(from, to, easeInOutCubic(s), arc);
+        mesh.position.set(x, y + floorY, z);
+        // Bright while the piece is travelling, gone as it lands
+        const travel = Math.sin(Math.PI * Math.min(t, 1));
+        mats.echo[k].uniforms.uOpacity.value =
+          t - lag > 0 ? 0.42 * (1 - k / ECHOES.length) * travel : 0;
+      });
+      const r = (ms - durationMs * 0.92) / RIPPLE_MS;
+      const u = mats.ripple.uniforms;
+      if (r > 0 && r < 1) {
+        u.uRadius.value = 0.3 + 0.5 * (1 - (1 - r) ** 2);
+        u.uOpacity.value = 0.8 * (1 - r) ** 1.5;
+      } else u.uOpacity.value = 0;
+    },
+    durationMs,
+  );
   if (!alive) return null;
   const yaw = knightYaw(piece, color, orientation);
   const geometry = wholePiece(piece);
@@ -300,23 +318,27 @@ const Drift = ({
   );
   useEffect(() => () => material.dispose(), [material]);
   useEffect(() => () => fragments.geometry.dispose(), [fragments]);
-  useLife(delayMs + lifeMs, (ms) => {
-    const t = Math.max(ms - delayMs, 0) / lifeMs;
-    const p = fragments.geometry.getAttribute('position') as BufferAttribute;
-    const n = fragments.delay.length;
-    for (let i = 0; i < n; i++) {
-      const s = Math.max(t - fragments.delay[i] * 0.6, 0);
-      const k = s * (lifeMs / 1000);
-      p.setXYZ(
-        i,
-        fragments.start[i * 3] + fragments.velocity[i * 3] * k,
-        fragments.start[i * 3 + 1] + fragments.velocity[i * 3 + 1] * k,
-        fragments.start[i * 3 + 2] + fragments.velocity[i * 3 + 2] * k,
-      );
-    }
-    p.needsUpdate = true;
-    material.opacity = t > 0 ? 0.9 * Math.min(t * 6, 1) * (1 - t) ** 1.2 : 0;
-  });
+  useLife(
+    delayMs + lifeMs,
+    (ms) => {
+      const t = Math.max(ms - delayMs, 0) / lifeMs;
+      const p = fragments.geometry.getAttribute('position') as BufferAttribute;
+      const n = fragments.delay.length;
+      for (let i = 0; i < n; i++) {
+        const s = Math.max(t - fragments.delay[i] * 0.6, 0);
+        const k = s * (lifeMs / 1000);
+        p.setXYZ(
+          i,
+          fragments.start[i * 3] + fragments.velocity[i * 3] * k,
+          fragments.start[i * 3 + 1] + fragments.velocity[i * 3 + 1] * k,
+          fragments.start[i * 3 + 2] + fragments.velocity[i * 3 + 2] * k,
+        );
+      }
+      p.needsUpdate = true;
+      material.opacity = t > 0 ? 0.9 * Math.min(t * 6, 1) * (1 - t) ** 1.2 : 0;
+    },
+    delayMs,
+  );
   return (
     <points
       geometry={fragments.geometry}
@@ -411,11 +433,15 @@ export const CaptureFx = ({
   const body = useRef<Group>(null);
   // The attacker is on its way: the victim holds, then dissolves as it arrives
   const start = durationMs * 0.45;
-  const alive = useLife(start + CAPTURE_MS, (ms) => {
-    const k = Math.max(ms - start, 0) / (CAPTURE_MS * 0.6);
-    material.uniforms.uCut.value = -0.01 + Math.min(k, 1) * 1.05;
-    if (body.current) body.current.visible = k < 1;
-  });
+  const alive = useLife(
+    start + CAPTURE_MS,
+    (ms) => {
+      const k = Math.max(ms - start, 0) / (CAPTURE_MS * 0.6);
+      material.uniforms.uCut.value = -0.01 + Math.min(k, 1) * 1.05;
+      if (body.current) body.current.visible = k < 1;
+    },
+    durationMs,
+  );
   if (!alive) return null;
   const yaw = victimFacing ?? knightYaw(victim.type, victim.color, orientation as PieceColor);
   const at: Vec3 = [floor[0], floor[1], floor[2]];

@@ -12,14 +12,14 @@ import { LAYER } from '../kit/layers';
 import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
-import { FRAME, LEVEL_COLORS, PALETTE } from './palette';
+import { FRAME, LEVEL_COLORS, PALETTE, PIECE_SCALE } from './palette';
 import { leads, steepness } from './plates';
 
 // The marker language: light projected onto the pane. Every glyph is one
 // quad shaded by signed distances, crisp at any angle and distance.
 //
 // - A legal move: a small ring of eight gold light dots, quiet enough to
-//   scatter across a board for a centre queen, round a fine ring in the
+//   scatter across a board for a centre queen, round a small disc in the
 //   level's own colour. Under the pointer the dots swell and join. From
 //   above, destinations off the lead level draw smaller and fainter, and
 //   each level's dots turn 9° further round, so a square that is legal on
@@ -32,6 +32,8 @@ import { leads, steepness } from './plates';
 //   scan shell (pieces.tsx) plays.
 // - The last move: a faint ring of ice dots where the piece left, a wider
 //   ring of ice dots round where it arrived, and the thin line between them.
+//   A move straight up or down, whose two squares stack from above, marks
+//   its origin with a wide continuous ring outside the arrival's dots.
 // - Check: a slow red glow ring round the king's square, breathing gently.
 
 const MODE = {
@@ -42,6 +44,8 @@ const MODE = {
   left: 4,
   check: 5,
   tick: 6,
+  leftBelow: 7,
+  arrivedAbove: 8,
 } as const;
 type Mode = keyof typeof MODE;
 
@@ -116,7 +120,7 @@ const fragmentShader = /* glsl */ `
     if (uMode == 0) {
       // A legal move: eight dots of light; hovered, they swell and join
       // (wide enough to show round a piece lifted above it, seen from above).
-      // A fine ring in the level's colour inside says which level it is on.
+      // A small disc of the level's colour at its heart says which level.
       float R = 0.26 + 0.018 * uHover;
       float dr = 0.04 + 0.012 * uHover;
       float d = dots(p, R, 8.0, dr, 0.3927 + turn);
@@ -124,7 +128,7 @@ const fragmentShader = /* glsl */ `
       glow = halo(d, 0.04) * 0.45;
       shape = max(shape, cover(ring(p, R, 0.008), 0.004) * uHover * 0.8);
       fill = (1.0 - smoothstep(R + 0.04, R + 0.07, r)) * (0.1 + 0.1 * uHover);
-      cue = cover(ring(p, 0.105, 0.016), 0.008);
+      cue = cover(length(p) - 0.05, 0.05);
     } else if (uMode == 1) {
       // A capture: the same dots on a wider ring round the victim's base,
       // fractured: the diagonal dots spring out as short shards
@@ -170,6 +174,18 @@ const fragmentShader = /* glsl */ `
       shape = max(cover(d, 0.019), cover(c, 0.022));
       glow = halo(min(d, c), 0.03) * 0.25;
       fill = (1.0 - smoothstep(0.2, 0.23, r)) * 0.05;
+    } else if (uMode == 7) {
+      // Where a move straight up or down left: a wide continuous ice ring,
+      // clear outside the arrival's dots when the two squares stack from above
+      float d = ring(p, 0.47, 0.014);
+      shape = cover(d, 0.007);
+      glow = halo(d, 0.04) * 0.35;
+    } else if (uMode == 8) {
+      // Where a move straight up or down arrived: the twelve dots drawn in
+      float d = dots(p, 0.34, 12.0, 0.024, 0.0);
+      float t = ring(p, 0.34, 0.007);
+      shape = max(cover(d, 0.024), cover(t, 0.0035) * 0.5);
+      glow = halo(d, 0.04) * 0.4;
     } else if (uMode == 5) {
       // Check: a slow red glow ring round the king's square
       float breath = 0.72 + 0.28 * cos(6.2831853 * uTime / 3.2);
@@ -307,17 +323,22 @@ const columnFragment = /* glsl */ `
   uniform float uFrom;
   uniform float uReach;
   uniform float uStrength;
+  uniform float uGap;
+  uniform float uSteep;
   varying vec3 vNormal;
   varying vec3 vView;
   varying float vY;
   void main() {
+    // Never through the held piece: the beam leaves a gap over its square,
+    // up past the tallest piece lifted
+    if (vY > uFrom - 0.02 && vY < uFrom + uGap) discard;
     float facing = abs(dot(normalize(vNormal), normalize(vView)));
     // A fine bright core with a soft falloff: a beam, not a tube
     float beam = pow(facing, 6.0) + 0.25 * pow(facing, 1.5);
     float dy = abs(vY - uFrom);
     if (dy > uReach) discard;
     float fade = exp(-dy / 2.6) * (1.0 - smoothstep(uReach - 0.4, uReach, dy));
-    float a = beam * fade * uStrength;
+    float a = beam * fade * uStrength * (1.0 - 0.7 * uSteep);
     if (a < 0.003) discard;
     gl_FragColor = vec4(uColor * a, 1.0);
     #include <colorspace_fragment>
@@ -327,6 +348,8 @@ const COLUMN_BOTTOM = FRAME.levelY[0] - 0.25;
 const COLUMN_TOP = FRAME.levelY[4] + 1.1;
 const column = new CylinderGeometry(0.05, 0.05, 1, 16, 1, true).translate(0, 0.5, 0);
 const COLUMN_MS = 380;
+/** Clear air over the column's own square: the tallest piece (the king), lifted, and a margin. */
+const COLUMN_GAP = (0.87 + 0.08) * PIECE_SCALE + 0.06;
 
 /**
  * A thin column of light through every level at a square, growing out from
@@ -357,6 +380,8 @@ export const LightColumn = ({
           uFrom: { value: floor[1] },
           uReach: { value: 0 },
           uStrength: { value: strength },
+          uGap: { value: COLUMN_GAP },
+          uSteep: steepness,
         },
         vertexShader: columnVertex,
         fragmentShader: columnFragment,
@@ -370,7 +395,8 @@ export const LightColumn = ({
   useFrame((_, delta) => {
     const total = COLUMN_MS + fadeMs;
     if (elapsed.current >= total) return;
-    elapsed.current = Math.min(elapsed.current + Math.min(delta, 1 / 20) * 1000, total);
+    // Clamped loosely: on a slow machine it still settles in about its own time
+    elapsed.current = Math.min(elapsed.current + Math.min(delta, 1 / 8) * 1000, total);
     const t = Math.min(elapsed.current / COLUMN_MS, 1);
     const u = material.uniforms;
     u.uReach.value = (1 - (1 - t) ** 3) * full;
@@ -412,27 +438,43 @@ export const Selection = ({ floor }: MarkerProps) => (
 
 // --- Last move and check ---------------------------------------------------------------
 
-export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
-  <>
-    <Glyph at={from.floor} mode="left" color={PALETTE.trace} opacity={0.75} />
-    <Glyph at={to.floor} mode="arrived" color={PALETTE.trace} opacity={0.85} />
-    <LastMoveLine
-      from={from.floor}
-      to={to.floor}
-      arc={arc}
-      color={PALETTE.trace}
-      pulseColor="#ffffff"
-      opacity={0.85}
-      radius={0.011}
-      pulse={0.7}
-      pulseLength={0.35}
-      spacing={1.5}
-      flowSpeed={0.55}
-      shade={0.3}
-      drawInMs={fresh ? 360 : 0}
-    />
-  </>
-);
+export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
+  // A move straight up or down stacks its two squares from above: the origin
+  // then draws as a wide ring outside the arrival's (smaller) dots
+  const vertical =
+    Math.abs(from.floor[0] - to.floor[0]) < 1e-3 && Math.abs(from.floor[2] - to.floor[2]) < 1e-3;
+  return (
+    <>
+      <Glyph
+        at={from.floor}
+        mode={vertical ? 'leftBelow' : 'left'}
+        color={PALETTE.trace}
+        opacity={0.75}
+      />
+      <Glyph
+        at={to.floor}
+        mode={vertical ? 'arrivedAbove' : 'arrived'}
+        color={PALETTE.trace}
+        opacity={0.85}
+      />
+      <LastMoveLine
+        from={from.floor}
+        to={to.floor}
+        arc={arc}
+        color={PALETTE.trace}
+        pulseColor="#ffffff"
+        opacity={0.85}
+        radius={0.011}
+        pulse={0.7}
+        pulseLength={0.35}
+        spacing={1.5}
+        flowSpeed={0.55}
+        shade={0.3}
+        drawInMs={fresh ? 360 : 0}
+      />
+    </>
+  );
+};
 
 export const Check = ({ floor }: MarkerProps) => {
   const invalidate = useThree((s) => s.invalidate);

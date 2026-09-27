@@ -1,13 +1,23 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { AdditiveBlending, BackSide, Color, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
+import {
+  AdditiveBlending,
+  BackSide,
+  Color,
+  PlaneGeometry,
+  Quaternion,
+  ShaderMaterial,
+  Vector3,
+} from 'three';
 import type { BufferGeometry, Group, Object3D } from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { ChessPiece, PIECE_PARTS, partsGeometry, pieceSet, pieceTop } from '../../pieces';
 import { LAYER } from '../kit/layers';
+import { FLOOR_DECAL } from '../kit/motion';
 import { noRaycast } from '../kit/noRaycast';
 import type { PieceBodyProps, PieceColor } from '../types';
 import { LEVEL_COLORS, PALETTE } from './palette';
+import { steepness } from './plates';
 
 // Hard-light ceramic: solid, matte, opaque bodies (never see-through), each
 // army carrying a luminous edge of its own light along its silhouette. Pearl
@@ -69,6 +79,10 @@ const ceramicFragment = /* glsl */ `
   uniform float uRimPower;
   uniform float uSpec;
   uniform float uShine;
+  uniform float uTop;
+  uniform vec3 uCrown;
+  uniform float uCrownMix;
+  uniform float uCrownPower;
   varying vec3 vN;
   varying vec3 vW;
   varying float vY;
@@ -90,8 +104,14 @@ const ceramicFragment = /* glsl */ `
     // Seen from above, a turned piece is nearly all silhouette to this term;
     // it gives way there, so an army keeps its own colour from any height
     float rim = pow(1.0 - abs(dot(n, v)), uRimPower);
-    rim *= mix(1.0, 0.35, smoothstep(0.55, 0.95, abs(v.y)));
+    float fromAbove = mix(1.0, 0.35, smoothstep(0.55, 0.95, abs(v.y)));
+    rim *= fromAbove;
     col = mix(col, uRim, clamp(uRimMix * rim, 0.0, 1.0));
+    // A state's light (hover's silver, check's red) on the edge of the top
+    // third only: the body below keeps its army's colour and form
+    float crown = pow(1.0 - abs(dot(n, v)), uCrownPower) * fromAbove;
+    crown *= smoothstep(0.55, 0.75, vY / uTop);
+    col = mix(col, uCrown, clamp(uCrownMix * crown, 0.0, 1.0));
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -117,6 +137,10 @@ interface CeramicOptions {
   emissive?: Color;
   spec?: number;
   shine?: number;
+  /** The piece's height (piece units), for the top-third light. */
+  top?: number;
+  /** A state's light on the edge of the top third (hover, check). */
+  crown?: { color: string; mix: number; power: number };
 }
 
 const ceramic = (o: CeramicOptions) =>
@@ -134,6 +158,10 @@ const ceramic = (o: CeramicOptions) =>
       uEmissive: { value: o.emissive ?? new Color(0, 0, 0) },
       uSpec: { value: o.spec ?? 0.25 },
       uShine: { value: o.shine ?? 28 },
+      uTop: { value: o.top ?? 1 },
+      uCrown: { value: new Color(o.crown?.color ?? '#000000') },
+      uCrownMix: { value: o.crown?.mix ?? 0 },
+      uCrownPower: { value: o.crown?.power ?? 2 },
     },
     vertexShader: ceramicVertex,
     fragmentShader: ceramicFragment,
@@ -157,7 +185,7 @@ const LOOK: Record<PieceColor, Look> = {
     rim: PALETTE.whiteRim,
     self: 0.04,
     spec: 0.3,
-    rimMix: { none: 0.6, hover: 0.85, selected: 0.6, check: 0.4 },
+    rimMix: { none: 0.6, hover: 0.6, selected: 0.6, check: 0.6 },
     rimPower: 2.6,
   },
   black: {
@@ -166,35 +194,44 @@ const LOOK: Record<PieceColor, Look> = {
     rim: PALETTE.blackRim,
     self: 0.1,
     spec: 0.35,
-    rimMix: { none: 0.78, hover: 0.95, selected: 0.72, check: 0.3 },
+    rimMix: { none: 0.78, hover: 0.78, selected: 0.72, check: 0.78 },
     rimPower: 2,
   },
 };
 
-const makeBody = (side: PieceColor, glow: Glow) => {
+const makeBody = (side: PieceColor, glow: Glow, type: PieceType) => {
   const look = LOOK[side];
-  const emissive = new Color(look.color).multiplyScalar(look.self);
-  // Selection, hover and check light a piece's edge only, never its body
-  // (no glow of their own: on the dark army even a trace of red emission
-  // turns the body wine-red): held, a piece keeps its own edge light (the
-  // scan shell's outline carries the gold); in check, a narrow red edge
+  // Hover, selection and check light a piece's edges only, never its body,
+  // and never with a glow of their own (on the dark army even a trace of
+  // red emission turns the body wine-red). Hover adds silver to the edge of
+  // the top third; check adds a narrow red there, and the army's own rim
+  // keeps its form; held, a piece keeps its own edge light (the scan shell's
+  // outline carries the gold).
+  const crown =
+    glow === 'check'
+      ? { color: PALETTE.check, mix: 0.55, power: 3 }
+      : glow === 'hover'
+        ? { color: look.rim, mix: side === 'white' ? 0.5 : 0.45, power: 1.6 }
+        : undefined;
   return ceramic({
     color: look.color,
     base: look.base,
-    rim: glow === 'check' ? PALETTE.check : look.rim,
+    rim: look.rim,
     rimMix: look.rimMix[glow],
-    rimPower: look.rimPower + (glow === 'check' ? 2 : 0),
-    emissive,
+    rimPower: look.rimPower,
+    emissive: new Color(look.color).multiplyScalar(look.self),
     spec: look.spec,
+    top: pieceTop(pieceSet(), type),
+    crown,
   });
 };
 
 const bodies = new Map<string, ShaderMaterial>();
-export const bodyMaterial = (side: PieceColor, glow: Glow) => {
-  const key = `${side}/${glow}`;
+export const bodyMaterial = (side: PieceColor, glow: Glow, type: PieceType) => {
+  const key = `${side}/${glow}/${type}`;
   let m = bodies.get(key);
   if (!m) {
-    m = makeBody(side, glow);
+    m = makeBody(side, glow, type);
     bodies.set(key, m);
   }
   return m;
@@ -276,6 +313,7 @@ const footFragment = /* glsl */ `
   uniform float uShadow;
   uniform float uRing;
   uniform float uRadius;
+  uniform float uSteep;
   varying vec2 vP;
   void main() {
     float r = length(vP);
@@ -286,31 +324,41 @@ const footFragment = /* glsl */ `
     float ring = (1.0 - smoothstep(w - fw, w + fw, d)) * min(0.008 / w, 1.0);
     float halo = exp(-d * d / (0.03 * 0.03)) * 0.25;
     float light = max(ring, halo) * uRing;
+    // From above, the piece's own square in its level's colour, so every
+    // piece sits in a square of its own level whatever grid leads
+    float sq = abs(max(abs(vP.x), abs(vP.y)) - 0.575);
+    float fs = max(fwidth(sq), 1e-4);
+    float square = (1.0 - smoothstep(fs * 0.75, fs * 1.75, sq)) * 0.55 * uSteep;
+    light = max(light, square);
     float a = max(shadow, light);
     if (a < 0.003) discard;
     gl_FragColor = vec4(uColor * light / max(a, 1e-4), a);
     #include <colorspace_fragment>
   }`;
 
-const footPlane = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-export const footprints = LEVEL_COLORS.map(
-  (c) =>
-    new ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
-      uniforms: {
-        uColor: { value: new Color(c) },
-        uShadow: { value: 0.55 },
-        uRing: { value: 0.6 },
-        uRadius: { value: 0.335 },
-      },
-      vertexShader: footVertex,
-      fragmentShader: footFragment,
-    }),
-);
+const footPlane = new PlaneGeometry(1.3, 1.3).rotateX(-Math.PI / 2);
+const footprint = (c: string, ring: number) =>
+  new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+    uniforms: {
+      uColor: { value: new Color(c) },
+      uShadow: { value: 0.55 },
+      uRing: { value: ring },
+      uRadius: { value: 0.335 },
+      uSteep: steepness,
+    },
+    vertexShader: footVertex,
+    fragmentShader: footFragment,
+  });
+/** Per level: at rest, and brighter under the pointer. */
+export const footprints = LEVEL_COLORS.map((c) => ({
+  rest: footprint(c, 0.6),
+  hover: footprint(c, 1.4),
+}));
 
 /** Nearest ancestor that Board's Lift raises (tagged userData.lift). */
 const liftOf = (o: Object3D | null): Object3D | null => {
@@ -318,19 +366,25 @@ const liftOf = (o: Object3D | null): Object3D | null => {
   return null;
 };
 
+const turn = new Quaternion();
+
 /**
  * Keeps its children on the pane while the piece above them is lifted
- * (hovered or picked up): the footprint stays where the piece stands.
+ * (hovered or picked up), and square to the board while the piece is turned
+ * (a knight faces along the ranks): the footprint and its square stay where
+ * the piece stands.
  */
 const Grounded = ({ children }: { children: React.ReactNode }) => {
   const group = useRef<Group>(null);
   const lift = useRef<Object3D | null>(null);
   useFrame(() => {
     const g = group.current;
-    if (!g) return;
+    if (!g?.parent) return;
     if (!lift.current) lift.current = liftOf(g);
     const y = -(lift.current?.position.y ?? 0);
     if (g.position.y !== y) g.position.y = y;
+    g.parent.getWorldQuaternion(turn).invert();
+    if (!g.quaternion.equals(turn)) g.quaternion.copy(turn);
   });
   return <group ref={group}>{children}</group>;
 };
@@ -395,11 +449,18 @@ const shellFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
+// The held outline: only the grazing back faces, the true silhouette, not
+// the rings of back faces a crown, a collar or a tier leaves uncovered
 const outlineFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uHold;
+  uniform float uSteep;
+  varying vec3 vNormal;
+  varying vec3 vView;
   void main() {
-    gl_FragColor = vec4(uColor * 0.7 * uHold, 1.0);
+    float f = abs(dot(normalize(vNormal), normalize(vView)));
+    float edge = 1.0 - smoothstep(0.15, 0.4, f);
+    gl_FragColor = vec4(uColor * 0.6 * uHold * edge * mix(1.0, 0.5, uSteep), 1.0);
     #include <colorspace_fragment>
   }`;
 
@@ -441,7 +502,7 @@ const ScanShell = ({ type }: { type: PieceType }) => {
         blending: AdditiveBlending,
         side: BackSide,
         // Shares the build's colour and hold, closer in to the surface
-        uniforms: { ...material.uniforms, uInflate: { value: 0.022 } },
+        uniforms: { ...material.uniforms, uInflate: { value: 0.022 }, uSteep: steepness },
         vertexShader: shellVertex,
         fragmentShader: outlineFragment,
       }),
@@ -458,7 +519,8 @@ const ScanShell = ({ type }: { type: PieceType }) => {
   useFrame((_, delta) => {
     const total = SCAN_MS + HOLD_MS;
     if (elapsed.current >= total) return;
-    elapsed.current = Math.min(elapsed.current + Math.min(delta, 1 / 20) * 1000, total);
+    // Clamped loosely: on a slow machine it still settles in about its own time
+    elapsed.current = Math.min(elapsed.current + Math.min(delta, 1 / 8) * 1000, total);
     const t = Math.min(elapsed.current / SCAN_MS, 1);
     const e = 1 - (1 - t) ** 3;
     const u = material.uniforms;
@@ -495,16 +557,18 @@ const ScanShell = ({ type }: { type: PieceType }) => {
  */
 export const PieceBody = (props: PieceBodyProps) => {
   const level = props.level ?? 0;
-  const body = bodyMaterial(props.color, glowOf(props));
+  const body = bodyMaterial(props.color, glowOf(props), props.type);
   return (
     <>
       <Grounded>
         <mesh
           geometry={footPlane}
-          material={footprints[level]}
+          material={footprints[level][props.hovered ? 'hover' : 'rest']}
           position={[0, 0.004, 0]}
           renderOrder={LAYER.shadow}
           raycast={noRaycast}
+          // Topple hides it while a mated king is down
+          userData={FLOOR_DECAL}
         />
       </Grounded>
       <ChessPiece

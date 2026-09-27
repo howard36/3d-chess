@@ -24,10 +24,12 @@ import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 // low angles.
 //
 // Seen from high up, five stacked grids would nest into a plaid, so as the
-// view steepens toward a bird's-eye view every level's threads but one's
-// fade to quiet hairlines and their nodes go out. The one kept whole is the
-// level the player is attending to (the hovered or selected level), else
-// the top one: the board reads like a 2D board seen through glass.
+// view steepens toward a bird's-eye view every level's threads fade to quiet
+// hairlines and their nodes go out, but for the level the player is
+// attending to (the hovered or selected level), which keeps its grid whole:
+// the board reads like a 2D board seen through glass. With nothing attended
+// to, no level leads, and each piece draws its own square in its level's
+// colour (pieces.tsx), so no piece ever sits on another level's line.
 
 const vertexShader = /* glsl */ `
   varying vec2 vP;
@@ -135,10 +137,11 @@ const up = new Vector3();
 export const steepness = { value: 0 };
 /**
  * Per level, 1 for the lead level: the one the player is attending to (the
- * hovered or selected level), else the top one. From above, only it keeps
- * its grid, veil and frame whole, and its destinations full size.
+ * hovered or selected level). From above, only it keeps its grid, veil and
+ * frame whole, and its destinations full size; with nothing attended to, no
+ * level leads and every piece shows its own square (pieces.tsx).
  */
-export const leads = LEVEL_COLORS.map((_, z) => ({ value: z === LEVEL_COLORS.length - 1 ? 1 : 0 }));
+export const leads = LEVEL_COLORS.map(() => ({ value: 0 }));
 
 export const HoloPanes = ({ focusLevel }: { focusLevel: number | null }) => {
   const edge = FRAME.half + MARGIN;
@@ -212,7 +215,7 @@ export const HoloPanes = ({ focusLevel }: { focusLevel: number | null }) => {
     (weights, any) => {
       weights.forEach((w, z) => {
         panes[z].uniforms.uFocus.value = w;
-        leads[z].value = w + (1 - any) * (z === weights.length - 1 ? 1 : 0);
+        leads[z].value = w;
         panes[z].uniforms.uDim.value = any * (1 - w) * 0.3;
         frameBase.current[z] = 0.8 * (1 - any * (1 - w) * 0.4) + 0.2 * w;
       });

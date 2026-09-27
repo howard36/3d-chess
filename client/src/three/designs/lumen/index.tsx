@@ -63,6 +63,13 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
 // Thin-line glass panels with a hairline of the level spectrum along the top,
 // like the chrome of a design tool
 const SPECTRUM = `linear-gradient(90deg, ${LEVEL_COLORS.join(', ')})`;
+// The result card's own chrome: a small mono caption in the corner, like a
+// design tool's panel title (drawn as an image: the card is shared HUD)
+const RESULT_LABEL = `url("data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="14">' +
+    '<text x="0" y="11" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="10.5" ' +
+    'letter-spacing="1.6" fill="rgba(190,204,232,0.62)">GAME RESULT</text></svg>',
+)}") 18px 14px / 160px 14px no-repeat`;
 const PANEL = 'linear-gradient(180deg, rgba(16, 20, 36, 0.84), rgba(8, 10, 20, 0.88))';
 
 const lumen: Design = {
@@ -82,8 +89,9 @@ const lumen: Design = {
   knightYaw: KNIGHT_YAW,
   markers: { Quiet, Capture, Selection, LastMove, Check },
   hoverDestinations: true,
-  // Hover stirs a piece; picked up, it rises into its scan shell and holds still
-  hoverLift: true,
+  // Hover stirs a piece; picked up, it rises a little into its scan shell and
+  // holds still (the shell and the column say "picked up", so it barely lifts)
+  hoverLift: { hover: 0.05, selected: 0.08 },
   motion: MOTION,
   MoveFx,
   CaptureFx,
@@ -110,6 +118,7 @@ const lumen: Design = {
       '--turn-border': '1px solid rgba(150, 180, 255, 0.2)',
       '--turn-shadow': '0 0 28px rgba(120, 170, 255, 0.12), 0 12px 32px rgba(0, 0, 0, 0.45)',
       '--modal-bg': `${SPECTRUM} top / 100% 2px no-repeat, linear-gradient(180deg, rgba(18, 22, 40, 0.97), rgba(7, 9, 18, 0.98))`,
+      '--result-bg': `${RESULT_LABEL}, ${SPECTRUM} top / 100% 2px no-repeat, linear-gradient(180deg, rgba(18, 22, 40, 0.97), rgba(7, 9, 18, 0.98))`,
       '--modal-fg': PALETTE.ink,
       '--modal-backdrop': 'rgba(2, 3, 8, 0.55)',
       '--modal-radius': '8px',
