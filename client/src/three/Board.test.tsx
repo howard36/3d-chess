@@ -970,6 +970,22 @@ describe('Board with a clarity-kit design', () => {
     expect(last(focusSeen)).toEqual({ selected: 1, hovered: null });
   });
 
+  it('remounts the selection marker when the selection moves straight to another piece', async () => {
+    let mounts = 0;
+    const Selection = ({ floor }: MarkerProps) => {
+      React.useEffect(() => {
+        mounts++;
+      }, []);
+      return <group userData={{ selection: true }} position={floor} />;
+    };
+    const renderer = await renderWith({ ...classic, markers: { ...classic.markers, Selection } });
+    await press(findPiece(renderer, PieceType.Pawn, 'white', { x: 0, y: 1, z: 1 }));
+    expect(mounts).toBe(1);
+    await press(findPiece(renderer, PieceType.Pawn, 'white', { x: 1, y: 1, z: 1 }));
+    // Its entrance plays again for the new piece
+    expect(mounts).toBe(2);
+  });
+
   it('tells a piece body it is under the pointer for any hover lift, heights or `true`', async () => {
     const hoveredBodies = (renderer: Renderer) =>
       (renderer.scene as ReactThreeTestInstance).findAll(

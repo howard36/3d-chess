@@ -474,7 +474,8 @@ const Board = (props: BoardProps) => {
             <Quiet key={`quiet-${key}`} {...markerAt(to)} {...hover} />
           );
         })}
-        {selected && <Selection {...markerAt(selected)} />}
+        {/* Keyed by square, so selecting another piece plays its entrance again */}
+        {selected && <Selection key={`selection-${toZXY(selected)}`} {...markerAt(selected)} />}
         {/* Keyed by move: an entrance a design plays on mount (when fresh)
             plays once per move, and not again on a reconnect */}
         {LastMove && lastMove && (

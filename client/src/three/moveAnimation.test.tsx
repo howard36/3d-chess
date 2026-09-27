@@ -9,6 +9,7 @@ import {
   FLOOR_DECAL,
   LIFT_DEFAULTS,
   Lift,
+  ON_FLOOR,
   pieceLift,
   SELECTION_BOB,
   Topple,
@@ -145,6 +146,28 @@ describe('Lift and Topple', () => {
     const bobbing = await heights(SELECTION_BOB);
     expect(Math.max(...bobbing) - Math.min(...bobbing)).toBeGreaterThan(SELECTION_BOB);
     for (const y of bobbing) expect(Math.abs(y - 0.2)).toBeLessThanOrEqual(SELECTION_BOB + 1e-3);
+  });
+
+  it('keeps ON_FLOOR decoration on the floor while the piece lifts, through any scale', async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Lift height={0.2}>
+        <group scale={0.5}>
+          <group userData={{ ...ON_FLOOR, ring: true }} />
+        </group>
+        <mesh userData={{ body: true }} />
+      </Lift>,
+    );
+    const scene = renderer.scene as ReactThreeTestInstance;
+    const find = (key: string) =>
+      scene.findAll((n) => n.props.userData?.[key] === true)[0].instance as unknown as Group;
+    const worldY = (key: string) => find(key).getWorldPosition(new Vector3()).y;
+    for (let i = 0; i < 30; i++) {
+      await act(async () => renderer.advanceFrames(1, 0.03));
+      // Pinned in the very frame the piece rises: no trailing, no bounce
+      expect(worldY('ring')).toBeCloseTo(0, 6);
+    }
+    expect(worldY('body')).toBeGreaterThan(0.12);
+    expect(find('ring').userData.floorDecal).toBe(true);
   });
 
   it('fills in a design’s piece lift: no bob unless it opts in', () => {

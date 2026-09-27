@@ -12,6 +12,25 @@ import type { PieceLift } from '../types';
  */
 export const FLOOR_DECAL = { floorDecal: true } as const;
 
+/**
+ * userData for a group of decoration at a piece's base that stays on the
+ * floor while the piece lifts (a base ring, a pedestal glow). Lift pins the
+ * group to the floor in the same frame the piece rises, so it never trails
+ * or bounces. Lift owns the group's y position: put offsets on its children.
+ * It is a FLOOR_DECAL too, so Topple hides it.
+ */
+export const ON_FLOOR = { floorDecal: true, onFloor: true } as const;
+
+// Holds every ON_FLOOR group under a Lift at the floor, undoing the lift
+// through any scaling between the two
+const pinToFloor = (lift: Group) =>
+  lift.traverse((o) => {
+    if (o === lift || !o.userData.onFloor) return;
+    let scale = 1;
+    for (let p = o.parent; p && p !== lift; p = p.parent) scale *= p.scale.y;
+    o.position.y = -lift.position.y / (scale || 1);
+  });
+
 const showFloorDecals = (root: Object3D | null, show: boolean) =>
   root?.traverse((o) => {
     if (o.userData.floorDecal) o.visible = show;
@@ -36,6 +55,7 @@ export const pieceLift = (
  * Raises its children `height` above their resting place, easing there, and
  * bobs them `bob` up and down while there (0: held still). Requests frames
  * only while moving, so a demand-driven canvas idles once it settles.
+ * Groups tagged ON_FLOOR stay behind on the floor.
  */
 export const Lift = ({
   height,
@@ -62,6 +82,7 @@ export const Lift = ({
     const y = g.position.y + (target - g.position.y) * Math.min(1, dt * 12);
     const settled = !bobbing && Math.abs(y - target) < 1e-3;
     g.position.y = settled ? target : y;
+    pinToFloor(g);
     if (!settled) invalidate();
   });
 
