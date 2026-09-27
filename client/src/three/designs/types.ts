@@ -14,8 +14,10 @@ export type PieceColor = 'white' | 'black';
 
 /**
  * Limits on how far the player may orbit and zoom, applied to the game's
- * OrbitControls. Angles are polar angles in radians, measured from straight
- * overhead (0) down to the horizon (PI / 2) and below.
+ * camera controls. Angles are polar angles in radians, measured from straight
+ * overhead (0) down to the horizon (PI / 2) and below. The distances only
+ * narrow the zoom range, 0.7x to 1.5x the distance that fits the board in the
+ * window (zoomRange in three/cameraFit.ts).
  */
 export interface OrbitLimits {
   minPolarAngle?: number;
@@ -44,7 +46,7 @@ export interface BoardLayout {
   halfExtents: Vec3;
   /** Direction from the board's centre to the camera when a game opens. */
   viewDirection: Vec3;
-  /** Orbit and zoom limits; without them the camera orbits freely (6 units in at most). */
+  /** Orbit and zoom limits; without them the camera orbits freely over the fitted zoom range. */
   orbit?: OrbitLimits;
   /**
    * Height of each cell's click box, standing on the cell's floor. Without it

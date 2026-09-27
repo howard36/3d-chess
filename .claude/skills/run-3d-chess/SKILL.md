@@ -64,7 +64,7 @@ test('inspect', async ({ browser }) => {
   await game.white.mouse.down();
   await game.white.mouse.move(700, 480, { steps: 20 });
   await game.white.mouse.up();
-  await game.white.mouse.wheel(0, -400);          // negative deltaY zooms in; distance clamps 6–25
+  await game.white.mouse.wheel(0, -400);          // negative deltaY zooms in, to 0.7–1.5× the fitted distance
   await game.screenshot('rotated');
 
   await expect(game.white.getByText('White to move')).toBeVisible();

@@ -121,11 +121,35 @@ Key decisions:
   kept in `sessionStorage`, so it survives a reload but is not shared with other tabs)
   and sends it with `create_game`, `join_game` and `rejoin_game`.
 - **Input.** The board acts on a click (primary button, released within a few pixels of
-  the press), never on pointer-down, so a drag, right-drag or pinch that starts over the
-  cube only turns the view. With a piece selected, clicking an opposing piece it can take
-  plays the capture (the piece fills its cell, so it would otherwise hide the cell's click
+  the press), never on pointer-down, so a drag or pinch that starts over the cube only
+  moves the camera. With a piece selected, clicking an opposing piece it can take plays
+  the capture (the piece fills its cell, so it would otherwise hide the cell's click
   target). A move can also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is
   how a keyboard-only or screen-reader player plays.
+- **Camera.** The only camera control is turning the view about the board's centre: drag
+  with the left mouse button or one finger. The wheel or a two-finger pinch zooms. There
+  is no pan (right-drag, a two-finger drag and the arrow keys do nothing), so the orbit
+  target never leaves the centre. The zoom runs from 0.7× to 1.5× the distance that fits
+  the board in the window (`zoomRange` in `three/cameraFit.ts`); `FitCameraToBoard`
+  recomputes the fit and the range whenever the window changes shape (a phone turned on
+  its side) and opens the camera inside it, so a phone zooms over the same share of its
+  view as a desktop. A design's `orbit.minDistance`/`maxDistance` only narrow the range,
+  and its polar-angle limits bound the elevation (up to straight down). The controls
+  (`three/CameraControls.tsx`) are three's own OrbitControls, registered as r3f's default
+  controls, which `FitCameraToBoard`, the designs and `showcase.mjs` read.
+- **Touch.** The game screen takes no text selection, long-press callout or double-tap
+  zoom (iOS would otherwise select the whole page on a double tap), except in the move box
+  and the move list (`.game-screen` in `client/src/index.css`); the canvas takes every
+  touch itself (`touch-action: none`). When a mobile browser loses a finger's pointer-up,
+  the controls would keep counting that finger and read the next one-finger drag as a
+  pinch against it. `three/useTouchSafeControls.ts` checks the controls' pointers against
+  the finger list of every touch event, and on a lost pointer capture, a blur or a hidden
+  page, and drops the ones no finger accounts for, so a lone finger always turns the view
+  (`e2e/touchCamera.spec.ts` loses a finger's pointer-up through real touch input).
+- **Turn chip.** The chip at the top says whose move it is ("White to move — in check").
+  Once the game is over it gives the result instead ("Checkmate · White wins",
+  "Stalemate · Draw"); it carries `data-turn` while the game is on and `data-result` /
+  `data-winner` after, for tests, `showcase.mjs` and designs' stylesheets.
 
 ## Protocol
 
@@ -205,17 +229,19 @@ So levels are **screen height** and ranks are **depth**, as in the tower layout.
 Concretely, for White: the ten starting pawns (level B, ranks 1–2) are the
 second-from-bottom horizontal layer of the cube, in the two slices nearest the camera,
 right above White's pieces on level A; moving a pawn "forward" moves it away from the
-viewer, "up" moves it up the screen. Black sees the mirror image. OrbitControls allows
-free rotation, so the default view is just a starting point. Only positions are
-transformed; piece meshes are never mirrored. This is the classic (lattice) layout; a
+viewer, "up" moves it up the screen. Black sees the mirror image. The player turns the
+view freely about the cube's centre, so the default view is just a starting point. Only
+positions are transformed; piece meshes are never mirrored. This is the classic (lattice) layout; a
 design may lay the cells out differently (see Board designs — the tower layout spreads
 the levels out as five separate boards).
 The classic position math is in `three/layout.ts`, the others in
 `three/designs/kit/layouts.ts`; the floor rings and the glide
 lift in `three/Board.tsx` and `three/motion.ts` assume world-Y-up, and the camera lives in
-`screens/GameScreen.tsx` (its starting direction) and `three/cameraFit.ts` (its distance,
-fitted to the window's shape so the whole cube is framed on a phone too). The engine and wire formats are independent of rendering, and
-the e2e click helpers project through the live camera.
+`screens/GameScreen.tsx` (its starting direction), `three/cameraFit.ts` (its distance,
+fitted to the window's shape so the whole cube is framed on a phone too, and the zoom
+range around it) and `three/CameraControls.tsx` (turning and zooming). The engine and wire
+formats are independent of rendering, and the e2e click helpers project through the live
+camera.
 
 ## Board designs
 
