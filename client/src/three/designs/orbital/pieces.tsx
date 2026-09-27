@@ -7,44 +7,53 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
+  SRGBColorSpace,
 } from 'three';
 import type { Group } from 'three';
 import { prefersReducedMotion } from '../../motion';
-import { ChessPiece } from '../../pieces';
+import { PieceType } from '../../../engine/pieces';
+import { ChessPiece, pieceSet } from '../../pieces';
 import { LAYER } from '../kit/layers';
-import { ContactShadow } from '../kit/plates';
 import { noRaycast } from '../kit/noRaycast';
 import type { PieceBodyProps, PieceColor } from '../types';
-import { BEAM, CARBON, CERAMIC, CHECK, GRAPHITE, LEVELS, STEEL, TITANIUM } from './palette';
+import { BEAM, CARBON, CERAMIC, GRAPHITE, LEVELS, STEEL, TITANIUM } from './palette';
 
 // The armies, in spacecraft materials on the shared Staunton set:
 //
-// - White: heat-shield ceramic, a warm matte white laid in fine staggered
-//   tiles (the seams fade out before they could shimmer), with its
-//   identifying details (the knight's mane, the bishop's cut, the unicorn's
-//   spiral, the queen's pearls, the king's cross) in black carbon tile.
-// - Black: anodised graphite, satin, with the same details in bright
-//   machined titanium, so they read even from straight above; a cool rim
-//   of light round every edge keeps each piece a sculpted form against the
-//   dark bay, never a silhouette.
+// - White: heat-shield ceramic, a warm matte white laid in broad staggered
+//   panels below the collar (each a shade apart; the seams fade out before
+//   they could shimmer), with its identifying details (the knight's mane,
+//   the bishop's cut, the unicorn's spiral, the queen's pearls, the king's
+//   cross) in black carbon.
+// - Black: anodised graphite, satin and light enough for the key light to
+//   model it, with the same details in bright machined titanium, so they
+//   read even from straight above; a cool rim of light round every edge
+//   keeps each piece a sculpted form against the dark bay.
 //
 // Both wear a collar of brushed metal and stand on a foot band that glows
-// in their deck's colour, spilling a ring of that light onto the glass.
+// in their deck's colour, with a thin quiet ring of that light on the glass:
+// the resting army stays calmer than the play lights.
 
 type State = 'idle' | 'hover' | 'selected' | 'check';
 
-const RIM: Record<PieceColor, Record<State, [string, number]>> = {
+/** A rim of light: colour, strength, and how tightly it hugs the silhouette (power). */
+type Rim = [string, number, number];
+
+// A check is a red edge, not a red king: tight and light, so the king keeps
+// its army's colour. Held in the beam, the graphite takes a cool edge rather
+// than the beam's white, so it still reads as graphite.
+const RIM: Record<PieceColor, Record<State, Rim>> = {
   white: {
-    idle: ['#a9c2e2', 0.1],
-    hover: ['#bcd6f5', 0.28],
-    selected: [BEAM, 0.45],
-    check: [CHECK, 0.7],
+    idle: ['#a9c2e2', 0.1, 2.6],
+    hover: ['#bcd6f5', 0.3, 2.4],
+    selected: [BEAM, 0.4, 2.6],
+    check: ['#ff5a6e', 0.35, 3.5],
   },
   black: {
-    idle: ['#7d9cc6', 0.55],
-    hover: ['#9bbbe6', 0.85],
-    selected: [BEAM, 1.0],
-    check: [CHECK, 1.1],
+    idle: ['#7d9cc6', 0.45, 2.0],
+    hover: ['#9bbbe6', 0.7, 2.0],
+    selected: ['#bcd8ff', 0.6, 2.2],
+    check: ['#ff5a6e', 0.5, 3.5],
   },
 };
 
@@ -52,27 +61,34 @@ const common = /* glsl */ `
   varying vec3 vObj;
   uniform vec3 uRim;
   uniform float uRim_k;
+  uniform float uRimPow;
   uniform float uSeams;
+  uniform float uSeamTop;
 
-  // Staggered tiles round a turned form: rows of equal height, ten tiles
-  // round, every other row offset by half a tile. Returns the seam's cover.
-  float tileSeams(vec3 p) {
-    float rowH = 0.072;
+  // Heat-shield panels round a turned form: rows of equal height, six
+  // panels round, every other row offset by half a panel, each panel a
+  // shade lighter or darker than the next. Returns the seam's cover (x) and
+  // the panel's shade (y). Only below the collar: the head stays clean.
+  vec2 tileSeams(vec3 p) {
+    float rowH = 0.13;
     float row = p.y / rowH;
     float ri = floor(row);
     float rad = length(p.xz);
-    float n = 10.0;
+    float n = 6.0;
     float around = (atan(p.z, p.x) / 6.2831853 + 0.5) * n + mod(ri, 2.0) * 0.5;
+    float ci = mod(floor(around), n);
+    float shade = fract(sin(ri * 12.9898 + ci * 78.233) * 43758.5453) * 2.0 - 1.0;
     float dy = min(fract(row), 1.0 - fract(row)) * rowH;
     float dx = min(fract(around), 1.0 - fract(around)) * 6.2831853 * rad / n;
-    // Only where the form is wide enough to carry a tile
+    // Only where the form is wide enough to carry a panel
     dx = mix(1.0, dx, step(0.06, rad));
     float dd = min(dy, dx);
     float fw = max(fwidth(dd), 1e-5);
-    float s = 1.0 - smoothstep(0.0024 - fw, 0.0024 + fw, dd);
+    float s = 1.0 - smoothstep(0.0026 - fw, 0.0026 + fw, dd);
     // Fade out where the rows crowd closer than a few pixels
     s *= 1.0 - smoothstep(0.12, 0.3, fwidth(row));
-    return s;
+    float below = 1.0 - smoothstep(uSeamTop - 0.01, uSeamTop, p.y);
+    return vec2(s * below, shade * below);
   }
 `;
 
@@ -80,12 +96,12 @@ interface Finish {
   color: string;
   roughness: number;
   metalness: number;
-  /** How deep the tile seams darken the surface (0: none). */
+  /** How deep the panel seams darken the surface (0: none). */
   seams: number;
   envMapIntensity?: number;
 }
 
-const skin = (finish: Finish, rim: [string, number]) => {
+const skin = (finish: Finish, rim: Rim, seamTop = 1) => {
   const m = new MeshStandardMaterial({
     color: finish.color,
     roughness: finish.roughness,
@@ -95,7 +111,9 @@ const skin = (finish: Finish, rim: [string, number]) => {
   const uniforms = {
     uRim: { value: new Color(rim[0]) },
     uRim_k: { value: rim[1] },
+    uRimPow: { value: rim[2] },
     uSeams: { value: finish.seams },
+    uSeamTop: { value: seamTop },
   };
   const tiled = finish.seams > 0;
   m.onBeforeCompile = (shader) => {
@@ -108,14 +126,16 @@ const skin = (finish: Finish, rim: [string, number]) => {
       .replace(
         '#include <color_fragment>',
         tiled
-          ? '#include <color_fragment>\ndiffuseColor.rgb *= 1.0 - uSeams * tileSeams(vObj);'
+          ? `#include <color_fragment>
+          vec2 tile = tileSeams(vObj);
+          diffuseColor.rgb *= (1.0 + 0.03 * tile.y) * (1.0 - uSeams * tile.x);`
           : '#include <color_fragment>',
       )
       .replace(
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
         float rimFacing = clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
-        totalEmissiveRadiance += uRim * uRim_k * pow(1.0 - rimFacing, 2.6);`,
+        totalEmissiveRadiance += uRim * uRim_k * pow(1.0 - rimFacing, uRimPow);`,
       );
   };
   m.customProgramCacheKey = () => `orbital-skin-${tiled ? 'tiled' : 'plain'}`;
@@ -126,32 +146,66 @@ type Part = 'body' | 'collar' | 'accent';
 
 const FINISH: Record<PieceColor, Record<Part, Finish>> = {
   white: {
-    body: { color: CERAMIC, roughness: 0.62, metalness: 0, seams: 0.3, envMapIntensity: 0.8 },
+    body: { color: CERAMIC, roughness: 0.62, metalness: 0, seams: 0.2, envMapIntensity: 0.8 },
     collar: { color: STEEL, roughness: 0.32, metalness: 0.85, seams: 0 },
-    accent: { color: CARBON, roughness: 0.55, metalness: 0.1, seams: 0.35 },
+    accent: { color: CARBON, roughness: 0.55, metalness: 0.1, seams: 0 },
   },
   black: {
-    body: { color: GRAPHITE, roughness: 0.4, metalness: 0.45, seams: 0, envMapIntensity: 1.3 },
+    body: { color: GRAPHITE, roughness: 0.35, metalness: 0.2, seams: 0, envMapIntensity: 1 },
     collar: { color: TITANIUM, roughness: 0.3, metalness: 0.85, seams: 0 },
     accent: { color: TITANIUM, roughness: 0.28, metalness: 0.9, seams: 0 },
   },
 };
 
+/**
+ * Where a piece's panels stop: the bottom of its collar (the head above it
+ * stays clean). The knight has none: panels would read as brickwork on its
+ * sculpted head.
+ */
+const seamTop = (type: PieceType) => {
+  if (type === PieceType.Knight) return -1;
+  const collar = pieceSet()[type].collar;
+  return collar.boundingBox?.min.y ?? 1;
+};
+
 const skins = new Map<string, MeshStandardMaterial>();
-/** A part's material for an army and state: shared by every piece in that state. */
-export const skinFor = (color: PieceColor, part: Part, state: State) => {
-  const key = `${color}/${part}/${state}`;
+/**
+ * The rook's accent is its whole hollow (and sills): seen from above it is
+ * most of the piece, so it stays in its own army's value (a shaded ceramic,
+ * a deeper graphite) rather than the contrasting detail colour.
+ */
+const ROOK_ACCENT: Record<PieceColor, Finish> = {
+  white: { color: '#b4aea4', roughness: 0.62, metalness: 0, seams: 0 },
+  black: { color: '#2e343d', roughness: 0.42, metalness: 0.2, seams: 0 },
+};
+
+const finishFor = (color: PieceColor, part: Part, type: PieceType) => {
+  const f = part === 'accent' && type === PieceType.Rook ? ROOK_ACCENT[color] : FINISH[color][part];
+  const top = f.seams > 0 ? seamTop(type) : 1;
+  return { finish: top < 0 ? { ...f, seams: 0 } : f, top };
+};
+
+/**
+ * A part's material for an army, piece and state: shared by every such
+ * piece in that state (only the panelled ceramic differs from piece to piece).
+ */
+export const skinFor = (color: PieceColor, part: Part, state: State, type: PieceType) => {
+  const perType = FINISH[color][part].seams > 0 || (part === 'accent' && type === PieceType.Rook);
+  const key = `${color}/${part}/${state}${perType ? `/${type}` : ''}`;
   let m = skins.get(key);
   if (!m) {
-    m = skin(FINISH[color][part], RIM[color][state]);
+    const { finish, top } = finishFor(color, part, type);
+    m = skin(finish, RIM[color][state], top);
     skins.set(key, m);
   }
   return m;
 };
 
 /** A part's material of its own (not shared), for an effect that changes it. */
-export const freshSkin = (color: PieceColor, part: Part, state: State) =>
-  skin(FINISH[color][part], RIM[color][state]);
+export const freshSkin = (color: PieceColor, part: Part, state: State, type: PieceType) => {
+  const { finish, top } = finishFor(color, part, type);
+  return skin(finish, RIM[color][state], top);
+};
 
 // The foot band: a strip light in the deck's colour, a little brighter while held
 const feet = new Map<string, MeshStandardMaterial>();
@@ -163,7 +217,7 @@ export const footFor = (level: number, bright: boolean) => {
     m = new MeshStandardMaterial({
       color: c,
       emissive: c,
-      emissiveIntensity: bright ? 1.4 : 0.85,
+      emissiveIntensity: bright ? 1.3 : 0.7,
       roughness: 0.4,
       metalness: 0,
       toneMapped: false,
@@ -173,49 +227,57 @@ export const footFor = (level: number, bright: boolean) => {
   return m;
 };
 
-// --- The light the foot band spills on the glass -------------------------------------
+// --- On the glass: the contact shadow and the ring of the foot band's light ---------
 
-const spillTexture = (() => {
-  let t: CanvasTexture | null = null;
-  return () => {
-    if (t) return t;
-    const size = 256;
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    const ctx = c.getContext('2d')!;
-    // Drawn as grey on black: an alpha map reads the colour, not the alpha
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, size, size);
-    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    const grey = (v: number) =>
-      `rgb(${Math.round(v * 255)},${Math.round(v * 255)},${Math.round(v * 255)})`;
-    g.addColorStop(0, grey(0));
-    g.addColorStop(0.62, grey(0.05));
-    g.addColorStop(0.7, grey(0.22));
-    // The ring itself, crisp
-    g.addColorStop(0.72, grey(0.95));
-    g.addColorStop(0.765, grey(0.95));
-    g.addColorStop(0.785, grey(0.3));
-    g.addColorStop(0.88, grey(0.08));
-    g.addColorStop(1, grey(0));
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, size, size);
-    t = new CanvasTexture(c);
-    return t;
-  };
-})();
+/** Radius of the floor plane (piece units): the ring sits at about 0.29, hugging the foot. */
+const FLOOR_RADIUS = 0.4;
 
-const SPILL_RADIUS = 0.46;
-const spillPlane = new PlaneGeometry(SPILL_RADIUS * 2, SPILL_RADIUS * 2).rotateX(-Math.PI / 2);
-const spills = new Map<number, MeshBasicMaterial>();
-const spillFor = (level: number) => {
-  let m = spills.get(level);
+const floorTextures = new Map<number, CanvasTexture>();
+/**
+ * One texture per deck, both in one: a soft shadow under the base and, just
+ * round the foot, a thin quiet ring of the deck's colour. One plane per
+ * piece instead of two.
+ */
+const floorTexture = (level: number) => {
+  let t = floorTextures.get(level);
+  if (t) return t;
+  const size = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d')!;
+  // The canvas takes sRGB: the hex as it is
+  const hex = parseInt((LEVELS[level] ?? LEVELS[0]).slice(1), 16);
+  const [r, g, b] = [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255];
+  const lit = (a: number) => `rgba(${r},${g},${b},${a})`;
+  const dark = (a: number) => `rgba(0,0,0,${a})`;
+  const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, dark(0.85));
+  grad.addColorStop(0.45, dark(0.78));
+  grad.addColorStop(0.62, dark(0.3));
+  grad.addColorStop(0.68, lit(0.1));
+  // The ring itself, crisp but quiet
+  grad.addColorStop(0.715, lit(0.5));
+  grad.addColorStop(0.76, lit(0.5));
+  grad.addColorStop(0.79, lit(0.1));
+  grad.addColorStop(0.9, lit(0.03));
+  grad.addColorStop(1, lit(0));
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  floorTextures.set(level, t);
+  return t;
+};
+
+const floorPlane = new PlaneGeometry(FLOOR_RADIUS * 2, FLOOR_RADIUS * 2).rotateX(-Math.PI / 2);
+const floors = new Map<number, MeshBasicMaterial>();
+const floorFor = (level: number) => {
+  let m = floors.get(level);
   if (!m) {
     m = new MeshBasicMaterial({
-      color: LEVELS[level] ?? LEVELS[0],
-      alphaMap: spillTexture(),
+      map: floorTexture(level),
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.7,
       depthWrite: false,
       toneMapped: false,
       fog: false,
@@ -223,7 +285,7 @@ const spillFor = (level: number) => {
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -1,
     });
-    spills.set(level, m);
+    floors.set(level, m);
   }
   return m;
 };
@@ -297,9 +359,9 @@ export const PieceModel = ({
   <ChessPiece
     type={type}
     parts={{
-      body: skinFor(color, 'body', state),
-      collar: skinFor(color, 'collar', state),
-      accent: skinFor(color, 'accent', state),
+      body: skinFor(color, 'body', state, type),
+      collar: skinFor(color, 'collar', state, type),
+      accent: skinFor(color, 'accent', state, type),
       foot: footFor(level, state === 'selected'),
     }}
   />
@@ -316,11 +378,10 @@ export const PieceBody = (props: PieceBodyProps) => {
   return (
     <>
       <OnFloor>
-        <ContactShadow radius={0.36} opacity={0.6} />
         <mesh
-          geometry={spillPlane}
-          material={spillFor(level)}
-          position={[0, 0.006, 0]}
+          geometry={floorPlane}
+          material={floorFor(level)}
+          position={[0, 0.005, 0]}
           renderOrder={LAYER.shadow}
           raycast={noRaycast}
         />

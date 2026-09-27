@@ -51,6 +51,7 @@ const skyFragment = /* glsl */ `
   uniform float uSinDip;
   uniform float uDistance;
   uniform float uReach;
+  uniform float uTowerRadius;
   varying vec3 vWorld;
 
   void main() {
@@ -58,6 +59,13 @@ const skyFragment = /* glsl */ `
     // Height above the limb, in sines (about radians near it)
     float a = d.y + uSinDip;
     float aa = max(fwidth(a), 1e-5);
+    // Behind the tower (all of it, from wherever the camera is): the planet's
+    // detail and the limb step back, so nothing bright seen through the
+    // decks competes with the pieces or passes for a marker
+    float toTower = length(cameraPosition);
+    float off = acos(clamp(dot(d, -cameraPosition / max(toTower, 1e-4)), -1.0, 1.0));
+    float span = asin(clamp(uTowerRadius / max(toTower, 1e-4), 0.0, 1.0));
+    float behind = 1.0 - smoothstep(span * 0.8, span * 1.3, off);
 
     // --- Space: near black, a little bluer toward the planet, and the faint
     // dust of the galaxy's plane
@@ -67,13 +75,14 @@ const skyFragment = /* glsl */ `
     float band = exp(-bd * bd / 0.02) * (0.55 + 0.45 * sin(along * 2.0 + 1.1));
     space += uBand * band;
 
-    // The atmosphere seen edge-on: a thin bright line hugging the limb, a
-    // soft glow above it, and the airglow floating a little higher
+    // The atmosphere seen edge-on: a soft blue haze over the limb, not a
+    // hairline (it passes behind the tower from every side, so it must never
+    // read as another deck's edge), and a faint airglow a little higher
     float up = max(a, 0.0);
     float line = exp(-up / 0.004);
     float glow = exp(-up / 0.03) * 0.3;
-    float air = exp(-pow((a - 0.016) / 0.003, 2.0)) * 0.22;
-    space += uLimb * (line * 0.5 + glow * 0.35) + uAirglow * air * 0.75;
+    float air = exp(-pow((a - 0.016) / 0.008, 2.0)) * 0.22;
+    space += (uLimb * (line * 0.2 + glow * 0.2) + uAirglow * air * 0.2) * (1.0 - 0.6 * behind);
 
     // --- The planet
     vec3 col = space;
@@ -90,14 +99,14 @@ const skyFragment = /* glsl */ `
       vec2 uv = 0.5 + 0.5 * d.xz * (beta / s) / uReach;
       vec4 m = texture2D(uMap, uv);
       vec3 ground = mix(uOcean, uLand, m.b);
-      ground += uCloud * m.g * (0.25 + 0.55 * mu);
+      ground += uCloud * m.g * (0.25 + 0.55 * mu) * (1.0 - 0.75 * behind);
       // Cities glow through thin cloud, dimmed by thick
-      ground += uCity * m.r * (1.0 - 0.7 * m.g) * (0.3 + 0.25 * mu);
+      ground += uCity * m.r * (1.0 - 0.7 * m.g) * (0.3 + 0.25 * mu) * 0.6 * (1.0 - behind);
       // The longer the path through the air, the bluer and hazier
       float haze = pow(1.0 - mu, 5.0);
       ground = mix(ground, uHaze, haze * 0.85);
       // The lit rim just inside the limb
-      ground += uLimb * exp(a / 0.003) * 0.45;
+      ground += uLimb * exp(a / 0.004) * 0.2 * (1.0 - 0.6 * behind);
       col = mix(space, ground, smoothstep(aa, -aa, a));
     }
     gl_FragColor = vec4(col, 1.0);
@@ -131,6 +140,8 @@ const Sky = () => {
           uSinDip: { value: Math.sin(LIMB_DIP) },
           uDistance: { value: PLANET_DISTANCE },
           uReach: { value: MAP_REACH },
+          // The tower's bounding sphere, pieces and frames included (it is centred on the origin)
+          uTowerRadius: { value: 5.4 },
         },
         vertexShader: skyVertex,
         fragmentShader: skyFragment,

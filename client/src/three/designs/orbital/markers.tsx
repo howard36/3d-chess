@@ -11,7 +11,6 @@ import {
   PointsMaterial,
   ShaderMaterial,
 } from 'three';
-import type { Points } from 'three';
 import { prefersReducedMotion } from '../../motion';
 import { LAYER } from '../kit/layers';
 import { LastMoveLine } from '../kit/line';
@@ -21,16 +20,19 @@ import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { BEAM, CAPTURE, CHECK, DOCK, TRAIL } from './palette';
 
 // Orbital's marker language is a ring of small lights on the glass, like the
-// lights round a docking port:
+// lights round a docking port, on a stroked ring of its own (the decks'
+// corner lights are single dim points, so a ring never reads as the grid):
 //
 // - a legal destination: eight ice-white lights where the piece would stand;
 // - a capture: the same ring in red, opened out round the victim's base,
 //   pulsing once as it appears and then holding steady;
-// - the selection: a brighter ring under the piece, and a tractor beam, a
-//   soft cone of pale light with motes drifting up inside it;
-// - the last move: violet rings on both squares (the one left behind small
-//   and dim, the one arrived at full) and the thin violet line between them;
-// - check: a ring of red caution chevrons pointing in at the king.
+// - the selection: a continuous pale stroke round the square, no lights (so
+//   a destination straight above or below still reads as its own ring), in
+//   a tractor beam, a soft cone of pale light with motes drifting up inside;
+// - the last move: violet rings on both squares (the one left behind
+//   smaller and dimmer) and the thin violet line between them;
+// - check: six red caution chevrons pointing in at the king, and a low red
+//   collar of chevrons round its base that reads from the side.
 //
 // Everything lies flat on the deck and is drawn over every deck (LAYER), so
 // a marker three decks down reads as clearly as one on top.
@@ -51,6 +53,7 @@ const fragment = /* glsl */ `
   uniform float uDot;
   uniform float uHalo;
   uniform float uLine;
+  uniform float uLineWidth;
   uniform float uFill;
   uniform float uChevron;
   uniform float uPulse;
@@ -65,7 +68,7 @@ const fragment = /* glsl */ `
   void main() {
     vec2 p = vP;
     float rho = length(p);
-    float sector = 6.2831853 / uCount;
+    float sector = 6.2831853 / max(uCount, 1.0);
     float k = floor(atan(p.y, p.x) / sector + 0.5);
     float a0 = k * sector;
     vec2 dir = vec2(cos(a0), sin(a0));
@@ -83,10 +86,12 @@ const fragment = /* glsl */ `
       dist = length(q) - size;
     }
     float fw = max(fwidth(dist), 1e-4);
-    float core = 1.0 - smoothstep(-fw, fw, dist);
-    float halo = exp(-max(dist, 0.0) * max(dist, 0.0) / (size * size * 3.0)) * uHalo;
-    // The faint ring the lights sit on, and a faint pad inside it
-    float lr = abs(rho - uRadius) - 0.0035;
+    float lights = step(1e-5, uDot);
+    float core = (1.0 - smoothstep(-fw, fw, dist)) * lights;
+    float halo = exp(-max(dist, 0.0) * max(dist, 0.0) / max(size * size * 3.0, 1e-8)) * uHalo * lights;
+    // The ring the lights sit on (a stroke of its own when they are dim or
+    // absent), and a faint pad inside it
+    float lr = abs(rho - uRadius) - uLineWidth;
     float lfw = max(fwidth(lr), 1e-4);
     float ring = (1.0 - smoothstep(-lfw, lfw, lr)) * uLine;
     float pad = (1.0 - smoothstep(uRadius - 0.03, uRadius, rho)) * uFill;
@@ -115,12 +120,14 @@ export interface LightRingStyle {
   count?: number;
   /** Radius of the ring (world units). */
   radius: number;
-  /** Radius of each light. */
+  /** Radius of each light (0: no lights, only the stroke). */
   dot?: number;
   opacity?: number;
   halo?: number;
-  /** Opacity of the thin ring the lights sit on. */
+  /** Opacity of the ring the lights sit on. */
   line?: number;
+  /** Half the width of that ring (world units). */
+  lineWidth?: number;
   /** Opacity of the pad inside the ring. */
   fill?: number;
   /** Chevrons pointing inward instead of round lights. */
@@ -141,6 +148,7 @@ export const LightRing = ({
   opacity = 1,
   halo = 0.35,
   line = 0,
+  lineWidth = 0.0035,
   fill = 0,
   chevron = false,
   pulse = 0,
@@ -153,7 +161,7 @@ export const LightRing = ({
   /** Receives the material, for a caller that animates its uniforms. */
   materialRef?: (m: ShaderMaterial) => void;
 }) => {
-  const quad = (radius + dot * 4) * 2.2;
+  const quad = (radius + Math.max(dot * 4, lineWidth * 4)) * 2.2;
   const material = useMemo(
     () =>
       new ShaderMaterial({
@@ -171,6 +179,7 @@ export const LightRing = ({
           uDot: { value: 0.03 },
           uHalo: { value: 0.3 },
           uLine: { value: 0 },
+          uLineWidth: { value: 0.0035 },
           uFill: { value: 0 },
           uChevron: { value: 0 },
           uPulse: { value: 0 },
@@ -191,6 +200,7 @@ export const LightRing = ({
   u.uDot.value = dot;
   u.uHalo.value = halo;
   u.uLine.value = line;
+  u.uLineWidth.value = lineWidth;
   u.uFill.value = fill;
   u.uChevron.value = chevron ? 1 : 0;
   u.uPulse.value = pulse;
@@ -233,21 +243,29 @@ const usePulse = (ms: number, envelope: (t: number) => number) => {
 
 // --- Destinations ----------------------------------------------------------------------
 
-const QUIET_RADIUS = 0.25;
+const QUIET_RADIUS = 0.3;
 const CAPTURE_RADIUS = 0.42;
+/** Destinations draw over the tractor beam, so one straight above or below the held piece shows through it. */
+const OVER_BEAM = LAYER.trace + 0.8;
 
-/** A legal destination: a ring of eight ice-white lights. */
+/**
+ * A legal destination: eight ice-white lights on a stroked ring (the ring
+ * keeps it one circle where destinations on several decks overlap from
+ * above). Under the pointer it brightens and fills in at a glance.
+ */
 export const Quiet = ({ floor, hovered }: MarkerProps) => (
   <LightRing
     floor={floor}
     color={DOCK}
     count={8}
     radius={QUIET_RADIUS}
-    dot={hovered ? 0.03 : 0.024}
-    opacity={hovered ? 1 : 0.9}
-    halo={hovered ? 0.55 : 0.35}
-    line={hovered ? 0.5 : 0.12}
-    fill={hovered ? 0.1 : 0.03}
+    dot={hovered ? 0.04 : 0.032}
+    opacity={1}
+    halo={hovered ? 0.6 : 0.4}
+    line={hovered ? 0.85 : 0.4}
+    lineWidth={hovered ? 0.007 : 0.005}
+    fill={hovered ? 0.18 : 0.08}
+    renderOrder={OVER_BEAM}
   />
 );
 
@@ -269,11 +287,13 @@ export const Capture = ({ floor, hovered }: MarkerProps) => {
       color={CAPTURE}
       count={12}
       radius={CAPTURE_RADIUS}
-      dot={hovered ? 0.03 : 0.026}
+      dot={hovered ? 0.036 : 0.03}
       opacity={1}
       halo={hovered ? 0.6 : 0.4}
-      line={hovered ? 0.55 : 0.25}
-      fill={hovered ? 0.12 : 0.06}
+      line={hovered ? 0.85 : 0.45}
+      lineWidth={hovered ? 0.007 : 0.005}
+      fill={hovered ? 0.18 : 0.08}
+      renderOrder={OVER_BEAM}
       materialRef={ref}
     />
   );
@@ -282,11 +302,10 @@ export const Capture = ({ floor, hovered }: MarkerProps) => {
 // --- Selection: the tractor beam -----------------------------------------------------
 
 const BEAM_HEIGHT = 1.05;
-const beamGeometry = new CylinderGeometry(0.26, 0.36, BEAM_HEIGHT, 48, 1, true).translate(
-  0,
-  BEAM_HEIGHT / 2,
-  0,
-);
+const SELECT_RADIUS = 0.44;
+const beamGeometry = new CylinderGeometry(0.28, SELECT_RADIUS - 0.01, BEAM_HEIGHT, 48, 1, true)
+  // Standing on the glass
+  .translate(0, BEAM_HEIGHT / 2, 0);
 
 const beamVertex = /* glsl */ `
   varying float vH;
@@ -318,7 +337,7 @@ const beamFragment = /* glsl */ `
     float bands = 0.8 + 0.2 * sin((vH * 5.0 - uTime * 0.45) * 6.2831853);
     // A brighter skirt where the beam meets the glass
     float skirt = exp(-vH / 0.06) * 0.4;
-    float a = ((0.06 + 1.1 * edge) * fade * bands + skirt) * uOpacity;
+    float a = ((0.02 + 1.1 * edge) * fade * bands + skirt) * uOpacity;
     gl_FragColor = vec4(uColor, a);
     #include <colorspace_fragment>
   }`;
@@ -329,7 +348,6 @@ const moteTexture = () => dotTexture(0.8);
 /** The beam: a soft cone of pale light over the selected piece, motes drifting up inside. */
 const TractorBeam = ({ floor }: { floor: Vec3 }) => {
   const invalidate = useThree((s) => s.invalidate);
-  const points = useRef<Points>(null);
   const clock = useRef(0);
   const grow = useRef(0);
   const { material, motes, seeds, moteMaterial } = useMemo(() => {
@@ -410,7 +428,6 @@ const TractorBeam = ({ floor }: { floor: Vec3 }) => {
         raycast={noRaycast}
       />
       <points
-        ref={points}
         geometry={motes}
         material={moteMaterial}
         renderOrder={LAYER.trace + 0.6}
@@ -421,19 +438,21 @@ const TractorBeam = ({ floor }: { floor: Vec3 }) => {
   );
 };
 
-/** The selection: a bright ring of lights under the piece, in a tractor beam. */
+/**
+ * The selection: a continuous pale stroke round the square where the beam
+ * meets the glass (no lights: those mean a destination), and the beam.
+ */
 export const Selection = ({ floor }: MarkerProps) => (
   <>
     <LightRing
       floor={floor}
       color={BEAM}
-      count={12}
-      radius={0.36}
-      dot={0.022}
-      opacity={1}
-      halo={0.5}
-      line={0.45}
-      fill={0.1}
+      radius={SELECT_RADIUS}
+      dot={0}
+      halo={0}
+      line={0.85}
+      lineWidth={0.009}
+      fill={0.05}
     />
     <TractorBeam floor={floor} />
   </>
@@ -442,9 +461,9 @@ export const Selection = ({ floor }: MarkerProps) => (
 // --- The last move -------------------------------------------------------------------
 
 /**
- * The last move: a small dim ring where the piece left, a full ring where it
- * arrived, both violet, and the thin violet line between them, drawn in
- * behind the piece as it travels.
+ * The last move: a smaller, dimmer ring where the piece left, a full ring
+ * where it arrived, both violet, and the thin violet line between them,
+ * drawn in behind the piece as it travels.
  */
 export const makeLastMove = (durationMs: number) => {
   const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
@@ -452,12 +471,13 @@ export const makeLastMove = (durationMs: number) => {
       <LightRing
         floor={from.floor}
         color={TRAIL}
-        count={6}
-        radius={0.16}
-        dot={0.02}
-        opacity={0.8}
-        halo={0.3}
-        line={0.25}
+        count={8}
+        radius={0.24}
+        dot={0.022}
+        opacity={0.65}
+        halo={0.35}
+        line={0.3}
+        lineWidth={0.004}
       />
       <LightRing
         floor={to.floor}
@@ -468,6 +488,7 @@ export const makeLastMove = (durationMs: number) => {
         opacity={1}
         halo={0.5}
         line={0.45}
+        lineWidth={0.004}
         fill={0.05}
       />
       <LastMoveLine
@@ -491,18 +512,101 @@ export const makeLastMove = (durationMs: number) => {
 
 // --- Check -----------------------------------------------------------------------------
 
-/** Check: a ring of red caution chevrons pointing in at the king, on a faint red pad. */
+const CHECK_RADIUS = 0.4;
+const COLLAR_HEIGHT = 0.055;
+const collarGeometry = new CylinderGeometry(
+  CHECK_RADIUS,
+  CHECK_RADIUS,
+  COLLAR_HEIGHT,
+  64,
+  1,
+  true,
+).translate(0, COLLAR_HEIGHT / 2 + 0.004, 0);
+
+const collarVertex = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }`;
+
+// Round the band: eight chevrons, their points down toward the glass,
+// between a hairline top and bottom, on a faint red glow
+const collarFragment = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uAround;
+  uniform float uHeight;
+  varying vec2 vUv;
+  float segment(vec2 p, vec2 a, vec2 b) {
+    vec2 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h);
+  }
+  void main() {
+    float cell = uAround / 8.0;
+    vec2 p = vec2((fract(vUv.x * 8.0) - 0.5) * cell, vUv.y * uHeight);
+    float w = cell * 0.16;
+    float d = min(segment(p, vec2(-w, uHeight * 0.78), vec2(0.0, uHeight * 0.28)),
+                  segment(p, vec2(w, uHeight * 0.78), vec2(0.0, uHeight * 0.28))) - 0.0045;
+    float fw = max(fwidth(d), 1e-5);
+    float chevron = 1.0 - smoothstep(-fw, fw, d);
+    float edges = max(1.0 - smoothstep(0.0, 0.004, vUv.y * uHeight),
+                      1.0 - smoothstep(0.0, 0.004, (1.0 - vUv.y) * uHeight));
+    float a = max(max(chevron * 0.9, edges * 0.7), 0.1);
+    gl_FragColor = vec4(uColor, a);
+    #include <colorspace_fragment>
+  }`;
+
+/** The standing collar: the check read from the side, where the floor ring is foreshortened. */
+const CheckCollar = ({ floor }: { floor: Vec3 }) => {
+  const material = useMemo(
+    () =>
+      new ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        side: DoubleSide,
+        uniforms: {
+          uColor: { value: new Color(CHECK) },
+          uAround: { value: 2 * Math.PI * CHECK_RADIUS },
+          uHeight: { value: COLLAR_HEIGHT },
+        },
+        vertexShader: collarVertex,
+        fragmentShader: collarFragment,
+      }),
+    [],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+  return (
+    <mesh
+      geometry={collarGeometry}
+      material={material}
+      position={floor}
+      renderOrder={LAYER.marker}
+      raycast={noRaycast}
+    />
+  );
+};
+
+/**
+ * Check: six red caution chevrons pointing in at the king on a faint red
+ * pad, inside the square, and a low collar of chevrons round the king's
+ * base. The king itself keeps its army's colour, with a red edge.
+ */
 export const Check = ({ floor }: MarkerProps) => (
-  <LightRing
-    floor={floor}
-    color={CHECK}
-    count={8}
-    radius={0.45}
-    dot={0.04}
-    chevron
-    opacity={1}
-    halo={0.35}
-    line={0.4}
-    fill={0.14}
-  />
+  <>
+    <LightRing
+      floor={floor}
+      color={CHECK}
+      count={6}
+      radius={CHECK_RADIUS}
+      dot={0.055}
+      chevron
+      opacity={1}
+      halo={0.3}
+      line={0.6}
+      lineWidth={0.004}
+      fill={0.1}
+    />
+    <CheckCollar floor={floor} />
+  </>
 );

@@ -16,8 +16,8 @@ export const LEVELS = levelRamp({ from: 45, to: 255, lightness: 0.8, chroma: 0.1
 
 /** The play lights: each clear of every deck colour. */
 export const DOCK = '#dcf4ff'; // a legal destination: ice-white docking lights
-export const CAPTURE = '#ff3b55'; // a capture: the same lights, red
-export const CHECK = '#ff3b55'; // a king in check: red caution chevrons
+export const CAPTURE = '#ff2e6e'; // a capture: the same lights, crimson
+export const CHECK = '#ff2e6e'; // a king in check: crimson caution chevrons
 export const TRAIL = '#c38cff'; // the last move: violet
 export const BEAM = '#e4f2ff'; // the selection's tractor beam
 
@@ -32,15 +32,15 @@ export const SPACE = {
   ocean: '#04080f',
   land: '#0d1219',
   cloud: '#51627f',
-  city: '#e8b77a',
+  city: '#a88460',
   limb: '#3f86e0',
-  airglow: '#3fc1b0',
+  airglow: '#3f86e0',
   haze: '#16325c',
 };
 
 /** The armies. */
 export const CERAMIC = '#e9e5dd';
 export const CARBON = '#24272d';
-export const GRAPHITE = '#353c47';
+export const GRAPHITE = '#46505e';
 export const TITANIUM = '#c5ccd6';
 export const STEEL = '#9aa4b0';

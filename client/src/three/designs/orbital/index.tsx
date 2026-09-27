@@ -28,7 +28,10 @@ preloadPieceSet();
 preloadPlanetMap();
 
 const PIECE_SCALE = 0.8;
-const layout = clarityTower({ pieceHeight: 0.87 * PIECE_SCALE });
+// Opened a little steeper than the kit's 18°, with a little more air between
+// the decks, so the second rank of each deck shows past the deck above from
+// either seat
+const layout = clarityTower({ pieceHeight: 0.87 * PIECE_SCALE, levelGap: 1.4, elevation: 22 });
 
 const MOTION = { style: 'slide' as const, durationMs: 420 };
 

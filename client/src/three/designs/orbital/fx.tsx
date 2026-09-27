@@ -4,13 +4,15 @@ import {
   AdditiveBlending,
   CanvasTexture,
   Color,
+  CylinderGeometry,
   DoubleSide,
   MeshBasicMaterial,
   Plane,
   PlaneGeometry,
+  ShaderMaterial,
   Vector3,
 } from 'three';
-import type { Group, Mesh, MeshStandardMaterial, ShaderMaterial } from 'three';
+import type { Group, Mesh, MeshStandardMaterial } from 'three';
 import { ChessPiece } from '../../pieces';
 import { PieceType } from '../../../engine/pieces';
 import { Burst } from '../kit/fx';
@@ -133,11 +135,11 @@ const glowTexture = (() => {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, size, size);
     const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, 'rgb(30,30,30)');
-    g.addColorStop(0.5, 'rgb(70,70,70)');
-    g.addColorStop(0.68, 'rgb(200,200,200)');
-    g.addColorStop(0.73, 'rgb(255,255,255)');
-    g.addColorStop(0.8, 'rgb(90,90,90)');
+    g.addColorStop(0, 'rgb(25,25,25)');
+    g.addColorStop(0.5, 'rgb(60,60,60)');
+    g.addColorStop(0.7, 'rgb(220,220,220)');
+    g.addColorStop(0.76, 'rgb(255,255,255)');
+    g.addColorStop(0.84, 'rgb(110,110,110)');
     g.addColorStop(1, 'rgb(0,0,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
@@ -148,6 +150,37 @@ const glowTexture = (() => {
 
 const scanPlane = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const TOP = 0.9;
+/** Width of the scan plane (world units): it reaches past the victim's widest part. */
+const SCAN_WIDTH = 0.7;
+
+// The curtain: a thin cylinder of red light from the scan down to the glass,
+// round what is left of the victim, fading as the scan lands
+const curtainGeometry = new CylinderGeometry(0.3, 0.3, 1, 40, 1, true).translate(0, 0.5, 0);
+const curtainVertex = /* glsl */ `
+  varying float vH;
+  varying vec3 vNormal;
+  varying vec3 vWorld;
+  void main() {
+    vH = position.y;
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    vNormal = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }`;
+const curtainFragment = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  varying float vH;
+  varying vec3 vNormal;
+  varying vec3 vWorld;
+  void main() {
+    vec3 v = normalize(cameraPosition - vWorld);
+    float edge = pow(1.0 - abs(dot(normalize(vNormal), v)), 2.0);
+    // Brightest just under the scan, where it has only just passed
+    float a = (0.04 + 0.7 * edge) * (0.25 + 0.75 * vH * vH) * uOpacity;
+    gl_FragColor = vec4(uColor, a);
+    #include <colorspace_fragment>
+  }`;
 
 export const makeCaptureFx = (layout: BoardLayout, pieceScale: number) => {
   const { levelY } = towerFrame(layout);
@@ -167,17 +200,17 @@ export const makeCaptureFx = (layout: BoardLayout, pieceScale: number) => {
         return m;
       };
       return {
-        body: clip(freshSkin(victim.color, 'body', 'check')),
-        collar: clip(freshSkin(victim.color, 'collar', 'check')),
-        accent: clip(freshSkin(victim.color, 'accent', 'check')),
+        body: clip(freshSkin(victim.color, 'body', 'check', victim.type)),
+        collar: clip(freshSkin(victim.color, 'collar', 'check', victim.type)),
+        accent: clip(freshSkin(victim.color, 'accent', 'check', victim.type)),
         foot: clip(footFor(level, false).clone()),
       };
-    }, [plane, victim.color, level]);
+    }, [plane, victim.color, victim.type, level]);
     useEffect(() => () => Object.values(materials).forEach((m) => m.dispose()), [materials]);
     const scanMaterial = useMemo(
       () =>
         new MeshBasicMaterial({
-          color: new Color(CAPTURE).lerp(new Color('#ffffff'), 0.25),
+          color: new Color(CAPTURE).lerp(new Color('#ffffff'), 0.3),
           alphaMap: glowTexture(),
           transparent: true,
           depthWrite: false,
@@ -188,6 +221,21 @@ export const makeCaptureFx = (layout: BoardLayout, pieceScale: number) => {
       [],
     );
     useEffect(() => () => scanMaterial.dispose(), [scanMaterial]);
+    const curtainMaterial = useMemo(
+      () =>
+        new ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          side: DoubleSide,
+          blending: AdditiveBlending,
+          uniforms: { uColor: { value: new Color(CAPTURE) }, uOpacity: { value: 0 } },
+          vertexShader: curtainVertex,
+          fragmentShader: curtainFragment,
+        }),
+      [],
+    );
+    useEffect(() => () => curtainMaterial.dispose(), [curtainMaterial]);
+    const curtain = useRef<Mesh>(null);
     useEffect(() => {
       gl.localClippingEnabled = true;
     }, [gl]);
@@ -207,9 +255,16 @@ export const makeCaptureFx = (layout: BoardLayout, pieceScale: number) => {
       if (s) {
         s.position.y = h * pieceScale;
         s.visible = k > 0 && k < 1;
-        const width = 0.5 + 0.12 * Math.sin(Math.PI * k);
+        const width = SCAN_WIDTH + 0.12 * Math.sin(Math.PI * k);
         s.scale.set(width, 1, width);
-        scanMaterial.opacity = Math.sin(Math.PI * Math.min(k * 1.2, 1)) * 0.9 + 0.1;
+        scanMaterial.opacity = Math.min(1, Math.sin(Math.PI * Math.min(k * 1.2, 1)) * 1.1 + 0.2);
+      }
+      const c = curtain.current;
+      if (c) {
+        c.visible = k > 0 && k < 1;
+        c.scale.set(1, Math.max(h * pieceScale, 1e-3), 1);
+        curtainMaterial.uniforms.uOpacity.value =
+          Math.sin(Math.PI * Math.min(k * 1.4, 1)) * (1 - k);
       }
       if (piece.current) piece.current.visible = k < 1;
       if (k >= 1 && !landed) setLanded(true);
@@ -223,6 +278,14 @@ export const makeCaptureFx = (layout: BoardLayout, pieceScale: number) => {
             <ChessPiece type={victim.type} parts={materials} />
           </group>
         </group>
+        <mesh
+          ref={curtain}
+          geometry={curtainGeometry}
+          material={curtainMaterial}
+          renderOrder={LAYER.trace + 0.65}
+          raycast={noRaycast}
+          visible={false}
+        />
         <mesh
           ref={scan}
           geometry={scanPlane}
@@ -276,14 +339,15 @@ export const Celebration = ({ floor, winner }: CelebrationProps) => {
           key={i}
           floor={floor}
           color={i === 1 ? DOCK : color}
-          count={16 + i * 8}
+          count={24 + i * 12}
           from={0.45}
           to={2.6 + i * 0.5}
           ms={1300}
           delayMs={500 + i * 260}
           dot={0.03}
           halo={0.55}
-          line={0.3}
+          line={0.6}
+          lineWidth={0.008}
         />
       ))}
     </>

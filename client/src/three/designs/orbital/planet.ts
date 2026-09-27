@@ -229,7 +229,7 @@ export const planetMap = (): Texture => {
     const radial = [Math.cos(a), Math.sin(a)];
     const across = [-radial[1], radial[0]];
     light(x, y, 0.7 + size * 1.3, 0.45 + size * 0.5);
-    const scatter = 2 + Math.floor(size * 26);
+    const scatter = 2 + Math.floor(size * 12);
     for (let n = 0; n < scatter; n++) {
       const spread = (1.5 + size * 7) * Math.sqrt(random());
       const t = random() * Math.PI * 2;
