@@ -56,10 +56,16 @@ const setup = () => {
   document.body.appendChild(el);
   Object.defineProperty(el, 'clientHeight', { value: 600 });
   const captured = new Set<number>();
+  // Pointers down on the screen (their up not yet sent)
+  const active = new Set<number>();
   el.setPointerCapture = (id: number) => void captured.add(id);
   el.releasePointerCapture = (id: number) => {
-    // As a browser does for a pointer it no longer knows
-    if (!captured.delete(id)) throw new DOMException('No active pointer', 'NotFoundError');
+    // As a browser does: releasing an uncaptured pointer is a no-op, but one
+    // it no longer knows throws
+    if (!active.has(id) && !captured.has(id)) {
+      throw new DOMException('No active pointer', 'NotFoundError');
+    }
+    captured.delete(id);
   };
   el.hasPointerCapture = (id: number) => captured.has(id);
   const camera = new PerspectiveCamera(40, 1, 0.1, 100);
@@ -68,8 +74,9 @@ const setup = () => {
   controls.enablePan = false;
   controls.update();
   const internals = controls as unknown as OrbitPointerState;
-  const send = (type: string, pointerId: number, x: number, y: number) =>
-    el.dispatchEvent(
+  const send = (type: string, pointerId: number, x: number, y: number) => {
+    if (type === 'pointerdown') active.add(pointerId);
+    const sent = el.dispatchEvent(
       Object.assign(new Event(type), {
         pointerId,
         pointerType: 'touch',
@@ -80,6 +87,9 @@ const setup = () => {
         button: 0,
       }),
     );
+    if (type === 'pointerup') active.delete(pointerId);
+    return sent;
+  };
   const finger = {
     down: (id: number, x: number, y: number) => send('pointerdown', id, x, y),
     move: (id: number, x: number, y: number) => send('pointermove', id, x, y),
