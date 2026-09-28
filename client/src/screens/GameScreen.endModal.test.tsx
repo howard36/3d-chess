@@ -17,10 +17,8 @@ vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
 vi.mock('../three/DesignStage', () => ({ DesignStage: () => null }));
 vi.mock('../three/Board', () => ({ default: () => null }));
 
-// A design that plays out the mate, standing in for Zenith (whose mate
-// animation is the length of one of its settings, like `slow` below).
-const Celebration = () => null;
-const showy: Design = { ...testDesign, id: 'showy', name: 'Showy', Celebration };
+// A mate that plays out for 1.8 s before the result may cover the board
+const showy: Design = { ...testDesign, id: 'showy', name: 'Showy', resultDelayMs: () => 1800 };
 // A design whose mate plays for as long as a setting says
 const slow: Design = {
   ...showy,
@@ -89,7 +87,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('the result card after a mate', () => {
-  it('shows at once in a design without a mate animation', () => {
+  it('shows at once when the mate takes no time to play out', () => {
     const { rerender } = render(screenFor(beforeMate));
     expect(result()).not.toBeInTheDocument();
     rerender(screenFor(mated));
@@ -105,7 +103,7 @@ describe('the result card after a mate', () => {
     expect(chip).toHaveAttribute('data-result', 'checkmate');
   });
 
-  it('waits for a design to play the mate out, when it was just played', () => {
+  it('waits for the mate to play out, when it was just played', () => {
     const { rerender } = render(screenFor(beforeMate, showy));
     rerender(screenFor(mated, showy));
     expect(result()).not.toBeInTheDocument();
@@ -115,7 +113,7 @@ describe('the result card after a mate', () => {
     expect(result()).toBeInTheDocument();
   });
 
-  it('waits as long as the design asks, by the player’s settings', () => {
+  it('waits as long as the player’s settings make the mate', () => {
     const { rerender } = render(screenFor(beforeMate, slow));
     rerender(screenFor(mated, slow));
     act(() => vi.advanceTimersByTime(2500));

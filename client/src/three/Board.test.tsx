@@ -4,18 +4,19 @@ import BoardView from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
 import { DesignContext } from './designs/context';
 import testDesign from './designs/testDesign';
+import { resetSettingStores, setDesignSetting } from './designs/settings';
 import { knightArcHeight } from './movePath';
 import type { KnightMoves } from './movePath';
 import { useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import type { BufferGeometry, Camera, Scene } from 'three';
 import type {
+  CaptureFxProps,
   Design,
   GridProps,
   LastMoveMarkerProps,
   LevelFocus,
   MarkerProps,
-  MoveFxProps,
   PieceBodyProps,
 } from './designs/types';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
@@ -25,7 +26,6 @@ import type { Coord, Move } from '../engine';
 import { act } from 'react';
 import { vi } from 'vitest';
 import { Board as EngineBoard } from '../engine';
-import { theme } from './theme';
 
 type Renderer = { scene: unknown };
 type Color = 'white' | 'black';
@@ -152,7 +152,7 @@ describe('Board', () => {
     expect(cubeCount).toBe(125);
   });
 
-  it('draws only filled cells and keeps the rest as invisible raycast targets', async () => {
+  it('keeps every cell an invisible raycast target, destinations included', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" />,
     );
@@ -162,9 +162,9 @@ describe('Board', () => {
         .findAll((node) => node.type === 'Mesh' && node.props.userData?.cube === true)
         .map((node) => node.instance as unknown as CellMesh);
 
-    // Nothing to draw yet: no cell is visible, they all share one geometry and
-    // one material, and none has opted out of raycasting (a click on any of
-    // them must still reach the board group to clear a selection).
+    // No cell is drawn: they all share one geometry and one material, and
+    // none has opted out of raycasting (a click on any of them must still
+    // reach the board group to clear a selection).
     const idle = cells();
     expect(idle).toHaveLength(125);
     expect(idle.every((cell) => cell.visible === false)).toBe(true);
@@ -172,13 +172,10 @@ describe('Board', () => {
     expect(new Set(idle.map((cell) => cell.material)).size).toBe(1);
     expect(idle.some((cell) => Object.prototype.hasOwnProperty.call(cell, 'raycast'))).toBe(false);
 
-    // Selecting a piece draws exactly its destination cells.
+    // A destination is marked on its floor by the markers; its box stays unseen
     await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
-    const drawn = cells().filter((cell) => cell.visible);
-    expect(drawn).toHaveLength(2);
-    expect(
-      highlightedCells(renderer).map((c) => (c.instance as unknown as CellMesh).visible),
-    ).toEqual([true, true]);
+    expect(highlightedCells(renderer)).toHaveLength(2);
+    expect(cells().some((cell) => cell.visible)).toBe(false);
   });
 
   it('renders 40 piece meshes', async () => {
@@ -509,18 +506,21 @@ describe('Board', () => {
     expect(highlightedCells(renderer)).toHaveLength(0);
   });
 
-  it('renders king with the check glow when in check', async () => {
-    // Set up a board with black king in check from a white rook
+  it("tells the checked king's body that he is in check", async () => {
+    // Black's king at (0,0,0) in check from a white rook at (0,4,0)
     const board = new EngineBoard();
-    // Place black king at (0,0,0), white rook at (0,4,0)
     board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'black' });
     board.setPiece({ x: 0, y: 4, z: 0 }, { type: PieceType.Rook, color: 'white' });
-    // Render board for black's turn (king in check)
-    const renderer = await ReactThreeTestRenderer.create(
-      <Board board={board} currentTurn="black" />,
+    const inCheck = new Map<string, boolean>();
+    const PieceBody = ({ type, color, inCheck: checked }: PieceBodyProps) => {
+      inCheck.set(`${color} ${type}`, checked);
+      return null;
+    };
+    await ReactThreeTestRenderer.create(
+      <Board design={{ ...testDesign, PieceBody }} board={board} currentTurn="black" />,
     );
-    const king = findPiece(renderer, PieceType.King, 'black');
-    expect(king.props.userData.emissive).toBe(theme.check);
+    expect(inCheck.get('black King')).toBe(true);
+    expect(inCheck.get('white Rook')).toBe(false);
   });
 
   // The viewing player's own army must read the same way for both colours:
@@ -631,94 +631,79 @@ describe('Board', () => {
     const lastMove = (moveCount: number, capturedPiece: LastMoveInfo['capturedPiece'] = null) =>
       ({ move: { from: FROM, to: TO }, moveCount, capturedPiece }) as LastMoveInfo;
 
-    function findCells(renderer: Renderer, flag: 'lastMoveFrom' | 'lastMoveTo') {
-      return (renderer.scene as ReactThreeTestInstance).findAll(
-        (node) => node.type === 'Mesh' && node.props.userData?.[flag] === true,
-      );
-    }
-
     function glideGroups(renderer: Renderer) {
       return (renderer.scene as ReactThreeTestInstance).findAll(
         (node) => node.props.userData?.moveGlide === true,
       );
     }
 
-    it('fills the from and to cells without animating when mounted with history', async () => {
+    // The last-move marker and the capture effect record what Board hands them
+    const marked: LastMoveMarkerProps[] = [];
+    const captures: CaptureFxProps[] = [];
+    const recording: Design = {
+      ...testDesign,
+      markers: {
+        ...testDesign.markers,
+        LastMove: (props) => {
+          marked.push(props);
+          return null;
+        },
+      },
+      CaptureFx: (props) => {
+        captures.push(props);
+        return null;
+      },
+    };
+    const floorOf = (cell: Coord, orientation: Color = 'white') => {
+      const [x, y, z] = toWorld(cell, orientation);
+      return [x, y + FLOOR_Y, z];
+    };
+
+    it('marks the last move without animating it when mounted with history', async () => {
+      marked.length = 0;
       const renderer = await ReactThreeTestRenderer.create(
-        <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} />,
+        <Board
+          design={recording}
+          board={boardAfterMove()}
+          currentTurn="black"
+          lastMove={lastMove(1)}
+        />,
       );
 
-      const fromCells = findCells(renderer, 'lastMoveFrom');
-      const toCells = findCells(renderer, 'lastMoveTo');
-      expect(fromCells).toHaveLength(1);
-      expect(toCells).toHaveLength(1);
-      expect(fromCells[0].props.position).toEqual(toWorld(FROM, 'white'));
-      expect(toCells[0].props.position).toEqual(toWorld(TO, 'white'));
+      // The marker joins the two squares' floors
+      expect(last(marked)!.from.floor).toEqual(floorOf(FROM));
+      expect(last(marked)!.to.floor).toEqual(floorOf(TO));
 
-      // The design's last-move fill, on both cells
-      const materialOf = (cell: ReactThreeTestInstance) =>
-        (cell.instance as unknown as { material: unknown }).material;
-      expect(materialOf(toCells[0])).toBe(testDesign.cellFills.lastMove);
-      expect(materialOf(fromCells[0])).toBe(testDesign.cellFills.lastMove);
-
-      // Moves already played at mount are history: highlight only, no glide,
+      // Moves already played at mount are history: marked only, no glide,
       // and the piece rests exactly on its cell.
       expect(glideGroups(renderer)).toHaveLength(0);
       expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(TO, 'white')]);
     });
 
-    it('lets a legal-destination fill win over the last-move fill', async () => {
-      // Black pawn above the rook: reachable, and sitting on the last move's
-      // destination cell so the two fills compete.
-      const board = boardAfterMove();
-      const above = { x: 2, y: 4, z: 2 };
-      board.setPiece(above, { type: PieceType.Pawn, color: 'black' });
-      const renderer = await ReactThreeTestRenderer.create(
-        <Board
-          board={board}
-          currentTurn="white"
-          lastMove={{ move: { from: FROM, to: above }, moveCount: 1, capturedPiece: null }}
-        />,
-      );
-
-      await press(findPiece(renderer, PieceType.Rook, 'white'));
-
-      const cell = (renderer.scene as ReactThreeTestInstance)
-        .findAll((node) => node.type === 'Mesh' && node.props.userData?.cube === true)
-        .find(
-          (node) => JSON.stringify(node.props.position) === JSON.stringify(toWorld(above, 'white')),
-        )!;
-      expect(cell.props.userData.highlight).toBe(true);
-      expect(cell.props.userData.lastMoveTo).toBe(false);
-      const material = (cell.instance as unknown as { material: unknown }).material;
-      expect(material).toBe(testDesign.cellFills.destination);
-    });
-
-    it('skips the glide and the fade when the player prefers reduced motion', async () => {
+    it('skips the glide and the capture effect when the player prefers reduced motion', async () => {
       const matchMedia = vi
         .spyOn(window, 'matchMedia')
         .mockImplementation(
           (query: string) => ({ matches: query.includes('reduce') }) as MediaQueryList,
         );
       try {
+        marked.length = 0;
+        captures.length = 0;
         const renderer = await ReactThreeTestRenderer.create(
-          <Board board={boardBeforeMove(true)} currentTurn="white" />,
+          <Board design={recording} board={boardBeforeMove(true)} currentTurn="white" />,
         );
         await renderer.update(
           <Board
+            design={recording}
             board={boardAfterMove()}
             currentTurn="black"
             lastMove={lastMove(1, { type: PieceType.Pawn, color: 'black' })}
           />,
         );
         expect(glideGroups(renderer)).toHaveLength(0);
-        expect(
-          (renderer.scene as ReactThreeTestInstance).findAll(
-            (node) => node.props.userData?.ghostPiece === true,
-          ),
-        ).toHaveLength(0);
-        // The highlight still says what moved
-        expect(findCells(renderer, 'lastMoveTo')).toHaveLength(1);
+        expect(captures).toHaveLength(0);
+        // The marker still says what moved
+        expect(last(marked)!.to.floor).toEqual(floorOf(TO));
       } finally {
         matchMedia.mockRestore();
       }
@@ -763,41 +748,52 @@ describe('Board', () => {
       expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(TO, 'white')]);
     });
 
-    it('fades a captured piece out and removes it when done', async () => {
+    it('hands a live capture to the capture effect, on the victim’s floor', async () => {
+      captures.length = 0;
+      const victim = { type: PieceType.Pawn, color: 'black' as const };
       const renderer = await ReactThreeTestRenderer.create(
-        <Board board={boardBeforeMove(true)} currentTurn="white" />,
+        <Board design={recording} board={boardBeforeMove(true)} currentTurn="white" />,
       );
       await renderer.update(
         <Board
+          design={recording}
           board={boardAfterMove()}
           currentTurn="black"
-          lastMove={lastMove(1, { type: PieceType.Pawn, color: 'black' })}
+          lastMove={lastMove(1, victim)}
         />,
       );
-
-      const ghosts = (renderer.scene as ReactThreeTestInstance).findAll(
-        (node) => node.props.userData?.ghostPiece === true,
-      );
-      expect(ghosts).toHaveLength(1);
-      const [tx, ty, tz] = toWorld(TO, 'white');
-      expect(ghosts[0].props.position).toEqual([tx, ty + FLOOR_Y, tz]);
-
-      await act(async () => {
-        await renderer.advanceFrames(11, 0.03);
+      expect(last(captures)).toMatchObject({
+        floor: floorOf(TO),
+        victim,
+        durationMs: testDesign.motion.durationMs,
+        orientation: 'white',
       });
-      expect(
-        (renderer.scene as ReactThreeTestInstance).findAll(
-          (node) => node.props.userData?.ghostPiece === true,
-        ),
-      ).toHaveLength(0);
+      // A move without a capture has none
+      captures.length = 0;
+      await renderer.update(
+        <Board
+          design={recording}
+          board={boardAfterMove()}
+          currentTurn="black"
+          lastMove={lastMove(2)}
+        />,
+      );
+      expect(captures).toHaveLength(0);
     });
 
     it("animates in black's mirrored frame for the black player", async () => {
+      marked.length = 0;
       const renderer = await ReactThreeTestRenderer.create(
-        <Board board={boardBeforeMove()} currentTurn="white" playerColor="black" />,
+        <Board
+          design={recording}
+          board={boardBeforeMove()}
+          currentTurn="white"
+          playerColor="black"
+        />,
       );
       await renderer.update(
         <Board
+          design={recording}
           board={boardAfterMove()}
           currentTurn="black"
           playerColor="black"
@@ -805,8 +801,8 @@ describe('Board', () => {
         />,
       );
 
-      expect(findCells(renderer, 'lastMoveFrom')[0].props.position).toEqual(toWorld(FROM, 'black'));
-      expect(findCells(renderer, 'lastMoveTo')[0].props.position).toEqual(toWorld(TO, 'black'));
+      expect(last(marked)!.from.floor).toEqual(floorOf(FROM, 'black'));
+      expect(last(marked)!.to.floor).toEqual(floorOf(TO, 'black'));
 
       const group = glideGroups(renderer)[0].instance as unknown as {
         position: { x: number; y: number; z: number };
@@ -862,20 +858,12 @@ async function pointerOn(design: Design, props: Partial<BoardProps> = {}) {
   };
 }
 
-describe('Board with a clarity-kit design', () => {
-  // A design without cell volumes, tracking the pointer over destinations,
-  // with shorter pieces. Its markers record what Board hands them.
+describe('Board and what it hands the design', () => {
+  // A quiet-move marker that records whether the pointer is on it
   const Quiet = ({ floor, hovered }: MarkerProps) => (
     <group userData={{ quiet: true, hovered: hovered === true }} position={floor} />
   );
-  const clarity: Design = {
-    ...testDesign,
-    id: 'clarity-test',
-    cellFills: { destination: null, lastMove: null },
-    hoverDestinations: true,
-    pieceScale: 0.8,
-    markers: { ...testDesign.markers, Quiet },
-  };
+  const tracked: Design = { ...testDesign, markers: { ...testDesign.markers, Quiet } };
   const renderWith = (design: Design, props: Partial<BoardProps> = {}) =>
     ReactThreeTestRenderer.create(
       <Board design={design} board={createTestBoard()} currentTurn="white" {...props} />,
@@ -883,21 +871,8 @@ describe('Board with a clarity-kit design', () => {
   const quietMarkers = (renderer: Renderer) =>
     (renderer.scene as ReactThreeTestInstance).findAll((node) => node.props.userData?.quiet);
 
-  it('draws no fill for a null cell fill, yet keeps the destination clickable', async () => {
-    const onMove = vi.fn();
-    const renderer = await renderWith(clarity, { onMove });
-    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
-    const highlighted = highlightedCells(renderer);
-    expect(highlighted).toHaveLength(2);
-    for (const cell of highlighted) {
-      expect((cell.instance as unknown as { visible: boolean }).visible).toBe(false);
-    }
-    await press(highlighted[0]);
-    expect(onMove).toHaveBeenCalledTimes(1);
-  });
-
   it('tells a destination marker when the pointer is over its floor', async () => {
-    const pointer = await pointerOn(clarity);
+    const pointer = await pointerOn(tracked);
     await press(findPiece(pointer.renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
     expect(quietMarkers(pointer.renderer).map((m) => m.props.userData.hovered)).toEqual([
       false,
@@ -916,14 +891,6 @@ describe('Board with a clarity-kit design', () => {
     expect(quietMarkers(pointer.renderer).some((m) => m.props.userData.hovered)).toBe(false);
   });
 
-  it('leaves a design without hover tracking alone', async () => {
-    const renderer = await renderWith(testDesign);
-    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
-    for (const cell of highlightedCells(renderer)) {
-      expect(cell.props.onPointerOver).toBeUndefined();
-    }
-  });
-
   it('scales every piece about its base by the design’s piece scale, and not at all at 1', async () => {
     const innerScales = async (design: Design) => {
       const renderer = await renderWith(design);
@@ -932,7 +899,7 @@ describe('Board with a clarity-kit design', () => {
       const position = piece.children[0].props.position;
       return { scale: inner.scale.x, position };
     };
-    expect(await innerScales(clarity)).toEqual({ scale: 0.8, position: [0, FLOOR_Y, 0] });
+    expect(await innerScales(testDesign)).toEqual({ scale: 0.8, position: [0, FLOOR_Y, 0] });
     expect((await innerScales({ ...testDesign, pieceScale: 1 })).scale).toBe(1);
   });
 
@@ -943,7 +910,7 @@ describe('Board with a clarity-kit design', () => {
       focusSeen.push(focus);
       return null;
     };
-    const design: Design = { ...clarity, Grid, hud: { ...clarity.hud, readout: true } };
+    const design: Design = { ...testDesign, Grid };
     const pointer = await pointerOn(design, { onHoverCell });
 
     // Onto the level-B pawn's body
@@ -964,7 +931,7 @@ describe('Board with a clarity-kit design', () => {
     expect(last(focusSeen)).toEqual({ selected: 1, hovered: null });
   });
 
-  it('passes the selected level as focus even without hover tracking', async () => {
+  it('passes the selected level as focus with the pointer off the board', async () => {
     const focusSeen: (LevelFocus | undefined)[] = [];
     const Grid = ({ focus }: GridProps) => {
       focusSeen.push(focus);
@@ -1018,7 +985,7 @@ describe('Board with a clarity-kit design', () => {
     expect(last(seen)).toBe(true);
   });
 
-  it('tells a piece body it is under the pointer for any hover lift, heights or `true`', async () => {
+  it('tells a piece body it is under the pointer', async () => {
     const hoveredBodies = (renderer: Renderer) =>
       (renderer.scene as ReactThreeTestInstance).findAll(
         (node) => node.props.userData?.hoveredBody,
@@ -1026,14 +993,16 @@ describe('Board with a clarity-kit design', () => {
     const PieceBody = ({ hovered }: PieceBodyProps) => (
       <group userData={{ hoveredBody: hovered === true }} />
     );
-    for (const hoverLift of [true, { hover: 0.05, selected: 0.16 }] as const) {
-      const renderer = await renderWith({ ...testDesign, PieceBody, hoverLift });
-      const pawn = findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN);
-      await act(async () => pawn.props.onPointerOver({ stopPropagation: () => {} }));
-      expect(hoveredBodies(renderer).filter((b) => b.props.userData.hoveredBody)).toHaveLength(1);
-      await act(async () => pawn.props.onPointerOut());
-      expect(hoveredBodies(renderer).some((b) => b.props.userData.hoveredBody)).toBe(false);
-    }
+    const renderer = await renderWith({ ...testDesign, PieceBody });
+    const pawn = findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN);
+    await act(async () => pawn.props.onPointerOver({ stopPropagation: () => {} }));
+    expect(hoveredBodies(renderer).filter((b) => b.props.userData.hoveredBody)).toHaveLength(1);
+    await act(async () => pawn.props.onPointerOut());
+    expect(hoveredBodies(renderer).some((b) => b.props.userData.hoveredBody)).toBe(false);
+    // Not an opposing piece, which the player may not pick up
+    const theirs = findPiece(renderer, PieceType.Pawn, 'black');
+    await act(async () => theirs.props.onPointerOver({ stopPropagation: () => {} }));
+    expect(hoveredBodies(renderer).some((b) => b.props.userData.hoveredBody)).toBe(false);
   });
 
   it('tells each piece body the level it stands on', async () => {
@@ -1049,11 +1018,10 @@ describe('Board with a clarity-kit design', () => {
     expect(kings.sort()).toEqual(['black-King-4', 'white-King-0']);
   });
 
-  it('sinks the click boxes onto the floor for a layout with a hitHeight', async () => {
-    const renderer = await renderWith({
-      ...testDesign,
-      layout: { ...testDesign.layout, hitHeight: 0.1 },
-    });
+  it('stands each click box on its floor, a thin slab', async () => {
+    const renderer = await renderWith(testDesign);
+    const { hitHeight } = testDesign.layout;
+    expect(hitHeight).toBeLessThan(0.2);
     const cell = (renderer.scene as ReactThreeTestInstance).findAll(
       (node) => node.type === 'Mesh' && node.props.userData?.zxy === 'Cc3',
     )[0];
@@ -1063,7 +1031,7 @@ describe('Board with a clarity-kit design', () => {
     const geometry = (cell.instance as unknown as { geometry: BufferGeometry }).geometry;
     geometry.computeBoundingBox();
     expect(geometry.boundingBox!.min.y).toBeCloseTo(FLOOR_Y);
-    expect(geometry.boundingBox!.max.y).toBeCloseTo(FLOOR_Y + 0.1);
+    expect(geometry.boundingBox!.max.y).toBeCloseTo(FLOOR_Y + hitHeight);
   });
 
   describe('last move', () => {
@@ -1096,12 +1064,7 @@ describe('Board with a clarity-kit design', () => {
       <Board design={design} board={board} currentTurn={turn} lastMove={lastMove} />
     );
 
-    it('hands the last move and its effects a knight’s arc only when knights arc', async () => {
-      const fxSeen: MoveFxProps[] = [];
-      const MoveFx = (props: MoveFxProps) => {
-        fxSeen.push(props);
-        return null;
-      };
+    it('hands the glide and the last move a knight’s arc only when knights arc', async () => {
       const knightBoard = (at: Coord, type = PieceType.Knight) => {
         const board = new EngineBoard();
         board.setPiece(at, { type, color: 'white' });
@@ -1111,18 +1074,16 @@ describe('Board with a clarity-kit design', () => {
       };
       const jump = { x: 3, y: 4, z: 2 };
       const arcFor = async (
-        knightMoves: KnightMoves | undefined,
+        knightMoves: KnightMoves | Design,
         type = PieceType.Knight,
         promotion?: PieceType,
       ) => {
         seen.length = 0;
-        fxSeen.length = 0;
-        // The player's setting, as the design reads it (none: the design has no such setting)
-        const d: Design = {
-          ...design,
-          MoveFx,
-          knightMoves: knightMoves ? () => knightMoves : undefined,
-        };
+        // The player's choice, as the design reads it from their settings
+        const d: Design =
+          typeof knightMoves === 'string'
+            ? { ...design, knightMoves: () => knightMoves }
+            : { ...knightMoves, markers: design.markers };
         const at = (board: EngineBoard, lastMove?: LastMoveInfo) => (
           <Board
             design={d}
@@ -1145,16 +1106,37 @@ describe('Board with a clarity-kit design', () => {
         await act(async () => {
           await renderer.advanceFrames(5, 0.03);
         });
-        expect(last(fxSeen)!.arc).toBe(last(seen)!.arc);
         return { arc: last(seen)!.arc, glideArc: Math.round(glide.position.y * 1e3) / 1e3 };
       };
       const height = knightArcHeight(layout);
       // 0.6 of the cell pitch (1 in the compact tower)
       expect(height).toBeCloseTo(0.6);
       expect(await arcFor('arc')).toEqual({ arc: height, glideArc: height });
-      // Straight is the default, with or without the setting
       expect(await arcFor('straight')).toEqual({ arc: 0, glideArc: 0 });
-      expect(await arcFor(undefined)).toEqual({ arc: 0, glideArc: 0 });
+      // Read from the player's settings, straight until they choose the arc
+      resetSettingStores();
+      const choosing: Design = {
+        ...testDesign,
+        id: 'knight-setting-test',
+        settings: [
+          {
+            kind: 'choice',
+            key: 'knights',
+            label: 'Knight moves',
+            group: 'Pieces',
+            default: 'straight',
+            options: [
+              { value: 'straight', label: 'Straight' },
+              { value: 'arc', label: 'Arc' },
+            ],
+          },
+        ],
+        knightMoves: (settings) => (settings.knights === 'arc' ? 'arc' : 'straight'),
+      };
+      expect(await arcFor(choosing)).toEqual({ arc: 0, glideArc: 0 });
+      setDesignSetting(choosing, 'knights', 'arc');
+      expect(await arcFor(choosing)).toEqual({ arc: height, glideArc: height });
+      resetSettingStores();
       // Only a knight arcs: not a rook, nor a pawn that promotes to a knight
       expect((await arcFor('arc', PieceType.Rook)).arc).toBe(0);
       expect((await arcFor('arc', PieceType.Knight, PieceType.Knight)).arc).toBe(0);

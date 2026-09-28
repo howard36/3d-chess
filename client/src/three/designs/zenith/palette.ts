@@ -109,7 +109,7 @@ export const MARGIN = 0.05;
 export const GROUND_Y = FRAME.levelY[0] - 3.4;
 
 /** A calm, weighted glide. */
-export const MOTION: DesignMotion = { style: 'slide', durationMs: 460 };
+export const MOTION: DesignMotion = { durationMs: 460 };
 /** Knights turn this far off the rank line, to show their profile. */
 export const KNIGHT_YAW = 0.5;
 

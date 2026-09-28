@@ -19,7 +19,6 @@ import type { GameSocket } from '../hooks/useGameSocket';
 import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole';
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
-import { NoToneMapping } from 'three';
 import { useDesign } from '../three/designs/context';
 import { DesignStage } from '../three/DesignStage';
 import DesignSettings from './DesignSettings';
@@ -27,7 +26,6 @@ import { getDesignSettings } from '../three/designs/settings';
 import CapturedPieces from './CapturedPieces';
 import HoverReadout from './HoverReadout';
 import type { HoveredCell } from '../three/Board';
-import type { OrbitLimits } from '../three/designs/types';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
@@ -103,19 +101,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
 
   const design = useDesign();
-  // The cell under the pointer, for designs that read it out in the HUD
+  // The cell under the pointer, read out in the HUD
   const [hoverCell, setHoverCell] = React.useState<HoveredCell | null>(null);
-  // A design that plays out the mate (the king topples, the winner
-  // celebrates) gets a moment to do it before the result covers the board —
-  // when the mate was just played, not when a finished game is reopened.
+  // The mate plays out (the king topples, a pulse crosses the board) before
+  // the result covers the board — when the mate was just played, not when a
+  // finished game is reopened.
   const endedLive =
     [...messages].reverse().find((m) => m.type === 'move_made' || m.type === 'game_state')?.type ===
     'move_made';
-  const mateDelayMs =
-    typeof design.resultDelayMs === 'function'
-      ? design.resultDelayMs(getDesignSettings(design))
-      : (design.resultDelayMs ?? 1800);
-  const endDelayMs = endedLive && (design.Celebration || design.toppleMatedKing) ? mateDelayMs : 0;
+  const endDelayMs = endedLive ? design.resultDelayMs(getDesignSettings(design)) : 0;
   // The game end whose delay has run out (the replay keeps the same object
   // while the record is unchanged).
   const [endShown, setEndShown] = React.useState<typeof gameOver>(null);
@@ -397,7 +391,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             data-testid="r3f-canvas"
             role="img"
             aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, type moves in the move box.`}
-            className={design.canvas?.pixelated ? 'pixelated-canvas' : undefined}
             // Every touch on the board is the camera's or a tap on a
             // square: never a page scroll or zoom, and no grey tap flash
             style={{
@@ -406,25 +399,17 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               touchAction: 'none',
               WebkitTapHighlightColor: 'transparent',
             }}
-            camera={{ position: design.layout.viewDirection, fov: design.canvas?.fov ?? 40 }}
-            shadows={design.canvas?.shadows}
-            dpr={design.canvas?.dpr}
-            flat={design.canvas?.toneMapping === NoToneMapping}
+            camera={{ position: design.layout.viewDirection, fov: design.canvas.fov }}
             gl={{
-              antialias: design.canvas?.antialias ?? true,
-              ...(design.canvas?.toneMapping !== undefined &&
-              design.canvas.toneMapping !== NoToneMapping
-                ? { toneMapping: design.canvas.toneMapping }
-                : {}),
-              ...(design.canvas?.exposure !== undefined
-                ? { toneMappingExposure: design.canvas.exposure }
-                : {}),
+              antialias: true,
+              toneMapping: design.canvas.toneMapping,
+              toneMappingExposure: design.canvas.exposure,
             }}
             // A chess position is static: render only when something changes.
-            // React commits and OrbitControls invalidate on their own; the move
-            // animations (three/moveAnimation.tsx) request frames while they run.
-            // Designs with ambient motion render every frame instead.
-            frameloop={design.continuous ? 'always' : 'demand'}
+            // React commits and OrbitControls invalidate on their own; the
+            // animations (the move glide, the lift, the scene's effects)
+            // request frames while they run.
+            frameloop="demand"
             // Test hook: r3f v9 no longer exposes its store on the canvas
             // element, so drivers (e2e/helpers/board.ts) read the live camera
             // here to project board cells to pixels — correct even after the
@@ -443,35 +428,24 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               lastMove={lastMove}
               disabled={boardDisabled}
               gameOver={gameOver}
-              onHoverCell={design.hud.readout ? setHoverCell : undefined}
+              onHoverCell={setHoverCell}
             />
             {/* The only camera control is turning the view about the
                 board's centre, which never moves (no pan by mouse, touch or
                 keyboard), plus a zoom that FitCameraToBoard limits relative
                 to the fitted view. */}
             <CameraControls
-              // A design's orbit limits (the compact tower keeps the camera
-              // above its bottom platform and off the vertical); without
-              // them the controls keep three's defaults.
-              {...orbitAngles(design.layout.orbit)}
+              // The tower's orbit limits: the camera stays above the ground and
+              // may rise to look straight down
+              minPolarAngle={design.layout.orbit.minPolarAngle}
+              maxPolarAngle={design.layout.orbit.maxPolarAngle}
             />
             <FitCameraToBoard
               halfExtents={design.layout.halfExtents}
               viewDirection={design.layout.viewDirection}
-              limits={design.layout.orbit}
+              minDistance={design.layout.orbit.minDistance}
             />
           </Canvas>
-          {design.hud.overlay && (
-            <div
-              aria-hidden
-              style={{
-                position: 'absolute',
-                inset: 0,
-                pointerEvents: 'none',
-                ...design.hud.overlay,
-              }}
-            />
-          )}
           {/* HUD over the canvas. Its layers let the pointer through to the
               board except on the controls themselves. Three columns in a wide
               window (seat, turn centred, connection); in a narrow one the turn
@@ -514,7 +488,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               </div>
               <div className="order-first col-span-2 justify-self-center sm:order-none sm:col-span-1">
                 <TurnIndicator turn={currentTurn} inCheck={inCheck} gameOver={gameOver} />
-                {design.hud.readout && <HoverReadout cell={hoverCell} />}
+                <HoverReadout cell={hoverCell} />
               </div>
               <div className="flex flex-col items-end gap-2 justify-self-end">
                 {/* The board's settings: a gear that opens their panel */}
@@ -620,12 +594,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     </div>
   );
 };
-
-/** The polar-angle limits a layout sets, as CameraControls props (none when unset). */
-const orbitAngles = (orbit: OrbitLimits | undefined) => ({
-  ...(orbit?.minPolarAngle !== undefined ? { minPolarAngle: orbit.minPolarAngle } : {}),
-  ...(orbit?.maxPolarAngle !== undefined ? { maxPolarAngle: orbit.maxPolarAngle } : {}),
-});
 
 /** Copies the share link, for a phone where selecting a long address is fiddly. */
 const CopyLinkButton: React.FC<{ link: string }> = ({ link }) => {

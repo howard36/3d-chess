@@ -1,21 +1,9 @@
-// The shared Staunton piece set: geometry for every piece, split into parts a
-// design paints separately, and a component that draws one. See set.ts for
-// the parts and the envelope, ChessPiece.tsx for drawing, and the README's
-// "Piece set" section for the preview tool (client/pieces.html).
+// The Staunton piece set: geometry for every piece, split into parts that
+// can be painted separately. See set.ts for the parts and the envelope, and
+// the README's "Piece set" section for the preview tool (client/pieces.html).
 
-export { ChessPiece, Part } from './ChessPiece';
-export type { ChessPieceProps, PartMaterial, PartMaterials } from './ChessPiece';
 export { PIECE_PARTS, partsGeometry, pieceTop } from './parts';
-export { FOOT_HEIGHT, PROFILES, buildPieceSet, pieceSet, preloadPieceSet } from './set';
-export type {
-  PiecePart,
-  PieceParts,
-  PieceProfiles,
-  PieceQuality,
-  PieceSet,
-  PieceSetOptions,
-} from './set';
-export { arc, corner, sampleProfile, smoothLoop } from './profile';
-// The knight's head outline, for designs that draw the set's shapes themselves
-export { KNIGHT_OUTLINE, KNIGHT_SEAT } from './knight';
-export type { Profile, ProfileNode } from './profile';
+export { FOOT_HEIGHT, PROFILES, pieceSet, preloadPieceSet } from './set';
+export type { PiecePart, PieceParts, PieceQuality, PieceSet } from './set';
+export { sampleProfile } from './profile';
+export type { Profile } from './profile';

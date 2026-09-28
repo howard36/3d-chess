@@ -1,81 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CELLS, SPACING, toWorld } from '../../layout';
-import { toZXY } from '../../../engine/coords';
-import {
-  CLARITY_TOWER_DEFAULTS,
-  clarityTower,
-  latticeLayout,
-  towerBoardY,
-  towerFrame,
-  towerLayout,
-  viewDirectionFor,
-} from './layouts';
-
-describe('latticeLayout', () => {
-  it('is the classic toWorld at the classic spacing', () => {
-    const layout = latticeLayout();
-    for (const cell of CELLS) {
-      expect(layout.toWorld(cell, 'white')).toEqual(toWorld(cell, 'white'));
-      expect(layout.toWorld(cell, 'black')).toEqual(toWorld(cell, 'black'));
-    }
-  });
-
-  it('scales every position with a wider spacing', () => {
-    const wide = latticeLayout(SPACING * 2);
-    const [x, y, z] = toWorld({ x: 0, y: 0, z: 0 }, 'white');
-    expect(wide.toWorld({ x: 0, y: 0, z: 0 }, 'white')).toEqual([x * 2, y * 2, z * 2]);
-  });
-});
-
-describe('towerLayout', () => {
-  const layout = towerLayout({ spacing: 1, levelGap: 2 });
-
-  it('gives every cell its own place', () => {
-    for (const orientation of ['white', 'black'] as const) {
-      const seen = new Set(CELLS.map((c) => layout.toWorld(c, orientation).join(',')));
-      expect(seen.size).toBe(CELLS.length);
-    }
-  });
-
-  it('stacks the levels upward, A at the bottom, for both players', () => {
-    for (const orientation of ['white', 'black'] as const) {
-      const heights = [0, 1, 2, 3, 4].map((z) => layout.toWorld({ x: 1, y: 1, z }, orientation)[1]);
-      expect(heights).toEqual([-4, -2, 0, 2, 4]);
-    }
-  });
-
-  it("puts White's first rank nearest the camera, files left to right", () => {
-    // Aa1 near-left, Ae5 far-right on the bottom board
-    expect(layout.toWorld({ x: 0, y: 0, z: 0 }, 'white')).toEqual([-2, -4, 2]);
-    expect(layout.toWorld({ x: 4, y: 4, z: 0 }, 'white')).toEqual([2, -4, -2]);
-  });
-
-  it('walks Black around the tower rather than turning it upside down', () => {
-    for (const cell of CELLS) {
-      const [wx, wy, wz] = layout.toWorld(cell, 'white');
-      const [bx, by, bz] = layout.toWorld(cell, 'black');
-      // A half turn about the vertical axis: x and z negate, height stays
-      expect(bx).toBeCloseTo(-wx);
-      expect(by).toBe(wy);
-      expect(bz).toBeCloseTo(-wz);
-    }
-    // Black's back rank (5) is nearest Black's camera
-    expect(layout.toWorld({ x: 2, y: 4, z: 4 }, 'black')[2]).toBe(2);
-  });
-
-  it('seats pieces on the board surface of their level', () => {
-    const cell = { x: 3, y: 2, z: 1 };
-    const [, y] = layout.toWorld(cell, 'white');
-    expect(y + layout.floorY).toBe(towerBoardY(layout, 1));
-    expect(toZXY(cell)).toBe('Bd3');
-  });
-
-  it('frames a box as tall as the stack', () => {
-    const [hx, hy, hz] = layout.halfExtents;
-    expect(hy).toBeGreaterThan(4);
-    expect(hx).toBe(hz);
-  });
-});
+import { CELLS } from '../../layout';
+import { CLARITY_TOWER_DEFAULTS, clarityTower, towerFrame, viewDirectionFor } from './layouts';
 
 describe('clarityTower', () => {
   const layout = clarityTower({ pitch: 1, levelGap: 1.4, pieceHeight: 0.7 });
@@ -132,14 +57,14 @@ describe('clarityTower', () => {
     expect(Math.hypot(x, y, z)).toBeCloseTo(1);
     expect(Math.asin(y)).toBeCloseTo((20 * Math.PI) / 180);
     expect(Math.atan2(x, z)).toBeCloseTo((15 * Math.PI) / 180);
-    expect(view.orbit?.minPolarAngle).toBeCloseTo((20 * Math.PI) / 180);
-    expect(view.orbit?.maxPolarAngle).toBeCloseTo((85 * Math.PI) / 180);
+    expect(view.orbit.minPolarAngle).toBeCloseTo((20 * Math.PI) / 180);
+    expect(view.orbit.maxPolarAngle).toBeCloseTo((85 * Math.PI) / 180);
     expect(viewDirectionFor(0, 90)[0]).toBeCloseTo(1);
   });
 
   it('lets the orbit rise to a bird’s-eye view by default, a hair off vertical', () => {
     expect(CLARITY_TOWER_DEFAULTS.maxElevation).toBe(89.9);
-    const min = clarityTower().orbit!.minPolarAngle!;
+    const min = clarityTower().orbit.minPolarAngle;
     expect(min).toBeGreaterThan(0);
     expect(min).toBeCloseTo((0.1 * Math.PI) / 180);
   });
@@ -157,16 +82,17 @@ describe('clarityTower', () => {
     expect(Math.asin(d.viewDirection[1])).toBeCloseTo(
       (CLARITY_TOWER_DEFAULTS.elevation * Math.PI) / 180,
     );
-    expect(d.kind).toBe('tower');
   });
 });
 
 describe('towerFrame', () => {
-  it('measures the classic tower layout too', () => {
-    const layout = towerLayout({ spacing: 1.1, levelGap: 2 });
+  it('measures any tower from its own cells', () => {
+    const layout = clarityTower({ pitch: 1.1, levelGap: 2 });
     const frame = towerFrame(layout);
     expect(frame.pitch).toBeCloseTo(1.1);
-    expect(frame.gap).toBeCloseTo(2);
-    expect(frame.levelY[1]).toBeCloseTo(towerBoardY(layout, 1));
+    expect(frame.gap).toBeCloseTo(2.2);
+    // Level B's platform: where a piece's base stands on it
+    const [, y] = layout.toWorld({ x: 0, y: 0, z: 1 }, 'white');
+    expect(frame.levelY[1]).toBeCloseTo(y + layout.floorY);
   });
 });

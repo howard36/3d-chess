@@ -44,7 +44,7 @@ const lifting: Design = {
   id: 'hit-proxy-test',
   PieceBody,
   pieceScale: 0.8,
-  hoverLift: { hover: 0.08, selected: 0.2, bob: 0.035 },
+  hoverLift: () => ({ hover: 0.08, selected: 0.2, hoverSeconds: 0.24, selectSeconds: 0.6 }),
 };
 const floorY = testDesign.layout.floorY;
 
@@ -93,7 +93,7 @@ describe('a piece’s hit proxy', () => {
     expect(pieceOf(hits[0])).toBe(piece);
   });
 
-  it('covers the piece at its highest, held and bobbing', async () => {
+  it('covers the piece at its highest, held', async () => {
     const { frames, hitsAt, visual, piece } = await renderPiece(lifting, { selected: true });
     for (let i = 0; i < 12; i++) {
       await frames(5);
@@ -134,7 +134,12 @@ describe('a piece’s hit proxy', () => {
     const tuned: Design = {
       ...lifting,
       id: 'hit-proxy-settings-test',
-      hoverLift: (s) => ({ hover: Number(s.lift), selected: Number(s.lift) + 0.1, bob: 0 }),
+      hoverLift: (s) => ({
+        hover: Number(s.lift),
+        selected: Number(s.lift) + 0.1,
+        hoverSeconds: 0.24,
+        selectSeconds: 0.6,
+      }),
       settings: [
         {
           kind: 'slider',
@@ -162,7 +167,10 @@ describe('a piece’s hit proxy', () => {
   });
 
   it('adds no height for a design that does not lift', async () => {
-    const still: Design = { ...lifting, hoverLift: false };
+    const still: Design = {
+      ...lifting,
+      hoverLift: () => ({ hover: 0, selected: 0, hoverSeconds: 0.24, selectSeconds: 0.6 }),
+    };
     const { hitsAt, visual } = await renderPiece(still, { hovered: true });
     const top = visual().max.y;
     expect(hitsAt(top - 0.01).length).toBeGreaterThan(0);

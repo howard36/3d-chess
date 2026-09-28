@@ -12,28 +12,24 @@ import {
 import type { BufferGeometry, Group, Mesh, Object3D } from 'three';
 import { PieceType } from '../engine';
 import { useDesign } from './designs/context';
-import { Lift, pieceLift, Topple } from './designs/kit/motion';
+import { Lift, Topple } from './designs/kit/motion';
 import { useSettingsOf } from './designs/settings';
 import { noRaycast } from './designs/kit/noRaycast';
 import type { Design } from './designs/types';
-import type { Orientation } from './layout';
 
 export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   type: PieceType;
   color: 'white' | 'black';
-  emissive?: string | number;
   position?: [number, number, number];
   onClick?: (event: ThreeEvent<MouseEvent>) => void;
   selected?: boolean;
   hovered?: boolean;
   inCheck?: boolean;
-  /** This king has been checkmated. */
+  /** This king has been checkmated: he topples. */
   mated?: boolean;
-  /** Yaw for a knight's head, when the board decides which way it faces. */
+  /** Yaw of a knight's head: the board decides which way it faces. */
   facing?: number;
-  /** The seat the board is drawn for, passed on to the design's piece body. */
-  orientation?: Orientation;
-  /** The level (engine z) of the piece's cell, passed on to the design's piece body. */
+  /** The level (engine z) of the piece's cell, passed on to the piece's body. */
   level?: number;
 };
 
@@ -45,7 +41,7 @@ const PIECE_TYPES = new Set<string>(Object.values(PieceType));
 // it rather than its visible meshes: a solid of revolution fitted round the
 // body where it rests, tall enough to take in the body lifted too. The visible
 // body is never hit-tested (its group's raycast stops three's descent), so a
-// piece that rises under the pointer, bobs or animates cannot slide out from
+// piece that rises under the pointer, or animates, cannot slide out from
 // under it and back, which made a lifting piece flicker between hovered and
 // not when the pointer sat near its base.
 
@@ -137,24 +133,22 @@ const proxyGeometry = (body: NonNullable<ReturnType<typeof measureBody>>, extra:
 export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh({
   type,
   color,
-  emissive,
   position,
   onClick,
   selected = false,
   hovered = false,
   inCheck = false,
   mated = false,
-  facing,
-  orientation = 'white',
-  level,
+  facing = 0,
+  level = 0,
   ...rest
 }) {
   const design = useDesign();
   const seat = useRef<Group>(null);
   const proxy = useRef<Mesh>(null);
-  const lift = pieceLift(design.hoverLift, useSettingsOf(design));
+  const lift = design.hoverLift(useSettingsOf(design));
   // The proxy takes in the body at its highest
-  const extra = lift ? Math.max(lift.hover, lift.selected + lift.bob) : 0;
+  const extra = Math.max(lift.hover, lift.selected);
 
   // Fit the proxy to the body once per design, piece and army (bodies of a
   // kind share their shape), after the body's meshes exist
@@ -177,41 +171,30 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   if (!PIECE_TYPES.has(type)) return null;
   const Body = design.PieceBody;
 
-  // In the lattice the armies hold opposite edges of the cube (low and near,
-  // high and far), so the knight's profile should face the default camera; a
-  // slight opposing turn per color keeps the two armies from looking like
-  // mirror stamps. Rotation lives on the inner group so the outer group only
-  // carries the position/userData/handler contract.
-  const yaw = design.knightYaw ?? 0.35;
-  const rotation: [number, number, number] =
-    type === PieceType.Knight ? [0, facing ?? (color === 'white' ? -yaw : yaw), 0] : [0, 0, 0];
+  // The knight turns to the yaw the board gives it. Rotation lives on the
+  // inner group so the outer group only carries the position/userData/handler
+  // contract.
+  const rotation: [number, number, number] = [0, type === PieceType.Knight ? facing : 0, 0];
 
-  let body = (
-    <Body
-      type={type}
-      color={color}
-      emissive={emissive ?? 0x000000}
-      selected={selected}
-      hovered={hovered}
-      inCheck={inCheck}
-      orientation={orientation}
-      level={level}
-    />
-  );
-  // Picked up, a piece floats off its floor (bobbing if the design asks);
-  // under the pointer, it stirs.
-  if (lift) {
-    body = (
+  // Picked up, a piece floats off its floor; under the pointer, it stirs. A
+  // mated king topples.
+  const body = (
+    <Topple active={mated}>
       <Lift
         height={selected ? lift.selected : hovered ? lift.hover : 0}
-        bob={selected ? lift.bob : 0}
         seconds={selected ? lift.selectSeconds : lift.hoverSeconds}
       >
-        {body}
+        <Body
+          type={type}
+          color={color}
+          selected={selected}
+          hovered={hovered}
+          inCheck={inCheck}
+          level={level}
+        />
       </Lift>
-    );
-  }
-  if (design.toppleMatedKing) body = <Topple active={mated}>{body}</Topple>;
+    </Topple>
+  );
 
   // Pieces are modeled base-at-y=0; seat them on the cell floor, scaled
   // about the base when the design shrinks its pieces
@@ -219,12 +202,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   const scale =
     design.pieceScale !== undefined && design.pieceScale !== 1 ? design.pieceScale : undefined;
   return (
-    <group
-      position={position}
-      onClick={onClick}
-      userData={{ piece: { type, color }, emissive }}
-      {...rest}
-    >
+    <group position={position} onClick={onClick} userData={{ piece: { type, color } }} {...rest}>
       {/* The body: drawn, never hit-tested */}
       <group
         ref={seat}

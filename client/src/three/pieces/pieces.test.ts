@@ -8,7 +8,7 @@ import { triangleCount } from './mesh';
 import { PIECE_PARTS, partsGeometry, pieceTop } from './parts';
 import { corner, revolve, sampleProfile } from './profile';
 import { ellipsoid, surfaceNets } from './sdf';
-import { FOOT_HEIGHT, PROFILES, buildPieceSet, pieceSet } from './set';
+import { FOOT_HEIGHT, PROFILES, pieceSet } from './set';
 import type { PieceSet } from './set';
 
 const TYPES = Object.values(PieceType);
@@ -241,8 +241,6 @@ describe('the shared piece set', () => {
   it('scales its detail with the quality', () => {
     const low = pieceSet('low');
     for (const type of TYPES) expect(total(low, type)).toBeLessThan(total(medium, type));
-    const faceted = buildPieceSet({ quality: 'low', segments: 8 });
-    expect(total(faceted, PieceType.Pawn)).toBeLessThan(total(low, PieceType.Pawn));
   });
 
   it('shares one set per quality', () => {
@@ -294,18 +292,6 @@ describe('the shared piece set', () => {
     expect(front).toBeGreaterThan(back + 0.05);
     const box = medium[PieceType.Knight].body.boundingBox!;
     expect(box.max.z).toBeCloseTo(-box.min.z, 2);
-  });
-
-  it('takes a reshaped profile (a slimmer stem) without touching the heads', () => {
-    const slim = buildPieceSet({
-      quality: 'low',
-      radius: (r, y) => (y > 0.2 && y < 0.4 ? r * 0.8 : r),
-    });
-    const low = pieceSet('low');
-    expect(radiusBetween(slim.King.body, 0.25, 0.35)).toBeLessThan(
-      radiusBetween(low.King.body, 0.25, 0.35) * 0.85,
-    );
-    expect(pieceTop(slim, PieceType.King)).toBeCloseTo(pieceTop(low, PieceType.King), 5);
   });
 
   it('merges parts that share a material once, and hands back a single part as is', () => {

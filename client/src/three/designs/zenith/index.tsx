@@ -87,17 +87,13 @@ const zenith: Design = {
   id: 'zenith',
   name: 'Zenith',
   layout,
-  continuous: false,
   canvas: { fov: 36, toneMapping: NeutralToneMapping, exposure: 1 },
   Stage,
   Grid,
-  // No cell volumes: the light on the glass says it all
-  cellFills: { destination: null, lastMove: null },
   PieceBody,
   pieceScale: PIECE_SCALE,
   knightYaw: KNIGHT_YAW,
   markers: { Quiet, Capture, Selection, LastMove, Check },
-  hoverDestinations: true,
   // Hover stirs a piece; held, it rises a little higher, answering the click at
   // once and settling over a longer ease, and holds still (the heights are
   // settings: settings-pieces.ts)
@@ -111,13 +107,11 @@ const zenith: Design = {
   knightMoves: (s) => (s['piece.knightMoves'] === 'arc' ? 'arc' : 'straight'),
   CaptureFx,
   Celebration,
-  toppleMatedKing: true,
   // The result card waits for the mate pulse to cross the board (its length
   // is a setting), and a beat more to take it in
   resultDelayMs: (settings) => (Number(settings['mark.mateSeconds']) || 2.4) * 1000 + 400,
   settings: SETTINGS,
   hud: {
-    readout: true,
     vars: {
       '--hud-font': '"Manrope", system-ui, sans-serif',
       '--hud-bg': GLASS,

@@ -1,8 +1,7 @@
 import React from 'react';
 import { MathUtils, PerspectiveCamera, Vector3 } from 'three';
 import { useThree } from '@react-three/fiber';
-import { DEFAULT_VIEW_DIRECTION, fitDistance, zoomRange } from './cameraFit';
-import type { OrbitLimits } from './designs/types';
+import { fitDistance, zoomRange } from './cameraFit';
 
 interface OrbitControlsLike {
   target: Vector3;
@@ -21,13 +20,15 @@ interface OrbitControlsLike {
 export function FitCameraToBoard({
   halfExtents,
   viewDirection,
-  limits,
+  minDistance,
 }: {
-  halfExtents?: readonly [number, number, number];
-  viewDirection?: readonly [number, number, number];
-  /** The design's own zoom limits, which may only narrow the range. */
-  limits?: Pick<OrbitLimits, 'minDistance' | 'maxDistance'>;
-} = {}) {
+  /** Half the board's bounding box. */
+  halfExtents: readonly [number, number, number];
+  /** Where the camera looks from when it sits on the target. */
+  viewDirection: readonly [number, number, number];
+  /** The layout's nearest zoom, which may only narrow the range. */
+  minDistance: number;
+}) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as OrbitControlsLike | null;
   const width = useThree((s) => s.size.width);
@@ -38,13 +39,11 @@ export function FitCameraToBoard({
     if (!(camera instanceof PerspectiveCamera) || width === 0 || height === 0) return;
     const target = controls?.target ?? new Vector3();
     const direction = camera.position.clone().sub(target);
-    if (direction.lengthSq() === 0) {
-      direction.copy(viewDirection ? new Vector3(...viewDirection) : DEFAULT_VIEW_DIRECTION);
-    }
+    if (direction.lengthSq() === 0) direction.copy(new Vector3(...viewDirection));
     direction.normalize();
     const fit = fitDistance(direction, width / height, camera.fov, halfExtents);
-    const { min, max } = zoomRange(fit, limits);
-    // The fitted view, or as near it as a design's limits allow: the camera
+    const { min, max } = zoomRange(fit, minDistance);
+    // The fitted view, or as near it as the zoom limits allow: the camera
     // never starts outside the range the player can zoom over.
     camera.position.copy(target).addScaledVector(direction, MathUtils.clamp(fit, min, max));
     camera.lookAt(target);
@@ -54,7 +53,7 @@ export function FitCameraToBoard({
       controls.update();
     }
     invalidate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- a design's extents and limits are fixed per canvas
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the layout's extents and limits are fixed
   }, [camera, controls, width, height, invalidate]);
 
   return null;

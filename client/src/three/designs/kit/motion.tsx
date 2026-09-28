@@ -2,14 +2,11 @@ import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Quaternion, Vector3 } from 'three';
 import type { Group, Object3D } from 'three';
-import type { SettingValues } from '../settings';
-import type { Design, PieceLift } from '../types';
 
 /**
  * userData for decoration lying on the floor at a piece's base (a contact
  * shadow, a level ring): Topple hides it while the king is down, so it
- * doesn't stand up on edge with the fallen piece. The kit's ContactShadow and
- * LevelFootprint carry it; spread it onto a design's own base discs.
+ * doesn't stand up on edge with the fallen piece.
  */
 export const FLOOR_DECAL = { floorDecal: true } as const;
 
@@ -60,33 +57,6 @@ export const GlideContext = createContext<GlideInfo | null>(null);
 /** The glide carrying this piece (see GlideInfo), or null when it is at rest. */
 export const useGlide = () => useContext(GlideContext);
 
-/** Board's piece lift (Design.hoverLift) when a design just says `true`. */
-export const LIFT_DEFAULTS: Required<PieceLift> = {
-  hover: 0.08,
-  selected: 0.2,
-  bob: 0,
-  hoverSeconds: 0,
-  selectSeconds: 0,
-};
-
-/**
- * The gentle bob of a held piece that the round-2 designs were reviewed
- * with; a design opts in with `hoverLift: { bob: SELECTION_BOB }`.
- */
-export const SELECTION_BOB = 0.035;
-
-/**
- * A design's piece lift with its defaults filled in, or null for none. A
- * design whose lift is a function of its settings gets them here.
- */
-export const pieceLift = (
-  hoverLift: Design['hoverLift'],
-  settings: SettingValues = {},
-): Required<PieceLift> | null => {
-  const lift = typeof hoverLift === 'function' ? hoverLift(settings) : hoverLift;
-  return !lift ? null : lift === true ? LIFT_DEFAULTS : { ...LIFT_DEFAULTS, ...lift };
-};
-
 /**
  * The timed lift's ease, 0 to 1: cubic out. It leaves at once, at its
  * fastest, so a piece answers the pointer or the click without a pause, and
@@ -117,41 +87,35 @@ interface Travel {
   to: number;
   /** The seconds the target asked for (see Lift). */
   toSeconds: number;
-  /** The travel's length (0: the quick approach) and where along its ease it is. */
+  /** The travel's length and where along its ease it is. */
   seconds: number;
   t0: number;
   t: number;
-  /** The height (without the bob), its speed, and the bob's size now. */
+  /** The height, and its speed. */
   y: number;
   speed: number;
-  bob: number;
 }
 
 /**
- * Raises its children `height` above their resting place and bobs them `bob`
- * up and down while there (0: held still). With `seconds` the piece travels
- * from wherever it is to the new height over that time, setting off at once
- * and slowing into it, never past it; a travel between two heights takes the
+ * Raises its children `height` above their resting place, travelling from
+ * wherever they are to the new height over `seconds`, setting off at once and
+ * slowing into it, never past it. A travel between two heights takes the
  * longer of the times they were given, so a rise to the held height and the
  * fall back from it both take the held time. A travel turned toward a farther
- * height in the same direction never slows at the turn. Without `seconds` it eases there quickly,
- * slowing as it arrives. Requests frames only while moving, so a
- * demand-driven canvas idles once it settles. Groups tagged ON_FLOOR stay
- * behind on the floor.
+ * height in the same direction never slows at the turn. Requests frames only
+ * while moving, so a demand-driven canvas idles once it settles. Groups
+ * tagged ON_FLOOR stay behind on the floor.
  */
 export const Lift = ({
   height,
-  bob = 0,
-  seconds = 0,
+  seconds,
   children,
 }: {
   height: number;
-  bob?: number;
-  seconds?: number;
+  seconds: number;
   children: React.ReactNode;
 }) => {
   const group = useRef<Group>(null);
-  const clock = useRef(0);
   const travel = useRef<Travel>({
     from: 0,
     to: 0,
@@ -161,17 +125,15 @@ export const Lift = ({
     t: 1,
     y: 0,
     speed: 0,
-    bob: 0,
   });
   const invalidate = useThree((s) => s.invalidate);
 
-  useEffect(() => invalidate(), [height, bob, seconds, invalidate]);
+  useEffect(() => invalidate(), [height, seconds, invalidate]);
 
   useFrame((_, delta) => {
     const g = group.current;
     if (!g) return;
     const dt = Math.min(delta, 1 / 30);
-    clock.current += dt;
     const s = travel.current;
     if (height !== s.to) {
       const time = Math.max(seconds, s.toSeconds);
@@ -182,30 +144,15 @@ export const Lift = ({
       s.toSeconds = seconds;
       s.seconds = time;
     }
-    let settled: boolean;
-    if (s.seconds > 0) {
-      // Timed: along the ease from where the travel began, with the bob
-      // easing in and out on top
-      s.t = dt > 0 ? Math.min(1, s.t + dt / s.seconds) : s.t;
-      const done = (easeLift(s.t) - easeLift(s.t0)) / (1 - easeLift(s.t0));
-      const y = s.t >= 1 ? s.to : s.from + (s.to - s.from) * done;
-      s.speed = s.t >= 1 ? 0 : dt > 0 ? (y - s.y) / dt : s.speed;
-      s.y = y;
-      s.bob += (bob - s.bob) * Math.min(1, dt * 6);
-      if (Math.abs(s.bob - bob) < 1e-4) s.bob = bob;
-      settled = s.t >= 1 && s.bob === 0;
-      g.position.y = y + (s.bob > 0 ? Math.sin(clock.current * 3.2) * s.bob : 0);
-    } else {
-      const bobbing = bob > 0;
-      const target = height + (bobbing ? Math.sin(clock.current * 3.2) * bob : 0);
-      const y = g.position.y + (target - g.position.y) * Math.min(1, dt * 12);
-      settled = !bobbing && Math.abs(y - target) < 1e-3;
-      g.position.y = settled ? target : y;
-      s.speed = settled ? 0 : dt > 0 ? (g.position.y - s.y) / dt : s.speed;
-      s.y = g.position.y;
-    }
+    // Along the ease from where the travel began
+    s.t = dt > 0 ? Math.min(1, s.t + dt / s.seconds) : s.t;
+    const done = (easeLift(s.t) - easeLift(s.t0)) / (1 - easeLift(s.t0));
+    const y = s.t >= 1 ? s.to : s.from + (s.to - s.from) * done;
+    s.speed = s.t >= 1 ? 0 : dt > 0 ? (y - s.y) / dt : s.speed;
+    s.y = y;
+    g.position.y = y;
     pinToFloor(g);
-    if (!settled) invalidate();
+    if (s.t < 1) invalidate();
   });
 
   // Tagged so a piece's hit proxy is measured without the lift (PieceMesh)

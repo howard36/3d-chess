@@ -89,8 +89,6 @@ const Piece = ({ cell, set }: { cell: Cell; set: PieceSet }) => {
     <PieceBody
       type={cell.type}
       color={cell.color}
-      orientation="white"
-      emissive={0x000000}
       selected={false}
       hovered={false}
       inCheck={false}

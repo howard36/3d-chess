@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PieceType } from '../engine/pieces';
-import { clarityTower, latticeLayout } from './designs/kit/layouts';
-import { SPACING } from './layout';
+import { clarityTower } from './designs/kit/layouts';
 import { cellPitch, KNIGHT_ARC_PITCHES, knightArcHeight, moveArc, movePoint } from './movePath';
 
 describe('movePath', () => {
@@ -28,7 +27,7 @@ describe('movePath', () => {
   });
 
   it('measures the cell pitch of any layout, and sizes the knight’s arc by it', () => {
-    expect(cellPitch(latticeLayout())).toBeCloseTo(SPACING);
+    expect(cellPitch(clarityTower())).toBeCloseTo(1);
     expect(cellPitch(clarityTower({ pitch: 1.2 }))).toBeCloseTo(1.2);
     expect(knightArcHeight(clarityTower())).toBeCloseTo(KNIGHT_ARC_PITCHES);
   });

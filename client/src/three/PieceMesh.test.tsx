@@ -63,18 +63,15 @@ describe('PieceMesh', () => {
     },
   );
 
-  it('turns the knight by an opposite yaw per colour; other pieces stay square', async () => {
-    const innerYaw = async (type: PieceType, color: PieceColor) => {
-      const scene = await render({ type, color });
+  it('turns a knight to the yaw the board gives it; other pieces stay square', async () => {
+    const innerYaw = async (type: PieceType, facing: number) => {
+      const scene = await render({ type, color: 'white', facing });
       const inner = scene.findAll((node) => node.type === 'Group' && node.props.rotation);
       expect(inner).toHaveLength(1);
       return (inner[0].instance as unknown as Group).rotation.y;
     };
-    const white = await innerYaw(PieceType.Knight, 'white');
-    const black = await innerYaw(PieceType.Knight, 'black');
-    expect(white).not.toBe(0);
-    expect(Math.sign(white)).toBe(-Math.sign(black));
-    expect(Math.abs(white)).toBeCloseTo(Math.abs(black));
-    expect(await innerYaw(PieceType.Rook, 'white')).toBe(0);
+    expect(await innerYaw(PieceType.Knight, 1.1)).toBeCloseTo(1.1);
+    expect(await innerYaw(PieceType.Knight, -1.1)).toBeCloseTo(-1.1);
+    expect(await innerYaw(PieceType.Rook, 1.1)).toBe(0);
   });
 });

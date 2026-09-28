@@ -1,11 +1,4 @@
 import { MathUtils, PerspectiveCamera, Vector3 } from 'three';
-import { GRID_SIZE, SPACING } from './layout';
-
-/** Half the side of the lattice's bounding box: outermost cell centre plus half a cell. */
-export const BOARD_HALF_EXTENT = ((GRID_SIZE - 1) / 2) * SPACING + 0.5;
-
-/** The side from which a new game first sees the board (camera direction from the centre). */
-export const DEFAULT_VIEW_DIRECTION = new Vector3(6.5, 5, 8.5).normalize();
 
 /** Breathing room around the board, as a fraction of the fitted distance. */
 const MARGIN = 1.08;
@@ -21,17 +14,12 @@ export const ZOOM_OUT = 1.5;
 
 /**
  * The distances from the board's centre the camera may stand at, given the
- * distance that fits the board in the window. A design's own limits only
- * narrow the range. Where a design's maximum is nearer than the fitted
- * minimum (a room the camera must stay inside, seen on a tall phone), the
- * maximum wins and the range closes up to it.
+ * distance that fits the board in the window. The layout's own nearest
+ * distance only narrows the range.
  */
-export function zoomRange(
-  fit: number,
-  limits: { minDistance?: number; maxDistance?: number } = {},
-): { min: number; max: number } {
-  const max = Math.min(fit * ZOOM_OUT, limits.maxDistance ?? Infinity);
-  const min = Math.min(Math.max(fit * ZOOM_IN, limits.minDistance ?? 0), max);
+export function zoomRange(fit: number, minDistance = 0): { min: number; max: number } {
+  const max = fit * ZOOM_OUT;
+  const min = Math.min(Math.max(fit * ZOOM_IN, minDistance), max);
   return { min, max };
 }
 
@@ -40,22 +28,19 @@ const cornersOf = ([hx, hy, hz]: readonly [number, number, number]) =>
     [-1, 1].flatMap((y) => [-1, 1].map((z) => new Vector3(x * hx, y * hy, z * hz))),
   );
 
-const CUBE: [number, number, number] = [BOARD_HALF_EXTENT, BOARD_HALF_EXTENT, BOARD_HALF_EXTENT];
-
 /**
  * How far from the board's centre a camera looking at it from `direction`
  * must stand for the whole board to fit in a viewport of this aspect ratio
  * (width / height) with this vertical field of view. The fixed distance the
  * view used to open at fitted the height only, so a window narrower than it
  * was tall (a phone held upright) cut off both sides of the board. The board
- * is a box of the given half extents: the classic cube unless a design lays
- * the cells out otherwise.
+ * is a box of the given half extents.
  */
 export function fitDistance(
   direction: Vector3,
   aspect: number,
   fovDeg: number,
-  halfExtents: readonly [number, number, number] = CUBE,
+  halfExtents: readonly [number, number, number],
 ): number {
   const tanV = Math.tan(MathUtils.degToRad(fovDeg) / 2);
   const tanH = tanV * aspect;

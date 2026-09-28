@@ -10,9 +10,8 @@ import React from 'react';
 import { PieceType } from '../engine/pieces';
 import { Coord, fromZXY, toZXY } from '../engine/coords';
 import { CELLS } from './layout';
-import { GhostPiece, MoveGlide } from './moveAnimation';
+import { MoveGlide } from './moveAnimation';
 import { prefersReducedMotion } from './motion';
-import { theme } from './theme';
 import { isTap } from './tap';
 import { useDesign } from './designs/context';
 import { useSettingsOf } from './designs/settings';
@@ -21,43 +20,38 @@ import type { BoardLayout, LevelFocus, MarkerProps, Vec3 } from './designs/types
 import { resolveHover } from './hover';
 import type { FloorSquare } from './hover';
 
-// The 125 cell boxes share one geometry and one of three materials instead of
-// owning a BoxGeometry and a transparent material each. A cell with nothing
-// to draw is `visible={false}`: three's Raycaster tests layers, not
-// visibility, so it still catches destination clicks and the empty-space
-// click that clears a selection, while the renderer never queues it. It keeps
-// a (never drawn) material because Mesh.raycast bails without one. The fills
-// themselves come from the design.
+// The 125 cell boxes are click targets only, never drawn: every one is
+// `visible={false}`, and three's Raycaster tests layers, not visibility, so
+// they still catch destination clicks and the empty-space click that clears
+// a selection. They share one geometry and one material (never drawn, but
+// Mesh.raycast bails without one); everything visible about a cell is drawn
+// on its floor by the markers.
 //
-// A layout with a `hitHeight` gets thin boxes standing on each cell's floor
-// (the mesh stays at the cell's centre; its geometry is shifted down), so a
-// click lands on the square whose floor is under the pointer.
+// Each box is a thin slab standing on its cell's floor (the mesh stays at the
+// cell's centre; its geometry is shifted down), so a click lands on the
+// square whose floor is under the pointer.
 const cellGeometries = new Map<string, BoxGeometry>();
 const cellGeometryFor = (layout: BoardLayout) => {
   const { cellSize, hitHeight, floorY } = layout;
-  const key = `${cellSize.join(',')}/${hitHeight ?? ''}/${floorY}`;
+  const key = `${cellSize.join(',')}/${hitHeight}/${floorY}`;
   let geometry = cellGeometries.get(key);
   if (!geometry) {
-    geometry =
-      hitHeight === undefined
-        ? new BoxGeometry(...cellSize)
-        : new BoxGeometry(cellSize[0], hitHeight, cellSize[2]).translate(
-            0,
-            floorY + hitHeight / 2,
-            0,
-          );
+    geometry = new BoxGeometry(cellSize[0], hitHeight, cellSize[2]).translate(
+      0,
+      floorY + hitHeight / 2,
+      0,
+    );
     cellGeometries.set(key, geometry);
   }
   return geometry;
 };
-const noFill = new MeshBasicMaterial();
+const cellMaterial = new MeshBasicMaterial();
 
-// Drops a cell-centre position to the cell floor, the plane a piece's base disc
-// sits on. Both rings ride on it: a ring is read as lying on the ground, so at
-// the cell centre it instead skewers whatever piece occupies the cell, at a
-// different height for every piece. Pieces are all modeled base-at-y=0 and are
-// shorter than their cell, so they are bottom-aligned rather than centred in it,
-// and their tops range from ~0.55 (pawn) to 0.87 (king).
+// Drops a cell-centre position to the cell floor, the plane a piece's base
+// stands on and every marker lies on: a mark read as lying on the ground would
+// skewer the piece in its cell at the cell's centre. Pieces are modeled
+// base-at-y=0 and are shorter than their cell, so they stand on its floor
+// rather than centred in it.
 const atCellFloor = ([x, y, z]: Vec3, layout: BoardLayout): Vec3 => [x, y + layout.floorY, z];
 
 export type BoardTurn = 'white' | 'black';
@@ -92,12 +86,9 @@ export interface BoardProps {
   lastMove?: LastMoveInfo;
   /** Freezes interaction (selection and moves) while still rendering the position. */
   disabled?: boolean;
-  /** Set once the game has ended; a design may mark the mated king. */
+  /** Set once the game has ended: the mated king topples. */
   gameOver?: { result: 'checkmate' | 'stalemate'; winner?: BoardTurn } | null;
-  /**
-   * Told which cell the pointer is on (null when it is on none), for designs
-   * with `hud.readout` or `hoverDestinations`.
-   */
+  /** Told which cell the pointer is on (null when it is on none), for the HUD's readout. */
   onHoverCell?: (cell: HoveredCell | null) => void;
 }
 
@@ -129,7 +120,6 @@ const Board = (props: BoardProps) => {
   const mountMoveCount = React.useRef(lastMove?.moveCount ?? 0);
   const animate =
     !!lastMove && lastMove.moveCount > mountMoveCount.current && !prefersReducedMotion();
-  const lastFromKey = lastMove ? toZXY(lastMove.move.from) : null;
   const lastToKey = lastMove ? toZXY(lastMove.move.to) : null;
   // Every move runs straight; a knight arcs when the player asks for it (a
   // setting). The glide, the last-move line and the move's effects all take
@@ -143,12 +133,11 @@ const Board = (props: BoardProps) => {
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | Coord>(null);
   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
-  // The piece under the pointer, when the design lifts pieces on hover.
+  // The piece under the pointer, which lifts.
   const [hovered, setHovered] = useState<string | null>(null);
-  // The cell (or the piece on it) under the pointer, for designs that
-  // brighten the destination there, emphasise its level, or read it out.
+  // The cell (or the piece on it) under the pointer: its destination marker
+  // brightens, its level stands out, and the HUD reads it out.
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
-  const trackHover = design.hoverDestinations === true || design.hud.readout === true;
 
   // A selection made against an earlier position is stale once the board or
   // turn changes (e.g. the opponent's move arrives) — clear it so a stale
@@ -280,13 +269,10 @@ const Board = (props: BoardProps) => {
         ? 'black'
         : 'white'
       : null;
-  // On a stacked board a knight looks along the ranks — toward the opponent —
-  // turned a little to show its profile. (The lattice keeps PieceMesh's
-  // default turn, which already shows the profile to the opening camera.)
+  // A knight looks along the ranks — toward the opponent — turned a little to
+  // show its profile.
   const knightFacing = (color: BoardTurn) =>
-    layout.kind === 'tower'
-      ? (color === orientation ? 1 : -1) * (Math.PI / 2 - (design.knightYaw ?? 0.5))
-      : undefined;
+    (color === orientation ? 1 : -1) * (Math.PI / 2 - (design.knightYaw ?? 0.5));
   const matedKing = pieces.find(
     ({ type, color }) => type === PieceType.King && color === matedColor,
   );
@@ -341,9 +327,9 @@ const Board = (props: BoardProps) => {
   const onHoverCell = props.onHoverCell;
   const hoveredPiece = hoveredCell ? board.getPiece(fromZXY(hoveredCell)) : null;
   useEffect(() => {
-    if (trackHover) onHoverCell?.(hoveredCell ? { zxy: hoveredCell, piece: hoveredPiece } : null);
+    onHoverCell?.(hoveredCell ? { zxy: hoveredCell, piece: hoveredPiece } : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the piece is read with the cell
-  }, [trackHover, onHoverCell, hoveredCell, hoveredPiece?.type, hoveredPiece?.color]);
+  }, [onHoverCell, hoveredCell, hoveredPiece?.type, hoveredPiece?.color]);
   useEffect(() => () => onHoverCell?.(null), [onHoverCell]);
 
   const selectedLevel = selected?.z ?? null;
@@ -355,7 +341,7 @@ const Board = (props: BoardProps) => {
 
   return (
     <>
-      {trackHover && <HoverProbe probe={latestProbe} onHover={setHoveredCell} />}
+      <HoverProbe probe={latestProbe} onHover={setHoveredCell} />
       <group
         ref={grid}
         name="board-grid"
@@ -376,36 +362,18 @@ const Board = (props: BoardProps) => {
         }}
       >
         {/* Cell boxes: raycast targets for selecting a destination and for the
-            empty-space click that clears the selection. Destination cells get a
-            faint fill, the last move's cells another, and every other cell is
-            not drawn at all; everything else visible about a destination is
-            drawn by the markers. The flags reflect what is drawn: a
-            legal-destination fill replaces the last-move fill on a shared cell. */}
+            empty-space click that clears the selection, never drawn. */}
         {CELLS.map((cell) => {
           const cellKey = toZXY(cell);
           const isDest = isHighlighted(cell);
-          const isLastTo = !isDest && cellKey === lastToKey;
-          const isLastFrom = !isDest && !isLastTo && cellKey === lastFromKey;
-          const material =
-            (isDest
-              ? design.cellFills.destination
-              : isLastTo || isLastFrom
-                ? design.cellFills.lastMove
-                : noFill) ?? noFill;
           return (
             <mesh
               key={cellKey}
               position={worldOf(cell)}
               geometry={cellGeometry}
-              material={material}
-              visible={material !== noFill}
-              userData={{
-                highlight: isDest,
-                lastMoveFrom: isLastFrom,
-                lastMoveTo: isLastTo,
-                cube: true,
-                zxy: cellKey,
-              }}
+              material={cellMaterial}
+              visible={false}
+              userData={{ highlight: isDest, cube: true, zxy: cellKey }}
               // Clicking a highlighted cube plays the move
               onClick={
                 isDest
@@ -428,18 +396,13 @@ const Board = (props: BoardProps) => {
               color={color}
               position={worldOf(coord)}
               onClick={pieceHandlers.get(key)}
-              {...(design.hoverLift ? hoverHandlers.get(key) : {})}
+              {...hoverHandlers.get(key)}
               selected={isSelected(coord)}
-              hovered={!!design.hoverLift && hovered === key && canPick(coord)}
+              hovered={hovered === key && canPick(coord)}
               inCheck={inCheck}
               level={coord.z}
               mated={type === PieceType.King && color === matedColor}
               facing={knightFacing(color)}
-              orientation={orientation}
-              // Check trumps selection for the king's glow
-              emissive={
-                inCheck ? theme.check : isSelected(coord) ? theme.selectEmissive : '#000000'
-              }
             />
           );
           // The just-moved piece glides in from its source cell. Piece keys are
@@ -452,8 +415,7 @@ const Board = (props: BoardProps) => {
                 key={`anim-${lastMove.moveCount}`}
                 from={worldOf(lastMove.move.from)}
                 to={worldOf(coord)}
-                motion={design.motion}
-                floorY={layout.floorY}
+                durationMs={design.motion.durationMs}
                 arc={lastArc}
                 fromLevel={lastMove.move.from.z}
                 toLevel={coord.z}
@@ -472,18 +434,18 @@ const Board = (props: BoardProps) => {
         <design.Grid layout={layout} orientation={orientation} focus={focus} />
         {destinations.map(({ to, capture }) => {
           const key = toZXY(to);
-          const hover = design.hoverDestinations ? { hovered: hoveredCell === key } : {};
+          const hovered = hoveredCell === key;
           return capture ? (
-            <Capture key={`capture-${key}`} {...markerAt(to)} {...hover} />
+            <Capture key={`capture-${key}`} {...markerAt(to)} hovered={hovered} />
           ) : (
-            <Quiet key={`quiet-${key}`} {...markerAt(to)} {...hover} />
+            <Quiet key={`quiet-${key}`} {...markerAt(to)} hovered={hovered} />
           );
         })}
         {/* Keyed by square, so selecting another piece plays its entrance again */}
         {selected && <Selection key={`selection-${toZXY(selected)}`} {...markerAt(selected)} />}
         {/* Keyed by move: an entrance a design plays on mount (when fresh)
             plays once per move, and not again on a reconnect */}
-        {LastMove && lastMove && (
+        {lastMove && (
           <LastMove
             key={`lastmove-${lastMove.moveCount}`}
             from={markerAt(lastMove.move.from)}
@@ -492,48 +454,24 @@ const Board = (props: BoardProps) => {
             arc={lastArc}
           />
         )}
-        {Check &&
-          checkedKings.map(({ color, coord }) => (
-            <Check
-              key={`check-${color}`}
-              {...markerAt(coord)}
-              {...(color === matedColor ? { mated: true } : {})}
-            />
-          ))}
-        {animate && lastMove && design.MoveFx && (
-          <design.MoveFx
-            key={`movefx-${lastMove.moveCount}`}
-            from={worldOf(lastMove.move.from)}
-            to={worldOf(lastMove.move.to)}
-            color={board.getPiece(lastMove.move.to)?.color ?? 'white'}
-            piece={board.getPiece(lastMove.move.to)?.type ?? PieceType.Pawn}
-            capture={!!lastMove.capturedPiece}
+        {checkedKings.map(({ color, coord }) => (
+          <Check
+            key={`check-${color}`}
+            {...markerAt(coord)}
+            {...(color === matedColor ? { mated: true } : {})}
+          />
+        ))}
+        {animate && lastMove?.capturedPiece && (
+          <design.CaptureFx
+            key={`capturefx-${lastMove.moveCount}`}
+            {...markerAt(lastMove.move.to)}
+            victim={lastMove.capturedPiece}
+            victimFacing={knightFacing(lastMove.capturedPiece.color)}
             durationMs={design.motion.durationMs}
             orientation={orientation}
-            arc={lastArc}
           />
         )}
-        {animate &&
-          lastMove?.capturedPiece &&
-          (design.CaptureFx ? (
-            <design.CaptureFx
-              key={`capturefx-${lastMove.moveCount}`}
-              {...markerAt(lastMove.move.to)}
-              victim={lastMove.capturedPiece}
-              victimFacing={knightFacing(lastMove.capturedPiece.color)}
-              durationMs={design.motion.durationMs}
-              orientation={orientation}
-            />
-          ) : (
-            <GhostPiece
-              key={`ghost-${lastMove.moveCount}`}
-              type={lastMove.capturedPiece.type}
-              color={lastMove.capturedPiece.color}
-              position={worldOf(lastMove.move.to)}
-              level={lastMove.move.to.z}
-            />
-          ))}
-        {matedKing && design.Celebration && (
+        {matedKing && (
           <design.Celebration
             {...markerAt(matedKing.coord)}
             winner={props.gameOver?.winner ?? null}

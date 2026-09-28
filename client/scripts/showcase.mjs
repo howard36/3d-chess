@@ -504,10 +504,7 @@ const SHOW_HELPERS = () => {
       const pieces = [];
       st.scene.traverse((o) => {
         if (o.userData?.cube) cubes.push(o);
-        else if (o.userData?.piece) {
-          for (let a = o.parent; a; a = a.parent) if (a.userData?.ghostPiece) return;
-          pieces.push(o);
-        }
+        else if (o.userData?.piece) pieces.push(o);
       });
       const board = new Board();
       const where = new Map();
@@ -553,7 +550,6 @@ const SHOW_HELPERS = () => {
       store()?.scene.traverse((o) => {
         const p = o.userData?.piece;
         if (!p || !cube || o.position.distanceTo(cube.position) > 1e-4) return;
-        for (let a = o.parent; a; a = a.parent) if (a.userData?.ghostPiece) return;
         found = `${p.color[0].toUpperCase()}${p.color.slice(1)} ${p.type}`;
       });
       return found;
@@ -567,10 +563,7 @@ const SHOW_HELPERS = () => {
       const pieces = [];
       store()?.scene.traverse((o) => {
         if (o.userData?.cube && o.userData.highlight) cells.push(o);
-        else if (o.userData?.piece) {
-          for (let a = o.parent; a; a = a.parent) if (a.userData?.ghostPiece) return;
-          pieces.push(o.position);
-        }
+        else if (o.userData?.piece) pieces.push(o.position);
       });
       return cells.map((cell) => ({
         zxy: cell.userData.zxy,
@@ -787,7 +780,6 @@ async function review(seats) {
           if (o.userData?.cube) cubes.push(o);
           const p = o.userData?.piece;
           if (!p || p.color !== color) return;
-          for (let a = o.parent; a; a = a.parent) if (a.userData?.ghostPiece) return;
           own.push(o);
         });
         for (const piece of own) {

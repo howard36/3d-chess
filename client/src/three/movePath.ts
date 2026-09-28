@@ -1,9 +1,9 @@
 import { PieceType } from '../engine/pieces';
 import type { BoardLayout, Vec3 } from './designs/types';
 
-// The path a moving piece takes, shared by the glide (moveAnimation.tsx), the
-// last-move line (kit/markerGeometry.ts) and any effect that follows a move
-// (MoveFxProps.arc), so all three trace exactly the same curve.
+// The path a moving piece takes, shared by the glide (moveAnimation.tsx) and
+// the last-move line (kit/markerGeometry.ts), so both trace exactly the same
+// curve.
 //
 // Every move runs in a straight line from the source square to the
 // destination, whatever its level change. A knight is the one exception the
@@ -12,8 +12,6 @@ import type { BoardLayout, Vec3 } from './designs/types';
 
 /** How a knight travels: straight like every other piece, or over an arc. */
 export type KnightMoves = 'straight' | 'arc';
-
-export const KNIGHT_MOVES: readonly KnightMoves[] = ['straight', 'arc'];
 
 /**
  * Height of a knight's arc above the straight line between its squares, in

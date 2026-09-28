@@ -1,5 +1,5 @@
-import type { ComponentType, CSSProperties } from 'react';
-import type { Material, ToneMapping } from 'three';
+import type { ComponentType } from 'react';
+import type { ToneMapping } from 'three';
 import type { Coord } from '../../engine/coords';
 import type { PieceType } from '../../engine/pieces';
 import type { Orientation } from '../layout';
@@ -17,24 +17,18 @@ export type PieceColor = 'white' | 'black';
 /**
  * Limits on how far the player may orbit and zoom, applied to the game's
  * camera controls. Angles are polar angles in radians, measured from straight
- * overhead (0) down to the horizon (PI / 2) and below. The distances only
- * narrow the zoom range, 0.7x to 1.5x the distance that fits the board in the
- * window (zoomRange in three/cameraFit.ts).
+ * overhead (0) down to the horizon (PI / 2) and below. The distance only
+ * narrows the zoom range, 0.7x to 1.5x the distance that fits the board in
+ * the window (zoomRange in three/cameraFit.ts).
  */
 export interface OrbitLimits {
-  minPolarAngle?: number;
-  maxPolarAngle?: number;
-  minDistance?: number;
-  maxDistance?: number;
+  minPolarAngle: number;
+  maxPolarAngle: number;
+  minDistance: number;
 }
 
 /** Where the 125 cells sit in world space. */
 export interface BoardLayout {
-  /**
-   * Both stack the levels upward. Lattice: one cube of evenly spaced cells.
-   * Tower: five boards with gaps between them.
-   */
-  kind: 'lattice' | 'tower';
   /** Centre of a cell's (raycast) box. */
   toWorld(cell: Coord, orientation: Orientation): Vec3;
   /**
@@ -48,35 +42,26 @@ export interface BoardLayout {
   halfExtents: Vec3;
   /** Direction from the board's centre to the camera when a game opens. */
   viewDirection: Vec3;
-  /** Orbit and zoom limits; without them the camera orbits freely over the fitted zoom range. */
-  orbit?: OrbitLimits;
+  /** Orbit and zoom limits. */
+  orbit: OrbitLimits;
   /**
-   * Height of each cell's click box, standing on the cell's floor. Without it
-   * the box fills `cellSize` about the cell's centre. A thin box makes a
-   * click land on the square whose floor is under the pointer, so markers
-   * drawn on the floor are exactly what a click aims at.
+   * Height of each cell's click box, standing on the cell's floor. A thin box
+   * makes a click land on the square whose floor is under the pointer, so
+   * markers drawn on the floor are exactly what a click aims at.
    */
-  hitHeight?: number;
+  hitHeight: number;
 }
 
 export interface PieceBodyProps {
-  /** The seat the board is drawn for (Black's view walks round the board). */
-  orientation: Orientation;
   type: PieceType;
   color: PieceColor;
-  /** Emissive tint the classic body paints (check red, selection amber, or black). */
-  emissive: string | number;
   selected: boolean;
   /** The pointer is over a piece the player may pick up. */
   hovered: boolean;
   /** This is a king and its side is in check. */
   inCheck: boolean;
-  /**
-   * The level (engine z, 0 = A) of the cell the piece stands on. Board always
-   * sets it; optional only so a design that draws a body itself (a captured
-   * victim, a celebration) need not.
-   */
-  level?: number;
+  /** The level (engine z, 0 = A) of the cell the piece stands on. */
+  level: number;
 }
 
 export interface MarkerProps {
@@ -86,7 +71,7 @@ export interface MarkerProps {
   floor: Vec3;
   /**
    * The pointer is over this legal destination (or the piece it would
-   * capture). Only set for designs with `hoverDestinations`.
+   * capture). Set for destinations only.
    */
   hovered?: boolean;
   /**
@@ -116,25 +101,6 @@ export interface LastMoveMarkerProps {
   arc?: number;
 }
 
-export interface MoveFxProps {
-  /** The seat the board is drawn for (Black's view walks round the board). */
-  orientation: Orientation;
-  from: Vec3;
-  to: Vec3;
-  /** Colour of the side that moved. */
-  color: PieceColor;
-  piece: PieceType;
-  capture: boolean;
-  durationMs: number;
-  /**
-   * Height of the move's arc above the straight line from `from` to `to`
-   * (world units; see LastMoveMarkerProps.arc). The piece travels along
-   * `movePoint(from, to, easeInOutCubic(t), arc)` (movePath.ts); a trail
-   * that follows it should too. Board always sets it.
-   */
-  arc?: number;
-}
-
 export interface CaptureFxProps {
   /** The seat the board is drawn for (Black's view walks round the board). */
   orientation: Orientation;
@@ -158,9 +124,7 @@ export interface CelebrationProps {
 /**
  * Levels (engine z, 0 = A) the player is attending to. `selected` is the
  * selected piece's level; `hovered` is the level of the cell or piece under
- * the pointer, reported only for designs with `hoverDestinations` or
- * `hud.readout` (null otherwise). Hover wins over selection: see
- * `focusLevelOf` in kit/focus.ts.
+ * the pointer. Hover wins over selection: see `focusLevelOf` in kit/focus.ts.
  */
 export interface LevelFocus {
   selected: number | null;
@@ -179,31 +143,14 @@ export interface StageProps {
   orientation: Orientation;
 }
 
-/**
- * How a move plays out. Every style but 'teleport' glides in a straight line
- * from the source square to the destination, eased in and out, whatever the
- * level change (a knight arcs instead when the player sets knight moves to
- * 'arc'; see movePath.ts).
- */
-export type MoveStyle =
-  /** A plain eased glide (classic). */
-  | 'hop'
-  /** A glide that stretches as it travels and lands with a squash-and-stretch bounce. */
-  | 'bounce'
-  /** A plain eased glide (the same as 'hop'). */
-  | 'slide'
-  /** Shrinks away at the source and pops in at the destination. */
-  | 'teleport';
-
 export interface DesignMotion {
-  style: MoveStyle;
-  durationMs: number;
   /**
-   * Unused by Board: moves no longer lift (a knight's arc, when the player
-   * asks for one, is the same height in every design). Kept so a design can
-   * size its own effects by it.
+   * How long a move's glide takes. Every move glides in a straight line from
+   * the source square to the destination, eased in and out, whatever the
+   * level change (a knight arcs instead when the player sets knight moves to
+   * 'arc'; see movePath.ts).
    */
-  lift?: number;
+  durationMs: number;
 }
 
 /**
@@ -253,59 +200,33 @@ export type HudVars = Partial<
 
 export interface DesignHud {
   vars: HudVars;
-  /** Extra layer drawn over the canvas under the HUD (scanlines, vignette, grain). */
-  overlay?: CSSProperties;
-  /**
-   * Show a small readout of the cell under the pointer ("Cc4 · White Bishop")
-   * under the turn indicator, styled with the HUD vars.
-   */
-  readout?: boolean;
 }
 
 export interface CanvasSettings {
-  fov?: number;
-  toneMapping?: ToneMapping;
-  exposure?: number;
-  /** Real-time shadows (the design's lights and meshes opt in). */
-  shadows?: boolean;
-  /** Device pixel ratio cap; below 1 renders chunky pixels (paired with `pixelated`). */
-  dpr?: number | [number, number];
-  /** Upscale the canvas with nearest-neighbour sampling. */
-  pixelated?: boolean;
-  antialias?: boolean;
+  fov: number;
+  toneMapping: ToneMapping;
+  exposure: number;
 }
 
 export interface Design {
   id: string;
   name: string;
   layout: BoardLayout;
-  /**
-   * Render every frame instead of on demand, for designs with ambient
-   * motion (drifting particles, shimmering materials).
-   */
-  continuous: boolean;
-  canvas?: CanvasSettings;
-  /** Background, lights, fog, environment, ambient effects, post-processing. */
+  canvas: CanvasSettings;
+  /** Background, lights, fog, environment, ambient effects. */
   Stage: ComponentType<StageProps>;
   /** The visible structure of the board. Decorative: never takes pointer events. */
   Grid: ComponentType<GridProps>;
-  /**
-   * Fills of the raycast boxes: legal destinations and the last move's cells.
-   * `null` draws no fill at all (the cell still takes clicks), for designs
-   * whose markers say everything on the floor.
-   */
-  cellFills: { destination: Material | null; lastMove: Material | null };
   PieceBody: ComponentType<PieceBodyProps>;
-  /** Knight yaw per colour, so its profile faces the camera. */
-  knightYaw?: number;
+  /** How far a knight turns off the rank line, so its profile shows. */
+  knightYaw: number;
   markers: {
     Quiet: ComponentType<MarkerProps>;
     Capture: ComponentType<MarkerProps>;
     Selection: ComponentType<MarkerProps>;
-    /** Drawn in addition to the last-move cell fills. */
-    LastMove?: ComponentType<LastMoveMarkerProps>;
+    LastMove: ComponentType<LastMoveMarkerProps>;
     /** Drawn at the king of the side in check. */
-    Check?: ComponentType<MarkerProps>;
+    Check: ComponentType<MarkerProps>;
   };
   motion: DesignMotion;
   /**
@@ -313,72 +234,49 @@ export interface Design {
    * other piece, or over an arc (see movePath.ts). The glide, the last-move
    * line and the move's effects all follow it.
    */
-  knightMoves?: (settings: SettingValues) => KnightMoves;
-  /** Plays alongside a new move's glide (trails, dust, sparks). */
-  MoveFx?: ComponentType<MoveFxProps>;
-  /** Replaces the classic fade-out of a captured piece. */
-  CaptureFx?: ComponentType<CaptureFxProps>;
-  /** Shown around the mated king once the game ends. */
-  Celebration?: ComponentType<CelebrationProps>;
-  /** Tip the mated king over when the game ends. */
-  toppleMatedKing?: boolean;
+  knightMoves: (settings: SettingValues) => KnightMoves;
+  /** Replaces a captured piece as the capturer arrives. */
+  CaptureFx: ComponentType<CaptureFxProps>;
+  /** Shown around the mated king once the game ends (he topples too). */
+  Celebration: ComponentType<CelebrationProps>;
   /**
-   * How long the result card waits after a mate played live, so the design's
-   * mate animation plays out first (default 1800 ms, for designs with a
-   * Celebration or a toppling king). A function reads the player's settings.
+   * How long the result card waits after a mate played live, so the mate
+   * animation plays out first, from the player's settings.
    */
-  resultDelayMs?: number | ((settings: SettingValues) => number);
+  resultDelayMs: (settings: SettingValues) => number;
   /**
-   * Lift a piece the player may pick up off its floor when the pointer is on
-   * it, and the selected piece higher. `true` takes the kit's heights and
-   * holds the selected piece still; a PieceLift sets the heights and, if
-   * wanted, a gentle bob while selected and eased rises of a set length; a
-   * function reads them from the player's settings. Leave it off to stage
-   * hover and selection in the piece body instead (PieceBodyProps.hovered,
-   * .selected).
+   * How far a piece the player may pick up rises off its floor when the
+   * pointer is on it, and the selected piece higher, from the player's
+   * settings.
    */
-  hoverLift?: boolean | PieceLift | ((settings: SettingValues) => PieceLift);
+  hoverLift: (settings: SettingValues) => PieceLift;
   /**
-   * Track the pointer over legal destinations, so the Quiet and Capture
-   * markers get `hovered` and can brighten under it.
+   * Uniform scale of every piece about its base. Staunton pieces stand up to
+   * 0.87 tall at 1; the compact tower wants them shorter.
    */
-  hoverDestinations?: boolean;
-  /**
-   * Uniform scale of every piece about its base (default 1). Staunton
-   * pieces stand up to 0.87 tall at 1; a compact tower wants them shorter.
-   */
-  pieceScale?: number;
+  pieceScale: number;
   hud: DesignHud;
   /**
    * Visual settings the player may adjust in the settings panel, each with
    * the design's chosen default. Read them with useDesignSetting (settings.ts).
    */
-  settings?: SettingSpec[];
+  settings: SettingSpec[];
 }
 
-/**
- * How Board lifts pieces (Design.hoverLift). Heights are in piece units
- * (before `pieceScale`).
- */
+/** How Board lifts pieces (Design.hoverLift). Heights are in piece units (before `pieceScale`). */
 export interface PieceLift {
-  /** Under the pointer (default 0.08). */
-  hover?: number;
-  /** Selected (default 0.2). */
-  selected?: number;
-  /**
-   * How far the selected piece bobs up and down while held (default 0:
-   * still). The round-2 designs use SELECTION_BOB from kit/motion.
-   */
-  bob?: number;
+  /** Under the pointer. */
+  hover: number;
+  /** Selected. */
+  selected: number;
   /**
    * Seconds a piece takes to rise to its hover height or settle from it,
-   * setting off at once and slowing into the target without passing it
-   * (default 0: a quick ease that slows as it arrives).
+   * setting off at once and slowing into the target without passing it.
    */
-  hoverSeconds?: number;
+  hoverSeconds: number;
   /**
    * The same for a rise to the selected height or a fall from it (so
-   * hover to held and back both take it; default 0).
+   * hover to held and back both take it).
    */
-  selectSeconds?: number;
+  selectSeconds: number;
 }

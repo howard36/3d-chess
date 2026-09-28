@@ -7,11 +7,11 @@ import type { Vec3 } from './mesh';
 import { arc, corner, revolve, sampleProfile } from './profile';
 import type { Profile, ProfileNode, RevolveOptions } from './profile';
 
-// The shared Staunton set (round 3). Every piece is modelled base-at-y=0,
-// facing +x (the knight's muzzle, the bishop's cut), inside the envelope the
-// layouts assume: the king stands 0.87 tall and no base is wider than 0.27
-// in radius. Each piece is a few closed shells, merged into one geometry per
-// part so a design can paint the parts differently:
+// The Staunton set. Every piece is modelled base-at-y=0, facing +x (the
+// knight's muzzle, the bishop's cut), inside the envelope the layout assumes:
+// the king stands 0.87 tall and no base is wider than 0.27 in radius. Each
+// piece is a few closed shells, merged into one geometry per part so the
+// parts can be painted differently:
 //
 //   foot    a thin band at the very bottom (y 0 to FOOT_HEIGHT): paint it in
 //           the colour of the piece's level, or like the body
@@ -24,8 +24,8 @@ import type { Profile, ProfileNode, RevolveOptions } from './profile';
 //           by its carved relief alone, so an accent painted like the body
 //           loses nothing that matters.
 //
-// The turned shells come from PROFILES (exported, so a design can derive
-// its own cut); the knight's head is sculpted (knight.ts).
+// The turned shells come from PROFILES (exported: the scenery draws the
+// pieces' outlines from them); the knight's head is sculpted (knight.ts).
 
 export type PiecePart = 'body' | 'collar' | 'accent' | 'foot';
 export type PieceParts = Record<'body' | 'collar' | 'foot', BufferGeometry> & {
@@ -409,45 +409,21 @@ const DETAIL: Record<PieceQuality, Detail> = {
   high: { segments: 48, tolerance: 0.0004, step: 0.0065, knight: 14000 },
 };
 
-export interface PieceSetOptions {
-  /** Mesh density: 'medium' (the default) is sized for 40 pieces on screen. */
-  quality?: PieceQuality;
-  /** Override the sides of every turned shell (a handful gives a faceted, cut-gem look). */
-  segments?: number;
-  /** Replace any of the turned profiles (see PROFILES). */
-  profiles?: Partial<PieceProfiles>;
-  /**
-   * Reshape every turned shell: gets a point's radius and height (and the
-   * piece), returns the radius to use. E.g. slimmer stems:
-   * `(r, y) => r * (1 - 0.25 * bump(y, 0.15, 0.45))`.
-   */
-  radius?: (r: number, y: number, type: PieceType) => number;
-}
-
 // --- Builders --------------------------------------------------------------------
 
 interface Ctx {
   d: Detail;
   segments: number;
   profiles: PieceProfiles;
-  radius?: PieceSetOptions['radius'];
 }
 
-const turn = (
-  c: Ctx,
-  type: PieceType,
-  profile: Profile,
-  opts: Partial<RevolveOptions> = {},
-): BufferGeometry => {
-  const pts = sampleProfile(profile, c.d.tolerance).map(([r, y]): [number, number] => [
-    c.radius ? c.radius(r, y, type) : r,
-    y,
-  ]);
+const turn = (c: Ctx, profile: Profile, opts: Partial<RevolveOptions> = {}): BufferGeometry => {
+  const pts = sampleProfile(profile, c.d.tolerance);
   return revolve(pts, { ...opts, segments: opts.segments ?? c.segments });
 };
 
 const footOf = (c: Ctx, type: PieceType) =>
-  turn(c, type, foot(c.profiles.radius[type]), { segments: Math.max(c.segments, 16) });
+  turn(c, foot(c.profiles.radius[type]), { segments: Math.max(c.segments, 16) });
 
 /**
  * A closed ring swept from a closed (r, y) cross-section through `sweep`
@@ -490,8 +466,8 @@ const sector = (
 };
 
 const pawn = (c: Ctx): PieceParts => ({
-  body: mergeShells([turn(c, PieceType.Pawn, c.profiles.pawn.body)]),
-  collar: mergeShells([turn(c, PieceType.Pawn, c.profiles.pawn.collar)]),
+  body: mergeShells([turn(c, c.profiles.pawn.body)]),
+  collar: mergeShells([turn(c, c.profiles.pawn.collar)]),
   foot: mergeShells([footOf(c, PieceType.Pawn)]),
 });
 
@@ -511,11 +487,11 @@ const rook = (c: Ctx): PieceParts => {
     ),
   ).flat();
   return {
-    body: mergeShells([turn(c, PieceType.Rook, c.profiles.rook.body), ...merlons]),
-    collar: mergeShells([turn(c, PieceType.Rook, c.profiles.rook.collar)]),
+    body: mergeShells([turn(c, c.profiles.rook.body), ...merlons]),
+    collar: mergeShells([turn(c, c.profiles.rook.collar)]),
     // The crenels' floors and the hollow inside the turret: painted dark,
     // they show the crenellation from above
-    accent: mergeShells([turn(c, PieceType.Rook, c.profiles.rook.well)]),
+    accent: mergeShells([turn(c, c.profiles.rook.well)]),
     foot: mergeShells([footOf(c, PieceType.Rook)]),
   };
 };
@@ -524,8 +500,8 @@ const knight = (c: Ctx): PieceParts => {
   const k = buildKnight(c.d.step, c.d.knight);
   return {
     // The mane and the eyes are the accent
-    body: mergeShells([turn(c, PieceType.Knight, c.profiles.knight.body), k.head]),
-    collar: mergeShells([turn(c, PieceType.Knight, c.profiles.knight.collar)]),
+    body: mergeShells([turn(c, c.profiles.knight.body), k.head]),
+    collar: mergeShells([turn(c, c.profiles.knight.collar)]),
     accent: mergeShells([k.mane, k.eyes]),
     foot: mergeShells([footOf(c, PieceType.Knight)]),
   };
@@ -547,18 +523,18 @@ const bishop = (c: Ctx): PieceParts => {
   const p = c.profiles.bishop;
   // The mitre is cut at twice the turned resolution: its surface carries the
   // slot's edges, which want the extra rings
-  const mitre = turn(c, PieceType.Bishop, p.mitre, { segments: Math.round(c.segments * 1.5) });
+  const mitre = turn(c, p.mitre, { segments: Math.round(c.segments * 1.5) });
   const { body: cutMitre, cut } = cutSlot(mitre, MITRE_CUT);
   mitre.dispose();
   // The whole cut is the accent, floor and walls: the floor is the face an
   // elevated camera sees, so it carries the band at game size
   return {
     body: mergeShells([
-      turn(c, PieceType.Bishop, p.body),
+      turn(c, p.body),
       cutMitre,
-      turn(c, PieceType.Bishop, p.finial, { segments: Math.max(8, Math.round(c.segments * 0.75)) }),
+      turn(c, p.finial, { segments: Math.max(8, Math.round(c.segments * 0.75)) }),
     ]),
-    collar: mergeShells([turn(c, PieceType.Bishop, p.collar), turn(c, PieceType.Bishop, p.bead)]),
+    collar: mergeShells([turn(c, p.collar), turn(c, p.bead)]),
     accent: mergeShells(cut),
     foot: mergeShells([footOf(c, PieceType.Bishop)]),
   };
@@ -702,12 +678,8 @@ const hornSpiral = (c: Ctx): BufferGeometry => {
 const unicorn = (c: Ctx): PieceParts => {
   const p = c.profiles.unicorn;
   return {
-    body: mergeShells([
-      turn(c, PieceType.Unicorn, p.body),
-      turn(c, PieceType.Unicorn, p.socket),
-      hornCone(c),
-    ]),
-    collar: mergeShells([turn(c, PieceType.Unicorn, p.collar)]),
+    body: mergeShells([turn(c, p.body), turn(c, p.socket), hornCone(c)]),
+    collar: mergeShells([turn(c, p.collar)]),
     accent: mergeShells([hornSpiral(c)]),
     foot: mergeShells([footOf(c, PieceType.Unicorn)]),
   };
@@ -729,7 +701,7 @@ const queen = (c: Ctx): PieceParts => {
     return Math.abs(2 * f - 1) ** 1.2;
   };
   const lift = (theta: number, y: number) => rise * point(theta) * ramp(from, to, y);
-  const cup = turn(c, PieceType.Queen, p.crown, {
+  const cup = turn(c, p.crown, {
     // Six sides per tine: one at each tip and each notch
     segments: tines * 6,
     modulate: (theta, _row, r, y) => {
@@ -755,8 +727,8 @@ const queen = (c: Ctx): PieceParts => {
     );
   });
   return {
-    body: mergeShells([turn(c, PieceType.Queen, p.body), cup, turn(c, PieceType.Queen, p.dome)]),
-    collar: mergeShells([turn(c, PieceType.Queen, p.collar)]),
+    body: mergeShells([turn(c, p.body), cup, turn(c, p.dome)]),
+    collar: mergeShells([turn(c, p.collar)]),
     accent: mergeShells(pearls),
     foot: mergeShells([footOf(c, PieceType.Queen)]),
   };
@@ -821,7 +793,7 @@ const KING_FLUTES = { count: 16, depth: 0.05, from: 0.575, to: 0.653 };
 const king = (c: Ctx): PieceParts => {
   const p = c.profiles.king;
   const { count, depth, from, to } = KING_FLUTES;
-  const crown = turn(c, PieceType.King, p.crown, {
+  const crown = turn(c, p.crown, {
     // Enough sides to carry the flutes
     segments: count * Math.max(2, Math.round(c.segments / 6)),
     modulate: (theta, _row, r, y) => {
@@ -831,8 +803,8 @@ const king = (c: Ctx): PieceParts => {
     },
   });
   return {
-    body: mergeShells([turn(c, PieceType.King, p.body), crown, turn(c, PieceType.King, p.cap)]),
-    collar: mergeShells([turn(c, PieceType.King, p.collar)]),
+    body: mergeShells([turn(c, p.body), crown, turn(c, p.cap)]),
+    collar: mergeShells([turn(c, p.collar)]),
     accent: mergeShells(kingCross(c)),
     foot: mergeShells([footOf(c, PieceType.King)]),
   };
@@ -848,20 +820,12 @@ const BUILDERS: Record<PieceType, (c: Ctx) => PieceParts> = {
   [PieceType.King]: king,
 };
 
-/**
- * A whole set (every piece, every part), each piece built on first use.
- * Prefer `pieceSet`, which shares one per quality.
- */
-export const buildPieceSet = (options: PieceSetOptions = {}): PieceSet => {
-  const d = DETAIL[options.quality ?? 'medium'];
-  const c: Ctx = {
-    d,
-    segments: options.segments ?? d.segments,
-    profiles: { ...PROFILES, ...options.profiles },
-    radius: options.radius,
-  };
-  // Each piece is built when it is first asked for, then kept: a design or
-  // a test that draws only pawns never pays for the sculpted knight
+/** A whole set (every piece, every part), each piece built on first use. */
+const buildPieceSet = (quality: PieceQuality): PieceSet => {
+  const d = DETAIL[quality];
+  const c: Ctx = { d, segments: d.segments, profiles: PROFILES };
+  // Each piece is built when it is first asked for, then kept: a test that
+  // draws only pawns never pays for the sculpted knight
   const set = {} as PieceSet;
   for (const type of Object.values(PieceType)) {
     let parts: PieceParts | undefined;
@@ -876,13 +840,13 @@ export const buildPieceSet = (options: PieceSetOptions = {}): PieceSet => {
 const shared = new Map<PieceQuality, PieceSet>();
 
 /**
- * The shared set at a quality, built on first use and reused by every
- * design and piece: never dispose or edit these geometries (clone first).
+ * The set at a quality, built on first use and shared by every piece: never
+ * dispose or edit these geometries (clone first).
  */
 export const pieceSet = (quality: PieceQuality = 'medium'): PieceSet => {
   let set = shared.get(quality);
   if (!set) {
-    set = buildPieceSet({ quality });
+    set = buildPieceSet(quality);
     shared.set(quality, set);
   }
   return set;

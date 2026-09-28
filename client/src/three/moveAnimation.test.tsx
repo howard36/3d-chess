@@ -3,49 +3,30 @@ import { act } from 'react';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
 import { Vector3 } from 'three';
-import type { Group, Mesh } from 'three';
+import type { Group, Object3D } from 'three';
 import { MoveGlide } from './moveAnimation';
-import {
-  FLOOR_DECAL,
-  easeLift,
-  LIFT_DEFAULTS,
-  Lift,
-  liftEntry,
-  ON_FLOOR,
-  pieceLift,
-  SELECTION_BOB,
-  Topple,
-  useGlide,
-} from './designs/kit/motion';
-import type { DesignMotion } from './designs/types';
+import { easeLift, Lift, liftEntry, ON_FLOOR, Topple, useGlide } from './designs/kit/motion';
 
 type Vec = { x: number; y: number; z: number };
 const FROM: [number, number, number] = [0, 0, 2];
 const TO: [number, number, number] = [0, 0, 0];
 
-async function glide(motion: DesignMotion, arc = 0, from = FROM) {
+async function glide(arc = 0, from = FROM) {
   const renderer = await ReactThreeTestRenderer.create(
-    <MoveGlide from={from} to={TO} motion={motion} floorY={-0.5} arc={arc}>
+    <MoveGlide from={from} to={TO} durationMs={300} arc={arc}>
       <mesh userData={{ body: true }} />
     </MoveGlide>,
   );
   const scene = renderer.scene as ReactThreeTestInstance;
   const outer = scene.findAll((n) => n.props.userData?.moveGlide === true)[0]
     .instance as unknown as Group;
-  // The scaling group sits between the glide and the piece (bounce, teleport)
-  const scaler = () => {
-    let g = (scene.findAll((n) => n.props.userData?.body === true)[0].instance as unknown as Group)
-      .parent;
-    while (g && g !== outer && g.scale.x === 1 && g.scale.y === 1) g = g.parent;
-    return g === outer ? null : g;
-  };
   const frames = (n: number) => act(async () => renderer.advanceFrames(n, 0.03));
-  return { outer, scaler, frames, pos: () => outer.position as Vec };
+  return { outer, frames, pos: () => outer.position as Vec };
 }
 
-describe('MoveGlide styles', () => {
+describe('MoveGlide', () => {
   it('slides in a straight line, without lifting', async () => {
-    const { frames, pos } = await glide({ style: 'slide', durationMs: 300, lift: 0.5 });
+    const { frames, pos } = await glide();
     expect(pos().z).toBeCloseTo(2);
     await frames(5);
     expect(pos().y).toBe(0);
@@ -55,54 +36,28 @@ describe('MoveGlide styles', () => {
     expect(pos()).toMatchObject({ x: 0, y: 0, z: 0 });
   });
 
-  it('teleports: shrinks away at the source, pops in at the destination', async () => {
-    const { frames, pos, scaler } = await glide({ style: 'teleport', durationMs: 300, lift: 0 });
-    await frames(3); // ~90ms: still at the source, shrinking
-    expect(pos().z).toBeCloseTo(2);
-    expect(scaler()!.scale.x).toBeLessThan(1);
-    await frames(3); // ~180ms: already home, growing back
-    expect(pos().z).toBe(0);
-    await frames(6);
-    expect(scaler()).toBeNull(); // back to full size
-  });
-
-  it('glides every style but teleport in a straight line, even between levels', async () => {
-    for (const style of ['hop', 'slide', 'bounce'] as const) {
-      // Two levels up and two ranks back: the offset shrinks along one line
-      const { frames, pos } = await glide({ style, durationMs: 300, lift: 0.6 }, 0, [0, 2, 2]);
-      for (let i = 0; i < 9; i++) {
-        await frames(1);
-        const { x, y, z } = pos();
-        expect(x).toBe(0);
-        expect(y).toBeCloseTo(z, 6);
-        expect(z).toBeGreaterThanOrEqual(0);
-        expect(z).toBeLessThanOrEqual(2);
-      }
+  it('glides in a straight line even between levels', async () => {
+    // Two levels up and two ranks back: the offset shrinks along one line
+    const { frames, pos } = await glide(0, [0, 2, 2]);
+    for (let i = 0; i < 9; i++) {
+      await frames(1);
+      const { x, y, z } = pos();
+      expect(x).toBe(0);
+      expect(y).toBeCloseTo(z, 6);
+      expect(z).toBeGreaterThanOrEqual(0);
+      expect(z).toBeLessThanOrEqual(2);
     }
   });
 
   it('arcs a knight over a constant height above the line, whatever the level change', async () => {
     for (const from of [FROM, [0, 2, 1] as [number, number, number]]) {
-      const { frames, pos } = await glide({ style: 'hop', durationMs: 300 }, 0.6, from);
+      const { frames, pos } = await glide(0.6, from);
       // Halfway through the glide (the ease is symmetric): the arc's peak
       await frames(5);
       expect(pos().y - from[1] / 2).toBeCloseTo(0.6, 1);
       await frames(8);
       expect(pos()).toMatchObject({ x: 0, y: 0, z: 0 });
     }
-  });
-
-  it('bounces: squashes on landing and settles back to shape', async () => {
-    const { frames, pos, scaler } = await glide({ style: 'bounce', durationMs: 300, lift: 0.6 });
-    await frames(5);
-    expect(pos().y).toBe(0); // gliding, not lifted
-    expect(scaler()).not.toBeNull(); // stretched as it travels
-    await frames(6); // landed, squashing
-    expect(pos().z).toBeCloseTo(0);
-    expect(scaler()).not.toBeNull();
-    await frames(12);
-    expect(scaler()).toBeNull();
-    expect(pos()).toMatchObject({ x: 0, y: 0, z: 0 });
   });
 });
 
@@ -114,13 +69,7 @@ describe('useGlide', () => {
       return <mesh />;
     };
     const renderer = await ReactThreeTestRenderer.create(
-      <MoveGlide
-        from={FROM}
-        to={TO}
-        motion={{ style: 'slide', durationMs: 300 }}
-        fromLevel={0}
-        toLevel={2}
-      >
+      <MoveGlide from={FROM} to={TO} durationMs={300} fromLevel={0} toLevel={2}>
         <Body />
       </MoveGlide>,
     );
@@ -149,18 +98,23 @@ describe('useGlide', () => {
 });
 
 describe('Lift and Topple', () => {
-  it('raises a lifted piece and lowers it again', async () => {
+  it('raises a lifted piece, holds it still, and lowers it again', async () => {
     const renderer = await ReactThreeTestRenderer.create(
-      <Lift height={0.2}>
+      <Lift height={0.2} seconds={0.3}>
         <mesh />
       </Lift>,
     );
     const group = () =>
       (renderer.scene as ReactThreeTestInstance).children[0].instance as unknown as Group;
     await act(async () => renderer.advanceFrames(30, 0.03));
-    expect(group().position.y).toBeGreaterThan(0.12);
+    const held: number[] = [];
+    for (let i = 0; i < 30; i++) {
+      await act(async () => renderer.advanceFrames(1, 0.03));
+      held.push(group().position.y);
+    }
+    expect(new Set(held)).toEqual(new Set([0.2]));
     await renderer.update(
-      <Lift height={0}>
+      <Lift height={0} seconds={0.3}>
         <mesh />
       </Lift>,
     );
@@ -168,34 +122,9 @@ describe('Lift and Topple', () => {
     expect(group().position.y).toBe(0);
   });
 
-  it('holds a lifted piece still, and bobs it only when asked', async () => {
-    const heights = async (bob?: number) => {
-      const renderer = await ReactThreeTestRenderer.create(
-        <Lift height={0.2} bob={bob}>
-          <mesh />
-        </Lift>,
-      );
-      const group = (renderer.scene as ReactThreeTestInstance).children[0]
-        .instance as unknown as Group;
-      await act(async () => renderer.advanceFrames(40, 0.03));
-      const seen: number[] = [];
-      // A little over one bob (about two seconds)
-      for (let i = 0; i < 70; i++) {
-        await act(async () => renderer.advanceFrames(1, 0.03));
-        seen.push(group.position.y);
-      }
-      return seen;
-    };
-    const still = await heights();
-    expect(new Set(still)).toEqual(new Set([0.2]));
-    const bobbing = await heights(SELECTION_BOB);
-    expect(Math.max(...bobbing) - Math.min(...bobbing)).toBeGreaterThan(SELECTION_BOB);
-    for (const y of bobbing) expect(Math.abs(y - 0.2)).toBeLessThanOrEqual(SELECTION_BOB + 1e-3);
-  });
-
   it('keeps ON_FLOOR decoration on the floor while the piece lifts, through any scale', async () => {
     const renderer = await ReactThreeTestRenderer.create(
-      <Lift height={0.2}>
+      <Lift height={0.2} seconds={0.3}>
         <group scale={0.5}>
           <group userData={{ ...ON_FLOOR, ring: true }} />
         </group>
@@ -213,27 +142,6 @@ describe('Lift and Topple', () => {
     }
     expect(worldY('body')).toBeGreaterThan(0.12);
     expect(find('ring').userData.floorDecal).toBe(true);
-  });
-
-  it('fills in a design’s piece lift: no bob unless it opts in', () => {
-    expect(pieceLift(undefined)).toBeNull();
-    expect(pieceLift(false)).toBeNull();
-    expect(pieceLift(true)).toEqual(LIFT_DEFAULTS);
-    expect(LIFT_DEFAULTS.bob).toBe(0);
-    expect(pieceLift({ bob: SELECTION_BOB })).toEqual({ ...LIFT_DEFAULTS, bob: SELECTION_BOB });
-    expect(pieceLift({ selected: 0.3 })).toEqual({ ...LIFT_DEFAULTS, selected: 0.3 });
-    // A lift drawn from the player's settings
-    const fromSettings = (s: Record<string, unknown>) => ({
-      hover: Number(s.hover),
-      selected: Number(s.hover) + 0.07,
-      selectSeconds: 0.5,
-    });
-    expect(pieceLift(fromSettings, { hover: 0.1 })).toEqual({
-      ...LIFT_DEFAULTS,
-      hover: 0.1,
-      selected: 0.1 + 0.07,
-      selectSeconds: 0.5,
-    });
   });
 
   /** A timed Lift driven through a list of [height, seconds, frames] steps, its height each frame. */
@@ -352,13 +260,13 @@ describe('Lift and Topple', () => {
     const King = ({ down }: { down: boolean }) => (
       <Topple active={down}>
         <mesh name="body" />
-        <mesh name="ring" userData={FLOOR_DECAL} />
+        <group name="ring" userData={ON_FLOOR} />
       </Topple>
     );
     const renderer = await ReactThreeTestRenderer.create(<King down={false} />);
     const find = (name: string) =>
       (renderer.scene as ReactThreeTestInstance).find((n) => n.props.name === name)
-        .instance as unknown as Mesh;
+        .instance as unknown as Object3D;
     await act(async () => renderer.advanceFrames(2, 0.03));
     expect(find('ring').visible).toBe(true);
 
