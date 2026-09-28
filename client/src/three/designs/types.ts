@@ -221,6 +221,9 @@ export type HudVars = Partial<
     | '--turn-bg'
     | '--turn-fg'
     | '--turn-size'
+    // The turn chip's own face and weight (default: --hud-font, 600)
+    | '--turn-font'
+    | '--turn-weight'
     | '--turn-border'
     | '--turn-shadow'
     | '--modal-radius'
