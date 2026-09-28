@@ -70,6 +70,7 @@ const fragmentShader = /* glsl */ `
   uniform float uPhase;
   uniform float uPulse;
   uniform float uShow;
+  uniform float uLine;
   varying vec2 vP;
   ${HEXAGON_SDF}
   // A hexagon with softly rounded corners
@@ -113,7 +114,7 @@ const fragmentShader = /* glsl */ `
       // in glass; under the pointer it gains weight and reaches in
       float depth = mix(0.45, 1.0, smoothstep(0.0, R, r * (1.0 - 0.4 * uHover)));
       float fill = inside * uFill * (1.0 + 2.4 * uHover) * depth;
-      float lineA = max(line * 0.9, halo) * uOpacity;
+      float lineA = max(line * 0.9, halo) * uOpacity * uLine;
       a = lineA + fill * (1.0 - lineA);
       col = (uColor * lineA + uFillColor * fill * (1.0 - lineA)) / max(a, 1e-4);
       // The level's own colour at the heart: a small hexagon of it
@@ -211,6 +212,7 @@ const makeMark = (o: MarkOptions) =>
       uPhase: { value: o.phase ?? 0 },
       uPulse: { value: 0 },
       uShow: { value: 1 },
+      uLine: { value: 1 },
     },
     vertexShader,
     fragmentShader,
@@ -362,6 +364,9 @@ const useNesting = (
     if (u.uR.value !== r) u.uR.value = r;
     u.uGemR.value = gem * (1 - s * (1 - lead));
     if (!halo) return;
+    // A destination off the level in play is drawn as its fill alone: a
+    // stack of them reads as one crisp hexagon (the lead's) over deeper light
+    u.uLine.value = 1 - 0.75 * s * (1 - lead);
     const column = overHeld(floor) ? s : 0;
     u.uShow.value = 1 - column;
     halo.uniforms.uAlpha.value =
@@ -604,7 +609,7 @@ export const Check = ({ floor, mated = false }: MarkerProps) => {
     p.uPulse.value = (1 - t) ** 2;
     // The crown drops in, flashes, and settles; then turns very slowly
     const c = Math.min(since.current / 450, 1);
-    crown.uniforms.uOpacity.value = 0.75 * (1 - (1 - c) ** 2) * (1 - f);
+    crown.uniforms.uOpacity.value = 0.9 * (1 - (1 - c) ** 2) * (1 - f);
     crown.uniforms.uFlash.value = 1.2 * (1 - t) ** 2;
     if (spin.current) {
       spin.current.rotation.y = time.current * 0.25;

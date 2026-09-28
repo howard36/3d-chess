@@ -88,6 +88,7 @@ const ceramicFragment = /* glsl */ `
   uniform vec3 uCrown;
   uniform float uCrownMix;
   uniform float uCrownPower;
+  uniform vec3 uLow;
   varying vec3 vN;
   varying vec3 vW;
   varying float vY;
@@ -116,6 +117,8 @@ const ceramicFragment = /* glsl */ `
     float crown = pow(1.0 - abs(dot(n, v)), uCrownPower) * fromAbove;
     crown *= smoothstep(0.55, 0.75, vY / uTop);
     col = mix(col, uCrown, clamp(uCrownMix * crown, 0.0, 1.0));
+    // A faint light shining up from the pane onto the foot (check's red)
+    col += uLow * pow(1.0 - clamp(vY / (uTop * 0.45), 0.0, 1.0), 1.5);
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -144,6 +147,8 @@ interface CeramicOptions {
   top?: number;
   /** A state's light on the edge of the top third (hover, check). */
   crown?: { color: string; mix: number; power: number };
+  /** Light shining up onto the foot from the pane (check). */
+  low?: Color;
 }
 
 const ceramic = (o: CeramicOptions) =>
@@ -165,6 +170,7 @@ const ceramic = (o: CeramicOptions) =>
       uCrown: { value: new Color(o.crown?.color ?? '#000000') },
       uCrownMix: { value: o.crown?.mix ?? 0 },
       uCrownPower: { value: o.crown?.power ?? 2 },
+      uLow: { value: o.low ?? new Color(0, 0, 0) },
     },
     vertexShader: ceramicVertex,
     fragmentShader: ceramicFragment,
@@ -227,6 +233,8 @@ const makeBody = (side: PieceColor, glow: Glow, type: PieceType) => {
     spec: look.spec,
     top: pieceTop(pieceSet(), type),
     crown,
+    // In check, the king's red platform lights his foot a little
+    low: glow === 'check' ? new Color(PALETTE.check).multiplyScalar(0.12) : undefined,
   });
 };
 
@@ -529,6 +537,8 @@ const coneFragment = /* glsl */ `
     float edge = pow(1.0 - facing, 2.4);
     // Rising from the pane, fading upward and at its (growing) top
     float fade = pow(1.0 - vH, 2.4) * (1.0 - smoothstep(uReach - 0.45, uReach, vH));
+    // No rim: the edge light gives out over the top 30% of its reach
+    edge *= 1.0 - smoothstep(0.7 * uReach, uReach, vH);
     // Projected light: fine striations round the cone, drifting very slowly
     float rays = 0.5 + 0.5 * sin(vAngle * 18.0 + 1.7 * sin(vAngle * 5.0 + uTime * 0.2));
     rays = mix(0.78, 1.0, rays);

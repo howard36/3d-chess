@@ -30,9 +30,10 @@ import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 //
 // Looking straight down the stack, the five checkers nest at five scales:
 // the level in play (the hovered or selected level, else the top one) keeps
-// its full strength and draws the one crisp 5×5 grid; the others keep their
-// checker as tone (a little quieter) while their threads and frames step
-// well back, all alike, so no plaid forms. From the side, all five are equal.
+// its full strength; the others, all alike, keep their grids as fine
+// hairlines in their own pure hue (no halo), with their fills stepping well
+// back, so every level's 5×5 can be counted and no plaid forms (Orbital's
+// balance). From the side, all five are equal.
 
 const vertexShader = /* glsl */ `
   varying vec2 vP;
@@ -48,6 +49,7 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uSmoke;
   uniform vec3 uFrost;
   uniform vec3 uThreadColor;
+  uniform vec3 uHue;
   uniform float uHalf;
   uniform float uEdge;
   uniform float uPitch;
@@ -82,10 +84,12 @@ const fragmentShader = /* glsl */ `
     float light = mod(ci.x + ci.y + uLevel, 2.0) * onBoard;
     float focus = 1.0 + 0.25 * uFocus;
     float dim = 1.0 - uDim;
-    // Looking down the stack, the five checkers nest at five scales; the level
-    // in play (the top one, with none) keeps its full strength, and the
-    // others step back a little, every square still showing
-    float back = 1.0 - 0.35 * uSteep * (1.0 - uKeep);
+    // Looking down the stack, the five checkers nest at five scales. The
+    // level in play (the top one, with none) keeps its full strength; the
+    // others are carried by their lines (below), their fills stepping well
+    // back, since stacked fills are what turn murky (Orbital's balance)
+    float away = uSteep * (1.0 - uKeep);
+    float back = 1.0 - 0.6 * away;
 
     // Smoked glass: a veil over the whole pane, deeper on the dark squares;
     // frost on the light squares
@@ -98,7 +102,8 @@ const fragmentShader = /* glsl */ `
     vec2 uv = cell;
     vec4 dd = vec4(dFdx(uv), dFdy(uv));
     vec2 deriv = max(vec2(length(dd.xz), length(dd.yw)), vec2(1e-6));
-    vec2 target = vec2(uWidth);
+    // (from above, the levels not in play draw finer hairlines)
+    vec2 target = vec2(uWidth * mix(1.0, 0.8, away));
     vec2 draw = clamp(target, deriv, vec2(0.5));
     vec2 aa = deriv * 1.5;
     vec2 g = 1.0 - abs(fract(uv) * 2.0 - 1.0);
@@ -117,13 +122,16 @@ const fragmentShader = /* glsl */ `
     vec2 dist = g * 0.5 * uPitch;
     vec2 halo = exp(-(dist * dist) / (0.045 * 0.045)) * inner * span;
     float glow = max(halo.x, halo.y) * 0.1;
-    // Wide halos alias into a haze far away; they fade with their footprint
-    glow *= 1.0 - smoothstep(0.06, 0.2, max(deriv.x, deriv.y));
+    // Wide halos alias into a haze far away; they fade with their footprint,
+    // and from above, off the level in play, where they would haze into a plaid
+    glow *= (1.0 - smoothstep(0.06, 0.2, max(deriv.x, deriv.y))) * (1.0 - away);
 
-    // From above, every level but the one in play thins its threads a little
-    float keep = 1.0 - 0.8 * uSteep * (1.0 - uKeep);
+    // From above, every level but the one in play keeps its grid as hairlines
+    // of its own pure hue (teal, azure, periwinkle, violet, orchid), so each
+    // level's 5×5 can still be counted and told from the others
+    float keep = 1.0 - 0.4 * away;
     float lit = (thread + glow) * uThread * keep * (1.0 + 0.3 * uFocus) * dim;
-    c = over(c, uThreadColor, min(lit, 1.0));
+    c = over(c, mix(uThreadColor, uHue, away), min(lit, 1.0));
 
     if (c.a < 0.003) discard;
     gl_FragColor = vec4(c.rgb / c.a, c.a);
@@ -170,6 +178,7 @@ export const HoloPanes = ({ focusLevel }: { focusLevel: number | null }) => {
               uSmoke: { value: new Color(c).multiplyScalar(0.1) },
               uFrost: { value: new Color(c).lerp(WHITE, 0.35) },
               uThreadColor: { value: new Color(c).lerp(WHITE, 0.3) },
+              uHue: { value: new Color(c) },
               uHalf: { value: FRAME.half },
               uEdge: { value: edge },
               uPitch: { value: FRAME.pitch },

@@ -41,7 +41,7 @@ import {
   WALL_HEIGHT,
   WALL_RADIUS,
 } from './drawings';
-import { TOWER_MASK, withTowerMask } from './mask';
+import { TOWER_MASK, towerCoverAt, withTowerMask } from './mask';
 import { rig } from './pieces';
 import { APERTURE, FLOOR_Y, FRAME, PALETTE, TABLE_RADIUS, TABLE_Y } from './palette';
 
@@ -187,17 +187,20 @@ const FramedPositions = () => {
 // --- The floor --------------------------------------------------------------------------
 
 // The sculptures, round the room (degrees, from +z toward +x; the opening
-// view looks from 16° toward 196°): six, about sixty degrees apart, so every
-// side of the room has one; the knight and the king stand either side of the
-// tower as the game opens, clear of its labels
+// view looks from 16° toward 196°): six, spread evenly but for the pair that
+// frames the tower as the game opens, the knight and the king, set wide
+// enough to stand clear of the tower and its level letters
 const SCULPTURES: { angle: number; radius: number; type: PieceType }[] = [
-  { angle: 158, radius: 16.5, type: PieceType.Knight },
-  { angle: 234, radius: 16.5, type: PieceType.King },
-  { angle: 294, radius: 17.5, type: PieceType.Rook },
-  { angle: 354, radius: 17, type: PieceType.Queen },
-  { angle: 38, radius: 17.5, type: PieceType.Bishop },
-  { angle: 98, radius: 17, type: PieceType.Unicorn },
+  { angle: 142, radius: 16.5, type: PieceType.Knight },
+  { angle: 250, radius: 16.5, type: PieceType.King },
+  { angle: 300, radius: 17.5, type: PieceType.Rook },
+  { angle: 351, radius: 17, type: PieceType.Queen },
+  { angle: 41, radius: 17.5, type: PieceType.Bishop },
+  { angle: 92, radius: 17, type: PieceType.Unicorn },
 ];
+
+/** How strongly each sculpture's pool shows: it goes with the sculpture (Sculptures). */
+const lampK = SCULPTURES.map(() => 1);
 
 /** Soft pools of light on the floor (x, z, radius), under the sculptures. */
 const LAMPS = SCULPTURES.map(({ angle, radius }) => {
@@ -223,6 +226,7 @@ const floorMaskedVertex = /* glsl */ `
   uniform vec3 uLight;
   uniform vec3 uLamp;
   uniform vec3 uLamps[6];
+  uniform float uLampK[6];
   uniform float uTable;
   varying vec2 vP;
   varying float vCover;
@@ -252,7 +256,7 @@ const floorMaskedVertex = /* glsl */ `
     float lamps = 0.0;
     for (int i = 0; i < 6; i++) {
       vec2 dl = o - uLamps[i].xy;
-      lamps += exp(-dot(dl, dl) / (uLamps[i].z * uLamps[i].z));
+      lamps += exp(-dot(dl, dl) / (uLamps[i].z * uLamps[i].z)) * uLampK[i];
     }
     vGlow = (uLight * pool * 0.045 + uLamp * lamps * 0.035) * (1.0 - vCover);
     gl_Position = projectionMatrix * viewMatrix * w;
@@ -316,6 +320,7 @@ const Floor = () => {
           uWall: { value: new Vector3(WALL_RADIUS, FLOOR_Y, WALL_HEIGHT) },
           uLamp: { value: new Color(PALETTE.lamp) },
           uLamps: { value: LAMPS },
+          uLampK: { value: lampK },
         },
         vertexShader: floorMaskedVertex,
         fragmentShader: floorFragment,
@@ -663,49 +668,83 @@ const wireOf = (type: PieceType): BufferGeometry => {
 const SCULPTURE_SCALE = 2.8;
 const PLINTH_H = 1.0;
 
+const LINE_OPACITY = 0.065;
+const PLINTH = new Color(PALETTE.plinth);
+const CAP = new Color(PALETTE.holo).multiplyScalar(0.07);
+/** How dim a sculpture's plinth gets behind the tower: a quiet object, never a hole. */
+const PLINTH_FLOOR = 0.35;
+const FADE_MS = 300;
+const across = new Vector3();
+
+/**
+ * The sculptures. Each fades as a whole, eased, wherever it lies behind the
+ * tower or its level letters (never sliced by a per-pixel mask): its wire
+ * goes out and its plinth dims to a quiet dark object.
+ */
 const Sculptures = () => {
+  const invalidate = useThree((s) => s.invalidate);
   const parts = useMemo(() => {
     const plinth = new BoxGeometry(1.5, PLINTH_H, 1.5).translate(0, PLINTH_H / 2, 0);
     const cap = new BoxGeometry(1.3, 0.02, 1.3);
-    // Held down behind the tower and its level letters alike
-    const plinthMaterial = withTowerMask(
-      new MeshLambertMaterial({ color: PALETTE.plinth }),
-      0,
-      true,
-    );
-    const capMaterial = withTowerMask(
-      new MeshBasicMaterial({
-        color: new Color(PALETTE.holo).multiplyScalar(0.07),
-        toneMapped: false,
-      }),
-      0,
-      true,
-    );
-    const lineMaterial = withTowerMask(
-      new LineBasicMaterial({
+    const each = SCULPTURES.map(() => ({
+      plinth: new MeshLambertMaterial({ color: PLINTH.clone() }),
+      cap: new MeshBasicMaterial({ color: CAP.clone(), toneMapped: false }),
+      line: new LineBasicMaterial({
         color: PALETTE.holo,
         transparent: true,
-        opacity: 0.065,
+        opacity: LINE_OPACITY,
         blending: AdditiveBlending,
         depthWrite: false,
       }),
-      0,
-      true,
-    );
+    }));
     const forms = SCULPTURES.map((s) => wireOf(s.type));
-    return { plinth, cap, plinthMaterial, capMaterial, lineMaterial, forms };
+    return { plinth, cap, each, forms };
   }, []);
   useEffect(
     () => () => {
       parts.plinth.dispose();
       parts.cap.dispose();
-      parts.plinthMaterial.dispose();
-      parts.capMaterial.dispose();
-      parts.lineMaterial.dispose();
+      parts.each.forEach((m) => [m.plinth, m.cap, m.line].forEach((x) => x.dispose()));
       parts.forms.forEach((f) => f.dispose());
     },
     [parts],
   );
+  const cover = useRef(SCULPTURES.map(() => -1));
+  useFrame(({ camera }, delta) => {
+    const step = (Math.min(delta, 1 / 8) * 1000) / FADE_MS;
+    // Across the view, for the sculpture's left and right edges
+    across.set(camera.position.z, 0, -camera.position.x).normalize();
+    let moving = false;
+    SCULPTURES.forEach((s, i) => {
+      const a = (s.angle * Math.PI) / 180;
+      const x = Math.sin(a) * s.radius;
+      const z = Math.cos(a) * s.radius;
+      const base = FLOOR_Y + PLINTH_H;
+      const top = base + 0.87 * SCULPTURE_SCALE;
+      const mid = (base + top) / 2;
+      const w = 0.6;
+      const goal = Math.max(
+        towerCoverAt(camera.position, x, base, z),
+        towerCoverAt(camera.position, x, top, z),
+        towerCoverAt(camera.position, x, mid, z),
+        towerCoverAt(camera.position, x + across.x * w, mid, z + across.z * w),
+        towerCoverAt(camera.position, x - across.x * w, mid, z - across.z * w),
+      );
+      const c = cover.current[i];
+      const next = c < 0 ? goal : goal > c ? Math.min(goal, c + step) : Math.max(goal, c - step);
+      if (next !== goal) moving = true;
+      if (next === c) return;
+      cover.current[i] = next;
+      const m = parts.each[i];
+      m.line.opacity = LINE_OPACITY * (1 - next);
+      const k = 1 - (1 - PLINTH_FLOOR) * next;
+      m.plinth.color.copy(PLINTH).multiplyScalar(k);
+      m.cap.color.copy(CAP).multiplyScalar(1 - next);
+      // The pool of light on the floor under it goes with it
+      lampK[i] = 1 - next;
+    });
+    if (moving) invalidate();
+  });
   return (
     <group name="lumina-sculptures">
       {SCULPTURES.map((s, i) => {
@@ -716,16 +755,16 @@ const Sculptures = () => {
             position={[Math.sin(a) * s.radius, FLOOR_Y, Math.cos(a) * s.radius]}
             rotation={[0, a + Math.PI, 0]}
           >
-            <mesh geometry={parts.plinth} material={parts.plinthMaterial} raycast={noRaycast} />
+            <mesh geometry={parts.plinth} material={parts.each[i].plinth} raycast={noRaycast} />
             <mesh
               geometry={parts.cap}
-              material={parts.capMaterial}
+              material={parts.each[i].cap}
               position={[0, PLINTH_H + 0.012, 0]}
               raycast={noRaycast}
             />
             <lineSegments
               geometry={parts.forms[i]}
-              material={parts.lineMaterial}
+              material={parts.each[i].line}
               position={[0, PLINTH_H + 0.03, 0]}
               // The knight and the unicorn show their profile to the table
               rotation={[

@@ -1,4 +1,4 @@
-import type { Material } from 'three';
+import type { Material, Vector3 } from 'three';
 import { FRAME, MARGIN, PIECE_SCALE } from './palette';
 
 // The tower mask: whatever of the room lies behind the tower, seen through
@@ -87,4 +87,45 @@ export const withTowerMask = <T extends Material>(
   };
   material.customProgramCacheKey = () => `lumina-mask-${floorLevel}-${cover}`;
   return material;
+};
+
+// The same test on the CPU, for a prop faded as a whole (the sculptures): a
+// per-pixel mask would slice a prop at the zone's edge in two.
+
+const smoothstep = (a: number, b: number, x: number) => {
+  const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
+  return t * t * (3 - 2 * t);
+};
+
+const hit = (
+  ro: Vector3,
+  rd: [number, number, number],
+  len: number,
+  e: [number, number, number],
+) => {
+  const min = [-HALF - e[0], BOTTOM - e[1], -HALF - e[2]];
+  const max = [HALF + e[0], TOP + e[1], HALF + e[2]];
+  const o = [ro.x, ro.y, ro.z];
+  let tn = -Infinity;
+  let tf = Infinity;
+  for (let k = 0; k < 3; k++) {
+    const inv = 1 / (Math.sign(rd[k]) || 1) / Math.max(Math.abs(rd[k]), 1e-5);
+    const a = (min[k] - o[k]) * inv;
+    const b = (max[k] - o[k]) * inv;
+    tn = Math.max(tn, Math.min(a, b));
+    tf = Math.min(tf, Math.max(a, b));
+  }
+  return smoothstep(-0.6, 0.1, Math.min(tf, len) - Math.max(tn, 0));
+};
+
+/**
+ * How much of the tower, or the level letters just outside it, lies between
+ * the camera and this point, 0–1 (the GLSL `towerCoverWide`).
+ */
+export const towerCoverAt = (camera: Vector3, x: number, y: number, z: number) => {
+  const d: [number, number, number] = [x - camera.x, y - camera.y, z - camera.z];
+  const len = Math.hypot(d[0], d[1], d[2]);
+  const rd: [number, number, number] = [d[0] / len, d[1] / len, d[2] / len];
+  const cover = 0.6 * hit(camera, rd, len, [0, 0, 0]) + 0.4 * hit(camera, rd, len, [1, 1, 1]);
+  return Math.max(cover, hit(camera, rd, len, [1.1, 0.3, 1.1]));
 };
