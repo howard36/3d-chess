@@ -145,7 +145,9 @@ Key decisions:
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
   sky, to straight down). The controls (`three/CameraControls.tsx`) are three's own
   OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the
-  scene and `showcase.mjs` read.
+  scene and `showcase.mjs` read. The canvas draws at the screen's pixel ratio up to 2x,
+  within a budget of 4.5 million pixels (`three/pixelBudget.ts`), so a large
+  high-density window costs no more than it needs.
 - **Touch.** The game screen takes no text selection, long-press callout or double-tap
   zoom (iOS would otherwise select the whole page on a double tap), except in the move box
   and the move list (`.game-screen` in `client/src/index.css`); the canvas takes every

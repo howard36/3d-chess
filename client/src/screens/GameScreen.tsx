@@ -5,6 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import TurnIndicator from '../three/TurnIndicator';
 import { FitCameraToBoard } from '../three/FitCameraToBoard';
+import { usePixelBudget } from '../three/pixelBudget';
 import { CameraControls } from '../three/CameraControls';
 import MoveInput from './MoveInput';
 import type { Move } from '../engine';
@@ -102,6 +103,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   historyRef.current = history;
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
 
+  const pixelRatio = usePixelBudget();
   // The cell under the pointer, read out in the HUD
   const [hoverCell, setHoverCell] = React.useState<HoveredCell | null>(null);
   // The mate plays out (the king topples, a pulse crosses the board) before
@@ -400,6 +402,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               WebkitTapHighlightColor: 'transparent',
             }}
             camera={{ position: layout.viewDirection, fov: 36 }}
+            // A pixel budget rather than r3f's fixed cap: the screen's own
+            // ratio up to 2x, a large high-density window a little under it
+            dpr={pixelRatio}
             gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
             // A chess position is static: render only when something changes.
             // React commits and OrbitControls invalidate on their own; the
