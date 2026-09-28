@@ -340,6 +340,29 @@ export const useLevelCue = () => {
   return { band: cue !== 'ring', ring: cue !== 'band' };
 };
 
+/**
+ * A piece's own material, kept to the player's settings (the charcoal's tone
+ * and edge light, the band) and disposed with the caller: what PieceBody
+ * draws, and what an effect that redraws a piece (a capture) should use so
+ * the piece looks the same.
+ */
+export const usePieceMaterial = (color: PieceColor, type: PieceType, level: number) => {
+  const invalidate = useThree((s) => s.invalidate);
+  const { band } = useLevelCue();
+  const tone = usePieceSetting<number>('piece.darkTone');
+  const edge = usePieceSetting<number>('piece.edgeLight');
+  const material = useMemo(() => bodyMaterial(color, type, level), [color, type, level]);
+  useEffect(() => () => material.dispose(), [material]);
+  useEffect(() => {
+    const u = material.uniforms;
+    u.uTone.value = color === 'black' ? tone : 1;
+    u.uEdge.value = color === 'black' ? edge : 1;
+    u.uBandOn.value = band ? 1 : 0;
+    invalidate();
+  }, [material, color, tone, edge, band, invalidate]);
+  return material;
+};
+
 // --- The level ring and the hover light on the glass ------------------------------------------
 
 // Rings the markers must stay clear of: this ring is RING_RADIUS (piece
@@ -424,32 +447,25 @@ export const PieceBody = (props: PieceBodyProps) => {
   const level = props.level ?? 0;
   const invalidate = useThree((s) => s.invalidate);
   const glide = useGlide();
-  const { band, ring: ringCue } = useLevelCue();
-  const tone = usePieceSetting<number>('piece.darkTone');
-  const edge = usePieceSetting<number>('piece.edgeLight');
+  const { ring: ringCue } = useLevelCue();
   const hoverLift = usePieceSetting<number>('piece.hoverLift');
   const hoverGlow = usePieceSetting<boolean>('piece.hoverGlow');
   const checkTint = usePieceSetting<boolean>('piece.checkTint');
   const pulse = usePieceSetting<boolean>('piece.clickPulse');
   const still = useMemo(prefersReducedMotion, []);
 
-  const body = useMemo(() => bodyMaterial(color, type, 0), [color, type]);
+  // (its band's colour is set every frame: one material whatever the level)
+  const body = usePieceMaterial(color, type, 0);
   const floorMaterial = useMemo(() => ringMaterial(level), [level]);
-  useEffect(() => () => body.dispose(), [body]);
   useEffect(() => () => floorMaterial.dispose(), [floorMaterial]);
   const floor = useRef<Group>(null);
   const raise = useRef<Group>(null);
   const top = pieceTop(zenithSet(), type);
 
-  // The settings, into the glaze
   useEffect(() => {
-    const u = body.uniforms;
-    u.uTone.value = color === 'black' ? tone : 1;
-    u.uEdge.value = color === 'black' ? edge : 1;
-    u.uBandOn.value = band ? 1 : 0;
     floorMaterial.uniforms.uRing.value = ringCue ? 1 : 0;
     invalidate();
-  }, [body, floorMaterial, color, tone, edge, band, ringCue, invalidate]);
+  }, [floorMaterial, ringCue, invalidate]);
 
   // Eased weights; the floor light and the held light are mounted only while
   // they show
