@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
 import {
+  CAPTURES_BAND_PX,
   HUD_TOP_PX,
   hudBands,
   MOVE_CARD_BAND_PX,
@@ -233,9 +234,10 @@ describe('centringShift and viewBounds', () => {
 
 describe('hudBands', () => {
   it('keeps the pill band always, and the move card band only while the card spans the bottom', () => {
-    expect(hudBands(1280, 720, false)).toEqual({ top: HUD_TOP_PX, bottom: 0 });
+    const top = HUD_TOP_PX + CAPTURES_BAND_PX;
+    expect(hudBands(1280, 720, false)).toEqual({ top, bottom: 0 });
     // A wide window keeps the card in a corner beside the board
-    expect(hudBands(1280, 720, true)).toEqual({ top: HUD_TOP_PX, bottom: 0 });
+    expect(hudBands(1280, 720, true)).toEqual({ top, bottom: 0 });
     // Upright and squarish windows put it across the bottom
     for (const [w, h] of [
       [390, 844],
@@ -248,6 +250,26 @@ describe('hudBands', () => {
     }
     // A phone on its side docks it beside the board
     expect(hudBands(844, 390, true).bottom).toBe(0);
+  });
+
+  it('keeps the row of pieces taken under the pill, except where it stands beside the tower', () => {
+    for (const [w, h] of [
+      [360, 640],
+      [700, 900],
+      [1280, 720],
+      [1280, 560],
+      [3440, 1440],
+    ]) {
+      expect(hudBands(w, h, false).top).toBe(HUD_TOP_PX + CAPTURES_BAND_PX);
+    }
+    // A short window (a phone on its side): at the top left, beside the tower
+    for (const [w, h] of [
+      [640, 360],
+      [844, 390],
+      [932, 430],
+    ]) {
+      expect(hudBands(w, h, true).top).toBe(HUD_TOP_PX);
+    }
   });
 
   it('never lets the bands take more than half the window', () => {

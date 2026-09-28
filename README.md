@@ -140,7 +140,9 @@ Key decisions:
   recomputes the fit and the range whenever the window changes shape (a phone turned on
   its side) and opens the camera inside it, so a phone zooms over the same share of its
   view as a desktop. The fit centres the board's outline on screen (with its labels: the
-  layout's `framePoints`) below a 56 px band kept for the HUD's top pill, by a lens shift
+  layout's `framePoints`) below the band kept for the HUD's top pill and the captured
+  pieces under it (82 px; 56 in a short window, where they stand beside the tower:
+  `hudBands`), by a lens shift
   (a view offset, `three/viewOffset.ts`) rather than a pan, worked out again as the view
   turns and zooms. The layout's `orbit.minDistance` only narrows the range, and its
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
@@ -164,20 +166,28 @@ Key decisions:
   material (porcelain, charcoal); the half of the side to move is lit, its stone ringed in
   light ("Your move" / "Their move"), red with a CHECK badge in check. An opponent with no
   live connection shows as an outlined stone and "Offline"; a connected one is not marked.
-  Once the game is over the pill gives the result from the player's side ("Checkmate ·
-  you win"). Under the pill, only while they apply: "Reconnecting…" (the pill dims), the
-  latest error and the frozen-record notice. The **Notation panel** setting (the panel's
-  first group, Play) shows the **move card** at the bottom left (across the bottom in a
-  window no wider than 13:9, with the camera fit keeping that band clear: `hudBands` in
-  `three/cameraFit.ts`): the cell under the pointer, the moves so far and the move box;
-  off, the card stays in the page out of
-  sight, its list for screen readers and its field for Tab. A visually hidden live region
-  announces every move as it lands ("White bishop Ad2 takes pawn on Dd5. Check. Your
-  move.", `game/announce.ts`). The parts are `screens/TurnPill.tsx`, `MoveCard.tsx` and
-  `MoveAnnouncer.tsx`, styled in `index.css`. For tests and tools the pill carries
-  `data-turn`, `data-check`, `data-result` and `data-winner`; `data-testid="seat"` its
-  `data-seat`; `opponent-presence` its `data-online`; and `move-announcer` the latest move
-  as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion) and `data-move-count`.
+  Once the game is over the pill gives the result from the player's side ("Checkmate · you
+  win"). Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
+  `GameHistory.captured` and `game/material.ts`): each side's haul under its own half, a
+  silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in
+  the taken army's material with a count, and "+N" on the side ahead on material; one
+  above the other at the top left in a short window. The camera fit keeps their row clear
+  from the first move (`hudBands`), so a capture never moves the board, and a screen
+  reader reads them as a sentence per side, never announced. Under them, only while they
+  apply: "Reconnecting…" (the pill and the captures dim), the latest error and the
+  frozen-record notice. The **Notation panel** setting (the panel's first group, Play)
+  shows the **move card** at the bottom left (across the bottom in a window no wider than
+  13:9, with the camera fit keeping that band clear: `hudBands` in `three/cameraFit.ts`):
+  the cell under the pointer, the moves so far and the move box; off, the card stays in
+  the page out of sight, its list for screen readers and its field for Tab. A visually
+  hidden live region announces every move as it lands ("White bishop Ad2 takes pawn on
+  Dd5. Check. Your move.", `game/announce.ts`). The parts are `screens/TurnPill.tsx`,
+  `CapturedPieces.tsx`, `MoveCard.tsx` and `MoveAnnouncer.tsx`, styled in `index.css`. For
+  tests and tools the pill carries `data-turn`, `data-check`, `data-result` and
+  `data-winner`; `data-testid="seat"` its `data-seat`; `opponent-presence` its
+  `data-online`; `captured-pieces` each haul as `data-side` (`me`, `them`); and
+  `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
+  and `data-move-count`.
 
 ## Protocol
 

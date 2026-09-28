@@ -25,6 +25,7 @@ import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import SettingsGear from './SettingsPanel';
 import TurnPill from './TurnPill';
+import CapturedPieces from './CapturedPieces';
 import MoveCard from './MoveCard';
 import MoveAnnouncer from './MoveAnnouncer';
 import type { HoveredCell } from '../three/Board';
@@ -107,14 +108,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const historyRef = React.useRef<GameHistory | null>(null);
   const history = deriveHistory(messages, historyRef.current);
   historyRef.current = history;
-  const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
+  const { board, moveRecords, currentTurn, lastMove, captured, replayFailedAt, gameOver } = history;
 
   const pixelRatio = usePixelBudget();
   // The Notation panel (a setting): the move card, with the moves so far, the
   // cell under the pointer and a field to type a move, stays on screen
   const notationPanel = useSetting<boolean>('play.notation');
-  // The board is framed clear of the pill, and of the move card while it
-  // spans the bottom of the window (turning the Notation panel on or off refits)
+  // The board is framed clear of the pill and the captured pieces under it,
+  // and of the move card while it spans the bottom of the window (turning the
+  // Notation panel on or off refits)
   const bandsFor = React.useCallback(
     (width: number, height: number) => hudBands(width, height, notationPanel),
     [notationPanel],
@@ -448,14 +450,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
           <div className="hud">
             <div className="hud-top">
               {color && (
-                <TurnPill
-                  seat={color}
-                  turn={currentTurn}
-                  inCheck={inCheck}
-                  gameOver={gameOver}
-                  opponentOnline={opponentOnline}
-                  stale={status === 'reconnecting'}
-                />
+                // The pill, and under it the pieces each side has taken
+                <div className="hud-bar">
+                  <TurnPill
+                    seat={color}
+                    turn={currentTurn}
+                    inCheck={inCheck}
+                    gameOver={gameOver}
+                    opponentOnline={opponentOnline}
+                    stale={status === 'reconnecting'}
+                  />
+                  <CapturedPieces seat={color} captured={captured} board={board} />
+                </div>
               )}
               <div className="hud-status">
                 {/* Always in the page, so its first change is announced */}

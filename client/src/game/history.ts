@@ -7,7 +7,7 @@
 // earlier ones, so counting older messages again would duplicate moves.
 
 import { Board } from '../engine';
-import type { Move, Piece } from '../engine';
+import type { Move, Piece, PieceType } from '../engine';
 import { moveFromMessage } from '../engine/protocol';
 import type { GameState, MoveMade, MoveRecord, WebSocketMessage } from '../types/messages';
 
@@ -39,6 +39,11 @@ export interface GameHistory {
   /** White moves first; alternates with each applied move. */
   currentTurn: Turn;
   lastMove: LastMove | undefined;
+  /**
+   * The pieces each side has taken, in the order taken: what stood on each
+   * applied move's destination (a promoted piece counts as what it became).
+   */
+  captured: Record<Turn, PieceType[]>;
   /**
    * Index of the first record this client could not replay, or null. The
    * server records any shape-valid, turn-correct move without checking
@@ -111,14 +116,18 @@ export function deriveHistory(
 
   // positions[i] is the board after i applied moves.
   const positions: Board[] = [Board.setupStartingPosition()];
+  const captured: Record<Turn, PieceType[]> = { white: [], black: [] };
   let replayFailedAt: number | null = null;
   for (let i = 0; i < moveRecords.length; i++) {
     try {
-      const next = positions[i].applyMove(moveFromMessage(moveRecords[i]));
+      const move = moveFromMessage(moveRecords[i]);
+      const next = positions[i].applyMove(move);
       // The rules evaluate a position by finding each king (check detection),
       // so a record that captured one is unplayable from that move on.
       next.findKing('white');
       next.findKing('black');
+      const taken = positions[i].getPiece(move.to);
+      if (taken) captured[turnAfter(i)].push(taken.type);
       positions.push(next);
     } catch {
       replayFailedAt = i;
@@ -147,6 +156,7 @@ export function deriveHistory(
     appliedMoveCount,
     currentTurn: turnAfter(appliedMoveCount),
     lastMove,
+    captured,
     replayFailedAt,
     gameOver,
   };

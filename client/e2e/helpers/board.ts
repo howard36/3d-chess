@@ -213,3 +213,115 @@ export async function waitForDestination(page: Page, zxy: string): Promise<void>
     return found;
   }, zxy);
 }
+
+/** A rect in page pixels, named for what it is. */
+export interface ScreenRect {
+  what: string;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * Where the tower's pieces and labels stand on screen now: for each piece,
+ * the page rect of its body (the world bounds of its visible meshes, without
+ * the hit proxy, projected through the live camera), and for each label shown
+ * (a level letter, a file or a rank), the rect of its sprite. For checking
+ * that nothing laid over the canvas covers any of them.
+ */
+export async function towerRects(page: Page): Promise<ScreenRect[]> {
+  return page.evaluate(() => {
+    type V = {
+      x: number;
+      y: number;
+      z: number;
+      clone(): V;
+      add(v: V): V;
+      multiplyScalar(s: number): V;
+      project(camera: unknown): V;
+      setFromMatrixColumn(m: unknown, i: number): V;
+    };
+    type Box = {
+      min: V;
+      max: V;
+      clone(): Box;
+      union(b: Box): Box;
+      applyMatrix4(m: unknown): Box;
+    };
+    type Obj = {
+      userData: Record<string, unknown>;
+      isMesh?: boolean;
+      isSprite?: boolean;
+      matrixWorld: unknown;
+      geometry?: { boundingBox: Box | null; computeBoundingBox(): void };
+      material?: { opacity: number };
+      traverseVisible(cb: (o: Obj) => void): void;
+      getWorldPosition(v: V): V;
+      getWorldScale(v: V): V;
+    };
+    const state = (window as Window & { __r3fState?: { get?: () => unknown } }).__r3fState;
+    if (!state) throw new Error('window.__r3fState missing — has the game Canvas mounted?');
+    const { camera, scene, size } = (state.get ? state.get() : state) as {
+      camera: { position: V; matrixWorld: unknown; updateMatrixWorld(): void };
+      scene: Obj & { updateMatrixWorld(force: boolean): void };
+      size: { width: number; height: number };
+    };
+    scene.updateMatrixWorld(true);
+    camera.updateMatrixWorld();
+    const canvas = document.querySelector('canvas')!.getBoundingClientRect();
+    const Vec = camera.position.constructor as new (x?: number, y?: number, z?: number) => V;
+    const rectOf = (what: string, points: V[]) => {
+      const xs: number[] = [];
+      const ys: number[] = [];
+      for (const p of points) {
+        const s = p.clone().project(camera);
+        xs.push(canvas.left + ((s.x + 1) / 2) * size.width);
+        ys.push(canvas.top + ((1 - s.y) / 2) * size.height);
+      }
+      return {
+        what,
+        left: Math.min(...xs),
+        top: Math.min(...ys),
+        right: Math.max(...xs),
+        bottom: Math.max(...ys),
+      };
+    };
+    // The camera's right and up, for a sprite (which always faces it)
+    const right = new Vec().setFromMatrixColumn(camera.matrixWorld, 0);
+    const up = new Vec().setFromMatrixColumn(camera.matrixWorld, 1);
+    const rects: ScreenRect[] = [];
+    scene.traverseVisible((o) => {
+      const piece = o.userData.piece as { type: string; color: string } | undefined;
+      if (piece) {
+        let box: Box | null = null;
+        o.traverseVisible((m) => {
+          if (!m.isMesh || m.userData.hitProxy || !m.geometry) return;
+          if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+          const b = m.geometry.boundingBox!.clone().applyMatrix4(m.matrixWorld);
+          box = box ? box.union(b) : b;
+        });
+        if (!box) return;
+        const { min, max } = box as Box;
+        const corners = [min.x, max.x].flatMap((x) =>
+          [min.y, max.y].flatMap((y) => [min.z, max.z].map((z) => new Vec(x, y, z))),
+        );
+        rects.push(rectOf(`${piece.color} ${piece.type}`, corners));
+      }
+      if (o.isSprite && (o.material?.opacity ?? 1) > 0.05) {
+        const c = o.getWorldPosition(new Vec());
+        const s = o.getWorldScale(new Vec());
+        const corners = [-1, 1].flatMap((i) =>
+          [-1, 1].map((j) =>
+            c
+              .clone()
+              .add(right.clone().multiplyScalar((i * s.x) / 2))
+              .add(up.clone().multiplyScalar((j * s.y) / 2)),
+          ),
+        );
+        rects.push(rectOf('label', corners));
+      }
+    });
+    return rects;
+  });
+}

@@ -84,18 +84,31 @@ export const HUD_TOP_PX = 56;
 export const MOVE_CARD_BAND_PX = 100;
 
 /**
+ * Rows kept under the pill for the pieces each side has taken (index.css,
+ * .hud-captures: 18 px tall, 4 px under the pill), in every window but a
+ * short one, where they stand at the top left beside the tower instead. Kept
+ * from the first move, so the first capture never moves the board.
+ */
+export const CAPTURES_BAND_PX = 26;
+
+/**
  * The HUD's bands, in CSS px, that the fitted board keeps clear of: the pill
- * at the top, and the move card at the bottom while it shows across the
- * bottom of the window. Wider windows keep the card in a corner beside the
- * board, and short ones (a phone on its side) at the bottom right beside it.
+ * and the pieces taken under it at the top, and the move card at the bottom
+ * while it shows across the bottom of the window. Wider windows keep the card
+ * in a corner beside the board, and short ones (a phone on its side) at the
+ * bottom right beside it, with the pieces taken at the top left.
  */
 export function hudBands(
   width: number,
   height: number,
   moveCard: boolean,
 ): { top: number; bottom: number } {
-  const acrossTheBottom = moveCard && height > 480 && width / height <= 13 / 9;
-  return { top: HUD_TOP_PX, bottom: acrossTheBottom ? MOVE_CARD_BAND_PX : 0 };
+  const short = height <= 480;
+  const acrossTheBottom = moveCard && !short && width / height <= 13 / 9;
+  return {
+    top: HUD_TOP_PX + (short ? 0 : CAPTURES_BAND_PX),
+    bottom: acrossTheBottom ? MOVE_CARD_BAND_PX : 0,
+  };
 }
 
 /**

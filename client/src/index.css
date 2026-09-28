@@ -295,11 +295,82 @@
   right: 12px;
 }
 
+/* The pill, with the pieces each side has taken hanging under its halves */
+.hud-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  max-width: 100%;
+}
+.hud-captures {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  /* As wide as the pill, and no wider; each haul starts under its stone */
+  width: 0;
+  min-width: 100%;
+  height: 18px;
+  padding: 0 14px;
+  transition: opacity 200ms ease;
+}
+/* Read off the same position as the pill: dimmed with it while it may be stale */
+.hud-pill[data-stale] + .hud-captures {
+  opacity: 0.45;
+}
+.hud-haul {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+}
+/* The opponent's haul hangs from their stone, at the right: mirrored */
+.hud-haul[data-side='them'] {
+  flex-direction: row-reverse;
+}
+.hud-taken {
+  display: flex;
+  align-items: flex-end;
+}
+.hud-taken svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0 -3px;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.7));
+}
+/* Charcoal against the night sky: a brighter rim than on the promotion tile */
+.hud-taken svg[data-color='black'] path {
+  stroke: rgba(178, 190, 212, 0.95);
+  stroke-width: 1.3px;
+}
+.hud-count {
+  margin-left: 1px;
+  color: var(--hud-dim);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.hud-lead {
+  margin: 0 3px;
+  color: var(--hud-ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
 /* A phone upright: the pill fills the row beside the gear */
 @media (max-width: 520px) {
   .hud-top {
     left: 12px;
     right: 60px;
+  }
+  .hud-bar {
+    width: 100%;
   }
   .hud-pill {
     width: 100%;
@@ -316,6 +387,9 @@
   }
   .hud-half[data-side='them'] {
     padding: 0 11px 0 12px;
+  }
+  .hud-captures {
+    padding: 0 11px;
   }
   /* In check the lit half needs its badge's room: the other half keeps only
      its stone (hollow for an absent opponent), the words go to screen readers */
@@ -346,6 +420,24 @@
   .hud-status {
     align-items: flex-start;
     max-width: 264px;
+  }
+  /* The hauls one above the other, beside the tower: yours, then theirs */
+  .hud-bar {
+    align-items: flex-start;
+  }
+  .hud-captures {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: auto;
+    min-width: 0;
+    height: auto;
+  }
+  .hud-haul[data-side='them'] {
+    flex-direction: row;
+  }
+  .hud-haul[data-empty] {
+    display: none;
   }
 }
 
