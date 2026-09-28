@@ -23,6 +23,8 @@ export const PALETTE = {
   skyTop: '#010302',
   skyHorizon: '#04110c',
   skyBottom: '#010403',
+  // A still glow of green light low round the horizon
+  skyGlow: '#051a13',
   // The far notation and the opening tree's branches (before their dimming)
   script: '#6fe3b0',
   branch: '#3fae86',
@@ -46,8 +48,9 @@ export const PALETTE = {
   // Markers, one meaning each, all off the level ramp's arc
   move: '#ffc45e',
   select: '#ffe2a6',
-  capture: '#ff5a48',
-  check: '#ff3150',
+  // The capture an amber-red, the check a crimson, told apart from above too
+  capture: '#ff6a3d',
+  check: '#ff2a7a',
   trace: '#d6fbe9',
 
   // Type and HUD

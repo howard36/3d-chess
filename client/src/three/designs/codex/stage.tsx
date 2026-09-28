@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
+  BackSide,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
@@ -14,94 +15,98 @@ import {
 import type { Group, Points } from 'three';
 import { prefersReducedMotion } from '../../motion';
 import { noRaycast } from '../kit/noRaycast';
-import { GradientSky } from '../kit/sky';
 import { dotTexture, rng } from '../kit/textures';
 import { TOWER_MASK } from './mask';
 import { PALETTE } from './palette';
 import { rig } from './pieces';
 
-// The inside of a chess engine's mind: a black-green void, and far off, in a
-// shell round the scene, lines of opening theory written in dim phosphor
-// type, drifting very slowly round. They hang as the nodes of opening trees
-// (1. e4 and its answers on one side, 1. d4 on the other, the flank openings
-// and this game's own Raumschach lines between them), joined by thin
-// branching lines of light, with a few famous moves and results set apart.
-// Beside the tower, low and far off, an 8×8 board of faint light has a
-// knight's tour tracing itself slowly across it, square by square.
+// The inside of a chess engine's mind: a black-green void with a soft green
+// glow low round the horizon, and far off, in a shell round the scene, lines
+// of opening theory set in dim phosphor type, as an opening book sets them:
+// indented outlines, one line to a row, a thin branch of light running down
+// from each line to its answers. 1. e4 and 1. d4 frame the opening view, one
+// either side of the tower; the flank openings, this game's own Raumschach
+// lines and a few famous moves and results run round behind the players,
+// with a sparse field of single moves further out. Low and far off to the
+// right, an 8×8 board of faint light has a knight's tour tracing itself
+// across it, square by square.
 //
 // All of it is a murmur: readable when looked for, never competing with the
 // board. It lives in a band round the horizon, so looking straight down
 // there is only darkness through the panes, and whatever lies behind the
 // tower from wherever the camera is fades to nothing (mask.ts), so nothing
-// moving ever shows through the platforms. Each line of notation breathes
-// very slowly in and out, like a thought considered and let go.
+// moving ever shows through the platforms. The book sways a degree or so
+// and back, and each line breathes very slowly in and out, like a thought
+// considered and let go.
 
 // --- The book ------------------------------------------------------------------------------
 
 interface Line {
   text: string;
   /**
-   * Azimuth round the tower (degrees; 0 toward the players' opening view),
-   * for a line that starts a tree or stands alone. An answer is set just
-   * after the line it answers, in reading order.
+   * Where the line starts round the tower: the azimuth of its first letter
+   * (degrees; 0 toward the players' opening view; reading runs toward
+   * smaller azimuths), for a line that heads a tree or stands alone. An
+   * answer is set on the next row down, indented under the line it answers.
    */
   az?: number;
-  /** Elevation from the tower's centre (degrees). */
-  el: number;
+  /** Elevation of a heading line (degrees from the tower's centre). */
+  el?: number;
   /** Height of the type (world units). */
   size?: number;
   /** Distance from the tower's centre (default: the book's shell). */
   r?: number;
-  /** Index of the line it answers (the branch it hangs from). */
+  /** Index of the line it answers. */
   parent?: number;
   /** Brightness (1: the usual murmur). */
   weight?: number;
 }
 
-// The opening view looks toward azimuth 196°. The 1. e4 tree hangs to its
-// left, reading toward the tower and stopping well short of it; the knight's
-// tour lies to its right, and 1. d4 beyond it; the flank openings, this
-// game's own Raumschach lines and a few famous moves run round behind the
-// players.
+// The opening view looks toward azimuth 196°. Each tree is set as an opening
+// book sets it, an indented outline, one line of theory to a row, a thin
+// branch of light running down from each line to its answers: 1. e4 in the
+// band left of the tower, 1. d4 in the band to its right, both whole inside
+// the opening view and clear of the tower and the HUD; the flank openings,
+// this game's own Raumschach lines and a few famous moves run round behind
+// the players.
 const BOOK: Line[] = [
   // 1. e4 (0–7)
-  { text: '1. e4', az: 250, el: -13, size: 0.9, weight: 1.2 },
-  { text: '1... e5 2. Nf3 Nc6', el: -5, parent: 0 },
-  { text: '3. Bb5 a6 4. Ba4', el: -2, parent: 1, size: 0.65 },
-  { text: '3. Bc4 Bc5 4. c3', el: -8, parent: 1, size: 0.65 },
-  { text: '1... c5 2. Nf3 d6', el: -13, parent: 0 },
-  { text: '3. d4 cxd4 4. Nxd4 Nf6', el: -14, parent: 4, size: 0.65 },
-  { text: '1... e6 2. d4 d5', el: -21, parent: 0 },
-  { text: '1... c6 2. d4 d5', el: -28, parent: 0, size: 0.65 },
+  { text: '1. e4', az: 236, el: -5, size: 0.85, weight: 1.2 },
+  { text: '1... e5 2. Nf3 Nc6', parent: 0 },
+  { text: '3. Bb5 a6 4. Ba4 Nf6', parent: 1, size: 0.62 },
+  { text: '3. Bc4 Bc5 4. c3', parent: 1, size: 0.62 },
+  { text: '1... c5 2. Nf3 d6', parent: 0 },
+  { text: '3. d4 cxd4 4. Nxd4 Nf6', parent: 4, size: 0.62 },
+  { text: '1... e6 2. d4 d5', parent: 0, size: 0.68 },
+  { text: '1... c6 2. d4 d5', parent: 0, size: 0.68 },
   // 1. d4 (8–14)
-  { text: '1. d4', az: 150, el: -12, size: 0.9, weight: 1.2 },
-  { text: '1... d5 2. c4', el: -5, parent: 8 },
-  { text: '2... e6 3. Nc3 Nf6', el: -2, parent: 9, size: 0.65 },
-  { text: '2... c6 3. Nf3 Nf6', el: -8, parent: 9, size: 0.65 },
-  { text: '1... Nf6 2. c4', el: -17, parent: 8 },
-  { text: '2... e6 3. Nc3 Bb4', el: -14, parent: 12, size: 0.65 },
-  { text: '2... g6 3. Nc3 Bg7', el: -21, parent: 12, size: 0.65 },
-  // The flank openings, behind the players (15–18)
-  { text: '1. c4 e5 2. Nc3', az: 76, el: -10, weight: 1.1 },
-  { text: '2... Nf6 3. g3 d5', el: -5, parent: 15, size: 0.65 },
-  { text: '2... Nc6 3. g3 g6', el: -14, parent: 15, size: 0.65 },
-  { text: '1. Nf3 d5 2. g3', az: 26, el: -5 },
-  // This game's own book, in Raumschach (19–22)
-  { text: '1. Ab2-De5 Ed4-Ba1', az: 338, el: -11, weight: 1.1 },
-  { text: '2. Ac2-Cc4 Dc4-Dc3', el: -6, parent: 19, size: 0.65 },
-  { text: '3. Ad2-Dd5+ Ec4-Dd5', el: -4, parent: 20, size: 0.6 },
-  { text: '2. Bc2-Cc3 Ec5-Cc3', el: -16, parent: 19, size: 0.65 },
+  { text: '1. d4', az: 176, el: -3, size: 0.85, weight: 1.2 },
+  { text: '1... d5 2. c4', parent: 8 },
+  { text: '2... e6 3. Nc3 Nf6', parent: 9, size: 0.62 },
+  { text: '2... c6 3. Nf3 Nf6', parent: 9, size: 0.62 },
+  { text: '1... Nf6 2. c4', parent: 8 },
+  { text: '2... e6 3. Nc3 Bb4', parent: 12, size: 0.62 },
+  { text: '2... g6 3. Nc3 Bg7', parent: 12, size: 0.62 },
+  // The flank openings, behind the players (15–19)
+  { text: '1. c4 e5 2. Nc3', az: 92, el: -6, weight: 1.1 },
+  { text: '2... Nf6 3. g3 d5', parent: 15, size: 0.65 },
+  { text: '2... Nc6 3. g3 g6', parent: 15, size: 0.65 },
+  { text: '1. Nf3 d5 2. g3', az: 40, el: -8, weight: 1.1 },
+  { text: '2... Nf6 3. Bg2 c6', parent: 18, size: 0.65 },
+  // This game's own book, in Raumschach (20–23)
+  { text: '1. Ab2-De5 Ed4-Ba1', az: 330, el: -6, weight: 1.1 },
+  { text: '2. Ac2-Cc4 Dc4-Dc3', parent: 20, size: 0.65 },
+  { text: '3. Ad2-Dd5+ Ec4-Dd5', parent: 21, size: 0.62 },
+  { text: '2. Bc2-Cc3 Ec5-Cc3', parent: 20, size: 0.65 },
   // Famous moves and results, set apart
-  { text: '16. Qb8+!! Nxb8 17. Rd8#', az: 282, el: -24, size: 0.6, weight: 0.9 },
-  { text: '1. f3 e5 2. g4 Qh4#', az: 104, el: -27, size: 0.6, weight: 0.9 },
-  { text: '23... Qg3!!', az: 88, el: -22, size: 0.7 },
-  { text: 'Aa2-Ab3', az: 354, el: -24, size: 0.6 },
-  { text: 'Db3-Ec4#', az: 296, el: -29, size: 0.6 },
-  { text: 'e8=Q+', az: 116, el: -4, size: 0.6 },
-  { text: 'O-O-O', az: 44, el: -18, size: 0.6 },
-  { text: '1-0', az: 272, el: -8, size: 0.7 },
-  { text: '½-½', az: 58, el: -27, size: 0.7 },
-  { text: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3', az: 4, el: -12, size: 0.5 },
+  { text: '16. Qb8+!! Nxb8 17. Rd8#', az: 290, el: -24, size: 0.6, weight: 0.9 },
+  { text: '1. f3 e5 2. g4 Qh4#', az: 128, el: -26, size: 0.6, weight: 0.9 },
+  { text: '23... Qg3!!', az: 110, el: -8, size: 0.7 },
+  { text: 'Aa2-Ab3', az: 8, el: -24, size: 0.6 },
+  { text: 'Db3-Ec4#', az: 300, el: -29, size: 0.6 },
+  { text: '1-0', az: 268, el: -10, size: 0.7 },
+  { text: '½-½', az: 62, el: -26, size: 0.7 },
+  { text: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3', az: 20, el: 1, size: 0.5 },
 ];
 
 // Further out, a scatter of single moves and squares, fainter still, like
@@ -113,9 +118,12 @@ const MOVES = (
 ).split(' ');
 const TOKENS: Line[] = (() => {
   const random = rng(29);
+  // Spread evenly round, jittered, in a band round the horizon, but clear
+  // of the two trees that frame the opening view
   return MOVES.map((text, i) => {
-    // Spread evenly round, jittered, in a band round the horizon
-    const az = ((i + random() * 0.8) / MOVES.length) * 360;
+    let az = ((i + random() * 0.8) / MOVES.length) * 360;
+    if (az > 208 && az < 250) az += 45;
+    else if (az > 146 && az < 184) az -= 40;
     return {
       text,
       az,
@@ -130,8 +138,9 @@ const TOKENS: Line[] = (() => {
 const LINES: Line[] = [...BOOK, ...TOKENS];
 
 const SHELL = 32;
-/** Room between a line and its answers, for the branch (degrees). */
-const BRANCH_GAP = 2.2;
+/** The outline's rows and indent (degrees round the shell). */
+const ROW_DEG = 3.2;
+const INDENT_DEG = 2.6;
 const ROW = 64;
 const FONT = '500 44px "IBM Plex Mono", ui-monospace, monospace';
 
@@ -238,8 +247,12 @@ const branchFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-/** How fast the whole book turns round the tower (radians a second: once in about 40 minutes). */
-const TURN = (2 * Math.PI) / 2400;
+/**
+ * The book drifts, never turns away: it sways a degree or so round the
+ * tower and back over a minute and a half, so the two trees framing the
+ * opening view stay where they were set.
+ */
+const SWAY = { amplitude: 1.2 * (Math.PI / 180), period: 90 };
 
 const Book = () => {
   const [fontReady, setFontReady] = useState(false);
@@ -265,26 +278,38 @@ const Book = () => {
     const seed = new Float32Array(n * 4);
     const weight = new Float32Array(n * 4);
     const index: number[] = [];
-    // Where each line starts and ends (left and right of its baseline), for the branches
-    const ends: { left: Vector3; right: Vector3 }[] = [];
-    // Where each line sits round the tower: an answer just after the line it
-    // answers, in reading order (reading right is toward smaller azimuths)
+    // Where each line sits: its first letter's azimuth (reading runs toward
+    // smaller azimuths) and its row. An answer takes the next row of its tree,
+    // indented one step under the line it answers
     const widthOf = (i: number) => (rects[i].w / ROW) * (LINES[i].size ?? 0.75);
-    const halfDeg = (i: number) => widthOf(i) / 2 / SHELL / DEG;
-    const azs: number[] = [];
+    const widthDeg = (i: number) => widthOf(i) / SHELL / DEG;
+    const starts: number[] = [];
+    const els: number[] = [];
+    const rows = new Map<number, number>();
+    const rootOf = (i: number): number => {
+      const p = LINES[i].parent;
+      return p === undefined ? i : rootOf(p);
+    };
     LINES.forEach((line, i) => {
-      azs[i] =
-        line.parent === undefined
-          ? (line.az ?? 0)
-          : azs[line.parent] - halfDeg(line.parent) - BRANCH_GAP - halfDeg(i);
+      if (line.parent === undefined) {
+        starts[i] = line.az ?? 0;
+        els[i] = line.el ?? 0;
+        return;
+      }
+      const root = rootOf(i);
+      const row = (rows.get(root) ?? 0) + 1;
+      rows.set(root, row);
+      starts[i] = starts[line.parent] - INDENT_DEG;
+      els[i] = els[root] - row * ROW_DEG;
     });
+    const azs = LINES.map((_, i) => starts[i] - widthDeg(i) / 2);
     LINES.forEach((line, i) => {
       const r = line.r ?? SHELL;
       const h = line.size ?? 0.75;
       const { x, y, w } = rects[i];
       const width = widthOf(i);
       const az = azs[i];
-      const c = at(az, line.el, r);
+      const c = at(az, els[i], r);
       // Facing the tower: right across the view from the centre, up square to it
       const inward = c.clone().negate().normalize();
       const right = new Vector3(-Math.cos(az * DEG), 0, Math.sin(az * DEG));
@@ -307,11 +332,6 @@ const Book = () => {
       });
       const o = i * 4;
       index.push(o, o + 1, o + 2, o, o + 2, o + 3);
-      const pad = (12 / ROW) * h;
-      ends.push({
-        left: c.clone().addScaledVector(right, -width / 2 + pad * 0.6),
-        right: c.clone().addScaledVector(right, width / 2 - pad * 0.6),
-      });
     });
     const type = new BufferGeometry();
     type.setAttribute('position', new BufferAttribute(pos, 3));
@@ -320,41 +340,33 @@ const Book = () => {
     type.setAttribute('aWeight', new BufferAttribute(weight, 1));
     type.setIndex(index);
 
-    // The branches: from the end of a line to the start of each answer, a
-    // gentle S along the shell, in short segments so the mask holds along it
+    // The branches, as an outline draws them: a thin line down from under
+    // the start of each line past its answers, and a short tick across to
+    // each one, all along the shell in short segments so the mask holds
     const bp: number[] = [];
     const bs: number[] = [];
     const bw: number[] = [];
-    const SEG = 16;
-    BOOK.forEach((line, i) => {
-      if (line.parent === undefined) return;
-      const parent = ends[line.parent];
-      const child = ends[i];
-      // From just after the end of the line to just before its answer
-      const a = parent.right.clone();
-      const d = child.left.clone();
-      const b = a.clone().lerp(d, 0.5).setY(a.y);
-      const c2 = a.clone().lerp(d, 0.5).setY(d.y);
-      const pt = (t: number) => {
-        const u = 1 - t;
-        return a
-          .clone()
-          .multiplyScalar(u * u * u)
-          .addScaledVector(b, 3 * u * u * t)
-          .addScaledVector(c2, 3 * u * t * t)
-          .addScaledVector(d, t * t * t)
-          .normalize()
-          .multiplyScalar(a.length() * u + d.length() * t);
-      };
-      for (let k = 0; k < SEG; k++) {
-        const p = pt(k / SEG);
-        const q = pt((k + 1) / SEG);
+    const seedOf = (i: number) => (i * 0.618) % 1;
+    const run = (az0: number, el0: number, az1: number, el1: number, s0: number, s1: number) => {
+      const n = 6;
+      for (let k = 0; k < n; k++) {
+        const t0 = k / n;
+        const t1 = (k + 1) / n;
+        const p = at(az0 + (az1 - az0) * t0, el0 + (el1 - el0) * t0, SHELL);
+        const q = at(az0 + (az1 - az0) * t1, el0 + (el1 - el0) * t1, SHELL);
         bp.push(p.x, p.y, p.z, q.x, q.y, q.z);
-        const s0 = (line.parent * 0.618) % 1;
-        const s1 = (i * 0.618) % 1;
-        bs.push(k < SEG / 2 ? s0 : s1, k + 1 < SEG / 2 ? s0 : s1);
+        bs.push(t0 < 0.5 ? s0 : s1, t1 <= 0.5 ? s0 : s1);
         bw.push(0.8, 0.8);
       }
+    };
+    const halfHeightDeg = (i: number) => (LINES[i].size ?? 0.75) / 2 / SHELL / DEG;
+    BOOK.forEach((_, i) => {
+      const answers = BOOK.map((l, j) => (l.parent === i ? j : -1)).filter((j) => j >= 0);
+      if (answers.length === 0) return;
+      const trunk = starts[i] - INDENT_DEG * 0.45;
+      const last = answers[answers.length - 1];
+      run(trunk, els[i] - halfHeightDeg(i) - 0.35, trunk, els[last], seedOf(i), seedOf(last));
+      for (const j of answers) run(trunk, els[j], starts[j] + 0.35, els[j], seedOf(i), seedOf(j));
     });
     const branches = new BufferGeometry();
     branches.setAttribute('position', new BufferAttribute(new Float32Array(bp), 3));
@@ -368,7 +380,7 @@ const Book = () => {
       uniforms: {
         uMap: { value: texture },
         uColor: { value: new Color(PALETTE.script) },
-        uStrength: { value: 0.13 },
+        uStrength: { value: 0.11 },
         uTime: time,
       },
       vertexShader: scriptVertex,
@@ -380,7 +392,7 @@ const Book = () => {
       blending: AdditiveBlending,
       uniforms: {
         uColor: { value: new Color(PALETTE.branch) },
-        uStrength: { value: 0.085 },
+        uStrength: { value: 0.075 },
         uTime: time,
       },
       vertexShader: branchVertex,
@@ -403,7 +415,10 @@ const Book = () => {
   const still = prefersReducedMotion();
   useFrame((state) => {
     time.value = state.clock.elapsedTime;
-    if (group.current && !still) group.current.rotation.y = state.clock.elapsedTime * TURN;
+    if (group.current && !still) {
+      const t = state.clock.elapsedTime / SWAY.period;
+      group.current.rotation.y = Math.sin(t * Math.PI * 2) * SWAY.amplitude;
+    }
   });
 
   if (!built) return null;
@@ -509,10 +524,10 @@ const tourFragment = /* glsl */ `
   }`;
 
 const TOUR = {
-  /** Where the board lies: azimuth, distance and height (the opening view's right, low). */
-  az: 174,
-  distance: 44,
-  y: -8.5,
+  /** Where the board lies: azimuth, distance and height (far off and low, right of the lower levels in the opening view). */
+  az: 170,
+  distance: 60,
+  y: -31,
   /** Side of one square. */
   square: 1.1,
   /** Tilted up toward the tower, so it reads at a distance. */
@@ -564,8 +579,8 @@ const KnightsTour = () => {
         uPath: { value: new Color(PALETTE.tourPath) },
         uHead: { value: 0 },
         uTail: { value: TOUR.tail },
-        uGridStrength: { value: 0.07 },
-        uPathStrength: { value: 0.22 },
+        uGridStrength: { value: 0.05 },
+        uPathStrength: { value: 0.12 },
       },
       vertexShader: tourVertex,
       fragmentShader: tourFragment,
@@ -637,7 +652,7 @@ const KnightsTour = () => {
       -half + (y0 + (y1 - y0) * e + 0.5) * s,
     );
     pos.needsUpdate = true;
-    dotMaterial.uniforms.uStrength.value = h <= path.length - 1 ? 0.25 : 0;
+    dotMaterial.uniforms.uStrength.value = h <= path.length - 1 ? 0.12 : 0;
     if (head.current) head.current.visible = h <= path.length - 1;
   });
 
@@ -696,14 +711,65 @@ const CameraRig = () => {
   return null;
 };
 
+// --- The void ------------------------------------------------------------------------------
+
+// A still, soft glow of green light round the horizon, like the haze of a
+// screen in a dark room: the one broad volume of light in the void. It lies
+// low round every side, so it fills the dark behind the tower from the
+// opening view without any detail, and it fades out long before straight
+// down, where the view through the panes stays black.
+const skyVertex = /* glsl */ `
+  varying vec3 vDir;
+  void main() {
+    vDir = normalize(position);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }`;
+
+const skyFragment = /* glsl */ `
+  uniform vec3 uTop;
+  uniform vec3 uHorizon;
+  uniform vec3 uBottom;
+  uniform vec3 uGlow;
+  varying vec3 vDir;
+  void main() {
+    float h = vDir.y;
+    vec3 c = h > 0.0 ? mix(uHorizon, uTop, pow(h, 0.55)) : mix(uHorizon, uBottom, pow(-h, 0.55));
+    // The glow: centred a little below the horizon, reaching well down
+    float g = exp(-pow((h + 0.16) / 0.2, 2.0));
+    c += uGlow * g;
+    gl_FragColor = vec4(c, 1.0);
+    #include <colorspace_fragment>
+  }`;
+
+const Void = () => {
+  const material = useMemo(
+    () =>
+      new ShaderMaterial({
+        side: BackSide,
+        depthWrite: false,
+        fog: false,
+        uniforms: {
+          uTop: { value: new Color(PALETTE.skyTop) },
+          uHorizon: { value: new Color(PALETTE.skyHorizon) },
+          uBottom: { value: new Color(PALETTE.skyBottom) },
+          uGlow: { value: new Color(PALETTE.skyGlow) },
+        },
+        vertexShader: skyVertex,
+        fragmentShader: skyFragment,
+      }),
+    [],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+  return (
+    <mesh material={material} raycast={noRaycast} renderOrder={-1000} frustumCulled={false}>
+      <sphereGeometry args={[80, 48, 24]} />
+    </mesh>
+  );
+};
+
 export const Stage = () => (
   <>
-    <GradientSky
-      top={PALETTE.skyTop}
-      horizon={PALETTE.skyHorizon}
-      bottom={PALETTE.skyBottom}
-      exponent={0.55}
-    />
+    <Void />
     <Book />
     <KnightsTour />
     <CameraRig />

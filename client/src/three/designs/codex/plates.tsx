@@ -29,10 +29,11 @@ import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 //
 // The checker is the board: it keeps its strength from every side, darker
 // level colours lighting their squares a little more so every level reads
-// alike. Looking straight down the stack, the level the player attends to
-// (or the top one, with none) leads: its checker firms up a little while the
-// others step back by about half, so five nested grids read as one board
-// seen through glass rather than a plaid, every level still showing.
+// alike. Looking straight down the stack, every level steps back gently and
+// alike (the top one, nearest, a little less), so five nested grids read as
+// one board seen through glass rather than a plaid, and the board looks the
+// same whatever the player points at: the attended level's emphasis belongs
+// to side views.
 
 const vertexShader = /* glsl */ `
   varying vec2 vP;
@@ -60,7 +61,7 @@ const fragmentShader = /* glsl */ `
   uniform float uFocus;
   uniform float uDim;
   uniform float uSteep;
-  uniform float uLead;
+  uniform float uTop;
   uniform float uExt;
   varying vec2 vP;
   varying vec3 vWorld;
@@ -79,15 +80,23 @@ const fragmentShader = /* glsl */ `
     vec3 v = normalize(cameraPosition - vWorld);
     float slant = 1.0 - abs(v.y);
 
-    // From above, every level but the lead (the attended one, or the top
-    // one when none is) steps back, so the nested grids never plaid, and the
-    // lead's checker firms up a little: the board reads as one 2D board seen
-    // through glass, the others still showing, fainter, through and round it
-    float back = uSteep * (1.0 - uLead);
-    float boost = uSteep * uLead;
-    float keepFill = 1.0 - 0.55 * back;
-    float keepLine = 1.0 - 0.65 * back;
-    float dim = 1.0 - uDim;
+    // From above, every level steps back gently and alike (the top one, the
+    // nearest, a little less), so the nested grids never plaid and the board
+    // looks the same whatever the player points at. The attended level's
+    // emphasis (a brighter checker, the others dimmed) belongs to side views
+    // and fades out as the view looks down; only its lines stay a touch
+    // brighter there.
+    float keepFill = 1.0 - uSteep * mix(0.25, 0.0, uTop);
+    float keepLine = 1.0 - uSteep * mix(0.2, 0.0, uTop);
+    // Seen down through the stack, the smoked squares hold back a little
+    // more of what lies below them (as glass does, the more it is looked
+    // through): each pane's pattern then leads the ones under it, alike for
+    // every level and whatever the pointer does
+    float smoke = uSmoke * (1.0 + 0.6 * uSteep);
+    float side = 1.0 - uSteep;
+    float dim = 1.0 - uDim * side;
+    float dimLine = 1.0 - uDim * (1.0 - 0.5 * uSteep);
+    float focusLine = 1.0 + 0.3 * uFocus * (1.0 - 0.5 * uSteep);
 
     vec4 acc = vec4(0.0);
     // Smoked glass, catching a faint sheen of its level toward grazing angles
@@ -100,8 +109,8 @@ const fragmentShader = /* glsl */ `
     // own pattern leads over the panes seen through it
     vec2 ci = floor(clamp(cell, 0.0, uCells - 0.001));
     float lit = mod(ci.x + ci.y + uLevel, 2.0);
-    over(acc, uGlass, uSmoke * (1.0 + 0.6 * boost) * (1.0 - lit) * inside * keepFill);
-    float fill = mix(uDark, uLit * (1.0 + 0.25 * uFocus + 0.5 * boost), lit) * keepFill * dim;
+    over(acc, uGlass, smoke * (1.0 - lit) * inside);
+    float fill = mix(uDark, uLit * (1.0 + 0.25 * uFocus * side), lit) * keepFill * dim;
     over(acc, uColor, fill * inside);
 
     // Hairlines between the squares (not the border: the frame is the
@@ -134,8 +143,8 @@ const fragmentShader = /* glsl */ `
     float glow = max(halo.x, halo.y) * 0.1;
     glow *= 1.0 - smoothstep(0.05, 0.18, max(deriv.x, deriv.y));
 
-    float lineA = (line * uLine * (1.0 + 0.3 * uFocus)) * keepLine * dim;
-    over(acc, uLineColor, glow * keepLine * dim);
+    float lineA = line * uLine * focusLine * keepLine * dimLine;
+    over(acc, uLineColor, glow * keepLine * dimLine);
     over(acc, uLineColor, min(lineA, 1.0));
 
     if (acc.a < 0.002) discard;
@@ -146,15 +155,12 @@ const fragmentShader = /* glsl */ `
 const view = new Vector3();
 
 /**
- * How far the view looks straight down the stack (0 below about 53° of
- * elevation, 1 from about 76°), shared with the markers.
+ * How far the view looks straight down the stack: 0 below about 53° of
+ * elevation, 1 from about 72°. Ordinary high views keep their full checker.
  */
 export const steepness = { value: 0 };
-/**
- * Per level, 1 for the level the player attends to (hovered or selected):
- * seen from above, only the others step back.
- */
-export const leads = LEVEL_COLORS.map(() => ({ value: 0 }));
+/** The top level: the nearest from above, it keeps a little more there. */
+const TOP = LEVEL_COLORS.length - 1;
 
 const FRAME_WIDTH = 0.024;
 const FRAME_DEPTH = 0.032;
@@ -204,7 +210,7 @@ export const Panes = ({ focusLevel }: { focusLevel: number | null }) => {
               uFocus: { value: 0 },
               uDim: { value: 0 },
               uSteep: steepness,
-              uLead: leads[z],
+              uTop: { value: z === TOP ? 1 : 0 },
               // The lines reach the frame's inner edge
               uExt: { value: MARGIN / FRAME.pitch },
             },
@@ -237,31 +243,32 @@ export const Panes = ({ focusLevel }: { focusLevel: number | null }) => {
     [panes, frames],
   );
 
-  // Each frame's opacity by focus, before the view's steepness takes its share
-  const frameBase = useRef(LEVEL_COLORS.map(() => FRAME_OPACITY));
+  // The frames by focus: the attended level's brightens, the others' step
+  // back a little (less so from above, where the board should not change)
+  const focusOf = useRef(LEVEL_COLORS.map(() => ({ w: 0, any: 0 })));
   useLevelFocus(
     focusLevel,
     (weights, any) => {
       weights.forEach((w, z) => {
         panes[z].uniforms.uFocus.value = w;
-        // With nothing attended to, the top pane leads from above
-        leads[z].value = Math.min(1, w + (1 - any) * (z === weights.length - 1 ? 1 : 0));
         panes[z].uniforms.uDim.value = any * (1 - w) * 0.22;
-        frameBase.current[z] = FRAME_OPACITY * (1 - any * (1 - w) * 0.35) + 0.1 * w;
+        focusOf.current[z] = { w, any };
         frames[z].color.set(LEVEL_COLORS[z]).multiplyScalar(1 + 0.25 * w);
       });
     },
     { key: panes },
   );
 
-  // As the view looks down the stack, every level but the lead steps back
+  // As the view looks down the stack, every level steps back a little
   useFrame(({ camera }) => {
     camera.getWorldDirection(view);
-    const steep = Math.min(Math.max((-view.y - 0.8) / (0.97 - 0.8), 0), 1);
+    const steep = Math.min(Math.max((-view.y - 0.8) / (0.95 - 0.8), 0), 1);
     const s = steep * steep * (3 - 2 * steep);
     steepness.value = s;
     frames.forEach((m, z) => {
-      m.opacity = frameBase.current[z] * (1 - 0.3 * s * (1 - leads[z].value));
+      const { w, any } = focusOf.current[z];
+      const focused = 1 - any * (1 - w) * 0.35 * (1 - 0.6 * s) + 0.1 * w;
+      m.opacity = FRAME_OPACITY * focused * (1 - (z === TOP ? 0.05 : 0.15) * s);
     });
   });
 

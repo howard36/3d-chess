@@ -24,20 +24,22 @@ import { LEVEL_COLORS, MOTION, PALETTE, levelAt } from './palette';
 //   square's level colour (brighter toward its edge, like light in glass),
 //   with a small diamond of that colour at its heart. Under the pointer the
 //   fill deepens and the diamond grows a little, eased.
-// - A capture: the same diamond in red, opened round the victim's base, with
+// - A capture: the same diamond in amber-red, opened round the victim's base, with
 //   one slow mote of amber light travelling round its edge.
 // - The selection is written in by the piece itself (pieces.tsx): a line
 //   round its base and a soft cone of light.
-// - The last move: pale phosphor diamonds on both squares, the one it left a
-//   smaller copy of the one it reached, joined by a thin dashed line flowing
+// - The last move: dashed pale phosphor diamonds on both squares, the one it
+//   left a smaller copy of the one it reached, joined by a thin dashed line flowing
 //   slowly toward the destination. Where a destination of the piece now held
 //   falls on one of them, the last move's diamond gives way to it, so the two
 //   never stack.
-// - Check: a crown of light. A red diamond plate under the king with four
-//   short blades of light rising at its corners; it arrives with one strong
-//   pulse (the plate flares, an echo of the diamond sweeps out, the blades
-//   shoot up past their height and settle), then a slow shimmer climbs the
-//   blades while the check lasts.
+// - Check: a crown of light, in a crimson of its own (the capture is an
+//   amber-red). A diamond plate under the king with a short point out from
+//   each corner, the crown in plan, and four blades of light rising at its
+//   corners; it arrives with one strong pulse (the plate flares, an echo of
+//   the diamond sweeps out, the blades shoot up past their height and
+//   settle), then a slow shimmer climbs the blades while the check lasts. At
+//   mate the blades fold down and the plate stills as the king topples.
 //
 // Every flat mark is one quad shaded by signed distances, crisp at any angle
 // and distance, drawn after every pane (LAYER) so a mark three levels down
@@ -68,6 +70,8 @@ const fragmentShader = /* glsl */ `
   uniform float uTime;
   uniform float uPulse;
   uniform float uEcho;
+  uniform float uDashes;
+  uniform float uPoints;
   varying vec2 vP;
 
   // Signed distance to a diamond of vertex radius r (a square of half side
@@ -98,6 +102,17 @@ const fragmentShader = /* glsl */ `
     vec2 p = vP / (1.0 + 0.1 * uHover);
     float d = diamond(p, uR);
     float line = cover(abs(d) - uWidth * 0.5, uWidth * 0.5);
+    if (uDashes > 0.0) {
+      // The last move's diamonds are dashed, like the line between them:
+      // along each edge (in the turned square's frame), even dashes, one
+      // centred on every corner and every edge's middle
+      vec2 q = vec2(p.x + p.y, p.x - p.y) * 0.70710678;
+      float along = abs(q.x) > abs(q.y) ? q.y : q.x;
+      float phase = along / (uR * 1.41421356) * uDashes;
+      float off = abs(phase - floor(phase + 0.5));
+      float fw = max(fwidth(phase), 1e-4);
+      line *= 1.0 - smoothstep(0.28 - fw, 0.28 + fw, off);
+    }
     float inside = 1.0 - smoothstep(-0.004, 0.004, d);
     // Light in glass: the fill is stronger toward the edge, and under the
     // pointer it gains weight and depth (deeper, and reaching further in)
@@ -108,7 +123,9 @@ const fragmentShader = /* glsl */ `
     float halo = exp(-max(d, 0.0) * max(d, 0.0) / (0.025 * 0.025)) * 0.18 * (1.0 - inside);
 
     // The fill: the marker's own light at the rim, the level's colour within
-    vec3 col = mix(uLevelColor, uColor, edgeLit * 0.6);
+    // (tinted a little toward the marker's own light throughout, so it
+    // still reads on a square lit in the same level colour)
+    vec3 col = mix(mix(uLevelColor, uColor, 0.3), uColor, edgeLit * 0.5);
     float a = fill;
     // The level's small diamond at the heart
     if (uCue > 0.0) {
@@ -138,6 +155,15 @@ const fragmentShader = /* glsl */ `
       float echo = cover(abs(diamond(vP, er)) - uWidth * 0.6, uWidth * 0.6) * (1.0 - uEcho) * step(0.001, uEcho);
       col = mix(col, uColor, echo / max(a + echo, 1e-4));
       a = max(a, echo * 0.9);
+      // The crown in plan: a short point out from each corner, so from
+      // straight above (where the blades fold to dots) it is still a crown
+      vec2 q = abs(p);
+      if (q.y > q.x) q = q.yx;
+      float t = clamp((q.x - uR + 0.02) / 0.1, 0.0, 1.0);
+      float spike = max(q.y - 0.024 * (1.0 - t), max(uR - 0.02 - q.x, q.x - uR - 0.08));
+      float pts = cover(spike, 0.012) * uPoints;
+      col = mix(col, uColor, pts / max(a + pts * (1.0 - a), 1e-4));
+      a = a + pts * (1.0 - a);
     }
     a *= uOpacity;
     if (a < 0.003) discard;
@@ -166,6 +192,8 @@ interface GlyphStyle {
   radius: number;
   width: number;
   fill: number;
+  /** Dashes along each edge of the stroke (even; 0: solid). */
+  dashes?: number;
   /** Vertex radius of the level's small diamond at the heart (0: none). */
   cue?: number;
   opacity?: number;
@@ -193,6 +221,8 @@ const makeMaterial = (s: GlyphStyle) =>
       uTime: clock,
       uPulse: { value: 0 },
       uEcho: { value: 0 },
+      uDashes: { value: s.dashes ?? 0 },
+      uPoints: { value: s.mode === 'check' ? 1 : 0 },
     },
     vertexShader,
     fragmentShader,
@@ -299,7 +329,7 @@ const useOccupied = (floor: Vec3) => {
 
 // --- Destinations -----------------------------------------------------------------------------
 
-const QUIET = { radius: 0.34, width: 0.022, fill: 0.13, cue: 0.065 };
+const QUIET = { radius: 0.34, width: 0.022, fill: 0.18, cue: 0.065 };
 const CAPTURE = { radius: 0.47, width: 0.028, fill: 0.11 };
 
 export const Quiet = ({ floor, hovered }: MarkerProps) => {
@@ -355,10 +385,13 @@ const TRACE_OPACITY = 0.85;
 const TraceMark = ({
   floor,
   radius,
+  dashes,
   delayMs = 0,
 }: {
   floor: Vec3;
   radius: number;
+  /** Dashes along each edge (even). */
+  dashes: number;
   delayMs?: number;
 }) => {
   const yielded = useOccupied(floor);
@@ -393,7 +426,8 @@ const TraceMark = ({
         color: PALETTE.trace,
         levelColor: PALETTE.trace,
         radius,
-        width: 0.02,
+        dashes,
+        width: 0.022,
         fill: 0.05,
         opacity: 0,
       }}
@@ -403,8 +437,13 @@ const TraceMark = ({
 
 export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
   <>
-    <TraceMark floor={from.floor} radius={TRACE_FROM} />
-    <TraceMark floor={to.floor} radius={TRACE_TO} delayMs={fresh ? MOTION.durationMs * 0.8 : 0} />
+    <TraceMark floor={from.floor} radius={TRACE_FROM} dashes={4} />
+    <TraceMark
+      floor={to.floor}
+      radius={TRACE_TO}
+      dashes={6}
+      delayMs={fresh ? MOTION.durationMs * 0.8 : 0}
+    />
     <LastMoveLine
       from={from.floor}
       to={to.floor}
@@ -426,7 +465,7 @@ export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerPro
 
 // --- Check: a crown of light ------------------------------------------------------------------
 
-const CROWN_RADIUS = 0.47;
+const CROWN_RADIUS = 0.42;
 const BLADE_HEIGHT = 0.4;
 const BLADE_WIDTH = 0.1;
 const PULSE_MS = 650;
@@ -545,29 +584,41 @@ const Blades = ({ floor, pulse }: { floor: Vec3; pulse: { grow: number; flare: n
   );
 };
 
-export const Check = ({ floor }: MarkerProps) => {
+/** At mate, the crown settles: the blades fold down and the plate dims, over this long. */
+const SETTLE_MS = 700;
+
+export const Check = ({ floor, mated = false }: MarkerProps) => {
   useClock();
   const invalidate = useThree((s) => s.invalidate);
   const plate = useRef<ShaderMaterial | null>(null);
   const pulse = useRef({ grow: 0, flare: 1 });
   const elapsed = useRef(0);
-  useEffect(() => invalidate(), [invalidate]);
+  const settled = useRef(0);
+  useEffect(() => invalidate(), [invalidate, mated]);
   useFrame((_, delta) => {
-    elapsed.current += Math.min(delta, 1 / 20) * 1000;
+    const dt = Math.min(delta, 1 / 20) * 1000;
+    elapsed.current += dt;
+    settled.current = Math.min(
+      1,
+      Math.max(0, settled.current + (mated ? 1 : -1) * (dt / SETTLE_MS)),
+    );
+    const k = settled.current * settled.current * (3 - 2 * settled.current);
     const t = Math.min(elapsed.current / PULSE_MS, 1);
     // The blades shoot up past their height and settle; the plate flares once
     const grow =
       t < 0.55
         ? 1.22 * (1 - (1 - t / 0.55) ** 3)
         : 1 + 0.22 * Math.cos(((t - 0.55) / 0.45) * Math.PI * 0.5);
-    pulse.current.grow = t >= 1 ? 1 : grow;
+    pulse.current.grow = (t >= 1 ? 1 : grow) * (1 - k);
     pulse.current.flare = (1 - t) ** 2;
     const m = plate.current;
     if (m) {
-      // After the pulse, the plate breathes gently while the check lasts
+      // After the pulse, the plate breathes gently while the check lasts;
+      // at mate it stills and dims as the king goes down
       const breath = 0.5 + 0.5 * Math.cos((clock.value / 3.2) * Math.PI * 2);
-      m.uniforms.uPulse.value = (1 - t) ** 2 + (t >= 1 ? 0.12 * breath : 0);
+      m.uniforms.uPulse.value = (1 - t) ** 2 + (t >= 1 ? 0.12 * breath * (1 - k) : 0);
       m.uniforms.uEcho.value = t < 1 ? 1 - (1 - t) ** 2 : 0;
+      m.uniforms.uOpacity.value = 1 - 0.45 * k;
     }
   });
   return (
