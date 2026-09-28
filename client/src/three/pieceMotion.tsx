@@ -159,14 +159,16 @@ export const Lift = ({
 
 /** How long a mated king takes to fall and settle. */
 export const TOPPLE_MS = 900;
+/** The share of that at which he strikes the floor (a settling bounce follows). */
+export const TOPPLE_STRIKE = 0.55;
 /** The most one frame advances the fall. */
 const TOPPLE_STEP_MS = 125;
 
-// When a toppling king has come to rest (on the scene's own clock, however
+// When a toppling king strikes the floor (on the scene's own clock, however
 // slowly the frames come), for the result card to follow (GameScreen.tsx)
 const toppled = new Set<() => void>();
 
-/** Calls `listener` each time a mated king has finished falling; returns the unsubscribe. */
+/** Calls `listener` each time a mated king strikes the floor; returns the unsubscribe. */
 export const onToppled = (listener: () => void) => {
   toppled.add(listener);
   return () => {
@@ -187,14 +189,14 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
   const pivot = useRef<Group>(null);
   const elapsed = useRef(0);
   const aimed = useRef(false);
-  const settled = useRef(false);
+  const struck = useRef(false);
   const decalsHidden = useRef(false);
   const invalidate = useThree((s) => s.invalidate);
 
   useEffect(() => {
     elapsed.current = 0;
     aimed.current = false;
-    settled.current = false;
+    struck.current = false;
     invalidate();
   }, [active, invalidate]);
 
@@ -230,7 +232,10 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
     elapsed.current += Math.min(delta * 1000, TOPPLE_STEP_MS);
     const t = Math.min(elapsed.current / TOPPLE_MS, 1);
     // Accelerating fall, then a damped rebound off the floor
-    const fall = t < 0.55 ? (t / 0.55) ** 2 : 1 - Math.sin((t - 0.55) * 14) * 0.06 * (1 - t);
+    const fall =
+      t < TOPPLE_STRIKE
+        ? (t / TOPPLE_STRIKE) ** 2
+        : 1 - Math.sin((t - TOPPLE_STRIKE) * 14) * 0.06 * (1 - t);
     g.rotation.x = -1.42 * fall;
     // Once it tips, what lay flat at its base would stand up with it (every
     // frame, in case the body remounts a disc while the king is down)
@@ -238,11 +243,11 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
       showFloorDecals(g, false);
       decalsHidden.current = true;
     }
-    if (t < 1) invalidate();
-    else if (!settled.current) {
-      settled.current = true;
+    if (t >= TOPPLE_STRIKE && !struck.current) {
+      struck.current = true;
       toppled.forEach((listener) => listener());
     }
+    if (t < 1) invalidate();
   });
 
   return (

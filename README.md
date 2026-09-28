@@ -329,8 +329,9 @@ piece under the pointer lifts a little; the selected piece lifts higher and hold
 a column of cool light. A move glides in a straight line from square to square
 (`three/movePath.ts`), or over an arc for a knight when the player sets **Knight moves** to
 Arc. A captured piece burns away; at mate the king topples and a pulse of light spreads
-across his own level at an even speed (`scene/fx.tsx`), and the result card follows a beat
-after he has fallen (`onToppled` in `three/pieceMotion.tsx`) while the pulse plays on.
+across his own level at an even speed (`scene/fx.tsx`), and the result card appears as he
+strikes the floor (`onToppled` in `three/pieceMotion.tsx`) while his bounce and the pulse
+play on behind it.
 
 How the code is split:
 

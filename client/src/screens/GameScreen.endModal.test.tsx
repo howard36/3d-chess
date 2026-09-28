@@ -92,18 +92,16 @@ describe('the result card after a mate', () => {
     expect(screen.getByRole('button', { name: 'Start new game' })).toHaveFocus();
   });
 
-  it('waits for the mated king to fall, and a beat more, not for the pulse', () => {
+  it('waits for the mated king to strike the floor, not for the pulse', () => {
     const { rerender } = render(screenFor(beforeMate));
     rerender(screenFor(mated));
     expect(result()).not.toBeInTheDocument();
     // However long the board takes to topple the king (a slow device)...
     act(() => vi.advanceTimersByTime(8000));
     expect(result()).not.toBeInTheDocument();
-    // ...the card follows its signal, a beat later
+    // ...the card follows its signal, on the next frame
     act(() => kingFell());
-    act(() => vi.advanceTimersByTime(300));
-    expect(result()).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(200));
+    act(() => vi.advanceTimersByTime(20));
     expect(result()).toBeInTheDocument();
   });
 

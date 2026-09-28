@@ -36,8 +36,6 @@ interface GameScreenProps {
 
 type Phase = 'waiting' | 'joined' | 'started';
 
-/** After the mated king has fallen, a beat more before the result card (the pulse plays on). */
-const RESULT_BEAT_MS = 400;
 /** If the scene never says the king has fallen (frames stopped), the card shows anyway. */
 const MATE_FALLBACK_MS = 12000;
 /**
@@ -137,9 +135,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const [endShown, setEndShown] = React.useState<typeof gameOver>(null);
   React.useEffect(() => {
     if (!gameOver || !endedLive) return;
-    // A mate: once the scene says the king has fallen (on its own clock, so
-    // a slow device never covers it early), and a beat more; with a generous
-    // fallback in case frames stop. A stalemate: a moment. Timed on
+    // A mate: as soon as the scene says the king has struck the floor (on its
+    // own clock, so a slow device never covers the fall early), while his
+    // bounce and the pulse play on behind the card; with a generous fallback
+    // in case frames stop. A stalemate: a moment. Timed on
     // animation frames, the clock the scene runs on.
     const mate = gameOver.result === 'checkmate';
     const start = performance.now();
@@ -152,7 +151,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     let frame = requestAnimationFrame(function tick() {
       const now = performance.now();
       const waited = mate
-        ? (fellAt !== null && now - fellAt >= RESULT_BEAT_MS) || now - start >= MATE_FALLBACK_MS
+        ? fellAt !== null || now - start >= MATE_FALLBACK_MS
         : now - start >= STALEMATE_WAIT_MS;
       if (waited) setEndShown(gameOver);
       else frame = requestAnimationFrame(tick);

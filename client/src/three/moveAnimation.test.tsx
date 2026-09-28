@@ -13,6 +13,7 @@ import {
   onToppled,
   Topple,
   TOPPLE_MS,
+  TOPPLE_STRIKE,
   useGlide,
 } from './pieceMotion';
 
@@ -246,7 +247,7 @@ describe('Lift and Topple', () => {
     expect(liftEntry(0.01, 0.5, 5)).toBe(0.8);
   });
 
-  it('says once when a mated king has come to rest, for the result card', async () => {
+  it('says once when a mated king strikes the floor, for the result card', async () => {
     let fell = 0;
     const stop = onToppled(() => fell++);
     const renderer = await ReactThreeTestRenderer.create(
@@ -254,10 +255,13 @@ describe('Lift and Topple', () => {
         <mesh />
       </Topple>,
     );
-    // Frames of 30 ms: still falling just short of its time...
-    await act(async () => renderer.advanceFrames(Math.floor(TOPPLE_MS / 30) - 1, 0.03));
+    // Frames of 30 ms: still falling just short of the floor...
+    await act(async () =>
+      renderer.advanceFrames(Math.floor((TOPPLE_MS * TOPPLE_STRIKE) / 30) - 1, 0.03),
+    );
     expect(fell).toBe(0);
-    // ...and down once it has passed, told only once however long it lies there
+    // ...and down once it has struck, told only once, through the bounce and
+    // however long it lies there
     await act(async () => renderer.advanceFrames(20, 0.03));
     expect(fell).toBe(1);
     stop();
