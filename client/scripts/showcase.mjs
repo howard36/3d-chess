@@ -684,7 +684,9 @@ const PACE = {
   afterWhite: 0.7,
   afterBlack: 0.8,
   mate: 1.2, // the mate playing out, before the result card
-  result: 2.0,
+  // The card follows the mate's pulse (about 3.3 s after the move at the
+  // default 2.4 s pulse), so the result still waits past it
+  result: 2.8,
   tail: 1.0,
 };
 
@@ -1226,18 +1228,14 @@ async function main() {
     return [yaw, pitch, zoom];
   };
 
-  // The finale: once mate lands, the camera leans in on the fallen king.
-  let finale = null;
   // --stills-fast draws only the frames it saves: the clock, the animations
   // and the camera still advance every frame, just without a picture.
   const step = async (capture = !STILLS, draw = !STILLS_FAST || capture) => {
-    let [yaw, pitch, zoom] = camera(frame);
-    let pull = 0;
-    if (finale) {
-      const k = ease(Math.min((frame - finale.frame) / (FPS * 1.6), 1));
-      zoom *= 1 - 0.18 * k;
-      pull = 0.3 * k;
-    }
+    // The camera keeps its gentle sway through the mate: the app centres the
+    // whole tower in the view, so leaning in on the king would crop the top
+    // level (and him) off the frame
+    const [yaw, pitch, zoom] = camera(frame);
+    const pull = 0;
     await rec.evaluate(
       ({ ms, yaw, pitch, zoom, focus, pull, cx, cy, press, draw }) => {
         window.__show.orbit(yaw, pitch, zoom, focus, pull);
@@ -1250,7 +1248,7 @@ async function main() {
         yaw,
         pitch,
         zoom,
-        focus: finale?.king ?? null,
+        focus: null,
         pull,
         cx: cursor.x,
         cy: cursor.y,
@@ -1619,10 +1617,8 @@ async function main() {
   }
 
   if (PLIES >= GAME.length) {
-    // The mate: lean in while it plays out, then the result card (the app
-    // holds it back until the mate's animation is over).
-    const loser = GAME.length % 2 === 1 ? 'black' : 'white';
-    finale = { frame, king: await white.evaluate((c) => window.__show.kingAt(c), loser) };
+    // The mate plays out, then the result card (the app holds it back until
+    // the mate's animation is over).
     await hold(PACE.mate);
     await still('mate');
     await hold(PACE.result);
