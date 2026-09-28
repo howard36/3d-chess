@@ -1,11 +1,12 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { test, expect, vi, beforeEach } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
+import { describe, it, test, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import App from './App';
 import GameScreen from './screens/GameScreen';
 import StartScreen from './screens/StartScreen';
-import TurnIndicator from './three/TurnIndicator';
+import TurnPill from './screens/TurnPill';
+import { forgetSettings, setSetting } from './three/settings';
 import userEvent from '@testing-library/user-event';
 import { waitFor } from '@testing-library/react';
 import type { GameSocket } from './hooks/useGameSocket';
@@ -105,6 +106,7 @@ const fakeSocket = (
 
 beforeEach(() => {
   localStorage.clear();
+  forgetSettings();
 });
 
 test('renders StartScreen for the default route', () => {
@@ -329,9 +331,10 @@ test('GameScreen restores a started game from game_state', () => {
       },
     ]),
   );
-  expect(screen.getByText('You are playing as white.')).toBeInTheDocument();
-  // One move replayed from history: black to move
-  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('Black to move');
+  expect(screen.getByTestId('seat')).toHaveAttribute('data-seat', 'white');
+  // One move replayed from history: black to move, the opponent's half lit
+  expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
+  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('Their move');
 });
 
 test('GameScreen shows the waiting screen when game_state says the game has not started', () => {
@@ -389,7 +392,10 @@ test('GameScreen shows a reconnecting notice while the socket is down', () => {
       status: 'reconnecting',
     }),
   );
-  expect(screen.getByText('Reconnecting…')).toHaveAttribute('role', 'status');
+  // Under the pill, in a status region that was there before it, and the
+  // pill, which may be out of date, dims
+  expect(screen.getByText('Reconnecting…').closest('[role="status"]')).not.toBeNull();
+  expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-stale', 'true');
 });
 
 test('GameScreen freezes at the last good position when history has an unplayable move', () => {
@@ -407,9 +413,9 @@ test('GameScreen freezes at the last good position when history has an unplayabl
       },
     ]),
   );
-  expect(screen.getByRole('alert')).toHaveTextContent(/not a legal move for this client/);
+  expect(screen.getByRole('alert')).toHaveTextContent(/can't be replayed by this version/);
   // Nothing was applied, so the shown position is still White to move
-  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('White to move');
+  expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
 });
 
 test('GameScreen freezes before a recorded king capture instead of crashing', () => {
@@ -433,8 +439,8 @@ test('GameScreen freezes before a recorded king capture instead of crashing', ()
       },
     ]),
   );
-  expect(screen.getByRole('alert')).toHaveTextContent(/Move 3 in this game's history/);
-  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('White to move');
+  expect(screen.getByRole('alert')).toHaveTextContent(/Move 3 of this game/);
+  expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
   // The record itself is still listed in full
   expect(screen.getByTestId('move-list')).toHaveTextContent('Ac2–Ec5');
 });
@@ -482,7 +488,7 @@ test('GameScreen does not double-count moves that predate a reconnect snapshot',
     ]),
   );
   // Two moves total (not three): back to White
-  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('White to move');
+  expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
 });
 
 test('GameScreen clears a stale role and falls back to the join button when rejoin fails', async () => {
@@ -738,7 +744,10 @@ test('GameScreen drops the promotion when the player cancels', async () => {
 test('GameScreen shows whether the opponent is connected, from the latest presence message', () => {
   const { rerender } = renderGameScreen('abc123', fakeSocket(started));
   // No presence yet: nothing claimed either way
-  expect(screen.queryByTestId('opponent-presence')).not.toBeInTheDocument();
+  const presence = screen.getByTestId('opponent-presence');
+  expect(presence).not.toHaveAttribute('data-online');
+  expect(presence).toHaveTextContent('');
+  expect(screen.getByTestId('turn-indicator')).not.toHaveTextContent('Offline');
 
   const withPresence = (...presence: WebSocketMessage[]) => (
     <MemoryRouter initialEntries={['/game/abc123']}>
@@ -751,14 +760,20 @@ test('GameScreen shows whether the opponent is connected, from the latest presen
     </MemoryRouter>
   );
   rerender(withPresence({ type: 'presence', color: 'black', online: true }));
-  expect(screen.getByTestId('opponent-presence')).toHaveTextContent('Opponent: online');
+  // Online is the normal state: said to a screen reader, not shown
+  expect(screen.getByTestId('opponent-presence')).toHaveAttribute('data-online', 'true');
+  expect(screen.getByTestId('opponent-presence')).toHaveTextContent('Your opponent is online.');
+  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('Opponent');
+  expect(screen.getByTestId('turn-indicator')).not.toHaveTextContent('Offline');
   rerender(
     withPresence(
       { type: 'presence', color: 'black', online: true },
       { type: 'presence', color: 'black', online: false },
     ),
   );
-  expect(screen.getByTestId('opponent-presence')).toHaveTextContent('Opponent: offline');
+  expect(screen.getByTestId('opponent-presence')).toHaveAttribute('data-online', 'false');
+  expect(screen.getByTestId('opponent-presence')).toHaveTextContent('Your opponent is offline.');
+  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('Offline');
   // A presence message about our own colour is not about the opponent
   rerender(
     withPresence(
@@ -766,7 +781,7 @@ test('GameScreen shows whether the opponent is connected, from the latest presen
       { type: 'presence', color: 'white', online: true },
     ),
   );
-  expect(screen.getByTestId('opponent-presence')).toHaveTextContent('Opponent: offline');
+  expect(screen.getByTestId('opponent-presence')).toHaveAttribute('data-online', 'false');
 });
 
 test('GameScreen re-sends a join whose answer was lost to a drop, with the same client id', async () => {
@@ -888,7 +903,7 @@ test('GameScreen holds the board until the rejoin on a fresh load is answered', 
 test('GameScreen plays a move typed into the move box, and explains one it cannot play', async () => {
   const send = vi.fn<GameSocket['send']>(() => true);
   renderGameScreen('abc123', fakeSocket(started, send));
-  const box = screen.getByRole('textbox', { name: 'Type a move (e.g. Bb1-Cb1)' });
+  const box = screen.getByRole('textbox', { name: 'Type a move, like Bb1-Cb1' });
 
   await userEvent.type(box, 'Ba2-Ea2{Enter}');
   expect(send).not.toHaveBeenCalled();
@@ -900,42 +915,122 @@ test('GameScreen plays a move typed into the move box, and explains one it canno
   expect(send).toHaveBeenCalledWith({ type: 'move', from: 'Ba2', to: 'Ca2', promotion: undefined });
   expect(box).toHaveValue('');
   // In flight: like the board, the box holds until the server answers
-  expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled();
+  expect(screen.getByTestId('board')).toBeDisabled();
+  await userEvent.type(box, 'Bb2-Cb2{Enter}');
+  expect(send).toHaveBeenCalledTimes(1);
 });
 
-test("GameScreen's move box only plays on the player's turn", () => {
-  renderGameScreen('abc123', fakeSocket([{ type: 'game_start', color: 'black' }]));
-  expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled();
+test("GameScreen's move box only plays on the player's turn, and says so", async () => {
+  const send = vi.fn<GameSocket['send']>(() => true);
+  renderGameScreen('abc123', fakeSocket([{ type: 'game_start', color: 'black' }], send));
+  const box = screen.getByRole('textbox', { name: 'Type a move, like Bb1-Cb1' });
+  await userEvent.type(box, 'Dd5-Cd5{Enter}');
+  expect(send).not.toHaveBeenCalled();
+  expect(screen.getByText('Wait for their move.')).toBeInTheDocument();
 });
 
-test('the turn indicator says check in words and is announced politely', () => {
-  const { rerender } = render(<TurnIndicator turn="white" />);
-  const indicator = screen.getByTestId('turn-indicator');
-  expect(indicator).toHaveTextContent(/^White to move$/);
-  expect(indicator).toHaveAttribute('aria-live', 'polite');
-  rerender(<TurnIndicator turn="black" inCheck />);
-  expect(indicator).toHaveTextContent('Black to move — in check');
-  expect(indicator).toHaveAttribute('data-turn', 'black');
-  expect(indicator).not.toHaveAttribute('data-result');
+test('GameScreen keeps the move card out of sight until Keyboard play or Tab asks for it', async () => {
+  renderGameScreen('abc123', fakeSocket(started));
+  const card = screen.getByTestId('move-card');
+  // Out of sight, but in the page: the list for screen readers, the field for Tab
+  expect(card).toHaveAttribute('data-hidden');
+  expect(screen.getByRole('list', { name: 'Move history' })).toHaveClass('sr-only');
+  // The first tab stop after the board (a few buttons in these tests; the
+  // real canvas takes no focus), before the settings gear
+  const field = screen.getByRole('textbox', { name: 'Type a move, like Bb1-Cb1' });
+  for (let i = 0; i < 6 && document.activeElement !== field; i++) {
+    expect(document.activeElement).not.toBe(screen.getByTestId('settings'));
+    await userEvent.tab();
+  }
+  expect(field).toHaveFocus();
+  expect(card).not.toHaveAttribute('data-hidden');
+  expect(screen.getByText(/Esc to hide/)).toBeInTheDocument();
+  await userEvent.keyboard('{Escape}');
+  expect(card).toHaveAttribute('data-hidden');
+
+  act(() => setSetting('play.keyboard', true));
+  expect(card).not.toHaveAttribute('data-hidden');
+  expect(screen.getByRole('list', { name: 'Move history' })).toHaveClass('hud-moves');
+  act(() => setSetting('play.keyboard', false));
+  expect(card).toHaveAttribute('data-hidden');
 });
 
-test('the turn indicator gives the result once the game is over', () => {
-  const { rerender } = render(
-    <TurnIndicator turn="black" gameOver={{ result: 'checkmate', winner: 'white' }} />,
-  );
-  const indicator = screen.getByTestId('turn-indicator');
-  expect(indicator).toHaveTextContent(/^Checkmate · White wins$/);
-  expect(indicator).toHaveAttribute('data-result', 'checkmate');
-  expect(indicator).toHaveAttribute('data-winner', 'white');
-  expect(indicator).not.toHaveAttribute('data-turn');
+test('GameScreen announces each move as it lands, with whose move it is now', () => {
+  const { rerender } = renderGameScreen('abc123', fakeSocket(started));
+  const announcer = screen.getByTestId('move-announcer');
+  expect(announcer).toHaveAttribute('aria-live', 'polite');
+  expect(announcer).toHaveTextContent('');
+  expect(announcer).toHaveAttribute('data-move-count', '0');
   rerender(
-    <TurnIndicator turn="white" inCheck gameOver={{ result: 'checkmate', winner: 'black' }} />,
+    gameScreenAt(
+      fakeSocket([...started, { type: 'move_made', by: 'white', from: 'Bb1', to: 'Cb1' }]),
+    ),
   );
-  expect(indicator).toHaveTextContent(/^Checkmate · Black wins$/);
-  rerender(<TurnIndicator turn="white" gameOver={{ result: 'stalemate' }} />);
-  expect(indicator).toHaveTextContent(/^Stalemate · Draw$/);
-  expect(indicator).toHaveAttribute('data-result', 'stalemate');
-  expect(indicator).not.toHaveAttribute('data-winner');
+  expect(announcer).toHaveTextContent('White pawn Bb1 to Cb1. Black to move.');
+  expect(announcer).toHaveAttribute('data-last-move', 'Bb1-Cb1');
+  expect(announcer).toHaveAttribute('data-move-count', '1');
+});
+
+describe('the turn pill', () => {
+  const pill = (props: Partial<React.ComponentProps<typeof TurnPill>> = {}) => (
+    <TurnPill
+      seat="white"
+      turn="white"
+      inCheck={false}
+      gameOver={null}
+      opponentOnline={true}
+      stale={false}
+      {...props}
+    />
+  );
+
+  it('lights the half of the side to move, the player always on the left', () => {
+    const { rerender } = render(pill());
+    const indicator = screen.getByTestId('turn-indicator');
+    expect(indicator).toHaveTextContent(/^You play White\. Your move\.Your move\s*Opponent$/);
+    expect(indicator).toHaveAttribute('data-turn', 'white');
+    expect(indicator.querySelector('[data-side="me"]')).toHaveAttribute('data-on');
+    rerender(pill({ turn: 'black' }));
+    expect(indicator.querySelector('[data-side="them"]')).toHaveAttribute('data-on');
+    expect(indicator).toHaveTextContent('Their move');
+    expect(screen.getByTestId('seat')).toHaveTextContent('You play White. Black to move.');
+  });
+
+  it("marks check beside the checked side's stone, in red", () => {
+    const { rerender } = render(pill({ turn: 'black', inCheck: true }));
+    const them = screen.getByTestId('turn-indicator').querySelector('[data-side="them"]');
+    expect(them).toHaveTextContent('Check');
+    expect(them?.querySelector('.hud-stone')).toHaveAttribute('data-check');
+    expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-check', 'true');
+    expect(screen.getByTestId('seat')).toHaveTextContent('Black to move, in check.');
+    rerender(pill({ seat: 'black', turn: 'black', inCheck: true }));
+    const me = screen.getByTestId('turn-indicator').querySelector('[data-side="me"]');
+    expect(me).toHaveTextContent('Check');
+    expect(screen.getByTestId('seat')).toHaveTextContent('You play Black. Your move, in check.');
+  });
+
+  it('shows an absent opponent as an outline and "Offline", and dims while reconnecting', () => {
+    render(pill({ opponentOnline: false, stale: true }));
+    const indicator = screen.getByTestId('turn-indicator');
+    expect(indicator).toHaveTextContent('Offline');
+    expect(indicator.querySelector('[data-side="them"] .hud-stone')).toHaveAttribute('data-absent');
+    expect(indicator).toHaveAttribute('data-stale', 'true');
+    expect(screen.getByTestId('seat')).toHaveTextContent('Your opponent is offline.');
+  });
+
+  it("gives the result, from the player's side, once the game is over", () => {
+    const { rerender } = render(pill({ gameOver: { result: 'checkmate', winner: 'white' } }));
+    const indicator = screen.getByTestId('turn-indicator');
+    expect(indicator).toHaveTextContent('Checkmate · you win');
+    expect(indicator).toHaveAttribute('data-result', 'checkmate');
+    expect(indicator).toHaveAttribute('data-winner', 'white');
+    expect(indicator).not.toHaveAttribute('data-turn');
+    rerender(pill({ gameOver: { result: 'checkmate', winner: 'black' } }));
+    expect(indicator).toHaveTextContent('Checkmate · you lose');
+    rerender(pill({ gameOver: { result: 'stalemate' } }));
+    expect(indicator).toHaveTextContent('Stalemate · draw');
+    expect(indicator).not.toHaveAttribute('data-winner');
+  });
 });
 
 test('GameScreen moves focus into the replaced dialog and puts the game behind it out of reach', () => {
@@ -966,7 +1061,7 @@ test('GameScreen shows the real position when a re-sent join is answered with a 
     },
   ];
   rerender(gameScreenAt(fakeSocket(answered, send, { sessionId: 2 })));
-  expect(screen.getByTestId('turn-indicator')).toHaveTextContent('Black to move');
+  expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
   expect(screen.getByTestId('move-list')).toHaveTextContent('Bb1–Cb1');
   expect(screen.getByTestId('board')).toBeEnabled();
   expect(getStoredRole('abc123')).toBe('black');

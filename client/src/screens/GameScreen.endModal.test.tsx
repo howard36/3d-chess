@@ -52,7 +52,7 @@ const mated: WebSocketMessage[] = [
   { type: 'move_made', ...records[records.length - 1] },
 ];
 
-const result = () => screen.queryByRole('dialog', { name: /wins by checkmate/ });
+const result = () => screen.queryByRole('dialog', { name: 'You win' });
 
 beforeEach(() => {
   localStorage.clear();
@@ -62,13 +62,23 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('the result card after a mate', () => {
-  it('turns the turn chip into the result', () => {
+  it('turns the turn pill into the result, said to the player', () => {
     const { rerender } = render(screenFor(beforeMate));
-    const chip = screen.getByTestId('turn-indicator');
-    expect(chip).toHaveTextContent('White to move');
+    expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
     rerender(screenFor(mated));
-    expect(chip).toHaveTextContent(/^Checkmate · White wins$/);
-    expect(chip).toHaveAttribute('data-result', 'checkmate');
+    const pill = screen.getByTestId('turn-indicator');
+    expect(pill).toHaveTextContent('Checkmate · you win');
+    expect(pill).toHaveAttribute('data-result', 'checkmate');
+    expect(pill).toHaveAttribute('data-winner', 'white');
+  });
+
+  it('tells the loser plainly, with the winner by colour for screen readers', () => {
+    render(screenFor([{ type: 'game_state', color: 'black', started: true, moves: records }]));
+    expect(screen.getByRole('dialog', { name: 'You lose' })).toHaveAccessibleDescription(
+      'by checkmate',
+    );
+    expect(screen.getByTestId('turn-indicator')).toHaveTextContent('Checkmate · you lose');
+    expect(screen.getByRole('button', { name: 'Start new game' })).toHaveFocus();
   });
 
   it('waits for the mate to play out, when it was just played', () => {

@@ -3,14 +3,11 @@ import { useParams } from 'react-router-dom';
 import Board from '../three/Board';
 import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
-import TurnIndicator from '../three/TurnIndicator';
 import { FitCameraToBoard } from '../three/FitCameraToBoard';
 import { CameraControls } from '../three/CameraControls';
-import MoveInput from './MoveInput';
 import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
 import EndGameModal from './EndGameModal';
-import MoveList from './MoveList';
 import PromotionPicker from './PromotionPicker';
 import { deriveHistory } from '../game/history';
 import type { GameHistory } from '../game/history';
@@ -20,13 +17,14 @@ import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
 import { NeutralToneMapping } from 'three';
-import { getSettings } from '../three/settings';
+import { getSettings, useSetting } from '../three/settings';
 import { resultDelayMs } from '../three/scene/fx';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import SettingsGear from './SettingsPanel';
-import CapturedPieces from './CapturedPieces';
-import HoverReadout from './HoverReadout';
+import TurnPill from './TurnPill';
+import MoveCard from './MoveCard';
+import MoveAnnouncer from './MoveAnnouncer';
 import type { HoveredCell } from '../three/Board';
 
 interface GameScreenProps {
@@ -102,7 +100,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   historyRef.current = history;
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
 
-  // The cell under the pointer, read out in the HUD
+  // Keyboard play (a setting): the move card, with the moves so far, the
+  // cell under the pointer and a field to type a move, stays on screen
+  const keyboardPlay = useSetting<boolean>('play.keyboard');
+  // The cell under the pointer, read out in the move card while it shows
   const [hoverCell, setHoverCell] = React.useState<HoveredCell | null>(null);
   // The mate plays out (the king topples, a pulse crosses the board) before
   // the result covers the board — when the mate was just played, not when a
@@ -250,42 +251,27 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     gameSocket.reconnect();
   };
 
+  // The latest error, until dismissed: glass with a thin red rule. A screen
+  // reader hears "Error:" first; the eye has the rule.
   const errorBanner = latestError && (
-    <div
-      role="alert"
-      style={{
-        padding: '10px 16px',
-        backgroundColor: 'rgba(180,30,30,0.92)',
-        color: 'white',
-        borderRadius: '8px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        pointerEvents: 'auto',
-      }}
-    >
-      <span>Error: {latestError.message}</span>
+    <div role="alert" className="hud-notice hud-glass" data-testid="error-banner">
+      <span>
+        <span className="sr-only">Error: </span>
+        {latestError.message}
+      </span>
       <button
+        className="hud-dismiss"
         onClick={() => setDismissedErrorCount(errors.length)}
         aria-label="Dismiss error"
-        style={{ fontWeight: 700, background: 'none', border: 'none', color: 'white' }}
       >
-        ✕
+        <span aria-hidden>✕</span>
       </button>
     </div>
   );
 
   const reconnectingBanner = status === 'reconnecting' && (
-    <div
-      role="status"
-      style={{
-        padding: '8px 14px',
-        backgroundColor: 'rgba(200,140,20,0.92)',
-        color: 'white',
-        borderRadius: '8px',
-        fontWeight: 600,
-      }}
-    >
+    <div className="hud-line hud-glass">
+      <span className="hud-dot" aria-hidden />
       Reconnecting…
     </div>
   );
@@ -298,45 +284,23 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // disabled: the socket is closed or holds no seat.
   const replaced = status === 'replaced' || seatInUse;
   const replacedNotice = replaced && (
-    <div
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="replaced-title"
-      aria-describedby="replaced-body"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.6)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-        zIndex: 1002,
-      }}
-    >
+    <div className="hud-veil" style={{ zIndex: 1002 }}>
       <div
-        style={{
-          background: 'white',
-          color: '#222',
-          padding: '2rem',
-          borderRadius: 16,
-          boxShadow: '0 4px 32px rgba(0,0,0,0.18)',
-          textAlign: 'center',
-          maxWidth: 420,
-        }}
+        className="hud-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="replaced-title"
+        aria-describedby="replaced-body"
+        style={{ padding: '22px 28px 20px' }}
       >
-        <h2 id="replaced-title" style={{ marginTop: 0 }}>
+        <h2 id="replaced-title" style={{ fontSize: 20 }}>
           This game is open in another tab
         </h2>
         <p id="replaced-body">
           Your seat moved to the newer tab or window. Close this one, or take the game back here.
         </p>
         {/* A dialog takes focus, so Enter answers it without hunting for it */}
-        <button
-          autoFocus
-          style={{ marginTop: 8, fontSize: 18, padding: '0.7em 2em' }}
-          onClick={handlePlayHere}
-        >
+        <button autoFocus className="hud-button" onClick={handlePlayHere}>
           Play here
         </button>
       </div>
@@ -346,20 +310,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // Not dismissible: the game record itself is broken, and every reload will
   // hit the same move. Everything before it stays viewable.
   const replayErrorBanner = replayFailedAt !== null && (
-    <div
-      role="alert"
-      style={{
-        alignSelf: 'center',
-        maxWidth: '480px',
-        padding: '10px 16px',
-        backgroundColor: 'rgba(180,30,30,0.92)',
-        color: 'white',
-        borderRadius: '8px',
-        textAlign: 'center',
-      }}
-    >
-      Move {replayFailedAt + 1} in this game's history is not a legal move for this client (likely
-      an app version mismatch). The board is frozen at the position before it.
+    <div role="alert" className="hud-notice hud-glass" data-frozen="">
+      Move {replayFailedAt + 1} of this game can't be replayed by this version of the app. The board
+      stays at the position before it.
     </div>
   );
 
@@ -390,7 +343,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
           <Canvas
             data-testid="r3f-canvas"
             role="img"
-            aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, type moves in the move box.`}
+            aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, press Tab to type a move.`}
             // Every touch on the board is the camera's or a tap on a
             // square: never a page scroll or zoom, and no grey tap flash
             style={{
@@ -424,7 +377,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               lastMove={lastMove}
               disabled={boardDisabled}
               gameOver={gameOver}
-              onHoverCell={setHoverCell}
+              onHoverCell={keyboardPlay ? setHoverCell : undefined}
             />
             {/* The only camera control is turning the view about the
                 board's centre, which never moves (no pan by mouse, touch or
@@ -442,79 +395,63 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               minDistance={layout.orbit.minDistance}
             />
           </Canvas>
-          {/* HUD over the canvas. Its layers let the pointer through to the
-              board except on the controls themselves. Three columns in a wide
-              window (seat, turn centred, connection); in a narrow one the turn
-              takes the first row and the rest share the second, so nothing
-              overlaps at any width. */}
-          <div
-            className="pointer-events-none absolute inset-x-2.5 top-2.5 flex flex-col gap-2"
-            style={{ zIndex: 1000 }}
-          >
-            <div className="grid grid-cols-2 items-start gap-2 sm:grid-cols-[1fr_auto_1fr]">
-              <div className="justify-self-start">
-                {color && (
-                  <div
-                    style={{
-                      padding: '10px',
-                      background: 'var(--hud-bg)',
-                      color: 'var(--hud-fg)',
-                      border: 'var(--hud-border)',
-                      borderRadius: 'var(--hud-radius)',
-                      boxShadow: 'var(--hud-shadow)',
-                      backdropFilter: 'var(--hud-blur)',
-                      letterSpacing: 'var(--hud-tracking)',
-                    }}
-                  >
-                    You are playing as {color}.
-                    {opponentOnline !== null && (
-                      <div
-                        data-testid="opponent-presence"
-                        role="status"
-                        style={{ marginTop: 4, fontSize: 13, opacity: 0.85 }}
-                      >
-                        Opponent: {opponentOnline ? 'online' : 'offline'}
-                      </div>
-                    )}
-                    <CapturedPieces board={board} color={color} />
-                  </div>
-                )}
-              </div>
-              <div className="order-first col-span-2 justify-self-center sm:order-none sm:col-span-1">
-                <TurnIndicator turn={currentTurn} inCheck={inCheck} gameOver={gameOver} />
-                <HoverReadout cell={hoverCell} />
-              </div>
-              <div className="flex flex-col items-end gap-2 justify-self-end">
-                {/* The board's settings: a gear that opens their panel */}
-                <SettingsGear />
-                {reconnectingBanner}
+          {/* The HUD over the canvas (index.css): the turn pill at the top
+              centre with the status column under it, the settings gear at the
+              top right, the move card at the bottom left. Only the controls
+              take the pointer; the rest lets it through to the board. */}
+          <div className="hud">
+            <div className="hud-top">
+              {color && (
+                <TurnPill
+                  seat={color}
+                  turn={currentTurn}
+                  inCheck={inCheck}
+                  gameOver={gameOver}
+                  opponentOnline={opponentOnline}
+                  stale={status === 'reconnecting'}
+                />
+              )}
+              <div className="hud-status">
+                {/* Always in the page, so its first change is announced */}
+                <div role="status">{reconnectingBanner}</div>
+                {errorBanner}
+                {replayErrorBanner}
               </div>
             </div>
-            {replayErrorBanner}
-          </div>
-          <div
-            className="pointer-events-none absolute inset-x-2.5 bottom-4 grid grid-cols-2 items-end gap-2 sm:grid-cols-[1fr_auto_1fr]"
-            style={{ zIndex: 1000 }}
-          >
-            <div className="flex min-w-0 justify-start">
-              <MoveInput
-                board={board}
-                color={color}
-                canMove={!boardDisabled && !gameOver && color === currentTurn}
-                onMove={handleMove}
-              />
+            <MoveCard
+              board={board}
+              color={color}
+              moves={moveRecords}
+              canMove={!boardDisabled && !gameOver && color === currentTurn}
+              yourTurn={!gameOver && color === currentTurn}
+              onMove={handleMove}
+              shown={keyboardPlay}
+              hovered={hoverCell}
+            />
+            <div className="hud-gear-slot">
+              {/* The board's settings: a gear that opens their panel */}
+              <SettingsGear />
             </div>
-            <div className="order-first col-span-2 justify-self-center sm:order-none sm:col-span-1">
-              {errorBanner}
-            </div>
-            <div className="flex min-w-0 justify-end">
-              <MoveList moves={moveRecords} />
+            {/* Said, not shown: each move as it lands, and the opponent's presence */}
+            <MoveAnnouncer history={history} seat={color} />
+            <div
+              className="sr-only"
+              role="status"
+              data-testid="opponent-presence"
+              data-online={opponentOnline === null ? undefined : String(opponentOnline)}
+            >
+              {opponentOnline === null
+                ? ''
+                : opponentOnline
+                  ? 'Your opponent is online.'
+                  : 'Your opponent is offline.'}
             </div>
           </div>
         </div>
         {promotionChoices && !boardDisabled && (
           <PromotionPicker
             choices={promotionChoices}
+            color={color ?? 'white'}
             onPick={(move) => {
               setPromotionChoices(null);
               handleMove(move);
@@ -525,7 +462,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         {/* End Game Modal */}
         {gameOver && showEndModal && (
           <div inert={replaced}>
-            <EndGameModal result={gameOver.result} winner={gameOver.winner} />
+            <EndGameModal
+              result={gameOver.result}
+              winner={gameOver.winner}
+              seat={color ?? 'white'}
+            />
           </div>
         )}
         {replacedNotice}
@@ -570,11 +511,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         )}
         {phase === 'joined' && <p className="text-xl">Joined game, waiting for start...</p>}
       </div>
-      {reconnectingBanner && (
-        <div className="absolute top-2.5 right-2.5" style={{ zIndex: 1001 }}>
-          {reconnectingBanner}
-        </div>
-      )}
+      <div className="absolute top-2.5 right-2.5" role="status" style={{ zIndex: 1001 }}>
+        {reconnectingBanner}
+      </div>
       {errorBanner && (
         <div
           inert={replaced}
