@@ -191,10 +191,12 @@ const rimGeometry = (inner: number, width: number, height: number, low: number) 
       rgba.push(1, 1, 1, p[1] < -height / 2 ? low : 1);
     }
   };
-  // Face by face, the top first and the underside next, then the sides, so
-  // with the ring writing depth a side seen through the top (at the rounded
-  // inner corner) is never drawn over it a second time
+  // Face by face: the top and the underside first (group 0), then the sides
+  // (group 1). Only the first group writes depth, so a side seen through the
+  // top (at the rounded inner corner) is never drawn over it a second time,
+  // while the sides, the rim's fading skirt, hide nothing behind them
   const n = ins.length;
+  let caps = 0;
   const top = 0;
   const bottom = -height;
   for (const face of ['top', 'bottom', 'outer', 'inner'] as const) {
@@ -214,6 +216,7 @@ const rimGeometry = (inner: number, width: number, height: number, low: number) 
           [ox0, bottom, oz0],
           [0, -1, 0],
         );
+        caps = pos.length / 3;
       } else if (face === 'outer') {
         quad([ox0, top, oz0], [ox1, top, oz1], [ox1, bottom, oz1], [ox0, bottom, oz0], out);
       } else {
@@ -230,6 +233,8 @@ const rimGeometry = (inner: number, width: number, height: number, low: number) 
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
   g.setAttribute('color', new BufferAttribute(new Float32Array(rgba), 4));
+  g.addGroup(0, caps, 0);
+  g.addGroup(caps, pos.length / 3 - caps, 1);
   return g;
 };
 
@@ -293,17 +298,22 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
           }),
           // The edge: one thin square of the level's light, lifted toward white
           edgeColor: tint.clone().lerp(new Color('#ffffff'), 0.3),
-          edge: new MeshBasicMaterial({
-            color: tint.clone().lerp(new Color('#ffffff'), 0.3),
-            vertexColors: true,
-            transparent: true,
-            opacity: EDGE,
-            // Its own faces never stack (rimGeometry's order); it is drawn
-            // after the glass, so the glass is never hidden by it
-            depthWrite: true,
-            toneMapped: false,
-            fog: false,
-          }),
+          // Its top and underside write depth, so its own faces never stack
+          // (rimGeometry's order), and it is drawn after the glass, so the
+          // glass is never hidden by it; its sides, the fading skirt, write
+          // none, so a glow behind a deep rim still shows through it
+          edge: [true, false].map(
+            (depthWrite) =>
+              new MeshBasicMaterial({
+                color: tint.clone().lerp(new Color('#ffffff'), 0.3),
+                vertexColors: true,
+                transparent: true,
+                opacity: EDGE,
+                depthWrite,
+                toneMapped: false,
+                fog: false,
+              }),
+          ),
         };
       }),
     [],
@@ -312,7 +322,7 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
     () => () =>
       materials.forEach((m) => {
         m.glass.dispose();
-        m.edge.dispose();
+        m.edge.forEach((e) => e.dispose());
       }),
     [materials],
   );
@@ -341,12 +351,15 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
   const applyEdge = (z: number) => {
     const m = materials[z];
     const light = edgeLight.current[z] * bright.current;
-    m.edge.opacity = Math.min(light, 1);
-    const c = m.edge.color.copy(m.edgeColor).multiplyScalar(Math.max(light, 1));
+    const [caps, sides] = m.edge;
+    caps.opacity = Math.min(light, 1);
+    const c = caps.color.copy(m.edgeColor).multiplyScalar(Math.max(light, 1));
     const peak = Math.max(c.r, c.g, c.b);
     if (peak > 1) {
       c.multiplyScalar(1 / peak).lerp(WHITE, Math.min((peak - 1) * 0.35, 0.4));
     }
+    sides.opacity = caps.opacity;
+    sides.color.copy(caps.color);
   };
   useEffect(() => {
     materials.forEach((_, z) => applyEdge(z));

@@ -34,6 +34,9 @@ export const Grid = ({ layout, orientation, focus }: GridProps) => {
         focusLevel={focusLevel}
         focusScale={1}
         focusDim={0.55}
+        // Hidden by a piece (or a border's top) in front of them, as anything
+        // behind a piece is; the glass writes no depth, so it never hides one
+        depthTest
       />
     </>
   );
