@@ -266,7 +266,7 @@ const floorFragment = /* glsl */ `
     float ring = line(r - uRadius, 0.0075) * (0.25 + 0.75 * behind) * (0.62 + head * 1.3 + drift * 0.5);
     float halo = exp(-pow((r - uRadius) / 0.03, 2.0)) * (0.06 + 0.22 * head);
     // A faint pool inside, clearer from above where the column gives way
-    float pool = (1.0 - smoothstep(0.0, uRadius, r)) * (0.035 + 0.1 * above) * uStrength;
+    float pool = (1.0 - smoothstep(0.0, uRadius, r)) * (0.015 + 0.1 * above) * uStrength;
     float light = (ring + halo) * uCircle + pool;
     // The click: one ring spreading out and fading
     light += line(r - uPulseR, 0.009 + 0.006 * (1.0 - uPulse)) * uPulse * 0.7;
@@ -365,7 +365,7 @@ export const SelectionLight = ({
     motes.setAttribute('color', new BufferAttribute(new Float32Array(MOTES * 3), 3));
     moteMap ??= dotTexture(0.85, 32);
     const moteMaterial = new PointsMaterial({
-      size: 0.042,
+      size: 0.12,
       map: moteMap,
       vertexColors: true,
       transparent: true,
@@ -431,7 +431,7 @@ export const SelectionLight = ({
         pos.setXYZ(i, Math.cos(a) * r, h * height * 0.92 * s.rise, Math.sin(a) * r);
         // Faint, and now and then a brief glimmer
         const glimmer = Math.pow(0.5 + 0.5 * Math.sin(t * m.rate * 2.4 + m.glint), 8);
-        const b = Math.sin(Math.PI * h) * (0.22 + 0.6 * glimmer) * s.strength * brightness * side;
+        const b = Math.sin(Math.PI * h) * (0.4 + 1.1 * glimmer) * s.strength * brightness * side;
         col.setXYZ(i, tint.r * b, tint.g * b, tint.b * b);
       });
       pos.needsUpdate = true;

@@ -95,6 +95,7 @@ const glazeFragment = /* glsl */ `
   uniform float uAccentSpec;
   uniform float uAccentShine;
   uniform float uOcc;
+  uniform float uRelief;
   uniform float uTone;
   uniform float uEdge;
   uniform float uBandOn;
@@ -168,6 +169,14 @@ const glazeFragment = /* glsl */ `
     float low = 1.0 - smoothstep(0.0, 0.55, h);
     float under = 0.5 + 0.5 * clamp(0.35 - n.y, 0.0, 1.0);
     light += uSelect * uHold * low * under * 0.4 * ao;
+    // The carving's own relief, from how fast the surface turns under each
+    // pixel: rounded edges catch a little more light, coves a little less,
+    // so the collars, the battlements and the coronet read at a glance
+    vec3 dpx = dFdx(vW);
+    vec3 dpy = dFdy(vW);
+    float curve = 0.5 * (dot(dFdx(n), dpx) / max(dot(dpx, dpx), 1e-12)
+      + dot(dFdy(n), dpy) / max(dot(dpy, dpy), 1e-12));
+    light *= 1.0 + uRelief * clamp(curve * 0.012, -0.7, 0.7);
     vec3 col = albedo * light;
     // A soft satin highlight, never a mirror; the accent's a little crisper
     vec3 hv = normalize(key + v);
@@ -190,9 +199,10 @@ const glazeFragment = /* glsl */ `
     // edge burns red, and the red platform under it lights its base
     if (uCheck > 0.0) {
       float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-      col = mix(col, uCheckColor * (lum * 1.45 + 0.012), uCheck * 0.62);
-      float up = (1.0 - smoothstep(0.0, 0.42, h)) * (0.45 + 0.55 * clamp(0.4 - n.y, 0.0, 1.0));
-      col += uCheckColor * uCheck * up * (0.07 + 0.35 * lum) * ao;
+      // Lit from below: reddest at the base, the cross still clearly red
+      float up = (1.0 - smoothstep(0.0, 0.45, h)) * (0.45 + 0.55 * clamp(0.4 - n.y, 0.0, 1.0));
+      col = mix(col, uCheckColor * (lum * 1.45 + 0.012), uCheck * (0.5 + 0.3 * up));
+      col += uCheckColor * uCheck * up * (0.08 + 0.5 * lum) * ao;
       col = mix(col, uCheckColor, clamp(uCheck * 0.5 * pow(1.0 - facing, 2.2) * fromAbove, 0.0, 1.0));
     }
     // The burning edge: a thin line of white light
@@ -222,6 +232,8 @@ interface Glaze {
   accentShine: number;
   /** How much of the baked occlusion shows. */
   occlusion: number;
+  /** How much the surface's curvature lightens edges and darkens coves. */
+  relief: number;
 }
 
 const GLAZE: Record<PieceColor, Glaze> = {
@@ -242,6 +254,7 @@ const GLAZE: Record<PieceColor, Glaze> = {
     accentSpec: 0.24,
     accentShine: 24,
     occlusion: 0.55,
+    relief: 0.15,
   },
   black: {
     color: PALETTE.charcoal,
@@ -252,7 +265,7 @@ const GLAZE: Record<PieceColor, Glaze> = {
     key: 1.6,
     fill: 0.26,
     ambient: 0.4,
-    kick: 0.7,
+    kick: 0.9,
     rimMix: 0.2,
     rimPower: 3,
     spec: 0.1,
@@ -260,6 +273,7 @@ const GLAZE: Record<PieceColor, Glaze> = {
     accentSpec: 0.3,
     accentShine: 22,
     occlusion: 0.85,
+    relief: 0.35,
   },
 };
 
@@ -302,6 +316,7 @@ export const bodyMaterial = (color: PieceColor, type: PieceType, level?: number)
       uAccentSpec: { value: g.accentSpec },
       uAccentShine: { value: g.accentShine },
       uOcc: { value: g.occlusion },
+      uRelief: { value: g.relief },
       uTone: { value: 1 },
       uEdge: { value: 1 },
       uBandOn: { value: level === undefined ? 0 : 1 },
