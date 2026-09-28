@@ -57,8 +57,9 @@ const RESULT_TITLE_PX = 28;
  * between the result and the button, the medium line in tracked Jost
  * capitals. The card's text is shared code, so the two lines are drawn into
  * images with the page's own fonts once they have loaded, and placed by the
- * card's fixed metrics: 32 px padding, the title's default top margin
- * (0.83em) and line (Cormorant's 1.21), then 16 + 16 px to the button.
+ * card's fixed metrics: 32 px padding, the title's line (no top margin and a
+ * 1.5 line height, after Tailwind's preflight), then 16 + 16 px to the
+ * button, the caption centred in that gap.
  */
 let label: string | null = null;
 const wallLabel = (): string => {
@@ -92,7 +93,7 @@ const wallLabel = (): string => {
     3,
   );
   if (!title || !medium) return CARD;
-  const titleBottom = 32 + RESULT_TITLE_PX * (0.83 + 1.21);
+  const titleBottom = 32 + RESULT_TITLE_PX * 1.5;
   const captionTop = Math.round(titleBottom + 16 - 11);
   label =
     `url("${title}") no-repeat center top 16px / 360px 22px, ` +
