@@ -4,6 +4,7 @@ import Board from '../three/Board';
 import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { FitCameraToBoard } from '../three/FitCameraToBoard';
+import { hudBands } from '../three/cameraFit';
 import { usePixelBudget } from '../three/pixelBudget';
 import { CameraControls } from '../three/CameraControls';
 import type { Move } from '../engine';
@@ -105,6 +106,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // Keyboard play (a setting): the move card, with the moves so far, the
   // cell under the pointer and a field to type a move, stays on screen
   const keyboardPlay = useSetting<boolean>('play.keyboard');
+  // The board is framed clear of the pill, and of the move card while it
+  // spans the bottom of the window (turning Keyboard play on or off refits)
+  const bandsFor = React.useCallback(
+    (width: number, height: number) => hudBands(width, height, keyboardPlay),
+    [keyboardPlay],
+  );
   // The cell under the pointer, read out in the move card while it shows
   const [hoverCell, setHoverCell] = React.useState<HoveredCell | null>(null);
   // The mate plays out (the king topples, a pulse crosses the board) before
@@ -399,6 +406,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               viewDirection={layout.viewDirection}
               minDistance={layout.orbit.minDistance}
               framePoints={layout.framePoints}
+              bands={bandsFor}
             />
           </Canvas>
           {/* The HUD over the canvas (index.css): the turn pill at the top

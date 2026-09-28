@@ -26,6 +26,11 @@ export interface MoveCardProps {
 // record this client cannot replay still lists.
 const formatMove = (m: MoveRecord) => `${m.from}–${m.to}${m.promotion ? `=${m.promotion}` : ''}`;
 
+/** Marks a list scrolled on from its start, so its leading edge fades (index.css). */
+const markMore = (el: HTMLElement) => {
+  el.toggleAttribute('data-more', el.scrollTop > 1 || el.scrollLeft > 1);
+};
+
 const Enter = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden>
     <path strokeWidth="1.7" strokeLinecap="round" d="M13 3v5.5a2 2 0 0 1-2 2H3.5" />
@@ -58,6 +63,10 @@ const MoveCard: React.FC<MoveCardProps> = ({
   const [text, setText] = React.useState('');
   const [problem, setProblem] = React.useState<string | null>(null);
   const [focused, setFocused] = React.useState(false);
+  // Escape put the card away: it stays out of sight, though focus waits on
+  // the card itself, until its field is reached again
+  const [dismissed, setDismissed] = React.useState(false);
+  const cardRef = React.useRef<HTMLElement | null>(null);
   const listRef = React.useRef<HTMLOListElement | null>(null);
 
   // Keep the newest move in view as rows are added, and when the window
@@ -68,6 +77,7 @@ const MoveCard: React.FC<MoveCardProps> = ({
       if (!el) return;
       el.scrollTop = el.scrollHeight;
       el.scrollLeft = el.scrollWidth;
+      markMore(el);
     };
     toNewest();
     window.addEventListener('resize', toNewest);
@@ -92,7 +102,7 @@ const MoveCard: React.FC<MoveCardProps> = ({
     onMove(result.move);
   };
 
-  const revealed = shown || focused || text !== '';
+  const revealed = shown || ((focused || text !== '') && !dismissed);
   const rows: { number: number; white: MoveRecord; black?: MoveRecord }[] = [];
   for (let i = 0; i < moves.length; i += 2) {
     rows.push({ number: i / 2 + 1, white: moves[i], black: moves[i + 1] });
@@ -106,18 +116,29 @@ const MoveCard: React.FC<MoveCardProps> = ({
       aria-label="Moves"
       data-testid="move-card"
       data-hidden={revealed ? undefined : ''}
-      // Shown while keyboard focus is anywhere in it (the field or its
-      // button), so Tab never lands on something out of sight
-      onFocus={() => setFocused(true)}
+      ref={cardRef}
+      // Focus rests here after Escape, so the next Tab reaches the field
+      // (not the button after it) and brings the card back
+      tabIndex={-1}
+      // Shown while keyboard focus is on the field or its button, so Tab
+      // never lands on something out of sight
+      onFocus={(e) => {
+        setFocused(true);
+        if (e.target !== e.currentTarget) setDismissed(false);
+      }}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setFocused(false);
+          setDismissed(false);
+        }
       }}
       onKeyDown={(e) => {
         // Escape puts a card that Tab brought up away again (the text with it)
         if (e.key === 'Escape' && !shown) {
           setText('');
           setProblem(null);
-          (document.activeElement as HTMLElement | null)?.blur();
+          setDismissed(true);
+          cardRef.current?.focus();
         }
       }}
     >
@@ -144,6 +165,7 @@ const MoveCard: React.FC<MoveCardProps> = ({
       <ol
         ref={listRef}
         className={shown ? 'hud-moves selectable' : 'sr-only'}
+        onScroll={(e) => markMore(e.currentTarget)}
         aria-label="Move history"
         data-testid="move-list"
       >

@@ -419,7 +419,8 @@ const placeUnder = (button: HTMLElement): React.CSSProperties => {
       right: 0,
       bottom: 0,
       width: '100%',
-      maxHeight: Math.floor(vh * 0.72),
+      // The upper half of the screen stays clear, to judge a change on the board
+      maxHeight: Math.floor(vh * 0.46),
       borderRadius: '12px 12px 0 0',
       borderBottom: 'none',
       paddingBottom: 'max(14px, env(safe-area-inset-bottom))',

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
 import {
   HUD_TOP_PX,
+  hudBands,
+  MOVE_CARD_BAND_PX,
   ZOOM_IN,
   ZOOM_OUT,
   boxCorners,
@@ -100,9 +102,16 @@ function fitted(
   height: number,
   points = boxCorners(TOWER),
   topInset?: number,
+  bottomInset?: number,
 ) {
   const fov = 36;
-  const view = { width, height, fov, ...(topInset !== undefined ? { topInset } : {}) };
+  const view = {
+    width,
+    height,
+    fov,
+    ...(topInset !== undefined ? { topInset } : {}),
+    ...(bottomInset !== undefined ? { bottomInset } : {}),
+  };
   const { distance, shift } = fitView(direction, points, view);
   const camera = new PerspectiveCamera(fov, width / height, 0.1, 1000);
   camera.position.copy(direction).normalize().multiplyScalar(distance);
@@ -150,6 +159,19 @@ describe('fitView', () => {
     const { rect } = fitted(TOWER_VIEW, 1280, 720, boxCorners(TOWER), 0);
     expect(Math.abs(rect.top - rect.bottom)).toBeLessThan(0.5);
     expect(Math.abs(rect.left - rect.right)).toBeLessThan(0.5);
+  });
+
+  it('keeps a bottom band clear too, centring between the bands', () => {
+    for (const [w, h] of [
+      [700, 900],
+      [390, 844],
+      [768, 1024],
+    ]) {
+      const { rect } = fitted(TOWER_VIEW, w, h, boxCorners(TOWER), HUD_TOP_PX, MOVE_CARD_BAND_PX);
+      expect(rect.bottom).toBeGreaterThan(MOVE_CARD_BAND_PX);
+      expect(rect.top).toBeGreaterThan(HUD_TOP_PX);
+      expect(Math.abs(rect.top - HUD_TOP_PX - (rect.bottom - MOVE_CARD_BAND_PX))).toBeLessThan(0.5);
+    }
   });
 
   it('frames the tower larger than the symmetric fit, which it used to sit low or aside in', () => {
@@ -206,6 +228,49 @@ describe('centringShift and viewBounds', () => {
     expect(centringShift(bounds, { width: 800, height: 800, fov: 36, topInset: 0 })[1]).toBeCloseTo(
       0,
     );
+  });
+});
+
+describe('hudBands', () => {
+  it('keeps the pill band always, and the move card band only while the card spans the bottom', () => {
+    expect(hudBands(1280, 720, false)).toEqual({ top: HUD_TOP_PX, bottom: 0 });
+    // A wide window keeps the card in a corner beside the board
+    expect(hudBands(1280, 720, true)).toEqual({ top: HUD_TOP_PX, bottom: 0 });
+    // Upright and squarish windows put it across the bottom
+    for (const [w, h] of [
+      [390, 844],
+      [700, 900],
+      [768, 1024],
+      [1024, 768],
+    ]) {
+      expect(hudBands(w, h, true).bottom).toBe(MOVE_CARD_BAND_PX);
+      expect(hudBands(w, h, false).bottom).toBe(0);
+    }
+    // A phone on its side docks it beside the board
+    expect(hudBands(844, 390, true).bottom).toBe(0);
+  });
+
+  it('never lets the bands take more than half the window', () => {
+    const bounds = { left: -0.1, right: 0.1, bottom: -0.2, top: 0.2 };
+    const tanV = Math.tan((36 * Math.PI) / 360);
+    // 300 + 300 of 800 rows, scaled to 200 + 200: the middle of the rest is the middle
+    const [, y] = centringShift(bounds, {
+      width: 800,
+      height: 800,
+      fov: 36,
+      topInset: 300,
+      bottomInset: 300,
+    });
+    expect(y).toBeCloseTo(0);
+    const [, lower] = centringShift(bounds, {
+      width: 800,
+      height: 800,
+      fov: 36,
+      topInset: 0,
+      bottomInset: 80,
+    });
+    // A bottom band of 80 rows raises the middle of the rest by 40 rows
+    expect(lower).toBeCloseTo(-0.1 * tanV);
   });
 });
 

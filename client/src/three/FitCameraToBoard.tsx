@@ -6,6 +6,7 @@ import {
   centringShift,
   fitDistance,
   fitView,
+  HUD_TOP_PX,
   viewBounds,
   zoomRange,
 } from './cameraFit';
@@ -38,6 +39,7 @@ export function FitCameraToBoard({
   viewDirection,
   minDistance,
   framePoints,
+  bands,
 }: {
   /** Half the board's bounding box. */
   halfExtents: readonly [number, number, number];
@@ -47,6 +49,8 @@ export function FitCameraToBoard({
   minDistance: number;
   /** What the view keeps in frame instead of the box (BoardLayout.framePoints). */
   framePoints?: (eye: Vec3) => Vec3[];
+  /** The HUD's bands at the top and bottom for a window this size (hudBands); the top one alone by default. */
+  bands?: (width: number, height: number) => { top: number; bottom: number };
 }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as OrbitControlsLike | null;
@@ -67,7 +71,8 @@ export function FitCameraToBoard({
   React.useLayoutEffect(() => {
     if (!(camera instanceof PerspectiveCamera) || width === 0 || height === 0) return;
     const target = controls?.target ?? new Vector3();
-    const view = { width, height, fov: camera.fov };
+    const { top, bottom } = bands?.(width, height) ?? { top: HUD_TOP_PX, bottom: 0 };
+    const view = { width, height, fov: camera.fov, topInset: top, bottomInset: bottom };
     // The shift that centres what the camera sees now, however it has turned
     const centre = () => {
       camera.updateMatrixWorld();
@@ -96,7 +101,7 @@ export function FitCameraToBoard({
     controls?.addEventListener?.('change', centre);
     return () => controls?.removeEventListener?.('change', centre);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the layout's extents and limits are fixed
-  }, [camera, controls, width, height, invalidate]);
+  }, [camera, controls, width, height, invalidate, bands]);
 
   return null;
 }

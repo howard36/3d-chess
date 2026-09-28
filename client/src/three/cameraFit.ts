@@ -77,6 +77,28 @@ export function fitDistance(
 export const HUD_TOP_PX = 56;
 
 /**
+ * Rows kept at the bottom for the move card while it spans the bottom of the
+ * window (index.css: Keyboard play on, in a window no wider than 13:9 and
+ * taller than 480 px). The card is 82 px tall there, 14 px up.
+ */
+export const MOVE_CARD_BAND_PX = 100;
+
+/**
+ * The HUD's bands, in CSS px, that the fitted board keeps clear of: the pill
+ * at the top, and the move card at the bottom while it shows across the
+ * bottom of the window. Wider windows keep the card in a corner beside the
+ * board, and short ones (a phone on its side) at the bottom right beside it.
+ */
+export function hudBands(
+  width: number,
+  height: number,
+  moveCard: boolean,
+): { top: number; bottom: number } {
+  const acrossTheBottom = moveCard && height > 480 && width / height <= 13 / 9;
+  return { top: HUD_TOP_PX, bottom: acrossTheBottom ? MOVE_CARD_BAND_PX : 0 };
+}
+
+/**
  * Breathing room for the centred fit, as a factor on the room the board
  * takes. Smaller than fitDistance's MARGIN: that one also had to cover the
  * labels outside the box and the uneven margins, and the centred fit frames
@@ -133,16 +155,30 @@ export interface FitWindow {
   fov: number;
   /** CSS px kept clear at the top (HUD_TOP_PX by default). */
   topInset?: number;
+  /** CSS px kept clear at the bottom (none by default). */
+  bottomInset?: number;
 }
 
+/** The bands as shares of the window's height, top and bottom, together at most half of it. */
+const bandShares = (w: FitWindow): [number, number] => {
+  const top = (w.topInset ?? HUD_TOP_PX) / w.height;
+  const bottom = (w.bottomInset ?? 0) / w.height;
+  const scale = Math.min(1, 0.5 / Math.max(top + bottom, 1e-9));
+  return [top * scale, bottom * scale];
+};
+
 /**
- * The lens shift that centres `bounds` in the window below its top band, in
- * the same tangent units (x right, y up): the view's centre moves there.
+ * The lens shift that centres `bounds` in the window between its top and
+ * bottom bands, in the same tangent units (x right, y up): the view's centre
+ * moves there.
  */
 export function centringShift(bounds: ViewBounds, w: FitWindow): [number, number] {
   const tanV = Math.tan(MathUtils.degToRad(w.fov) / 2);
-  const band = Math.min((w.topInset ?? HUD_TOP_PX) / w.height, 0.5);
-  return [(bounds.left + bounds.right) / 2, (bounds.bottom + bounds.top) / 2 + tanV * band];
+  const [top, bottom] = bandShares(w);
+  return [
+    (bounds.left + bounds.right) / 2,
+    (bounds.bottom + bounds.top) / 2 + tanV * (top - bottom),
+  ];
 }
 
 /**
@@ -158,7 +194,8 @@ export function fitView(
 ): { distance: number; shift: [number, number] } {
   const tanV = Math.tan(MathUtils.degToRad(w.fov) / 2);
   const tanH = tanV * (w.width / w.height);
-  const band = Math.min((w.topInset ?? HUD_TOP_PX) / w.height, 0.5);
+  const [top, bottom] = bandShares(w);
+  const band = top + bottom;
   const probe = new PerspectiveCamera();
   probe.position.copy(direction).normalize();
   probe.lookAt(0, 0, 0);

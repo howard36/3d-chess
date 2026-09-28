@@ -229,7 +229,7 @@ describe('the settings gear', () => {
       expect(style.bottom).toBe('0px');
       expect(style.left).toBe('0px');
       expect(style.width).toBe('100%');
-      expect(parseFloat(style.maxHeight)).toBeLessThanOrEqual(844 * 0.72);
+      expect(parseFloat(style.maxHeight)).toBeLessThanOrEqual(844 * 0.5);
       expect(style.overflowY).toBe('auto');
     } finally {
       Object.assign(window, { innerWidth: width, innerHeight: height });
