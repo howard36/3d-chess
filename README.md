@@ -1,8 +1,8 @@
 # 3D Chess Online Multiplayer
 
-A web app for playing a 5×5×5 3D chess variant (Raumschach-style: standard pieces plus the
-Unicorn) with a friend over a shareable link. React + Three.js frontend, small Python
-WebSocket relay on Modal.
+A web app for playing 3D chess on a 5×5×5 board (the standard pieces plus the Unicorn,
+which moves along space diagonals) with a friend over a shareable link. React + Three.js
+frontend, small Python WebSocket relay on Modal.
 
 This README is the current, authoritative documentation.
 
@@ -38,9 +38,9 @@ by the client engine. The starting position is defined in `Board.setupStartingPo
 | A     | R N K N R | B U Q B U |           |           |
 
 (files a→e left to right; upper case White, lower case Black). Black's army is White's
-turned through the centre, `(x, y, z) → (4 − x, 4 − y, 4 − z)`. This is standard
-Raumschach's setup (pieces on levels A/B rank 1, pawns on rank 2) with rank and level
-exchanged. Every rule treats the two axes alike, so the game is Raumschach's move for move.
+turned through the centre, `(x, y, z) → (4 − x, 4 − y, 4 − z)`. This is the classic
+5×5×5 set-up (pieces on rank 1 of levels A and B, pawns on rank 2) with rank and level
+exchanged. Every rule treats the two axes alike, so move for move it is the same game.
 
 ## Scope and trust assumptions
 
@@ -253,7 +253,7 @@ look. Classic is bundled; every other design is its own lazily loaded chunk.
 
 A design (`designs/types.ts`) is data plus components: a **layout** (where the 125 cells
 sit: the classic *lattice* above, or a *tower* of five stacked boards with levels going
-up, Raumschach style — Black walks around the tower rather than seeing it upside down),
+up, as on a real set — Black walks around the tower rather than seeing it upside down),
 the **stage** (background, lights, atmosphere, post-processing), the visible **grid**,
 the **piece bodies**, the **markers** (legal move, capture, selection, last move, check),
 the **motion** of a move (`hop`, `bounce`, `slide`, `teleport`), optional move, capture
