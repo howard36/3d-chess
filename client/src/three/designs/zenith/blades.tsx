@@ -24,10 +24,14 @@ import type { BladeStyle } from './settings-markers';
 // pulse setting says), and at mate they settle: they sink, fold or fade as
 // the king falls.
 //
-// - shards: eight thin shards of obsidian standing up from the points of the
-//   crown on the glass, tall and short in turn, leaning a little outward, a
-//   red hairline down their edges and a slow glint climbing one after
-//   another;
+// - shards: eight keen shards of obsidian, solid black glass with a cool
+//   sheen, standing up from the points of the crown on the glass, tall and
+//   short in turn, leaning a little outward, red hairlines up their ridges
+//   and a slow glint climbing one after another;
+// - clusters: the same obsidian, broken through the glass in four clusters
+//   on the diagonals, a tall shard and two short ones splaying from each;
+// - teeth: the same obsidian as a ring of sixteen low, jagged teeth round
+//   the crown, their points leaning in;
 // - thorns: an iron maiden, fourteen thin spikes round the king leaning in
 //   toward him, drawing slowly tighter as they rise, the ring turning very
 //   slowly;
@@ -286,21 +290,6 @@ const jitter = (i: number, salt: number) => {
 };
 const around = (r: number, a: number, y: number): Vec3 => [r * Math.cos(a), y, r * Math.sin(a)];
 
-// Eight shards on the crown's points, tall and short in turn, leaning out
-const SHARDS: Spike[] = Array.from({ length: 8 }, (_, i) => {
-  const a = (i * Math.PI) / 4 + (jitter(i, 1) - 0.5) * 0.12;
-  const tall = i % 2 === 0;
-  const h = (tall ? 0.4 : 0.25) + jitter(i, 2) * 0.07;
-  const lean = 0.03 + jitter(i, 3) * 0.06;
-  const skew = (jitter(i, 4) - 0.5) * 0.3;
-  return {
-    base: around(CROWN_TIPS - 0.01, a, 0),
-    tip: around(CROWN_TIPS + lean, a + skew, h),
-    width: 0.042 + jitter(i, 5) * 0.018,
-    phase: i / 8,
-  };
-});
-
 // Fourteen thin spikes round him, leaning in, twisted a little like a cage
 const THORNS: Spike[] = Array.from({ length: 14 }, (_, i) => {
   const a = (i * 2 * Math.PI) / 14;
@@ -340,10 +329,9 @@ const NEEDLES: Spike[] = Array.from({ length: 4 }, (_, i) => {
   };
 });
 
-type RibbonStyle = 'shards' | 'thorns' | 'scythes' | 'needles';
+type RibbonStyle = 'thorns' | 'scythes' | 'needles';
 
 const RIBBONS: Record<RibbonStyle, { spikes: Spike[]; look: RibbonLook }> = {
-  shards: { spikes: SHARDS, look: { mode: 0, bodyA: 0.6, edgeA: 0.55, period: 7 } },
   thorns: { spikes: THORNS, look: { mode: 0, bodyA: 0.55, edgeA: 0.5, period: 5.5 } },
   scythes: { spikes: SCYTHES, look: { mode: 0, bodyA: 0.5, edgeA: 0.45, period: 6 } },
   needles: {
@@ -365,7 +353,7 @@ const Ribbons = ({
 }) => {
   const { spikes, look } = RIBBONS[style];
   // Thorns rise and close slowly; needles slide in deliberately
-  const life = useLife(mated, strength, style === 'shards' ? 0.7 : 1.1);
+  const life = useLife(mated, strength, 1.1);
   const geometry = useMemo(() => ribbonGeometry(spikes), [spikes]);
   const material = useMemo(() => ribbonMaterial(life, look), [life, look]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -390,6 +378,227 @@ const Ribbons = ({
         frustumCulled={false}
       />
     </group>
+  );
+};
+
+// --- Obsidian: solid faceted shards ----------------------------------------------------
+
+/** One shard of obsidian: a thin, keen pyramid standing on the glass. */
+interface Shard {
+  /** Where it stands (floor-relative), and which way its broad faces turn. */
+  at: [number, number];
+  /** Its blade's direction on the glass (radians). */
+  turn: number;
+  /** Half its length along the blade, and half its thickness across it. */
+  half: number;
+  thick: number;
+  height: number;
+  /** Where its point leans to, relative to its foot [x, z]. */
+  lean: [number, number];
+  phase: number;
+}
+
+/**
+ * Flat-shaded triangles (each face its own normal), with barycentric
+ * coordinates so the shader can light the ridges running up to the point.
+ */
+const shardGeometry = (shards: Shard[]) => {
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  const bary: number[] = [];
+  const phase: number[] = [];
+  const height: number[] = [];
+  for (const s of shards) {
+    const c = Math.cos(s.turn);
+    const n = Math.sin(s.turn);
+    const foot = (u: number, v: number): Vec3 => [
+      s.at[0] + c * u - n * v,
+      -0.004,
+      s.at[1] + n * u + c * v,
+    ];
+    const base = [foot(-s.half, 0), foot(0, -s.thick), foot(s.half, 0), foot(0, s.thick)];
+    const apex: Vec3 = [s.at[0] + s.lean[0], s.height, s.at[1] + s.lean[1]];
+    for (let k = 0; k < 4; k++) {
+      const a = base[k];
+      const b = base[(k + 1) % 4];
+      const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      const e2 = [apex[0] - a[0], apex[1] - a[1], apex[2] - a[2]];
+      const nx = e1[1] * e2[2] - e1[2] * e2[1];
+      const ny = e1[2] * e2[0] - e1[0] * e2[2];
+      const nz = e1[0] * e2[1] - e1[1] * e2[0];
+      const l = Math.hypot(nx, ny, nz) || 1;
+      for (const [p, bc] of [
+        [a, [1, 0, 0]],
+        [b, [0, 1, 0]],
+        [apex, [0, 0, 1]],
+      ] as const) {
+        pos.push(...p);
+        nrm.push(nx / l, ny / l, nz / l);
+        bary.push(...bc);
+        phase.push(s.phase);
+        height.push(s.height);
+      }
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('normal', new BufferAttribute(new Float32Array(nrm), 3));
+  g.setAttribute('aBary', new BufferAttribute(new Float32Array(bary), 3));
+  g.setAttribute('aPhase', new BufferAttribute(new Float32Array(phase), 1));
+  g.setAttribute('aHeight', new BufferAttribute(new Float32Array(height), 1));
+  g.computeBoundingSphere();
+  return g;
+};
+
+const obsidianMaterial = (life: Uniforms) =>
+  new ShaderMaterial({
+    uniforms: {
+      ...life,
+      uEdge: { value: EDGE },
+      uBody: { value: new Color('#060609') },
+      uSheen: { value: new Color('#c9d6ff') },
+    },
+    vertexShader: /* glsl */ `
+      attribute vec3 aBary;
+      attribute float aPhase;
+      attribute float aHeight;
+      varying vec3 vBary;
+      varying vec3 vNormal;
+      varying vec3 vWorld;
+      varying float vUp;
+      varying float vPhase;
+      uniform float uEnter;
+      uniform float uSettle;
+      void main() {
+        // They rise out of the glass, and sink back into it at mate
+        vec3 p = position;
+        p.y = max(p.y * uEnter * (1.0 - uSettle), -0.004);
+        vec4 w = modelMatrix * vec4(p, 1.0);
+        vBary = aBary;
+        vNormal = normalize(mat3(modelMatrix) * normal);
+        vWorld = w.xyz;
+        vUp = clamp(position.y / max(aHeight, 1e-3), 0.0, 1.0);
+        vPhase = aPhase;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uEdge;
+      uniform vec3 uBody;
+      uniform vec3 uSheen;
+      uniform float uTime;
+      uniform float uFlare;
+      varying vec3 vBary;
+      varying vec3 vNormal;
+      varying vec3 vWorld;
+      varying float vUp;
+      varying float vPhase;
+      void main() {
+        vec3 n = normalize(vNormal);
+        vec3 v = normalize(cameraPosition - vWorld);
+        if (dot(n, v) < 0.0) n = -n;
+        // Black glass: a dim cool sheen off a light high overhead, a keen
+        // fresnel, and the check's red light from the glass below
+        // (a glossy band where a face turns toward a light up and to the right
+        // of the viewer: the glassy sheen that makes it read as obsidian)
+        float spec = pow(max(dot(n, normalize(v + vec3(0.55, 0.25, 0.0))), 0.0), 12.0);
+        float fres = pow(1.0 - abs(dot(n, v)), 5.0);
+        float low = pow(1.0 - vUp, 3.0);
+        // Faces turned down toward the glass catch a little of the plate's red
+        float under = 0.5 + 0.5 * max(-n.y, 0.0);
+        vec3 col = uBody + uSheen * (0.2 * spec + 0.04 * fres)
+          + uEdge * (0.07 * low * under + 0.1 * fres);
+        // The ridges running up to its point: red hairlines, a slow glint climbing
+        float e = min(vBary.x, vBary.y);
+        float fw = max(fwidth(e), 1e-4);
+        float ridge = 1.0 - smoothstep(0.0, 1.4 * fw, e);
+        float g = exp(-pow((vUp - (fract(uTime / 6.0 + vPhase) * 1.4 - 0.2)) / 0.12, 2.0));
+        col = mix(col, uEdge, ridge * min(0.45 + 0.8 * g + 0.8 * uFlare, 1.0) * (0.5 + 0.5 * (1.0 - vUp)));
+        gl_FragColor = vec4(col, 1.0);
+        #include <colorspace_fragment>
+      }`,
+  });
+
+/** A layout of obsidian shards round the king. */
+type ObsidianLayout = 'crown' | 'clusters' | 'teeth';
+
+const OBSIDIAN: Record<ObsidianLayout, Shard[]> = {
+  // Eight on the points of the crown on the glass, tall and short in turn,
+  // leaning out, their blades turned across the ring
+  crown: Array.from({ length: 8 }, (_, i) => {
+    const a = (i * Math.PI) / 4 + (jitter(i, 11) - 0.5) * 0.14;
+    const r = CROWN_TIPS - 0.005;
+    const tall = i % 2 === 0;
+    const out = 0.04 + jitter(i, 12) * 0.05;
+    const skew = (jitter(i, 13) - 0.5) * 0.06;
+    return {
+      at: [r * Math.cos(a), r * Math.sin(a)],
+      turn: a + Math.PI / 2 + (jitter(i, 14) - 0.5) * 0.5,
+      half: 0.038 + jitter(i, 15) * 0.018,
+      thick: 0.01 + jitter(i, 16) * 0.006,
+      height: (tall ? 0.4 : 0.24) + jitter(i, 17) * 0.08,
+      lean: [out * Math.cos(a) - skew * Math.sin(a), out * Math.sin(a) + skew * Math.cos(a)],
+      phase: i / 8,
+    };
+  }),
+  // Four clusters of three on the diagonals, a tall shard and two short ones
+  // splaying out from one root, like crystals broken through the glass
+  clusters: Array.from({ length: 12 }, (_, i) => {
+    const k = Math.floor(i / 3);
+    const j = i % 3;
+    const a = Math.PI / 4 + (k * Math.PI) / 2 + (j - 1) * 0.22;
+    const r = CROWN_TIPS - 0.01 + (j === 1 ? 0 : 0.02);
+    const splay = (j - 1) * 0.07;
+    const out = 0.05 + jitter(i, 21) * 0.03;
+    return {
+      at: [r * Math.cos(a), r * Math.sin(a)],
+      turn: a + Math.PI / 2 + (jitter(i, 22) - 0.5) * 0.6,
+      half: j === 1 ? 0.045 : 0.03,
+      thick: j === 1 ? 0.014 : 0.01,
+      height: j === 1 ? 0.42 + jitter(i, 23) * 0.06 : 0.2 + jitter(i, 24) * 0.08,
+      lean: [out * Math.cos(a) - splay * Math.sin(a), out * Math.sin(a) + splay * Math.cos(a)],
+      phase: k / 4 + j * 0.08,
+    };
+  }),
+  // A ring of sixteen low, jagged teeth hugging the crown, points leaning in
+  teeth: Array.from({ length: 16 }, (_, i) => {
+    const a = (i * Math.PI) / 8 + (jitter(i, 31) - 0.5) * 0.1;
+    const r = CROWN_TIPS + 0.005;
+    const inward = 0.03 + jitter(i, 32) * 0.03;
+    return {
+      at: [r * Math.cos(a), r * Math.sin(a)],
+      turn: a + Math.PI / 2 + (jitter(i, 33) - 0.5) * 0.3,
+      half: 0.04 + jitter(i, 34) * 0.015,
+      thick: 0.012,
+      height: 0.12 + jitter(i, 35) * 0.1 + (i % 2 === 0 ? 0.05 : 0),
+      lean: [-inward * Math.cos(a), -inward * Math.sin(a)],
+      phase: i / 16,
+    };
+  }),
+};
+
+const Obsidian = ({
+  floor,
+  mated,
+  strength,
+  layout,
+}: {
+  floor: Vec3;
+  mated: boolean;
+  strength: number;
+  layout: ObsidianLayout;
+}) => {
+  const life = useLife(mated, strength, 0.8);
+  const geometry = useMemo(() => shardGeometry(OBSIDIAN[layout]), [layout]);
+  const material = useMemo(() => obsidianMaterial(life), [life]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => material.dispose(), [material]);
+  return (
+    <mesh
+      geometry={geometry}
+      material={material}
+      position={[floor[0], floor[1], floor[2]]}
+      raycast={noRaycast}
+    />
   );
 };
 
@@ -531,6 +740,12 @@ export const Blades = ({
   switch (style) {
     case 'cracks':
       return <Cracks floor={floor} mated={mated} strength={strength} />;
+    case 'shards':
+      return <Obsidian floor={floor} mated={mated} strength={strength} layout="crown" />;
+    case 'clusters':
+      return <Obsidian floor={floor} mated={mated} strength={strength} layout="clusters" />;
+    case 'teeth':
+      return <Obsidian floor={floor} mated={mated} strength={strength} layout="teeth" />;
     default:
       return <Ribbons key={style} floor={floor} mated={mated} strength={strength} style={style} />;
   }

@@ -8,7 +8,15 @@ export const CAPTURE_STYLES = ['arcs', 'rise', 'ember', 'close', 'orbit'] as con
 export type CaptureStyle = (typeof CAPTURE_STYLES)[number];
 
 /** The blades round a king in check (blades.tsx), or none. */
-export const BLADE_STYLES = ['shards', 'thorns', 'scythes', 'cracks', 'needles'] as const;
+export const BLADE_STYLES = [
+  'shards',
+  'clusters',
+  'teeth',
+  'thorns',
+  'scythes',
+  'cracks',
+  'needles',
+] as const;
 export type BladeStyle = (typeof BLADE_STYLES)[number];
 
 const seconds = (v: number) => `${v.toFixed(1)} s`;
@@ -59,6 +67,8 @@ export const MARKER_SETTINGS: SettingSpec[] = [
     default: 'shards',
     options: [
       { value: 'shards', label: 'Obsidian shards' },
+      { value: 'clusters', label: 'Obsidian clusters' },
+      { value: 'teeth', label: 'Obsidian teeth' },
       { value: 'thorns', label: 'Iron thorns' },
       { value: 'scythes', label: 'Scythes' },
       { value: 'cracks', label: 'Cracked glass' },
