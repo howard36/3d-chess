@@ -638,7 +638,8 @@ const Rise = ({ floor, hovered, soft }: { floor: Vec3; hovered: boolean; soft: b
       const r = CAPTURE_RADIUS * (1 + 0.11 * e);
       m.scale.set(r, RISE_H * rise * (0.9 + 0.12 * breath) * (1 + 0.3 * e), r);
     }
-    invalidate();
+    // Held still (reduced motion), it needs frames only while it rises or eases
+    if (!still || rise < 1 || hover.current !== goal) invalidate();
   });
   return (
     <mesh
@@ -848,7 +849,8 @@ const Crown = ({ floor, mated, strength }: { floor: Vec3; mated: boolean; streng
         (height + 0.08 * (1 - c) ** 2 + 0.005 * Math.sin(time.current * 1.6)) * (1 - 0.6 * f);
       g.visible = f < 1;
     }
-    if (fall.current < 1 || since.current * 1000 < STRIKE_MS) invalidate();
+    const turning = !still && !mated;
+    if (turning || (mated && fall.current < 1) || since.current * 1000 < STRIKE_MS) invalidate();
   });
   return (
     <group position={floor}>
