@@ -87,6 +87,11 @@ export interface MarkerProps {
    * capture). Only set for designs with `hoverDestinations`.
    */
   hovered?: boolean;
+  /**
+   * Check only: the check is mate (the game is over and this king has lost),
+   * so a design can settle its check marker while the king topples.
+   */
+  mated?: boolean;
 }
 
 export interface LastMoveMarkerProps {

@@ -491,7 +491,11 @@ const Board = (props: BoardProps) => {
         )}
         {Check &&
           checkedKings.map(({ color, coord }) => (
-            <Check key={`check-${color}`} {...markerAt(coord)} />
+            <Check
+              key={`check-${color}`}
+              {...markerAt(coord)}
+              {...(color === matedColor ? { mated: true } : {})}
+            />
           ))}
         {animate && lastMove && design.MoveFx && (
           <design.MoveFx

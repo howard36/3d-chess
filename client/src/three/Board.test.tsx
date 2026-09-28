@@ -986,6 +986,30 @@ describe('Board with a clarity-kit design', () => {
     expect(mounts).toBe(2);
   });
 
+  it('tells the check marker when the check is mate', async () => {
+    const seen: (boolean | undefined)[] = [];
+    const Check = ({ mated }: MarkerProps) => {
+      seen.push(mated);
+      return null;
+    };
+    const board = new EngineBoard();
+    board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'black' });
+    board.setPiece({ x: 0, y: 4, z: 0 }, { type: PieceType.Rook, color: 'white' });
+    const design = { ...classic, markers: { ...classic.markers, Check } };
+    const renderer = await renderWith(design, { board, currentTurn: 'black' });
+    expect(last(seen)).toBeUndefined();
+    await renderer.update(
+      <DesignContext.Provider value={design}>
+        <Board
+          board={board}
+          currentTurn="black"
+          gameOver={{ result: 'checkmate', winner: 'white' }}
+        />
+      </DesignContext.Provider>,
+    );
+    expect(last(seen)).toBe(true);
+  });
+
   it('tells a piece body it is under the pointer for any hover lift, heights or `true`', async () => {
     const hoveredBodies = (renderer: Renderer) =>
       (renderer.scene as ReactThreeTestInstance).findAll(
