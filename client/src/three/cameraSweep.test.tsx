@@ -27,6 +27,9 @@ import type { Vec3 } from './types';
 //   way out; zoomed all the way in (where it cannot fit) it stays centred.
 
 const DEG = Math.PI / 180;
+// Each sweep takes a few seconds on an idle machine and several times that on
+// a busy one, past vitest's 5 s default
+const SWEEP = { timeout: 30_000 };
 const WINDOWS = [
   [1280, 720],
   [390, 844],
@@ -96,7 +99,7 @@ async function mount(width: number, height: number, from: [number, number] = [16
   return { camera, controls, fitted, turn, bands: bands(width, height) };
 }
 
-describe('the fitted view', () => {
+describe('the fitted view', SWEEP, () => {
   for (const [width, height] of WINDOWS) {
     it(`never moves as the view turns, in ${width}x${height}`, async () => {
       const bad: string[] = [];

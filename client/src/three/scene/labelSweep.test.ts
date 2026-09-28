@@ -42,6 +42,9 @@ const frame = towerFrame(layout);
 const SIZE = 0.32;
 const rings = towerFrameRings(layout, { size: SIZE, levelScale: 1 });
 const DEG = Math.PI / 180;
+// Each sweep takes a few seconds on an idle machine and several times that on
+// a busy one, past vitest's 5 s default
+const SWEEP = { timeout: 30_000 };
 const ELEVATIONS = Array.from({ length: 105 }, (_, i) => Math.min(-14 + i, 89.9));
 const SEATS: Orientation[] = ['white', 'black'];
 const WINDOWS = [
@@ -241,7 +244,7 @@ function* everyPose(orientation: Orientation, width: number, height: number) {
 
 const letters = (labels: LabelAnchor[]) => labels.filter((l) => l.level !== undefined);
 
-describe('the labels at every pose', () => {
+describe('the labels at every pose', SWEEP, () => {
   for (const orientation of SEATS) {
     it(`stand the level letters up one corner post, in order, as ${orientation}`, () => {
       const bad: string[] = [];
@@ -417,7 +420,7 @@ const towerPoints = (): Vec3[] => {
   return out;
 };
 
-describe('the letters from low down', () => {
+describe('the letters from low down', SWEEP, () => {
   const tower = towerPoints();
   for (const orientation of SEATS) {
     for (const [width, height] of WINDOWS) {
@@ -473,7 +476,7 @@ describe('the letters from low down', () => {
   }
 });
 
-describe('the letters change corner', () => {
+describe('the letters change corner', SWEEP, () => {
   /** The azimuths (degrees) where the letters' corner changed on a sweep, and the corner after. */
   const switches = (from: number, to: number, elevation: number, start: AnchorState | null) => {
     const step = from < to ? 0.5 : -0.5;

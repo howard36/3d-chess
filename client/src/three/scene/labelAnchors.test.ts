@@ -512,6 +512,7 @@ describe('level letters seen from above', () => {
 describe('towerFrameRings', () => {
   const rings = towerFrameRings(layout, { size: 0.32, levelScale: 1 });
 
+  // A sweep of every pose: a few seconds idle, past vitest's 5 s default when busy
   it('hold the platforms and every label, wherever the hysteresis has left it', () => {
     const glyph = 0.3 * 0.32;
     for (const azimuth of [...AZIMUTHS, 45, 90, 135, 3, 93, -93]) {
@@ -564,7 +565,7 @@ describe('towerFrameRings', () => {
         }
       }
     }
-  });
+  }, 30_000);
 
   it('reach the side post all round but the front, and the far one only behind', () => {
     const letters = rings.filter((r) => r.behind !== undefined);
