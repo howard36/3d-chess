@@ -7,6 +7,7 @@ import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { claimed, useClaim } from './claims';
+import type { ClaimKind } from './claims';
 import { LEVEL_COLORS, levelAt, MOTION, PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
 
 // The marks of play, one family of thin rings of light lying on the glass:
@@ -60,6 +61,10 @@ const fragmentShader = /* glsl */ `
   uniform float uDashes;
   uniform float uAmount;
   uniform float uOpacity;
+  uniform vec3 uGap;
+  uniform float uGapA;
+  uniform float uSettle;
+  uniform float uSoft;
   varying vec2 vP;
 
   const float TAU = 6.2831853;
@@ -91,7 +96,8 @@ const fragmentShader = /* glsl */ `
     if (uKind == 0 || uKind == 1) {
       // The fill: slight at rest; under the pointer fuller and deeper at the
       // heart, like light pooling in glass
-      float inside = fillOf(r - R);
+      // A soft-edged pool (no rim) where the mark must not read as a ring
+      float inside = mix(fillOf(r - R), 1.0 - smoothstep(0.55 * R, R, r), uSoft);
       float k = r / R;
       float rest = uFillA * (0.75 + 0.25 * k);
       float held = uHover * (0.2 + 0.1 * (1.0 - k));
@@ -113,7 +119,11 @@ const fragmentShader = /* glsl */ `
       float fw = max(fwidth(ang / TAU * uDashes), 1e-4);
       float dash = smoothstep(0.0, fw, f) * (1.0 - smoothstep(0.58 - fw, 0.58, f));
       float shown = step(along, uReveal);
-      c = over(c, uColor, stroke(r - R, uWidth) * dash * shown * uOpacity);
+      // White dashes; between them the ring keeps its level's colour (it
+      // stands in for the moved piece's level ring)
+      float s = stroke(r - R, uWidth);
+      c = over(c, uGap, s * uGapA * shown);
+      c = over(c, uColor, s * dash * shown * uOpacity);
     } else {
       // Check: a crown of red light round the king, a band with eight points
       float seg = TAU / 8.0;
@@ -121,7 +131,8 @@ const fragmentShader = /* glsl */ `
       float tine = max(0.0, 1.0 - abs(phi) / (seg * 0.32));
       float outer = R + 0.085 * tine;
       float inner = R - 0.05;
-      float strike = 1.0 + 1.4 * uPulse;
+      // At mate it settles as the king falls: dimmer, and the ripples stop
+      float strike = (1.0 + 1.4 * uPulse) * (1.0 - 0.45 * uSettle);
       float band = fillOf(r - outer) * (1.0 - fillOf(r - inner));
       c = over(c, uColor, band * 0.22 * strike);
       c = over(c, uColor, fillOf(r - inner) * 0.07);
@@ -131,7 +142,8 @@ const fragmentShader = /* glsl */ `
       for (int i = 0; i < 2; i++) {
         float ph = fract(uTime / 2.8 + float(i) * 0.5);
         float rr = mix(R + 0.1, 0.62, ph);
-        c = over(c, uColor, stroke(r - rr, 0.009) * (1.0 - ph) * (1.0 - ph) * 0.7 * uGrow);
+        float fade = (1.0 - ph) * (1.0 - ph) * 0.7 * uGrow * (1.0 - uSettle);
+        c = over(c, uColor, stroke(r - rr, 0.009) * fade);
       }
       // The strike: one strong wave when check arrives
       float wave = mix(R, 0.8, 1.0 - uPulse);
@@ -178,8 +190,15 @@ interface MarkProps {
   pulse?: boolean;
   /** Keep frames coming while up (the capture's mote, the check's ripples). */
   animate?: boolean;
-  /** Step aside while a capture marker has taken this floor. */
-  yieldToCapture?: boolean;
+  /** Step aside while a marker of one of these kinds has taken this floor. */
+  yieldTo?: ClaimKind[];
+  /** Between the dashes of a dashed ring: this colour, at `gapOpacity`. */
+  gap?: string;
+  gapOpacity?: number;
+  /** Settle (check at mate): dim a little and stop the ripples. */
+  settle?: boolean;
+  /** A fill whose edge fades out (no crisp rim). */
+  soft?: boolean;
   /** Step back a little seen from high above (a destination off the held piece's level). */
   dimAbove?: boolean;
   renderOrder?: number;
@@ -207,7 +226,11 @@ const Mark = ({
   delayMs = 0,
   pulse = false,
   animate = false,
-  yieldToCapture = false,
+  yieldTo,
+  gap,
+  gapOpacity = 0,
+  settle = false,
+  soft = false,
   dimAbove = false,
   renderOrder = LAYER.marker,
   lift = 0.012,
@@ -240,6 +263,10 @@ const Mark = ({
           uDashes: { value: dashes },
           uAmount: { value: 1 },
           uOpacity: { value: opacity },
+          uGap: { value: new Color(gap ?? color) },
+          uGapA: { value: gapOpacity },
+          uSettle: { value: 0 },
+          uSoft: { value: soft ? 1 : 0 },
           uQuad: { value: quad },
         },
         vertexShader,
@@ -254,11 +281,14 @@ const Mark = ({
   u.uRadius.value = radius;
   u.uOpacity.value = opacity;
   u.uQuad.value = quad;
+  u.uGapA.value = gapOpacity;
+  u.uSoft.value = soft ? 1 : 0;
+  if (gap) (u.uGap.value as Color).set(gap);
 
   const age = useRef(0);
   const hover = useRef(0);
   const still = prefersReducedMotion();
-  useEffect(() => invalidate(), [hovered, invalidate]);
+  useEffect(() => invalidate(), [hovered, settle, invalidate]);
   useFrame(({ camera }, delta) => {
     const dt = Math.min(delta, 1 / 8);
     age.current += dt * 1000;
@@ -288,16 +318,20 @@ const Mark = ({
       u.uReveal.value = 1 - (1 - k) ** 2;
       moving = true;
     }
-    if (animate && !still) {
+    if (settle && u.uSettle.value < 1) {
+      u.uSettle.value = Math.min(1, u.uSettle.value + dt / 0.6);
+      moving = true;
+    }
+    if (animate && !still && u.uSettle.value < 1) {
       u.uTime.value += dt;
       moving = true;
     }
     let amount = 1;
-    if (yieldToCapture) {
+    if (yieldTo) {
       probe.x = floor[0];
       probe.y = floor[1];
       probe.z = floor[2];
-      if (claimed(probe, ['capture'])) amount = 0;
+      if (claimed(probe, yieldTo)) amount = 0;
     }
     if (dimAbove) {
       // From high above, the held piece's own level leads
@@ -342,16 +376,23 @@ const useHeld = () => useSyncExternalStore(subscribeHeld, () => heldFloor);
 /** Radius of the level ring at a piece's foot (world units). */
 const FOOT_RING = RING_RADIUS * PIECE_SCALE;
 const QUIET_RADIUS = 0.2;
-/** Straight below or above the held piece: wide enough to show round it from above. */
-const QUIET_STACKED = 0.34;
+/**
+ * Straight below or above the held piece: a soft pool with no rim, wide
+ * enough to show round the piece from above without ringing its own ring.
+ */
+const QUIET_STACKED = 0.33;
 const CAPTURE_RADIUS = FOOT_RING + 0.035;
 const TRACE_TO = FOOT_RING;
 const TRACE_FROM = FOOT_RING * 0.66;
+const FROM_YIELDS: ClaimKind[] = ['quiet', 'capture'];
+const TO_YIELDS: ClaimKind[] = ['capture'];
 
 const levelLight = LEVEL_COLORS.map((c) => `#${new Color(c).lerp(white, 0.42).getHexString()}`);
 const levelDeep = LEVEL_COLORS.map((c) => `#${new Color(c).multiplyScalar(0.62).getHexString()}`);
 
 export const Quiet = ({ floor, hovered }: MarkerProps) => {
+  // The small ring where the last move started steps aside for it
+  useClaim('quiet', floor);
   const level = levelAt(floor[1]);
   const held = useHeld();
   const offLevel = !!held && levelAt(held[1]) !== level;
@@ -364,10 +405,11 @@ export const Quiet = ({ floor, hovered }: MarkerProps) => {
       color={levelLight[level]}
       fill={LEVEL_COLORS[level]}
       deep={levelDeep[level]}
-      fillA={0.16}
+      fillA={stacked ? 0.3 : 0.16}
       radius={stacked ? QUIET_STACKED : QUIET_RADIUS}
       width={0.0095}
-      opacity={0.9}
+      opacity={stacked ? 0 : 0.9}
+      soft={stacked}
       hovered={hovered}
       dimAbove={offLevel}
     />
@@ -404,58 +446,71 @@ export const Selection = ({ floor }: MarkerProps) => {
 };
 
 /**
- * The last move: a dashed ring of white light over the level ring of the
- * piece that moved (drawn in as it lands), the same ring smaller where it
- * started, and the thin dashed line between them, flowing slowly on.
+ * The last move: a dashed ring in place of the moved piece's level ring
+ * (white dashes, the level's colour between them; drawn in as it lands), the
+ * same ring smaller where it started, and the thin dashed line between them,
+ * flowing slowly on. The ring where it started steps aside for a destination
+ * on that square, the ring where it landed for a capture.
  */
-export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
-  <>
-    <Mark
-      floor={from.floor}
-      kind="trace"
-      color={PALETTE.trace}
-      radius={TRACE_FROM}
-      width={0.0105}
-      opacity={0.85}
-      dashes={12}
-      growMs={0}
-    />
-    <Mark
-      floor={to.floor}
-      kind="trace"
-      color={PALETTE.trace}
-      radius={TRACE_TO}
-      width={0.0115}
-      opacity={0.95}
-      dashes={12}
-      growMs={0}
-      drawMs={fresh ? 320 : 0}
-      delayMs={fresh ? MOTION.durationMs * 0.8 : 0}
-      yieldToCapture
-      renderOrder={LAYER.marker + 0.1}
-    />
-    <LastMoveLine
-      from={from.floor}
-      to={to.floor}
-      arc={arc}
-      color={PALETTE.trace}
-      pulseColor="#ffffff"
-      pattern="dashed"
-      radius={0.0105}
-      opacity={0.72}
-      spacing={0.15}
-      dash={0.55}
-      pulse={0.35}
-      flowSpeed={0.22}
-      shade={0.25}
-      drawInMs={fresh ? 380 : 0}
-      drawInDelayMs={fresh ? MOTION.durationMs * 0.3 : 0}
-    />
-  </>
-);
+export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => {
+  useClaim('trace', to.floor);
+  return (
+    <>
+      <Mark
+        floor={from.floor}
+        kind="trace"
+        color={PALETTE.trace}
+        gap={LEVEL_COLORS[levelAt(from.floor[1])]}
+        gapOpacity={0.55}
+        radius={TRACE_FROM}
+        width={0.0105}
+        opacity={0.85}
+        dashes={12}
+        growMs={0}
+        yieldTo={FROM_YIELDS}
+      />
+      <Mark
+        floor={to.floor}
+        kind="trace"
+        color={PALETTE.trace}
+        gap={LEVEL_COLORS[levelAt(to.floor[1])]}
+        gapOpacity={0.9}
+        radius={TRACE_TO}
+        width={0.0115}
+        opacity={0.95}
+        dashes={12}
+        growMs={0}
+        drawMs={fresh ? 320 : 0}
+        delayMs={fresh ? MOTION.durationMs * 0.8 : 0}
+        yieldTo={TO_YIELDS}
+        renderOrder={LAYER.marker + 0.1}
+      />
+      <LastMoveLine
+        from={from.floor}
+        to={to.floor}
+        arc={arc}
+        color={PALETTE.trace}
+        pulseColor="#ffffff"
+        pattern="dashed"
+        radius={0.0105}
+        opacity={0.72}
+        spacing={0.15}
+        dash={0.55}
+        pulse={0.35}
+        flowSpeed={0.22}
+        shade={0.25}
+        drawInMs={fresh ? 380 : 0}
+        drawInDelayMs={fresh ? MOTION.durationMs * 0.3 : 0}
+      />
+    </>
+  );
+};
 
-/** Check: a crown of red light round the king, striking once, then rippling slowly. */
-export const Check = ({ floor }: MarkerProps) => {
+/**
+ * Check: a crown of red light round the king, striking once, then rippling
+ * slowly; at mate it settles as the king falls.
+ */
+export const Check = ({ floor, mated = false }: MarkerProps) => {
   useClaim('check', floor);
   return (
     <Mark
@@ -468,6 +523,7 @@ export const Check = ({ floor }: MarkerProps) => {
       growMs={220}
       pulse
       animate
+      settle={mated}
       renderOrder={LAYER.marker + 0.2}
     />
   );

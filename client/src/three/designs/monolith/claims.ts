@@ -2,15 +2,17 @@ import { useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
 import type { Vec3 } from '../types';
 
-// Floors that a marker has taken over from the piece standing there. A
-// capture or a check marker is drawn in place of the victim's (or the
-// king's) level ring rather than round it, so the two never stack as
-// concentric circles: while such a marker is up, the ring at its floor
-// steps aside (pieces.tsx), and the last move's ring there too (markers.tsx).
+// Floors that a marker has taken over. A capture or a check marker is drawn
+// in place of the victim's (or the king's) level ring rather than round it,
+// and the last move's ring in place of the moved piece's, so no two rings
+// ever stack as concentric circles: while such a marker is up, the ring at
+// its floor steps aside (pieces.tsx). Likewise the small ring where the last
+// move started steps aside for a destination drawn on that square
+// (markers.tsx).
 
-export type ClaimKind = 'capture' | 'check';
+export type ClaimKind = 'capture' | 'check' | 'trace' | 'quiet';
 
-const claims: Record<ClaimKind, Vec3[]> = { capture: [], check: [] };
+const claims: Record<ClaimKind, Vec3[]> = { capture: [], check: [], trace: [], quiet: [] };
 
 /** Takes over the ring at `floor` while the calling marker is mounted. */
 export const useClaim = (kind: ClaimKind, floor: Vec3) => {
@@ -43,4 +45,5 @@ export const claimed = (p: Point, kinds: readonly ClaimKind[]) =>
   kinds.some((kind) => claims[kind].some((a) => near(a, p)));
 
 /** Whether any floor is taken over (a cheap test before looking). */
-export const anyClaims = () => claims.capture.length > 0 || claims.check.length > 0;
+export const anyClaims = () =>
+  claims.capture.length + claims.check.length + claims.trace.length + claims.quiet.length > 0;

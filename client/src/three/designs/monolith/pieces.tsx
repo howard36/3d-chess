@@ -3,6 +3,9 @@ import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
   BackSide,
+  CustomBlending,
+  MaxEquation,
+  OneFactor,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -23,6 +26,7 @@ import { noRaycast } from '../kit/noRaycast';
 import { dotTexture, rng } from '../kit/textures';
 import type { PieceBodyProps, PieceColor } from '../types';
 import { anyClaims, claimed } from './claims';
+import type { ClaimKind } from './claims';
 import { LEVEL_COLORS, PALETTE, RING_RADIUS } from './palette';
 
 // The armies: satin porcelain and matte charcoal, the shared Staunton set.
@@ -35,11 +39,12 @@ import { LEVEL_COLORS, PALETTE, RING_RADIUS } from './palette';
 //
 // Under the pointer a piece stirs: it lifts a little, its ring brightens, and
 // a soft translucent sphere of white light glows behind its upper body.
-// Picked up, it is superposed: three faint outlines of it close in on it from
-// either side and above as it rises, and it settles into a steady inner glow
-// inside a soft cone of light rising from its square. Put down, the glow,
-// the sphere and the cone ease out. In check, the king's crown takes a
-// narrow edge of red.
+// Picked up, the sphere goes at once and the piece is superposed: three
+// faint outlines of it close in from either side and above as it rises, and
+// it settles into a steady inner glow in a soft column of light rising from
+// its ring. Put down, the glow and the column ease out. In check, the
+// king's crown takes a narrow edge of red. The ring steps aside where a
+// capture, check or last-move ring is drawn in its place (claims.ts).
 //
 // Every piece shades with one small shader (the review machine renders in
 // software, where the standard material is slow): a key light over the
@@ -347,7 +352,7 @@ export const ringMaterial = (level: number) =>
     fragmentShader: ringFragment,
   });
 
-// --- The sphere of light (hover and hold) -------------------------------------------------
+// --- The sphere of light (hover) -------------------------------------------------
 
 const haloVertex = /* glsl */ `
   uniform float uHeight;
@@ -394,11 +399,15 @@ const haloQuad = new PlaneGeometry(2, 2);
 const CONE_HEIGHT = 1.05;
 // It rises out of the level ring itself, one figure with it
 const CONE_BOTTOM = RING_RADIUS;
-const coneGeometry = new CylinderGeometry(0.2, CONE_BOTTOM, CONE_HEIGHT, 40, 1, true).translate(
-  0,
-  CONE_HEIGHT / 2,
-  0,
-);
+// Nearly straight: light rising from the ring, not a jar over the piece
+const coneGeometry = new CylinderGeometry(
+  CONE_BOTTOM * 0.9,
+  CONE_BOTTOM,
+  CONE_HEIGHT,
+  40,
+  1,
+  true,
+).translate(0, CONE_HEIGHT / 2, 0);
 
 const coneVertex = /* glsl */ `
   varying float vH;
@@ -430,7 +439,7 @@ const coneFragment = /* glsl */ `
     // From above, the walls are all edge: they step back there
     float above = smoothstep(0.6, 0.95, abs(v.y));
     float skirt = exp(-vH / 0.06) * 0.14;
-    float a = ((0.035 + 0.95 * edge * (1.0 - 0.65 * above)) * fade * bands + skirt) * uAmount;
+    float a = ((0.05 + 0.55 * edge * (1.0 - 0.65 * above)) * fade * bands + skirt) * uAmount;
     gl_FragColor = vec4(uColor * a, a);
     #include <colorspace_fragment>
   }`;
@@ -442,7 +451,7 @@ const poolFragment = /* glsl */ `
   void main() {
     float r = length(vP) / ${CONE_BOTTOM.toFixed(3)};
     // The cone's footprint: soft light, no edge
-    float a = exp(-r * r * 2.4) * 0.16 * uAmount;
+    float a = exp(-r * r * 2.4) * 0.3 * uAmount;
     if (a < 0.003) discard;
     gl_FragColor = vec4(uColor * a, a);
     #include <colorspace_fragment>
@@ -455,16 +464,26 @@ let moteMap: ReturnType<typeof dotTexture> | null = null;
 
 // --- The flair: superposition -------------------------------------------------------------
 
-const echoMaterial = (color: string) =>
+const echoMaterial = (color: string, top: number) =>
   new ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: AdditiveBlending,
-    uniforms: { uColor: { value: new Color(color) }, uOpacity: { value: 0 } },
+    // The brighter of the outlines where they cross, never their sum
+    blending: CustomBlending,
+    blendEquation: MaxEquation,
+    blendSrc: OneFactor,
+    blendDst: OneFactor,
+    uniforms: {
+      uColor: { value: new Color(color) },
+      uOpacity: { value: 0 },
+      uTop: { value: top },
+    },
     vertexShader: /* glsl */ `
       varying vec3 vN;
       varying vec3 vV;
+      varying float vY;
       void main() {
+        vY = position.y;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         vN = normalize(normalMatrix * normal);
         vV = normalize(-mv.xyz);
@@ -473,19 +492,24 @@ const echoMaterial = (color: string) =>
     fragmentShader: /* glsl */ `
       uniform vec3 uColor;
       uniform float uOpacity;
+      uniform float uTop;
       varying vec3 vN;
       varying vec3 vV;
+      varying float vY;
       void main() {
-        // Only its outline: the edge of its form catches the light
-        float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.6);
-        gl_FragColor = vec4(uColor * 1.4 * f * uOpacity, 1.0);
+        // Only its outline, and only above the base: the flat steps of the
+        // base, seen edge-on, would fill in as a grey smudge on the glass
+        float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 4.5);
+        float a = 1.8 * f * uOpacity * smoothstep(0.14, 0.34, vY / uTop);
+        if (a < 0.004) discard;
+        gl_FragColor = vec4(uColor * a, 1.0);
         #include <colorspace_fragment>
       }`,
   });
 
 const FLAIR_MS = 560;
 /** Peak strength of the outlines: quieter round charcoal. */
-const FLAIR_OPACITY: Record<PieceColor, number> = { white: 0.5, black: 0.3 };
+const FLAIR_OPACITY: Record<PieceColor, number> = { white: 0.3, black: 0.22 };
 /** Where each outline starts, across the view and up (piece units). */
 const ECHOES: [number, number][] = [
   [-0.32, 0.04],
@@ -519,7 +543,10 @@ const Flair = ({ type, color }: { type: PieceType; color: PieceColor }) => {
   const meshes = useRef<(Mesh | null)[]>([]);
   const elapsed = useRef(0);
   const [done, setDone] = useState(false);
-  const materials = useMemo(() => ECHOES.map(() => echoMaterial(PALETTE.light)), []);
+  const materials = useMemo(
+    () => ECHOES.map(() => echoMaterial(PALETTE.light, pieceTop(pieceSet(), type))),
+    [type],
+  );
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
   useEffect(() => invalidate(), [invalidate]);
   useFrame((_, delta) => {
@@ -576,6 +603,8 @@ const Flair = ({ type, color }: { type: PieceType; color: PieceColor }) => {
 const HOVER_RATE = 1 / 0.18;
 const HOLD_RATE = 1 / 0.3;
 const RELEASE_RATE = 1 / 0.26;
+const DROP_RATE = 1 / 0.06;
+const smooth = (x: number) => x * x * (3 - 2 * x);
 
 interface AuraProps {
   type: PieceType;
@@ -585,7 +614,7 @@ interface AuraProps {
   time: { current: number };
 }
 
-/** The sphere of light behind the upper body (hover and hold). */
+/** The sphere of light behind the upper body (hover only). */
 const Sphere = ({ type, color, weights }: AuraProps) => {
   const top = pieceTop(pieceSet(), type);
   const material = useMemo(
@@ -610,9 +639,8 @@ const Sphere = ({ type, color, weights }: AuraProps) => {
   // A little dimmer behind porcelain, so the piece keeps its edge against it
   const strength = color === 'white' ? 0.55 : 0.75;
   useFrame(() => {
-    const { hover, hold } = weights.current;
-    // Held, the sphere gives way to the cone, leaving a faint steady glow
-    material.uniforms.uAmount.value = strength * (0.62 * hover * (1 - hold) + 0.14 * hold);
+    // Under the pointer only: picked up, it goes at once and the cone takes over
+    material.uniforms.uAmount.value = strength * 0.62 * smooth(weights.current.hover);
   });
   return (
     <mesh
@@ -694,7 +722,7 @@ const Cone = ({ weights, time }: AuraProps) => {
       const r = s.radius * (1 - 0.35 * h);
       const a = s.angle + t * 0.25;
       pos.setXYZ(i, Math.cos(a) * r, h * CONE_HEIGHT * 0.9, Math.sin(a) * r);
-      const f = Math.sin(Math.PI * h) * 0.55 * e;
+      const f = Math.sin(Math.PI * h) * 0.75 * e;
       col.setXYZ(i, f, f, f);
     });
     pos.needsUpdate = true;
@@ -729,6 +757,7 @@ const Cone = ({ weights, time }: AuraProps) => {
 // --- The piece -------------------------------------------------------------------------------
 
 const at = new Vector3();
+const RING_YIELDS: ClaimKind[] = ['capture', 'check', 'trace'];
 
 /**
  * A Staunton piece in porcelain or charcoal, standing in its level ring
@@ -769,7 +798,8 @@ export const PieceBody = (props: PieceBodyProps) => {
     const w = weights.current;
     const toward = (v: number, goal: number, rate: number) =>
       goal > v ? Math.min(goal, v + dt * rate) : Math.max(goal, v - dt * rate);
-    const hover = toward(w.hover, hovered && !selected ? 1 : 0, HOVER_RATE);
+    // Picked up, the hover light goes at once (the flair and the cone take over)
+    const hover = toward(w.hover, hovered && !selected ? 1 : 0, selected ? DROP_RATE : HOVER_RATE);
     const hold = toward(w.hold, selected ? 1 : 0, selected ? HOLD_RATE : RELEASE_RATE);
     const c = toward(check.current, inCheck ? 1 : 0, 1 / 0.25);
     const moving = hover !== w.hover || hold !== w.hold || c !== check.current;
@@ -780,9 +810,10 @@ export const PieceBody = (props: PieceBodyProps) => {
     // The inner glow: a share under the pointer, all of it held
     const g = GLAZE[color].glowStrength;
     const eased = hold * hold * (3 - 2 * hold);
-    body.uniforms.uGlow.value = g * (0.35 * hover + eased);
+    const lit = smooth(hover);
+    body.uniforms.uGlow.value = g * (0.35 * lit + eased);
     body.uniforms.uCheck.value = c;
-    ring.uniforms.uGlow.value = Math.max(hover, eased);
+    ring.uniforms.uGlow.value = Math.max(lit, eased);
     // While gliding, the ring passes through the colours of the levels crossed
     if (glide) {
       const p = glide.progress.current;
@@ -793,11 +824,12 @@ export const PieceBody = (props: PieceBodyProps) => {
     } else {
       colorAtLevel(level, ring.uniforms.uColor.value);
     }
-    // A capture or check marker drawn here takes the ring's place (claims.ts)
+    // A capture, check or last-move ring drawn here takes the ring's place
+    // (claims.ts)
     let amount = 1;
     if (anyClaims() && floor.current) {
       floor.current.getWorldPosition(at);
-      if (claimed(at, ['capture', 'check'])) amount = 0;
+      if (claimed(at, RING_YIELDS)) amount = 0;
     }
     ring.uniforms.uAmount.value = amount;
     if (moving || hold > 0) invalidate();

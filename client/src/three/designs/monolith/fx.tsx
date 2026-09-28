@@ -7,7 +7,7 @@ import { MOVE_ANIMATION } from '../../motion';
 import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
-import { KNIGHT_YAW, levelAt, PALETTE, PIECE_SCALE } from './palette';
+import { FRAME, KNIGHT_YAW, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
 import { bodyMaterial, ringMaterial, ringPlane, wholePiece } from './pieces';
 import { gardenBoost } from './stage';
 
@@ -164,8 +164,12 @@ const sweepFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uRadius;
   uniform float uOpacity;
+  uniform float uReach;
   varying vec2 vUv;
+  varying vec3 vWorld;
   void main() {
+    // It stays on the king's level: nothing past the edge of its glass
+    if (max(abs(vWorld.x), abs(vWorld.z)) > uReach) discard;
     vec2 p = (vUv - 0.5) * 7.0;
     float r = length(p);
     float d = r - uRadius;
@@ -198,12 +202,16 @@ export const Celebration = ({ floor }: CelebrationProps) => {
           uColor: { value: new Color(PALETTE.light) },
           uRadius: { value: 0 },
           uOpacity: { value: 0 },
+          uReach: { value: FRAME.half + MARGIN },
         },
         vertexShader: /* glsl */ `
           varying vec2 vUv;
+          varying vec3 vWorld;
           void main() {
             vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            vec4 w = modelMatrix * vec4(position, 1.0);
+            vWorld = w.xyz;
+            gl_Position = projectionMatrix * viewMatrix * w;
           }`,
         fragmentShader: sweepFragment,
       }),

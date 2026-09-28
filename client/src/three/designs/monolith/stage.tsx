@@ -1,18 +1,25 @@
 import { useEffect, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
 import {
   AdditiveBlending,
   BackSide,
   BufferAttribute,
   BufferGeometry,
   Color,
+  CustomBlending,
+  MaxEquation,
+  OneFactor,
   PlaneGeometry,
   ShaderMaterial,
   SphereGeometry,
+  Vector3,
 } from 'three';
+import type { Camera } from 'three';
 import { PieceType } from '../../../engine/pieces';
+import { PROFILES } from '../../pieces';
 import { noRaycast } from '../kit/noRaycast';
 import { TOWER_MASK } from './mask';
-import { GROUND_Y, PALETTE } from './palette';
+import { FRAME, GROUND_Y, MARGIN, PALETTE, PIECE_SCALE } from './palette';
 import { sculptureOf } from './sculptures';
 
 // The garden at night. The tower floats over an endless dark plain of
@@ -24,9 +31,12 @@ import { sculptureOf } from './sculptures';
 // outlines (sculptures.ts) turn to face the viewer as a turned piece looks
 // the same from every side, and stand on real rings of light round their
 // bases and collars. Each has a breath of mist at its feet, and the ground
-// gives back a faint, soft reflection. Two flank the tower in the opening
-// view, and every side has one or two; whatever of the garden lies behind
-// the tower is held down to nothing (mask.ts). Nothing here moves.
+// gives back a faint, soft reflection. The tubes are dim and join by
+// taking the brighter (never summed), so no knot of light outshines the
+// board. Two flank the tower in the opening view, and every side has one or
+// two; a sculpture nearing the tower on screen (its letters included) fades
+// out whole, and the board's lines behind the tower are held down to nothing
+// (mask.ts). Nothing here moves.
 
 // --- The night sky ------------------------------------------------------------------
 
@@ -157,7 +167,7 @@ const groundFragment = /* glsl */ `
 const Ground = () => {
   const { geometry, material } = useMemo(
     () => ({
-      geometry: new PlaneGeometry(260, 260, 44, 44).rotateX(-Math.PI / 2),
+      geometry: new PlaneGeometry(260, 260, 32, 32).rotateX(-Math.PI / 2),
       material: new ShaderMaterial({
         // Drawn first and writing no depth: the reflections go under it
         depthWrite: false,
@@ -196,15 +206,15 @@ const Ground = () => {
 
 /** Their scale: a colossal king stands about 8 units tall. */
 const SCALE = 7.5;
-/** The ring of the colossal board's outer squares they stand on. */
+/** The ring they stand on, through the colossal board's outer squares. */
 const RING = Math.hypot(0.5 * SQUARE, 3.5 * SQUARE);
 /**
- * Where each stands (degrees round from +z, toward +x), on a square of the
- * colossal board. The opening view looks from 16° toward 196°: the king and
- * queen flank the tower there, well clear of its outline.
+ * Where each stands (degrees round from +z, toward +x). The opening view
+ * looks from 16° toward 196°: the king and queen flank the tower there, each
+ * about 29° off that line, well clear of the tower and its letters.
  */
 const PLACES: { type: PieceType; deg: number }[] = [
-  { type: PieceType.King, deg: 171.9 },
+  { type: PieceType.King, deg: 167 },
   { type: PieceType.Queen, deg: 225 },
   { type: PieceType.Knight, deg: 261.9 },
   { type: PieceType.Rook, deg: 315 },
@@ -232,7 +242,9 @@ const neonGeometry = (): BufferGeometry => {
   const tangent: number[] = [];
   const side: number[] = [];
   const mode: number[] = [];
+  const place: number[] = [];
   const index: number[] = [];
+  let current = 0;
   const addCurve = (
     at: [number, number, number],
     pts: [number, number, number][],
@@ -252,6 +264,7 @@ const neonGeometry = (): BufferGeometry => {
         tangent.push(t[0] / l, t[1] / l, t[2] / l);
         side.push(s);
         mode.push(fixed ? 1 : 0);
+        place.push(current);
       }
     }
     const segments = closed ? n : n - 1;
@@ -261,7 +274,8 @@ const neonGeometry = (): BufferGeometry => {
       index.push(a, a + 1, b, b, a + 1, b + 1);
     }
   };
-  for (const { type, deg } of PLACES) {
+  PLACES.forEach(({ type, deg }, i) => {
+    current = i;
     const at = anchorOf(deg);
     const drawing = sculptureOf(type);
     for (const o of drawing.outlines) {
@@ -273,8 +287,8 @@ const neonGeometry = (): BufferGeometry => {
       );
     }
     for (const ring of drawing.rings) {
-      const pts = Array.from({ length: 48 }, (_, k): [number, number, number] => {
-        const a = (k / 48) * Math.PI * 2;
+      const pts = Array.from({ length: 32 }, (_, k): [number, number, number] => {
+        const a = (k / 32) * Math.PI * 2;
         return [
           Math.cos(a) * ring.radius * SCALE,
           ring.y * SCALE,
@@ -283,15 +297,106 @@ const neonGeometry = (): BufferGeometry => {
       });
       addCurve(at, pts, true, true);
     }
-  }
+  });
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(local), 3));
   g.setAttribute('aAnchor', new BufferAttribute(new Float32Array(anchor), 3));
   g.setAttribute('aTangent', new BufferAttribute(new Float32Array(tangent), 3));
   g.setAttribute('aSide', new BufferAttribute(new Float32Array(side), 1));
   g.setAttribute('aMode', new BufferAttribute(new Float32Array(mode), 1));
+  g.setAttribute('aPlace', new BufferAttribute(new Float32Array(place), 1));
   g.setIndex(index);
   return g;
+};
+
+// --- Behind the tower ------------------------------------------------------------------
+
+/**
+ * How much of each sculpture the tower hides from the camera, 0 to 1, one
+ * value per place, written every frame. A sculpture fades as a whole (with
+ * its reflection and mist) as its outline on screen nears the tower's,
+ * the level letters beside it included, and is gone before the two touch:
+ * never a sliced sculpture beside the board.
+ */
+const covers = { value: PLACES.map(() => 0) };
+
+/** The platforms' own square (the letters and numbers round it: MARGIN_NDC). */
+const TOWER_HALF = FRAME.half + MARGIN;
+const TOWER_Y: [number, number] = [
+  FRAME.levelY[0] - 0.1,
+  FRAME.levelY[4] + (0.87 + 0.14) * PIECE_SCALE + 0.1,
+];
+/** Room round the tower's outline on screen for its labels (NDC, height units). */
+const MARGIN_NDC = 0.16;
+/** Past that, the width of the fade (NDC, height units). */
+const FADE_NDC = 0.12;
+const corner = new Vector3();
+const right = new Vector3();
+interface Rect {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+  /** Every point in front of the camera. */
+  seen: boolean;
+}
+/** The screen rectangle (NDC, x scaled by the aspect so both axes match) round some points. */
+const rectOf = (camera: Camera, points: [number, number, number][], aspect: number): Rect => {
+  const r: Rect = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity, seen: true };
+  for (const [x, y, z] of points) {
+    corner.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
+    if (corner.z > -0.1) r.seen = false;
+    corner.applyMatrix4(camera.projectionMatrix);
+    r.x0 = Math.min(r.x0, corner.x * aspect);
+    r.x1 = Math.max(r.x1, corner.x * aspect);
+    r.y0 = Math.min(r.y0, corner.y);
+    r.y1 = Math.max(r.y1, corner.y);
+  }
+  return r;
+};
+const TOWER_POINTS = [-1, 1].flatMap((sx) =>
+  [-1, 1].flatMap((sz) =>
+    TOWER_Y.map((y): [number, number, number] => [sx * TOWER_HALF, y, sz * TOWER_HALF]),
+  ),
+);
+const SIZES = PLACES.map(({ type, deg }) => {
+  const height = sculptureOf(type).top * SCALE;
+  return {
+    at: anchorOf(deg),
+    radius: PROFILES.radius[type] * SCALE,
+    // The reflection's brighter upper part belongs to it too
+    ys: [GROUND_Y - 0.35 * height, GROUND_Y + height],
+  };
+});
+
+const TowerCovers = () => {
+  useFrame(({ camera, size }) => {
+    camera.updateMatrixWorld();
+    const aspect = size.width / Math.max(size.height, 1);
+    const t = rectOf(camera, TOWER_POINTS, aspect);
+    right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+    SIZES.forEach(({ at, radius, ys }, i) => {
+      // The sculpture as it faces the camera: its axis, as wide as its base
+      const points = [-1, 1].flatMap((s) =>
+        ys.map((y): [number, number, number] => [
+          at[0] + right.x * radius * s,
+          y,
+          at[2] + right.z * radius * s,
+        ]),
+      );
+      const r = rectOf(camera, points, aspect);
+      if (!r.seen || !t.seen) {
+        covers.value[i] = 0;
+        return;
+      }
+      const dx = Math.max(r.x0 - t.x1, t.x0 - r.x1, 0);
+      const dy = Math.max(r.y0 - t.y1, t.y0 - r.y1, 0);
+      const gap = Math.hypot(dx, dy) - MARGIN_NDC;
+      const k = Math.min(Math.max(gap / FADE_NDC, 0), 1);
+      covers.value[i] = 1 - k * k * (3 - 2 * k);
+    });
+  });
+  return null;
 };
 
 const neonVertex = /* glsl */ `
@@ -302,11 +407,12 @@ const neonVertex = /* glsl */ `
   attribute vec3 aTangent;
   attribute float aSide;
   attribute float aMode;
+  attribute float aPlace;
+  uniform float uCover[${PLACES.length}];
   varying float vAcross;
   varying float vCover;
   varying float vDepth;
   varying float vRing;
-  ${TOWER_MASK}
   void main() {
     vec3 toCam = cameraPosition - aAnchor;
     vec2 h = normalize(toCam.xz + vec2(1e-5, 0.0));
@@ -328,7 +434,8 @@ const neonVertex = /* glsl */ `
       p.y = 2.0 * uGround - p.y;
       t.y = -t.y;
     }
-    vCover = towerCover(p);
+    // The whole sculpture fades together, never sliced by the tower
+    vCover = uCover[int(aPlace + 0.5)];
     // Widened across the view, so every tube reads the same from any side
     vec3 v = normalize(cameraPosition - p);
     vec3 s = cross(t, v);
@@ -382,9 +489,15 @@ const neonMaterial = (o: {
   new ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: AdditiveBlending,
+    // The brighter of two tubes where they meet or cross, never their sum:
+    // a joint is no brighter than the tube
+    blending: CustomBlending,
+    blendEquation: MaxEquation,
+    blendSrc: OneFactor,
+    blendDst: OneFactor,
     uniforms: {
       uColor: { value: new Color(PALETTE.neon) },
+      uCover: covers,
       uWidth: { value: o.width },
       uCore: { value: o.core },
       uHalo: { value: o.halo },
@@ -405,8 +518,8 @@ const Sculptures = () => {
       tubes: neonMaterial({
         width: 0.26,
         core: 0.12,
-        halo: 0.1,
-        intensity: 0.15,
+        halo: 0.06,
+        intensity: 0.085,
         mirror: false,
         fade: 0,
       }),
@@ -415,7 +528,7 @@ const Sculptures = () => {
         width: 0.45,
         core: 0.05,
         halo: 0.14,
-        intensity: 0.045,
+        intensity: 0.025,
         mirror: true,
         fade: 3.2,
       }),
@@ -432,6 +545,7 @@ const Sculptures = () => {
   );
   return (
     <group name="monolith-garden">
+      <TowerCovers />
       <mesh
         geometry={geometry}
         material={reflection}
@@ -456,6 +570,7 @@ const mistGeometry = (): BufferGeometry => {
   const anchor: number[] = [];
   const corner: number[] = [];
   const size: number[] = [];
+  const places: number[] = [];
   const index: number[] = [];
   PLACES.forEach(({ deg }, i) => {
     const at = anchorOf(deg);
@@ -468,6 +583,7 @@ const mistGeometry = (): BufferGeometry => {
       anchor.push(...at);
       corner.push(cx, cy, 0);
       size.push(SCALE * 0.62, SCALE * 0.16);
+      places.push(i);
     }
     const b = i * 4;
     index.push(b, b + 1, b + 2, b, b + 2, b + 3);
@@ -476,6 +592,7 @@ const mistGeometry = (): BufferGeometry => {
   g.setAttribute('position', new BufferAttribute(new Float32Array(corner), 3));
   g.setAttribute('aAnchor', new BufferAttribute(new Float32Array(anchor), 3));
   g.setAttribute('aSize', new BufferAttribute(new Float32Array(size), 2));
+  g.setAttribute('aPlace', new BufferAttribute(new Float32Array(places), 1));
   g.setIndex(index);
   return g;
 };
@@ -488,19 +605,24 @@ const Mist = () => {
         transparent: true,
         depthWrite: false,
         blending: AdditiveBlending,
-        uniforms: { uColor: { value: new Color(PALETTE.mist) }, uBoost: gardenBoost },
+        uniforms: {
+          uColor: { value: new Color(PALETTE.mist) },
+          uBoost: gardenBoost,
+          uCover: covers,
+        },
         vertexShader: /* glsl */ `
           attribute vec3 aAnchor;
           attribute vec2 aSize;
+          attribute float aPlace;
+          uniform float uCover[${PLACES.length}];
           varying vec2 vC;
           varying float vCover;
-          ${TOWER_MASK}
           void main() {
             vec2 h = normalize((cameraPosition - aAnchor).xz + vec2(1e-5, 0.0));
             vec3 right = vec3(h.y, 0.0, -h.x);
             vec3 p = aAnchor + right * position.x * aSize.x + vec3(0.0, position.y * aSize.y, 0.0);
             vC = position.xy;
-            vCover = towerCover(aAnchor + vec3(0.0, aSize.y * 0.5, 0.0));
+            vCover = uCover[int(aPlace + 0.5)];
             gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
           }`,
         fragmentShader: /* glsl */ `
