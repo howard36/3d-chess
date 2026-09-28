@@ -7,8 +7,13 @@ import {
   cameraRight,
   chooseEdges,
   chooseLevelCorner,
+  chooseLevelEdge,
   CORNERS,
+  EDGES,
   labelAnchors,
+  LEVEL_SPREAD_FROM,
+  LEVEL_SPREAD_TO,
+  levelSpread,
   LOW_ELEVATION,
 } from './labelAnchors';
 import type { AnchorState } from './labelAnchors';
@@ -369,5 +374,111 @@ describe('axis labels seen from low down (an orbit that dips under 6°)', () => 
       prev = next;
     }
     expect(moves).toBe(1);
+  });
+});
+
+describe('level letters seen from above', () => {
+  /** Screen position (tangents of the view angle, y up) of a point. */
+  const screen = (camera: Vec3, p: Vec3): [number, number] => {
+    const f = [-camera[0], -camera[1], -camera[2]];
+    const fl = Math.hypot(f[0], f[1], f[2]);
+    const r = cameraRight(camera, TARGET);
+    const up = [
+      r[1] * f[2] - r[2] * f[1],
+      r[2] * f[0] - r[0] * f[2],
+      r[0] * f[1] - r[1] * f[0],
+    ].map((c) => c / fl);
+    const v = [p[0] - camera[0], p[1] - camera[1], p[2] - camera[2]];
+    const depth = (v[0] * f[0] + v[1] * f[1] + v[2] * f[2]) / fl;
+    return [
+      (v[0] * r[0] + v[2] * r[2]) / depth,
+      (v[0] * up[0] + v[1] * up[1] + v[2] * up[2]) / depth,
+    ];
+  };
+  const letters = (camera: Vec3, prev: AnchorState | null = null) =>
+    labelAnchors(layout, 'white', camera, TARGET, prev).labels.filter((l) => l.level !== undefined);
+
+  it('spreads them only between LEVEL_SPREAD_FROM and LEVEL_SPREAD_TO, eased', () => {
+    const at = (elevation: number) => levelSpread(cameraAt(16, elevation), TARGET);
+    expect(at(18)).toBe(0);
+    expect(at(LEVEL_SPREAD_FROM / DEG - 0.1)).toBe(0);
+    expect(at((LEVEL_SPREAD_FROM + LEVEL_SPREAD_TO) / 2 / DEG)).toBeCloseTo(0.5);
+    expect(at(LEVEL_SPREAD_TO / DEG + 0.1)).toBe(1);
+    expect(at(89.9)).toBe(1);
+  });
+
+  it('leaves them at their corners below the spread, as in every other view', () => {
+    for (const azimuth of AZIMUTHS) {
+      for (const elevation of [8, 22, 45, 57]) {
+        for (const label of letters(cameraAt(azimuth, elevation))) {
+          expect(label.key).toMatch(/^c\d$/);
+        }
+      }
+    }
+  });
+
+  for (const azimuth of [16, 100, 196, 290]) {
+    it(`lines them up a pitch apart along the tower's screen-left edge, A to E up the screen, from ${azimuth}°`, () => {
+      for (const elevation of [LEVEL_SPREAD_TO / DEG, 80, 89.9]) {
+        const camera = cameraAt(azimuth, elevation, 25);
+        const row = letters(camera);
+        expect(row.map((l) => l.key)).toEqual(Array(5).fill(row[0].key));
+        const points = row.map((l) => screen(camera, l.position));
+        for (let z = 1; z < 5; z++) {
+          // Up the screen from A to E, and well apart: a letter is 0.32 to
+          // 0.47 across, about 0.02 of a tangent at this distance
+          const [ax, ay] = points[z - 1];
+          const [bx, by] = points[z];
+          expect(by).toBeGreaterThan(ay);
+          expect(Math.hypot(bx - ax, by - ay)).toBeGreaterThan(0.035);
+        }
+        // Every letter left of the middle of the tower, outside the top platform
+        for (const [i, { position }] of row.entries()) {
+          expect(points[i][0]).toBeLessThan(0);
+          expect(Math.max(Math.abs(position[0]), Math.abs(position[2]))).toBeGreaterThan(
+            frame.half + 0.2,
+          );
+        }
+      }
+    });
+  }
+
+  it('moves them there smoothly as the camera rises, never by a jump', () => {
+    for (const azimuth of [16, 196, 60]) {
+      let state: AnchorState | null = null;
+      let last: { key: string; position: Vec3 }[] | null = null;
+      for (let elevation = 40; elevation <= 89.9; elevation += 0.25) {
+        const result = labelAnchors(
+          layout,
+          'white',
+          cameraAt(azimuth, elevation, 25),
+          TARGET,
+          state,
+        );
+        state = result.state;
+        const now = result.labels.filter((l) => l.level !== undefined);
+        now.forEach(({ key, position: p }, i) => {
+          if (!last) return;
+          const q = last[i].position;
+          const moved = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+          // A quarter of a degree moves a letter a little way...
+          expect(moved).toBeLessThan(0.2);
+          // ...and a new key (corner to row) finds it where it stood, so
+          // SmartLabels slides it on rather than crossfading
+          if (key !== last[i].key) expect(moved).toBeLessThan(0.3);
+        });
+        last = now;
+      }
+    }
+  });
+
+  it('keeps an edge while the camera wavers around the tie', () => {
+    // At 45° round, the -x and +z edges face left equally
+    const tie = cameraAt(45, 85);
+    const a = chooseLevelEdge(cameraAt(35, 85), TARGET, null);
+    expect(EDGES[a]).toEqual([-1, 0]);
+    expect(chooseLevelEdge(tie, TARGET, a)).toBe(a);
+    expect(chooseLevelEdge(cameraAt(52, 85), TARGET, a)).toBe(a);
+    expect(EDGES[chooseLevelEdge(cameraAt(60, 85), TARGET, a)]).toEqual([0, 1]);
   });
 });

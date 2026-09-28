@@ -1,13 +1,16 @@
 import { FILES, LEVELS, RANKS } from '../../engine/coords';
 import type { Orientation } from '../layout';
 import { towerFrame } from '../layout';
+import type { TowerFrame } from '../layout';
 import type { BoardLayout, Vec3 } from '../types';
 
 // Where a tower's coordinate labels go, as a pure function of the camera:
 // files and ranks along the two edges of a platform nearest the camera, just
 // outside it (the bottom platform, or the top one from high above), and each
 // level letter beside its platform's screen-left corner, outside the tower's
-// silhouette. Choices only change past a hysteresis band,
+// silhouette. From high above, where those corners all but meet on screen,
+// the letters leave them for a row along the tower's screen-left edge
+// (levelSpread). Choices only change past a hysteresis band,
 // so an orbit that wavers around a boundary never makes the labels flicker.
 // A camera below LOW_ELEVATION (the orbit dips under the horizon) may see
 // the platform carrying the files and ranks edge-on, or from below: they
@@ -51,6 +54,8 @@ export const chooseEdges = (
     ranks: pick(Math.sin(azimuth), prev?.ranks),
   };
 };
+
+const DEG = Math.PI / 180;
 
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -171,8 +176,6 @@ export const chooseAxisLevel = (
   return bottom <= 0 || worst(top) > 0 ? 0 : top;
 };
 
-const DEG = Math.PI / 180;
-
 /**
  * Camera elevation (about the orbit target) under which the file and rank
  * labels watch for their platform seen edge-on or from below. Above it the
@@ -217,6 +220,55 @@ export const axisView = (
   return { opacity: 1 - low * (1 - shown), below: grazing < 0 };
 };
 
+/**
+ * Camera elevations (radians, about the orbit target) across which the level
+ * letters leave their corners for a row along one edge of the tower. Seen from
+ * above, the levels' screen-left corners converge (the gap between levels
+ * shrinks with the cosine of the elevation), and past about 75° the five
+ * letters touch; from 74° up they stand a pitch apart, A nearest the player's
+ * side and E furthest, as they stack from below in the side view.
+ */
+export const LEVEL_SPREAD_FROM = 58 * DEG;
+export const LEVEL_SPREAD_TO = 74 * DEG;
+
+/** Platform edges by index, as the (x, z) of their outward normal. */
+export const EDGES: readonly (readonly [number, number])[] = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+];
+
+/** How far the level letters have gone from their corners to their row, 0–1 (eased). */
+export const levelSpread = (camera: Vec3, target: Vec3): number => {
+  const v = sub(camera, target);
+  const elevation = Math.asin(v[1] / (Math.hypot(v[0], v[1], v[2]) || 1));
+  const k = Math.min(
+    Math.max((elevation - LEVEL_SPREAD_FROM) / (LEVEL_SPREAD_TO - LEVEL_SPREAD_FROM), 0),
+    1,
+  );
+  return k * k * (3 - 2 * k);
+};
+
+/**
+ * The platform edge (index into EDGES) facing furthest left on screen. The
+ * previous edge is kept unless another faces left by more than `hysteresis`
+ * (the sine of the angle between them).
+ */
+export const chooseLevelEdge = (
+  camera: Vec3,
+  target: Vec3,
+  prev: number | null,
+  hysteresis = Math.sin(10 * DEG),
+): number => {
+  const right = cameraRight(camera, target);
+  const facing = EDGES.map(([nx, nz]) => nx * right[0] + nz * right[2]);
+  let best = 0;
+  for (let i = 1; i < EDGES.length; i++) if (facing[i] < facing[best]) best = i;
+  if (prev !== null && facing[prev] <= facing[best] + hysteresis) return prev;
+  return best;
+};
+
 export interface LabelAnchor {
   /** Stable identity of the label (one sprite pair per id). */
   id: string;
@@ -238,6 +290,8 @@ export interface AnchorState {
   corners: number[];
   /** The platforms carrying the file and the rank labels (see chooseAxisLevel). */
   axisLevels?: { files: number; ranks: number };
+  /** The edge the level letters line up along from above (see chooseLevelEdge), while they do. */
+  levelEdge?: number;
 }
 
 export interface AnchorOptions {
@@ -256,6 +310,43 @@ export interface AnchorOptions {
 }
 
 /**
+ * Where level `z`'s letter stands, for a camera whose horizontal right-hand
+ * direction is `right`: beside corner `corner` of its platform, drawn toward
+ * its place in the row along edge `edge` (see levelSpread) by `spread`.
+ */
+const levelLetterAt = (
+  frame: TowerFrame,
+  z: number,
+  corner: number,
+  edge: number | null,
+  spread: number,
+  right: Vec3,
+  o: AnchorOptions,
+): Vec3 => {
+  const levelOffset = o.levelOffset ?? 0.55;
+  const lift = o.levelLift ?? 0.12;
+  const [sx, sz] = CORNERS[corner];
+  const beside: Vec3 = [
+    sx * frame.half - right[0] * levelOffset,
+    frame.levelY[z] + lift,
+    sz * frame.half - right[2] * levelOffset,
+  ];
+  if (edge === null || spread <= 0) return beside;
+  // The row: just outside the top platform's edge, as far out as the files
+  // and ranks (which from up there stand round the same platform), running
+  // up the screen from A to E a pitch apart. Up the screen along the edge is
+  // the camera's horizontal heading, (right.z, -right.x).
+  const top = frame.levelY.length - 1;
+  const [nx, nz] = EDGES[edge];
+  const [tx, tz] = [-nz, nx];
+  const heading = tx * right[2] - tz * right[0];
+  const along = (heading < 0 ? -1 : 1) * (z - top / 2) * frame.pitch;
+  const out = frame.half + (o.offset ?? 0.42);
+  const row: Vec3 = [nx * out + tx * along, frame.levelY[top] + lift, nz * out + tz * along];
+  return beside.map((c, i) => c + (row[i] - c) * spread) as Vec3;
+};
+
+/**
  * Every label's anchor for a camera at `camera` looking at `target`, given
  * the previous choice (null on the first frame). Returns the new choice to
  * pass back next time.
@@ -270,7 +361,6 @@ export const labelAnchors = (
 ): { state: AnchorState; labels: LabelAnchor[] } => {
   const frame = towerFrame(layout);
   const offset = o.offset ?? 0.42;
-  const levelOffset = o.levelOffset ?? 0.55;
   const edges = chooseEdges(cameraAzimuth(camera, target), prev?.edges ?? null, o.edgeHysteresis);
   const corners = frame.levelY.map((y, z) =>
     chooseLevelCorner(camera, target, frame.half, y, prev?.corners[z] ?? null, o.cornerHysteresis),
@@ -321,20 +411,22 @@ export const labelAnchors = (
       }),
     );
   }
-  const left = cameraRight(camera, target).map((v) => -v) as Vec3;
-  frame.levelY.forEach((y, z) => {
-    const [sx, sz] = CORNERS[corners[z]];
-    labels.push({
-      id: `level-${LEVELS[z]}`,
-      text: LEVELS[z],
-      key: `c${corners[z]}`,
-      position: [
-        sx * frame.half + left[0] * levelOffset,
-        y + (o.levelLift ?? 0.12),
-        sz * frame.half + left[2] * levelOffset,
-      ],
-      level: z,
-    });
+  const right = cameraRight(camera, target);
+  // From high above, the letters line up along the tower's screen-left edge
+  const spread = levelSpread(camera, target);
+  const levelEdge = spread > 0 ? chooseLevelEdge(camera, target, prev?.levelEdge ?? null) : null;
+  frame.levelY.forEach((_, z) => {
+    const position = levelLetterAt(frame, z, corners[z], levelEdge, spread, right, o);
+    const key =
+      levelEdge === null
+        ? `c${corners[z]}`
+        : spread >= 1
+          ? `e${levelEdge}`
+          : `c${corners[z]}e${levelEdge}`;
+    labels.push({ id: `level-${LEVELS[z]}`, text: LEVELS[z], key, position, level: z });
   });
-  return { state: { edges, corners, axisLevels }, labels };
+  return {
+    state: { edges, corners, axisLevels, ...(levelEdge !== null ? { levelEdge } : {}) },
+    labels,
+  };
 };
