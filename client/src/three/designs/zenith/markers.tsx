@@ -19,6 +19,7 @@ import { LAYER } from '../kit/layers';
 import { LastMoveLine } from '../kit/line';
 import { tracePath, tubeData } from '../kit/markerGeometry';
 import { noRaycast } from '../kit/noRaycast';
+import { useDesignSetting } from '../settings';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { claimed, heldAt, useClaim, useHeld } from './claims';
 import type { ClaimKind } from './claims';
@@ -976,9 +977,16 @@ const Crown = ({ floor, mated, strength }: { floor: Vec3; mated: boolean; streng
   const since = useRef(0);
   const time = useRef(0);
   const fall = useRef(0);
-  // Its own height over the cross, a share of the king's height (the
-  // default clears him even held up at Zenith's lift heights)
-  const height = KING_HEIGHT * (1 + useMarkSetting<number>('mark.crownHeight'));
+  // Its own height over the cross, a share of the king's height, but never
+  // low enough for his cross to reach it when he is held up (the held
+  // height the lift settings give; it does not follow his lift as it moves)
+  const share = useMarkSetting<number>('mark.crownHeight');
+  const hover = useDesignSetting<number>('piece.hoverLift') ?? 0.09;
+  const gap = useDesignSetting<number>('piece.heldGap') ?? 0.05;
+  const height = Math.max(
+    KING_HEIGHT * (1 + share),
+    KING_HEIGHT + (hover + gap) * PIECE_SCALE + 0.04,
+  );
   const still = prefersReducedMotion();
   useEffect(() => invalidate(), [mated, strength, height, invalidate]);
   useFrame((_, delta) => {

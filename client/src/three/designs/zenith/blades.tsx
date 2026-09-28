@@ -34,10 +34,13 @@ import type { BladeStyle } from './settings-markers';
 // - scythes: four curved blades rising round him, swelling as they sweep
 //   up and hooking in over him, keen at the point, turning slowly round;
 // - cracks: the glass round his foot splits, jagged fractures running out
-//   from under the crown, dark with red light in them, a slow gleam
-//   travelling out along each;
-// - needles: four long needles aimed at him from the square's corners,
+//   from under the crown to the edge of his square, dark with red light in
+//   them, a slow gleam travelling out along each;
+// - needles: four long needles aimed at him from his square's corners,
 //   sliding in and stopping short, a glint running down each to its point.
+//
+// Every style keeps within the king's own square, clear of the squares his
+// escape moves are marked on.
 
 const EDGE = new Color(PALETTE.check);
 const BODY = new Color('#1c0406');
@@ -330,7 +333,7 @@ const SCYTHES: Spike[] = Array.from({ length: 4 }, (_, i) => {
 const NEEDLES: Spike[] = Array.from({ length: 4 }, (_, i) => {
   const a = Math.PI / 4 + (i * Math.PI) / 2;
   return {
-    base: around(0.78, a, 0.05),
+    base: around(0.62, a, 0.05),
     tip: around(0.24, a + 0.04, 0.27),
     width: 0.012,
     phase: i * 0.27,
@@ -345,7 +348,7 @@ const RIBBONS: Record<RibbonStyle, { spikes: Spike[]; look: RibbonLook }> = {
   scythes: { spikes: SCYTHES, look: { mode: 0, bodyA: 0.5, edgeA: 0.45, period: 6 } },
   needles: {
     spikes: NEEDLES,
-    look: { mode: 1, slide: 0.32, bodyA: 0.45, edgeA: 0.42, period: 3.4 },
+    look: { mode: 1, slide: 0.14, bodyA: 0.45, edgeA: 0.42, period: 3.4 },
   },
 };
 
@@ -455,17 +458,19 @@ const crackFragment = /* glsl */ `
     for (int i = 0; i < CRACKS; i++) {
       float fi = float(i);
       float a = (fi + 0.6 * (hash(vec2(fi, 1.0)) - 0.5)) * TAU / float(CRACKS);
-      float len = 0.42 + 0.36 * hash(vec2(fi, 2.0));
+      float len = 0.22 + 0.08 * hash(vec2(fi, 2.0));
       vec2 dir = vec2(cos(a), sin(a));
-      crack(vP, dir * 0.17, a, len, fi, uEnter, 0.0, dark, light);
+      crack(vP, dir * 0.15, a, len, fi, uEnter, 0.0, dark, light);
       // A shorter branch splitting off partway out
       float at = len * (0.35 + 0.2 * hash(vec2(fi, 5.0)));
       float turn = (hash(vec2(fi, 6.0)) < 0.5 ? -1.0 : 1.0) * (0.45 + 0.3 * hash(vec2(fi, 7.0)));
       float grown = clamp((uEnter * len - at) / (len - at), 0.0, 1.0);
-      crack(vP, dir * (0.17 + at), a + turn, len * 0.35, fi + 20.0, grown, 0.05, dark, light);
+      crack(vP, dir * (0.15 + at), a + turn, len * 0.4, fi + 20.0, grown, 0.05, dark, light);
     }
     vec3 col = mix(uBody, uEdge, min(light * 1.3, 1.0));
     float a = max(dark * 0.55, min(light, 1.0) * 0.9) * (1.0 + 1.2 * uFlare);
+    // Within the king's own square, clear of the squares round him
+    a *= 1.0 - smoothstep(0.4, 0.46, length(vP));
     a *= (1.0 - uSettle);
     if (a < 0.004) discard;
     gl_FragColor = vec4(col, min(a, 1.0));
@@ -501,7 +506,7 @@ const Cracks = ({ floor, mated, strength }: { floor: Vec3; mated: boolean; stren
   useEffect(() => () => material.dispose(), [material]);
   return (
     <mesh
-      geometry={planeOf(1.8)}
+      geometry={planeOf(1)}
       material={material}
       position={[floor[0], floor[1] + 0.011, floor[2]]}
       // Under the crown on the glass, over the platform
