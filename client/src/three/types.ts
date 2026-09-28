@@ -35,6 +35,13 @@ export interface BoardLayout {
   cellSize: Vec3;
   /** Half the board's bounding box, for framing the camera. */
   halfExtents: Vec3;
+  /**
+   * What the camera's framing keeps in view, seen from a camera at `eye`
+   * looking at the board's centre: the board's own outline and the labels
+   * standing outside it (towerFramePoints in scene/labelAnchors.ts).
+   * Without it, the halfExtents box.
+   */
+  framePoints?: (eye: Vec3) => Vec3[];
   /** Direction from the board's centre to the camera when a game opens. */
   viewDirection: Vec3;
   /** Orbit and zoom limits. */

@@ -138,7 +138,10 @@ Key decisions:
   the board in the window (`zoomRange` in `three/cameraFit.ts`); `FitCameraToBoard`
   recomputes the fit and the range whenever the window changes shape (a phone turned on
   its side) and opens the camera inside it, so a phone zooms over the same share of its
-  view as a desktop. The layout's `orbit.minDistance` only narrows the range, and its
+  view as a desktop. The fit centres the board's outline on screen (with its labels: the
+  layout's `framePoints`) below a 56 px band kept for the HUD's top pill, by a lens shift
+  (a view offset, `three/viewOffset.ts`) rather than a pan, worked out again as the view
+  turns and zooms. The layout's `orbit.minDistance` only narrows the range, and its
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
   sky, to straight down). The controls (`three/CameraControls.tsx`) are three's own
   OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the

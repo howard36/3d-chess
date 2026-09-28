@@ -1,4 +1,5 @@
 import { FILES, LEVELS, RANKS } from '../../engine/coords';
+import { GRID_SIZE } from '../layout';
 import type { Orientation } from '../layout';
 import { towerFrame } from '../layout';
 import type { TowerFrame } from '../layout';
@@ -428,5 +429,142 @@ export const labelAnchors = (
   return {
     state: { edges, corners, axisLevels, ...(levelEdge !== null ? { levelEdge } : {}) },
     labels,
+  };
+};
+
+export interface LabelFrameOptions extends AnchorOptions {
+  /** World height of a file or rank label's sprite, as given to SmartLabels. */
+  size?: number;
+  /** How much larger the level letters are drawn, as given to SmartLabels. */
+  levelScale?: number;
+}
+
+/** A smooth step from 0 at `from` to 1 at `to`. */
+const ramp = (v: number, from: number, to: number) => {
+  const k = Math.min(Math.max((v - from) / (to - from), 0), 1);
+  return k * k * (3 - 2 * k);
+};
+
+/**
+ * How close a choice is to its tie, for a choice whose hysteresis holds it
+ * up to sin(10°) past the tie: 1 up to sin(12°) from the tie, easing to 0
+ * by sin(20°). `past` is how far the winner leads (a sine).
+ */
+const nearTie = (past: number) => 1 - ramp(past, Math.sin(12 * DEG), Math.sin(20 * DEG));
+
+const lerp = (a: Vec3, b: Vec3, t: number): Vec3 => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t,
+];
+
+/**
+ * What the camera keeps in frame for a tower (BoardLayout.framePoints),
+ * seen from `eye` looking at the board's centre: its platforms, the tallest
+ * pieces the top one can hold (up to the top of the layout's box, over its
+ * outer squares), and the glyphs of its SmartLabels where labelAnchors puts
+ * them, framed so the view never lurches as the camera turns:
+ *
+ * - a choice the labels make with hysteresis (which edge the files or ranks
+ *   run along, which one the letters line up along from above) may still be
+ *   the other one near its tie, so there both are framed, the other easing
+ *   in from the first as the tie nears;
+ * - the files and ranks may move to the top platform from 40° up, so theirs
+ *   are framed there too, easing up from the bottom one from 30°;
+ * - each level letter is framed at every corner (only the leftmost reaches
+ *   out: the others stand inside the tower).
+ *
+ * Pass the size, level scale and anchor options the grid gives SmartLabels.
+ */
+export const towerFramePoints = (
+  layout: BoardLayout,
+  { size = 0.36, levelScale = 1.45, ...o }: LabelFrameOptions = {},
+): ((eye: Vec3) => Vec3[]) => {
+  const frame = towerFrame(layout);
+  const { half, pitch, levelY } = frame;
+  const top = levelY.length - 1;
+  // The outer pieces stand half a square in from the edge, about a third of
+  // a square wide either side of their centre
+  const pieces = half - pitch / 2 + 0.3 * pitch;
+  const outline = [
+    ...levelY.flatMap((y) => CORNERS.map(([x, z]): Vec3 => [x * half, y, z * half])),
+    ...CORNERS.map(([x, z]): Vec3 => [x * pieces, layout.halfExtents[1], z * pieces]),
+  ];
+  // A row of files (along a z-edge) or ranks (along an x-edge) on the side
+  // `s` of the platform at height `y`: its two ends reach furthest
+  const out = half + (o.offset ?? 0.42);
+  const end = ((GRID_SIZE - 1) / 2) * pitch;
+  const fileRow = (y: number, s: number): Vec3[] => [
+    [-end, y, s * out],
+    [end, y, s * out],
+  ];
+  const rankRow = (y: number, s: number): Vec3[] => [
+    [s * out, y, -end],
+    [s * out, y, end],
+  ];
+  return (eye) => {
+    const target: Vec3 = [0, 0, 0];
+    const right = cameraRight(eye, target);
+    const f = norm(sub(target, eye));
+    const up: Vec3 = [
+      right[1] * f[2] - right[2] * f[1],
+      right[2] * f[0] - right[0] * f[2],
+      right[0] * f[1] - right[1] * f[0],
+    ];
+    const azimuth = cameraAzimuth(eye, target);
+    const elevation = Math.asin(eye[1] / (Math.hypot(eye[0], eye[1], eye[2]) || 1));
+    const onTop = ramp(elevation, 30 * DEG, 40 * DEG);
+    // Each axis: its rows on the bottom platform and (easing up) the top one,
+    // on the camera's side, and near a tie or near the platform's plane (where
+    // the labels fade and cross to the far side) on the other side too
+    const axis = (row: (y: number, s: number) => Vec3[], lead: number): Vec3[] => {
+      const side = lead >= 0 ? 1 : -1;
+      const tie = nearTie(Math.abs(lead));
+      const rowsOn = (z: number): [Vec3[], Vec3[], number] => {
+        const view = axisView(eye, target, levelY[z]);
+        const near = view.below ? -side : side;
+        return [row(levelY[z], near), row(levelY[z], -near), Math.max(tie, 1 - view.opacity)];
+      };
+      const [bottom, bottomFar, bottomBoth] = rowsOn(0);
+      const [upper, upperFar, upperBoth] = rowsOn(top);
+      return [0, 1].flatMap((i) => {
+        const b = bottom[i];
+        const bf = lerp(b, bottomFar[i], bottomBoth);
+        const u = lerp(b, upper[i], onTop);
+        const uf = lerp(u, lerp(upper[i], upperFar[i], upperBoth), onTop);
+        return [b, bf, u, uf];
+      });
+    };
+    const labels = [...axis(fileRow, Math.cos(azimuth)), ...axis(rankRow, Math.sin(azimuth))];
+    // The level letters: at every corner, and from above toward their row
+    // along the edge facing left, or (near a tie) the next one
+    const spread = levelSpread(eye, target);
+    const lead = spread > 0 ? chooseLevelEdge(eye, target, null) : null;
+    const facing = EDGES.map(([nx, nz]) => nx * right[0] + nz * right[2]);
+    const letters = levelY.flatMap((_, z) =>
+      CORNERS.flatMap((_, c) => {
+        const at = levelLetterAt(frame, z, c, lead, spread, right, o);
+        if (lead === null) return [at];
+        return EDGES.map((_, e) =>
+          lerp(
+            at,
+            levelLetterAt(frame, z, c, e, spread, right, o),
+            nearTie(facing[e] - facing[lead]),
+          ),
+        );
+      }),
+    );
+    // A glyph fills about four fifths of its sprite
+    const glyphs = (points: Vec3[], h: number) =>
+      points.flatMap((p) =>
+        CORNERS.map(
+          ([a, b]): Vec3 => [
+            p[0] + (right[0] * a + up[0] * b) * h,
+            p[1] + (right[1] * a + up[1] * b) * h,
+            p[2] + (right[2] * a + up[2] * b) * h,
+          ],
+        ),
+      );
+    return [...outline, ...glyphs(labels, 0.4 * size), ...glyphs(letters, 0.4 * size * levelScale)];
   };
 };

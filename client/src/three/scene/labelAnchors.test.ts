@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { PerspectiveCamera, Vector3 } from 'three';
+import { centringShift, viewBounds } from '../cameraFit';
 import { FILES, LEVELS, RANKS } from '../../engine/coords';
 import { towerLayout, towerFrame } from '../layout';
 import {
@@ -11,6 +13,7 @@ import {
   CORNERS,
   EDGES,
   labelAnchors,
+  towerFramePoints,
   LEVEL_SPREAD_FROM,
   LEVEL_SPREAD_TO,
   levelSpread,
@@ -480,5 +483,107 @@ describe('level letters seen from above', () => {
     expect(chooseLevelEdge(tie, TARGET, a)).toBe(a);
     expect(chooseLevelEdge(cameraAt(52, 85), TARGET, a)).toBe(a);
     expect(EDGES[chooseLevelEdge(cameraAt(60, 85), TARGET, a)]).toEqual([0, 1]);
+  });
+});
+
+describe('towerFramePoints', () => {
+  const frameOf = towerFramePoints(layout, { size: 0.32, levelScale: 1 });
+  /** A camera at `eye` looking at the centre, and the frame's bounds in its view. */
+  const view = (eye: Vec3) => {
+    const camera = new PerspectiveCamera(36, 1, 0.1, 100);
+    camera.position.set(...eye);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    const bounds = viewBounds(
+      frameOf(eye).map((p) => new Vector3(...p)),
+      camera,
+    );
+    return { camera, bounds };
+  };
+
+  it('holds the platforms and every label, wherever the hysteresis has left it', () => {
+    for (const azimuth of [...AZIMUTHS, 45, 90, 135]) {
+      for (const elevation of [-14, 3, 18, 45, 62, 70, 85]) {
+        const eye = cameraAt(azimuth, elevation, 20);
+        const { camera, bounds } = view(eye);
+        // The labels as drawn after approaching from either side, and from below or above
+        const drawn: Vec3[] = [];
+        for (const [da, de] of [
+          [-20, 0],
+          [20, 0],
+          [0, -20],
+          [0, 20],
+          [0, 0],
+        ]) {
+          let state: AnchorState | null = null;
+          for (let k = 1; k >= 0; k -= 0.125) {
+            const at = cameraAt(azimuth + da * k, Math.min(elevation + de * k, 89.9), 20);
+            ({ state } = labelAnchors(layout, 'white', at, TARGET, state));
+          }
+          drawn.push(
+            ...labelAnchors(layout, 'white', eye, TARGET, state).labels.map((l) => l.position),
+          );
+        }
+        const platforms = frame.levelY.flatMap((y) =>
+          CORNERS.map(([x, z]): Vec3 => [x * frame.half, y, z * frame.half]),
+        );
+        const inside = viewBounds(
+          [...drawn, ...platforms].map((p) => new Vector3(...p)),
+          camera,
+        );
+        const where = `azimuth ${azimuth}, elevation ${elevation}`;
+        expect(inside.left, where).toBeGreaterThanOrEqual(bounds.left - 1e-9);
+        expect(inside.right, where).toBeLessThanOrEqual(bounds.right + 1e-9);
+        expect(inside.bottom, where).toBeGreaterThanOrEqual(bounds.bottom - 1e-9);
+        expect(inside.top, where).toBeLessThanOrEqual(bounds.top + 1e-9);
+      }
+    }
+  });
+
+  it('frames a glyph round each label, the level letters larger by their scale', () => {
+    const eye = cameraAt(16, 18, 20);
+    const small = towerFramePoints(layout, { size: 0.3, levelScale: 1 })(eye);
+    const large = towerFramePoints(layout, { size: 0.3, levelScale: 2 })(eye);
+    const across = (pts: Vec3[], i: number) =>
+      Math.hypot(pts[i][0] - pts[i + 2][0], pts[i][1] - pts[i + 2][1], pts[i][2] - pts[i + 2][2]);
+    // The platforms and top pieces (24), then the files and ranks, then the letters (last)
+    expect(across(small, 24)).toBeCloseTo(0.4 * 0.3 * 2 * Math.SQRT2);
+    expect(across(large, 24)).toBeCloseTo(across(small, 24));
+    const letter = small.length - 4;
+    expect(across(large, letter)).toBeCloseTo(2 * across(small, letter));
+  });
+
+  it('keeps the centred view steady through an orbit: no jump as labels change place', () => {
+    const shiftAt = (azimuth: number, elevation: number) => {
+      const eye = cameraAt(azimuth, elevation, 22);
+      const camera = new PerspectiveCamera(36, 390 / 844, 0.1, 100);
+      camera.position.set(...eye);
+      camera.lookAt(0, 0, 0);
+      camera.updateMatrixWorld();
+      const points = frameOf(eye).map((p) => new Vector3(...p));
+      return centringShift(viewBounds(points, camera), { width: 390, height: 844, fov: 36 });
+    };
+    // Fine steps, so a slide shows as a small step and only a jump as a big one
+    let worst = 0;
+    for (const azimuth of [16, 196, 60, 130]) {
+      let last = shiftAt(azimuth, -14);
+      for (let elevation = -13.9; elevation <= 89.9; elevation += 0.1) {
+        const now = shiftAt(azimuth, elevation);
+        worst = Math.max(worst, Math.hypot(now[0] - last[0], now[1] - last[1]));
+        last = now;
+      }
+    }
+    for (const elevation of [10, 45, 80]) {
+      let last = shiftAt(0, elevation);
+      for (let azimuth = 0.1; azimuth <= 360; azimuth += 0.1) {
+        const now = shiftAt(azimuth, elevation);
+        worst = Math.max(worst, Math.hypot(now[0] - last[0], now[1] - last[1]));
+        last = now;
+      }
+    }
+    // A tenth of a degree moves the view's centre by under 2 px on an 844 px
+    // phone (a row of labels jumping to another platform or edge would move
+    // it ten times as far)
+    expect(worst * (844 / (2 * Math.tan((18 * Math.PI) / 180)))).toBeLessThan(2);
   });
 });

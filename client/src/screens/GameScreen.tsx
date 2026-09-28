@@ -440,6 +440,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               halfExtents={layout.halfExtents}
               viewDirection={layout.viewDirection}
               minDistance={layout.orbit.minDistance}
+              framePoints={layout.framePoints}
             />
           </Canvas>
           {/* HUD over the canvas. Its layers let the pointer through to the
