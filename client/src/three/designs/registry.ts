@@ -10,6 +10,14 @@ import type { DesignEntry } from './types';
  */
 export const DESIGNS: DesignEntry[] = [
   {
+    id: 'zenith',
+    name: 'Zenith',
+    blurb: 'A light-art garden of colossal chess sculptures under constellations of chess pieces.',
+    swatch: ['#05070d', '#f0ede7', '#383b43', '#96a7ff'],
+    load: () => import('./zenith'),
+    group: 'round5',
+  },
+  {
     id: 'lumina',
     name: 'Lumina',
     blurb:
