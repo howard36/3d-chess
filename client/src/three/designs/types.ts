@@ -367,8 +367,8 @@ export interface PieceLift {
   bob?: number;
   /**
    * Seconds a piece takes to rise to its hover height or settle from it,
-   * along a gentle ease that starts and ends at rest and never passes the
-   * target (default 0: a quick ease that slows as it arrives).
+   * setting off at once and slowing into the target without passing it
+   * (default 0: a quick ease that slows as it arrives).
    */
   hoverSeconds?: number;
   /**

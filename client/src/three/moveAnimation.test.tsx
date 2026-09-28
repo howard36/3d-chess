@@ -272,8 +272,8 @@ describe('Lift and Topple', () => {
     // A quarter second at 60 frames
     expect(up[13]).toBeLessThan(0.1);
     expect(up[16]).toBe(0.1);
-    // It starts gently, not with a jump
-    expect(up[0]).toBeLessThan(0.01);
+    // It answers at once: well under way in the first frame, no pause
+    expect(up[0]).toBeGreaterThan(0.015);
     expect(rising(hold)).toBe(true);
     expect(Math.max(...hold)).toBeLessThanOrEqual(0.17);
     expect(hold[25]).toBeLessThan(0.17);
@@ -285,47 +285,48 @@ describe('Lift and Topple', () => {
     expect(down[31]).toBe(0);
   });
 
-  it('carries a timed lift on without a hitch when it is sent higher on the way up', async () => {
-    const [part, on] = await timed([
-      [0.1, 0.25, 8],
-      [0.17, 0.5, 40],
-    ]);
-    const all = [...part, ...on];
-    expect(rising(all)).toBe(true);
-    // No stall where the target changed: the next step is no smaller than
-    // the last one before it by much
-    const before = part[7] - part[6];
-    const after = on[0] - part[7];
-    expect(after).toBeGreaterThan(before * 0.8);
-    expect(on[on.length - 1]).toBe(0.17);
-    for (const y of all) expect(y).toBeLessThanOrEqual(0.17);
+  it('carries a timed lift on without slowing when it is sent higher on the way up', async () => {
+    // Sent on late in the rise, and just after it set off (at its fastest)
+    for (const frames of [8, 1]) {
+      const [part, on] = await timed([
+        [0.1, 0.25, frames],
+        [0.17, 0.5, 40],
+      ]);
+      const all = [...part, ...on];
+      expect(rising(all)).toBe(true);
+      const before = part[part.length - 1] - (part.length > 1 ? part[part.length - 2] : 0);
+      const after = on[0] - part[part.length - 1];
+      expect(after).toBeGreaterThan(before * 0.9);
+      expect(on[on.length - 1]).toBe(0.17);
+      for (const y of all) expect(y).toBeLessThanOrEqual(0.17);
+    }
   });
 
-  it('turns a timed lift back from where it is, without a jump', async () => {
+  it('turns a timed lift back at once, from where it is', async () => {
     const [part, back] = await timed([
       [0.2, 0.3, 9],
       [0, 0.3, 30],
     ]);
     expect(rising(part)).toBe(true);
-    expect(falling(back)).toBe(true);
-    expect(Math.abs(back[0] - part[part.length - 1])).toBeLessThan(0.01);
+    expect(falling([part[part.length - 1], ...back])).toBe(true);
+    expect(part[part.length - 1] - back[0]).toBeLessThan(0.04);
     expect(back[back.length - 1]).toBe(0);
   });
 
-  it('enters the ease where its speed matches the piece’s', () => {
+  it('enters the ease where its speed matches the piece’s, if the piece is faster', () => {
+    // From rest, turning back, or slower than the ease sets off: from the start
     expect(liftEntry(0.1, 0.5, 0)).toBe(0);
-    // Turning back starts from rest
     expect(liftEntry(-0.1, 0.5, 0.3)).toBe(0);
     expect(liftEntry(0.1, 0, 0.3)).toBe(0);
-    const t0 = liftEntry(0.1, 0.5, 0.2);
-    expect(t0).toBeGreaterThan(0);
-    expect(t0).toBeLessThanOrEqual(0.5);
+    expect(liftEntry(0.1, 0.5, 0.2)).toBe(0);
+    const t0 = liftEntry(0.1, 0.5, 1.2);
+    expect(t0).toBeCloseTo(0.5, 6);
     // The rescaled ease leaves t0 at the speed asked
-    const h = 1e-5;
+    const h = 1e-6;
     const rate = ((easeLift(t0 + h) - easeLift(t0)) / h / (1 - easeLift(t0))) * (0.1 / 0.5);
-    expect(rate).toBeCloseTo(0.2, 3);
-    // Faster than the ease can take it: its fastest point
-    expect(liftEntry(0.01, 0.5, 5)).toBe(0.5);
+    expect(rate).toBeCloseTo(1.2, 3);
+    // Far faster than the ease: no later than its latest entry
+    expect(liftEntry(0.01, 0.5, 5)).toBe(0.8);
   });
 
   it('tips a mated king onto its side', async () => {

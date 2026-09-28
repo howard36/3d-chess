@@ -87,30 +87,27 @@ export const pieceLift = (
   return !lift ? null : lift === true ? LIFT_DEFAULTS : { ...LIFT_DEFAULTS, ...lift };
 };
 
-/** The timed lift's ease, 0 to 1: sine in and out, starting and ending at rest. */
-export const easeLift = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * t);
-const easeLiftRate = (t: number) => 0.5 * Math.PI * Math.sin(Math.PI * t);
-/** The ease's rate at `t` over what is left of it: the speed it enters with from there. */
-const entryRate = (t: number) => easeLiftRate(t) / (1 - easeLift(t));
+/**
+ * The timed lift's ease, 0 to 1: cubic out. It leaves at once, at its
+ * fastest, so a piece answers the pointer or the click without a pause, and
+ * slows into its height without passing it.
+ */
+export const easeLift = (t: number) => 1 - (1 - t) ** 3;
+/** How far along the ease a travel may begin (see liftEntry). */
+const LATEST_ENTRY = 0.8;
 
 /**
  * Where along the ease a timed travel of `span` over `seconds` should begin
- * when the piece is already moving at `speed` (per second), so it carries on
- * without a hitch: 0 from rest or when turning back, at most 0.5 (the ease's
- * fastest point, so the rest of the way still slows into the target).
+ * when the piece is already moving at `speed` (per second). From the start
+ * (the ease's fastest) when it is at rest, turning back, or moving slower
+ * than that; when it is moving faster, further along, where the ease's speed
+ * over what is left of it (3 / (1 - t)) matches, so it carries on without a
+ * lurch (at most LATEST_ENTRY).
  */
 export const liftEntry = (span: number, seconds: number, speed: number) => {
   if (span === 0 || seconds <= 0 || speed * span <= 0) return 0;
   const want = (Math.abs(speed) * seconds) / Math.abs(span);
-  if (entryRate(0.5) <= want) return 0.5;
-  let lo = 0;
-  let hi = 0.5;
-  for (let i = 0; i < 24; i++) {
-    const mid = (lo + hi) / 2;
-    if (entryRate(mid) < want) lo = mid;
-    else hi = mid;
-  }
-  return lo;
+  return Math.min(LATEST_ENTRY, Math.max(0, 1 - 3 / want));
 };
 
 /** A Lift's travel toward its height. */
@@ -133,11 +130,11 @@ interface Travel {
 /**
  * Raises its children `height` above their resting place and bobs them `bob`
  * up and down while there (0: held still). With `seconds` the piece travels
- * from wherever it is to the new height along a gentle ease of that length,
- * never past it; a travel between two heights takes the longer of the times
- * they were given, so a rise to the held height and the fall back from it
- * both take the held time. A travel turned toward a farther height in the
- * same direction keeps its speed. Without `seconds` it eases there quickly,
+ * from wherever it is to the new height over that time, setting off at once
+ * and slowing into it, never past it; a travel between two heights takes the
+ * longer of the times they were given, so a rise to the held height and the
+ * fall back from it both take the held time. A travel turned toward a farther
+ * height in the same direction never slows at the turn. Without `seconds` it eases there quickly,
  * slowing as it arrives. Requests frames only while moving, so a
  * demand-driven canvas idles once it settles. Groups tagged ON_FLOOR stay
  * behind on the floor.
