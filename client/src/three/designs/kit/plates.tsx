@@ -142,8 +142,8 @@ export const LevelPlates = ({
 }: LevelPlatesProps) => {
   const frame = towerFrame(layout);
   const side = frame.half + margin;
-  // Squares are coloured by x + y + z, as in Raumschach, so a bishop keeps
-  // to one colour through the levels: the checker flips from level to level.
+  // Squares are coloured by x + y + z, so a bishop keeps to one colour
+  // through the levels: the checker flips from level to level.
   const maps = useMemo(() => [checker(light, dark), checker(dark, light)], [light, dark]);
   const { surface, edge, focusEdge } = useMemo(
     () => ({

@@ -12,7 +12,7 @@ import { PieceBody } from './pieces';
 import { GlassPlates } from './plates';
 import { makeStage } from './stage';
 
-// Gallery: a museum at night. The Raumschach tower is the centrepiece
+// Gallery: a museum at night. The 3D chess tower is the centrepiece
 // exhibit of a dark sculpture rotunda after hours: five shelves of museum
 // glass in anodised brass frames, one jewel colour per level (amethyst,
 // sapphire, azure, teal, emerald), with a brass inlay between every square;

@@ -21,8 +21,8 @@ import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 // The observing decks: five sheets of smoked glass, one per level, each drawn
 // by one quad whose shader paints everything on it.
 //
-// - The checker, after Orbital's: the light squares of the Raumschach
-//   colouring (dark where x + y + z is even, so Aa1 is dark and a bishop keeps
+// - The checker, after Orbital's: the light squares of the colouring by
+//   x + y + z (dark where the sum is even, so Aa1 is dark and a bishop keeps
 //   to its colour through the levels) are frosted with a pale starlight veil,
 //   the dark ones left as clear smoked glass. It reads through all five decks.
 // - Hairlines between the 25 squares in the level's colour, complete and

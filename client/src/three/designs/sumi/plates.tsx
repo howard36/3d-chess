@@ -280,7 +280,7 @@ export const WashiPlates = ({
         <group key={z} position={[0, y, 0]}>
           <mesh
             geometry={geometries.surface}
-            // Squares take the Raumschach colouring (x + y + z): the checker flips per level
+            // Squares are coloured by x + y + z: the checker flips per level
             material={surfaces[z % 2]}
             rotation={[-Math.PI / 2, 0, 0]}
             position={[0, -0.002, 0]}

@@ -536,8 +536,9 @@ const START_LAYOUT: Layout = {
   E5: 'rnknr',
 };
 
-// Standard Raumschach: each army's pieces and pawns share two levels.
-const RAUMSCHACH_LAYOUT: Layout = {
+// The classic 5×5×5 set-up, before rank and level were exchanged: each
+// army's pieces and pawns share two levels.
+const CLASSIC_LAYOUT: Layout = {
   A1: 'RNKNR',
   A2: 'PPPPP',
   B1: 'BUQBU',
@@ -950,10 +951,10 @@ describe('Starting position baseline', () => {
     expect(layoutOf(board)).toEqual(START_LAYOUT);
   });
 
-  it("is Raumschach's setup with rank and level exchanged", () => {
-    const raumschach = boardFromLayout(RAUMSCHACH_LAYOUT);
+  it('is the classic set-up with rank and level exchanged', () => {
+    const classic = boardFromLayout(CLASSIC_LAYOUT);
     for (const cell of ALL_CELLS) {
-      expect(board.getPiece(cell)).toEqual(raumschach.getPiece(transpose(cell)));
+      expect(board.getPiece(cell)).toEqual(classic.getPiece(transpose(cell)));
     }
   });
 
@@ -988,7 +989,7 @@ describe('Starting position baseline', () => {
 });
 
 describe('Exchanging rank and level is a symmetry of the rules', () => {
-  // The starting position is Raumschach's transposed, so the game stays the
+  // The starting position is the classic one transposed, so the game stays the
   // same only if the rules cannot tell rank from level: in any position, the
   // legal moves of the transposed position are the transposed legal moves.
   const moveKeys = (moves: Move[]) =>

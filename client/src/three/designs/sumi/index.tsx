@@ -27,7 +27,7 @@ import { WashiPlates } from './plates';
 import { PaperSky } from './sky';
 import { SELECTION_BOB } from '../kit/motion';
 
-// Sumi: ink and paper. A Raumschach tower of five washi sheets floating in
+// Sumi: ink and paper. A 3D chess tower of five washi sheets floating in
 // a paper sky above ink-wash mountains; porcelain against black lacquer,
 // both drawn with a sumi outline; every gameplay mark a brush mark in a
 // mineral pigment of its own: malachite ensō where a piece may go, the same

@@ -61,17 +61,18 @@ describe('toWorld', () => {
     expect(positions('black')).toEqual(positions('white'));
   });
 
-  // The starting position used to be Raumschach's, drawn with ranks up the
-  // screen and levels into depth. Both the setup and this mapping have since
-  // exchanged rank and level, so the two changes cancel: the board looks
-  // exactly as it did, with only the labels telling the axes apart.
+  // The starting position used to be the classic 5×5×5 set-up, drawn with
+  // ranks up the screen and levels into depth. Both the setup and this
+  // mapping have since exchanged rank and level, so the two changes cancel:
+  // the board looks exactly as it did, with only the labels telling the axes
+  // apart.
   const previousToWorld = ({ x, y, z }: Coord, orientation: Orientation) => {
     const HALF = (GRID_SIZE - 1) / 2;
     const flip = (v: number) => (orientation === 'white' ? v : GRID_SIZE - 1 - v);
     return [(flip(x) - HALF) * SPACING, (flip(y) - HALF) * SPACING, (HALF - flip(z)) * SPACING];
   };
-  // Raumschach's setup, as [level, rank, files a-e]; upper case is White
-  const RAUMSCHACH: [string, string, string][] = [
+  // The previous set-up, as [level, rank, files a-e]; upper case is White
+  const PREVIOUS_SETUP: [string, string, string][] = [
     ['A', '1', 'RNKNR'],
     ['A', '2', 'PPPPP'],
     ['B', '1', 'BUQBU'],
@@ -94,7 +95,7 @@ describe('toWorld', () => {
   it('draws every starting piece where the previous setup and mapping drew it', () => {
     for (const orientation of ['white', 'black'] as const) {
       const before = new Map<string, string>();
-      for (const [level, rank, row] of RAUMSCHACH) {
+      for (const [level, rank, row] of PREVIOUS_SETUP) {
         [...row].forEach((letter, x) => {
           const cell = fromZXY(`${level}${'abcde'[x]}${rank}`);
           before.set(previousToWorld(cell, orientation).join(','), letter);

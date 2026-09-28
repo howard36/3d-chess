@@ -59,7 +59,7 @@ import {
   TOY_COLORS,
 } from './shared';
 
-// Toy Box: a wooden Raumschach set from the toy shop. Five chunky trays, each
+// Toy Box: a wooden 3D chess set from the toy shop. Five chunky trays, each
 // painted a different candy colour and inlaid with squares, are threaded on
 // beech dowels over a red base that sits on a cloud in a sunny sky. The
 // armies are glossy painted toys: cream with red trim against navy with

@@ -86,7 +86,7 @@ export const drawPoster = (w: number, h: number, withType: boolean): Texture => 
     ctx.font = `700 ${7.2 * u}px ${FONT}`;
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = INK;
-    ctx.fillText('RAUMSCHACH', 0, 0);
+    ctx.fillText('3D CHESS', 0, 0);
     ctx.restore();
     // Caption block under the heavy rule
     ctx.font = `700 ${2.6 * u}px ${FONT}`;

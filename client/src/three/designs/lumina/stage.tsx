@@ -50,7 +50,7 @@ import { APERTURE, FLOOR_Y, FRAME, PALETTE, TABLE_RADIUS, TABLE_Y } from './pale
 // rank numbers, a faint curtain of striated light rising from its aperture.
 // Round the room, in the gloom: six plinths, each bearing a larger-than-life
 // chess piece drawn in hard light (a knight, a king, a rook, a queen, a
-// bishop and Raumschach's own unicorn), about sixty degrees apart so every
+// bishop and this game's own unicorn), about sixty degrees apart so every
 // side of the room has one; four famous positions framed on the wall as
 // small eight-by-eight boards drawn in thin light, and a chess clock drawn
 // the same way; a glass wall onto a night city blurred to bokeh; a floor of

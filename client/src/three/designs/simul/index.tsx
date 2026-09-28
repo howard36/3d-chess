@@ -17,7 +17,7 @@ import { TournamentPlates } from './plates';
 import { Stage } from './stage';
 
 // Simul: a hall of light where a simultaneous exhibition plays on. The
-// tower is a Raumschach set of five boards made of light (a maple-and-walnut
+// tower is a 3D chess set of five boards made of light (a maple-and-walnut
 // checker, threads and a border in each level's colour: amber, gold, lime,
 // teal, azure) standing in the open middle of an endless dark tournament
 // hall, where rows of tables recede into the gloom, each with a small board

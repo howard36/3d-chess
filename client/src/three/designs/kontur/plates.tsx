@@ -28,9 +28,9 @@ import { INK } from './palette';
 // it), so from the low opening camera each level reads as a coloured band,
 // while from above, looking down through the whole stack, every sheet
 // thins out and the levels below stay clear. The squares are a faint
-// two-tone checker in the same colour, coloured by x + y + z as in
-// Raumschach, and the only line is the perimeter: a stripe of the level's
-// own colour (acrylic glows at its cut edge) between two ink hairlines.
+// two-tone checker in the same colour, coloured by x + y + z, and the only
+// line is the perimeter: a stripe of the level's own colour (acrylic glows
+// at its cut edge) between two ink hairlines.
 
 const surfaceVertex = /* glsl */ `
   varying vec2 vUv;

@@ -19,7 +19,7 @@ import { FRAME, LEVEL_COLORS, MARGIN, PALETTE } from './palette';
 // clear glass holding a maple-and-walnut checker, the light squares a warm
 // ivory glow and the dark ones a translucent walnut that shades what lies
 // behind, so the 5×5 reads as a real board from the side and from above
-// alike (the Raumschach colouring: dark where x + y + z is even, so a bishop
+// alike (the checker colouring: dark where x + y + z is even, so a bishop
 // keeps to its colour through the levels). Crisp threads of the level's
 // colour run between the squares, complete from edge to edge and even where
 // they cross (no nodes, no dots), and a single thin square of the same light

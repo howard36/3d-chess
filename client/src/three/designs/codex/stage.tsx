@@ -25,8 +25,8 @@ import { rig } from './pieces';
 // of opening theory set in dim phosphor type, as an opening book sets them:
 // indented outlines, one line to a row, a thin branch of light running down
 // from each line to its answers. 1. e4 and 1. d4 frame the opening view, one
-// either side of the tower; the flank openings, this game's own Raumschach
-// lines and a few famous moves and results run round behind the players,
+// either side of the tower; the flank openings, this game's own lines and a
+// few famous moves and results run round behind the players,
 // with a sparse field of single moves further out. Low and far off to the
 // right, an 8×8 board of faint light has a knight's tour tracing itself
 // across it, square by square.
@@ -67,8 +67,8 @@ interface Line {
 // branch of light running down from each line to its answers: 1. e4 in the
 // band left of the tower, 1. d4 in the band to its right, both whole inside
 // the opening view and clear of the tower and the HUD; the flank openings,
-// this game's own Raumschach lines and a few famous moves run round behind
-// the players.
+// this game's own lines and a few famous moves run round behind the
+// players.
 const BOOK: Line[] = [
   // 1. e4 (0–7)
   { text: '1. e4', az: 239, el: -3, size: 0.72 },
@@ -93,7 +93,7 @@ const BOOK: Line[] = [
   { text: '2... Nc6 3. g3 g6', parent: 15, size: 0.6 },
   { text: '1. Nf3 d5 2. g3', az: 40, el: -8 },
   { text: '2... Nf6 3. Bg2 c6', parent: 18, size: 0.6 },
-  // This game's own book, in Raumschach (20–23)
+  // This game's own book, in its own notation (20–23)
   { text: '1. Ab2-De5 Ed4-Ba1', az: 330, el: -6 },
   { text: '2. Ac2-Cc4 Dc4-Dc3', parent: 20, size: 0.6 },
   { text: '3. Ad2-Dd5+ Ec4-Dd5', parent: 21, size: 0.56 },

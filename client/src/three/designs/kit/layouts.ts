@@ -27,11 +27,11 @@ export const latticeLayout = (spacing = SPACING): BoardLayout => {
 };
 
 /**
- * Five boards stacked like a Raumschach set: files across, ranks running
- * away from the player, levels stacked upward (A at the bottom). Seen from
- * Black's side the tower is walked around rather than turned upside down,
- * so files and ranks flip but the levels stay put: Black's army starts on
- * the top two boards, nearest the camera.
+ * Five boards stacked like a physical 3D chess set: files across, ranks
+ * running away from the player, levels stacked upward (A at the bottom).
+ * Seen from Black's side the tower is walked around rather than turned
+ * upside down, so files and ranks flip but the levels stay put: Black's
+ * army starts on the top two boards, nearest the camera.
  *
  * A cell is the space above one square of its board; its centre sits half a
  * unit above the board so pieces stand on the board surface.
@@ -122,7 +122,7 @@ export const CLARITY_TOWER_DEFAULTS = {
 } as const satisfies Required<ClarityTowerOptions>;
 
 /**
- * A compact Raumschach tower: five continuous platforms, A at the bottom and
+ * A compact 3D chess tower: five continuous platforms, A at the bottom and
  * E at the top, closer together than `towerLayout`'s so the stack stays near
  * a cube and diagonals look natural, seen from a low, slightly turned camera
  * that looks between the levels rather than down through them. Rank 1 is

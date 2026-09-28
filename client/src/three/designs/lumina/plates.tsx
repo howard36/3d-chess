@@ -18,7 +18,7 @@ import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 // The hard-light panes: one quad per level whose shader draws everything on
 // it, and one thin square of light round it, in the level's colour.
 //
-// - The checker, Raumschach's (dark where x + y + z is even, so a bishop
+// - The checker (dark where x + y + z is even, so a bishop
 //   keeps to its colour through the levels): the dark squares are smoked
 //   glass with a trace of the level's colour, the light squares are frosted
 //   with the level's light. Smoke darkens what lies behind, frost lightens

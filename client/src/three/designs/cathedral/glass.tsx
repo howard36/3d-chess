@@ -13,7 +13,7 @@ import { setFootprintStrength } from './pieces';
 
 // The platforms: five panels of leaded glass. Each of a level's 25 squares
 // is its own pane of antique glass, deep or pale in the level's jewel colour
-// (the Raumschach checker, dark where x + y + z is even, so Aa1 is deep),
+// (the checker colouring, dark where x + y + z is even, so Aa1 is deep),
 // each pane a little different from its neighbours as hand-blown glass is,
 // shaded darker toward its lead and clearer at its heart. Thin cames of lead
 // run between the panes, and each came carries a bright thread of light in

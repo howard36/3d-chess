@@ -8,7 +8,7 @@ import { frameGeometry } from '../kit/plates';
 import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 
 // The levels: five sheets of clear glass, each edged by one thin square of
-// light in its level's colour. On the glass, the Raumschach checker (dark
+// light in its level's colour. On the glass, the checker (dark
 // where x + y + z is even, so a bishop keeps to its colour through the
 // levels): the light squares faintly frosted with the level's light, the
 // dark squares left clear with a breath of smoke. Crisp hairlines of the
@@ -65,7 +65,7 @@ const fragmentShader = /* glsl */ `
     float grazing = pow(1.0 - abs(v.y), 2.0);
     float inside = step(0.0, uv.x) * step(uv.x, uCells) * step(0.0, uv.y) * step(uv.y, uCells);
 
-    // The checker, in the Raumschach colouring (dark where x + y + z is even).
+    // The checker colouring (dark where x + y + z is even).
     // Every level keeps it from any side. Looking straight down all five
     // ease back a little (so pieces three levels down keep their own
     // colour), the lead level least, so one clear 5 x 5 reads through the

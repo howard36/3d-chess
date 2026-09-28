@@ -10,7 +10,7 @@ import { FRAME } from './palette';
 // The platforms: five thin sapphire wafers, each a quantum chip die. Fine
 // circuit traces in the level's colour divide its 25 squares and run out to
 // bond pads round the die's rim; a via pad sits on every crossing; the dark
-// squares (Raumschach's colouring, so a bishop keeps to its colour) are
+// squares (by x + y + z, so a bishop keeps to its colour) are
 // metallised a little in the level's colour. The sapphire itself is nearly
 // clear seen from above and shows as glass toward grazing angles, so lower
 // pieces stay visible through four wafers while every level still reads as

@@ -86,7 +86,7 @@ const wallLabel = (): string => {
   };
   const title = line('Final position', 'italic 500 28px "Cormorant Garamond"', '#bfb5a2', 1);
   const medium = line(
-    'RAUMSCHACH \u00b7 MARBLE AND BASALT ON GLASS',
+    '3D CHESS \u00b7 MARBLE AND BASALT ON GLASS',
     '500 17px Jost',
     'rgba(236, 229, 214, 0.5)',
     3,

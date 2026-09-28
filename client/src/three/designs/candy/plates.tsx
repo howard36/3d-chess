@@ -30,7 +30,7 @@ import { frame, GLASS, INK, LEVEL_COLORS, SPARKLE } from './palette';
 // than laying a milky haze over it: a haze greys a navy piece four levels
 // down, while multiplying keeps every contrast ratio behind the glass (dark
 // stays dark, cream stays the lightest thing there). The checker is two
-// tones of an almost clear tint (by x + y + z, as in Raumschach), the dark
+// tones of an almost clear tint (coloured by x + y + z), the dark
 // one leaning toward the level's colour; three stacked plates darken what
 // is under them by under 10%, so the stack stays clean from above. Level
 // identity lives on the rims, the letters and the pieces' bands.

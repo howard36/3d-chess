@@ -11,7 +11,7 @@ import { Grid } from './plates';
 import { Stage } from './stage';
 import { SELECTION_BOB } from '../kit/motion';
 
-// Candy Tower: a toy-box Raumschach set floating over a sea of cumulus on a
+// Candy Tower: a toy-box 3D chess set floating over a sea of cumulus on a
 // sunny afternoon. Five slabs of clear sugar glass with gummy rims (one candy
 // colour per level) hold chunky vinyl toys: vanilla cream against blueberry
 // navy, each wearing a band in its level's colour. Every gameplay mark is a

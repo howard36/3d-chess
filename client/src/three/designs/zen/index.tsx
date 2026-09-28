@@ -48,7 +48,7 @@ import {
   washTexture,
 } from './textures';
 
-// Zen Garden: a Raumschach set on five pale maple trays, inlaid with walnut
+// Zen Garden: a 3D chess set on five pale maple trays, inlaid with walnut
 // and carried on bamboo, standing in a raked-sand garden on a spring
 // morning. The armies are river stones — speckled granite and basalt — and
 // every mark on the board is ink: sumi dots, an ensō, a vermilion seal.

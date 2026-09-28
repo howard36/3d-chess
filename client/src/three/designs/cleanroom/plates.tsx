@@ -39,8 +39,8 @@ import {
 // glow in the level's colour, a little brighter near the rim. So the 25
 // squares of a level read as 25 separate cells, each tray says its level in
 // its own colour, and the sheet itself stays nearly clear, so the pieces
-// below show through four trays. The Raumschach squares (x + y + z even) are
-// a faint cool smoke, enough for a bishop's colour without greying the view.
+// below show through four trays. The dark squares (x + y + z even) are a
+// faint cool smoke, enough for a bishop's colour without greying the view.
 
 const trayVertex = /* glsl */ `
   varying vec2 vLocal;
@@ -102,7 +102,7 @@ const trayFragment = /* glsl */ `
     float rim = uTray - max(abs(vLocal.x), abs(vLocal.y));
     float glow = exp(-rim / 0.2);
 
-    // Raumschach colouring (x + y + z even is dark, Aa1 dark)
+    // The checker colouring (x + y + z even is dark, Aa1 dark)
     float dark = 1.0 - step(0.5, mod(id.x + id.y + uParity, 2.0));
 
     // Seen from above (from about 33° up), the five grids would nest into a

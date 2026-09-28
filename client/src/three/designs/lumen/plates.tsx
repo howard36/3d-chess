@@ -17,7 +17,7 @@ import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 
 // The hard-light panes: one quad per level whose shader draws everything on
 // it. A faint veil of the level's colour, edge-lit like acrylic (brighter
-// toward its rim), with the Raumschach checker only just showing through;
+// toward its rim), with the x + y + z checker only just showing through;
 // crisp light threads between the 25 squares, each with a soft halo; and a
 // small light node where the threads cross, like the snap points of a design
 // tool. A thin 3D frame in the level's colour gives the pane its edge from
@@ -63,8 +63,8 @@ const fragmentShader = /* glsl */ `
     vec2 cell = (vP + uHalf) / uPitch;
     float onBoard = step(0.0, cell.x) * step(cell.x, uCells) * step(0.0, cell.y) * step(cell.y, uCells);
 
-    // The veil: the checker only just shows (dark where x + y + z is even,
-    // as in Raumschach), brighter toward the rim like edge-lit acrylic
+    // The veil: the checker only just shows (dark where x + y + z is even),
+    // brighter toward the rim like edge-lit acrylic
     vec2 ci = floor(clamp(cell, 0.0, uCells - 0.001));
     float dark = 1.0 - mod(ci.x + ci.y + uLevel, 2.0);
     float rim = uEdge - max(abs(vP.x), abs(vP.y));

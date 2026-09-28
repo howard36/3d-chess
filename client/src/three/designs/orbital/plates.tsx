@@ -22,7 +22,7 @@ import type { BoardLayout } from '../types';
 // is nearly clear seen from above and catches a sheen at a slant, so pieces
 // below stay in view while each deck still reads as a surface. Its squares
 // are told apart three ways: the light squares are faintly frosted (in the
-// Raumschach colouring, Aa1 dark), fine lines are etched between them, and a
+// checker colouring, Aa1 dark), fine lines are etched between them, and a
 // small dim docking light marks every inner corner, all in the deck's colour
 // (kept well below the play lights, which are rings). Seen from straight
 // above, every deck but the one in focus (or the top one) thins its grid to

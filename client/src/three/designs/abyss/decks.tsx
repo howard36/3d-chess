@@ -24,7 +24,7 @@ import { view } from './view';
 // The decks: one pane of pressure glass per level, held in a titanium bezel
 // with a light strip in the level's colour. Thin bioluminescent seams glow
 // between its 25 squares, with a soft halo on the glass, and alternate
-// squares are faintly frosted in the Raumschach colouring, so every square
+// squares are faintly frosted in the checker colouring, so every square
 // reads on its own from any side. All of it stays quieter than the marks of
 // play: thin lines, no lit dots, no rings. Seen from straight above, only
 // the focused level keeps its glowing grid (with nothing focused, none
@@ -81,7 +81,7 @@ const fragmentShader = /* glsl */ `
     // Fade the halo where it would shimmer (far and grazing)
     float calm = 1.0 - smoothstep(0.02, 0.08, max(deriv.x, deriv.y));
 
-    // Glass, alternate squares frosted (Raumschach colouring)
+    // Glass, alternate squares frosted (dark where x + y + z is even)
     vec2 cell = clamp(floor(uv), vec2(0.0), vec2(uCells - 1.0));
     float frosted = mod(cell.x + cell.y + uParity, 2.0);
     // Frost gathers toward each square's edges, clearer at its heart

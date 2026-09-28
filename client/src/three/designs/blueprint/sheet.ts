@@ -163,7 +163,7 @@ const drawTitleBlock = (
   ctx.fillText('3D CHESS', x + 1.6 * u, y + bh * 0.24);
   ctx.font = `400 ${2.2 * u}px ${HAND}`;
   ctx.fillStyle = WHITE(0.8);
-  ctx.fillText('RAUMSCHACH  ·  5 × 5 × 5', x + 1.6 * u, y + bh * 0.36);
+  ctx.fillText('125 CELLS  ·  5 × 5 × 5', x + 1.6 * u, y + bh * 0.36);
   // Projection symbol, top right of the block
   const px = x + bw - 6 * u;
   const py = y + bh * 0.2;

@@ -17,7 +17,7 @@ import { frameGeometry } from '../kit/plates';
 import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 
 // The phosphor-glass panes. One quad per level whose shader draws the whole
-// surface: a faintly smoked glass, its lit squares (Raumschach's colouring by
+// surface: a faintly smoked glass, its lit squares (the checker colouring by
 // x + y + z, so a bishop keeps its colour through the levels) glowing in the
 // level's colour, its dark squares smoked a little deeper, so each pane's own
 // pattern leads over the panes seen through it; crisp hairlines between the
@@ -104,10 +104,10 @@ const fragmentShader = /* glsl */ `
     float sheen = slant * slant * slant;
     over(acc, uGlass + uColor * 0.25 * sheen, (0.05 + 0.16 * sheen) * inside);
 
-    // The checker: dark squares where x + y + z is even (Aa1 dark), as in
-    // Raumschach. Lit squares glow in the level's colour; dark ones are
-    // smoked, holding back a little of what lies beyond them, so each pane's
-    // own pattern leads over the panes seen through it
+    // The checker: dark squares where x + y + z is even (Aa1 dark). Lit
+    // squares glow in the level's colour; dark ones are smoked, holding back
+    // a little of what lies beyond them, so each pane's own pattern leads
+    // over the panes seen through it
     vec2 ci = floor(clamp(cell, 0.0, uCells - 0.001));
     float lit = mod(ci.x + ci.y + uLevel, 2.0);
     over(acc, uGlass, smoke * (1.0 - lit) * inside);

@@ -13,7 +13,7 @@ import type { BoardLayout } from '../types';
 // jewel colour per level, with a brass inlay line set between every square.
 //
 // - The squares alternate clear and acid-etched (frosted) glass, in the
-//   Raumschach colouring (Aa1 clear, the dark square), so the checker is a
+//   colouring by x + y + z (Aa1 clear, the dark square), so the checker is a
 //   texture of the glass rather than a paint that tints what lies beneath.
 // - The inlay lines are drawn after every sheet of glass, so the squares of
 //   a level stay legible through the levels above it. Seen from high above,
