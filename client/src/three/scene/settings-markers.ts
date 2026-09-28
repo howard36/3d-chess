@@ -20,7 +20,6 @@ export const BLADE_STYLES = [
 ] as const;
 export type BladeStyle = (typeof BLADE_STYLES)[number];
 
-const seconds = (v: number) => `${v.toFixed(1)} s`;
 const percent = (v: number) => `${Math.round(v * 100)}%`;
 const times = (v: number) => `${v.toFixed(1)}×`;
 
@@ -65,7 +64,7 @@ export const MARKER_SETTINGS: SettingSpec[] = [
     key: 'mark.checkBlades',
     label: 'Blades',
     group: 'Check',
-    default: 'shards',
+    default: 'clusters',
     options: [
       { value: 'shards', label: 'Obsidian shards' },
       { value: 'clusters', label: 'Obsidian clusters' },
@@ -103,7 +102,7 @@ export const MARKER_SETTINGS: SettingSpec[] = [
     key: 'mark.checkPulse',
     label: 'Check pulse',
     group: 'Check',
-    default: 1,
+    default: 0.8,
     min: 0.4,
     max: 1.5,
     step: 0.1,
@@ -112,15 +111,15 @@ export const MARKER_SETTINGS: SettingSpec[] = [
   },
   {
     kind: 'slider',
-    key: 'mark.mateSeconds',
+    key: 'mark.mateSpeed',
     label: 'Checkmate pulse',
     group: 'Check',
-    default: 2.4,
-    min: 1.5,
-    max: 4,
+    default: 1,
+    min: 0.6,
+    max: 1.6,
     step: 0.1,
-    format: seconds,
-    hint: 'How long the pulse takes to cross the whole board at mate.',
+    format: times,
+    hint: "How fast the pulse spreads across the mated king's level.",
   },
 ];
 

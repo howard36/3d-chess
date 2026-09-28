@@ -4,7 +4,6 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GameSocket } from '../hooks/useGameSocket';
 import type { WebSocketMessage } from '../types/messages';
 import { forgetSettings } from '../three/settings';
-import { matePlayedOut } from '../three/scene/fx';
 import GameScreen from './GameScreen';
 
 // As in App.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
@@ -15,6 +14,15 @@ vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
 vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
 vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
 vi.mock('../three/Board', () => ({ default: () => null }));
+// The mated king's topple, which the card follows: fired by hand here
+const topple = vi.hoisted(() => ({ listeners: new Set<() => void>() }));
+vi.mock('../three/pieceMotion', () => ({
+  onToppled: (listener: () => void) => {
+    topple.listeners.add(listener);
+    return () => topple.listeners.delete(listener);
+  },
+}));
+const kingFell = () => topple.listeners.forEach((listener) => listener());
 
 // The showcase game: 17 plies ending in White's mate.
 const GAME =
@@ -82,15 +90,15 @@ describe('the result card after a mate', () => {
     expect(screen.getByRole('button', { name: 'Start new game' })).toHaveFocus();
   });
 
-  it('waits for the scene to say the mate has played out, and a beat more', () => {
+  it('waits for the mated king to fall, and a beat more, not for the pulse', () => {
     const { rerender } = render(screenFor(beforeMate));
     rerender(screenFor(mated));
     expect(result()).not.toBeInTheDocument();
-    // However long the board takes to play the mate out (a slow device)...
+    // However long the board takes to topple the king (a slow device)...
     act(() => vi.advanceTimersByTime(8000));
     expect(result()).not.toBeInTheDocument();
     // ...the card follows its signal, a beat later
-    act(() => matePlayedOut());
+    act(() => kingFell());
     act(() => vi.advanceTimersByTime(300));
     expect(result()).not.toBeInTheDocument();
     act(() => vi.advanceTimersByTime(200));

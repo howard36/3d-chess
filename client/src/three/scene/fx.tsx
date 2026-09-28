@@ -16,8 +16,8 @@ import { useMarkSetting } from './settings-markers';
 // down behind a thin edge of white light, and its outline, drawn in light
 // as the garden's sculptures are, rises a little from it and fades. At mate,
 // as the king starts to fall, one pulse of light spreads from his foot
-// through all five levels, and the colossal pieces in the garden brighten
-// for a breath and settle back.
+// across his own level, and the colossal pieces in the garden brighten for a
+// breath and settle back.
 
 /** A frame's step of loose time: once a glide is over, a slow frame may take up to this much. */
 const LOOSE_MS = 125;
@@ -163,18 +163,16 @@ export const CaptureFx = ({
 // --- Mate ---------------------------------------------------------------------------------
 
 // One pulse of light leaves the mated king's foot as he starts to fall and
-// spreads out through the whole tower: a sphere of light growing from him,
-// drawn where it meets each level's glass, so it crosses his own level first
-// and reaches the levels above and below as it grows, a white front with a
-// glow of that level's colour behind it. It takes a few seconds to cross
-// every level (a setting), time to take the result in. The garden's colossal
-// pieces brighten for a breath with it.
+// spreads across his own level's glass: a ring growing from him, a white
+// front with a glow of the level's colour behind it, at an even speed (a
+// setting), so it takes longer from a corner than from the middle. The
+// result card doesn't wait for it; it plays on behind the card. The garden's
+// colossal pieces brighten for a breath with it.
 
 const pulseFragment = /* glsl */ `
   uniform vec3 uFront;
   uniform vec3 uTint;
   uniform vec2 uFrom;
-  uniform float uDy;
   uniform float uRadius;
   uniform float uOpacity;
   uniform float uReach;
@@ -182,11 +180,8 @@ const pulseFragment = /* glsl */ `
   void main() {
     // Only on the glass: nothing past its edge
     if (max(abs(vWorld.x), abs(vWorld.z)) > uReach) discard;
-    // Where the sphere of light meets this level
-    float h2 = uRadius * uRadius - uDy * uDy;
-    if (h2 <= 0.0) discard;
     float r = length(vWorld.xz - uFrom);
-    float d = r - sqrt(h2);
+    float d = r - uRadius;
     float fw = max(fwidth(r), 1e-4);
     float line = 1.0 - smoothstep(0.012, 0.012 + fw * 1.5, abs(d));
     float halo = exp(-d * d / (0.06 * 0.06)) * 0.35;
@@ -210,105 +205,79 @@ const REACH = FRAME.half + MARGIN;
 const levelPlane = new PlaneGeometry(REACH * 2, REACH * 2).rotateX(-Math.PI / 2);
 /** The pulse leaves this soon after the king starts to fall. */
 const PULSE_DELAY_MS = 60;
+/**
+ * How fast the pulse's front spreads at 1× (world units, one per square, a
+ * second): the pace the tower-wide pulse kept on a typical mate before it
+ * was held to the king's level.
+ */
+export const PULSE_SPEED = 3;
 
-// When a mate has played out on the board (its pulse has crossed every
-// level, on the scene's own clock, however slowly the frames come), for the
-// result card to follow (GameScreen.tsx).
-const playedOut = new Set<() => void>();
+/** How far the pulse must spread from `(x, z)`: to the farthest corner of the level's glass. */
+const farthestCorner = (x: number, z: number) =>
+  Math.max(
+    ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => Math.hypot(sx * REACH - x, sz * REACH - z))),
+  );
 
-/** Calls `listener` each time a mate has played out; returns the unsubscribe. */
-export const onMatePlayedOut = (listener: () => void) => {
-  playedOut.add(listener);
-  return () => {
-    playedOut.delete(listener);
-  };
-};
-
-/** Tells the listeners a mate has played out (the Celebration, once its pulse is done). */
-export const matePlayedOut = () => playedOut.forEach((listener) => listener());
+/** How long the pulse from `(x, z)` lasts at `speed`× (seconds). */
+export const pulseSeconds = (x: number, z: number, speed: number) =>
+  // The front reaches the far corner at 95% of the pulse's life, as it fades
+  (farthestCorner(x, z) + 0.15) / (PULSE_SPEED * speed) / 0.95;
 
 /**
- * Mate: one pulse of light from the king's foot through all five levels as
- * he falls, and the garden's colossal pieces brighten for a breath.
+ * Mate: one pulse of light from the king's foot across his level as he
+ * falls, and the garden's colossal pieces brighten for a breath.
  */
 export const Celebration = ({ floor }: CelebrationProps) => {
-  const seconds = useMarkSetting<number>('mark.mateSeconds');
+  const speed = useMarkSetting<number>('mark.mateSpeed');
   const [kx, ky, kz] = floor;
-  // As far as the pulse must go: the farthest corner of any level's glass
-  const farthest = useMemo(
+  const level = levelAt(ky);
+  const material = useMemo(
     () =>
-      Math.max(
-        ...FRAME.levelY.flatMap((y) =>
-          [-1, 1].flatMap((sx) =>
-            [-1, 1].map((sz) => Math.hypot(sx * REACH - kx, y - ky, sz * REACH - kz)),
-          ),
-        ),
-      ),
-    [kx, ky, kz],
+      new ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        side: DoubleSide,
+        blending: AdditiveBlending,
+        uniforms: {
+          uFront: { value: new Color(PALETTE.light) },
+          uTint: { value: new Color(LEVEL_COLORS[level]) },
+          uFrom: { value: [kx, kz] },
+          uRadius: { value: 0 },
+          uOpacity: { value: 0 },
+          uReach: { value: REACH },
+        },
+        vertexShader: pulseVertex,
+        fragmentShader: pulseFragment,
+      }),
+    [kx, kz, level],
   );
-  const materials = useMemo(
-    () =>
-      FRAME.levelY.map(
-        (y, level) =>
-          new ShaderMaterial({
-            transparent: true,
-            depthWrite: false,
-            side: DoubleSide,
-            blending: AdditiveBlending,
-            uniforms: {
-              uFront: { value: new Color(PALETTE.light) },
-              uTint: { value: new Color(LEVEL_COLORS[level]) },
-              uFrom: { value: [kx, kz] },
-              uDy: { value: y - ky },
-              uRadius: { value: 0 },
-              uOpacity: { value: 0 },
-              uReach: { value: REACH },
-            },
-            vertexShader: pulseVertex,
-            fragmentShader: pulseFragment,
-          }),
-      ),
-    [kx, ky, kz],
-  );
-  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
+  useEffect(() => () => material.dispose(), [material]);
   useEffect(
     () => () => {
       gardenBoost.value = 0;
     },
     [],
   );
-  const lifeMs = seconds * 1000;
+  const reach = farthestCorner(kx, kz) + 0.15;
+  const lifeMs = pulseSeconds(kx, kz, speed) * 1000;
   const still = prefersReducedMotion();
   // (With reduced motion nothing crosses the board, so it is over at once)
   const alive = useLife(PULSE_DELAY_MS + (still ? 0 : lifeMs), (ms) => {
     if (still) return;
     const x = Math.min(Math.max(ms - PULSE_DELAY_MS, 0) / lifeMs, 1);
-    // It spreads at a nearly even pace, so every level has its moment, and
-    // reaches the farthest corner just before it has faded
-    const radius = (farthest + 0.15) * (1 - (1 - Math.min(x / 0.95, 1)) ** 1.15);
-    const opacity = x > 0 ? Math.min(x * 14, 1) * (1 - x) ** 0.5 : 0;
-    for (const m of materials) {
-      m.uniforms.uRadius.value = radius;
-      m.uniforms.uOpacity.value = opacity;
-    }
+    // An even pace, reaching the farthest corner just before it has faded
+    material.uniforms.uRadius.value = reach * Math.min(x / 0.95, 1);
+    material.uniforms.uOpacity.value = x > 0 ? Math.min(x * 14, 1) * (1 - x) ** 0.5 : 0;
     gardenBoost.value = 0.9 * Math.sin(Math.PI * x) ** 2;
   });
-  useEffect(() => {
-    if (!alive) matePlayedOut();
-  }, [alive]);
   if (!alive) return null;
   return (
-    <>
-      {FRAME.levelY.map((y, level) => (
-        <mesh
-          key={level}
-          geometry={levelPlane}
-          material={materials[level]}
-          position={[0, y + 0.014, 0]}
-          renderOrder={LAYER.marker - 0.2}
-          raycast={noRaycast}
-        />
-      ))}
-    </>
+    <mesh
+      geometry={levelPlane}
+      material={material}
+      position={[0, FRAME.levelY[level] + 0.014, 0]}
+      renderOrder={LAYER.marker - 0.2}
+      raycast={noRaycast}
+    />
   );
 };

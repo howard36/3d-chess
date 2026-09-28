@@ -157,7 +157,20 @@ export const Lift = ({
   );
 };
 
-const TOPPLE_MS = 900;
+/** How long a mated king takes to fall and settle. */
+export const TOPPLE_MS = 900;
+
+// When a toppling king has come to rest (on the scene's own clock, however
+// slowly the frames come), for the result card to follow (GameScreen.tsx)
+const toppled = new Set<() => void>();
+
+/** Calls `listener` each time a mated king has finished falling; returns the unsubscribe. */
+export const onToppled = (listener: () => void) => {
+  toppled.add(listener);
+  return () => {
+    toppled.delete(listener);
+  };
+};
 // The base is a disc of about this radius: the piece pivots on its rim, as a
 // real one tips over, rather than sinking through the board around its centre.
 const PIVOT = 0.22;
@@ -172,12 +185,14 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
   const pivot = useRef<Group>(null);
   const elapsed = useRef(0);
   const aimed = useRef(false);
+  const settled = useRef(false);
   const decalsHidden = useRef(false);
   const invalidate = useThree((s) => s.invalidate);
 
   useEffect(() => {
     elapsed.current = 0;
     aimed.current = false;
+    settled.current = false;
     invalidate();
   }, [active, invalidate]);
 
@@ -219,6 +234,10 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
       decalsHidden.current = true;
     }
     if (t < 1) invalidate();
+    else if (!settled.current) {
+      settled.current = true;
+      toppled.forEach((listener) => listener());
+    }
   });
 
   return (

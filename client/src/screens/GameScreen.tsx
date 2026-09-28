@@ -20,7 +20,7 @@ import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
 import { NeutralToneMapping } from 'three';
 import { useSetting } from '../three/settings';
-import { onMatePlayedOut } from '../three/scene/fx';
+import { onToppled } from '../three/pieceMotion';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import SettingsGear from './SettingsPanel';
@@ -35,9 +35,9 @@ interface GameScreenProps {
 
 type Phase = 'waiting' | 'joined' | 'started';
 
-/** After a mate has played out on the board, a beat more before the result card. */
+/** After the mated king has fallen, a beat more before the result card (the pulse plays on). */
 const RESULT_BEAT_MS = 400;
-/** If the scene never says the mate has played out (frames stopped), the card shows anyway. */
+/** If the scene never says the king has fallen (frames stopped), the card shows anyway. */
 const MATE_FALLBACK_MS = 12000;
 /** At stalemate nothing plays out: the last move lands and the card follows. */
 const STALEMATE_WAIT_MS = 1200;
@@ -121,9 +121,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   );
   // The cell under the pointer, read out in the move card while it shows
   const [hoverCell, setHoverCell] = React.useState<HoveredCell | null>(null);
-  // The mate plays out (the king topples, a pulse crosses the board) before
-  // the result covers the board — when the mate was just played, not when a
-  // finished game is reopened.
+  // The mate plays out (the king topples) before the result covers the
+  // board, while the pulse runs on behind it — when the mate was just played,
+  // not when a finished game is reopened.
   const endedLive =
     [...messages].reverse().find((m) => m.type === 'move_made' || m.type === 'game_state')?.type ===
     'move_made';
@@ -132,23 +132,22 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const [endShown, setEndShown] = React.useState<typeof gameOver>(null);
   React.useEffect(() => {
     if (!gameOver || !endedLive) return;
-    // A mate: once the scene says it has played out (on its own clock, so a
-    // slow device never covers it early), and a beat more; with a generous
+    // A mate: once the scene says the king has fallen (on its own clock, so
+    // a slow device never covers it early), and a beat more; with a generous
     // fallback in case frames stop. A stalemate: a moment. Timed on
     // animation frames, the clock the scene runs on.
     const mate = gameOver.result === 'checkmate';
     const start = performance.now();
-    let playedOutAt: number | null = null;
+    let fellAt: number | null = null;
     const unsubscribe = mate
-      ? onMatePlayedOut(() => {
-          playedOutAt ??= performance.now();
+      ? onToppled(() => {
+          fellAt ??= performance.now();
         })
       : () => {};
     let frame = requestAnimationFrame(function tick() {
       const now = performance.now();
       const waited = mate
-        ? (playedOutAt !== null && now - playedOutAt >= RESULT_BEAT_MS) ||
-          now - start >= MATE_FALLBACK_MS
+        ? (fellAt !== null && now - fellAt >= RESULT_BEAT_MS) || now - start >= MATE_FALLBACK_MS
         : now - start >= STALEMATE_WAIT_MS;
       if (waited) setEndShown(gameOver);
       else frame = requestAnimationFrame(tick);

@@ -91,7 +91,7 @@ The marks of play are drawn in light on the glass of the cells they belong to, a
 | Capture | The same circle in red round the foot of an opponent's piece, with four short red arcs turning slowly round it. | A legal destination that captures that piece. |
 | Last-move line | A thin mint line from a small circle on the cell the piece left to a larger mint circle round the piece where it landed, meeting the glass beside that piece, with a soft white light travelling along it from start to end. | The origin and destination of the most recent move. |
 | Check | The whole King, cross and all, turns red, lit from below by a red plate of light with eight points on the glass round his foot, with dark obsidian blades edged in red standing round him. The plate strikes when check arrives (it lands a little large, flashes, and sends one wave out) and then breathes slowly. | That King is in [check](game-rules.md#check-checkmate-and-stalemate). A selected King in check keeps his red. |
-| Checkmate | The mated King topples. One pulse of light spreads from his foot through all five levels, and the garden's colossal pieces brighten for a breath. | The game is over by checkmate; see [check and the end of the game](../play/check-and-game-end.md). |
+| Checkmate | The mated King topples. One pulse of light spreads from his foot across his own level, and the garden's colossal pieces brighten for a breath. | The game is over by checkmate; see [check and the end of the game](../play/check-and-game-end.md). |
 
 A promotion square that a pawn can reach is marked once, like any other destination, though it stands for five moves. Marks give way rather than stack: the last move's small starting circle steps aside for a destination on the same cell, and its landing circle for a capture marker or the selection's own circle; the line itself stays. Seen from straight above the selected piece, a destination directly above or below it widens into a soft pool with no rim, so it never rings the selected piece.
 
@@ -99,7 +99,7 @@ Color is not the only difference between the marks: a destination is a still cir
 
 ### The look's settings
 
-The gear at the top right of the board screen opens the settings panel, where the player can adjust much of what this document describes: the board (the checker's contrast, the grid lines, the levels' borders), the world (the giant board, the sculptures, how far the tower's shade reaches, looking up, the stars, the constellations, and the mist and shooting stars), the pieces (how each shows its level: a foot band, a ring on the glass, or both; the dark army's tone; the edge light; how far a piece lifts under the pointer and when selected; whether a Knight glides straight or leaps over an arc), the selection (the column of light, the motes, a glint on the foot circle, the ring of light on picking up), the markers (the capture marker's style, the last-move line's strength and its travelling light), and check (the blades' style, or none; a small red crown floating over the King; the strength of the check's strike; how long the checkmate pulse takes). Every change applies at once and only in this browser; nothing is sent to the opponent. See [the settings panel](../glossary.md#the-interface).
+The gear at the top right of the board screen opens the settings panel, where the player can adjust much of what this document describes: the board (the checker's contrast, the grid lines, the levels' borders), the world (the giant board, the sculptures, how far the tower's shade reaches, looking up, the stars, the constellations, and the mist and shooting stars), the pieces (how each shows its level: a foot band, a ring on the glass, or both; the dark army's tone; the edge light; how far a piece lifts under the pointer and when selected; whether a Knight glides straight or leaps over an arc), the selection (the column of light, the motes, a glint on the foot circle, the ring of light on picking up), the markers (the capture marker's style, the last-move line's strength and its travelling light), and check (the blades' style, or none; a small red crown floating over the King; the strength of the check's strike; how fast the checkmate pulse spreads). Every change applies at once and only in this browser; nothing is sent to the opponent. See [the settings panel](../glossary.md#the-interface).
 
 ## Motion
 
@@ -166,7 +166,7 @@ After any interrupt the view stays where it was left, except when the board scre
 
 **Other tabs and devices.** Each tab has its own view. A replaced tab keeps its view behind the dialog and still has it after "Play here".
 
-**Game over.** At checkmate the King topples and a pulse of light crosses the tower first; then the end-game dialog covers the board, and the final position stays visible behind its veil, at the angle the player left it, and cannot be turned.
+**Game over.** At checkmate the King topples and a pulse of light spreads across his level; once he has fallen the end-game dialog covers the board, the pulse finishing behind it, and the final position stays visible behind its veil, at the angle the player left it, and cannot be turned.
 
 **Stored seat.** The view is not stored; only the seat is.
 

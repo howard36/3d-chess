@@ -285,13 +285,13 @@ platform, moving with a short crossfade as the view turns.
 
 Play is marked in light on the glass: a thin gold circle round each square the selected
 piece can reach (fuller under the pointer), red round a capture, a mint line from the last
-move's source to its destination, and a red crown with dark blades round a king in check. A
+move's source to its destination, and a king in check turns red among dark obsidian blades. A
 piece under the pointer lifts a little; the selected piece lifts higher and holds still in
 a column of cool light. A move glides in a straight line from square to square
 (`three/movePath.ts`), or over an arc for a knight when the player sets **Knight moves** to
-Arc. A captured piece burns away; at mate the king topples, a pulse runs through the levels
-and the result card follows once the scene says it has played out (`onMatePlayedOut` in
-`scene/fx.tsx`), a beat later.
+Arc. A captured piece burns away; at mate the king topples and a pulse of light spreads
+across his own level at an even speed (`scene/fx.tsx`), and the result card follows a beat
+after he has fallen (`onToppled` in `three/pieceMotion.tsx`) while the pulse plays on.
 
 How the code is split:
 

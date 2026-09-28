@@ -684,9 +684,9 @@ const PACE = {
   afterWhite: 0.7,
   afterBlack: 0.8,
   mate: 1.2, // the mate playing out, before the result card
-  // The card follows the mate's pulse (about 3.3 s after the move at the
-  // default 2.4 s pulse), so the result still waits past it
-  result: 2.8,
+  // The card follows the king's fall (about 1.8 s after the move), while the
+  // pulse on his level plays on behind it
+  result: 1.6,
   tail: 1.0,
 };
 

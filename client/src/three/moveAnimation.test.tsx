@@ -5,7 +5,16 @@ import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/dec
 import { Vector3 } from 'three';
 import type { Group, Object3D } from 'three';
 import { MoveGlide } from './moveAnimation';
-import { easeLift, Lift, liftEntry, ON_FLOOR, Topple, useGlide } from './pieceMotion';
+import {
+  easeLift,
+  Lift,
+  liftEntry,
+  ON_FLOOR,
+  onToppled,
+  Topple,
+  TOPPLE_MS,
+  useGlide,
+} from './pieceMotion';
 
 type Vec = { x: number; y: number; z: number };
 const FROM: [number, number, number] = [0, 0, 2];
@@ -235,6 +244,23 @@ describe('Lift and Topple', () => {
     expect(rate).toBeCloseTo(1.2, 3);
     // Far faster than the ease: no later than its latest entry
     expect(liftEntry(0.01, 0.5, 5)).toBe(0.8);
+  });
+
+  it('says once when a mated king has come to rest, for the result card', async () => {
+    let fell = 0;
+    const stop = onToppled(() => fell++);
+    const renderer = await ReactThreeTestRenderer.create(
+      <Topple active>
+        <mesh />
+      </Topple>,
+    );
+    // Frames of 30 ms: still falling just short of its time...
+    await act(async () => renderer.advanceFrames(Math.floor(TOPPLE_MS / 30) - 1, 0.03));
+    expect(fell).toBe(0);
+    // ...and down once it has passed, told only once however long it lies there
+    await act(async () => renderer.advanceFrames(20, 0.03));
+    expect(fell).toBe(1);
+    stop();
   });
 
   it('tips a mated king onto its side', async () => {

@@ -146,7 +146,7 @@ The dialogs' buttons now look like controls: the promotion dialog's five pieces 
 
 The motion in the product:
 
-- **The glide and the fade.** Every arriving move, on both boards, glides for 460 ms; a capture burns the captured piece away as the capturer arrives ([the view](../foundations/the-view.md#motion)). They play for the opponent's moves as well as the player's own. Some marks of play also move slowly while they are up: the arcs round a capturable piece turn, a light travels along the last-move line, motes drift round a held piece, and a check strikes and then breathes. At checkmate the King topples and a pulse crosses the tower.
+- **The glide and the fade.** Every arriving move, on both boards, glides for 460 ms; a capture burns the captured piece away as the capturer arrives ([the view](../foundations/the-view.md#motion)). They play for the opponent's moves as well as the player's own. Some marks of play also move slowly while they are up: the arcs round a capturable piece turn, a light travels along the last-move line, motes drift round a held piece, and a check strikes and then breathes. At checkmate the King topples and a pulse spreads across his level.
 - **The view's drift.** After a drag is released, the view keeps moving briefly and slows to a stop.
 - **Button hover.** "Start New Game" and "Join Game" grow slightly and turn a little gray over 200 ms while a mouse is over them. Devices without hover (touch screens) never show it.
 
