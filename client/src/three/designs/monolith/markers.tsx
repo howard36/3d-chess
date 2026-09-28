@@ -39,9 +39,12 @@ type Kind = keyof typeof KIND;
 const vertexShader = /* glsl */ `
   uniform float uQuad;
   varying vec2 vP;
+  varying vec3 vWorld;
   void main() {
     vP = (uv - 0.5) * uQuad;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
 const fragmentShader = /* glsl */ `
@@ -66,6 +69,7 @@ const fragmentShader = /* glsl */ `
   uniform float uSettle;
   uniform float uSoft;
   varying vec2 vP;
+  varying vec3 vWorld;
 
   const float TAU = 6.2831853;
 
@@ -96,14 +100,17 @@ const fragmentShader = /* glsl */ `
     if (uKind == 0 || uKind == 1) {
       // The fill: slight at rest; under the pointer fuller and deeper at the
       // heart, like light pooling in glass
-      // A soft-edged pool (no rim) where the mark must not read as a ring
-      float inside = mix(fillOf(r - R), 1.0 - smoothstep(0.55 * R, R, r), uSoft);
+      // Straight above or below the held piece (uSoft), seen from high above,
+      // it gives up its rim for a soft-edged pool, so it never rings the
+      // piece's own ring; from the side it is a ring like the rest
+      float soft = uSoft * smoothstep(0.75, 0.95, abs(normalize(cameraPosition - vWorld).y));
+      float inside = mix(fillOf(r - R), 1.0 - smoothstep(0.55 * R, R, r), soft);
       float k = r / R;
-      float rest = uFillA * (0.75 + 0.25 * k);
+      float rest = uFillA * (0.75 + 0.25 * k) * (1.0 + 0.9 * soft);
       float held = uHover * (0.2 + 0.1 * (1.0 - k));
       vec3 fc = mix(uFill, uDeep, uHover * (1.0 - k * k));
       c = over(c, fc, inside * (rest + held));
-      c = over(c, uColor, stroke(r - R, uWidth) * uOpacity);
+      c = over(c, uColor, stroke(r - R, uWidth) * uOpacity * (1.0 - soft));
       if (uKind == 1) {
         // One mote of light, circling slowly
         float a0 = uTime * TAU / 7.5;
@@ -197,7 +204,7 @@ interface MarkProps {
   gapOpacity?: number;
   /** Settle (check at mate): dim a little and stop the ripples. */
   settle?: boolean;
-  /** A fill whose edge fades out (no crisp rim). */
+  /** From high above, a soft-edged fill with no rim (a destination stacked on the held piece). */
   soft?: boolean;
   /** Step back a little seen from high above (a destination off the held piece's level). */
   dimAbove?: boolean;
@@ -272,7 +279,8 @@ const Mark = ({
         vertexShader,
         fragmentShader,
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- made once; uniforms follow the props below
+    // Made once; the uniforms follow the props below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
   useEffect(() => () => material.dispose(), [material]);
@@ -377,8 +385,9 @@ const useHeld = () => useSyncExternalStore(subscribeHeld, () => heldFloor);
 const FOOT_RING = RING_RADIUS * PIECE_SCALE;
 const QUIET_RADIUS = 0.2;
 /**
- * Straight below or above the held piece: a soft pool with no rim, wide
- * enough to show round the piece from above without ringing its own ring.
+ * Straight below or above the held piece: wide enough to show round it from
+ * above, where it becomes a soft pool with no rim (so it never rings the
+ * piece's own ring); from the side, a ring like the rest.
  */
 const QUIET_STACKED = 0.33;
 const CAPTURE_RADIUS = FOOT_RING + 0.035;
@@ -405,10 +414,10 @@ export const Quiet = ({ floor, hovered }: MarkerProps) => {
       color={levelLight[level]}
       fill={LEVEL_COLORS[level]}
       deep={levelDeep[level]}
-      fillA={stacked ? 0.3 : 0.16}
+      fillA={0.16}
       radius={stacked ? QUIET_STACKED : QUIET_RADIUS}
       width={0.0095}
-      opacity={stacked ? 0 : 0.9}
+      opacity={0.9}
       soft={stacked}
       hovered={hovered}
       dimAbove={offLevel}

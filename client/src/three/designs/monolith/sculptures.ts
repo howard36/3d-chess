@@ -59,7 +59,10 @@ const radiusAt = (segments: [P2, P2][], y: number) => {
   return r;
 };
 
-/** Ramer–Douglas–Peucker: drops points within `tolerance` of the line through their neighbours. */
+/**
+ * Ramer–Douglas–Peucker: drops points within `tolerance` of the line
+ * through their neighbours.
+ */
 export const simplify = (pts: P2[], tolerance: number): P2[] => {
   if (pts.length < 3) return pts.slice();
   const keep = new Array<boolean>(pts.length).fill(false);

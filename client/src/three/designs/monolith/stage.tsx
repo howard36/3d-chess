@@ -26,8 +26,8 @@ import { sculptureOf } from './sculptures';
 // glossy stone; under it, nothing, so from straight above there is only
 // darkness through the levels. Further out the plain carries a colossal
 // chessboard, eight squares by eight, drawn in the faintest lines of light
-// and fading into the horizon, and on the ring of its outer squares stand
-// eight colossal chess pieces, drawn only in thin white neon tube: their
+// and fading into the horizon, and in a wide ring round the tower stand
+// twelve colossal chess pieces, drawn only in thin white neon tube: their
 // outlines (sculptures.ts) turn to face the viewer as a turned piece looks
 // the same from every side, and stand on real rings of light round their
 // bases and collars. Each has a breath of mist at its feet, and the ground
@@ -68,7 +68,9 @@ const Sky = () => {
           varying vec3 vDir;
           void main() {
             float h = normalize(vDir).y;
-            vec3 c = h > 0.0 ? mix(uHorizon, uTop, pow(h, 0.45)) : mix(uHorizon, uBottom, pow(-h, 0.5));
+            vec3 c = h > 0.0
+              ? mix(uHorizon, uTop, pow(h, 0.45))
+              : mix(uHorizon, uBottom, pow(-h, 0.5));
             // A breath of mist lying along the horizon
             c += uMist * exp(-pow(h / 0.05, 2.0)) * 0.045;
             gl_FragColor = vec4(c, 1.0);
@@ -167,7 +169,7 @@ const groundFragment = /* glsl */ `
 const Ground = () => {
   const { geometry, material } = useMemo(
     () => ({
-      geometry: new PlaneGeometry(260, 260, 32, 32).rotateX(-Math.PI / 2),
+      geometry: new PlaneGeometry(260, 260, 24, 24).rotateX(-Math.PI / 2),
       material: new ShaderMaterial({
         // Drawn first and writing no depth: the reflections go under it
         depthWrite: false,
@@ -204,24 +206,32 @@ const Ground = () => {
 
 // --- The sculptures ---------------------------------------------------------------------
 
-/** Their scale: a colossal king stands about 8 units tall. */
-const SCALE = 7.5;
-/** The ring they stand on, through the colossal board's outer squares. */
-const RING = Math.hypot(0.5 * SQUARE, 3.5 * SQUARE);
+/** Their scale: a colossal king stands about 5.6 units tall. */
+const SCALE = 6.5;
 /**
- * Where each stands (degrees round from +z, toward +x). The opening view
- * looks from 16° toward 196°: the king and queen flank the tower there, each
- * about 29° off that line, well clear of the tower and its letters.
+ * The ring they stand on, on the colossal board: near enough that, 30°
+ * apart, one or two stand clear of the tower and in frame from every side.
+ */
+const RING = 2.8 * SQUARE;
+/**
+ * Where each stands (degrees round from +z, toward +x): twelve, 30° apart,
+ * so from any side one or two stand clear of the tower. The opening view
+ * looks from 16° toward 196°: the king and queen flank the tower there, 30°
+ * off that line, and the pawn straight behind it has faded out.
  */
 const PLACES: { type: PieceType; deg: number }[] = [
-  { type: PieceType.King, deg: 167 },
-  { type: PieceType.Queen, deg: 225 },
-  { type: PieceType.Knight, deg: 261.9 },
-  { type: PieceType.Rook, deg: 315 },
-  { type: PieceType.Pawn, deg: 351.9 },
-  { type: PieceType.Unicorn, deg: 45 },
-  { type: PieceType.Bishop, deg: 98.1 },
-  { type: PieceType.Pawn, deg: 135 },
+  { type: PieceType.King, deg: 166 },
+  { type: PieceType.Pawn, deg: 196 },
+  { type: PieceType.Queen, deg: 226 },
+  { type: PieceType.Knight, deg: 256 },
+  { type: PieceType.Bishop, deg: 286 },
+  { type: PieceType.Rook, deg: 316 },
+  { type: PieceType.Unicorn, deg: 346 },
+  { type: PieceType.Pawn, deg: 16 },
+  { type: PieceType.Knight, deg: 46 },
+  { type: PieceType.Bishop, deg: 76 },
+  { type: PieceType.Rook, deg: 106 },
+  { type: PieceType.Unicorn, deg: 136 },
 ];
 
 const anchorOf = (deg: number): [number, number, number] => {
@@ -287,8 +297,8 @@ const neonGeometry = (): BufferGeometry => {
       );
     }
     for (const ring of drawing.rings) {
-      const pts = Array.from({ length: 32 }, (_, k): [number, number, number] => {
-        const a = (k / 32) * Math.PI * 2;
+      const pts = Array.from({ length: 24 }, (_, k): [number, number, number] => {
+        const a = (k / 24) * Math.PI * 2;
         return [
           Math.cos(a) * ring.radius * SCALE,
           ring.y * SCALE,
@@ -327,9 +337,9 @@ const TOWER_Y: [number, number] = [
   FRAME.levelY[4] + (0.87 + 0.14) * PIECE_SCALE + 0.1,
 ];
 /** Room round the tower's outline on screen for its labels (NDC, height units). */
-const MARGIN_NDC = 0.16;
+const MARGIN_NDC = 0.06;
 /** Past that, the width of the fade (NDC, height units). */
-const FADE_NDC = 0.12;
+const FADE_NDC = 0.08;
 const corner = new Vector3();
 const right = new Vector3();
 interface Rect {
@@ -369,31 +379,53 @@ const SIZES = PLACES.map(({ type, deg }) => {
   };
 });
 
-const TowerCovers = () => {
-  useFrame(({ camera, size }) => {
-    camera.updateMatrixWorld();
-    const aspect = size.width / Math.max(size.height, 1);
-    const t = rectOf(camera, TOWER_POINTS, aspect);
-    right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
-    SIZES.forEach(({ at, radius, ys }, i) => {
-      // The sculpture as it faces the camera: its axis, as wide as its base
-      const points = [-1, 1].flatMap((s) =>
-        ys.map((y): [number, number, number] => [
+/**
+ * How each sculpture stands on screen: how much the tower hides it, and how
+ * much of it is in frame.
+ */
+export interface SculptureView {
+  /** 0 clear of the tower (and its labels), 1 faded out. */
+  cover: number;
+  /** Share of the sculpture's screen rectangle inside the frame, 0–1. */
+  inFrame: number;
+}
+
+/** Every sculpture's cover and framing for a camera (pure, for tests and the sweep). */
+export const gardenView = (camera: Camera, aspect: number): SculptureView[] => {
+  camera.updateMatrixWorld();
+  const t = rectOf(camera, TOWER_POINTS, aspect);
+  right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+  return SIZES.map(({ at, radius, ys }) => {
+    // The sculpture as it faces the camera: its axis, as wide as its base
+    const around = (heights: number[]) =>
+      [-1, 1].flatMap((s) =>
+        heights.map((y): [number, number, number] => [
           at[0] + right.x * radius * s,
           y,
           at[2] + right.z * radius * s,
         ]),
       );
-      const r = rectOf(camera, points, aspect);
-      if (!r.seen || !t.seen) {
-        covers.value[i] = 0;
-        return;
-      }
-      const dx = Math.max(r.x0 - t.x1, t.x0 - r.x1, 0);
-      const dy = Math.max(r.y0 - t.y1, t.y0 - r.y1, 0);
-      const gap = Math.hypot(dx, dy) - MARGIN_NDC;
-      const k = Math.min(Math.max(gap / FADE_NDC, 0), 1);
-      covers.value[i] = 1 - k * k * (3 - 2 * k);
+    const r = rectOf(camera, around(ys), aspect);
+    if (!r.seen || !t.seen) return { cover: 0, inFrame: 0 };
+    const dx = Math.max(r.x0 - t.x1, t.x0 - r.x1, 0);
+    const dy = Math.max(r.y0 - t.y1, t.y0 - r.y1, 0);
+    const gap = Math.hypot(dx, dy) - MARGIN_NDC;
+    const k = Math.min(Math.max(gap / FADE_NDC, 0), 1);
+    // In frame: the sculpture itself, above the ground
+    const body = rectOf(camera, around([GROUND_Y, ys[1]]), aspect);
+    const w = Math.max(body.x1 - body.x0, 1e-6);
+    const h = Math.max(body.y1 - body.y0, 1e-6);
+    const ix = Math.max(0, Math.min(body.x1, aspect) - Math.max(body.x0, -aspect));
+    const iy = Math.max(0, Math.min(body.y1, 1) - Math.max(body.y0, -1));
+    return { cover: 1 - k * k * (3 - 2 * k), inFrame: (ix * iy) / (w * h) };
+  });
+};
+
+const TowerCovers = () => {
+  useFrame(({ camera, size }) => {
+    const view = gardenView(camera, size.width / Math.max(size.height, 1));
+    view.forEach(({ cover }, i) => {
+      covers.value[i] = cover;
     });
   });
   return null;
@@ -519,7 +551,7 @@ const Sculptures = () => {
         width: 0.26,
         core: 0.12,
         halo: 0.06,
-        intensity: 0.085,
+        intensity: 0.078,
         mirror: false,
         fade: 0,
       }),

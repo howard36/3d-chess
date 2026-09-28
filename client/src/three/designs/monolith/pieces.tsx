@@ -100,8 +100,14 @@ const glazeFragment = /* glsl */ `
     vec3 f = fract(x);
     f = f * f * (3.0 - 2.0 * f);
     return mix(
-      mix(mix(hash(i), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
-      mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y),
+      mix(
+        mix(hash(i), hash(i + vec3(1, 0, 0)), f.x),
+        mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x),
+        f.y),
+      mix(
+        mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x),
+        mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x),
+        f.y),
       f.z);
   }
   void main() {
@@ -499,7 +505,7 @@ const echoMaterial = (color: string, top: number) =>
       void main() {
         // Only its outline, and only above the base: the flat steps of the
         // base, seen edge-on, would fill in as a grey smudge on the glass
-        float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 4.5);
+        float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 3.0);
         float a = 1.8 * f * uOpacity * smoothstep(0.14, 0.34, vY / uTop);
         if (a < 0.004) discard;
         gl_FragColor = vec4(uColor * a, 1.0);

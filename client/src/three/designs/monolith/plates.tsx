@@ -14,12 +14,14 @@ import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 // dark squares left clear with a breath of smoke. Crisp hairlines of the
 // level's colour divide the 25 squares, running whole from edge to edge and
 // joined where they cross by taking the brighter of the two (never summed),
-// so no crossing ever shows a dot. The checker holds from any side and from
-// straight above, easing back only a little there (every level alike), so
-// pieces three levels down keep their own colour; there each level's frost
-// leans toward its own hue, so the nested checkers part by colour. The level the player is attending to (pointed
-// at, or holding the selected piece) brightens its lines and edge; the
-// others step back a little.
+// so no crossing ever shows a dot. The checker holds from any side. Looking
+// straight down, where the five would average into a grey plaid, the lead
+// level (the one attended to, else the top one) keeps its checker whole and
+// the others ease back part of the way, still clearly there, their inner
+// hairlines thinner; each level's frost leans toward its own hue, so the
+// nested checkers part by colour. The level the player is attending to
+// (pointed at, or holding the selected piece) brightens its lines and edge;
+// the others step back a little.
 
 const vertexShader = /* glsl */ `
   uniform float uHalf;
@@ -47,6 +49,7 @@ const fragmentShader = /* glsl */ `
   uniform float uWidth;
   uniform float uFocus;
   uniform float uDim;
+  uniform float uLead;
   varying vec2 vCell;
   varying vec3 vWorld;
 
@@ -63,13 +66,14 @@ const fragmentShader = /* glsl */ `
     float inside = step(0.0, uv.x) * step(uv.x, uCells) * step(0.0, uv.y) * step(uv.y, uCells);
 
     // The checker, in the Raumschach colouring (dark where x + y + z is even).
-    // Every level keeps it from any side; looking straight down all five
-    // ease back a little alike (so pieces three levels down keep their own
-    // colour), and each level's frost leans toward its own hue, so the
-    // nested checkers part by colour rather than blur into a grey plaid
+    // Every level keeps it from any side. Looking straight down all five
+    // ease back a little (so pieces three levels down keep their own
+    // colour), the lead level least, so one clear 5 x 5 reads through the
+    // rest; each level's frost leans toward its own hue there
     vec2 sq = floor(clamp(uv, 0.0, uCells - 0.001));
     float light = mod(sq.x + sq.y + uLevel, 2.0);
-    float keep = (1.0 - 0.3 * above) * (1.0 + 0.35 * grazing);
+    float back = above * (1.0 - uLead);
+    float keep = (1.0 - mix(0.15, 0.3, back) * above) * mix(1.0, 0.5, back) * (1.0 + 0.35 * grazing);
     // The level attended to (pointed at, or holding the selection) a little more
     float focus = (1.0 + 0.25 * uFocus) * (1.0 - 0.15 * uDim);
     vec3 frost = mix(uFrost, uColor, 0.5 * above);
@@ -96,7 +100,7 @@ const fragmentShader = /* glsl */ `
     );
     lines *= innerLine * span;
     // The brighter of the two where they cross: an even line, never a dot
-    float line = max(lines.x, lines.y) * uLine * (1.0 - 0.15 * above);
+    float line = max(lines.x, lines.y) * uLine * (1.0 - 0.15 * above) * (1.0 - 0.5 * back);
     line *= (1.0 + 0.4 * uFocus) * (1.0 - 0.2 * uDim);
     c = over(c, uColor, min(line, 1.0));
 
@@ -151,6 +155,7 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
               uWidth: { value: 0.011 },
               uFocus: { value: 0 },
               uDim: { value: 0 },
+              uLead: { value: z === LEVEL_COLORS.length - 1 ? 1 : 0 },
               uHalf: { value: FRAME.half },
               uPitch: { value: FRAME.pitch },
             },
@@ -187,6 +192,9 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
         const dim = any * (1 - w);
         m.glass.uniforms.uFocus.value = w;
         m.glass.uniforms.uDim.value = dim;
+        // The lead from above: the level attended to, else the top one
+        const top = z === weights.length - 1 ? 1 : 0;
+        m.glass.uniforms.uLead.value = Math.min(1, w + (1 - any) * top);
         m.edge.opacity = EDGE * (1 - 0.35 * dim) + (1 - EDGE) * w;
       });
     },
