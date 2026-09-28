@@ -290,7 +290,8 @@ piece under the pointer lifts a little; the selected piece lifts higher and hold
 a column of cool light. A move glides in a straight line from square to square
 (`three/movePath.ts`), or over an arc for a knight when the player sets **Knight moves** to
 Arc. A captured piece burns away; at mate the king topples, a pulse runs through the levels
-and the result card follows once it has played (`resultDelayMs` in `scene/fx.tsx`).
+and the result card follows once the scene says it has played out (`onMatePlayedOut` in
+`scene/fx.tsx`), a beat later.
 
 How the code is split:
 

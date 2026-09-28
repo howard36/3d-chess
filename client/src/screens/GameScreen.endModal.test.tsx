@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GameSocket } from '../hooks/useGameSocket';
 import type { WebSocketMessage } from '../types/messages';
-import { forgetSettings, setSetting } from '../three/settings';
+import { forgetSettings } from '../three/settings';
+import { matePlayedOut } from '../three/scene/fx';
 import GameScreen from './GameScreen';
 
 // As in App.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
@@ -81,25 +82,27 @@ describe('the result card after a mate', () => {
     expect(screen.getByRole('button', { name: 'Start new game' })).toHaveFocus();
   });
 
-  it('waits for the mate to play out, when it was just played', () => {
-    // The mating piece lands (0.46 s), the mate's pulse crosses the board in
-    // 2.4 s by default, and a beat more
+  it('waits for the scene to say the mate has played out, and a beat more', () => {
     const { rerender } = render(screenFor(beforeMate));
     rerender(screenFor(mated));
     expect(result()).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(3200));
+    // However long the board takes to play the mate out (a slow device)...
+    act(() => vi.advanceTimersByTime(8000));
     expect(result()).not.toBeInTheDocument();
+    // ...the card follows its signal, a beat later
+    act(() => matePlayedOut());
     act(() => vi.advanceTimersByTime(300));
+    expect(result()).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(200));
     expect(result()).toBeInTheDocument();
   });
 
-  it('waits as long as the player’s settings make the mate', () => {
-    setSetting('mark.mateSeconds', 3.5);
+  it('shows the card anyway if the board never says (its frames stopped)', () => {
     const { rerender } = render(screenFor(beforeMate));
     rerender(screenFor(mated));
-    act(() => vi.advanceTimersByTime(4300));
+    act(() => vi.advanceTimersByTime(11900));
     expect(result()).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(300));
+    act(() => vi.advanceTimersByTime(200));
     expect(result()).toBeInTheDocument();
   });
 

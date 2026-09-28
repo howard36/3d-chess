@@ -6,18 +6,8 @@ import { PieceType } from '../../engine/pieces';
 import { MOVE_ANIMATION, prefersReducedMotion } from '../motion';
 import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
-import type { SettingValues } from '../settings';
 import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
-import {
-  FRAME,
-  KNIGHT_YAW,
-  LEVEL_COLORS,
-  levelAt,
-  MARGIN,
-  MOTION,
-  PALETTE,
-  PIECE_SCALE,
-} from './palette';
+import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
 import { ringMaterial, ringPlane, useLevelCue, usePieceMaterial, wholePiece } from './pieces';
 import { gardenBoost } from './stage';
 import { useMarkSetting } from './settings-markers';
@@ -221,14 +211,21 @@ const levelPlane = new PlaneGeometry(REACH * 2, REACH * 2).rotateX(-Math.PI / 2)
 /** The pulse leaves this soon after the king starts to fall. */
 const PULSE_DELAY_MS = 60;
 
-/**
- * How long the result card waits after a mate played live: for the mating
- * piece to land (the king falls and the pulse leaves as it does, Board.tsx),
- * for the pulse to cross the board (its length is a setting), and a beat
- * more to take it in.
- */
-export const resultDelayMs = (settings: SettingValues) =>
-  MOTION.durationMs + PULSE_DELAY_MS + (Number(settings['mark.mateSeconds']) || 2.4) * 1000 + 400;
+// When a mate has played out on the board (its pulse has crossed every
+// level, on the scene's own clock, however slowly the frames come), for the
+// result card to follow (GameScreen.tsx).
+const playedOut = new Set<() => void>();
+
+/** Calls `listener` each time a mate has played out; returns the unsubscribe. */
+export const onMatePlayedOut = (listener: () => void) => {
+  playedOut.add(listener);
+  return () => {
+    playedOut.delete(listener);
+  };
+};
+
+/** Tells the listeners a mate has played out (the Celebration, once its pulse is done). */
+export const matePlayedOut = () => playedOut.forEach((listener) => listener());
 
 /**
  * Mate: one pulse of light from the king's foot through all five levels as
@@ -282,7 +279,8 @@ export const Celebration = ({ floor }: CelebrationProps) => {
   );
   const lifeMs = seconds * 1000;
   const still = prefersReducedMotion();
-  const alive = useLife(PULSE_DELAY_MS + lifeMs, (ms) => {
+  // (With reduced motion nothing crosses the board, so it is over at once)
+  const alive = useLife(PULSE_DELAY_MS + (still ? 0 : lifeMs), (ms) => {
     if (still) return;
     const x = Math.min(Math.max(ms - PULSE_DELAY_MS, 0) / lifeMs, 1);
     // It spreads at a nearly even pace, so every level has its moment, and
@@ -295,6 +293,9 @@ export const Celebration = ({ floor }: CelebrationProps) => {
     }
     gardenBoost.value = 0.9 * Math.sin(Math.PI * x) ** 2;
   });
+  useEffect(() => {
+    if (!alive) matePlayedOut();
+  }, [alive]);
   if (!alive) return null;
   return (
     <>

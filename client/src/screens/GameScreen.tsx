@@ -19,8 +19,8 @@ import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
 import { NeutralToneMapping } from 'three';
-import { getSettings, useSetting } from '../three/settings';
-import { resultDelayMs } from '../three/scene/fx';
+import { useSetting } from '../three/settings';
+import { onMatePlayedOut } from '../three/scene/fx';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import SettingsGear from './SettingsPanel';
@@ -34,6 +34,13 @@ interface GameScreenProps {
 }
 
 type Phase = 'waiting' | 'joined' | 'started';
+
+/** After a mate has played out on the board, a beat more before the result card. */
+const RESULT_BEAT_MS = 400;
+/** If the scene never says the mate has played out (frames stopped), the card shows anyway. */
+const MATE_FALLBACK_MS = 12000;
+/** At stalemate nothing plays out: the last move lands and the card follows. */
+const STALEMATE_WAIT_MS = 1200;
 
 const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { gameId } = useParams<{ gameId: string }>();
@@ -120,21 +127,38 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const endedLive =
     [...messages].reverse().find((m) => m.type === 'move_made' || m.type === 'game_state')?.type ===
     'move_made';
-  const endDelayMs = endedLive ? resultDelayMs(getSettings()) : 0;
-  // The game end whose delay has run out (the replay keeps the same object
-  // while the record is unchanged).
+  // The game end whose wait is over (the replay keeps the same object while
+  // the record is unchanged).
   const [endShown, setEndShown] = React.useState<typeof gameOver>(null);
   React.useEffect(() => {
-    if (!gameOver || endDelayMs === 0) return;
-    // Timed on animation frames, the clock the mate animation itself runs on.
+    if (!gameOver || !endedLive) return;
+    // A mate: once the scene says it has played out (on its own clock, so a
+    // slow device never covers it early), and a beat more; with a generous
+    // fallback in case frames stop. A stalemate: a moment. Timed on
+    // animation frames, the clock the scene runs on.
+    const mate = gameOver.result === 'checkmate';
     const start = performance.now();
+    let playedOutAt: number | null = null;
+    const unsubscribe = mate
+      ? onMatePlayedOut(() => {
+          playedOutAt ??= performance.now();
+        })
+      : () => {};
     let frame = requestAnimationFrame(function tick() {
-      if (performance.now() - start >= endDelayMs) setEndShown(gameOver);
+      const now = performance.now();
+      const waited = mate
+        ? (playedOutAt !== null && now - playedOutAt >= RESULT_BEAT_MS) ||
+          now - start >= MATE_FALLBACK_MS
+        : now - start >= STALEMATE_WAIT_MS;
+      if (waited) setEndShown(gameOver);
       else frame = requestAnimationFrame(tick);
     });
-    return () => cancelAnimationFrame(frame);
-  }, [gameOver, endDelayMs]);
-  const showEndModal = !!gameOver && (endDelayMs === 0 || endShown === gameOver);
+    return () => {
+      unsubscribe();
+      cancelAnimationFrame(frame);
+    };
+  }, [gameOver, endedLive]);
+  const showEndModal = !!gameOver && (!endedLive || endShown === gameOver);
 
   const awaitingMove =
     moveSent !== null &&
