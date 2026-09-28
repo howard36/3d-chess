@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Records a board design in play, for comparing designs side by side.
+// Records the game in play: a scripted game on the board, as a video.
 //
-//   node scripts/showcase.mjs --design synthwave --out /tmp/showcase
-//   node scripts/showcase.mjs --design synthwave --stills --out /tmp/shots
+//   node scripts/showcase.mjs --out /tmp/showcase
+//   node scripts/showcase.mjs --stills --out /tmp/shots
 //
 // Needs the app and a backend already running (see the run-3d-chess skill):
 // SHOWCASE_URL points at Vite (default http://127.0.0.1:5173), whose
@@ -19,31 +19,32 @@
 // --stills-fast saves the same stills several times faster: the game still
 // plays out frame by frame on the virtual clock, but only the saved frames
 // are drawn (a full --stills draws every frame, 15 minutes and more on a
-// busy machine). A design that renders to a texture once, when something
-// mounts mid-game, may need plain --stills.
+// busy machine). Anything that renders to a texture once, when it mounts
+// mid-game, may need plain --stills.
 // --plies N stops after N moves, for a quick look.
 // --profile times 20 frames of the opening position and reports what the
 // renderer draws (a slow recording is almost always a heavy scene).
 // --tour swings the camera about ±40° around the board during the game, to
-// show a design from several sides.
+// show it from several sides.
 // --pose yaw,pitch,zoom holds the camera still at that offset from the
 // opening view (degrees, degrees, distance factor).
-// --knight arc|straight sets how knights move (the picker's setting;
-// straight by default), e.g. to compare the two.
+// --knight arc|straight sets how knights move (the settings panel's Knight
+// moves; straight by default), e.g. to compare the two.
 // Needs ffmpeg with libx264 on PATH, or FFMPEG=/path/to/ffmpeg.
 //
-// --review is a clarity review instead of a recording (no ffmpeg needed):
+// --review photographs the board for a legibility check instead of recording
+// (no ffmpeg needed):
 //
-//   node scripts/showcase.mjs --design kit-demo --review --out /tmp/review
+//   node scripts/showcase.mjs --review --out /tmp/review
 //
-// Both seats open the design, the scripted game is typed in, and four states
+// Both seats open the game, the scripted game is typed in, and four states
 // are photographed from both White's and Black's page: the opening; a piece
 // of the side to move selected that has both quiet and capture destinations
 // (picked with the rules engine, from Vite's /src, once a few moves are in);
 // the last move's line after a move between levels; and a check. Each is
-// shot from 13 poses: 8 azimuths round the tower at the design's own
+// shot from 13 poses: 8 azimuths round the tower at the opening view's
 // elevation, a low and a high view at two azimuths, and straight down from
-// above, turned square to the seat so it reads like a 2D board (the design's
+// above, turned square to the seat so it reads like a 2D board (the camera's
 // orbit limits apply, so the labels give the elevation actually reached). It
 // writes every shot as <seat>-<state>-<pose>.png plus labelled contact
 // sheets: review-states.png (every state from both seats, opening view),
@@ -62,7 +63,7 @@
 // --interact records the small animations of pointing and selecting instead
 // of a game:
 //
-//   node scripts/showcase.mjs --design orbital --interact --out /tmp/interact
+//   node scripts/showcase.mjs --interact --out /tmp/interact
 //
 // The scripted game is typed in, unrecorded, up to the first position from
 // the third ply on where the recorded seat (White's) is to move with a piece P
@@ -76,8 +77,8 @@
 //   3 unhover                  8 destination (one of Q's)
 //   4 select P                 9 deselect (back onto Q, click)
 //   5 quiet (a destination)   10 rest
-// It writes <design>-interact.mp4 (16 s) and a still at the end of each beat,
-// <design>-interact-<nn>-<beat>.png: three to nine minutes on a busy machine,
+// It writes interact.mp4 (16 s) and a still at the end of each beat,
+// interact-<nn>-<beat>.png: three to nine minutes on a busy machine,
 // or about a minute with --interact --stills-fast, which saves only the stills
 // and draws only their frames. --select-white Cc4 chooses P; --select-black
 // Db4 chooses P and records Black's seat instead (unless --select-white is
@@ -95,10 +96,10 @@ const opt = (name, fallback) => {
   return i >= 0 ? argv[i + 1] : fallback;
 };
 
-const DESIGN = opt('design', 'classic');
-// The player's knight setting, carried in every address the pages open
+// How knights move: the player's setting, stored before the pages load
 const KNIGHT = opt('knight', 'straight');
-const SETTINGS = `design=${DESIGN}&knight=${KNIGHT}`;
+// Where the app keeps the board's settings (designs/settings.ts)
+const SETTINGS_KEY = 'design-settings:zenith';
 const OUT = path.resolve(opt('out', 'showcase'));
 // --stills-fast takes the same stills, but draws only the frames it saves
 const STILLS_FAST = flag('stills-fast');
@@ -216,10 +217,10 @@ const SHOW_HELPERS = () => {
   };
   let base = null;
   window.__show = {
-    /** The chosen design's own canvas is up and its board is in the scene. */
-    ready(design) {
+    /** The canvas is up and the board is in the scene. */
+    ready() {
       const el = document.querySelector('[data-testid="r3f-canvas"]');
-      if (!el || (design && el.dataset.design !== design)) return false;
+      if (!el) return false;
       let cubes = 0;
       store()?.scene.traverse((o) => {
         if (o.userData?.cube) cubes++;
@@ -708,9 +709,9 @@ const REVIEW_STATES = {
 
 // Camera poses, as offsets from the seat's opening view: 8 azimuths round the
 // board, then a low and a high view at two azimuths, then top-down (as far
-// as the design's orbit allows). --poses "az,el;az,el" replaces them: az in
+// as the camera's orbit allows). --poses "az,el;az,el" replaces them: az in
 // degrees round from the seat's opening view, el the elevation in degrees
-// (the design's orbit limits still apply).
+// (the orbit limits still apply).
 const TOP_DOWN = { id: 'top', yaw: 0, elevation: 89.9, square: true };
 const CUSTOM_POSES = opt('poses');
 const REVIEW_POSES = CUSTOM_POSES
@@ -814,7 +815,7 @@ async function review(seats) {
   };
 
   // The selection once more from the opening view, the pointer resting on
-  // one of its quiet destinations (how a design shows hover)
+  // one of its quiet destinations (how the board shows hover)
   const shootHover = async (seat) => {
     const page = seats[seat];
     const at = await page.evaluate(() => {
@@ -909,7 +910,7 @@ async function review(seats) {
   }
   console.log(`${elapsed()} states done, building sheets`);
   await sheets(seats.white.context(), shots, notes);
-  console.log(`review of ${DESIGN} took ${elapsed()}`);
+  console.log(`review took ${elapsed()}`);
 }
 
 /** Lays the shots out as labelled contact sheets, drawn by the browser itself. */
@@ -959,7 +960,7 @@ async function sheets(context, shots, notes) {
     `${REVIEW_STATES[state]}${notes[seat]?.[state] ? `<small>${notes[seat][state]}</small>` : ''}`;
 
   // Every state from both seats, from each seat's opening view
-  let html = `<h1>${DESIGN}: states from both seats (opening view)</h1>`;
+  let html = '<h1>States from both seats (opening view)</h1>';
   for (const state of Object.keys(REVIEW_STATES)) {
     html += `<h2>${REVIEW_STATES[state]}</h2><div class="row">`;
     for (const seat of ['white', 'black']) {
@@ -974,7 +975,7 @@ async function sheets(context, shots, notes) {
 
   // Per seat: every state from every pose
   for (const seat of ['white', 'black']) {
-    html = `<h1>${DESIGN}: ${seat}'s seat, ${REVIEW_POSES.length} poses</h1>`;
+    html = `<h1>${seat[0].toUpperCase()}${seat.slice(1)}'s seat, ${REVIEW_POSES.length} poses</h1>`;
     for (const state of Object.keys(REVIEW_STATES)) {
       const list = shots[seat][state];
       html += `<h2>${title(state, seat)}</h2>`;
@@ -1015,6 +1016,13 @@ async function main() {
     await ctx.addInitScript(NO_HOT_RELOAD);
     await ctx.addInitScript(VIRTUAL_CLOCK);
     await ctx.addInitScript(SHOW_HELPERS);
+    // The board's settings as the player would have saved them (only a change from the defaults)
+    if (KNIGHT === 'arc') {
+      await ctx.addInitScript(
+        ([key, value]) => localStorage.setItem(key, value),
+        [SETTINGS_KEY, JSON.stringify({ 'piece.knightMoves': 'arc' })],
+      );
+    }
   }
   const [pageA, pageB] = await Promise.all(contexts.map((c) => c.newPage()));
   for (const p of [pageA, pageB]) {
@@ -1023,11 +1031,10 @@ async function main() {
     p.setDefaultTimeout(120000);
   }
 
-  await pageA.goto(`${BASE}/?${SETTINGS}`);
+  await pageA.goto(`${BASE}/`);
   await pageA.getByRole('button', { name: 'Start New Game' }).click();
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
-  // A review shows the design from both seats; a recording only needs one
-  await pageB.goto(`${pageA.url()}?${REVIEW ? SETTINGS : 'design=classic'}`);
+  await pageB.goto(pageA.url());
   await pageB.getByRole('button', { name: 'Join Game' }).click();
   for (const p of [pageA, pageB]) {
     await p.waitForFunction(() => window.__show?.ready(), null, { timeout: 120000 });
@@ -1038,10 +1045,7 @@ async function main() {
   const white = (await colorOf(pageA)) === 'white' ? pageA : pageB;
   const black = white === pageA ? pageB : pageA;
   if (REVIEW) {
-    for (const p of [white, black]) {
-      await p.waitForFunction((d) => window.__show?.ready(d), DESIGN, { timeout: 120000 });
-      await p.evaluate(() => document.fonts.ready);
-    }
+    for (const p of [white, black]) await p.evaluate(() => document.fonts.ready);
     await white.waitForTimeout(1500);
     for (const p of [white, black]) await p.evaluate(() => window.__vclock.enable());
     await review({ white, black });
@@ -1054,16 +1058,11 @@ async function main() {
   const opp = rec === white ? black : white;
   // The opponent's page is only there to answer; keep its renderer cheap.
   await opp.setViewportSize({ width: 400, height: 300 });
-  if (rec === pageB) {
-    // The joiner opened the game with the classic look; switch it over.
-    await rec.goto(`${rec.url().split('?')[0]}?${SETTINGS}`);
-  }
-  await rec.waitForFunction((d) => window.__show?.ready(d), DESIGN, { timeout: 120000 });
   await rec.evaluate(() => document.fonts.ready);
-  // Let the design's chunk, fonts and first frames settle in real time
+  // Let the fonts and first frames settle in real time
   await rec.waitForTimeout(1500);
   await rec.evaluate(() => window.__vclock.enable());
-  // The creator's page opened the design too; it only types, so never draws
+  // The other page only types, so never draws
   if (INTERACT) await opp.evaluate(() => window.__vclock.enable());
 
   const cdp = await rec.context().newCDPSession(rec);
@@ -1075,7 +1074,7 @@ async function main() {
       renders.push(
         await rec.evaluate(() => {
           const t = Date.now();
-          window.__r3fState.get().invalidate(); // on-demand designs draw too
+          window.__r3fState.get().invalidate(); // the canvas renders on demand
           window.__vclock.step(1000 / 30);
           return Date.now() - t;
         }),
@@ -1132,7 +1131,6 @@ async function main() {
     const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
     console.log(
       JSON.stringify({
-        design: DESIGN,
         renderMs: med(renders),
         captureMs: med(captures),
         ...stats,
@@ -1141,7 +1139,7 @@ async function main() {
     await browser.close();
     return;
   }
-  const VIDEO = path.join(OUT, INTERACT ? `${DESIGN}-interact.mp4` : `${DESIGN}.mp4`);
+  const VIDEO = path.join(OUT, INTERACT ? 'interact.mp4' : 'game.mp4');
   let ffmpeg = null;
   if (!STILLS) {
     ffmpeg = spawn(
@@ -1184,7 +1182,7 @@ async function main() {
     // --interact holds the seat's opening view
     if (INTERACT) return [0, 0, 1];
     const t = f / FPS;
-    // Stills skip the opening swing and show each design from its own view
+    // Stills skip the opening swing and show the board from its opening view
     const intro = STILLS ? 1 : Math.min(t / PACE.swing, 1);
     const k = ease(intro);
     // --tour swings wide (about ±40°) so a video shows the board from several
@@ -1244,7 +1242,7 @@ async function main() {
   const still = async (name) => {
     if (!STILLS) return;
     await step(false, true);
-    const file = path.join(OUT, `${DESIGN}-${name}.png`);
+    const file = path.join(OUT, `${name}.png`);
     await rec.screenshot({ path: file, timeout: 120000 });
     console.log(file);
   };
@@ -1497,7 +1495,7 @@ async function main() {
       await rec.evaluate((t) => window.__show.caption(t), `${n} · ${label}`);
       await act();
       await hold(seconds);
-      await snap(path.join(OUT, `${DESIGN}-interact-${String(n).padStart(2, '0')}-${id}.png`));
+      await snap(path.join(OUT, `interact-${String(n).padStart(2, '0')}-${id}.png`));
     };
 
     await beat('rest', 'rest', async () => {});
@@ -1526,7 +1524,7 @@ async function main() {
       if (await glideTo(Q, 'piece', GLIDE)) await click(Q);
     });
     await beat('rest', 'rest', () => glidePixel(rest));
-    console.log(`interact of ${DESIGN} took ${elapsed()}`);
+    console.log(`interact took ${elapsed()}`);
   }
 
   await hold(STILLS ? 0.2 : PACE.intro);
@@ -1593,8 +1591,8 @@ async function main() {
   }
 
   if (PLIES >= GAME.length) {
-    // The mate: lean in while the design plays it out, then the result card
-    // (the app holds it back for a moment on designs with a mate animation).
+    // The mate: lean in while it plays out, then the result card (the app
+    // holds it back until the mate's animation is over).
     const loser = GAME.length % 2 === 1 ? 'black' : 'white';
     finale = { frame, king: await white.evaluate((c) => window.__show.kingAt(c), loser) };
     await hold(PACE.mate);
