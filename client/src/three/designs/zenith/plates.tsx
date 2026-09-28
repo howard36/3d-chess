@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
-import { Color, DoubleSide, MeshBasicMaterial, PlaneGeometry, ShaderMaterial } from 'three';
+import {
+  BufferAttribute,
+  Color,
+  DoubleSide,
+  MeshBasicMaterial,
+  PlaneGeometry,
+  ShaderMaterial,
+} from 'three';
 import { GRID_SIZE } from '../../layout';
 import { useLevelFocus } from '../kit/focus';
 import { LAYER } from '../kit/layers';
@@ -123,25 +130,41 @@ const SMOKE = 0.06;
 const LINE = 0.5;
 const EDGE = 0.8;
 const EDGE_WIDTH = 0.022;
+/** The edge's depth below the glass at "Border height" 1.0×. */
+const EDGE_HEIGHT = 0.03;
 /** How far the glass runs in under the edge's light. */
 const FILL = EDGE_WIDTH / 2;
 
 /** The five levels (see above). Decorative: nothing here takes a click. */
 export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
   const reach = FRAME.half + MARGIN;
-  // The player's border width and brightness (settings-env.ts): the square
-  // of light widens outward from the glass's edge, never into the squares
+  // The player's border width, height and brightness (settings-env.ts): the
+  // square of light widens outward from the glass's edge, never into the
+  // squares, and deepens downward from it into a rim, never rising in front
+  // of the pieces standing on the edge squares
   const borderWidth = useEnvSetting<number>('env.borderWidth');
+  const borderHeight = useEnvSetting<number>('env.borderHeight');
   const borderBright = useEnvSetting<number>('env.borderBrightness');
   const plane = useMemo(
     // Out to the middle of the edge's light, so no seam can open between them
     () => new PlaneGeometry((reach + FILL) * 2, (reach + FILL) * 2).rotateX(-Math.PI / 2),
     [reach],
   );
-  const edge = useMemo(
-    () => frameGeometry(reach, EDGE_WIDTH * borderWidth, 0.03),
-    [reach, borderWidth],
-  );
+  const edge = useMemo(() => {
+    const height = EDGE_HEIGHT * borderHeight;
+    const g = frameGeometry(reach, EDGE_WIDTH * borderWidth, height);
+    // A deep rim is a band of light, full at the glass and fading toward its
+    // lower edge (at the default depth it is one even line, as it was)
+    const k = Math.min(Math.max((borderHeight - 1) / 3, 0), 1);
+    const low = 1 - 0.6 * k * k * (3 - 2 * k);
+    const y = g.getAttribute('position');
+    const rgba = new Float32Array(y.count * 4);
+    for (let i = 0; i < y.count; i++) {
+      rgba.set([1, 1, 1, y.getY(i) < -height / 2 ? low : 1], i * 4);
+    }
+    g.setAttribute('color', new BufferAttribute(rgba, 4));
+    return g;
+  }, [reach, borderWidth, borderHeight]);
   useEffect(() => () => plane.dispose(), [plane]);
   useEffect(() => () => edge.dispose(), [edge]);
   const materials = useMemo(
@@ -179,6 +202,7 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
           edgeColor: tint.clone().lerp(new Color('#ffffff'), 0.3),
           edge: new MeshBasicMaterial({
             color: tint.clone().lerp(new Color('#ffffff'), 0.3),
+            vertexColors: true,
             transparent: true,
             opacity: EDGE,
             depthWrite: false,
