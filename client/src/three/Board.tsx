@@ -14,6 +14,7 @@ import { MoveGlide } from './moveAnimation';
 import { prefersReducedMotion } from './motion';
 import { isTap } from './tap';
 import { useSetting } from './settings';
+import { useExactClicks } from './exactClicks';
 import { useTapAssist } from './useTapAssist';
 import type { AssistedTap } from './useTapAssist';
 import { moveArc } from './movePath';
@@ -91,6 +92,8 @@ export interface BoardProps {
 
 const Board = (props: BoardProps) => {
   const board = props.board;
+  // A click is aimed where it was released, as its press was (exactClicks.ts)
+  useExactClicks();
   // Spectators (no assigned colour) get White's view.
   const orientation = props.playerColor ?? 'white';
 

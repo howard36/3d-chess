@@ -1236,3 +1236,30 @@ describe('Board tap assist', () => {
     expect(destinationsOf(board.renderer)).toEqual(['Ba3', 'Ca2']);
   });
 });
+
+describe('Board aims clicks where they were released', () => {
+  it('has r3f raycast a whole-pixel click from its release, where the press was raycast', async () => {
+    let get: (() => { events: { compute?: (e: unknown, s: unknown) => void } }) | null = null;
+    const Grab = () => {
+      get = useThree((s) => s.get) as unknown as typeof get;
+      return null;
+    };
+    await ReactThreeTestRenderer.create(
+      <>
+        <Grab />
+        <Board board={createTestBoard()} currentTurn="white" />
+      </>,
+    );
+    const compute = get!().events.compute!;
+    const state = {
+      pointer: new Vector3(),
+      raycaster: { setFromCamera: () => {} },
+      camera: {},
+      size: { width: 800, height: 600 },
+    };
+    compute({ type: 'pointerup', offsetX: 541.66, offsetY: 328.28 }, state);
+    compute({ type: 'click', offsetX: 542, offsetY: 328 }, state);
+    expect(state.pointer.x).toBeCloseTo((541.66 / 800) * 2 - 1, 9);
+    expect(state.pointer.y).toBeCloseTo(-(328.28 / 600) * 2 + 1, 9);
+  });
+});
