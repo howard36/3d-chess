@@ -15,5 +15,7 @@ export type {
   PieceSet,
   PieceSetOptions,
 } from './set';
-export { arc, corner, sampleProfile } from './profile';
+export { arc, corner, sampleProfile, smoothLoop } from './profile';
+// The knight's head outline, for designs that draw the set's shapes themselves
+export { KNIGHT_OUTLINE, KNIGHT_SEAT } from './knight';
 export type { Profile, ProfileNode } from './profile';
