@@ -37,7 +37,7 @@
 //
 //   node scripts/showcase.mjs --review --out /tmp/review
 //
-// Both seats open the game, the scripted game is typed in, and four states
+// Both seats open the game, the scripted game is played in, and four states
 // are photographed from both White's and Black's page: the opening; a piece
 // of the side to move selected that has both quiet and capture destinations
 // (picked with the rules engine, from Vite's /src, once a few moves are in);
@@ -65,13 +65,13 @@
 //
 //   node scripts/showcase.mjs --interact --out /tmp/interact
 //
-// The scripted game is typed in, unrecorded, up to the first position from
+// The scripted game is played in, unrecorded, up to the first position from
 // the third ply on where the recorded seat (White's) is to move with a piece P
 // whose quiet and capture destinations the pointer can reach (picked with the
 // rules engine, as --review picks, then tried out off camera), and another
 // piece Q to switch to. Then, from the seat's opening view (or --pose), the
 // drawn pointer glides between them in ten beats, each held about a second
-// for its animation to settle and named in a label above the move box:
+// for its animation to settle and named in a label at the bottom left:
 //   1 rest (on empty space)    6 capture (the pointer on its victim)
 //   2 hover P                  7 switch straight to Q (P is released)
 //   3 unhover                  8 destination (one of Q's)
@@ -453,10 +453,14 @@ const SHOW_HELPERS = () => {
       ring.style.opacity = String(press);
       ring.style.transform = `scale(${1.6 - press * 0.8})`;
     },
-    turnText: () => document.querySelector('[data-testid="turn-indicator"]')?.textContent ?? '',
-    /** The turn chip starts with `text` (e.g. "Black to move"), or gives the result: the game is over. */
-    turnReached: (text) =>
-      window.__show.turnText().startsWith(text) ||
+    /** The side to move and whether it is in check, from the turn pill. */
+    turn: () => {
+      const pill = document.querySelector('[data-testid="turn-indicator"]');
+      return { side: pill?.dataset.turn ?? null, check: !!pill?.dataset.check };
+    },
+    /** It is `side`'s move (white or black), or the pill gives the result: the game is over. */
+    turnReached: (side) =>
+      window.__show.turn().side === side ||
       !!document.querySelector('[data-testid="turn-indicator"][data-result]'),
     /**
      * Runs `frames` frames of `ms` each on the virtual clock, so animations
@@ -651,7 +655,7 @@ const SHOW_HELPERS = () => {
       }
       return null;
     },
-    /** A small label naming the moment, bottom left above the move box; null removes it. */
+    /** A small label naming the moment, at the bottom left; null removes it. */
     caption(text) {
       let el = document.getElementById('__caption');
       if (!text) return el?.remove();
@@ -659,7 +663,7 @@ const SHOW_HELPERS = () => {
         el = document.createElement('div');
         el.id = '__caption';
         el.style.cssText =
-          'position:fixed;left:10px;bottom:98px;white-space:nowrap;z-index:99998;pointer-events:none;padding:5px 11px;border-radius:6px;background:rgba(10,12,16,0.72);color:#f2f4f8;font:600 15px/1.2 system-ui,sans-serif;letter-spacing:0.02em;box-shadow:0 1px 6px rgba(0,0,0,0.4)';
+          'position:fixed;left:12px;bottom:14px;white-space:nowrap;z-index:99998;pointer-events:none;padding:5px 11px;border-radius:6px;background:rgba(10,12,16,0.72);color:#f2f4f8;font:600 15px/1.2 system-ui,sans-serif;letter-spacing:0.02em;box-shadow:0 1px 6px rgba(0,0,0,0.4)';
         document.body.appendChild(el);
       }
       el.textContent = text;
@@ -687,6 +691,43 @@ const PACE = {
 // waitForFunction polls on requestAnimationFrame by default, which the
 // virtual clock holds still between frames: poll on a timer instead.
 const POLL = { polling: 50, timeout: 60000 };
+
+/**
+ * Plays a move on `page` as a player would: a click on the piece, then on its
+ * destination once it lights up. A square no ray reaches from this view
+ * (a piece in front of it) is typed instead, the keyboard player's way: Tab
+ * brings up the move field, Enter sends the move, Escape puts it away.
+ */
+const playMove = async (page, from, to) => {
+  const aim = (zxy, kind) =>
+    page.evaluate(({ zxy, kind }) => window.__show.pixelFor(zxy, kind), { zxy, kind });
+  const at = await aim(from, 'piece');
+  if (at) {
+    await page.mouse.click(at.x, at.y);
+    const lit = await page
+      .waitForFunction((z) => window.__show.isDestination(z), to, { ...POLL, timeout: 8000 })
+      .then(
+        () => true,
+        () => false,
+      );
+    const dest = lit ? await aim(to, 'cell') : null;
+    if (dest) {
+      await page.mouse.click(dest.x, dest.y);
+      await page.mouse.move(2, 2);
+      return;
+    }
+  }
+  console.log(`no clear line to ${from} or ${to}: typing ${from}-${to}`);
+  const field = page.getByRole('textbox', { name: /Type a move/ });
+  for (let i = 0; i < 8; i++) {
+    if (await field.evaluate((el) => el === document.activeElement)) break;
+    await page.keyboard.press('Tab');
+  }
+  await page.keyboard.type(`${from}-${to}`);
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  await page.mouse.move(2, 2);
+};
 
 const ease = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
@@ -842,20 +883,19 @@ async function review(seats) {
   await shoot('white', 'opening');
   await shoot('black', 'opening');
 
-  const turn = (p) => p.evaluate(() => window.__show.turnText());
+  const turn = (p) => p.evaluate(() => window.__show.turn());
   for (let i = 0; i < GAME.length; i++) {
     if (has('selected') && has('lastmove') && has('check')) break;
     const [from, to] = GAME[i].split('-');
     const mover = i % 2 === 0 ? seats.white : seats.black;
-    const next = i % 2 === 0 ? 'Black to move' : 'White to move';
-    await mover.fill('#typed-move', `${from}-${to}`);
-    await mover.press('#typed-move', 'Enter');
+    const next = i % 2 === 0 ? 'black' : 'white';
+    await playMove(mover, from, to);
     for (const p of Object.values(seats)) {
       await p.waitForFunction((t) => window.__show.turnReached(t), next, POLL);
     }
     const plies = i + 1;
     const last = i === GAME.length - 1;
-    if (!has('check') && (await turn(seats.white)).includes('check')) {
+    if (!has('check') && (await turn(seats.white)).check) {
       for (const seat of ['white', 'black']) await shoot(seat, 'check', `after ${GAME[i]}`);
     }
     if (!has('lastmove') && ((plies >= 3 && from[0] !== to[0]) || last)) {
@@ -1032,8 +1072,7 @@ async function main() {
     await p.waitForFunction(() => window.__show?.ready(), null, { timeout: 120000 });
   }
 
-  const colorOf = async (p) =>
-    (await p.locator('text=/You are playing as/').textContent()).match(/as (white|black)/)[1];
+  const colorOf = (p) => p.getByTestId('seat').getAttribute('data-seat');
   const white = (await colorOf(pageA)) === 'white' ? pageA : pageB;
   const black = white === pageA ? pageB : pageA;
   if (REVIEW) {
@@ -1266,14 +1305,12 @@ async function main() {
     await rec.mouse.move(cursor.x, cursor.y);
     return true;
   };
-  // The fallback for a square no ray reaches: the move box, as a keyboard
-  // player would.
-  const typeMove = async (page, from, to) => {
-    await page.fill('#typed-move', `${from}-${to}`);
-    await page.press('#typed-move', 'Enter');
-  };
-  const waitTurn = async (page, text) => {
-    await page.waitForFunction((t) => window.__show.turnReached(t), text, {
+  // The fallback for a square no ray reaches from the recorded view, and the
+  // opponent's moves: played on the board by clicks (or typed, where no ray
+  // reaches), as a player would
+  const typeMove = playMove;
+  const waitTurn = async (page, side) => {
+    await page.waitForFunction((t) => window.__show.turnReached(t), side, {
       ...POLL,
       timeout: 60000,
     });
@@ -1406,13 +1443,13 @@ async function main() {
       return null;
     };
 
-    // The scripted game, typed in unseen, up to a position that shows it all
+    // The scripted game, played in unseen, up to a position that shows it all
     await rec.evaluate(([y, p, z]) => window.__show.orbit(y, p, z, null, 0), camera(0));
-    const toMove = seat === 'white' ? 'White to move' : 'Black to move';
+    const toMove = seat;
     let plan = null;
     for (let i = 0; i < GAME.length && !plan; i++) {
       const [from, to] = GAME[i].split('-');
-      const next = i % 2 === 0 ? 'Black to move' : 'White to move';
+      const next = i % 2 === 0 ? 'black' : 'white';
       await typeMove(i % 2 === 0 ? white : black, from, to);
       for (const p of [rec, opp]) await waitTurn(p, next);
       await unseen(60);
@@ -1525,7 +1562,7 @@ async function main() {
   for (let i = 0; i < Math.min(PLIES, GAME.length); i++) {
     const [from, to] = GAME[i].split('-');
     const whiteMoves = i % 2 === 0;
-    const next = whiteMoves ? 'Black to move' : 'White to move';
+    const next = whiteMoves ? 'black' : 'white';
     if (whiteMoves) {
       if (await glideTo(from, 'piece')) {
         await white.mouse.click(cursor.x, cursor.y);
@@ -1578,8 +1615,7 @@ async function main() {
     }
     if (i === GAME.length - 1) break;
     await hold(whiteMoves ? PACE.afterWhite : PACE.afterBlack);
-    if ((await white.evaluate(() => window.__show.turnText())).includes('check'))
-      await still('check');
+    if ((await white.evaluate(() => window.__show.turn())).check) await still('check');
   }
 
   if (PLIES >= GAME.length) {
