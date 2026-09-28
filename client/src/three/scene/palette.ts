@@ -1,5 +1,5 @@
 import { levelRamp } from './colors';
-import { towerFramePoints } from './labelAnchors';
+import { towerFrameRings } from './labelAnchors';
 import { towerFrame, towerLayout } from '../layout';
 
 // The scene: a light-art garden at night. The tower of five glass levels
@@ -104,7 +104,7 @@ const tower = towerLayout({ pieceHeight: 0.87 * PIECE_SCALE, minElevation: -14 }
 /** The tower, framed with its labels as the grid draws them (grid.tsx: size 0.32, letters at 1x). */
 export const layout = {
   ...tower,
-  framePoints: towerFramePoints(tower, { size: 0.32, levelScale: 1 }),
+  frameRings: towerFrameRings(tower, { size: 0.32, levelScale: 1 }),
 };
 export const FRAME = towerFrame(layout);
 

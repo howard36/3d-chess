@@ -442,7 +442,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               halfExtents={layout.halfExtents}
               viewDirection={layout.viewDirection}
               minDistance={layout.orbit.minDistance}
-              framePoints={layout.framePoints}
+              frameRings={layout.frameRings}
               bands={bandsFor}
             />
           </Canvas>

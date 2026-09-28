@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
-import { centringShift, viewBounds } from '../cameraFit';
+import { ringBounds } from '../cameraFit';
 import { FILES, LEVELS, RANKS } from '../../engine/coords';
 import { towerLayout, towerFrame } from '../layout';
 import {
@@ -8,18 +8,13 @@ import {
   cameraAzimuth,
   cameraRight,
   chooseEdges,
-  chooseLevelCorner,
-  chooseLevelEdge,
   CORNERS,
-  CROSS_OFF,
-  CROSS_ON,
-  EDGES,
+  EDGE_HYSTERESIS,
   labelAnchors,
-  towerFramePoints,
-  LEVEL_SPREAD_FROM,
-  LEVEL_SPREAD_TO,
-  levelSpread,
+  LETTER_OFFSET,
+  letterCorner,
   LOW_ELEVATION,
+  towerFrameRings,
 } from './labelAnchors';
 import type { AnchorState } from './labelAnchors';
 import type { Vec3 } from '../types';
@@ -35,16 +30,6 @@ const cameraAt = (azimuth: number, elevation = 22, distance = 13): Vec3 => [
   Math.sin(elevation * DEG) * distance,
   Math.cos(azimuth * DEG) * Math.cos(elevation * DEG) * distance,
 ];
-
-/** Horizontal screen coordinate (tangent of the view angle) of a point. */
-const screenX = (camera: Vec3, p: Vec3) => {
-  const f = [TARGET[0] - camera[0], TARGET[1] - camera[1], TARGET[2] - camera[2]];
-  const fl = Math.hypot(f[0], f[1], f[2]);
-  const r = cameraRight(camera, TARGET);
-  const v = [p[0] - camera[0], p[1] - camera[1], p[2] - camera[2]];
-  const depth = (v[0] * f[0] + v[1] * f[1] + v[2] * f[2]) / fl;
-  return (v[0] * r[0] + v[2] * r[2]) / depth;
-};
 
 const AZIMUTHS = [0, 16, 45, 80, 100, 135, 180, 225, 270, 315, -16];
 
@@ -63,24 +48,36 @@ describe('label anchors', () => {
         }
       });
 
-      it.each(AZIMUTHS)('puts each level letter left of its whole platform from %i°', (azimuth) => {
-        for (const elevation of [8, 22, 45]) {
-          const camera = cameraAt(azimuth, elevation);
-          const { labels } = labelAnchors(layout, orientation, camera, TARGET, null);
-          for (const label of labels.filter((l) => l.level !== undefined)) {
-            const y = frame.levelY[label.level!];
-            const corners = CORNERS.map(
-              ([sx, sz]) => [sx * frame.half, y, sz * frame.half] as Vec3,
-            );
-            const leftmost = Math.min(...corners.map((c) => screenX(camera, c)));
-            expect(screenX(camera, label.position)).toBeLessThan(leftmost);
-            expect(label.text).toBe(LEVELS[label.level!]);
-            // Beside its own platform, not another one
-            expect(label.position[1]).toBeGreaterThan(y);
-            expect(label.position[1]).toBeLessThan(y + frame.gap / 2);
+      it.each(AZIMUTHS)(
+        'stands every level letter at the far corner, outside it, at its own level, from %i°',
+        (azimuth) => {
+          for (const elevation of [-10, 8, 22, 45, 70, 89.9]) {
+            const camera = cameraAt(azimuth, elevation);
+            const { labels, state } = labelAnchors(layout, orientation, camera, TARGET, null);
+            const [sx, sz] = CORNERS[state.corner];
+            // The corner across from the one where the files and ranks meet
+            expect([sx, sz]).toEqual([-state.edges.ranks, -state.edges.files]);
+            // ...which is the corner furthest from the camera
+            const far = (c: number) =>
+              Math.hypot(
+                CORNERS[c][0] * frame.half - camera[0],
+                CORNERS[c][1] * frame.half - camera[2],
+              );
+            expect(far(state.corner)).toBeCloseTo(Math.max(...CORNERS.map((_, c) => far(c))), 6);
+            const out = frame.half + LETTER_OFFSET / Math.SQRT2;
+            for (const label of labels.filter((l) => l.level !== undefined)) {
+              const y = frame.levelY[label.level!];
+              expect(label.text).toBe(LEVELS[label.level!]);
+              expect(label.position[0]).toBeCloseTo(sx * out);
+              expect(label.position[2]).toBeCloseTo(sz * out);
+              // Beside its own platform, not another one
+              expect(label.position[1]).toBeGreaterThan(y);
+              expect(label.position[1]).toBeLessThan(y + frame.gap / 4);
+              expect(label.key).toBe(`c${state.corner}`);
+            }
           }
-        }
-      });
+        },
+      );
 
       it.each(AZIMUTHS)(
         'runs files and ranks along the bottom edges nearest the camera from %i°',
@@ -122,9 +119,9 @@ describe('label anchors', () => {
     expect(x(black, 'file-e-0')).toBeCloseTo(-2);
   });
 
-  it('opens with the level letters at the near-left corner and ranks on the right', () => {
+  it('opens with the level letters at the far-left corner and the ranks on the right', () => {
     const { state } = labelAnchors(layout, 'white', cameraAt(16), TARGET, null);
-    expect(CORNERS[state.corners[0]]).toEqual([-1, 1]);
+    expect(CORNERS[state.corner]).toEqual([-1, -1]);
     expect(state.edges).toEqual({ files: 1, ranks: 1 });
   });
 
@@ -136,13 +133,15 @@ describe('label anchors', () => {
     expect(new Set(labels.map((l) => l.id)).size).toBe(labels.length);
   });
 
-  it('carries each level letter round all four corners in a full orbit', () => {
+  it('carries the level letters round all four corners in a full orbit, all together', () => {
     let state: AnchorState | null = null;
     const keys = new Set<string>();
     for (let a = 0; a <= 360; a += 5) {
       const next = labelAnchors(layout, 'white', cameraAt(a), TARGET, state);
       state = next.state;
-      keys.add(next.labels.find((l) => l.id === 'level-C')!.key);
+      const letters = next.labels.filter((l) => l.level !== undefined);
+      expect(new Set(letters.map((l) => l.key)).size).toBe(1);
+      keys.add(letters[0].key);
     }
     expect(keys.size).toBe(4);
   });
@@ -150,40 +149,24 @@ describe('label anchors', () => {
 
 describe('hysteresis', () => {
   it('holds an edge while the camera wavers around the tie, and gives it up past the band', () => {
+    const band = EDGE_HYSTERESIS / DEG;
     let edges = chooseEdges(80 * DEG, null);
     expect(edges.files).toBe(1);
     // Around 90° the two z-edges tie; within the band nothing changes
-    for (const a of [88, 92, 96, 91, 97, 89]) {
+    for (const a of [88, 92, 90 + band - 1, 91, 90 + band - 0.5, 89]) {
       edges = chooseEdges(a * DEG, edges);
       expect(edges.files).toBe(1);
     }
-    edges = chooseEdges(104 * DEG, edges);
+    edges = chooseEdges((90 + band + 1) * DEG, edges);
     expect(edges.files).toBe(-1);
     // And coming back, it holds the new edge until past the band on the other side
-    edges = chooseEdges(84 * DEG, edges);
+    edges = chooseEdges((90 - band + 1) * DEG, edges);
     expect(edges.files).toBe(-1);
-    edges = chooseEdges(76 * DEG, edges);
+    edges = chooseEdges((90 - band - 1) * DEG, edges);
     expect(edges.files).toBe(1);
-  });
-
-  it('keeps a level corner unless another is clearly further left', () => {
-    const y = frame.levelY[2];
-    // Sweep to find where the leftmost corner changes
-    let prev = chooseLevelCorner(cameraAt(0), TARGET, frame.half, y, null, 0);
-    let flip = -1;
-    for (let a = 0; a < 180; a += 0.5) {
-      const c = chooseLevelCorner(cameraAt(a), TARGET, frame.half, y, null, 0);
-      if (c !== prev) {
-        flip = a;
-        break;
-      }
-      prev = c;
-    }
-    expect(flip).toBeGreaterThan(0);
-    const before = chooseLevelCorner(cameraAt(flip - 1), TARGET, frame.half, y, null);
-    // Just past the change, the held corner stays; well past, it moves
-    expect(chooseLevelCorner(cameraAt(flip + 0.5), TARGET, frame.half, y, before)).toBe(before);
-    expect(chooseLevelCorner(cameraAt(flip + 15), TARGET, frame.half, y, before)).not.toBe(before);
+    // ...and the letters' corner follows the edges
+    expect(letterCorner({ files: 1, ranks: 1 })).toBe(0);
+    expect(letterCorner({ files: -1, ranks: 1 })).toBe(3);
   });
 
   it('measures the azimuth from +z toward +x', () => {
@@ -400,228 +383,65 @@ describe('level letters seen from above', () => {
       (v[0] * up[0] + v[1] * up[1] + v[2] * up[2]) / depth,
     ];
   };
-  const letters = (camera: Vec3, prev: AnchorState | null = null) =>
-    labelAnchors(layout, 'white', camera, TARGET, prev).labels.filter((l) => l.level !== undefined);
 
-  it('spreads them only between LEVEL_SPREAD_FROM and LEVEL_SPREAD_TO, eased', () => {
-    const at = (elevation: number) => levelSpread(cameraAt(16, elevation), TARGET);
-    expect(at(18)).toBe(0);
-    expect(at(LEVEL_SPREAD_FROM / DEG - 0.1)).toBe(0);
-    expect(at((LEVEL_SPREAD_FROM + LEVEL_SPREAD_TO) / 2 / DEG)).toBeCloseTo(0.5);
-    expect(at(LEVEL_SPREAD_TO / DEG + 0.1)).toBe(1);
-    expect(at(89.9)).toBe(1);
-  });
-
-  it('leaves them at their corners below the spread, as in every other view', () => {
-    for (const azimuth of AZIMUTHS) {
-      for (const elevation of [8, 22, 45, 57]) {
-        for (const label of letters(cameraAt(azimuth, elevation))) {
-          expect(label.key).toMatch(/^c\d$/);
+  for (const azimuth of [0, 16, 45, 100, 196, 290]) {
+    it(`stands them in a short line along the corner's diagonal, each beside its own ring, from ${azimuth}°`, () => {
+      const camera = cameraAt(azimuth, 89.9, 25);
+      const { labels, state } = labelAnchors(layout, 'white', camera, TARGET, null);
+      const row = labels
+        .filter((l) => l.level !== undefined)
+        .map((l) => screen(camera, l.position));
+      // The corner's diagonal on screen: from the tower's axis out to the corner
+      const [cx, cz] = CORNERS[state.corner];
+      const centre = screen(camera, [0, 0, 0]);
+      const post = screen(camera, [cx * frame.half, 0, cz * frame.half]);
+      const out = [post[0] - centre[0], post[1] - centre[1]];
+      const outLength = Math.hypot(out[0], out[1]);
+      row.forEach((p, z) => {
+        // On the diagonal (a sliver of a letter off it at most)...
+        const across = (out[0] * (p[1] - centre[1]) - out[1] * (p[0] - centre[0])) / outLength;
+        expect(Math.abs(across)).toBeLessThan(0.002);
+        // ...just outside its own ring's corner, and inside the next ring's
+        const corner = (level: number) => {
+          const c = screen(camera, [cx * frame.half, frame.levelY[level], cz * frame.half]);
+          return Math.hypot(c[0] - centre[0], c[1] - centre[1]);
+        };
+        const reach = Math.hypot(p[0] - centre[0], p[1] - centre[1]);
+        expect(reach).toBeGreaterThan(corner(z));
+        if (z < 4) expect(reach).toBeLessThan(corner(z + 1) + 0.02);
+        // A to E outward, as the rings nest (E, the nearest, outermost)
+        if (z > 0) {
+          const inner = Math.hypot(row[z - 1][0] - centre[0], row[z - 1][1] - centre[1]);
+          expect(reach).toBeGreaterThan(inner);
         }
-      }
-    }
-  });
-
-  for (const azimuth of [16, 100, 196, 290]) {
-    it(`lines them up a pitch apart along the tower's screen-left edge, A to E up the screen, from ${azimuth}°`, () => {
-      for (const elevation of [LEVEL_SPREAD_TO / DEG, 80, 89.9]) {
-        const camera = cameraAt(azimuth, elevation, 25);
-        const row = letters(camera);
-        expect(row.map((l) => l.key)).toEqual(Array(5).fill(row[0].key));
-        const points = row.map((l) => screen(camera, l.position));
-        for (let z = 1; z < 5; z++) {
-          // Up the screen from A to E, and well apart: a letter is 0.32 to
-          // 0.47 across, about 0.02 of a tangent at this distance
-          const [ax, ay] = points[z - 1];
-          const [bx, by] = points[z];
-          expect(by).toBeGreaterThan(ay);
-          expect(Math.hypot(bx - ax, by - ay)).toBeGreaterThan(0.035);
-        }
-        // Every letter left of the middle of the tower, outside the top platform
-        for (const [i, { position }] of row.entries()) {
-          expect(points[i][0]).toBeLessThan(0);
-          expect(Math.max(Math.abs(position[0]), Math.abs(position[2]))).toBeGreaterThan(
-            frame.half + 0.2,
-          );
-        }
-      }
+      });
+      // Never along the files' or the ranks' line: the diagonal is 45° off both
+      const files = labels
+        .filter((l) => l.id.startsWith('file-'))
+        .map((l) => screen(camera, l.position));
+      const f = [files[4][0] - files[0][0], files[4][1] - files[0][1]];
+      const cos = Math.abs(f[0] * out[0] + f[1] * out[1]) / (Math.hypot(f[0], f[1]) * outLength);
+      expect(Math.acos(cos) / DEG).toBeCloseTo(45, 0);
     });
   }
-
-  it('moves them there smoothly as the camera rises, never by a jump', () => {
-    for (const azimuth of [16, 196, 60]) {
-      let state: AnchorState | null = null;
-      let last: { key: string; position: Vec3 }[] | null = null;
-      for (let elevation = 40; elevation <= 89.9; elevation += 0.25) {
-        const result = labelAnchors(
-          layout,
-          'white',
-          cameraAt(azimuth, elevation, 25),
-          TARGET,
-          state,
-        );
-        state = result.state;
-        const now = result.labels.filter((l) => l.level !== undefined);
-        now.forEach(({ key, position: p }, i) => {
-          if (!last) return;
-          const q = last[i].position;
-          const moved = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-          // A quarter of a degree moves a letter a little way...
-          expect(moved).toBeLessThan(0.2);
-          // ...and a new key (corner to row) finds it where it stood, so
-          // SmartLabels slides it on rather than crossfading
-          if (key !== last[i].key) expect(moved).toBeLessThan(0.3);
-        });
-        last = now;
-      }
-    }
-  });
-
-  it('keeps an edge while the camera wavers around the tie', () => {
-    // At 45° round, the -x and +z edges face left equally
-    const tie = cameraAt(45, 85);
-    const a = chooseLevelEdge(cameraAt(35, 85), TARGET, null);
-    expect(EDGES[a]).toEqual([-1, 0]);
-    expect(chooseLevelEdge(tie, TARGET, a)).toBe(a);
-    expect(chooseLevelEdge(cameraAt(52, 85), TARGET, a)).toBe(a);
-    expect(EDGES[chooseLevelEdge(cameraAt(60, 85), TARGET, a)]).toEqual([0, 1]);
-  });
-
-  /** Where every label stands after the camera has come along `path` ([azimuth, elevation] steps). */
-  const after = (path: [number, number][], orientation: 'white' | 'black' = 'white') => {
-    let state: AnchorState | null = null;
-    let labels: ReturnType<typeof labelAnchors>['labels'] = [];
-    for (const [a, e] of path) {
-      ({ state, labels } = labelAnchors(layout, orientation, cameraAt(a, e), TARGET, state));
-    }
-    return { state: state!, labels };
-  };
-  /** An orbit from `from` to `to`, a degree of azimuth or elevation at a time. */
-  const orbit = (from: [number, number], to: [number, number]): [number, number][] => {
-    const n = Math.max(Math.abs(to[0] - from[0]), Math.abs(to[1] - from[1]), 1);
-    return Array.from({ length: n + 1 }, (_, i): [number, number] => [
-      from[0] + ((to[0] - from[0]) * i) / n,
-      from[1] + ((to[1] - from[1]) * i) / n,
-    ]);
-  };
-
-  it('keeps every file and rank off the letters’ row from high above, whichever way the camera came', () => {
-    const bad: string[] = [];
-    for (const orientation of ['white', 'black'] as const) {
-      for (let azimuth = 0; azimuth < 360; azimuth += 10) {
-        for (const elevation of [LEVEL_SPREAD_TO / DEG, 80, 89.9]) {
-          const camera = cameraAt(azimuth, elevation);
-          for (const [label, path] of [
-            ['fresh', [[azimuth, elevation]]],
-            ['climbing', orbit([azimuth, 30], [azimuth, elevation])],
-            [
-              'from the left',
-              orbit([azimuth - 40, 50], [azimuth - 40, elevation]).concat(
-                orbit([azimuth - 40, elevation], [azimuth, elevation]),
-              ),
-            ],
-            [
-              'from the right',
-              orbit([azimuth + 40, 50], [azimuth + 40, elevation]).concat(
-                orbit([azimuth + 40, elevation], [azimuth, elevation]),
-              ),
-            ],
-          ] as [string, [number, number][]][]) {
-            const { labels } = after(path, orientation);
-            const row = labels.filter((l) => l.level !== undefined);
-            for (const l of labels.filter((l) => l.level === undefined)) {
-              const p = screen(camera, l.position);
-              for (const letter of row) {
-                const q = screen(camera, letter.position);
-                // A pitch between neighbours is about 0.1 here; a letter is
-                // about a third of that across
-                if (Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.05) {
-                  bad.push(
-                    `${l.id} on ${letter.text} from ${azimuth}°/${elevation}° ${label} (${orientation})`,
-                  );
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    expect(bad).toEqual([]);
-  });
-
-  it('draws one layout at a square top-down view, whichever side the camera came from', () => {
-    // The ranks' edge ties exactly here (sin 0°): the camera from the left
-    // holds them on -x, the letters' edge; from the right, on +x
-    const top: [number, number] = [0, 89.9];
-    const views = [
-      after([[-40, 50], top]),
-      after([[40, 50], top]),
-      after(orbit([-40, 50], [-40, 89.9]).concat(orbit([-40, 89.9], top))),
-      after(orbit([40, 50], [40, 89.9]).concat(orbit([40, 89.9], top))),
-      after([top]),
-    ];
-    const [first] = views;
-    expect(first.state.axisLevels).toEqual({ files: 4, ranks: 4 });
-    expect(EDGES[first.state.levelEdge!]).toEqual([-1, 0]);
-    const row = first.labels.filter((l) => l.level !== undefined);
-    expect(new Set(row.map((l) => l.key)).size).toBe(1);
-    for (const l of first.labels.filter((l) => l.id.startsWith('rank'))) {
-      expect(l.position[0]).toBeGreaterThan(frame.half);
-    }
-    for (const { labels } of views) {
-      labels.forEach((l, i) => {
-        expect(l.id).toBe(first.labels[i].id);
-        l.position.forEach((c, k) => expect(c).toBeCloseTo(first.labels[i].position[k], 9));
-      });
-    }
-  });
-
-  it('crosses the files or ranks back only well under where they crossed', () => {
-    // From 60° round the letters take +z, the files' edge, from above
-    const climbing = orbit([60, 50], [60, 89.9]).map(([a, e]) => [a, e] as [number, number]);
-    let state: AnchorState | null = null;
-    const changes: number[] = [];
-    for (const path of [climbing, [...climbing].reverse()]) {
-      for (const [a, e] of path) {
-        const next: AnchorState = labelAnchors(
-          layout,
-          'white',
-          cameraAt(a, e),
-          TARGET,
-          state,
-        ).state;
-        if (state && !!next.crossed !== !!state.crossed) changes.push(e);
-        state = next;
-      }
-    }
-    expect(changes).toHaveLength(2);
-    expect(levelSpread(cameraAt(60, changes[0]), TARGET)).toBeGreaterThanOrEqual(CROSS_ON);
-    expect(levelSpread(cameraAt(60, changes[1]), TARGET)).toBeLessThan(CROSS_OFF);
-  });
 });
 
-describe('towerFramePoints', () => {
-  const frameOf = towerFramePoints(layout, { size: 0.32, levelScale: 1 });
-  /** A camera at `eye` looking at the centre, and the frame's bounds in its view. */
-  const view = (eye: Vec3) => {
-    const camera = new PerspectiveCamera(36, 1, 0.1, 100);
-    camera.position.set(...eye);
-    camera.lookAt(0, 0, 0);
-    camera.updateMatrixWorld();
-    const bounds = viewBounds(
-      frameOf(eye).map((p) => new Vector3(...p)),
-      camera,
-    );
-    return { camera, bounds };
-  };
+describe('towerFrameRings', () => {
+  const rings = towerFrameRings(layout, { size: 0.32, levelScale: 1 });
 
-  it('holds the platforms and every label, wherever the hysteresis has left it', () => {
-    for (const azimuth of [...AZIMUTHS, 45, 90, 135]) {
-      for (const elevation of [-14, 3, 18, 45, 62, 70, 85]) {
+  it('hold the platforms and every label, wherever the hysteresis has left it', () => {
+    const glyph = 0.3 * 0.32;
+    for (const azimuth of [...AZIMUTHS, 45, 90, 135, 3, 93, -93]) {
+      for (const elevation of [-14, 0, 3, 18, 45, 62, 70, 85, 89.9]) {
         const eye = cameraAt(azimuth, elevation, 20);
-        const { camera, bounds } = view(eye);
-        // The labels as drawn after approaching from either side, and from below or above
-        const drawn: Vec3[] = [];
+        const camera = new PerspectiveCamera(36, 1, 0.1, 100);
+        camera.position.set(...eye);
+        camera.lookAt(0, 0, 0);
+        camera.updateMatrixWorld();
+        const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        const up = new Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+        // The labels as drawn after turning or climbing here from either side
+        const drawn: Vector3[] = [];
         for (const [da, de] of [
           [-20, 0],
           [20, 0],
@@ -634,70 +454,47 @@ describe('towerFramePoints', () => {
             const at = cameraAt(azimuth + da * k, Math.min(elevation + de * k, 89.9), 20);
             ({ state } = labelAnchors(layout, 'white', at, TARGET, state));
           }
-          drawn.push(
-            ...labelAnchors(layout, 'white', eye, TARGET, state).labels.map((l) => l.position),
-          );
+          for (const l of labelAnchors(layout, 'white', eye, TARGET, state).labels) {
+            const p = new Vector3(...l.position);
+            for (const [a, b] of CORNERS) {
+              drawn.push(
+                p
+                  .clone()
+                  .addScaledVector(right, a * glyph)
+                  .addScaledVector(up, b * glyph),
+              );
+            }
+          }
         }
         const platforms = frame.levelY.flatMap((y) =>
-          CORNERS.map(([x, z]): Vec3 => [x * frame.half, y, z * frame.half]),
+          CORNERS.map(([x, z]) => new Vector3(x * frame.half, y, z * frame.half)),
         );
-        const inside = viewBounds(
-          [...drawn, ...platforms].map((p) => new Vector3(...p)),
-          camera,
-        );
-        const where = `azimuth ${azimuth}, elevation ${elevation}`;
-        expect(inside.left, where).toBeGreaterThanOrEqual(bounds.left - 1e-9);
-        expect(inside.right, where).toBeLessThanOrEqual(bounds.right + 1e-9);
-        expect(inside.bottom, where).toBeGreaterThanOrEqual(bounds.bottom - 1e-9);
-        expect(inside.top, where).toBeLessThanOrEqual(bounds.top + 1e-9);
+        const bounds = ringBounds(rings, elevation * DEG, 20);
+        for (const p of [...drawn, ...platforms]) {
+          const v = p.clone().applyMatrix4(camera.matrixWorldInverse);
+          const [x, y] = [v.x / -v.z, v.y / -v.z];
+          const where = `azimuth ${azimuth}, elevation ${elevation}`;
+          expect(x, where).toBeGreaterThanOrEqual(bounds.left - 1e-9);
+          expect(x, where).toBeLessThanOrEqual(bounds.right + 1e-9);
+          expect(y, where).toBeGreaterThanOrEqual(bounds.bottom - 1e-9);
+          expect(y, where).toBeLessThanOrEqual(bounds.top + 1e-9);
+        }
       }
     }
   });
 
-  it('frames a glyph round each label, the level letters larger by their scale', () => {
-    const eye = cameraAt(16, 18, 20);
-    const small = towerFramePoints(layout, { size: 0.3, levelScale: 1 })(eye);
-    const large = towerFramePoints(layout, { size: 0.3, levelScale: 2 })(eye);
-    const across = (pts: Vec3[], i: number) =>
-      Math.hypot(pts[i][0] - pts[i + 2][0], pts[i][1] - pts[i + 2][1], pts[i][2] - pts[i + 2][2]);
-    // The platforms and top pieces (24), then the files and ranks, then the letters (last)
-    expect(across(small, 24)).toBeCloseTo(0.4 * 0.3 * 2 * Math.SQRT2);
-    expect(across(large, 24)).toBeCloseTo(across(small, 24));
-    const letter = small.length - 4;
-    expect(across(large, letter)).toBeCloseTo(2 * across(small, letter));
-  });
-
-  it('keeps the centred view steady through an orbit: no jump as labels change place', () => {
-    const shiftAt = (azimuth: number, elevation: number) => {
-      const eye = cameraAt(azimuth, elevation, 22);
-      const camera = new PerspectiveCamera(36, 390 / 844, 0.1, 100);
-      camera.position.set(...eye);
-      camera.lookAt(0, 0, 0);
-      camera.updateMatrixWorld();
-      const points = frameOf(eye).map((p) => new Vector3(...p));
-      return centringShift(viewBounds(points, camera), { width: 390, height: 844, fov: 36 });
-    };
-    // Fine steps, so a slide shows as a small step and only a jump as a big one
-    let worst = 0;
-    for (const azimuth of [16, 196, 60, 130]) {
-      let last = shiftAt(azimuth, -14);
-      for (let elevation = -13.9; elevation <= 89.9; elevation += 0.1) {
-        const now = shiftAt(azimuth, elevation);
-        worst = Math.max(worst, Math.hypot(now[0] - last[0], now[1] - last[1]));
-        last = now;
-      }
+  it('reach the letters only behind the tower, and never past the platforms across', () => {
+    const letters = rings.filter((r) => r.behind !== undefined);
+    expect(letters).toHaveLength(2);
+    for (const r of letters) {
+      expect(r.behind).toBeCloseTo(Math.PI / 4 + EDGE_HYSTERESIS);
+      expect(r.radius).toBeGreaterThan(Math.SQRT2 * frame.half + LETTER_OFFSET);
     }
-    for (const elevation of [10, 45, 80]) {
-      let last = shiftAt(0, elevation);
-      for (let azimuth = 0.1; azimuth <= 360; azimuth += 0.1) {
-        const now = shiftAt(azimuth, elevation);
-        worst = Math.max(worst, Math.hypot(now[0] - last[0], now[1] - last[1]));
-        last = now;
-      }
-    }
-    // A tenth of a degree moves the view's centre by under 2 px on an 844 px
-    // phone (a row of labels jumping to another platform or edge would move
-    // it ten times as far)
-    expect(worst * (844 / (2 * Math.tan((18 * Math.PI) / 180)))).toBeLessThan(2);
+    // From the side the widest thing is the platforms' diagonal (with the
+    // files and ranks, just inside it), not a letter
+    const { right } = ringBounds(rings, 0, 20);
+    const edge = Math.max(...rings.filter((r) => r.behind === undefined).map((r) => r.radius));
+    expect(right).toBeCloseTo(edge / Math.sqrt(20 * 20 - edge * edge), 9);
+    expect(edge).toBeLessThan(Math.SQRT2 * frame.half + 0.2);
   });
 });

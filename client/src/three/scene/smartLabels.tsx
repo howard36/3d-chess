@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { CanvasTexture, SRGBColorSpace, Vector3 } from 'three';
-import type { Sprite, SpriteMaterial, Texture } from 'three';
+import type { Group, Sprite, SpriteMaterial, Texture } from 'three';
 import { FILES, LEVELS, RANKS } from '../../engine/coords';
 import type { Orientation } from '../layout';
 import { LAYER } from './layers';
@@ -48,6 +48,12 @@ export interface SmartLabelsProps extends SmartLabelStyle, AnchorOptions {
   fadeMs?: number;
   /** Test against depth, so pieces can hide labels (they sit outside the tower, so off by default). */
   depthTest?: boolean;
+  /**
+   * The same for the level letters (`depthTest` by default). They stand at
+   * the corner behind the tower, so from low down a piece is often in front
+   * of one: without the test they show over it.
+   */
+  levelDepthTest?: boolean;
   /**
    * The level whose letter to emphasise (usually `focusLevelOf(focus)` from
    * GridProps): it grows by `focusScale` while the other letters dim to
@@ -105,23 +111,23 @@ interface Slot {
 
 const origin = new Vector3();
 
-/** How far (world units) a label's anchor may move with a new key and still slide there instead of crossfading. */
-const SLIDE = 0.3;
-
 /**
  * Coordinate labels for a tower layout that follow the camera: files a–e and
  * ranks 1–5 just outside the two edges of the bottom platform (or of every
- * platform) nearest the camera, and each level letter A–E beside its own
- * platform at the corner furthest left on screen (from high above, where
- * those corners meet, in a row along the tower's screen-left edge), so no
- * label ever sits inside or behind the tower, from either seat. From a camera
- * that dips under 6° (the orbit sinks below the horizon), files and ranks fade as their
- * platform comes edge-on and take its far edges once the camera is under it;
- * the level letters stay. When an orbit carries a label
- * to another edge or corner (past a hysteresis band), it crossfades there
- * rather than jumping. Labels are camera-facing sprites and grow part of the
+ * platform) nearest the camera, and the level letters A–E up the one corner
+ * post that touches neither of those edges, each beside its own platform's
+ * corner: a column up the post from the side, a short line along the
+ * corner's diagonal from above, never in line with the files or ranks, from
+ * either seat (labelAnchors). From a camera that dips under 6° (the orbit
+ * sinks below the horizon), files and ranks fade as their platform comes
+ * edge-on and take its far edges once the camera is under it; the level
+ * letters stay. When an orbit carries labels to another edge or corner (past
+ * a hysteresis band), they crossfade there rather than jumping, the five
+ * letters together. Labels are camera-facing sprites and grow part of the
  * way with distance (`distanceScaling`), so they stay legible zoomed out
  * without swamping a close view. Drawn last, over everything (LAYER.label).
+ * Each sprite carries its label's id (userData.labelId) and the group the
+ * current choice of edges and corner (userData.anchors), for tests and tools.
  */
 export const SmartLabels = ({
   layout,
@@ -141,6 +147,7 @@ export const SmartLabels = ({
   referenceDistance,
   fadeMs = 240,
   depthTest = false,
+  levelDepthTest = depthTest,
   focusLevel = null,
   focusScale = 1.3,
   focusDim = 0.5,
@@ -204,6 +211,7 @@ export const SmartLabels = ({
     [layout, orientation, anchorOptions.everyLevel],
   );
 
+  const group = useRef<Group>(null);
   const sprites = useRef(new Map<string, [Sprite | null, Sprite | null]>());
   const slots = useRef(new Map<string, Slot>());
   const state = useRef<AnchorState | null>(null);
@@ -236,6 +244,7 @@ export const SmartLabels = ({
       options.current,
     );
     state.current = next;
+    if (group.current) group.current.userData.anchors = next;
     const distance = camera.position.distanceTo(target);
     reference.current ??= distance;
     const grow = Math.min(Math.max((distance / reference.current) ** distanceScaling, 0.6), 2);
@@ -265,16 +274,9 @@ export const SmartLabels = ({
         slots.current.set(label.id, slot);
       } else if (slot.key !== label.key) {
         slot.key = label.key;
-        // Crossfade: the idle sprite takes the new anchor and fades in. An
-        // anchor that has not moved (only the reason for the label's place
-        // changed, as when the level letters start lining up from above) is
-        // simply taken over.
-        const [ax, ay, az] = slot.positions[slot.active];
-        const [bx, by, bz] = label.position;
-        if (Math.hypot(bx - ax, by - ay, bz - az) > SLIDE) {
-          slot.active = slot.active === 0 ? 1 : 0;
-          slot.fades[slot.active] = 0;
-        }
+        // Crossfade: the idle sprite takes the new anchor and fades in
+        slot.active = slot.active === 0 ? 1 : 0;
+        slot.fades[slot.active] = 0;
       }
       slot.positions[slot.active] = label.position;
       for (const i of [0, 1] as const) {
@@ -302,7 +304,7 @@ export const SmartLabels = ({
 
   if (!fontReady) return null;
   return (
-    <group name="smart-labels">
+    <group name="smart-labels" ref={group}>
       {ids.map((label: LabelAnchor) =>
         [0, 1].map((i) => (
           <sprite
@@ -313,6 +315,7 @@ export const SmartLabels = ({
               sprites.current.set(label.id, pair);
             }}
             visible={false}
+            userData={{ labelId: label.id }}
             renderOrder={LAYER.label}
             raycast={noRaycast}
           >
@@ -320,7 +323,7 @@ export const SmartLabels = ({
               map={textures.get(label.level !== undefined ? `level-${label.text}` : label.text)}
               transparent
               depthWrite={false}
-              depthTest={depthTest}
+              depthTest={label.level !== undefined ? levelDepthTest : depthTest}
               toneMapped={false}
               fog={false}
             />

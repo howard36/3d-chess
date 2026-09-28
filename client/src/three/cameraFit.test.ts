@@ -7,14 +7,18 @@ import {
   MOVE_CARD_BAND_PX,
   ZOOM_IN,
   ZOOM_OUT,
-  boxCorners,
+  boxRings,
   centringShift,
+  elevationOf,
+  FIT_SOFTNESS,
   fitDistance,
   fitView,
-  viewBounds,
+  ringBounds,
   zoomRange,
 } from './cameraFit';
+import type { FrameRing } from './cameraFit';
 import { towerLayout } from './layout';
+import { towerFrameRings } from './scene/labelAnchors';
 import { lensShiftOf, setLensShift } from './viewOffset';
 
 // The board's box and opening view: the tower's
@@ -88,39 +92,136 @@ describe('zoomRange', () => {
   });
 });
 
-// The tall tower box of the kit's layouts, seen from its opening view (18° up, 16° round)
-const TOWER: [number, number, number] = [2.8, 3.15, 2.8];
-const TOWER_VIEW = new Vector3(
-  Math.sin(0.28) * Math.cos(0.314),
-  Math.sin(0.314),
-  Math.cos(0.28) * Math.cos(0.314),
-);
+const DEG = Math.PI / 180;
 
-/** A camera fitted by fitView, with its lens shift applied; and the points' rectangle on screen in CSS px. */
+/** A camera `distance` out at this elevation and azimuth (degrees), looking at the origin. */
+const cameraAt = (elevation: number, azimuth: number, distance: number, aspect = 1) => {
+  const camera = new PerspectiveCamera(36, aspect, 0.1, 1000);
+  const [e, a] = [elevation * DEG, azimuth * DEG];
+  camera.position.set(
+    Math.sin(a) * Math.cos(e) * distance,
+    Math.sin(e) * distance,
+    Math.cos(a) * Math.cos(e) * distance,
+  );
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+  return camera;
+};
+
+/** Where a world point falls in a camera's view, as tangents off its axis (x right, y up). */
+const tangents = (camera: PerspectiveCamera, p: Vector3) => {
+  const v = p.clone().applyMatrix4(camera.matrixWorldInverse);
+  return { x: v.x / -v.z, y: v.y / -v.z };
+};
+
+/** Points round a ring (or its arc behind the axis), every tenth of a degree. */
+const ringPoints = ({ y, radius, behind }: FrameRing) =>
+  Array.from({ length: 3600 }, (_, i) => (i / 10) * DEG)
+    .filter((t) => behind === undefined || Math.abs(t - Math.PI) <= behind)
+    .map((t) => new Vector3(radius * Math.sin(t), y, radius * Math.cos(t)));
+
+// A tower's rings: platforms, pieces, and letters behind it
+const RINGS: FrameRing[] = [
+  { y: -3.1, radius: 3.6 },
+  { y: 2.4, radius: 3.6 },
+  { y: 3.2, radius: 3.25 },
+  { y: -2.9, radius: 4.1, behind: 55 * DEG },
+  { y: 2.6, radius: 4.1, behind: 55 * DEG },
+];
+
+describe('ringBounds', () => {
+  it('bounds the rings exactly as the camera sees them, from any azimuth', () => {
+    for (const elevation of [-14, 0, 18, 45, 75, 89.9]) {
+      for (const distance of [12, 20, 40]) {
+        const bounds = ringBounds(RINGS, elevation * DEG, distance);
+        for (const azimuth of [0, 16, 45, 133, 250]) {
+          const camera = cameraAt(elevation, azimuth, distance);
+          const seen = RINGS.flatMap((r) =>
+            ringPoints({ ...r, behind: undefined })
+              .map((p) => {
+                // An arc behind the axis turns with the camera: rotate it round
+                if (r.behind === undefined) return p;
+                const t = Math.atan2(p.x, p.z);
+                if (Math.abs(Math.abs(t) - Math.PI) > r.behind) return null;
+                return p.clone().applyAxisAngle(new Vector3(0, 1, 0), azimuth * DEG);
+              })
+              .filter((p): p is Vector3 => p !== null)
+              .map((p) => tangents(camera, p)),
+          );
+          const xs = seen.map((p) => p.x);
+          const ys = seen.map((p) => p.y);
+          const where = `elevation ${elevation}, distance ${distance}, azimuth ${azimuth}`;
+          expect(bounds.left, where).toBeCloseTo(Math.min(...xs), 5);
+          expect(bounds.right, where).toBeCloseTo(Math.max(...xs), 5);
+          expect(bounds.bottom, where).toBeCloseTo(Math.min(...ys), 5);
+          expect(bounds.top, where).toBeCloseTo(Math.max(...ys), 5);
+          expect(bounds.left).toBe(-bounds.right);
+        }
+      }
+    }
+  });
+
+  it('eases the top and bottom from ring to ring and side to side, never inside the rings', () => {
+    for (const elevation of [-14, -12, 0, 18, 89.9]) {
+      const hard = ringBounds(RINGS, elevation * DEG, 15);
+      const soft = ringBounds(RINGS, elevation * DEG, 15, FIT_SOFTNESS);
+      expect(soft.top).toBeGreaterThanOrEqual(hard.top);
+      expect(soft.bottom).toBeLessThanOrEqual(hard.bottom);
+      // By at most the softness for each of the rings' sides that could tie
+      const most = FIT_SOFTNESS * Math.log(2 * RINGS.length);
+      expect(soft.top - hard.top).toBeLessThan(most);
+      expect(hard.bottom - soft.bottom).toBeLessThan(most);
+      expect(soft.right).toBe(hard.right);
+    }
+  });
+
+  it('frames a box by the circles round its top and bottom', () => {
+    const [hx, hy, hz] = BOX;
+    const bounds = ringBounds(boxRings(BOX), 18 * DEG, 20);
+    for (const azimuth of [0, 16, 45, 90]) {
+      const camera = cameraAt(18, azimuth, 20);
+      for (const c of corners) {
+        const { x, y } = tangents(camera, c);
+        expect(x).toBeLessThanOrEqual(bounds.right + 1e-12);
+        expect(x).toBeGreaterThanOrEqual(bounds.left - 1e-12);
+        expect(y).toBeLessThanOrEqual(bounds.top + 1e-12);
+        expect(y).toBeGreaterThanOrEqual(bounds.bottom - 1e-12);
+      }
+    }
+    expect(boxRings(BOX)[0]).toEqual({ y: -hy, radius: Math.hypot(hx, hz) });
+  });
+
+  it('reads the elevation off the camera', () => {
+    const camera = cameraAt(35, 120, 18);
+    expect(elevationOf(camera.position, new Vector3()) / DEG).toBeCloseTo(35, 9);
+    expect(elevationOf(new Vector3(), new Vector3())).toBe(0);
+  });
+});
+
+/** The rings fitted by fitView, the lens shift applied, and their outline's margins on screen in CSS px. */
 function fitted(
-  direction: Vector3,
+  elevation: number,
+  azimuth: number,
   width: number,
   height: number,
-  points = boxCorners(TOWER),
+  rings = RINGS,
   topInset?: number,
   bottomInset?: number,
 ) {
-  const fov = 36;
   const view = {
     width,
     height,
-    fov,
+    fov: 36,
     ...(topInset !== undefined ? { topInset } : {}),
     ...(bottomInset !== undefined ? { bottomInset } : {}),
   };
-  const { distance, shift } = fitView(direction, points, view);
-  const camera = new PerspectiveCamera(fov, width / height, 0.1, 1000);
-  camera.position.copy(direction).normalize().multiplyScalar(distance);
-  camera.lookAt(0, 0, 0);
-  camera.updateMatrixWorld();
+  const { distance, shift } = fitView(elevation * DEG, rings, view);
+  const camera = cameraAt(elevation, azimuth, distance, width / height);
   setLensShift(camera, shift, width, height);
-  const px = points.map((p) => {
-    const n = p.clone().project(camera);
+  const px = rings.flatMap(ringPoints).map((p) => {
+    // (arcs as seen from azimuth 0; turned with the camera)
+    const q = p.clone().applyAxisAngle(new Vector3(0, 1, 0), azimuth * DEG);
+    const n = q.project(camera);
     return [((n.x + 1) / 2) * width, ((1 - n.y) / 2) * height];
   });
   const xs = px.map(([x]) => x);
@@ -131,7 +232,16 @@ function fitted(
     top: Math.min(...ys),
     bottom: height - Math.max(...ys),
   };
-  return { distance, shift, camera, rect };
+  // The bounds the fit centres: the rings' top and bottom eased from ring to
+  // ring (FIT_SOFTNESS), never inside the rings themselves
+  const soft = ringBounds(rings, elevation * DEG, distance, FIT_SOFTNESS);
+  const k = height / (2 * Math.tan(18 * DEG));
+  const framed = {
+    ...rect,
+    top: height / 2 - (soft.top - shift[1]) * k,
+    bottom: height / 2 + (soft.bottom - shift[1]) * k,
+  };
+  return { distance, shift, camera, rect, framed };
 }
 
 describe('fitView', () => {
@@ -141,24 +251,30 @@ describe('fitView', () => {
     ['an upright phone', 390, 844],
     ['a phone on its side', 844, 390],
     ['a narrow window', 500, 1000],
-  ])('centres the tower in %s, below the HUD band, and fills it on one axis', (_, w, h) => {
-    for (const direction of [TOWER_VIEW, new Vector3(6.5, 5, 8.5), new Vector3(0.1, 1, 0.3)]) {
-      const { rect } = fitted(direction, w, h);
-      // Centred across, and in the band below the HUD's top rows
-      expect(Math.abs(rect.left - rect.right)).toBeLessThan(0.5);
-      expect(Math.abs(rect.top - HUD_TOP_PX - rect.bottom)).toBeLessThan(0.5);
-      expect(rect.top).toBeGreaterThan(HUD_TOP_PX);
-      // Fills the window on its tighter axis, with a little room to spare
-      const across = (w - rect.left - rect.right) / w;
-      const down = (h - rect.top - rect.bottom) / (h - HUD_TOP_PX);
-      expect(Math.max(across, down)).toBeGreaterThan(0.94);
-      expect(Math.max(across, down)).toBeLessThan(0.96);
+  ])('centres the rings in %s, below the HUD band, and fills it on one axis', (_, w, h) => {
+    for (const elevation of [-14, 18, 55, 89.9]) {
+      for (const azimuth of [0, 16, 45, 200]) {
+        const { rect, framed, shift } = fitted(elevation, azimuth, w, h);
+        // Centred across, and in the band below the HUD's top rows
+        expect(Math.abs(rect.left - rect.right)).toBeLessThan(0.5);
+        expect(Math.abs(framed.top - HUD_TOP_PX - framed.bottom)).toBeLessThan(0.5);
+        expect(rect.top).toBeGreaterThanOrEqual(framed.top - 0.5);
+        expect(rect.bottom).toBeGreaterThanOrEqual(framed.bottom - 0.5);
+        expect(framed.top).toBeGreaterThan(HUD_TOP_PX);
+        // Fills the window on its tighter axis, with a little room to spare
+        const across = (w - rect.left - rect.right) / w;
+        const down = (h - framed.top - framed.bottom) / (h - HUD_TOP_PX);
+        expect(Math.max(across, down)).toBeGreaterThan(0.94);
+        expect(Math.max(across, down)).toBeLessThan(0.96);
+        // The lens only ever shifts up or down
+        expect(shift[0]).toBe(0);
+      }
     }
   });
 
   it('centres in the whole window without a HUD band', () => {
-    const { rect } = fitted(TOWER_VIEW, 1280, 720, boxCorners(TOWER), 0);
-    expect(Math.abs(rect.top - rect.bottom)).toBeLessThan(0.5);
+    const { rect, framed } = fitted(18, 16, 1280, 720, RINGS, 0);
+    expect(Math.abs(framed.top - framed.bottom)).toBeLessThan(0.5);
     expect(Math.abs(rect.left - rect.right)).toBeLessThan(0.5);
   });
 
@@ -168,57 +284,51 @@ describe('fitView', () => {
       [390, 844],
       [768, 1024],
     ]) {
-      const { rect } = fitted(TOWER_VIEW, w, h, boxCorners(TOWER), HUD_TOP_PX, MOVE_CARD_BAND_PX);
+      const { rect, framed } = fitted(18, 16, w, h, RINGS, HUD_TOP_PX, MOVE_CARD_BAND_PX);
       expect(rect.bottom).toBeGreaterThan(MOVE_CARD_BAND_PX);
       expect(rect.top).toBeGreaterThan(HUD_TOP_PX);
-      expect(Math.abs(rect.top - HUD_TOP_PX - (rect.bottom - MOVE_CARD_BAND_PX))).toBeLessThan(0.5);
+      expect(Math.abs(framed.top - HUD_TOP_PX - (framed.bottom - MOVE_CARD_BAND_PX))).toBeLessThan(
+        0.5,
+      );
     }
   });
 
   it('frames the tower larger than the symmetric fit, which it used to sit low or aside in', () => {
-    for (const [w, h] of [
-      [1280, 720],
-      [390, 844],
+    // The tower with its labels, as the game frames it, against the box its
+    // layout gives for the labels' room, fitted symmetrically
+    const tower = towerLayout({ pieceHeight: 0.87 * 0.8, minElevation: -14 });
+    const rings = towerFrameRings(tower, { size: 0.32, levelScale: 1 });
+    // (8%, 5% and 1% closer, where the framing of the outline as seen was
+    // 10%, 8% and 3% closer, before it held still as the view turned)
+    for (const [w, h, most] of [
+      [1280, 720, 0.93],
+      [390, 844, 0.95],
+      [844, 390, 1],
     ]) {
-      const old = fitDistance(TOWER_VIEW, w / h, 36, TOWER);
-      expect(fitted(TOWER_VIEW, w, h).distance).toBeLessThan(old * 0.97);
+      const old = fitDistance(VIEW, w / h, 36, tower.halfExtents);
+      const elevation = Math.asin(VIEW.y / VIEW.length()) / DEG;
+      expect(fitted(elevation, 16, w, h, rings).distance).toBeLessThan(old * most);
     }
   });
 
-  it('frames extra points, such as labels standing outside the box', () => {
-    const labels = [new Vector3(-3.6, -2, 2.4), new Vector3(-3.6, 2, -2.4)];
-    const plain = fitted(TOWER_VIEW, 390, 844);
-    const framed = fitted(TOWER_VIEW, 390, 844, [...boxCorners(TOWER), ...labels]);
-    expect(framed.distance).toBeGreaterThan(plain.distance);
-    expect(Math.abs(framed.rect.left - framed.rect.right)).toBeLessThan(0.5);
+  it('stands further back for wider rings', () => {
+    const wider = RINGS.map((r) => ({ ...r, radius: r.radius * 1.2 }));
+    expect(fitted(18, 0, 390, 844, wider).distance).toBeGreaterThan(
+      fitted(18, 0, 390, 844).distance,
+    );
   });
 
   it('turns the camera about the board centre: the lens shift moves the picture, never the camera', () => {
-    const { camera, shift } = fitted(TOWER_VIEW, 1280, 720);
+    const { camera, shift } = fitted(18, 16, 1280, 720);
     // The camera still looks straight at the origin
     const ahead = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     expect(ahead.dot(camera.position.clone().normalize().negate())).toBeCloseTo(1, 6);
-    // The board sat low: the shift moves the view down onto it
+    // The tower sat low: the shift moves the view down onto it
     expect(shift[1]).toBeLessThan(0);
   });
 });
 
-describe('centringShift and viewBounds', () => {
-  it('measures points as tangents off the camera axis', () => {
-    const camera = new PerspectiveCamera(36, 1, 0.1, 100);
-    camera.position.set(0, 0, 10);
-    camera.lookAt(0, 0, 0);
-    camera.updateMatrixWorld();
-    const b = viewBounds(
-      [new Vector3(-1, 0, 0), new Vector3(2, 3, 0), new Vector3(0, -1, 5)],
-      camera,
-    );
-    expect(b.left).toBeCloseTo(-0.1);
-    expect(b.right).toBeCloseTo(0.2);
-    expect(b.top).toBeCloseTo(0.3);
-    expect(b.bottom).toBeCloseTo(-0.2);
-  });
-
+describe('centringShift', () => {
   it('aims the view at the middle of the bounds, lowered by half the HUD band', () => {
     const bounds = { left: -0.1, right: 0.3, bottom: -0.2, top: 0.2 };
     const tanV = Math.tan((36 * Math.PI) / 360);

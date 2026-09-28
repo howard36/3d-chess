@@ -1,5 +1,6 @@
 import type { Coord } from '../engine/coords';
 import type { PieceType } from '../engine/pieces';
+import type { FrameRing } from './cameraFit';
 import type { Orientation } from './layout';
 
 // Shapes shared by the board (Board.tsx, which keeps every rule about what
@@ -36,12 +37,13 @@ export interface BoardLayout {
   /** Half the board's bounding box, for framing the camera. */
   halfExtents: Vec3;
   /**
-   * What the camera's framing keeps in view, seen from a camera at `eye`
-   * looking at the board's centre: the board's own outline and the labels
-   * standing outside it (towerFramePoints in scene/labelAnchors.ts).
-   * Without it, the halfExtents box.
+   * What the camera's framing keeps in view from every side: circles about
+   * the board's vertical axis round its platforms, pieces and labels
+   * (towerFrameRings in scene/labelAnchors.ts), which look the same however
+   * the view has turned, so turning never moves the framing (FitCameraToBoard).
+   * Without them, the rings round the halfExtents box.
    */
-  framePoints?: (eye: Vec3) => Vec3[];
+  frameRings?: readonly FrameRing[];
   /** Direction from the board's centre to the camera when a game opens. */
   viewDirection: Vec3;
   /** Orbit and zoom limits. */
