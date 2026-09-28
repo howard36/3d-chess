@@ -85,7 +85,7 @@ export const MARKER_SETTINGS: SettingSpec[] = [
     max: 0.6,
     step: 0.01,
     format: percent,
-    hint: 'How far over the king’s cross the crown floats, as a share of his height. Set low, a lifted king can reach it.',
+    hint: 'How far over the king’s cross the crown floats, as a share of his height (never so low that he reaches it when held).',
   },
   {
     kind: 'slider',

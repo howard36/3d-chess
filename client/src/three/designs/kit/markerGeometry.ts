@@ -87,6 +87,22 @@ export interface TracePathOptions {
   arc?: number;
   /** Samples along an arc (a straight line is its two ends). */
   segments?: number;
+  /**
+   * Land this far short of the destination's centre, level with its floor
+   * and on the side facing the source (default 0: at the centre). Just
+   * outside the footprint of the piece standing there, the line then meets
+   * the platform beside it, in plain view, instead of running into the piece.
+   * A move straight up or down lands on `insetSide`.
+   */
+  inset?: number;
+  /** For a move straight up or down: the level direction to land in, [x, z] (default [1, 0]). */
+  insetSide?: readonly [number, number];
+  /**
+   * The level direction [x, z] the player's seat looks from. A landing that
+   * would fall behind the piece seen from there, hidden by it, turns to the
+   * piece's side instead (toward the source's side, else `insetSide`).
+   */
+  insetFront?: readonly [number, number];
 }
 
 /**
@@ -94,15 +110,31 @@ export interface TracePathOptions {
  * square's floor to the centre of the destination's, raised `lift` off the
  * platforms: a straight segment, whatever the level change (a vertical move
  * runs straight up or down through the squares' centres), or, for a knight
- * when knights arc, exactly the arc the piece flew (movePoint in movePath.ts,
- * the same curve as the glide). It ends inside the piece that moved, which
- * hides the end of the line standing over it.
+ * when knights arc, the arc the piece flew (movePoint in movePath.ts, the
+ * same curve as the glide). Without an `inset` it ends inside the piece that
+ * moved, which hides the end of the line standing over it; with one it
+ * lands on the floor beside that piece.
  */
 export const tracePath = (from: Vec3, to: Vec3, o: TracePathOptions = {}): Vec3[] => {
   const lift = o.lift ?? 0.03;
   const arc = o.arc ?? 0;
+  const inset = o.inset ?? 0;
+  const dx = from[0] - to[0];
+  const dz = from[2] - to[2];
+  const level = Math.hypot(dx, dz);
+  const side = o.insetSide ?? [1, 0];
+  let [sx, sz] = level > 1e-6 ? [dx / level, dz / level] : side;
+  const front = o.insetFront;
+  const toward = front && level > 1e-6 ? sx * front[0] + sz * front[1] : 0;
+  if (front && toward < 0) {
+    // Behind the piece from the seat: to its side, on the source's side
+    const lx = sx - toward * front[0];
+    const lz = sz - toward * front[1];
+    const l = Math.hypot(lx, lz);
+    [sx, sz] = l > 1e-3 ? [lx / l, lz / l] : side;
+  }
   const a: Vec3 = [from[0], from[1] + lift, from[2]];
-  const b: Vec3 = [to[0], to[1] + lift, to[2]];
+  const b: Vec3 = [to[0] + sx * inset, to[1] + lift, to[2] + sz * inset];
   if (arc <= 0) return [a, b];
   const n = Math.max(2, Math.round(o.segments ?? 32));
   return Array.from({ length: n + 1 }, (_, i) => movePoint(a, b, i / n, arc));

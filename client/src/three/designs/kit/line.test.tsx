@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { act } from 'react';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
-import { BackSide, GreaterDepth, LessEqualDepth, Matrix4, Vector3 } from 'three';
+import { BackSide, LessEqualDepth, Matrix4, Vector3 } from 'three';
 import type { BufferGeometry, InstancedMesh, Mesh, ShaderMaterial } from 'three';
-import { LastMoveLine, PIECE_COLUMN } from './line';
+import { LastMoveLine } from './line';
 import { LevelGrid } from './grid';
 import { LevelBand, levelBandGeometry } from './plates';
 import { clarityTower, towerFrame } from './layouts';
@@ -38,47 +38,44 @@ describe('LastMoveLine', () => {
     expect(tube.raycast.length).toBe(0);
   });
 
-  it('shows its end through the piece on the destination, so it reaches the floor’s centre', async () => {
-    // Coming down onto the destination from a level above, where the piece
-    // standing there would hide its last stretch
-    const from: Vec3 = [0, 2.7, 2];
-    const to: Vec3 = [1, 0, 0];
+  it('is hidden by whatever stands in front of it: never drawn through a piece', async () => {
+    const r = await ReactThreeTestRenderer.create(<LastMoveLine from={FROM} to={TO} />);
+    const all = meshes(r.scene as ReactThreeTestInstance);
+    // One tube, one ordinary depth test (no second pass drawn where hidden)
+    expect(all).toHaveLength(1);
+    expect((all[0].material as ShaderMaterial).depthFunc).toBe(LessEqualDepth);
+  });
+
+  it('lands `inset` short of the destination, beside the piece standing there', async () => {
+    const inset = 0.27;
+    // Down a level, diagonally: it lands on the side facing the source
     const r = await ReactThreeTestRenderer.create(
-      <LastMoveLine from={from} to={to} pattern="dashed" throughPiece={0.5} drawInMs={300} />,
+      <LastMoveLine from={[0, 1.35, 0]} to={[1, 0, 1]} radius={0.01} lift={0.02} inset={inset} />,
     );
-    const [tube, through] = meshes(r.scene as ReactThreeTestInstance);
-    const main = tube.material as ShaderMaterial;
-    const seen = through.material as ShaderMaterial;
-    // The same tube, drawn a second time only where something hides it
-    expect(through.geometry).toBe(tube.geometry);
-    expect(main.depthFunc).toBe(LessEqualDepth);
-    expect(seen.depthFunc).toBe(GreaterDepth);
-    expect(seen.depthWrite).toBe(false);
-    expect(through.raycast.length).toBe(0);
-    // ...only inside the column the piece stands in, at half the opacity
-    expect(main.uniforms.uThrough.value).toBe(0);
-    expect(seen.uniforms.uThrough.value).toBe(0.5);
-    expect((seen.uniforms.uColumn.value as Vector3).toArray()).toEqual(to);
-    expect(seen.uniforms.uColumnSize.value.toArray()).toEqual([
-      PIECE_COLUMN.radius,
-      PIECE_COLUMN.height,
-    ]);
-    // Styled, flowing and drawn in with the line itself
-    expect(seen.uniforms.uColor).toBe(main.uniforms.uColor);
-    expect(seen.uniforms.uReveal).toBe(main.uniforms.uReveal);
-    await act(async () => r.advanceFrames(20, 1 / 30));
-    expect(seen.uniforms.uReveal.value).toBeGreaterThan(100);
-    // The tube ends a lift above the destination's floor centre, not above the square
+    const [tube] = meshes(r.scene as ReactThreeTestInstance);
     const g = tube.geometry as BufferGeometry;
     g.computeBoundingBox();
-    expect(g.boundingBox!.min.y).toBeLessThan(to[1] + 0.03);
-    expect(g.boundingBox!.min.y).toBeGreaterThan(to[1] - 0.01);
-
-    // throughPiece 0: the piece hides the end, as before
-    const plain = await ReactThreeTestRenderer.create(
-      <LastMoveLine from={from} to={to} throughPiece={0} />,
+    const k = 1 - inset / Math.SQRT2;
+    expect(g.boundingBox!.max.x).toBeCloseTo(k + 0.01, 2);
+    expect(g.boundingBox!.max.z).toBeCloseTo(k + 0.01, 2);
+    // On the floor, not above it
+    expect(g.boundingBox!.min.y).toBeGreaterThan(0);
+    expect(g.boundingBox!.min.y).toBeLessThan(0.02);
+    // Straight down: on the given side
+    const v = await ReactThreeTestRenderer.create(
+      <LastMoveLine
+        from={[0, 1.35, 0]}
+        to={[0, 0, 0]}
+        radius={0.01}
+        inset={inset}
+        insetSide={[0, -1]}
+      />,
     );
-    expect(meshes(plain.scene as ReactThreeTestInstance)).toHaveLength(1);
+    const [down] = meshes(v.scene as ReactThreeTestInstance);
+    const gd = down.geometry as BufferGeometry;
+    gd.computeBoundingBox();
+    expect(gd.boundingBox!.min.z).toBeCloseTo(-inset - 0.01, 2);
+    expect(gd.boundingBox!.max.x).toBeCloseTo(0.01, 2);
   });
 
   it('draws a keyline behind the tube when asked', async () => {
@@ -110,15 +107,10 @@ describe('LastMoveLine', () => {
     const r = await ReactThreeTestRenderer.create(
       <LastMoveLine from={FROM} to={[1, 0, 0]} pattern="dotted" spacing={0.2} beadRadius={0.04} />,
     );
-    const [beads, through] = (r.scene as ReactThreeTestInstance)
-      .findAll((n) => (n.instance as unknown as InstancedMesh).isInstancedMesh === true)
-      .map((n) => n.instance as unknown as InstancedMesh);
+    const beads = (r.scene as ReactThreeTestInstance).findAll(
+      (n) => (n.instance as unknown as InstancedMesh).isInstancedMesh === true,
+    )[0].instance as unknown as InstancedMesh;
     expect(beads.count).toBe(6);
-    // The beads show through the piece on the destination too, in the same places
-    expect((through.material as ShaderMaterial).depthFunc).toBe(GreaterDepth);
-    expect(Array.from(through.instanceMatrix.array)).toEqual(
-      Array.from(beads.instanceMatrix.array),
-    );
     const m = new Matrix4();
     const p = new Vector3();
     for (let i = 0; i < beads.count; i++) {
