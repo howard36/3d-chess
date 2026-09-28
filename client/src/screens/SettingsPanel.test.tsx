@@ -53,7 +53,7 @@ describe('SettingsPanel', () => {
     const heading = (name: string) => screen.getByRole('button', { name });
     expect(heading('Play')).toHaveAttribute('aria-expanded', 'true');
     expect(heading('Board')).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('switch', { name: 'Keyboard play' })).toHaveAttribute(
+    expect(screen.getByRole('switch', { name: 'Notation panel' })).toHaveAttribute(
       'aria-checked',
       'false',
     );
@@ -146,7 +146,7 @@ describe('the settings gear', () => {
     expect(gear).toHaveAttribute('aria-controls', region.id);
 
     // Escape from inside the panel hands the keyboard back to the gear
-    screen.getByRole('switch', { name: 'Keyboard play' }).focus();
+    screen.getByRole('switch', { name: 'Notation panel' }).focus();
     act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
     expect(screen.queryByTestId('settings-panel')).toBeNull();
     expect(gear).toHaveFocus();
@@ -170,7 +170,7 @@ describe('the settings gear', () => {
     );
     fireEvent.click(screen.getByTestId('settings'));
     // Controls inside take the pointer without closing it
-    fireEvent.pointerDown(screen.getByRole('switch', { name: 'Keyboard play' }));
+    fireEvent.pointerDown(screen.getByRole('switch', { name: 'Notation panel' }));
     fireEvent.pointerDown(screen.getByTestId('board'));
     expect(screen.getByTestId('settings-panel')).toBeInTheDocument();
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Elsewhere' }));
@@ -181,7 +181,7 @@ describe('the settings gear', () => {
     render(<SettingsGear />);
     const gear = screen.getByTestId('settings');
     fireEvent.click(gear);
-    fireEvent.click(screen.getByRole('switch', { name: 'Keyboard play' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Notation panel' }));
     expect(gear).toHaveAccessibleName('Settings (1 changed)');
   });
 

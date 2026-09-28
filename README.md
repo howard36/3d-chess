@@ -166,7 +166,7 @@ Key decisions:
   live connection shows as an outlined stone and "Offline"; a connected one is not marked.
   Once the game is over the pill gives the result from the player's side ("Checkmate ·
   you win"). Under the pill, only while they apply: "Reconnecting…" (the pill dims), the
-  latest error and the frozen-record notice. The **Keyboard play** setting (the panel's
+  latest error and the frozen-record notice. The **Notation panel** setting (the panel's
   first group, Play) shows the **move card** at the bottom left (across the bottom in a
   window no wider than 13:9, with the camera fit keeping that band clear: `hudBands` in
   `three/cameraFit.ts`): the cell under the pointer, the moves so far and the move box;
@@ -324,7 +324,8 @@ All motion runs on r3f's clock, and the canvas renders on demand.
 
 A gear at the top right, in the game and on the start screen, opens the settings
 (`screens/SettingsPanel.tsx`) in seven groups: Play, Board, World, Pieces, Selection,
-Markers and Check. Play holds **Keyboard play**, which shows the move card (see HUD).
+Markers and Check. Play holds the **Notation panel**, which shows the move card (see HUD):
+the moves so far and a field to type a move, both in notation.
 Among the rest are the checker and borders of the levels, the garden's sculptures and
 sky, the dark army's tone, how far pieces lift, **Knight moves** (Straight, the default, or
 Arc), the capture marker, the last-move line and the blades round a king in check.

@@ -78,7 +78,7 @@ export const HUD_TOP_PX = 56;
 
 /**
  * Rows kept at the bottom for the move card while it spans the bottom of the
- * window (index.css: Keyboard play on, in a window no wider than 13:9 and
+ * window (index.css: the Notation panel on, in a window no wider than 13:9 and
  * taller than 480 px). The card is 82 px tall there, 14 px up.
  */
 export const MOVE_CARD_BAND_PX = 100;

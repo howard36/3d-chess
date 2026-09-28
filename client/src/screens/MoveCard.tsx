@@ -16,7 +16,7 @@ export interface MoveCardProps {
   /** It is this player's turn (whether or not the board takes input). */
   yourTurn: boolean;
   onMove: (move: Move) => void;
-  /** The Keyboard play setting: show the list, the readout and the field. */
+  /** The Notation panel setting: show the list, the readout and the field. */
   shown: boolean;
   /** The cell under the pointer, while the card is shown. */
   hovered: HoveredCell | null;
@@ -45,7 +45,7 @@ const Enter = () => (
 
 /**
  * The moves so far and a field to type the next one ("Bb1-Cb1", "=Q" to
- * promote), at the bottom left. The Keyboard play setting shows it, with the
+ * promote), at the bottom left. The Notation panel setting shows it, with the
  * cell under the pointer on top. Without the setting it stays in the page but
  * out of sight: the list for screen readers, and the field, which appears
  * when it takes keyboard focus (Tab) and goes again when it loses it empty.

@@ -29,9 +29,9 @@ test('two players each play a move by clicking the board', async ({ browser }) =
 });
 
 // The keyboard's way to play: Tab reaches the move field (hidden until then),
-// Enter sends the move, and it lands on both boards. With Keyboard play on,
+// Enter sends the move, and it lands on both boards. With the Notation panel on,
 // the move card stays on screen with the moves so far.
-test('a player can play from the keyboard, and show the moves with Keyboard play', async ({
+test('a player can play from the keyboard, and show the moves with the Notation panel', async ({
   browser,
 }) => {
   const game = await startGame(browser);
@@ -51,10 +51,10 @@ test('a player can play from the keyboard, and show the moves with Keyboard play
     await expect(page.getByTestId('move-announcer')).toHaveAttribute('data-last-move', 'Bb1-Cb1');
   }
 
-  // Keyboard play, from the settings panel: the card and its list stay shown
+  // The Notation panel, from the settings panel: the card and its list stay shown
   const black = game.black;
   await black.getByTestId('settings').click();
-  await black.getByRole('switch', { name: 'Keyboard play' }).click();
+  await black.getByRole('switch', { name: 'Notation panel' }).click();
   await black.getByRole('button', { name: 'Close settings' }).click();
   await expect(black.getByTestId('move-card')).not.toHaveAttribute('data-hidden');
   await expect(black.getByRole('list', { name: 'Move history' })).toBeVisible();

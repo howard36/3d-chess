@@ -929,7 +929,7 @@ test("GameScreen's move box only plays on the player's turn, and says so", async
   expect(screen.getByText('Wait for their move.')).toBeInTheDocument();
 });
 
-test('GameScreen keeps the move card out of sight until Keyboard play or Tab asks for it', async () => {
+test('GameScreen keeps the move card out of sight until the Notation panel or Tab asks for it', async () => {
   renderGameScreen('abc123', fakeSocket(started));
   const card = screen.getByTestId('move-card');
   // Out of sight, but in the page: the list for screen readers, the field for Tab
@@ -958,10 +958,10 @@ test('GameScreen keeps the move card out of sight until Keyboard play or Tab ask
   await userEvent.keyboard('{Escape}');
   expect(card).toHaveAttribute('data-hidden');
 
-  act(() => setSetting('play.keyboard', true));
+  act(() => setSetting('play.notation', true));
   expect(card).not.toHaveAttribute('data-hidden');
   expect(screen.getByRole('list', { name: 'Move history' })).toHaveClass('hud-moves');
-  act(() => setSetting('play.keyboard', false));
+  act(() => setSetting('play.notation', false));
   expect(card).toHaveAttribute('data-hidden');
 });
 

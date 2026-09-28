@@ -3,17 +3,18 @@ import { ENV_SETTINGS } from './settings-env';
 import { MARKER_SETTINGS } from './settings-markers';
 import { PIECE_SETTINGS } from './settings-pieces';
 
-// How the game is played rather than how it looks: Keyboard play shows the
-// move card (the moves so far, the cell under the pointer and a field to type
-// a move). Off, the card stays out of sight, but Tab still reaches its field.
+// How the game is played rather than how it looks: the Notation panel shows
+// the move card (the moves so far, the cell under the pointer and a field to
+// type a move, all in notation). Off, the card stays out of sight, but Tab
+// still reaches its field.
 const PLAY_SETTINGS: SettingSpec[] = [
   {
     kind: 'toggle',
-    key: 'play.keyboard',
-    label: 'Keyboard play',
+    key: 'play.notation',
+    label: 'Notation panel',
     group: 'Play',
     default: false,
-    hint: 'Type moves (Bb1-Cb1) and see the moves so far. Tab reaches the move field either way.',
+    hint: 'The moves so far, and a field to type a move (e.g. Bb1-Cb1). Tab reaches the field either way.',
   },
 ];
 

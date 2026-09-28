@@ -110,14 +110,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
 
   const pixelRatio = usePixelBudget();
-  // Keyboard play (a setting): the move card, with the moves so far, the
+  // The Notation panel (a setting): the move card, with the moves so far, the
   // cell under the pointer and a field to type a move, stays on screen
-  const keyboardPlay = useSetting<boolean>('play.keyboard');
+  const notationPanel = useSetting<boolean>('play.notation');
   // The board is framed clear of the pill, and of the move card while it
-  // spans the bottom of the window (turning Keyboard play on or off refits)
+  // spans the bottom of the window (turning the Notation panel on or off refits)
   const bandsFor = React.useCallback(
-    (width: number, height: number) => hudBands(width, height, keyboardPlay),
-    [keyboardPlay],
+    (width: number, height: number) => hudBands(width, height, notationPanel),
+    [notationPanel],
   );
   // The cell under the pointer, read out in the move card while it shows
   const [hoverCell, setHoverCell] = React.useState<HoveredCell | null>(null);
@@ -421,7 +421,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               lastMove={lastMove}
               disabled={boardDisabled}
               gameOver={gameOver}
-              onHoverCell={keyboardPlay ? setHoverCell : undefined}
+              onHoverCell={notationPanel ? setHoverCell : undefined}
             />
             {/* The only camera control is turning the view about the
                 board's centre, which never moves (no pan by mouse, touch or
@@ -471,7 +471,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               canMove={!boardDisabled && !gameOver && color === currentTurn}
               yourTurn={!gameOver && color === currentTurn}
               onMove={handleMove}
-              shown={keyboardPlay}
+              shown={notationPanel}
               hovered={hoverCell}
             />
             <div className="hud-gear-slot">
