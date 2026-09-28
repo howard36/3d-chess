@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Color, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
-import type { BufferGeometry, Group } from 'three';
-import type { PieceType } from '../../../engine/pieces';
+import type { BufferGeometry, Group, Mesh, Object3D } from 'three';
+import { PieceType } from '../../../engine/pieces';
 import { prefersReducedMotion } from '../../motion';
 import { pieceTop } from '../../pieces';
 import { LAYER } from '../kit/layers';
@@ -60,6 +60,7 @@ preloadZenithSet();
 
 const glazeVertex = /* glsl */ `
   varying vec3 vN;
+  varying float vUp;
   varying vec3 vW;
   varying vec3 vLocal;
   varying float vAo;
@@ -71,6 +72,7 @@ const glazeVertex = /* glsl */ `
     vec4 w = modelMatrix * vec4(position, 1.0);
     vW = w.xyz;
     vN = normalize(mat3(modelMatrix) * normal);
+    vUp = normal.y;
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
@@ -102,9 +104,11 @@ const glazeFragment = /* glsl */ `
   uniform float uHover;
   uniform float uHold;
   uniform float uCheck;
+  uniform float uCheckTint;
   uniform float uTop;
   uniform float uCut;
   varying vec3 vN;
+  varying float vUp;
   varying vec3 vW;
   varying vec3 vLocal;
   varying float vAo;
@@ -151,7 +155,9 @@ const glazeFragment = /* glsl */ `
     // well, 4 the foot band
     bool accent = abs(vPart - 2.0) < 0.5;
     bool well = abs(vPart - 3.0) <= 0.5;
-    bool band = vPart > 3.5 && uBandOn > 0.5;
+    // (its side only: the cap under the foot, seen from below, stays the
+    // body's, never a coloured disc under the piece)
+    bool band = vPart > 3.5 && uBandOn > 0.5 && vUp > -0.5;
     float ao = mix(1.0, vAo, uOcc);
     // A touch deeper toward the foot
     vec3 albedo = accent ? uAccent : well ? uWell : mix(uBase, uColor, smoothstep(0.02, 0.42, y));
@@ -197,13 +203,15 @@ const glazeFragment = /* glsl */ `
     }
     // In check the whole king takes the red, keeping its army's value, its
     // edge burns red, and the red platform under it lights its base
+    // (with the tint off, the platform's red light on the base remains, fainter)
     if (uCheck > 0.0) {
       float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
       // Lit from below: reddest at the base, the cross still clearly red
       float up = (1.0 - smoothstep(0.0, 0.45, h)) * (0.45 + 0.55 * clamp(0.4 - n.y, 0.0, 1.0));
-      col = mix(col, uCheckColor * (lum * 1.45 + 0.012), uCheck * (0.5 + 0.3 * up));
-      col += uCheckColor * uCheck * up * (0.08 + 0.5 * lum) * ao;
-      col = mix(col, uCheckColor, clamp(uCheck * 0.5 * pow(1.0 - facing, 2.2) * fromAbove, 0.0, 1.0));
+      float tint = uCheck * uCheckTint;
+      col = mix(col, uCheckColor * (lum * 1.45 + 0.012), tint * (0.5 + 0.3 * up));
+      col += uCheckColor * uCheck * mix(0.45, 1.0, uCheckTint) * up * (0.08 + 0.5 * lum) * ao;
+      col = mix(col, uCheckColor, clamp(tint * 0.5 * pow(1.0 - facing, 2.2) * fromAbove, 0.0, 1.0));
     }
     // The burning edge: a thin line of white light
     col = mix(uBurn, col, burn);
@@ -294,11 +302,14 @@ const colorAtLevel = (level: number, out: Color) => {
  */
 export const bodyMaterial = (color: PieceColor, type: PieceType, level?: number) => {
   const g = GLAZE[color];
+  // The charcoal knight's accent is its whole carved mane, many small faces
+  // turned to the key: a shade deeper and less glossy, so it stays pewter
+  const mane = color === 'black' && type === PieceType.Knight;
   return new ShaderMaterial({
     uniforms: {
       uColor: { value: new Color(g.color) },
       uBase: { value: new Color(g.base) },
-      uAccent: { value: new Color(g.accent) },
+      uAccent: { value: new Color(g.accent).multiplyScalar(mane ? 0.8 : 1) },
       uWell: { value: new Color(g.well) },
       uRim: { value: new Color(g.rim) },
       uBand: { value: colorAtLevel(level ?? 0, new Color()) },
@@ -313,7 +324,7 @@ export const bodyMaterial = (color: PieceColor, type: PieceType, level?: number)
       uRimPower: { value: g.rimPower },
       uSpec: { value: g.spec },
       uShine: { value: g.shine },
-      uAccentSpec: { value: g.accentSpec },
+      uAccentSpec: { value: g.accentSpec * (mane ? 0.35 : 1) },
       uAccentShine: { value: g.accentShine },
       uOcc: { value: g.occlusion },
       uRelief: { value: g.relief },
@@ -323,6 +334,7 @@ export const bodyMaterial = (color: PieceColor, type: PieceType, level?: number)
       uHover: { value: 0 },
       uHold: { value: 0 },
       uCheck: { value: 0 },
+      uCheckTint: { value: 1 },
       uTop: { value: pieceTop(zenithSet(), type) },
       uCut: { value: -1 },
     },
@@ -431,8 +443,23 @@ export const ringMaterial = (level: number) =>
 const HOVER_RATE = 1 / 0.18;
 const HOLD_RATE = 1 / 0.28;
 const CHECK_RATE = 1 / 0.25;
-/** Board lifts a piece this far under the pointer (index.tsx); the setting adds the rest. */
+/** Board lifts a piece this far under the pointer (0.13 held; index.tsx). */
 const BOARD_HOVER_LIFT = 0.08;
+
+/**
+ * The height a piece should stand at, for Board's lift `y` and the lift
+ * setting `k` (a multiple of Board's hover height): hover scales, and held
+ * stays the same small step above it. One map of Board's own eased height,
+ * so the two never drift apart and a piece set to no lift holds still.
+ */
+export const liftFor = (y: number, k: number) =>
+  y <= BOARD_HOVER_LIFT ? y * k : BOARD_HOVER_LIFT * k + (y - BOARD_HOVER_LIFT);
+
+/** The nearest Board Lift group above `o` (PieceMesh tags it), or null. */
+const boardLift = (o: Object3D | null): Object3D | null => {
+  for (let a = o?.parent ?? null; a; a = a.parent) if (a.userData.lift) return a;
+  return null;
+};
 const smooth = (x: number) => x * x * (3 - 2 * x);
 
 const at = new Vector3();
@@ -448,7 +475,7 @@ export const PieceBody = (props: PieceBodyProps) => {
   const invalidate = useThree((s) => s.invalidate);
   const glide = useGlide();
   const { ring: ringCue } = useLevelCue();
-  const hoverLift = usePieceSetting<number>('piece.hoverLift');
+  const lift = usePieceSetting<number>('piece.lift');
   const checkTint = usePieceSetting<boolean>('piece.checkTint');
   const pulse = usePieceSetting<boolean>('piece.clickPulse');
   const still = useMemo(prefersReducedMotion, []);
@@ -459,6 +486,8 @@ export const PieceBody = (props: PieceBodyProps) => {
   useEffect(() => () => floorMaterial.dispose(), [floorMaterial]);
   const floor = useRef<Group>(null);
   const raise = useRef<Group>(null);
+  const liftRef = useRef(lift);
+  liftRef.current = lift;
   const top = pieceTop(zenithSet(), type);
 
   useEffect(() => {
@@ -474,7 +503,7 @@ export const PieceBody = (props: PieceBodyProps) => {
   const [lit, setLit] = useState(false);
   if ((hovered || selected) && !awake) setAwake(true);
   if (selected && !lit) setLit(true);
-  useEffect(() => invalidate(), [hovered, selected, inCheck, hoverLift, invalidate]);
+  useEffect(() => invalidate(), [hovered, selected, inCheck, lift, checkTint, invalidate]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20);
@@ -483,7 +512,7 @@ export const PieceBody = (props: PieceBodyProps) => {
       goal > v ? Math.min(goal, v + dt * rate) : Math.max(goal, v - dt * rate);
     const hover = toward(w.hover, hovered && !selected ? 1 : 0, HOVER_RATE);
     const hold = toward(w.hold, selected ? 1 : 0, HOLD_RATE);
-    const c = toward(w.check, inCheck && checkTint ? 1 : 0, CHECK_RATE);
+    const c = toward(w.check, inCheck ? 1 : 0, CHECK_RATE);
     let moving = hover !== w.hover || hold !== w.hold || c !== w.check;
     w.hover = hover;
     w.hold = hold;
@@ -494,8 +523,7 @@ export const PieceBody = (props: PieceBodyProps) => {
     u.uHover.value = smooth(hover);
     u.uHold.value = smooth(hold) * held.current.strength;
     u.uCheck.value = smooth(c);
-    // The lift the setting asks beyond Board's own
-    if (raise.current) raise.current.position.y = (hoverLift - BOARD_HOVER_LIFT) * lifted;
+    u.uCheckTint.value = checkTint ? 1 : 0;
     const f = floorMaterial.uniforms;
     f.uGlow.value = lifted;
     f.uPool.value = smooth(hover);
@@ -526,6 +554,24 @@ export const PieceBody = (props: PieceBodyProps) => {
     }
   });
 
+  // The lift the setting asks beyond Board's own, taken from Board's lift as
+  // it is drawn (after every frame callback has moved it), so it follows the
+  // same ease exactly
+  const raiseTo = useMemo(
+    () =>
+      function (this: Mesh) {
+        const r = raise.current;
+        const board = boardLift(r);
+        if (!r || !board) return;
+        const y = board.position.y;
+        const extra = liftFor(y, liftRef.current) - y;
+        if (r.position.y === extra) return;
+        r.position.y = extra;
+        r.updateMatrixWorld(true);
+      },
+    [],
+  );
+
   return (
     <>
       <group ref={floor} userData={ON_FLOOR}>
@@ -542,7 +588,7 @@ export const PieceBody = (props: PieceBodyProps) => {
       </group>
       {/* The setting's lift beyond Board's (tagged so the hit proxy ignores it) */}
       <group ref={raise} userData={{ lift: true }}>
-        <mesh geometry={wholePiece(type)} material={body} />
+        <mesh geometry={wholePiece(type)} material={body} onBeforeRender={raiseTo} />
       </group>
     </>
   );

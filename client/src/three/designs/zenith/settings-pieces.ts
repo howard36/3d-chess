@@ -7,7 +7,8 @@ import type { SettingSpec, SettingValue } from '../settings';
 /** How a piece shows the level it stands on. */
 export type LevelCue = 'band' | 'ring' | 'both';
 
-const times = (v: number) => `${Number(v.toFixed(2))}×`;
+/** Zenith's one format for a multiple: one decimal and a times sign ("1.0×"). */
+const times = (v: number) => `${v.toFixed(1)}×`;
 
 export const PIECE_SETTINGS: SettingSpec[] = [
   {
@@ -31,7 +32,7 @@ export const PIECE_SETTINGS: SettingSpec[] = [
     default: 1,
     min: 0.7,
     max: 1.4,
-    step: 0.05,
+    step: 0.1,
     format: times,
     hint: 'How light the charcoal pieces are: deeper, or lighter to show more of their carving.',
   },
@@ -49,15 +50,15 @@ export const PIECE_SETTINGS: SettingSpec[] = [
   },
   {
     kind: 'slider',
-    key: 'piece.hoverLift',
+    key: 'piece.lift',
     label: 'Hover lift',
     group: 'Pieces',
-    default: 0.08,
+    default: 1,
     min: 0,
-    max: 0.16,
-    step: 0.01,
-    format: (v) => (v === 0 ? 'none' : v.toFixed(2)),
-    hint: 'How far a piece rises under the pointer (held, it rises a little more).',
+    max: 2,
+    step: 0.25,
+    format: (v) => (v === 0 ? 'None' : times(v)),
+    hint: 'How far a piece rises under the pointer; held, it rises a little more.',
   },
   {
     kind: 'slider',
@@ -67,7 +68,7 @@ export const PIECE_SETTINGS: SettingSpec[] = [
     default: 1,
     min: 0.6,
     max: 1.6,
-    step: 0.05,
+    step: 0.1,
     format: times,
     hint: "The column of light round a held piece, in proportion to the piece's height.",
   },
@@ -77,10 +78,11 @@ export const PIECE_SETTINGS: SettingSpec[] = [
     label: 'Column brightness',
     group: 'Selection',
     default: 1,
-    min: 0.4,
+    min: 0.6,
     max: 1.6,
-    step: 0.05,
+    step: 0.1,
     format: times,
+    hint: 'How bright the column of light round a held piece glows once it has settled.',
   },
   {
     kind: 'toggle',
@@ -114,10 +116,10 @@ export const PIECE_SETTINGS: SettingSpec[] = [
   {
     kind: 'toggle',
     key: 'piece.checkTint',
-    label: 'King lit red',
+    label: 'Whole king red',
     group: 'Check',
     default: true,
-    hint: 'The king in check takes the red, cross and all, lit from below by the red platform.',
+    hint: 'The king in check takes the red, cross and all. Off, only the red platform lights his base.',
   },
 ];
 
