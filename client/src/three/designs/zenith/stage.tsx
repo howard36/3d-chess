@@ -20,6 +20,7 @@ import type { Camera } from 'three';
 import type { StageProps } from '../types';
 import { PieceType } from '../../../engine/pieces';
 import { PROFILES } from '../../pieces';
+import { CLARITY_TOWER_DEFAULTS } from '../kit/layouts';
 import { noRaycast } from '../kit/noRaycast';
 import { TOWER_MASK } from './mask';
 import { FRAME, GROUND_Y, layout, MARGIN, PALETTE, PIECE_SCALE } from './palette';
@@ -847,26 +848,35 @@ interface OrbitLike {
   maxPolarAngle: number;
 }
 
+/** The lowest view without looking up: the compact tower's own, 6° above level. */
+const LEVEL_MAX_POLAR = ((90 - CLARITY_TOWER_DEFAULTS.minElevation) * Math.PI) / 180;
+
 /**
  * The orbit may sink below the horizon to look up (layout's minElevation),
  * but never through the ground: before the controls update each frame, their
  * lowest angle is raised as far as the camera's distance needs, so zoomed in
  * it looks up the full 20° and zoomed out a little less, and a zoom out at
  * the lowest angle lifts the camera rather than sinking it into the plain.
+ * With looking up turned off (settings-env.ts) the orbit stops where the
+ * compact tower's does, 6° above level.
  */
 const CameraFloor = () => {
   const controls = useThree((s) => s.controls) as unknown as OrbitLike | null;
+  const lookUp = useEnvSetting<boolean>('env.lookUp');
+  const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     if (!controls) return;
+    invalidate();
     return () => {
       controls.maxPolarAngle = BASE_MAX_POLAR;
     };
-  }, [controls]);
+  }, [controls, lookUp, invalidate]);
   useFrame(({ camera }) => {
     if (!controls) return;
     const d = camera.position.distanceTo(controls.target);
     const lowest = (GROUND_Y + CLEARANCE - controls.target.y) / Math.max(d, 1e-3);
-    controls.maxPolarAngle = Math.min(BASE_MAX_POLAR, Math.acos(Math.min(Math.max(lowest, -1), 1)));
+    const base = lookUp ? BASE_MAX_POLAR : Math.min(BASE_MAX_POLAR, LEVEL_MAX_POLAR);
+    controls.maxPolarAngle = Math.min(base, Math.acos(Math.min(Math.max(lowest, -1), 1)));
   }, -2);
   return null;
 };

@@ -57,6 +57,14 @@ export const ENV_SETTINGS: SettingSpec[] = [
   },
   {
     kind: 'toggle',
+    key: 'env.lookUp',
+    label: 'Look up',
+    group: 'World',
+    default: true,
+    hint: 'Let the view sink below the horizon to look up past the tower into the sky; off, it stops just above level.',
+  },
+  {
+    kind: 'toggle',
     key: 'env.details',
     label: 'Close-look details',
     group: 'World',
