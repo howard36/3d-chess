@@ -1,235 +1,146 @@
-// Placeholder: a copy of kit-demo until the round-4 designer replaces it.
-import { Color, MeshStandardMaterial } from 'three';
-import { ChessPiece } from '../../pieces';
+import '@fontsource/space-grotesk/latin-500.css';
+import '@fontsource/space-grotesk/latin-600.css';
+import '@fontsource/ibm-plex-mono/latin-500.css';
+import '@fontsource/ibm-plex-mono/latin-600.css';
+import { NeutralToneMapping } from 'three';
+import { preloadPieceSet } from '../../pieces';
 import { focusLevelOf } from '../kit/focus';
-import { clarityTower, towerFrame } from '../kit/layouts';
-import { LevelGrid } from '../kit/grid';
-import { clarityMarkers } from '../kit/markers';
-import { ContactShadow, LevelFootprint, LevelPlates } from '../kit/plates';
-import { GradientSky } from '../kit/sky';
 import { SmartLabels } from '../kit/smartLabels';
-import type { Design, GridProps, PieceBodyProps, PieceColor } from '../types';
+import type { Design, GridProps } from '../types';
+import { CaptureFx, Celebration } from './fx';
+import { Capture, Check, LastMove, Quiet, Selection } from './markers';
+import { KNIGHT_YAW, layout, LEVEL_COLORS, LIFT, MOTION, PALETTE, PIECE_SCALE } from './palette';
+import { PieceBody } from './pieces';
+import { Panes } from './plates';
+import { Stage } from './stage';
 
-// Kit demo: the reference design for the clarity kit, and the template to
-// start a new design from. It is hidden from the picker; open it with
-// `?design=kit-demo`. Every part of the kit is used once, with neutral
-// styling, so copying this folder and restyling it section by section gives
-// a design that inherits all of the kit's clarity rules:
-//
-// - a compact tower (clarityTower) seen from a low, slightly turned camera,
-//   with orbit limits;
-// - one see-through platform per level (LevelPlates), tinted per level, with
-//   hairlines between its squares (LevelGrid) in the level's colour;
-// - labels that follow the camera (SmartLabels);
-// - markers flat on the platforms (clarityMarkers): destinations, the same
-//   marker with a capture cue, the selection, the last move's squares and
-//   the thin line between them, and the check;
-// - the shared Staunton set (ChessPiece, three/pieces) with its foot band in
-//   the colour of the piece's level (PieceBodyProps.level), standing on a
-//   contact shadow and a footprint ring of that colour, scaled to fit the gap;
-// - level focus: the level under the pointer (or of the selected piece)
-//   brightens its platform edge and letter (GridProps.focus);
-// - the HUD readout of the cell under the pointer (hud.readout).
-//
-// Keep the scene cheap (the showcase renders in software) and calm: nothing
-// moves while nobody is moving.
-//
-// To start a design from here: copy the folder, give it a new id and name,
-// add an entry to designs/registry.ts with `group: 'clarity'`, restyle the
-// palette, stage, pieces and markers, and check it from both seats with
-//   node scripts/showcase.mjs --design <id> --review --out <dir>
-// Before calling it done, check in the review's sheets that:
-// - every level can be told apart by more than its height (tints, footprints,
-//   the focused edge and letter);
-// - hovering a piece and a destination both visibly respond;
-// - a capture marker shows round the victim's base, not under it;
-// - label glyphs are unambiguous at label size (a/o, D/O, 1/l).
+// Codex: an opening book written in light. The tower floats in the dark of
+// a chess engine's mind, lines of opening theory drifting far off in dim
+// phosphor type round it, a knight's tour tracing itself across a far-off
+// board. The panes are phosphor glass, green, teal, cyan, azure and indigo
+// from A to E, their lit squares glowing faintly in the level's colour
+// between crisp hairlines; the armies are pale jade and near-black
+// green-graphite. The markers are the notation cursor, a diamond: amber
+// where a piece may go (its inside lit in the level's colour), red round a
+// piece it may take, pale phosphor for the last move, and a red crown of
+// light at a king in check. A picked-up piece is written in: a line of
+// light draws round its base and a soft cone rises from it, while pips on
+// the floor at its front show what it is worth. See palette.ts for the value
+// and hue plan, and each module's header.
 
-// --- Palette -------------------------------------------------------------------
-
-const INK = '#e8edf5';
-const SKY = { top: '#5d6879', horizon: '#48515f', bottom: '#2c323b' };
-const WHITE_ARMY = '#f1ebdf';
-const BLACK_ARMY = '#1f2329';
-const ACCENT = '#4cc9f0';
-// Faint per-level tints, bottom to top: a quiet colour code for the levels,
-// matched by the level letters. levelRamp (kit/colors.ts) makes such a set
-// from two hues, evenly spaced and equally bright.
-const LEVEL_TINTS = ['#9fc3ff', '#a6e3d4', '#e9e3a6', '#f4c3a0', '#e8b0d0'];
-
-// --- Layout ----------------------------------------------------------------------
-
-// Pieces are scaled so the tallest (the king) leaves clear air under the
-// platform above; clarityTower centres the stack on its drawn height.
-const PIECE_SCALE = 0.8;
-const layout = clarityTower({ pieceHeight: 0.87 * PIECE_SCALE });
-const { pitch } = towerFrame(layout);
-
-// --- Stage -----------------------------------------------------------------------
-
-/** A plain, calm backdrop: a soft gradient, a key light, a cool rim light behind. */
-const Stage = () => (
-  <>
-    <GradientSky top={SKY.top} horizon={SKY.horizon} bottom={SKY.bottom} exponent={0.7} />
-    <hemisphereLight args={['#e6eefb', '#3a4150', 1.2]} />
-    <directionalLight position={[5, 9, 7]} intensity={2.1} />
-    {/* From behind and above: an edge of light that lifts the dark army off the backdrop */}
-    <directionalLight position={[-4, 6, -9]} intensity={1.6} color="#cfe0ff" />
-  </>
-);
-
-// --- Board -----------------------------------------------------------------------
+preloadPieceSet();
 
 /**
- * Platforms and coordinates. Decorative only: Board draws this outside the
- * clickable group. The level the player is pointing at (or has a piece
- * selected on) lights its platform edge and its letter.
+ * Panes and coordinates. Decorative only: Board draws this outside the
+ * clickable group. The level the player points at (or has a piece picked up
+ * on) brightens its lines, frame and letter; the others step back a little.
  */
 const Grid = ({ layout: l, orientation, focus }: GridProps) => {
   const focusLevel = focusLevelOf(focus);
   return (
     <>
-      <LevelPlates
-        layout={l}
-        tints={LEVEL_TINTS}
-        opacity={0.12}
-        edgeColor="#dfe7f2"
-        edgeOpacity={0.55}
-        edgeColors={LEVEL_TINTS}
-        focusLevel={focusLevel}
-      />
-      <LevelGrid layout={l} colors={LEVEL_TINTS} opacity={0.3} focusLevel={focusLevel} />
+      <Panes focusLevel={focusLevel} />
       <SmartLabels
         layout={l}
         orientation={orientation}
-        color={INK}
-        levelColors={LEVEL_TINTS}
-        weight={600}
-        levelWeight={700}
+        // Plex Mono: notation type, with a double-storey "a", a slashed-free
+        // but open "0" never met here, and a "1" with a flag and foot
+        font='"IBM Plex Mono", ui-monospace, monospace'
+        weight={500}
+        levelWeight={600}
+        color={PALETTE.ink}
+        levelColors={LEVEL_COLORS}
+        outline="rgba(1, 5, 3, 0.9)"
+        outlineWidth={0.08}
+        shadow="rgba(110, 230, 180, 0.3)"
+        size={0.33}
+        levelScale={1.5}
+        opacity={0.9}
         focusLevel={focusLevel}
+        focusScale={1.3}
+        focusDim={0.55}
       />
     </>
   );
 };
 
-// --- Pieces ----------------------------------------------------------------------
+// --- HUD ---------------------------------------------------------------------------------
 
-// Materials are shared between pieces, one per colour and glow (selection and
-// check tint the whole piece). Anything that fades or recolours one piece
-// must clone first; the kit's GhostPiece already does.
-const materials = new Map<string, MeshStandardMaterial>();
-const material = (color: PieceColor, emissive: string) => {
-  const key = `${color}/${emissive}`;
-  let m = materials.get(key);
-  if (!m) {
-    m =
-      color === 'white'
-        ? new MeshStandardMaterial({ color: WHITE_ARMY, roughness: 0.42, metalness: 0.04 })
-        : new MeshStandardMaterial({ color: BLACK_ARMY, roughness: 0.3, metalness: 0.15 });
-    m.emissive.set(emissive);
-    materials.set(key, m);
-  }
-  return m;
-};
-// The details that name a piece (the bishop's cut, the knight's eyes, the
-// unicorn's twist, the queen's pearls, the king's cross, the rook's crenels)
-const accent = {
-  white: new MeshStandardMaterial({ color: '#8f8676', roughness: 0.6 }),
-  black: new MeshStandardMaterial({ color: '#5d6573', roughness: 0.45, metalness: 0.2 }),
-};
-// The foot band, one per level: the level's tint, deepened so it shows on the
-// ivory army, glowing a little so it holds in shade
-const feet = LEVEL_TINTS.map((tint) => {
-  const c = new Color(tint).offsetHSL(0, 0.25, -0.16);
-  return new MeshStandardMaterial({
-    color: c,
-    emissive: c,
-    emissiveIntensity: 0.2,
-    roughness: 0.5,
-  });
-});
+// Black glass with thin green hairlines, and a hairline of the level spectrum
+// along the top, like the rule under a page heading in an opening book
+const SPECTRUM = `linear-gradient(90deg, ${LEVEL_COLORS.join(', ')})`;
+const PANEL = 'linear-gradient(180deg, rgba(6, 16, 12, 0.86), rgba(2, 8, 6, 0.9))';
+const HAIRLINE = '1px solid rgba(111, 227, 176, 0.18)';
+// The result card's own caption, set like a line of the book (drawn as an
+// image: the card is shared HUD)
+const RESULT_LABEL = `url("data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="14">' +
+    '<text x="0" y="11" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="10.5" ' +
+    'letter-spacing="1.4" fill="rgba(160,226,196,0.62)">END OF THE LINE</text></svg>',
+)}") 18px 14px / 200px 14px no-repeat`;
 
-// Board suggests a strong glow for check and selection; the markers on the
-// floor already say both, so the pieces only warm a little.
-const glow = ({ inCheck, selected }: PieceBodyProps) =>
-  inCheck ? '#7a1414' : selected ? '#4a3a12' : '#000000';
-
-/**
- * A Staunton piece standing on its contact shadow and a thin ring in its
- * level's colour (both part of the body, so they travel with it).
- */
-const PieceBody = (props: PieceBodyProps) => (
-  <>
-    <ContactShadow radius={0.36} opacity={0.38} />
-    <LevelFootprint color={LEVEL_TINTS[props.level ?? 0]} radius={0.4} width={0.05} />
-    <ChessPiece
-      type={props.type}
-      parts={{
-        body: material(props.color, glow(props)),
-        accent: accent[props.color],
-        foot: feet[props.level ?? 0],
-      }}
-    />
-  </>
-);
-
-// --- Markers ---------------------------------------------------------------------
-
-const markers = clarityMarkers({
-  pitch,
-  shape: 'square',
-  color: '#ffd166',
-  captureColor: '#ff6b5e',
-  selectColor: '#fff0c2',
-  lastMoveColor: ACCENT,
-  checkColor: '#ff4040',
-  // A fresh move draws its line in; a replayed one shows it whole
-  line: { drawInMs: 320 },
-});
-
-// --- Design ----------------------------------------------------------------------
-
-const kitDemo: Design = {
+const codex: Design = {
   id: 'codex',
   name: 'Codex',
-  blurb: 'An opening book written in light.',
+  blurb:
+    'An opening book written in light: jade and graphite pieces on phosphor-glass panes, with lines of theory drifting in the dark.',
   layout,
-  continuous: false,
-  canvas: { fov: 36 },
+  // The far book turns and breathes, very slowly
+  continuous: true,
+  canvas: { fov: 36, toneMapping: NeutralToneMapping, exposure: 1 },
   Stage,
   Grid,
-  // No cell volumes: the markers on the platforms say it all
+  // No cell volumes: the marks on the panes say it all
   cellFills: { destination: null, lastMove: null },
   PieceBody,
   pieceScale: PIECE_SCALE,
-  knightYaw: 0.45,
-  markers,
+  knightYaw: KNIGHT_YAW,
+  markers: { Quiet, Capture, Selection, LastMove, Check },
   hoverDestinations: true,
-  motion: { style: 'hop', durationMs: 380 },
+  hoverLift: LIFT,
+  motion: MOTION,
+  CaptureFx,
+  Celebration,
+  toppleMatedKing: true,
   hud: {
     readout: true,
     vars: {
-      '--hud-font': 'system-ui, sans-serif',
-      '--hud-bg': 'rgba(22, 26, 34, 0.78)',
-      '--hud-fg': INK,
-      '--hud-muted': 'rgba(232, 237, 245, 0.6)',
-      '--hud-accent': ACCENT,
-      '--hud-accent-fg': '#081018',
-      '--hud-border': '1px solid rgba(255, 255, 255, 0.08)',
-      '--hud-radius': '10px',
-      '--hud-shadow': '0 8px 24px rgba(0, 0, 0, 0.25)',
-      '--hud-blur': 'blur(6px)',
-      '--turn-bg': 'rgba(22, 26, 34, 0.85)',
-      '--turn-fg': INK,
-      '--turn-border': `1px solid rgba(76, 201, 240, 0.35)`,
-      '--modal-bg': '#1f252e',
-      '--modal-fg': INK,
-      '--button-bg': ACCENT,
-      '--button-fg': '#081018',
-      '--page-bg': SKY.horizon,
-      '--page-fg': INK,
+      '--hud-font': '"Space Grotesk", system-ui, sans-serif',
+      '--hud-mono': '"IBM Plex Mono", ui-monospace, monospace',
+      '--hud-bg': `${SPECTRUM} top / 100% 1px no-repeat, ${PANEL}`,
+      '--hud-fg': PALETTE.ink,
+      '--hud-muted': PALETTE.inkMuted,
+      '--hud-accent': PALETTE.move,
+      '--hud-accent-fg': '#1a1204',
+      '--hud-border': HAIRLINE,
+      '--hud-radius': '3px',
+      '--hud-shadow': '0 12px 32px rgba(0, 0, 0, 0.5)',
+      '--hud-blur': 'blur(8px)',
+      '--hud-tracking': '0.01em',
+      '--turn-bg': `${SPECTRUM} bottom / 100% 1px no-repeat, ${PANEL}`,
+      '--turn-fg': '#effff7',
+      '--turn-size': '18px',
+      '--turn-border': '1px solid rgba(111, 227, 176, 0.24)',
+      '--turn-shadow': '0 0 26px rgba(80, 220, 160, 0.1), 0 12px 32px rgba(0, 0, 0, 0.5)',
+      '--modal-bg': `${SPECTRUM} top / 100% 2px no-repeat, linear-gradient(180deg, rgba(7, 18, 14, 0.97), rgba(2, 7, 5, 0.98))`,
+      '--result-bg': `${RESULT_LABEL}, ${SPECTRUM} top / 100% 2px no-repeat, linear-gradient(180deg, rgba(7, 18, 14, 0.97), rgba(2, 7, 5, 0.98))`,
+      '--modal-fg': PALETTE.ink,
+      '--modal-backdrop': 'rgba(0, 3, 2, 0.55)',
+      '--modal-radius': '4px',
+      '--modal-shadow': '0 0 60px rgba(80, 220, 160, 0.12), 0 20px 50px rgba(0, 0, 0, 0.55)',
+      '--button-bg': 'rgba(255, 196, 94, 0.14)',
+      '--button-fg': '#fff1d6',
+      '--button-border': '1px solid rgba(255, 196, 94, 0.7)',
+      '--button-radius': '3px',
+      '--page-bg': 'radial-gradient(ellipse at 50% 60%, #04110c 0%, #020805 60%, #010302 100%)',
+      '--page-fg': PALETTE.ink,
+    },
+    // A still vignette: the void closes in at the corners of the screen
+    overlay: {
+      background:
+        'radial-gradient(ellipse 80% 75% at 50% 50%, transparent 60%, rgba(0, 3, 2, 0.5) 100%)',
     },
   },
 };
 
-export default kitDemo;
+export default codex;
