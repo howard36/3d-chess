@@ -25,7 +25,8 @@ import { GROUND_Y, PALETTE } from './palette';
 //   a board's own letters read from the player's chair;
 // - far off in the horizon's mist, at one place only, a signature: the
 //   game's own, "Raumschach · Maack · 1907", for Ferdinand Maack, who
-//   invented this chess in space, set small in faint light within the mist;
+//   invented this chess in space, set small in faint light within the mist,
+//   seen only from a low camera (the horizon then lies well down the frame);
 // - for a camera looking up, now and then (every minute or so) a slow,
 //   faint shooting star high overhead, well off to one side of the tower,
 //   falling away from it.
@@ -261,7 +262,11 @@ const signFragment = /* glsl */ `
     float a = texture2D(uMap, vUv).a;
     // Soft at its ends, as if the mist thins round it
     float ends = smoothstep(0.0, 0.12, vUv.x) * smoothstep(1.0, 0.88, vUv.x);
-    float light = a * ends * uIntensity * (1.0 - towerCover(vWorld));
+    // Only for a camera low enough that the horizon lies well down the
+    // frame, clear of the HUD along its top edge
+    float rise = asin(clamp(cameraPosition.y / max(length(cameraPosition), 1e-3), -1.0, 1.0));
+    float low = 1.0 - smoothstep(0.1, 0.19, rise);
+    float light = a * ends * low * uIntensity * (1.0 - towerCover(vWorld));
     if (light < 0.001) discard;
     gl_FragColor = vec4(uColor * light, 1.0);
     #include <colorspace_fragment>
@@ -460,7 +465,7 @@ const ShootingStar = () => {
         material.uniforms.uHead.value = p;
         // In gently, out as the head burns away
         material.uniforms.uLight.value =
-          0.32 * Math.min(p / 0.15, 1) * Math.min(Math.max((1.1 - p) / 0.35, 0), 1);
+          0.45 * Math.min(p / 0.15, 1) * Math.min(Math.max((1.1 - p) / 0.35, 0), 1);
         line.visible = true;
         invalidate();
       }
