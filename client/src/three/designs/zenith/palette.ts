@@ -92,7 +92,12 @@ export const LEVEL_COLORS = levelRamp({
 // The kit's compact tower: the Staunton set at 0.8 leaves the king clear air
 // under the level above.
 export const PIECE_SCALE = 0.8;
-export const layout = clarityTower({ pieceHeight: 0.87 * PIECE_SCALE });
+/**
+ * The camera may sink below the horizon to look up past the tower into the
+ * sky (its constellations), to 20° below level; the stage's CameraFloor
+ * keeps it above the ground however far out it is zoomed.
+ */
+export const layout = clarityTower({ pieceHeight: 0.87 * PIECE_SCALE, minElevation: -20 });
 export const FRAME = towerFrame(layout);
 export const PITCH = FRAME.pitch;
 

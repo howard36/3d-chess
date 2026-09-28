@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { useThree } from '@react-three/fiber';
 import { Color, DoubleSide, MeshBasicMaterial, PlaneGeometry, ShaderMaterial } from 'three';
 import { GRID_SIZE } from '../../layout';
 import { useLevelFocus } from '../kit/focus';
@@ -6,6 +7,7 @@ import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import { frameGeometry } from '../kit/plates';
 import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
+import { useEnvSetting } from './settings-env';
 
 // The levels: five sheets of clear glass, each edged by one thin square of
 // light in its level's colour. On the glass, the Raumschach checker (dark
@@ -43,6 +45,7 @@ const fragmentShader = /* glsl */ `
   uniform float uCells;
   uniform float uLevel;
   uniform float uReach;
+  uniform float uFill;
   uniform float uFrostA;
   uniform float uSmokeA;
   uniform float uLine;
@@ -63,7 +66,12 @@ const fragmentShader = /* glsl */ `
     // 1 looking straight down the stack, 0 from the side
     float above = smoothstep(0.8, 0.97, abs(v.y));
     float grazing = pow(1.0 - abs(v.y), 2.0);
-    float inside = step(0.0, uv.x) * step(uv.x, uCells) * step(0.0, uv.y) * step(uv.y, uCells);
+    // The glass runs out under the edge's square of light, and so does the
+    // checker: the outer squares reach the border whole, never stopping
+    // short of it in a thin dark seam (the glass used to end at the outer
+    // squares, a margin inside the edge)
+    float inside = step(-uFill, uv.x) * step(uv.x, uCells + uFill)
+      * step(-uFill, uv.y) * step(uv.y, uCells + uFill);
 
     // The checker, in the Raumschach colouring (dark where x + y + z is even).
     // Every level keeps it from any side. Looking straight down all five
@@ -114,13 +122,16 @@ const SMOKE = 0.06;
 const LINE = 0.5;
 const EDGE = 0.8;
 const EDGE_WIDTH = 0.022;
+/** How far the glass runs in under the edge's light. */
+const FILL = EDGE_WIDTH / 2;
 
 /** The five levels (see above). Decorative: nothing here takes a click. */
 export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
   const reach = FRAME.half + MARGIN;
   const { plane, edge } = useMemo(
     () => ({
-      plane: new PlaneGeometry(reach * 2, reach * 2).rotateX(-Math.PI / 2),
+      // Out to the middle of the edge's light, so no seam can open between them
+      plane: new PlaneGeometry((reach + FILL) * 2, (reach + FILL) * 2).rotateX(-Math.PI / 2),
       edge: frameGeometry(reach, EDGE_WIDTH, 0.03),
     }),
     [reach],
@@ -149,6 +160,7 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
               uCells: { value: GRID_SIZE },
               uLevel: { value: z },
               uReach: { value: MARGIN / FRAME.pitch },
+              uFill: { value: (MARGIN + FILL) / FRAME.pitch },
               uFrostA: { value: FROST },
               uSmokeA: { value: SMOKE },
               uLine: { value: LINE },
@@ -183,6 +195,18 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
       }),
     [materials],
   );
+  // The player's checker and line strengths (settings-env.ts)
+  const checker = useEnvSetting<number>('env.checker');
+  const lines = useEnvSetting<number>('env.gridLines');
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    for (const m of materials) {
+      m.glass.uniforms.uFrostA.value = FROST * checker;
+      m.glass.uniforms.uSmokeA.value = SMOKE * checker;
+      m.glass.uniforms.uLine.value = LINE * lines;
+    }
+    invalidate();
+  }, [materials, checker, lines, invalidate]);
   useLevelFocus(
     focusLevel,
     (weights, any) => {

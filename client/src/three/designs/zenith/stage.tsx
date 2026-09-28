@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
   BackSide,
@@ -12,31 +12,37 @@ import {
   PlaneGeometry,
   ShaderMaterial,
   SphereGeometry,
+  Vector2,
   Vector3,
+  Vector4,
 } from 'three';
 import type { Camera } from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { PROFILES } from '../../pieces';
 import { noRaycast } from '../kit/noRaycast';
 import { TOWER_MASK } from './mask';
-import { FRAME, GROUND_Y, MARGIN, PALETTE, PIECE_SCALE } from './palette';
+import { FRAME, GROUND_Y, layout, MARGIN, PALETTE, PIECE_SCALE } from './palette';
+import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
+import { useEnvSetting } from './settings-env';
 
 // The garden at night. The tower floats over an endless dark plain of
 // glossy stone; under it, nothing, so from straight above there is only
 // darkness through the levels. Further out the plain carries a colossal
-// chessboard, eight squares by eight, drawn in the faintest lines of light
-// and fading into the horizon, and in a wide ring round the tower stand
-// twelve colossal chess pieces, drawn only in thin white neon tube: their
-// outlines (sculptures.ts) turn to face the viewer as a turned piece looks
-// the same from every side, and stand on real rings of light round their
-// bases and collars. Each has a breath of mist at its feet, and the ground
-// gives back a faint, soft reflection. The tubes are dim and join by
-// taking the brighter (never summed), so no knot of light outshines the
-// board. Two flank the tower in the opening view, and every side has one or
-// two; a sculpture nearing the tower on screen (its letters included) fades
-// out whole, and the board's lines behind the tower are held down to nothing
-// (mask.ts). Nothing here moves.
+// chessboard, eight squares by eight (a1 dark, as on any board), drawn in
+// the faintest lines of light and fading into the horizon, and on it stand
+// twelve colossal chess pieces, each on the centre of its square, twins
+// facing each other across the board (PLACES), drawn only in thin white
+// neon tube: their outlines (sculptures.ts) turn to face the viewer as a
+// turned piece looks the same from every side, and stand on real rings of
+// light round their bases and collars. Each has a breath of mist at its
+// feet, and the ground gives back a faint, soft reflection. The tubes are
+// dim and join by taking the brighter (never summed), so no knot of light
+// outshines the board. Two flank the tower in the opening view, and every
+// side has one or two; a sculpture nearing the tower on screen dims by
+// degrees and slips behind it into shade, and the board's lines behind the
+// tower are held down to nothing (mask.ts). Overhead, stars and chess
+// constellations for a camera that looks up (heavens.tsx). Nothing moves.
 
 // --- The night sky ------------------------------------------------------------------
 
@@ -100,8 +106,11 @@ const Sky = () => {
 
 // --- The plain and its colossal board -------------------------------------------------
 
-/** Side of one square of the colossal board (world units): eight across. */
-const SQUARE = 10;
+/**
+ * Side of one square of the colossal board (world units): eight across,
+ * sized so every sculpture stands on the centre of a square (PLACES).
+ */
+export const SQUARE = 8;
 /** Radius of clear dark ground round the tower's foot. */
 const CLEAR = [17, 27] as const;
 
@@ -150,9 +159,10 @@ const groundFragment = /* glsl */ `
     // The board's own edge a little brighter than its inner lines
     vec2 edge = step(3.5, abs(floor(uv + 0.5) - 4.0));
     float line = max(lines.x * mix(1.0, 1.7, edge.x), lines.y * mix(1.0, 1.7, edge.y));
-    // A whisper of the checker: the light squares a shade lighter
+    // A whisper of the checker: the light squares a shade lighter, a1 dark
+    // as on any board (rank 1 lies toward +z, where White sits)
     vec2 sq = floor(uv);
-    float lightSq = mod(sq.x + sq.y, 2.0) * onBoard;
+    float lightSq = mod(sq.x + sq.y + 1.0, 2.0) * onBoard;
     // Clear ground round the tower, fading into the night far off, and
     // nothing at all where the tower stands in front of it
     float clear = smoothstep(uClear.x, uClear.y, r);
@@ -208,36 +218,48 @@ const Ground = () => {
 
 /** Their scale: a colossal king stands about 5.6 units tall. */
 const SCALE = 6.5;
+
 /**
- * The ring they stand on, on the colossal board: near enough that, 30°
- * apart, one or two stand clear of the tower and in frame from every side.
+ * Where each stands: on the centre of a square of the colossal board, set
+ * out as twins facing each other across it, as in a game: the kings on
+ * their own squares down the e-file, the queens down the d-file, the
+ * bishops fianchettoed on the long diagonal h1–a8 and the unicorns on
+ * a1–h8, the knights up the a-file and the rooks up the h-file. All twelve
+ * squares lie the same distance from the centre (about 28.3: 4² + 28² =
+ * 20² + 20²), at most 37° apart round it, so one or two stand clear of the
+ * tower from every side (see garden.test.ts). The opening view looks from
+ * 16° toward 196°: White sees Black's king and a bishop flank the tower,
+ * the queen behind it; Black sees White's queen and a bishop.
  */
-const RING = 2.8 * SQUARE;
-/**
- * Where each stands (degrees round from +z, toward +x): twelve, 30° apart,
- * so from any side one or two stand clear of the tower. The opening view
- * looks from 16° toward 196°: the king and queen flank the tower there, 30°
- * off that line, and the pawn straight behind it has faded out.
- */
-const PLACES: { type: PieceType; deg: number }[] = [
-  { type: PieceType.King, deg: 166 },
-  { type: PieceType.Pawn, deg: 196 },
-  { type: PieceType.Queen, deg: 226 },
-  { type: PieceType.Knight, deg: 256 },
-  { type: PieceType.Bishop, deg: 286 },
-  { type: PieceType.Rook, deg: 316 },
-  { type: PieceType.Unicorn, deg: 346 },
-  { type: PieceType.Pawn, deg: 16 },
-  { type: PieceType.Knight, deg: 46 },
-  { type: PieceType.Bishop, deg: 76 },
-  { type: PieceType.Rook, deg: 106 },
-  { type: PieceType.Unicorn, deg: 136 },
+const PLACES: { type: PieceType; square: string }[] = [
+  { type: PieceType.King, square: 'e1' },
+  { type: PieceType.King, square: 'e8' },
+  { type: PieceType.Queen, square: 'd1' },
+  { type: PieceType.Queen, square: 'd8' },
+  { type: PieceType.Bishop, square: 'g2' },
+  { type: PieceType.Bishop, square: 'b7' },
+  { type: PieceType.Unicorn, square: 'b2' },
+  { type: PieceType.Unicorn, square: 'g7' },
+  { type: PieceType.Knight, square: 'a4' },
+  { type: PieceType.Knight, square: 'a5' },
+  { type: PieceType.Rook, square: 'h4' },
+  { type: PieceType.Rook, square: 'h5' },
 ];
 
-const anchorOf = (deg: number): [number, number, number] => {
-  const a = (deg * Math.PI) / 180;
-  return [Math.sin(a) * RING, GROUND_Y, Math.cos(a) * RING];
+/** The centre of a square of the colossal board (a1 toward -x, +z, as the tower's). */
+export const squareCentre = (square: string): [number, number] => {
+  const file = square.charCodeAt(0) - 97;
+  const rank = Number(square.slice(1)) - 1;
+  return [(file - 3.5) * SQUARE, (3.5 - rank) * SQUARE];
 };
+
+const anchorOf = (square: string): [number, number, number] => {
+  const [x, z] = squareCentre(square);
+  return [x, GROUND_Y, z];
+};
+
+/** Every sculpture's square and where it stands (for tests and the sweep). */
+export const GARDEN = PLACES.map(({ type, square }) => ({ type, square, at: anchorOf(square) }));
 
 /**
  * Every sculpture's tubes as one ribbon mesh. Each vertex carries its
@@ -284,9 +306,8 @@ const neonGeometry = (): BufferGeometry => {
       index.push(a, a + 1, b, b, a + 1, b + 1);
     }
   };
-  PLACES.forEach(({ type, deg }, i) => {
+  GARDEN.forEach(({ type, at }, i) => {
     current = i;
-    const at = anchorOf(deg);
     const drawing = sculptureOf(type);
     for (const o of drawing.outlines) {
       addCurve(
@@ -323,12 +344,22 @@ const neonGeometry = (): BufferGeometry => {
 
 /**
  * How much of each sculpture the tower hides from the camera, 0 to 1, one
- * value per place, written every frame. A sculpture fades as a whole (with
- * its reflection and mist) as its outline on screen nears the tower's,
- * the level letters beside it included, and is gone before the two touch:
- * never a sliced sculpture beside the board.
+ * value per place, written every frame. A sculpture dims as a whole (with
+ * its reflection and mist) as its outline on screen nears the tower's, the
+ * level letters beside it included: gently from well before the two touch
+ * (FADE_NDC), to about two thirds as they do, then, as it slips behind, by
+ * the share of it the tower covers. On top of that, whatever part of it
+ * lies over the tower's glass on screen is held down to nothing with a soft
+ * edge (TOWER_SCREEN), so a sculpture half behind the tower is a dim half
+ * beside it, and no line of it ever shows through the glass.
  */
-const covers = { value: PLACES.map(() => 0) };
+const covers = { value: GARDEN.map(() => 0) };
+/** The tower's rectangle on screen (NDC, x scaled by the aspect). */
+const towerRect = { value: new Vector4(0, 0, 0, 0) };
+/** The drawing buffer's size in pixels and its aspect, to find NDC per fragment. */
+const viewport = { value: new Vector3(1, 1, 1) };
+/** The player's sculpture brightness (settings-env.ts). */
+const brightness = { value: 1 };
 
 /** The platforms' own square (the letters and numbers round it: MARGIN_NDC). */
 const TOWER_HALF = FRAME.half + MARGIN;
@@ -338,8 +369,21 @@ const TOWER_Y: [number, number] = [
 ];
 /** Room round the tower's outline on screen for its labels (NDC, height units). */
 const MARGIN_NDC = 0.06;
-/** Past that, the width of the fade (NDC, height units). */
-const FADE_NDC = 0.08;
+/**
+ * How far outside that a sculpture starts to dim (NDC, height units, at the
+ * default fade): wide, so the fade reads as the sculpture drifting into the
+ * tower's shade rather than switching off.
+ */
+export const FADE_NDC = 0.3;
+/** How bright a sculpture still is as its outline touches the tower's. */
+const TOUCH_LIGHT = 0.7;
+/** The share of a sculpture behind the tower by which it has dimmed away. */
+const FADE_OVER = 0.9;
+/** Smoothstep on 0–1, clamped. */
+const smooth = (x: number) => {
+  const k = Math.min(Math.max(x, 0), 1);
+  return k * k * (3 - 2 * k);
+};
 const corner = new Vector3();
 const right = new Vector3();
 interface Rect {
@@ -369,10 +413,10 @@ const TOWER_POINTS = [-1, 1].flatMap((sx) =>
     TOWER_Y.map((y): [number, number, number] => [sx * TOWER_HALF, y, sz * TOWER_HALF]),
   ),
 );
-const SIZES = PLACES.map(({ type, deg }) => {
+const SIZES = GARDEN.map(({ type, at }) => {
   const height = sculptureOf(type).top * SCALE;
   return {
-    at: anchorOf(deg),
+    at,
     radius: PROFILES.radius[type] * SCALE,
     // The reflection's brighter upper part belongs to it too
     ys: [GROUND_Y - 0.35 * height, GROUND_Y + height],
@@ -390,10 +434,26 @@ export interface SculptureView {
   inFrame: number;
 }
 
-/** Every sculpture's cover and framing for a camera (pure, for tests and the sweep). */
-export const gardenView = (camera: Camera, aspect: number): SculptureView[] => {
+/** The tower's screen rectangle, labels included (null when it is not wholly in front). */
+export const towerOnScreen = (camera: Camera, aspect: number): Rect | null => {
   camera.updateMatrixWorld();
   const t = rectOf(camera, TOWER_POINTS, aspect);
+  if (!t.seen) return null;
+  return {
+    x0: t.x0 - MARGIN_NDC,
+    x1: t.x1 + MARGIN_NDC,
+    y0: t.y0 - MARGIN_NDC,
+    y1: t.y1 + MARGIN_NDC,
+    seen: true,
+  };
+};
+
+/**
+ * Every sculpture's cover and framing for a camera (pure, for tests and the
+ * sweep). `fade` widens (above 1) or narrows the dimming before the tower.
+ */
+export const gardenView = (camera: Camera, aspect: number, fade = 1): SculptureView[] => {
+  const t = towerOnScreen(camera, aspect);
   right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
   return SIZES.map(({ at, radius, ys }) => {
     // The sculpture as it faces the camera: its axis, as wide as its base
@@ -406,30 +466,71 @@ export const gardenView = (camera: Camera, aspect: number): SculptureView[] => {
         ]),
       );
     const r = rectOf(camera, around(ys), aspect);
-    if (!r.seen || !t.seen) return { cover: 0, inFrame: 0 };
-    const dx = Math.max(r.x0 - t.x1, t.x0 - r.x1, 0);
-    const dy = Math.max(r.y0 - t.y1, t.y0 - r.y1, 0);
-    const gap = Math.hypot(dx, dy) - MARGIN_NDC;
-    const k = Math.min(Math.max(gap / FADE_NDC, 0), 1);
+    if (!r.seen || !t) return { cover: 0, inFrame: 0 };
+    // Nearing the tower it dims by degrees, to TOUCH_LIGHT as the two touch;
+    // passing behind, the share of it over the tower fades what is left
+    // (the part over the tower itself is held down further, per pixel)
+    const width = Math.max(r.x1 - r.x0, 1e-6);
+    const height = Math.max(r.y1 - r.y0, 1e-6);
+    const ox = Math.min(r.x1, t.x1) - Math.max(r.x0, t.x0);
+    const oy = Math.min(r.y1, t.y1) - Math.max(r.y0, t.y0);
+    const gap = Math.hypot(Math.max(-ox, 0), Math.max(-oy, 0));
+    const near = smooth(1 - gap / (FADE_NDC * fade));
+    const over = ox > 0 && oy > 0 ? smooth((ox * oy) / (width * height) / FADE_OVER) : 0;
+    const light = (1 - (1 - TOUCH_LIGHT) * near) * (1 - over);
     // In frame: the sculpture itself, above the ground
     const body = rectOf(camera, around([GROUND_Y, ys[1]]), aspect);
     const w = Math.max(body.x1 - body.x0, 1e-6);
     const h = Math.max(body.y1 - body.y0, 1e-6);
     const ix = Math.max(0, Math.min(body.x1, aspect) - Math.max(body.x0, -aspect));
     const iy = Math.max(0, Math.min(body.y1, 1) - Math.max(body.y0, -1));
-    return { cover: 1 - k * k * (3 - 2 * k), inFrame: (ix * iy) / (w * h) };
+    return { cover: 1 - light, inFrame: (ix * iy) / (w * h) };
   });
 };
 
+const drawingBuffer = new Vector2();
 const TowerCovers = () => {
-  useFrame(({ camera, size }) => {
-    const view = gardenView(camera, size.width / Math.max(size.height, 1));
+  const fade = useEnvSetting<number>('env.sculptureFade');
+  const bright = useEnvSetting<number>('env.sculptures');
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    brightness.value = bright;
+    invalidate();
+  }, [bright, fade, invalidate]);
+  useFrame(({ camera, size, gl }) => {
+    const aspect = size.width / Math.max(size.height, 1);
+    const view = gardenView(camera, aspect, fade);
     view.forEach(({ cover }, i) => {
       covers.value[i] = cover;
     });
+    // The glass itself, without the room for its labels
+    const t = towerOnScreen(camera, aspect);
+    if (t) {
+      const m = MARGIN_NDC;
+      towerRect.value.set(t.x0 + m, t.x1 - m, t.y0 + m, t.y1 - m);
+    } else towerRect.value.set(0, 0, 0, 0);
+    gl.getDrawingBufferSize(drawingBuffer);
+    viewport.value.set(drawingBuffer.x, drawingBuffer.y, aspect);
   });
   return null;
 };
+
+/**
+ * GLSL: `float towerScreen()`, 1 where this fragment lies over the tower's
+ * glass on screen, easing to 0 across a soft band round its outline.
+ */
+const TOWER_SCREEN = /* glsl */ `
+  uniform vec4 uTowerRect;
+  uniform vec3 uViewport;
+  float towerScreen() {
+    vec2 ndc = gl_FragCoord.xy / uViewport.xy * 2.0 - 1.0;
+    ndc.x *= uViewport.z;
+    vec2 c = vec2(uTowerRect.x + uTowerRect.y, uTowerRect.z + uTowerRect.w) * 0.5;
+    vec2 h = vec2(uTowerRect.y - uTowerRect.x, uTowerRect.w - uTowerRect.z) * 0.5;
+    vec2 q = abs(ndc - c) - h;
+    float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+    return 1.0 - smoothstep(-0.05, 0.05, d);
+  }`;
 
 const neonVertex = /* glsl */ `
   uniform float uWidth;
@@ -440,7 +541,7 @@ const neonVertex = /* glsl */ `
   attribute float aSide;
   attribute float aMode;
   attribute float aPlace;
-  uniform float uCover[${PLACES.length}];
+  uniform float uCover[${GARDEN.length}];
   varying float vAcross;
   varying float vCover;
   varying float vDepth;
@@ -466,7 +567,7 @@ const neonVertex = /* glsl */ `
       p.y = 2.0 * uGround - p.y;
       t.y = -t.y;
     }
-    // The whole sculpture fades together, never sliced by the tower
+    // The whole sculpture dims together, never sliced by the tower
     vCover = uCover[int(aPlace + 0.5)];
     // Widened across the view, so every tube reads the same from any side
     vec3 v = normalize(cameraPosition - p);
@@ -486,10 +587,12 @@ const neonFragment = /* glsl */ `
   uniform float uIntensity;
   uniform float uFade;
   uniform float uBoost;
+  uniform float uBright;
   varying float vAcross;
   varying float vCover;
   varying float vDepth;
   varying float vRing;
+  ${TOWER_SCREEN}
   void main() {
     float a = abs(vAcross);
     float fw = max(fwidth(vAcross), 1e-5);
@@ -498,10 +601,10 @@ const neonFragment = /* glsl */ `
     float core = (1.0 - smoothstep(w - fw, w + fw, a)) * min(uCore / w, 1.0);
     float halo = exp(-a * a * 7.0) * (1.0 - a) * uHalo;
     // The rings a little quieter than the outlines they stand the pieces on
-    float light = (core + halo) * uIntensity * (1.0 + uBoost) * (1.0 - 0.3 * vRing);
+    float light = (core + halo) * uIntensity * uBright * (1.0 + uBoost) * (1.0 - 0.3 * vRing);
     // A reflection fades with its depth under the polished ground
     light *= uFade > 0.0 ? exp(-vDepth / uFade) : 1.0;
-    light *= 1.0 - vCover;
+    light *= (1.0 - vCover) * (1.0 - 0.94 * towerScreen());
     if (light < 0.001) discard;
     gl_FragColor = vec4(uColor * light, 1.0);
     #include <colorspace_fragment>
@@ -530,6 +633,9 @@ const neonMaterial = (o: {
     uniforms: {
       uColor: { value: new Color(PALETTE.neon) },
       uCover: covers,
+      uBright: brightness,
+      uTowerRect: towerRect,
+      uViewport: viewport,
       uWidth: { value: o.width },
       uCore: { value: o.core },
       uHalo: { value: o.halo },
@@ -604,8 +710,7 @@ const mistGeometry = (): BufferGeometry => {
   const size: number[] = [];
   const places: number[] = [];
   const index: number[] = [];
-  PLACES.forEach(({ deg }, i) => {
-    const at = anchorOf(deg);
+  GARDEN.forEach(({ at }, i) => {
     for (const [cx, cy] of [
       [-1, -1],
       [1, -1],
@@ -641,12 +746,15 @@ const Mist = () => {
           uColor: { value: new Color(PALETTE.mist) },
           uBoost: gardenBoost,
           uCover: covers,
+          uBright: brightness,
+          uTowerRect: towerRect,
+          uViewport: viewport,
         },
         vertexShader: /* glsl */ `
           attribute vec3 aAnchor;
           attribute vec2 aSize;
           attribute float aPlace;
-          uniform float uCover[${PLACES.length}];
+          uniform float uCover[${GARDEN.length}];
           varying vec2 vC;
           varying float vCover;
           void main() {
@@ -660,11 +768,14 @@ const Mist = () => {
         fragmentShader: /* glsl */ `
           uniform vec3 uColor;
           uniform float uBoost;
+          uniform float uBright;
           varying vec2 vC;
           varying float vCover;
+          ${TOWER_SCREEN}
           void main() {
             float m = exp(-dot(vC * vec2(2.0, 2.6), vC * vec2(2.0, 2.6)));
             float a = m * 0.075 * (1.0 + 0.6 * uBoost) * (1.0 - vCover);
+            a *= min(uBright, 1.4) * (1.0 - 0.94 * towerScreen());
             if (a < 0.001) discard;
             gl_FragColor = vec4(uColor * a, 1.0);
             #include <colorspace_fragment>
@@ -691,11 +802,52 @@ const Mist = () => {
   );
 };
 
-export const Stage = () => (
-  <>
-    <Sky />
-    <Ground />
-    <Sculptures />
-    <Mist />
-  </>
-);
+// --- The camera's floor -----------------------------------------------------------
+
+/** How far above the polished ground the camera must stay. */
+const CLEARANCE = 1.2;
+const BASE_MAX_POLAR = layout.orbit?.maxPolarAngle ?? Math.PI;
+
+interface OrbitLike {
+  target: Vector3;
+  maxPolarAngle: number;
+}
+
+/**
+ * The orbit may sink below the horizon to look up (layout's minElevation),
+ * but never through the ground: before the controls update each frame, their
+ * lowest angle is raised as far as the camera's distance needs, so zoomed in
+ * it looks up the full 20° and zoomed out a little less, and a zoom out at
+ * the lowest angle lifts the camera rather than sinking it into the plain.
+ */
+const CameraFloor = () => {
+  const controls = useThree((s) => s.controls) as unknown as OrbitLike | null;
+  useEffect(() => {
+    if (!controls) return;
+    return () => {
+      controls.maxPolarAngle = BASE_MAX_POLAR;
+    };
+  }, [controls]);
+  useFrame(({ camera }) => {
+    if (!controls) return;
+    const d = camera.position.distanceTo(controls.target);
+    const lowest = (GROUND_Y + CLEARANCE - controls.target.y) / Math.max(d, 1e-3);
+    controls.maxPolarAngle = Math.min(BASE_MAX_POLAR, Math.acos(Math.min(Math.max(lowest, -1), 1)));
+  }, -2);
+  return null;
+};
+
+export const Stage = () => {
+  const stars = useEnvSetting<boolean>('env.stars');
+  const figures = useEnvSetting<boolean>('env.constellations');
+  return (
+    <>
+      <CameraFloor />
+      <Heavens stars={stars} figures={figures} />
+      <Sky />
+      <Ground />
+      <Sculptures />
+      <Mist />
+    </>
+  );
+};
