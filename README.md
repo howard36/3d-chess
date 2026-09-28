@@ -148,11 +148,14 @@ Key decisions:
   in a short window, where they stand beside the tower: `hudBands`) and the bottom of the
   window, by a lens shift (a view offset, `three/viewOffset.ts`) rather than a pan. A
   circle about the axis looks the same whichever way the camera has turned, so the shift
-  is only ever vertical and follows the elevation and the zoom alone (`ringBounds`, eased
-  where one ring takes over from another): turning the view never moves it, and the
-  tower's axis stays in the middle of the window across. (Centring the outline as seen,
-  a diamond one moment and a square the next, with its labels wherever they stood, slid
-  the view sideways with kinks and jumps as it turned.) The layout's `orbit.minDistance` only narrows the range, and its
+  is only ever vertical. It is set with the fit (on opening and when the window changes
+  shape) and then left alone: turning, climbing and zooming never move the tower's centre
+  on screen, so the camera only turns about it and moves nearer or farther, and the view
+  never slides under the player's hand. (Centring the outline as seen, a diamond one
+  moment and a square the next, slid the view sideways as it turned; re-centring the rings
+  at every elevation slid it up and down, by over 100 px on a desktop, as it climbed.) The
+  distance is fitted at the opening elevation, so from high up on a diagonal a wide window
+  can cut the tower's nearest corner a little; zooming out shows it all. The layout's `orbit.minDistance` only narrows the range, and its
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
   sky, to straight down). The controls (`three/CameraControls.tsx`) are three's own
   OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the

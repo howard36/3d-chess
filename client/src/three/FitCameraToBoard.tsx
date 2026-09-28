@@ -19,8 +19,6 @@ interface OrbitControlsLike {
   minDistance: number;
   maxDistance: number;
   update: () => void;
-  addEventListener?: (type: 'change', listener: () => void) => void;
-  removeEventListener?: (type: 'change', listener: () => void) => void;
 }
 
 /**
@@ -34,9 +32,10 @@ interface OrbitControlsLike {
  * The centring is a lens shift (a view offset), never a pan: the camera
  * stands and turns about the board's centre. What it centres is the layout's
  * rings (BoardLayout.frameRings), circles about the tower's axis that look
- * the same from every side, so the shift is vertical only and follows the
- * camera's elevation and distance alone: it is worked out again as the view
- * climbs, dips or zooms, and turning the view never moves it.
+ * the same from every side, so the shift is vertical only. It is set with the
+ * fit and then left alone: turning, climbing and zooming the view never move
+ * the board's centre on screen, so the camera only ever turns about it and
+ * moves nearer or farther.
  */
 export function FitCameraToBoard({
   halfExtents,
@@ -68,16 +67,6 @@ export function FitCameraToBoard({
     const target = controls?.target ?? new Vector3();
     const { top, bottom } = bands?.(width, height) ?? { top: HUD_TOP_PX, bottom: 0 };
     const view = { width, height, fov: camera.fov, topInset: top, bottomInset: bottom };
-    // The shift that centres the rings at the camera's elevation and distance
-    const centre = () => {
-      const bounds = ringBounds(
-        rings,
-        elevationOf(camera.position, target),
-        camera.position.distanceTo(target),
-        FIT_SOFTNESS,
-      );
-      setLensShift(camera, centringShift(bounds, view), width, height);
-    };
     const direction = camera.position.clone().sub(target);
     if (direction.lengthSq() === 0) direction.copy(new Vector3(...viewDirection));
     direction.normalize();
@@ -92,11 +81,15 @@ export function FitCameraToBoard({
       controls.maxDistance = max;
       controls.update();
     }
-    centre();
+    // The shift that centres the rings as fitted, kept as the view moves
+    const bounds = ringBounds(
+      rings,
+      elevationOf(camera.position, target),
+      camera.position.distanceTo(target),
+      FIT_SOFTNESS,
+    );
+    setLensShift(camera, centringShift(bounds, view), width, height);
     invalidate();
-    // OrbitControls says when it has moved the camera, before the frame is drawn
-    controls?.addEventListener?.('change', centre);
-    return () => controls?.removeEventListener?.('change', centre);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the layout's extents and limits are fixed
   }, [camera, controls, width, height, invalidate, bands, rings]);
 

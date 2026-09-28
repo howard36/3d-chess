@@ -3,9 +3,9 @@ import type { Page, TestInfo } from '@playwright/test';
 
 // The real camera turned all the way round the tower, a few degrees at a
 // time, at three elevations, and climbed from under the horizon to overhead
-// and back at a few azimuths, from both seats: the view never slides
-// sideways (the tower's axis stays in the middle of the canvas, and its
-// height holds while the elevation does), and the level letters never jump
+// and back at a few azimuths, from both seats: the view never slides (the
+// tower's centre stays at one point on the canvas, in the middle across,
+// however the camera turns or climbs), and the level letters never jump
 // except in a change of post, which crossfades all five together. Measured
 // from the page itself (window.__r3fState): the camera the app fitted, its
 // lens shift, and the label sprites SmartLabels drew. The pages run on a
@@ -365,6 +365,13 @@ for (const seat of ['white', 'black'] as const) {
           const p = poses[i];
           if (Math.abs(p.centre[0] - WIDTH / 2) > 0.5) {
             flag(i, `the centre is ${(p.centre[0] - WIDTH / 2).toFixed(1)} px off the middle`);
+          }
+          // Climbing only turns the camera about the tower's centre, which stays put
+          if (Math.abs(p.centre[1] - poses[start].centre[1]) > 0.5) {
+            flag(
+              i,
+              `the centre moved ${(p.centre[1] - poses[start].centre[1]).toFixed(1)} px down`,
+            );
           }
           const off = offLine(p);
           if (off > 2) flag(i, `the letters are ${off.toFixed(1)} px off one line`);

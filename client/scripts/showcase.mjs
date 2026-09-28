@@ -1206,8 +1206,8 @@ function jitter(name, frames, bands) {
     flags.push(`az ${f.azimuth.toFixed(1)}° el ${f.elevation.toFixed(1)}°: ${what}`);
   };
   const turning = name.startsWith('orbit');
-  // The view's centre (the orbit target on screen): still while the camera
-  // turns, gliding smoothly while it climbs
+  // The view's centre (the orbit target on screen): still however the camera
+  // turns or climbs
   const cx = frames.map((f) => f.centre[0]);
   const cy = frames.map((f) => f.centre[1]);
   const steps = frames.slice(1).map((f, i) => Math.hypot(cx[i + 1] - cx[i], cy[i + 1] - cy[i]));
@@ -1217,10 +1217,7 @@ function jitter(name, frames, bands) {
       Math.hypot(cx[i + 2] - 2 * cx[i + 1] + cx[i], cy[i + 2] - 2 * cy[i + 1] + cy[i]),
     );
   steps.forEach((s, i) => {
-    if (turning && s > 0.5) flag(i + 1, `the centre moved ${s.toFixed(2)} px`);
-  });
-  kinks.forEach((k, i) => {
-    if (!turning && k > 0.5) flag(i + 2, `the centre kinked ${k.toFixed(2)} px`);
+    if (s > 0.5) flag(i + 1, `the centre moved ${s.toFixed(2)} px`);
   });
   // Each label where it shows: the sprite most opaque, crossfading while both show
   const ids = Object.keys(frames[0].labels);

@@ -13,15 +13,15 @@ import { lensShiftOf } from './viewOffset';
 import type { Vec3 } from './types';
 
 // The game's camera fit (FitCameraToBoard, as GameScreen mounts it) swept
-// through every pose: the camera turned all the way round half a degree at a
-// time at seven elevations from 14° below the horizon to overhead, and
-// climbed through them a quarter of a degree at a time, in a desktop window
-// and a phone either way up. What the player sees:
+// through every pose: fitted from each of seven elevations from 14° below the
+// horizon to overhead, then turned all the way round at each of them, near,
+// as fitted and far, in a desktop window and a phone either way up. What the
+// player sees:
 //
-// - turning the view never moves it: the lens shift has no sideways part and
-//   its vertical part is the same at every azimuth, so the tower's axis
-//   stands still in the middle of the window;
-// - climbing or dipping moves the view smoothly, never by a jump;
+// - turning, climbing or zooming the view never moves it: the lens shift is
+//   set with the fit, has no sideways part, and stays as the camera moves, so
+//   the tower's centre stands still on screen and the camera only turns
+//   about it;
 // - the whole tower and every label, where the grid puts it, stays inside the
 //   window clear of the HUD's bands, at the fitted distance and zoomed all the
 //   way out; zoomed all the way in (where it cannot fit) it stays centred.
@@ -101,45 +101,26 @@ async function mount(width: number, height: number, from: [number, number] = [16
 
 describe('the fitted view', SWEEP, () => {
   for (const [width, height] of WINDOWS) {
-    it(`never moves as the view turns, in ${width}x${height}`, async () => {
+    it(`never moves as the view turns, climbs or zooms, in ${width}x${height}`, async () => {
       const bad: string[] = [];
-      for (const elevation of ELEVATIONS) {
-        const view = await mount(width, height, [16, elevation]);
+      for (const opening of ELEVATIONS) {
+        const view = await mount(width, height, [16, opening]);
         const { min, max } = { min: view.controls.minDistance, max: view.controls.maxDistance };
+        const [x0, y0] = view.turn(16, opening);
         for (const distance of [view.fitted, min, max]) {
-          const [, first] = view.turn(0, elevation, distance);
-          for (const azimuth of AZIMUTHS) {
-            const [x, y] = view.turn(azimuth, elevation, distance);
-            if (x !== 0 || Math.abs(y - first) > 1e-9) {
-              bad.push(`el ${elevation} az ${azimuth} d ${distance.toFixed(1)}: shift ${x}, ${y}`);
+          for (const elevation of ELEVATIONS) {
+            for (let azimuth = 0; azimuth < 360; azimuth += 7.5) {
+              const [x, y] = view.turn(azimuth, elevation, distance);
+              if (x !== x0 || y !== y0) {
+                bad.push(
+                  `from ${opening}: el ${elevation} az ${azimuth} d ${distance.toFixed(1)}: shift ${x}, ${y}`,
+                );
+              }
             }
           }
         }
       }
       expect(bad.slice(0, 10)).toEqual([]);
-    });
-
-    it(`moves smoothly as the view climbs, in ${width}x${height}`, async () => {
-      const view = await mount(width, height);
-      const { minDistance: min, maxDistance: max } = view.controls;
-      let worst = 0;
-      let kink = 0;
-      for (const distance of [view.fitted, min, max]) {
-        for (const azimuth of [0, 16, 45, 200]) {
-          const shifts: number[] = [];
-          for (let e = -14; e <= 89.9; e += 0.25) shifts.push(view.turn(azimuth, e, distance)[1]);
-          for (let i = 1; i < shifts.length; i++) {
-            worst = Math.max(worst, Math.abs(shifts[i] - shifts[i - 1]));
-            if (i > 1)
-              kink = Math.max(kink, Math.abs(shifts[i] - 2 * shifts[i - 1] + shifts[i - 2]));
-          }
-        }
-      }
-      // A quarter of a degree moves the view's centre under 2 px (zoomed all
-      // the way in, where it moves fastest), and it never lurches: no step
-      // differs from the one before by a third of a pixel
-      expect(worst).toBeLessThan(2);
-      expect(kink).toBeLessThan(0.3);
     });
 
     it(`keeps the tower and every label in frame, clear of the HUD, in ${width}x${height}`, async () => {
