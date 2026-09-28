@@ -46,11 +46,13 @@ describe('zenith garden', () => {
   });
 
   it('keeps a sculpture clear of the tower and in frame from every side', () => {
-    for (const el of [-14, 0, 18, 30]) {
-      for (let az = 0; az < 360; az += 5) {
-        const view = gardenView(cameraAt(az, el), ASPECT);
-        const clear = view.filter((v) => v.inFrame >= 0.5 && v.cover < 0.5);
-        expect(clear.length, `el ${el}°, az ${az}°`).toBeGreaterThan(0);
+    for (const turn of [1, -1]) {
+      for (const el of [-14, 0, 18, 30]) {
+        for (let az = 0; az < 360; az += 5) {
+          const view = gardenView(cameraAt(az, el), ASPECT, 1, turn);
+          const clear = view.filter((v) => v.inFrame >= 0.5 && v.cover < 0.5);
+          expect(clear.length, `el ${el}°, az ${az}°, turn ${turn}`).toBeGreaterThan(0);
+        }
       }
     }
   });
@@ -61,6 +63,9 @@ describe('zenith garden', () => {
     const view = gardenView(cameraAt(0, 18), ASPECT);
     const behind = GARDEN.findIndex((g) => g.square === 'e8');
     expect(view[behind].cover).toBeGreaterThan(0.95);
+    // Turned about for Black, the one there is the queen from d1
+    const turned = gardenView(cameraAt(0, 18), ASPECT, 1, -1);
+    expect(turned[GARDEN.findIndex((g) => g.square === 'd1')].cover).toBeGreaterThan(0.95);
   });
 
   it('keeps the constellations above the frame in the ordinary views', () => {

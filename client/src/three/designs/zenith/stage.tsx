@@ -17,11 +17,13 @@ import {
   Vector4,
 } from 'three';
 import type { Camera } from 'three';
+import type { StageProps } from '../types';
 import { PieceType } from '../../../engine/pieces';
 import { PROFILES } from '../../pieces';
 import { noRaycast } from '../kit/noRaycast';
 import { TOWER_MASK } from './mask';
 import { FRAME, GROUND_Y, layout, MARGIN, PALETTE, PIECE_SCALE } from './palette';
+import { Details } from './details';
 import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
 import { useEnvSetting } from './settings-env';
@@ -46,6 +48,9 @@ import { useEnvSetting } from './settings-env';
 
 // --- The night sky ------------------------------------------------------------------
 
+/** The horizon's wider glow and far banks of mist: 1 with the close-look details, else 0. */
+const skyLayers = { value: 1 };
+
 const Sky = () => {
   const { geometry, material } = useMemo(
     () => ({
@@ -59,6 +64,7 @@ const Sky = () => {
           uHorizon: { value: new Color(PALETTE.skyHorizon) },
           uBottom: { value: new Color(PALETTE.skyBottom) },
           uMist: { value: new Color(PALETTE.mist) },
+          uLayers: skyLayers,
         },
         vertexShader: /* glsl */ `
           varying vec3 vDir;
@@ -72,13 +78,24 @@ const Sky = () => {
           uniform vec3 uBottom;
           uniform vec3 uMist;
           varying vec3 vDir;
+          uniform float uLayers;
           void main() {
-            float h = normalize(vDir).y;
+            vec3 d = normalize(vDir);
+            float h = d.y;
             vec3 c = h > 0.0
               ? mix(uHorizon, uTop, pow(h, 0.45))
               : mix(uHorizon, uBottom, pow(-h, 0.5));
-            // A breath of mist lying along the horizon
+            // A breath of mist lying along the horizon, in a soft wider glow
             c += uMist * exp(-pow(h / 0.05, 2.0)) * 0.045;
+            c += uMist * exp(-pow(h / 0.16, 2.0)) * 0.008 * uLayers;
+            // Far off, two banks of mist, their tops rolling slowly round
+            // the horizon (whole waves round it, so they close up behind)
+            float az = atan(d.x, d.z);
+            float low = 0.012 + 0.006 * sin(az * 3.0 + 0.7) + 0.004 * sin(az * 7.0 + 2.1);
+            float high = 0.034 + 0.009 * sin(az * 2.0 + 4.0) + 0.005 * sin(az * 5.0 + 0.3);
+            float bank = smoothstep(low + 0.014, low - 0.004, h) * smoothstep(-0.05, -0.005, h);
+            float stratum = exp(-pow((h - high) / 0.007, 2.0));
+            c += uMist * (bank * 0.014 + stratum * 0.008) * uLayers;
             gl_FragColor = vec4(c, 1.0);
             #include <colorspace_fragment>
           }`,
@@ -360,6 +377,13 @@ const towerRect = { value: new Vector4(0, 0, 0, 0) };
 const viewport = { value: new Vector3(1, 1, 1) };
 /** The player's sculpture brightness (settings-env.ts). */
 const brightness = { value: 1 };
+/**
+ * 1, or -1 to turn the garden half about for Black: the tower's board is
+ * walked around rather than turned (layout.ts), so the colossal board and
+ * everything on it turn with it, and a1 lies at Black's far left as it does
+ * on the tower. (Its lines and checker look the same either way.)
+ */
+const gardenTurn = { value: 1 };
 
 /** The platforms' own square (the letters and numbers round it: MARGIN_NDC). */
 const TOWER_HALF = FRAME.half + MARGIN;
@@ -450,12 +474,14 @@ export const towerOnScreen = (camera: Camera, aspect: number): Rect | null => {
 
 /**
  * Every sculpture's cover and framing for a camera (pure, for tests and the
- * sweep). `fade` widens (above 1) or narrows the dimming before the tower.
+ * sweep). `fade` widens (above 1) or narrows the dimming before the tower;
+ * `turn` is -1 when the garden is turned about for Black (gardenTurn).
  */
-export const gardenView = (camera: Camera, aspect: number, fade = 1): SculptureView[] => {
+export const gardenView = (camera: Camera, aspect: number, fade = 1, turn = 1): SculptureView[] => {
   const t = towerOnScreen(camera, aspect);
   right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
-  return SIZES.map(({ at, radius, ys }) => {
+  return SIZES.map(({ at: home, radius, ys }) => {
+    const at = [home[0] * turn, home[1], home[2] * turn];
     // The sculpture as it faces the camera: its axis, as wide as its base
     const around = (heights: number[]) =>
       [-1, 1].flatMap((s) =>
@@ -489,17 +515,18 @@ export const gardenView = (camera: Camera, aspect: number, fade = 1): SculptureV
 };
 
 const drawingBuffer = new Vector2();
-const TowerCovers = () => {
+const TowerCovers = ({ turn }: { turn: number }) => {
   const fade = useEnvSetting<number>('env.sculptureFade');
   const bright = useEnvSetting<number>('env.sculptures');
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     brightness.value = bright;
+    gardenTurn.value = turn;
     invalidate();
-  }, [bright, fade, invalidate]);
+  }, [bright, fade, turn, invalidate]);
   useFrame(({ camera, size, gl }) => {
     const aspect = size.width / Math.max(size.height, 1);
-    const view = gardenView(camera, aspect, fade);
+    const view = gardenView(camera, aspect, fade, turn);
     view.forEach(({ cover }, i) => {
       covers.value[i] = cover;
     });
@@ -536,6 +563,7 @@ const neonVertex = /* glsl */ `
   uniform float uWidth;
   uniform float uMirror;
   uniform float uGround;
+  uniform float uTurn;
   attribute vec3 aAnchor;
   attribute vec3 aTangent;
   attribute float aSide;
@@ -547,19 +575,21 @@ const neonVertex = /* glsl */ `
   varying float vDepth;
   varying float vRing;
   void main() {
-    vec3 toCam = cameraPosition - aAnchor;
+    // Turned about for Black, as the board is (gardenTurn)
+    vec3 anchor = vec3(aAnchor.x * uTurn, aAnchor.y, aAnchor.z * uTurn);
+    vec3 toCam = cameraPosition - anchor;
     vec2 h = normalize(toCam.xz + vec2(1e-5, 0.0));
     // The drawing's plane faces the camera, turned about the vertical
     vec3 right = vec3(h.y, 0.0, -h.x);
     // A knight looks in toward the board, whichever side of it it stands
-    float face = dot(right.xz, -aAnchor.xz) >= 0.0 ? 1.0 : -1.0;
+    float face = dot(right.xz, -anchor.xz) >= 0.0 ? 1.0 : -1.0;
     vec3 p;
     vec3 t;
     if (aMode < 0.5) {
-      p = aAnchor + right * position.x * face + vec3(0.0, position.y, 0.0);
+      p = anchor + right * position.x * face + vec3(0.0, position.y, 0.0);
       t = right * aTangent.x * face + vec3(0.0, aTangent.y, 0.0);
     } else {
-      p = aAnchor + position;
+      p = anchor + position;
       t = aTangent;
     }
     vDepth = p.y - uGround;
@@ -636,6 +666,7 @@ const neonMaterial = (o: {
       uBright: brightness,
       uTowerRect: towerRect,
       uViewport: viewport,
+      uTurn: gardenTurn,
       uWidth: { value: o.width },
       uCore: { value: o.core },
       uHalo: { value: o.halo },
@@ -649,7 +680,7 @@ const neonMaterial = (o: {
     fragmentShader: neonFragment,
   });
 
-const Sculptures = () => {
+const Sculptures = ({ turn }: { turn: number }) => {
   const { geometry, tubes, reflection } = useMemo(
     () => ({
       geometry: neonGeometry(),
@@ -683,7 +714,7 @@ const Sculptures = () => {
   );
   return (
     <group name="monolith-garden">
-      <TowerCovers />
+      <TowerCovers turn={turn} />
       <mesh
         geometry={geometry}
         material={reflection}
@@ -749,8 +780,10 @@ const Mist = () => {
           uBright: brightness,
           uTowerRect: towerRect,
           uViewport: viewport,
+          uTurn: gardenTurn,
         },
         vertexShader: /* glsl */ `
+          uniform float uTurn;
           attribute vec3 aAnchor;
           attribute vec2 aSize;
           attribute float aPlace;
@@ -758,9 +791,10 @@ const Mist = () => {
           varying vec2 vC;
           varying float vCover;
           void main() {
-            vec2 h = normalize((cameraPosition - aAnchor).xz + vec2(1e-5, 0.0));
+            vec3 anchor = vec3(aAnchor.x * uTurn, aAnchor.y, aAnchor.z * uTurn);
+            vec2 h = normalize((cameraPosition - anchor).xz + vec2(1e-5, 0.0));
             vec3 right = vec3(h.y, 0.0, -h.x);
-            vec3 p = aAnchor + right * position.x * aSize.x + vec3(0.0, position.y * aSize.y, 0.0);
+            vec3 p = anchor + right * position.x * aSize.x + vec3(0.0, position.y * aSize.y, 0.0);
             vC = position.xy;
             vCover = uCover[int(aPlace + 0.5)];
             gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
@@ -837,17 +871,25 @@ const CameraFloor = () => {
   return null;
 };
 
-export const Stage = () => {
+export const Stage = ({ orientation }: StageProps) => {
+  const turn = orientation === 'black' ? -1 : 1;
   const stars = useEnvSetting<boolean>('env.stars');
   const figures = useEnvSetting<boolean>('env.constellations');
+  const details = useEnvSetting<boolean>('env.details');
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    skyLayers.value = details ? 1 : 0;
+    invalidate();
+  }, [details, invalidate]);
   return (
     <>
       <CameraFloor />
       <Heavens stars={stars} figures={figures} />
       <Sky />
       <Ground />
-      <Sculptures />
+      <Sculptures turn={turn} />
       <Mist />
+      {details && <Details turn={turn} />}
     </>
   );
 };

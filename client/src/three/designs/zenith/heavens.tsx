@@ -191,8 +191,9 @@ interface Placement {
  * 21° and 29° above the horizon: above the top of the frame from the opening
  * view (whose top edge is the horizon) and every view down to level, in
  * frame beside the tower once the camera sinks below the horizon to look up.
- * Looking up from White's side, the knight stands right of the tower and the
- * king left; from Black's, the queen and the unicorn.
+ * Looking up from the opening view (the same for both seats: the board, not
+ * the camera, turns for Black), the knight stands right of the tower and the
+ * king left.
  */
 export const SKY_PLAN: Placement[] = [
   { c: KNIGHT, azimuth: 172, elevation: 25, size: 9.5, tilt: -0.06 },

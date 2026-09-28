@@ -57,6 +57,14 @@ export const ENV_SETTINGS: SettingSpec[] = [
   },
   {
     kind: 'toggle',
+    key: 'env.details',
+    label: 'Close-look details',
+    group: 'World',
+    default: true,
+    hint: 'The colossal board’s engraved notation, far banks of mist, a signature on the horizon and a rare shooting star.',
+  },
+  {
+    kind: 'toggle',
     key: 'env.constellations',
     label: 'Constellations',
     group: 'World',
