@@ -187,9 +187,9 @@ const drawTitleBlock = (
     ctx.fillStyle = WHITE(0.95);
     ctx.fillText(value, cx + 0.8 * u, cy + bh * 0.19 - 0.6 * u);
   };
-  cell('DWG NO.', 'RS-1907', x, rows[0]);
+  cell('DWG NO.', '3DC-125', x, rows[0]);
   cell('SCALE', '1 : 1', split, rows[0]);
-  cell('DRAWN', 'F. MAACK', x, rows[1]);
+  cell('DRAWN', 'BY HAND', x, rows[1]);
   cell('REV', 'A', split, rows[1]);
   ctx.font = `600 ${1.6 * u}px ${MONO}`;
   ctx.fillStyle = WHITE(0.9);

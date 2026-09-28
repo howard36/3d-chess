@@ -95,7 +95,7 @@ export const drawPoster = (w: number, h: number, withType: boolean): Texture => 
     ctx.fillText('SPIEL IM RAUM', w - 3 * u, 65 * u);
     ctx.font = `400 ${2.2 * u}px ${FONT}`;
     ctx.fillText('5 × 5 × 5 — 125 FELDER', w - 3 * u, 68.8 * u);
-    ctx.fillText('NACH F. MAACK, 1907', w - 3 * u, 72.2 * u);
+    ctx.fillText('FÜNF EBENEN', w - 3 * u, 72.2 * u);
   }
 
   // Paper grain over everything
