@@ -280,6 +280,51 @@ full-rate video:
 cd client && node scripts/showcase.mjs --design royal --out /tmp/showcase   # ffmpeg on PATH
 ```
 
+### Design settings
+
+A design may let the player adjust parts of its look (`designs/settings.ts`). It declares
+them as `Design.settings`, a list of `SettingSpec`s. Each has a stable `key` (the name
+it is read by and stored under), a `label`, a `group` (the heading it is listed under), a
+`default` and an optional one-line `hint`. There are three kinds:
+
+- `toggle`, a boolean;
+- `slider`, a number, with `min`, `max`, `step` and an optional `format(value)` for how it
+  reads (else the number, to the step's decimals);
+- `choice`, one of `options: { value, label }[]`.
+
+```tsx
+settings: [
+  { kind: 'toggle', key: 'env.stars', label: 'Stars', group: 'World', default: true },
+  { kind: 'slider', key: 'env.glow', label: 'Glow', group: 'World', default: 1,
+    min: 0, max: 2, step: 0.1, format: (v) => `${v.toFixed(1)}×`, hint: 'The sky’s light.' },
+],
+```
+
+Anything under the Canvas reads a setting with `useDesignSetting<T>(key)` (or all of them
+with `useDesignSettings()`) and re-renders when it changes. The canvas renders on demand, so
+a value read only inside `useFrame` also needs `useEffect(() => invalidate(), [value])`.
+The choices are kept per design in this browser (`localStorage`, `design-settings:<id>`,
+only the values that differ from the defaults). They are never game state and never sent
+to the opponent. A stored value that no longer fits its setting (a renamed option, a
+narrower range, a changed kind) is dropped. Renaming a key forgets the players' choice for
+it.
+
+When the current design has settings, a gear appears beside the style picker, in the game
+and on the start screen, styled with the design's `--hud-*` and `--button-*` variables. It
+opens a small panel over the top right of the board (`screens/DesignSettings.tsx`):
+
+- groups are listed in the order they first appear, and each group's settings as declared;
+- toggles are switches, and sliders show their formatted value;
+- a choice is a row of buttons, or a drop-down beyond four options;
+- hints appear in small muted text;
+- "Reset to defaults" shows how many settings are changed, and the gear carries a dot
+  while any are.
+
+Every change applies at once. The panel is not modal: the board stays in play and
+clicking it leaves the panel open. Escape, the gear, or its close button closes the panel,
+and so does a click anywhere else. It scrolls on its own on a small screen, and no pointer
+or wheel event on it reaches the board's camera.
+
 ### Clarity kit
 
 Round-2 designs build on a shared **clarity kit** (`designs/kit/`), whose rules come from

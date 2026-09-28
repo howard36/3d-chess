@@ -23,6 +23,7 @@ import { NoToneMapping } from 'three';
 import { DesignContext, useDesignChoice } from '../three/designs/context';
 import { DesignStage } from '../three/DesignStage';
 import DesignPicker from './DesignPicker';
+import DesignSettings from './DesignSettings';
 import CapturedPieces from './CapturedPieces';
 import HoverReadout from './HoverReadout';
 import type { HoveredCell } from '../three/Board';
@@ -518,7 +519,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
                 {design.hud.readout && <HoverReadout cell={hoverCell} />}
               </div>
               <div className="flex flex-col items-end gap-2 justify-self-end">
-                <DesignPicker />
+                {/* The design's own settings (a gear, when it has any) beside its picker */}
+                <div className="flex items-start gap-2">
+                  <DesignSettings />
+                  <DesignPicker />
+                </div>
                 {reconnectingBanner}
               </div>
             </div>

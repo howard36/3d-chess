@@ -10,6 +10,10 @@ test('create game flow', async ({ page }) => {
   const startButton = page.getByRole('button', { name: 'Start New Game' });
   await expect(startButton).toBeVisible();
 
+  // Classic has no settings: the style picker stands alone, with no gear
+  await expect(page.getByTestId('design-picker')).toBeVisible();
+  await expect(page.getByTestId('design-settings')).toHaveCount(0);
+
   // Click the start button
   await startButton.click();
 

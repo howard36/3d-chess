@@ -38,6 +38,28 @@ export type SettingSpec =
 
 export type SettingValues = Record<string, SettingValue>;
 
+/** A design's settings in the panel's order: groups as they first appear, each group's settings as declared. */
+export const settingGroups = (specs: readonly SettingSpec[]) => {
+  const groups = new Map<string, SettingSpec[]>();
+  for (const spec of specs) {
+    const group = groups.get(spec.group);
+    if (group) group.push(spec);
+    else groups.set(spec.group, [spec]);
+  }
+  return [...groups].map(([label, settings]) => ({ label, settings }));
+};
+
+/** How a slider's value reads beside it: the design's format, else as many decimals as its step. */
+export const formatSetting = (
+  spec: Extract<SettingSpec, { kind: 'slider' }>,
+  value: number,
+): string => {
+  if (spec.format) return spec.format(value);
+  const step = String(spec.step);
+  const decimals = step.includes('.') ? Math.min(step.length - step.indexOf('.') - 1, 4) : 0;
+  return value.toFixed(decimals);
+};
+
 const STORAGE_PREFIX = 'design-settings:';
 
 interface Store {

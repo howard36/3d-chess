@@ -6,6 +6,7 @@ import { setStoredRole } from '../lib/playerRole';
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
 import DesignPicker from './DesignPicker';
+import DesignSettings from './DesignSettings';
 
 interface StartScreenProps {
   gameSocket: GameSocket;
@@ -57,7 +58,8 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
         fontFamily: 'var(--hud-font, inherit)',
       }}
     >
-      <div className="absolute top-2.5 right-2.5" style={{ zIndex: 1001 }}>
+      <div className="absolute top-2.5 right-2.5 flex items-start gap-2" style={{ zIndex: 1001 }}>
+        <DesignSettings />
         <DesignPicker />
       </div>
       <div className="text-center flex flex-col items-center gap-8">

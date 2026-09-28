@@ -4,10 +4,12 @@ import classic from './classic';
 import type { Design } from './types';
 import {
   changedSettingCount,
+  formatSetting,
   getDesignSettings,
   resetDesignSettings,
   resetSettingStores,
   setDesignSetting,
+  settingGroups,
   useSettingsOf,
 } from './settings';
 
@@ -82,5 +84,31 @@ describe('design settings', () => {
     act(() => resetDesignSettings(design));
     expect(result.current).toEqual({ stars: true, glow: 0.5, capture: 'arcs' });
     expect(localStorage.getItem('design-settings:settings-test')).toBeNull();
+  });
+});
+
+describe('the settings panel’s order and readouts', () => {
+  it('gathers groups as they first appear, each group’s settings as declared', () => {
+    const [stars, glow, capture] = design.settings!;
+    const specs = [stars, capture, { ...glow, key: 'haze' }, glow];
+    expect(settingGroups(specs).map((g) => [g.label, g.settings.map((s) => s.key)])).toEqual([
+      ['World', ['stars', 'haze', 'glow']],
+      ['Markers', ['capture']],
+    ]);
+  });
+
+  it('reads a slider with its design’s format, else to its step’s decimals', () => {
+    const slider = {
+      kind: 'slider' as const,
+      key: 'k',
+      label: 'K',
+      group: 'G',
+      default: 0,
+      min: 0,
+      max: 2,
+    };
+    expect(formatSetting({ ...slider, step: 0.05 }, 0.5)).toBe('0.50');
+    expect(formatSetting({ ...slider, step: 1 }, 2)).toBe('2');
+    expect(formatSetting({ ...slider, step: 0.1, format: (v) => `${v}x` }, 1.5)).toBe('1.5x');
   });
 });
