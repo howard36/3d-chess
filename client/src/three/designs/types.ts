@@ -327,10 +327,12 @@ export interface Design {
    * Lift a piece the player may pick up off its floor when the pointer is on
    * it, and the selected piece higher. `true` takes the kit's heights and
    * holds the selected piece still; a PieceLift sets the heights and, if
-   * wanted, a gentle bob while selected. Leave it off to stage hover and
-   * selection in the piece body instead (PieceBodyProps.hovered, .selected).
+   * wanted, a gentle bob while selected and eased rises of a set length; a
+   * function reads them from the player's settings. Leave it off to stage
+   * hover and selection in the piece body instead (PieceBodyProps.hovered,
+   * .selected).
    */
-  hoverLift?: boolean | PieceLift;
+  hoverLift?: boolean | PieceLift | ((settings: SettingValues) => PieceLift);
   /**
    * Track the pointer over legal destinations, so the Quiet and Capture
    * markers get `hovered` and can brighten under it.
@@ -363,6 +365,17 @@ export interface PieceLift {
    * still). The round-2 designs use SELECTION_BOB from kit/motion.
    */
   bob?: number;
+  /**
+   * Seconds a piece takes to rise to its hover height or settle from it,
+   * along a gentle ease that starts and ends at rest and never passes the
+   * target (default 0: a quick ease that slows as it arrives).
+   */
+  hoverSeconds?: number;
+  /**
+   * The same for a rise to the selected height or a fall from it (so
+   * hover to held and back both take it; default 0).
+   */
+  selectSeconds?: number;
 }
 
 /** Picker sections, listed in this order (see DESIGN_GROUPS in registry.ts). */

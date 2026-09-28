@@ -13,6 +13,7 @@ import type { BufferGeometry, Group, Mesh, Object3D } from 'three';
 import { PieceType } from '../engine';
 import { useDesign } from './designs/context';
 import { Lift, pieceLift, Topple } from './designs/kit/motion';
+import { useSettingsOf } from './designs/settings';
 import { noRaycast } from './designs/kit/noRaycast';
 import type { Design } from './designs/types';
 import type { Orientation } from './layout';
@@ -151,7 +152,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   const design = useDesign();
   const seat = useRef<Group>(null);
   const proxy = useRef<Mesh>(null);
-  const lift = pieceLift(design.hoverLift);
+  const lift = pieceLift(design.hoverLift, useSettingsOf(design));
   // The proxy takes in the body at its highest
   const extra = lift ? Math.max(lift.hover, lift.selected + lift.bob) : 0;
 
@@ -204,6 +205,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
       <Lift
         height={selected ? lift.selected : hovered ? lift.hover : 0}
         bob={selected ? lift.bob : 0}
+        seconds={selected ? lift.selectSeconds : lift.hoverSeconds}
       >
         {body}
       </Lift>

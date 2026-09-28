@@ -16,6 +16,7 @@ import { PieceMesh } from './PieceMesh';
 import classic from './designs/classic';
 import { DesignContext } from './designs/context';
 import { noRaycast } from './designs/kit/noRaycast';
+import { resetSettingStores, setDesignSetting } from './designs/settings';
 import type { Design, PieceBodyProps } from './designs/types';
 
 // Regression: a piece that lifts under the pointer used to flicker when the
@@ -126,6 +127,38 @@ describe('a piece’s hit proxy', () => {
       );
     expect(at(RADIUS * 0.8 - 0.02).length).toBeGreaterThan(0);
     expect(at(RADIUS * 0.8 + 0.04)).toHaveLength(0);
+  });
+
+  it('lifts to the heights a design reads from its settings, and covers them', async () => {
+    resetSettingStores();
+    const tuned: Design = {
+      ...lifting,
+      id: 'hit-proxy-settings-test',
+      hoverLift: (s) => ({ hover: Number(s.lift), selected: Number(s.lift) + 0.1, bob: 0 }),
+      settings: [
+        {
+          kind: 'slider',
+          key: 'lift',
+          label: 'Lift',
+          group: 'Pieces',
+          default: 0.1,
+          min: 0,
+          max: 0.5,
+          step: 0.05,
+        },
+      ],
+    };
+    const { frames, hitsAt, visual, piece } = await renderPiece(tuned, { selected: true });
+    const rest = visual().min.y;
+    await frames(40);
+    // Held: the setting's hover height and the gap, at the piece's scale
+    expect(visual().min.y - rest).toBeCloseTo(0.2 * 0.8, 3);
+    await act(async () => setDesignSetting(tuned, 'lift', 0.4));
+    await frames(40);
+    expect(visual().min.y - rest).toBeCloseTo(0.5 * 0.8, 3);
+    // The proxy grows with it
+    expect(pieceOf(hitsAt(visual().max.y - 0.01)[0])).toBe(piece);
+    resetSettingStores();
   });
 
   it('adds no height for a design that does not lift', async () => {

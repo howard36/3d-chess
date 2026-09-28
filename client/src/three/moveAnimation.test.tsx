@@ -7,8 +7,10 @@ import type { Group, Mesh } from 'three';
 import { MoveGlide } from './moveAnimation';
 import {
   FLOOR_DECAL,
+  easeLift,
   LIFT_DEFAULTS,
   Lift,
+  liftEntry,
   ON_FLOOR,
   pieceLift,
   SELECTION_BOB,
@@ -219,7 +221,111 @@ describe('Lift and Topple', () => {
     expect(pieceLift(true)).toEqual(LIFT_DEFAULTS);
     expect(LIFT_DEFAULTS.bob).toBe(0);
     expect(pieceLift({ bob: SELECTION_BOB })).toEqual({ ...LIFT_DEFAULTS, bob: SELECTION_BOB });
-    expect(pieceLift({ selected: 0.3 })).toEqual({ hover: 0.08, selected: 0.3, bob: 0 });
+    expect(pieceLift({ selected: 0.3 })).toEqual({ ...LIFT_DEFAULTS, selected: 0.3 });
+    // A lift drawn from the player's settings
+    const fromSettings = (s: Record<string, unknown>) => ({
+      hover: Number(s.hover),
+      selected: Number(s.hover) + 0.07,
+      selectSeconds: 0.5,
+    });
+    expect(pieceLift(fromSettings, { hover: 0.1 })).toEqual({
+      ...LIFT_DEFAULTS,
+      hover: 0.1,
+      selected: 0.1 + 0.07,
+      selectSeconds: 0.5,
+    });
+  });
+
+  /** A timed Lift driven through a list of [height, seconds, frames] steps, its height each frame. */
+  const timed = async (steps: [number, number, number][]) => {
+    const Harness = ({ step }: { step: number }) => (
+      <Lift height={steps[step][0]} seconds={steps[step][1]}>
+        <mesh />
+      </Lift>
+    );
+    const renderer = await ReactThreeTestRenderer.create(<Harness step={0} />);
+    const group = (renderer.scene as ReactThreeTestInstance).children[0]
+      .instance as unknown as Group;
+    const seen: number[][] = [];
+    for (let i = 0; i < steps.length; i++) {
+      if (i > 0) await act(async () => renderer.update(<Harness step={i} />));
+      const heights: number[] = [];
+      for (let f = 0; f < steps[i][2]; f++) {
+        await act(async () => renderer.advanceFrames(1, 1 / 60));
+        heights.push(group.position.y);
+      }
+      seen.push(heights);
+    }
+    return seen;
+  };
+  const rising = (ys: number[]) => ys.every((y, i) => i === 0 || y >= ys[i - 1] - 1e-9);
+  const falling = (ys: number[]) => ys.every((y, i) => i === 0 || y <= ys[i - 1] + 1e-9);
+
+  it('eases a timed lift from where it is to its height, never past it, in the time asked', async () => {
+    const [up, hold, down] = await timed([
+      [0.1, 0.25, 30],
+      [0.17, 0.5, 45],
+      [0, 0.25, 45],
+    ]);
+    expect(rising(up)).toBe(true);
+    expect(Math.max(...up)).toBeLessThanOrEqual(0.1);
+    // A quarter second at 60 frames
+    expect(up[13]).toBeLessThan(0.1);
+    expect(up[16]).toBe(0.1);
+    // It starts gently, not with a jump
+    expect(up[0]).toBeLessThan(0.01);
+    expect(rising(hold)).toBe(true);
+    expect(Math.max(...hold)).toBeLessThanOrEqual(0.17);
+    expect(hold[25]).toBeLessThan(0.17);
+    expect(hold[31]).toBe(0.17);
+    // Leaving the held height takes the held time, the longer of the two
+    expect(falling(down)).toBe(true);
+    expect(Math.min(...down)).toBeGreaterThanOrEqual(0);
+    expect(down[20]).toBeGreaterThan(0);
+    expect(down[31]).toBe(0);
+  });
+
+  it('carries a timed lift on without a hitch when it is sent higher on the way up', async () => {
+    const [part, on] = await timed([
+      [0.1, 0.25, 8],
+      [0.17, 0.5, 40],
+    ]);
+    const all = [...part, ...on];
+    expect(rising(all)).toBe(true);
+    // No stall where the target changed: the next step is no smaller than
+    // the last one before it by much
+    const before = part[7] - part[6];
+    const after = on[0] - part[7];
+    expect(after).toBeGreaterThan(before * 0.8);
+    expect(on[on.length - 1]).toBe(0.17);
+    for (const y of all) expect(y).toBeLessThanOrEqual(0.17);
+  });
+
+  it('turns a timed lift back from where it is, without a jump', async () => {
+    const [part, back] = await timed([
+      [0.2, 0.3, 9],
+      [0, 0.3, 30],
+    ]);
+    expect(rising(part)).toBe(true);
+    expect(falling(back)).toBe(true);
+    expect(Math.abs(back[0] - part[part.length - 1])).toBeLessThan(0.01);
+    expect(back[back.length - 1]).toBe(0);
+  });
+
+  it('enters the ease where its speed matches the piece’s', () => {
+    expect(liftEntry(0.1, 0.5, 0)).toBe(0);
+    // Turning back starts from rest
+    expect(liftEntry(-0.1, 0.5, 0.3)).toBe(0);
+    expect(liftEntry(0.1, 0, 0.3)).toBe(0);
+    const t0 = liftEntry(0.1, 0.5, 0.2);
+    expect(t0).toBeGreaterThan(0);
+    expect(t0).toBeLessThanOrEqual(0.5);
+    // The rescaled ease leaves t0 at the speed asked
+    const h = 1e-5;
+    const rate = ((easeLift(t0 + h) - easeLift(t0)) / h / (1 - easeLift(t0))) * (0.1 / 0.5);
+    expect(rate).toBeCloseTo(0.2, 3);
+    // Faster than the ease can take it: its fastest point
+    expect(liftEntry(0.01, 0.5, 5)).toBe(0.5);
   });
 
   it('tips a mated king onto its side', async () => {

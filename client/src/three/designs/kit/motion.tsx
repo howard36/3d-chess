@@ -2,7 +2,8 @@ import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Quaternion, Vector3 } from 'three';
 import type { Group, Object3D } from 'three';
-import type { PieceLift } from '../types';
+import type { SettingValues } from '../settings';
+import type { Design, PieceLift } from '../types';
 
 /**
  * userData for decoration lying on the floor at a piece's base (a contact
@@ -60,7 +61,13 @@ export const GlideContext = createContext<GlideInfo | null>(null);
 export const useGlide = () => useContext(GlideContext);
 
 /** Board's piece lift (Design.hoverLift) when a design just says `true`. */
-export const LIFT_DEFAULTS: Required<PieceLift> = { hover: 0.08, selected: 0.2, bob: 0 };
+export const LIFT_DEFAULTS: Required<PieceLift> = {
+  hover: 0.08,
+  selected: 0.2,
+  bob: 0,
+  hoverSeconds: 0,
+  selectSeconds: 0,
+};
 
 /**
  * The gentle bob of a held piece that the round-2 designs were reviewed
@@ -68,43 +75,138 @@ export const LIFT_DEFAULTS: Required<PieceLift> = { hover: 0.08, selected: 0.2, 
  */
 export const SELECTION_BOB = 0.035;
 
-/** A design's piece lift with its defaults filled in, or null for none. */
+/**
+ * A design's piece lift with its defaults filled in, or null for none. A
+ * design whose lift is a function of its settings gets them here.
+ */
 export const pieceLift = (
-  hoverLift: boolean | PieceLift | undefined,
-): Required<PieceLift> | null =>
-  !hoverLift ? null : hoverLift === true ? LIFT_DEFAULTS : { ...LIFT_DEFAULTS, ...hoverLift };
+  hoverLift: Design['hoverLift'],
+  settings: SettingValues = {},
+): Required<PieceLift> | null => {
+  const lift = typeof hoverLift === 'function' ? hoverLift(settings) : hoverLift;
+  return !lift ? null : lift === true ? LIFT_DEFAULTS : { ...LIFT_DEFAULTS, ...lift };
+};
+
+/** The timed lift's ease, 0 to 1: sine in and out, starting and ending at rest. */
+export const easeLift = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * t);
+const easeLiftRate = (t: number) => 0.5 * Math.PI * Math.sin(Math.PI * t);
+/** The ease's rate at `t` over what is left of it: the speed it enters with from there. */
+const entryRate = (t: number) => easeLiftRate(t) / (1 - easeLift(t));
 
 /**
- * Raises its children `height` above their resting place, easing there, and
- * bobs them `bob` up and down while there (0: held still). Requests frames
- * only while moving, so a demand-driven canvas idles once it settles.
- * Groups tagged ON_FLOOR stay behind on the floor.
+ * Where along the ease a timed travel of `span` over `seconds` should begin
+ * when the piece is already moving at `speed` (per second), so it carries on
+ * without a hitch: 0 from rest or when turning back, at most 0.5 (the ease's
+ * fastest point, so the rest of the way still slows into the target).
+ */
+export const liftEntry = (span: number, seconds: number, speed: number) => {
+  if (span === 0 || seconds <= 0 || speed * span <= 0) return 0;
+  const want = (Math.abs(speed) * seconds) / Math.abs(span);
+  if (entryRate(0.5) <= want) return 0.5;
+  let lo = 0;
+  let hi = 0.5;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (entryRate(mid) < want) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+};
+
+/** A Lift's travel toward its height. */
+interface Travel {
+  /** Where the travel began, and its target. */
+  from: number;
+  to: number;
+  /** The seconds the target asked for (see Lift). */
+  toSeconds: number;
+  /** The travel's length (0: the quick approach) and where along its ease it is. */
+  seconds: number;
+  t0: number;
+  t: number;
+  /** The height (without the bob), its speed, and the bob's size now. */
+  y: number;
+  speed: number;
+  bob: number;
+}
+
+/**
+ * Raises its children `height` above their resting place and bobs them `bob`
+ * up and down while there (0: held still). With `seconds` the piece travels
+ * from wherever it is to the new height along a gentle ease of that length,
+ * never past it; a travel between two heights takes the longer of the times
+ * they were given, so a rise to the held height and the fall back from it
+ * both take the held time. A travel turned toward a farther height in the
+ * same direction keeps its speed. Without `seconds` it eases there quickly,
+ * slowing as it arrives. Requests frames only while moving, so a
+ * demand-driven canvas idles once it settles. Groups tagged ON_FLOOR stay
+ * behind on the floor.
  */
 export const Lift = ({
   height,
   bob = 0,
+  seconds = 0,
   children,
 }: {
   height: number;
   bob?: number;
+  seconds?: number;
   children: React.ReactNode;
 }) => {
   const group = useRef<Group>(null);
   const clock = useRef(0);
+  const travel = useRef<Travel>({
+    from: 0,
+    to: 0,
+    toSeconds: 0,
+    seconds: 0,
+    t0: 0,
+    t: 1,
+    y: 0,
+    speed: 0,
+    bob: 0,
+  });
   const invalidate = useThree((s) => s.invalidate);
 
-  useEffect(() => invalidate(), [height, bob, invalidate]);
+  useEffect(() => invalidate(), [height, bob, seconds, invalidate]);
 
   useFrame((_, delta) => {
     const g = group.current;
     if (!g) return;
     const dt = Math.min(delta, 1 / 30);
     clock.current += dt;
-    const bobbing = bob > 0;
-    const target = height + (bobbing ? Math.sin(clock.current * 3.2) * bob : 0);
-    const y = g.position.y + (target - g.position.y) * Math.min(1, dt * 12);
-    const settled = !bobbing && Math.abs(y - target) < 1e-3;
-    g.position.y = settled ? target : y;
+    const s = travel.current;
+    if (height !== s.to) {
+      const time = Math.max(seconds, s.toSeconds);
+      s.t0 = liftEntry(height - s.y, time, s.speed);
+      s.t = s.t0;
+      s.from = s.y;
+      s.to = height;
+      s.toSeconds = seconds;
+      s.seconds = time;
+    }
+    let settled: boolean;
+    if (s.seconds > 0) {
+      // Timed: along the ease from where the travel began, with the bob
+      // easing in and out on top
+      s.t = dt > 0 ? Math.min(1, s.t + dt / s.seconds) : s.t;
+      const done = (easeLift(s.t) - easeLift(s.t0)) / (1 - easeLift(s.t0));
+      const y = s.t >= 1 ? s.to : s.from + (s.to - s.from) * done;
+      s.speed = s.t >= 1 ? 0 : dt > 0 ? (y - s.y) / dt : s.speed;
+      s.y = y;
+      s.bob += (bob - s.bob) * Math.min(1, dt * 6);
+      if (Math.abs(s.bob - bob) < 1e-4) s.bob = bob;
+      settled = s.t >= 1 && s.bob === 0;
+      g.position.y = y + (s.bob > 0 ? Math.sin(clock.current * 3.2) * s.bob : 0);
+    } else {
+      const bobbing = bob > 0;
+      const target = height + (bobbing ? Math.sin(clock.current * 3.2) * bob : 0);
+      const y = g.position.y + (target - g.position.y) * Math.min(1, dt * 12);
+      settled = !bobbing && Math.abs(y - target) < 1e-3;
+      g.position.y = settled ? target : y;
+      s.speed = settled ? 0 : dt > 0 ? (g.position.y - s.y) / dt : s.speed;
+      s.y = g.position.y;
+    }
     pinToFloor(g);
     if (!settled) invalidate();
   });
