@@ -62,9 +62,10 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
 
 // --- HUD ---------------------------------------------------------------------------
 
-// Ivory type on dark warm glass, titles in Cormorant (hud.css), the rest in
-// Manrope; a hairline of lamp light under the turn, like the rule on a
-// scoresheet. Restrained: the board is the event.
+// Ivory type on dark warm glass, titles in Cormorant (the turn by its HUD
+// variables, the result card by hud.css), the rest in Manrope; a hairline of
+// lamp light under the turn, like the rule on a scoresheet. Restrained: the
+// board is the event.
 const GLASS = 'linear-gradient(180deg, rgba(30, 22, 16, 0.84), rgba(15, 10, 7, 0.88))';
 const RULE =
   'linear-gradient(90deg, rgba(255, 226, 182, 0), rgba(255, 226, 182, 0.55), rgba(255, 226, 182, 0))';
@@ -109,6 +110,9 @@ const simul: Design = {
       '--hud-tracking': '0.01em',
       '--turn-bg': `${RULE} bottom / 100% 1px no-repeat, ${GLASS}`,
       '--turn-fg': '#f6ecdc',
+      // The turn is set as a title
+      '--turn-font': '"Cormorant Garamond", Georgia, serif',
+      '--turn-weight': '700',
       '--turn-size': '21px',
       '--turn-border': '1px solid rgba(255, 226, 182, 0.18)',
       '--turn-shadow': '0 0 28px rgba(255, 200, 130, 0.1), 0 12px 32px rgba(0, 0, 0, 0.45)',

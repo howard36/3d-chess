@@ -5,19 +5,16 @@ import {
   BoxGeometry,
   Color,
   DoubleSide,
-  MeshBasicMaterial,
   PlaneGeometry,
   ShaderMaterial,
-  TorusGeometry,
 } from 'three';
-import type { BufferGeometry, Mesh } from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Mesh } from 'three';
 import { prefersReducedMotion } from '../../motion';
 import { LAYER } from '../kit/layers';
 import { LastMoveLine } from '../kit/line';
 import { noRaycast } from '../kit/noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
-import { FRAME, LEVEL_COLORS, LIFT, MOTION, PALETTE, PIECE_SCALE } from './palette';
+import { FRAME, LEVEL_COLORS, MOTION, PALETTE } from './palette';
 import { held, steepness } from './plates';
 
 // Every mark of play is a square of light lying on the board, one family:
@@ -33,22 +30,18 @@ import { held, steepness } from './plates';
 //   a smaller one where it left, joined by a thin solid line of the same
 //   light with a slow flow along it. A destination on either square takes
 //   its place while it is shown, so two squares never nest;
-// - check, a warm-red plate under the king that keeps time like a chess
-//   clock: twelve fine ticks round its edge, a thin hand of red light that
-//   steps round once every twelve seconds, a faint ripple breathing out of
-//   it every other step, and a low glow rising from its edge so it reads
-//   from low down. It arrives with a sharp flash that settles.
+// - check, a hot red plate under the king that keeps time like a chess
+//   clock: twelve ticks round its edge (the quarters bold notches), a hand
+//   of red light that steps round once a second, twelve steps a turn, a
+//   faint ripple breathing out of it every other step, and a low glow rising
+//   from its edge so it reads from low down; over the king, a crown of the
+//   same light (pieces.tsx). It arrives with a sharp flash and a square
+//   thrown out, which settle; at mate its clock stops.
 //
 // The selection is the piece's own lamp (pieces.tsx): it lives with the
 // piece, so it can go out when the piece is put down.
 
 const MAX_STEP = 1 / 20;
-
-/**
- * Set while a mate is on the board (by the Celebration): the checked king's
- * clock stops, its hand still and its crown going out.
- */
-export const mate = { over: false };
 
 /** The level (engine z) a floor height belongs to. */
 const levelAt = (y: number) => {
@@ -197,15 +190,17 @@ const fragmentShader = /* glsl */ `
       float flash = exp(-uSince / 0.2);
       over(acc, uFill, inside * (uFillA + 0.55 * flash));
       over(acc, uColor, edge * (0.9 + 0.1 * flash));
-      // Twelve ticks round the edge, the quarters a little longer
+      // Twelve ticks round the edge, the quarters bold notches that read
+      // from across the board
       float ang = atan(p.y, p.x);
       float k = floor(ang / (PI / 6.0) + 0.5);
       float ta = k * PI / 6.0;
       vec2 d = vec2(cos(ta), sin(ta));
       float reach = uHalf / max(abs(d.x), abs(d.y));
       float quarter = step(abs(mod(k, 3.0)), 0.01);
-      float tick = segment(p, d * (reach - 0.05 - 0.035 * quarter), d * (reach - 0.018)) - 0.006;
-      over(acc, uColor, cover(tick) * 0.8);
+      float tick = segment(p, d * (reach - 0.05 - 0.035 * quarter), d * (reach - 0.015))
+        - mix(0.005, 0.011, quarter);
+      over(acc, mix(uColor, uCore, 0.35 * quarter), cover(tick) * mix(0.7, 1.0, quarter));
       // The hand steps round clockwise once a second, twelve steps a turn,
       // each step a quick eased tick
       float T = uTime;
@@ -214,7 +209,7 @@ const fragmentShader = /* glsl */ `
       float ha = PI * 0.5 - (floor(T) + eased) * PI / 6.0;
       vec2 hd = vec2(cos(ha), sin(ha));
       float hreach = uHalf / max(abs(hd.x), abs(hd.y));
-      float hand = segment(p, hd * 0.27, hd * (hreach - 0.02)) - 0.009;
+      float hand = segment(p, hd * 0.27, hd * (hreach - 0.02)) - 0.018;
       // A faint sweep of light trailing the hand, a sixth of a turn
       float behind = mod(ang - ha, 2.0 * PI);
       float trail = (1.0 - smoothstep(0.0, PI / 3.0, behind)) * smoothstep(0.26, 0.3, length(p)) * inside;
@@ -265,6 +260,8 @@ interface TileProps {
   yields?: boolean;
   /** Keeps asking for frames (a mote, a clock). */
   animated?: boolean;
+  /** Stops its clock (a check at mate). */
+  stopped?: boolean;
   /**
    * From above, off the held piece's level, draw smaller and a little
    * fainter, so the destinations of one square on several levels nest.
@@ -291,6 +288,7 @@ const Tile = ({
   delayMs = 0,
   yields = false,
   animated = false,
+  stopped = false,
   nests = false,
   quad = FRAME.pitch,
   renderOrder = LAYER.marker,
@@ -339,14 +337,19 @@ const Tile = ({
   u.uFillA.value = fillOpacity;
 
   const still = prefersReducedMotion();
-  const state = useRef({ since: growMs > 0 && !still ? -delayMs : 1e6, hover: 0, shown: 1 });
+  // The entrance's clock: a mark that grows in, and the check's flash
+  const state = useRef({
+    since: (growMs > 0 || kind === 'check') && !still ? -delayMs : 1e6,
+    hover: 0,
+    shown: 1,
+  });
   const key = floorKey(floor);
   const level = levelAt(floor[1]);
   useEffect(() => invalidate(), [hovered, invalidate]);
   useFrame((_, delta) => {
     const st = state.current;
     const dt = Math.min(delta, MAX_STEP);
-    let moving = animated && !still;
+    let moving = animated && !still && !stopped;
     st.since += dt * 1000;
     // The entrance: in from 70%, eased
     const g = growMs > 0 ? Math.min(Math.max(st.since / growMs, 0), 1) : 1;
@@ -369,7 +372,9 @@ const Tile = ({
     u.uOpacity.value = opacity * e * st.shown * (1 - 0.25 * nest);
     if (mesh.current) mesh.current.visible = g > 0 && st.shown > 0;
     // A clock stops at mate
-    if (!still && !(kind === 'check' && mate.over)) u.uTime.value += dt;
+    if (!still && !stopped) u.uTime.value += dt;
+    // (the check's flash and thrown square run on this clock)
+    if (kind === 'check' && st.since < 600) moving = true;
     u.uSince.value = Math.max(st.since, 0) / 1000;
     if (moving) invalidate();
   });
@@ -567,11 +572,10 @@ const CheckGlow = ({ floor }: { floor: Vec3 }) => {
   useFrame((_, delta) => {
     since.current += Math.min(delta, MAX_STEP);
     const t = since.current;
-    // A flash on arrival that settles into a slow breath
-    const flash = Math.exp(-t / 0.25);
-    const breath = prefersReducedMotion() ? 0 : 0.08 * Math.sin(t * 1.6);
-    material.uniforms.uOpacity.value = Math.min(1, t / 0.08) * (0.22 + 0.4 * flash + breath);
-    invalidate();
+    // A flash on arrival that settles, and holds still
+    const flash = prefersReducedMotion() ? 0 : Math.exp(-t / 0.25);
+    material.uniforms.uOpacity.value = Math.min(1, t / 0.08) * (0.22 + 0.4 * flash);
+    if (t < 1.5) invalidate();
   });
   return (
     <mesh
@@ -585,105 +589,25 @@ const CheckGlow = ({ floor }: { floor: Vec3 }) => {
 };
 
 /**
- * Check: a warm-red plate under the king that keeps time like a chess clock
- * (see the top of this file), with a low glow rising from its edge.
+ * Check: a hot red plate under the king that keeps time like a chess clock
+ * (see the top of this file), with a low glow rising from its edge. At mate
+ * its clock stops (the crown over the king goes out: pieces.tsx).
  */
-// --- The crown over a king in check ----------------------------------------------------
-
-/** How far above the floor the crown floats: just clear of a king held up. */
-const CROWN_Y = (0.87 + LIFT.selected) * PIECE_SCALE + 0.025;
-const CROWN_R = 0.13;
-
-/** A thin ring of light set with twelve upright ticks: a crown, and a clock's dial. */
-const crownGeometry = (() => {
-  const parts: BufferGeometry[] = [new TorusGeometry(CROWN_R, 0.007, 5, 36).rotateX(Math.PI / 2)];
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2;
-    const tall = i % 3 === 0 ? 0.05 : 0.032;
-    parts.push(
-      new BoxGeometry(0.012, tall, 0.012)
-        .rotateY(-a)
-        .translate(Math.cos(a) * CROWN_R, tall / 2, Math.sin(a) * CROWN_R),
-    );
-  }
-  for (const p of parts) {
-    for (const name of Object.keys(p.attributes)) if (name !== 'position') p.deleteAttribute(name);
-  }
-  const merged = mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)))!;
-  parts.forEach((p) => p.dispose());
-  return merged;
-})();
-
-/**
- * A small crown of red light floating over the king: it arrives with the
- * plate's flash (settling down from a little higher and wider) and keeps
- * time with its hand, brightening briefly at every step.
- */
-const CheckCrown = ({ floor }: { floor: Vec3 }) => {
-  const invalidate = useThree((s) => s.invalidate);
-  const mesh = useRef<Mesh>(null);
-  const material = useMemo(
-    () =>
-      new MeshBasicMaterial({
-        color: new Color(PALETTE.check),
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending,
-        toneMapped: false,
-        fog: false,
-      }),
-    [],
-  );
-  useEffect(() => () => material.dispose(), [material]);
-  const since = useRef(0);
-  const out = useRef(mate.over ? 1 : 0);
-  useFrame((_, delta) => {
-    const dt = Math.min(delta, MAX_STEP);
-    since.current += dt;
-    const t = since.current;
-    const still = prefersReducedMotion();
-    const arrive = 1 - (1 - Math.min(t / 0.35, 1)) ** 3;
-    const flash = Math.exp(-t / 0.25);
-    const tick = still || mate.over ? 0 : Math.exp(-(t % 1) / 0.18) * 0.25;
-    // At mate the crown sinks a little and goes out
-    if (mate.over) out.current = Math.min(1, out.current + dt / 0.7);
-    const o = out.current;
-    material.opacity = Math.min(1, t / 0.06) * (0.62 + 0.38 * flash + tick) * (1 - o);
-    const m = mesh.current;
-    if (m) {
-      m.visible = o < 1;
-      m.scale.setScalar(1.35 - 0.35 * arrive);
-      m.position.set(floor[0], floor[1] + CROWN_Y + 0.12 * (1 - arrive) - 0.15 * o, floor[2]);
-    }
-    if (o < 1) invalidate();
-  });
-  return (
-    <mesh
-      ref={mesh}
-      geometry={crownGeometry}
-      material={material}
-      position={[floor[0], floor[1] + CROWN_Y, floor[2]]}
-      renderOrder={LAYER.trace + 0.3}
-      raycast={noRaycast}
-    />
-  );
-};
-
-export const Check = ({ floor }: MarkerProps) => (
+export const Check = ({ floor, mated = false }: MarkerProps) => (
   <>
-    <CheckCrown floor={floor} />
     <Tile
       floor={floor}
       kind="check"
       color={PALETTE.check}
       fill={PALETTE.check}
-      core="#ffa58c"
+      core="#ffd2bf"
       half={CHECK_HALF}
       radius={0.07}
       width={0.022}
       fillOpacity={0.2}
       opacity={1}
       animated
+      stopped={mated}
       quad={FRAME.pitch * 1.8}
       renderOrder={LAYER.marker + 0.2}
     />

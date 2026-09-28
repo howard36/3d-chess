@@ -152,6 +152,12 @@ export const steepness = { value: 0 };
  */
 export const held: { level: number | null } = { level: null };
 
+/**
+ * Set while a mate is on the board (by the Celebration): the mated king's
+ * crown goes out as he topples.
+ */
+export const mate = { over: false };
+
 /** The five platforms (see above). Decorative: nothing here takes a click. */
 export const TournamentPlates = ({
   focusLevel,

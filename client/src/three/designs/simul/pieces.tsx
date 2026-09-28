@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
+  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   Color,
+  MeshBasicMaterial,
   PlaneGeometry,
   Quaternion,
   ShaderMaterial,
+  TorusGeometry,
   Vector3,
 } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Group, Mesh, Points } from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { prefersReducedMotion } from '../../motion';
@@ -19,7 +23,7 @@ import { ON_FLOOR } from '../kit/motion';
 import { noRaycast } from '../kit/noRaycast';
 import type { PieceBodyProps, PieceColor } from '../types';
 import { PALETTE, PIECE_SCALE } from './palette';
-import { steepness } from './plates';
+import { mate, steepness } from './plates';
 
 // The armies: turned ivory and ebony, lit like a tournament hall at night.
 // Ivory is warm and softly lit; ebony is a deep brown wood, clearly dark,
@@ -34,7 +38,11 @@ import { steepness } from './plates';
 // under it, edged by a fine hexagon (a nod to Lumen's), a ring of light
 // breathes out once from it, and a soft halo rises behind the piece and
 // settles. Put down (or when another piece is picked up) both fade away.
-// In check, the king is lit from below by the red of its square.
+// In check, the king's foot catches the red of its square, a thin red edge
+// runs round his head, and a crown of red light sits over his cross.
+//
+// At rest, every piece of an army and kind shares its materials; a piece
+// takes its own only while something lights it.
 
 /** The lights, in world space: Stage's CameraRig keeps them with the camera. */
 export const rig = {
@@ -439,13 +447,54 @@ const moteMaterial = () =>
     fragmentShader: moteFragment,
   });
 
+// --- The crown over a king in check ----------------------------------------------------
+
+// A crown of red light seated just above the cross of a king in check: a thin
+// ring set with twelve upright ticks, the quarters taller, like a clock's
+// dial (the plate under the king keeps the time). It rides with the king
+// when he is picked up, and goes out when he is mated. Piece units.
+
+const CROWN_R = 0.18 / PIECE_SCALE;
+const CROWN_LIFT = 0.035;
+const crownGeometry = (() => {
+  const parts: BufferGeometry[] = [new TorusGeometry(CROWN_R, 0.01, 5, 40).rotateX(Math.PI / 2)];
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const tall = i % 3 === 0 ? 0.09 : 0.058;
+    parts.push(
+      new BoxGeometry(0.017, tall, 0.017)
+        .rotateY(-a)
+        .translate(Math.cos(a) * CROWN_R, tall / 2, Math.sin(a) * CROWN_R),
+    );
+  }
+  for (const part of parts) {
+    for (const name of Object.keys(part.attributes)) {
+      if (name !== 'position') part.deleteAttribute(name);
+    }
+  }
+  const merged = mergeGeometries(parts.map((part) => part.toNonIndexed()))!;
+  parts.forEach((part) => part.dispose());
+  return merged;
+})();
+
+const crownMaterial = () =>
+  new MeshBasicMaterial({
+    color: new Color(PALETTE.check),
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: AdditiveBlending,
+    toneMapped: false,
+    fog: false,
+  });
+
 // --- The piece -----------------------------------------------------------------------
 
 /** How long the lamp takes to come on when a piece is picked up (the flair). */
 const ENTER_MS = 620;
 /** How long it takes to go out when the piece is put down. */
 const RELEASE_MS = 260;
-/** How long hover's warmth and the check light take to ease in or out. */
+/** How long hover's warmth, the foot's glow and the check light take to ease in or out. */
 const EASE_MS = 200;
 
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
@@ -454,55 +503,123 @@ const toward = (v: number, goal: number, step: number) =>
 
 const turn = new Quaternion();
 
+// At rest (no pointer, no selection, no check) every piece of an army and
+// kind shares one pair of wood materials and one shadow; a piece takes
+// materials of its own only while something lights it, and gives them back
+// once it has eased back to rest.
+const restWood = new Map<string, ReturnType<typeof pieceMaterials>>();
+const restMaterials = (color: PieceColor, type: PieceType) => {
+  const key = `${color}/${type}`;
+  let m = restWood.get(key);
+  if (!m) {
+    m = pieceMaterials(color, type);
+    restWood.set(key, m);
+  }
+  return m;
+};
+let restShadow: ShaderMaterial | null = null;
+const restFloor = () => (restShadow ??= floorMaterial());
+
+/** The materials of a piece that is lit: its own, so its light eases alone. */
+const litMaterials = (color: PieceColor, type: PieceType) => ({
+  ...pieceMaterials(color, type),
+  floor: floorMaterial(),
+  halo: haloMaterial(),
+  motes: moteMaterial(),
+  crown: type === PieceType.King ? crownMaterial() : null,
+});
+type Lit = ReturnType<typeof litMaterials>;
+const disposeLit = (m: Lit) => {
+  m.body.dispose();
+  m.accent.dispose();
+  m.floor.dispose();
+  m.halo.dispose();
+  m.motes.dispose();
+  m.crown?.dispose();
+};
+
+interface Glow {
+  pool: number;
+  glow: number;
+  rise: number;
+}
+
 /**
  * A Staunton piece in ivory or ebony on its contact shadow, and (see the
  * top of this file) the lamp that warms it under the pointer and lights it
- * when picked up, with its release when put down.
+ * when picked up, with its release when put down; a king in check wears the
+ * crown of red light.
  */
 export const PieceBody = ({ type, color, selected, hovered, inCheck }: PieceBodyProps) => {
   const invalidate = useThree((s) => s.invalidate);
-  const materials = useMemo(() => pieceMaterials(color, type), [color, type]);
-  const floor = useMemo(floorMaterial, []);
-  const halo = useMemo(haloMaterial, []);
-  const motes = useMemo(moteMaterial, []);
+  const lit = selected || hovered || inCheck;
+  const [active, setActive] = useState(lit);
+  useLayoutEffect(() => {
+    if (lit) setActive(true);
+  }, [lit]);
+  const own = useMemo(() => (active ? litMaterials(color, type) : null), [active, color, type]);
   useEffect(
     () => () => {
-      materials.body.dispose();
-      materials.accent.dispose();
-      floor.dispose();
-      halo.dispose();
-      motes.dispose();
+      if (own) disposeLit(own);
     },
-    [materials, floor, halo, motes],
+    [own],
   );
+  const rest = restMaterials(color, type);
+
+  const top = pieceTop(pieceSet(), type);
   // Point sizes in pixels per unit of depth: half the drawing buffer's height
   const pointScale = useThree((st) => (st.size.height * st.viewport.dpr) / 2);
-  const moteMesh = useRef<Points>(null);
-  const floorMesh = useRef<Mesh>(null);
-  const top = pieceTop(pieceSet(), type);
   const floorGroup = useRef<Group>(null);
+  const floorMesh = useRef<Mesh>(null);
   const haloMesh = useRef<Mesh>(null);
-  // Eased state: hover's warmth, the check light, and the lamp's life (a
-  // clock since it came on, and how lit it is while going out)
-  const s = useRef({ warm: 0, check: 0, since: -1, lamp: 0 });
+  const moteMesh = useRef<Points>(null);
+  const crownMesh = useRef<Mesh>(null);
+  // Eased state: hover's warmth and the foot's glow, the check light and its
+  // crown, and the lamp: a clock since it came on, what it showed last, and
+  // a release that fades from wherever the lamp was when it was put down
+  const s = useRef({
+    warm: 0,
+    foot: 0,
+    check: 0,
+    crown: 0,
+    crownOut: 0,
+    since: 0,
+    held: false,
+    release: 0,
+    shown: { pool: 0, glow: 0, rise: 1 } as Glow,
+    from: { pool: 0, glow: 0, rise: 1 } as Glow,
+    resting: false,
+  });
   useEffect(() => {
     // Picked up (again): the lamp comes on from the start
     if (selected) s.current.since = 0;
     invalidate();
   }, [selected, invalidate]);
-  useEffect(() => invalidate(), [hovered, inCheck, invalidate]);
+  useEffect(() => {
+    // Checked: the crown arrives
+    if (inCheck) s.current.crown = 0;
+    invalidate();
+  }, [inCheck, invalidate]);
+  useEffect(() => {
+    s.current.resting = false;
+    invalidate();
+  }, [hovered, active, invalidate]);
 
   useFrame((_, delta) => {
+    if (!own) return;
     const st = s.current;
     const dt = Math.min(delta, 1 / 20);
     const ease = dt / (EASE_MS / 1000);
+    const still = prefersReducedMotion();
     let moving = false;
     const warmGoal = selected ? 1 : hovered ? 0.7 : 0;
-    const warm = toward(st.warm, warmGoal, ease);
-    const check = toward(st.check, inCheck ? 1 : 0, ease);
-    moving ||= warm !== warmGoal || check !== (inCheck ? 1 : 0);
-    st.warm = warm;
-    st.check = check;
+    const footGoal = hovered && !selected ? 1 : 0;
+    const checkGoal = inCheck ? 1 : 0;
+    st.warm = toward(st.warm, warmGoal, ease);
+    st.foot = toward(st.foot, footGoal, ease);
+    st.check = toward(st.check, checkGoal, ease);
+    moving ||= st.warm !== warmGoal || st.foot !== footGoal || st.check !== checkGoal;
+    const check = st.check;
 
     let pool = 0;
     let ring = 0;
@@ -510,33 +627,38 @@ export const PieceBody = ({ type, color, selected, hovered, inCheck }: PieceBody
     let rise = 1;
     let glow = 0;
     if (selected) {
-      const still = prefersReducedMotion();
       st.since = still ? ENTER_MS : Math.min(st.since + dt * 1000, ENTER_MS);
-      const t = st.since / ENTER_MS;
-      if (t < 1) moving = true;
+      if (st.since < ENTER_MS) moving = true;
       // The pool blooms a little past its rest and settles; the ring
-      // breathes out once; the halo rises from the foot and settles
+      // breathes out once (once the pool has formed, so the two never
+      // double); the halo rises from the foot and settles
       const bloom = Math.min(st.since / 220, 1);
       pool = easeOut(bloom) * (1 + 0.35 * Math.sin(Math.PI * Math.min(st.since / 480, 1)));
-      // (the ring leaves once the pool has formed, so the two never double)
       const k = Math.min(Math.max(st.since - 120, 0) / 460, 1);
       ringR = HEX * (1.04 + 0.3 * easeOut(k));
       ring = still || st.since < 120 ? 0 : 0.5 * (1 - k) * Math.min((st.since - 120) / 60, 1);
       rise = easeOut(Math.min(st.since / 420, 1));
       glow = rise * (1 + 0.5 * Math.sin(Math.PI * Math.min(st.since / 520, 1)));
-      st.lamp = 1;
-    } else if (st.lamp > 0) {
-      // Put down: the pool and the halo fade (and the halo sinks a little)
-      st.lamp = Math.max(0, st.lamp - dt / (RELEASE_MS / 1000));
-      const e = st.lamp * st.lamp;
-      pool = e;
-      glow = e;
-      rise = 0.85 + 0.15 * e;
+      st.held = true;
+    } else if (st.held) {
+      // Put down: the release starts from what the lamp was showing
+      st.held = false;
+      st.release = 1;
+      st.from = { ...st.shown };
+    }
+    if (st.release > 0) {
+      // A release still under way (also when picked up again) fades on
+      st.release = Math.max(0, st.release - dt / (RELEASE_MS / 1000));
+      const e = st.release * st.release;
+      pool = Math.max(pool, st.from.pool * e);
+      glow = Math.max(glow, st.from.glow * e);
+      if (!selected) rise = st.from.rise * (0.85 + 0.15 * e);
       moving = true;
     }
+    st.shown = { pool, glow, rise };
 
-    const f = floor.uniforms;
-    f.uHover.value = selected ? 0 : Math.min(warm / 0.7, 1);
+    const f = own.floor.uniforms;
+    f.uHover.value = st.foot;
     f.uPool.value = pool;
     f.uRing.value = ring;
     f.uRingR.value = ringR;
@@ -548,23 +670,41 @@ export const PieceBody = ({ type, color, selected, hovered, inCheck }: PieceBody
     const quad = pool > 0 ? 1.5 : 1;
     f.uQuad.value = quad;
     floorMesh.current?.scale.setScalar(quad);
-    const h = halo.uniforms;
+    const h = own.halo.uniforms;
     h.uGlow.value = glow * (1 - 0.5 * check) * 0.26;
     h.uHeight.value = top * (0.15 + 0.42 * rise);
     h.uSize.value = 0.5 + 0.28 * rise;
     if (haloMesh.current) haloMesh.current.visible = glow > 0.002;
     // The motes drift while the lamp is on (still, with reduced motion)
-    const m = motes.uniforms;
+    const m = own.motes.uniforms;
     m.uAlpha.value = Math.min(pool, 1) * (1 - check) * 0.75;
     m.uScale.value = pointScale;
-    if (pool > 0 && !prefersReducedMotion()) {
+    if (pool > 0 && !still) {
       m.uTime.value += dt;
       moving = true;
     }
     if (moteMesh.current) moteMesh.current.visible = m.uAlpha.value > 0.002;
-    for (const m of [materials.body, materials.accent]) {
-      m.uniforms.uWarm.value = warm;
-      m.uniforms.uCheck.value = check;
+    for (const w of [own.body, own.accent]) {
+      w.uniforms.uWarm.value = st.warm;
+      w.uniforms.uCheck.value = check;
+    }
+    // The crown: it arrives settling from a little higher and wider with a
+    // flash, then holds still; at mate it sinks a little and goes out
+    if (own.crown) {
+      st.crown += dt;
+      const arrive = still ? 1 : easeOut(Math.min(st.crown / 0.35, 1));
+      const flash = still ? 0 : Math.exp(-st.crown / 0.22);
+      st.crownOut = mate.over ? Math.min(1, st.crownOut + dt / 0.7) : 0;
+      if (st.crown < 1.2 || (mate.over && st.crownOut < 1)) moving = true;
+      // (in at once with the check, out with the eased check light)
+      const on = inCheck ? Math.min(1, st.crown / 0.06) : check;
+      own.crown.opacity = on * (0.75 + 0.6 * flash) * (1 - st.crownOut);
+      const c = crownMesh.current;
+      if (c) {
+        c.visible = own.crown.opacity > 0.003;
+        c.scale.setScalar(1.35 - 0.35 * arrive);
+        c.position.y = top + CROWN_LIFT + 0.12 * (1 - arrive) - 0.12 * st.crownOut;
+      }
     }
     // The hexagon keeps square to the board, whichever way the piece faces
     const g = floorGroup.current;
@@ -573,39 +713,60 @@ export const PieceBody = ({ type, color, selected, hovered, inCheck }: PieceBody
       if (!g.quaternion.equals(turn)) g.quaternion.copy(turn);
     }
     if (moving) invalidate();
+    // Back at rest: hand the shared materials back
+    else if (!lit && !st.resting && st.warm === 0 && st.foot === 0 && check === 0) {
+      st.resting = true;
+      setActive(false);
+    }
   });
 
+  const wood = own ?? rest;
   return (
     <>
       <group ref={floorGroup} userData={ON_FLOOR}>
         <mesh
           ref={floorMesh}
           geometry={floorQuad}
-          material={floor}
+          material={own?.floor ?? restFloor()}
           position={[0, 0.004, 0]}
           renderOrder={LAYER.shadow}
           raycast={noRaycast}
         />
-        <points
-          ref={moteMesh}
-          geometry={moteGeometry}
-          material={motes}
+        {own && (
+          <points
+            ref={moteMesh}
+            geometry={moteGeometry}
+            material={own.motes}
+            visible={false}
+            renderOrder={LAYER.trace + 0.4}
+            raycast={noRaycast}
+            frustumCulled={false}
+          />
+        )}
+      </group>
+      <ChessPiece type={type} parts={{ body: wood.body, accent: wood.accent }} />
+      {own && (
+        <mesh
+          ref={haloMesh}
+          geometry={haloQuad}
+          material={own.halo}
           visible={false}
-          renderOrder={LAYER.trace + 0.4}
+          renderOrder={LAYER.shadow - 0.5}
           raycast={noRaycast}
           frustumCulled={false}
         />
-      </group>
-      <ChessPiece type={type} parts={{ body: materials.body, accent: materials.accent }} />
-      <mesh
-        ref={haloMesh}
-        geometry={haloQuad}
-        material={halo}
-        visible={false}
-        renderOrder={LAYER.shadow - 0.5}
-        raycast={noRaycast}
-        frustumCulled={false}
-      />
+      )}
+      {own?.crown && (
+        <mesh
+          ref={crownMesh}
+          geometry={crownGeometry}
+          material={own.crown}
+          visible={false}
+          position={[0, top + CROWN_LIFT, 0]}
+          renderOrder={LAYER.trace + 0.3}
+          raycast={noRaycast}
+        />
+      )}
     </>
   );
 };

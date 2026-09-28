@@ -107,7 +107,7 @@ const hallItems = (): Item[] => {
       z: z - s * off,
       angle: angle + Math.PI / 2,
       hx: 0.2,
-      hz: 0.1,
+      hz: 0.13,
       unit: 1 / 0.2,
       seed: random(),
     });
@@ -276,14 +276,17 @@ const hallFragment = /* glsl */ `
       // pool of lamp light (p in board units: the board is -0.5 to 0.5)
       float on = step(max(abs(p.x), abs(p.y)), 0.5);
       vec2 g = (p + 0.5) * 8.0;
-      float grid = max(lines(g.x, 0.07), lines(g.y, 0.07)) * on;
+      float grid = max(lines(g.x, 0.06), lines(g.y, 0.06)) * on;
       vec2 sq = floor(g);
       float lightSq = mod(sq.x + sq.y, 2.0) * on;
       float pool = exp(-dot(p, p) / 0.3);
-      float glow = pool * 0.016 + lightSq * 0.014 + grid * 0.068;
+      // The checker carries the board, the threads only divide it, so it
+      // reads as a chessboard even when small and seen at a slant
+      float glow = pool * 0.016 + lightSq * 0.036 + grid * 0.03;
       col = uLight * glow;
     } else if (kind < 1.5) {
-      // A chess clock: two small faces in a faint case, the running one lit.
+      // A chess clock: two small faces in a faint case, the running one lit,
+      // and its two buttons.
       // In about a third of the games, now and then (each at its own slow
       // pace), the clock is pressed: the light eases over to the other face
       float live = step(seed, 0.35);
@@ -302,6 +305,11 @@ const hallFragment = /* glsl */ `
       float frame = (1.0 - smoothstep(0.03, 0.03 + fw * 1.5, box)) * 0.12;
       float press = exp(-since / 0.4) * 0.15;
       col = uClockOn * on * (0.4 + press) + uClockOff * (off * 0.1 + frame * 0.5);
+      // Its two buttons on top: up over the running face, down over the other
+      float bw = max(fwidth(p.x), 1e-4) * 1.5;
+      float up = 1.0 - smoothstep(0.0, bw, roundBox(p - vec2(0.45 * side, 0.57), vec2(0.17, 0.055), 0.04));
+      float down = 1.0 - smoothstep(0.0, bw, roundBox(p - vec2(-0.45 * side, 0.55), vec2(0.17, 0.035), 0.03));
+      col += uClockOff * (up * 0.2 + down * 0.08);
     } else if (kind > 2.5) {
       // An overhead strip: a thin line of warm light, softly haloed
       float d = abs(p.y);
@@ -329,7 +337,6 @@ const hallFragment = /* glsl */ `
 export const hallWave = { value: -1 };
 
 const Hall = () => {
-  const invalidate = useThree((s) => s.invalidate);
   const { geometry, material } = useMemo(() => {
     const geometry = hallGeometry();
     const material = new ShaderMaterial({
@@ -360,12 +367,11 @@ const Hall = () => {
     [geometry, material],
   );
   const still = useRef(prefersReducedMotion());
-  useFrame((_, delta) => {
-    // The clocks keep time on r3f's clock; the hall asks for frames only
-    // while they run (never with reduced motion)
-    if (still.current) return;
-    material.uniforms.uTime.value += Math.min(delta, 1 / 10);
-    invalidate();
+  useFrame(({ clock }) => {
+    // The clocks keep r3f's time, catching up whenever a frame is drawn; the
+    // hall never asks for frames of its own (the presses are far too small
+    // and slow to need them), so a quiet board idles
+    if (!still.current) material.uniforms.uTime.value = clock.elapsedTime;
   });
   return (
     <mesh

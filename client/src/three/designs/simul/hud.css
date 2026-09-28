@@ -1,16 +1,9 @@
 /*
  * Simul's few HUD rules that CSS variables cannot reach, scoped to pages
- * showing this design's canvas, so no other design is touched: the turn
- * chip and the result card's title are set as titles, in Cormorant (the
- * chip sets its font inline from --hud-font, hence the !important; the
- * title's size comes from --result-title-size).
+ * showing this design's canvas, so no other design is touched: the result
+ * card's title is set as a title, in Cormorant (its size comes from
+ * --result-title-size; the turn chip's face from --turn-font).
  */
-
-body:has([data-design='simul']) [data-testid='turn-indicator'] {
-  font-family: 'Cormorant Garamond', Georgia, serif !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.03em !important;
-}
 
 body:has([data-design='simul']) #end-game-title {
   font-family: 'Cormorant Garamond', Georgia, serif;

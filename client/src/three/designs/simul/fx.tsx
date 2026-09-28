@@ -10,7 +10,7 @@ import { noRaycast } from '../kit/noRaycast';
 import type { CaptureFxProps, CelebrationProps } from '../types';
 import { FRAME, KNIGHT_YAW, MARGIN, PALETTE, PIECE_SCALE } from './palette';
 import { wholePiece } from './pieces';
-import { mate } from './markers';
+import { mate } from './plates';
 import { hallWave } from './stage';
 
 // --- A capture: the taken piece goes out like a lamp ------------------------------------
@@ -167,7 +167,7 @@ export const Celebration = ({ floor }: CelebrationProps) => {
     },
     [geometry, material],
   );
-  // The checked king's clock stops
+  // The mated king's crown goes out (his plate's clock stops: Check's `mated`)
   useLayoutEffect(() => {
     mate.over = true;
     return () => {

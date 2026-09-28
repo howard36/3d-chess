@@ -18,8 +18,9 @@ import type { DesignMotion } from '../types';
 //   < the ivory army (~80–88%, warm, softly lit).
 // Hue plan: the hall and the checker are warm and nearly colourless; the five
 // levels run amber, gold, lime, teal, azure; every marker keeps its own
-// meaning: a destination wears its level's colour, a capture and a check are
-// red, the last move is warm white, the selection is lamp light.
+// meaning: a destination wears its level's colour, a capture is a deep
+// crimson and a check a hot red-orange (well apart, so a check never reads
+// as a capture), the last move is warm white, the selection is lamp light.
 
 export const PALETTE = {
   // The hall
@@ -51,7 +52,8 @@ export const PALETTE = {
 
   // Markers, one meaning each
   lamp: '#ffe2b6',
-  capture: '#e0343c',
+  // A capture: deep crimson; a check: a hot red-orange, 0.14 apart in OKLab
+  capture: '#c4263e',
   check: '#ff4a38',
   trace: '#f6e8cf',
 
@@ -71,7 +73,7 @@ export const PALETTE = {
  */
 export const LEVEL_COLORS = (
   [
-    [0.76, 0.14, 55],
+    [0.74, 0.145, 66],
     [0.84, 0.145, 90],
     [0.83, 0.16, 130],
     [0.79, 0.125, 188],
