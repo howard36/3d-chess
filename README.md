@@ -124,8 +124,13 @@ Key decisions:
   the press), never on pointer-down, so a drag or pinch that starts over the cube only
   moves the camera. With a piece selected, clicking an opposing piece it can take plays
   the capture (the piece fills its cell, so it would otherwise hide the cell's click
-  target). A move can also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is
-  how a keyboard-only or screen-reader player plays.
+  target). On a touch screen, where the pieces are narrower than a fingertip, a tap that
+  hits nothing the player can act on goes to the nearest thing they can (an own piece, the
+  held piece, a destination or capture) within 22 px of its outline, a destination winning
+  a near tie with another piece (`three/tapAssist.ts`, measured by `useTapAssist`); a tap
+  with nothing in reach puts the selection down, and a mouse is never assisted. A move can
+  also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is how a keyboard-only
+  or screen-reader player plays.
 - **Camera.** The only camera control is turning the view about the board's centre: drag
   with the left mouse button or one finger. The wheel or a two-finger pinch zooms. There
   is no pan (right-drag, a two-finger drag and the arrow keys do nothing), so the orbit

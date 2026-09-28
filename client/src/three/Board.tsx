@@ -14,6 +14,8 @@ import { MoveGlide } from './moveAnimation';
 import { prefersReducedMotion } from './motion';
 import { isTap } from './tap';
 import { useSetting } from './settings';
+import { useTapAssist } from './useTapAssist';
+import type { AssistedTap } from './useTapAssist';
 import { moveArc } from './movePath';
 import type { KnightMoves } from './movePath';
 import type { LevelFocus, MarkerProps, Vec3 } from './types';
@@ -173,12 +175,22 @@ const Board = (props: BoardProps) => {
     setLegalMoves(actualLegalMoves);
   };
 
+  // A tap on a piece the player can act on (pick up, put down, capture) acts
+  // on it; a finger's tap on any other piece goes to what it was meant for
+  // (tap assist, below), if anything
+  const handlePieceTap = (coord: Coord, event: MouseEvent) => {
+    const actionable = canPick(coord) || (!!selected && isHighlighted(coord));
+    const meant = actionable ? null : assisted(event);
+    if (meant) actOn(meant);
+    else handlePieceClick(coord);
+  };
+
   // Same reason as worldPositions: each piece gets a handler whose identity
   // never changes, delegating to the latest closure through a ref.
-  const latestPieceClick = useRef(handlePieceClick);
+  const latestPieceTap = useRef(handlePieceTap);
   const latestCanPick = useRef(canPick);
   useLayoutEffect(() => {
-    latestPieceClick.current = handlePieceClick;
+    latestPieceTap.current = handlePieceTap;
     latestCanPick.current = canPick;
   });
   const pieceHandlers = useMemo(
@@ -188,7 +200,7 @@ const Board = (props: BoardProps) => {
           toZXY(cell),
           (e: ThreeEvent<MouseEvent>) => {
             e.stopPropagation();
-            if (isTap(e)) latestPieceClick.current(cell);
+            if (isTap(e)) latestPieceTap.current(cell, e.nativeEvent);
           },
         ]),
       ),
@@ -310,6 +322,21 @@ const Board = (props: BoardProps) => {
   useLayoutEffect(() => {
     latestProbe.current = probe;
   });
+  // --- Tap assist: a finger's tap that reaches nothing the player can act on
+  // goes to the nearest thing they can (an own piece, a destination) within a
+  // finger's reach (tapAssist.ts). A mouse click is never assisted.
+  const assistTap = useTapAssist(grid, (o) => cellAt.get(o.position.toArray().join(',')));
+  const assisted = (event: MouseEvent | undefined) =>
+    assistTap(event, {
+      pieces: new Set(
+        pieces.filter(({ coord }) => canPick(coord)).map(({ coord }) => toZXY(coord)),
+      ),
+      destinations: destinationKeys,
+      holding: !!selected,
+    });
+  const actOn = ({ cell, kind }: AssistedTap) =>
+    kind === 'destination' ? handleCubeClick(fromZXY(cell)) : handlePieceClick(fromZXY(cell));
+
   const onHoverCell = props.onHoverCell;
   const hoveredPiece = hoveredCell ? board.getPiece(fromZXY(hoveredCell)) : null;
   useEffect(() => {
@@ -331,17 +358,23 @@ const Board = (props: BoardProps) => {
       <group
         ref={grid}
         name="board-grid"
+        // A click on an empty square puts the selection down, and so does one
+        // that hits nothing on the board (the sky, the gap between levels);
+        // r3f reports only taps as misses, never the end of a drag round the
+        // board. A finger's tap goes first to anything actionable in reach.
         onClick={(e: ThreeEvent<MouseEvent>) => {
-          if (selected && isTap(e)) {
+          if (!isTap(e)) return;
+          const meant = assisted(e.nativeEvent);
+          if (meant) actOn(meant);
+          else if (selected) {
             setSelected(null);
             setLegalMoves([]);
           }
         }}
-        // A click that hits nothing on the board (the sky, the gap between
-        // levels) puts the selection down too; r3f reports only taps as
-        // misses, never the end of a drag round the board
-        onPointerMissed={() => {
-          if (selected) {
+        onPointerMissed={(event: MouseEvent) => {
+          const meant = assisted(event);
+          if (meant) actOn(meant);
+          else if (selected) {
             setSelected(null);
             setLegalMoves([]);
           }
