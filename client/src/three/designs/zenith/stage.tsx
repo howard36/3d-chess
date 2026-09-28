@@ -144,6 +144,7 @@ const groundVertex = /* glsl */ `
 const groundFragment = /* glsl */ `
   uniform vec3 uGround;
   uniform vec3 uLine;
+  uniform float uBoard;
   uniform vec3 uHorizon;
   uniform float uSquare;
   uniform vec2 uClear;
@@ -182,7 +183,7 @@ const groundFragment = /* glsl */ `
     float far = 1.0 - smoothstep(40.0, 110.0, dist);
     // Per pixel, as the mask hugs the tower's own outline
     float hidden = 1.0 - towerCover(vWorld);
-    float lit = (line * 0.04 + lightSq * 0.004) * clear * far * hidden;
+    float lit = (line * 0.04 + lightSq * 0.004) * uBoard * clear * far * hidden;
     // Polished: toward the horizon it gives back the mist
     float fresnel = pow(1.0 - abs(view.y), 5.0);
     vec3 col = uGround + uLine * lit + uHorizon * fresnel * 0.9;
@@ -200,6 +201,7 @@ const Ground = () => {
         uniforms: {
           uGround: { value: new Color(PALETTE.ground) },
           uLine: { value: new Color(PALETTE.neon) },
+          uBoard: { value: 1 },
           uHorizon: { value: new Color(PALETTE.skyHorizon) },
           uSquare: { value: SQUARE },
           uClear: { value: [...CLEAR] },
@@ -217,6 +219,14 @@ const Ground = () => {
     },
     [geometry, material],
   );
+  // The player's brightness for the colossal board: its lines and its light
+  // squares together (settings-env.ts)
+  const board = useEnvSetting<number>('env.giantBoard');
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    material.uniforms.uBoard.value = board;
+    invalidate();
+  }, [material, board, invalidate]);
   return (
     <mesh
       geometry={geometry}

@@ -33,6 +33,18 @@ export const ENV_SETTINGS: SettingSpec[] = [
   },
   {
     kind: 'slider',
+    key: 'env.giantBoard',
+    label: 'Giant board',
+    group: 'World',
+    default: 1.5,
+    min: 0.5,
+    max: 2,
+    step: 0.1,
+    format: times,
+    hint: 'Brightness of the colossal 8 × 8 board of light on the ground round the tower.',
+  },
+  {
+    kind: 'slider',
     key: 'env.sculptures',
     label: 'Sculptures',
     group: 'World',
