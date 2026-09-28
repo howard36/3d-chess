@@ -10,7 +10,7 @@ The page declares itself as wide as the device's screen at a normal scale, so a 
 
 The page never scrolls, on any screen and at any size. Whatever does not fit in the window is cut off, and there is no way to scroll to it. On the board screen this is the intent: the board screen is exactly as tall as the part of the window the browser currently shows (on a phone, the height between the browser's own toolbars, following them as they appear and hide) and exactly as wide as the window. On the start screen, the share-link, join, and joined screens, and the crash screen, content wider or taller than the window would be lost from view, but at phone sizes everything on them fits.
 
-The one text field in the app is the [move box](../glossary.md#the-interface)'s, at the bottom left of the board screen. Tapping it brings up a phone's on-screen keyboard; nothing else does.
+The one text field in the app is the [move box](../glossary.md#the-interface)'s, in the move card, which a phone shows only with the Keyboard play setting on. Tapping it brings up a phone's on-screen keyboard; nothing else does.
 
 ## The start screen and the pre-game screens
 
@@ -35,23 +35,24 @@ The cells, and so the targets for a press, shrink with the board. Measured at th
 
 The board is drawn at the screen's full sharpness on screens of up to twice the ordinary pixel density, which covers most high-density laptops and many phones; on a denser screen it is drawn at twice the ordinary density and scaled up, slightly softer.
 
-## The HUD on narrow windows
+## The HUD at every size
 
-The HUD is two bands laid over the board, one along the top and one along the bottom, each 10 px in from the left and right edges. Each band is a grid of three columns when the window is 640 px wide or more, and of two below that:
+The HUD is kept to the edges and corners of the window, where the board is not: the board is framed by the window's height in a landscape window, leaving the sides empty, and by its width in a portrait one, leaving the top and bottom empty.
 
-| Band | 640 px and wider | Narrower than 640 px |
-| --- | --- | --- |
-| Top, 10 px from the top | [Seat label](../game-page/seat-and-opponent-status.md) at the left, [turn indicator](../game-page/turn-indicator.md) centered, reconnecting banner at the right. | The turn indicator alone on the first row, centered; the seat label at the left and the reconnecting banner at the right on the second. |
-| Below the top band | The frozen-board banner, centered, up to 480 px wide. | The same, up to the window's width less 20 px. |
-| Bottom, 16 px from the bottom | [Move box](../glossary.md#the-interface) at the left (up to 260 px wide), [error banner](../game-page/error-banner.md) centered, [move list](../game-page/move-list.md) at the right. | The error banner alone on the first row, centered; the move box at the left and the move list at the right on the second, each at most half the width. |
+| Part | Desktop and tablet | Phone held upright (520 px wide or less) | Short window (480 px tall or less: a phone on its side) |
+| --- | --- | --- | --- |
+| [Turn pill](../game-page/turn-indicator.md) | Top center, 12 px down, 300 px wide. | Across the top row, from 12 px at the left to the gear at the right (13.5 px words below 400 px). | Top left, 264 px wide. |
+| Status column (reconnecting, the [error banner](../game-page/error-banner.md), the frozen-board banner) | Under the pill, centered. | Under the pill. | Under the pill, at the left. |
+| Settings gear | Top right, 12 px in. | Top right. | Top right. |
+| [Move card](../game-page/move-list.md) (Keyboard play on, or the move box alone while it has focus) | Bottom left, 232 px wide; the moves in two columns, about six rows before it scrolls. | Across the bottom, 12 px in at each side; the moves in one line that scrolls sideways, newest at the right. | Bottom right, beside the tower, narrowed to the free band (160 to 232 px); three rows before it scrolls. |
 
-The move list is at most 40% of the window's height and never more than 320 px, and scrolls beyond that.
+The move card names the cell under the pointer only in a wide window on a device with hover; on a phone or tablet, and in the phone arrangements, it leaves that line out. Nothing in the HUD overlaps anything else, and none of it covers the board at the default view: checked in headless Chromium at 1280 × 720, 1920 × 1080, 390 × 844, 390 × 664, 360 × 640, 844 × 390, and 640 × 360, from both seats, late in a game, with Keyboard play on.
 
-The panels never overlap at any width. In a 375 × 667 window, measured in headless Chromium, the turn indicator took the top 42 px (10 to 52 px down), the seat label and the reconnecting banner sat side by side from 60 px down, the seat label's text wrapping onto two lines within its half, the error banner sat on its own row above the move box and the move list, and nothing touched. A panel that does not fit its column wraps its text instead.
+Only the gear (and its panel), the error banner's "✕", and the move card while it shows take the pointer. A press on them never reaches the board. The pill, the reconnecting line, the frozen-board banner, and the space around them all let presses through to the board behind ([the input model](../foundations/input-model.md#what-takes-a-press)).
 
-Only three HUD panels take the pointer: the move box, the error banner, and the move list. A press on them never reaches the board. The seat label, the turn indicator, the reconnecting banner, the frozen-board banner, and the gaps between panels all let presses through to the board behind ([the input model](../foundations/input-model.md#what-takes-a-press)). On a small screen the three that do take the pointer cover a larger share of the board: on a phone on its side, the move list can be 150 px tall at the right, and the move box about 90 px at the left.
+Because the board screen is exactly the height the browser shows, the move card stays above a phone browser's bottom toolbar, and moves up and down with it as the toolbar shows and hides.
 
-Because the board screen is exactly the height the browser shows, the bottom band (the move box, the error banner, and the move list's newest rows) stays above a phone browser's bottom toolbar, and moves up and down with it as the toolbar shows and hides.
+The settings panel opens under the gear on a wide window; on a phone held upright it is a sheet across the bottom of the screen, up to 72% of its height, scrolling on its own. Its groups fold: Play and Board start open and the rest folded, so the panel does not run to several screens. On a touch screen every control in it is at least 44 px tall and its switches 52 × 32 px.
 
 ## Dialogs on small screens
 
@@ -87,11 +88,11 @@ Touches on the board never scroll or zoom the page: the board claims every touch
 
 ### Touch on the HTML panels
 
-Touches on the move box, the error banner, the move list, and the dialogs are ordinary web page touches. A tap is a [click](../glossary.md#input) and acts when the finger lifts. A touch on one of these never reaches the board. A one-finger drag on the move list scrolls it. A touch on the seat label, the turn indicator, or the reconnecting or frozen-board banner is a touch on the board behind it. A pinch on an HTML panel that takes the pointer, or anywhere on the start screen and the pre-game screens, may zoom the whole page, since the page allows it; a page zoomed that way can be zoomed back out only by pinching on such a panel, because a pinch on the board zooms the view instead. See open questions.
+Touches on the move card, the error banner, the settings gear and panel, and the dialogs are ordinary web page touches. A tap is a [click](../glossary.md#input) and acts when the finger lifts. A touch on one of these never reaches the board. A one-finger drag on the move list scrolls it. A touch on the turn pill, or on the reconnecting line or frozen-board banner, is a touch on the board behind it. A pinch on an HTML panel that takes the pointer, or anywhere on the start screen and the pre-game screens, may zoom the whole page, since the page allows it; a page zoomed that way can be zoomed back out only by pinching on such a panel, because a pinch on the board zooms the view instead. See open questions.
 
 The move box's field brings up the on-screen keyboard when tapped. The field turns off the browser's suggestions of earlier entries and its spell checking; a phone that capitalizes the first letter typed does no harm, because cells are read in either case. "Move" is a small button beside it; Enter on the on-screen keyboard also sends the move.
 
-The error banner's "✕" is a single character with no padding, about 16 × 24 px, which is small for a finger. "Cancel" in the promotion dialog is plain text of ordinary size. The other buttons have generous padding.
+The error banner's "✕" is 28 × 28 px, which is small for a finger. "Cancel" in the promotion dialog is plain text of ordinary size. The other buttons have generous padding.
 
 ### Pens
 
@@ -123,8 +124,8 @@ The board is redrawn only when something changes: while the view is being turned
 | Pressing elsewhere or turning the view | Only a tap acts on the board; every drag, pinch, or two-finger pan only turns the view, so a selection survives them; see [touch on the board](#touch-on-the-board). Touches on the move box, the error banner, and the move list never reach the board. | The board is [held](../glossary.md#selection-and-board-state): taps on it do nothing and "Move" is disabled, but one- and two-finger gestures still turn the view. |
 | Leaving the game page within the app | A tap on "Start new game" or "Back to start" works as a click. Phone browsers may also go back on a swipe from the screen's edge; whether a one-finger drag that starts near the edge of the board goes back instead of orbiting (which would leave the game and [reset](../glossary.md#events-that-end-or-interrupt-a-request) the connection) was not tried. | Same. The answer to the request is lost to this page, as described in each feature's own table. |
 | The game ends | The end-game dialog fits any phone; "Start new game" is tapped like any button. A drag already under way may go on turning the view until the finger lifts; no new touch reaches the board. | Same, when the player's own move ends the game. |
-| The server answers with an error | Not applicable: nothing sent. | The error banner appears at the bottom center; in a narrow window on a row of its own above the move box and the move list, which it never covers. Its "✕" is a small target. |
-| The connection drops | More common on phones (a change of network, the screen locking). The reconnecting banner appears at the top right, beside the seat label on a narrow window, without covering the turn indicator. The board and the move box stop taking input; gestures still turn the view. | Same. How a move in flight is settled is described in [making a move](../play/making-a-move.md#cancel-and-interrupt). |
+| The server answers with an error | Not applicable: nothing sent. | The error banner appears under the turn pill (at the top left on a phone on its side), clear of the board's middle. Its "✕" is a small target. |
+| The connection drops | More common on phones (a change of network, the screen locking). "Reconnecting…" appears under the turn pill, which dims. The board and the move box stop taking input; gestures still turn the view. | Same. How a move in flight is settled is described in [making a move](../play/making-a-move.md#cancel-and-interrupt). |
 | The window loses focus or the tab is hidden | On a phone, switching apps or locking the screen hides the tab. Mobile browsers may pause a hidden tab entirely, which the player then sees as a drop when they return: the reconnecting banner, then a [rejoin](../glossary.md#the-connection). A rotation while hidden is applied on return, and the view is framed again for the new shape. A touch in progress is cancelled by the switch. | Same. A move that arrived while the tab was paused is picked up from the snapshot after the rejoin. |
 | Reload or closing the tab | Reloading returns the view to the default view, framed to fit the whole board in the window. Whether a downward drag on an HTML area triggers a phone browser's pull-to-refresh on this page, which never scrolls, was not tried. | Same. |
 | The opponent acts | The opponent's device and window size make no difference to this player. On a small window the glide is small and easy to miss. | Same. |
@@ -135,9 +136,9 @@ After any interrupt, the view keeps its direction and pan unless the board scree
 
 ## Interactions with other systems
 
-**Seat and turn.** The seat's color fixes the [orientation](../foundations/the-view.md#orientation) on every screen size. On a narrow window the turn indicator has the top row to itself, and the seat label moves below it.
+**Seat and turn.** The seat's color fixes the [orientation](../foundations/the-view.md#orientation) on every screen size. The turn pill keeps both stones and the lit half at every width; on a phone held upright it fills the top row beside the gear.
 
-**The game record.** The move list is capped at 40% of the window's height and 320 px, which on a phone on its side is about six rows; it scrolls with a finger and moves itself to the newest move whenever one is added.
+**The game record.** The move list shows only with Keyboard play: on a phone held upright in one sideways-scrolling line, on a phone on its side in three rows; it scrolls with a finger and moves itself to the newest move whenever one is added.
 
 **Connection.** Phones drop connections more often than desktops, through network changes, sleep, and paused background tabs; each drop is handled as described in [the connection and seat model](../foundations/connection-and-seat.md#connection-states).
 
@@ -155,11 +156,11 @@ After any interrupt, the view keeps its direction and pan unless the board scree
 
 - **Rotating mid-game.** The board and the HUD rearrange at once, and the view is framed again for the new shape: the direction the player had orbited to is kept, a zoom is undone. A selection, an open promotion dialog, and a glide in progress are all kept.
 - **Zooming, then resizing.** Any change of window size, even a small one (a browser's sidebar opening, a phone's toolbar settling), moves the camera back to the fitted distance and undoes the player's zoom.
-- **A very short window** (a split screen, a browser with many toolbars) shows a small board, since the board is framed by the height; the move list still takes up to 40% of that height.
+- **A very short window** (a split screen, a browser with many toolbars) shows a small board, since the board is framed by the height; the HUD takes its short-window form, at the corners.
 - **A very wide window** shows the board at the same size as a narrower one of the same height, with more empty background at the sides.
 - **A very tall, narrow window** frames the board by its width, with empty background above and below; the farthest zoom grows with it, so the view can still be zoomed out past the fitted distance.
 - **Resizing during a drag.** The view is framed again for the new size, and the drag continues from there.
-- **Crossing 640 px.** Resizing a window across 640 px wide rearranges the HUD at once between its three-column and two-column forms.
+- **Crossing 520 px wide or 480 px tall.** Resizing a window across either rearranges the HUD at once between its desktop, upright-phone, and short-window forms (see the table above).
 - **Copying the link from a phone on a home network.** Opened over a plain `http` network address, the share-link screen has no "Copy link"; the link has to be selected by hand, or copied from the address bar, which holds the same address.
 
 ## Open questions and verification
@@ -175,4 +176,4 @@ After any interrupt, the view keeps its direction and pan unless the board scree
 - **Measured, in headless Chromium with its default font:** the fitted camera distance (about 14.5 units at 1280 × 720, 800 × 900, and 667 × 375; 21.7 at 375 × 667; 26.0 at 390 × 844), every corner of the cube inside the window at all five sizes, the cell spacing above, the HUD positions at 375 × 667 and 1280 × 720, the share link wrapping at 375 px, and a resize keeping the orbit direction while undoing a zoom. The framing is `client/src/three/FitCameraToBoard.tsx` with the math in `client/src/three/cameraFit.ts`; the HUD is `client/src/screens/GameScreen.tsx:384-442`; the page size is `:340`; the share link and "Copy link" are `:483-492` and `:514-540`.
 - Everything else was read from `client/index.html`, `client/src/main.tsx`, `client/src/screens/*.tsx`, `client/src/three/TurnIndicator.tsx`, `client/src/three/tap.ts`, the `Canvas` defaults in `@react-three/fiber` (resize handling, pixel density capped at 2, renderer options), and the camera controls in `@react-three/drei` and `three-stdlib`. `client/src/three/cameraFit.test.ts` checks that the whole board fits a wide window, a square one, an upright phone, and a very tall narrow window from several directions. The end-to-end suite runs only in a desktop-sized window with a mouse; nothing in the repository tests touch on a real device or a missing 3D backend.
 
-Verified against 3D Chess commit `4e18386`
+Verified against 3D Chess commit `4e18386`; the HUD's arrangement at each size against `f7bff4d`

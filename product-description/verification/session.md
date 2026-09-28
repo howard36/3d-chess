@@ -2,6 +2,9 @@
 
 How to run this file: bring up the local server and client as in [the protocol](README.md#how-to-run-a-pass). Unless a row says otherwise, the setup is a started game in two browser contexts. Most rows need `drop`: cutting and restoring one page's connection while the server keeps the game, which only [the harness](harness/README.md) (or a server that keeps its games across restarts) can do faithfully; see [devices and conditions](README.md#devices-and-conditions). `delayed answers` means the harness holds back the messages a page receives for a few seconds after its connection opens, which widens a window that is normally one round trip long.
 
+
+> **The HUD changed at `f7bff4d`.** The seat label ("You are playing as white."), the presence line ("Opponent: online/offline"), the turn indicator's words ("White to move — in check"), and the always-visible move box and move list are gone: the [turn pill](../game-page/turn-indicator.md) shows the turn, the seat, check, and an offline opponent; the move box and list live in the [move card](../game-page/move-list.md), shown by the Keyboard play setting (the move box also by Tab). Rows in this file that quote the old words or press the old panels test the same behavior through the new HUD (read "White to move" as White's half of the pill lit, the seat label as the player's stone, "Opponent: offline" as the outlined stone and "Offline", "type in the move box" as Tab, then type), and their results were recorded against the old HUD: re-run them. [game-page.md](game-page.md) has been rewritten for it.
+
 ## session/reload-and-return.md
 
 | ID | P | Device | Claim | Setup | Steps | Expected | Result |

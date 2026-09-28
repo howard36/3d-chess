@@ -150,10 +150,10 @@ play/
   check-and-game-end.md          the check glow, checkmate and stalemate, the end-game dialog
 
 game-page/
-  seat-and-opponent-status.md    "You are playing as …" and "Opponent: online/offline"
-  turn-indicator.md              "White to move" / "Black to move"
-  move-list.md                   the move history panel
-  error-banner.md                the red banner at the bottom of the game page and its dismiss button
+  seat-and-opponent-status.md    the player's stone on the turn pill, and an opponent shown "Offline"
+  turn-indicator.md              the turn pill: "Your move" / "Their move", check, and the result
+  move-list.md                   the move card (Keyboard play): the moves so far and the move box
+  error-banner.md                the error notice under the turn pill and its dismiss button
 
 session/
   reload-and-return.md           reloading, closing and coming back, and games that have expired
@@ -171,7 +171,7 @@ cross-cutting/
 
 Status is one of `not started`, `drafted`, or `verified`.
 
-The documents were first written against commit `d94507b` and have since been brought up to `4e18386`, which carries the fixes for B-01 to B-10 (see [`bug-triage.md`](bug-triage.md), each entry's **Fix** and **Follow-up** lines). The checklists were rewritten to match, and their Result columns come from the second scripted pass, against `c571311` (`4e18386` adds only a server change no item depends on) (216 of 218 items pass; 2 need a real phone). No document is marked `verified`, which still needs a person's pass.
+The documents were first written against commit `d94507b` and have since been brought up to `4e18386`, which carries the fixes for B-01 to B-10 (see [`bug-triage.md`](bug-triage.md), each entry's **Fix** and **Follow-up** lines). The checklists were rewritten to match, and their Result columns come from the second scripted pass, against `c571311` (`4e18386` adds only a server change no item depends on) (216 of 218 items pass; 2 need a real phone). No document is marked `verified`, which still needs a person's pass. The HUD then changed at `f7bff4d` (the turn pill, the move card behind the Keyboard play setting, spoken moves): the glossary, [the turn indicator](game-page/turn-indicator.md), [seat and opponent status](game-page/seat-and-opponent-status.md), [the move list](game-page/move-list.md), [the error banner](game-page/error-banner.md), [the input model](foundations/input-model.md), [accessibility](cross-cutting/accessibility.md), [error messages](cross-cutting/error-messages.md), and [screen sizes and touch](cross-cutting/screen-sizes-and-touch.md) describe it; the other documents still mention the old panels in passing ("You are playing as …", "White to move", "Opponent: offline", a visible move box and move list), and the checklists other than game-page.md say how to read those rows.
 
 | Document | Status |
 | --- | --- |

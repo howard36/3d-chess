@@ -2,6 +2,9 @@
 
 How to run this file: bring up the local server and client as in [the protocol](README.md#how-to-run-a-pass). `modified client` means sending a message on the page's own connection that the app would never send; [the harness](harness/README.md) does this from inside the page, standing in for the modified or version-skewed client these documents describe. `reduced motion` is the operating system's (or devtools') "reduce motion" preference. Other device values are defined in [devices and conditions](README.md#devices-and-conditions).
 
+
+> **The HUD changed at `f7bff4d`.** The seat label ("You are playing as white."), the presence line ("Opponent: online/offline"), the turn indicator's words ("White to move — in check"), and the always-visible move box and move list are gone: the [turn pill](../game-page/turn-indicator.md) shows the turn, the seat, check, and an offline opponent; the move box and list live in the [move card](../game-page/move-list.md), shown by the Keyboard play setting (the move box also by Tab). Rows in this file that quote the old words or press the old panels test the same behavior through the new HUD (read "White to move" as White's half of the pill lit, the seat label as the player's stone, "Opponent: offline" as the outlined stone and "Offline", "type in the move box" as Tab, then type), and their results were recorded against the old HUD: re-run them. [game-page.md](game-page.md) has been rewritten for it.
+
 ## cross-cutting/error-messages.md
 
 The individual server messages are checked where they arise: "Cannot join" in JOIN-03, "Game full" in JOIN-04, "Cannot rejoin" in CONN-08 and RELOAD-02, "Not your turn" in MOVE-07, "Already in a game" in CREATE-06, "This game is open in another tab" (as the replaced dialog) in TAB-02 and BANNER-05.

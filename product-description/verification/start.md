@@ -2,6 +2,9 @@
 
 How to run this file: bring up the local server and client as in [the protocol](README.md#how-to-run-a-pass). Each section starts from fresh browser contexts (no stored seats) unless it says otherwise. Device values are defined in [devices and conditions](README.md#devices-and-conditions); `server stopped` means the local server process is not running (stop it with Ctrl+C and start it again when the step says so), and `storage off` means the browser refuses to store site data for `localhost`.
 
+
+> **The HUD changed at `f7bff4d`.** The seat label ("You are playing as white."), the presence line ("Opponent: online/offline"), the turn indicator's words ("White to move — in check"), and the always-visible move box and move list are gone: the [turn pill](../game-page/turn-indicator.md) shows the turn, the seat, check, and an offline opponent; the move box and list live in the [move card](../game-page/move-list.md), shown by the Keyboard play setting (the move box also by Tab). Rows in this file that quote the old words or press the old panels test the same behavior through the new HUD (read "White to move" as White's half of the pill lit, the seat label as the player's stone, "Opponent: offline" as the outlined stone and "Offline", "type in the move box" as Tab, then type), and their results were recorded against the old HUD: re-run them. [game-page.md](game-page.md) has been rewritten for it.
+
 ## start/creating-a-game.md
 
 | ID | P | Device | Claim | Setup | Steps | Expected | Result |

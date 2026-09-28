@@ -54,7 +54,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Rank.** One of the five rows within a level, numbered 1 to 5. White's back ranks are rank 1; Black's are rank 5.
 
-**Cell.** One position on the board, written as level, file, rank: `Aa1` is level A, file a, rank 1; `Ee5` is the opposite corner. This notation is used in the *move list* and nowhere else on screen: the board itself has no labels.
+**Cell.** One position on the board, written as level, file, rank: `Aa1` is level A, file a, rank 1; `Ee5` is the opposite corner. This notation is used in the *move card* (the move list, the move box, and the cell under the pointer) and in the board's own labels: the board itself has no labels.
 
 **Pieces.** King, Queen, Rook, Bishop, Knight, Unicorn, and Pawn, each side starting with 20. The Unicorn is the piece this variant adds. How each moves is in [the rules](foundations/game-rules.md#how-the-pieces-move).
 
@@ -72,7 +72,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Side to move.** The color whose turn it is. White moves first, and the turn alternates with every recorded move.
 
-**Check.** The side to move's king is attacked. Its king glows red on the board, and the turn indicator adds " — in check" while the game is not over.
+**Check.** The side to move's king is attacked. The board marks the king in red, and the turn pill rings that side's stone in red with a "CHECK" badge beside it while the game is not over.
 
 **Checkmate.** The side to move is in check and has no legal move. The other side wins.
 
@@ -148,7 +148,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Orbit, zoom, pan.** The three ways to turn the view: orbit rotates the camera around the board (left drag, or one-finger drag), zoom moves it closer or farther (wheel, middle drag, or pinch), and pan slides it sideways (right drag, Shift/Ctrl/Cmd with left drag, or two-finger drag). See [the view](foundations/the-view.md#turning-the-view).
 
-**HUD.** The HTML panels laid over the board. Along the top: the *seat label* at the left, the *turn indicator* in the center, and the *reconnecting banner* at the right, with the *frozen-board banner* below them when it applies. Along the bottom: the *move box* at the left, the *error banner* in the center, and the *move list* at the right. In a window narrower than 640 pixels each row stacks: the turn indicator and the error banner take a row of their own above the other two panels. Only the move box, the move list, and the error banner catch the pointer; everything else in the HUD (the seat label, the turn indicator, and the reconnecting and frozen-board banners) lets presses and drags through to the board.
+**HUD.** The HTML laid over the board. At the top center, the *turn pill*, with the *status column* under it; at the top right, the settings gear; at the bottom left, the *move card* when the Keyboard play setting is on (or its field alone while it has keyboard focus). On a phone held upright the pill fills the top row beside the gear; in a window 480 pixels tall or less (a phone on its side) the status column stands at the top left instead of under the pill. Only the gear, the move card, and the error banner's "✕" catch the pointer; everything else in the HUD lets presses and drags through to the board.
 
 ## Events that end or interrupt a request
 
@@ -184,31 +184,39 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Replaced signal.** The way the server closes a connection whose seat a newer connection has taken (last connection wins). A tab that receives it does not retry and shows the replaced dialog; every other close starts the retry schedule. A connection that has already died never receives it; a tab that was reconnecting when another tab took the seat learns of it instead from *seat in use* when its retry succeeds.
 
-**Presence.** Whether the opponent currently has a live connection to the game, shown as "Opponent: online" or "Opponent: offline" under the seat label. The server announces it when a player joins or rejoins and when a player's connection drops. See [seat and opponent status](game-page/seat-and-opponent-status.md).
+**Presence.** Whether the opponent currently has a live connection to the game. The turn pill shows it only when they do not: their stone becomes an outline and their half reads "Offline". Screen readers are told both ways ("Your opponent is offline.", "Your opponent is online."). The server announces it when a player joins or rejoins and when a player's connection drops. See [seat and opponent status](game-page/seat-and-opponent-status.md).
 
 ## The interface
 
-**Seat label.** The dark box at the top left of the board screen: "You are playing as white." (or black, in lower case), with the presence line under it once known.
+**Seat label.** The left half of the turn pill: the player's own stone, porcelain for White or charcoal for Black, with "You" (or "Your move"). It is the only place the player's color shows; a screen reader reaching the pill hears "You play White." (or Black). The page never writes the player's color in words.
 
-**Presence line.** The smaller second line of the seat label, "Opponent: online" or "Opponent: offline". It is absent until the first presence report arrives, and after that shows the latest report about the opponent that this page has received, even while this page's own connection is down.
+**Stone.** A small disc in one army's material, porcelain for White and charcoal for Black, standing for that side in the turn pill, the move card's column heads, and the end-game dialog. The side to move's stone wears a thin ring of light, red when that side is in check.
 
-**Turn indicator.** The light box at the top center of the board screen: "White to move" or "Black to move", followed by " — in check" when the side to move is in check. Like the rest of the HUD except the move box, move list, and error banner, it lets presses through to the board. Screen readers announce each change.
+**Turn indicator, turn pill.** The glass pill at the top center of the board screen. Its left half is the player: their stone and "Your move" when it is their turn, "You" when it is not. Its right half is the opponent: "Their move" or "Opponent" (or "Offline"), and their stone. The half whose side is to move is lit: brighter words and a ring of light round its stone. In check the ring is red and a "CHECK" badge stands beside the stone. Once the game is over the pill gives the result instead ("Checkmate · you win", "Checkmate · you lose", "Stalemate · draw"). It is the only place the page shows the player's color. It lets presses through to the board. See [the turn indicator](game-page/turn-indicator.md) and [seat and opponent status](game-page/seat-and-opponent-status.md).
 
-**Move box.** The dark panel at the bottom left of the board screen where a move can be typed ("Type a move (e.g. Ab2-Ab3)", a text field, and a "Move" button). It plays the move exactly as pressing its piece and destination would, and is how a player without a pointer plays. See [making a move](play/making-a-move.md).
+**Status column.** Under the turn pill (at the top left in a short window): the reconnecting line while the connection is *reconnecting*, the error banner, and the frozen-board banner, stacked, each only while it applies.
 
-**Move list.** The dark panel at the bottom right of the board screen listing every move in the record, one numbered row per White–Black pair, in cell notation with an en dash (`Ab2–Ab3`) and `=` plus a letter for a promotion (`Da4–Ea5=U`). Hidden until the first move. See [the move list](game-page/move-list.md).
+**Keyboard play.** A setting in the settings panel's first group, "Play", off unless the player turns it on. On, the board screen shows the *move card*. It is kept in this browser, like every setting, and is never sent to the opponent.
 
-**Error banner.** The red box at the bottom center of the game page: "Error: " followed by the server's message, with a "✕" button that dismisses it. *Dismissing* hides every error received on the page so far; nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The start screen shows errors differently, as red text under its button.
+**Move card.** The glass card at the bottom left of the board screen, shown while *Keyboard play* is on: the cell under the pointer ("Dd5  Black pawn"), the *move list*, and the *move box*. With the setting off it is out of sight but still in the page: its move list for screen readers, and its move box, which appears (alone) when it takes keyboard focus. See [the move list](game-page/move-list.md).
 
-**Reconnecting banner.** The amber "Reconnecting…" box at the top right of the game page while the connection state is *reconnecting*.
+**Move announcement.** What a screen reader is told as each move lands, whatever is on screen: the move ("White bishop Ad2 takes pawn on Dd5"), then check or the result, then whose move it is ("Your move." or "Black to move."). See [accessibility](cross-cutting/accessibility.md).
 
-**Frozen-board banner.** The red box below the turn indicator that says a move in the game's history "is not a legal move for this client" and that the board is frozen. It cannot be dismissed.
+**Move box.** The field at the foot of the move card where a move can be typed ("Type a move"; "Ab2-Ab3", "=Q" to promote), sent with Enter or the ↵ button beside it. It plays the move exactly as pressing its piece and destination would, and is how a player without a pointer plays. It is the first thing Tab reaches on the board screen, and appears when it does, whether or not Keyboard play is on. See [making a move](play/making-a-move.md).
 
-**Promotion dialog.** The white dialog titled "Promote to" with the buttons "Queen", "Rook", "Bishop", "Knight", "Unicorn", and "Cancel", over a darkened board. See [promotion](play/promotion.md).
+**Move list.** The game's moves in the move card, one numbered row per White–Black pair under a porcelain and a charcoal stone, in cell notation with an en dash (`Ab2–Ab3`) and `=` plus a letter for a promotion (`Da4–Ea5=U`); the latest move is brightest. Visible only with Keyboard play on; otherwise in the page for screen readers only. See [the move list](game-page/move-list.md).
 
-**End-game dialog.** The white dialog over a darkened board announcing "White wins by checkmate!", "Black wins by checkmate!", or "Draw by stalemate!", with a "Start new game" button, which has keyboard focus when the dialog opens. It cannot be closed any other way.
+**Error banner.** A glass notice with a thin red rule at its left edge: the server's message (a screen reader hears "Error: " before it), with a "✕" button that dismisses it. On the board screen it is in the status column under the turn pill; on the share-link, join, and joined screens it sits at the bottom center. *Dismissing* hides every error received on the page so far; nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The start screen shows errors differently, as red text under its button.
 
-**Replaced dialog.** The white dialog titled "This game is open in another tab", with the text "Your seat moved to the newer tab or window. Close this one, or take the game back here." and a "Play here" button, which has keyboard focus when the dialog opens.
+**Reconnecting line, reconnecting banner.** "Reconnecting…" beside a small breathing light, in the status column while the connection state is *reconnecting*; the turn pill dims behind it, since what it says may be out of date. On the pre-game screens it sits at the top right.
+
+**Frozen-board banner.** A glass notice with a red rule in the status column that says a move in the game's history can't be replayed by this version of the app and that the board stays at the position before it. It cannot be dismissed.
+
+**Promotion dialog.** A glass card over a lightly veiled board: "PROMOTE TO" above five tiles, each a piece's silhouette in the player's material with its name ("Queen", "Rook", "Bishop", "Knight", "Unicorn"), and "Cancel" under them. See [promotion](play/promotion.md).
+
+**End-game dialog.** A glass card over the veiled final position: the two stones with the winner's lit, "You win", "You lose", or "Draw", "by checkmate" or "by stalemate" under it, and a "Start new game" button, which has keyboard focus when the dialog opens. It cannot be closed any other way.
+
+**Replaced dialog.** A glass card titled "This game is open in another tab", with the text "Your seat moved to the newer tab or window. Close this one, or take the game back here." and a "Play here" button, which has keyboard focus when the dialog opens.
 
 ## The view
 

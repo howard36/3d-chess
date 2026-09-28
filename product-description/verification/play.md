@@ -2,6 +2,9 @@
 
 How to run this file: bring up the local server and client as in [the protocol](README.md#how-to-run-a-pass). Unless a row says otherwise, the setup is a **new game with both seats taken** in two browser contexts, with the view at the default. "Play `X-Y`" means the side to move selects `X` and presses (clicks) `Y`; lines alternate White, Black, White. The **promotion line** is `Ba2-Ba3`, `Ee4-Ee3`, `Ba3-Ca3`, `Ee3-Ee2`, `Ca3-Da4`, `Ee2-Ee1`, after which White's pawn on `Da4` can capture onto White's promotion square `Ea5`. The **mate line** is `Ad1-Cc1`, `Dc5-Bc3`, `Bc1-Ad1`, `Bc3-Ab2` (Black mates). Device values are defined in [devices and conditions](README.md#devices-and-conditions). **Reduced motion** means the browser emulating `prefers-reduced-motion: reduce` (in Chromium, devtools' Rendering panel) before the board screen appears.
 
+
+> **The HUD changed at `f7bff4d`.** The seat label ("You are playing as white."), the presence line ("Opponent: online/offline"), the turn indicator's words ("White to move — in check"), and the always-visible move box and move list are gone: the [turn pill](../game-page/turn-indicator.md) shows the turn, the seat, check, and an offline opponent; the move box and list live in the [move card](../game-page/move-list.md), shown by the Keyboard play setting (the move box also by Tab). Rows in this file that quote the old words or press the old panels test the same behavior through the new HUD (read "White to move" as White's half of the pill lit, the seat label as the player's stone, "Opponent: offline" as the outlined stone and "Offline", "type in the move box" as Tab, then type), and their results were recorded against the old HUD: re-run them. [game-page.md](game-page.md) has been rewritten for it.
+
 ## play/making-a-move.md
 
 | ID | P | Device | Claim | Setup | Steps | Expected | Result |

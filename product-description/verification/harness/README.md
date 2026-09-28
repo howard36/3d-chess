@@ -45,3 +45,6 @@ In a container whose Chromium does not match Playwright's version, prefix with `
 - Reduced motion is emulated with `page.emulateMedia({ reducedMotion: 'reduce' })`, and the clipboard with `context.grantPermissions(['clipboard-read', 'clipboard-write'])`.
 - `results.jsonl` accumulates across runs; the latest line for an ID is its result.
 
+## After the HUD change
+
+The scripts drive and read the HUD as it was before `f7bff4d`: they type into `#typed-move` with `fill` (the field is now out of sight until it has focus, so Playwright will not fill it) and match the old words ("You are playing as", "White to move", "Opponent: online", the visible move list). They need more than small updates to run again: reading the seat, turn, presence, and moves through the hooks the e2e suite uses (`seat`'s `data-seat`, `turn-indicator`'s `data-turn`, `opponent-presence`'s `data-online`, `move-announcer`'s `data-last-move`), and typing moves by focusing the field (Tab, or `focus()`) and pressing keys. Until then they are a record of the first passes, not something to re-run.
