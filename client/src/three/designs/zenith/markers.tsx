@@ -47,7 +47,9 @@ import type { BladeStyle, CaptureStyle } from './settings-markers';
 //   Hover as above (the rising glow also stands a little taller).
 // - the last move: a thin continuous line of deep mint light, a soft glow
 //   of white travelling calmly along it, from a small circle where the piece
-//   started to the same circle, larger, round the piece where it landed.
+//   started to the same circle, larger, round the piece where it landed,
+//   meeting that circle on the glass beside the piece (never running into
+//   it; pieces hide the line wherever it passes behind them).
 // - check: a crown of red light lying round the king in place of his ring, a
 //   band with eight points. It strikes when check arrives (it lands a little
 //   large, flashes and sends one strong wave out), then breathes slowly,
@@ -742,6 +744,8 @@ export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerPro
         pattern="solid"
         radius={radius}
         lift={LINE_LIFT}
+        inset={LINE_LANDING}
+        insetFront={SEAT_SIDE}
         opacity={strength}
         pulse={0}
         flowSpeed={0}
@@ -767,6 +771,18 @@ export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerPro
 // where it ended, one at a time, added to the line's light so it shows
 // while the line itself stays faint.
 const LINE_LIFT = 0.02;
+/**
+ * The line lands on the destination's floor at its circle, on the side
+ * facing where the move came from: just outside the footprint of the piece
+ * that moved, so it meets the glass in plain view, and the piece, which
+ * narrows above its base, never stands in its way. Where that side is the
+ * far side seen from the player's seat (the board is laid out so the seat
+ * always looks from +z), or for a move straight up or down, it lands on the
+ * piece's side instead (on the viewer's right, for a vertical move), so the
+ * piece never hides the landing.
+ */
+const LINE_LANDING = TRACE_TO;
+const SEAT_SIDE = [0, 1] as const;
 const LINE_DRAW_MS = 380;
 const lineDelay = MOTION.durationMs * 0.3;
 const SHIMMER = { speed: 0.45, spacing: 1.8, length: 0.32, peak: 0.75 };
@@ -838,11 +854,19 @@ const Shimmer = ({
   const invalidate = useThree((s) => s.invalidate);
   const key = JSON.stringify([from, to, arc, radius]);
   const geometry = useMemo(() => {
-    const data = tubeData(tracePath(from, to, { lift: LINE_LIFT, arc }), {
-      radius: radius * 2.4,
-      radialSegments: 8,
-      capSegments: 2,
-    });
+    const data = tubeData(
+      tracePath(from, to, {
+        lift: LINE_LIFT,
+        arc,
+        inset: LINE_LANDING,
+        insetFront: SEAT_SIDE,
+      }),
+      {
+        radius: radius * 2.4,
+        radialSegments: 8,
+        capSegments: 2,
+      },
+    );
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(data.position, 3));
     g.setAttribute('normal', new BufferAttribute(data.normal, 3));
