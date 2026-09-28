@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Color, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
-import type { BufferGeometry, Group, Mesh, Object3D } from 'three';
+import type { BufferGeometry, Group } from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { prefersReducedMotion } from '../../motion';
 import { pieceTop } from '../../pieces';
@@ -443,23 +443,12 @@ export const ringMaterial = (level: number) =>
 const HOVER_RATE = 1 / 0.18;
 const HOLD_RATE = 1 / 0.28;
 const CHECK_RATE = 1 / 0.25;
-/** Board lifts a piece this far under the pointer (0.13 held; index.tsx). */
-const BOARD_HOVER_LIFT = 0.08;
-
 /**
- * The height a piece should stand at, for Board's lift `y` and the lift
- * setting `k` (a multiple of Board's hover height): hover scales, and held
- * stays the same small step above it. One map of Board's own eased height,
- * so the two never drift apart and a piece set to no lift holds still.
+ * @deprecated Board's Lift is now the piece's whole lift (index.tsx reads the
+ * heights from the settings), so a piece stands at Board's lift `y`. Kept
+ * only until markers.tsx stops importing it; with no scale it returns `y`.
  */
-export const liftFor = (y: number, k: number) =>
-  y <= BOARD_HOVER_LIFT ? y * k : BOARD_HOVER_LIFT * k + (y - BOARD_HOVER_LIFT);
-
-/** The nearest Board Lift group above `o` (PieceMesh tags it), or null. */
-const boardLift = (o: Object3D | null): Object3D | null => {
-  for (let a = o?.parent ?? null; a; a = a.parent) if (a.userData.lift) return a;
-  return null;
-};
+export const liftFor = (y: number, k = 1) => (y <= 0.08 ? y * k : 0.08 * k + (y - 0.08));
 const smooth = (x: number) => x * x * (3 - 2 * x);
 
 const at = new Vector3();
@@ -468,6 +457,7 @@ const RING_YIELDS: ClaimKind[] = ['capture', 'check', 'trace'];
 /**
  * A Staunton piece in porcelain or charcoal, with its level band or ring, its
  * light on the glass under the pointer, and its column of light when held.
+ * Board's Lift raises it (index.tsx, from the settings).
  */
 export const PieceBody = (props: PieceBodyProps) => {
   const { type, color, selected, hovered, inCheck } = props;
@@ -475,7 +465,6 @@ export const PieceBody = (props: PieceBodyProps) => {
   const invalidate = useThree((s) => s.invalidate);
   const glide = useGlide();
   const { ring: ringCue } = useLevelCue();
-  const lift = usePieceSetting<number>('piece.lift');
   const checkTint = usePieceSetting<boolean>('piece.checkTint');
   const pulse = usePieceSetting<boolean>('piece.clickPulse');
   const still = useMemo(prefersReducedMotion, []);
@@ -485,9 +474,6 @@ export const PieceBody = (props: PieceBodyProps) => {
   const floorMaterial = useMemo(() => ringMaterial(level), [level]);
   useEffect(() => () => floorMaterial.dispose(), [floorMaterial]);
   const floor = useRef<Group>(null);
-  const raise = useRef<Group>(null);
-  const liftRef = useRef(lift);
-  liftRef.current = lift;
   const top = pieceTop(zenithSet(), type);
 
   useEffect(() => {
@@ -503,7 +489,7 @@ export const PieceBody = (props: PieceBodyProps) => {
   const [lit, setLit] = useState(false);
   if ((hovered || selected) && !awake) setAwake(true);
   if (selected && !lit) setLit(true);
-  useEffect(() => invalidate(), [hovered, selected, inCheck, lift, checkTint, invalidate]);
+  useEffect(() => invalidate(), [hovered, selected, inCheck, checkTint, invalidate]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20);
@@ -554,24 +540,6 @@ export const PieceBody = (props: PieceBodyProps) => {
     }
   });
 
-  // The lift the setting asks beyond Board's own, taken from Board's lift as
-  // it is drawn (after every frame callback has moved it), so it follows the
-  // same ease exactly
-  const raiseTo = useMemo(
-    () =>
-      function (this: Mesh) {
-        const r = raise.current;
-        const board = boardLift(r);
-        if (!r || !board) return;
-        const y = board.position.y;
-        const extra = liftFor(y, liftRef.current) - y;
-        if (r.position.y === extra) return;
-        r.position.y = extra;
-        r.updateMatrixWorld(true);
-      },
-    [],
-  );
-
   return (
     <>
       <group ref={floor} userData={ON_FLOOR}>
@@ -586,10 +554,7 @@ export const PieceBody = (props: PieceBodyProps) => {
         )}
         {lit && <SelectionLight state={held} top={top} still={still} />}
       </group>
-      {/* The setting's lift beyond Board's (tagged so the hit proxy ignores it) */}
-      <group ref={raise} userData={{ lift: true }}>
-        <mesh geometry={wholePiece(type)} material={body} onBeforeRender={raiseTo} />
-      </group>
+      <mesh geometry={wholePiece(type)} material={body} />
     </>
   );
 };

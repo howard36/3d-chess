@@ -24,16 +24,17 @@ import { usePieceSetting } from './settings-pieces';
 
 // The held piece's light, after Meridian's column of starlight, calmer.
 //
-// Picked up, a column of cool white light rises gently round the piece from
-// the glass, nearly straight (it narrows only a little), its height in
-// proportion to the piece's own (a pawn's is short, a king's about his
-// height), bright at its rising front and settling to a quiet glow. A thin
-// circle of the same light lies round the piece's foot, drawn in by a glint
-// that runs round it once; one ring of light spreads out from it and fades,
-// answering the click. A few faint motes drift up round the column, now and
-// then glimmering. Put down, or when another piece is picked up, the column
-// sinks back into the glass and the circle fades; every new pick-up plays
-// the whole entrance again.
+// Picked up, a column of cool white light grows gently up round the piece
+// out of the glass, nearly straight (it narrows only a little): as high as
+// the held piece is lifted, and then a share of the piece's own height (a
+// pawn's is short, a king's taller). It eases out to that height and its
+// light comes up to a quiet glow; neither ever overshoots and falls back. A
+// thin circle of the same light lies round the piece's foot (a setting can
+// have a glint draw it in, once round, or keep circling it); one ring of
+// light spreads out from it and fades, answering the click. A few faint
+// motes drift up round the column, now and then glimmering. Put down, or
+// when another piece is picked up, the column sinks back into the glass and
+// the circle fades; every new pick-up plays the whole entrance again.
 //
 // PieceBody (pieces.tsx) owns the timeline (so the release plays after the
 // Selection marker has gone) and mounts SelectionLight in its floor group,
@@ -53,11 +54,19 @@ export const Selection = ({ floor }: MarkerProps) => {
 
 // --- The timeline ---------------------------------------------------------------------------
 
-/** The column rises in RISE_MS, bright at its front, then settles over SETTLE_MS. */
-const RISE_MS = 520;
-const SETTLE_MS = 560;
-/** The glint runs once round the circle in DRAW_MS. */
+/**
+ * The column grows up out of the glass in RISE_MS, easing out to its height
+ * (never past it: it never shrinks back), as its light comes up to a calm
+ * glow over GLOW_MS.
+ */
+const RISE_MS = 700;
+const GLOW_MS = 420;
+/** The glint draws the circle in, once round, in DRAW_MS. */
 const DRAW_MS = 640;
+/** Circling (a setting), it then slows to one lap in CIRCLE_MS, on round for as long as the piece is held. */
+const CIRCLE_MS = 3000;
+/** How quickly the glint slows from its first lap's pace to the circling pace (ms). */
+const SLOW_MS = 450;
 /** The click's ring spreads and fades in PULSE_MS. */
 const PULSE_MS = 700;
 /** Put down, everything sinks and fades in FALL_MS. */
@@ -73,14 +82,14 @@ export interface SelectState {
   since: number;
   /** How far the column has risen, 0–1 of its height. */
   rise: number;
-  /** Its brightness, 0–1 (settles at SETTLED). */
+  /** Its brightness, 0–1 (comes up to SETTLED). */
   strength: number;
-  /** The soft swell of light at its rising front. */
-  front: number;
   /** The circle's presence, 0–1. */
   circle: number;
   /** How far round the glint has drawn the circle, 0–1. */
   draw: number;
+  /** Laps the glint has run (circling goes on past 1). */
+  spin: number;
   /** ms since the click's ring set out, or -1 when it has faded. */
   pulse: number;
   /** Seconds of drift (the motes and the column's bands). */
@@ -94,17 +103,26 @@ export const selectState = (): SelectState => ({
   since: -1,
   rise: 0,
   strength: 0,
-  front: 0,
   circle: 0,
   draw: 1,
+  spin: 0,
   pulse: -1,
   clock: 0,
   fall: 0,
   from: { rise: 0, strength: 0, circle: 0 },
 });
 
-/** The column's calm brightness once settled (Meridian's settled at 0.6). */
+/** The column's calm brightness (Meridian's settled at 0.6). */
 const SETTLED = 0.5;
+
+/** Laps the glint has run `t` ms after the pick-up: one in DRAW_MS, then easing to CIRCLE_MS a lap. */
+export const glintLaps = (t: number) => {
+  if (t <= DRAW_MS) return t / DRAW_MS;
+  const fast = 1 / DRAW_MS;
+  const slow = 1 / CIRCLE_MS;
+  const after = t - DRAW_MS;
+  return 1 + slow * after + (fast - slow) * SLOW_MS * (1 - Math.exp(-after / SLOW_MS));
+};
 
 /**
  * Advances the held light by `dt` ms; `pulse` false leaves out the click's
@@ -127,14 +145,14 @@ export const stepSelection = (
       s.draw = 0;
       s.pulse = pulse && !still ? 0 : -1;
     } else s.since += dt;
-    const t = still ? RISE_MS + SETTLE_MS : s.since;
+    const t = still ? RISE_MS + GLOW_MS : s.since;
+    // Both only ever grow while held, from wherever a release left them:
+    // the column's height and light come up and stay (Lumina's gentle entrance)
     s.rise = Math.max(s.rise, easeOut(clamp01(t / RISE_MS)));
-    const settle = smooth(clamp01((t - RISE_MS * 0.55) / SETTLE_MS));
-    // In gently (Lumina's), a brighter moment as it rises, then calm
-    s.strength = smooth(clamp01(t / 260)) * (0.9 - (0.9 - SETTLED) * settle);
-    s.front = still ? 0 : 0.1 * Math.sin(Math.PI * clamp01(t / RISE_MS));
+    s.strength = Math.max(s.strength, SETTLED * smooth(clamp01(t / GLOW_MS)));
     s.circle = Math.max(s.circle, smooth(clamp01(t / 220)));
-    s.draw = still ? 1 : clamp01(t / DRAW_MS);
+    s.spin = still ? 0 : glintLaps(t);
+    s.draw = still ? 1 : Math.min(s.spin, 1);
   } else {
     if (s.since >= 0) {
       // Put down: the release eases from wherever the entrance had got to
@@ -149,7 +167,6 @@ export const stepSelection = (
       s.rise = s.from.rise * (0.35 + 0.65 * e);
       s.strength = s.from.strength * e;
       s.circle = s.from.circle * e;
-      s.front = 0;
       if (s.fall === 0) s.rise = 0;
     }
   }
@@ -173,8 +190,15 @@ const columnGeometry = new CylinderGeometry(
   true,
 ).translate(0, 0.5, 0);
 
-/** The column's height over the piece's (a little above its head, lifted). */
-export const COLUMN_SCALE = 1.1;
+/**
+ * The column's height (piece units): the held piece's lift, then a share of
+ * the piece's own height (times the setting), so a pawn's is shorter; never
+ * as tall as the gap to the level above.
+ */
+export const COLUMN_SCALE = 0.9;
+const COLUMN_MAX = 1.55;
+export const columnHeight = (top: number, heldLift: number, setting: number) =>
+  Math.min(heldLift + COLUMN_SCALE * setting * top, COLUMN_MAX);
 
 const columnVertex = /* glsl */ `
   varying float vH;
@@ -192,7 +216,6 @@ const columnFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uTime;
   uniform float uRise;
-  uniform float uFront;
   uniform float uStrength;
   varying float vH;
   varying vec3 vN;
@@ -211,11 +234,9 @@ const columnFragment = /* glsl */ `
     // Faint bands of light rising slowly
     float bands = 0.84 + 0.16 * sin((vH * 3.2 - uTime * 0.28) * 6.2831853);
     float skirt = exp(-vH / 0.05) * 0.1;
-    // The rising front of the entrance: a soft swell of light, not a rim
-    float front = exp(-pow((vH - uRise + 0.14) / 0.16, 2.0)) * uFront * (0.2 + edge);
     // Seen from above its walls would ring the piece: they give way there
     float side = 1.0 - 0.94 * smoothstep(0.6, 0.88, abs(v.y));
-    float a = ((0.035 + 0.85 * edge) * fade * bands + skirt + front * 0.6) * uStrength * side * reach;
+    float a = ((0.035 + 0.85 * edge) * fade * bands + skirt) * uStrength * side * reach;
     gl_FragColor = vec4(uColor * a, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -237,8 +258,10 @@ const floorFragment = /* glsl */ `
   uniform float uRadius;
   uniform float uCircle;
   uniform float uDraw;
-  uniform float uShimmer;
-  uniform float uTime;
+  uniform float uHead;
+  uniform float uHeadAmt;
+  uniform float uTail;
+  uniform float uBase;
   uniform float uPulse;
   uniform float uPulseR;
   uniform float uStrength;
@@ -256,18 +279,21 @@ const floorFragment = /* glsl */ `
     float above = smoothstep(0.55, 0.92, abs(v.y));
     // How far round the circle this point lies (0–1)
     float along = fract(atan(vP.x, -vP.y) / TAU + 1.0);
-    // The glint that draws the circle in: lit behind it, faint ahead
-    float gap = uDraw - along;
+    // The circle is lit behind the glint as it draws it in, faint ahead
     float behind = step(along, uDraw);
-    float head = exp(-gap * gap / 0.0014) * step(0.0, gap) * step(uDraw, 0.999);
-    // Circling (a setting): a soft brighter arc going slowly round
-    float arc = fract(along - uTime / 7.0);
-    float drift = uShimmer * exp(-pow(min(arc, 1.0 - arc) / 0.07, 2.0)) * step(0.999, uDraw);
-    float ring = line(r - uRadius, 0.0075) * (0.25 + 0.75 * behind) * (0.62 + head * 1.3 + drift * 0.5);
-    float halo = exp(-pow((r - uRadius) / 0.03, 2.0)) * (0.06 + 0.22 * head);
+    // The glint: a bright point with a short fading tail behind it (circling,
+    // it goes on round)
+    float gap = fract(uHead - along + 1.0);
+    float near = min(gap, 1.0 - gap);
+    float head = uHeadAmt * (exp(-near * near / 0.0012) + 0.6 * exp(-gap / uTail));
+    float ring = line(r - uRadius, 0.0075) * (0.25 + 0.75 * behind) * (uBase + head * 2.2);
+    float halo = exp(-pow((r - uRadius) / 0.03, 2.0)) * (0.06 + 0.4 * head);
+    // and a small soft spark of light where it is
+    vec2 at = uRadius * vec2(sin(uHead * TAU), -cos(uHead * TAU));
+    float spark = exp(-dot(vP - at, vP - at) / 0.0011) * uHeadAmt * 0.55;
     // A faint pool inside, clearer from above where the column gives way
     float pool = (1.0 - smoothstep(0.0, uRadius, r)) * (0.015 + 0.1 * above) * uStrength;
-    float light = (ring + halo) * uCircle + pool;
+    float light = (ring + halo + spark) * uCircle + pool;
     // The click: one ring spreading out and fading
     light += line(r - uPulseR, 0.009 + 0.006 * (1.0 - uPulse)) * uPulse * 0.7;
     light += exp(-pow((r - uPulseR) / 0.045, 2.0)) * uPulse * 0.12;
@@ -309,7 +335,12 @@ export const SelectionLight = ({
   const brightness = usePieceSetting<number>('piece.columnBrightness');
   const particles = usePieceSetting<boolean>('piece.particles');
   const shimmer = usePieceSetting<string>('piece.shimmer');
-  useEffect(() => invalidate(), [heightScale, brightness, particles, shimmer, invalidate]);
+  const heldLift =
+    usePieceSetting<number>('piece.hoverLift') + usePieceSetting<number>('piece.heldGap');
+  useEffect(
+    () => invalidate(),
+    [heightScale, brightness, particles, shimmer, heldLift, invalidate],
+  );
 
   const column = useRef<Mesh>(null);
   const floor = useRef<Mesh>(null);
@@ -325,7 +356,6 @@ export const SelectionLight = ({
         uColor: { value: color },
         uTime: { value: 0 },
         uRise: { value: 0 },
-        uFront: { value: 0 },
         uStrength: { value: 0 },
       },
       vertexShader: columnVertex,
@@ -340,8 +370,10 @@ export const SelectionLight = ({
         uRadius: { value: RING_RADIUS },
         uCircle: { value: 0 },
         uDraw: { value: 1 },
-        uShimmer: { value: 0 },
-        uTime: { value: 0 },
+        uHead: { value: 0 },
+        uHeadAmt: { value: 0 },
+        uTail: { value: 0.06 },
+        uBase: { value: 0.62 },
         uPulse: { value: 0 },
         uPulseR: { value: RING_RADIUS },
         uStrength: { value: 0 },
@@ -389,11 +421,10 @@ export const SelectionLight = ({
   useFrame(({ camera }) => {
     const s = state.current;
     if (!s) return;
-    const height = top * COLUMN_SCALE * heightScale;
+    const height = columnHeight(top, heldLift, heightScale);
     const c = columnMaterial.uniforms;
     c.uTime.value = s.clock;
     c.uRise.value = s.rise;
-    c.uFront.value = s.front;
     c.uStrength.value = s.strength * brightness;
     if (column.current) {
       column.current.scale.set(1, height, 1);
@@ -407,9 +438,25 @@ export const SelectionLight = ({
       if (claimed(at, ['check'])) circle = 0;
     }
     f.uCircle.value = circle * Math.min(1, 0.55 + 0.45 * brightness);
-    f.uDraw.value = shimmer === 'off' ? 1 : s.draw;
-    f.uShimmer.value = shimmer === 'slow' && !still ? 1 : 0;
-    f.uTime.value = s.clock;
+    // The glint: none; once round, drawing the circle in; or on round, a
+    // comet of light with a long tail on a quieter circle
+    const circling = shimmer === 'slow' && !still;
+    f.uTail.value = circling ? 0.16 : 0.06;
+    f.uBase.value = circling ? 0.4 : 0.62;
+    if (shimmer === 'off' || still) {
+      f.uDraw.value = 1;
+      f.uHeadAmt.value = 0;
+    } else {
+      f.uDraw.value = s.draw;
+      f.uHead.value = s.spin % 1;
+      f.uHeadAmt.value =
+        shimmer === 'slow'
+          ? s.spin < 1
+            ? 1
+            : 0.8
+          : // once: it fades as it closes the circle
+            smooth(clamp01((1 - s.spin) / 0.12));
+    }
     f.uStrength.value = s.strength * brightness;
     const p = s.pulse >= 0 ? s.pulse / PULSE_MS : 1;
     f.uPulse.value = s.pulse >= 0 ? (1 - p) ** 1.6 : 0;

@@ -97,8 +97,13 @@ const zenith: Design = {
   knightYaw: KNIGHT_YAW,
   markers: { Quiet, Capture, Selection, LastMove, Check },
   hoverDestinations: true,
-  // Hover stirs a piece; held, it rises only a little higher, and holds still
-  hoverLift: { hover: 0.08, selected: 0.13 },
+  // Hover stirs a piece; held, it rises a little higher along a gentler,
+  // longer ease, and holds still (the heights are settings: settings-pieces.ts)
+  hoverLift: (s) => {
+    const hover = (s['piece.hoverLift'] as number | undefined) ?? 0.1;
+    const gap = (s['piece.heldGap'] as number | undefined) ?? 0.07;
+    return { hover, selected: hover + gap, hoverSeconds: 0.24, selectSeconds: 0.6 };
+  },
   motion: MOTION,
   CaptureFx,
   Celebration,
