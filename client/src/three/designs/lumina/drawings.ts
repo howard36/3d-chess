@@ -427,15 +427,18 @@ export const engraving = (orientation: Orientation): CanvasTexture => {
     ctx.fillStyle = 'rgba(210, 222, 245, 0.5)';
     ctx.fillRect(0, 3, W, 2);
     ctx.fillRect(0, H - 5, W, 2);
-    ctx.fillStyle = 'rgba(220, 230, 250, 1)';
     ctx.font = '500 36px "Space Grotesk", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const { text, angle } of place) {
+      // The rank numbers at half strength: from the opening view they sit
+      // near the board's own rank labels, which lead
+      ctx.fillStyle = /\d/.test(text) ? 'rgba(220, 230, 250, 0.45)' : 'rgba(220, 230, 250, 1)';
       const u = (((angle / (Math.PI * 2)) % 1) + 1) % 1;
       for (const dx of [0, -W, W]) ctx.fillText(text, u * W + dx, H / 2 + 2);
     }
     // Small ticks between the coordinates round the rest of the rim
+    ctx.fillStyle = 'rgba(220, 230, 250, 0.8)';
     for (let k = 0; k < 120; k++) {
       const u = k / 120;
       const clear = place.every(({ angle }) => {

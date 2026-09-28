@@ -28,10 +28,20 @@ export const claim = (kind: ClaimKind, at: Vec3): (() => void) => {
   };
 };
 
-/** Whether a marker has claimed the hexagon on the floor at (x, y, z), and of what kind. */
-export const claimAt = (x: number, y: number, z: number, kind?: ClaimKind): boolean => {
+/**
+ * Whether a marker has claimed the hexagon on the floor at (x, y, z): of
+ * `kind` if given, and not counting claims of kind `except`.
+ */
+export const claimAt = (
+  x: number,
+  y: number,
+  z: number,
+  kind?: ClaimKind,
+  except?: ClaimKind,
+): boolean => {
   for (const c of claims) {
     if (kind && c.kind !== kind) continue;
+    if (except && c.kind === except) continue;
     if (
       Math.abs(c.at[0] - x) < 0.06 &&
       Math.abs(c.at[1] - y) < 0.06 &&

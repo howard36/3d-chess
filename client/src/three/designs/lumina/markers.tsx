@@ -3,8 +3,10 @@ import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
   Color,
+  CustomBlending,
   CylinderGeometry,
   DoubleSide,
+  MaxEquation,
   PlaneGeometry,
   ShaderMaterial,
 } from 'three';
@@ -33,6 +35,9 @@ import { leads, steepness } from './plates';
 //   with one small mote of light travelling slowly round its rim.
 // - The selection: the projector's cone of light and the hexagon's spark
 //   (pieces.tsx). The marker itself only says where the held piece is.
+//   Seen from above, destinations straight above or below the held piece
+//   give up their outlines to one soft gold halo round its hexagon, so its
+//   column never stacks rings.
 // - The last move: an ice hexagon round the piece where it landed (again
 //   taking over the piece's own), the same hexagon smaller where it left,
 //   and a thin ice line between them with a slow flow.
@@ -145,7 +150,7 @@ const fragmentShader = /* glsl */ `
       // A saw edge: teeth side by side all round, three to a side, so the
       // hexagon and its teeth are one figure
       float teeth = 1.0 - abs(fract(ang / 6.2831853 * 18.0) - 0.5) * 2.0;
-      float reach = (0.045 + 0.02 * breath) * teeth;
+      float reach = (0.06 + 0.02 * breath) * teeth;
       float sd = r - b - reach;
       float sfw = max(fwidth(sd), 1e-4);
       float spike = step(b - 0.01, r) * (1.0 - smoothstep(-sfw, sfw, sd)) * (0.55 + 0.45 * teeth);
@@ -290,20 +295,77 @@ export const Selection = ({ floor }: MarkerProps) => {
 
 const QUIET_R = 0.225;
 
+// Straight above or below the held piece, a destination seen from above
+// would ring the piece as one more hexagon round its own (and its column's
+// others): from above it gives way instead to a soft halo of gold round the
+// piece's hexagon, drawn with max blending, so the column's destinations
+// merge into one halo rather than stacking outlines.
+const haloFragment = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uR0;
+  uniform float uR1;
+  uniform float uAlpha;
+  varying vec2 vP;
+  ${HEXAGON_SDF}
+  void main() {
+    float h0 = hexagon(vP, uR0);
+    float h1 = hexagon(vP, uR1);
+    float band = smoothstep(-0.02, 0.02, h0) * (1.0 - smoothstep(-0.05, 0.02, h1));
+    // Brightest against the piece's hexagon, fading outward
+    float k = clamp(h0 / max(uR1 - uR0, 1e-4), 0.0, 1.0);
+    float a = band * uAlpha * (1.0 - 0.6 * k);
+    if (a < 0.003) discard;
+    // Premultiplied, for max blending
+    gl_FragColor = vec4(uColor * a, a);
+    #include <colorspace_fragment>
+  }`;
+
+const HALO = { rest: 0.18, hover: 0.35 };
+
+const haloMaterial = () =>
+  new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: DoubleSide,
+    blending: CustomBlending,
+    blendEquation: MaxEquation,
+    uniforms: {
+      uColor: { value: new Color(PALETTE.move) },
+      uR0: { value: HEX },
+      uR1: { value: HEX * 1.35 },
+      uAlpha: { value: 0 },
+    },
+    vertexShader,
+    fragmentShader: haloFragment,
+  });
+
 /**
- * A mark that quietens from high above when it is off the level in play: a
- * little smaller, so the same square on two levels nests as two hexagons,
- * and, straight above or below the held piece, a little wider, so from
- * above it shows round the piece instead of under it.
+ * How a destination quietens from high above: off the level in play it
+ * draws a little smaller, so the same square on two levels nests as two
+ * hexagons, and its level's heart fades (a column of hearts would read as a
+ * row of beads); straight above or below the held piece (`halo`), it gives
+ * way to the column's halo.
  */
-const useNesting = (material: ShaderMaterial, floor: Vec3, radius: number, stackable: boolean) => {
+const useNesting = (
+  material: ShaderMaterial,
+  floor: Vec3,
+  radius: number,
+  halo?: ShaderMaterial,
+) => {
   const level = levelAt(floor[1]);
+  const gem = material.uniforms.uGemR.value as number;
   useFrame(() => {
     const s = steepness.value;
     const lead = leads[level].value;
-    const k = stackable && overHeld(floor) ? 1 + 0.45 * s : 1 - 0.15 * s * (1 - lead);
-    const r = radius * k;
-    if (material.uniforms.uR.value !== r) material.uniforms.uR.value = r;
+    const u = material.uniforms;
+    const r = radius * (1 - 0.15 * s * (1 - lead));
+    if (u.uR.value !== r) u.uR.value = r;
+    u.uGemR.value = gem * (1 - s * (1 - lead));
+    if (!halo) return;
+    const column = overHeld(floor) ? s : 0;
+    u.uShow.value = 1 - column;
+    halo.uniforms.uAlpha.value =
+      column * (HALO.rest + (HALO.hover - HALO.rest) * (u.uHover.value as number));
   });
 };
 
@@ -319,9 +381,16 @@ export const Quiet = ({ floor, hovered = false }: MarkerProps) => {
     opacity: 0.8,
     fill: 0.1,
   });
+  const halo = useMemo(haloMaterial, []);
+  useEffect(() => () => halo.dispose(), [halo]);
   useHover(material, hovered);
-  useNesting(material, floor, QUIET_R, true);
-  return <Flat at={floor} material={material} />;
+  useNesting(material, floor, QUIET_R, halo);
+  return (
+    <>
+      <Flat at={floor} material={material} />
+      <Flat at={floor} material={halo} lift={0.011} />
+    </>
+  );
 };
 
 export const Capture = ({ floor, hovered = false }: MarkerProps) => {
@@ -336,7 +405,7 @@ export const Capture = ({ floor, hovered = false }: MarkerProps) => {
     phase: (floor[0] * 1.7 + floor[2] * 2.3 + floor[1]) % 6.28,
   });
   useHover(material, hovered);
-  useNesting(material, floor, HEX, false);
+  useNesting(material, floor, HEX);
   const [x, y, z] = floor;
   useLayoutEffect(() => claim('capture', [x, y, z]), [x, y, z]);
   // The mote travels on r3f's clock
@@ -357,8 +426,8 @@ export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerPro
     mode: 'trace',
     color: PALETTE.trace,
     radius: LEFT_R,
-    width: 0.009,
-    opacity: 0.8,
+    width: 0.011,
+    opacity: 0.95,
     fill: 0.06,
   });
   const arrived = useMark({
@@ -421,7 +490,7 @@ export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerPro
 
 // The crown: a short open band of red light with eight tines, floating over
 // the king, turning very slowly. Drawn by its shader on an open cylinder.
-const CROWN_R = 0.11;
+const CROWN_R = 0.14;
 const CROWN_H = 0.085;
 const crownGeometry = new CylinderGeometry(CROWN_R, CROWN_R * 0.92, CROWN_H, 64, 1, true).translate(
   0,
@@ -467,12 +536,12 @@ const crownFragment = /* glsl */ `
   }`;
 
 const KING_TOP = pieceTop(pieceSet(), PieceType.King) * PIECE_SCALE;
-/** Over the king's cross, clear of it even held up. */
-const CROWN_Y = KING_TOP + LIFT.selected * PIECE_SCALE + 0.07;
+/** Just over the king's cross, so it belongs to him, clear of it even held up. */
+const CROWN_Y = KING_TOP + LIFT.selected * PIECE_SCALE + 0.03;
 
 const PULSE_MS = 700;
 
-export const Check = ({ floor }: MarkerProps) => {
+export const Check = ({ floor, mated = false }: MarkerProps) => {
   const invalidate = useThree((s) => s.invalidate);
   const platform = useMark({
     mode: 'check',
@@ -512,7 +581,7 @@ export const Check = ({ floor }: MarkerProps) => {
   // Check arrives (or moves to another king's square) with one pulse
   const since = useRef(0);
   const time = useRef(0);
-  const fall = useRef(mate.over ? 1 : 0);
+  const fall = useRef(mated || mate.over ? 1 : 0);
   useEffect(() => {
     since.current = 0;
     invalidate();
@@ -521,7 +590,7 @@ export const Check = ({ floor }: MarkerProps) => {
     const dt = Math.min(delta, 1 / 8);
     since.current += dt * 1000;
     // At mate the crown sinks away with the king, and the platform holds still
-    if (mate.over) fall.current = Math.min(1, fall.current + dt / 0.6);
+    if (mated || mate.over) fall.current = Math.min(1, fall.current + dt / 0.6);
     else time.current += dt;
     const settled = fall.current >= 1 && since.current > PULSE_MS;
     const f = 1 - (1 - fall.current) ** 2;

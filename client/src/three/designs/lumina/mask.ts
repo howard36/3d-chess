@@ -27,7 +27,7 @@ export const TOWER_MASK = /* glsl */ `
   const vec3 TOWER_MAX = vec3(${f(HALF)}, ${f(TOP)}, ${f(HALF)});
   // How far the ray runs inside the box before reaching the fragment (and,
   // below zero, by how much it misses), eased into a continuous 0–1
-  float towerHit(vec3 ro, vec3 inv, float len, float e) {
+  float towerHit(vec3 ro, vec3 inv, float len, vec3 e) {
     vec3 a = (TOWER_MIN - e - ro) * inv;
     vec3 b = (TOWER_MAX + e - ro) * inv;
     vec3 lo = min(a, b);
@@ -43,8 +43,18 @@ export const TOWER_MASK = /* glsl */ `
     vec3 rd = d / max(len, 1e-5);
     vec3 s = step(0.0, rd) * 2.0 - 1.0;
     vec3 inv = 1.0 / (s * max(abs(rd), vec3(1e-5)));
-    return 0.6 * towerHit(cameraPosition, inv, len, 0.0)
-      + 0.4 * towerHit(cameraPosition, inv, len, 1.0);
+    return 0.6 * towerHit(cameraPosition, inv, len, vec3(0.0))
+      + 0.4 * towerHit(cameraPosition, inv, len, vec3(1.0));
+  }
+  // As towerCover, but reaching further out to the sides: the level letters
+  // stand just outside the panes, and a prop must never show behind them
+  float towerCoverWide(vec3 world) {
+    vec3 d = world - cameraPosition;
+    float len = length(d);
+    vec3 rd = d / max(len, 1e-5);
+    vec3 s = step(0.0, rd) * 2.0 - 1.0;
+    vec3 inv = 1.0 / (s * max(abs(rd), vec3(1e-5)));
+    return max(towerCover(world), towerHit(cameraPosition, inv, len, vec3(1.1, 0.3, 1.1)));
   }
   float towerMask(vec3 world, float floorLevel) {
     return mix(1.0, floorLevel, towerCover(world));
@@ -54,7 +64,13 @@ export const TOWER_MASK = /* glsl */ `
  * Gives one of three's own materials (basic, lambert, line) the tower mask:
  * its colour is scaled by it, so behind the tower it fades to `floorLevel`.
  */
-export const withTowerMask = <T extends Material>(material: T, floorLevel: number): T => {
+export const withTowerMask = <T extends Material>(
+  material: T,
+  floorLevel: number,
+  /** Reach out past the level letters too (props: the sculptures, the drawings). */
+  wide = false,
+): T => {
+  const cover = wide ? 'towerCoverWide' : 'towerCover';
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vMaskWorld;')
@@ -66,9 +82,9 @@ export const withTowerMask = <T extends Material>(material: T, floorLevel: numbe
       .replace('#include <common>', `#include <common>\nvarying vec3 vMaskWorld;\n${TOWER_MASK}`)
       .replace(
         '#include <opaque_fragment>',
-        `#include <opaque_fragment>\ngl_FragColor.rgb *= towerMask(vMaskWorld, ${floorLevel.toFixed(3)});`,
+        `#include <opaque_fragment>\ngl_FragColor.rgb *= mix(1.0, ${floorLevel.toFixed(3)}, ${cover}(vMaskWorld));`,
       );
   };
-  material.customProgramCacheKey = () => `lumina-mask-${floorLevel}`;
+  material.customProgramCacheKey = () => `lumina-mask-${floorLevel}-${cover}`;
   return material;
 };

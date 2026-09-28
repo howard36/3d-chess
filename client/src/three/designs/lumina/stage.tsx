@@ -131,6 +131,7 @@ const FramedPositions = () => {
           fog: false,
         }),
         0,
+        true,
       );
     return {
       plane: new PlaneGeometry(FRAME_SIZE, (FRAME_SIZE * 600) / 512),
@@ -227,6 +228,7 @@ const floorMaskedVertex = /* glsl */ `
   varying float vCover;
   varying vec3 vHit;
   varying float vFresnel;
+  varying float vSteep;
   varying vec3 vGlow;
   ${TOWER_MASK}
   void main() {
@@ -243,6 +245,7 @@ const floorMaskedVertex = /* glsl */ `
     float t = (-b + sqrt(max(b * b - a * c, 0.0))) / a;
     vHit = w.xyz + d * t;
     vFresnel = 0.06 + 0.94 * pow(1.0 - abs(view.y), 3.0);
+    vSteep = smoothstep(0.5, 0.9, abs(view.y));
     float r = length(o);
     float spill = max(r - uTable, 0.0) / 3.2;
     float pool = exp(-spill * spill) * 0.5;
@@ -265,6 +268,7 @@ const floorFragment = /* glsl */ `
   varying float vCover;
   varying vec3 vHit;
   varying float vFresnel;
+  varying float vSteep;
   varying vec3 vGlow;
   vec3 reflection() {
     float v = (vHit.y - uWall.y) / uWall.z;
@@ -290,7 +294,8 @@ const floorFragment = /* glsl */ `
     // Clear floor round the table: nothing sharp shows through the panes
     float clear = smoothstep(uTable + 1.5, uTable + 4.0, r);
     float hidden = 1.0 - vCover;
-    col += uSeam * seam * 0.22 * away * clear * mix(0.2, 1.0, hidden);
+    // From high up the seams would read as a brick wall; they fade there
+    col += uSeam * seam * 0.22 * away * clear * mix(0.2, 1.0, hidden) * (1.0 - 0.7 * vSteep);
     col += vGlow;
     col += reflection() * 1.0 * mix(1.0, 0.3, vCover);
     gl_FragColor = vec4(col, 1.0);
@@ -655,20 +660,26 @@ const wireOf = (type: PieceType): BufferGeometry => {
   return g;
 };
 
-const SCULPTURE_SCALE = 3.3;
+const SCULPTURE_SCALE = 2.8;
 const PLINTH_H = 1.0;
 
 const Sculptures = () => {
   const parts = useMemo(() => {
     const plinth = new BoxGeometry(1.5, PLINTH_H, 1.5).translate(0, PLINTH_H / 2, 0);
     const cap = new BoxGeometry(1.3, 0.02, 1.3);
-    const plinthMaterial = withTowerMask(new MeshLambertMaterial({ color: PALETTE.plinth }), 0);
+    // Held down behind the tower and its level letters alike
+    const plinthMaterial = withTowerMask(
+      new MeshLambertMaterial({ color: PALETTE.plinth }),
+      0,
+      true,
+    );
     const capMaterial = withTowerMask(
       new MeshBasicMaterial({
         color: new Color(PALETTE.holo).multiplyScalar(0.07),
         toneMapped: false,
       }),
       0,
+      true,
     );
     const lineMaterial = withTowerMask(
       new LineBasicMaterial({
@@ -679,6 +690,7 @@ const Sculptures = () => {
         depthWrite: false,
       }),
       0,
+      true,
     );
     const forms = SCULPTURES.map((s) => wireOf(s.type));
     return { plinth, cap, plinthMaterial, capMaterial, lineMaterial, forms };

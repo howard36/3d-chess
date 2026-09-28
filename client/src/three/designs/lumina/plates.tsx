@@ -30,8 +30,9 @@ import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 //
 // Looking straight down the stack, the five checkers nest at five scales:
 // the level in play (the hovered or selected level, else the top one) keeps
-// its full strength, and the others step back a little, all alike, every
-// square of every level still showing. From the side, all five are equal.
+// its full strength and draws the one crisp 5×5 grid; the others keep their
+// checker as tone (a little quieter) while their threads and frames step
+// well back, all alike, so no plaid forms. From the side, all five are equal.
 
 const vertexShader = /* glsl */ `
   varying vec2 vP;
@@ -84,7 +85,7 @@ const fragmentShader = /* glsl */ `
     // Looking down the stack, the five checkers nest at five scales; the level
     // in play (the top one, with none) keeps its full strength, and the
     // others step back a little, every square still showing
-    float back = 1.0 - 0.5 * uSteep * (1.0 - uKeep);
+    float back = 1.0 - 0.35 * uSteep * (1.0 - uKeep);
 
     // Smoked glass: a veil over the whole pane, deeper on the dark squares;
     // frost on the light squares
@@ -120,7 +121,7 @@ const fragmentShader = /* glsl */ `
     glow *= 1.0 - smoothstep(0.06, 0.2, max(deriv.x, deriv.y));
 
     // From above, every level but the one in play thins its threads a little
-    float keep = 1.0 - 0.45 * uSteep * (1.0 - uKeep);
+    float keep = 1.0 - 0.8 * uSteep * (1.0 - uKeep);
     float lit = (thread + glow) * uThread * keep * (1.0 + 0.3 * uFocus) * dim;
     c = over(c, uThreadColor, min(lit, 1.0));
 
@@ -228,7 +229,6 @@ export const HoloPanes = ({ focusLevel }: { focusLevel: number | null }) => {
         );
         panes[z].uniforms.uDim.value = any * (1 - w) * 0.18;
         frameBase.current[z] = 0.85 * (1 - any * (1 - w) * 0.25) + 0.15 * w;
-        frames[z].opacity = frameBase.current[z];
       });
     },
     { key: panes },
@@ -237,7 +237,13 @@ export const HoloPanes = ({ focusLevel }: { focusLevel: number | null }) => {
   useFrame(({ camera }) => {
     camera.getWorldDirection(up);
     const steep = Math.min(Math.max((-up.y - 0.8) / (0.97 - 0.8), 0), 1);
-    steepness.value = steep * steep * (3 - 2 * steep);
+    const s = steep * steep * (3 - 2 * steep);
+    steepness.value = s;
+    // From above, the frames of the levels not in play step back too, so
+    // five nested borders do not run through the back rank's pieces
+    frames.forEach((m, z) => {
+      m.opacity = frameBase.current[z] * (1 - 0.35 * s * (1 - panes[z].uniforms.uKeep.value));
+    });
   });
 
   return (

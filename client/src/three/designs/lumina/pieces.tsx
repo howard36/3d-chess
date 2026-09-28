@@ -23,6 +23,7 @@ import { dotTexture, rng } from '../kit/textures';
 import type { PieceBodyProps, PieceColor } from '../types';
 import { claimAt } from './claims';
 import { HEX, LEVEL_COLORS, PALETTE, PIECE_SCALE } from './palette';
+import { steepness } from './plates';
 
 // Hard-light ceramic: solid, matte, opaque bodies, pearl and graphite-violet.
 // Pearl takes a pale silver edge and deep indigo inlays; graphite takes a
@@ -36,9 +37,10 @@ import { HEX, LEVEL_COLORS, PALETTE, PIECE_SCALE } from './palette';
 // the colours of the levels between, as the piece passes them. Under the
 // pointer it brightens gently. Picked up, the projector answers: a soft cone
 // of pale gold light rises from the pane round the piece's foot, a few motes
-// drifting up in it, while the hexagon brightens, a spark of light drawing
-// once round its outline; let go, the cone sinks back into the pane and the
-// hexagon settles.
+// drifting up in it, while the hexagon warms toward gold, a spark of light
+// drawing once round its outline. Seen from above, where the cone gives way,
+// its footprint takes over: a soft pool of the same gold in the hexagon. Let
+// go, the cone sinks back into the pane and the hexagon settles.
 //
 // The rim is computed from the view, so it wraps every piece the same way
 // from both seats and from above. Materials are shared by every piece of an
@@ -317,6 +319,7 @@ const hexFragment = /* glsl */ `
   uniform float uSel;
   uniform float uDraw;
   uniform float uShow;
+  uniform float uSteep;
   varying vec2 vP;
   ${HEXAGON_SDF}
   void main() {
@@ -328,8 +331,9 @@ const hexFragment = /* glsl */ `
     float w = max(uWidth, fw * 0.75);
     float line = (1.0 - smoothstep(w - fw, w + fw, abs(d))) * min(uWidth / w, 1.0);
     float halo = exp(-d * d / (0.035 * 0.035)) * 0.13;
-    // A faint contact shadow: the piece stands on the pane
-    float shadow = 0.5 * (1.0 - smoothstep(0.08, uR * 0.95, r));
+    // A faint contact shadow: the piece stands on the pane (from above,
+    // where it would tint the hexagon into a tile, it all but goes)
+    float shadow = 0.5 * (1.0 - smoothstep(0.08, uR * 0.95, r)) * (1.0 - 0.7 * uSteep);
     // Picked up, a spark draws once round the outline, lighting it as it goes
     float along = fract(atan(p.x, -p.y) / 6.2831853 + 1.0);
     float behind = step(along, uDraw);
@@ -338,14 +342,19 @@ const hexFragment = /* glsl */ `
     float lift = 1.0 + 0.35 * uHover + 0.6 * uSel * behind;
     float light = (line * (0.58 + head * 1.6) + halo * (1.0 + 1.0 * uHover + 1.2 * uSel)) * lift;
     // Within: a soft glow of its level's light under the pointer or the hand
-    float within = (1.0 - smoothstep(-0.02, 0.01, d)) * (0.07 * uHover + 0.06 * uSel)
-      * (0.4 + 0.6 * smoothstep(0.0, uR, r));
-    light = (light + within) * uShow;
-    float a = max(shadow * uShow, min(light, 1.0));
+    float inside = 1.0 - smoothstep(-0.02, 0.01, d);
+    float within = inside * (0.07 * uHover + 0.06 * uSel) * (0.4 + 0.6 * smoothstep(0.0, uR, r));
+    light = min((light + within) * uShow, 1.0);
+    // Held and seen from above, where the cone gives way, its footprint: a
+    // soft pool of the projector's gold filling the hexagon
+    float pool = inside * uSel * uSteep * 0.22 * (0.5 + 0.5 * smoothstep(0.0, uR, r)) * uShow;
+    float a = max(shadow * uShow, min(light + pool, 1.0));
     if (a < 0.003) discard;
-    vec3 col = mix(uColor, vec3(1.0), 0.12 * uHover + 0.12 * uSel * behind);
+    // Held, the outline warms toward the projector's gold, the more so from above
+    vec3 col = mix(uColor, vec3(1.0), 0.12 * uHover);
+    col = mix(col, uSelect, uSel * behind * (0.35 + 0.35 * uSteep));
     col = mix(col, uSelect, clamp(head * 0.8, 0.0, 1.0));
-    gl_FragColor = vec4(col * min(light, 1.0) / max(a, 1e-4), a);
+    gl_FragColor = vec4((col * light + uSelect * pool) / max(a, 1e-4), a);
     #include <colorspace_fragment>
   }`;
 
@@ -399,6 +408,7 @@ const Hexagon = ({
           uSel: { value: 0 },
           uDraw: { value: 1 },
           uShow: { value: 1 },
+          uSteep: steepness,
         },
         vertexShader: hexVertex,
         fragmentShader: hexFragment,
@@ -446,7 +456,13 @@ const Hexagon = ({
     if (glide && glide.progress.current < 1) moving = true;
     // Stepping aside for a marker that has taken this square's hexagon over
     g.getWorldPosition(at);
-    s.show = toward(s.show, claimAt(at.x, at.y, at.z) ? 0 : 1, 120);
+    // (a held king in check keeps its own hexagon: its spark and light show
+    // over the check's platform)
+    s.show = toward(
+      s.show,
+      claimAt(at.x, at.y, at.z, undefined, selected ? 'check' : undefined) ? 0 : 1,
+      120,
+    );
     u.uShow.value = s.show;
     if (moving) invalidate();
   });
@@ -467,9 +483,10 @@ const Hexagon = ({
 // --- The projector's answer: a cone of light -----------------------------------------------
 
 const CONE_HEIGHT = 0.64;
-// Inside the hexagon, so its foot never draws a circle round it
+// Inside the hexagon, so its foot never draws a circle round it; narrowing
+// as it rises, like light, not a cup
 const CONE_BOTTOM = HEX / PIECE_SCALE - 0.03;
-const CONE_TOP = 0.24;
+const CONE_TOP = CONE_BOTTOM * 0.6;
 const coneGeometry = new CylinderGeometry(
   CONE_TOP,
   CONE_BOTTOM,
@@ -511,10 +528,10 @@ const coneFragment = /* glsl */ `
     // not a glass cup
     float edge = pow(1.0 - facing, 2.4);
     // Rising from the pane, fading upward and at its (growing) top
-    float fade = pow(1.0 - vH, 2.4) * (1.0 - smoothstep(uReach - 0.35, uReach, vH));
+    float fade = pow(1.0 - vH, 2.4) * (1.0 - smoothstep(uReach - 0.45, uReach, vH));
     // Projected light: fine striations round the cone, drifting very slowly
     float rays = 0.5 + 0.5 * sin(vAngle * 18.0 + 1.7 * sin(vAngle * 5.0 + uTime * 0.2));
-    rays = mix(0.55, 1.0, rays);
+    rays = mix(0.78, 1.0, rays);
     float skirt = exp(-vH / 0.04) * 0.12;
     // From straight above the cone's wall would lie round the piece as a ring
     float side = 1.0 - 0.8 * smoothstep(0.7, 0.97, abs(v.y));
