@@ -90,9 +90,10 @@ const fragmentShader = /* glsl */ `
     float keepLine = 1.0 - uSteep * mix(0.2, 0.0, uTop);
     // Seen down through the stack, the smoked squares hold back a little
     // more of what lies below them (as glass does, the more it is looked
-    // through): each pane's pattern then leads the ones under it, alike for
-    // every level and whatever the pointer does
-    float smoke = uSmoke * (1.0 + 1.2 * uSteep);
+    // through): each pane's pattern then leads the ones under it, the upper
+    // panes a little more (they lead where the five squares of a column line
+    // up straight below the eye), by level alone, whatever the pointer does
+    float smoke = uSmoke * (1.0 + uSteep * (0.9 + 0.8 * uLevel / 4.0));
     float side = 1.0 - uSteep;
     float dim = 1.0 - uDim * side;
     float dimLine = 1.0 - uDim * (1.0 - 0.5 * uSteep);
@@ -110,7 +111,8 @@ const fragmentShader = /* glsl */ `
     vec2 ci = floor(clamp(cell, 0.0, uCells - 0.001));
     float lit = mod(ci.x + ci.y + uLevel, 2.0);
     over(acc, uGlass, smoke * (1.0 - lit) * inside);
-    float fill = mix(uDark, uLit * (1.0 + 0.25 * uFocus * side), lit) * keepFill * dim;
+    float lead = 1.0 + 0.25 * uSteep * uLevel / 4.0;
+    float fill = mix(uDark, uLit * (1.0 + 0.25 * uFocus * side) * lead, lit) * keepFill * dim;
     over(acc, uColor, fill * inside);
 
     // Hairlines between the squares (not the border: the frame is the

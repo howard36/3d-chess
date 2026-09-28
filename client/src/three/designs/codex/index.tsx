@@ -24,9 +24,8 @@ import { Stage } from './stage';
 // where a piece may go (its inside lit in the level's colour), red round a
 // piece it may take, pale phosphor for the last move, and a red crown of
 // light at a king in check. A picked-up piece is written in: a line of
-// light draws round its base and a soft cone rises from it, while pips on
-// the floor at its front show what it is worth. See palette.ts for the value
-// and hue plan, and each module's header.
+// light draws round its base and a soft cone rises from it. See palette.ts
+// for the value and hue plan, and each module's header.
 
 preloadPieceSet();
 

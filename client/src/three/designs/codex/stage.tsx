@@ -71,7 +71,7 @@ interface Line {
 // the players.
 const BOOK: Line[] = [
   // 1. e4 (0–7)
-  { text: '1. e4', az: 239, el: -5, size: 0.72 },
+  { text: '1. e4', az: 239, el: -3, size: 0.72 },
   { text: '1... e5 2. Nf3 Nc6', parent: 0, size: 0.58 },
   { text: '3. Bb5 a6 4. Ba4', parent: 1, size: 0.5 },
   { text: '3. Bc4 Bc5 4. c3', parent: 1, size: 0.5 },
