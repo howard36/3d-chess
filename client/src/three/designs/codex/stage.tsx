@@ -71,33 +71,33 @@ interface Line {
 // the players.
 const BOOK: Line[] = [
   // 1. e4 (0–7)
-  { text: '1. e4', az: 236, el: -5, size: 0.85, weight: 1.2 },
-  { text: '1... e5 2. Nf3 Nc6', parent: 0 },
-  { text: '3. Bb5 a6 4. Ba4 Nf6', parent: 1, size: 0.62 },
-  { text: '3. Bc4 Bc5 4. c3', parent: 1, size: 0.62 },
-  { text: '1... c5 2. Nf3 d6', parent: 0 },
-  { text: '3. d4 cxd4 4. Nxd4 Nf6', parent: 4, size: 0.62 },
-  { text: '1... e6 2. d4 d5', parent: 0, size: 0.68 },
-  { text: '1... c6 2. d4 d5', parent: 0, size: 0.68 },
+  { text: '1. e4', az: 239, el: -5, size: 0.72 },
+  { text: '1... e5 2. Nf3 Nc6', parent: 0, size: 0.58 },
+  { text: '3. Bb5 a6 4. Ba4', parent: 1, size: 0.5 },
+  { text: '3. Bc4 Bc5 4. c3', parent: 1, size: 0.5 },
+  { text: '1... c5 2. Nf3 d6', parent: 0, size: 0.58 },
+  { text: '3. d4 cxd4 4. Nxd4', parent: 4, size: 0.5 },
+  { text: '1... e6 2. d4 d5', parent: 0, size: 0.54 },
+  { text: '1... c6 2. d4 d5', parent: 0, size: 0.54 },
   // 1. d4 (8–14)
-  { text: '1. d4', az: 176, el: -3, size: 0.85, weight: 1.2 },
-  { text: '1... d5 2. c4', parent: 8 },
-  { text: '2... e6 3. Nc3 Nf6', parent: 9, size: 0.62 },
-  { text: '2... c6 3. Nf3 Nf6', parent: 9, size: 0.62 },
-  { text: '1... Nf6 2. c4', parent: 8 },
-  { text: '2... e6 3. Nc3 Bb4', parent: 12, size: 0.62 },
-  { text: '2... g6 3. Nc3 Bg7', parent: 12, size: 0.62 },
+  { text: '1. d4', az: 168, el: -3, size: 0.72 },
+  { text: '1... d5 2. c4', parent: 8, size: 0.58 },
+  { text: '2... e6 3. Nc3 Nf6', parent: 9, size: 0.5 },
+  { text: '2... c6 3. Nf3 Nf6', parent: 9, size: 0.5 },
+  { text: '1... Nf6 2. c4', parent: 8, size: 0.58 },
+  { text: '2... e6 3. Nc3 Bb4', parent: 12, size: 0.5 },
+  { text: '2... g6 3. Nc3 Bg7', parent: 12, size: 0.5 },
   // The flank openings, behind the players (15–19)
-  { text: '1. c4 e5 2. Nc3', az: 92, el: -6, weight: 1.1 },
-  { text: '2... Nf6 3. g3 d5', parent: 15, size: 0.65 },
-  { text: '2... Nc6 3. g3 g6', parent: 15, size: 0.65 },
-  { text: '1. Nf3 d5 2. g3', az: 40, el: -8, weight: 1.1 },
-  { text: '2... Nf6 3. Bg2 c6', parent: 18, size: 0.65 },
+  { text: '1. c4 e5 2. Nc3', az: 92, el: -6 },
+  { text: '2... Nf6 3. g3 d5', parent: 15, size: 0.6 },
+  { text: '2... Nc6 3. g3 g6', parent: 15, size: 0.6 },
+  { text: '1. Nf3 d5 2. g3', az: 40, el: -8 },
+  { text: '2... Nf6 3. Bg2 c6', parent: 18, size: 0.6 },
   // This game's own book, in Raumschach (20–23)
-  { text: '1. Ab2-De5 Ed4-Ba1', az: 330, el: -6, weight: 1.1 },
-  { text: '2. Ac2-Cc4 Dc4-Dc3', parent: 20, size: 0.65 },
-  { text: '3. Ad2-Dd5+ Ec4-Dd5', parent: 21, size: 0.62 },
-  { text: '2. Bc2-Cc3 Ec5-Cc3', parent: 20, size: 0.65 },
+  { text: '1. Ab2-De5 Ed4-Ba1', az: 330, el: -6 },
+  { text: '2. Ac2-Cc4 Dc4-Dc3', parent: 20, size: 0.6 },
+  { text: '3. Ad2-Dd5+ Ec4-Dd5', parent: 21, size: 0.56 },
+  { text: '2. Bc2-Cc3 Ec5-Cc3', parent: 20, size: 0.6 },
   // Famous moves and results, set apart
   { text: '16. Qb8+!! Nxb8 17. Rd8#', az: 290, el: -24, size: 0.6, weight: 0.9 },
   { text: '1. f3 e5 2. g4 Qh4#', az: 128, el: -26, size: 0.6, weight: 0.9 },
@@ -122,8 +122,8 @@ const TOKENS: Line[] = (() => {
   // of the two trees that frame the opening view
   return MOVES.map((text, i) => {
     let az = ((i + random() * 0.8) / MOVES.length) * 360;
-    if (az > 208 && az < 250) az += 45;
-    else if (az > 146 && az < 184) az -= 40;
+    if (az > 208 && az < 252) az += 47;
+    else if (az > 140 && az < 184) az -= 42;
     return {
       text,
       az,
@@ -139,8 +139,8 @@ const LINES: Line[] = [...BOOK, ...TOKENS];
 
 const SHELL = 32;
 /** The outline's rows and indent (degrees round the shell). */
-const ROW_DEG = 3.2;
-const INDENT_DEG = 2.6;
+const ROW_DEG = 2.8;
+const INDENT_DEG = 2.2;
 const ROW = 64;
 const FONT = '500 44px "IBM Plex Mono", ui-monospace, monospace';
 
@@ -217,7 +217,7 @@ const scriptFragment = /* glsl */ `
   void main() {
     float a = texture2D(uMap, vUv).a * vLight * uStrength;
     if (a < 0.002) discard;
-    a *= 1.0 - towerCover(vWorld);
+    a *= 1.0 - bookCover(vWorld);
     if (a < 0.002) discard;
     gl_FragColor = vec4(uColor * a, 1.0);
     #include <colorspace_fragment>
@@ -233,7 +233,7 @@ const branchVertex = /* glsl */ `
     vec4 w = modelMatrix * vec4(position, 1.0);
     float period = 26.0 + 22.0 * fract(aSeed * 7.13);
     float breath = 0.62 + 0.38 * sin(6.2831853 * (uTime / period + aSeed));
-    vLight = aWeight * breath * (1.0 - towerCover(w.xyz));
+    vLight = aWeight * breath * (1.0 - bookCover(w.xyz));
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
@@ -380,7 +380,7 @@ const Book = () => {
       uniforms: {
         uMap: { value: texture },
         uColor: { value: new Color(PALETTE.script) },
-        uStrength: { value: 0.11 },
+        uStrength: { value: 0.085 },
         uTime: time,
       },
       vertexShader: scriptVertex,
@@ -392,7 +392,7 @@ const Book = () => {
       blending: AdditiveBlending,
       uniforms: {
         uColor: { value: new Color(PALETTE.branch) },
-        uStrength: { value: 0.075 },
+        uStrength: { value: 0.06 },
         uTime: time,
       },
       vertexShader: branchVertex,

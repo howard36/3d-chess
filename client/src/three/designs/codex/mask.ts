@@ -15,10 +15,15 @@ const BOTTOM = FRAME.levelY[0] - 0.1;
 const TOP = FRAME.levelY[4] + (0.87 + LIFT.selected) * PIECE_SCALE + 0.1;
 
 const f = (n: number) => n.toFixed(4);
+/** How far past the panes the level letters and file and rank labels reach. */
+const LABELS = 0.9;
 
 /**
  * GLSL: `float towerCover(vec3 world)`, 0 clear of the tower to 1 behind
- * it (from the camera), for a shader to fade by.
+ * it (from the camera), for a shader to fade by; and `bookCover(world)`, the
+ * same round a wider box that takes in the ring of coordinate labels round
+ * the panes, fading over a broad margin, so far-off type gives way well
+ * before it reaches a label or the tower's edge, from any view.
  */
 export const TOWER_MASK = /* glsl */ `
   const vec3 TOWER_MIN = vec3(${f(-HALF)}, ${f(BOTTOM)}, ${f(-HALF)});
@@ -40,4 +45,15 @@ export const TOWER_MASK = /* glsl */ `
     vec3 inv = 1.0 / (s * max(abs(rd), vec3(1e-5)));
     return clamp(0.55 * towerHit(cameraPosition, inv, len, 0.0)
       + 0.45 * towerHit(cameraPosition, inv, len, 1.2), 0.0, 1.0);
+  }
+  float bookCover(vec3 world) {
+    vec3 d = world - cameraPosition;
+    float len = length(d);
+    vec3 rd = d / max(len, 1e-5);
+    vec3 s = step(0.0, rd) * 2.0 - 1.0;
+    vec3 inv = 1.0 / (s * max(abs(rd), vec3(1e-5)));
+    // The labels' ring, then a broad soft margin beyond it
+    return clamp(0.45 * towerHit(cameraPosition, inv, len, ${f(LABELS)})
+      + 0.3 * towerHit(cameraPosition, inv, len, ${f(LABELS + 0.9)})
+      + 0.25 * towerHit(cameraPosition, inv, len, ${f(LABELS + 1.8)}), 0.0, 1.0);
   }`;

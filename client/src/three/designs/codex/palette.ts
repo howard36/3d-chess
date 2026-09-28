@@ -48,8 +48,9 @@ export const PALETTE = {
   // Markers, one meaning each, all off the level ramp's arc
   move: '#ffc45e',
   select: '#ffe2a6',
-  // The capture an amber-red, the check a crimson, told apart from above too
-  capture: '#ff6a3d',
+  // The capture a true red, well off the amber moves; the check a pink
+  // crimson, told apart from the capture from above too (and by its points)
+  capture: '#ff4a3c',
   check: '#ff2a7a',
   trace: '#d6fbe9',
 

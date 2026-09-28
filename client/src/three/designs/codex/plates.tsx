@@ -92,7 +92,7 @@ const fragmentShader = /* glsl */ `
     // more of what lies below them (as glass does, the more it is looked
     // through): each pane's pattern then leads the ones under it, alike for
     // every level and whatever the pointer does
-    float smoke = uSmoke * (1.0 + 0.6 * uSteep);
+    float smoke = uSmoke * (1.0 + 1.2 * uSteep);
     float side = 1.0 - uSteep;
     float dim = 1.0 - uDim * side;
     float dimLine = 1.0 - uDim * (1.0 - 0.5 * uSteep);

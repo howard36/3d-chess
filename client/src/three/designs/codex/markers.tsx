@@ -24,17 +24,18 @@ import { LEVEL_COLORS, MOTION, PALETTE, levelAt } from './palette';
 //   square's level colour (brighter toward its edge, like light in glass),
 //   with a small diamond of that colour at its heart. Under the pointer the
 //   fill deepens and the diamond grows a little, eased.
-// - A capture: the same diamond in amber-red, opened round the victim's base, with
+// - A capture: the same diamond in red, opened round the victim's base, with
 //   one slow mote of amber light travelling round its edge.
 // - The selection is written in by the piece itself (pieces.tsx): a line
 //   round its base and a soft cone of light.
-// - The last move: dashed pale phosphor diamonds on both squares, the one it
-//   left a smaller copy of the one it reached, joined by a thin dashed line flowing
+// - The last move: pale phosphor diamonds drawn as corner brackets on both
+//   squares, the one it left a smaller copy of the one it reached, joined by
+//   a thin dashed line flowing
 //   slowly toward the destination. Where a destination of the piece now held
 //   falls on one of them, the last move's diamond gives way to it, so the two
 //   never stack.
-// - Check: a crown of light, in a crimson of its own (the capture is an
-//   amber-red). A diamond plate under the king with a short point out from
+// - Check: a crown of light, in a pink crimson of its own (the capture is a
+//   true red). A diamond plate under the king with a short point out from
 //   each corner, the crown in plan, and four blades of light rising at its
 //   corners; it arrives with one strong pulse (the plate flares, an echo of
 //   the diamond sweeps out, the blades shoot up past their height and
@@ -70,7 +71,7 @@ const fragmentShader = /* glsl */ `
   uniform float uTime;
   uniform float uPulse;
   uniform float uEcho;
-  uniform float uDashes;
+  uniform float uBracket;
   uniform float uPoints;
   varying vec2 vP;
 
@@ -102,16 +103,16 @@ const fragmentShader = /* glsl */ `
     vec2 p = vP / (1.0 + 0.1 * uHover);
     float d = diamond(p, uR);
     float line = cover(abs(d) - uWidth * 0.5, uWidth * 0.5);
-    if (uDashes > 0.0) {
-      // The last move's diamonds are dashed, like the line between them:
-      // along each edge (in the turned square's frame), even dashes, one
-      // centred on every corner and every edge's middle
+    // The last move's diamonds are drawn as corner brackets: each edge keeps
+    // only its ends, so every corner is a chevron, a notation cursor
+    float keep = 1.0;
+    if (uBracket > 0.0) {
       vec2 q = vec2(p.x + p.y, p.x - p.y) * 0.70710678;
-      float along = abs(q.x) > abs(q.y) ? q.y : q.x;
-      float phase = along / (uR * 1.41421356) * uDashes;
-      float off = abs(phase - floor(phase + 0.5));
-      float fw = max(fwidth(phase), 1e-4);
-      line *= 1.0 - smoothstep(0.28 - fw, 0.28 + fw, off);
+      float along = abs(q.x) > abs(q.y) ? abs(q.y) : abs(q.x);
+      float hs = uR * 0.70710678 * (1.0 - uBracket);
+      float fw = max(fwidth(along), 1e-4);
+      keep = smoothstep(hs - fw, hs + fw, along);
+      line *= keep;
     }
     float inside = 1.0 - smoothstep(-0.004, 0.004, d);
     // Light in glass: the fill is stronger toward the edge, and under the
@@ -120,7 +121,7 @@ const fragmentShader = /* glsl */ `
     float edgeLit = exp(min(d, 0.0) / reach);
     float fill = inside * (uFill + 0.3 * uHover) * (0.4 + 0.6 * edgeLit);
     // A soft halo just outside the stroke
-    float halo = exp(-max(d, 0.0) * max(d, 0.0) / (0.025 * 0.025)) * 0.18 * (1.0 - inside);
+    float halo = exp(-max(d, 0.0) * max(d, 0.0) / (0.025 * 0.025)) * 0.18 * (1.0 - inside) * keep;
 
     // The fill: the marker's own light at the rim, the level's colour within
     // (tinted a little toward the marker's own light throughout, so it
@@ -192,8 +193,8 @@ interface GlyphStyle {
   radius: number;
   width: number;
   fill: number;
-  /** Dashes along each edge of the stroke (even; 0: solid). */
-  dashes?: number;
+  /** Draw only the corners, as brackets: the share of each half edge kept (0: whole). */
+  bracket?: number;
   /** Vertex radius of the level's small diamond at the heart (0: none). */
   cue?: number;
   opacity?: number;
@@ -221,7 +222,7 @@ const makeMaterial = (s: GlyphStyle) =>
       uTime: clock,
       uPulse: { value: 0 },
       uEcho: { value: 0 },
-      uDashes: { value: s.dashes ?? 0 },
+      uBracket: { value: s.bracket ?? 0 },
       uPoints: { value: s.mode === 'check' ? 1 : 0 },
     },
     vertexShader,
@@ -375,7 +376,7 @@ export const Selection = () => null;
 const TRACE_TO = 0.44;
 const TRACE_FROM = 0.26;
 
-const TRACE_OPACITY = 0.85;
+const TRACE_OPACITY = 0.95;
 
 /**
  * One end of the last move. A fresh move writes its destination's diamond
@@ -385,13 +386,10 @@ const TRACE_OPACITY = 0.85;
 const TraceMark = ({
   floor,
   radius,
-  dashes,
   delayMs = 0,
 }: {
   floor: Vec3;
   radius: number;
-  /** Dashes along each edge (even). */
-  dashes: number;
   delayMs?: number;
 }) => {
   const yielded = useOccupied(floor);
@@ -426,8 +424,8 @@ const TraceMark = ({
         color: PALETTE.trace,
         levelColor: PALETTE.trace,
         radius,
-        dashes,
-        width: 0.022,
+        bracket: 0.5,
+        width: 0.026,
         fill: 0.05,
         opacity: 0,
       }}
@@ -437,13 +435,8 @@ const TraceMark = ({
 
 export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerProps) => (
   <>
-    <TraceMark floor={from.floor} radius={TRACE_FROM} dashes={4} />
-    <TraceMark
-      floor={to.floor}
-      radius={TRACE_TO}
-      dashes={6}
-      delayMs={fresh ? MOTION.durationMs * 0.8 : 0}
-    />
+    <TraceMark floor={from.floor} radius={TRACE_FROM} />
+    <TraceMark floor={to.floor} radius={TRACE_TO} delayMs={fresh ? MOTION.durationMs * 0.8 : 0} />
     <LastMoveLine
       from={from.floor}
       to={to.floor}

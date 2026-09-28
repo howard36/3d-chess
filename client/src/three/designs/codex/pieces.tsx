@@ -45,11 +45,12 @@ import { PALETTE } from './palette';
 //   soft pool of warm light on the floor round the base;
 // - selection "writes the piece in": a thin line of light draws itself round
 //   the base, then a soft cone of light rises from it to the piece with a
-//   few slow motes, and the edge warms a little more; once the line closes,
-//   the piece's power is written under it, a short row square to the
-//   viewer's heading (a pip counts one, a small diamond five: pawn 1, knight,
-//   bishop and unicorn 3, rook 5, queen 9; the king none); released, the
-//   cone sinks and the line erases itself back the way it came.
+//   few slow motes, and the edge warms a little more; released, the cone
+//   sinks and the line erases itself back the way it came.
+//
+// (Round 4 tried power pips, the piece's material value as a row of dots on
+// the floor at selection; they read as clutter rather than information, and
+// were dropped.)
 // All of it stays on the floor while the piece lifts (the kit's ON_FLOOR).
 
 // --- The jade shader ---------------------------------------------------------------------
@@ -254,7 +255,7 @@ const LOOK: Record<PieceColor, Look> = {
     wrap: 0.1,
     // On the dark army the warm edge is a deeper amber, kept to the very
     // silhouette, so a held piece never reads pale or brown
-    warmMix: 0.5,
+    warmMix: 0.3,
     warmPower: 3.2,
     warmColor: '#c8923e',
   },
@@ -350,28 +351,9 @@ const FacingViewer = ({ children }: { children: React.ReactNode }) => {
   return <group ref={group}>{children}</group>;
 };
 
-// --- Power pips --------------------------------------------------------------------------
+// --- Floor quads -------------------------------------------------------------------------
 
-/**
- * Standard material value as marks, the way a tally is written: a small
- * diamond (the design's own glyph) counts five, a pip counts one. The king
- * shows none.
- */
-const POWER: Record<PieceType, { pips: number; five: boolean }> = {
-  [PieceType.Pawn]: { pips: 1, five: false },
-  [PieceType.Knight]: { pips: 3, five: false },
-  [PieceType.Bishop]: { pips: 3, five: false },
-  [PieceType.Unicorn]: { pips: 3, five: false },
-  [PieceType.Rook]: { pips: 0, five: true },
-  [PieceType.Queen]: { pips: 4, five: true },
-  [PieceType.King]: { pips: 0, five: false },
-};
-
-/** How far in front of the base the row lies (piece units), clear outside the written line. */
-const PIP_ROW = 0.58;
-const PIP_QUAD = 1.4;
-
-const pipVertex = /* glsl */ `
+const floorVertex = /* glsl */ `
   varying vec2 vP;
   void main() {
     // The quad lies on the floor (its geometry turned flat): x across, -z up,
@@ -380,109 +362,9 @@ const pipVertex = /* glsl */ `
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 
-// A short straight row in front of the base, square to the viewer's
-// heading, read left to right: the five's diamond first, then the pips. The
-// pale army's marks are filled with light; the dark army's are hollow, a dim
-// outline round a dark core.
-const pipFragment = /* glsl */ `
-  uniform vec3 uColor;
-  uniform vec3 uCore;
-  uniform float uCount;
-  uniform float uFive;
-  uniform float uHollow;
-  uniform float uShow;
-  uniform float uRow;
-  varying vec2 vP;
-  void main() {
-    float n = uCount + uFive;
-    float spacing = 0.15;
-    float d = 1e3;
-    for (int k = 0; k < 5; k++) {
-      float fk = float(k);
-      if (fk >= n) break;
-      vec2 c = vec2((fk - (n - 1.0) * 0.5) * spacing, -uRow);
-      vec2 q = vP - c;
-      if (uFive > 0.5 && k == 0) {
-        // The five: a small diamond
-        d = min(d, (abs(q.x) + abs(q.y) - 0.085) * 0.70710678);
-      } else {
-        d = min(d, length(q) - 0.05);
-      }
-    }
-    float aa = max(fwidth(d), 1e-4);
-    float disc = 1.0 - smoothstep(-aa, aa, d);
-    float ring = 1.0 - smoothstep(-aa, aa, abs(d + 0.01) - 0.01);
-    float glow = exp(-max(d, 0.0) * max(d, 0.0) / (0.025 * 0.025)) * 0.3;
-    vec3 col;
-    float a;
-    if (uHollow > 0.5) {
-      a = max(ring * 0.95, disc * 0.8);
-      col = mix(uCore, uColor, ring / max(a, 1e-4));
-    } else {
-      a = max(disc * 0.9, glow);
-      col = uColor;
-    }
-    a *= uShow;
-    if (a < 0.003) discard;
-    gl_FragColor = vec4(col, a);
-    #include <colorspace_fragment>
-  }`;
-
-const pipPlane = new PlaneGeometry(PIP_QUAD, PIP_QUAD).rotateX(-Math.PI / 2);
-
-const PowerPips = ({
-  type,
-  color,
-  show,
-}: {
-  type: PieceType;
-  color: PieceColor;
-  /** How far shown, 0 to 1 (driven by PieceBody, read every frame). */
-  show: React.RefObject<number>;
-}) => {
-  const power = POWER[type];
-  const material = useMemo(
-    () =>
-      new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        side: DoubleSide,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -2,
-        uniforms: {
-          uColor: { value: new Color(color === 'white' ? PALETTE.white : '#a3cdbc') },
-          uCore: { value: new Color('#070c0a') },
-          uCount: { value: power.pips },
-          uFive: { value: power.five ? 1 : 0 },
-          uHollow: { value: color === 'white' ? 0 : 1 },
-          uShow: { value: 0 },
-          uRow: { value: PIP_ROW },
-        },
-        vertexShader: pipVertex,
-        fragmentShader: pipFragment,
-      }),
-    [color, power.pips, power.five],
-  );
-  useEffect(() => () => material.dispose(), [material]);
-  useFrame(() => {
-    material.uniforms.uShow.value = show.current ?? 0;
-  });
-  if (power.pips === 0 && !power.five) return null;
-  return (
-    <mesh
-      geometry={pipPlane}
-      material={material}
-      position={[0, 0.012, 0]}
-      renderOrder={LAYER.marker + 0.2}
-      raycast={noRaycast}
-    />
-  );
-};
-
 // --- The warm floor glow --------------------------------------------------------------------
 
-const glowVertex = pipVertex;
+const glowVertex = floorVertex;
 
 // A soft pool of warm light on the floor round the base, under hover and
 // selection: the piece's lighting change, echoed where it stands
@@ -538,7 +420,7 @@ const SCRIPT_RADIUS = 0.47;
 const CONE_HEIGHT = 1.0;
 const CONE_TOP = 0.2;
 
-const scriptVertex = pipVertex;
+const scriptVertex = floorVertex;
 
 // The line, drawn round from the viewer's side (the quad's -y) by a bright
 // pen tip, and a faint floor inside it once it closes
@@ -603,7 +485,7 @@ const coneFragment = /* glsl */ `
     float fade = pow(1.0 - vH, 1.6) * smoothstep(0.0, 0.04, vH) * (1.0 - smoothstep(0.35, 0.8, vH));
     float bands = 0.82 + 0.18 * sin((vH * 4.0 - uTime * 0.35) * 6.2831853);
     float skirt = exp(-vH / 0.05) * 0.3;
-    float a = ((0.02 + 0.85 * edge) * fade * bands + skirt) * uOpacity * front;
+    float a = ((0.008 + 0.85 * edge) * fade * bands + skirt) * uOpacity * front;
     // Seen from straight above the cone is a disc round the piece: it thins
     a *= mix(1.0, 0.35, smoothstep(0.75, 0.97, abs(v.y)));
     gl_FragColor = vec4(uColor, a);
@@ -760,8 +642,6 @@ const WRITE_MS = 320;
 /** The cone rising, starting as the line closes. */
 const RISE_START_MS = 230;
 const RISE_MS = 340;
-/** The pips are written after the line, as a note beneath it. */
-const PIPS_AT_MS = 300;
 /** How long the selection keeps animating in before it holds (the flair settles). */
 const ENTER_MS = RISE_START_MS + RISE_MS + 520;
 /** The release: the cone sinks and the line erases itself. */
@@ -802,8 +682,8 @@ class Ease {
 
 /**
  * A Staunton piece in jade or graphite on its contact shadow, with its
- * floor notes (the warm glow, the written selection and its power pips)
- * kept on the floor while it lifts.
+ * floor notes (the warm glow and the written selection) kept on the floor
+ * while it lifts.
  */
 export const PieceBody = (props: PieceBodyProps) => {
   const { type, color, selected, hovered, inCheck } = props;
@@ -811,7 +691,7 @@ export const PieceBody = (props: PieceBodyProps) => {
   const body = useMemo(() => bodyMaterial(color, type), [color, type]);
   useEffect(() => () => body.dispose(), [body]);
 
-  // The glow and the written selection (with its pips) are mounted while
+  // The glow and the written selection are mounted while
   // shown or fading out, then unmounted: one state change each way
   const [glowOn, setGlowOn] = useState(false);
   const [scriptOn, setScriptOn] = useState(false);
@@ -821,11 +701,9 @@ export const PieceBody = (props: PieceBodyProps) => {
   const eases = useRef({
     warm: new Ease(HOVER_MS),
     glow: new Ease(HOVER_MS),
-    pips: new Ease(HOVER_MS),
     check: new Ease(220),
   });
   const glow = useRef(0);
-  const pips = useRef(0);
   const script = useRef<ScriptState>({ write: 0, rise: 0, flash: 0, motes: 0 });
   // Where the release starts from (the state when `selected` turned false)
   const releaseFrom = useRef<ScriptState | null>(null);
@@ -881,9 +759,6 @@ export const PieceBody = (props: PieceBodyProps) => {
         setScriptOn(false);
       }
     }
-    // The pips: written under the line once it closes, gone with it
-    moving = e.pips.step(selected && since.current >= PIPS_AT_MS ? 1 : 0, dt) || moving;
-    pips.current = e.pips.value;
     if (moving) invalidate();
   });
 
@@ -894,7 +769,6 @@ export const PieceBody = (props: PieceBodyProps) => {
         {glowOn && <WarmGlow strength={glow} />}
         {scriptOn && (
           <FacingViewer>
-            <PowerPips type={type} color={color} show={pips} />
             {/* A king in check is written in a little smaller, inside the
                 diamond of its crown, so the two read as one figure */}
             <group scale={inCheck ? [0.7, 1, 0.7] : [1, 1, 1]}>
