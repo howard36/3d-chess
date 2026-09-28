@@ -39,20 +39,22 @@ The board is drawn at the screen's full sharpness on screens of up to twice the 
 
 The HUD is kept to the edges and corners of the window, where the board is not: the board is framed by the window's height in a landscape window, leaving the sides empty, and by its width in a portrait one, leaving the top and bottom empty.
 
-| Part | Desktop and tablet | Phone held upright (520 px wide or less) | Short window (480 px tall or less: a phone on its side) |
+| Part | Wide window (desktop, tablet on its side) | Phone held upright (520 px wide or less) | Short window (480 px tall or less: a phone on its side) |
 | --- | --- | --- | --- |
-| [Turn pill](../game-page/turn-indicator.md) | Top center, 12 px down, 300 px wide. | Across the top row, from 12 px at the left to the gear at the right (13.5 px words below 400 px). | Top left, 264 px wide. |
+| [Turn pill](../game-page/turn-indicator.md) | Top center, 12 px down, at least 300 px wide and as wide as its words need (in check, a little wider). | Across the top row, from 12 px at the left to the gear at the right (13.5 px words below 400 px; there, in check, the other half keeps only its stone). | Top left, at least 264 px wide. |
 | Status column (reconnecting, the [error banner](../game-page/error-banner.md), the frozen-board banner) | Under the pill, centered. | Under the pill. | Under the pill, at the left. |
 | Settings gear | Top right, 12 px in. | Top right. | Top right. |
 | [Move card](../game-page/move-list.md) (Keyboard play on, or the move box alone while it has focus) | Bottom left, 232 px wide; the moves in two columns, about six rows before it scrolls. | Across the bottom, 12 px in at each side; the moves in one line that scrolls sideways, newest at the right. | Bottom right, beside the tower, narrowed to the free band (160 to 232 px); three rows before it scrolls. |
 
-The move card names the cell under the pointer only in a wide window on a device with hover; on a phone or tablet, and in the phone arrangements, it leaves that line out. Nothing in the HUD overlaps anything else, and none of it covers the board at the default view: checked in headless Chromium at 1280 × 720, 1920 × 1080, 390 × 844, 390 × 664, 360 × 640, 844 × 390, and 640 × 360, from both seats, late in a game, with Keyboard play on.
+A window no wider than 13:9 that is not short (a tablet upright, a squarish desktop window such as 700 × 900 or 1024 × 768) is framed by its width like a phone, and the board reaches its bottom corners, so the move card takes the phone's arrangement there too: across the bottom, at most 560 px wide and centered. While it shows, the view is framed to leave that band (100 px) clear: turning Keyboard play on or off frames the view again, as a change of window size does. Where the card sits in a corner, the board is not moved. A list scrolled past its start fades out at that edge rather than cutting a row through.
+
+The move card names the cell under the pointer only in a wide window on a device with hover; on a phone or tablet, and in the phone arrangements, it leaves that line out. Nothing in the HUD overlaps anything else, and none of it covers the board at the default view: checked in headless Chromium at 1280 × 720, 1920 × 1080, 1024 × 768, 768 × 1024, 700 × 900, 500 × 1000, 390 × 844, 390 × 664, 360 × 640, 844 × 390, 932 × 430, and 640 × 360, from both seats, in check and late in a game, with Keyboard play on. On a touch screen the pill is 44 px tall, level with the gear.
 
 Only the gear (and its panel), the error banner's "✕", and the move card while it shows take the pointer. A press on them never reaches the board. The pill, the reconnecting line, the frozen-board banner, and the space around them all let presses through to the board behind ([the input model](../foundations/input-model.md#what-takes-a-press)).
 
 Because the board screen is exactly the height the browser shows, the move card stays above a phone browser's bottom toolbar, and moves up and down with it as the toolbar shows and hides.
 
-The settings panel opens under the gear on a wide window; on a phone held upright it is a sheet across the bottom of the screen, up to 72% of its height, scrolling on its own. Its groups fold: Play and Board start open and the rest folded, so the panel does not run to several screens. On a touch screen every control in it is at least 44 px tall and its switches 52 × 32 px.
+The settings panel opens under the gear on a wide window; on a phone held upright it is a sheet across the bottom of the screen, up to 46% of its height, scrolling on its own, so the upper half of the board stays in view while a setting is changed. Its groups fold: Play and Board start open and the rest folded, so the panel does not run to several screens. On a touch screen every control in it is at least 44 px tall; a switch is drawn 52 × 32 px and takes presses 44 px tall. Keyboard focus on the gear and the panel's controls shows as the HUD's own soft white halo.
 
 ## Dialogs on small screens
 

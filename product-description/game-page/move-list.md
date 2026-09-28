@@ -104,7 +104,7 @@ The list shows the record as it stood before the move: the player's own move in 
 
 **Stored seat.** None.
 
-**Keyboard, touch, and screen size.** The list is in the page for screen readers whether or not it is shown; see [accessibility](../cross-cutting/accessibility.md). The card sits at the bottom left, clear of the board; on a phone on its side it moves to the bottom right and narrows; on a phone, and on any device without hover, the cell line is left out (there is no pointer to rest). See [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
+**Keyboard, touch, and screen size.** The list is in the page for screen readers whether or not it is shown; see [accessibility](../cross-cutting/accessibility.md). The card sits at the bottom left, clear of the board, in a wide window; in a window no wider than 13:9 (a phone or tablet upright, a squarish window) it spans the bottom and the view is framed to leave that band clear; on a phone on its side it moves to the bottom right and narrows; on a phone, and on any device without hover, the cell line is left out (there is no pointer to rest). See [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
 
 ## Edge cases
 

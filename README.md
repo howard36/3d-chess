@@ -167,8 +167,10 @@ Key decisions:
   Once the game is over the pill gives the result from the player's side ("Checkmate ·
   you win"). Under the pill, only while they apply: "Reconnecting…" (the pill dims), the
   latest error and the frozen-record notice. The **Keyboard play** setting (the panel's
-  first group, Play) shows the **move card** at the bottom left: the cell under the
-  pointer, the moves so far and the move box; off, the card stays in the page out of
+  first group, Play) shows the **move card** at the bottom left (across the bottom in a
+  window no wider than 13:9, with the camera fit keeping that band clear: `hudBands` in
+  `three/cameraFit.ts`): the cell under the pointer, the moves so far and the move box;
+  off, the card stays in the page out of
   sight, its list for screen readers and its field for Tab. A visually hidden live region
   announces every move as it lands ("White bishop Ad2 takes pawn on Dd5. Check. Your
   move.", `game/announce.ts`). The parts are `screens/TurnPill.tsx`, `MoveCard.tsx` and

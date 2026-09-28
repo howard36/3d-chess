@@ -126,17 +126,17 @@ The board's contrast figures that stood here were calculated from the colors of 
 
 | Mark or text | Against | Contrast ratio |
 | --- | --- | --- |
-| Turn pill, the lit half's words | its dark glass | about 15 : 1 (the other half's muted words about 7 : 1) |
-| Turn indicator text | its light box | about 15 : 1 |
-| Move list moves | its dark box | about 6.8 : 1 |
-| Move list row numbers (dimmed, 13 px) | its dark box | about 3.6 : 1 |
-| Move box label (dimmed, 13 px) | its dark box | about 5.5 : 1 |
-| Move box field text | the field | about 5.3 : 1 |
+| Turn pill, the lit half's words | its dark glass | about 17 : 1 (the other half's muted words about 5.3 : 1) |
+| "CHECK" badge (red) | its dark glass | about 7 : 1 |
+| Move list, the latest move | its dark glass | about 17 : 1 |
+| Move list, earlier moves and the row numbers (muted) | its dark glass | about 5.3 : 1 |
+| Move box placeholder "Type a move" and its hint "e.g. Bb1-Cb1, then Enter · Esc to hide" (muted) | its dark glass | about 5.3 : 1 |
+| Move box field text | the field | about 17 : 1 |
+| A refused move's explanation (soft red) | its dark glass | about 8.6 : 1 |
 | Move box ↵ button, ready | its white background | about 16 : 1 (muted, without a background, until a move is typed on the player's turn) |
-| Error banner and frozen-board banner text (white on red) | their box | about 6.2 : 1 |
-| Promotion dialog's "Cancel" (gray on white) | the panel | about 7.5 : 1 |
+| Error and frozen-board notices | their dark glass | about 17 : 1 (the red rule beside them is decoration) |
 
-The HUD boxes are translucent glass; their figures shift slightly over a bright part of the board. The move numbers fall below the 4.5 : 1 usually asked of text this size.
+The HUD boxes are translucent glass; their figures shift slightly over a bright part of the board (the muted text stays above 4.5 : 1, about 4.9 : 1 over the lit scene). Every text in the HUD reaches the 4.5 : 1 usually asked of text this size; the only dimmer text is the settings panel's disabled "Reset to defaults" (about 4.3 : 1), which, being disabled, is exempt.
 
 ### Controls that do not look like controls
 
@@ -223,7 +223,7 @@ After any interrupt, focus is where it was, on the page itself, or on the first 
 - **The board itself stays pointer-only.** The decision recorded in [B-09](../bug-triage.md#b-09-the-game-cannot-be-played-without-a-pointer-and-dialogs-and-cues-are-not-accessible) was typed moves rather than keyboard navigation of the 3D board. A keyboard or screen reader player can play, but can learn the position only from the move list, and legal moves only by trying them. Whether a described position or a keyboard cursor over cells is wanted is a product call.
 - **Check on the board is shown only by color**, and the destination fill and the last-move trace differ only in hue. The selection ring and the destination dots have almost no lightness contrast with the background (about 1 : 1 by calculation). Likely worth treating as defects; not tested with a color vision simulation.
 - **Announcements that start the page.** The move announcement, the presence status, and the reconnecting line's status region are in the page from the moment the board is, so their first change should be announced; not tried with a screen reader.
-- **Contrast figures are calculated** from the HUD styles; they were not measured on screen. The move numbers (about 3.6 : 1) are below the usual 4.5 : 1 for text. The board's figures, calculated from the old `client/src/three/theme.ts` (since deleted), were withdrawn when the board's look changed and have not been recalculated for the new look (`client/src/three/scene/palette.ts`).
+- **Contrast figures are calculated** from the HUD styles; they were not measured on screen. The board's figures, calculated from the old `client/src/three/theme.ts` (since deleted), were withdrawn when the board's look changed and have not been recalculated for the new look (`client/src/three/scene/palette.ts`).
 - **The dialogs' buttons may not look like buttons**, and the dialogs' titles may look like ordinary text: both read from the base styles, which strip the browser's default button and heading styling. Not checked by eye.
 - **Reduced motion covers the glide, the capture, and the marks' own motion.** `client/src/three/motion.ts:22-25` reads the preference, and `client/src/three/Board.tsx:131-132` skips the animation when it is set; the view's drift and the buttons' hover growth ignore it. Covered by "skips the glide and the fade when the player prefers reduced motion" in `client/src/three/Board.test.tsx`; not tried with the system setting.
 - **Silence when the move box may not send.** On the opponent's turn a submit now says "Wait for their move." (`client/src/screens/MoveCard.tsx`); while the board is held, disconnected, or frozen, a submit still does nothing and says nothing.
