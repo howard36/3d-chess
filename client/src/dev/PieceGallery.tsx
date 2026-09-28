@@ -1,29 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import type React from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Euler, MeshBasicMaterial, MeshStandardMaterial } from 'three';
 import { PieceType } from '../engine/pieces';
-import { DesignContext } from '../three/designs/context';
-import { DESIGNS } from '../three/designs/registry';
-import type { Design, PieceColor } from '../three/designs/types';
-import { ChessPiece, pieceSet } from '../three/pieces';
+import { useDesign } from '../three/designs/context';
+import type { PieceColor } from '../three/designs/types';
+import { PIECE_PARTS, partsGeometry, pieceSet } from '../three/pieces';
 import type { PieceQuality, PieceSet } from '../three/pieces';
 
-// The piece gallery: every piece of the shared set in a row, from the side,
-// three-quarters and directly above, in a light and a dark army, under a
-// plain studio light. Dev only: open http://127.0.0.1:5173/pieces.html while
-// Vite runs, or save it as a PNG with scripts/pieces.mjs. Query options:
+// The piece gallery: every piece in a row, as the game draws it, from the
+// side, three-quarters and directly above, in the light and the dark army,
+// each standing on a level of its own in turn, under a plain studio light.
+// Dev only: open http://127.0.0.1:5173/pieces.html while Vite runs, or save
+// it as a PNG with scripts/pieces.mjs. Query options:
 //
-//   design=<id>     draw a design's own PieceBody instead of the neutral set
 //   piece=<type>    one piece (e.g. knight) from 8 sides at two heights
-//   quality=<q>     low | medium (default) | high
 //   cell=<px>       size of each picture (default 200)
-//   silhouette      every piece in solid black on white, one row per piece,
-//                   from 8 sides, low down and from above: the test that each
-//                   can be named by its outline alone
-//
-// Materials here are neutral on purpose: ivory and ebony, the accent in
-// walnut and brass, the foot band in the five level colours in turn.
+//   silhouette      every piece of the set in solid black on white, one row
+//                   per piece, from 8 sides, low down and from above: the
+//                   test that each can be named by its outline alone
+//   quality=<q>     the set's mesh density in the silhouette sheet: low |
+//                   medium (the game's, and the default) | high
 
 const ORDER = [
   PieceType.Pawn,
@@ -34,7 +31,6 @@ const ORDER = [
   PieceType.Queen,
   PieceType.King,
 ];
-const LEVELS = ['#e0574b', '#ee9f33', '#e3cf45', '#44b184', '#4a88dd'];
 const deg = (d: number) => (d * Math.PI) / 180;
 
 interface View {
@@ -51,17 +47,6 @@ const SHEET_VIEWS: View[] = [
   { label: 'top', yaw: 0, elevation: 90 },
 ];
 
-const neutral = {
-  white: {
-    body: new MeshStandardMaterial({ color: '#efe4cf', roughness: 0.42, metalness: 0.03 }),
-    accent: new MeshStandardMaterial({ color: '#6b4a2e', roughness: 0.5, metalness: 0.05 }),
-  },
-  black: {
-    body: new MeshStandardMaterial({ color: '#2b2521', roughness: 0.32, metalness: 0.06 }),
-    accent: new MeshStandardMaterial({ color: '#c9a263', roughness: 0.35, metalness: 0.55 }),
-  },
-};
-const feet = LEVELS.map((c) => new MeshStandardMaterial({ color: c, roughness: 0.5 }));
 const ink = new MeshBasicMaterial({ color: '#000000' });
 const clay = new MeshStandardMaterial({ color: '#9a9ea6', roughness: 0.55 });
 
@@ -92,11 +77,16 @@ interface Cell {
   silhouette?: boolean;
 }
 
-const Piece = ({ cell, design, set }: { cell: Cell; design: Design | null; set: PieceSet }) =>
-  cell.silhouette ? (
-    <ChessPiece type={cell.type} set={set} parts={{ body: cell.view.relief ? clay : ink }} />
-  ) : design ? (
-    <design.PieceBody
+const Piece = ({ cell, set }: { cell: Cell; set: PieceSet }) => {
+  const { PieceBody } = useDesign();
+  return cell.silhouette ? (
+    // The whole piece in one plain material
+    <mesh
+      geometry={partsGeometry(set, cell.type, PIECE_PARTS)!}
+      material={cell.view.relief ? clay : ink}
+    />
+  ) : (
+    <PieceBody
       type={cell.type}
       color={cell.color}
       orientation="white"
@@ -106,21 +96,8 @@ const Piece = ({ cell, design, set }: { cell: Cell; design: Design | null; set: 
       inCheck={false}
       level={cell.level}
     />
-  ) : (
-    <ChessPiece
-      type={cell.type}
-      set={set}
-      parts={{
-        body: neutral[cell.color].body,
-        accent: neutral[cell.color].accent,
-        foot: feet[cell.level],
-      }}
-    />
   );
-
-/** A design's pieces may read the design from context, as they do in a game. */
-const Pieces = ({ design, children }: { design: Design | null; children: React.ReactNode }) =>
-  design ? <DesignContext.Provider value={design}>{children}</DesignContext.Provider> : children;
+};
 
 /** Tells scripts/pieces.mjs the page is ready for its screenshot. */
 const markReady = () => {
@@ -140,29 +117,10 @@ const Ready = () => {
 const QUALITIES: PieceQuality[] = ['low', 'medium', 'high'];
 
 export const PieceGallery = ({ params }: { params: URLSearchParams }) => {
-  const designId = params.get('design');
+  const design = useDesign();
   const only = params.get('piece');
   const quality = QUALITIES.find((q) => q === params.get('quality')) ?? 'medium';
   const cellPx = Number(params.get('cell') ?? 200);
-  const [design, setDesign] = useState<Design | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!designId) return;
-    const entry = DESIGNS.find((d) => d.id === designId);
-    // A failure is shown on the page, and the page still counts as ready
-    const fail = (message: string) => {
-      setError(message);
-      markReady();
-    };
-    if (!entry) {
-      fail(`No design "${designId}"`);
-      return;
-    }
-    entry.load().then(
-      (m) => setDesign(m.default),
-      (e) => fail(String(e)),
-    );
-  }, [designId]);
   const set = useMemo(() => pieceSet(quality), [quality]);
 
   const type = ORDER.find((t) => t.toLowerCase() === only?.toLowerCase());
@@ -199,7 +157,6 @@ export const PieceGallery = ({ params }: { params: URLSearchParams }) => {
   const cols = rows[0].cells.length;
   const labelW = 110;
   const headH = 28;
-  const waiting = designId && !design;
 
   const style: React.CSSProperties = {
     font: '13px system-ui, sans-serif',
@@ -212,7 +169,7 @@ export const PieceGallery = ({ params }: { params: URLSearchParams }) => {
     <div style={style} data-testid="piece-gallery">
       <div style={{ display: 'flex', height: headH, alignItems: 'center' }}>
         <div style={{ width: labelW, paddingLeft: 10, fontWeight: 600 }}>
-          {design ? design.name : 'Shared set'} · {quality}
+          {silhouette ? `Piece set · ${quality}` : design.name}
         </div>
         {rows[0].cells.map((c, k) => (
           <div key={k} style={{ width: cellPx, textAlign: 'center' }}>
@@ -231,39 +188,33 @@ export const PieceGallery = ({ params }: { params: URLSearchParams }) => {
             </div>
           ))}
         </div>
-        {error ? (
-          <div>{error}</div>
-        ) : waiting ? null : (
-          <div style={{ width: cols * cellPx, height: rows.length * cellPx }}>
-            <Canvas
-              orthographic
-              gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true }}
-              camera={{ position: [0, 0, 20], zoom: cellPx, near: 0.1, far: 100 }}
-              dpr={1}
-            >
-              <hemisphereLight args={['#ffffff', '#4a4d55', 1.0]} />
-              <directionalLight position={[-4, 6, 8]} intensity={2.3} />
-              <directionalLight position={[6, 1, 4]} intensity={0.6} />
-              <directionalLight position={[1, 4, -8]} intensity={1.6} color="#e8eefc" />
-              <Pieces design={design}>
-                {rows.map((row, r) =>
-                  row.cells.map((cell, c) => (
-                    <group
-                      key={`${r}/${c}`}
-                      position={[c - (cols - 1) / 2, (rows.length - 1) / 2 - r, 0]}
-                      rotation={new Euler(deg(cell.view.elevation), deg(cell.view.yaw), 0, 'XYZ')}
-                    >
-                      <group position={[0, -0.43, 0]}>
-                        <Piece cell={cell} design={design} set={set} />
-                      </group>
-                    </group>
-                  )),
-                )}
-              </Pieces>
-              <Ready />
-            </Canvas>
-          </div>
-        )}
+        <div style={{ width: cols * cellPx, height: rows.length * cellPx }}>
+          <Canvas
+            orthographic
+            gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true }}
+            camera={{ position: [0, 0, 20], zoom: cellPx, near: 0.1, far: 100 }}
+            dpr={1}
+          >
+            <hemisphereLight args={['#ffffff', '#4a4d55', 1.0]} />
+            <directionalLight position={[-4, 6, 8]} intensity={2.3} />
+            <directionalLight position={[6, 1, 4]} intensity={0.6} />
+            <directionalLight position={[1, 4, -8]} intensity={1.6} color="#e8eefc" />
+            {rows.map((row, r) =>
+              row.cells.map((cell, c) => (
+                <group
+                  key={`${r}/${c}`}
+                  position={[c - (cols - 1) / 2, (rows.length - 1) / 2 - r, 0]}
+                  rotation={new Euler(deg(cell.view.elevation), deg(cell.view.yaw), 0, 'XYZ')}
+                >
+                  <group position={[0, -0.43, 0]}>
+                    <Piece cell={cell} set={set} />
+                  </group>
+                </group>
+              )),
+            )}
+            <Ready />
+          </Canvas>
+        </div>
       </div>
     </div>
   );

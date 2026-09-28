@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+// The design context first: this design's modules read their settings through it
+import '../context';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { fitDistance } from '../../cameraFit';
 import { layout } from './palette';

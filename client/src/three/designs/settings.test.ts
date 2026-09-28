@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import classic from './classic';
+import testDesign from './testDesign';
 import type { Design } from './types';
 import {
   changedSettingCount,
@@ -14,7 +14,7 @@ import {
 } from './settings';
 
 const design: Design = {
-  ...classic,
+  ...testDesign,
   id: 'settings-test',
   settings: [
     { kind: 'toggle', key: 'stars', label: 'Stars', group: 'World', default: true },

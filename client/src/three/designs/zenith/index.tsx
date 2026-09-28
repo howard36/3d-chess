@@ -86,7 +86,6 @@ const SETTINGS = [...ENV_SETTINGS, ...PIECE_SETTINGS, ...MARKER_SETTINGS]
 const zenith: Design = {
   id: 'zenith',
   name: 'Zenith',
-  blurb: 'A light-art garden of colossal chess sculptures under constellations of chess pieces.',
   layout,
   continuous: false,
   canvas: { fov: 36, toneMapping: NeutralToneMapping, exposure: 1 },
@@ -108,6 +107,8 @@ const zenith: Design = {
     return { hover, selected: hover + gap, hoverSeconds: 0.24, selectSeconds: 0.6 };
   },
   motion: MOTION,
+  // Straight like every other piece, or over an arc: the player's choice
+  knightMoves: (s) => (s['piece.knightMoves'] === 'arc' ? 'arc' : 'straight'),
   CaptureFx,
   Celebration,
   toppleMatedKing: true,

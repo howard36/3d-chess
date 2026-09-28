@@ -75,6 +75,18 @@ export const PIECE_SETTINGS: SettingSpec[] = [
     hint: 'How much higher a held piece rises than one under the pointer.',
   },
   {
+    kind: 'choice',
+    key: 'piece.knightMoves',
+    label: 'Knight moves',
+    group: 'Pieces',
+    default: 'straight',
+    options: [
+      { value: 'straight', label: 'Straight' },
+      { value: 'arc', label: 'Arc' },
+    ],
+    hint: 'How a knight travels: in a straight line like every other piece, or leaping over an arc.',
+  },
+  {
     kind: 'slider',
     key: 'piece.columnHeight',
     label: 'Column height',

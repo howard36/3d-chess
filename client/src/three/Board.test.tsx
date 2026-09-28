@@ -1,9 +1,9 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
-import Board from './Board';
+import BoardView from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
-import classic from './designs/classic';
-import { DesignContext, KnightMovesContext } from './designs/context';
+import { DesignContext } from './designs/context';
+import testDesign from './designs/testDesign';
 import { knightArcHeight } from './movePath';
 import type { KnightMoves } from './movePath';
 import { useThree } from '@react-three/fiber';
@@ -25,11 +25,23 @@ import type { Coord, Move } from '../engine';
 import { act } from 'react';
 import { vi } from 'vitest';
 import { Board as EngineBoard } from '../engine';
-import { CELL_FLOOR_Y, SPACING, toWorld } from './layout';
 import { theme } from './theme';
 
 type Renderer = { scene: unknown };
 type Color = 'white' | 'black';
+
+/** The board as these tests draw it: in the light test design, unless given another. */
+const Board = ({ design = testDesign, ...props }: BoardProps & { design?: Design }) => (
+  <DesignContext.Provider value={design}>
+    <BoardView {...props} />
+  </DesignContext.Provider>
+);
+
+// Where the test design's layout (the compact tower Zenith is built on) puts
+// a cell's centre and its floor
+const { layout } = testDesign;
+const toWorld = (cell: Coord, orientation: Color) => layout.toWorld(cell, orientation);
+const FLOOR_Y = layout.floorY;
 
 // Helper to create a fresh board
 function createTestBoard() {
@@ -302,7 +314,7 @@ describe('Board', () => {
     await press(findPiece(renderer, PieceType.Pawn, 'white', first));
     expect(highlightedCells(renderer)).toHaveLength(2);
     const [fx, fy, fz] = toWorld(first, 'white');
-    expect(selectionRings(renderer)[0].props.position).toEqual([fx, fy + CELL_FLOOR_Y, fz]);
+    expect(selectionRings(renderer)[0].props.position).toEqual([fx, fy + FLOOR_Y, fz]);
 
     await press(findPiece(renderer, PieceType.Pawn, 'white', second));
     // Highlights still exist and now belong to the second pawn.
@@ -324,9 +336,9 @@ describe('Board', () => {
     const rings = selectionRings(renderer);
     expect(rings).toHaveLength(1);
     // Same cell in x/z, and down at the piece's base rather than part-way up
-    // its foot: PieceMesh seats the piece at the same CELL_FLOOR_Y offset.
+    // its foot: PieceMesh seats the piece at the same FLOOR_Y offset.
     const piecePos = knight.props.position as [number, number, number];
-    expect(rings[0].props.position).toEqual([piecePos[0], piecePos[1] + CELL_FLOOR_Y, piecePos[2]]);
+    expect(rings[0].props.position).toEqual([piecePos[0], piecePos[1] + FLOOR_Y, piecePos[2]]);
   });
 
   it('draws the capture ring on the floor the marked piece stands on', async () => {
@@ -350,7 +362,7 @@ describe('Board', () => {
     // At the base of the piece it marks, not the cell centre — otherwise the
     // ring cuts through the piece at a height that varies with its silhouette.
     const pawnPos = pawn.props.position as [number, number, number];
-    expect(rings[0].props.position).toEqual([pawnPos[0], pawnPos[1] + CELL_FLOOR_Y, pawnPos[2]]);
+    expect(rings[0].props.position).toEqual([pawnPos[0], pawnPos[1] + FLOOR_Y, pawnPos[2]]);
   });
 
   it('captures when the capturable piece itself is clicked, not just its cell', async () => {
@@ -512,33 +524,39 @@ describe('Board', () => {
   });
 
   // The viewing player's own army must read the same way for both colours:
-  // pieces on the bottom level, pawns on the level above it, both occupying
-  // the two ranks nearest the camera (which looks down the +Z axis).
+  // pieces on their first level, pawns on the level next to it, both in the
+  // two ranks nearest the camera (which looks down the +Z axis) and in the
+  // same order left to right. The tower is walked round, not turned over, so
+  // White's army stands on the bottom two levels and Black's on the top two.
   describe.each([
-    { playerColor: 'white' as const, opponent: 'black' as const },
-    { playerColor: 'black' as const, opponent: 'white' as const },
-  ])('orientation for $playerColor', ({ playerColor, opponent }) => {
-    const BOTTOM = -2 * SPACING;
-    const SECOND_FROM_BOTTOM = -SPACING;
-    const NEAREST = 2 * SPACING;
-    const SECOND_NEAREST = SPACING;
+    { playerColor: 'white' as const, opponent: 'black' as const, first: 0, pawns: 1, theirs: 3 },
+    { playerColor: 'black' as const, opponent: 'white' as const, first: 4, pawns: 3, theirs: 1 },
+  ])('orientation for $playerColor', ({ playerColor, opponent, first, pawns, theirs }) => {
+    // Heights of the levels' cell centres, and the depths of the ranks nearest the camera
+    const levelY = (z: number) => toWorld({ x: 0, y: 0, z }, 'white')[1];
+    const pitch =
+      toWorld({ x: 1, y: 0, z: 0 }, 'white')[0] - toWorld({ x: 0, y: 0, z: 0 }, 'white')[0];
+    const NEAREST = 2 * pitch;
+    const SECOND_NEAREST = pitch;
 
-    it("puts the player's pawns on the second-from-bottom slab, nearest two layers", async () => {
+    it("puts the player's pawns on the level next to their pieces, nearest two ranks", async () => {
       const renderer = await ReactThreeTestRenderer.create(
         <Board board={createTestBoard()} currentTurn="white" playerColor={playerColor} />,
       );
-      const pawns = piecePositions(renderer, PieceType.Pawn, playerColor);
+      const positions = piecePositions(renderer, PieceType.Pawn, playerColor);
 
-      expect(pawns).toHaveLength(10);
-      expect(pawns.map(([, y]) => y)).toEqual(Array(10).fill(SECOND_FROM_BOTTOM));
-      expect(new Set(pawns.map(([, , z]) => z))).toEqual(new Set([NEAREST, SECOND_NEAREST]));
+      expect(positions).toHaveLength(10);
+      expect(positions.map(([, y]) => y)).toEqual(Array(10).fill(levelY(pawns)));
+      expect(new Set(positions.map(([, , z]) => z))).toEqual(new Set([NEAREST, SECOND_NEAREST]));
     });
 
-    it("puts the player's king on the bottom slab, nearest layer", async () => {
+    it("puts the player's king on their first level, nearest rank, in the middle", async () => {
       const renderer = await ReactThreeTestRenderer.create(
         <Board board={createTestBoard()} currentTurn="white" playerColor={playerColor} />,
       );
-      expect(piecePositions(renderer, PieceType.King, playerColor)).toEqual([[0, BOTTOM, NEAREST]]);
+      expect(piecePositions(renderer, PieceType.King, playerColor)).toEqual([
+        [0, levelY(first), NEAREST],
+      ]);
     });
 
     // Black's army is White's inverted through the centre, files included, so
@@ -548,14 +566,14 @@ describe('Board', () => {
       const renderer = await ReactThreeTestRenderer.create(
         <Board board={createTestBoard()} currentTurn="white" playerColor={playerColor} />,
       );
-      expect(rowLeftToRight(renderer, playerColor, BOTTOM, NEAREST)).toEqual([
+      expect(rowLeftToRight(renderer, playerColor, levelY(first), NEAREST)).toEqual([
         PieceType.Rook,
         PieceType.Knight,
         PieceType.King,
         PieceType.Knight,
         PieceType.Rook,
       ]);
-      expect(rowLeftToRight(renderer, playerColor, BOTTOM, SECOND_NEAREST)).toEqual([
+      expect(rowLeftToRight(renderer, playerColor, levelY(first), SECOND_NEAREST)).toEqual([
         PieceType.Bishop,
         PieceType.Unicorn,
         PieceType.Queen,
@@ -564,14 +582,14 @@ describe('Board', () => {
       ]);
     });
 
-    it("puts the opponent's pawns on the second-from-top slab, farthest two layers", async () => {
+    it("puts the opponent's pawns on their own level, farthest two ranks", async () => {
       const renderer = await ReactThreeTestRenderer.create(
         <Board board={createTestBoard()} currentTurn="white" playerColor={playerColor} />,
       );
-      const pawns = piecePositions(renderer, PieceType.Pawn, opponent);
+      const positions = piecePositions(renderer, PieceType.Pawn, opponent);
 
-      expect(pawns.map(([, y]) => y)).toEqual(Array(10).fill(-SECOND_FROM_BOTTOM));
-      expect(new Set(pawns.map(([, , z]) => z))).toEqual(new Set([-NEAREST, -SECOND_NEAREST]));
+      expect(positions.map(([, y]) => y)).toEqual(Array(10).fill(levelY(theirs)));
+      expect(new Set(positions.map(([, , z]) => z))).toEqual(new Set([-NEAREST, -SECOND_NEAREST]));
     });
   });
 
@@ -637,16 +655,11 @@ describe('Board', () => {
       expect(fromCells[0].props.position).toEqual(toWorld(FROM, 'white'));
       expect(toCells[0].props.position).toEqual(toWorld(TO, 'white'));
 
-      // Teal fill, same strength on both cells
+      // The design's last-move fill, on both cells
       const materialOf = (cell: ReactThreeTestInstance) =>
-        (
-          cell.instance as unknown as {
-            material: { color: { getHexString(): string }; opacity: number };
-          }
-        ).material;
-      expect(`#${materialOf(toCells[0]).color.getHexString()}`).toBe(theme.lastMoveFill);
-      expect(materialOf(toCells[0]).opacity).toBe(theme.lastMoveFillOpacity);
-      expect(materialOf(fromCells[0]).opacity).toBe(theme.lastMoveFillOpacity);
+        (cell.instance as unknown as { material: unknown }).material;
+      expect(materialOf(toCells[0])).toBe(testDesign.cellFills.lastMove);
+      expect(materialOf(fromCells[0])).toBe(testDesign.cellFills.lastMove);
 
       // Moves already played at mount are history: highlight only, no glide,
       // and the piece rests exactly on its cell.
@@ -677,13 +690,8 @@ describe('Board', () => {
         )!;
       expect(cell.props.userData.highlight).toBe(true);
       expect(cell.props.userData.lastMoveTo).toBe(false);
-      const material = (
-        cell.instance as unknown as {
-          material: { color: { getHexString(): string }; opacity: number };
-        }
-      ).material;
-      expect(`#${material.color.getHexString()}`).toBe(theme.highlightFill);
-      expect(material.opacity).toBe(theme.highlightFillOpacity);
+      const material = (cell.instance as unknown as { material: unknown }).material;
+      expect(material).toBe(testDesign.cellFills.destination);
     });
 
     it('skips the glide and the fade when the player prefers reduced motion', async () => {
@@ -772,7 +780,7 @@ describe('Board', () => {
       );
       expect(ghosts).toHaveLength(1);
       const [tx, ty, tz] = toWorld(TO, 'white');
-      expect(ghosts[0].props.position).toEqual([tx, ty + CELL_FLOOR_Y, tz]);
+      expect(ghosts[0].props.position).toEqual([tx, ty + FLOOR_Y, tz]);
 
       await act(async () => {
         await renderer.advanceFrames(11, 0.03);
@@ -826,10 +834,10 @@ async function pointerOn(design: Design, props: Partial<BoardProps> = {}) {
     return null;
   };
   const renderer = await ReactThreeTestRenderer.create(
-    <DesignContext.Provider value={design}>
+    <>
       <Grab />
-      <Board board={createTestBoard()} currentTurn="white" {...props} />
-    </DesignContext.Provider>,
+      <Board design={design} board={createTestBoard()} currentTurn="white" {...props} />
+    </>,
   );
   const { camera, gl, scene } = three!;
   const canvas = gl.domElement;
@@ -861,18 +869,16 @@ describe('Board with a clarity-kit design', () => {
     <group userData={{ quiet: true, hovered: hovered === true }} position={floor} />
   );
   const clarity: Design = {
-    ...classic,
+    ...testDesign,
     id: 'clarity-test',
     cellFills: { destination: null, lastMove: null },
     hoverDestinations: true,
     pieceScale: 0.8,
-    markers: { ...classic.markers, Quiet },
+    markers: { ...testDesign.markers, Quiet },
   };
   const renderWith = (design: Design, props: Partial<BoardProps> = {}) =>
     ReactThreeTestRenderer.create(
-      <DesignContext.Provider value={design}>
-        <Board board={createTestBoard()} currentTurn="white" {...props} />
-      </DesignContext.Provider>,
+      <Board design={design} board={createTestBoard()} currentTurn="white" {...props} />,
     );
   const quietMarkers = (renderer: Renderer) =>
     (renderer.scene as ReactThreeTestInstance).findAll((node) => node.props.userData?.quiet);
@@ -901,24 +907,24 @@ describe('Board with a clarity-kit design', () => {
     // The pawn's step forward, on its own level: aim at the middle of its floor
     const forward = { x: 0, y: 2, z: 1 };
     const [fx, fy, fz] = toWorld(forward, 'white');
-    await pointer.moveTo([fx, fy + CELL_FLOOR_Y, fz]);
+    await pointer.moveTo([fx, fy + FLOOR_Y, fz]);
     const hovered = quietMarkers(pointer.renderer).filter((m) => m.props.userData.hovered);
     expect(hovered).toHaveLength(1);
-    expect(hovered[0].props.position).toEqual([fx, fy + CELL_FLOOR_Y, fz]);
+    expect(hovered[0].props.position).toEqual([fx, fy + FLOOR_Y, fz]);
 
     await pointer.leave();
     expect(quietMarkers(pointer.renderer).some((m) => m.props.userData.hovered)).toBe(false);
   });
 
-  it('leaves the classic design without hover tracking', async () => {
-    const renderer = await renderWith(classic);
+  it('leaves a design without hover tracking alone', async () => {
+    const renderer = await renderWith(testDesign);
     await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
     for (const cell of highlightedCells(renderer)) {
       expect(cell.props.onPointerOver).toBeUndefined();
     }
   });
 
-  it('scales every piece about its base by the design’s piece scale, and classic not at all', async () => {
+  it('scales every piece about its base by the design’s piece scale, and not at all at 1', async () => {
     const innerScales = async (design: Design) => {
       const renderer = await renderWith(design);
       const piece = findPiece(renderer, PieceType.King, 'white');
@@ -926,8 +932,8 @@ describe('Board with a clarity-kit design', () => {
       const position = piece.children[0].props.position;
       return { scale: inner.scale.x, position };
     };
-    expect(await innerScales(clarity)).toEqual({ scale: 0.8, position: [0, CELL_FLOOR_Y, 0] });
-    expect((await innerScales(classic)).scale).toBe(1);
+    expect(await innerScales(clarity)).toEqual({ scale: 0.8, position: [0, FLOOR_Y, 0] });
+    expect((await innerScales({ ...testDesign, pieceScale: 1 })).scale).toBe(1);
   });
 
   it('reports the cell under the pointer, and its level as the hovered focus', async () => {
@@ -942,7 +948,7 @@ describe('Board with a clarity-kit design', () => {
 
     // Onto the level-B pawn's body
     const [px, py, pz] = toWorld(LEVEL_B_PAWN, 'white');
-    await pointer.moveTo([px, py + CELL_FLOOR_Y + 0.25, pz]);
+    await pointer.moveTo([px, py + FLOOR_Y + 0.25, pz]);
     expect(onHoverCell).toHaveBeenLastCalledWith({
       zxy: 'Ba2',
       piece: { type: PieceType.Pawn, color: 'white' },
@@ -964,7 +970,7 @@ describe('Board with a clarity-kit design', () => {
       focusSeen.push(focus);
       return null;
     };
-    const renderer = await renderWith({ ...classic, Grid });
+    const renderer = await renderWith({ ...testDesign, Grid });
     expect(last(focusSeen)).toEqual({ selected: null, hovered: null });
     await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
     expect(last(focusSeen)).toEqual({ selected: 1, hovered: null });
@@ -978,7 +984,10 @@ describe('Board with a clarity-kit design', () => {
       }, []);
       return <group userData={{ selection: true }} position={floor} />;
     };
-    const renderer = await renderWith({ ...classic, markers: { ...classic.markers, Selection } });
+    const renderer = await renderWith({
+      ...testDesign,
+      markers: { ...testDesign.markers, Selection },
+    });
     await press(findPiece(renderer, PieceType.Pawn, 'white', { x: 0, y: 1, z: 1 }));
     expect(mounts).toBe(1);
     await press(findPiece(renderer, PieceType.Pawn, 'white', { x: 1, y: 1, z: 1 }));
@@ -995,17 +1004,16 @@ describe('Board with a clarity-kit design', () => {
     const board = new EngineBoard();
     board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'black' });
     board.setPiece({ x: 0, y: 4, z: 0 }, { type: PieceType.Rook, color: 'white' });
-    const design = { ...classic, markers: { ...classic.markers, Check } };
+    const design = { ...testDesign, markers: { ...testDesign.markers, Check } };
     const renderer = await renderWith(design, { board, currentTurn: 'black' });
     expect(last(seen)).toBeUndefined();
     await renderer.update(
-      <DesignContext.Provider value={design}>
-        <Board
-          board={board}
-          currentTurn="black"
-          gameOver={{ result: 'checkmate', winner: 'white' }}
-        />
-      </DesignContext.Provider>,
+      <Board
+        design={design}
+        board={board}
+        currentTurn="black"
+        gameOver={{ result: 'checkmate', winner: 'white' }}
+      />,
     );
     expect(last(seen)).toBe(true);
   });
@@ -1019,7 +1027,7 @@ describe('Board with a clarity-kit design', () => {
       <group userData={{ hoveredBody: hovered === true }} />
     );
     for (const hoverLift of [true, { hover: 0.05, selected: 0.16 }] as const) {
-      const renderer = await renderWith({ ...classic, PieceBody, hoverLift });
+      const renderer = await renderWith({ ...testDesign, PieceBody, hoverLift });
       const pawn = findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN);
       await act(async () => pawn.props.onPointerOver({ stopPropagation: () => {} }));
       expect(hoveredBodies(renderer).filter((b) => b.props.userData.hoveredBody)).toHaveLength(1);
@@ -1034,7 +1042,7 @@ describe('Board with a clarity-kit design', () => {
       levels.set(`${color}-${type}-${level}`, level);
       return null;
     };
-    await renderWith({ ...classic, PieceBody });
+    await renderWith({ ...testDesign, PieceBody });
     // White's army starts on A and B, Black's on D and E
     expect([...levels.values()].filter((l) => l === undefined)).toHaveLength(0);
     const kings = [...levels.keys()].filter((k) => k.includes('King'));
@@ -1043,8 +1051,8 @@ describe('Board with a clarity-kit design', () => {
 
   it('sinks the click boxes onto the floor for a layout with a hitHeight', async () => {
     const renderer = await renderWith({
-      ...classic,
-      layout: { ...classic.layout, hitHeight: 0.1 },
+      ...testDesign,
+      layout: { ...testDesign.layout, hitHeight: 0.1 },
     });
     const cell = (renderer.scene as ReactThreeTestInstance).findAll(
       (node) => node.type === 'Mesh' && node.props.userData?.zxy === 'Cc3',
@@ -1054,8 +1062,8 @@ describe('Board with a clarity-kit design', () => {
     expect(cell.props.position).toEqual(toWorld({ x: 2, y: 2, z: 2 }, 'white'));
     const geometry = (cell.instance as unknown as { geometry: BufferGeometry }).geometry;
     geometry.computeBoundingBox();
-    expect(geometry.boundingBox!.min.y).toBeCloseTo(CELL_FLOOR_Y);
-    expect(geometry.boundingBox!.max.y).toBeCloseTo(CELL_FLOOR_Y + 0.1);
+    expect(geometry.boundingBox!.min.y).toBeCloseTo(FLOOR_Y);
+    expect(geometry.boundingBox!.max.y).toBeCloseTo(FLOOR_Y + 0.1);
   });
 
   describe('last move', () => {
@@ -1071,7 +1079,7 @@ describe('Board with a clarity-kit design', () => {
       }, []);
       return null;
     };
-    const design: Design = { ...classic, markers: { ...classic.markers, LastMove } };
+    const design: Design = { ...testDesign, markers: { ...testDesign.markers, LastMove } };
     const boardWith = (at: Coord) => {
       const board = new EngineBoard();
       board.setPiece(at, { type: PieceType.Rook, color: 'white' });
@@ -1085,9 +1093,7 @@ describe('Board with a clarity-kit design', () => {
       capturedPiece: null,
     });
     const view = (board: EngineBoard, lastMove: LastMoveInfo | undefined, turn: Color) => (
-      <DesignContext.Provider value={design}>
-        <Board board={board} currentTurn={turn} lastMove={lastMove} />
-      </DesignContext.Provider>
+      <Board design={design} board={board} currentTurn={turn} lastMove={lastMove} />
     );
 
     it('hands the last move and its effects a knight’s arc only when knights arc', async () => {
@@ -1111,19 +1117,20 @@ describe('Board with a clarity-kit design', () => {
       ) => {
         seen.length = 0;
         fxSeen.length = 0;
-        const d: Design = { ...design, MoveFx };
-        const at = (board: EngineBoard, lastMove?: LastMoveInfo) => {
-          const inner = (
-            <DesignContext.Provider value={d}>
-              <Board board={board} currentTurn={lastMove ? 'black' : 'white'} lastMove={lastMove} />
-            </DesignContext.Provider>
-          );
-          return knightMoves ? (
-            <KnightMovesContext.Provider value={knightMoves}>{inner}</KnightMovesContext.Provider>
-          ) : (
-            inner
-          );
+        // The player's setting, as the design reads it (none: the design has no such setting)
+        const d: Design = {
+          ...design,
+          MoveFx,
+          knightMoves: knightMoves ? () => knightMoves : undefined,
         };
+        const at = (board: EngineBoard, lastMove?: LastMoveInfo) => (
+          <Board
+            design={d}
+            board={board}
+            currentTurn={lastMove ? 'black' : 'white'}
+            lastMove={lastMove}
+          />
+        );
         const renderer = await ReactThreeTestRenderer.create(at(knightBoard(FROM, type)));
         const move: LastMoveInfo = {
           move: { from: FROM, to: jump, ...(promotion ? { promotion } : {}) },
@@ -1141,8 +1148,9 @@ describe('Board with a clarity-kit design', () => {
         expect(last(fxSeen)!.arc).toBe(last(seen)!.arc);
         return { arc: last(seen)!.arc, glideArc: Math.round(glide.position.y * 1e3) / 1e3 };
       };
-      const height = knightArcHeight(classic.layout);
-      expect(height).toBeCloseTo(0.6 * SPACING);
+      const height = knightArcHeight(layout);
+      // 0.6 of the cell pitch (1 in the compact tower)
+      expect(height).toBeCloseTo(0.6);
       expect(await arcFor('arc')).toEqual({ arc: height, glideArc: height });
       // Straight is the default, with or without the setting
       expect(await arcFor('straight')).toEqual({ arc: 0, glideArc: 0 });

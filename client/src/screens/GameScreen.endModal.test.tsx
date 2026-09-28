@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GameSocket } from '../hooks/useGameSocket';
 import type { WebSocketMessage } from '../types/messages';
-import classic from '../three/designs/classic';
-import type { Design, DesignEntry } from '../three/designs/types';
+import { DesignContext } from '../three/designs/context';
+import testDesign from '../three/designs/testDesign';
+import type { Design } from '../three/designs/types';
+import GameScreen from './GameScreen';
 
 // As in App.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
 vi.mock('@react-three/fiber', () => ({
@@ -15,10 +17,10 @@ vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
 vi.mock('../three/DesignStage', () => ({ DesignStage: () => null }));
 vi.mock('../three/Board', () => ({ default: () => null }));
 
-// A design that plays out the mate, standing in for the real ones (which
-// paint canvas textures at import).
+// A design that plays out the mate, standing in for Zenith (whose mate
+// animation is the length of one of its settings, like `slow` below).
 const Celebration = () => null;
-const showy: Design = { ...classic, id: 'showy', name: 'Showy', Celebration };
+const showy: Design = { ...testDesign, id: 'showy', name: 'Showy', Celebration };
 // A design whose mate plays for as long as a setting says
 const slow: Design = {
   ...showy,
@@ -38,34 +40,6 @@ const slow: Design = {
   ],
   resultDelayMs: (s) => (s.mate as number) * 1000,
 };
-vi.mock('../three/designs/registry', () => ({
-  DESIGNS: [
-    {
-      id: 'classic',
-      name: 'Classic',
-      blurb: '',
-      swatch: ['', '', '', ''],
-      load: async () => ({ default: classic }),
-    },
-    {
-      id: 'showy',
-      name: 'Showy',
-      blurb: '',
-      swatch: ['', '', '', ''],
-      load: async () => ({ default: showy }),
-    },
-    {
-      id: 'slow',
-      name: 'Slow',
-      blurb: '',
-      swatch: ['', '', '', ''],
-      load: async () => ({ default: slow }),
-    },
-  ] satisfies DesignEntry[],
-}));
-
-const { DesignChoiceProvider } = await import('../three/designs/context');
-const { default: GameScreen } = await import('./GameScreen');
 
 // The showcase game: 17 plies ending in White's mate.
 const GAME =
@@ -87,14 +61,14 @@ const socket = (messages: WebSocketMessage[]): GameSocket => ({
   reset: () => {},
 });
 
-const screenFor = (messages: WebSocketMessage[]) => (
-  <DesignChoiceProvider>
+const screenFor = (messages: WebSocketMessage[], design: Design = testDesign) => (
+  <DesignContext.Provider value={design}>
     <MemoryRouter initialEntries={['/game/abc123']}>
       <Routes>
         <Route path="/game/:gameId" element={<GameScreen gameSocket={socket(messages)} />} />
       </Routes>
     </MemoryRouter>
-  </DesignChoiceProvider>
+  </DesignContext.Provider>
 );
 
 const beforeMate: WebSocketMessage[] = [
@@ -112,10 +86,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
 });
-afterEach(() => {
-  vi.useRealTimers();
-  window.history.replaceState({}, '', '/');
-});
+afterEach(() => vi.useRealTimers());
 
 describe('the result card after a mate', () => {
   it('shows at once in a design without a mate animation', () => {
@@ -134,11 +105,9 @@ describe('the result card after a mate', () => {
     expect(chip).toHaveAttribute('data-result', 'checkmate');
   });
 
-  it('waits for a design to play the mate out, when it was just played', async () => {
-    window.history.replaceState({}, '', '/?design=showy');
-    const { rerender } = render(screenFor(beforeMate));
-    await act(async () => {}); // the design's chunk arrives
-    rerender(screenFor(mated));
+  it('waits for a design to play the mate out, when it was just played', () => {
+    const { rerender } = render(screenFor(beforeMate, showy));
+    rerender(screenFor(mated, showy));
     expect(result()).not.toBeInTheDocument();
     act(() => vi.advanceTimersByTime(1000));
     expect(result()).not.toBeInTheDocument();
@@ -146,21 +115,19 @@ describe('the result card after a mate', () => {
     expect(result()).toBeInTheDocument();
   });
 
-  it('waits as long as the design asks, by the player’s settings', async () => {
-    window.history.replaceState({}, '', '/?design=slow');
-    const { rerender } = render(screenFor(beforeMate));
-    await act(async () => {});
-    rerender(screenFor(mated));
+  it('waits as long as the design asks, by the player’s settings', () => {
+    const { rerender } = render(screenFor(beforeMate, slow));
+    rerender(screenFor(mated, slow));
     act(() => vi.advanceTimersByTime(2500));
     expect(result()).not.toBeInTheDocument();
     act(() => vi.advanceTimersByTime(600));
     expect(result()).toBeInTheDocument();
   });
 
-  it('shows at once when a finished game is reopened', async () => {
-    window.history.replaceState({}, '', '/?design=showy');
-    render(screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }]));
-    await act(async () => {});
+  it('shows at once when a finished game is reopened', () => {
+    render(
+      screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }], showy),
+    );
     expect(result()).toBeInTheDocument();
   });
 });

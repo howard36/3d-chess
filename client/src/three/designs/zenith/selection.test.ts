@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+// The design context first: this design's modules read their settings through it
+import '../context';
 import { columnHeight, glintLaps, selectState, stepSelection } from './selection';
 
 // The held light's timeline: the column grows to its height and its light

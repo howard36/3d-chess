@@ -13,8 +13,8 @@ import {
 import type { Group, Intersection, Object3D, Scene } from 'three';
 import { PieceType } from '../engine';
 import { PieceMesh } from './PieceMesh';
-import classic from './designs/classic';
 import { DesignContext } from './designs/context';
+import testDesign from './designs/testDesign';
 import { noRaycast } from './designs/kit/noRaycast';
 import { resetSettingStores, setDesignSetting } from './designs/settings';
 import type { Design, PieceBodyProps } from './designs/types';
@@ -40,13 +40,13 @@ const PieceBody = ({ hovered }: PieceBodyProps) => (
 );
 
 const lifting: Design = {
-  ...classic,
+  ...testDesign,
   id: 'hit-proxy-test',
   PieceBody,
   pieceScale: 0.8,
   hoverLift: { hover: 0.08, selected: 0.2, bob: 0.035 },
 };
-const floorY = classic.layout.floorY;
+const floorY = testDesign.layout.floorY;
 
 async function renderPiece(design: Design, props: { hovered?: boolean; selected?: boolean }) {
   const renderer = await ReactThreeTestRenderer.create(

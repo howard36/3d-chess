@@ -20,9 +20,8 @@ import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
 import { NoToneMapping } from 'three';
-import { DesignContext, useDesignChoice } from '../three/designs/context';
+import { useDesign } from '../three/designs/context';
 import { DesignStage } from '../three/DesignStage';
-import DesignPicker from './DesignPicker';
 import DesignSettings from './DesignSettings';
 import { getDesignSettings } from '../three/designs/settings';
 import CapturedPieces from './CapturedPieces';
@@ -103,7 +102,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   historyRef.current = history;
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
 
-  const { design } = useDesignChoice();
+  const design = useDesign();
   // The cell under the pointer, for designs that read it out in the HUD
   const [hoverCell, setHoverCell] = React.useState<HoveredCell | null>(null);
   // A design that plays out the mate (the king topples, the winner
@@ -394,80 +393,74 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               nearest and the depth layers don't perfectly occlude;
               FitCameraToBoard then sets its distance so the whole cube fits
               whatever the window's shape. */}
-          <DesignContext.Provider value={design}>
-            <Canvas
-              // A new design is a new scene: fresh renderer settings and frame
-              // loop, rather than tearing the old design's objects down in place.
-              key={design.id}
-              data-testid="r3f-canvas"
-              data-design={design.id}
-              role="img"
-              aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, type moves in the move box.`}
-              className={design.canvas?.pixelated ? 'pixelated-canvas' : undefined}
-              // Every touch on the board is the camera's or a tap on a
-              // square: never a page scroll or zoom, and no grey tap flash
-              style={{
-                height: '100%',
-                width: '100%',
-                touchAction: 'none',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-              camera={{ position: design.layout.viewDirection, fov: design.canvas?.fov ?? 40 }}
-              shadows={design.canvas?.shadows}
-              dpr={design.canvas?.dpr}
-              flat={design.canvas?.toneMapping === NoToneMapping}
-              gl={{
-                antialias: design.canvas?.antialias ?? true,
-                ...(design.canvas?.toneMapping !== undefined &&
-                design.canvas.toneMapping !== NoToneMapping
-                  ? { toneMapping: design.canvas.toneMapping }
-                  : {}),
-                ...(design.canvas?.exposure !== undefined
-                  ? { toneMappingExposure: design.canvas.exposure }
-                  : {}),
-              }}
-              // A chess position is static: render only when something changes.
-              // React commits and OrbitControls invalidate on their own; the move
-              // animations (three/moveAnimation.tsx) request frames while they run.
-              // Designs with ambient motion render every frame instead.
-              frameloop={design.continuous ? 'always' : 'demand'}
-              // Test hook: r3f v9 no longer exposes its store on the canvas
-              // element, so drivers (e2e/helpers/board.ts) read the live camera
-              // here to project board cells to pixels — correct even after the
-              // user orbits or the camera setup above changes.
-              onCreated={(state: RootState) => {
-                (window as Window & { __r3fState?: RootState }).__r3fState = state;
-              }}
-            >
-              <DesignStage orientation={color ?? 'white'} />
-              <Board
-                board={board} // Pass the EngineBoard instance
-                currentTurn={currentTurn}
-                playerColor={color} // Pass the determined player color
-                onMove={handleMove}
-                onChoosePromotion={setPromotionChoices}
-                lastMove={lastMove}
-                disabled={boardDisabled}
-                gameOver={gameOver}
-                onHoverCell={design.hud.readout ? setHoverCell : undefined}
-              />
-              {/* The only camera control is turning the view about the
-                  board's centre, which never moves (no pan by mouse, touch or
-                  keyboard), plus a zoom that FitCameraToBoard limits relative
-                  to the fitted view. */}
-              <CameraControls
-                // A design's orbit limits (the compact tower keeps the camera
-                // above its bottom platform and off the vertical); without
-                // them the controls keep three's defaults.
-                {...orbitAngles(design.layout.orbit)}
-              />
-              <FitCameraToBoard
-                halfExtents={design.layout.halfExtents}
-                viewDirection={design.layout.viewDirection}
-                limits={design.layout.orbit}
-              />
-            </Canvas>
-          </DesignContext.Provider>
+          <Canvas
+            data-testid="r3f-canvas"
+            role="img"
+            aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, type moves in the move box.`}
+            className={design.canvas?.pixelated ? 'pixelated-canvas' : undefined}
+            // Every touch on the board is the camera's or a tap on a
+            // square: never a page scroll or zoom, and no grey tap flash
+            style={{
+              height: '100%',
+              width: '100%',
+              touchAction: 'none',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+            camera={{ position: design.layout.viewDirection, fov: design.canvas?.fov ?? 40 }}
+            shadows={design.canvas?.shadows}
+            dpr={design.canvas?.dpr}
+            flat={design.canvas?.toneMapping === NoToneMapping}
+            gl={{
+              antialias: design.canvas?.antialias ?? true,
+              ...(design.canvas?.toneMapping !== undefined &&
+              design.canvas.toneMapping !== NoToneMapping
+                ? { toneMapping: design.canvas.toneMapping }
+                : {}),
+              ...(design.canvas?.exposure !== undefined
+                ? { toneMappingExposure: design.canvas.exposure }
+                : {}),
+            }}
+            // A chess position is static: render only when something changes.
+            // React commits and OrbitControls invalidate on their own; the move
+            // animations (three/moveAnimation.tsx) request frames while they run.
+            // Designs with ambient motion render every frame instead.
+            frameloop={design.continuous ? 'always' : 'demand'}
+            // Test hook: r3f v9 no longer exposes its store on the canvas
+            // element, so drivers (e2e/helpers/board.ts) read the live camera
+            // here to project board cells to pixels — correct even after the
+            // user orbits or the camera setup above changes.
+            onCreated={(state: RootState) => {
+              (window as Window & { __r3fState?: RootState }).__r3fState = state;
+            }}
+          >
+            <DesignStage orientation={color ?? 'white'} />
+            <Board
+              board={board} // Pass the EngineBoard instance
+              currentTurn={currentTurn}
+              playerColor={color} // Pass the determined player color
+              onMove={handleMove}
+              onChoosePromotion={setPromotionChoices}
+              lastMove={lastMove}
+              disabled={boardDisabled}
+              gameOver={gameOver}
+              onHoverCell={design.hud.readout ? setHoverCell : undefined}
+            />
+            {/* The only camera control is turning the view about the
+                board's centre, which never moves (no pan by mouse, touch or
+                keyboard), plus a zoom that FitCameraToBoard limits relative
+                to the fitted view. */}
+            <CameraControls
+              // A design's orbit limits (the compact tower keeps the camera
+              // above its bottom platform and off the vertical); without
+              // them the controls keep three's defaults.
+              {...orbitAngles(design.layout.orbit)}
+            />
+            <FitCameraToBoard
+              halfExtents={design.layout.halfExtents}
+              viewDirection={design.layout.viewDirection}
+              limits={design.layout.orbit}
+            />
+          </Canvas>
           {design.hud.overlay && (
             <div
               aria-hidden
@@ -524,11 +517,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
                 {design.hud.readout && <HoverReadout cell={hoverCell} />}
               </div>
               <div className="flex flex-col items-end gap-2 justify-self-end">
-                {/* The design's own settings (a gear, when it has any) beside its picker */}
-                <div className="flex items-start gap-2">
-                  <DesignSettings />
-                  <DesignPicker />
-                </div>
+                {/* The board's settings: a gear that opens their panel */}
+                <DesignSettings />
                 {reconnectingBanner}
               </div>
             </div>

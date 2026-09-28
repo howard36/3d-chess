@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import classic from '../three/designs/classic';
+import type React from 'react';
+import { DesignContext } from '../three/designs/context';
+import testDesign from '../three/designs/testDesign';
+import zenith from '../three/designs/zenith';
 import type { Design } from '../three/designs/types';
-import { getDesignSettings, resetSettingStores } from '../three/designs/settings';
+import { getDesignSettings, resetSettingStores, setDesignSetting } from '../three/designs/settings';
 import DesignSettings, { SettingsPanel } from './DesignSettings';
 
 // A design with one of every kind of control, its groups interleaved to
 // show they are gathered in the order they first appear
 const design: Design = {
-  ...classic,
+  ...testDesign,
   id: 'panel-test',
   name: 'Panel Test',
   settings: [
@@ -61,6 +64,10 @@ beforeEach(() => {
 afterEach(() => localStorage.clear());
 
 const panel = () => render(<SettingsPanel design={design} id="settings" onClose={() => {}} />);
+
+/** The gear (and whatever else is given) in a page drawn in `given`. */
+const page = (children: React.ReactNode = <DesignSettings />, given: Design = design) =>
+  render(<DesignContext.Provider value={given}>{children}</DesignContext.Provider>);
 
 describe('SettingsPanel', () => {
   it('lists every setting under its group, in the order declared', () => {
@@ -131,12 +138,12 @@ describe('SettingsPanel', () => {
 
 describe('DesignSettings (the gear)', () => {
   it('shows nothing for a design without settings', () => {
-    const { container } = render(<DesignSettings design={classic} />);
+    const { container } = page(<DesignSettings />, testDesign);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('opens the panel, and closes it on Escape, the gear, or its close button', () => {
-    render(<DesignSettings design={design} />);
+    page();
     const gear = screen.getByTestId('design-settings');
     expect(gear).toHaveAccessibleName('Panel Test settings');
     expect(gear).toHaveAttribute('aria-expanded', 'false');
@@ -161,11 +168,11 @@ describe('DesignSettings (the gear)', () => {
   });
 
   it('stays open for the board, and closes for anything else in the page', () => {
-    render(
+    page(
       <>
         <canvas data-testid="board" />
         <button type="button">Elsewhere</button>
-        <DesignSettings design={design} />
+        <DesignSettings />
       </>,
     );
     const gear = screen.getByTestId('design-settings');
@@ -179,7 +186,7 @@ describe('DesignSettings (the gear)', () => {
   });
 
   it('marks the gear while anything differs from the defaults', () => {
-    render(<DesignSettings design={design} />);
+    page();
     const gear = screen.getByTestId('design-settings');
     fireEvent.click(gear);
     fireEvent.click(screen.getByRole('switch', { name: 'Stars' }));
@@ -202,7 +209,7 @@ describe('DesignSettings (the gear)', () => {
     const height = window.innerHeight;
     Object.assign(window, { innerWidth: 360, innerHeight: 640 });
     try {
-      render(<DesignSettings design={design} />);
+      page();
       fireEvent.click(screen.getByTestId('design-settings'));
       const style = screen.getByTestId('design-settings-panel').style;
       expect(style.position).toBe('fixed');
@@ -216,5 +223,23 @@ describe('DesignSettings (the gear)', () => {
       Object.assign(window, { innerWidth: width, innerHeight: height });
       vi.restoreAllMocks();
     }
+  });
+});
+
+describe("Zenith's settings", () => {
+  it('lists how knights move under Pieces, straight by default, and hands the board the choice', () => {
+    render(<SettingsPanel design={zenith} id="zenith" onClose={() => {}} />);
+    const pieces = screen.getByRole('group', { name: 'Pieces' });
+    const knights = within(pieces).getByRole('radiogroup', { name: 'Knight moves' });
+    expect(within(knights).getByRole('radio', { name: 'Straight' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    expect(zenith.knightMoves?.(getDesignSettings(zenith))).toBe('straight');
+
+    fireEvent.click(within(knights).getByRole('radio', { name: 'Arc' }));
+    expect(zenith.knightMoves?.(getDesignSettings(zenith))).toBe('arc');
+    act(() => setDesignSetting(zenith, 'piece.knightMoves', 'straight'));
+    expect(zenith.knightMoves?.(getDesignSettings(zenith))).toBe('straight');
   });
 });

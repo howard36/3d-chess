@@ -4,7 +4,7 @@ import GameScreen from './screens/GameScreen';
 import { useGameSocket } from './hooks/useGameSocket';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
-import { useDesignChoice } from './three/designs/context';
+import { useDesign } from './three/designs/context';
 
 // One GameScreen per game: moving between two game pages (browser history can
 // jump straight from one to another) mounts a fresh screen, so nothing the
@@ -52,8 +52,8 @@ function App() {
     setReadyGameId(gameId);
   }, [location.pathname, gameId, reset]);
 
-  // The chosen board design dresses the pages around the board too.
-  const { design } = useDesignChoice();
+  // The board's design dresses the pages around the board too.
+  const design = useDesign();
 
   return (
     <div style={design.hud.vars as React.CSSProperties}>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useDesignChoice } from '../three/designs/context';
+import { useDesign } from '../three/designs/context';
 import {
   changedSettingCount,
   formatSetting,
@@ -12,8 +12,8 @@ import type { SettingSpec, SettingValue } from '../three/designs/settings';
 import type { Design } from '../three/designs/types';
 
 // The design's settings (Design.settings, see designs/settings.ts): a gear
-// beside the style picker, shown only when the design declares some, opening
-// a small panel over the top right of the board. Every change applies at
+// at the top right, shown only when the design declares some, opening a
+// small panel over the top right of the board. Every change applies at
 // once and is kept in this browser; nothing here reaches the opponent. The
 // panel is not modal: the board stays in play (a click on it leaves the panel
 // open, to see a change from another side), Escape or the gear closes it, and
@@ -494,16 +494,11 @@ const SettingsGear = ({ design }: { design: Design }) => {
   );
 };
 
-/**
- * The gear that opens the current design's settings panel, or nothing for a
- * design without settings. `design` overrides the chosen design (tests).
- */
-const DesignSettings = ({ design: given }: { design?: Design }) => {
-  const { design: chosen } = useDesignChoice();
-  const design = given ?? chosen;
+/** The gear that opens the design's settings panel, or nothing for a design without settings. */
+const DesignSettings = () => {
+  const design = useDesign();
   if (!design.settings?.length) return null;
-  // A new design starts with its panel closed
-  return <SettingsGear key={design.id} design={design} />;
+  return <SettingsGear design={design} />;
 };
 
 export default DesignSettings;

@@ -3,6 +3,7 @@ import type { Material, ToneMapping } from 'three';
 import type { Coord } from '../../engine/coords';
 import type { PieceType } from '../../engine/pieces';
 import type { Orientation } from '../layout';
+import type { KnightMoves } from '../movePath';
 import type { SettingSpec, SettingValues } from './settings';
 
 // A design is the whole look of the game: where the cells sit in the scene,
@@ -277,8 +278,6 @@ export interface CanvasSettings {
 export interface Design {
   id: string;
   name: string;
-  /** One line on the idea, shown in the picker. */
-  blurb: string;
   layout: BoardLayout;
   /**
    * Render every frame instead of on demand, for designs with ambient
@@ -309,6 +308,12 @@ export interface Design {
     Check?: ComponentType<MarkerProps>;
   };
   motion: DesignMotion;
+  /**
+   * How knights travel, from the player's settings: 'straight' like every
+   * other piece, or over an arc (see movePath.ts). The glide, the last-move
+   * line and the move's effects all follow it.
+   */
+  knightMoves?: (settings: SettingValues) => KnightMoves;
   /** Plays alongside a new move's glide (trails, dust, sparks). */
   MoveFx?: ComponentType<MoveFxProps>;
   /** Replaces the classic fade-out of a captured piece. */
@@ -376,20 +381,4 @@ export interface PieceLift {
    * hover to held and back both take it; default 0).
    */
   selectSeconds?: number;
-}
-
-/** Picker sections, listed in this order (see DESIGN_GROUPS in registry.ts). */
-export type DesignGroup = 'round5' | 'round4' | 'round3' | 'clarity' | 'classic' | 'earlier';
-
-export interface DesignEntry {
-  id: string;
-  name: string;
-  blurb: string;
-  /** Swatch colours for the picker: background, white army, black army, accent. */
-  swatch: [string, string, string, string];
-  load: () => Promise<{ default: Design }>;
-  /** The picker section it is listed under (ungrouped entries come last). */
-  group?: DesignGroup;
-  /** Left out of the picker; still reachable with `?design=<id>` (dev references). */
-  hidden?: boolean;
 }

@@ -14,7 +14,8 @@ import { GhostPiece, MoveGlide } from './moveAnimation';
 import { prefersReducedMotion } from './motion';
 import { theme } from './theme';
 import { isTap } from './tap';
-import { useDesign, useKnightMoves } from './designs/context';
+import { useDesign } from './designs/context';
+import { useSettingsOf } from './designs/settings';
 import { moveArc } from './movePath';
 import type { BoardLayout, LevelFocus, MarkerProps, Vec3 } from './designs/types';
 import { resolveHover } from './hover';
@@ -130,9 +131,11 @@ const Board = (props: BoardProps) => {
     !!lastMove && lastMove.moveCount > mountMoveCount.current && !prefersReducedMotion();
   const lastFromKey = lastMove ? toZXY(lastMove.move.from) : null;
   const lastToKey = lastMove ? toZXY(lastMove.move.to) : null;
-  // Every move runs straight; a knight arcs when the player asks for it. The
-  // glide, the last-move line and the move's effects all take this one arc.
-  const knightMoves = useKnightMoves();
+  // Every move runs straight; a knight arcs when the player asks for it (a
+  // setting). The glide, the last-move line and the move's effects all take
+  // this one arc.
+  const settings = useSettingsOf(design);
+  const knightMoves = design.knightMoves?.(settings) ?? 'straight';
   const lastArc = lastMove
     ? moveArc(layout, board.getPiece(lastMove.move.to)?.type, lastMove.move.promotion, knightMoves)
     : 0;
