@@ -105,13 +105,17 @@ interface Slot {
 
 const origin = new Vector3();
 
+/** How far (world units) a label's anchor may move with a new key and still slide there instead of crossfading. */
+const SLIDE = 0.3;
+
 /**
  * Coordinate labels for a tower layout that follow the camera: files a–e and
  * ranks 1–5 just outside the two edges of the bottom platform (or of every
  * platform) nearest the camera, and each level letter A–E beside its own
- * platform at the corner furthest left on screen, so no label ever sits
- * inside or behind the tower, from either seat. From a camera that dips
- * under 6° (the orbit sinks below the horizon), files and ranks fade as their
+ * platform at the corner furthest left on screen (from high above, where
+ * those corners meet, in a row along the tower's screen-left edge), so no
+ * label ever sits inside or behind the tower, from either seat. From a camera
+ * that dips under 6° (the orbit sinks below the horizon), files and ranks fade as their
  * platform comes edge-on and take its far edges once the camera is under it;
  * the level letters stay. When an orbit carries a label
  * to another edge or corner (past a hysteresis band), it crossfades there
@@ -260,10 +264,17 @@ export const SmartLabels = ({
         };
         slots.current.set(label.id, slot);
       } else if (slot.key !== label.key) {
-        // Crossfade: the idle sprite takes the new anchor and fades in
         slot.key = label.key;
-        slot.active = slot.active === 0 ? 1 : 0;
-        slot.fades[slot.active] = 0;
+        // Crossfade: the idle sprite takes the new anchor and fades in. An
+        // anchor that has not moved (only the reason for the label's place
+        // changed, as when the level letters start lining up from above) is
+        // simply taken over.
+        const [ax, ay, az] = slot.positions[slot.active];
+        const [bx, by, bz] = label.position;
+        if (Math.hypot(bx - ax, by - ay, bz - az) > SLIDE) {
+          slot.active = slot.active === 0 ? 1 : 0;
+          slot.fades[slot.active] = 0;
+        }
       }
       slot.positions[slot.active] = label.position;
       for (const i of [0, 1] as const) {

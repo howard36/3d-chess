@@ -7,7 +7,7 @@ import { knightArcHeight } from './movePath';
 import { layout, MOTION, PIECE_SCALE } from './scene/palette';
 import { useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
-import type { BufferGeometry, Camera, Scene } from 'three';
+import type { BufferGeometry, Camera, PerspectiveCamera, Scene } from 'three';
 import type {
   CaptureFxProps,
   GridProps,
@@ -21,6 +21,7 @@ import { PieceType } from '../engine';
 import type { Coord, Move } from '../engine';
 import { act } from 'react';
 import { Board as EngineBoard } from '../engine';
+import { fromZXY } from '../engine/coords';
 
 type Renderer = { scene: unknown };
 type Color = 'white' | 'black';
@@ -1092,5 +1093,146 @@ describe('Board and what it hands the scene', () => {
       await renderer.update(view(boardWith(next), info(5, TO, next), 'white'));
       expect(mounts).toHaveLength(2);
     });
+  });
+});
+
+// Tap assist, end to end through Board's handlers: the board seen through a
+// fixed camera on an 800x600 canvas, and clicks carrying a pointer type and
+// a position, as a browser sends them.
+describe('Board tap assist', () => {
+  const W = 800;
+  const H = 600;
+  async function tapBoard(props: Partial<BoardProps> = {}) {
+    let three: { camera: Camera; gl: { domElement: HTMLCanvasElement }; scene: Scene } | null =
+      null;
+    const Grab = () => {
+      const camera = useThree((s) => s.camera);
+      const gl = useThree((s) => s.gl);
+      const scene = useThree((s) => s.scene);
+      three = { camera, gl, scene };
+      return null;
+    };
+    const renderer = await ReactThreeTestRenderer.create(
+      <>
+        <Grab />
+        <Board board={createTestBoard()} currentTurn="white" {...props} />
+      </>,
+    );
+    const { camera, gl, scene } = three!;
+    const cam = camera as PerspectiveCamera;
+    cam.fov = 40;
+    cam.aspect = W / H;
+    cam.position.set(6.5, 5, 8.5).normalize().multiplyScalar(16);
+    cam.lookAt(0, 0, 0);
+    cam.updateProjectionMatrix();
+    cam.updateMatrixWorld();
+    scene.updateMatrixWorld(true);
+    vi.spyOn(gl.domElement, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      width: W,
+      height: H,
+      right: W,
+      bottom: H,
+      x: 0,
+      y: 0,
+    } as DOMRect);
+    const grid = (renderer.scene as ReactThreeTestInstance).children[0] as ReactThreeTestInstance;
+    /** Screen pixel of a world point. */
+    const pixel = ([x, y, z]: [number, number, number]) => {
+      const p = new Vector3(x, y, z).project(cam);
+      return [((p.x + 1) / 2) * W, ((1 - p.y) / 2) * H] as const;
+    };
+    const click = (x: number, y: number, pointerType = 'touch', type = 'click') => ({
+      type,
+      pointerType,
+      button: 0,
+      clientX: x,
+      clientY: y,
+    });
+    return {
+      renderer,
+      pixel,
+      /** A tap whose ray hits an empty square: the grid's own click. */
+      onEmptySquare: (x: number, y: number, pointerType?: string) =>
+        act(async () => {
+          grid.props.onClick({
+            stopPropagation: () => {},
+            delta: 0,
+            nativeEvent: click(x, y, pointerType),
+          });
+        }),
+      /** A tap whose ray hits nothing on the board. */
+      onNothing: (x: number, y: number, pointerType?: string, type?: string) =>
+        act(async () => {
+          grid.props.onPointerMissed(click(x, y, pointerType, type));
+        }),
+      /** A tap whose ray hits this piece. */
+      onPiece: (node: ReactThreeTestInstance, x: number, y: number) =>
+        act(async () => {
+          node.props.onClick({ stopPropagation: () => {}, delta: 0, nativeEvent: click(x, y) });
+        }),
+    };
+  }
+
+  const destinationsOf = (renderer: Renderer) =>
+    highlightedCells(renderer)
+      .map((cell) => cell.props.userData.zxy as string)
+      .sort();
+
+  // Ba2's pawn (two moves) and a spot beside it, clear of its hit shape but
+  // well within a finger's reach, and further from any other piece
+  const beside = (pixel: (p: [number, number, number]) => readonly [number, number]) => {
+    const [x, y] = pixel(toWorld(LEVEL_B_PAWN, 'white'));
+    return [x - 22, y] as const;
+  };
+
+  it("gives a finger's tap beside a piece to that piece", async () => {
+    const board = await tapBoard();
+    const [x, y] = beside(board.pixel);
+    await board.onEmptySquare(x, y);
+    expect(destinationsOf(board.renderer)).toEqual(['Ba3', 'Ca2']);
+  });
+
+  it('leaves a mouse click beside a piece alone', async () => {
+    const board = await tapBoard();
+    const [x, y] = beside(board.pixel);
+    await board.onEmptySquare(x, y, 'mouse');
+    expect(highlightedCells(board.renderer)).toHaveLength(0);
+    await board.onNothing(x, y, 'mouse');
+    expect(highlightedCells(board.renderer)).toHaveLength(0);
+  });
+
+  it("never assists a long press's context menu", async () => {
+    const board = await tapBoard();
+    const [x, y] = beside(board.pixel);
+    await board.onNothing(x, y, 'touch', 'contextmenu');
+    expect(highlightedCells(board.renderer)).toHaveLength(0);
+  });
+
+  it('plays the move a tap in the gap beside a destination was meant for', async () => {
+    const onMove = vi.fn();
+    const board = await tapBoard({ onMove });
+    await press(findPiece(board.renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    const [destination] = highlightedCells(board.renderer);
+    const [x, y] = board.pixel(destination.props.position);
+    await board.onNothing(x, y);
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onMove.mock.calls[0][0].to).toEqual(fromZXY(destination.props.userData.zxy));
+  });
+
+  it('puts the piece down when a tap is out of reach of everything', async () => {
+    const board = await tapBoard();
+    await press(findPiece(board.renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    await board.onNothing(4, 4);
+    expect(highlightedCells(board.renderer)).toHaveLength(0);
+  });
+
+  it("gives a tap on the opponent's piece to the own piece it was meant for", async () => {
+    const board = await tapBoard();
+    const black = findPiece(board.renderer, PieceType.Pawn, 'black');
+    const [x, y] = beside(board.pixel);
+    await board.onPiece(black, x, y);
+    expect(destinationsOf(board.renderer)).toEqual(['Ba3', 'Ca2']);
   });
 });

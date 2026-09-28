@@ -124,9 +124,14 @@ Key decisions:
   the press), never on pointer-down, so a drag or pinch that starts over the cube only
   moves the camera. With a piece selected, clicking an opposing piece it can take plays
   the capture (the piece fills its cell, so it would otherwise hide the cell's click
-  target). A move can also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is
-  how a keyboard-only or screen-reader player plays: it is the first thing Tab reaches on
-  the board screen, and appears when it does (see HUD).
+  target). On a touch screen, where the pieces are narrower than a fingertip, a tap that
+  hits nothing the player can act on goes to the nearest thing they can (an own piece, the
+  held piece, a destination or capture) within 22 px of its outline, a destination winning
+  a near tie with another piece (`three/tapAssist.ts`, measured by `useTapAssist`); a tap
+  with nothing in reach puts the selection down, and a mouse is never assisted. A move can
+  also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is how a keyboard-only
+  or screen-reader player plays: it is the first thing Tab reaches on the board screen, and
+  appears when it does (see HUD).
 - **Camera.** The only camera control is turning the view about the board's centre: drag
   with the left mouse button or one finger. The wheel or a two-finger pinch zooms. There
   is no pan (right-drag, a two-finger drag and the arrow keys do nothing), so the orbit
@@ -134,11 +139,16 @@ Key decisions:
   the board in the window (`zoomRange` in `three/cameraFit.ts`); `FitCameraToBoard`
   recomputes the fit and the range whenever the window changes shape (a phone turned on
   its side) and opens the camera inside it, so a phone zooms over the same share of its
-  view as a desktop. The layout's `orbit.minDistance` only narrows the range, and its
+  view as a desktop. The fit centres the board's outline on screen (with its labels: the
+  layout's `framePoints`) below a 56 px band kept for the HUD's top pill, by a lens shift
+  (a view offset, `three/viewOffset.ts`) rather than a pan, worked out again as the view
+  turns and zooms. The layout's `orbit.minDistance` only narrows the range, and its
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
   sky, to straight down). The controls (`three/CameraControls.tsx`) are three's own
   OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the
-  scene and `showcase.mjs` read.
+  scene and `showcase.mjs` read. The canvas draws at the screen's pixel ratio up to 2x,
+  within a budget of 4.5 million pixels (`three/pixelBudget.ts`), so a large
+  high-density window costs no more than it needs.
 - **Touch.** The game screen takes no text selection, long-press callout or double-tap
   zoom (iOS would otherwise select the whole page on a double tap), except in the move card
   (`.game-screen` in `client/src/index.css`); the canvas takes every
