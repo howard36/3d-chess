@@ -63,3 +63,59 @@
     font-size: 16px;
   }
 }
+
+/* The settings panel's group headings fold their groups away */
+.settings-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  cursor: pointer;
+}
+.settings-group[aria-expanded='true'] {
+  opacity: 0.8;
+}
+/* Fingers need room: every control at least 44 px tall on a touch screen */
+@media (pointer: coarse) {
+  .settings-group,
+  .settings-panel [role='radio'],
+  .settings-panel select {
+    min-height: 44px !important;
+  }
+  .settings-close {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .settings-panel [role='switch'] {
+    width: 52px !important;
+    height: 32px !important;
+    border-radius: 16px !important;
+  }
+  .settings-panel [role='switch'] > span {
+    top: 3px !important;
+    left: 3px !important;
+    width: 26px !important;
+    height: 26px !important;
+  }
+  .settings-panel [role='switch'][aria-checked='true'] > span {
+    left: 23px !important;
+  }
+  .settings-panel input[type='range'] {
+    height: 44px;
+  }
+  [data-testid='settings'] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

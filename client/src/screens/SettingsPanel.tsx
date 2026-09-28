@@ -244,11 +244,22 @@ export const SettingsPanel = ({ id, onClose, style }: SettingsPanelProps) => {
   const values = useSettings();
   const changed = changedSettingCount();
   const titleId = `${id}-title`;
+  const groups = settingGroups(settingSpecs());
+  // The first two groups (Play and Board) open; the rest fold away, so a
+  // phone shows what matters without five screens of scrolling
+  const [open, setOpen] = React.useState(() => new Set(groups.slice(0, 2).map((g) => g.label)));
+  const toggleGroup = (label: string) =>
+    setOpen((was) => {
+      const next = new Set(was);
+      if (!next.delete(label)) next.add(label);
+      return next;
+    });
   return (
     <section
       id={id}
       aria-labelledby={titleId}
       data-testid="settings-panel"
+      className="settings-panel"
       style={{
         ...hud,
         boxSizing: 'border-box',
@@ -273,10 +284,11 @@ export const SettingsPanel = ({ id, onClose, style }: SettingsPanelProps) => {
         }}
       >
         <h2 id={titleId} style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
-          Board settings
+          Settings
         </h2>
         <button
           type="button"
+          className="settings-close"
           aria-label="Close settings"
           onClick={onClose}
           style={{
@@ -296,37 +308,54 @@ export const SettingsPanel = ({ id, onClose, style }: SettingsPanelProps) => {
           <span aria-hidden>✕</span>
         </button>
       </div>
-      {settingGroups(settingSpecs()).map((group, i) => (
-        <div
-          key={group.label}
-          role="group"
-          aria-labelledby={`${id}-group-${i}`}
-          style={{ marginTop: 8, paddingTop: 6, borderTop: i === 0 ? 'none' : `1px solid ${LINE}` }}
-        >
-          <h3
-            id={`${id}-group-${i}`}
+      {groups.map((group, i) => {
+        const shown = open.has(group.label);
+        return (
+          <div
+            key={group.label}
+            role="group"
+            aria-labelledby={`${id}-group-${i}`}
             style={{
-              margin: '2px 0 0',
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              opacity: 0.6,
+              marginTop: 8,
+              paddingTop: 2,
+              borderTop: i === 0 ? 'none' : `1px solid ${LINE}`,
             }}
           >
-            {group.label}
-          </h3>
-          {group.settings.map((spec) => (
-            <SettingControl
-              key={spec.key}
-              id={`${id}-${spec.key}`}
-              spec={spec}
-              value={values[spec.key]}
-              onChange={(value) => setSetting(spec.key, value)}
-            />
-          ))}
-        </div>
-      ))}
+            <h3 id={`${id}-group-${i}`} style={{ margin: 0 }}>
+              <button
+                type="button"
+                className="settings-group"
+                aria-expanded={shown}
+                aria-controls={`${id}-group-${i}-body`}
+                onClick={() => toggleGroup(group.label)}
+              >
+                {group.label}
+                <svg aria-hidden width="10" height="10" viewBox="0 0 10 10">
+                  <path
+                    d={shown ? 'M1.5 3.5 5 7l3.5-3.5' : 'M3.5 1.5 7 5 3.5 8.5'}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </h3>
+            <div id={`${id}-group-${i}-body`} hidden={!shown}>
+              {group.settings.map((spec) => (
+                <SettingControl
+                  key={spec.key}
+                  id={`${id}-${spec.key}`}
+                  spec={spec}
+                  value={values[spec.key]}
+                  onChange={(value) => setSetting(spec.key, value)}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
       <div
         style={{
           display: 'flex',
@@ -375,11 +404,27 @@ const Gear = () => (
   </svg>
 );
 
-/** Where the panel opens: under the gear, right-aligned to it, inside the window. */
+/**
+ * Where the panel opens: under the gear, right-aligned to it, inside the
+ * window; on a phone held upright, a sheet across the bottom of the screen.
+ */
 const placeUnder = (button: HTMLElement): React.CSSProperties => {
   const r = button.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
+  if (vw <= 520) {
+    return {
+      position: 'fixed',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: '100%',
+      maxHeight: Math.floor(vh * 0.72),
+      borderRadius: '12px 12px 0 0',
+      borderBottom: 'none',
+      paddingBottom: 'max(14px, env(safe-area-inset-bottom))',
+    };
+  }
   const width = Math.min(320, vw - 20);
   const right = Math.min(Math.max(vw - r.right, 10), vw - 10 - width);
   const top = r.bottom + 6;
@@ -444,8 +489,8 @@ const SettingsGear = () => {
         type="button"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        aria-label={`Board settings${changed > 0 ? ` (${changed} changed)` : ''}`}
-        title="Board settings"
+        aria-label={`Settings${changed > 0 ? ` (${changed} changed)` : ''}`}
+        title="Settings"
         data-testid="settings"
         onClick={toggle}
         style={{

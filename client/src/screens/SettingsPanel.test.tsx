@@ -12,7 +12,14 @@ beforeEach(() => {
 });
 afterEach(() => localStorage.clear());
 
-const panel = () => render(<SettingsPanel id="settings" onClose={() => {}} />);
+/** The panel, with every group unfolded (only Play and Board start open). */
+const panel = () => {
+  const view = render(<SettingsPanel id="settings" onClose={() => {}} />);
+  for (const heading of screen.queryAllByRole('button', { expanded: false })) {
+    fireEvent.click(heading);
+  }
+  return view;
+};
 const group = (name: string) => screen.getByRole('group', { name });
 
 describe('SettingsPanel', () => {
@@ -20,7 +27,7 @@ describe('SettingsPanel', () => {
     panel();
     expect(
       screen.getAllByRole('group').map((g) => within(g).getByRole('heading').textContent),
-    ).toEqual(['Board', 'World', 'Pieces', 'Selection', 'Markers', 'Check']);
+    ).toEqual(['Play', 'Board', 'World', 'Pieces', 'Selection', 'Markers', 'Check']);
     expect(
       within(group('Selection')).getByRole('switch', { name: 'Glimmering motes' }),
     ).toBeInTheDocument();
@@ -38,7 +45,24 @@ describe('SettingsPanel', () => {
     expect(screen.getByRole('switch', { name: 'Glimmering motes' })).toHaveAccessibleDescription(
       'Faint motes of light drifting up round a held piece.',
     );
-    expect(screen.getByRole('region', { name: 'Board settings' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Settings' })).toBeInTheDocument();
+  });
+
+  it('opens with Play and Board unfolded and the rest folded away', () => {
+    render(<SettingsPanel id="settings" onClose={() => {}} />);
+    const heading = (name: string) => screen.getByRole('button', { name });
+    expect(heading('Play')).toHaveAttribute('aria-expanded', 'true');
+    expect(heading('Board')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('switch', { name: 'Keyboard play' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
+    expect(heading('Pieces')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('slider', { name: 'Dark army tone' })).not.toBeInTheDocument();
+    fireEvent.click(heading('Pieces'));
+    expect(screen.getByRole('slider', { name: 'Dark army tone' })).toBeInTheDocument();
+    fireEvent.click(heading('Board'));
+    expect(heading('Board')).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('applies each change at once, to the store', () => {
@@ -114,7 +138,7 @@ describe('the settings gear', () => {
   it('opens the panel, and closes it on Escape, the gear, or its close button', () => {
     render(<SettingsGear />);
     const gear = screen.getByTestId('settings');
-    expect(gear).toHaveAccessibleName('Board settings');
+    expect(gear).toHaveAccessibleName('Settings');
     expect(gear).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(gear);
     expect(gear).toHaveAttribute('aria-expanded', 'true');
@@ -122,7 +146,7 @@ describe('the settings gear', () => {
     expect(gear).toHaveAttribute('aria-controls', region.id);
 
     // Escape from inside the panel hands the keyboard back to the gear
-    screen.getByRole('switch', { name: 'Glimmering motes' }).focus();
+    screen.getByRole('switch', { name: 'Keyboard play' }).focus();
     act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
     expect(screen.queryByTestId('settings-panel')).toBeNull();
     expect(gear).toHaveFocus();
@@ -146,7 +170,7 @@ describe('the settings gear', () => {
     );
     fireEvent.click(screen.getByTestId('settings'));
     // Controls inside take the pointer without closing it
-    fireEvent.pointerDown(screen.getByRole('switch', { name: 'Glimmering motes' }));
+    fireEvent.pointerDown(screen.getByRole('switch', { name: 'Keyboard play' }));
     fireEvent.pointerDown(screen.getByTestId('board'));
     expect(screen.getByTestId('settings-panel')).toBeInTheDocument();
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Elsewhere' }));
@@ -157,8 +181,8 @@ describe('the settings gear', () => {
     render(<SettingsGear />);
     const gear = screen.getByTestId('settings');
     fireEvent.click(gear);
-    fireEvent.click(screen.getByRole('switch', { name: 'Glimmering motes' }));
-    expect(gear).toHaveAccessibleName('Board settings (1 changed)');
+    fireEvent.click(screen.getByRole('switch', { name: 'Keyboard play' }));
+    expect(gear).toHaveAccessibleName('Settings (1 changed)');
   });
 
   it('opens under the gear, inside the window, scrolling when it runs long', () => {
@@ -175,7 +199,7 @@ describe('the settings gear', () => {
     });
     const width = window.innerWidth;
     const height = window.innerHeight;
-    Object.assign(window, { innerWidth: 360, innerHeight: 640 });
+    Object.assign(window, { innerWidth: 600, innerHeight: 400 });
     try {
       render(<SettingsGear />);
       fireEvent.click(screen.getByTestId('settings'));
@@ -184,12 +208,31 @@ describe('the settings gear', () => {
       expect(style.top).toBe('50px');
       // 320 wide, pulled in from the gear's right edge so it stays 10 px off the left
       expect(style.width).toBe('320px');
-      expect(style.right).toBe('30px');
-      expect(parseFloat(style.maxHeight)).toBeLessThanOrEqual(640 - 50 - 12);
+      expect(style.right).toBe('270px');
+      expect(parseFloat(style.maxHeight)).toBeLessThanOrEqual(400 - 50 - 12);
       expect(style.overflowY).toBe('auto');
     } finally {
       Object.assign(window, { innerWidth: width, innerHeight: height });
       vi.restoreAllMocks();
+    }
+  });
+
+  it('opens as a sheet across the bottom of a phone held upright', () => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    Object.assign(window, { innerWidth: 390, innerHeight: 844 });
+    try {
+      render(<SettingsGear />);
+      fireEvent.click(screen.getByTestId('settings'));
+      const style = screen.getByTestId('settings-panel').style;
+      expect(style.position).toBe('fixed');
+      expect(style.bottom).toBe('0px');
+      expect(style.left).toBe('0px');
+      expect(style.width).toBe('100%');
+      expect(parseFloat(style.maxHeight)).toBeLessThanOrEqual(844 * 0.72);
+      expect(style.overflowY).toBe('auto');
+    } finally {
+      Object.assign(window, { innerWidth: width, innerHeight: height });
     }
   });
 });

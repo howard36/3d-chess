@@ -100,8 +100,9 @@ describe('the settings panel’s order and readouts', () => {
     ]);
   });
 
-  it('lists the board’s groups board and world first, check last', () => {
+  it('lists Play first, then the board and world, check last', () => {
     expect(settingGroups(settingSpecs()).map((g) => g.label)).toEqual([
+      'Play',
       'Board',
       'World',
       'Pieces',
