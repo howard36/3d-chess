@@ -24,6 +24,7 @@ import { DesignContext, useDesignChoice } from '../three/designs/context';
 import { DesignStage } from '../three/DesignStage';
 import DesignPicker from './DesignPicker';
 import DesignSettings from './DesignSettings';
+import { getDesignSettings } from '../three/designs/settings';
 import CapturedPieces from './CapturedPieces';
 import HoverReadout from './HoverReadout';
 import type { HoveredCell } from '../three/Board';
@@ -111,7 +112,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const endedLive =
     [...messages].reverse().find((m) => m.type === 'move_made' || m.type === 'game_state')?.type ===
     'move_made';
-  const endDelayMs = endedLive && (design.Celebration || design.toppleMatedKing) ? 1800 : 0;
+  const mateDelayMs =
+    typeof design.resultDelayMs === 'function'
+      ? design.resultDelayMs(getDesignSettings(design))
+      : (design.resultDelayMs ?? 1800);
+  const endDelayMs = endedLive && (design.Celebration || design.toppleMatedKing) ? mateDelayMs : 0;
   // The game end whose delay has run out (the replay keeps the same object
   // while the record is unchanged).
   const [endShown, setEndShown] = React.useState<typeof gameOver>(null);

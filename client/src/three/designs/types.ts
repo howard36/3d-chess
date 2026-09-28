@@ -3,7 +3,7 @@ import type { Material, ToneMapping } from 'three';
 import type { Coord } from '../../engine/coords';
 import type { PieceType } from '../../engine/pieces';
 import type { Orientation } from '../layout';
-import type { SettingSpec } from './settings';
+import type { SettingSpec, SettingValues } from './settings';
 
 // A design is the whole look of the game: where the cells sit in the scene,
 // what is drawn around them, what the pieces are made of, how moves and
@@ -317,6 +317,12 @@ export interface Design {
   Celebration?: ComponentType<CelebrationProps>;
   /** Tip the mated king over when the game ends. */
   toppleMatedKing?: boolean;
+  /**
+   * How long the result card waits after a mate played live, so the design's
+   * mate animation plays out first (default 1800 ms, for designs with a
+   * Celebration or a toppling king). A function reads the player's settings.
+   */
+  resultDelayMs?: number | ((settings: SettingValues) => number);
   /**
    * Lift a piece the player may pick up off its floor when the pointer is on
    * it, and the selected piece higher. `true` takes the kit's heights and

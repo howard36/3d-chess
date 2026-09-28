@@ -19,6 +19,25 @@ vi.mock('../three/Board', () => ({ default: () => null }));
 // paint canvas textures at import).
 const Celebration = () => null;
 const showy: Design = { ...classic, id: 'showy', name: 'Showy', Celebration };
+// A design whose mate plays for as long as a setting says
+const slow: Design = {
+  ...showy,
+  id: 'slow',
+  name: 'Slow',
+  settings: [
+    {
+      kind: 'slider',
+      key: 'mate',
+      label: 'Mate',
+      group: 'Motion',
+      default: 3,
+      min: 1,
+      max: 4,
+      step: 0.5,
+    },
+  ],
+  resultDelayMs: (s) => (s.mate as number) * 1000,
+};
 vi.mock('../three/designs/registry', () => ({
   DESIGNS: [
     {
@@ -34,6 +53,13 @@ vi.mock('../three/designs/registry', () => ({
       blurb: '',
       swatch: ['', '', '', ''],
       load: async () => ({ default: showy }),
+    },
+    {
+      id: 'slow',
+      name: 'Slow',
+      blurb: '',
+      swatch: ['', '', '', ''],
+      load: async () => ({ default: slow }),
     },
   ] satisfies DesignEntry[],
 }));
@@ -117,6 +143,17 @@ describe('the result card after a mate', () => {
     act(() => vi.advanceTimersByTime(1000));
     expect(result()).not.toBeInTheDocument();
     act(() => vi.advanceTimersByTime(1000));
+    expect(result()).toBeInTheDocument();
+  });
+
+  it('waits as long as the design asks, by the player’s settings', async () => {
+    window.history.replaceState({}, '', '/?design=slow');
+    const { rerender } = render(screenFor(beforeMate));
+    await act(async () => {});
+    rerender(screenFor(mated));
+    act(() => vi.advanceTimersByTime(2500));
+    expect(result()).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(600));
     expect(result()).toBeInTheDocument();
   });
 

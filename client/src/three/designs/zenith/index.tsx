@@ -90,6 +90,9 @@ const zenith: Design = {
   CaptureFx,
   Celebration,
   toppleMatedKing: true,
+  // The result card waits for the mate pulse to cross the board (its length
+  // is a setting), and a beat more to take it in
+  resultDelayMs: (settings) => (Number(settings['mark.mateSeconds']) || 2.4) * 1000 + 400,
   settings: [...ENV_SETTINGS, ...PIECE_SETTINGS, ...MARKER_SETTINGS],
   hud: {
     readout: true,
