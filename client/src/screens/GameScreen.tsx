@@ -19,10 +19,12 @@ import type { GameSocket } from '../hooks/useGameSocket';
 import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole';
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
-import { useDesign } from '../three/designs/context';
-import { DesignStage } from '../three/DesignStage';
-import DesignSettings from './DesignSettings';
-import { getDesignSettings } from '../three/designs/settings';
+import { NeutralToneMapping } from 'three';
+import { getSettings } from '../three/settings';
+import { resultDelayMs } from '../three/scene/fx';
+import { layout } from '../three/scene/palette';
+import { Stage } from '../three/scene/stage';
+import SettingsGear from './SettingsPanel';
 import CapturedPieces from './CapturedPieces';
 import HoverReadout from './HoverReadout';
 import type { HoveredCell } from '../three/Board';
@@ -100,7 +102,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   historyRef.current = history;
   const { board, moveRecords, currentTurn, lastMove, replayFailedAt, gameOver } = history;
 
-  const design = useDesign();
   // The cell under the pointer, read out in the HUD
   const [hoverCell, setHoverCell] = React.useState<HoveredCell | null>(null);
   // The mate plays out (the king topples, a pulse crosses the board) before
@@ -109,7 +110,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const endedLive =
     [...messages].reverse().find((m) => m.type === 'move_made' || m.type === 'game_state')?.type ===
     'move_made';
-  const endDelayMs = endedLive ? design.resultDelayMs(getDesignSettings(design)) : 0;
+  const endDelayMs = endedLive ? resultDelayMs(getSettings()) : 0;
   // The game end whose delay has run out (the replay keeps the same object
   // while the record is unchanged).
   const [endShown, setEndShown] = React.useState<typeof gameOver>(null);
@@ -377,8 +378,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
           height: '100dvh',
           width: '100vw',
           overflow: 'hidden',
-          fontFamily: 'var(--hud-font, inherit)',
-          ...(design.hud.vars as React.CSSProperties),
+          fontFamily: 'var(--hud-font)',
         }}
       >
         <div inert={behindDialog} style={{ position: 'absolute', inset: 0 }}>
@@ -399,12 +399,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               touchAction: 'none',
               WebkitTapHighlightColor: 'transparent',
             }}
-            camera={{ position: design.layout.viewDirection, fov: design.canvas.fov }}
-            gl={{
-              antialias: true,
-              toneMapping: design.canvas.toneMapping,
-              toneMappingExposure: design.canvas.exposure,
-            }}
+            camera={{ position: layout.viewDirection, fov: 36 }}
+            gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
             // A chess position is static: render only when something changes.
             // React commits and OrbitControls invalidate on their own; the
             // animations (the move glide, the lift, the scene's effects)
@@ -418,7 +414,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               (window as Window & { __r3fState?: RootState }).__r3fState = state;
             }}
           >
-            <DesignStage orientation={color ?? 'white'} />
+            <Stage orientation={color ?? 'white'} />
             <Board
               board={board} // Pass the EngineBoard instance
               currentTurn={currentTurn}
@@ -437,13 +433,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
             <CameraControls
               // The tower's orbit limits: the camera stays above the ground and
               // may rise to look straight down
-              minPolarAngle={design.layout.orbit.minPolarAngle}
-              maxPolarAngle={design.layout.orbit.maxPolarAngle}
+              minPolarAngle={layout.orbit.minPolarAngle}
+              maxPolarAngle={layout.orbit.maxPolarAngle}
             />
             <FitCameraToBoard
-              halfExtents={design.layout.halfExtents}
-              viewDirection={design.layout.viewDirection}
-              minDistance={design.layout.orbit.minDistance}
+              halfExtents={layout.halfExtents}
+              viewDirection={layout.viewDirection}
+              minDistance={layout.orbit.minDistance}
             />
           </Canvas>
           {/* HUD over the canvas. Its layers let the pointer through to the
@@ -461,15 +457,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
                   <div
                     style={{
                       padding: '10px',
-                      background: 'var(--hud-bg, rgba(0,0,0,0.7))',
-                      color: 'var(--hud-fg, white)',
-                      border: 'var(--hud-border, none)',
-                      borderRadius: 'var(--hud-radius, 5px)',
-                      boxShadow: 'var(--hud-shadow, none)',
-                      backdropFilter: 'var(--hud-blur, none)',
-                      textTransform:
-                        'var(--hud-case, none)' as React.CSSProperties['textTransform'],
-                      letterSpacing: 'var(--hud-tracking, normal)',
+                      background: 'var(--hud-bg)',
+                      color: 'var(--hud-fg)',
+                      border: 'var(--hud-border)',
+                      borderRadius: 'var(--hud-radius)',
+                      boxShadow: 'var(--hud-shadow)',
+                      backdropFilter: 'var(--hud-blur)',
+                      letterSpacing: 'var(--hud-tracking)',
                     }}
                   >
                     You are playing as {color}.
@@ -492,7 +486,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               </div>
               <div className="flex flex-col items-end gap-2 justify-self-end">
                 {/* The board's settings: a gear that opens their panel */}
-                <DesignSettings />
+                <SettingsGear />
                 {reconnectingBanner}
               </div>
             </div>
@@ -546,9 +540,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     <div
       className="flex flex-col items-center justify-center min-h-screen p-8"
       style={{
-        background: 'var(--page-bg, #111827)',
-        color: 'var(--page-fg, white)',
-        fontFamily: 'var(--hud-font, inherit)',
+        background: 'var(--page-bg)',
+        color: 'var(--page-fg)',
+        fontFamily: 'var(--hud-font)',
       }}
     >
       <div

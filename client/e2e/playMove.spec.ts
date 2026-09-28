@@ -10,7 +10,7 @@ test('two players each play a move by clicking the board', async ({ browser }) =
   await expect(game.white.getByText('White to move')).toBeVisible();
   await expect(game.black.getByText('White to move')).toBeVisible();
   // The HUD carries the gear that opens the board's settings
-  await expect(game.white.getByTestId('design-settings')).toBeVisible();
+  await expect(game.white.getByTestId('settings')).toBeVisible();
 
   // White: pawn Bb1 one step up. play() waits for both clients to flip
   // the turn, which proves the move round-tripped through the server.

@@ -1,8 +1,8 @@
 import { PieceType } from '../engine/pieces';
-import type { BoardLayout, Vec3 } from './designs/types';
+import type { BoardLayout, Vec3 } from './types';
 
 // The path a moving piece takes, shared by the glide (moveAnimation.tsx) and
-// the last-move line (kit/markerGeometry.ts), so both trace exactly the same
+// the last-move line (scene/markerGeometry.ts), so both trace exactly the same
 // curve.
 //
 // Every move runs in a straight line from the source square to the

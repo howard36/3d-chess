@@ -3,10 +3,10 @@ import type React from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Euler, MeshBasicMaterial, MeshStandardMaterial } from 'three';
 import { PieceType } from '../engine/pieces';
-import { useDesign } from '../three/designs/context';
-import type { PieceColor } from '../three/designs/types';
 import { PIECE_PARTS, partsGeometry, pieceSet } from '../three/pieces';
 import type { PieceQuality, PieceSet } from '../three/pieces';
+import { PieceBody } from '../three/scene/pieces';
+import type { PieceColor } from '../three/types';
 
 // The piece gallery: every piece in a row, as the game draws it, from the
 // side, three-quarters and directly above, in the light and the dark army,
@@ -77,9 +77,8 @@ interface Cell {
   silhouette?: boolean;
 }
 
-const Piece = ({ cell, set }: { cell: Cell; set: PieceSet }) => {
-  const { PieceBody } = useDesign();
-  return cell.silhouette ? (
+const Piece = ({ cell, set }: { cell: Cell; set: PieceSet }) =>
+  cell.silhouette ? (
     // The whole piece in one plain material
     <mesh
       geometry={partsGeometry(set, cell.type, PIECE_PARTS)!}
@@ -95,7 +94,6 @@ const Piece = ({ cell, set }: { cell: Cell; set: PieceSet }) => {
       level={cell.level}
     />
   );
-};
 
 /** Tells scripts/pieces.mjs the page is ready for its screenshot. */
 const markReady = () => {
@@ -115,7 +113,6 @@ const Ready = () => {
 const QUALITIES: PieceQuality[] = ['low', 'medium', 'high'];
 
 export const PieceGallery = ({ params }: { params: URLSearchParams }) => {
-  const design = useDesign();
   const only = params.get('piece');
   const quality = QUALITIES.find((q) => q === params.get('quality')) ?? 'medium';
   const cellPx = Number(params.get('cell') ?? 200);
@@ -167,7 +164,7 @@ export const PieceGallery = ({ params }: { params: URLSearchParams }) => {
     <div style={style} data-testid="piece-gallery">
       <div style={{ display: 'flex', height: headH, alignItems: 'center' }}>
         <div style={{ width: labelW, paddingLeft: 10, fontWeight: 600 }}>
-          {silhouette ? `Piece set · ${quality}` : design.name}
+          {silhouette ? `Piece set · ${quality}` : 'Pieces'}
         </div>
         {rows[0].cells.map((c, k) => (
           <div key={k} style={{ width: cellPx, textAlign: 'center' }}>

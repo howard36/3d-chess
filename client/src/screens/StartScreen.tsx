@@ -5,7 +5,7 @@ import type { GameSocket } from '../hooks/useGameSocket';
 import { setStoredRole } from '../lib/playerRole';
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
-import DesignSettings from './DesignSettings';
+import SettingsGear from './SettingsPanel';
 
 interface StartScreenProps {
   gameSocket: GameSocket;
@@ -52,13 +52,13 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
     <div
       className="relative flex flex-col items-center justify-center min-h-screen p-8"
       style={{
-        background: 'var(--page-bg, #111827)',
-        color: 'var(--page-fg, white)',
-        fontFamily: 'var(--hud-font, inherit)',
+        background: 'var(--page-bg)',
+        color: 'var(--page-fg)',
+        fontFamily: 'var(--hud-font)',
       }}
     >
       <div className="absolute top-2.5 right-2.5" style={{ zIndex: 1001 }}>
-        <DesignSettings />
+        <SettingsGear />
       </div>
       <div className="text-center flex flex-col items-center gap-8">
         <h1 className="text-6xl font-bold tracking-wide">3D Chess</h1>

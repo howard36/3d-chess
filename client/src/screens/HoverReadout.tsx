@@ -2,23 +2,22 @@ import React from 'react';
 import type { HoveredCell } from '../three/Board';
 import { readoutParts } from '../three/hover';
 
-// Dressed by the board design's HUD variables, like the turn indicator it
-// sits under. The cell keeps its case whatever the design's --hud-case: "Cc4"
-// and "CC4" are different cells.
+// Dressed by the HUD's variables (index.css), like the turn indicator it
+// sits under.
 const style: React.CSSProperties = {
   margin: '6px auto 0',
   width: 'fit-content',
   padding: '3px 12px',
-  background: 'var(--hud-bg, rgba(0,0,0,0.7))',
-  color: 'var(--hud-fg, white)',
-  border: 'var(--hud-border, none)',
-  borderRadius: 'var(--hud-radius, 6px)',
-  boxShadow: 'var(--hud-shadow, none)',
-  backdropFilter: 'var(--hud-blur, none)',
-  fontFamily: 'var(--hud-font, inherit)',
+  background: 'var(--hud-bg)',
+  color: 'var(--hud-fg)',
+  border: 'var(--hud-border)',
+  borderRadius: 'var(--hud-radius)',
+  boxShadow: 'var(--hud-shadow)',
+  backdropFilter: 'var(--hud-blur)',
+  fontFamily: 'var(--hud-font)',
   fontSize: 13,
   lineHeight: '20px',
-  letterSpacing: 'var(--hud-tracking, normal)',
+  letterSpacing: 'var(--hud-tracking)',
   whiteSpace: 'nowrap',
   pointerEvents: 'none',
   transition: 'opacity 150ms ease',
@@ -37,21 +36,11 @@ const HoverReadout: React.FC<{ cell: HoveredCell | null }> = ({ cell }) => {
     <div aria-hidden data-testid="hover-readout" style={{ ...style, opacity: cell ? 1 : 0 }}>
       {parts ? (
         <>
-          <span
-            style={{ fontFamily: 'var(--hud-mono, var(--hud-font, inherit))', fontWeight: 600 }}
-          >
-            {parts.cell}
-          </span>
+          <span style={{ fontWeight: 600 }}>{parts.cell}</span>
           {parts.piece && (
             <>
               <span style={{ opacity: 0.55 }}> · </span>
-              <span
-                style={{
-                  textTransform: 'var(--hud-case, none)' as React.CSSProperties['textTransform'],
-                }}
-              >
-                {parts.piece}
-              </span>
+              <span>{parts.piece}</span>
             </>
           )}
         </>

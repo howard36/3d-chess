@@ -13,12 +13,17 @@ import { CELLS } from './layout';
 import { MoveGlide } from './moveAnimation';
 import { prefersReducedMotion } from './motion';
 import { isTap } from './tap';
-import { useDesign } from './designs/context';
-import { useSettingsOf } from './designs/settings';
+import { useSetting } from './settings';
 import { moveArc } from './movePath';
-import type { BoardLayout, LevelFocus, MarkerProps, Vec3 } from './designs/types';
+import type { KnightMoves } from './movePath';
+import type { LevelFocus, MarkerProps, Vec3 } from './types';
 import { resolveHover } from './hover';
 import type { FloorSquare } from './hover';
+import { CaptureFx, Celebration } from './scene/fx';
+import { Grid } from './scene/grid';
+import { Capture, Check, LastMove, Quiet } from './scene/markers';
+import { KNIGHT_YAW, layout, MOTION } from './scene/palette';
+import { Selection } from './scene/selection';
 
 // The 125 cell boxes are click targets only, never drawn: every one is
 // `visible={false}`, and three's Raycaster tests layers, not visibility, so
@@ -30,21 +35,11 @@ import type { FloorSquare } from './hover';
 // Each box is a thin slab standing on its cell's floor (the mesh stays at the
 // cell's centre; its geometry is shifted down), so a click lands on the
 // square whose floor is under the pointer.
-const cellGeometries = new Map<string, BoxGeometry>();
-const cellGeometryFor = (layout: BoardLayout) => {
-  const { cellSize, hitHeight, floorY } = layout;
-  const key = `${cellSize.join(',')}/${hitHeight}/${floorY}`;
-  let geometry = cellGeometries.get(key);
-  if (!geometry) {
-    geometry = new BoxGeometry(cellSize[0], hitHeight, cellSize[2]).translate(
-      0,
-      floorY + hitHeight / 2,
-      0,
-    );
-    cellGeometries.set(key, geometry);
-  }
-  return geometry;
-};
+const cellGeometry = new BoxGeometry(
+  layout.cellSize[0],
+  layout.hitHeight,
+  layout.cellSize[2],
+).translate(0, layout.floorY + layout.hitHeight / 2, 0);
 const cellMaterial = new MeshBasicMaterial();
 
 // Drops a cell-centre position to the cell floor, the plane a piece's base
@@ -52,7 +47,7 @@ const cellMaterial = new MeshBasicMaterial();
 // skewer the piece in its cell at the cell's centre. Pieces are modeled
 // base-at-y=0 and are shorter than their cell, so they stand on its floor
 // rather than centred in it.
-const atCellFloor = ([x, y, z]: Vec3, layout: BoardLayout): Vec3 => [x, y + layout.floorY, z];
+const atCellFloor = ([x, y, z]: Vec3): Vec3 => [x, y + layout.floorY, z];
 
 export type BoardTurn = 'white' | 'black';
 
@@ -94,9 +89,6 @@ export interface BoardProps {
 
 const Board = (props: BoardProps) => {
   const board = props.board;
-  const design = useDesign();
-  const layout = design.layout;
-  const { Quiet, Capture, Selection, LastMove, Check } = design.markers;
   // Spectators (no assigned colour) get White's view.
   const orientation = props.playerColor ?? 'white';
 
@@ -105,14 +97,10 @@ const Board = (props: BoardProps) => {
   // be the same array from one render to the next, not a fresh toWorld result.
   const worldPositions = useMemo(
     () => new Map(CELLS.map((cell) => [toZXY(cell), layout.toWorld(cell, orientation)])),
-    [orientation, layout],
+    [orientation],
   );
   const worldOf = (cell: Coord) => worldPositions.get(toZXY(cell))!;
-  const markerAt = (cell: Coord): MarkerProps => {
-    const centre = worldOf(cell);
-    return { centre, floor: atCellFloor(centre, layout) };
-  };
-  const cellGeometry = cellGeometryFor(layout);
+  const markerAt = (cell: Coord): MarkerProps => ({ floor: atCellFloor(worldOf(cell)) });
 
   const lastMove = props.lastMove;
   // Moves already played when this board mounted are history (a rejoin
@@ -122,10 +110,8 @@ const Board = (props: BoardProps) => {
     !!lastMove && lastMove.moveCount > mountMoveCount.current && !prefersReducedMotion();
   const lastToKey = lastMove ? toZXY(lastMove.move.to) : null;
   // Every move runs straight; a knight arcs when the player asks for it (a
-  // setting). The glide, the last-move line and the move's effects all take
-  // this one arc.
-  const settings = useSettingsOf(design);
-  const knightMoves = design.knightMoves?.(settings) ?? 'straight';
+  // setting). The glide and the last-move line both take this one arc.
+  const knightMoves = useSetting<KnightMoves>('piece.knightMoves');
   const lastArc = lastMove
     ? moveArc(layout, board.getPiece(lastMove.move.to)?.type, lastMove.move.promotion, knightMoves)
     : 0;
@@ -272,7 +258,7 @@ const Board = (props: BoardProps) => {
   // A knight looks along the ranks — toward the opponent — turned a little to
   // show its profile.
   const knightFacing = (color: BoardTurn) =>
-    (color === orientation ? 1 : -1) * (Math.PI / 2 - (design.knightYaw ?? 0.5));
+    (color === orientation ? 1 : -1) * (Math.PI / 2 - KNIGHT_YAW);
   const matedKing = pieces.find(
     ({ type, color }) => type === PieceType.King && color === matedColor,
   );
@@ -280,9 +266,9 @@ const Board = (props: BoardProps) => {
   // --- Hover: the cell under the pointer, from the pointer's ray (see hover.ts)
   const grid = useRef<Group>(null);
   const floors = useMemo<FloorSquare[]>(
-    () => CELLS.map((cell) => ({ key: toZXY(cell), floor: atCellFloor(worldOf(cell), layout) })),
+    () => CELLS.map((cell) => ({ key: toZXY(cell), floor: atCellFloor(worldOf(cell)) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- worldOf reads worldPositions
-    [worldPositions, layout],
+    [worldPositions],
   );
   const cellAt = useMemo(
     () => new Map([...worldPositions].map(([key, p]) => [p.join(','), key])),
@@ -415,7 +401,7 @@ const Board = (props: BoardProps) => {
                 key={`anim-${lastMove.moveCount}`}
                 from={worldOf(lastMove.move.from)}
                 to={worldOf(coord)}
-                durationMs={design.motion.durationMs}
+                durationMs={MOTION.durationMs}
                 arc={lastArc}
                 fromLevel={lastMove.move.from.z}
                 toLevel={coord.z}
@@ -431,7 +417,7 @@ const Board = (props: BoardProps) => {
           events: r3f only raycasts objects with handlers and their children,
           so nothing here can intercept a click meant for a cell or piece. */}
       <group name="board-decor">
-        <design.Grid layout={layout} orientation={orientation} focus={focus} />
+        <Grid layout={layout} orientation={orientation} focus={focus} />
         {destinations.map(({ to, capture }) => {
           const key = toZXY(to);
           const hovered = hoveredCell === key;
@@ -443,7 +429,7 @@ const Board = (props: BoardProps) => {
         })}
         {/* Keyed by square, so selecting another piece plays its entrance again */}
         {selected && <Selection key={`selection-${toZXY(selected)}`} {...markerAt(selected)} />}
-        {/* Keyed by move: an entrance a design plays on mount (when fresh)
+        {/* Keyed by move: an entrance the marker plays on mount (when fresh)
             plays once per move, and not again on a reconnect */}
         {lastMove && (
           <LastMove
@@ -462,22 +448,16 @@ const Board = (props: BoardProps) => {
           />
         ))}
         {animate && lastMove?.capturedPiece && (
-          <design.CaptureFx
+          <CaptureFx
             key={`capturefx-${lastMove.moveCount}`}
             {...markerAt(lastMove.move.to)}
             victim={lastMove.capturedPiece}
             victimFacing={knightFacing(lastMove.capturedPiece.color)}
-            durationMs={design.motion.durationMs}
+            durationMs={MOTION.durationMs}
             orientation={orientation}
           />
         )}
-        {matedKing && (
-          <design.Celebration
-            {...markerAt(matedKing.coord)}
-            winner={props.gameOver?.winner ?? null}
-            orientation={orientation}
-          />
-        )}
+        {matedKing && <Celebration {...markerAt(matedKing.coord)} />}
       </group>
     </>
   );

@@ -42,12 +42,12 @@ const PromotionPicker: React.FC<PromotionPickerProps> = ({ choices, onPick, onCa
     >
       <div
         style={{
-          background: 'var(--modal-bg, white)',
-          color: 'var(--modal-fg, #222)',
-          border: 'var(--hud-border, none)',
-          fontFamily: 'var(--hud-font, inherit)',
+          background: 'var(--modal-bg)',
+          color: 'var(--modal-fg)',
+          border: 'var(--hud-border)',
+          fontFamily: 'var(--hud-font)',
           padding: '1.5rem 2rem',
-          borderRadius: 'var(--modal-radius, 16px)',
+          borderRadius: 'var(--modal-radius)',
           boxShadow: '0 4px 32px rgba(0,0,0,0.18)',
           textAlign: 'center',
         }}

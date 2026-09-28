@@ -11,11 +11,12 @@ import {
 } from 'three';
 import type { BufferGeometry, Group, Mesh, Object3D } from 'three';
 import { PieceType } from '../engine';
-import { useDesign } from './designs/context';
-import { Lift, Topple } from './designs/kit/motion';
-import { useSettingsOf } from './designs/settings';
-import { noRaycast } from './designs/kit/noRaycast';
-import type { Design } from './designs/types';
+import { noRaycast } from './noRaycast';
+import { Lift, Topple } from './pieceMotion';
+import { layout, PIECE_SCALE } from './scene/palette';
+import { PieceBody } from './scene/pieces';
+import { pieceLift } from './scene/settings-pieces';
+import { useSettings } from './settings';
 
 export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   type: PieceType;
@@ -61,14 +62,14 @@ const fallbackProxy = (extra: number) => {
   }
   return g;
 };
-// Measured proxies, per design, piece and army, and lift
-const proxies = new WeakMap<Design, Map<string, BufferGeometry>>();
+// Measured proxies, per piece, army and lift
+const proxies = new Map<string, BufferGeometry>();
 const SLICES = 8;
 
 /**
  * The profile of a piece body, measured round its vertical axis: the widest
- * extent of its hit-testable meshes (decoration made with the kit's
- * noRaycast is left out) in each of a few height bands, in the body's own
+ * extent of its hit-testable meshes (decoration made with noRaycast is
+ * left out) in each of a few height bands, in the body's own
  * frame, with any Lift or animation taken out. Null when it draws nothing.
  */
 const measureBody = (
@@ -143,33 +144,29 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   level = 0,
   ...rest
 }) {
-  const design = useDesign();
   const seat = useRef<Group>(null);
   const proxy = useRef<Mesh>(null);
-  const lift = design.hoverLift(useSettingsOf(design));
+  const lift = pieceLift(useSettings());
   // The proxy takes in the body at its highest
   const extra = Math.max(lift.hover, lift.selected);
 
-  // Fit the proxy to the body once per design, piece and army (bodies of a
-  // kind share their shape), after the body's meshes exist
+  // Fit the proxy to the body once per piece and army (bodies of a kind
+  // share their shape), after the body's meshes exist
   const proxyKey = `${type}/${color}/${extra}`;
   useLayoutEffect(() => {
     if (!seat.current || !proxy.current) return;
-    let byDesign = proxies.get(design);
-    if (!byDesign) proxies.set(design, (byDesign = new Map()));
-    let geometry = byDesign.get(proxyKey);
+    let geometry = proxies.get(proxyKey);
     if (!geometry) {
       const body = measureBody(seat.current);
       // Not remembered when there is nothing to measure yet
       if (!body) return;
       geometry = proxyGeometry(body, extra);
-      byDesign.set(proxyKey, geometry);
+      proxies.set(proxyKey, geometry);
     }
     proxy.current.geometry = geometry;
-  }, [design, proxyKey, extra]);
+  }, [proxyKey, extra]);
 
   if (!PIECE_TYPES.has(type)) return null;
-  const Body = design.PieceBody;
 
   // The knight turns to the yaw the board gives it. Rotation lives on the
   // inner group so the outer group only carries the position/userData/handler
@@ -184,7 +181,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
         height={selected ? lift.selected : hovered ? lift.hover : 0}
         seconds={selected ? lift.selectSeconds : lift.hoverSeconds}
       >
-        <Body
+        <PieceBody
           type={type}
           color={color}
           selected={selected}
@@ -196,11 +193,9 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
     </Topple>
   );
 
-  // Pieces are modeled base-at-y=0; seat them on the cell floor, scaled
-  // about the base when the design shrinks its pieces
-  const seatAt: [number, number, number] = [0, design.layout.floorY, 0];
-  const scale =
-    design.pieceScale !== undefined && design.pieceScale !== 1 ? design.pieceScale : undefined;
+  // Pieces are modeled base-at-y=0; seat them on the cell floor, scaled about
+  // the base to fit the gap under the level above
+  const seatAt: [number, number, number] = [0, layout.floorY, 0];
   return (
     <group position={position} onClick={onClick} userData={{ piece: { type, color } }} {...rest}>
       {/* The body: drawn, never hit-tested */}
@@ -208,7 +203,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
         ref={seat}
         position={seatAt}
         rotation={rotation}
-        {...(scale !== undefined ? { scale } : {})}
+        scale={PIECE_SCALE}
         raycast={skipSubtree}
       >
         {body}
@@ -217,7 +212,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
       <mesh
         ref={proxy}
         position={seatAt}
-        scale={scale ?? 1}
+        scale={PIECE_SCALE}
         geometry={fallbackProxy(extra)}
         material={proxyMaterial}
         visible={false}

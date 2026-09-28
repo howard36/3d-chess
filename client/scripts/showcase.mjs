@@ -98,8 +98,8 @@ const opt = (name, fallback) => {
 
 // How knights move: the player's setting, stored before the pages load
 const KNIGHT = opt('knight', 'straight');
-// Where the app keeps the board's settings (designs/settings.ts)
-const SETTINGS_KEY = 'design-settings:zenith';
+// Where the app keeps the board's settings (src/three/settings.ts)
+const SETTINGS_KEY = '3dchess:settings';
 const OUT = path.resolve(opt('out', 'showcase'));
 // --stills-fast takes the same stills, but draws only the frames it saves
 const STILLS_FAST = flag('stills-fast');

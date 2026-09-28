@@ -3,9 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GameSocket } from '../hooks/useGameSocket';
 import type { WebSocketMessage } from '../types/messages';
-import { DesignContext } from '../three/designs/context';
-import testDesign from '../three/designs/testDesign';
-import type { Design } from '../three/designs/types';
+import { forgetSettings, setSetting } from '../three/settings';
 import GameScreen from './GameScreen';
 
 // As in App.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
@@ -14,30 +12,8 @@ vi.mock('@react-three/fiber', () => ({
 }));
 vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
 vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
-vi.mock('../three/DesignStage', () => ({ DesignStage: () => null }));
+vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
 vi.mock('../three/Board', () => ({ default: () => null }));
-
-// A mate that plays out for 1.8 s before the result may cover the board
-const showy: Design = { ...testDesign, id: 'showy', name: 'Showy', resultDelayMs: () => 1800 };
-// A design whose mate plays for as long as a setting says
-const slow: Design = {
-  ...showy,
-  id: 'slow',
-  name: 'Slow',
-  settings: [
-    {
-      kind: 'slider',
-      key: 'mate',
-      label: 'Mate',
-      group: 'Motion',
-      default: 3,
-      min: 1,
-      max: 4,
-      step: 0.5,
-    },
-  ],
-  resultDelayMs: (s) => (s.mate as number) * 1000,
-};
 
 // The showcase game: 17 plies ending in White's mate.
 const GAME =
@@ -59,14 +35,12 @@ const socket = (messages: WebSocketMessage[]): GameSocket => ({
   reset: () => {},
 });
 
-const screenFor = (messages: WebSocketMessage[], design: Design = testDesign) => (
-  <DesignContext.Provider value={design}>
-    <MemoryRouter initialEntries={['/game/abc123']}>
-      <Routes>
-        <Route path="/game/:gameId" element={<GameScreen gameSocket={socket(messages)} />} />
-      </Routes>
-    </MemoryRouter>
-  </DesignContext.Provider>
+const screenFor = (messages: WebSocketMessage[]) => (
+  <MemoryRouter initialEntries={['/game/abc123']}>
+    <Routes>
+      <Route path="/game/:gameId" element={<GameScreen gameSocket={socket(messages)} />} />
+    </Routes>
+  </MemoryRouter>
 );
 
 const beforeMate: WebSocketMessage[] = [
@@ -82,18 +56,12 @@ const result = () => screen.queryByRole('dialog', { name: /wins by checkmate/ })
 
 beforeEach(() => {
   localStorage.clear();
+  forgetSettings();
   vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
 });
 afterEach(() => vi.useRealTimers());
 
 describe('the result card after a mate', () => {
-  it('shows at once when the mate takes no time to play out', () => {
-    const { rerender } = render(screenFor(beforeMate));
-    expect(result()).not.toBeInTheDocument();
-    rerender(screenFor(mated));
-    expect(result()).toBeInTheDocument();
-  });
-
   it('turns the turn chip into the result', () => {
     const { rerender } = render(screenFor(beforeMate));
     const chip = screen.getByTestId('turn-indicator');
@@ -104,28 +72,28 @@ describe('the result card after a mate', () => {
   });
 
   it('waits for the mate to play out, when it was just played', () => {
-    const { rerender } = render(screenFor(beforeMate, showy));
-    rerender(screenFor(mated, showy));
+    // The mate's pulse crosses the board in 2.4 s by default, and a beat more
+    const { rerender } = render(screenFor(beforeMate));
+    rerender(screenFor(mated));
     expect(result()).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(1000));
+    act(() => vi.advanceTimersByTime(2600));
     expect(result()).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(1000));
+    act(() => vi.advanceTimersByTime(300));
     expect(result()).toBeInTheDocument();
   });
 
   it('waits as long as the player’s settings make the mate', () => {
-    const { rerender } = render(screenFor(beforeMate, slow));
-    rerender(screenFor(mated, slow));
-    act(() => vi.advanceTimersByTime(2500));
+    setSetting('mark.mateSeconds', 3.5);
+    const { rerender } = render(screenFor(beforeMate));
+    rerender(screenFor(mated));
+    act(() => vi.advanceTimersByTime(3700));
     expect(result()).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(600));
+    act(() => vi.advanceTimersByTime(300));
     expect(result()).toBeInTheDocument();
   });
 
   it('shows at once when a finished game is reopened', () => {
-    render(
-      screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }], showy),
-    );
+    render(screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }]));
     expect(result()).toBeInTheDocument();
   });
 });

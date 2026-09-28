@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { ZOOM_IN, ZOOM_OUT, fitDistance, zoomRange } from './cameraFit';
-import { clarityTower } from './designs/kit/layouts';
+import { towerLayout } from './layout';
 
-// The board's box and opening view: the compact tower's
-const { halfExtents: BOX, viewDirection } = clarityTower();
+// The board's box and opening view: the tower's
+const { halfExtents: BOX, viewDirection } = towerLayout();
 const VIEW = new Vector3(...viewDirection);
 const [hx, hy, hz] = BOX;
 const corners = [-1, 1].flatMap((x) =>

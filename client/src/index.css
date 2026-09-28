@@ -1,6 +1,44 @@
 @import 'tailwindcss';
 
 /*
+ * The HUD round the board: black glass, white type and hairline borders, the
+ * chrome of a gallery's wall text at night. Every screen and dialog reads
+ * these.
+ */
+:root {
+  --hud-font: 'Manrope', system-ui, sans-serif;
+  --hud-bg: linear-gradient(180deg, rgba(14, 16, 22, 0.82), rgba(6, 7, 11, 0.86));
+  --hud-fg: #eef1f7;
+  --hud-muted: rgba(214, 222, 236, 0.58);
+  --hud-accent: #f3f6ff;
+  --hud-accent-fg: #07080c;
+  --hud-border: 1px solid rgba(236, 241, 255, 0.16);
+  --hud-radius: 4px;
+  --hud-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --hud-blur: blur(8px);
+  --hud-tracking: 0.01em;
+  /* The turn chip */
+  --turn-bg: var(--hud-bg);
+  --turn-fg: #f6f8ff;
+  --turn-size: 17px;
+  --turn-border: 1px solid rgba(236, 241, 255, 0.24);
+  --turn-shadow: 0 0 24px rgba(220, 230, 255, 0.07), 0 10px 30px rgba(0, 0, 0, 0.5);
+  /* Dialogs and their buttons */
+  --modal-bg: linear-gradient(180deg, rgba(14, 16, 22, 0.97), rgba(5, 6, 10, 0.98));
+  --modal-fg: #eef1f7;
+  --modal-backdrop: rgba(1, 2, 5, 0.55);
+  --modal-radius: 6px;
+  --modal-shadow: 0 0 0 1px rgba(236, 241, 255, 0.14), 0 24px 60px rgba(0, 0, 0, 0.6);
+  --button-bg: transparent;
+  --button-fg: #f6f8ff;
+  --button-border: 1px solid rgba(236, 241, 255, 0.55);
+  --button-radius: 3px;
+  /* The start and waiting pages */
+  --page-bg: radial-gradient(ellipse at 50% 60%, #0a0d15 0%, #04050a 60%, #010205 100%);
+  --page-fg: #eef1f7;
+}
+
+/*
  * The game screen is played with fingers as much as a mouse. A double tap or
  * a long press must never select text (iOS would select the whole page) or
  * raise the callout, and a double tap must not zoom the page; the board's

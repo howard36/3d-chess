@@ -11,7 +11,7 @@ test('create game flow', async ({ page }) => {
   await expect(startButton).toBeVisible();
 
   // The board's settings are a gear away, before a game as during one
-  await expect(page.getByTestId('design-settings')).toBeVisible();
+  await expect(page.getByTestId('settings')).toBeVisible();
 
   // Click the start button
   await startButton.click();

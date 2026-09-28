@@ -1,13 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
 import type { Group } from 'three';
 import { PieceMesh } from './PieceMesh';
 import type { PieceMeshProps } from './PieceMesh';
 import { PieceType } from '../engine';
-import { DesignContext } from './designs/context';
-import testDesign from './designs/testDesign';
-import type { Design, PieceBodyProps } from './designs/types';
+import type { PieceBodyProps } from './types';
 
 type PieceColor = 'white' | 'black';
 
@@ -22,26 +20,23 @@ const TYPES = [
 ];
 const COLORS: PieceColor[] = ['white', 'black'];
 
-// The body the design draws records what PieceMesh tells it
-const bodies: PieceBodyProps[] = [];
-const PieceBody = (props: PieceBodyProps) => {
-  bodies.push(props);
-  return <mesh />;
-};
-const design: Design = { ...testDesign, PieceBody };
+// The piece's body stands in as an empty mesh that records what PieceMesh tells it
+const bodies = vi.hoisted(() => [] as PieceBodyProps[]);
+vi.mock('./scene/pieces', () => ({
+  PieceBody: (props: PieceBodyProps) => {
+    bodies.push(props);
+    return <mesh />;
+  },
+}));
 
 async function render(props: PieceMeshProps) {
-  const renderer = await ReactThreeTestRenderer.create(
-    <DesignContext.Provider value={design}>
-      <PieceMesh {...props} />
-    </DesignContext.Provider>,
-  );
+  const renderer = await ReactThreeTestRenderer.create(<PieceMesh {...props} />);
   return renderer.scene as ReactThreeTestInstance;
 }
 
 describe('PieceMesh', () => {
   it.each(TYPES.flatMap((type) => COLORS.map((color) => [type, color] as const)))(
-    '%s %s: one tagged outer group, with the design’s body told what it is',
+    '%s %s: one tagged outer group, with the body told what it is',
     async (type, color) => {
       bodies.length = 0;
       const scene = await render({ type, color, level: 2, inCheck: true });

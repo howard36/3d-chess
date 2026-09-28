@@ -24,10 +24,10 @@ export default tseslint.config(
     },
   },
   {
-    // A design module is a data object whose fields are components, with the
-    // design context beside them; hot-reloading a design remounts the scene
-    // anyway, so component-only modules buy nothing here.
-    files: ['src/three/designs/**/*.{ts,tsx}'],
+    // The scene's modules keep each part's components beside the constants and
+    // helpers that go with it; an edit to the scene redraws the canvas anyway,
+    // so component-only modules would buy nothing here.
+    files: ['src/three/scene/**/*.{ts,tsx}', 'src/three/pieceMotion.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
 );

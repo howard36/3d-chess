@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PieceType } from '../engine/pieces';
-import { clarityTower } from './designs/kit/layouts';
+import { towerLayout } from './layout';
 import { cellPitch, KNIGHT_ARC_PITCHES, knightArcHeight, moveArc, movePoint } from './movePath';
 
 describe('movePath', () => {
@@ -27,13 +27,13 @@ describe('movePath', () => {
   });
 
   it('measures the cell pitch of any layout, and sizes the knight’s arc by it', () => {
-    expect(cellPitch(clarityTower())).toBeCloseTo(1);
-    expect(cellPitch(clarityTower({ pitch: 1.2 }))).toBeCloseTo(1.2);
-    expect(knightArcHeight(clarityTower())).toBeCloseTo(KNIGHT_ARC_PITCHES);
+    expect(cellPitch(towerLayout())).toBeCloseTo(1);
+    expect(cellPitch(towerLayout({ pitch: 1.2 }))).toBeCloseTo(1.2);
+    expect(knightArcHeight(towerLayout())).toBeCloseTo(KNIGHT_ARC_PITCHES);
   });
 
   it('arcs only a knight’s own move, and only when knights arc', () => {
-    const layout = clarityTower();
+    const layout = towerLayout();
     const h = knightArcHeight(layout);
     expect(moveArc(layout, PieceType.Knight, undefined, 'arc')).toBe(h);
     expect(moveArc(layout, PieceType.Knight, undefined, 'straight')).toBe(0);

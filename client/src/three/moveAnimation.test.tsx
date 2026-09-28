@@ -5,7 +5,7 @@ import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/dec
 import { Vector3 } from 'three';
 import type { Group, Object3D } from 'three';
 import { MoveGlide } from './moveAnimation';
-import { easeLift, Lift, liftEntry, ON_FLOOR, Topple, useGlide } from './designs/kit/motion';
+import { easeLift, Lift, liftEntry, ON_FLOOR, Topple, useGlide } from './pieceMotion';
 
 type Vec = { x: number; y: number; z: number };
 const FROM: [number, number, number] = [0, 0, 2];

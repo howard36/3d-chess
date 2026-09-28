@@ -25,7 +25,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner }) => {
         position: 'fixed',
         inset: 0,
         padding: 16,
-        background: 'var(--modal-backdrop, rgba(0,0,0,0.5))',
+        background: 'var(--modal-backdrop)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -34,21 +34,18 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner }) => {
     >
       <div
         style={{
-          background: 'var(--result-bg, var(--modal-bg, white))',
-          color: 'var(--modal-fg, black)',
-          border: 'var(--hud-border, none)',
-          fontFamily: 'var(--hud-font, inherit)',
+          background: 'var(--modal-bg)',
+          color: 'var(--modal-fg)',
+          border: 'var(--hud-border)',
+          fontFamily: 'var(--hud-font)',
           padding: '2rem 3rem',
-          borderRadius: 'var(--modal-radius, 16px)',
-          boxShadow: 'var(--modal-shadow, 0 4px 32px rgba(0,0,0,0.18))',
+          borderRadius: 'var(--modal-radius)',
+          boxShadow: 'var(--modal-shadow)',
           textAlign: 'center',
           maxWidth: 420,
         }}
       >
-        <h2
-          id="end-game-title"
-          style={{ marginBottom: 16, fontSize: 'var(--result-title-size, inherit)' }}
-        >
+        <h2 id="end-game-title" style={{ marginBottom: 16 }}>
           {message}
         </h2>
         {/* The dialog takes focus: a keyboard player lands on its only action */}
@@ -58,10 +55,10 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner }) => {
             marginTop: 16,
             fontSize: 18,
             padding: '0.7em 2em',
-            background: 'var(--button-bg, revert)',
-            color: 'var(--button-fg, revert)',
-            border: 'var(--button-border, revert)',
-            borderRadius: 'var(--button-radius, revert)',
+            background: 'var(--button-bg)',
+            color: 'var(--button-fg)',
+            border: 'var(--button-border)',
+            borderRadius: 'var(--button-radius)',
             fontFamily: 'inherit',
           }}
           onClick={() => navigate('/')}

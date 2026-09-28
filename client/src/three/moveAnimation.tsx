@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import type { Group } from 'three';
 import { easeInOutCubic, MOVE_ANIMATION } from './motion';
 import { movePoint } from './movePath';
-import { GlideContext } from './designs/kit/motion';
+import { GlideContext } from './pieceMotion';
 
 type Vec3 = [number, number, number];
 
@@ -44,7 +44,7 @@ export const MoveGlide = ({
   arc?: number;
   /**
    * The levels (engine z) the move leaves and lands on, handed to the piece
-   * body through useGlide (kit/motion.tsx) with the glide's progress.
+   * body through useGlide (pieceMotion.tsx) with the glide's progress.
    */
   fromLevel?: number;
   toLevel?: number;
