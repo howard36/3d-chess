@@ -743,7 +743,6 @@ export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerPro
         to={to.floor}
         arc={arc}
         color={TRACE_LINE}
-        pattern="solid"
         radius={radius}
         lift={LINE_LIFT}
         inset={LINE_LANDING}
@@ -978,12 +977,12 @@ const Crown = ({ floor, mated, strength }: { floor: Vec3; mated: boolean; streng
   const since = useRef(0);
   const time = useRef(0);
   const fall = useRef(0);
-  // Its own height over the cross, a share of the king's height, but never
-  // low enough for his cross to reach it when he is held up (the held
-  // height the lift settings give; it does not follow his lift as it moves)
-  const share = useMarkSetting<number>('mark.crownHeight');
+  // A fixed height: the setting's gap over his cross as he stands held up
+  // (the held height the lift settings give), so he never reaches it; it
+  // does not follow his lift as it moves
+  const gap = useMarkSetting<number>('mark.crownGap');
   const held = pieceLift(useSettings()).selected;
-  const height = Math.max(KING_HEIGHT * (1 + share), KING_HEIGHT + held * PIECE_SCALE + 0.04);
+  const height = KING_HEIGHT + (held + gap) * PIECE_SCALE;
   const still = prefersReducedMotion();
   useEffect(() => invalidate(), [mated, strength, height, invalidate]);
   useFrame((_, delta) => {

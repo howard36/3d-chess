@@ -487,6 +487,7 @@ const obsidianMaterial = (life: Uniforms) =>
       uniform vec3 uSheen;
       uniform float uTime;
       uniform float uFlare;
+      uniform float uPx;
       varying vec3 vBary;
       varying vec3 vNormal;
       varying vec3 vWorld;
@@ -496,6 +497,10 @@ const obsidianMaterial = (life: Uniforms) =>
         vec3 n = normalize(vNormal);
         vec3 v = normalize(cameraPosition - vWorld);
         if (dot(n, v) < 0.0) n = -n;
+        // How many pixels across a shard is on screen: small, at play size,
+        // its red gives way to the black of its glass, but for a keen glint
+        float across = 0.08 / max(uPx * length(cameraPosition - vWorld), 1e-5);
+        float detail = smoothstep(5.0, 16.0, across);
         // Black glass: a dim cool sheen off a light high overhead, a keen
         // fresnel, and the check's red light from the glass below
         // (a glossy band where a face turns toward a light up and to the right
@@ -505,14 +510,15 @@ const obsidianMaterial = (life: Uniforms) =>
         float low = pow(1.0 - vUp, 3.0);
         // Faces turned down toward the glass catch a little of the plate's red
         float under = 0.5 + 0.5 * max(-n.y, 0.0);
-        vec3 col = uBody + uSheen * (0.2 * spec + 0.04 * fres)
-          + uEdge * (0.07 * low * under + 0.1 * fres);
+        vec3 col = uBody + uSheen * (0.2 * spec + 0.04 * fres) * mix(0.3, 1.0, detail)
+          + uEdge * (0.07 * low * under + 0.1 * fres) * mix(0.25, 1.0, detail);
         // The ridges running up to its point: red hairlines, a slow glint climbing
         float e = min(vBary.x, vBary.y);
         float fw = max(fwidth(e), 1e-4);
         float ridge = 1.0 - smoothstep(0.0, 1.4 * fw, e);
         float g = exp(-pow((vUp - (fract(uTime / 6.0 + vPhase) * 1.4 - 0.2)) / 0.12, 2.0));
-        col = mix(col, uEdge, ridge * min(0.45 + 0.8 * g + 0.8 * uFlare, 1.0) * (0.5 + 0.5 * (1.0 - vUp)));
+        float keen = mix(0.03 + 0.3 * g, min(0.45 + 0.8 * g, 1.0), detail);
+        col = mix(col, uEdge, ridge * min(keen + 0.8 * uFlare, 1.0) * (0.5 + 0.5 * (1.0 - vUp)));
         gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>
       }`,
