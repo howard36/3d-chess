@@ -7,26 +7,10 @@ import type { SettingSpec, SettingValue } from '../settings';
 export const CAPTURE_STYLES = ['ember', 'close', 'arcs', 'rise', 'orbit'] as const;
 export type CaptureStyle = (typeof CAPTURE_STYLES)[number];
 
-export const MOVE_COLORS = ['gold', 'white', 'level'] as const;
-export type MoveColor = (typeof MOVE_COLORS)[number];
-
 const seconds = (v: number) => `${v.toFixed(1)} s`;
 const percent = (v: number) => `${Math.round(v * 100)}%`;
 
 export const MARKER_SETTINGS: SettingSpec[] = [
-  {
-    kind: 'choice',
-    key: 'mark.moveColor',
-    label: 'Move marker',
-    group: 'Markers',
-    default: 'gold',
-    options: [
-      { value: 'gold', label: 'Gold' },
-      { value: 'white', label: 'White' },
-      { value: 'level', label: 'Level colour' },
-    ],
-    hint: 'The circle where a piece may go. Its fill always carries the level colour.',
-  },
   {
     kind: 'choice',
     key: 'mark.captureStyle',
@@ -36,7 +20,7 @@ export const MARKER_SETTINGS: SettingSpec[] = [
     options: [
       { value: 'rise', label: 'Rising glow' },
       { value: 'ember', label: 'Embers' },
-      { value: 'close', label: 'Closing ripples' },
+      { value: 'close', label: 'Closing in' },
       { value: 'arcs', label: 'Closing arcs' },
       { value: 'orbit', label: 'Orbiting mote' },
     ],
@@ -48,7 +32,7 @@ export const MARKER_SETTINGS: SettingSpec[] = [
     label: 'Last-move line',
     group: 'Markers',
     default: 0.55,
-    min: 0.2,
+    min: 0.35,
     max: 1,
     step: 0.05,
     format: percent,
@@ -68,6 +52,7 @@ export const MARKER_SETTINGS: SettingSpec[] = [
     label: 'Crown over the king',
     group: 'Check',
     default: true,
+    hint: 'A small crown of red light floating over the king in check.',
   },
   {
     kind: 'toggle',
@@ -83,7 +68,7 @@ export const MARKER_SETTINGS: SettingSpec[] = [
     label: 'Check pulse',
     group: 'Check',
     default: 1,
-    min: 0,
+    min: 0.4,
     max: 1.5,
     step: 0.1,
     format: percent,
@@ -93,7 +78,7 @@ export const MARKER_SETTINGS: SettingSpec[] = [
     kind: 'slider',
     key: 'mark.mateSeconds',
     label: 'Checkmate pulse',
-    group: 'Motion',
+    group: 'Check',
     default: 2.4,
     min: 1.5,
     max: 4,

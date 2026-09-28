@@ -11,20 +11,22 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three';
-import type { Group, Mesh } from 'three';
+import type { Group, Mesh, Object3D } from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { prefersReducedMotion } from '../../motion';
 import { pieceSet, pieceTop } from '../../pieces';
 import { LAYER } from '../kit/layers';
 import { LastMoveLine } from '../kit/line';
+import { tracePath, tubeData } from '../kit/markerGeometry';
 import { noRaycast } from '../kit/noRaycast';
 import { useDesignSetting } from '../settings';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { claimed, heldAt, useClaim, useHeld } from './claims';
 import type { ClaimKind } from './claims';
+import { liftFor } from './pieces';
 import { LEVEL_COLORS, levelAt, MOTION, PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
 import { CAPTURE_STYLES, useMarkSetting } from './settings-markers';
-import type { CaptureStyle, MoveColor } from './settings-markers';
+import type { CaptureStyle } from './settings-markers';
 
 // The marks of play, one family of thin circles of light lying on the glass:
 //
@@ -33,24 +35,27 @@ import type { CaptureStyle, MoveColor } from './settings-markers';
 //   its level's colour. Under the pointer the fill deepens (fuller, a deeper
 //   colour at its heart) and the circle grows a little, eased over 200 ms;
 //   the outline itself does not brighten. Straight above or below the held
-//   piece, seen from high above, it gives up its rim for a soft pool, so it
-//   never rings the piece.
+//   piece, as the view comes round to top-down, it widens and gives up its
+//   rim for a soft pool, so it never rings the piece.
 // - a capture: the same circle in red, drawn in place of the victim's own
 //   level ring (which steps aside, claims.ts), so two circles never stack;
 //   its one idea is a setting (settings-markers.ts): a short wall of red
 //   light rising from it round the victim's foot like a threat (the
-//   default), embers of heat drifting through its fill, a ripple closing in
-//   on it, four arcs closing in and breathing, or one mote circling it.
+//   default), sparks of heat glowing up and dying away in a dark fill, a
+//   glow drawing in tight onto its rim from outside, four arcs
+//   closing in and breathing, or one mote circling it.
 //   Hover as above (the rising glow also stands a little taller).
-// - the last move: a thin continuous line of pale mint light, a calm
-//   shimmer travelling along it, from a small circle where the piece started
-//   to the same circle, larger, round the piece where it landed.
+// - the last move: a thin continuous line of deep mint light, a soft glow
+//   of white travelling calmly along it, from a small circle where the piece
+//   started to the same circle, larger, round the piece where it landed.
 // - check: a crown of red light lying round the king in place of his ring, a
 //   band with eight points. It strikes when check arrives (it lands a little
 //   large, flashes and sends one strong wave out), then breathes slowly,
-//   one faint ripple leaving it with each breath. Over the king floats a
-//   small crown of red light, turning slowly; four tall blades of red light
-//   can rise round him too. At mate it all settles as the king falls.
+//   one faint ripple leaving it with each breath (reaching further when it
+//   stands alone). Over the king's cross floats a small crown of red light,
+//   turning slowly and riding up with him when he is lifted; four tall
+//   blades of red light with white-hot hearts can rise round him too. At
+//   mate it all settles as the king falls.
 //
 // Every flat mark is one quad shaded by a signed distance, crisp at any
 // angle, and drawn over every level (LAYER), so a mark three levels down
@@ -93,6 +98,8 @@ const fragmentShader = /* glsl */ `
   uniform float uOpacity;
   uniform float uSettle;
   uniform float uSoft;
+  uniform float uSoftRadius;
+  uniform float uLoud;
   varying vec2 vP;
   varying vec3 vWorld;
 
@@ -116,25 +123,26 @@ const fragmentShader = /* glsl */ `
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
   }
-  float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(
-      mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
-      mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
-      u.y
-    );
-  }
-  float fbm(vec2 p) {
-    float v = 0.0;
-    float a = 0.5;
-    for (int i = 0; i < 3; i++) {
-      v += a * noise(p);
-      p = p * 2.03 + vec2(1.7, 9.2);
-      a *= 0.5;
+  // Embers: sparks of heat scattered through the fill (q in units of the
+  // radius), each glowing up and dying away on its own slow beat
+  float embers(vec2 q, float t) {
+    const float CELL = 0.3;
+    vec2 g = q / CELL;
+    vec2 cell = floor(g);
+    float sum = 0.0;
+    for (int j = -1; j <= 1; j++) {
+      for (int i = -1; i <= 1; i++) {
+        vec2 c = cell + vec2(float(i), float(j));
+        float h1 = hash(c);
+        float h2 = hash(c + 17.3);
+        float h3 = hash(c + 41.7);
+        vec2 at = c + 0.2 + 0.6 * vec2(h1, h2);
+        float d = length(g - at) * CELL;
+        float beat = pow(0.5 + 0.5 * sin(t * (0.7 + 0.9 * h3) + h1 * TAU), 2.0);
+        sum += exp(-d * d / (0.085 * 0.085)) * beat * step(0.25, h3);
+      }
     }
-    return v;
+    return min(sum, 1.0);
   }
 
   // Distance to four arcs on a circle of radius ra, each spanning this share
@@ -156,12 +164,13 @@ const fragmentShader = /* glsl */ `
       float s = mix(0.86, 1.0, uGrow) * (1.0 + 0.11 * uHover);
       vec2 p = vP / s;
       float r = length(p);
-      float R = uRadius;
-      float k = r / R;
-      // Straight above or below the held piece (uSoft), seen from high above,
-      // it gives up its rim for a soft-edged pool, so it never rings the
-      // piece's own circle; from the side it is a circle like the rest
+      // Straight above or below the held piece (uSoft), as the view comes
+      // round to top-down it widens and gives up its rim for a soft-edged
+      // pool, so it never rings the piece's own circle; from the side it is
+      // a circle like the rest
       float soft = uSoft * smoothstep(0.75, 0.95, abs(normalize(cameraPosition - vWorld).y));
+      float R = mix(uRadius, uSoftRadius, soft);
+      float k = r / R;
       bool capture = uKind == 1;
       // Closing arcs: the circle draws in and out, slowly
       float breath = 0.5 - 0.5 * cos(uTime * TAU / 3.6);
@@ -172,20 +181,16 @@ const fragmentShader = /* glsl */ `
       float rest = uFillA * (0.75 + 0.25 * k) * (1.0 + 0.9 * soft);
       float held = uHover * (0.2 + 0.1 * (1.0 - k));
       vec3 fc = mix(uFill, uDeep, uHover * (1.0 - k * k));
+      float sparks = 0.0;
       if (capture && uStyle == 0) {
-        // Embers: heat drifting slowly through the fill, gathering toward
-        // the rim, in reds only (never toward the gold of a move)
-        float t = uTime;
-        float cs = cos(t * 0.06);
-        float sn = sin(t * 0.06);
-        vec2 q = mat2(cs, -sn, sn, cs) * (p / R);
-        float n = fbm(q * 2.4 + vec2(0.0, -t * 0.14)) * 0.7
-          + fbm(q * 5.2 + vec2(t * 0.08, t * 0.05) + 3.0) * 0.45;
-        float heat = smoothstep(0.4, 0.76, n) * (0.35 + 0.65 * smoothstep(0.2, 1.0, k));
-        fc = mix(fc, uHot, heat * (1.0 - 0.6 * uHover));
-        rest = uFillA * (0.45 + 3.0 * heat);
+        // Embers: sparks of heat glowing up and dying away through a dark
+        // red fill, drifting slowly round
+        float cs = cos(uTime * 0.05);
+        float sn = sin(uTime * 0.05);
+        sparks = embers(mat2(cs, -sn, sn, cs) * (p / R), uTime) * smoothstep(1.0, 0.8, k);
       }
       c = over(c, fc, inside * (rest + held));
+      c = over(c, uHot, inside * sparks * (0.85 - 0.35 * uHover));
       // A move: a faint wash of its own colour just inside the rim, so it
       // reads as a gold circle from afar, whatever the tint of its fill
       c = over(c, uColor, exp(-max(R - r, 0.0) / (0.2 * R)) * fillOf(r - R) * uWashA * (1.0 - soft));
@@ -195,15 +200,17 @@ const fragmentShader = /* glsl */ `
       }
       c = over(c, uColor, line * uOpacity * (1.0 - soft));
       if (capture && uStyle == 1) {
-        // Closing ripples: one ring at a time gathers on the rim from
-        // outside, quickening as it closes in, and the fill tightens as it
-        // arrives
-        float ph = fract(uTime / 2.8);
-        float rr = R * (1.42 - 0.42 * ph * ph);
-        float a = smoothstep(0.0, 0.45, ph) * (1.0 - smoothstep(0.88, 1.0, ph)) * 0.45;
-        c = over(c, uColor, stroke(r - rr, uWidth * 0.75) * a * (1.0 - soft));
-        float tight = exp(-pow((ph - 0.98) / 0.08, 2.0)) + exp(-pow((ph + 0.02) / 0.08, 2.0));
-        c = over(c, fc, inside * tight * 0.1 * smoothstep(0.4, 1.0, k));
+        // Closing in: a glow held to the outside of the rim, wide and faint
+        // at first, drawing in tighter and brighter onto the rim (one
+        // figure with it, never a second ring), and the fill tightens as
+        // it arrives; then it lets go and gathers again
+        float ph = fract(uTime / 2.6);
+        float w = R * (0.02 + 0.5 * pow(1.0 - ph, 1.6));
+        float a = (0.12 + 0.3 * ph) * smoothstep(0.0, 0.2, ph) * (1.0 - smoothstep(0.88, 1.0, ph));
+        float outside = step(R, r) * exp(-(r - R) / w);
+        c = over(c, uColor, outside * a * (1.0 - soft));
+        float tight = exp(-pow((ph - 0.9) / 0.1, 2.0));
+        c = over(c, fc, inside * tight * 0.12 * smoothstep(0.4, 1.0, k));
       }
       if (capture && uStyle == 4) {
         // One mote of light, circling slowly
@@ -244,10 +251,11 @@ const fragmentShader = /* glsl */ `
       c = over(c, uColor, stroke(r - inner, uWidth * 0.7) * 0.6 * uOpacity);
       // One faint ripple leaves it at the height of each breath
       float ph = fract(uTime / 3.2 - 0.5);
-      float rr = mix(R + 0.1, 0.72, 1.0 - (1.0 - ph) * (1.0 - ph));
-      float fade = (1.0 - ph) * (1.0 - ph) * smoothstep(0.0, 0.08, ph) * 0.45 * live
-        * step(1.6, uTime);
-      c = over(c, uColor, stroke(r - rr, 0.008) * fade);
+      // (reaching further, and a little stronger, when it stands alone)
+      float rr = mix(R + 0.1, 0.72 + 0.26 * uLoud, 1.0 - (1.0 - ph) * (1.0 - ph));
+      float fade = (1.0 - ph) * (1.0 - ph) * smoothstep(0.0, 0.08, ph) * (0.45 + 0.3 * uLoud)
+        * live * step(1.6, uTime);
+      c = over(c, uColor, stroke(r - rr, 0.008 + 0.004 * uLoud) * fade);
       // The strike: one strong wave out, trailing a soft glow
       float e = 1.0 - (1.0 - uPulse) * (1.0 - uPulse);
       float wave = mix(0.8, R + 0.06, e);
@@ -272,8 +280,6 @@ const planeFor = (size: number) => {
   }
   return g;
 };
-
-const white = new Color('#ffffff');
 
 interface MarkProps {
   floor: Vec3;
@@ -309,6 +315,10 @@ interface MarkProps {
   settle?: boolean;
   /** From high above, a soft-edged fill with no rim (a destination stacked on the held piece). */
   soft?: boolean;
+  /** With `soft`, the radius it widens to as the view comes round to top-down. */
+  softRadius?: number;
+  /** Check: the plate stands alone (no crown), so its ripples reach further. */
+  loud?: boolean;
   /** Step back a little seen from high above (a destination off the held piece's level). */
   dimAbove?: boolean;
   renderOrder?: number;
@@ -343,13 +353,16 @@ const Mark = ({
   yieldHeld = false,
   settle = false,
   soft = false,
+  softRadius,
+  loud = false,
   dimAbove = false,
   renderOrder = LAYER.marker,
   lift = 0.012,
 }: MarkProps) => {
   const invalidate = useThree((s) => s.invalidate);
+  const widest = Math.max(radius, softRadius ?? radius);
   const quad =
-    kind === 'check' ? 1.7 : kind === 'capture' ? radius * 3.3 + 0.08 : (radius * 1.25 + 0.1) * 2;
+    kind === 'check' ? 2.1 : kind === 'capture' ? widest * 3.3 + 0.08 : (widest * 1.25 + 0.1) * 2;
   const material = useMemo(
     () =>
       new ShaderMaterial({
@@ -381,6 +394,8 @@ const Mark = ({
           uOpacity: { value: opacity },
           uSettle: { value: 0 },
           uSoft: { value: soft ? 1 : 0 },
+          uSoftRadius: { value: softRadius ?? radius },
+          uLoud: { value: loud ? 1 : 0 },
           uQuad: { value: quad },
         },
         vertexShader,
@@ -405,6 +420,8 @@ const Mark = ({
   u.uStrength.value = pulse;
   u.uQuad.value = quad;
   u.uSoft.value = soft ? 1 : 0;
+  u.uSoftRadius.value = softRadius ?? radius;
+  u.uLoud.value = loud ? 1 : 0;
   // A setting changed, or the pointer came or went: draw a frame for it
   useEffect(() => invalidate());
 
@@ -491,9 +508,10 @@ const look = new Vector3();
 const FOOT_RING = RING_RADIUS * PIECE_SCALE;
 const QUIET_RADIUS = 0.2;
 /**
- * Straight below or above the held piece: wide enough to show round it from
- * above, where it becomes a soft pool with no rim (so it never rings the
- * piece's own circle); from the side, a circle like the rest.
+ * Straight below or above the held piece, seen from high above, a move widens
+ * to this, wide enough to show round the piece, and becomes a soft pool with
+ * no rim (so it never rings the piece's own circle); from the side it is a
+ * circle like the rest.
  */
 const QUIET_STACKED = 0.33;
 const CAPTURE_RADIUS = FOOT_RING + 0.035;
@@ -502,7 +520,7 @@ const TRACE_TO = FOOT_RING;
 const TRACE_FROM_SCALE = 0.64;
 /**
  * The line itself: the circles' mint a little deeper, so it weighs less and
- * the white shimmer travelling along it shows.
+ * the shimmer travelling along it (Shimmer) shows.
  */
 const TRACE_LINE = `#${new Color(PALETTE.trace).multiplyScalar(0.72).getHexString()}`;
 const FROM_YIELDS: ClaimKind[] = ['quiet', 'capture'];
@@ -512,38 +530,28 @@ const TO_YIELDS: ClaimKind[] = ['capture'];
 const isStacked = (a: Vec3, b: Vec3) =>
   Math.abs(a[0] - b[0]) < 1e-3 && Math.abs(a[2] - b[2]) < 1e-3;
 
-const levelLight = LEVEL_COLORS.map((c) => `#${new Color(c).lerp(white, 0.42).getHexString()}`);
 const levelDeep = LEVEL_COLORS.map((c) => `#${new Color(c).multiplyScalar(0.62).getHexString()}`);
-
-/** The outline of a move, and the wash inside it, by the player's choice. */
-const moveOutline = (choice: MoveColor, level: number) =>
-  choice === 'white'
-    ? { color: PALETTE.light, wash: 0.07, opacity: 0.8 }
-    : choice === 'level'
-      ? { color: levelLight[level], wash: 0, opacity: 0.9 }
-      : { color: PALETTE.move, wash: 0.1, opacity: 0.85 };
 
 export const Quiet = ({ floor, hovered }: MarkerProps) => {
   // The small circle where the last move started steps aside for it
   useClaim('quiet', floor);
-  const choice = useMarkSetting<MoveColor>('mark.moveColor');
   const level = levelAt(floor[1]);
   const held = useHeld();
   const offLevel = !!held && levelAt(held[1]) !== level;
   const stacked = !!held && isStacked(held, floor);
-  const outline = moveOutline(choice, level);
   return (
     <Mark
       floor={floor}
       kind="quiet"
-      color={outline.color}
+      color={PALETTE.move}
       fill={LEVEL_COLORS[level]}
       deep={levelDeep[level]}
       fillA={0.16}
-      washA={outline.wash}
-      radius={stacked ? QUIET_STACKED : QUIET_RADIUS}
+      washA={0.1}
+      radius={QUIET_RADIUS}
+      softRadius={QUIET_STACKED}
       width={0.0095}
-      opacity={outline.opacity}
+      opacity={0.85}
       soft={stacked}
       hovered={hovered}
       dimAbove={offLevel}
@@ -671,7 +679,7 @@ export const Capture = ({ floor, hovered = false }: MarkerProps) => {
         fill={PALETTE.capture}
         deep="#8a1712"
         hot="#ff6a4f"
-        fillA={style === 'ember' ? 0.12 : style === 'rise' ? 0.14 : 0.1}
+        fillA={style === 'ember' ? 0.08 : style === 'rise' ? 0.14 : 0.1}
         radius={CAPTURE_RADIUS}
         width={0.008}
         opacity={0.92}
@@ -698,6 +706,7 @@ export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerPro
   useClaim('trace', to.floor);
   const strength = useMarkSetting<number>('mark.lineStrength');
   const shimmer = useMarkSetting<boolean>('mark.lineShimmer');
+  const radius = 0.005 + 0.0045 * strength;
   return (
     <>
       <Mark
@@ -731,19 +740,142 @@ export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerPro
         to={to.floor}
         arc={arc}
         color={TRACE_LINE}
-        pulseColor="#f6fffb"
         pattern="solid"
-        radius={0.005 + 0.0045 * strength}
+        radius={radius}
+        lift={LINE_LIFT}
         opacity={strength}
-        pulse={shimmer ? 1 : 0}
-        pulseLength={0.45}
-        spacing={1.7}
-        flowSpeed={shimmer ? 0.42 : 0}
+        pulse={0}
+        flowSpeed={0}
         shade={0.3}
-        drawInMs={fresh ? 380 : 0}
-        drawInDelayMs={fresh ? MOTION.durationMs * 0.3 : 0}
+        drawInMs={fresh ? LINE_DRAW_MS : 0}
+        drawInDelayMs={fresh ? lineDelay : 0}
       />
+      {shimmer && (
+        <Shimmer
+          from={from.floor}
+          to={to.floor}
+          arc={arc}
+          radius={radius}
+          delayMs={fresh ? lineDelay + LINE_DRAW_MS : 0}
+        />
+      )}
     </>
+  );
+};
+
+// The shimmer on the last-move line: a soft glow of white light, a little
+// wider than the line, travelling along it from where the move started to
+// where it ended, one at a time, added to the line's light so it shows
+// while the line itself stays faint.
+const LINE_LIFT = 0.02;
+const LINE_DRAW_MS = 380;
+const lineDelay = MOTION.durationMs * 0.3;
+const SHIMMER = { speed: 0.45, spacing: 1.8, length: 0.32, peak: 0.75 };
+
+const shimmerMaterial = () =>
+  new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+    uniforms: {
+      uColor: { value: new Color('#f4fff9') },
+      uTime: { value: 0 },
+      uFade: { value: 0 },
+      uSpeed: { value: SHIMMER.speed },
+      uSpacing: { value: SHIMMER.spacing },
+      uLength: { value: SHIMMER.length },
+      uPeak: { value: SHIMMER.peak },
+    },
+    vertexShader: /* glsl */ `
+      attribute float aAlong;
+      varying float vAlong;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vAlong = aAlong;
+        vNormal = normalize(mat3(modelMatrix) * normal);
+        vView = cameraPosition - w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      uniform float uTime;
+      uniform float uFade;
+      uniform float uSpeed;
+      uniform float uSpacing;
+      uniform float uLength;
+      uniform float uPeak;
+      varying float vAlong;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        // One soft pulse per spacing, the first entering at the start
+        float f = fract((vAlong - uTime * uSpeed + uLength) / uSpacing + 0.5);
+        float x = (f - 0.5) * uSpacing / uLength;
+        float glow = exp(-x * x * 4.0);
+        // Soft across: brightest down the middle, nothing at the edges
+        float facing = abs(dot(normalize(vNormal), normalize(vView)));
+        float a = glow * facing * facing * uPeak * uFade;
+        if (a < 0.002) discard;
+        gl_FragColor = vec4(uColor * a, a);
+        #include <colorspace_fragment>
+      }`,
+  });
+
+const Shimmer = ({
+  from,
+  to,
+  arc,
+  radius,
+  delayMs,
+}: {
+  from: Vec3;
+  to: Vec3;
+  arc: number;
+  radius: number;
+  delayMs: number;
+}) => {
+  const invalidate = useThree((s) => s.invalidate);
+  const key = JSON.stringify([from, to, arc, radius]);
+  const geometry = useMemo(() => {
+    const data = tubeData(tracePath(from, to, { lift: LINE_LIFT, arc }), {
+      radius: radius * 2.4,
+      radialSegments: 8,
+      capSegments: 2,
+    });
+    const g = new BufferGeometry();
+    g.setAttribute('position', new BufferAttribute(data.position, 3));
+    g.setAttribute('normal', new BufferAttribute(data.normal, 3));
+    g.setAttribute('aAlong', new BufferAttribute(data.along, 1));
+    g.setIndex(new BufferAttribute(data.index, 1));
+    g.computeBoundingSphere();
+    return g;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
+  }, [key]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  const material = useMemo(shimmerMaterial, []);
+  useEffect(() => () => material.dispose(), [material]);
+  const since = useRef(-delayMs / 1000);
+  const still = prefersReducedMotion();
+  useEffect(() => invalidate(), [invalidate]);
+  useFrame((_, delta) => {
+    if (still) return;
+    since.current += Math.min(delta, 1 / 20);
+    const u = material.uniforms;
+    u.uTime.value = Math.max(since.current, 0);
+    u.uFade.value = Math.min(Math.max(since.current / 0.4, 0), 1);
+    invalidate();
+  });
+  if (still) return null;
+  return (
+    <mesh
+      geometry={geometry}
+      material={material}
+      renderOrder={LAYER.trace + 0.2}
+      raycast={noRaycast}
+      frustumCulled={false}
+    />
   );
 };
 
@@ -760,11 +892,29 @@ const crownGeometry = new CylinderGeometry(CROWN_R, CROWN_R * 0.92, CROWN_H, 64,
   0,
 );
 const KING_TOP = pieceTop(pieceSet(), PieceType.King) * PIECE_SCALE;
+/** How far the crown floats over the king's cross, wherever he is lifted to. */
+const CROWN_GAP = 0.06;
 /**
- * Over the cross with the king held up (Board lifts a held piece 0.05 above
- * its hover height, piece.hoverLift in settings-pieces.ts), and a little air.
+ * The lift group Board raises the piece standing at `floor` with (the kit's
+ * Lift, tagged userData.lift), found in the scene once.
  */
-const crownHeight = (hoverLift: number) => KING_TOP + (hoverLift + 0.05) * PIECE_SCALE + 0.035;
+const findLift = (scene: Object3D, floor: Vec3): Object3D | null => {
+  let found: Object3D | null = null;
+  scene.traverse((o) => {
+    if (found || !o.userData.lift) return;
+    o.getWorldPosition(at);
+    const dy = at.y - floor[1];
+    if (
+      Math.abs(at.x - floor[0]) < 0.05 &&
+      Math.abs(at.z - floor[2]) < 0.05 &&
+      dy > -0.05 &&
+      dy < 0.6
+    )
+      found = o;
+  });
+  return found;
+};
+const at = new Vector3();
 
 const crownMaterial = () =>
   new ShaderMaterial({
@@ -825,12 +975,25 @@ const Crown = ({ floor, mated, strength }: { floor: Vec3; mated: boolean; streng
   const since = useRef(0);
   const time = useRef(0);
   const fall = useRef(0);
-  const height = crownHeight(useDesignSetting<number>('piece.hoverLift') ?? 0.08);
+  const scene = useThree((s) => s.scene);
+  const liftScale = useDesignSetting<number>('piece.lift') ?? 1;
+  const lift = useRef<Object3D | null>(null);
+  const looked = useRef(0);
   const still = prefersReducedMotion();
-  useEffect(() => invalidate(), [mated, strength, height, invalidate]);
+  useEffect(() => invalidate(), [mated, strength, liftScale, invalidate]);
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 8);
     since.current += dt;
+    // The king's lift as it is drawn now (Board's Lift, as the lift setting
+    // scales it: liftFor in pieces.tsx), so the crown rides at one small gap
+    // over his cross however high he is lifted
+    if (!lift.current?.parent && since.current - looked.current > 0.5) {
+      looked.current = since.current;
+      lift.current = findLift(scene, floor);
+    }
+    const y = lift.current?.parent ? Math.max(lift.current.position.y, 0) : 0;
+    const raised = liftFor(y, liftScale) * PIECE_SCALE;
+    const height = KING_TOP + CROWN_GAP + raised;
     if (mated) fall.current = Math.min(1, fall.current + dt / SETTLE_S);
     else if (!still) time.current += dt;
     const f = 1 - (1 - fall.current) ** 2;
@@ -854,7 +1017,7 @@ const Crown = ({ floor, mated, strength }: { floor: Vec3; mated: boolean; streng
   });
   return (
     <group position={floor}>
-      <group ref={spin} position={[0, height, 0]}>
+      <group ref={spin} position={[0, KING_TOP + CROWN_GAP, 0]}>
         <mesh
           geometry={crownGeometry}
           material={material}
@@ -866,13 +1029,13 @@ const Crown = ({ floor, mated, strength }: { floor: Vec3; mated: boolean; streng
   );
 };
 
-// The blades: four tall slivers of red light rising from the points of the
+// The blades: four tall slivers of red light with a hot white heart rising from the points of the
 // crown round the king (after Codex), each turned to face the viewer, a slow
 // shimmer climbing them in turn. They shoot up past their height when check
 // arrives and settle; at mate they fold down.
 const BLADE_R = FOOT_RING + 0.01 + 0.085;
-const BLADE_H = 0.42;
-const BLADE_W = 0.085;
+const BLADE_H = 0.55;
+const BLADE_W = 0.12;
 
 const bladeGeometry = (() => {
   const g = new BufferGeometry();
@@ -914,6 +1077,7 @@ const bladeMaterial = () =>
       uTime: { value: 0 },
       uFlare: { value: 0 },
       uGrow: { value: 0 },
+      uHot: { value: new Color('#ffe2dc') },
       uHeight: { value: BLADE_H },
       uWidth: { value: BLADE_W / 2 },
     },
@@ -940,6 +1104,7 @@ const bladeMaterial = () =>
       uniform vec3 uColor;
       uniform float uTime;
       uniform float uFlare;
+      uniform vec3 uHot;
       varying vec2 vUv;
       varying float vPhase;
       void main() {
@@ -949,11 +1114,14 @@ const bladeMaterial = () =>
         float x = abs(vUv.x) / max(hw, 1e-3);
         if (x > 1.0) discard;
         float core = exp(-x * x * 9.0) + 0.35 * exp(-x * x * 1.6);
+        // A hot, near-white heart down the middle, so they stand out even
+        // against the red king
+        float heart = exp(-x * x * 40.0) * (1.0 - 0.7 * h);
         // The slow shimmer climbing each blade in turn
         float band = fract(uTime / 2.6 + vPhase);
         float shimmer = exp(-pow((h - band * 1.3 + 0.15) / 0.14, 2.0));
-        float a = core * mix(1.0, 0.3, h) * (0.85 + 0.8 * shimmer + 2.2 * uFlare);
-        gl_FragColor = vec4(uColor * a, a);
+        float a = 1.8 * core * mix(1.0, 0.3, h) * (0.85 + 0.8 * shimmer + 2.2 * uFlare);
+        gl_FragColor = vec4(mix(uColor, uHot, heart) * a, a);
         #include <colorspace_fragment>
       }`,
   });
@@ -1016,6 +1184,7 @@ export const Check = ({ floor, mated = false }: MarkerProps) => {
         opacity={0.95}
         growMs={0}
         pulse={strength}
+        loud={!crown}
         animate
         settle={mated}
         renderOrder={LAYER.marker + 0.2}
