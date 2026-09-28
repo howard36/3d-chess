@@ -21,8 +21,17 @@ import { PieceType } from '../../../engine/pieces';
 import { PROFILES } from '../../pieces';
 import { CLARITY_TOWER_DEFAULTS } from '../kit/layouts';
 import { noRaycast } from '../kit/noRaycast';
-import { SLAB, TOPS, TOWER_MASK } from './mask';
-import { FRAME, GROUND_Y, layout, MARGIN, PALETTE, PIECE_SCALE } from './palette';
+import {
+  SHADE_WIDTH,
+  shadeAt,
+  shadeUniforms,
+  shadeViewport,
+  shadeWidth,
+  TOWER_SHADE,
+  towerOutlineOnScreen,
+  updateTowerOutline,
+} from './mask';
+import { GROUND_Y, layout, PALETTE } from './palette';
 import { Details } from './details';
 import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
@@ -41,10 +50,11 @@ import { useEnvSetting } from './settings-env';
 // feet, and the ground gives back a faint, soft reflection. The tubes are
 // dim and join by taking the brighter (never summed), so no knot of light
 // outshines the board. Two flank the tower in the opening view, and every
-// side has one or two; a sculpture nearing the tower on screen dims by
-// degrees and slips behind it into shade, and the board's lines behind the
-// tower are held down to nothing (mask.ts). Overhead, stars and chess
-// constellations for a camera that looks up (heavens.tsx). Nothing moves.
+// side has one or two. Everything here sinks into the tower's shade near it
+// on screen, a smooth gradient darkest over the tower's glass (mask.ts), so
+// a sculpture nearing the tower darkens steadily and slips behind it with no
+// edge anywhere. Overhead, stars and chess constellations for a camera that
+// looks up (heavens.tsx). Nothing moves.
 
 // --- The night sky ------------------------------------------------------------------
 
@@ -150,7 +160,7 @@ const groundFragment = /* glsl */ `
   uniform vec2 uClear;
   varying vec2 vP;
   varying vec3 vWorld;
-  ${TOWER_MASK}
+  ${TOWER_SHADE}
   void main() {
     vec3 view = normalize(vWorld - cameraPosition);
     float r = length(vP);
@@ -181,8 +191,8 @@ const groundFragment = /* glsl */ `
     // nothing at all where the tower stands in front of it
     float clear = smoothstep(uClear.x, uClear.y, r);
     float far = 1.0 - smoothstep(40.0, 110.0, dist);
-    // Per pixel, as the mask hugs the tower's own outline
-    float hidden = 1.0 - towerCover(vWorld);
+    // Into the tower's shade (mask.ts)
+    float hidden = 1.0 - towerShade();
     float lit = (line * 0.04 + lightSq * 0.004) * uBoard * clear * far * hidden;
     // Polished: toward the horizon it gives back the mist
     float fresnel = pow(1.0 - abs(view.y), 5.0);
@@ -202,6 +212,7 @@ const Ground = () => {
           uGround: { value: new Color(PALETTE.ground) },
           uLine: { value: new Color(PALETTE.neon) },
           uBoard: { value: 1 },
+          ...shadeUniforms(),
           uHorizon: { value: new Color(PALETTE.skyHorizon) },
           uSquare: { value: SQUARE },
           uClear: { value: [...CLEAR] },
@@ -298,9 +309,7 @@ const neonGeometry = (): BufferGeometry => {
   const tangent: number[] = [];
   const side: number[] = [];
   const mode: number[] = [];
-  const place: number[] = [];
   const index: number[] = [];
-  let current = 0;
   const addCurve = (
     at: [number, number, number],
     pts: [number, number, number][],
@@ -320,7 +329,6 @@ const neonGeometry = (): BufferGeometry => {
         tangent.push(t[0] / l, t[1] / l, t[2] / l);
         side.push(s);
         mode.push(fixed ? 1 : 0);
-        place.push(current);
       }
     }
     const segments = closed ? n : n - 1;
@@ -330,8 +338,7 @@ const neonGeometry = (): BufferGeometry => {
       index.push(a, a + 1, b, b, a + 1, b + 1);
     }
   };
-  GARDEN.forEach(({ type, at }, i) => {
-    current = i;
+  GARDEN.forEach(({ type, at }) => {
     const drawing = sculptureOf(type);
     for (const o of drawing.outlines) {
       addCurve(
@@ -359,36 +366,20 @@ const neonGeometry = (): BufferGeometry => {
   g.setAttribute('aTangent', new BufferAttribute(new Float32Array(tangent), 3));
   g.setAttribute('aSide', new BufferAttribute(new Float32Array(side), 1));
   g.setAttribute('aMode', new BufferAttribute(new Float32Array(mode), 1));
-  g.setAttribute('aPlace', new BufferAttribute(new Float32Array(place), 1));
   g.setIndex(index);
   return g;
 };
 
 // --- Behind the tower ------------------------------------------------------------------
 
-/**
- * How much of each sculpture the tower hides from the camera, 0 to 1, one
- * value per place, written every frame. A sculpture dims as a whole (with
- * its reflection and mist) as its outline on screen nears the tower's, the
- * level letters beside it included: gently from well before the two touch
- * (FADE_NDC), to about two thirds as they do, then, as it slips behind, by
- * the share of it the tower covers. On top of that, whatever part of it
- * lies over the tower's glass on screen is held down to nothing with a soft
- * edge (TOWER_SCREEN), so a sculpture half behind the tower is a dim half
- * beside it, and no line of it ever shows through the glass.
+/*
+ * The sculptures, their mist and reflections, like the colossal board and
+ * the stars, sink into the tower's shade (mask.ts): a smooth screen-space
+ * gradient, darkest over the tower's glass and easing out to nothing a set
+ * distance from it ("Fade near the tower"), so a sculpture nearing the tower
+ * darkens steadily, side nearest the tower first, and slips behind it into
+ * the dark with no edge or line anywhere.
  */
-const covers = { value: GARDEN.map(() => 0) };
-/** The most corners the tower's outline on screen can have. */
-const HULL_MAX = 12;
-/**
- * The tower's own outline on screen (TOWER_SCREEN): the convex hull of its
- * platforms and top pieces (mask.ts), up to 12 corners (NDC, x scaled by
- * the aspect), counterclockwise, the first repeated after the last.
- */
-const towerHull = { value: Array.from({ length: HULL_MAX + 1 }, () => new Vector2()) };
-const towerHullCount = { value: 0 };
-/** The drawing buffer's size in pixels and its aspect, to find NDC per fragment. */
-const viewport = { value: new Vector3(1, 1, 1) };
 /** The player's sculpture brightness (settings-env.ts). */
 const brightness = { value: 1 };
 /**
@@ -399,29 +390,6 @@ const brightness = { value: 1 };
  */
 const gardenTurn = { value: 1 };
 
-/** The platforms' own square (the letters and numbers round it: MARGIN_NDC). */
-const TOWER_HALF = FRAME.half + MARGIN;
-const TOWER_Y: [number, number] = [
-  FRAME.levelY[0] - 0.1,
-  FRAME.levelY[4] + (0.87 + 0.14) * PIECE_SCALE + 0.1,
-];
-/** Room round the tower's outline on screen for its labels (NDC, height units). */
-const MARGIN_NDC = 0.06;
-/**
- * How far outside that a sculpture starts to dim (NDC, height units, at the
- * default fade): wide, so the fade reads as the sculpture drifting into the
- * tower's shade rather than switching off.
- */
-export const FADE_NDC = 0.3;
-/** How bright a sculpture still is as its outline touches the tower's. */
-const TOUCH_LIGHT = 0.7;
-/** The share of a sculpture behind the tower by which it has dimmed away. */
-const FADE_OVER = 0.9;
-/** Smoothstep on 0–1, clamped. */
-const smooth = (x: number) => {
-  const k = Math.min(Math.max(x, 0), 1);
-  return k * k * (3 - 2 * k);
-};
 const corner = new Vector3();
 const right = new Vector3();
 interface Rect {
@@ -446,203 +414,92 @@ const rectOf = (camera: Camera, points: [number, number, number][], aspect: numb
   }
   return r;
 };
-const TOWER_POINTS = [-1, 1].flatMap((sx) =>
-  [-1, 1].flatMap((sz) =>
-    TOWER_Y.map((y): [number, number, number] => [sx * TOWER_HALF, y, sz * TOWER_HALF]),
-  ),
-);
-const SIZES = GARDEN.map(({ type, at }) => {
-  const height = sculptureOf(type).top * SCALE;
-  return {
-    at,
-    radius: PROFILES.radius[type] * SCALE,
-    // The reflection's brighter upper part belongs to it too
-    ys: [GROUND_Y - 0.35 * height, GROUND_Y + height],
-  };
-});
+const SIZES = GARDEN.map(({ type, at }) => ({
+  at,
+  radius: PROFILES.radius[type] * SCALE,
+  height: sculptureOf(type).top * SCALE,
+}));
 
 /**
- * How each sculpture stands on screen: how much the tower hides it, and how
- * much of it is in frame.
+ * How each sculpture stands on screen: how much the tower's shade darkens
+ * it, and how much of it is in frame.
  */
 export interface SculptureView {
-  /** 0 clear of the tower (and its labels), 1 faded out. */
+  /** The tower's shade over the sculpture, on average: 0 clear, 1 dark. */
   cover: number;
   /** Share of the sculpture's screen rectangle inside the frame, 0–1. */
   inFrame: number;
 }
 
-/** The tower's screen rectangle, labels included (null when it is not wholly in front). */
-export const towerOnScreen = (camera: Camera, aspect: number): Rect | null => {
-  camera.updateMatrixWorld();
-  const t = rectOf(camera, TOWER_POINTS, aspect);
-  if (!t.seen) return null;
-  return {
-    x0: t.x0 - MARGIN_NDC,
-    x1: t.x1 + MARGIN_NDC,
-    y0: t.y0 - MARGIN_NDC,
-    y1: t.y1 + MARGIN_NDC,
-    seen: true,
-  };
-};
-
-const cornersAt = (half: number, y: number): [number, number, number][] =>
-  [-1, 1].flatMap((sx) => [-1, 1].map((sz): [number, number, number] => [sx * half, y, sz * half]));
-/** The tower as it stands: its platforms and the pieces on its top level (mask.ts). */
-const SILHOUETTE = [
-  ...cornersAt(SLAB.half, SLAB.y[0]),
-  ...cornersAt(SLAB.half, SLAB.y[1]),
-  ...cornersAt(TOPS.half, TOPS.y[1]),
-];
-type P2 = [number, number];
-const cross = (o: P2, a: P2, b: P2) =>
-  (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-
 /**
- * The tower's real outline on screen: the convex hull of its platforms and
- * top pieces (NDC, x scaled by the aspect), counterclockwise; null when it
- * is not wholly in front of the camera.
- */
-export const towerHullOnScreen = (camera: Camera, aspect: number): P2[] | null => {
-  camera.updateMatrixWorld();
-  const pts: P2[] = [];
-  for (const [x, y, z] of SILHOUETTE) {
-    corner.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
-    if (corner.z > -0.1) return null;
-    corner.applyMatrix4(camera.projectionMatrix);
-    pts.push([corner.x * aspect, corner.y]);
-  }
-  // Andrew's monotone chain
-  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const half = (list: P2[]) => {
-    const out: P2[] = [];
-    for (const p of list) {
-      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop();
-      out.push(p);
-    }
-    out.pop();
-    return out;
-  };
-  return [...half(pts), ...half([...pts].reverse())];
-};
-
-/** Whether a point lies inside a counterclockwise convex outline. */
-const insideHull = (hull: P2[], p: P2) =>
-  hull.every((a, i) => cross(a, hull[(i + 1) % hull.length], p) >= 0);
-
-/** The share of a screen rectangle inside the tower's outline, sampled on a grid. */
-const shareInside = (hull: P2[], r: Rect) => {
-  const n = 7;
-  let hits = 0;
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j < n; j++) {
-      const p: P2 = [
-        r.x0 + ((i + 0.5) / n) * (r.x1 - r.x0),
-        r.y0 + ((j + 0.5) / n) * (r.y1 - r.y0),
-      ];
-      if (insideHull(hull, p)) hits++;
-    }
-  }
-  return hits / (n * n);
-};
-
-/**
- * Every sculpture's cover and framing for a camera (pure, for tests and the
- * sweep). `fade` widens (above 1) or narrows the dimming before the tower;
- * `turn` is -1 when the garden is turned about for Black (gardenTurn).
+ * Every sculpture's shade and framing for a camera (pure, for tests and the
+ * sweep). `fade` scales the shade's width (the setting); `turn` is -1 when
+ * the garden is turned about for Black (gardenTurn).
  */
 export const gardenView = (camera: Camera, aspect: number, fade = 1, turn = 1): SculptureView[] => {
-  const t = towerOnScreen(camera, aspect);
-  const hull = towerHullOnScreen(camera, aspect);
+  const hull = towerOutlineOnScreen(camera, aspect);
   right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
-  return SIZES.map(({ at: home, radius, ys }) => {
+  return SIZES.map(({ at: home, radius, height }) => {
     const at = [home[0] * turn, home[1], home[2] * turn];
     // The sculpture as it faces the camera: its axis, as wide as its base
-    const around = (heights: number[]) =>
+    const body = rectOf(
+      camera,
       [-1, 1].flatMap((s) =>
-        heights.map((y): [number, number, number] => [
+        [GROUND_Y, GROUND_Y + height].map((y): [number, number, number] => [
           at[0] + right.x * radius * s,
           y,
           at[2] + right.z * radius * s,
         ]),
-      );
-    const r = rectOf(camera, around(ys), aspect);
-    if (!r.seen || !t) return { cover: 0, inFrame: 0 };
-    // Nearing the tower (its rectangle on screen, labels included) it dims
-    // by degrees, to TOUCH_LIGHT as the two touch; passing behind the tower
-    // itself (its real outline, not the rectangle), the share of it the
-    // tower covers fades what is left (and the part over the tower is held
-    // down further, per pixel)
-    const ox = Math.min(r.x1, t.x1) - Math.max(r.x0, t.x0);
-    const oy = Math.min(r.y1, t.y1) - Math.max(r.y0, t.y0);
-    const gap = Math.hypot(Math.max(-ox, 0), Math.max(-oy, 0));
-    const near = smooth(1 - gap / (FADE_NDC * fade));
-    const over = hull ? smooth(shareInside(hull, r) / FADE_OVER) : 0;
-    const light = (1 - (1 - TOUCH_LIGHT) * near) * (1 - over);
-    // In frame: the sculpture itself, above the ground
-    const body = rectOf(camera, around([GROUND_Y, ys[1]]), aspect);
+      ),
+      aspect,
+    );
+    if (!body.seen) return { cover: 0, inFrame: 0 };
+    // The shade, sampled over the sculpture
+    let shade = 0;
+    const n = 5;
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        shade += shadeAt(
+          hull,
+          [
+            body.x0 + ((i + 0.5) / n) * (body.x1 - body.x0),
+            body.y0 + ((j + 0.5) / n) * (body.y1 - body.y0),
+          ],
+          SHADE_WIDTH * fade,
+        );
+      }
+    }
     const w = Math.max(body.x1 - body.x0, 1e-6);
     const h = Math.max(body.y1 - body.y0, 1e-6);
     const ix = Math.max(0, Math.min(body.x1, aspect) - Math.max(body.x0, -aspect));
     const iy = Math.max(0, Math.min(body.y1, 1) - Math.max(body.y0, -1));
-    return { cover: 1 - light, inFrame: (ix * iy) / (w * h) };
+    return { cover: shade / (n * n), inFrame: (ix * iy) / (w * h) };
   });
 };
 
 const drawingBuffer = new Vector2();
-const TowerCovers = ({ turn }: { turn: number }) => {
+/**
+ * Every frame, the tower's outline on screen for the shade (mask.ts), and
+ * the garden's settings into its uniforms.
+ */
+const GardenUniforms = ({ turn }: { turn: number }) => {
   const fade = useEnvSetting<number>('env.sculptureFade');
   const bright = useEnvSetting<number>('env.sculptures');
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     brightness.value = bright;
     gardenTurn.value = turn;
+    shadeWidth.value = SHADE_WIDTH * fade;
     invalidate();
   }, [bright, fade, turn, invalidate]);
   useFrame(({ camera, size, gl }) => {
     const aspect = size.width / Math.max(size.height, 1);
-    const view = gardenView(camera, aspect, fade, turn);
-    view.forEach(({ cover }, i) => {
-      covers.value[i] = cover;
-    });
-    // The tower's own outline, for the hard part of the mask
-    const hull = towerHullOnScreen(camera, aspect) ?? [];
-    hull.forEach(([x, y], i) => towerHull.value[i].set(x, y));
-    if (hull.length) towerHull.value[hull.length].set(hull[0][0], hull[0][1]);
-    towerHullCount.value = hull.length;
+    updateTowerOutline(camera, aspect);
     gl.getDrawingBufferSize(drawingBuffer);
-    viewport.value.set(drawingBuffer.x, drawingBuffer.y, aspect);
+    shadeViewport.value.set(drawingBuffer.x, drawingBuffer.y, aspect);
   });
   return null;
 };
-
-/**
- * GLSL: `float towerScreen()`, 1 where this fragment lies over the tower
- * itself on screen (its real outline: towerHull), easing to 0 across a
- * narrow soft band round it.
- */
-const TOWER_SCREEN = /* glsl */ `
-  uniform vec2 uHull[${HULL_MAX + 1}];
-  uniform float uHullCount;
-  uniform vec3 uViewport;
-  float towerScreen() {
-    if (uHullCount < 3.0) return 0.0;
-    vec2 p = gl_FragCoord.xy / uViewport.xy * 2.0 - 1.0;
-    p.x *= uViewport.z;
-    // Signed distance to the convex outline: inside is left of every edge
-    float d = 1e3;
-    bool inside = true;
-    for (int i = 0; i < ${HULL_MAX}; i++) {
-      if (float(i) >= uHullCount) break;
-      vec2 a = uHull[i];
-      vec2 e = uHull[i + 1] - a;
-      vec2 w = p - a;
-      if (e.x * w.y - e.y * w.x < 0.0) inside = false;
-      float t = clamp(dot(w, e) / max(dot(e, e), 1e-8), 0.0, 1.0);
-      d = min(d, length(w - e * t));
-    }
-    return 1.0 - smoothstep(-0.03, 0.03, inside ? -d : d);
-  }`;
 
 const neonVertex = /* glsl */ `
   uniform float uWidth;
@@ -653,10 +510,7 @@ const neonVertex = /* glsl */ `
   attribute vec3 aTangent;
   attribute float aSide;
   attribute float aMode;
-  attribute float aPlace;
-  uniform float uCover[${GARDEN.length}];
   varying float vAcross;
-  varying float vCover;
   varying float vDepth;
   varying float vRing;
   void main() {
@@ -682,8 +536,6 @@ const neonVertex = /* glsl */ `
       p.y = 2.0 * uGround - p.y;
       t.y = -t.y;
     }
-    // The whole sculpture dims together, never sliced by the tower
-    vCover = uCover[int(aPlace + 0.5)];
     // Widened across the view, so every tube reads the same from any side
     vec3 v = normalize(cameraPosition - p);
     vec3 s = cross(t, v);
@@ -704,10 +556,9 @@ const neonFragment = /* glsl */ `
   uniform float uBoost;
   uniform float uBright;
   varying float vAcross;
-  varying float vCover;
   varying float vDepth;
   varying float vRing;
-  ${TOWER_SCREEN}
+  ${TOWER_SHADE}
   void main() {
     float a = abs(vAcross);
     float fw = max(fwidth(vAcross), 1e-5);
@@ -719,7 +570,8 @@ const neonFragment = /* glsl */ `
     float light = (core + halo) * uIntensity * uBright * (1.0 + uBoost) * (1.0 - 0.3 * vRing);
     // A reflection fades with its depth under the polished ground
     light *= uFade > 0.0 ? exp(-vDepth / uFade) : 1.0;
-    light *= (1.0 - vCover) * (1.0 - 0.94 * towerScreen());
+    // Into the tower's shade, steadily, nearest the tower darkest
+    light *= 1.0 - towerShade();
     if (light < 0.001) discard;
     gl_FragColor = vec4(uColor * light, 1.0);
     #include <colorspace_fragment>
@@ -747,11 +599,8 @@ const neonMaterial = (o: {
     blendDst: OneFactor,
     uniforms: {
       uColor: { value: new Color(PALETTE.neon) },
-      uCover: covers,
+      ...shadeUniforms(),
       uBright: brightness,
-      uHull: towerHull,
-      uHullCount: towerHullCount,
-      uViewport: viewport,
       uTurn: gardenTurn,
       uWidth: { value: o.width },
       uCore: { value: o.core },
@@ -800,7 +649,7 @@ const Sculptures = ({ turn }: { turn: number }) => {
   );
   return (
     <group name="monolith-garden">
-      <TowerCovers turn={turn} />
+      <GardenUniforms turn={turn} />
       <mesh
         geometry={geometry}
         material={reflection}
@@ -825,7 +674,6 @@ const mistGeometry = (): BufferGeometry => {
   const anchor: number[] = [];
   const corner: number[] = [];
   const size: number[] = [];
-  const places: number[] = [];
   const index: number[] = [];
   GARDEN.forEach(({ at }, i) => {
     for (const [cx, cy] of [
@@ -837,7 +685,6 @@ const mistGeometry = (): BufferGeometry => {
       anchor.push(...at);
       corner.push(cx, cy, 0);
       size.push(SCALE * 0.62, SCALE * 0.16);
-      places.push(i);
     }
     const b = i * 4;
     index.push(b, b + 1, b + 2, b, b + 2, b + 3);
@@ -846,7 +693,6 @@ const mistGeometry = (): BufferGeometry => {
   g.setAttribute('position', new BufferAttribute(new Float32Array(corner), 3));
   g.setAttribute('aAnchor', new BufferAttribute(new Float32Array(anchor), 3));
   g.setAttribute('aSize', new BufferAttribute(new Float32Array(size), 2));
-  g.setAttribute('aPlace', new BufferAttribute(new Float32Array(places), 1));
   g.setIndex(index);
   return g;
 };
@@ -862,28 +708,21 @@ const Mist = () => {
         uniforms: {
           uColor: { value: new Color(PALETTE.mist) },
           uBoost: gardenBoost,
-          uCover: covers,
+          ...shadeUniforms(),
           uBright: brightness,
-          uHull: towerHull,
-          uHullCount: towerHullCount,
-          uViewport: viewport,
           uTurn: gardenTurn,
         },
         vertexShader: /* glsl */ `
           uniform float uTurn;
           attribute vec3 aAnchor;
           attribute vec2 aSize;
-          attribute float aPlace;
-          uniform float uCover[${GARDEN.length}];
           varying vec2 vC;
-          varying float vCover;
           void main() {
             vec3 anchor = vec3(aAnchor.x * uTurn, aAnchor.y, aAnchor.z * uTurn);
             vec2 h = normalize((cameraPosition - anchor).xz + vec2(1e-5, 0.0));
             vec3 right = vec3(h.y, 0.0, -h.x);
             vec3 p = anchor + right * position.x * aSize.x + vec3(0.0, position.y * aSize.y, 0.0);
             vC = position.xy;
-            vCover = uCover[int(aPlace + 0.5)];
             gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
           }`,
         fragmentShader: /* glsl */ `
@@ -891,12 +730,11 @@ const Mist = () => {
           uniform float uBoost;
           uniform float uBright;
           varying vec2 vC;
-          varying float vCover;
-          ${TOWER_SCREEN}
+          ${TOWER_SHADE}
           void main() {
             float m = exp(-dot(vC * vec2(2.0, 2.6), vC * vec2(2.0, 2.6)));
-            float a = m * 0.075 * (1.0 + 0.6 * uBoost) * (1.0 - vCover);
-            a *= min(uBright, 1.4) * (1.0 - 0.94 * towerScreen());
+            float a = m * 0.075 * (1.0 + 0.6 * uBoost) * min(uBright, 1.4);
+            a *= 1.0 - towerShade();
             if (a < 0.001) discard;
             gl_FragColor = vec4(uColor * a, 1.0);
             #include <colorspace_fragment>

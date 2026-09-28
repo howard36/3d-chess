@@ -11,7 +11,7 @@ import {
 } from 'three';
 import { noRaycast } from '../kit/noRaycast';
 import { rng } from '../kit/textures';
-import { TOWER_MASK } from './mask';
+import { shadeUniforms, TOWER_SHADE } from './mask';
 import { PALETTE } from './palette';
 
 // A touch that rewards a look up: now and then (a minute or so apart) a
@@ -51,12 +51,12 @@ const meteorFragment = /* glsl */ `
   uniform float uLight;
   varying float vAlong;
   varying vec3 vWorld;
-  ${TOWER_MASK}
+  ${TOWER_SHADE}
   void main() {
     // Brightest at the head, thinning out along the tail behind it
     float behind = uHead - vAlong;
     float tail = behind < 0.0 ? 0.0 : pow(1.0 - clamp(behind / ${METEOR_TAIL.toFixed(2)}, 0.0, 1.0), 2.2);
-    float light = tail * uLight * (1.0 - towerCover(vWorld));
+    float light = tail * uLight * (1.0 - towerShade());
     if (light < 0.002) discard;
     gl_FragColor = vec4(uColor * light, 1.0);
     #include <colorspace_fragment>
@@ -90,6 +90,7 @@ const ShootingStar = () => {
       depthWrite: false,
       blending: AdditiveBlending,
       uniforms: {
+        ...shadeUniforms(),
         uFrom: { value: new Vector3(0, 1, 0) },
         uTo: { value: new Vector3(0, 1, 0) },
         uColor: { value: new Color(PALETTE.neon) },

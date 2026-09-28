@@ -10,7 +10,7 @@ import {
 } from 'three';
 import { noRaycast } from '../kit/noRaycast';
 import { rng } from '../kit/textures';
-import { TOWER_MASK } from './mask';
+import { shadeUniforms, TOWER_SHADE } from './mask';
 import { PALETTE } from './palette';
 
 // The night overhead. A sparse field of faint stars thins out toward the
@@ -255,11 +255,11 @@ const pointFragment = /* glsl */ `
   varying float vBright;
   varying vec3 vColor;
   varying vec3 vWorld;
-  ${TOWER_MASK}
+  ${TOWER_SHADE}
   void main() {
     vec2 p = gl_PointCoord * 2.0 - 1.0;
     float r = length(p);
-    float a = (1.0 - smoothstep(0.3, 1.0, r)) * vBright * uOpacity * (1.0 - towerCover(vWorld));
+    float a = (1.0 - smoothstep(0.3, 1.0, r)) * vBright * uOpacity * (1.0 - towerShade());
     if (a < 0.003) discard;
     gl_FragColor = vec4(vColor * a, 1.0);
     #include <colorspace_fragment>
@@ -277,9 +277,9 @@ const lineFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uOpacity;
   varying vec3 vWorld;
-  ${TOWER_MASK}
+  ${TOWER_SHADE}
   void main() {
-    float a = uOpacity * (1.0 - towerCover(vWorld));
+    float a = uOpacity * (1.0 - towerShade());
     if (a < 0.003) discard;
     gl_FragColor = vec4(uColor * a, 1.0);
     #include <colorspace_fragment>
@@ -366,7 +366,7 @@ const pointMaterial = (opacity: number) =>
     depthWrite: false,
     transparent: true,
     blending: AdditiveBlending,
-    uniforms: { uDpr: { value: 1 }, uOpacity: { value: opacity } },
+    uniforms: { uDpr: { value: 1 }, uOpacity: { value: opacity }, ...shadeUniforms() },
     vertexShader: pointVertex,
     fragmentShader: pointFragment,
   });
@@ -386,6 +386,7 @@ export const Heavens = ({ stars, figures }: { stars: boolean; figures: boolean }
         transparent: true,
         blending: AdditiveBlending,
         uniforms: {
+          ...shadeUniforms(),
           uColor: { value: new Color(PALETTE.neon) },
           uOpacity: { value: 0.065 },
         },
