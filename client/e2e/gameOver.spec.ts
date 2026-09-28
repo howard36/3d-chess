@@ -16,12 +16,16 @@ test('a finished game shows the result and lets both players start over', async 
   const game = await startGame(browser);
   await game.playAll(MATE);
 
-  for (const page of [game.white, game.black]) {
-    await expect(page.getByText('Black wins by checkmate!')).toBeVisible();
-    // The turn chip gives the result too
-    const chip = page.getByTestId('turn-indicator');
-    await expect(chip).toHaveText('Checkmate · Black wins');
-    await expect(chip).toHaveAttribute('data-result', 'checkmate');
+  // Each is told the result from their own side, in the dialog and the pill
+  for (const [page, verdict] of [
+    [game.white, 'You lose'],
+    [game.black, 'You win'],
+  ] as const) {
+    await expect(page.getByRole('dialog', { name: verdict })).toBeVisible();
+    const pill = page.getByTestId('turn-indicator');
+    await expect(pill).toHaveAttribute('data-result', 'checkmate');
+    await expect(pill).toHaveAttribute('data-winner', 'black');
+    await expect(pill).toContainText(`Checkmate · ${verdict.toLowerCase()}`);
   }
 
   const oldUrl = game.white.url();
@@ -34,7 +38,7 @@ test('a finished game shows the result and lets both players start over', async 
     // moment and make sure the page is still there and the old game is gone.
     await page.waitForTimeout(1000);
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByText('Black wins by checkmate!')).toHaveCount(0);
+    await expect(page.getByTestId('end-game')).toHaveCount(0);
   }
 
   // The session is fresh: creating a game from here starts a new one.

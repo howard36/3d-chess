@@ -4,15 +4,16 @@ import type { Orientation } from '../../src/three/layout';
 export type { Orientation };
 
 /**
- * Reads which colour a page is seated as, from the in-game indicator.
- * The creator's colour is random, so tests must discover it rather than
- * assume it.
+ * Reads which colour a page is seated as, from the turn pill (its seat,
+ * `data-seat`). The creator's colour is random, so tests must discover it
+ * rather than assume it.
  */
 export async function getPlayerColor(page: Page): Promise<Orientation> {
-  const label = await page.locator('text=/You are playing as/').textContent();
-  const match = label?.match(/as (white|black)/);
-  if (!match) throw new Error(`Could not read player colour from "${label}"`);
-  return match[1] as Orientation;
+  const seat = await page.getByTestId('seat').getAttribute('data-seat');
+  if (seat !== 'white' && seat !== 'black') {
+    throw new Error(`Could not read player colour from data-seat="${seat}"`);
+  }
+  return seat;
 }
 
 /**

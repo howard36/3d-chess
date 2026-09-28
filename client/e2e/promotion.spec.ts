@@ -29,14 +29,14 @@ test('a promoting pawn lets the player pick the piece', async ({ browser }) => {
     'Cancel',
   ]);
   // Nothing is sent until a piece is picked
-  await expect(game.white.getByText('White to move')).toBeVisible();
+  await expect(game.white.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
   await game.screenshot('promotion-picker', 'white');
 
   await dialog.getByRole('button', { name: 'Unicorn' }).click();
   await expect(dialog).toHaveCount(0);
   for (const page of [game.white, game.black]) {
-    await expect(page.getByText('Black to move')).toBeVisible();
-    await expect(page.getByTestId('move-list')).toContainText('Da4–Ea5=U');
+    await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
+    await expect(page.getByTestId('move-announcer')).toHaveAttribute('data-last-move', 'Da4-Ea5=U');
   }
 
   await game.close();

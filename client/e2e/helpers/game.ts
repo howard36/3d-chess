@@ -81,6 +81,13 @@ export async function startGame(browser: Browser): Promise<Game> {
       const passed = `[data-testid="turn-indicator"]:is([data-turn="${next}"], [data-result])`;
       await expect(seats.white.locator(passed)).toBeVisible();
       await expect(seats.black.locator(passed)).toBeVisible();
+      // ...and both were told of this very move (the screen reader's announcement)
+      for (const page of [seats.white, seats.black]) {
+        await expect(page.getByTestId('move-announcer')).toHaveAttribute(
+          'data-last-move',
+          new RegExp(`^${from}-${to}(=[QRBNU])?$`),
+        );
+      }
     },
     playAll: async (moves) => {
       for (const m of moves) {
