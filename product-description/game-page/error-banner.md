@@ -61,7 +61,7 @@ Every refusal of a request made on the game page ends up in the banner, with one
 
 - **Join** ("Join Game" on the join screen): "Cannot join" when the game does not exist or has expired, "Game full" when both seats are taken. The page also returns to the join screen. See [joining a game](../start/joining-a-game.md).
 - **Rejoin** (sent by the page itself whenever it has a [stored seat](../foundations/connection-and-seat.md#the-stored-seat)): "Cannot rejoin" when the game does not exist, "No such seat to rejoin" when the game exists but that color holds no seat in it. Before any snapshot has arrived, either one also deletes the stored seat and brings up the join screen; after that, the page stays where it is and the board takes no input until a reload. See [rejoining](../foundations/connection-and-seat.md#rejoining) and [reloading and returning](../session/reload-and-return.md).
-- **Move**: "Not your turn", after a very fast double click on a destination that sends the move twice, described in [making a move](../play/making-a-move.md#edge-cases). The board is released and the copy is not shown.
+- **Move**: "Not your turn" and the other move refusals are not expected from a correct client, which sends a move once however fast the clicks or taps (see [making a move](../play/making-a-move.md#edge-cases)). If one arrives, the board is released and the move is not shown.
 
 The exception is the refusal of an automatic rejoin because another tab of this browser holds the seat ("This game is open in another tab", [seat in use](../glossary.md#the-connection)). It is never shown in the banner; the page shows the replaced dialog instead.
 

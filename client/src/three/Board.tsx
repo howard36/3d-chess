@@ -129,6 +129,28 @@ const Board = (props: BoardProps) => {
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | Coord>(null);
   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
+  // The held piece as of now, not as of the last render: a move clears it at
+  // once, so nothing later in the same event (or before the next render) can
+  // play it again
+  const held = useRef<Coord | null>(null);
+  const choose = (coord: Coord | null, moves: Move[] = []) => {
+    held.current = coord;
+    setSelected(coord);
+    setLegalMoves(moves);
+  };
+  // One click, one action. r3f hands a click to every object under the
+  // pointer, nearest first, until one stops it, and the board's own group
+  // (the empty squares) hears it once for each square the ray crosses before
+  // it reaches a piece or destination behind them. So a piece or destination
+  // takes the click at once, and the group acts only after r3f is done, if
+  // nothing took it (a finger's tap once sent a capture three times).
+  const taken = useRef(new WeakSet<object>());
+  const take = (event: object | undefined) => {
+    if (!event) return true;
+    if (taken.current.has(event)) return false;
+    taken.current.add(event);
+    return true;
+  };
   // The piece under the pointer, which lifts.
   const [hovered, setHovered] = useState<string | null>(null);
   // The cell (or the piece on it) under the pointer: its destination marker
@@ -140,6 +162,7 @@ const Board = (props: BoardProps) => {
   // highlighted destination can't be sent as a move. Disabling the board
   // (reconnect in progress, broken replay) clears it for the same reason.
   React.useEffect(() => {
+    held.current = null;
     setSelected(null);
     setLegalMoves([]);
   }, [props.board, props.currentTurn, props.disabled]);
@@ -172,15 +195,12 @@ const Board = (props: BoardProps) => {
     }
     // A second click on the selected piece puts it back down
     if (selected && coordEquals(selected, coord)) {
-      setSelected(null);
-      setLegalMoves([]);
+      choose(null);
       return;
     }
     if (!canPick(coord)) return;
-    setSelected(coord);
-    // Directly call generateLegalMoves which already filters for checks
-    const actualLegalMoves = board.generateLegalMoves(coord);
-    setLegalMoves(actualLegalMoves);
+    // generateLegalMoves already filters out moves into check
+    choose(coord, board.generateLegalMoves(coord));
   };
 
   // A tap on a piece the player can act on (pick up, put down, capture) acts
@@ -208,7 +228,7 @@ const Board = (props: BoardProps) => {
           toZXY(cell),
           (e: ThreeEvent<MouseEvent>) => {
             e.stopPropagation();
-            if (isTap(e)) latestPieceTap.current(cell, e.nativeEvent);
+            if (isTap(e) && take(e.nativeEvent)) latestPieceTap.current(cell, e.nativeEvent);
           },
         ]),
       ),
@@ -236,20 +256,19 @@ const Board = (props: BoardProps) => {
 
   // Handle highlighted cube click (move application)
   const handleCubeClick = (targetCoord: Coord) => {
-    if (props.disabled || !selected) return;
+    if (props.disabled || !selected || !held.current) return;
     // Several legal moves share a destination only when a pawn promotes there
     // (one per promotion piece); otherwise there is exactly one.
     const choices = legalMoves.filter((m) => coordEquals(m.to, targetCoord));
     if (choices.length === 0) return; // Should not happen if cube is highlighted
 
+    // Put the piece down first, so the move cannot be played twice
+    choose(null);
     if (choices.length > 1 && props.onChoosePromotion) {
       props.onChoosePromotion(choices);
     } else if (props.onMove) {
       props.onMove(choices.find((m) => m.promotion === PieceType.Queen) ?? choices[0]);
     }
-    // Clear selection and highlights
-    setSelected(null);
-    setLegalMoves([]);
   };
 
   // Helper to check if a cube is a legal move destination
@@ -344,6 +363,16 @@ const Board = (props: BoardProps) => {
     });
   const actOn = ({ cell, kind }: AssistedTap) =>
     kind === 'destination' ? handleCubeClick(fromZXY(cell)) : handlePieceClick(fromZXY(cell));
+  // A click that reached nothing the player can act on
+  const handleEmptyTap = (event: MouseEvent | undefined) => {
+    const meant = assisted(event);
+    if (meant) actOn(meant);
+    else if (selected) choose(null);
+  };
+  const latestEmptyTap = useRef(handleEmptyTap);
+  useLayoutEffect(() => {
+    latestEmptyTap.current = handleEmptyTap;
+  });
 
   const onHoverCell = props.onHoverCell;
   const hoveredPiece = hoveredCell ? board.getPiece(fromZXY(hoveredCell)) : null;
@@ -372,20 +401,14 @@ const Board = (props: BoardProps) => {
         // board. A finger's tap goes first to anything actionable in reach.
         onClick={(e: ThreeEvent<MouseEvent>) => {
           if (!isTap(e)) return;
-          const meant = assisted(e.nativeEvent);
-          if (meant) actOn(meant);
-          else if (selected) {
-            setSelected(null);
-            setLegalMoves([]);
-          }
+          // After r3f has offered the click to everything behind this square
+          const event = e.nativeEvent;
+          queueMicrotask(() => {
+            if (take(event)) latestEmptyTap.current(event);
+          });
         }}
         onPointerMissed={(event: MouseEvent) => {
-          const meant = assisted(event);
-          if (meant) actOn(meant);
-          else if (selected) {
-            setSelected(null);
-            setLegalMoves([]);
-          }
+          if (take(event)) latestEmptyTap.current(event);
         }}
       >
         {/* Cell boxes: raycast targets for selecting a destination and for the
@@ -406,7 +429,7 @@ const Board = (props: BoardProps) => {
                 isDest
                   ? (e: ThreeEvent<MouseEvent>) => {
                       e.stopPropagation();
-                      if (isTap(e)) handleCubeClick(cell);
+                      if (isTap(e) && take(e.nativeEvent)) handleCubeClick(cell);
                     }
                   : undefined
               }

@@ -149,6 +149,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // awaits its echo, or when the record is broken.
   const boardDisabled =
     status !== 'connected' || !sessionReady || replayFailedAt !== null || awaitingMove;
+  // Set the moment a move is sent, cleared once it is no longer awaited (its
+  // echo, a refusal or error, or a new connection)
+  const moveInFlight = React.useRef(false);
+  React.useLayoutEffect(() => {
+    if (!awaitingMove) moveInFlight.current = false;
+  }, [awaitingMove, moveSent]);
 
   // A pawn moved onto a promotion square: the legal moves for that square,
   // one per piece, until the player picks one. The choices belong to the
@@ -234,8 +240,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // snapshot, so a move made against it is not sent (the Board is disabled
   // too — this is the backstop).
   const handleMove = (move: Move) => {
-    if (!gameId || boardDisabled) return;
-    // Only send move to server; the board updates when move_made comes back
+    if (!gameId || boardDisabled || moveInFlight.current) return;
+    // Only send move to server; the board updates when move_made comes back.
+    // Marked in flight at once: boardDisabled only follows on the next
+    // render, and a second call before it must not send the move again.
+    moveInFlight.current = true;
     gameSocket.send(moveToMessage(move));
     setMoveSent({ sessionId, index: messages.length });
   };

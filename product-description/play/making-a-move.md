@@ -96,7 +96,7 @@ The server, on receiving it, checks that this connection holds a seat in a game 
 
 ### While in flight
 
-The board is held. Presses on pieces and cells do nothing: nothing can be selected, and pressing another destination sends nothing. The move box's field can be typed into, but Enter and ↵ send nothing. The hold takes effect a few tens of milliseconds after the click, though: a second click on the same destination inside that moment (a very fast double-click) sends the move again, and the server refuses the copy with "Error: Not your turn" in the error banner. An ordinary double-click is slower than that and sends one move. The view can still be turned. The turn pill still lights the player's half, the piece still stands on its origin, and the move list is unchanged. Nothing on screen says that a move is on its way: no spinner, no dimming, no text. On an ordinary connection the wait is a fraction of a second; on a slow one, the board simply does not respond until the echo comes.
+The board is held. Presses on pieces and cells do nothing: nothing can be selected, and pressing another destination sends nothing. The move box's field can be typed into, but Enter and ↵ send nothing. The hold takes effect the moment the move is sent: a second click on the same destination, however fast (a double-click, or a tap the browser hands to several things under the finger), sends nothing more. The view can still be turned. The turn pill still lights the player's half, the piece still stands on its origin, and the move list is unchanged. Nothing on screen says that a move is on its way: no spinner, no dimming, no text. On an ordinary connection the wait is a fraction of a second; on a slow one, the board simply does not respond until the echo comes.
 
 ### The answer arrives
 
@@ -111,7 +111,7 @@ The board is held. Presses on pieces and cells do nothing: nothing can be select
 
 The opponent's board shows the same glide at the same moment, from the same echo.
 
-**An error.** The server refused the move. The board is released, the move is not shown, and the [error banner](../game-page/error-banner.md) shows "Error: " and the server's message. The position is unchanged and nothing is selected; the player selects again. A correct client should never be refused, but "Not your turn" is possible in the rare case described in the edge cases. The possible messages are in [error messages](../cross-cutting/error-messages.md).
+**An error.** The server refused the move. The board is released, the move is not shown, and the [error banner](../game-page/error-banner.md) shows "Error: " and the server's message. The position is unchanged and nothing is selected; the player selects again. A correct client should never be refused. The possible messages are in [error messages](../cross-cutting/error-messages.md).
 
 **No answer (the connection dropped).** The board stops taking input as the connection drops, and stays that way after a new connection opens, until the page's rejoin is answered with a snapshot of the record. The snapshot settles the move: if the server recorded it, the piece glides in (the move is new to this board) and it is the opponent's turn; if not, the position is unchanged and it is still the player's turn. Only then does the board take input again, so no move can be made against the position from before the drop. See [connection loss](../session/connection-loss.md).
 
@@ -176,13 +176,12 @@ After an interrupt before sending, the player is always back to having nothing s
 - **Just after reconnecting.** Between a new connection opening and the rejoin's snapshot arriving (at most one round trip), "Reconnecting…" has gone but the board still takes no input and the move box sends nothing. A press in that moment does nothing. See [connection loss](../session/connection-loss.md).
 - **The same position, a new board.** A snapshot identical to what the board already showed still clears the selection.
 - **A press on the turn indicator.** It lets presses through to the board. The "Reconnecting…" line, the move card, the error banner, and the move list do not: a destination behind them cannot be pressed until the view is turned. The gaps between those panels let presses through.
-- **A very fast double click.** Two clicks on a destination within a few tens of milliseconds both send the move; the first is recorded and the second is refused with "Error: Not your turn". The game is unaffected, but the error banner appears. See [`bug-triage.md`](../bug-triage.md) B-14.
+- **A very fast double click, or one tap handed to several things.** Only one move is sent: the board puts the piece down, and the page marks the move in flight, the moment it is sent, before either redraws. (A tap on a capture once sent the move three times, the copies refused with "Not your turn"; triage B-14, fixed.)
 - **Right and middle buttons.** A right click or middle click on a destination or a piece does nothing to the board; a right or middle drag pans or zooms the view.
 - **Typing while waiting.** The move box's field accepts text during the opponent's turn or while a move is in flight, so a player can type their next move early; it can be sent only once the board takes input again, and it is read against the position at that moment.
 
 ## Open questions and verification
 
-- A second click within a few tens of milliseconds of the first sends the move twice; the copy is refused with "Not your turn" (`client/src/three/Board.tsx:193-208` and `client/src/screens/GameScreen.tsx:188-193` read the selection and the hold from the last render, which has not happened yet). Harmless to the game but shows an error; low priority; triage B-14, not fixed. The rerun of the scripted pass against this build still sent two moves at a 0 ms gap and one at 100 ms.
 - There is no visible sign that a move is in flight. On a slow connection the board silently ignores presses until the echo arrives; the only change is that the move box sends nothing. Whether an indicator is wanted is a product call.
 - There is no undo or takeback of any kind, by design.
 - The move box's last message, "A pawn cannot promote to that piece." (`client/src/game/typedMove.ts:47`), cannot appear: the field only accepts the five promotion letters, and every promotion square offers all five.

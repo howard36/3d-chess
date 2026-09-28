@@ -1235,6 +1235,70 @@ describe('Board tap assist', () => {
     return [x - 22, y] as const;
   };
 
+  // A rook on Aa1 that can take a pawn on Aa3, with both kings on the board
+  const captureBoard = () => {
+    const b = new EngineBoard();
+    b.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.Rook, color: 'white' });
+    b.setPiece({ x: 4, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
+    b.setPiece({ x: 0, y: 2, z: 0 }, { type: PieceType.Pawn, color: 'black' });
+    b.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
+    return b;
+  };
+
+  it('plays a capture once for one tap, however many objects r3f hands the tap to', async () => {
+    const onMove = vi.fn();
+    const board = await tapBoard({ board: captureBoard(), onMove });
+    await press(findPiece(board.renderer, PieceType.Rook, 'white'));
+    const victim = findPiece(board.renderer, PieceType.Pawn, 'black');
+    const cell = highlightedCells(board.renderer).find((c) => c.props.userData.zxy === 'Aa3')!;
+    const grid = (board.renderer.scene as ReactThreeTestInstance)
+      .children[0] as ReactThreeTestInstance;
+    const [x, y] = board.pixel(toWorld({ x: 0, y: 2, z: 0 }, 'white'));
+    // One finger's tap on the pawn standing in its square: r3f hands the
+    // click to the board's group once for each empty square the ray crosses
+    // in front (where tap assist would find the capture too), then to the
+    // pawn, and (were it not stopped) to the square behind it
+    const tap = { type: 'click', pointerType: 'touch', button: 0, clientX: x, clientY: y };
+    const at = { stopPropagation: () => {}, delta: 0, nativeEvent: tap };
+    await act(async () => {
+      grid.props.onClick(at);
+      grid.props.onClick(at);
+      victim.props.onClick(at);
+      cell.props.onClick(at);
+    });
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onMove.mock.calls[0][0].to).toEqual({ x: 0, y: 2, z: 0 });
+  });
+
+  it('plays a move once for two taps before the board has redrawn', async () => {
+    const onMove = vi.fn();
+    const board = await tapBoard({ board: captureBoard(), onMove });
+    await press(findPiece(board.renderer, PieceType.Rook, 'white'));
+    const cell = highlightedCells(board.renderer).find((c) => c.props.userData.zxy === 'Aa2')!;
+    await act(async () => {
+      cell.props.onClick(clickEvent());
+      cell.props.onClick(clickEvent());
+    });
+    expect(onMove).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the empty squares act once, after the click has passed everything behind them', async () => {
+    const board = await tapBoard();
+    await press(findPiece(board.renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    const grid = (board.renderer.scene as ReactThreeTestInstance)
+      .children[0] as ReactThreeTestInstance;
+    const mouse = {
+      stopPropagation: () => {},
+      delta: 0,
+      nativeEvent: { type: 'click', button: 0 },
+    };
+    await act(async () => {
+      grid.props.onClick(mouse);
+      grid.props.onClick(mouse);
+    });
+    expect(highlightedCells(board.renderer)).toHaveLength(0);
+  });
+
   it("gives a finger's tap beside a piece to that piece", async () => {
     const board = await tapBoard();
     const [x, y] = beside(board.pixel);
