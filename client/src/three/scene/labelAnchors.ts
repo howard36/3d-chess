@@ -270,6 +270,18 @@ export const chooseLevelEdge = (
   return best;
 };
 
+/**
+ * From high above, the letters' row takes an edge the files or the ranks run
+ * along for half the azimuths (whenever the edge facing left is one of the
+ * two nearest the camera). Once the letters have spread past CROSS_ON (see
+ * levelSpread), those files or ranks cross to the opposite edge of the top
+ * platform, the outermost from up there, so no letter ever stands on them;
+ * they come back only under CROSS_OFF, so a camera wavering there never
+ * makes them flicker.
+ */
+export const CROSS_ON = 0.5;
+export const CROSS_OFF = 0.25;
+
 export interface LabelAnchor {
   /** Stable identity of the label (one sprite pair per id). */
   id: string;
@@ -293,6 +305,8 @@ export interface AnchorState {
   axisLevels?: { files: number; ranks: number };
   /** The edge the level letters line up along from above (see chooseLevelEdge), while they do. */
   levelEdge?: number;
+  /** The files or ranks on the letters' edge have crossed to the opposite one (see CROSS_ON). */
+  crossed?: boolean;
 }
 
 export interface AnchorOptions {
@@ -366,8 +380,20 @@ export const labelAnchors = (
   const corners = frame.levelY.map((y, z) =>
     chooseLevelCorner(camera, target, frame.half, y, prev?.corners[z] ?? null, o.cornerHysteresis),
   );
-  const fileZ = edges.files * (frame.half + offset);
-  const rankX = edges.ranks * (frame.half + offset);
+  // From high above, the letters line up along the tower's screen-left edge
+  const spread = levelSpread(camera, target);
+  const levelEdge = spread > 0 ? chooseLevelEdge(camera, target, prev?.levelEdge ?? null) : null;
+  // ...and once they have spread, the files or ranks on that edge cross to
+  // the opposite one, on the top platform (CROSS_ON)
+  const crossed =
+    !o.everyLevel && levelEdge !== null && spread >= (prev?.crossed ? CROSS_OFF : CROSS_ON);
+  const [letterX, letterZ] = crossed && levelEdge !== null ? EDGES[levelEdge] : [0, 0];
+  const fileCross = letterZ !== 0 && letterZ === edges.files;
+  const rankCross = letterX !== 0 && letterX === edges.ranks;
+  const fileSide = fileCross ? -edges.files : edges.files;
+  const rankSide = rankCross ? -edges.ranks : edges.ranks;
+  const fileZ = fileSide * (frame.half + offset);
+  const rankX = rankSide * (frame.half + offset);
   const fileX = FILES.map((_, x) => layout.toWorld({ x, y: 0, z: 0 }, orientation)[0]);
   const rankZ = RANKS.map((_, r) => layout.toWorld({ x: 0, y: r, z: 0 }, orientation)[2]);
   // The files and the ranks each take the platform that keeps them clear of
@@ -376,9 +402,10 @@ export const labelAnchors = (
   const rankAt = (z: number): Vec3[] => rankZ.map((pz) => [rankX, frame.levelY[z], pz]);
   const pick = (at: (z: number) => Vec3[], was: number | undefined) =>
     o.everyLevel ? 0 : chooseAxisLevel(camera, target, frame.half, frame.levelY, at, was ?? null);
+  const top = frame.levelY.length - 1;
   const axisLevels = {
-    files: pick(fileAt, prev?.axisLevels?.files),
-    ranks: pick(rankAt, prev?.axisLevels?.ranks),
+    files: fileCross ? top : pick(fileAt, prev?.axisLevels?.files),
+    ranks: rankCross ? top : pick(rankAt, prev?.axisLevels?.ranks),
   };
   const labels: LabelAnchor[] = [];
   // One set of axis labels (ids from level A, whichever platform carries
@@ -390,8 +417,8 @@ export const labelAnchors = (
     // Seen from low down: faded near the platform's plane, on its far edges under it
     const fileView = axisView(camera, target, frame.levelY[files]);
     const rankView = axisView(camera, target, frame.levelY[ranks]);
-    const fileEdge = fileView.below ? -edges.files : edges.files;
-    const rankEdge = rankView.below ? -edges.ranks : edges.ranks;
+    const fileEdge = fileView.below ? -fileSide : fileSide;
+    const rankEdge = rankView.below ? -rankSide : rankSide;
     const shown = (view: AxisView) => (view.opacity < 1 ? { opacity: view.opacity } : {});
     FILES.forEach((text, x) =>
       labels.push({
@@ -413,9 +440,6 @@ export const labelAnchors = (
     );
   }
   const right = cameraRight(camera, target);
-  // From high above, the letters line up along the tower's screen-left edge
-  const spread = levelSpread(camera, target);
-  const levelEdge = spread > 0 ? chooseLevelEdge(camera, target, prev?.levelEdge ?? null) : null;
   frame.levelY.forEach((_, z) => {
     const position = levelLetterAt(frame, z, corners[z], levelEdge, spread, right, o);
     const key =
@@ -427,7 +451,13 @@ export const labelAnchors = (
     labels.push({ id: `level-${LEVELS[z]}`, text: LEVELS[z], key, position, level: z });
   });
   return {
-    state: { edges, corners, axisLevels, ...(levelEdge !== null ? { levelEdge } : {}) },
+    state: {
+      edges,
+      corners,
+      axisLevels,
+      ...(levelEdge !== null ? { levelEdge } : {}),
+      ...(crossed ? { crossed } : {}),
+    },
     labels,
   };
 };
@@ -471,6 +501,8 @@ const lerp = (a: Vec3, b: Vec3, t: number): Vec3 => [
  *   in from the first as the tie nears;
  * - the files and ranks may move to the top platform from 40° up, so theirs
  *   are framed there too, easing up from the bottom one from 30°;
+ * - from above, the files or ranks on the letters' edge cross to the top
+ *   platform's far edge, so that row is framed too, easing in first;
  * - each level letter is framed at every corner (only the leftmost reaches
  *   out: the others stand inside the tower).
  *
@@ -535,12 +567,37 @@ export const towerFramePoints = (
         return [b, bf, u, uf];
       });
     };
-    const labels = [...axis(fileRow, Math.cos(azimuth)), ...axis(rankRow, Math.sin(azimuth))];
     // The level letters: at every corner, and from above toward their row
     // along the edge facing left, or (near a tie) the next one
     const spread = levelSpread(eye, target);
-    const lead = spread > 0 ? chooseLevelEdge(eye, target, null) : null;
+    const leftmost = chooseLevelEdge(eye, target, null);
+    const lead = spread > 0 ? leftmost : null;
     const facing = EDGES.map(([nx, nz]) => nx * right[0] + nz * right[2]);
+    // From above, an axis whose near edge the letters take (or, near their
+    // tie, may take) crosses to the top platform's far edge (CROSS_ON): framed
+    // there, easing in slowly well before it can cross (the spread reaches
+    // CROSS_OFF just past 63°)
+    const crossing = ramp(elevation, 48 * DEG, 63 * DEG);
+    const across = (
+      row: (y: number, s: number) => Vec3[],
+      lead1: number,
+      edgeOn: (s: number) => number,
+    ): Vec3[] => {
+      if (crossing <= 0) return [];
+      const side = lead1 >= 0 ? 1 : -1;
+      const e = edgeOn(side);
+      const w = crossing * (e === leftmost ? 1 : nearTie(facing[e] - facing[leftmost]));
+      const near = row(levelY[top], side);
+      const far = row(levelY[top], -side);
+      return near.map((p, i) => lerp(p, far[i], w));
+    };
+    const labels = [
+      ...axis(fileRow, Math.cos(azimuth)),
+      ...axis(rankRow, Math.sin(azimuth)),
+      // (edge indices in EDGES: files run along z-edges, ranks along x-edges)
+      ...across(fileRow, Math.cos(azimuth), (s) => (s > 0 ? 3 : 2)),
+      ...across(rankRow, Math.sin(azimuth), (s) => (s > 0 ? 1 : 0)),
+    ];
     const letters = levelY.flatMap((_, z) =>
       CORNERS.flatMap((_, c) => {
         const at = levelLetterAt(frame, z, c, lead, spread, right, o);

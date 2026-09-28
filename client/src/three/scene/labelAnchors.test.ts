@@ -11,6 +11,8 @@ import {
   chooseLevelCorner,
   chooseLevelEdge,
   CORNERS,
+  CROSS_OFF,
+  CROSS_ON,
   EDGES,
   labelAnchors,
   towerFramePoints,
@@ -483,6 +485,118 @@ describe('level letters seen from above', () => {
     expect(chooseLevelEdge(tie, TARGET, a)).toBe(a);
     expect(chooseLevelEdge(cameraAt(52, 85), TARGET, a)).toBe(a);
     expect(EDGES[chooseLevelEdge(cameraAt(60, 85), TARGET, a)]).toEqual([0, 1]);
+  });
+
+  /** Where every label stands after the camera has come along `path` ([azimuth, elevation] steps). */
+  const after = (path: [number, number][], orientation: 'white' | 'black' = 'white') => {
+    let state: AnchorState | null = null;
+    let labels: ReturnType<typeof labelAnchors>['labels'] = [];
+    for (const [a, e] of path) {
+      ({ state, labels } = labelAnchors(layout, orientation, cameraAt(a, e), TARGET, state));
+    }
+    return { state: state!, labels };
+  };
+  /** An orbit from `from` to `to`, a degree of azimuth or elevation at a time. */
+  const orbit = (from: [number, number], to: [number, number]): [number, number][] => {
+    const n = Math.max(Math.abs(to[0] - from[0]), Math.abs(to[1] - from[1]), 1);
+    return Array.from({ length: n + 1 }, (_, i): [number, number] => [
+      from[0] + ((to[0] - from[0]) * i) / n,
+      from[1] + ((to[1] - from[1]) * i) / n,
+    ]);
+  };
+
+  it('keeps every file and rank off the letters’ row from high above, whichever way the camera came', () => {
+    const bad: string[] = [];
+    for (const orientation of ['white', 'black'] as const) {
+      for (let azimuth = 0; azimuth < 360; azimuth += 10) {
+        for (const elevation of [LEVEL_SPREAD_TO / DEG, 80, 89.9]) {
+          const camera = cameraAt(azimuth, elevation);
+          for (const [label, path] of [
+            ['fresh', [[azimuth, elevation]]],
+            ['climbing', orbit([azimuth, 30], [azimuth, elevation])],
+            [
+              'from the left',
+              orbit([azimuth - 40, 50], [azimuth - 40, elevation]).concat(
+                orbit([azimuth - 40, elevation], [azimuth, elevation]),
+              ),
+            ],
+            [
+              'from the right',
+              orbit([azimuth + 40, 50], [azimuth + 40, elevation]).concat(
+                orbit([azimuth + 40, elevation], [azimuth, elevation]),
+              ),
+            ],
+          ] as [string, [number, number][]][]) {
+            const { labels } = after(path, orientation);
+            const row = labels.filter((l) => l.level !== undefined);
+            for (const l of labels.filter((l) => l.level === undefined)) {
+              const p = screen(camera, l.position);
+              for (const letter of row) {
+                const q = screen(camera, letter.position);
+                // A pitch between neighbours is about 0.1 here; a letter is
+                // about a third of that across
+                if (Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.05) {
+                  bad.push(
+                    `${l.id} on ${letter.text} from ${azimuth}°/${elevation}° ${label} (${orientation})`,
+                  );
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('draws one layout at a square top-down view, whichever side the camera came from', () => {
+    // The ranks' edge ties exactly here (sin 0°): the camera from the left
+    // holds them on -x, the letters' edge; from the right, on +x
+    const top: [number, number] = [0, 89.9];
+    const views = [
+      after([[-40, 50], top]),
+      after([[40, 50], top]),
+      after(orbit([-40, 50], [-40, 89.9]).concat(orbit([-40, 89.9], top))),
+      after(orbit([40, 50], [40, 89.9]).concat(orbit([40, 89.9], top))),
+      after([top]),
+    ];
+    const [first] = views;
+    expect(first.state.axisLevels).toEqual({ files: 4, ranks: 4 });
+    expect(EDGES[first.state.levelEdge!]).toEqual([-1, 0]);
+    const row = first.labels.filter((l) => l.level !== undefined);
+    expect(new Set(row.map((l) => l.key)).size).toBe(1);
+    for (const l of first.labels.filter((l) => l.id.startsWith('rank'))) {
+      expect(l.position[0]).toBeGreaterThan(frame.half);
+    }
+    for (const { labels } of views) {
+      labels.forEach((l, i) => {
+        expect(l.id).toBe(first.labels[i].id);
+        l.position.forEach((c, k) => expect(c).toBeCloseTo(first.labels[i].position[k], 9));
+      });
+    }
+  });
+
+  it('crosses the files or ranks back only well under where they crossed', () => {
+    // From 60° round the letters take +z, the files' edge, from above
+    const climbing = orbit([60, 50], [60, 89.9]).map(([a, e]) => [a, e] as [number, number]);
+    let state: AnchorState | null = null;
+    const changes: number[] = [];
+    for (const path of [climbing, [...climbing].reverse()]) {
+      for (const [a, e] of path) {
+        const next: AnchorState = labelAnchors(
+          layout,
+          'white',
+          cameraAt(a, e),
+          TARGET,
+          state,
+        ).state;
+        if (state && !!next.crossed !== !!state.crossed) changes.push(e);
+        state = next;
+      }
+    }
+    expect(changes).toHaveLength(2);
+    expect(levelSpread(cameraAt(60, changes[0]), TARGET)).toBeGreaterThanOrEqual(CROSS_ON);
+    expect(levelSpread(cameraAt(60, changes[1]), TARGET)).toBeLessThan(CROSS_OFF);
   });
 });
 

@@ -191,12 +191,12 @@ const rimGeometry = (inner: number, width: number, height: number, low: number) 
       rgba.push(1, 1, 1, p[1] < -height / 2 ? low : 1);
     }
   };
-  // Face by face: the top and the underside first (group 0), then the sides
-  // (group 1). Only the first group writes depth, so a side seen through the
-  // top (at the rounded inner corner) is never drawn over it a second time,
-  // while the sides, the rim's fading skirt, hide nothing behind them
+  // Face by face: the top, the underside and the outer sides (group 0), then
+  // the inner sides (group 1), the only faces that can lie behind another
+  // face of the same ring on screen (seen through the top, the underside or
+  // the near outer side); their material discards those fragments (rimSkip)
   const n = ins.length;
-  let caps = 0;
+  let front = 0;
   const top = 0;
   const bottom = -height;
   for (const face of ['top', 'bottom', 'outer', 'inner'] as const) {
@@ -216,9 +216,9 @@ const rimGeometry = (inner: number, width: number, height: number, low: number) 
           [ox0, bottom, oz0],
           [0, -1, 0],
         );
-        caps = pos.length / 3;
       } else if (face === 'outer') {
         quad([ox0, top, oz0], [ox1, top, oz1], [ox1, bottom, oz1], [ox0, bottom, oz0], out);
+        front = pos.length / 3;
       } else {
         quad(
           [ix0, top, iz0],
@@ -233,9 +233,86 @@ const rimGeometry = (inner: number, width: number, height: number, low: number) 
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
   g.setAttribute('color', new BufferAttribute(new Float32Array(rgba), 4));
-  g.addGroup(0, caps, 0);
-  g.addGroup(caps, pos.length / 3 - caps, 1);
+  g.addGroup(0, front, 0);
+  g.addGroup(front, pos.length / 3 - front, 1);
   return g;
+};
+
+/** The ring's measures in world space, for rimSkip: its inner and outer half-sides and its top and bottom. */
+interface RimShape {
+  uRimInner: { value: number };
+  uRimOuter: { value: number };
+  uRimTop: { value: number };
+  uRimBottom: { value: number };
+}
+
+/**
+ * Gives a ring's inner-side material the one test that keeps the ring a
+ * single layer of light at every angle without writing depth: a fragment of
+ * an inner side is dropped when the ray from the camera reaches it through
+ * another face of the same ring, the near outer side (entering the ring's
+ * outer square between its top and bottom), its top or its underside
+ * (crossing their planes within the band). Those are the only faces that
+ * can lie over an inner side on screen. The shape's values are set per
+ * level (Levels).
+ */
+const rimSkip = (m: MeshBasicMaterial) => {
+  const shape: RimShape = {
+    uRimInner: { value: 0 },
+    uRimOuter: { value: 0 },
+    uRimTop: { value: 0 },
+    uRimBottom: { value: 0 },
+  };
+  m.userData.rim = shape;
+  m.customProgramCacheKey = () => 'rim-inner';
+  m.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, shape);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vRimWorld;')
+      .replace(
+        '#include <project_vertex>',
+        '#include <project_vertex>\nvRimWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vRimWorld;
+        uniform float uRimInner;
+        uniform float uRimOuter;
+        uniform float uRimTop;
+        uniform float uRimBottom;
+        // Whether the segment from the camera to p crosses the plane y = h
+        // within the band between the inner and outer squares
+        bool rimCapHit(vec3 c, vec3 d, float h) {
+          if (abs(d.y) < 1e-6) return false;
+          float t = (h - c.y) / d.y;
+          if (t <= 0.0 || t >= 0.999) return false;
+          vec2 q = abs(c.xz + d.xz * t);
+          float m = max(q.x, q.y);
+          return m > uRimInner && m < uRimOuter;
+        }`,
+      )
+      .replace(
+        'void main() {',
+        `void main() {
+        {
+          vec3 c = cameraPosition;
+          vec3 d = vRimWorld - c;
+          // Entering the outer square's column: through the near outer side?
+          vec2 sd = vec2(abs(d.x) < 1e-6 ? 1e-6 : d.x, abs(d.z) < 1e-6 ? 1e-6 : d.z);
+          vec2 ta = (vec2(-uRimOuter) - c.xz) / sd;
+          vec2 tb = (vec2(uRimOuter) - c.xz) / sd;
+          vec2 lo = min(ta, tb);
+          float tIn = max(lo.x, lo.y);
+          if (tIn > 0.0 && tIn < 0.999) {
+            float y = c.y + d.y * tIn;
+            if (y > uRimBottom && y < uRimTop) discard;
+          }
+          if (rimCapHit(c, d, uRimTop) || rimCapHit(c, d, uRimBottom)) discard;
+        }`,
+      );
+  };
 };
 
 /** The five levels (see above). Decorative: nothing here takes a click. */
@@ -298,22 +375,22 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
           }),
           // The edge: one thin square of the level's light, lifted toward white
           edgeColor: tint.clone().lerp(new Color('#ffffff'), 0.3),
-          // Its top and underside write depth, so its own faces never stack
-          // (rimGeometry's order), and it is drawn after the glass, so the
-          // glass is never hidden by it; its sides, the fading skirt, write
-          // none, so a glow behind a deep rim still shows through it
-          edge: [true, false].map(
-            (depthWrite) =>
-              new MeshBasicMaterial({
-                color: tint.clone().lerp(new Color('#ffffff'), 0.3),
-                vertexColors: true,
-                transparent: true,
-                opacity: EDGE,
-                depthWrite,
-                toneMapped: false,
-                fog: false,
-              }),
-          ),
+          // It writes no depth, so it hides nothing behind it (a glow, a
+          // marker, a label): light, not a wall. Its faces never stack all
+          // the same: the inner sides skip what lies behind the others
+          edge: [false, true].map((inner) => {
+            const m = new MeshBasicMaterial({
+              color: tint.clone().lerp(new Color('#ffffff'), 0.3),
+              vertexColors: true,
+              transparent: true,
+              opacity: EDGE,
+              depthWrite: false,
+              toneMapped: false,
+              fog: false,
+            });
+            if (inner) rimSkip(m);
+            return m;
+          }),
         };
       }),
     [],
@@ -348,6 +425,17 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
   const edgeLight = useRef(LEVEL_COLORS.map(() => EDGE));
   const bright = useRef(borderBright);
   bright.current = borderBright;
+  // Each ring's shape for its inner sides' test (rimSkip)
+  useEffect(() => {
+    materials.forEach((m, z) => {
+      const shape = m.edge[1].userData.rim as RimShape;
+      shape.uRimInner.value = reach;
+      shape.uRimOuter.value = reach + EDGE_WIDTH * borderWidth;
+      shape.uRimTop.value = FRAME.levelY[z];
+      shape.uRimBottom.value = FRAME.levelY[z] - EDGE_HEIGHT * borderHeight;
+    });
+    invalidate();
+  }, [materials, reach, borderWidth, borderHeight, invalidate]);
   const applyEdge = (z: number) => {
     const m = materials[z];
     const light = edgeLight.current[z] * bright.current;
