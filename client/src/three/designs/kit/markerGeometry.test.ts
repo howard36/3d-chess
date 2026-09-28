@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { markerMetrics, pathDistances, pointAlong, tracePath, tubeData } from './markerGeometry';
 import { movePoint } from '../../movePath';
+import { fromZXY } from '../../../engine/coords';
+import type { Orientation } from '../../layout';
+import { clarityTower } from './layouts';
 import type { Vec3 } from '../types';
 
 describe('markerMetrics', () => {
@@ -107,6 +110,61 @@ describe('tracePath', () => {
       // Mid-flight it is the arc's height above the straight line between the ends
       const mid = path[10];
       expect(mid[1] - (0.03 + to[1] / 2)).toBeCloseTo(0.6);
+    }
+  });
+});
+
+describe('the last-move line’s ends', () => {
+  const layout = clarityTower();
+  // MarkerProps.floor, as Board computes it: the cell's centre dropped to its floor
+  const floorOf = (zxy: string, o: Orientation): Vec3 => {
+    const [x, y, z] = layout.toWorld(fromZXY(zxy), o);
+    return [x, y + layout.floorY, z];
+  };
+  // Moves that come down onto their destination: diagonally (along a rank, a
+  // file, and through the cube), straight down, and over a knight's arc
+  const MOVES: [string, string, number][] = [
+    ['Eb4', 'Cb2', 0],
+    ['Eb4', 'Da4', 0],
+    ['Ed4', 'Ba1', 0],
+    ['Dc4', 'Cc4', 0],
+    ['Cc4', 'Bc3', 0],
+    ['Eb5', 'Db3', 0.6],
+    ['Eb5', 'Ec3', 0.6],
+  ];
+  const ringCentre = (tube: ReturnType<typeof tubeData>, s: number): Vec3 => {
+    const c: Vec3 = [0, 0, 0];
+    let n = 0;
+    tube.along.forEach((a, v) => {
+      // Each ring once round (its last vertex repeats its first, for the seam)
+      if (Math.abs(a - s) > 1e-6 || tube.angle[v] === 1) return;
+      const p = vec(tube.position, v);
+      c[0] += p[0];
+      c[1] += p[1];
+      c[2] += p[2];
+      n++;
+    });
+    return [c[0] / n, c[1] / n, c[2] / n];
+  };
+
+  it('sit exactly `lift` above the centres of both floors, from either seat', () => {
+    for (const o of ['white', 'black'] as const) {
+      for (const [a, b, arc] of MOVES) {
+        const from = floorOf(a, o);
+        const to = floorOf(b, o);
+        const lift = 0.0225;
+        const path = tracePath(from, to, { lift, arc, segments: 24 });
+        expect(path[0]).toEqual([from[0], from[1] + lift, from[2]]);
+        expect(path[path.length - 1]).toEqual([to[0], to[1] + lift, to[2]]);
+        // And the tube built round it ends there too, not above the square
+        const tube = tubeData(path, { radius: 0.01, radialSegments: 8 });
+        const start = ringCentre(tube, 0);
+        const end = ringCentre(tube, tube.length);
+        for (let i = 0; i < 3; i++) {
+          expect(start[i]).toBeCloseTo(path[0][i], 5);
+          expect(end[i]).toBeCloseTo(path[path.length - 1][i], 5);
+        }
+      }
     }
   });
 });

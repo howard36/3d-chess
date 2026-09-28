@@ -328,7 +328,12 @@ to copy (hidden from the picker; open it with `?design=kit-demo`).
   `hoverDestinations`). `LastMoveLine` (`kit/line.tsx`) joins the centres of the last move's
   squares with a thin tube of real geometry, straight (or along a knight's arc: pass
   `LastMoveMarkerProps.arc`), with no arrowhead: the destination's marker says where the
-  move ended, and the piece standing there hides the end of the line. A calm flow runs along
+  move ended. The line is depth-tested, so the piece standing on the destination would hide
+  its last stretch, and a line coming down onto it (from behind it, straight down, or over
+  a knight's arc) would seem to end at the piece's head, above the square. The stretch
+  hidden inside that piece's column (`PIECE_COLUMN`) therefore shows through it, fainter
+  (`throughPiece`, a share of the line's opacity; 0 turns it off), so the line always
+  reaches the centre of the destination's floor. A calm flow runs along
   it from source to destination (a soft pulse, drifting dashes, or a row of beads:
   `pattern`), with `color`, `radius`, `flowSpeed`, `pulse`, `outline` and `drawInMs` to style
   it; `tracePath` and `tubeData` (`kit/markerGeometry.ts`) build a design's own line on the

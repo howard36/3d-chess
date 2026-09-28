@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { act } from 'react';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
-import { BackSide, Matrix4, Vector3 } from 'three';
+import { BackSide, GreaterDepth, LessEqualDepth, Matrix4, Vector3 } from 'three';
 import type { BufferGeometry, InstancedMesh, Mesh, ShaderMaterial } from 'three';
-import { LastMoveLine } from './line';
+import { LastMoveLine, PIECE_COLUMN } from './line';
 import { LevelGrid } from './grid';
 import { LevelBand, levelBandGeometry } from './plates';
 import { clarityTower, towerFrame } from './layouts';
@@ -38,6 +38,49 @@ describe('LastMoveLine', () => {
     expect(tube.raycast.length).toBe(0);
   });
 
+  it('shows its end through the piece on the destination, so it reaches the floor’s centre', async () => {
+    // Coming down onto the destination from a level above, where the piece
+    // standing there would hide its last stretch
+    const from: Vec3 = [0, 2.7, 2];
+    const to: Vec3 = [1, 0, 0];
+    const r = await ReactThreeTestRenderer.create(
+      <LastMoveLine from={from} to={to} pattern="dashed" throughPiece={0.5} drawInMs={300} />,
+    );
+    const [tube, through] = meshes(r.scene as ReactThreeTestInstance);
+    const main = tube.material as ShaderMaterial;
+    const seen = through.material as ShaderMaterial;
+    // The same tube, drawn a second time only where something hides it
+    expect(through.geometry).toBe(tube.geometry);
+    expect(main.depthFunc).toBe(LessEqualDepth);
+    expect(seen.depthFunc).toBe(GreaterDepth);
+    expect(seen.depthWrite).toBe(false);
+    expect(through.raycast.length).toBe(0);
+    // ...only inside the column the piece stands in, at half the opacity
+    expect(main.uniforms.uThrough.value).toBe(0);
+    expect(seen.uniforms.uThrough.value).toBe(0.5);
+    expect((seen.uniforms.uColumn.value as Vector3).toArray()).toEqual(to);
+    expect(seen.uniforms.uColumnSize.value.toArray()).toEqual([
+      PIECE_COLUMN.radius,
+      PIECE_COLUMN.height,
+    ]);
+    // Styled, flowing and drawn in with the line itself
+    expect(seen.uniforms.uColor).toBe(main.uniforms.uColor);
+    expect(seen.uniforms.uReveal).toBe(main.uniforms.uReveal);
+    await act(async () => r.advanceFrames(20, 1 / 30));
+    expect(seen.uniforms.uReveal.value).toBeGreaterThan(100);
+    // The tube ends a lift above the destination's floor centre, not above the square
+    const g = tube.geometry as BufferGeometry;
+    g.computeBoundingBox();
+    expect(g.boundingBox!.min.y).toBeLessThan(to[1] + 0.03);
+    expect(g.boundingBox!.min.y).toBeGreaterThan(to[1] - 0.01);
+
+    // throughPiece 0: the piece hides the end, as before
+    const plain = await ReactThreeTestRenderer.create(
+      <LastMoveLine from={from} to={to} throughPiece={0} />,
+    );
+    expect(meshes(plain.scene as ReactThreeTestInstance)).toHaveLength(1);
+  });
+
   it('draws a keyline behind the tube when asked', async () => {
     const r = await ReactThreeTestRenderer.create(
       <LastMoveLine from={FROM} to={TO} outline="#111111" pattern="dashed" />,
@@ -67,10 +110,15 @@ describe('LastMoveLine', () => {
     const r = await ReactThreeTestRenderer.create(
       <LastMoveLine from={FROM} to={[1, 0, 0]} pattern="dotted" spacing={0.2} beadRadius={0.04} />,
     );
-    const beads = (r.scene as ReactThreeTestInstance).findAll(
-      (n) => (n.instance as unknown as InstancedMesh).isInstancedMesh === true,
-    )[0].instance as unknown as InstancedMesh;
+    const [beads, through] = (r.scene as ReactThreeTestInstance)
+      .findAll((n) => (n.instance as unknown as InstancedMesh).isInstancedMesh === true)
+      .map((n) => n.instance as unknown as InstancedMesh);
     expect(beads.count).toBe(6);
+    // The beads show through the piece on the destination too, in the same places
+    expect((through.material as ShaderMaterial).depthFunc).toBe(GreaterDepth);
+    expect(Array.from(through.instanceMatrix.array)).toEqual(
+      Array.from(beads.instanceMatrix.array),
+    );
     const m = new Matrix4();
     const p = new Vector3();
     for (let i = 0; i < beads.count; i++) {

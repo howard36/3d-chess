@@ -6,10 +6,13 @@ import {
   BufferGeometry,
   Color,
   DynamicDrawUsage,
+  GreaterDepth,
   InstancedMesh,
   Matrix4,
   ShaderMaterial,
   SphereGeometry,
+  Vector2,
+  Vector3,
 } from 'three';
 import { prefersReducedMotion } from '../../motion';
 import { LAYER } from './layers';
@@ -22,8 +25,15 @@ import type { Vec3 } from '../types';
 // source square's floor to the centre of the destination's, straight (or a
 // knight's arc, when knights arc), with a calm flow along it from source to
 // destination. No arrowhead: the destination's own marker says where the move
-// ended, and the piece standing there hides the end of the line (the line is
-// depth-tested like any solid, and drawn after the platforms and markers).
+// ended. The line is depth-tested like any solid, and drawn after the
+// platforms and markers.
+//
+// The piece standing on the destination would hide the end of the line, and
+// a line that comes down onto it (from a level above, from behind it or
+// straight down, or over a knight's arc) would then seem to end at the
+// piece's head, above the square. So the stretch the piece hides, inside the
+// column the piece stands in, shows through it, fainter (`throughPiece`):
+// the line always visibly reaches the centre of the destination's floor.
 
 export type LinePattern = 'solid' | 'dashed' | 'dotted';
 
@@ -73,6 +83,13 @@ export interface LineStyle extends Omit<TracePathOptions, 'arc'> {
   drawInMs?: number;
   /** Wait this long after mounting before drawing in. */
   drawInDelayMs?: number;
+  /**
+   * How strongly the end of the line shows through the piece standing on the
+   * destination, as a share of `opacity` (0: the piece hides it). Only the
+   * stretch inside that piece's column shows through, and only where
+   * something hides it.
+   */
+  throughPiece?: number;
 }
 
 /** The kit's defaults, for designs that want to start from them. */
@@ -86,7 +103,16 @@ export const LINE_DEFAULTS = {
   pulseLength: 0.3,
   shade: 0.35,
   dash: 0.55,
+  throughPiece: 0.55,
 } as const satisfies LineStyle;
+
+/**
+ * The column a piece stands in, about the centre of its square's floor
+ * (world units): wider and taller than any piece at the kit's scales (0.27
+ * and 0.87 at scale 1, 0.8 in the tower designs) lifted off its floor, and
+ * well short of the level above (a gap of 1.35 or more).
+ */
+export const PIECE_COLUMN = { radius: 0.3, height: 1 } as const;
 
 const SPACING: Record<LinePattern, number> = { solid: 1.6, dashed: 0.16, dotted: 0.14 };
 // A reveal past any line's length: the whole line
@@ -108,6 +134,12 @@ const lineMaterial = (clock: { value: number }) =>
     transparent: true,
     depthWrite: false,
     uniforms: {
+      // Above 0, the see-through pass: only inside the destination's column
+      // (uColumn, the floor's centre; uColumnSize, radius and height), at this
+      // share of the opacity
+      uThrough: { value: 0 },
+      uColumn: { value: new Vector3() },
+      uColumnSize: { value: new Vector2(PIECE_COLUMN.radius, PIECE_COLUMN.height) },
       uColor: { value: new Color() },
       uPulseColor: { value: new Color() },
       uOpacity: { value: 1 },
@@ -125,11 +157,29 @@ const lineMaterial = (clock: { value: number }) =>
     fragmentShader,
   });
 
+/**
+ * The see-through pass of `line`: the same line (it shares every uniform but
+ * its own three), drawn only where something hides it (GreaterDepth) inside
+ * the destination's column.
+ */
+const throughMaterial = (line: ShaderMaterial, clock: { value: number }) => {
+  const m = lineMaterial(clock);
+  m.uniforms = {
+    ...line.uniforms,
+    uThrough: { value: 0 },
+    uColumn: { value: new Vector3() },
+    uColumnSize: { value: new Vector2(PIECE_COLUMN.radius, PIECE_COLUMN.height) },
+  };
+  m.depthFunc = GreaterDepth;
+  return m;
+};
+
 const vertexShader = /* glsl */ `
   attribute float aAlong;
   varying float vAlong;
   varying vec3 vNormal;
   varying vec3 vView;
+  varying vec3 vWorld;
   void main() {
     mat4 model = modelMatrix;
     #ifdef USE_INSTANCING
@@ -143,6 +193,7 @@ const vertexShader = /* glsl */ `
     #endif
     vNormal = normalize(mat3(model) * normal);
     vView = cameraPosition - world.xyz;
+    vWorld = world.xyz;
     gl_Position = projectionMatrix * viewMatrix * world;
   }`;
 
@@ -159,11 +210,19 @@ const fragmentShader = /* glsl */ `
   uniform float uDash;
   uniform float uReveal;
   uniform int uPattern;
+  uniform float uThrough;
+  uniform vec3 uColumn;
+  uniform vec2 uColumnSize;
   varying float vAlong;
   varying vec3 vNormal;
   varying vec3 vView;
+  varying vec3 vWorld;
   void main() {
     if (vAlong > uReveal) discard;
+    if (uThrough > 0.0) {
+      vec3 c = vWorld - uColumn;
+      if (length(c.xz) > uColumnSize.x || c.y > uColumnSize.y || c.y < -uColumnSize.x) discard;
+    }
     // Position within the repeating flow, moving toward the destination
     float phase = (vAlong - uTime * uFlow) / uSpacing;
     float f = fract(phase);
@@ -186,6 +245,7 @@ const fragmentShader = /* glsl */ `
     float facing = abs(dot(normalize(vNormal), normalize(vView)));
     vec3 col = uColor * (1.0 - uShade + uShade * facing);
     col = mix(col, uPulseColor, glow);
+    if (uThrough > 0.0) a *= uThrough;
     gl_FragColor = vec4(col, a);
     #include <colorspace_fragment>
   }`;
@@ -220,6 +280,7 @@ export const LastMoveLine = ({
   radialSegments = 8,
   drawInMs = 0,
   drawInDelayMs = 0,
+  throughPiece = LINE_DEFAULTS.throughPiece,
   lift,
   segments,
 }: LineStyle & { from: Vec3; to: Vec3; arc?: number }) => {
@@ -256,12 +317,14 @@ export const LastMoveLine = ({
     m.side = BackSide;
     return m;
   }, [clock]);
+  const through = useMemo(() => throughMaterial(material, clock), [material, clock]);
   useEffect(
     () => () => {
       material.dispose();
       hullMaterial.dispose();
+      through.dispose();
     },
-    [material, hullMaterial],
+    [material, hullMaterial, through],
   );
   const u = material.uniforms;
   const h = hullMaterial.uniforms;
@@ -281,9 +344,14 @@ export const LastMoveLine = ({
   u.uPulseLength.value = pulseLength;
   h.uShade.value = 0;
   h.uPulse.value = 0;
+  // The end of the line shows through the piece standing on the destination
+  const shows = throughPiece > 0;
+  through.uniforms.uThrough.value = throughPiece;
+  (through.uniforms.uColumn.value as Vector3).set(to[0], to[1], to[2]);
 
   // Beads: as many as fit the line, plus one entering while another leaves
   const beads = useRef<InstancedMesh>(null);
+  const throughBeads = useRef<InstancedMesh>(null);
   const beadCount = pattern === 'dotted' ? Math.max(1, Math.ceil(length / gap) + 1) : 0;
   const placeBeads = (revealed: number) => {
     const mesh = beads.current;
@@ -301,6 +369,11 @@ export const LastMoveLine = ({
       mesh.setMatrixAt(k, matrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
+    const other = throughBeads.current;
+    if (other) {
+      (other.instanceMatrix.array as Float32Array).set(mesh.instanceMatrix.array);
+      other.instanceMatrix.needsUpdate = true;
+    }
   };
 
   // How much of the line is drawn, from its source, as time since mounting
@@ -333,17 +406,32 @@ export const LastMoveLine = ({
 
   if (pattern === 'dotted') {
     return (
-      <instancedMesh
-        ref={(m) => {
-          beads.current = m;
-          m?.instanceMatrix.setUsage(DynamicDrawUsage);
-        }}
-        key={beadCount}
-        args={[bead, material, beadCount]}
-        renderOrder={LAYER.trace}
-        raycast={noRaycast}
-        frustumCulled={false}
-      />
+      <>
+        <instancedMesh
+          ref={(m) => {
+            beads.current = m;
+            m?.instanceMatrix.setUsage(DynamicDrawUsage);
+          }}
+          key={beadCount}
+          args={[bead, material, beadCount]}
+          renderOrder={LAYER.trace}
+          raycast={noRaycast}
+          frustumCulled={false}
+        />
+        {shows && (
+          <instancedMesh
+            ref={(m) => {
+              throughBeads.current = m;
+              m?.instanceMatrix.setUsage(DynamicDrawUsage);
+            }}
+            key={`through-${beadCount}`}
+            args={[bead, through, beadCount]}
+            renderOrder={LAYER.trace}
+            raycast={noRaycast}
+            frustumCulled={false}
+          />
+        )}
+      </>
     );
   }
   return (
@@ -365,6 +453,15 @@ export const LastMoveLine = ({
         raycast={noRaycast}
         frustumCulled={false}
       />
+      {shows && (
+        <mesh
+          geometry={geometry!}
+          material={through}
+          renderOrder={LAYER.trace + 0.1}
+          raycast={noRaycast}
+          frustumCulled={false}
+        />
+      )}
     </>
   );
 };
