@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
 import {
   BufferAttribute,
+  BufferGeometry,
   Color,
   DoubleSide,
   MeshBasicMaterial,
@@ -12,7 +13,6 @@ import { GRID_SIZE } from '../../layout';
 import { useLevelFocus } from '../kit/focus';
 import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
-import { frameGeometry } from '../kit/plates';
 import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 import { useEnvSetting } from './settings-env';
 
@@ -132,8 +132,106 @@ const EDGE = 0.8;
 const EDGE_WIDTH = 0.022;
 /** The edge's depth below the glass at "Border height" 1.0×. */
 const EDGE_HEIGHT = 0.03;
-/** How far the glass runs in under the edge's light. */
+/** How far the glass runs in under the edge's light: half its width (at 1.0×). */
 const FILL = EDGE_WIDTH / 2;
+
+type V3 = [number, number, number];
+
+/** The corners' radius on the ring's inner edge, as a share of its width. */
+const CORNER = 0.5;
+/** Segments round each corner. */
+const CORNER_STEPS = 6;
+const QUADRANTS: [number, number][] = [
+  [1, 1],
+  [-1, 1],
+  [-1, -1],
+  [1, -1],
+];
+
+/**
+ * A square of half-side `half` with its corners rounded to radius `r`, as
+ * points (x, z) round it; squares drawn with the same `half - r` share their
+ * corners' centres, so their points pair up across an even band.
+ */
+const roundedSquare = (half: number, r: number): [number, number][] =>
+  QUADRANTS.flatMap(([sx, sz], k) =>
+    Array.from({ length: CORNER_STEPS + 1 }, (_, j): [number, number] => {
+      const a = ((k + j / CORNER_STEPS) * Math.PI) / 2;
+      return [sx * (half - r) + r * Math.cos(a), sz * (half - r) + r * Math.sin(a)];
+    }),
+  );
+
+/**
+ * One level's square of light as a single solid: a ring from the glass's
+ * edge (`inner`) out `width`, hanging `height` below the glass, its corners
+ * very slightly rounded (inner and outer edges on one centre, so the band
+ * keeps its width round the bend) and nothing inside it, so no two faces
+ * ever lie over each other and the ring is equally bright all the way round,
+ * corners included (four overlapping bars drew their corners twice). Each
+ * vertex carries its light's alpha: full along the glass, `low` along the
+ * rim's lower edge. The glass it frames stays square: its corner lies
+ * inside the rounded band.
+ */
+const rimGeometry = (inner: number, width: number, height: number, low: number) => {
+  const r = CORNER * width;
+  const ins = roundedSquare(inner, r);
+  const outs = roundedSquare(inner + width, r + width);
+  const pos: number[] = [];
+  const rgba: number[] = [];
+  // A quad facing `normal`, wound to face it
+  const quad = (a: V3, b: V3, c: V3, d: V3, normal: V3) => {
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const flip = n[0] * normal[0] + n[1] * normal[1] + n[2] * normal[2] < 0;
+    const corners = flip ? [a, d, c, b] : [a, b, c, d];
+    for (const i of [0, 1, 2, 0, 2, 3]) {
+      const p = corners[i];
+      pos.push(...p);
+      rgba.push(1, 1, 1, p[1] < -height / 2 ? low : 1);
+    }
+  };
+  // Face by face, the top first and the underside next, then the sides, so
+  // with the ring writing depth a side seen through the top (at the rounded
+  // inner corner) is never drawn over it a second time
+  const n = ins.length;
+  const top = 0;
+  const bottom = -height;
+  for (const face of ['top', 'bottom', 'outer', 'inner'] as const) {
+    for (let j = 0; j < n; j++) {
+      const [ix0, iz0] = ins[j];
+      const [ix1, iz1] = ins[(j + 1) % n];
+      const [ox0, oz0] = outs[j];
+      const [ox1, oz1] = outs[(j + 1) % n];
+      const out: V3 = [(ox0 + ox1) / 2, 0, (oz0 + oz1) / 2];
+      if (face === 'top') {
+        quad([ix0, top, iz0], [ix1, top, iz1], [ox1, top, oz1], [ox0, top, oz0], [0, 1, 0]);
+      } else if (face === 'bottom') {
+        quad(
+          [ix0, bottom, iz0],
+          [ix1, bottom, iz1],
+          [ox1, bottom, oz1],
+          [ox0, bottom, oz0],
+          [0, -1, 0],
+        );
+      } else if (face === 'outer') {
+        quad([ox0, top, oz0], [ox1, top, oz1], [ox1, bottom, oz1], [ox0, bottom, oz0], out);
+      } else {
+        quad(
+          [ix0, top, iz0],
+          [ix1, top, iz1],
+          [ix1, bottom, iz1],
+          [ix0, bottom, iz0],
+          [-out[0], 0, -out[2]],
+        );
+      }
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('color', new BufferAttribute(new Float32Array(rgba), 4));
+  return g;
+};
 
 /** The five levels (see above). Decorative: nothing here takes a click. */
 export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
@@ -147,23 +245,18 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
   const borderBright = useEnvSetting<number>('env.borderBrightness');
   const plane = useMemo(
     // Out to the middle of the edge's light, so no seam can open between them
-    () => new PlaneGeometry((reach + FILL) * 2, (reach + FILL) * 2).rotateX(-Math.PI / 2),
-    [reach],
+    () => {
+      const fill = FILL * borderWidth;
+      return new PlaneGeometry((reach + fill) * 2, (reach + fill) * 2).rotateX(-Math.PI / 2);
+    },
+    [reach, borderWidth],
   );
   const edge = useMemo(() => {
-    const height = EDGE_HEIGHT * borderHeight;
-    const g = frameGeometry(reach, EDGE_WIDTH * borderWidth, height);
     // A deep rim is a band of light, full at the glass and fading toward its
-    // lower edge (at the default depth it is one even line, as it was)
+    // lower edge (at the old default depth it is one even line, as it was)
     const k = Math.min(Math.max((borderHeight - 1) / 3, 0), 1);
     const low = 1 - 0.6 * k * k * (3 - 2 * k);
-    const y = g.getAttribute('position');
-    const rgba = new Float32Array(y.count * 4);
-    for (let i = 0; i < y.count; i++) {
-      rgba.set([1, 1, 1, y.getY(i) < -height / 2 ? low : 1], i * 4);
-    }
-    g.setAttribute('color', new BufferAttribute(rgba, 4));
-    return g;
+    return rimGeometry(reach, EDGE_WIDTH * borderWidth, EDGE_HEIGHT * borderHeight, low);
   }, [reach, borderWidth, borderHeight]);
   useEffect(() => () => plane.dispose(), [plane]);
   useEffect(() => () => edge.dispose(), [edge]);
@@ -205,7 +298,9 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
             vertexColors: true,
             transparent: true,
             opacity: EDGE,
-            depthWrite: false,
+            // Its own faces never stack (rimGeometry's order); it is drawn
+            // after the glass, so the glass is never hidden by it
+            depthWrite: true,
             toneMapped: false,
             fog: false,
           }),
@@ -230,9 +325,12 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
       m.glass.uniforms.uFrostA.value = FROST * checker;
       m.glass.uniforms.uSmokeA.value = SMOKE * checker;
       m.glass.uniforms.uLine.value = LINE * lines;
+      // Under the inner half of the edge's light, and inside its rounded
+      // corners: the glass's square corner never shows past them
+      m.glass.uniforms.uFill.value = (MARGIN + FILL * borderWidth) / FRAME.pitch;
     }
     invalidate();
-  }, [materials, checker, lines, invalidate]);
+  }, [materials, checker, lines, borderWidth, invalidate]);
   // Each edge's light: its focus (below) times the player's brightness. Up to
   // full opacity the light is the edge's opacity; past it, its colour, which
   // keeps its hue at full strength and then pales a little toward white, so
