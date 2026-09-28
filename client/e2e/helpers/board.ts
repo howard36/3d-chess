@@ -1,6 +1,4 @@
 import type { Page } from '@playwright/test';
-import { fromZXY } from '../../src/engine/coords';
-import { toWorld } from '../../src/three/layout';
 import type { Orientation } from '../../src/three/layout';
 
 export type { Orientation };
@@ -21,24 +19,24 @@ export async function getPlayerColor(page: Page): Promise<Orientation> {
  * Clicks a board square (ZXY notation, e.g. 'Bb1') on the WebGL canvas with a
  * real mouse event, so the click travels the app's actual raycasting path.
  *
- * The board renders mirrored per player (toWorld flips all three axes for
- * Black), so the pixel depends on which seat this page holds — pass the
- * colour from getPlayerColor.
+ * The board is drawn for the seat this page holds (Black walks round the
+ * tower), so the pixel depends on it: `seat` names it in errors.
  *
- * The projection and the occlusion check run in the page against the live
- * r3f state exposed by the Canvas onCreated hook in GameScreen.tsx, so they
- * stay correct if the camera moves or the default setup changes. A 3D board
- * is not a grid: the ray through a cell's centre often passes through another
- * cell first, and if that cell is also a legal destination (or holds a piece)
- * it takes the click, so the helper samples several points inside the target
- * cell and uses the first one whose ray reaches the target before any other
- * interactive object — mirroring how r3f dispatches to the nearest hit with a
- * handler. It throws if no such point exists rather than clicking blindly.
+ * The square is found, projected and checked for occlusion in the page,
+ * against the live r3f state exposed by the Canvas onCreated hook in
+ * GameScreen.tsx: the square's click box carries its name (userData.zxy), so
+ * the helper never recomputes the layout, and it stays correct if the camera
+ * moves. A 3D board is not a grid: the ray through a square often passes
+ * through another first, and if that one is also a legal destination (or
+ * holds a piece) it takes the click, so the helper samples several points in
+ * and above the target square and uses the first one whose ray reaches the
+ * target before any other interactive object — mirroring how r3f dispatches
+ * to the nearest hit with a handler. It throws if no such point exists rather
+ * than clicking blindly.
  */
 export async function clickSquare(page: Page, zxy: string, seat: Orientation): Promise<void> {
-  const world = toWorld(fromZXY(zxy), seat);
   const locate = () =>
-    page.evaluate(([wx, wy, wz]) => {
+    page.evaluate((target) => {
       const state = (
         window as Window & {
           __r3fState?: { get?: () => unknown } & Record<string, unknown>;
@@ -50,13 +48,21 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
         userData: Record<string, unknown>;
         parent: Obj | null;
         children: Obj[];
+        geometry?: {
+          boundingBox: { min: { y: number }; max: { y: number } } | null;
+          computeBoundingBox(): void;
+        };
       };
       // state.get() returns a fresh store snapshot (size changes on resize);
       // the camera and scene objects are live references either way.
       const { camera, size, scene, raycaster } = (state.get ? state.get() : state) as {
         camera: { updateMatrixWorld(): void; [k: string]: unknown };
         size: { width: number; height: number };
-        scene: { children: Obj[]; updateMatrixWorld(force: boolean): void };
+        scene: {
+          children: Obj[];
+          updateMatrixWorld(force: boolean): void;
+          traverse(cb: (o: Obj) => void): void;
+        };
         raycaster: {
           setFromCamera(ndc: { x: number; y: number }, camera: unknown): void;
           intersectObjects(objects: Obj[], recursive: boolean): { object: Obj }[];
@@ -67,6 +73,17 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
       // one yet, and Mesh.raycast reads matrixWorld directly.
       camera.updateMatrixWorld();
       scene.updateMatrixWorld(true);
+      // The square's click box: at the centre of its cell, where a piece on it
+      // stands too; its geometry is a thin slab on the cell's floor
+      let cube: Obj | null = null;
+      scene.traverse((o) => {
+        if (o.userData.cube && o.userData.zxy === target) cube = o;
+      });
+      if (!cube) throw new Error(`No square ${target} in the scene`);
+      const box = cube as Obj;
+      const { x: wx, y: wy, z: wz } = box.position;
+      box.geometry!.computeBoundingBox();
+      const { min, max } = box.geometry!.boundingBox!;
       const project = ([x, y, z]: number[]) => {
         const apply = (m: { elements: number[] }, [px, py, pz]: number[]) => {
           const e = m.elements;
@@ -101,11 +118,13 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
       const blockers: string[] = [];
       const canvasEl = document.querySelector('canvas');
       if (!canvasEl) throw new Error('No canvas on the page');
-      // Sample the centre first, then points spread inside the cell (the box
-      // is 1 unit wide; spacing is a little more, so ±0.4 stays inside it).
+      // Sample the centre first, then points spread across the square (a
+      // square is about 1 unit wide, so ±0.4 stays on it), at the height of a
+      // piece standing there and of the click box on its floor.
       const offsets = [0, 0.4, -0.4];
+      const heights = [0, 0.4, -0.4, (min.y + max.y) / 2];
       for (const dx of offsets) {
-        for (const dy of offsets) {
+        for (const dy of heights) {
           for (const dz of offsets) {
             const [nx, ny] = project([wx + dx, wy + dy, wz + dz]);
             raycaster.setFromCamera({ x: nx, y: ny }, camera);
@@ -133,7 +152,7 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
         }
       }
       return { blockers, size: `${size.width}x${size.height}` };
-    }, world);
+    }, zxy);
 
   // A piece gliding through the line of sight (the last move's animation)
   // can block every sample for a moment; poll briefly before giving up.
@@ -175,13 +194,8 @@ export async function waitForBoard(page: Page): Promise<void> {
  * enough to hit that window every time, so the driver has to wait for the
  * commit explicitly.
  */
-export async function waitForDestination(
-  page: Page,
-  zxy: string,
-  seat: Orientation,
-): Promise<void> {
-  const world = toWorld(fromZXY(zxy), seat);
-  await page.waitForFunction(([wx, wy, wz]) => {
+export async function waitForDestination(page: Page, zxy: string): Promise<void> {
+  await page.waitForFunction((target) => {
     const state = (
       window as Window & {
         __r3fState?: { get?: () => unknown } & Record<string, unknown>;
@@ -189,28 +203,12 @@ export async function waitForDestination(
     ).__r3fState;
     if (!state) return false;
     const { scene } = (state.get ? state.get() : state) as {
-      scene: {
-        traverse(
-          cb: (o: {
-            position: { x: number; y: number; z: number };
-            userData: Record<string, unknown>;
-          }) => void,
-        ): void;
-      };
+      scene: { traverse(cb: (o: { userData: Record<string, unknown> }) => void): void };
     };
-    const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
     let found = false;
     scene.traverse((o) => {
-      if (
-        o.userData.cube &&
-        o.userData.highlight &&
-        near(o.position.x, wx) &&
-        near(o.position.y, wy) &&
-        near(o.position.z, wz)
-      ) {
-        found = true;
-      }
+      if (o.userData.cube && o.userData.highlight && o.userData.zxy === target) found = true;
     });
     return found;
-  }, world);
+  }, zxy);
 }

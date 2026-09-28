@@ -11,7 +11,7 @@ import type { Orientation } from './helpers/board';
 /** Plays one move from `page` (seated as `seat`) without the Game helper. */
 async function playFrom(page: Page, seat: Orientation, from: string, to: string) {
   await clickSquare(page, from, seat);
-  await waitForDestination(page, to, seat);
+  await waitForDestination(page, to);
   await clickSquare(page, to, seat);
 }
 

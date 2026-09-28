@@ -15,7 +15,7 @@ test('a promoting pawn lets the player pick the piece', async ({ browser }) => {
   await game.playAll(APPROACH);
 
   await clickSquare(game.white, 'Da4', 'white');
-  await waitForDestination(game.white, 'Ea5', 'white');
+  await waitForDestination(game.white, 'Ea5');
   await clickSquare(game.white, 'Ea5', 'white');
 
   const dialog = game.white.getByRole('dialog', { name: 'Promote to' });

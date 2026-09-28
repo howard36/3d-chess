@@ -73,7 +73,7 @@ export async function startGame(browser: Browser): Promise<Game> {
       const seat = await game.turn();
       const page = seats[seat];
       await clickSquare(page, from, seat);
-      await waitForDestination(page, to, seat);
+      await waitForDestination(page, to);
       await clickSquare(page, to, seat);
       // The turn chip names the other side, or gives the result if this
       // move ended the game
