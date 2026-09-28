@@ -407,6 +407,7 @@
   color: var(--hud-dim);
   font-weight: 500;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 .hud-moves .hud-m[data-last] {
   color: var(--hud-ink);
@@ -606,8 +607,8 @@
   height: 18px;
 }
 
-/* No pointer to rest on a phone: no cell line */
-@media (hover: none) {
+/* No pointer to rest on a phone: no cell line (and no room for it) */
+@media (hover: none), (max-width: 520px), (max-height: 480px) {
   .hud-readout {
     display: none;
   }
@@ -643,7 +644,14 @@
     width: clamp(160px, calc(50vw - 170px), 232px);
   }
   .hud-moves {
+    grid-template-columns: 16px 1fr 1fr;
+    column-gap: 6px;
     max-height: 66px;
+    font-size: 12px;
+  }
+  .hud-heads {
+    grid-template-columns: 16px 1fr 1fr;
+    column-gap: 6px;
   }
 }
 

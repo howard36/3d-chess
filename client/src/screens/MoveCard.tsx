@@ -60,13 +60,18 @@ const MoveCard: React.FC<MoveCardProps> = ({
   const [focused, setFocused] = React.useState(false);
   const listRef = React.useRef<HTMLOListElement | null>(null);
 
-  // Keep the newest move in view as rows are added
+  // Keep the newest move in view as rows are added, and when the window
+  // changes shape (a phone lays the moves out in one line, scrolled sideways)
   React.useEffect(() => {
-    const el = listRef.current;
-    if (el) {
+    const toNewest = () => {
+      const el = listRef.current;
+      if (!el) return;
       el.scrollTop = el.scrollHeight;
       el.scrollLeft = el.scrollWidth;
-    }
+    };
+    toNewest();
+    window.addEventListener('resize', toNewest);
+    return () => window.removeEventListener('resize', toNewest);
   }, [moves.length, shown]);
 
   const submit = (e: React.FormEvent) => {
