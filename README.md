@@ -38,7 +38,7 @@ by the client engine. The starting position is defined in `Board.setupStartingPo
 | A     | R N K N R | B U Q B U |           |           |
 
 (files a→e left to right; upper case White, lower case Black). Black's army is White's
-turned through the centre, `(x, y, z) → (4 − x, 4 − y, 4 − z)`. This is the classic
+turned through the centre, `(x, y, z) → (4 − x, 4 − y, 4 − z)`. This is the traditional
 5×5×5 set-up (pieces on rank 1 of levels A and B, pawns on rank 2) with rank and level
 exchanged. Every rule treats the two axes alike, so move for move it is the same game.
 
@@ -133,10 +133,11 @@ Key decisions:
   the board in the window (`zoomRange` in `three/cameraFit.ts`); `FitCameraToBoard`
   recomputes the fit and the range whenever the window changes shape (a phone turned on
   its side) and opens the camera inside it, so a phone zooms over the same share of its
-  view as a desktop. A design's `orbit.minDistance`/`maxDistance` only narrow the range,
-  and its polar-angle limits bound the elevation (up to straight down). The controls
-  (`three/CameraControls.tsx`) are three's own OrbitControls, registered as r3f's default
-  controls, which `FitCameraToBoard`, the designs and `showcase.mjs` read.
+  view as a desktop. The layout's `orbit.minDistance` only narrows the range, and its
+  polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
+  sky, to straight down). The controls (`three/CameraControls.tsx`) are three's own
+  OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the
+  scene and `showcase.mjs` read.
 - **Touch.** The game screen takes no text selection, long-press callout or double-tap
   zoom (iOS would otherwise select the whole page on a double tap), except in the move box
   and the move list (`.game-screen` in `client/src/index.css`); the canvas takes every
@@ -149,7 +150,7 @@ Key decisions:
 - **Turn chip.** The chip at the top says whose move it is ("White to move — in check").
   Once the game is over it gives the result instead ("Checkmate · White wins",
   "Stalemate · Draw"); it carries `data-turn` while the game is on and `data-result` /
-  `data-winner` after, for tests, `showcase.mjs` and designs' stylesheets.
+  `data-winner` after, for tests, `showcase.mjs` and stylesheets.
 
 ## Protocol
 
@@ -211,109 +212,95 @@ toward +y, "forward"), `z` = level (White promotes toward +z, "up").
 So internal `(0,0,0)` = `Aa1`, `(4,4,4)` = `Ee5`. Conversions live in
 `client/src/engine/coords.ts`.
 
-**3. Rendering (Three.js scene):** `toWorld()` in `client/src/three/layout.ts` maps an
-engine coordinate to a world position, **oriented to the viewing player**. For White,
-file → X, level → Y and rank → −Z, so level A is at the bottom and rank 1 nearest the
-camera; for Black all three axes are mirrored (`v → 4 − v`), which is the symmetry the
-starting position is built on, so each player sees their own army laid out identically,
-at the bottom and nearest. The default camera sits at `[6.5, 5, 8.5]` (mostly on +Z, up
-and to the right) looking at the cube's centre, so:
+**3. Rendering (Three.js scene):** the board is a tower of five glass levels, A at the
+bottom. `toWorld()` (from `towerLayout()` in `client/src/three/layout.ts`) maps an engine
+coordinate to a world position **oriented to the viewing player**. For White, file → X,
+level → Y and rank → −Z, so level A is at the bottom and rank 1 nearest the camera; for
+Black, files and ranks are turned about (`v → 4 − v`) and levels stay, so Black walks
+round the tower rather than seeing it upside down: each player's first rank is nearest,
+White's army at the bottom of the tower and Black's at the top. The camera opens 18° above
+the horizon, turned 16° to the player's right (`layout.viewDirection`), looking at the
+tower's centre, so:
 
-| Game concept                      | Engine axis | World axis | On screen (default camera, viewing player)   |
-| --------------------------------- | ----------- | ---------- | -------------------------------------------- |
-| File a–e                          | x           | X          | left → right (mirrored for Black)            |
-| Level A–E (the game's "up")       | z           | Y          | bottom → top (own first level at the bottom) |
-| Rank 1–5 (the player's "forward") | y           | −Z         | near → far (own first rank nearest)          |
+| Game concept                      | Engine axis | World axis | On screen (opening view, viewing player) |
+| --------------------------------- | ----------- | ---------- | ---------------------------------------- |
+| File a–e                          | x           | X          | left → right (right → left for Black)    |
+| Level A–E (the game's "up")       | z           | Y          | bottom → top, for both players           |
+| Rank 1–5 (the player's "forward") | y           | −Z         | near → far (own first rank nearest)      |
 
-So levels are **screen height** and ranks are **depth**, as in the tower layout.
-Concretely, for White: the ten starting pawns (level B, ranks 1–2) are the
-second-from-bottom horizontal layer of the cube, in the two slices nearest the camera,
-right above White's pieces on level A; moving a pawn "forward" moves it away from the
-viewer, "up" moves it up the screen. Black sees the mirror image. The player turns the
-view freely about the cube's centre, so the default view is just a starting point. Only
-positions are transformed; piece meshes are never mirrored. This is the classic (lattice) layout; a
-design may lay the cells out differently (see Board designs — the tower layout spreads
-the levels out as five separate boards).
-The classic position math is in `three/layout.ts`, the others in
-`three/designs/kit/layouts.ts`; the floor rings and the glide
-lift in `three/Board.tsx` and `three/motion.ts` assume world-Y-up, and the camera lives in
-`screens/GameScreen.tsx` (its starting direction), `three/cameraFit.ts` (its distance,
-fitted to the window's shape so the whole cube is framed on a phone too, and the zoom
-range around it) and `three/CameraControls.tsx` (turning and zooming). The engine and wire
-formats are independent of rendering, and the e2e click helpers project through the live
-camera.
+So levels are **screen height** and ranks are **depth**. Concretely, for White: the ten
+starting pawns (level B, ranks 1–2) stand on the second level from the bottom, in the two
+rows nearest the camera, right above White's pieces on level A; moving a pawn "forward"
+moves it away from the viewer, "up" moves it to the level above. The player turns the view
+freely about the tower's centre, so the opening view is just a starting point. Only
+positions are transformed; piece meshes are never mirrored (Board turns each knight to
+face the opponent). The levels are 1.35 cell pitches apart (`TOWER_DEFAULTS`), and
+`towerFrame(layout)` measures a layout's pitch, gap and platform heights. The scene
+assumes world-Y-up; the camera lives in `screens/GameScreen.tsx` (its starting
+direction), `three/cameraFit.ts` (its distance, fitted to the window's shape so the whole
+tower is framed on a phone too, and the zoom range around it) and
+`three/CameraControls.tsx` (turning and zooming). The engine and wire formats are
+independent of rendering, and the e2e click helpers project through the live camera.
 
-## Board designs
+## The board
 
-The look of the game is a swappable **design** (`client/src/three/designs/`). The board
-style picker (top right, in game and on the start screen) switches between them; the
-choice is cosmetic, per browser (`localStorage`), and never sent to the opponent. A
-`?design=<id>` in any address selects and remembers one, so a shared link can carry a
-look. Classic is bundled; every other design is its own lazily loaded chunk.
+The tower of five glass levels floats in a garden at night. Each level is a sheet of clear
+glass edged in its own colour (cyan, azure, periwinkle, orchid and rose, A to E), with the
+3D checker on it (dark where x + y + z is even, so a bishop keeps its colour through the
+levels) divided by hairlines of the level's colour. Porcelain and charcoal Staunton pieces
+(see Piece set) stand on the glass, each with a thin band of its level's colour round its
+foot. Far out, a colossal chessboard drawn in faint light carries twelve giant pieces
+outlined in white neon, which sink into the tower's shade as they near it on screen, so
+nothing competes with the board; overhead are stars and chess constellations for a camera
+that looks up. Files and ranks label the two edges of the bottom platform nearest the
+camera (the top one's, seen from high above), and each level letter sits beside its own
+platform, moving with a short crossfade as the view turns.
 
-A design (`designs/types.ts`) is data plus components: a **layout** (where the 125 cells
-sit: the classic *lattice* above, or a *tower* of five stacked boards with levels going
-up, as on a real set — Black walks around the tower rather than seeing it upside down),
-the **stage** (background, lights, atmosphere, post-processing), the visible **grid**,
-the **piece bodies**, the **markers** (legal move, capture, selection, last move, check),
-the **motion** of a move (`hop`, `bounce`, `slide`, `teleport`), optional move, capture
-and mate **effects**, and the **HUD** styling as CSS variables (`--hud-*`, `--turn-*`,
-`--modal-*`, `--page-*`; every one falls back to the classic look). `Board.tsx` keeps all
-interaction rules and renders a design's decoration outside its clickable group, so
-nothing decorative can take a click. Every move but a teleport glides in a straight line
-from square to square (`three/movePath.ts`); a knight arcs instead when the player sets
-**Knight moves: Arc** at the foot of the style picker (also `?knight=arc|straight`,
-remembered like the design), and the glide, the last-move line and a design's move effects
-(`MoveFxProps.arc`) all follow that one path. Pointer events hit an invisible, still
-stand-in fitted round each piece at rest and lifted (`PieceMesh`), never the moving body,
-so a piece that rises under the pointer cannot slip out from under it; designs share a kit (`designs/kit/`) of layouts,
-bloom, particles, confetti, labels and procedural textures. Adding one means a folder
-with an `index.tsx` default-exporting a `Design`, plus an entry in `designs/registry.ts`.
+Play is marked in light on the glass: a thin gold circle round each square the selected
+piece can reach (fuller under the pointer), red round a capture, a mint line from the last
+move's source to its destination, and a red crown with dark blades round a king in check. A
+piece under the pointer lifts a little; the selected piece lifts higher and holds still in
+a column of cool light. A move glides in a straight line from square to square
+(`three/movePath.ts`), or over an arc for a knight when the player sets **Knight moves** to
+Arc. A captured piece burns away; at mate the king topples, a pulse runs through the levels
+and the result card follows once it has played (`resultDelayMs` in `scene/fx.tsx`).
 
-To compare designs, `client/scripts/showcase.mjs` records one playing a scripted game
-(captures, a check, a queen trade, a mate) to an MP4, or saves stills of the key moments
-with `--stills`. It needs the app running against a local backend (see Development) and
-drives the page on a virtual clock, so a slow software renderer still yields a smooth,
-full-rate video:
+How the code is split:
 
-```bash
-cd client && node scripts/showcase.mjs --design royal --out /tmp/showcase   # ffmpeg on PATH
-```
+- `three/Board.tsx` owns every interaction rule: selecting and deselecting, legal
+  destinations, click-to-capture, hover (from the pointer's ray against the floors and
+  pieces, `three/hover.ts`) and the move glide (`three/moveAnimation.tsx`). Its 125
+  invisible click targets are thin slabs on each square's floor (`layout.hitHeight`), so a
+  click lands on the square whose floor is under the pointer. It renders the grid, markers
+  and effects in the `board-decor` group, outside the clickable `board-grid` group, so
+  decoration can never take a click. The last move's line and entrance are keyed by move
+  and play only for a move that arrived live, never on a reload or rejoin.
+- `three/PieceMesh.tsx` places a piece. Pointer events hit an invisible, still stand-in
+  fitted round the piece at rest and lifted, never the moving body, so a piece that rises
+  under the pointer cannot slip out from under it. `three/pieceMotion.tsx` holds the timed
+  `Lift`, the `Topple` of a mated king, the decoration that stays on the glass while its
+  piece lifts (`ON_FLOOR`), and `useGlide()`, which tells a piece body the levels its glide
+  leaves and lands on, so its foot band changes colour on the way.
+- `three/scene/` draws everything else: the garden and sky (`stage.tsx`, `heavens.tsx`),
+  the levels and labels (`plates.tsx`, `grid.tsx`, `smartLabels.tsx`), the piece bodies
+  (`pieces.tsx`), the marks of play (`markers.tsx`, `line.tsx`, `selection.tsx`,
+  `blades.tsx`) and the capture and mate (`fx.tsx`). `palette.ts` holds the colours, the
+  layout and the sizes they share. Every see-through part writes no depth and draws in a
+  fixed order (`layers.ts`), so the glass never hides or tints a marker or a label.
+  Board, PieceMesh and GameScreen import these parts directly; unit tests stand them in
+  with `vi.mock`.
 
-### Design settings
+All motion runs on r3f's clock, and the canvas renders on demand.
 
-A design may let the player adjust parts of its look (`designs/settings.ts`). It declares
-them as `Design.settings`, a list of `SettingSpec`s. Each has a stable `key` (the name
-it is read by and stored under), a `label`, a `group` (the heading it is listed under), a
-`default` and an optional one-line `hint`. There are three kinds:
+### Settings
 
-- `toggle`, a boolean;
-- `slider`, a number, with `min`, `max`, `step` and an optional `format(value)` for how it
-  reads (else the number, to the step's decimals);
-- `choice`, one of `options: { value, label }[]`.
+A gear at the top right, in the game and on the start screen, opens the board's settings
+(`screens/SettingsPanel.tsx`) in six groups: Board, World, Pieces, Selection, Markers and
+Check. Among them are the checker and borders of the levels, the garden's sculptures and
+sky, the dark army's tone, how far pieces lift, **Knight moves** (Straight, the default, or
+Arc), the capture marker, the last-move line and the blades round a king in check.
 
-```tsx
-settings: [
-  { kind: 'toggle', key: 'env.stars', label: 'Stars', group: 'World', default: true },
-  { kind: 'slider', key: 'env.glow', label: 'Glow', group: 'World', default: 1,
-    min: 0, max: 2, step: 0.1, format: (v) => `${v.toFixed(1)}×`, hint: 'The sky’s light.' },
-],
-```
-
-Anything under the Canvas reads a setting with `useDesignSetting<T>(key)` (or all of them
-with `useDesignSettings()`) and re-renders when it changes. The canvas renders on demand, so
-a value read only inside `useFrame` also needs `useEffect(() => invalidate(), [value])`.
-The choices are kept per design in this browser (`localStorage`, `design-settings:<id>`,
-only the values that differ from the defaults). They are never game state and never sent
-to the opponent. A stored value that no longer fits its setting (a renamed option, a
-narrower range, a changed kind) is dropped. Renaming a key forgets the players' choice for
-it.
-
-When the current design has settings, a gear appears beside the style picker, in the game
-and on the start screen, styled with the design's `--hud-*` and `--button-*` variables. It
-opens a small panel over the top right of the board (`screens/DesignSettings.tsx`):
-
-- groups are listed in the order they first appear, and each group's settings as declared;
+- groups are listed in a fixed order, and each group's settings as declared;
 - toggles are switches, and sliders show their formatted value;
 - a choice is a row of buttons, or a drop-down beyond four options;
 - hints appear in small muted text;
@@ -323,107 +310,57 @@ opens a small panel over the top right of the board (`screens/DesignSettings.tsx
 Every change applies at once. The panel is not modal: the board stays in play and
 clicking it leaves the panel open. Escape, the gear, or its close button closes the panel,
 and so does a click anywhere else. It scrolls on its own on a small screen, and no pointer
-or wheel event on it reaches the board's camera.
+or wheel event on it reaches the board's camera. The settings are cosmetic: they are kept
+in this browser (`localStorage`, `3dchess:settings`, only the values that differ from the
+defaults), are never game state and are never sent to the opponent. A stored value that no
+longer fits its setting (a renamed option, a narrower range, a changed kind) is dropped.
 
-### Clarity kit
+The scene declares its settings (`scene/settings-env.ts`, `settings-pieces.ts` and
+`settings-markers.ts`, put in the panel's order by `scene/settings.ts`), each a
+`SettingSpec` (`three/settings.ts`) with a stable `key` (the name it is read by and stored
+under), a `label`, a `group`, a `default` and an optional one-line `hint`, of one of three
+kinds:
 
-Round-2 designs build on a shared **clarity kit** (`designs/kit/`), whose rules come from
-play-testing: the player must read the whole position at a glance, from any angle and
-either seat. `designs/kit-demo/` uses every part with neutral styling and is the template
-to copy (hidden from the picker; open it with `?design=kit-demo`).
+- `toggle`, a boolean;
+- `slider`, a number, with `min`, `max`, `step` and an optional `format(value)` for how it
+  reads (else the number, to the step's decimals);
+- `choice`, one of `options: { value, label }[]`.
 
-- **Compact tower** (`clarityTower` in `kit/layouts.ts`): five continuous platforms, A at
-  the bottom, with a level gap of 1.35 cell pitches (the classic tower's is 1.9), so the
-  stack stays close to a cube and diagonals look natural; seen from a low camera (18°)
-  turned 16° off the players' axis, so the view looks *between* the levels and ranks do not
-  stack into columns. `BoardLayout.orbit` limits the camera (6°–89.9° elevation) so it
-  never dips under the bottom platform; at the top it looks straight down, like a 2D board
-  with the levels nested under it (the file and rank labels move to the top platform's
-  edges once the bottom one's would land on the platforms above it).
-  Its click boxes are thin slabs on each square (`BoardLayout.hitHeight`), so a click lands
-  on the square whose floor is under the pointer. Pieces are drawn at `Design.pieceScale`
-  (0.8 in the demo) to fit the gap. `towerFrame(layout)` measures any tower layout (pitch,
-  gap, platform heights) for the parts below.
-- **Level identity**: Board tells each piece body its `level`, so a design can mark which
-  platform a piece stands on (`LevelFootprint`, a ring in the level's colour), and gives the
-  Grid a `focus` (`{ selected, hovered }` levels); `focusLevelOf(focus)` picks the one to
-  emphasise, hover first. `LevelPlates` and `SmartLabels` take it as `focusLevel` and ease
-  that level's edge and letter up (150 ms, no pulsing). `hud.readout` shows the cell under
-  the pointer under the turn indicator ("Cc4 · White Bishop"). Hover is found from the
-  pointer's ray against the floors and pieces (`three/hover.ts`) for designs with
-  `hoverDestinations` or `hud.readout`.
-- **Platforms** (`LevelPlates`, `kit/plates.tsx`): one see-through slab per level, a faint
-  two-tone checker coloured by x + y + z (so a bishop keeps its colour through the levels),
-  a crisp perimeter edge and nothing else; optional per-level tints colour-code the levels.
-  `ContactShadow` goes in a design's PieceBody, under the piece, to show which platform it
-  stands on. It and `LevelFootprint` carry `FLOOR_DECAL` (`kit/motion.tsx`), so `Topple`
-  hides them while a mated king lies on its side instead of standing them up with it; spread
-  it onto a design's own base discs as `userData`. A group tagged `ON_FLOOR` instead stays
-  on the floor while `Lift` raises the piece (pinned in the same frame, so a base ring
-  neither rides up nor trails behind); `Lift` owns that group's height, so offset its
-  children. While a move glides, `useGlide()` tells the piece body the levels it leaves and
-  lands on and the glide's eased progress, so a base in the level colour can change colour on
-  the way rather than wearing the destination's from the start. `frameGeometry` builds the perimeter
-  frame for designs drawing their own plates.
-- **Markers** (`kit/markers.tsx`): flat on the platform where a piece stands, never floating
-  in the cell. `FloorMarker` draws an inset rounded square, corner brackets, a ring or a
-  dot; `capture` adds a tint and four ticks to the same shape (inward on a square; on a
-  ring, which widens to 0.42 of a pitch so it shows round the victim's base, outward to the
-  corners), and `hovered` brightens it (Board passes it to designs with
-  `hoverDestinations`). `LastMoveLine` (`kit/line.tsx`) joins the centres of the last move's
-  squares with a thin tube of real geometry, straight (or along a knight's arc: pass
-  `LastMoveMarkerProps.arc`), with no arrowhead: the destination's marker says where the
-  move ended. The line is depth-tested, so pieces hide it wherever it passes behind them,
-  and it is never drawn through one. Ending at the destination's centre, a line coming
-  down onto the piece standing there would seem to end at the piece's head, so `inset`
-  lands it that far from the centre instead, on the destination's floor just outside the
-  piece's footprint, on the side facing the source; `insetFront` (the direction the seat
-  looks from) turns a landing that would fall behind the piece to its side, and
-  `insetSide` places a straight up or down move's. A calm flow runs along
-  it from source to destination (a soft pulse, drifting dashes, or a row of beads:
-  `pattern`), with `color`, `radius`, `flowSpeed`, `pulse`, `outline` and `drawInMs` to style
-  it; `tracePath` and `tubeData` (`kit/markerGeometry.ts`) build a design's own line on the
-  same path. Board keys the LastMove marker by move and passes `fresh` (the move
-  arrived live), so an entrance plays once per move and never on a reload or rejoin.
-  `clarityMarkers({ pitch, … })` returns a design's whole marker set. Designs set
-  `cellFills` to `null` to draw no cell volumes.
-- **Labels** (`SmartLabels`, `kit/smartLabels.tsx`): files and ranks follow the camera to the
-  two edges of the bottom platform nearest it (the top platform's, seen from high above),
-  and each level letter sits beside its own
-  platform at the corner furthest left on screen, with hysteresis and a short crossfade as
-  the camera orbits; the placement is a pure function (`kit/labelAnchors.ts`).
-- **Layers** (`kit/layers.ts`): every see-through part writes no depth and draws in a fixed
-  order (platforms, edges, shadows, markers, the last-move line, labels), so platforms never
-  hide or tint a marker, and pieces under several platforms keep their colour.
-- **Optional parts**: `LevelGrid` (`kit/grid.tsx`) draws hairlines between each level's
-  squares, colour-coded per level, antialiased at any distance and optionally fading with it;
-  `levelRamp` (`kit/colors.ts`) returns five evenly spaced colours for the levels, one
-  lightness and chroma along an OKLCH hue ramp, never white or grey; `LevelBand`
-  (`kit/plates.tsx`) builds a thin band of the level's colour into a piece's foot, beside
-  the flat `LevelFootprint`.
-- **Lift**: `hoverLift: true` raises a piece under the pointer (0.08) and the selected one
-  (0.2) and holds it still; `hoverLift: { hover, selected, bob }` sets the heights and opts
-  into a bob while held (the round-2 designs use `SELECTION_BOB`). Leave it off to express
-  hover and selection in the piece body.
+Anything under the Canvas reads a setting with `useSetting<T>(key)` (or all of them with
+`useSettings()`) and re-renders when it changes. The canvas renders on demand, so a value
+read only inside `useFrame` also needs `useEffect(() => invalidate(), [value])`. Renaming
+a key forgets the players' choice for it.
 
-`showcase.mjs --review` photographs a design for a clarity review: the opening, a selected
-piece with quiet and capture destinations (and the pointer on a destination and on a piece),
-the last move's line and a check, each from 13 camera poses, top-down included (or
-`--poses "az,el;…"`), and
-from both seats, laid out as contact sheets (usage at the top of the script; one to three
+### Recording the board
+
+`client/scripts/showcase.mjs` records the board playing a scripted game (captures, a
+check, a queen trade, a mate) to an MP4, or saves stills of the key moments with
+`--stills`. It needs the app running against a local backend (see Development) and drives
+the page on a virtual clock, so a slow software renderer still yields a smooth, full-rate
+video:
+
+```bash
+cd client && node scripts/showcase.mjs --out /tmp/showcase   # ffmpeg on PATH
+```
+
+`--review` photographs the board for a legibility check: the opening, a selected piece
+with quiet and capture destinations (and the pointer on a destination and on a piece), the
+last move's line and a check, each from 13 camera poses, top-down included (or
+`--poses "az,el;…"`), and from both seats, laid out as contact sheets (one to three
 minutes). `--stills-fast` takes `--stills`' pictures without drawing the frames between
 them, several times faster. `--interact` records the pointer at work instead of a game:
-hover and unhover, selecting, hovering a quiet and a capture destination, switching straight
-to another piece, and deselecting, to `<design>-interact.mp4` plus a still per beat.
+hover and unhover, selecting, hovering a quiet and a capture destination, switching
+straight to another piece, and deselecting, to `interact.mp4` plus a still per beat.
+`--knight arc` plays the game with knights arcing. Usage is at the top of the script.
 
 ### Piece set
 
-Every design can draw the same **Staunton set** (`client/src/three/pieces/`), modelled like
+The pieces are a **Staunton set** (`client/src/three/pieces/`), modelled like
 a fine tournament set: turned profiles with a weighted base, collar rings and a clear
 hierarchy of heights (pawn 0.52, rook 0.60, knight 0.72, bishop 0.75, unicorn 0.79, queen
 0.825 and king 0.87), and heads that name each piece from the side, from three-quarters and
 from directly above, in carved relief rather than paint: the rook's six merlons on a
-corbelled turret round a hollow; the knight carved as the classic Staunton knight (one
+corbelled turret round a hollow; the knight carved as the traditional Staunton knight (one
 arched head-and-neck profile bowed forward and down, a full chest, the face falling steeply
 to a deep, blunt muzzle, given thickness and sculpted with leaf ears pricked forward and
 splayed apart, a carved eye under its brow, flared nostrils, an open mouth and a narrow
@@ -434,54 +371,39 @@ drawn up into eight pointed tines with pearls, round a ball finial; and the king
 fluted bucket crown, a low dome behind its rim, under a slim cross pattée taller than
 wide, with arms both ways, so it reads as a cross from every side and as a plus from
 above. Every piece can be told apart by silhouette alone.
-Pieces stand base-at-`y = 0`, face
-`+x` (Board turns the knight), and fit the envelope the layouts assume (radius 0.27 at most;
-`pieceScale` applies as before). Each piece is split into **parts** a design paints
+Pieces stand base-at-`y = 0`, face `+x` (Board turns the knight), and fit within a radius
+of 0.27; the board draws them at 0.8 scale (`PIECE_SCALE` in `scene/palette.ts`), so the
+king stands clear of the level above. Each piece is split into **parts**, painted
 separately:
 
 - `body`: everything turned or carved that is not one of the parts below;
 - `collar`: the ring (or rings) where the stem meets the head;
 - `accent`: the details that identify the piece (knight's eyes, bishop's cut, the lines
   in the unicorn's twist, queen's pearls, king's cross, rook's crenel sills and hollow);
-  pawns have none. The relief names every piece on its own, so an accent may be painted
-  like the body;
-- `foot`: a thin band at the very bottom (`FOOT_HEIGHT`, 0.04), for the colour of the level
-  the piece stands on (`PieceBodyProps.level`).
+  pawns have none. The relief names every piece on its own;
+- `foot`: a thin band at the very bottom (`FOOT_HEIGHT`, 0.04), in the colour of the level
+  the piece stands on.
 
-```tsx
-import { ChessPiece } from '../../pieces';
-
-// A part without its own material is painted (and drawn in one mesh) with the body
-<ChessPiece type={type} parts={{ body: ivory, accent: walnut, foot: levelColour[level] }} />
-```
-
-Parts that share a material are merged once and drawn as one mesh, so a piece costs one to
-four draw calls. Materials may be shared objects (the cheap way: one per army and state) or
-JSX elements; anything that fades or recolours one piece must clone first. The geometry is
-built once per quality and shared: `pieceSet('low' | 'medium' | 'high')` (medium, the
-default, keeps every piece within about 5k triangles; each piece is built the first time
-it is drawn, the sculpted knight in a few hundred milliseconds, and Classic warms the set
-while the browser is idle with `preloadPieceSet()`).
-`buildPieceSet({ quality, segments, profiles, radius })` makes a variant: `segments` turns
-every shell with that many sides (a handful gives a cut-gem look), `profiles` replaces any
-of the turned profiles in `PROFILES`, and `radius(r, y, type)` reshapes them all (e.g.
-slimmer stems). `partsGeometry(set, type, parts)` hands back merged geometry for a design
-that draws its own meshes or shaders, and `pieceTop(set, type)` a piece's height. The
-round-1 geometry (`three/pieceGeometry.ts`, `StauntonParts` in `designs/classic/pieces.tsx`)
-is kept unchanged for the designs built on it.
+The geometry is built once per quality and shared by every piece: `pieceSet('low' |
+'medium' | 'high')` (medium, the default, keeps every piece within about 5k triangles; each
+piece is built the first time it is drawn, the sculpted knight in a few hundred
+milliseconds, and the board warms the set while the browser is idle with
+`preloadPieceSet()`). `partsGeometry(set, type, parts)` hands back a piece's parts merged
+into one geometry, and `pieceTop(set, type)` its height. `scene/pieces.tsx` draws each
+piece in one draw call with one small shader: every vertex carries its part, and the
+ambient occlusion baked beside it (`scene/occlusion.ts`).
 
 To look at the set, open `http://127.0.0.1:5173/pieces.html` while Vite runs (a dev-only page,
 left out of the build), or save it as a PNG; it needs no backend:
 
 ```bash
 cd client && node scripts/pieces.mjs --out /tmp/pieces                  # the set: side, three-quarter, top; light and dark
-cd client && node scripts/pieces.mjs --design atelier --out /tmp/pieces # a design's own PieceBody
 cd client && node scripts/pieces.mjs --piece knight --out /tmp/pieces   # one piece from 8 sides at two heights
 cd client && node scripts/pieces.mjs --silhouette --out /tmp/pieces     # every piece in solid black: 8 sides, low, top
 ```
 
-`--quality low|medium|high` and `--cell <px>` (the size of each picture) apply to all of
-them. The silhouette sheet is the legibility test: every piece must be nameable from its
+`--cell <px>` sets the size of each picture, and `--quality low|medium|high` the mesh
+density of the silhouette sheet. The silhouette sheet is the legibility test: every piece must be nameable from its
 outline alone, from any side (from directly above an outline is only the base, so its last
 column shows the relief in one plain material instead).
 

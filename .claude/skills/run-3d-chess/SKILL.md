@@ -39,9 +39,10 @@ An illegal move fails the run with a timeout waiting for the
 destination to light up, so a failure usually means the move is wrong,
 not the harness. ~5s from cold.
 
-**Look at the screenshots.** A correct render shows the wireframe
-5×5×5 lattice with Staunton pieces, a move list bottom-right, and the
-last move highlighted. A blank canvas means WebGL did not start.
+**Look at the screenshots.** A correct render shows a tower of five
+glass levels over a dark garden, porcelain and charcoal Staunton pieces
+on it, a move list bottom-right, and the last move's mint line. A blank
+canvas means WebGL did not start.
 
 ## Custom drives (orbit, inspect a state mid-move, assert on the UI)
 
@@ -56,7 +57,7 @@ import { clickSquare } from './helpers/board';
 test('inspect', async ({ browser }) => {
   const game = await startGame(browser);          // { white, black, play, screenshot, ... }
   await game.playAll(['Bb1-Cb1', 'Dd5-Cd5']);
-  await clickSquare(game.white, 'Ab1', 'white');  // select only: shows legal-move dots
+  await clickSquare(game.white, 'Ab1', 'white');  // select only: rings its destinations
   await game.screenshot('knight-selected');
 
   // Orbit and zoom: left-drag on empty canvas (a click never counts as a drag).
@@ -83,7 +84,7 @@ test('inspect', async ({ browser }) => {
 | `screenshot(name, seat?)` | writes `test-results/<name>.png` from that seat's view |
 
 `helpers/board.ts` — lower level: `clickSquare(page, zxy, seat)`,
-`waitForDestination(page, zxy, seat)`, `getPlayerColor(page)`,
+`waitForDestination(page, zxy)`, `getPlayerColor(page)`,
 `waitForBoard(page)`. When using `clickSquare` directly for a move,
 call `waitForDestination` between the two clicks: the selection and
 the destination are separate React commits, and a click sent straight
@@ -96,7 +97,7 @@ click time, so it works from any orbited angle without a settle wait.
 ```bash
 npm run lint && npm run test        # eslint + vitest
 uv run --project ../server pytest   # spawns a real uvicorn
-npm run e2e                         # 3 specs; drive.spec is skipped without DRIVE_MOVES
+npm run e2e                         # drive.spec is skipped without DRIVE_MOVES
 ```
 
 Vitest prints `The current testing environment is not configured to
@@ -109,8 +110,12 @@ noise, not failures.
   `localStorage` per game id, so a second tab takes over the first
   tab's seat and the first tab shows a "replaced" notice.
   `startGame` uses two contexts for you.
-- **Board orientation flips per seat.** Pass the clicking page's own
-  seat to `clickSquare`, or you click mirrored squares.
+- **Board orientation turns per seat.** Black sees the tower from the
+  other side. `clickSquare` finds the square in the page's own scene, so
+  it works from either seat; its `seat` only labels its errors.
+- **The board's look settings persist per browser context** (gear top
+  right, `localStorage` `3dchess:settings`); a fresh Playwright context
+  starts from the defaults.
 - **Click projection relies on `window.__r3fState`**, published by the
   Canvas `onCreated` hook in `src/screens/GameScreen.tsx`. If it is
   removed, every helper throws `window.__r3fState missing`.
