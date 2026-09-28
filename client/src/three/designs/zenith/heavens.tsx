@@ -33,14 +33,12 @@ interface Constellation {
   stars: P2[];
   /** Pairs of star indices joined by a line. */
   lines: [number, number][];
-  /** Stars left unjoined (an eye, an orb): drawn, no line. */
+  /** Stars left unjoined (the knight's eye): drawn dimmer, no line. */
   loose?: P2[];
 }
 
 const loop = (n: number, from = 0): [number, number][] =>
   Array.from({ length: n }, (_, i) => [from + i, from + ((i + 1) % n)]);
-const chain = (n: number, from = 0): [number, number][] =>
-  Array.from({ length: n - 1 }, (_, i) => [from + i, from + i + 1]);
 
 // The pieces as constellations, each an outline of a few stars
 const KNIGHT: Constellation = {
@@ -98,74 +96,72 @@ const KING: Constellation = {
 };
 const BISHOP: Constellation = {
   stars: [
-    [0.5, 0.9],
-    [0.34, 0.72],
-    [0.37, 0.5],
-    [0.5, 0.42],
-    [0.63, 0.5],
-    [0.66, 0.72],
-    // The mitre's cut
-    [0.43, 0.78],
-    [0.6, 0.6],
-    // Collar and foot
-    [0.36, 0.32],
-    [0.64, 0.32],
-    [0.26, 0.02],
-    [0.74, 0.02],
+    [0.26, 0.04],
+    [0.39, 0.3],
+    [0.43, 0.5],
+    // The mitre, pointed, with its cut
+    [0.36, 0.67],
+    [0.5, 0.95],
+    [0.59, 0.77],
+    [0.64, 0.67],
+    [0.57, 0.5],
+    [0.61, 0.3],
+    [0.74, 0.04],
+    [0.44, 0.63],
   ],
-  lines: [...loop(6), [6, 7], [8, 9], [8, 10], [9, 11], [10, 11]],
-  loose: [[0.5, 1.02]],
+  lines: [...loop(10), [5, 10]],
 };
 const QUEEN: Constellation = {
   stars: [
-    [0.18, 0.58],
+    [0.25, 0.04],
+    [0.39, 0.32],
+    // The coronet: three points
     [0.3, 0.88],
-    [0.4, 0.64],
-    [0.5, 0.96],
-    [0.6, 0.64],
+    [0.41, 0.74],
+    [0.5, 0.97],
+    [0.59, 0.74],
     [0.7, 0.88],
-    [0.82, 0.58],
-    [0.74, 0.34],
-    [0.26, 0.34],
+    [0.61, 0.32],
+    [0.75, 0.04],
   ],
   lines: loop(9),
-  loose: [
-    [0.3, 0.98],
-    [0.5, 1.07],
-    [0.7, 0.98],
-  ],
 };
 const PAWN: Constellation = {
   stars: [
-    [0.5, 1.0],
-    [0.65, 0.84],
-    [0.5, 0.68],
-    [0.35, 0.84],
-    [0.4, 0.62],
-    [0.6, 0.62],
-    [0.72, 0.08],
-    [0.28, 0.08],
+    [0.28, 0.04],
+    [0.37, 0.6],
+    // The head
+    [0.42, 0.68],
+    [0.38, 0.84],
+    [0.5, 0.95],
+    [0.62, 0.84],
+    [0.58, 0.68],
+    [0.63, 0.6],
+    [0.72, 0.04],
   ],
-  lines: [...loop(4), [4, 7], [5, 6], [6, 7], [4, 5]],
+  // The collar drawn across
+  lines: [...loop(9), [1, 7]],
 };
 const UNICORN: Constellation = {
   stars: [
-    // The horn, spiralling up
-    [0.62, 1.0],
-    [0.55, 0.84],
-    [0.62, 0.8],
-    [0.52, 0.68],
-    // The head below it
-    [0.4, 0.66],
-    [0.12, 0.44],
-    [0.2, 0.3],
-    [0.46, 0.4],
-    [0.56, 0.14],
-    [0.86, 0.14],
-    [0.8, 0.5],
-    [0.62, 0.62],
+    // The foot, waist and collar, as the king's
+    [0.26, 0.04],
+    [0.39, 0.3],
+    [0.31, 0.42],
+    // The horn, a slim tall cone on the collar, two turns of its spiral
+    // drawn across it
+    [0.42, 0.48],
+    [0.441, 0.62],
+    [0.467, 0.8],
+    [0.5, 1.02],
+    [0.521, 0.88],
+    [0.544, 0.72],
+    [0.58, 0.48],
+    [0.69, 0.42],
+    [0.61, 0.3],
+    [0.74, 0.04],
   ],
-  lines: [...chain(5), ...loop(8, 4)],
+  lines: [...loop(13), [4, 8], [5, 7]],
 };
 /** The knight turned the other way, for the far side of the sky. */
 const KNIGHT_WEST: Constellation = {
@@ -328,10 +324,18 @@ const figureStarGeometry = () => {
   const color: number[] = [];
   const cool = new Color(PALETTE.neon);
   for (const plan of SKY_PLAN) {
-    for (const s of [...plan.c.stars, ...(plan.c.loose ?? [])]) {
+    for (const s of plan.c.stars) {
       pos.push(...placeStar(s, plan));
       size.push(2 + random() * 0.7);
       bright.push(0.34 + random() * 0.16);
+      color.push(cool.r, cool.g, cool.b);
+    }
+    // Unjoined stars (an eye) quieter than the figure's own, never a
+    // bright stray on it
+    for (const s of plan.c.loose ?? []) {
+      pos.push(...placeStar(s, plan));
+      size.push(1.6);
+      bright.push(0.2);
       color.push(cool.r, cool.g, cool.b);
     }
   }

@@ -10,7 +10,7 @@ import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 import { useEnvSetting } from './settings-env';
 
 // The levels: five sheets of clear glass, each edged by one thin square of
-// light in its level's colour. On the glass, the Raumschach checker (dark
+// light in its level's colour. On the glass, the 3D chess checker (dark
 // where x + y + z is even, so a bishop keeps to its colour through the
 // levels): the light squares faintly frosted with the level's light, the
 // dark squares left clear with a breath of smoke. Crisp hairlines of the
@@ -73,7 +73,7 @@ const fragmentShader = /* glsl */ `
     float inside = step(-uFill, uv.x) * step(uv.x, uCells + uFill)
       * step(-uFill, uv.y) * step(uv.y, uCells + uFill);
 
-    // The checker, in the Raumschach colouring (dark where x + y + z is even).
+    // The checker: dark where x + y + z is even, as in 3D chess.
     // Every level keeps it from any side. Looking straight down all five
     // ease back a little (so pieces three levels down keep their own
     // colour), the lead level least, so one clear 5 x 5 reads through the

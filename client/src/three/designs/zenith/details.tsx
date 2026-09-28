@@ -23,10 +23,6 @@ import { GROUND_Y, PALETTE } from './palette';
 //   along its edges (files a–h beyond the first and eighth ranks, ranks 1–8
 //   beyond the a- and h-files), each set to read upright from the tower, as
 //   a board's own letters read from the player's chair;
-// - far off in the horizon's mist, at one place only, a signature: the
-//   game's own, "Raumschach · Maack · 1907", for Ferdinand Maack, who
-//   invented this chess in space, set small in faint light within the mist,
-//   seen only from a low camera (the horizon then lies well down the frame);
 // - for a camera looking up, now and then (every minute or so) a slow,
 //   faint shooting star high overhead, well off to one side of the tower,
 //   falling away from it.
@@ -81,7 +77,7 @@ const glyphAtlas = () =>
       [...GLYPHS].forEach((g, i) => {
         const x = (i % 4) * CELL + CELL / 2;
         const y = Math.floor(i / 4) * CELL + CELL / 2 + CELL * 0.03;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.fillText(g, x, y);
         ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
         ctx.lineWidth = CELL * 0.035;
@@ -191,7 +187,7 @@ const Notation = () => {
         uniforms: {
           uMap: { value: map },
           uColor: { value: new Color(PALETTE.neon) },
-          uIntensity: { value: 0.06 },
+          uIntensity: { value: 0.016 },
         },
         vertexShader: glyphVertex,
         fragmentShader: glyphFragment,
@@ -211,123 +207,6 @@ const Notation = () => {
       geometry={geometry}
       material={material}
       renderOrder={-895}
-      frustumCulled={false}
-      raycast={noRaycast}
-    />
-  );
-};
-
-// --- The signature in the mist ----------------------------------------------------------
-
-const SIGNATURE = 'RAUMSCHACH · MAACK · 1907';
-/** Where it stands round the horizon (degrees from +z toward +x) and how far off. */
-const SIGN_AZIMUTH = 118;
-const SIGN_DISTANCE = 280;
-/** Its height above the plain at that distance: in the lowest bank of mist. */
-const SIGN_Y = GROUND_Y + 4.2;
-/**
- * Its size (world units at that distance): letters about a third of a
- * degree tall, the line some eleven degrees of horizon long.
- */
-const SIGN_HEIGHT = 4.6;
-const SIGN_WIDTH = SIGN_HEIGHT * 16;
-
-const signatureTexture = () =>
-  canvasTexture(
-    1024,
-    64,
-    (ctx) => {
-      ctx.font = `500 34px ${FONT}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      // Widely spaced small capitals, as a signature in a catalogue
-      (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '9px';
-      // Soft, as light seen through mist
-      ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
-      ctx.shadowBlur = 7;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-      ctx.fillText(SIGNATURE, 512, 34);
-    },
-    `500 34px ${FONT}`,
-  );
-
-const signFragment = /* glsl */ `
-  uniform sampler2D uMap;
-  uniform vec3 uColor;
-  uniform float uIntensity;
-  varying vec2 vUv;
-  varying vec3 vWorld;
-  ${TOWER_MASK}
-  void main() {
-    float a = texture2D(uMap, vUv).a;
-    // Soft at its ends, as if the mist thins round it
-    float ends = smoothstep(0.0, 0.12, vUv.x) * smoothstep(1.0, 0.88, vUv.x);
-    // Only for a camera low enough that the horizon lies well down the
-    // frame, clear of the HUD along its top edge
-    float rise = asin(clamp(cameraPosition.y / max(length(cameraPosition), 1e-3), -1.0, 1.0));
-    float low = 1.0 - smoothstep(0.1, 0.19, rise);
-    float light = a * ends * low * uIntensity * (1.0 - towerCover(vWorld));
-    if (light < 0.001) discard;
-    gl_FragColor = vec4(uColor * light, 1.0);
-    #include <colorspace_fragment>
-  }`;
-
-const signatureGeometry = (): BufferGeometry => {
-  const a = (SIGN_AZIMUTH * Math.PI) / 180;
-  const cx = Math.sin(a) * SIGN_DISTANCE;
-  const cz = Math.cos(a) * SIGN_DISTANCE;
-  // Facing the tower: its right, seen from the centre, is the centre's left
-  // turned; right = (-cos a, 0, sin a) reading left to right from inside
-  const rx = -Math.cos(a);
-  const rz = Math.sin(a);
-  const w = SIGN_WIDTH / 2;
-  const h = SIGN_HEIGHT / 2;
-  const pos = [
-    [cx - rx * w, SIGN_Y - h, cz - rz * w],
-    [cx + rx * w, SIGN_Y - h, cz + rz * w],
-    [cx + rx * w, SIGN_Y + h, cz + rz * w],
-    [cx - rx * w, SIGN_Y + h, cz - rz * w],
-  ].flat();
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setAttribute('uv', new BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2));
-  g.setIndex([0, 1, 2, 0, 2, 3]);
-  return g;
-};
-
-const Signature = () => {
-  const { geometry, material, map } = useMemo(() => {
-    const map = signatureTexture();
-    return {
-      map,
-      geometry: signatureGeometry(),
-      material: new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending,
-        uniforms: {
-          uMap: { value: map },
-          uColor: { value: new Color(PALETTE.mist) },
-          uIntensity: { value: 0.1 },
-        },
-        vertexShader: glyphVertex,
-        fragmentShader: signFragment,
-      }),
-    };
-  }, []);
-  useEffect(
-    () => () => {
-      geometry.dispose();
-      material.dispose();
-      map.dispose();
-    },
-    [geometry, material, map],
-  );
-  return (
-    <mesh
-      geometry={geometry}
-      material={material}
-      renderOrder={-985}
       frustumCulled={false}
       raycast={noRaycast}
     />
@@ -486,7 +365,6 @@ export const Details = ({ turn }: { turn: number }) => (
     <group rotation={[0, turn < 0 ? Math.PI : 0, 0]}>
       <Notation />
     </group>
-    <Signature />
     <ShootingStar />
   </group>
 );
