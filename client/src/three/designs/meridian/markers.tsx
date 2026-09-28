@@ -26,7 +26,9 @@ import { LEVEL_COLORS, levelAt, MOTION, PALETTE, RING_WORLD } from './palette';
 // - a capture: the same disc in crimson, as wide as the victim's base ring
 //   and laid exactly over it, so the ring is retinted rather than joined by a
 //   second one, with one slow comet circling it. Under the pointer its rim
-//   swells outward (never uncovering the ring) and its fill deepens.
+//   stays as it is: the disc swells as a soft skirt of fill just past the
+//   rim, and its fill deepens toward the rim, in the band the victim's base
+//   leaves in view.
 // - the last move: a pale gold disc of the same kind at each end, the one
 //   left behind smaller (always), joined by a thin dashed gold line flowing
 //   slowly from origin to destination. The arrival's disc lies over the
@@ -34,7 +36,8 @@ import { LEVEL_COLORS, levelAt, MOTION, PALETTE, RING_WORLD } from './palette';
 // - check: a red hexagon under the king, its ring retinted red inside it (a
 //   circle in a hexagon: one figure), with light shining up from it. Check
 //   arrives with one flare up the light and a flash of the hexagon, then the
-//   light shimmers slowly upward and the hexagon breathes while it lasts.
+//   light shimmers slowly upward and the hexagon breathes while it lasts. At
+//   mate the light goes down as the king topples, leaving a quiet hexagon.
 // - the selection is the held piece's own column of starlight (pieces.tsx),
 //   so its release can fade where the piece stands.
 //
@@ -92,7 +95,8 @@ const discFragment = /* glsl */ `
   uniform vec3 uCometColor;
   uniform float uRadius;
   uniform float uWidth;
-  uniform float uGrowOut;
+  uniform float uSkirt;
+  uniform float uEdgeBowl;
   uniform float uRimA;
   uniform float uFill;
   uniform float uDepth;
@@ -112,7 +116,7 @@ const discFragment = /* glsl */ `
     float r = length(vP);
     float fw = max(fwidth(r), 1e-4);
     float inner = uRadius - uWidth * 0.5;
-    float outer = uRadius + uWidth * 0.5 + uGrowOut;
+    float outer = uRadius + uWidth * 0.5;
     // Never thinner than about a pixel; thinner than that, it fades instead
     float mid = 0.5 * (inner + outer);
     float hw = max(0.5 * (outer - inner), fw * 0.6);
@@ -124,11 +128,16 @@ const discFragment = /* glsl */ `
     // A faint glow just outside the rim, so it reads as light
     float glow = exp(-max(r - outer, 0.0) / 0.02) * (1.0 - inside) * uHalo;
     over(acc, uRimColor, glow);
-    // The fill: even at rest; under the pointer it deepens toward the centre,
-    // a shallow bowl of light
+    // The fill: even at rest; under the pointer it deepens, a shallow bowl
+    // of light: toward the centre on an empty square, toward the rim round a
+    // victim (the band its base leaves in view)
     float k = clamp(r / max(inner, 1e-4), 0.0, 1.0);
-    float bowl = mix(1.0, 0.5 + 0.95 * (1.0 - k * k), uDepth);
+    float bowl = mix(1.0, mix(0.5 + 0.95 * (1.0 - k * k), 0.3 + 1.2 * k * k, uEdgeBowl), uDepth);
     over(acc, uFillColor, inside * uFill * bowl);
+    // Under the pointer a victim's disc swells as a pool of light just past
+    // its rim, never as a heavier line
+    float skirt = (1.0 - smoothstep(outer, outer + max(uSkirt, 1e-4), r)) * step(outer, r);
+    over(acc, uFillColor, skirt * uFill * 0.9 * min(uSkirt / 0.05, 1.0));
     over(acc, uRimColor, rim * uRimA);
 
     if (uComet > 0.5) {
@@ -171,9 +180,14 @@ interface DiscStyle {
   fillOpacity: number;
   /** Fill opacity under the pointer. */
   hoverFill?: number;
-  /** Growth under the pointer: the whole disc (quiet), or the rim's outer edge (capture). */
+  /**
+   * Growth under the pointer: the whole disc (quiet), or, round a victim
+   * whose ring the rim covers, a soft skirt of fill past the rim (capture).
+   */
   hoverScale?: number;
-  hoverGrowOut?: number;
+  hoverSkirt?: number;
+  /** Deepen the fill toward the rim under the pointer, not toward the centre. */
+  edgeBowl?: boolean;
   halo?: number;
   comet?: string;
   /** Fade in over this long when mounted, after `delayMs`. */
@@ -198,7 +212,8 @@ const discMaterial = () =>
       uCometColor: { value: new Color() },
       uRadius: { value: 0.2 },
       uWidth: { value: 0.02 },
-      uGrowOut: { value: 0 },
+      uSkirt: { value: 0 },
+      uEdgeBowl: { value: 0 },
       uRimA: { value: 1 },
       uFill: { value: 0 },
       uDepth: { value: 0 },
@@ -231,7 +246,7 @@ const Disc = ({
   const elapsed = useRef(0);
   const still = useMemo(prefersReducedMotion, []);
   const scaleMax = style.hoverScale ?? 1;
-  const quad = (style.radius * scaleMax + style.width + (style.hoverGrowOut ?? 0) + 0.08) * 2;
+  const quad = (style.radius * scaleMax + style.width + (style.hoverSkirt ?? 0) + 0.08) * 2;
   const u = material.uniforms;
   u.uRimColor.value.set(style.rim);
   u.uFillColor.value.set(style.fill);
@@ -262,7 +277,8 @@ const Disc = ({
     const scale = 1 + (scaleMax - 1) * h;
     u.uRadius.value = style.radius * scale;
     u.uWidth.value = style.width * scale;
-    u.uGrowOut.value = (style.hoverGrowOut ?? 0) * h;
+    u.uSkirt.value = (style.hoverSkirt ?? 0) * h;
+    u.uEdgeBowl.value = style.edgeBowl ? 1 : 0;
     u.uRimA.value = style.rimOpacity;
     u.uFill.value =
       style.fillOpacity + ((style.hoverFill ?? style.fillOpacity) - style.fillOpacity) * h;
@@ -337,7 +353,10 @@ export const Capture = ({ floor, hovered }: MarkerProps) => {
         rimOpacity: 0.95,
         fillOpacity: 0.12,
         hoverFill: 0.3,
-        hoverGrowOut: 0.03,
+        // The rim keeps its width and brightness: the disc swells as a soft
+        // skirt of fill past it, and its fill deepens toward the rim
+        hoverSkirt: 0.05,
+        edgeBowl: true,
         halo: 0.14,
         comet: PALETTE.captureMote,
         // Over the last move's disc, should the two meet for a frame
@@ -416,6 +435,9 @@ const HEX_APOTHEM = 0.33;
 const HEX_RADIUS = HEX_APOTHEM / Math.cos(Math.PI / 6);
 const ENTRY_MS = 650;
 const FLARE_MS = 520;
+/** At mate, the light holds a moment, then goes down over MATE_SETTLE_MS. */
+const MATE_HOLD_MS = 300;
+const MATE_SETTLE_MS = 900;
 
 const hexVertex = discVertex;
 
@@ -497,6 +519,7 @@ const lightFragment = /* glsl */ `
   uniform float uTime;
   uniform float uFlare;
   uniform float uStrength;
+  uniform float uFade;
   varying float vH;
   varying float vAng;
   varying vec3 vN;
@@ -517,13 +540,13 @@ const lightFragment = /* glsl */ `
     flare *= 0.2 + 0.8 * rays;
     float a = ((body * shimmer * 0.5 + hem) * uStrength + flare * 0.75) * face;
     // Quieter from straight above, where the hexagon speaks for it
-    a *= 1.0 - 0.6 * smoothstep(0.75, 0.95, abs(v.y));
+    a *= (1.0 - 0.6 * smoothstep(0.75, 0.95, abs(v.y))) * uFade;
     gl_FragColor = vec4(uColor * a, 1.0);
     #include <colorspace_fragment>
   }`;
 
 /** Check: a red hexagon under the king with light shining up (see above). */
-export const Check = ({ floor }: MarkerProps) => {
+export const Check = ({ floor, mated = false }: MarkerProps) => {
   const invalidate = useThree((s) => s.invalidate);
   const still = useMemo(prefersReducedMotion, []);
   const quad = (HEX_RADIUS + 0.12) * 2 * 1.1;
@@ -560,6 +583,7 @@ export const Check = ({ floor }: MarkerProps) => {
           uTime: { value: 0 },
           uFlare: { value: -1 },
           uStrength: { value: 0 },
+          uFade: { value: 1 },
         },
         vertexShader: lightVertex,
         fragmentShader: lightFragment,
@@ -575,27 +599,38 @@ export const Check = ({ floor }: MarkerProps) => {
     [hex, light],
   );
   const elapsed = useRef(0);
-  useEffect(() => invalidate(), [invalidate]);
+  // Time since the check became mate: the light goes down and the hexagon
+  // holds still while the king topples
+  const sinceMate = useRef(0);
+  const lightMesh = useRef<Mesh>(null);
+  useEffect(() => invalidate(), [mated, invalidate]);
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20) * 1000;
     elapsed.current += dt;
     const t = elapsed.current;
+    if (mated) sinceMate.current += dt;
+    const settle = Math.min(Math.max((sinceMate.current - MATE_HOLD_MS) / MATE_SETTLE_MS, 0), 1);
+    const m = settle * settle * (3 - 2 * settle);
     // Entry: the hexagon flashes and settles open; one flare runs up the light
     const e = Math.min(t / ENTRY_MS, 1);
     const flash = Math.exp(-t / 220) * 1.1;
     const open = 1 - (1 - e) ** 3;
     // Passive: the hexagon breathes, gently
     const breath = still ? 0 : Math.sin((t / 1000) * ((Math.PI * 2) / 3.4));
+    const alive = (1 - m) * e;
     const h = hex.uniforms;
-    h.uScale.value = (0.82 + 0.18 * open) * (1 + 0.022 * breath * e);
+    h.uScale.value = (0.82 + 0.18 * open) * (1 + 0.022 * breath * alive);
     h.uOpacity.value = Math.min(1, t / 120);
-    h.uFill.value = 0.16 + 0.03 * breath * e + 0.22 * flash;
-    h.uGlow.value = 0.3 + 0.05 * breath * e + 0.6 * flash;
+    h.uFill.value = (0.16 + 0.03 * breath * alive + 0.22 * flash) * (1 - 0.35 * m);
+    h.uGlow.value = (0.3 + 0.05 * breath * alive + 0.6 * flash) * (1 - 0.5 * m);
     const l = light.uniforms;
     if (!still) l.uTime.value += dt / 1000;
     l.uFlare.value = t < FLARE_MS ? (t / FLARE_MS) * 1.1 : -1;
     l.uStrength.value = Math.min(1, t / 300);
-    invalidate();
+    l.uFade.value = 1 - m;
+    if (lightMesh.current) lightMesh.current.visible = m < 1;
+    // Mated and settled: a quiet hexagon, and nothing left to animate
+    if (!(mated && m >= 1 && t > ENTRY_MS)) invalidate();
   });
   return (
     <>
@@ -608,6 +643,7 @@ export const Check = ({ floor }: MarkerProps) => {
         raycast={noRaycast}
       />
       <mesh
+        ref={lightMesh}
         geometry={lightGeometry}
         material={light}
         position={floor}

@@ -208,7 +208,7 @@ const bodyMaterial = (color: PieceColor) => stone(BODY[color]);
 
 // The details that name a piece (the knight's mane and eyes, the bishop's
 // cut, the unicorn's spiral, the queen's pearls, the king's cross): slate
-// blue cut into moonstone, a soft steel blue set into obsidian, never pale
+// blue cut into moonstone, a dusky steel blue set into obsidian, never pale
 // enough to make a dark piece read light
 const accents: Record<PieceColor, ShaderMaterial> = {
   white: stone({
@@ -224,11 +224,11 @@ const accents: Record<PieceColor, ShaderMaterial> = {
   black: stone({
     color: PALETTE.obsidianAccent,
     rim: PALETTE.obsidianRim,
-    rimMix: 0.25,
+    rimMix: 0.2,
     rimPower: 2.4,
     wrap: 0.2,
-    self: 0.08,
-    spec: 0.6,
+    self: 0.06,
+    spec: 0.35,
     topSpec: 0.2,
     shine: 40,
   }),
@@ -344,12 +344,13 @@ const haloVertex = /* glsl */ `
   varying vec2 vP;
   varying float vSide;
   void main() {
-    vP = position.xy * 2.0;
+    // The quad reaches past the halo's glow: its ring is at 0.82 of vP
+    vP = position.xy * 2.8;
     vec3 anchor = (modelMatrix * vec4(0.0, uHeight, 0.0, 1.0)).xyz;
     vSide = 1.0 - smoothstep(0.7, 0.9, abs(normalize(cameraPosition - anchor).y));
     vec4 centre = modelViewMatrix * vec4(0.0, uHeight, 0.0, 1.0);
     centre.xyz += normalize(centre.xyz) * uPush;
-    centre.xy += position.xy * uSize;
+    centre.xy += position.xy * uSize * 1.4;
     gl_Position = projectionMatrix * centre;
   }`;
 
@@ -361,10 +362,12 @@ const haloFragment = /* glsl */ `
   void main() {
     float r = length(vP);
     float aa = fwidth(r) * 1.2;
+    // A soft moon halo: a wide glow with the faintest ring in it, never a hoop
     float ring = 1.0 - smoothstep(0.0, 0.02 + aa, abs(r - 0.82));
-    float disc = (1.0 - smoothstep(0.55, 0.84, r)) * 0.22;
-    float glow = exp(-pow((r - 0.82) / 0.14, 2.0)) * 0.35;
-    float a = (ring * 0.5 + disc + glow) * uStrength * vSide;
+    float disc = (1.0 - smoothstep(0.5, 0.86, r)) * 0.28;
+    float glow = exp(-pow((r - 0.82) / 0.22, 2.0)) * 0.32;
+    float a = (ring * 0.12 + disc + glow) * uStrength * vSide;
+    a *= 1.0 - smoothstep(1.2, 1.38, r);
     if (a < 0.003) discard;
     gl_FragColor = vec4(uColor * a, a);
     #include <colorspace_fragment>
@@ -397,7 +400,7 @@ const columnGeometry = new CylinderGeometry(
   RING_RADIUS * 0.72,
   RING_RADIUS,
   COLUMN_HEIGHT,
-  40,
+  24,
   1,
   true,
 ).translate(0, COLUMN_HEIGHT / 2, 0);
@@ -613,6 +616,8 @@ export const PieceBody = (props: PieceBodyProps) => {
   const glow = useRef<Glow>({ hover: 0, hold: 0, rise: 0, strength: 0, front: 0 });
   // Time since the piece was picked up (the entrance's clock), or -1 when not held
   const held = useRef(-1);
+  // The release: its progress (1 to 0) and where the column stood when it began
+  const fall = useRef({ k: 0, rise: 0, strength: 0, hold: 0 });
   const levelColor = useRef(new Color());
   const settledColor = useRef(-1);
 
@@ -646,6 +651,7 @@ export const PieceBody = (props: PieceBodyProps) => {
     // The hold: an entrance that rises and settles, or a release that sinks
     if (selected) {
       if (held.current < 0) held.current = 0;
+      fall.current.k = 0;
       const t0 = held.current;
       held.current = t0 + dt;
       const t = held.current;
@@ -659,12 +665,19 @@ export const PieceBody = (props: PieceBodyProps) => {
       g.hold = Math.min(1, g.hold + dt / RISE_MS);
       moving = true;
     } else {
-      held.current = -1;
-      if (g.hold > 0 || g.strength > 0 || g.rise > 0) {
-        const step = dt / FALL_MS;
-        g.hold = Math.max(0, g.hold - step);
-        g.rise = Math.max(0, g.rise - step);
-        g.strength = Math.max(0, g.strength - step * 0.75);
+      if (held.current >= 0) {
+        // Put down: the release eases from wherever the entrance had got to
+        held.current = -1;
+        fall.current = { k: 1, rise: g.rise, strength: g.strength, hold: g.hold };
+      }
+      const f = fall.current;
+      if (f.k > 0) {
+        f.k = Math.max(0, f.k - dt / FALL_MS);
+        // Eased as the entrance is: the column sinks softly into the floor
+        const e = smooth(f.k);
+        g.hold = f.hold * e;
+        g.rise = f.rise * e;
+        g.strength = f.strength * e;
         g.front = 0;
         moving = true;
       }

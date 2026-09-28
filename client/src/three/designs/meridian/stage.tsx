@@ -473,7 +473,9 @@ const Heavens = ({ dpr }: { dpr: number }) => {
 // --- The meridian ring -----------------------------------------------------------
 
 const RING_RADIUS = 34;
-const RING_Y = -7.5;
+// Below the level letters beside the tower in the opening view (and its
+// mask keeps it well clear of the tower, labels included)
+const RING_Y = -9;
 const RING_HEIGHT = 1.1;
 /** Glyph slots round the ring: the notation repeats this many times. */
 const RING_REPEATS = 9;
@@ -568,10 +570,20 @@ const ringFragment = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vWorld;
   ${TOWER_MASK}
+  // The ring gives the tower a wider berth than the rest of the night, so its
+  // engraving fades out well before it reaches the board's own labels
+  float ringCover(vec3 world) {
+    vec3 d = world - cameraPosition;
+    float len = length(d);
+    vec3 rd = d / max(len, 1e-5);
+    vec3 s = step(0.0, rd) * 2.0 - 1.0;
+    vec3 inv = 1.0 / (s * max(abs(rd), vec3(1e-5)));
+    return max(towerCover(world), towerHit(cameraPosition, inv, len, 1.7));
+  }
   void main() {
     // Seen from outside the ring's face, the glyphs read the right way round
     vec4 t = texture2D(uMap, vec2(-vUv.x, vUv.y));
-    float a = t.a * uOpacity * towerMask(vWorld, 0.0);
+    float a = t.a * uOpacity * (1.0 - ringCover(vWorld));
     if (a < 0.003) discard;
     gl_FragColor = vec4(t.rgb, a);
     #include <colorspace_fragment>

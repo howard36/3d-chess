@@ -8,6 +8,7 @@ import {
   PlaneGeometry,
   PointsMaterial,
   ShaderMaterial,
+  Vector2,
 } from 'three';
 import type { Group } from 'three';
 import { PieceType } from '../../../engine/pieces';
@@ -16,7 +17,7 @@ import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import { dotTexture, rng } from '../kit/textures';
 import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
-import { KNIGHT_YAW, PALETTE, PIECE_SCALE } from './palette';
+import { FRAME, KNIGHT_YAW, MARGIN, PALETTE, PIECE_SCALE } from './palette';
 import { wholePiece } from './pieces';
 
 // Two quiet effects. A captured piece dissolves from the crown down into a
@@ -280,6 +281,9 @@ const rippleMaterial = (color: string) =>
       uColor: { value: new Color(color) },
       uRadius: { value: 0.3 },
       uOpacity: { value: 0 },
+      // The king's square in the deck's frame (world x, z), and the deck's half side
+      uAt: { value: new Vector2() },
+      uDeck: { value: FRAME.half + MARGIN },
     },
     vertexShader: /* glsl */ `
       varying vec2 vP;
@@ -291,14 +295,18 @@ const rippleMaterial = (color: string) =>
       uniform vec3 uColor;
       uniform float uRadius;
       uniform float uOpacity;
+      uniform vec2 uAt;
+      uniform float uDeck;
       varying vec2 vP;
       void main() {
         float r = length(vP);
+        // Held within the king's deck, wherever on it he stands (the quad's
+        // y runs against world z)
+        vec2 onDeck = uAt + vec2(vP.x, -vP.y);
+        float deck = 1.0 - smoothstep(uDeck - 0.12, uDeck, max(abs(onDeck.x), abs(onDeck.y)));
         float fw = max(fwidth(r), 1e-4);
         float ring = 1.0 - smoothstep(0.012 - fw, 0.012 + fw, abs(r - uRadius));
         float glow = exp(-pow((r - uRadius) / 0.1, 2.0)) * 0.3;
-        // Held within the deck
-        float deck = 1.0 - smoothstep(2.3, 2.6, max(abs(vP.x), abs(vP.y)));
         float a = (ring * 0.8 + glow) * uOpacity * deck;
         if (a < 0.003) discard;
         gl_FragColor = vec4(uColor * a, a);
@@ -313,6 +321,7 @@ const rippleMaterial = (color: string) =>
 export const Celebration = ({ floor, winner }: CelebrationProps) => {
   const color = winner ? EDGE[winner] : PALETTE.trace;
   const ripple = useMemo(() => rippleMaterial(color), [color]);
+  ripple.uniforms.uAt.value.set(floor[0], floor[2]);
   useEffect(() => () => ripple.dispose(), [ripple]);
   const motes = useMemo(() => {
     const ring = new BufferGeometry();

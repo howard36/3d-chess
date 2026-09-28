@@ -35,10 +35,10 @@ import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 //
 // Seen from straight above, the five decks nest at five scales, and their
 // checkers, of alternating parity, would blur into a plaid. As on Orbital's
-// decks, the deck in play (the focused deck, else the top one) keeps its
-// whole checker, a little stronger; every other keeps its lines and a trace
-// of its frost, so each level's 25 squares still read and the board reads as
-// one clear 5×5.
+// decks, from about 53° up, the deck in play (the focused deck, else the top
+// one) keeps its whole checker, a little stronger; every other keeps its
+// lines and about a third of its frost, so each level's 25 squares still
+// read and the board reads as one clear 5×5.
 
 const vertex = /* glsl */ `
   varying vec2 vP;
@@ -86,7 +86,7 @@ const fragment = /* glsl */ `
     float slant = 1.0 - abs(v.y);
     // From straight above, the deck in play leads: it carries its checker a
     // little more strongly, and every other deck's steps back
-    float top = smoothstep(0.6, 0.93, abs(v.y));
+    float top = smoothstep(0.8, 0.95, abs(v.y));
     float above = top * (1.0 - uKeep);
 
     // Smoked glass, catching a sheen at a slant
@@ -97,7 +97,7 @@ const fragment = /* glsl */ `
     // The light squares, frosted
     vec2 sq = floor(clamp(c, 0.0, uCells - 0.001));
     float lightSq = mod(sq.x + sq.y + uLevel, 2.0) * inside;
-    float frost = uFrostA * (1.0 + 0.3 * uFocus) * (1.0 - 0.8 * above) * (1.0 + 0.25 * top * uKeep);
+    float frost = uFrostA * (1.0 + 0.3 * uFocus) * (1.0 - 0.65 * above) * (1.0 + 0.25 * top * uKeep);
     over(acc, uFrost, lightSq * frost);
 
     // Hairlines between the squares (the frame is the border)
@@ -153,7 +153,9 @@ const ticksGeometry = (side: number, width: number, height: number): BufferGeome
 
 const FRAME_WIDTH = 0.03;
 const FRAME_DEPTH = 0.04;
-const FRAME_OPACITY = 0.8;
+const FRAME_OPACITY = 0.82;
+/** The frames soften a little as the ramp lightens toward E, so no deck's shouts. */
+const frameOpacity = (z: number) => FRAME_OPACITY - 0.035 * z;
 
 const view = new Vector3();
 
@@ -203,7 +205,7 @@ export const Decks = ({ focusLevel }: { focusLevel: number | null }) => {
           border: new MeshBasicMaterial({
             color: tint.clone(),
             transparent: true,
-            opacity: FRAME_OPACITY,
+            opacity: frameOpacity(z),
             depthWrite: false,
             toneMapped: false,
             fog: false,
@@ -211,7 +213,7 @@ export const Decks = ({ focusLevel }: { focusLevel: number | null }) => {
           ticks: new MeshBasicMaterial({
             color: tint.clone(),
             transparent: true,
-            opacity: FRAME_OPACITY,
+            opacity: frameOpacity(z),
             depthWrite: false,
             toneMapped: false,
             fog: false,
@@ -240,7 +242,7 @@ export const Decks = ({ focusLevel }: { focusLevel: number | null }) => {
         u.uDim.value = any * (1 - w) * 0.22;
         // The deck that keeps its full strength from above: the one in play, else the top
         u.uKeep.value = Math.min(1, w + (1 - any) * (z === weights.length - 1 ? 1 : 0));
-        frameBase.current[z] = FRAME_OPACITY * (1 - any * (1 - w) * 0.35) + 0.18 * w;
+        frameBase.current[z] = frameOpacity(z) * (1 - any * (1 - w) * 0.35) + 0.18 * w;
       });
       applyFrames();
     },
@@ -250,7 +252,7 @@ export const Decks = ({ focusLevel }: { focusLevel: number | null }) => {
   // Seen from straight above, the frames of the decks not in play step back a
   // little and the ticks go out (five rows of them would line up into a
   // dashed cross over the board): the border is then a plain square of light
-  const frameBase = useRef(LEVEL_COLORS.map(() => FRAME_OPACITY));
+  const frameBase = useRef(LEVEL_COLORS.map((_, z) => frameOpacity(z)));
   const above = useRef(0);
   const applyFrames = () =>
     materials.forEach((m, z) => {

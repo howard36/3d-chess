@@ -1,4 +1,4 @@
-import { levelRamp } from '../kit/colors';
+import { oklchToHex } from '../kit/colors';
 import { clarityTower, towerFrame } from '../kit/layouts';
 import type { DesignMotion } from '../types';
 
@@ -48,7 +48,7 @@ export const PALETTE = {
   obsidian: '#232a3c',
   obsidianBase: '#0f1320',
   obsidianRim: '#5f7196',
-  obsidianAccent: '#8f9fc2',
+  obsidianAccent: '#5a6890',
 
   // Markers, one meaning each, all off the level ramp's arc
   select: '#e8f0ff',
@@ -65,16 +65,16 @@ export const PALETTE = {
 /**
  * One colour per level, A (bottom) to E (top): starlight from the dusky rose
  * low on the horizon, through lavender, periwinkle and sky, up to the ice of
- * the zenith. Equal perceptual steps of hue (about 0.08 apart in OKLab),
- * brightening as they rise, no white or grey, and clear of the gold, crimson
- * and red of the markers. The platform lines and frames, the level letters,
- * each piece's base ring and every destination disc use it.
+ * the zenith. Equal steps of hue, a little lighter and a little less vivid as
+ * they rise (so the top deck's frame, seen against the night, is never the
+ * brightest line on screen, and its ice stays ice rather than aqua), about
+ * 0.07 apart in OKLab, no white or grey, and clear of the gold, crimson and
+ * red of the markers. The platform lines and frames, the level letters, each
+ * piece's base ring and every destination's disc use it.
  */
-export const LEVEL_COLORS = levelRamp({
-  from: 345,
-  to: 195,
-  lightness: [0.72, 0.86],
-  chroma: 0.12,
+export const LEVEL_COLORS = [0, 1, 2, 3, 4].map((z) => {
+  const k = z / 4;
+  return oklchToHex({ l: 0.71 + 0.1 * k, c: 0.13 - 0.03 * k, h: 345 - 135 * k });
 });
 
 // The kit's compact tower: the Staunton set at 0.8 leaves the king clear air
