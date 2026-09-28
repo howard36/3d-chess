@@ -142,7 +142,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Where the user meets it:** A keyboard-only or screen-reader user; a user who relies on reduced motion or cannot tell colors apart.
 - **What happens / what was expected:** The board cannot be navigated, selected, or moved from the keyboard, and the canvas has no text alternative; the position exists for assistive technology only as the move list. The end-game dialog has no dialog role and takes no focus. The replaced dialog takes no focus and does not make the page behind it inert, so Tab reaches "Start new game" under it. Check, selection, destinations, and the last move are distinguished only by color. Animations ignore the reduced-motion preference. Turn and presence changes are not announced.
 - **Reproduce:** Tab and arrow keys on the board screen do nothing; inspect the end-game dialog's role; set reduced motion and play a move.
-- **Why (from the code):** `client/src/three/Board.tsx:152-204` (pointer events only), `client/src/screens/EndGameModal.tsx:20-51` (no role, no focus), `client/src/screens/GameScreen.tsx:217-256` (replaced dialog), `client/src/three/theme.ts` (color-only cues), `client/src/three/motion.ts` (no reduced-motion check), `client/src/three/TurnIndicator.tsx:23-27` (no live region).
+- **Why (from the code):** `client/src/three/Board.tsx:152-204` (pointer events only), `client/src/screens/EndGameModal.tsx:20-51` (no role, no focus), `client/src/screens/GameScreen.tsx:217-256` (replaced dialog), `client/src/three/theme.ts` (color-only cues; since deleted, the board's colors now live in `client/src/three/scene/palette.ts`), `client/src/three/motion.ts` (no reduced-motion check), `client/src/three/TurnIndicator.tsx:23-27` (no live region).
 - **Severity:** `medium`. The game is closed to some users, but the product's scope is a hobby game among friends.
 - **Decision needed:** `product call`. Decide the accessibility bar; the dialog roles, focus handling, live regions, and reduced motion are cheap fixes whatever the bar.
 - **Raised by:** [accessibility](cross-cutting/accessibility.md#open-questions-and-verification), [a second tab](session/second-tab.md#open-questions-and-verification), [check and the end of the game](play/check-and-game-end.md#open-questions-and-verification).
@@ -291,6 +291,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Severity:** `low`.
 - **Decision needed:** `product call`.
 - **Raised by:** [the rules](foundations/game-rules.md#open-questions-and-verification), [the view](foundations/the-view.md#open-questions-and-verification), [the move list](game-page/move-list.md#edge-cases).
+- **Status:** resolved by the board's new look (seen at `bb16fed`): the files and ranks are labelled along two edges of the bottom level and each level's letter stands beside it, and the view can no longer be panned (it only turns round the tower's center and zooms), so it cannot be lost. There is still no "reset view" control.
 
 ### B-23: Nothing identifies a seat but this browser's storage
 

@@ -8,7 +8,7 @@ Half of every game is waiting: after a player's move lands, the turn passes to t
 
 The player has just moved; the turn indicator reads the opponent's color, for example "Black to move" for a White player. None of the player's pieces respond to a press, and the move box's "Move" button is disabled. The player can turn the view, read the move list, and look at the position. Under the seat label, "Opponent: online" says the opponent is connected; nothing says whether they are thinking, selecting, or away from the keyboard.
 
-Then, with no warning, the opponent's piece glides to its new cell. If it captured one of the player's pieces, that piece shrinks and fades. The teal trace moves to the opponent's two cells, the move list gains the move, and the turn indicator changes to the player's color. If the move put the player in check, the player's King glows red and the turn indicator reads, for example, "White to move — in check". It is now the player's turn.
+Then, with no warning, the opponent's piece glides to its new cell. If it captured one of the player's pieces, that piece burns away as it arrives. The mint last-move line moves to the opponent's move, the move list gains the move, and the turn indicator changes to the player's color. If the move put the player in check, the player's King glows red and the turn indicator reads, for example, "White to move — in check". It is now the player's turn.
 
 ## The interaction, event by event
 
@@ -58,11 +58,11 @@ If the player is not connected at this moment (reconnecting, replaced, or away f
 
 When the echo arrives, the player's board replays the record with the new move and draws the result, exactly as it does for the player's own moves:
 
-- the opponent's piece [glides](../foundations/the-view.md#motion) from its origin to its destination in 300 ms, and a captured piece of the player's fades out under it; a promoting pawn arrives as its new piece. If the player's system asks for reduced motion, there is no glide or fade: the position simply changes, and the teal trace shows what moved;
-- the teal [last-move trace](../glossary.md#selection-and-board-state) moves to the move's two cells;
+- the opponent's piece [glides](../foundations/the-view.md#motion) from its origin to its destination in 460 ms, and a captured piece of the player's burns away as it arrives; a promoting pawn arrives as its new piece. If the player's system asks for reduced motion, there is no glide or fade: the position simply changes, and the teal trace shows what moved;
+- the mint [last-move trace](../glossary.md#selection-and-board-state) moves to the new move;
 - the [move list](../game-page/move-list.md) gains the move: a new row if the opponent is White, the second half of the last row if the opponent is Black;
 - the turn indicator changes to the player's color, the player's pieces become selectable, and "Move" is enabled: see [making a move](making-a-move.md);
-- if the player is now in check, their King [glows red](check-and-game-end.md#check) and the turn indicator adds " — in check"; if they are checkmated or stalemated, the [end-game dialog](check-and-game-end.md) appears.
+- if the player is now in check, their King [turns red](check-and-game-end.md#check) and the turn pill shows "CHECK" beside their stone; if they are checkmated or stalemated, the end plays out on the board and the [end-game dialog](check-and-game-end.md) follows.
 
 There is no sound, no notification, and no change to the tab's title. A player looking elsewhere learns that it is their turn only by looking at the board. A screen reader announces the turn indicator's new text, since it is a polite live region.
 
@@ -74,7 +74,7 @@ How the move lands depends on when the player sees it:
 | Connected, tab hidden | The echo arrives and the position updates, but nothing is drawn while the tab is hidden. When the player returns to the tab, the piece glides in from its origin. |
 | Reconnecting when the move was made | The move arrives in the snapshot after the connection returns, and glides in, because this board had not shown it. The player's pieces become selectable only when that snapshot has arrived. |
 | Replaced (another tab has the seat) | The move goes to the other tab. This tab sees it in the snapshot after "Play here", gliding in. A tab whose connection comes back while another tab holds the seat does not get the snapshot at all; it shows the replaced dialog. |
-| Away from the game (tab closed, reloaded, or on the start screen) | The move is simply in place when the player returns: the board is drawn with it, without a glide, with the teal trace on its cells. |
+| Away from the game (tab closed, reloaded, or on the start screen) | The move is simply in place when the player returns: the board is drawn with it, without a glide, with the last-move line on it. |
 
 ## Modifiers
 
@@ -82,7 +82,7 @@ How the move lands depends on when the player sees it:
 
 | Modifier | At the start | Changes while in flight |
 | --- | --- | --- |
-| Your color | Decides the [orientation](../foundations/the-view.md#orientation): the opponent's pieces start at the top of the two farthest slices, and their moves come toward the player. A Black player starts the game waiting. | Cannot change. |
+| Your color | Decides the [orientation](../foundations/the-view.md#orientation): the player's army starts in the two rows nearest them and the opponent's in the two farthest (White's at the bottom of the tower, Black's at the top), and the opponent's moves come toward the player. A Black player starts the game waiting. | Cannot change. |
 | Whose turn it is | The opponent's, by definition. The player cannot select anything. | Becomes the player's when the move lands. |
 | How you reached the page | A player who returns to the game during the opponent's turn sees the same waiting board. A player who returns after the opponent moved finds it their turn, the move in place without a glide. | Not applicable. |
 | Connection state | Connected: as described. Reconnecting or replaced: the player cannot see the move arrive; it comes in the next snapshot (for a replaced tab, after "Play here"). | A drop just as the move is made: the move is recorded and comes in the snapshot. |
@@ -129,9 +129,9 @@ How the move lands depends on when the player sees it:
 ## Edge cases
 
 - **Several moves at once.** While a player is disconnected, at most one opponent move can be made (after it, it is the player's turn). Several can pile up only when this tab was [replaced](../session/second-tab.md) and the player went on playing in the other tab: after "Play here", this tab receives them all in one snapshot, the last one glides, and the others are simply in place.
-- **A move landing on a hidden piece.** From the player's angle the moving piece or its destination may be hidden behind nearer pieces. The teal trace and the move list still show where the move went.
-- **Moves in quick succession.** If the player's own move lands and the opponent answers within 300 ms, the second glide starts at once and the first piece jumps to its destination.
-- **Reduced motion.** When the player's system asks for reduced motion, no move glides or fades on their board; each move simply appears, with the teal trace on its two cells. The setting is read each time the board is drawn, so changing it takes effect from the next move.
+- **A move landing on a hidden piece.** From the player's angle the moving piece or its destination may be hidden behind nearer pieces. The last-move line and the move list still show where the move went.
+- **Moves in quick succession.** If the player's own move lands and the opponent answers within 460 ms, the second glide starts at once and the first piece jumps to its destination.
+- **Reduced motion.** When the player's system asks for reduced motion, no move glides or burns away on their board; each move simply appears, with the last-move line on it. The setting is read each time the board is drawn, so changing it takes effect from the next move.
 - **An opponent who never returns.** The game stays on the opponent's turn indefinitely. The player can only leave; the game expires about 30 days after it was last active.
 - **The opponent's second tab.** If the opponent opens the game in another tab, the player sees "Opponent: online" again but never "offline"; the opponent's moves keep arriving from whichever tab holds the seat.
 - **An illegal move from a modified client.** The server would record it. If the player's browser cannot replay it, the board freezes before it with a banner; if it can (an illegal but possible move), it is shown like any other. See [the broken game record](../cross-cutting/broken-game-record.md).
@@ -143,5 +143,7 @@ How the move lands depends on when the player sees it:
 - The glide on returning to a hidden tab is read from how the 3D scene pauses drawing and clamps a long frame; not observed in a real background tab.
 - Reduced motion is read from the system setting whenever the board is redrawn (`client/src/three/Board.tsx:131-132`, `client/src/three/motion.ts:22-25`), not watched for changes. Turning it on in the middle of a glide may end that glide early at the next redraw; not tried.
 - Moves while the opponent is disconnected, their arrival on rejoin, and presence are covered by `server/tests/test_local_ws.py` and `client/e2e/session.spec.ts`; animation on arrival versus on mount, and its absence under reduced motion, by `client/src/three/Board.test.tsx`.
+
+- The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](../foundations/the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`

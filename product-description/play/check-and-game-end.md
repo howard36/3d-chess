@@ -2,11 +2,11 @@
 
 ## Summary
 
-This document covers the two ways the position itself speaks to the player: **check**, shown as a red glow on the King and as " — in check" after the turn indicator's text, and the **end of the game**, shown as a dialog that covers the board and offers a single way out. A game ends only by [checkmate or stalemate](../foundations/game-rules.md#check-checkmate-and-stalemate), decided independently by each player's browser as soon as the move that causes it lands; the server never learns that a game is over. The [end-game dialog](../glossary.md#the-interface) announces the result to both players in the same words and offers "Start new game", which takes the player to the start screen. This document owns a King in check, checkmate and stalemate, the dialog, and that button.
+This document covers the two ways the position itself speaks to the player: **check**, shown by the King turning red on the board and by a "CHECK" badge on the turn pill, and the **end of the game**, shown as a dialog that covers the board and offers a single way out. A game ends only by [checkmate or stalemate](../foundations/game-rules.md#check-checkmate-and-stalemate), decided independently by each player's browser as soon as the move that causes it lands; the server never learns that a game is over. The [end-game dialog](../glossary.md#the-interface) announces the result to both players in the same words and offers "Start new game", which takes the player to the start screen. This document owns a King in check, checkmate and stalemate, the dialog, and that button.
 
 ## The simple case
 
-The opponent moves a Queen into line with the player's King. As the Queen lands, the player's King turns red and the turn indicator changes to, for example, "White to move — in check". Nothing else announces it: no sound, no dialog. When the player selects a piece, only moves that get the King out of check are marked; pieces that cannot help show no destinations. The player moves the King aside, and when that move lands, the red glow and the words " — in check" go.
+The opponent moves a Queen into line with the player's King. As the Queen lands, the player's King turns red from cross to foot, a red plate of light with eight points strikes on the glass under him, and dark blades rise round him; the turn pill shows "CHECK" beside the player's stone. Nothing else announces it: no sound, no dialog. When the player selects a piece, only moves that get the King out of check are marked; pieces that cannot help show no destinations. The player moves the King aside, and when that move lands, the red glow and the words " — in check" go.
 
 Later the player delivers mate. As their final move glides in, both boards darken behind a white dialog that reads, for a White winner, "White wins by checkmate!", with a "Start new game" button below, which has keyboard focus. The loser sees the same words. The final position stays visible behind the darkened backdrop but cannot be touched or turned. The player clicks "Start new game" and lands on the start screen, where they can create a new game and send a new link; the opponent is told the player is offline.
 
@@ -15,7 +15,7 @@ Later the player delivers mate. As their final move glides in, both boards darke
 ```mermaid
 stateDiagram-v2
     state "Game in progress" as playing
-    state "Side to move in check (King glows red)" as check
+    state "Side to move in check (King red)" as check
     state "End-game dialog" as over
     state "Start screen" as start
     [*] --> playing
@@ -34,7 +34,7 @@ Every time a move lands (an [echo](../glossary.md#requests) or a snapshot change
 
 #### Check
 
-A King that is attacked [glows red](../foundations/the-view.md#markers-and-colors). In a real game only the side to move can be in check, so the glow is always on the King of the player whose turn it is. It appears on both boards the moment the checking move lands, and goes out the moment a move that ends the check lands. If the player selects their King while in check, its glow stays red, not the amber of a selection.
+A King that is attacked [turns red](../foundations/the-view.md#markers-and-colors), cross and all, lit from below by a red eight-pointed plate of light on the glass round his foot, with dark obsidian blades edged in red standing round him (their style, or none, is a setting). The plate strikes as check arrives (it lands a little large, flashes, and sends one wave out) and then breathes slowly. In a real game only the side to move can be in check, so the red is always on the King of the player whose turn it is. It appears on both boards the moment the checking move lands, and goes the moment a move that ends the check lands. If the player selects their King while in check, he rises into the column of light and stays red.
 
 At the same moment the [turn indicator](../game-page/turn-indicator.md) adds " — in check" to its text: "White to move — in check" or "Black to move — in check", on both boards. The turn indicator is a polite live region, so a screen reader announces the change. The words go when the check ends, and are not shown once the game is over.
 
@@ -42,7 +42,7 @@ While in check, the player's selectable pieces offer only moves that leave the K
 
 #### Checkmate and stalemate
 
-If the side to move has no legal move, the game is over: checkmate if their King is attacked, stalemate if not. Each browser reaches this conclusion by itself, from the same record, at the moment the final move lands, and shows the end-game dialog at once, while the final move's glide is still playing behind it.
+If the side to move has no legal move, the game is over: checkmate if their King is attacked, stalemate if not. Each browser reaches this conclusion by itself, from the same record, at the moment the final move lands, and lets the end play out on the board first. At checkmate the mated King topples onto his side, one pulse of light spreads from his foot through all five levels, and the garden's colossal pieces brighten for a breath. The end-game dialog follows about 2.8 s after the final move lands (the pulse's 2.4 s, which the "Checkmate pulse" setting can change, and a beat more); a stalemate waits the same time, with nothing playing. When the game was already over as the board appeared (a reload, a return, a snapshot after a drop), the King is simply drawn lying down and the dialog appears at once.
 
 The dialog covers the whole window with a translucent dark backdrop and a white panel. Everything behind it, the board and every HUD panel, is made inert: it cannot be clicked, focused, or read by assistive technology. The heading is one of three texts, the same on both boards:
 
@@ -58,7 +58,7 @@ The dialog is not shown when the board is [frozen](../cross-cutting/broken-game-
 
 ### End without sending
 
-Check ends without anything sent by the player: a move that ends it lands, the glow goes out, and the turn indicator drops " — in check".
+Check ends without anything sent by the player: a move that ends it lands, the King's red, the plate, and the blades go, and the turn pill drops "CHECK".
 
 The end-game dialog does not end by itself. It stays for as long as the page is open, and comes back whenever the game is opened again: a reload, a return through the link or a bookmark, or browser Back from the start screen all replay the record, reach the same final position, and show the dialog again at once, without the final glide. The player's [stored seat](../foundations/connection-and-seat.md#the-stored-seat) is never removed for a finished game, so its link always leads back to the result.
 
@@ -82,7 +82,7 @@ The finished game remains on the server unchanged until it expires, about 30 day
 
 | Modifier | At the start | Changes while in flight |
 | --- | --- | --- |
-| Your color | Decides whose King can glow on the player's turn and which heading means a win for the player; the heading itself names a color, not "you". | Cannot change. |
+| Your color | Decides whose King can turn red on the player's turn and which heading means a win for the player; the heading itself names a color, not "you". | Cannot change. |
 | Whose turn it is | Check and game over are always about the side to move after the landing move. | Not applicable. |
 | How you reached the page | Arriving at a finished game by any route shows the dialog immediately, without the final glide. A player who was away when the mating move was played never sees it glide. | Not applicable. |
 | Connection state | Check and the dialog are worked out in the browser and appear whatever the connection state. "Start new game" works while disconnected too. | Not applicable. |
@@ -116,7 +116,7 @@ The finished game remains on the server unchanged until it expires, about 30 day
 
 **Connection.** Neither check nor the result needs the server: both are worked out in the browser. The server could in principle keep accepting moves after mate, but the app never sends one.
 
-**The opponent.** Sees the same glow and the same dialog at the same moment, from the same echo. Learns only that the player went offline when they click "Start new game".
+**The opponent.** Sees the same red King and the same end at the same moment, from the same echo. Learns only that the player went offline when they click "Start new game".
 
 **Other tabs and devices.** Every tab or device that opens the finished game shows the dialog.
 
@@ -129,7 +129,7 @@ The finished game remains on the server unchanged until it expires, about 30 day
 ## Edge cases
 
 - **The final position cannot be studied.** The dialog cannot be closed, so the final position can only be seen darkened, from the angle the player last left the view, and the move list cannot be scrolled. Reloading shows the dialog again.
-- **The turn indicator after the game.** Behind the backdrop it still reads, for example, "Black to move" for a checkmated Black, without " — in check", although the mated King still glows red.
+- **The turn indicator after the game.** Behind the backdrop it still reads, for example, "Black to move" for a checkmated Black, without " — in check", although the mated King is still red.
 - **Enter after the last move.** Focus moves to "Start new game" as the dialog appears, so a key press meant for something else (a second Enter in the move box after typing the mating move, for example) can take the player straight to the start screen.
 - **Tab behind the replaced dialog.** If another tab takes the seat while the end-game dialog is up, the replaced dialog covers it, but "Start new game" is not made inert: Tab from "Play here" can reach it, and Enter then leaves the game.
 - **Both players each start over.** "Start new game" does not create a game; the player still has to click "Start New Game" on the start screen and send a new link.
@@ -143,6 +143,8 @@ The finished game remains on the server unchanged until it expires, about 30 day
 - The headings name colors rather than saying "You win" or "You lose". Deliberate or not, it is the same text for both players.
 - The replaced dialog makes the board screen inert but not the end-game dialog beside it (`client/src/screens/GameScreen.tsx:332-335`, `:448-450`), so "Start new game" stays reachable by Tab behind the replaced dialog. Read from code; not tried.
 - Whether a stray Enter can reach "Start new game" right after the mating move is typed depends on the echo's timing; read from code (`client/src/screens/EndGameModal.tsx:50-51`), not tried.
-- The mate line and both players' "Start new game" are exercised by `client/e2e/gameOver.spec.ts`; check detection and the glow by `client/src/engine/board.test.ts` and `client/src/three/Board.test.tsx`; the words " — in check" by `client/src/App.test.tsx`; stalemate detection by the engine tests only. The stalemate heading was not seen in a real game.
+- The mate line and both players' "Start new game" are exercised by `client/e2e/gameOver.spec.ts`; check detection and the red King by `client/src/engine/board.test.ts` and `client/src/three/Board.test.tsx`; the words " — in check" by `client/src/App.test.tsx`; stalemate detection by the engine tests only. The stalemate heading was not seen in a real game.
+
+- The end playing out before the dialog (the King's topple, the pulse, the 2.8 s wait, and the same wait at stalemate) is read from `client/src/screens/GameScreen.tsx` and `client/src/three/scene/fx.tsx` at `bb16fed`, and the red King in check was seen in screenshots of the running app; neither was re-verified by hand. The dialog's description here predates the new HUD (see the [glossary](../glossary.md#the-interface) for the current one: "You win", "You lose", or "Draw"). Whether a stalemate should wait 2.8 s with nothing on the board to watch is a product call. This document needs re-verification.
 
 Verified against 3D Chess commit `4e18386`

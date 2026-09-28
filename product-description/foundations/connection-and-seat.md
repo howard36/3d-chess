@@ -69,7 +69,7 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | connecting | The first attempt after the app loaded, after a reset, or after "Play here". | "Connecting to server…" under the button | Nothing extra. The board, if shown, does not take input. |
 | connected | The connection is open. | Nothing extra | Nothing extra. After every new connection the board takes no input until the rejoin's snapshot arrives. |
-| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | "Reconnecting to server…" under the button | The amber "Reconnecting…" box at the top right. The board does not take input. |
+| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | "Reconnecting to server…" under the button | The [reconnecting line](../glossary.md#the-interface): under the turn pill on the board screen, at the top right on the other screens. The board does not take input. |
 | replaced | Another tab or window of this browser holds the seat: either the server closed this connection because the other tab took the seat, or this tab's connection came back after a drop and the server answered that the seat is in use. No retry happens. | Cannot occur | The [replaced dialog](../session/second-tab.md) over everything |
 
 In the second kind of *replaced*, the connection itself stays open but holds no seat; the player sees the same dialog either way.
@@ -155,5 +155,7 @@ This is what guarantees that a new game, or another game's page, starts on a con
 - A duplicated tab shares the original's client id, so an automatic rejoin in either can take the seat from the other without a click. Read from code; not tried.
 - A tab shown the replaced dialog because of seat in use keeps its connection open without a seat. If that connection later drops and returns after the other tab has closed, its automatic rejoin gets the seat back and the dialog goes away without a click. Read from code; not tried.
 - The retry schedule, queueing, dropped moves, the replaced state, last-connection-wins, seat in use, re-sent joins and creates, and the wait for the snapshot are covered by `client/src/hooks/useGameSocket.test.ts`, `client/src/App.test.tsx`, `server/tests/test_local_ws.py`, and `client/e2e/session.spec.ts`.
+
+- The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`

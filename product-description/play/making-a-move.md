@@ -8,9 +8,9 @@ This document owns the player's own turn: nothing selected, a piece selected, pr
 
 ## The simple case
 
-It is the player's turn: they are White and the turn indicator reads "White to move". They click one of their pawns. A gold ring appears on the floor of its cell and the pawn glows faintly amber. Each cell it can move to gets a faint amber tint, with an amber dot in the middle of an empty cell or a red ring around an opponent's piece it can capture.
+It is the player's turn: they are White and the turn indicator reads "White to move". As the pointer comes over one of their pawns, the pawn lifts a little and catches the light. They click it. It rises a little higher and holds still inside a column of cool white light, and each cell it can move to gets a thin gold circle on its glass, or, round an opponent's piece it can capture, a red circle with four slowly turning red arcs.
 
-The player clicks one of the dots. The markers vanish at once. For a moment, usually too short to notice, nothing else changes. Then the pawn glides to the new cell, lifted slightly on the way; a captured piece shrinks and fades under it. The two cells of the move turn teal, the turn indicator changes to "Black to move", and the move appears at the bottom of the move list. The opponent sees exactly the same glide at the same moment.
+The player clicks one of the gold circles. The markers vanish at once and the column of light sinks back. For a moment, usually too short to notice, nothing else changes. Then the pawn glides in a straight line to the new cell; a captured piece burns away as it arrives. A thin mint line now runs from the cell it left to the pawn, the turn indicator changes to "Black to move", and the move appears at the bottom of the move list. The opponent sees exactly the same glide at the same moment.
 
 Instead of clicking, the player could have typed `Ab2-Ab3` into the move box at the bottom left and pressed Enter (or clicked "Move"): the same move is sent, and the same glide follows.
 
@@ -45,9 +45,9 @@ stateDiagram-v2
 
 The player's turn begins when the opponent's move lands on this board (or, for White, when the game starts). From then on, a [press](../glossary.md#input) on one of the player's own pieces selects it, as long as the board takes input. A press is a click: the primary mouse button, a finger, or a pen going down and coming back up within 6 pixels, on the same piece or cell. Nothing happens while the button is held down; the press acts on the release. It is resolved by [what takes a press](../foundations/input-model.md#what-takes-a-press): the first piece or legal destination on the line from the camera through the pointer.
 
-At the instant of selection the browser works out every [legal move](../glossary.md#moves-and-the-rules) of that piece in the current position, leaving out any that would leave the player's own King attacked, and draws the [markers](../foundations/the-view.md#markers-and-colors): the gold selection ring and faint amber glow on the piece, and for each legal destination a faint amber fill plus either a dot (empty cell) or a red capture ring (opponent's piece). A promotion square is marked once. The markers belong to this position; they are never updated in place, only cleared.
+At the instant of selection the browser works out every [legal move](../glossary.md#moves-and-the-rules) of that piece in the current position, leaving out any that would leave the player's own King attacked, and draws the [markers](../foundations/the-view.md#markers-and-colors): the piece rises into its column of light, and each legal destination gets a gold circle (empty cell) or a red circle with turning arcs (opponent's piece). A promotion square is marked once. The markers belong to this position; they are never updated in place, only cleared.
 
-A piece with no legal move can still be selected: it gets its ring and glow and no destinations. That is how a player learns that a piece is blocked or pinned, or, in check, that it cannot help.
+A piece with no legal move can still be selected: it rises into its column of light and gets no destinations. That is how a player learns that a piece is blocked or pinned, or, in check, that it cannot help.
 
 Pressing another of the player's own pieces moves the selection to it, with its own markers. Pressing the selected piece again keeps it selected. Selecting is private: nothing is sent, and the opponent sees nothing.
 
@@ -61,11 +61,11 @@ The move is typed as two cells in the move list's notation: level, file, rank, t
 
 A selection ends without a move in any of these ways. In every case nothing is sent, nothing is recorded, and the player is back to having nothing selected:
 
-- **A press on an empty part of the board.** Any press whose line enters a cell that is not a legal destination before reaching a piece or destination clears the selection, and so does a press that passes through the board and meets nothing. That includes a press on an opponent's piece that cannot be captured, and on any piece while it is not selectable.
+- **A press on an empty part of the board, or on the selected piece.** Any press whose line crosses the glass of a cell that is not a legal destination before reaching a piece or destination clears the selection, and so does a press that meets no piece and no cell (the gap between levels, the garden, the sky). Pressing the selected piece again puts it down. A press on an opponent's piece that cannot be captured, or on any piece while it is not selectable, does nothing and keeps the selection.
 - **The position, the turn, or the board's input changes.** A new position from the server (a snapshot after a reconnect, even one with the same moves), the turn changing, or the board stopping taking input (a drop, a replacement, a frozen record, or a move sent from the move box) clears the selection automatically.
 - **A promotion square is pressed** and the promotion dialog is then cancelled. The selection was cleared when the square was pressed and does not come back; see [promotion](promotion.md).
 
-A press on the background outside the cube does not clear the selection, and no drag, right or middle click, wheel turn, or pinch does either. Escape does not clear it.
+No drag, right or middle click, wheel turn, or pinch clears the selection. Escape does not clear it.
 
 **A typed move that cannot be played.** When the "Move" button is clicked or Enter is pressed in the field, the browser reads the text against the current position. If it is not a legal move of the player's, nothing is sent: the text stays in the field, the field is marked invalid for screen readers, and one line under it says why:
 
@@ -102,11 +102,11 @@ The board is held. Presses on pieces and cells do nothing: nothing can be select
 
 **The echo.** The browser replays the record with the new move and draws the new position:
 
-- the piece [glides](../foundations/the-view.md#motion) from its origin to its destination in 300 ms, and a captured piece fades out under it; if the system asks for reduced motion, the piece is simply drawn on its new cell and the captured piece disappears, with no glide or fade;
-- the teal [last-move trace](../glossary.md#selection-and-board-state) moves to the move's two cells;
+- the piece [glides](../foundations/the-view.md#motion) from its origin to its destination in 460 ms, and a captured piece burns away as it arrives; if the system asks for reduced motion, the piece is simply drawn on its new cell and the captured piece disappears, with no glide or burn;
+- the mint [last-move trace](../glossary.md#selection-and-board-state) moves to the new move, from the cell the piece left to the piece;
 - the turn indicator changes to the opponent's color;
 - the move is added to the [move list](../game-page/move-list.md): a new numbered row if White moved, the second half of the last row if Black moved;
-- if the move puts the opponent in check, the opponent's King [glows red](check-and-game-end.md) and the turn indicator adds " — in check"; if it is checkmate or stalemate, the [end-game dialog](check-and-game-end.md) appears over the board;
+- if the move puts the opponent in check, the opponent's King [turns red](check-and-game-end.md) and the turn pill shows "CHECK" beside their stone; if it is checkmate or stalemate, the end plays out on the board and the [end-game dialog](check-and-game-end.md) appears over it;
 - the board takes input again, but it is now the opponent's turn, so there is nothing to select and "Move" stays disabled. What the player sees next is in [the opponent's move](the-opponents-move.md).
 
 The opponent's board shows the same glide at the same moment, from the same echo.
@@ -136,7 +136,7 @@ The variants that matter are decided at the press or the submit: whose turn it i
 | Event | Before sending | While in flight |
 | --- | --- | --- |
 | Escape or Cancel | No effect. Escape does not clear a selection or the move box, and there is no Cancel control. | No effect. A sent move cannot be taken back. |
-| Pressing elsewhere or turning the view | Resolved by [what takes a press](../foundations/input-model.md#what-takes-a-press): another own piece moves the selection, an empty cell or unselectable piece clears it, a legal destination sends, the background outside the cube does nothing. Dragging, right or middle clicks, the wheel, and pinches only turn the view and keep the selection. Clicking into the move box keeps it too. | Presses on the board do nothing. The view can be turned freely. |
+| Pressing elsewhere or turning the view | Resolved by [what takes a press](../foundations/input-model.md#what-takes-a-press): another own piece moves the selection, the selected piece itself, an empty cell, or empty space clears it, an unselectable piece does nothing, and a legal destination (or a capturable piece) sends. Dragging, right or middle clicks, the wheel, and pinches only turn the view and keep the selection. Clicking into the move box keeps it too. | Presses on the board do nothing. The view can be turned freely. |
 | Leaving the game page within the app | The selection and any typed text are lost; nothing was sent. | The move is already on its way; if the server received it, it is recorded and the opponent sees it land. This page resets its connection and never sees the echo; returning to the game shows the move in place, without a glide. |
 | The game ends | Cannot happen: the game ends only when a move lands, and none can land during the player's own turn. | This move's echo can end the game; the end-game dialog appears as the piece glides. |
 | The server answers with an error | Not applicable: nothing sent. A typed move that cannot be played is explained under the move box, not by the server. | The board is released, the error banner shows the message, nothing is selected, and the position is unchanged. |
@@ -165,14 +165,14 @@ After an interrupt before sending, the player is always back to having nothing s
 
 **Stored seat.** No role in making a move, beyond deciding which color the page plays after a reload.
 
-**Keyboard, touch, and screen size.** The 3D board cannot be operated from the keyboard, but every move, promotion included, can be typed in the move box, which Tab reaches. On a touch screen a tap selects and a tap plays; a drag or a two-finger gesture only turns the view. In a small window the cells, and so the targets, are smaller, but the whole cube is always in frame. See [accessibility](../cross-cutting/accessibility.md) and [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
+**Keyboard, touch, and screen size.** The 3D board cannot be operated from the keyboard, but every move, promotion included, can be typed in the move box, which Tab reaches. On a touch screen a tap selects and a tap plays, and a tap that just misses a piece or destination goes to it ([tap assist](../glossary.md#input)); a drag or a pinch only turns the view. In a small window the cells, and so the targets, are smaller, but the whole tower is always in frame. See [accessibility](../cross-cutting/accessibility.md) and [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
 
 ## Edge cases
 
 - **A hidden destination.** A destination behind one of the player's own pieces cannot be pressed from that angle: the press selects the piece in front. Behind an opponent's piece, the press does nothing but clear the selection. The player turns the view, which keeps the selection, and presses again; or types the move.
 - **A drag that ends where it started.** A pointer that moves out and back, ending within 6 pixels of where it went down, is still a press, and the view turns slightly while it moves. A drag that ends more than 6 pixels away never acts, however short it felt.
 - **Capturing.** Pressing the opponent's piece in a highlighted cell captures it. The capture ring sits at the piece's foot, but any part of the highlighted cell takes the press.
-- **In check.** The King glows red and the turn indicator reads, for example, "White to move — in check"; selecting the King shows its escapes, and its glow stays red rather than amber. Pieces that cannot block or capture the checking piece show no destinations, and a typed move that does not answer the check is refused under the move box with "The piece on … cannot move to …".
+- **In check.** The King is red all over, over a red plate with dark blades round him, and the turn pill shows "CHECK" beside the player's stone; selecting the King lifts him into the column of light and shows his escapes, and he stays red. Pieces that cannot block or capture the checking piece show no destinations, and a typed move that does not answer the check is refused under the move box with "The piece on … cannot move to …".
 - **Just after reconnecting.** Between a new connection opening and the rejoin's snapshot arriving (at most one round trip), "Reconnecting…" has gone but the board still takes no input and "Move" stays disabled. A press in that moment does nothing. See [connection loss](../session/connection-loss.md).
 - **The same position, a new board.** A snapshot identical to what the board already showed still clears the selection.
 - **A press on the turn indicator.** It lets presses through to the board. The seat label, the "Reconnecting…" banner, the move box, the error banner, and the move list do not: a destination behind them cannot be pressed until the view is turned. The gaps between those panels let presses through.
@@ -187,5 +187,7 @@ After an interrupt before sending, the player is always back to having nothing s
 - There is no undo or takeback of any kind, by design.
 - The move box's last message, "A pawn cannot promote to that piece." (`client/src/game/typedMove.ts:47`), cannot appear: the field only accepts the five promotion letters, and every promotion square offers all five.
 - Selection, markers, the click threshold and button filter, the promotion hand-off, and the held board are covered by `client/src/three/Board.test.tsx` and `client/src/App.test.tsx` (including the board held until the rejoin is answered, and the move box's send, error line, and turn gating); the full loop by `client/e2e/playMove.spec.ts`. Touch taps and two-finger gestures on a real device, and presses through the turn indicator, were not tried by hand.
+
+- The board's look in this document (hover, the column of light, the gold and red markers, the mint line, a King in check) was brought up to the new board from screenshots of the running app at `bb16fed` and the code; the rest of the document was not re-verified and needs re-verification, including a press on an opponent's piece now keeping the selection.
 
 Verified against 3D Chess commit `4e18386`

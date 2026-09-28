@@ -46,15 +46,15 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## The board
 
-**Board.** The 5 × 5 × 5 grid of 125 *cells* the game is played on, drawn as a wireframe lattice. See [the rules](foundations/game-rules.md#the-board).
+**Board.** The 5 × 5 × 5 grid of 125 *cells* the game is played on, drawn as a tower of five glass levels. See [the rules](foundations/game-rules.md#the-board) and [the view](foundations/the-view.md#the-scene).
 
-**Level.** One of the five horizontal slices of the board in game terms, named A to E, A at the bottom. On screen, levels are drawn as depth, not height: see [the view](foundations/the-view.md#orientation).
+**Level.** One of the five horizontal slices of the board, named A to E, A at the bottom. On screen each level is a sheet of glass edged in its own color (cyan, azure, periwinkle, orchid, and rose, A to E), stacked A at the bottom and E at the top for both players: see [the view](foundations/the-view.md#orientation).
 
 **File.** One of the five columns within a level, named a to e.
 
 **Rank.** One of the five rows within a level, numbered 1 to 5. White's back ranks are rank 1; Black's are rank 5.
 
-**Cell.** One position on the board, written as level, file, rank: `Aa1` is level A, file a, rank 1; `Ee5` is the opposite corner. This notation is used in the *move card* (the move list, the move box, and the cell under the pointer) and in the board's own labels: the board itself has no labels.
+**Cell.** One position on the board, written as level, file, rank: `Aa1` is level A, file a, rank 1; `Ee5` is the opposite corner. This notation is used in the *move card* (the move list, the move box, and the cell under the pointer). The board carries its parts as labels: the files and ranks along two edges of the bottom level, and each level's letter beside it.
 
 **Pieces.** King, Queen, Rook, Bishop, Knight, Unicorn, and Pawn, each side starting with 20. The Unicorn is the piece this variant adds. How each moves is in [the rules](foundations/game-rules.md#how-the-pieces-move).
 
@@ -86,19 +86,21 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## Selection and board state
 
-**Selection, selected piece.** The one piece, at most, that the player has picked up to move. It is marked by a gold ring on the floor of its cell and a faint amber glow, and its legal destinations are marked. Selection is local to this browser; nothing is sent.
+**Selection, selected piece.** The one piece, at most, that the player has picked up to move. It rises a little and holds still inside a column of cool white light, with a thin circle of light round its foot, and its legal destinations are marked. Pressing it again puts it down. Selection is local to this browser; nothing is sent.
+
+**Hover.** One of the player's own pieces that can be selected now lifts a little under the pointer and catches more light; the level under the pointer brightens its lines, border, and letter. Hover is only a hint: nothing happens until a press.
 
 **Clear (a selection).** Remove the selection and its markers. A selection is cleared by pressing an empty part of the board, by making a move, and automatically whenever the position, the side to move, or whether the board takes input changes. See [making a move](play/making-a-move.md#end-without-sending).
 
-**Move markers.** The marks drawn for the selected piece's legal destinations: an amber dot in an empty cell, a red ring around the foot of a capturable piece, and a faint amber fill over every destination cell. See [the view](foundations/the-view.md#markers-and-colors).
+**Move markers.** The marks drawn on the glass for the selected piece's legal destinations: a thin gold circle round a slight fill on an empty cell, and a red circle with four slowly turning red arcs round the foot of a capturable piece. Under the pointer a destination's fill deepens and its circle grows a little. See [the view](foundations/the-view.md#markers-and-colors).
 
-**Last-move trace.** A teal fill over the two cells of the most recent move, its origin and its destination. It stays until the next move. A legal destination's amber fill replaces it on a shared cell.
+**Last-move trace.** A thin mint line from a small circle on the cell the most recent move left to a larger mint circle round the piece where it landed, with a soft white light travelling along it. It stays until the next move. Where a destination or capture marker falls on one of its cells, that circle steps aside for the marker.
 
-**Glide.** The 300 ms animation of a piece travelling from its origin to its destination, lifted slightly at the midpoint, played on both boards for every newly arrived move.
+**Glide.** The 460 ms animation of a piece travelling in a straight line from its origin to its destination (a Knight may leap over an arc instead, a setting), played on both boards for every newly arrived move.
 
-**Fade.** The 300 ms animation of a captured piece shrinking into its cell floor and fading out while the capturer glides in.
+**Fade.** The animation of a captured piece burning away, from its crown down behind a thin edge of white light, as the capturer arrives, while its outline in light rises a little and fades.
 
-**Check glow.** The red glow on a king in check. It takes precedence over the amber glow of a selected king.
+**Check glow.** How the board marks a king in check: the whole king turns red, lit from below by a red eight-pointed plate of light on the glass, with dark obsidian blades edged in red round him. A selected king in check keeps his red.
 
 **The board takes input.** The board accepts presses only while all four hold: the connection is *connected*, this connection's create, join, or rejoin has been answered (so the position shown is the server's, not the one from before a drop), the move record is not *frozen*, and none of this player's own moves is *in flight*. The move box follows the same rule. When the board does not take input, presses on pieces and cells do nothing, any selection is cleared, and the promotion dialog closes. The view can still be turned. The board takes input on the opponent's turn too; there is simply nothing of the player's that can be selected.
 
@@ -140,13 +142,15 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Press.** A click on the board: the primary mouse button, a finger, or a pen going down and coming back up within 6 pixels of where it went down, on the same piece or cell. The board acts on the release: that is when a piece is selected, a selection is cleared, or a move is played. Holding the button down does nothing yet; moving more than 6 pixels first makes it a *drag*; the right and middle mouse buttons never act on the board. See [the input model](foundations/input-model.md#a-press-acts-on-release).
 
+**Tap assist.** On a touch screen, a tap that reaches nothing the player can act on goes to the nearest thing they can (one of their own selectable pieces, or a legal destination) within a finger's reach, about 22 pixels. A mouse or pen click is never redirected. See [the input model](foundations/input-model.md#what-takes-a-press).
+
 **Click.** A press and release on an HTML control (a button, a link, the dialog backdrop). HTML controls act on release, as usual in a browser.
 
 **Takes the press.** The first piece or legal destination along the line from the camera through the pointer receives the press, and nothing behind it does. It must be the same object at the release as when the pointer went down. See [the input model](foundations/input-model.md#what-takes-a-press).
 
 **Drag.** A pointer that moves more than 6 pixels between going down and coming up, or any use of the right or middle mouse button, the wheel, or a second finger. On the board, a drag only turns the view: it never selects, clears a selection, or plays a move. There is no dragging of pieces.
 
-**Orbit, zoom, pan.** The three ways to turn the view: orbit rotates the camera around the board (left drag, or one-finger drag), zoom moves it closer or farther (wheel, middle drag, or pinch), and pan slides it sideways (right drag, Shift/Ctrl/Cmd with left drag, or two-finger drag). See [the view](foundations/the-view.md#turning-the-view).
+**Orbit, zoom.** The two ways to turn the view: orbit rotates the camera round the tower's center (left drag, Shift/Ctrl/Cmd with right drag, or one-finger drag), and zoom moves it closer or farther (wheel, middle drag, or pinch). There is no pan: the camera always looks at the tower's center. See [the view](foundations/the-view.md#turning-the-view).
 
 **HUD.** The HTML laid over the board. At the top center, the *turn pill*, with the *status column* under it; at the top right, the settings gear; at the bottom left, the *move card* when the Keyboard play setting is on (or its field alone while it has keyboard focus). On a phone held upright the pill fills the top row beside the gear; in a window 480 pixels tall or less (a phone on its side) the status column stands at the top left instead of under the pill. Only the gear, the move card, and the error banner's "✕" catch the pointer; everything else in the HUD lets presses and drags through to the board.
 
@@ -166,7 +170,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Connection.** The one live link between a browser tab and the server. It is opened as soon as the app loads, on either screen, and kept open while the tab stays on the app.
 
-**Connection state.** One of four: *connecting* (the first attempt after the app loads or after a reset), *connected*, *reconnecting* (the connection dropped and the browser is retrying on its own), and *replaced*. The start screen shows the first and third as a status line; the game page shows only *reconnecting* ("Reconnecting…" in an amber box at the top right) and *replaced* (a dialog).
+**Connection state.** One of four: *connecting* (the first attempt after the app loads or after a reset), *connected*, *reconnecting* (the connection dropped and the browser is retrying on its own), and *replaced*. The start screen shows the first and third as a status line; the game page shows only *reconnecting* (the *reconnecting line*) and *replaced* (a dialog).
 
 **Retry schedule.** After an unexpected drop, the browser waits 0.5 s, then 1 s, 2 s, 4 s, and then 8 s between attempts, forever. The schedule starts over whenever a connection opens. There is no limit on attempts and no manual retry button.
 
@@ -198,6 +202,8 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Keyboard play.** A setting in the settings panel's first group, "Play", off unless the player turns it on. On, the board screen shows the *move card*. It is kept in this browser, like every setting, and is never sent to the opponent.
 
+**Settings panel.** The panel the gear at the top right opens, in the game and on the start screen. Its first group, "Play", holds *Keyboard play*; the others ("Board", "World", "Pieces", "Selection", "Markers", "Check") adjust how the board looks and moves, from the checker's contrast and the garden's sculptures to how far a piece lifts, whether a Knight leaps over an arc, the capture marker, and the blades round a king in check. Every change applies at once; "Reset to defaults" puts them all back. Settings are kept in this browser and never sent to the opponent. These documents describe the defaults. See [the view](foundations/the-view.md#the-looks-settings).
+
 **Move card.** The glass card at the bottom left of the board screen, shown while *Keyboard play* is on: the cell under the pointer ("Dd5  Black pawn"), the *move list*, and the *move box*. With the setting off it is out of sight but still in the page: its move list for screen readers, and its move box, which appears (alone) when it takes keyboard focus. See [the move list](game-page/move-list.md).
 
 **Move announcement.** What a screen reader is told as each move lands, whatever is on screen: the move ("White bishop Ad2 takes pawn on Dd5"), then check or the result, then whose move it is ("Your move." or "Black to move."). See [accessibility](cross-cutting/accessibility.md).
@@ -222,8 +228,8 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **View.** What the camera shows of the board. Each player's view is independent and local; turning it changes nothing for the opponent and nothing on the server.
 
-**Default view.** The view every board screen starts from: up and to the right of the board, looking at its center, at the distance that just fits the whole cube in the window, whatever its shape. Reloading returns to it. Resizing the window keeps the direction the player has turned to but moves the camera back to the distance that fits the new shape.
+**Default view.** The view every board screen starts from: a little above the bottom level and to the player's right, looking at the tower's center, at the distance that just fits the whole tower and its labels in the window, whatever its shape, centered below the turn pill. Reloading returns to it. Resizing the window keeps the direction the player has turned to but moves the camera back to the distance that fits the new shape.
 
 **Orientation.** Each player sees the board from their own side: their own back ranks at the bottom of the screen, their own levels nearest the camera, and their army laid out left to right exactly as the other player sees theirs. See [the view](foundations/the-view.md#orientation).
 
-**Near and far.** Toward and away from the camera in the default view. Because levels are drawn as depth, a piece moving *up* a level moves *away* from the player who owns it.
+**Near and far.** Toward and away from the camera in the default view. Ranks are drawn as depth, so a piece moving *forward* moves *away* from the player who owns it; levels are drawn as height.

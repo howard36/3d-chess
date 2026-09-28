@@ -6,11 +6,11 @@ Connection loss is what the player experiences when the tab's [connection](../gl
 
 ## The simple case
 
-White has just played and is waiting for Black; the turn indicator reads "Black to move" and the line under the seat label reads "Opponent: online". White's Wi-Fi drops. An amber box reading "Reconnecting…" appears at the top right of the window. Nothing else changes: the pieces, the turn indicator, the move list, and "Opponent: online" all stay exactly as they were. Presses on the board do nothing, though the view still turns.
+White has just played and is waiting for Black; the turn indicator reads "Black to move" and the line under the seat label reads "Opponent: online". White's Wi-Fi drops. A "Reconnecting…" line with a small breathing light appears under the turn pill. Nothing else changes: the pieces, the turn indicator, the move list, and "Opponent: online" all stay exactly as they were. Presses on the board do nothing, though the view still turns.
 
 On Black's screen, once the server notices that White's connection is gone, the line under the seat label changes to "Opponent: offline". Black plays a move anyway. The server records it and sends the echo to Black alone.
 
-A few seconds later White's network comes back. At the next attempt the amber box disappears, and a moment after that Black's move glides in on White's board: the teal trace moves to its cells, the move list gains it, and the turn indicator changes to "White to move". From that moment White's board takes input again. Black's screen changes to "Opponent: online". White never clicked anything, and nothing was lost.
+A few seconds later White's network comes back. At the next attempt the reconnecting line disappears, and a moment after that Black's move glides in on White's board: the last-move line moves to it, the move list gains it, and the turn indicator changes to "White to move". From that moment White's board takes input again. Black's screen changes to "Opponent: online". White never clicked anything, and nothing was lost.
 
 ## The interaction, event by event
 
@@ -56,10 +56,10 @@ What the player sees depends on the screen:
 | Screen | During the drop | When an attempt succeeds |
 | --- | --- | --- |
 | Start screen | The gray line "Reconnecting to server…" under the button. The button still works; a click is [queued](../glossary.md#requests) and the button reads "Creating Game...". | The line disappears. A queued click is sent. A create that was in flight at the drop is sent again, and its answer takes the player to the new game; see [creating a game](../start/creating-a-game.md#cancel-and-interrupt). There is no seat, so no rejoin. |
-| Join screen | The amber "Reconnecting…" box at the top right. "Join Game" still works; a click is queued and the page shows "Joined game, waiting for start..." at once. | The box disappears. A queued join is sent. Nothing else: a visitor has nothing to rejoin. |
-| Share-link screen | The amber box at the top right, with "Game created! Share this link with a friend:", the link, and "Copy link" unchanged. The link stays valid; the opponent can open it and join meanwhile. | The page rejoins. The snapshot keeps the share-link screen, or, if the opponent joined meanwhile, the board screen appears. |
-| Joined screen | The amber box at the top right, with "Joined game, waiting for start..." unchanged. | If the server had confirmed the seat before the drop, the page rejoins and the board screen appears. If the join was still in flight, the page sends the join again; the server hands back the seat it had already claimed for this tab (or claims it now, if the first join never arrived), and the board screen appears. See [joining a game](../start/joining-a-game.md). |
-| Board screen | The amber box at the top right; the board does not take input; everything else as it was. | The box disappears; the page rejoins; the board takes input again when the snapshot has brought the position up to date. |
+| Join screen | The "Reconnecting…" line at the top right. "Join Game" still works; a click is queued and the page shows "Joined game, waiting for start..." at once. | The box disappears. A queued join is sent. Nothing else: a visitor has nothing to rejoin. |
+| Share-link screen | The "Reconnecting…" line at the top right, with "Game created! Share this link with a friend:", the link, and "Copy link" unchanged. The link stays valid; the opponent can open it and join meanwhile. | The page rejoins. The snapshot keeps the share-link screen, or, if the opponent joined meanwhile, the board screen appears. |
+| Joined screen | The "Reconnecting…" line at the top right, with "Joined game, waiting for start..." unchanged. | If the server had confirmed the seat before the drop, the page rejoins and the board screen appears. If the join was still in flight, the page sends the join again; the server hands back the seat it had already claimed for this tab (or claims it now, if the first join never arrived), and the board screen appears. See [joining a game](../start/joining-a-game.md). |
+| Board screen | The "Reconnecting…" line under the turn pill; the board does not take input; everything else as it was. | The box disappears; the page rejoins; the board takes input again when the snapshot has brought the position up to date. |
 
 From here the browser retries on the [retry schedule](../foundations/connection-and-seat.md#connection-states): 0.5 s, 1 s, 2 s, 4 s, then 8 s between attempts, for as long as it takes. Each failed attempt looks like nothing at all; the banner simply stays. There is no attempt limit, no message saying the server seems to be down, and no button to retry sooner. Once the outage has lasted about seven and a half seconds, attempts come 8 s apart, so the page can take up to 8 s to notice that the network or the server is back.
 
@@ -69,7 +69,7 @@ On the server, the drop changes nothing that lasts: the seat stays taken and the
 
 The recovery cannot be cancelled: there is no control for it and Escape does nothing. It ends without a rejoin in these cases:
 
-- **There is no seat to rejoin with.** On the start screen, the join screen, and a joined screen whose join answer was lost, a successful attempt simply opens the connection. The status line or the amber box disappears, and nothing is sent except a queued create or join, or a create or join re-sent because its answer was lost. On the start screen with nothing pending, "Reconnecting to server…" just clears.
+- **There is no seat to rejoin with.** On the start screen, the join screen, and a joined screen whose join answer was lost, a successful attempt simply opens the connection. The status line or the reconnecting line disappears, and nothing is sent except a queued create or join, or a create or join re-sent because its answer was lost. On the start screen with nothing pending, "Reconnecting to server…" just clears.
 - **The player leaves.** Browser Back or "Start new game" goes to the start screen, which resets the connection: the retry loop is abandoned and a fresh connection is attempted at once, so the start screen shows "Connecting to server…", then "Reconnecting to server…" if the network is still down. Reload, closing the tab, or typing another address ends the loop with the page; see [reloading and returning](reload-and-return.md).
 
 In every case nothing is recorded by the rejoin that was not sent. The drop itself records nothing on the server, and the stored seat is kept, so opening the game's link later rejoins as usual.
@@ -78,7 +78,7 @@ In every case nothing is recorded by the rejoin that was not sent. The drop itse
 
 The request is sent when an attempt succeeds. At that instant:
 
-- the connection state becomes *connected*, and the amber box (or the start screen's status line) disappears;
+- the connection state becomes *connected*, and the reconnecting line (or the start screen's status line) disappears;
 - the retry schedule starts over, so a later drop begins again at half a second;
 - any create or join that was queued during the drop is sent, in order;
 - a create or join that had been sent before the drop and never answered is sent again;
@@ -105,7 +105,7 @@ What happened to each request that was under way at the drop:
 
 ### While in flight
 
-From sending the rejoin until the snapshot arrives, the page still shows everything as it was before the drop, and the amber box is already gone. Nothing on screen says that the page is still catching up. This lasts one round trip to the server, normally a fraction of a second.
+From sending the rejoin until the snapshot arrives, the page still shows everything as it was before the drop, and the reconnecting line is already gone. Nothing on screen says that the page is still catching up. This lasts one round trip to the server, normally a fraction of a second.
 
 On the board screen, the board does not take input during this moment. Presses on pieces and cells do nothing, nothing can be selected, the promotion dialog cannot open, and the move box's "Move" button stays disabled. The view can be turned and the move list scrolled. The position on screen may be up to two moves behind the server's (the player's own move, recorded but not echoed, and the opponent's reply), and nothing can be played against it.
 
@@ -118,7 +118,7 @@ If the new connection drops again before the snapshot arrives, the page is back 
 **The snapshot.** It replaces everything the page knew about the move record, so a move is never counted twice, and the board takes input again. What changes on screen depends on what happened during the drop:
 
 - **Nothing new.** The position is redrawn identical, and nothing moves. The move list is unchanged and keeps its scroll position.
-- **New moves.** The position jumps to the latest one. The last move [glides](../foundations/the-view.md#motion) in, with any capture fading, because this board has not shown it; earlier moves missed during the drop are simply in place. The teal trace moves to the last move's cells, the move list gains the new moves and scrolls to the newest, the turn indicator updates, a king in check glows red and the turn indicator adds " — in check", and if the game ended meanwhile the end-game dialog appears as the last piece lands.
+- **New moves.** The position jumps to the latest one. The last move [glides](../foundations/the-view.md#motion) in, with any captured piece burning away, because this board has not shown it; earlier moves missed during the drop are simply in place. The last-move line moves to the last move, the move list gains the new moves and scrolls to the newest, the turn indicator updates, a king in check turns red and the turn indicator adds " — in check", and if the game ended meanwhile the end-game dialog appears as the last piece lands.
 - **The player's own move from before the drop.** If the server recorded it, it appears now: it glides in and it is the opponent's turn, or, if the opponent has already answered it, the answer glides and the player's own move is simply in place. If the server did not record it, the position is unchanged and it is still the player's turn; the player moves again.
 - **Before the game started.** On the share-link screen, the snapshot says whether the opponent has joined. If not, the screen stays. If so, the board screen appears, with the position drawn as it is, without any glide, even if the opponent has already moved.
 
@@ -178,7 +178,7 @@ After any interrupt the page is either reconnecting, caught up by a snapshot, be
 
 **Stored seat.** The rejoin is made from it. A mid-game drop never deletes it: it is deleted only when a rejoin is refused before this page has had any snapshot and before the game has started on it. After a drop that can only happen on a page that has never had either (a creator who came straight from the start screen and is still on the share-link screen, or a joiner whose start notice was lost to the drop), and only if the game has vanished from the server. The page then shows the join screen and the refusal. A "seat in use" answer never deletes it.
 
-**Keyboard, touch, and screen size.** There is nothing to do from any device: no retry control to reach. The amber box and the start screen's line are marked as status messages for assistive technology; see [accessibility](../cross-cutting/accessibility.md). In a window narrower than 640 pixels the turn indicator has the top row to itself and the amber box sits at the right of the row below it, so the two never overlap; see [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md). What a phone or tablet does to the connection when the browser is sent to the background or the screen locks was not checked; see open questions.
+**Keyboard, touch, and screen size.** There is nothing to do from any device: no retry control to reach. The reconnecting line and the start screen's line are marked as status messages for assistive technology; see [accessibility](../cross-cutting/accessibility.md). In a window narrower than 640 pixels the turn indicator has the top row to itself and the amber box sits at the right of the row below it, so the two never overlap; see [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md). What a phone or tablet does to the connection when the browser is sent to the background or the screen locks was not checked; see open questions.
 
 ## Edge cases
 
@@ -206,8 +206,10 @@ After any interrupt the page is either reconnecting, caught up by a snapshot, be
 - The page has no heartbeat of its own: it learns of a drop only when the browser reports the connection closed. How long browsers take to notice a dead connection after a laptop wakes, or when a network silently stops passing traffic, was not measured; during that time the page shows nothing wrong. Likewise, how long the server takes to notice a vanished connection (and so when the opponent sees "Opponent: offline") is a property of the deployment and was not measured.
 - How long a single failed attempt takes depends on the browser and the network, and the schedule counts from each failure, so real gaps can be longer than 0.5, 1, 2, 4, and 8 s. How much a browser delays retries in a hidden tab was not measured.
 - Whether the one-hour limit closes the connection in a way that lets the server announce "Opponent: offline" (the server's clean-up running), and whether a redeploy closes every connection at once or lets connections on the previous server live on until they end (in which case two players could briefly be on different servers and not see each other's moves or presence until one reconnects), are properties of the deployment and were not determined.
-- Whether screen readers announce "Reconnecting…" when it appears was not checked; see accessibility. The narrow-window layout of the amber box is read from the layout, not seen. Whether a phone or tablet keeps the connection open when the browser goes to the background or the screen locks, or drops it and reconnects on return, was not tried.
+- Whether screen readers announce "Reconnecting…" when it appears was not checked; see accessibility. The narrow-window layout of the reconnecting line is read from the layout, not seen. Whether a phone or tablet keeps the connection open when the browser goes to the background or the screen locks, or drops it and reconnects on return, was not tried.
 - A local server keeps games in memory, so restarting it to imitate a server restart loses the game and the rejoin is refused with "Cannot rejoin". Production keeps games across restarts; verify the restart case against a server that keeps its games, or by stopping and starting the network instead.
 - The retry, the dropped move, the session change, and the replaced exception are covered by `client/src/hooks/useGameSocket.test.ts`; the rejoin after a reconnect (not taking over), the reconnecting notice, the board held until the snapshot, the closed promotion dialog, the create and join re-sent, "seat in use" shown as the replaced dialog, and the snapshot not double-counting moves by `client/src/App.test.tsx`; presence on leaving and returning, moves while a player is away, the internal-error close, a rejoin that does not take over being refused or replacing its own stale connection, and a repeated join by `server/tests/test_local_ws.py`. No end-to-end test drops a connection mid-game; the scripted harness does, and its rerun after the fix is summarized in [the verification protocol](../verification/README.md#results-so-far).
+
+- The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](../foundations/the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`

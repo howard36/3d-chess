@@ -8,7 +8,7 @@ The server records any move that is well formed and made in turn. It does not ch
 
 White and Black are partway through a game. Black's browser is running something other than the app at this commit: a modified client, or a version of the app with different rules. For Black's sixth move it sends a move from a cell where Black has no piece. The server checks only that it is Black's turn, records the move, passes the turn to White, and sends the [echo](../glossary.md#requests) to both players.
 
-On White's board nothing moves. There is no glide, the teal [last-move trace](../glossary.md#selection-and-board-state) stays on White's last move, and the turn indicator still reads "Black to move". A red box appears below the row of panels at the top of the window: "Move 12 in this game's history is not a legal move for this client (likely an app version mismatch). The board is frozen at the position before it." The move list gains Black's move as the second half of row 6, exactly as the server recorded it. Nothing of White's can be selected, the move box's "Move" button stays disabled, and nothing will ever change: the server is waiting for White's move, and White's board does not take input.
+On White's board nothing moves. There is no glide, the [last-move line](../glossary.md#selection-and-board-state) stays on White's last move, and the turn indicator still reads "Black to move". A red box appears below the row of panels at the top of the window: "Move 12 in this game's history is not a legal move for this client (likely an app version mismatch). The board is frozen at the position before it." The move list gains Black's move as the second half of row 6, exactly as the server recorded it. Nothing of White's can be selected, the move box's "Move" button stays disabled, and nothing will ever change: the server is waiting for White's move, and White's board does not take input.
 
 White reloads the page. The board comes back at the same position with the same banner. White can turn the view, scroll the move list, and leave for the start screen. There is nothing else to do.
 
@@ -101,7 +101,7 @@ The browser replays the record, fails at the bad move, and stops there. At once:
 - **The board does not take input**, permanently. Any selection is cleared and an open promotion dialog closes; presses on pieces and cells do nothing, and the move box's "Move" button is disabled. A held board is released from waiting, but stays frozen. The view can still be turned, from anywhere, the banner included.
 - **The turn indicator names the side to move at the frozen position**, which is the side whose move could not be replayed. The server, which counted that move, is waiting for the other side.
 - **The move list lists every recorded move**, including the bad one and any recorded after it, as the server recorded them, and scrolls to the newest.
-- **No end-game dialog**, even if the frozen position is checkmate or stalemate. A King attacked in the frozen position still glows red, and the turn indicator adds " — in check" if it is the side to move.
+- **No end-game dialog**, even if the frozen position is checkmate or stalemate. A King attacked in the frozen position is still red, and the turn indicator adds " — in check" if it is the side to move.
 - Everything else goes on as usual: the seat label and its presence line, the error banner, "Reconnecting…", the replaced dialog, and the way back to the start screen.
 
 The page does not crash and does not reach the [crash screen](../foundations/screens-and-navigation.md#the-crash-screen). Every reload, return, or reconnect replays the same record and freezes at the same move with the same number.
@@ -138,7 +138,7 @@ The page does not crash and does not reach the [crash screen](../foundations/scr
 | Reload or closing the tab | Every reload hits the same move and shows the same frozen board. Closing the tab records nothing. | The page opens frozen on return. |
 | The opponent acts | The [presence line](../glossary.md#the-interface) still changes as the opponent comes and goes. Anything the opponent's client records after the bad move is added to the move list, never to the board. | This is how the record usually breaks: the opponent's move freezes the board instead of gliding in. |
 | Another tab takes the seat | The replaced dialog covers the frozen board. The other tab replays the same record and freezes at the same move; "Play here" brings back the same frozen board. | The echo goes to the tab that holds the seat, which freezes. This tab finds the move in the snapshot after "Play here". |
-| A second touch point or a cancelled touch | No effect; the board takes no input. A second finger can still pinch or pan the view. | No effect. |
+| A second touch point or a cancelled touch | No effect; the board takes no input. A second finger can still pinch to zoom the view. | No effect. |
 
 ## Interactions with other systems
 
@@ -166,7 +166,7 @@ The page does not crash and does not reach the [crash screen](../foundations/scr
 - **Frozen on a finished position.** If the bad move is recorded after checkmate or stalemate, the page that showed the end-game dialog now shows the final position, uncovered, with the banner and no dialog.
 - **The honest player's move is flagged.** After the opponent's client leaves its own King in check, the player's app offers that King as a capture. Playing it freezes the board with the banner naming the player's own move. See [how a record breaks](#how-a-record-breaks).
 - **An illegal move that replays.** The game simply carries on from the position it produced, and this browser's rules apply from there: pieces can stand where no legal sequence could put them, such as a pawn behind its starting rank. A King may [glow red](../foundations/the-view.md#markers-and-colors) on its opponent's turn, which never happens in a legal game.
-- **A move to the cell it started from** replays as a pass: the piece does not visibly move, the teal trace covers one cell, the move is listed as, for example, "Cc3–Cc3", and the turn passes.
+- **A move to the cell it started from** replays as a pass: the piece does not visibly move, the last-move line shrinks to its two circles on one cell, the move is listed as, for example, "Cc3–Cc3", and the turn passes.
 - **A selection or promotion dialog open when the freeze arrives** is cleared or closed, as whenever the board stops taking input. Text typed in the move box stays in its field, but "Move" is disabled and Enter does nothing.
 - **Several bad moves.** Only the first one is named. Nothing after it is replayed, so later bad moves change nothing visible except the move list.
 
@@ -181,5 +181,7 @@ The page does not crash and does not reach the [crash screen](../foundations/scr
 - **The banner's place** was measured in headless Chromium: 480 by 92 px, from 86 px down, in a 1280 × 720 window; 355 by 116 px, from 160 px down, in a 375 × 667 window, below the seat label's row in both and overlapping nothing. The layout is the HUD's top layer (`client/src/screens/GameScreen.tsx:389-423`, the banner itself at `:316-332`).
 - **Pressing through the banner** is read from the HUD's styles, which let the pointer through everything in the top layer; not tried by hand.
 - **Read, not observed.** The replay and the freeze are read from `client/src/game/history.ts`, `client/src/engine/board.ts`, and `client/src/screens/GameScreen.tsx`. `client/src/game/history.test.ts` covers freezing at a move from an empty cell, at a King capture, at a King capture followed by more moves, and at the first move, and shows that the full record is still listed; it also replays illegal but applicable moves without complaint (a Knight jump no Knight can make, and a Queen, a King, and a Rook "teleporting" into a mate that the page would then announce). `client/src/App.test.tsx` covers the banner, "Move 3 in this game's history", the turn indicator at the frozen position, and the move list still showing the bad move. `server/tests/test_local_ws.py` (`test_promotion_is_relayed`) shows the server recording White moving a Black pawn with a promotion. No end-to-end test covers a broken record, and none of this was seen in a running product.
+
+- The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](../foundations/the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`

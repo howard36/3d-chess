@@ -53,13 +53,13 @@ The page's [phase](../glossary.md#the-product-and-its-screens) is worked out fro
 | Joined | The player clicked "Join Game", or the server confirmed a joined seat, and the game has not started. | The **joined screen**: "Joined game, waiting for start...". |
 | Playing | The server announced the game's start, or a snapshot said both seats are taken. | The **board screen**: the 3D board filling the window with the [HUD](../glossary.md#input) over it. |
 
-The first three screens share one look: a dark page with the title "3D Chess" and a single centered element (the share-link screen adds a "Copy link" button where the browser allows copying). The board screen is entirely different: a light gray-blue 3D scene with no title, exactly the size of the window, which never scrolls.
+The first three screens share one look: a dark page with the title "3D Chess" and a single centered element (the share-link screen adds a "Copy link" button where the browser allows copying). The board screen is entirely different: a 3D night scene, the glass tower in a dark garden (see [the view](the-view.md#the-scene)), with no title, exactly the size of the window, which never scrolls.
 
 Once the page reaches the playing phase it stays there for as long as the page is open. The board, and the ability to [turn the view](the-view.md#turning-the-view), exist only in the playing phase; before both seats are taken there is nothing to look at.
 
 Overlays appear on top of whichever screen is showing:
 
-- the amber "Reconnecting…" box at the top right, while the connection is reconnecting (every screen);
+- the "Reconnecting…" line, while the connection is reconnecting (every screen; at the top right, or on the board screen under the turn pill);
 - the red [error banner](../game-page/error-banner.md) at the bottom center, for the latest server error (every screen);
 - the [replaced dialog](../session/second-tab.md), while another tab holds the seat (every screen);
 - on the board screen only: the [promotion dialog](../play/promotion.md), the [end-game dialog](../play/check-and-game-end.md), and the [frozen-board banner](../cross-cutting/broken-game-record.md).
@@ -155,5 +155,7 @@ Navigation has no request of its own, but each interrupt row applies to the page
 - The reset on moving from one game's page straight to another's, and the single rejoin after Back and Forward during an outage ([bug-triage B-10](../bug-triage.md)), are read from `client/src/App.tsx`, `client/src/hooks/useGameSocket.ts`, and `client/src/screens/GameScreen.tsx`. The jump is covered by `client/src/AppNavigation.test.tsx`, which also checks that the new game's page keeps its own stored seat; the single rejoin is not covered by a test.
 - The claim that the crash screen closes the page's connection (the crashed page is taken down along with everything it owned) is read from code; not observed.
 - Whether a browser without 3D support reaches the crash screen was not tried.
+
+- The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`

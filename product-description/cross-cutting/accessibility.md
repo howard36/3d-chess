@@ -52,7 +52,7 @@ The field can be typed in at any time. While the board takes no input (a move in
 - **Use the board.** There is no keyboard cursor over the cells, no way to select a piece or see its legal destinations, and the board cannot take focus. The move box is the keyboard's way to play.
 - **Turn the view.** The arrow keys, Page Up and Down, and + and − do nothing to the view.
 
-  > Technical note: The camera controls can pan the view with the arrow keys, but only if the app asks for it. It does not (the `OrbitControls` wrapper's `keyEvents` option defaults to off and `client/src/screens/GameScreen.tsx` does not set it), and the canvas has no tab stop in any case.
+  > Technical note: The camera controls could turn the view with the arrow keys only if the app asked for it. It does not (panning is turned off and the controls are never given keys, `client/src/three/CameraControls.tsx`), and the canvas has no tab stop in any case.
 
 - **Close the end-game or replaced dialog.** Neither has a close control for anyone; the keyboard is no different.
 - **Use shortcuts.** There are none. Shift, Ctrl, Cmd, and Alt change nothing on their own ([the input model](../foundations/input-model.md#html-controls-and-the-keyboard)).
@@ -112,27 +112,20 @@ Every mark on the board is described in [the view](../foundations/the-view.md#ma
 
 | Pair | What tells them apart |
 | --- | --- |
-| Selection glow (amber) and check glow (red) on a King | Color only, on the board. A selected King in check shows only the red. Check is also shown as a "CHECK" badge on the turn pill, and said by the move announcement. |
-| Destination fill (amber) and last-move trace (teal) | Color only: both tint a whole cell. On a shared cell the amber replaces the teal. |
-| Selection ring (gold) and capture ring (red) | Color, and a small difference in width (the capture ring is slightly wider). |
-| Quiet-move dot (amber) and the rings | Shape as well as color: a dot at the cell's center, not a ring on its floor. |
-| White's pieces (ivory) and Black's pieces (graphite) | Lightness. Readable without color. |
+| Selection and check on a King | Shape as well as color: a selected piece rises into a column of white light; a King in check turns red all over and is ringed by dark blades over a red eight-pointed plate. A selected King in check shows both. Check is also shown as a "CHECK" badge on the turn pill, and said by the move announcement. |
+| Destination (gold circle) and capture (red circle) | Color, and motion: a capture's circle carries four arcs turning slowly round the piece (held still under reduced motion), and it stands round a piece rather than on an empty cell. |
+| Destination and last-move trace (mint) | Shape as well as color: the last move is a line between two cells with circles at its ends, not a lone circle. |
+| White's pieces (porcelain) and Black's pieces (charcoal) | Lightness. Readable without color. |
+| The five levels (cyan, azure, periwinkle, orchid, rose) | Color, and position: each level is at its own height in the tower and its letter stands beside it. A piece's foot band shows its level by color only. |
 
-On the board, check is conveyed only by the red glow; the turn pill's "CHECK" badge and the move announcement's "Check." are the statements of it that do not depend on color. For a player with a red–green color vision deficiency, the red marks (the check glow and the capture ring) against the amber and gold ones are the pairs most at risk; this was not tested with a simulation.
+On the board, check is conveyed by the King's red and by the blades round him; the turn pill's "CHECK" badge and the move announcement's "Check." are the statements of it that do not depend on color. For a player with a red–green color vision deficiency, the red capture circle against the gold destination circle is the pair most at risk, with the turning arcs as the only other cue; this was not tested with a simulation.
 
 ### Contrast, by calculation from the colors in the code
 
-The marks are drawn in flat, unlit colors, so their contrast against the plain scene background can be worked out; the fog fades marks on far cells further toward the background. The pieces are shaded by the scene's lighting, so their figures are only a guide.
+The board's contrast figures that stood here were calculated from the colors of the board's earlier look and no longer apply: the marks are now light drawn on dark glass over a night scene, and the pieces are porcelain and charcoal. They have not been recalculated. The figures below are for the HUD only.
 
 | Mark or text | Against | Contrast ratio |
 | --- | --- | --- |
-| Selection ring (gold) | the scene background | about 1.0 : 1 |
-| Quiet-move dot (amber) | the scene background | about 1.1 : 1 |
-| Destination fill | the last-move trace | about 1.1 : 1 |
-| Capture ring (red) | the scene background | about 1.8 : 1 |
-| Lattice lines | the scene background | about 1.8 : 1 |
-| White's pieces (base color) | the scene background | about 1.4 : 1 |
-| Black's pieces (base color) | the scene background | about 6.8 : 1 |
 | Turn pill, the lit half's words | its dark glass | about 15 : 1 (the other half's muted words about 7 : 1) |
 | Turn indicator text | its light box | about 15 : 1 |
 | Move list moves | its dark box | about 6.8 : 1 |
@@ -140,11 +133,10 @@ The marks are drawn in flat, unlit colors, so their contrast against the plain s
 | Move box label (dimmed, 13 px) | its dark box | about 5.5 : 1 |
 | Move box field text | the field | about 5.3 : 1 |
 | Move box ↵ button, ready | its white background | about 16 : 1 (muted, without a background, until a move is typed on the player's turn) |
-| Reconnecting banner text (white on amber) | its box | about 2.8 : 1 |
 | Error banner and frozen-board banner text (white on red) | their box | about 6.2 : 1 |
 | Promotion dialog's "Cancel" (gray on white) | the panel | about 7.5 : 1 |
 
-The HUD boxes are translucent; their figures are computed over the plain scene background and shift slightly over a piece or the lattice. Two consequences: the selection ring and the destination dots have almost the same lightness as the background, so to a player who perceives little color (or in a grayscale display mode) they nearly disappear; and the "Reconnecting…" text and the move numbers fall below the 4.5 : 1 usually asked of text this size.
+The HUD boxes are translucent glass; their figures shift slightly over a bright part of the board. The move numbers fall below the 4.5 : 1 usually asked of text this size.
 
 ### Controls that do not look like controls
 
@@ -154,13 +146,13 @@ The buttons in the three dialogs (the five piece buttons, "Cancel", "Start new g
 
 The motion in the product:
 
-- **The glide and the fade.** Every arriving move, on both boards, animates for 300 ms; a capture fades the captured piece at the same time ([the view](../foundations/the-view.md#motion)). They play for the opponent's moves as well as the player's own.
+- **The glide and the fade.** Every arriving move, on both boards, glides for 460 ms; a capture burns the captured piece away as the capturer arrives ([the view](../foundations/the-view.md#motion)). They play for the opponent's moves as well as the player's own. Some marks of play also move slowly while they are up: the arcs round a capturable piece turn, a light travels along the last-move line, motes drift round a held piece, and a check strikes and then breathes. At checkmate the King topples and a pulse crosses the tower.
 - **The view's drift.** After a drag is released, the view keeps moving briefly and slows to a stop.
 - **Button hover.** "Start New Game" and "Join Game" grow slightly and turn a little gray over 200 ms while a mouse is over them. Devices without hover (touch screens) never show it.
 
 Nothing else moves: there is no idle animation, nothing blinks or flashes, and the board is redrawn only when something changes.
 
-When the operating system (or the browser) asks for reduced motion, the glide and the fade do not play: an arriving move simply appears in its new cell, a captured piece simply disappears, and the teal last-move trace still shows which two cells the move joined. The preference is read whenever the board is updated, so changing it takes effect from the next move. The view's drift and the buttons' hover growth are not affected by it, and there is no setting of the app's own.
+When the operating system (or the browser) asks for reduced motion, the glide and the fade do not play: an arriving move simply appears in its new cell, a captured piece simply disappears, and the last-move line still shows which two cells the move joined. The marks of play hold still too. The preference is read whenever the board is updated, so changing it takes effect from the next move. The view's drift and the buttons' hover growth are not affected by it, and there is no setting of the app's own.
 
 ## Text size and zoom
 
@@ -231,13 +223,15 @@ After any interrupt, focus is where it was, on the page itself, or on the first 
 - **The board itself stays pointer-only.** The decision recorded in [B-09](../bug-triage.md#b-09-the-game-cannot-be-played-without-a-pointer-and-dialogs-and-cues-are-not-accessible) was typed moves rather than keyboard navigation of the 3D board. A keyboard or screen reader player can play, but can learn the position only from the move list, and legal moves only by trying them. Whether a described position or a keyboard cursor over cells is wanted is a product call.
 - **Check on the board is shown only by color**, and the destination fill and the last-move trace differ only in hue. The selection ring and the destination dots have almost no lightness contrast with the background (about 1 : 1 by calculation). Likely worth treating as defects; not tested with a color vision simulation.
 - **Announcements that start the page.** The move announcement, the presence status, and the reconnecting line's status region are in the page from the moment the board is, so their first change should be announced; not tried with a screen reader.
-- **Contrast figures are calculated**, from the colors in `client/src/three/theme.ts` and the HUD styles, for flat colors over the plain scene background; they were not measured on screen. The reconnecting banner (about 2.8 : 1) and the move numbers (about 3.6 : 1) are below the usual 4.5 : 1 for text.
+- **Contrast figures are calculated** from the HUD styles; they were not measured on screen. The move numbers (about 3.6 : 1) are below the usual 4.5 : 1 for text. The board's figures, calculated from the old `client/src/three/theme.ts` (since deleted), were withdrawn when the board's look changed and have not been recalculated for the new look (`client/src/three/scene/palette.ts`).
 - **The dialogs' buttons may not look like buttons**, and the dialogs' titles may look like ordinary text: both read from the base styles, which strip the browser's default button and heading styling. Not checked by eye.
-- **Reduced motion covers the glide and the fade only.** `client/src/three/motion.ts:22-25` reads the preference, and `client/src/three/Board.tsx:131-132` skips the animation when it is set; the view's drift and the buttons' hover growth ignore it. Covered by "skips the glide and the fade when the player prefers reduced motion" in `client/src/three/Board.test.tsx`; not tried with the system setting.
+- **Reduced motion covers the glide, the capture, and the marks' own motion.** `client/src/three/motion.ts:22-25` reads the preference, and `client/src/three/Board.tsx:131-132` skips the animation when it is set; the view's drift and the buttons' hover growth ignore it. Covered by "skips the glide and the fade when the player prefers reduced motion" in `client/src/three/Board.test.tsx`; not tried with the system setting.
 - **Silence when the move box may not send.** On the opponent's turn a submit now says "Wait for their move." (`client/src/screens/MoveCard.tsx`); while the board is held, disconnected, or frozen, a submit still does nothing and says nothing.
 - **Mixed text sizing.** Some HUD panels use fixed pixel sizes and ignore the browser's default font size. Not checked with a changed default size.
 - **The move list's reach and reading.** Whether a scrolling move list becomes a tab stop depends on the browser. Whether Safari keeps its list semantics (its style removes the list bullets, which Safari can take as "not a list"), and how screen readers pronounce entries such as `Ab2–Ab3` and the en dash, were not tried.
 - **What a screen reader says about the board** (its name as an image) was not tried.
 - The roles, names, and focus are covered by `client/src/App.test.tsx` (the alert, status, dialog "Promote to", the replaced dialog's focus on "Play here" and the inert game behind it, the turn pill's description and check, the move announcement, the presence status, and the move box, shown by Tab or by Keyboard play), `client/src/components/ErrorBoundary.test.tsx` (the crash screen's alert and "Back to start" link), and the unit tests of the move box's parser (`client/src/game/typedMove.test.ts`). Focus on "Queen" when the promotion dialog opens and on "Start new game" in the end-game dialog was seen in headless Chromium. Everything else was read from `client/src/screens/*.tsx`, `client/src/components/ErrorBoundary.tsx`, `client/src/three/Board.tsx`, `client/src/screens/TurnPill.tsx`, `client/src/screens/MoveCard.tsx`, `client/src/game/announce.ts` (with `announce.test.ts`), `client/src/three/motion.ts`, `client/src/three/theme.ts`, `client/index.html`, the `OrbitControls` wrapper in `@react-three/drei`, and Tailwind's base styles. No part of this document was tried with a screen reader.
+
+- The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](../foundations/the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`; the HUD's roles, names, Tab order, and announcements against `f7bff4d`

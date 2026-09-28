@@ -6,11 +6,11 @@ Promotion is the choice a player makes when one of their pawns reaches a [promot
 
 ## The simple case
 
-The player's pawn is one step from its promotion square, and they select it. The promotion square is marked like any other destination: one dot, or one capture ring if an opponent's piece stands there. The player clicks it.
+The player's pawn is one step from its promotion square, and they select it. The promotion square is marked like any other destination: one gold circle, or one red capture circle if an opponent's piece stands there. The player clicks it.
 
 The board darkens behind a white dialog titled "Promote to", with five buttons, "Queen", "Rook", "Bishop", "Knight", and "Unicorn", and a smaller gray "Cancel" below them. "Queen" has keyboard focus. Nothing has been sent yet, and the pawn has not moved; the turn indicator, behind the darkened backdrop, still names the player.
 
-The player clicks "Unicorn". The dialog closes and the move is sent. A moment later, on both boards, a Unicorn glides from the pawn's cell to the promotion square (the pawn does not travel and then change; the new piece travels), the teal trace marks the two cells, the move list shows the move with "=U" after it, for example `Da4–Ea5=U`, and the turn passes to the opponent.
+The player clicks "Unicorn". The dialog closes and the move is sent. A moment later, on both boards, a Unicorn glides from the pawn's cell to the promotion square (the pawn does not travel and then change; the new piece travels), the mint trace marks the two cells, the move list shows the move with "=U" after it, for example `Da4–Ea5=U`, and the turn passes to the opponent.
 
 ## The interaction, event by event
 
@@ -73,7 +73,7 @@ As in [making a move](making-a-move.md#while-in-flight): the board ignores press
 
 ### The answer arrives
 
-On the echo, both boards replay the record with the promotion: the chosen piece [glides](../foundations/the-view.md#motion) from the pawn's cell to the promotion square, a captured piece fades under it (or, under reduced motion, the new piece is simply drawn there), the teal trace moves, and the turn passes to the opponent. The [move list](../game-page/move-list.md) shows the move with "=" and the piece's letter: Q for Queen, R for Rook, B for Bishop, N for Knight, U for Unicorn. The new piece is from then on an ordinary piece of its kind. If the promotion gives check or ends the game, that follows as for any move.
+On the echo, both boards replay the record with the promotion: the chosen piece [glides](../foundations/the-view.md#motion) from the pawn's cell to the promotion square, a captured piece burns away as it arrives (or, under reduced motion, the new piece is simply drawn there), the mint trace moves, and the turn passes to the opponent. The [move list](../game-page/move-list.md) shows the move with "=" and the piece's letter: Q for Queen, R for Rook, B for Bishop, N for Knight, U for Unicorn. The new piece is from then on an ordinary piece of its kind. If the promotion gives check or ends the game, that follows as for any move.
 
 An error or a drop is handled as in [making a move](making-a-move.md#the-answer-arrives): an error releases the board with the message in the error banner and the pawn still on its cell; a drop is settled by the next snapshot.
 
@@ -128,7 +128,7 @@ An error or a drop is handled as in [making a move](making-a-move.md#the-answer-
 ## Edge cases
 
 - **Every pressed promotion shows the dialog.** There is no automatic Queen and no remembered choice; each promotion made on the board asks. Only a typed promotion skips the dialog, and it must name its piece.
-- **Capturing onto the promotion square.** Pressing the opponent's piece on the promotion square opens the dialog like a quiet promotion; the captured piece fades when the move lands.
+- **Capturing onto the promotion square.** Pressing the opponent's piece on the promotion square opens the dialog like a quiet promotion; the captured piece burns away when the move lands.
 - **Enter right after opening.** Because "Queen" has focus, pressing Enter (or Space) as soon as the dialog appears promotes to a Queen. A player who presses Enter out of habit gets a Queen, not a pause.
 - **A click inside the panel.** Clicking the white panel between buttons does nothing, but it takes keyboard focus off the buttons, after which Escape does nothing until Tab brings focus back to a button.
 - **An error banner behind the dialog.** An error from before the dialog opened stays visible, darkened, behind the backdrop. Clicking it cancels the promotion instead of dismissing the error.
@@ -140,5 +140,7 @@ An error or a drop is handled as in [making a move](making-a-move.md#the-answer-
 - The dialog has no focus trap of its own. Tab stays within it only because the page behind is inert; past "Cancel", Tab goes to the browser's toolbar before returning to "Queen". Read from code (`client/src/screens/GameScreen.tsx:332-335`); not tried with a screen reader.
 - Clicking an error banner behind the backdrop cancels the promotion. Read from the drawing order and the inert page (`client/src/screens/GameScreen.tsx:335`, `client/src/screens/PromotionPicker.tsx:30-40`); not confirmed by hand.
 - The dialog, its cancel paths, the send, the automatic close on a drop or a new position, and the "=U" in the move list are covered by `client/src/App.test.tsx`, `client/src/three/Board.test.tsx`, and `client/e2e/promotion.spec.ts`; the typed form's parsing by `client/src/game/typedMove.test.ts`. The focus on "Queen" after a real click was confirmed by the rerun of the scripted pass against this build (PROMO-02, PROMO-04, PROMO-08 no longer reproduce the lost focus); see [`bug-triage.md`](../bug-triage.md) B-07, fixed.
+
+- The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](../foundations/the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`
