@@ -21,7 +21,9 @@ test('a finished game shows the result and lets both players start over', async 
     [game.white, 'You lose'],
     [game.black, 'You win'],
   ] as const) {
-    await expect(page.getByRole('dialog', { name: verdict })).toBeVisible();
+    // The card waits for the mated king to fall on the board; drawn in
+    // software on a busy machine that can take up to the page's 12 s fallback
+    await expect(page.getByRole('dialog', { name: verdict })).toBeVisible({ timeout: 30_000 });
     const pill = page.getByTestId('turn-indicator');
     await expect(pill).toHaveAttribute('data-result', 'checkmate');
     await expect(pill).toHaveAttribute('data-winner', 'black');

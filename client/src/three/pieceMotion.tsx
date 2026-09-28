@@ -159,6 +159,8 @@ export const Lift = ({
 
 /** How long a mated king takes to fall and settle. */
 export const TOPPLE_MS = 900;
+/** The most one frame advances the fall. */
+const TOPPLE_STEP_MS = 125;
 
 // When a toppling king has come to rest (on the scene's own clock, however
 // slowly the frames come), for the result card to follow (GameScreen.tsx)
@@ -222,7 +224,10 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
         h.rotation.y = Math.atan2(-right.x, -right.z);
       }
     }
-    elapsed.current += Math.min(delta, 1 / 30) * 1000;
+    // A slow frame advances the fall by up to TOPPLE_STEP_MS, so it spans at
+    // most eight frames however slowly they come (the result card waits for
+    // it), while the first frame after an idle spell still can't skip it
+    elapsed.current += Math.min(delta * 1000, TOPPLE_STEP_MS);
     const t = Math.min(elapsed.current / TOPPLE_MS, 1);
     // Accelerating fall, then a damped rebound off the floor
     const fall = t < 0.55 ? (t / 0.55) ** 2 : 1 - Math.sin((t - 0.55) * 14) * 0.06 * (1 - t);
