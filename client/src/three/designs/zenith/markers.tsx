@@ -500,6 +500,11 @@ const CAPTURE_RADIUS = FOOT_RING + 0.035;
 const TRACE_TO = FOOT_RING;
 /** The last move's circle where it started: the same circle, smaller. */
 const TRACE_FROM_SCALE = 0.64;
+/**
+ * The line itself: the circles' mint a little deeper, so it weighs less and
+ * the white shimmer travelling along it shows.
+ */
+const TRACE_LINE = `#${new Color(PALETTE.trace).multiplyScalar(0.72).getHexString()}`;
 const FROM_YIELDS: ClaimKind[] = ['quiet', 'capture'];
 const TO_YIELDS: ClaimKind[] = ['capture'];
 
@@ -724,13 +729,13 @@ export const LastMove = ({ from, to, fresh = false, arc = 0 }: LastMoveMarkerPro
         from={from.floor}
         to={to.floor}
         arc={arc}
-        color={PALETTE.trace}
-        pulseColor="#ffffff"
+        color={TRACE_LINE}
+        pulseColor="#f6fffb"
         pattern="solid"
-        radius={0.0075}
+        radius={0.005 + 0.0045 * strength}
         opacity={strength}
-        pulse={shimmer ? 0.8 : 0}
-        pulseLength={0.4}
+        pulse={shimmer ? 1 : 0}
+        pulseLength={0.45}
         spacing={1.7}
         flowSpeed={shimmer ? 0.42 : 0}
         shade={0.3}

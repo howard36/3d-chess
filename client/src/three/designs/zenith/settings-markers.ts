@@ -52,7 +52,7 @@ export const MARKER_SETTINGS: SettingSpec[] = [
     max: 1,
     step: 0.05,
     format: percent,
-    hint: 'How strongly the line between the last move’s squares shows.',
+    hint: 'How bright and thick the line between the last move’s squares is.',
   },
   {
     kind: 'toggle',
@@ -94,7 +94,7 @@ export const MARKER_SETTINGS: SettingSpec[] = [
     key: 'mark.mateSeconds',
     label: 'Checkmate pulse',
     group: 'Motion',
-    default: 2.6,
+    default: 2.4,
     min: 1.5,
     max: 4,
     step: 0.1,
