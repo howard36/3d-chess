@@ -58,6 +58,30 @@
 // choose the piece each seat selects instead of one the rules engine picks;
 // it must be that side's piece at that point in the scripted game (the
 // selection is shot from the third ply on).
+//
+// --interact records the small animations of pointing and selecting instead
+// of a game:
+//
+//   node scripts/showcase.mjs --design orbital --interact --out /tmp/interact
+//
+// The scripted game is typed in, unrecorded, up to the first position from
+// the third ply on where the recorded seat (White's) is to move with a piece P
+// whose quiet and capture destinations the pointer can reach (picked with the
+// rules engine, as --review picks, then tried out off camera), and another
+// piece Q to switch to. Then, from the seat's opening view (or --pose), the
+// drawn pointer glides between them in ten beats, each held about a second
+// for its animation to settle and named in a label above the move box:
+//   1 rest (on empty space)    6 capture (the pointer on its victim)
+//   2 hover P                  7 switch straight to Q (P is released)
+//   3 unhover                  8 destination (one of Q's)
+//   4 select P                 9 deselect (back onto Q, click)
+//   5 quiet (a destination)   10 rest
+// It writes <design>-interact.mp4 (16 s) and a still at the end of each beat,
+// <design>-interact-<nn>-<beat>.png: three to nine minutes on a busy machine,
+// or about a minute with --interact --stills-fast, which saves only the stills
+// and draws only their frames. --select-white Cc4 chooses P; --select-black
+// Db4 chooses P and records Black's seat instead (unless --select-white is
+// given too).
 
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
@@ -82,6 +106,7 @@ const STILLS = flag('stills') || STILLS_FAST;
 const TOUR = flag('tour');
 const REVIEW = flag('review');
 const QUICK = flag('quick');
+const INTERACT = flag('interact');
 const FPS = Number(opt('fps', 30));
 const WIDTH = Number(opt('width', 1280));
 const HEIGHT = Number(opt('height', 720));
@@ -466,10 +491,11 @@ const SHOW_HELPERS = () => {
     /**
      * The pieces of `color` with both quiet and capture destinations in the
      * position on screen, best first, found with the rules engine (served by
-     * Vite from /src). The position is read off the scene: each piece stands
-     * exactly on its cell's box.
+     * Vite from /src); with `any`, every piece of `color` that can move. The
+     * position is read off the scene: each piece stands exactly on its cell's
+     * box.
      */
-    async richPieces(color) {
+    async richPieces(color, any = false) {
       const { Board } = await import('/src/engine/index.ts');
       const { fromZXY } = await import('/src/engine/coords.ts');
       const st = store();
@@ -498,12 +524,151 @@ const SHOW_HELPERS = () => {
         const targets = [...to].map((k) => k.split(',').map(Number));
         const capture = targets.filter(([x, y, z]) => board.getPiece({ x, y, z })).length;
         const quiet = targets.length - capture;
-        if (capture > 0 && quiet > 0) found.push({ zxy, quiet, capture });
+        if (any ? capture + quiet > 0 : capture > 0 && quiet > 0) {
+          found.push({ zxy, quiet, capture });
+        }
       }
       // Both kinds on show, without a queen's worth of clutter
       const score = (f) =>
         Math.min(f.capture, 3) * 20 + Math.min(f.quiet, 10) - Math.max(f.quiet - 16, 0) * 2;
       return found.sort((a, b) => score(b) - score(a));
+    },
+    /** The page pixel of a cell's centre (whatever stands in front of it). */
+    screenOf(zxy) {
+      const st = store();
+      const cube = window.__show.cube(zxy);
+      if (!st || !cube) return null;
+      const r = document.querySelector('canvas').getBoundingClientRect();
+      const p = cube.getWorldPosition(cube.position.clone()).project(st.camera);
+      return {
+        x: r.left + (p.x * 0.5 + 0.5) * st.size.width,
+        y: r.top + (-p.y * 0.5 + 0.5) * st.size.height,
+      };
+    },
+    /** What stands on a cell, e.g. "White Bishop", or null. */
+    pieceAt(zxy) {
+      const cube = window.__show.cube(zxy);
+      let found = null;
+      store()?.scene.traverse((o) => {
+        const p = o.userData?.piece;
+        if (!p || !cube || o.position.distanceTo(cube.position) > 1e-4) return;
+        for (let a = o.parent; a; a = a.parent) if (a.userData?.ghostPiece) return;
+        found = `${p.color[0].toUpperCase()}${p.color.slice(1)} ${p.type}`;
+      });
+      return found;
+    },
+    /**
+     * The selected piece's destinations: `capture` when a piece stands there,
+     * and with `aim` the pixel that reaches each (null when none does).
+     */
+    destinations(aim = false) {
+      const cells = [];
+      const pieces = [];
+      store()?.scene.traverse((o) => {
+        if (o.userData?.cube && o.userData.highlight) cells.push(o);
+        else if (o.userData?.piece) {
+          for (let a = o.parent; a; a = a.parent) if (a.userData?.ghostPiece) return;
+          pieces.push(o.position);
+        }
+      });
+      return cells.map((cell) => ({
+        zxy: cell.userData.zxy,
+        capture: pieces.some((p) => p.distanceTo(cell.position) < 1e-4),
+        px: aim ? window.__show.pixelFor(cell.userData.zxy, 'cell') : null,
+      }));
+    },
+    /**
+     * The page pixel nearest `near`, at least `min` away, with nothing of the
+     * board under it or round it: off the board's outline if there is room,
+     * else in a gap in it. Null if the board fills the view.
+     */
+    emptyPixel(near, min = 80) {
+      const st = store();
+      const { camera, scene, raycaster, size } = st;
+      camera.updateMatrixWorld();
+      scene.updateMatrixWorld(true);
+      const grid = scene.getObjectByName('board-grid');
+      const canvas = document.querySelector('canvas');
+      const r = canvas.getBoundingClientRect();
+      const clear = (x, y) => {
+        if (document.elementFromPoint(x, y) !== canvas) return false;
+        const ndc = {
+          x: ((x - r.left) / size.width) * 2 - 1,
+          y: -((y - r.top) / size.height) * 2 + 1,
+        };
+        raycaster.setFromCamera(ndc, camera);
+        return raycaster.intersectObject(grid, true).length === 0;
+      };
+      // The board's outline on screen: its bounding box's corners, projected
+      const V = camera.position.constructor;
+      const bounds = (() => {
+        let b = null;
+        grid.traverse((o) => {
+          if (!o.userData?.cube) return;
+          const g = o.geometry;
+          if (!g.boundingBox) g.computeBoundingBox();
+          const w = g.boundingBox.clone().applyMatrix4(o.matrixWorld);
+          b = b ? b.union(w) : w;
+        });
+        return b;
+      })();
+      let outline = null;
+      if (bounds) {
+        const xs = [];
+        const ys = [];
+        for (const x of [bounds.min.x, bounds.max.x])
+          for (const y of [bounds.min.y, bounds.max.y])
+            for (const z of [bounds.min.z, bounds.max.z]) {
+              const p = new V(x, y, z).project(camera);
+              xs.push(r.left + (p.x * 0.5 + 0.5) * size.width);
+              ys.push(r.top + (-p.y * 0.5 + 0.5) * size.height);
+            }
+        outline = {
+          x0: Math.min(...xs),
+          x1: Math.max(...xs),
+          y0: Math.min(...ys),
+          y1: Math.max(...ys),
+        };
+      }
+      const inside = (x, y) =>
+        outline &&
+        x > outline.x0 - 24 &&
+        x < outline.x1 + 24 &&
+        y > outline.y0 - 24 &&
+        y < outline.y1 + 24;
+      const points = [];
+      for (let y = r.top + 40; y < r.bottom - 40; y += 16) {
+        for (let x = r.left + 40; x < r.right - 40; x += 16) {
+          const d = Math.hypot(x - near.x, y - near.y);
+          if (d >= min) points.push({ x: Math.round(x), y: Math.round(y), d, off: !inside(x, y) });
+        }
+      }
+      points.sort((a, b) => b.off - a.off || a.d - b.d);
+      const m = 28;
+      const round = [
+        [0, 0],
+        [m, 0],
+        [-m, 0],
+        [0, m],
+        [0, -m],
+      ];
+      for (const p of points) {
+        if (round.every(([dx, dy]) => clear(p.x + dx, p.y + dy))) return { x: p.x, y: p.y };
+      }
+      return null;
+    },
+    /** A small label naming the moment, bottom left above the move box; null removes it. */
+    caption(text) {
+      let el = document.getElementById('__caption');
+      if (!text) return el?.remove();
+      if (!el) {
+        el = document.createElement('div');
+        el.id = '__caption';
+        el.style.cssText =
+          'position:fixed;left:10px;bottom:98px;white-space:nowrap;z-index:99998;pointer-events:none;padding:5px 11px;border-radius:6px;background:rgba(10,12,16,0.72);color:#f2f4f8;font:600 15px/1.2 system-ui,sans-serif;letter-spacing:0.02em;box-shadow:0 1px 6px rgba(0,0,0,0.4)';
+        document.body.appendChild(el);
+      }
+      el.textContent = text;
     },
   };
 };
@@ -883,26 +1048,32 @@ async function main() {
     await browser.close();
     return;
   }
+  // The recorded page: White's, or Black's for --interact --select-black
+  const seat = INTERACT && opt('select-black') && !opt('select-white') ? 'black' : 'white';
+  const rec = seat === 'white' ? white : black;
+  const opp = rec === white ? black : white;
   // The opponent's page is only there to answer; keep its renderer cheap.
-  await black.setViewportSize({ width: 400, height: 300 });
-  if (white === pageB) {
+  await opp.setViewportSize({ width: 400, height: 300 });
+  if (rec === pageB) {
     // The joiner opened the game with the classic look; switch it over.
-    await white.goto(`${white.url().split('?')[0]}?${SETTINGS}`);
+    await rec.goto(`${rec.url().split('?')[0]}?${SETTINGS}`);
   }
-  await white.waitForFunction((d) => window.__show?.ready(d), DESIGN, { timeout: 120000 });
-  await white.evaluate(() => document.fonts.ready);
+  await rec.waitForFunction((d) => window.__show?.ready(d), DESIGN, { timeout: 120000 });
+  await rec.evaluate(() => document.fonts.ready);
   // Let the design's chunk, fonts and first frames settle in real time
-  await white.waitForTimeout(1500);
-  await white.evaluate(() => window.__vclock.enable());
+  await rec.waitForTimeout(1500);
+  await rec.evaluate(() => window.__vclock.enable());
+  // The creator's page opened the design too; it only types, so never draws
+  if (INTERACT) await opp.evaluate(() => window.__vclock.enable());
 
-  const cdp = await white.context().newCDPSession(white);
+  const cdp = await rec.context().newCDPSession(rec);
   if (flag('profile')) {
     // Where a frame's time goes: render (in the page, real clock) and capture.
     const renders = [];
     const captures = [];
     for (let i = 0; i < 20; i++) {
       renders.push(
-        await white.evaluate(() => {
+        await rec.evaluate(() => {
           const t = Date.now();
           window.__r3fState.get().invalidate(); // on-demand designs draw too
           window.__vclock.step(1000 / 30);
@@ -913,7 +1084,7 @@ async function main() {
       await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 92 });
       captures.push(Date.now() - t);
     }
-    const stats = await white.evaluate(() => {
+    const stats = await rec.evaluate(() => {
       const { gl, scene } = window.__r3fState.get();
       // Count a whole frame, every pass (shadow maps, bloom) included
       gl.info.autoReset = false;
@@ -970,6 +1141,7 @@ async function main() {
     await browser.close();
     return;
   }
+  const VIDEO = path.join(OUT, INTERACT ? `${DESIGN}-interact.mp4` : `${DESIGN}.mp4`);
   let ffmpeg = null;
   if (!STILLS) {
     ffmpeg = spawn(
@@ -996,7 +1168,7 @@ async function main() {
         'yuv420p',
         '-movflags',
         '+faststart',
-        path.join(OUT, `${DESIGN}.mp4`),
+        VIDEO,
       ],
       { stdio: ['pipe', 'inherit', 'inherit'] },
     );
@@ -1009,6 +1181,8 @@ async function main() {
   const pose = opt('pose');
   const camera = (f) => {
     if (pose) return pose.split(',').map(Number);
+    // --interact holds the seat's opening view
+    if (INTERACT) return [0, 0, 1];
     const t = f / FPS;
     // Stills skip the opening swing and show each design from its own view
     const intro = STILLS ? 1 : Math.min(t / PACE.swing, 1);
@@ -1035,7 +1209,7 @@ async function main() {
       zoom *= 1 - 0.18 * k;
       pull = 0.3 * k;
     }
-    await white.evaluate(
+    await rec.evaluate(
       ({ ms, yaw, pitch, zoom, focus, pull, cx, cy, press, draw }) => {
         window.__show.orbit(yaw, pitch, zoom, focus, pull);
         window.__show.cursor(cx, cy, press);
@@ -1071,11 +1245,11 @@ async function main() {
     if (!STILLS) return;
     await step(false, true);
     const file = path.join(OUT, `${DESIGN}-${name}.png`);
-    await white.screenshot({ path: file, timeout: 120000 });
+    await rec.screenshot({ path: file, timeout: 120000 });
     console.log(file);
   };
   const locate = (zxy, kind) =>
-    white.evaluate(({ zxy, kind }) => window.__show.pixelFor(zxy, kind), { zxy, kind });
+    rec.evaluate(({ zxy, kind }) => window.__show.pixelFor(zxy, kind), { zxy, kind });
   // Glides the cursor onto a piece or cell, re-aiming every frame (the camera
   // keeps swaying), and leaves it exactly on target for the click.
   const glideTo = async (zxy, kind, seconds = PACE.aim) => {
@@ -1088,18 +1262,18 @@ async function main() {
       if (target) {
         const k = ease(Math.min(i / n, 1));
         cursor = { x: from.x + (target.x - from.x) * k, y: from.y + (target.y - from.y) * k };
-        await white.mouse.move(cursor.x, cursor.y);
+        await rec.mouse.move(cursor.x, cursor.y);
       }
       await step();
     }
     target = await locate(zxy, kind);
     if (!target) {
-      const why = await white.evaluate((z) => window.__show.explain(z), zxy);
+      const why = await rec.evaluate((z) => window.__show.explain(z), zxy);
       console.log(`no pixel reaches ${kind} ${zxy}, typing the move: ${JSON.stringify(why)}`);
       return false;
     }
     cursor = target;
-    await white.mouse.move(cursor.x, cursor.y);
+    await rec.mouse.move(cursor.x, cursor.y);
     return true;
   };
   // The fallback for a square no ray reaches: the move box, as a keyboard
@@ -1114,6 +1288,246 @@ async function main() {
       timeout: 60000,
     });
   };
+  const finish = async () => {
+    if (ffmpeg) {
+      ffmpeg.stdin.end();
+      await new Promise((r) => ffmpeg.on('close', r));
+      console.log(VIDEO, `${frame} frames`);
+    }
+    await browser.close();
+  };
+
+  if (INTERACT) {
+    await interact();
+    await finish();
+    return;
+  }
+
+  /** --interact: pointing and selecting, in beats, from one position (see the header). */
+  async function interact() {
+    const started = Date.now();
+    const elapsed = () => `${((Date.now() - started) / 1000).toFixed(0)}s`;
+    const GLIDE = 0.5;
+    // Frames that advance the clock unseen (moves playing out, the rehearsal)
+    const unseen = (frames) =>
+      rec.evaluate(({ n, ms }) => window.__show.settle(n, ms, false), {
+        n: frames,
+        ms: 1000 / FPS,
+      });
+    const shownKey = () =>
+      rec.evaluate(() =>
+        window.__show
+          .destinations()
+          .map((d) => d.zxy)
+          .sort()
+          .join(' '),
+      );
+    // A click that selects, switches or puts down: true once the destinations
+    // on show have changed
+    const clickAt = async (at) => {
+      const before = await shownKey();
+      await rec.mouse.click(at.x, at.y);
+      return rec
+        .waitForFunction(
+          (b) =>
+            window.__show
+              .destinations()
+              .map((d) => d.zxy)
+              .sort()
+              .join(' ') !== b,
+          before,
+          { ...POLL, timeout: 5000 },
+        )
+        .then(
+          () => true,
+          () => false,
+        );
+    };
+    const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    // Of `dests` the pointer can reach, the nearest to `from` that is clear of
+    // it (quiet ones first with `quietFirst`)
+    const nearest = (dests, from, quietFirst = false) =>
+      dests
+        .filter((d) => d.px)
+        .sort(
+          (a, b) =>
+            (quietFirst ? a.capture - b.capture : 0) ||
+            (distance(a.px, from) < 40) - (distance(b.px, from) < 40) ||
+            distance(a.px, from) - distance(b.px, from),
+        )[0];
+
+    // Tries P out off camera: selects it, finds a quiet and a capture
+    // destination and another piece Q the pointer can reach, and one of Q's
+    // destinations, putting each piece back down after.
+    const rehearse = async (P, others) => {
+      const pAt = await locate(P, 'piece');
+      if (!pAt) return null;
+      const rest = (await rec.evaluate((near) => window.__show.emptyPixel(near), pAt)) ?? {
+        x: WIDTH - 30,
+        y: HEIGHT / 2,
+      };
+      // True when the piece itself took the click (not the empty space)
+      const putDown = async (zxy) => {
+        const at = await locate(zxy, 'piece');
+        if (at && (await clickAt(at))) return true;
+        if (await clickAt(rest)) return false;
+        throw new Error(`could not put ${zxy} back down`);
+      };
+      await rec.mouse.move(rest.x, rest.y);
+      if (!(await clickAt(pAt))) return null;
+      await unseen(2);
+      const dests = await rec.evaluate(() => window.__show.destinations(true));
+      const quiet = nearest(
+        dests.filter((d) => !d.capture),
+        pAt,
+      );
+      const capture = nearest(
+        dests.filter((d) => d.capture),
+        pAt,
+      );
+      // The side's other pieces the pointer reaches past P's destinations,
+      // nearest P first
+      const qs = [];
+      if (quiet && capture) {
+        const near = [];
+        for (const { zxy } of others) {
+          if (zxy === P) continue;
+          const at = await rec.evaluate((z) => window.__show.screenOf(z), zxy);
+          if (at) near.push({ zxy, d: distance(at, pAt) });
+        }
+        near.sort((a, b) => (a.d < 70) - (b.d < 70) || a.d - b.d);
+        for (const { zxy } of near) {
+          const at = await locate(zxy, 'piece');
+          if (at && distance(at, pAt) >= 70) qs.push(zxy);
+          if (qs.length >= 5) break;
+        }
+      }
+      await putDown(P);
+      if (!quiet || !capture) return null;
+      for (const Q of qs) {
+        const at = await locate(Q, 'piece');
+        if (!at || !(await clickAt(at))) continue;
+        await unseen(2);
+        const qDest = nearest(await rec.evaluate(() => window.__show.destinations(true)), at, true);
+        if ((await putDown(Q)) && qDest) {
+          return { P, quiet: quiet.zxy, capture: capture.zxy, Q, qDest: qDest.zxy, rest };
+        }
+      }
+      return null;
+    };
+
+    // The scripted game, typed in unseen, up to a position that shows it all
+    await rec.evaluate(([y, p, z]) => window.__show.orbit(y, p, z, null, 0), camera(0));
+    const toMove = seat === 'white' ? 'White to move' : 'Black to move';
+    let plan = null;
+    for (let i = 0; i < GAME.length && !plan; i++) {
+      const [from, to] = GAME[i].split('-');
+      const next = i % 2 === 0 ? 'Black to move' : 'White to move';
+      await typeMove(i % 2 === 0 ? white : black, from, to);
+      for (const p of [rec, opp]) await waitTurn(p, next);
+      await unseen(60);
+      const plies = i + 1;
+      if (next !== toMove || !(plies >= 3 || GAME.length - plies < 2)) continue;
+      const forced = opt(`select-${seat}`);
+      let candidates = forced ? [{ zxy: forced }] : [];
+      let others = [];
+      try {
+        if (!forced) candidates = await rec.evaluate((c) => window.__show.richPieces(c), seat);
+        others = await rec.evaluate((c) => window.__show.richPieces(c, true), seat);
+      } catch (e) {
+        throw new Error(`no rules engine in the page (${e.message.split('\n')[0]})`);
+      }
+      for (const { zxy } of candidates) {
+        plan = await rehearse(zxy, others);
+        if (plan) break;
+      }
+    }
+    if (!plan) {
+      throw new Error(
+        `no position in the scripted game has a ${seat} piece whose quiet and capture ` +
+          `destinations the pointer can reach from this view, and another piece to switch ` +
+          `to; try --select-${seat} <zxy> or --pose`,
+      );
+    }
+    const name = async (zxy) =>
+      `${(await rec.evaluate((z) => window.__show.pieceAt(z), zxy)) ?? ''} ${zxy}`.trim();
+    const { P, quiet, capture, Q, qDest, rest } = plan;
+    const [pName, qName, victim] = [await name(P), await name(Q), await name(capture)];
+    console.log(
+      `${elapsed()} ${seat} to move: ${pName} (quiet ${quiet}, takes ${victim}), then ${qName} (${qDest})`,
+    );
+
+    // Everything at rest, the pointer on empty space
+    cursor = { ...rest };
+    press = 0;
+    await rec.mouse.move(cursor.x, cursor.y);
+    await unseen(60);
+
+    // The pointer straight to a fixed page pixel
+    const glidePixel = async (to, seconds = GLIDE) => {
+      const from = { ...cursor };
+      const n = Math.max(1, Math.round(seconds * FPS));
+      for (let i = 1; i <= n; i++) {
+        const k = ease(i / n);
+        cursor = { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
+        await rec.mouse.move(cursor.x, cursor.y);
+        await step();
+      }
+    };
+    const click = async (what) => {
+      await hold(0.25);
+      if (!(await clickAt(cursor))) console.log(`clicking ${what} changed nothing`);
+      press = 1;
+      // The camera controls capture the pointer while it is pressed, and the
+      // page takes it back over the board only when it next moves; a hand is
+      // never that still, so twitch it a pixel, unseen, to keep the hover
+      await rec.mouse.move(cursor.x + 1, cursor.y);
+      await rec.mouse.move(cursor.x, cursor.y);
+    };
+    const snap = async (file) => {
+      // A video's last frame is already drawn; stills draw it now
+      if (STILLS) await step(false, true);
+      const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(file, Buffer.from(data, 'base64'));
+      console.log(file);
+    };
+    let n = 0;
+    const beat = async (id, label, act, seconds = 1) => {
+      n++;
+      await rec.evaluate((t) => window.__show.caption(t), `${n} · ${label}`);
+      await act();
+      await hold(seconds);
+      await snap(path.join(OUT, `${DESIGN}-interact-${String(n).padStart(2, '0')}-${id}.png`));
+    };
+
+    await beat('rest', 'rest', async () => {});
+    await beat('hover', `hover ${pName}`, () => glideTo(P, 'piece', GLIDE));
+    await beat('unhover', 'unhover', () => glidePixel(rest));
+    await beat(
+      'select',
+      `select ${pName}`,
+      async () => {
+        if (await glideTo(P, 'piece', GLIDE)) await click(P);
+      },
+      1.2,
+    );
+    await beat('quiet', `quiet destination ${quiet}`, () => glideTo(quiet, 'cell', GLIDE));
+    await beat('capture', `capture ${victim}`, () => glideTo(capture, 'cell', GLIDE));
+    await beat(
+      'switch',
+      `switch to ${qName}`,
+      async () => {
+        if (await glideTo(Q, 'piece', GLIDE)) await click(Q);
+      },
+      1.2,
+    );
+    await beat('destination', `destination ${qDest}`, () => glideTo(qDest, 'cell', GLIDE));
+    await beat('deselect', `deselect ${qName}`, async () => {
+      if (await glideTo(Q, 'piece', GLIDE)) await click(Q);
+    });
+    await beat('rest', 'rest', () => glidePixel(rest));
+    console.log(`interact of ${DESIGN} took ${elapsed()}`);
+  }
 
   await hold(STILLS ? 0.2 : PACE.intro);
   await still('start');
@@ -1193,12 +1607,7 @@ async function main() {
     await still('end');
   }
 
-  if (ffmpeg) {
-    ffmpeg.stdin.end();
-    await new Promise((r) => ffmpeg.on('close', r));
-    console.log(path.join(OUT, `${DESIGN}.mp4`), `${frame} frames`);
-  }
-  await browser.close();
+  await finish();
 }
 
 main().catch((e) => {

@@ -361,7 +361,9 @@ the last move's line and a check, each from 13 camera poses, top-down included (
 `--poses "az,el;…"`), and
 from both seats, laid out as contact sheets (usage at the top of the script; one to three
 minutes). `--stills-fast` takes `--stills`' pictures without drawing the frames between
-them, several times faster.
+them, several times faster. `--interact` records the pointer at work instead of a game:
+hover and unhover, selecting, hovering a quiet and a capture destination, switching straight
+to another piece, and deselecting, to `<design>-interact.mp4` plus a still per beat.
 
 ### Piece set
 
