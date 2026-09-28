@@ -68,6 +68,19 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
 const GLASS = 'linear-gradient(180deg, rgba(14, 16, 22, 0.82), rgba(6, 7, 11, 0.86))';
 const HAIRLINE = '1px solid rgba(236, 241, 255, 0.16)';
 
+// The settings panel lists groups in the order they first appear: board and
+// world first, then the pieces and how they are held, then the marks on the
+// board, and check (with the mate) last
+const GROUP_ORDER = ['Board', 'World', 'Pieces', 'Selection', 'Markers', 'Check'];
+const rank = (group: string) => {
+  const i = GROUP_ORDER.indexOf(group);
+  return i < 0 ? GROUP_ORDER.length : i;
+};
+const SETTINGS = [...ENV_SETTINGS, ...PIECE_SETTINGS, ...MARKER_SETTINGS]
+  .map((spec, i) => ({ spec, i }))
+  .sort((a, b) => rank(a.spec.group) - rank(b.spec.group) || a.i - b.i)
+  .map(({ spec }) => spec);
+
 const zenith: Design = {
   id: 'zenith',
   name: 'Zenith',
@@ -93,7 +106,7 @@ const zenith: Design = {
   // The result card waits for the mate pulse to cross the board (its length
   // is a setting), and a beat more to take it in
   resultDelayMs: (settings) => (Number(settings['mark.mateSeconds']) || 2.4) * 1000 + 400,
-  settings: [...ENV_SETTINGS, ...PIECE_SETTINGS, ...MARKER_SETTINGS],
+  settings: SETTINGS,
   hud: {
     readout: true,
     vars: {
