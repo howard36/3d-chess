@@ -4,7 +4,7 @@ import type { SettingSpec, SettingValue } from '../settings';
 // Zenith's player-adjustable settings for this area, listed in the settings
 // panel in this order under their groups. Read them with useEnvSetting.
 
-const times = (v: number) => `${v.toFixed(2).replace(/0$/, '')}×`;
+const times = (v: number) => `${v.toFixed(1)}×`;
 
 export const ENV_SETTINGS: SettingSpec[] = [
   {
@@ -13,9 +13,9 @@ export const ENV_SETTINGS: SettingSpec[] = [
     label: 'Checker',
     group: 'Board',
     default: 1,
-    min: 0.75,
+    min: 0.8,
     max: 1.5,
-    step: 0.05,
+    step: 0.1,
     format: times,
     hint: 'How strongly the light and dark squares of each level differ.',
   },
@@ -27,7 +27,7 @@ export const ENV_SETTINGS: SettingSpec[] = [
     default: 1,
     min: 0.5,
     max: 1.6,
-    step: 0.05,
+    step: 0.1,
     format: times,
     hint: 'The thin level-coloured lines between the squares.',
   },
@@ -39,7 +39,7 @@ export const ENV_SETTINGS: SettingSpec[] = [
     default: 1,
     min: 0.4,
     max: 1.8,
-    step: 0.05,
+    step: 0.1,
     format: times,
     hint: 'Brightness of the colossal neon chess pieces round the board.',
   },
@@ -49,11 +49,11 @@ export const ENV_SETTINGS: SettingSpec[] = [
     label: 'Fade near the tower',
     group: 'World',
     default: 1,
-    min: 0.3,
+    min: 0.7,
     max: 2,
-    step: 0.05,
+    step: 0.1,
     format: times,
-    hint: 'How early a sculpture starts to dim as it passes behind the tower: lower is later and quicker.',
+    hint: 'How early a sculpture starts to dim as it passes behind the tower: lower is later.',
   },
   {
     kind: 'toggle',

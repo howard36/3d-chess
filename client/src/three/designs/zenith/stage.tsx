@@ -855,7 +855,7 @@ const LEVEL_MAX_POLAR = ((90 - CLARITY_TOWER_DEFAULTS.minElevation) * Math.PI) /
  * The orbit may sink below the horizon to look up (layout's minElevation),
  * but never through the ground: before the controls update each frame, their
  * lowest angle is raised as far as the camera's distance needs, so zoomed in
- * it looks up the full 20° and zoomed out a little less, and a zoom out at
+ * it looks up the full 14° and zoomed out a little less, and a zoom out at
  * the lowest angle lifts the camera rather than sinking it into the plain.
  * With looking up turned off (settings-env.ts) the orbit stops where the
  * compact tower's does, 6° above level.

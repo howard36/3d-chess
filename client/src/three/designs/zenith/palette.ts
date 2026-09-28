@@ -94,10 +94,11 @@ export const LEVEL_COLORS = levelRamp({
 export const PIECE_SCALE = 0.8;
 /**
  * The camera may sink below the horizon to look up past the tower into the
- * sky (its constellations), to 20° below level; the stage's CameraFloor
- * keeps it above the ground however far out it is zoomed.
+ * sky (its constellations), to 14° below level, where the garden's
+ * sculptures still stand whole in the bottom of the frame; the stage's
+ * CameraFloor keeps it above the ground however far out it is zoomed.
  */
-export const layout = clarityTower({ pieceHeight: 0.87 * PIECE_SCALE, minElevation: -20 });
+export const layout = clarityTower({ pieceHeight: 0.87 * PIECE_SCALE, minElevation: -14 });
 export const FRAME = towerFrame(layout);
 export const PITCH = FRAME.pitch;
 

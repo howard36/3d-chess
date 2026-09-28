@@ -23,7 +23,7 @@ import { GROUND_Y, PALETTE } from './palette';
 //   along its edges (files a–h beyond the first and eighth ranks, ranks 1–8
 //   beyond the a- and h-files), each set to read upright from the tower, as
 //   a board's own letters read from the player's chair;
-// - for a camera looking up, now and then (every minute or so) a slow,
+// - for a camera looking up, now and then (a minute or so apart) a slow,
 //   faint shooting star high overhead, well off to one side of the tower,
 //   falling away from it.
 // Whatever lies behind the tower is held down to nothing (mask.ts).
@@ -266,9 +266,11 @@ const skyDirection = (azimuth: number, elevation: number) =>
 
 /**
  * Now and then, while the camera looks up past the tower, one faint streak
- * falls slowly across the sky beside it. Timed on r3f's clock; an idle
- * canvas is woken for it (the canvas draws on demand), and draws only while
- * it lasts.
+ * falls slowly across the sky beside it. Everything runs on r3f's clock and
+ * nothing wakes the canvas: once one is due (a minute or so after the last)
+ * it starts on the next frame drawn while the camera has been looking up
+ * for a moment (a player exploring the sky is turning the view), and then
+ * keeps the frames coming only while it lasts.
  */
 const ShootingStar = () => {
   const invalidate = useThree((s) => s.invalidate);
@@ -305,34 +307,27 @@ const ShootingStar = () => {
     },
     [geometry, material],
   );
-  const state = useRef({ random: rng(907), next: -1, start: -1, visible: false });
-  // Wake an idle canvas when the next one is due; the streak itself runs on
-  // r3f's clock in useFrame
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
+  const state = useRef({ random: rng(907), next: -1, start: -1, upSince: -1 });
   useFrame(({ clock, camera }) => {
     const s = state.current;
     const t = clock.elapsedTime;
-    if (s.next < 0) s.next = t + 40 + s.random() * 40;
-    if (s.start < 0 && t >= s.next) {
-      // Only for a camera looking up, whose frame holds the sky at 25–35°
-      const dir = camera.getWorldDirection(new Vector3());
-      if (dir.y > 0.05) {
-        const look = Math.atan2(dir.x, dir.z);
-        const side = s.random() < 0.5 ? -1 : 1;
-        const az = look + side * (20 + s.random() * 8) * DEG;
-        const el = (30 + s.random() * 5) * DEG;
-        material.uniforms.uFrom.value.copy(skyDirection(az, el));
-        material.uniforms.uTo.value.copy(
-          skyDirection(az + side * (9 + s.random() * 4) * DEG, el - (9 + s.random() * 3) * DEG),
-        );
-        s.start = t;
-      }
+    if (s.next < 0) s.next = t + 30 + s.random() * 30;
+    // Looking up far enough that the frame holds the sky at 20–25° beside
+    // the tower
+    const dir = camera.getWorldDirection(new Vector3());
+    const up = dir.y > Math.sin(8 * DEG);
+    if (!up) s.upSince = -1;
+    else if (s.upSince < 0) s.upSince = t;
+    if (s.start < 0 && t >= s.next && up && t - s.upSince > 1.5) {
+      const look = Math.atan2(dir.x, dir.z);
+      const side = s.random() < 0.5 ? -1 : 1;
+      const az = look + side * (20 + s.random() * 7) * DEG;
+      const el = (20 + s.random() * 5) * DEG;
+      material.uniforms.uFrom.value.copy(skyDirection(az, el));
+      material.uniforms.uTo.value.copy(
+        skyDirection(az + side * (8 + s.random() * 4) * DEG, el - (8 + s.random() * 3) * DEG),
+      );
+      s.start = t;
       s.next = t + 45 + s.random() * 45;
     }
     if (s.start >= 0) {
@@ -349,9 +344,6 @@ const ShootingStar = () => {
         invalidate();
       }
     }
-    if (timer.current) clearTimeout(timer.current);
-    const wait = s.start >= 0 ? 0 : s.next - t;
-    if (wait > 0) timer.current = setTimeout(invalidate, wait * 1000 + 30);
   });
   return <primitive object={line} />;
 };

@@ -57,6 +57,14 @@ describe('zenith garden', () => {
     }
   });
 
+  it('keeps a whole sculpture in frame at the lowest view, looking up', () => {
+    for (let az = 0; az < 360; az += 5) {
+      const view = gardenView(cameraAt(az, -14), ASPECT);
+      const whole = view.filter((v) => v.inFrame >= 0.9 && v.cover < 0.5);
+      expect(whole.length, `az ${az}°`).toBeGreaterThan(0);
+    }
+  });
+
   it('fades a sculpture right behind the tower out', () => {
     // From straight down the z axis, the kings on e1 and e8 and the queens
     // on d1 and d8 stand nearly in line with the tower
@@ -73,9 +81,11 @@ describe('zenith garden', () => {
       for (const star of plan.c.stars) {
         const [x, y, z] = placeStar(star, plan);
         const elevation = (Math.atan2(y, Math.hypot(x, z)) * 180) / Math.PI;
-        // The opening view's top edge is the horizon; at 6° it is 12° up
-        expect(elevation).toBeGreaterThan(14);
-        expect(elevation).toBeLessThan(36);
+        // The opening view's top edge is the horizon; at 6° it is 12° up.
+        // At the lowest view, 14° below level, the top edge is about 28° up
+        // beside the tower
+        expect(elevation).toBeGreaterThan(13);
+        expect(elevation).toBeLessThan(28);
       }
     }
   });

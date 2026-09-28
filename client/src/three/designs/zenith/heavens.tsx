@@ -183,23 +183,24 @@ interface Placement {
 }
 
 /**
- * Round the whole sky about one every 45°, each at its own height between
- * 21° and 29° above the horizon: above the top of the frame from the opening
- * view (whose top edge is the horizon) and every view down to level, in
- * frame beside the tower once the camera sinks below the horizon to look up.
+ * Round the whole sky about one every 45°, each centred at its own height
+ * between 18° and 23° above the horizon: above the top of the frame from the
+ * opening view (whose top edge is the horizon) and from the compact tower's
+ * lowest view (6°), whole in frame beside the tower once the camera sinks to
+ * its lowest, 14° below level, to look up.
  * Looking up from the opening view (the same for both seats: the board, not
  * the camera, turns for Black), the knight stands right of the tower and the
  * king left.
  */
 export const SKY_PLAN: Placement[] = [
-  { c: KNIGHT, azimuth: 172, elevation: 25, size: 9.5, tilt: -0.06 },
-  { c: KING, azimuth: 221, elevation: 27, size: 9, tilt: 0.05 },
-  { c: BISHOP, azimuth: 264, elevation: 23, size: 8, tilt: -0.05 },
-  { c: ROOK, azimuth: 306, elevation: 26, size: 7, tilt: 0.06 },
-  { c: QUEEN, azimuth: 352, elevation: 24, size: 8.5, tilt: 0.04 },
-  { c: UNICORN, azimuth: 40, elevation: 27, size: 9, tilt: 0.07 },
-  { c: PAWN, azimuth: 84, elevation: 22, size: 7, tilt: -0.08 },
-  { c: KNIGHT_WEST, azimuth: 128, elevation: 25, size: 9.5, tilt: 0.05 },
+  { c: KNIGHT, azimuth: 172, elevation: 21, size: 9.5, tilt: -0.06 },
+  { c: KING, azimuth: 221, elevation: 23, size: 9, tilt: 0.05 },
+  { c: BISHOP, azimuth: 264, elevation: 19, size: 8, tilt: -0.05 },
+  { c: ROOK, azimuth: 306, elevation: 22, size: 7, tilt: 0.06 },
+  { c: QUEEN, azimuth: 352, elevation: 20, size: 8.5, tilt: 0.04 },
+  { c: UNICORN, azimuth: 40, elevation: 23, size: 9, tilt: 0.07 },
+  { c: PAWN, azimuth: 84, elevation: 18, size: 7, tilt: -0.08 },
+  { c: KNIGHT_WEST, azimuth: 128, elevation: 21, size: 9.5, tilt: 0.05 },
 ];
 
 const DEG = Math.PI / 180;
