@@ -113,6 +113,11 @@ const Board = (props: BoardProps) => {
   const mountMoveCount = React.useRef(lastMove?.moveCount ?? 0);
   const animate =
     !!lastMove && lastMove.moveCount > mountMoveCount.current && !prefersReducedMotion();
+  // What a live move brings about for the kings (a check's strike, a mate's
+  // topple and pulse) waits for the moving piece to land (MoveGlide's
+  // onLanded); a move from history shows it at once.
+  const [landedMove, setLandedMove] = useState(mountMoveCount.current);
+  const landing = animate && !!lastMove && lastMove.moveCount > landedMove;
   const lastToKey = lastMove ? toZXY(lastMove.move.to) : null;
   // Every move runs straight; a knight arcs when the player asks for it (a
   // setting). The glide and the last-move line both take this one arc.
@@ -259,13 +264,13 @@ const Board = (props: BoardProps) => {
 
   const isSelected = (c: Coord) => !!selected && coordEquals(selected, c);
 
-  // Kings standing in check, with where they stand.
-  const checkedKings = pieces.filter(
-    ({ type, color }) => type === PieceType.King && board.inCheck(color),
-  );
+  // Kings standing in check, with where they stand (once a live move has landed).
+  const checkedKings = landing
+    ? []
+    : pieces.filter(({ type, color }) => type === PieceType.King && board.inCheck(color));
   const checked = checkedKings.map(({ color }) => color);
   const matedColor =
-    props.gameOver?.result === 'checkmate' && props.gameOver.winner
+    !landing && props.gameOver?.result === 'checkmate' && props.gameOver.winner
       ? props.gameOver.winner === 'white'
         ? 'black'
         : 'white'
@@ -441,6 +446,7 @@ const Board = (props: BoardProps) => {
                 arc={lastArc}
                 fromLevel={lastMove.move.from.z}
                 toLevel={coord.z}
+                onLanded={() => setLandedMove((n) => Math.max(n, lastMove.moveCount))}
               >
                 {mesh}
               </MoveGlide>

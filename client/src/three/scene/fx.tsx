@@ -8,7 +8,16 @@ import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
 import type { SettingValues } from '../settings';
 import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
-import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
+import {
+  FRAME,
+  KNIGHT_YAW,
+  LEVEL_COLORS,
+  levelAt,
+  MARGIN,
+  MOTION,
+  PALETTE,
+  PIECE_SCALE,
+} from './palette';
 import { ringMaterial, ringPlane, useLevelCue, usePieceMaterial, wholePiece } from './pieces';
 import { gardenBoost } from './stage';
 import { useMarkSetting } from './settings-markers';
@@ -213,12 +222,13 @@ const levelPlane = new PlaneGeometry(REACH * 2, REACH * 2).rotateX(-Math.PI / 2)
 const PULSE_DELAY_MS = 60;
 
 /**
- * How long the result card waits after a mate played live: for the mate's
- * pulse to cross the board (its length is a setting), and a beat more to
- * take it in.
+ * How long the result card waits after a mate played live: for the mating
+ * piece to land (the king falls and the pulse leaves as it does, Board.tsx),
+ * for the pulse to cross the board (its length is a setting), and a beat
+ * more to take it in.
  */
 export const resultDelayMs = (settings: SettingValues) =>
-  (Number(settings['mark.mateSeconds']) || 2.4) * 1000 + 400;
+  MOTION.durationMs + PULSE_DELAY_MS + (Number(settings['mark.mateSeconds']) || 2.4) * 1000 + 400;
 
 /**
  * Mate: one pulse of light from the king's foot through all five levels as

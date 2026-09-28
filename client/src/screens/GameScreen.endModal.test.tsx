@@ -82,11 +82,12 @@ describe('the result card after a mate', () => {
   });
 
   it('waits for the mate to play out, when it was just played', () => {
-    // The mate's pulse crosses the board in 2.4 s by default, and a beat more
+    // The mating piece lands (0.46 s), the mate's pulse crosses the board in
+    // 2.4 s by default, and a beat more
     const { rerender } = render(screenFor(beforeMate));
     rerender(screenFor(mated));
     expect(result()).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(2600));
+    act(() => vi.advanceTimersByTime(3200));
     expect(result()).not.toBeInTheDocument();
     act(() => vi.advanceTimersByTime(300));
     expect(result()).toBeInTheDocument();
@@ -96,7 +97,7 @@ describe('the result card after a mate', () => {
     setSetting('mark.mateSeconds', 3.5);
     const { rerender } = render(screenFor(beforeMate));
     rerender(screenFor(mated));
-    act(() => vi.advanceTimersByTime(3700));
+    act(() => vi.advanceTimersByTime(4300));
     expect(result()).not.toBeInTheDocument();
     act(() => vi.advanceTimersByTime(300));
     expect(result()).toBeInTheDocument();

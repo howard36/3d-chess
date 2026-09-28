@@ -32,6 +32,7 @@ export const MoveGlide = ({
   arc = 0,
   fromLevel,
   toLevel,
+  onLanded,
 }: {
   from: Vec3;
   to: Vec3;
@@ -48,6 +49,12 @@ export const MoveGlide = ({
    */
   fromLevel?: number;
   toLevel?: number;
+  /**
+   * Called once when the piece lands, so what the move brings about can
+   * wait for it. (A newer move's glide supersedes this one, and reports its
+   * own landing.)
+   */
+  onLanded?: () => void;
 }) => {
   const group = useRef<Group>(null);
   const progress = useRef(0);
@@ -70,6 +77,8 @@ export const MoveGlide = ({
   }, []);
 
   useEffect(() => invalidate(), [invalidate]);
+  const landed = useRef(onLanded);
+  landed.current = onLanded;
 
   useFrame((_, delta) => {
     const g = group.current;
@@ -81,6 +90,7 @@ export const MoveGlide = ({
       progress.current = 1;
       g.position.set(0, 0, 0);
       done.current = true;
+      landed.current?.();
       return;
     }
     // Straight from the source (offset d) to rest (0), eased; a knight's

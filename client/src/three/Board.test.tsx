@@ -785,6 +785,54 @@ describe('Board', () => {
       expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(TO, 'white')]);
     });
 
+    it('shows the check a live move gives, and the mate, only once the piece lands', async () => {
+      // The rook's arrival on TO checks Black's king along the rank
+      const KING = { x: 4, y: 3, z: 2 };
+      const withKings = (b: EngineBoard) => {
+        b.setPiece({ x: 4, y: 4, z: 4 }, null);
+        b.setPiece(KING, { type: PieceType.King, color: 'black' });
+        return b;
+      };
+      const kingBody = () =>
+        last(drawn.bodies.filter((b) => b.type === PieceType.King && b.color === 'black'))!;
+      const renderer = await ReactThreeTestRenderer.create(
+        <Board board={withKings(boardBeforeMove())} currentTurn="white" />,
+      );
+      await renderer.update(
+        <Board
+          board={withKings(boardAfterMove())}
+          currentTurn="black"
+          lastMove={lastMove(1)}
+          gameOver={{ result: 'checkmate', winner: 'white' }}
+        />,
+      );
+      // Still gliding: no strike, no red king, no fall yet
+      expect(drawn.checks).toHaveLength(0);
+      expect(kingBody().inCheck).toBe(false);
+      // (frames of 10 ms: just short of the glide's end)
+      await act(async () => {
+        await renderer.advanceFrames(MOTION.durationMs / 10 - 2, 0.01);
+      });
+      expect(drawn.checks).toHaveLength(0);
+      expect(kingBody().inCheck).toBe(false);
+      // Landed: the check, at mate
+      await act(async () => {
+        await renderer.advanceFrames(4, 0.01);
+      });
+      expect(last(drawn.checks)?.mated).toBe(true);
+      expect(kingBody().inCheck).toBe(true);
+    });
+
+    it('shows a check from history at once', async () => {
+      const board = boardAfterMove();
+      board.setPiece({ x: 4, y: 4, z: 4 }, null);
+      board.setPiece({ x: 4, y: 3, z: 2 }, { type: PieceType.King, color: 'black' });
+      await ReactThreeTestRenderer.create(
+        <Board board={board} currentTurn="black" lastMove={lastMove(1)} />,
+      );
+      expect(drawn.checks.length).toBeGreaterThan(0);
+    });
+
     it('hands a live capture to the capture effect, on the victim’s floor', async () => {
       const victim = { type: PieceType.Pawn, color: 'black' as const };
       const renderer = await ReactThreeTestRenderer.create(
