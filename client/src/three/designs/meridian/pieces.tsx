@@ -84,6 +84,7 @@ const stoneFragment = /* glsl */ `
   uniform float uTopSpec;
   uniform float uShine;
   uniform float uSheenAmt;
+  uniform vec3 uUnder;
   uniform float uRimMix;
   uniform float uRimPower;
   uniform float uGlow;
@@ -111,6 +112,11 @@ const stoneFragment = /* glsl */ `
     col += uKeyColor * pow(nh, uShine) * uSpec * max(nk, 0.0) * mix(1.0, uTopSpec, topView);
     // Moonstone's schiller: a faint blue sheen floating toward the light
     col += uSheen * pow(nh, 3.0) * uSheenAmt;
+    // Seen from under its deck (the camera below the piece), a dim cool fill
+    // from below gives the dark army's undersides some value; never more
+    // than a shade, and nothing at all from level or from above
+    float below = smoothstep(0.04, -0.12, v.y);
+    col += uUnder * below * (0.4 + 0.6 * max(dot(n, v), 0.0));
     // The army's edge, quieter from above (where a piece is nearly all edge)
     float facing = abs(dot(n, v));
     float fromAbove = mix(1.0, 0.35, smoothstep(0.55, 0.95, abs(v.y)));
@@ -146,6 +152,8 @@ interface Stone {
   topSpec?: number;
   shine?: number;
   sheen?: number;
+  /** Fill added when the piece is seen from below (see the shader). */
+  under?: string;
 }
 
 const stone = (o: Stone) =>
@@ -166,6 +174,7 @@ const stone = (o: Stone) =>
       uTopSpec: { value: o.topSpec ?? 1 },
       uShine: { value: o.shine ?? 24 },
       uSheenAmt: { value: o.sheen ?? 0 },
+      uUnder: { value: new Color(o.under ?? '#000000') },
       uRimMix: { value: o.rimMix },
       uRimPower: { value: o.rimPower },
       uGlow: { value: 0 },
@@ -200,6 +209,7 @@ const BODY: Record<PieceColor, Stone> = {
     spec: 0.95,
     topSpec: 0.12,
     shine: 64,
+    under: '#34425f',
   },
 };
 
