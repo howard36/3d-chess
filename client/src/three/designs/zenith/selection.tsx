@@ -132,7 +132,7 @@ export const stepSelection = (
     const settle = smooth(clamp01((t - RISE_MS * 0.55) / SETTLE_MS));
     // In gently (Lumina's), a brighter moment as it rises, then calm
     s.strength = smooth(clamp01(t / 260)) * (0.9 - (0.9 - SETTLED) * settle);
-    s.front = still ? 0 : 0.22 * Math.sin(Math.PI * clamp01(t / RISE_MS));
+    s.front = still ? 0 : 0.1 * Math.sin(Math.PI * clamp01(t / RISE_MS));
     s.circle = Math.max(s.circle, smooth(clamp01(t / 220)));
     s.draw = still ? 1 : clamp01(t / DRAW_MS);
   } else {

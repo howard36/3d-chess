@@ -60,14 +60,6 @@ export const PIECE_SETTINGS: SettingSpec[] = [
     hint: 'How far a piece rises under the pointer (held, it rises a little more).',
   },
   {
-    kind: 'toggle',
-    key: 'piece.hoverGlow',
-    label: 'Glow under hovered piece',
-    group: 'Pieces',
-    default: true,
-    hint: 'A soft light on the glass just under a piece you point at.',
-  },
-  {
     kind: 'slider',
     key: 'piece.columnHeight',
     label: 'Column height',

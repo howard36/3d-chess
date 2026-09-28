@@ -449,7 +449,6 @@ export const PieceBody = (props: PieceBodyProps) => {
   const glide = useGlide();
   const { ring: ringCue } = useLevelCue();
   const hoverLift = usePieceSetting<number>('piece.hoverLift');
-  const hoverGlow = usePieceSetting<boolean>('piece.hoverGlow');
   const checkTint = usePieceSetting<boolean>('piece.checkTint');
   const pulse = usePieceSetting<boolean>('piece.clickPulse');
   const still = useMemo(prefersReducedMotion, []);
@@ -499,7 +498,7 @@ export const PieceBody = (props: PieceBodyProps) => {
     if (raise.current) raise.current.position.y = (hoverLift - BOARD_HOVER_LIFT) * lifted;
     const f = floorMaterial.uniforms;
     f.uGlow.value = lifted;
-    f.uPool.value = hoverGlow ? smooth(hover) : 0;
+    f.uPool.value = smooth(hover);
     // While gliding, the band and the ring pass through the colours of the
     // levels crossed
     if (glide) {
