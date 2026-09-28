@@ -3,20 +3,21 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { AdditiveBlending, Color, DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
 import type { Group } from 'three';
 import { PieceType } from '../../../engine/pieces';
-import { MOVE_ANIMATION } from '../../motion';
+import { MOVE_ANIMATION, prefersReducedMotion } from '../../motion';
 import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
-import { FRAME, KNIGHT_YAW, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
-import { bodyMaterial, ringMaterial, ringPlane, wholePiece } from './pieces';
+import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
+import { bodyMaterial, ringMaterial, ringPlane, useLevelCue, wholePiece } from './pieces';
 import { gardenBoost } from './stage';
+import { useMarkSetting } from './settings-markers';
 
 // Motion in light, kept brief. A captured piece burns away from the crown
 // down behind a thin edge of white light, and its outline, drawn in light
 // as the garden's sculptures are, rises a little from it and fades. At mate,
-// once the king has fallen, one ring of white light sweeps out across his
-// level, and the colossal pieces in the garden brighten for a breath and
-// settle back.
+// as the king starts to fall, one pulse of light spreads from his foot
+// through all five levels, and the colossal pieces in the garden brighten
+// for a breath and settle back.
 
 /** A frame's step of loose time: once a glide is over, a slow frame may take up to this much. */
 const LOOSE_MS = 125;
@@ -92,10 +93,12 @@ export const CaptureFx = ({
 }: CaptureFxProps) => {
   const geometry = wholePiece(victim.type);
   const level = levelAt(floor[1]);
+  // It stands in its level ring only where pieces wear one (settings-pieces.ts)
+  const ringed = useLevelCue().ring;
   // The victim in its own glaze, standing in its own ring, until it burns
   const { body, ring, outline } = useMemo(
     () => ({
-      body: bodyMaterial(victim.color, victim.type),
+      body: bodyMaterial(victim.color, victim.type, level),
       ring: ringMaterial(level),
       outline: outlineMaterial(),
     }),
@@ -132,13 +135,15 @@ export const CaptureFx = ({
   return (
     <group position={floor} scale={PIECE_SCALE}>
       <group ref={whole}>
-        <mesh
-          geometry={ringPlane}
-          material={ring}
-          position={[0, 0.005, 0]}
-          renderOrder={LAYER.shadow}
-          raycast={noRaycast}
-        />
+        {ringed && (
+          <mesh
+            geometry={ringPlane}
+            material={ring}
+            position={[0, 0.005, 0]}
+            renderOrder={LAYER.shadow}
+            raycast={noRaycast}
+          />
+        )}
         <mesh
           geometry={geometry}
           material={body}
@@ -160,88 +165,133 @@ export const CaptureFx = ({
 
 // --- Mate ---------------------------------------------------------------------------------
 
-const sweepFragment = /* glsl */ `
-  uniform vec3 uColor;
+// One pulse of light leaves the mated king's foot as he starts to fall and
+// spreads out through the whole tower: a sphere of light growing from him,
+// drawn where it meets each level's glass, so it crosses his own level first
+// and reaches the levels above and below as it grows, a white front with a
+// glow of that level's colour behind it. It takes a few seconds to cross
+// every level (a setting), time to take the result in. The garden's colossal
+// pieces brighten for a breath with it.
+
+const pulseFragment = /* glsl */ `
+  uniform vec3 uFront;
+  uniform vec3 uTint;
+  uniform vec2 uFrom;
+  uniform float uDy;
   uniform float uRadius;
   uniform float uOpacity;
   uniform float uReach;
-  varying vec2 vUv;
   varying vec3 vWorld;
   void main() {
-    // It stays on the king's level: nothing past the edge of its glass
+    // Only on the glass: nothing past its edge
     if (max(abs(vWorld.x), abs(vWorld.z)) > uReach) discard;
-    vec2 p = (vUv - 0.5) * 7.0;
-    float r = length(p);
-    float d = r - uRadius;
+    // Where the sphere of light meets this level
+    float h2 = uRadius * uRadius - uDy * uDy;
+    if (h2 <= 0.0) discard;
+    float r = length(vWorld.xz - uFrom);
+    float d = r - sqrt(h2);
     float fw = max(fwidth(r), 1e-4);
     float line = 1.0 - smoothstep(0.012, 0.012 + fw * 1.5, abs(d));
-    float wake = exp(-max(-d, 0.0) / 0.35) * step(d, 0.0) * 0.18;
-    float a = (line * 0.8 + wake) * uOpacity;
+    float halo = exp(-d * d / (0.06 * 0.06)) * 0.35;
+    float wake = exp(min(d, 0.0) / 0.45) * step(d, 0.0) * 0.2;
+    vec3 col = mix(uTint, uFront, clamp(line + halo, 0.0, 1.0));
+    float a = (line * 0.85 + halo + wake) * uOpacity;
     if (a < 0.003) discard;
-    gl_FragColor = vec4(uColor * a, a);
+    gl_FragColor = vec4(col * a, a);
     #include <colorspace_fragment>
   }`;
 
-const sweepPlane = new PlaneGeometry(7, 7).rotateX(-Math.PI / 2);
-const MATE_MS = 2600;
-const SWEEP_MS = 1400;
+const pulseVertex = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }`;
+
+const REACH = FRAME.half + MARGIN;
+const levelPlane = new PlaneGeometry(REACH * 2, REACH * 2).rotateX(-Math.PI / 2);
+/** The pulse leaves this soon after the king starts to fall. */
+const PULSE_DELAY_MS = 60;
 
 /**
- * Mate, one calm beat after the king falls: a ring of white light sweeps out
- * across his level, and the garden's colossal pieces brighten for a breath.
+ * Mate: one pulse of light from the king's foot through all five levels as
+ * he falls, and the garden's colossal pieces brighten for a breath.
  */
 export const Celebration = ({ floor }: CelebrationProps) => {
-  const material = useMemo(
+  const seconds = useMarkSetting<number>('mark.mateSeconds');
+  const [kx, ky, kz] = floor;
+  // As far as the pulse must go: the farthest corner of any level's glass
+  const farthest = useMemo(
     () =>
-      new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        side: DoubleSide,
-        blending: AdditiveBlending,
-        uniforms: {
-          uColor: { value: new Color(PALETTE.light) },
-          uRadius: { value: 0 },
-          uOpacity: { value: 0 },
-          uReach: { value: FRAME.half + MARGIN },
-        },
-        vertexShader: /* glsl */ `
-          varying vec2 vUv;
-          varying vec3 vWorld;
-          void main() {
-            vUv = uv;
-            vec4 w = modelMatrix * vec4(position, 1.0);
-            vWorld = w.xyz;
-            gl_Position = projectionMatrix * viewMatrix * w;
-          }`,
-        fragmentShader: sweepFragment,
-      }),
-    [],
+      Math.max(
+        ...FRAME.levelY.flatMap((y) =>
+          [-1, 1].flatMap((sx) =>
+            [-1, 1].map((sz) => Math.hypot(sx * REACH - kx, y - ky, sz * REACH - kz)),
+          ),
+        ),
+      ),
+    [kx, ky, kz],
   );
-  useEffect(() => () => material.dispose(), [material]);
+  const materials = useMemo(
+    () =>
+      FRAME.levelY.map(
+        (y, level) =>
+          new ShaderMaterial({
+            transparent: true,
+            depthWrite: false,
+            side: DoubleSide,
+            blending: AdditiveBlending,
+            uniforms: {
+              uFront: { value: new Color(PALETTE.light) },
+              uTint: { value: new Color(LEVEL_COLORS[level]) },
+              uFrom: { value: [kx, kz] },
+              uDy: { value: y - ky },
+              uRadius: { value: 0 },
+              uOpacity: { value: 0 },
+              uReach: { value: REACH },
+            },
+            vertexShader: pulseVertex,
+            fragmentShader: pulseFragment,
+          }),
+      ),
+    [kx, ky, kz],
+  );
+  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
   useEffect(
     () => () => {
       gardenBoost.value = 0;
     },
     [],
   );
-  // The king topples first (900 ms)
-  const delay = 700;
-  const alive = useLife(delay + MATE_MS, (ms) => {
-    const t = Math.max(ms - delay, 0);
-    const s = Math.min(t / SWEEP_MS, 1);
-    material.uniforms.uRadius.value = 0.3 + 3.1 * (1 - (1 - s) ** 2);
-    material.uniforms.uOpacity.value = t > 0 ? Math.min(s * 8, 1) * (1 - s) ** 1.3 : 0;
-    const g = Math.min(t / MATE_MS, 1);
-    gardenBoost.value = 0.9 * Math.sin(Math.PI * g) ** 2;
+  const lifeMs = seconds * 1000;
+  const still = prefersReducedMotion();
+  const alive = useLife(PULSE_DELAY_MS + lifeMs, (ms) => {
+    if (still) return;
+    const x = Math.min(Math.max(ms - PULSE_DELAY_MS, 0) / lifeMs, 1);
+    // It spreads at a nearly even pace, so every level has its moment, and
+    // reaches the farthest corner just before it has faded
+    const radius = (farthest + 0.15) * (1 - (1 - Math.min(x / 0.95, 1)) ** 1.15);
+    const opacity = x > 0 ? Math.min(x * 14, 1) * (1 - x) ** 0.5 : 0;
+    for (const m of materials) {
+      m.uniforms.uRadius.value = radius;
+      m.uniforms.uOpacity.value = opacity;
+    }
+    gardenBoost.value = 0.9 * Math.sin(Math.PI * x) ** 2;
   });
   if (!alive) return null;
   return (
-    <mesh
-      geometry={sweepPlane}
-      material={material}
-      position={[floor[0], floor[1] + 0.014, floor[2]]}
-      renderOrder={LAYER.marker}
-      raycast={noRaycast}
-    />
+    <>
+      {FRAME.levelY.map((y, level) => (
+        <mesh
+          key={level}
+          geometry={levelPlane}
+          material={materials[level]}
+          position={[0, y + 0.014, 0]}
+          renderOrder={LAYER.marker - 0.2}
+          raycast={noRaycast}
+        />
+      ))}
+    </>
   );
 };

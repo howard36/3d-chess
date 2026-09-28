@@ -56,9 +56,17 @@ export const PALETTE = {
   // Marks, one meaning each
   /** White light: the held piece's glow and cone, hover's halo. */
   light: '#f3f6ff',
-  /** The last move's dashed line and rings. */
-  trace: '#f5f7ff',
-  capture: '#ff5646',
+  /**
+   * Where a piece may go: a soft gold of its own, clear of every level
+   * colour and of the white light, so a destination never reads as a level
+   * ring (its level shows as the tint of its fill).
+   */
+  move: '#f8c970',
+  /** The last move's line and circles: a pale mint, one hue step before level A. */
+  trace: '#acefd1',
+  /** A capture: a clear red. */
+  capture: '#ff4a3d',
+  /** Check: a deeper red, drawn in shapes of its own (crown, blades). */
   check: '#ff3338',
 
   // Type and HUD

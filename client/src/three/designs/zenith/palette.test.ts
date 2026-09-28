@@ -36,10 +36,28 @@ describe('zenith palette', () => {
       const m = hexToOklch(hex);
       for (const c of levels) expect(hueGap(m.h, c.h)).toBeGreaterThan(30);
     }
-    // White light for the last move and the held piece: nearly colourless
-    for (const hex of [PALETTE.trace, PALETTE.light, PALETTE.neon]) {
+    // White light for the held piece and the sculptures: nearly colourless
+    for (const hex of [PALETTE.light, PALETTE.neon]) {
       expect(hexToOklch(hex).c).toBeLessThan(0.03);
     }
+  });
+
+  it('gives moves and the last move colours of their own, clear of every level', () => {
+    const move = hexToOklch(PALETTE.move);
+    const trace = hexToOklch(PALETTE.trace);
+    for (const c of levels) {
+      // A move's gold is far from every level, so it never reads as a level ring
+      expect(hueGap(move.h, c.h)).toBeGreaterThan(60);
+      expect(hueGap(trace.h, c.h)).toBeGreaterThan(30);
+    }
+    for (const red of [PALETTE.capture, PALETTE.check].map(hexToOklch)) {
+      expect(hueGap(move.h, red.h)).toBeGreaterThan(40);
+      expect(hueGap(trace.h, red.h)).toBeGreaterThan(90);
+    }
+    expect(hueGap(move.h, trace.h)).toBeGreaterThan(60);
+    // Both clearly coloured, unlike the white light of the held piece
+    expect(move.c).toBeGreaterThan(0.08);
+    expect(trace.c).toBeGreaterThan(0.05);
   });
 });
 
