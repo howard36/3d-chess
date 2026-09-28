@@ -124,7 +124,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Start notice.** The server's message, sent the moment a game's second seat is taken, telling every player connected to the game that it has started, and each one its own color. It moves the share-link and joined screens to the board screen. A player whose page is not connected at that moment never receives it; the snapshot from their next rejoin says the game has started instead.
 
-**Land.** A move lands on a board when its echo, or a snapshot containing it, arrives and the browser replays it: the piece glides (or is simply drawn, for a move already in the record when the board appeared), the last-move trace moves, the turn indicator changes, and the move list gains the move, all at that moment and never before.
+**Land.** A move lands on a board when its echo, or a snapshot containing it, arrives and the browser replays it: the piece glides (or is simply drawn, for a move already in the record when the board appeared), the last-move trace moves, the turn pill changes, and the move list gains the move, all at that moment and never before.
 
 **Snapshot.** The server's answer to a rejoin: the player's color, whether the game has started, and the entire move record. A snapshot replaces everything the page knew about the move record, so moves are never counted twice.
 
@@ -144,7 +144,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Tap assist.** On a touch screen, a tap that reaches nothing the player can act on goes to the nearest thing they can (one of their own selectable pieces, or a legal destination) within a finger's reach, about 22 pixels. A mouse or pen click is never redirected. See [the input model](foundations/input-model.md#what-takes-a-press).
 
-**Click.** A press and release on an HTML control (a button, a link, the dialog backdrop). HTML controls act on release, as usual in a browser.
+**Click.** A press and release on an HTML control (a button, a link, the veil round a dialog). HTML controls act on release, as usual in a browser.
 
 **Takes the press.** The first piece or legal destination along the line from the camera through the pointer receives the press, and nothing behind it does. It must be the same object at the release as when the pointer went down. See [the input model](foundations/input-model.md#what-takes-a-press).
 
@@ -156,7 +156,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## Events that end or interrupt a request
 
-**Cancel.** The player abandons a request before it is sent: Escape, a Cancel button, a click on a dialog's backdrop, or a press on an empty cell of the board. Nothing is sent and nothing is recorded. A request that has been sent cannot be cancelled.
+**Cancel.** The player abandons a request before it is sent: Escape, a Cancel button, a click on the veil round the promotion dialog, or a press on an empty cell of the board. Nothing is sent and nothing is recorded. A request that has been sent cannot be cancelled.
 
 **Complete.** A request's answer arrives. What happens next depends on whether it was accepted or refused.
 

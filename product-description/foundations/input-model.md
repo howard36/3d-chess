@@ -89,7 +89,7 @@ Every feature document has the same eleven-row [cancel and interrupt](../README.
 
 | Row | What counts | What it is, in the glossary's terms |
 | --- | --- | --- |
-| Escape or Cancel | Escape (handled only by the promotion dialog), the promotion dialog's "Cancel" button, and a click on the promotion dialog's darkened backdrop. No other part of the app has a cancel. | [Cancel](../glossary.md#events-that-end-or-interrupt-a-request) |
+| Escape or Cancel | Escape (handled only by the promotion dialog), the promotion dialog's "Cancel" button, and a click on the veil round the promotion dialog. No other part of the app has a cancel. | [Cancel](../glossary.md#events-that-end-or-interrupt-a-request) |
 | Pressing elsewhere or turning the view | Any press on the board, any drag or wheel turn of the view, and clicks on other HTML controls (dismissing an error, scrolling the move list, typing in the move box, the settings). A press may clear a selection; turning the view never does. | The player doing something else |
 | Leaving the game page within the app | Browser Back or Forward to the start screen or straight to another game's page, the end-game dialog's "Start new game", and the crash screen's "Back to start" (which reloads the app at `/`). Each of these [resets](../glossary.md#events-that-end-or-interrupt-a-request) the connection. | Interrupt |
 | The game ends | This browser, replaying the record after a move arrives, finds checkmate or stalemate. The end-game dialog then covers the page. | Interrupt |

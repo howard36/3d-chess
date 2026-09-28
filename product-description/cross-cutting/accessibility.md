@@ -59,7 +59,7 @@ The field can be typed in at any time. While the board takes no input (a move in
 
 ### Escape
 
-Escape is the only key the app handles itself, and only in the promotion dialog, while keyboard focus is inside it; there it cancels the promotion exactly like "Cancel". Focus is inside the dialog from the moment it opens, and stays there unless the player tabs out to the browser's own controls or clicks the white panel anywhere but a button. Escape anywhere else does nothing: it does not clear a [selection](../glossary.md#selection-and-board-state), empty the move box, dismiss the error banner, or close the end-game or replaced dialog.
+Escape is the only key the app handles itself, and only in the promotion dialog, while keyboard focus is inside it; there it cancels the promotion exactly like "Cancel". Focus is inside the dialog from the moment it opens, and stays there unless the player tabs out to the browser's own controls or clicks the dialog's card anywhere but a button. Escape anywhere else does nothing: it does not clear a [selection](../glossary.md#selection-and-board-state), empty the move box, dismiss the error banner, or close the end-game or replaced dialog.
 
 ## Focus
 
@@ -140,7 +140,7 @@ The HUD boxes are translucent glass; their figures shift slightly over a bright 
 
 ### Controls that do not look like controls
 
-The buttons in the three dialogs (the five piece buttons, "Cancel", "Start new game", "Play here") and the error banner's "✕" have no border or background of their own. The page's base styles remove the browser's default button look, and these buttons set only a font size and padding, so, read from the styles, they appear as plain words. On a mouse, the pointer does not change over them. The move box's "Move" button and "Copy link" do have a white background and rounded corners. This was not checked by eye; see open questions.
+The dialogs' buttons now look like controls: the promotion dialog's five pieces are bordered tiles, and "Start new game" and "Play here" have a thin border of light. "Cancel" in the promotion dialog is plain muted text, and the error banner's "✕" is a small glyph. The move box's ↵ button is muted until a move is typed on the player's turn. Read from the HUD styles at `bb16fed`; not checked by eye.
 
 ## Motion
 
@@ -175,11 +175,11 @@ Every page declares its language as English, and all on-screen text is English. 
 | Event | Before sending | While in flight |
 | --- | --- | --- |
 | Escape or Cancel | Escape cancels the promotion dialog while focus is inside it, which it is from the moment it opens; "Cancel" works with Enter or Space. Either way focus falls to the page, and a screen reader is not told the dialog closed. Escape does nothing anywhere else, and does not empty the move box. | No effect. Nothing in flight can be cancelled from the keyboard or any other input. |
-| Pressing elsewhere or turning the view | A press on the board or a click on a non-focusable part of the page takes focus off the move box or a button. A click on the promotion panel between buttons does the same, after which Escape no longer works. The wheel changes nothing about focus. | No effect on focus. The board is [held](../glossary.md#selection-and-board-state): presses do nothing and "Move" is disabled; the turn pill still lights the player's half, and nothing says the move is on its way. |
+| Pressing elsewhere or turning the view | A press on the board or a click on a non-focusable part of the page takes focus off the move box or a button. A click on the promotion panel between buttons does the same, after which Escape no longer works. The wheel changes nothing about focus. | No effect on focus. The board is [held](../glossary.md#selection-and-board-state): presses do nothing and the move box sends nothing; the turn pill still lights the player's half, and nothing says the move is on its way. |
 | Leaving the game page within the app | "Start new game" (focused when the end-game dialog opens), "Back to start", or browser Back (Alt+Left or Cmd+[ on the keyboard) change the page without moving focus or changing the title; a screen reader is not told the page changed. | Same. The answer to the request is lost to this page, as described in each feature's own table. |
 | The game ends | The end-game dialog opens with focus on "Start new game" and is announced as a dialog named by its result. The board, the HUD, and the move box behind it are inert. | Same when the player's own move ends the game: the move lands and the dialog takes focus from the move box. |
 | The server answers with an error | Not applicable: nothing sent. An error answering the page's own automatic rejoin is announced as an alert like any other; a rejoin refused because another tab holds the seat opens the replaced dialog instead, which takes focus. | The error is announced as an alert, on the start screen or in the error banner. Focus is not moved; the banner's "✕" ("Dismiss error") can be reached with Tab, and dismissing it drops focus to the page. |
-| The connection drops | The start screen's status line changes to "Reconnecting to server…" and is announced politely. On the game page the reconnecting line appears under the dimmed turn pill and is announced politely; the board and the move box stop taking input without any text saying so, and an open promotion dialog closes, taking focus with it. | Same. Nothing announces whether a move in flight was recorded; the next snapshot changes the board silently, and the turn indicator announces its new text if the turn changed. |
+| The connection drops | The start screen's status line changes to "Reconnecting to server…" and is announced politely. On the game page the reconnecting line appears under the dimmed turn pill and is announced politely; the board and the move box stop taking input without any text saying so, and an open promotion dialog closes, taking focus with it. | Same. Nothing announces whether a move in flight was recorded; the next snapshot changes the board silently, and the move announcement speaks for any move that lands. |
 | The window loses focus or the tab is hidden | No effect. The browser remembers which control had focus and restores it when the window returns; an open promotion dialog keeps whichever of its buttons had focus. | No effect. Anything that arrived while the tab was hidden is announced as it arrives, if the screen reader is reading that tab; the unchanging title gives no sign of it. |
 | Reload or closing the tab | Focus starts over: nothing is focused after the reload. | Same. |
 | The opponent acts | The opponent's moves are announced as they land, and their leaving and returning through the presence status; their joining is not announced. Focus is not disturbed, so a player typing in the move box keeps typing. | Same. |
@@ -194,7 +194,7 @@ After any interrupt, focus is where it was, on the page itself, or on the first 
 
 **The game record.** The move list is the only text form of the whole record and of the position. It is a list named "Move history", in the page whether or not Keyboard play shows it; it is not a live region, but every move is announced as it lands by the move announcement.
 
-**Connection.** The start screen's connection status and the game page's reconnecting banner are marked as status messages, and every error is marked as an alert. That the board and the move box do not take input while disconnected, or while a rejoin is answered, is shown by nothing but the banner and the disabled "Move".
+**Connection.** The start screen's connection status and the game page's reconnecting banner are marked as status messages, and every error is marked as an alert. That the board and the move box do not take input while disconnected, or while a rejoin is answered, is shown by nothing but the reconnecting line and the move box's ↵ button staying muted; Enter then sends nothing and says nothing.
 
 **The opponent.** The opponent's moves are announced as they land, and their connection through the presence status ("Your opponent is offline."). Their joining is not announced.
 

@@ -56,7 +56,7 @@ The settings panel opens under the gear on a wide window; on a phone held uprigh
 
 ## Dialogs on small screens
 
-All three dialogs are centered over a backdrop that covers the whole window, and all fit a phone's width:
+All three dialogs are glass cards centered over a veil that covers the whole window, and all fit a phone's width:
 
 - **The [promotion dialog](../play/promotion.md)**: the five piece buttons sit in a row and wrap onto a second (or third) line when the panel is narrow; "Cancel" stays below them. Each piece button is roughly 40 px tall, a comfortable touch target.
 - **The [end-game dialog](../play/check-and-game-end.md)**: at most 420 px wide, with at least 16 px between it and the window's edges, and 48 px of padding on each side inside it; on a 375 px screen its heading wraps within about 250 px.
@@ -90,7 +90,7 @@ Touches on the board never scroll or zoom the page: the board claims every touch
 
 Touches on the move card, the error banner, the settings gear and panel, and the dialogs are ordinary web page touches. A tap is a [click](../glossary.md#input) and acts when the finger lifts. A touch on one of these never reaches the board. A one-finger drag on the move list scrolls it. A touch on the turn pill, or on the reconnecting line or frozen-board banner, is a touch on the board behind it. A pinch on an HTML panel that takes the pointer, or anywhere on the start screen and the pre-game screens, may zoom the whole page, since the page allows it; a page zoomed that way can be zoomed back out only by pinching on such a panel, because a pinch on the board zooms the view instead. See open questions.
 
-The move box's field brings up the on-screen keyboard when tapped. The field turns off the browser's suggestions of earlier entries and its spell checking; a phone that capitalizes the first letter typed does no harm, because cells are read in either case. "Move" is a small button beside it; Enter on the on-screen keyboard also sends the move.
+The move box's field brings up the on-screen keyboard when tapped. The field turns off the browser's suggestions of earlier entries and its spell checking; a phone that capitalizes the first letter typed does no harm, because cells are read in either case. The ↵ button is a small button beside it; Enter on the on-screen keyboard also sends the move.
 
 The error banner's "✕" is 28 × 28 px, which is small for a finger. "Cancel" in the promotion dialog is plain text of ordinary size. The other buttons have generous padding.
 
@@ -120,8 +120,8 @@ The board is redrawn only when something changes: while the view is being turned
 
 | Event | Before sending | While in flight |
 | --- | --- | --- |
-| Escape or Cancel | A phone or tablet without a keyboard has no Escape. The promotion dialog is cancelled by tapping "Cancel" or the darkened backdrop around the panel. | No effect. Nothing in flight can be cancelled. |
-| Pressing elsewhere or turning the view | Only a tap acts on the board; every drag or pinch only turns the view, so a selection survives them; see [touch on the board](#touch-on-the-board). Touches on the move box, the error banner, and the move list never reach the board. | The board is [held](../glossary.md#selection-and-board-state): taps on it do nothing and "Move" is disabled, but one- and two-finger gestures still turn the view. |
+| Escape or Cancel | A phone or tablet without a keyboard has no Escape. The promotion dialog is cancelled by tapping "Cancel" or the veil around the card. | No effect. Nothing in flight can be cancelled. |
+| Pressing elsewhere or turning the view | Only a tap acts on the board; every drag or pinch only turns the view, so a selection survives them; see [touch on the board](#touch-on-the-board). Touches on the move box, the error banner, and the move list never reach the board. | The board is [held](../glossary.md#selection-and-board-state): taps on it do nothing and the move box sends nothing, but one- and two-finger gestures still turn the view. |
 | Leaving the game page within the app | A tap on "Start new game" or "Back to start" works as a click. Phone browsers may also go back on a swipe from the screen's edge; whether a one-finger drag that starts near the edge of the board goes back instead of orbiting (which would leave the game and [reset](../glossary.md#events-that-end-or-interrupt-a-request) the connection) was not tried. | Same. The answer to the request is lost to this page, as described in each feature's own table. |
 | The game ends | The end-game dialog fits any phone; "Start new game" is tapped like any button. A drag already under way may go on turning the view until the finger lifts; no new touch reaches the board. | Same, when the player's own move ends the game. |
 | The server answers with an error | Not applicable: nothing sent. | The error banner appears under the turn pill (at the top left on a phone on its side), clear of the board's middle. Its "✕" is a small target. |

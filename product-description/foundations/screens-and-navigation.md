@@ -64,7 +64,7 @@ Overlays appear on top of whichever screen is showing:
 - the [replaced dialog](../session/second-tab.md), while another tab holds the seat (every screen);
 - on the board screen only: the [promotion dialog](../play/promotion.md), the [end-game dialog](../play/check-and-game-end.md), and the [frozen-board banner](../cross-cutting/broken-game-record.md).
 
-The three dialogs work the same way. Each covers the whole window with a darkened backdrop, puts keyboard focus on its first button ("Play here", "Start new game", "Queen"), and makes everything behind it inert: the board, the HUD, or the screen's own content cannot be clicked, reached with Tab, or read by a screen reader until the dialog goes away. (On the share-link, join, and joined screens, the error banner is not part of that content: its "✕" can still be reached with Tab behind the replaced dialog, though not clicked.) Only the promotion dialog can be dismissed without answering it (see [the input model](input-model.md#html-controls-and-the-keyboard)).
+The three dialogs work the same way. Each is a glass card over a veil that covers the whole window, puts keyboard focus on its first button ("Play here", "Start new game", "Queen"), and makes everything behind it inert: the board, the HUD, or the screen's own content cannot be clicked, reached with Tab, or read by a screen reader until the dialog goes away. (On the share-link, join, and joined screens, the error banner is not part of that content: its "✕" can still be reached with Tab behind the replaced dialog, though not clicked.) Only the promotion dialog can be dismissed without answering it (see [the input model](input-model.md#html-controls-and-the-keyboard)).
 
 The screens themselves are described in [waiting for an opponent](../start/waiting-for-an-opponent.md) (share-link), [joining a game](../start/joining-a-game.md) (join and joined), and the `play/` and `game-page/` documents (board).
 
@@ -75,7 +75,7 @@ The app changes pages in three ways of its own, and the browser adds its usual c
 | Action | From | To | What happens to the game on this page |
 | --- | --- | --- | --- |
 | The new game's id arrives after "Start New Game" | start screen | the new game page | The page arrives already holding the creator's seat; no rejoin. A new history entry is added. |
-| "Start new game" in the end-game dialog | board screen | start screen | The connection is reset: the opponent sees "Opponent: offline". A new history entry is added, so Back returns to the finished game. |
+| "Start new game" in the end-game dialog | board screen | start screen | The connection is reset: the opponent sees the player "Offline" on their turn pill. A new history entry is added, so Back returns to the finished game. |
 | "Back to start" on the crash screen | crash screen | start screen | A full page load, like typing the address. |
 | Browser Back or Forward to the start screen | game page | start screen | The connection is reset, as above. |
 | Browser Back or Forward to a game page | start screen | game page | A game page opened fresh: it rejoins with the stored seat, or shows the join screen without one. |
@@ -97,7 +97,7 @@ A game id that does not exist, or has expired, opens a normal game page: the joi
 
 If the page hits an error it cannot handle while drawing itself, the whole page is replaced by the crash screen: the heading "Something went wrong", the sentence "The app hit an unexpected error. Your game lives on the server, so reloading is safe — it will restore the current position.", and a "Back to start" link.
 
-"Back to start" loads `/` from scratch, like typing the address; it is a link, so it can also be opened in a new tab. Reloading the page instead, as the sentence suggests, reopens the game page and rejoins. Nothing on the crash screen says what went wrong. Replacing the page also closes its connection, so the opponent sees "Opponent: offline" as soon as the crash screen appears.
+"Back to start" loads `/` from scratch, like typing the address; it is a link, so it can also be opened in a new tab. Reloading the page instead, as the sentence suggests, reopens the game page and rejoins. Nothing on the crash screen says what went wrong. Replacing the page also closes its connection, so the opponent sees the player "Offline" on their turn pill as soon as the crash screen appears.
 
 The crash screen is a last resort. A move record the browser cannot replay does not crash the page; it freezes the board with a banner instead ([the broken game record](../cross-cutting/broken-game-record.md)). Whether a browser that cannot draw 3D at all reaches the crash screen or shows an empty board screen is not known; see [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
 
@@ -127,7 +127,7 @@ Navigation has no request of its own, but each interrupt row applies to the page
 
 **Connection.** One connection per tab, opened when the app loads and kept across the in-app move from the start screen to a game page; reset on every arrival at the start screen and on every move from one game's page to another's; replaced by a new one on every full page load.
 
-**The opponent.** Every route that closes this tab's connection (reset, reload, closing, a link away) makes the opponent see "Opponent: offline". Returning to the game makes them see "Opponent: online".
+**The opponent.** Every route that closes this tab's connection (reset, reload, closing, a link away) makes the opponent see "Offline". Returning to the game makes them see the player online again.
 
 **Other tabs and devices.** Each tab navigates independently. Two tabs on the same game page of the same browser compete for the seat; see [a second tab](../session/second-tab.md).
 
@@ -156,6 +156,7 @@ Navigation has no request of its own, but each interrupt row applies to the page
 - The claim that the crash screen closes the page's connection (the crashed page is taken down along with everything it owned) is read from code; not observed.
 - Whether a browser without 3D support reaches the crash screen was not tried.
 
+- The HUD wording in this document (the turn pill, presence as "Offline" on it, the move box behind Keyboard play or Tab, the dialogs as glass cards over a veil) was brought up to the new HUD from `client/src/screens/` and the [game page documents](../game-page/turn-indicator.md) at `bb16fed`, not checked in the running app, and needs re-verification.
 - The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`

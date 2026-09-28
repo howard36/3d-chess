@@ -223,8 +223,8 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 ### B-16: The presence line goes stale while the player is disconnected
 
 - **Where the user meets it:** During "Reconnecting…", or behind the replaced dialog.
-- **What happens / what was expected:** "Opponent: online" stays on screen although nothing can update it; the opponent may have left. After a rejoin while waiting, the board can open showing "Opponent: offline" for an instant before the join's own report. Expected: the line hidden or marked unknown while disconnected.
-- **Reproduce:** Hold White's connection down; close Black's page; White still shows "Opponent: online".
+- **What happens / what was expected:** The opponent stays shown online (no "Offline") although nothing can update it; the opponent may have left. After a rejoin while waiting, the board can open showing "Offline" for an instant before the join's own report. Expected: the line hidden or marked unknown while disconnected.
+- **Reproduce:** Hold White's connection down; close Black's page; White still shows Black online (no "Offline").
 - **Why (from the code):** `client/src/game/session.ts:57-64` reads the latest report in the whole log; `client/src/screens/GameScreen.tsx:301-308` shows it in every connection state.
 - **Severity:** `low`.
 - **Decision needed:** `product call`.
