@@ -29,8 +29,8 @@ type P2 = [number, number];
  * The tower's outline on screen (NDC, x scaled by the aspect),
  * counterclockwise, the first corner repeated after the last.
  */
-export const towerHull = { value: Array.from({ length: HULL_MAX + 1 }, () => new Vector2()) };
-export const towerHullCount = { value: 0 };
+const towerHull = { value: Array.from({ length: HULL_MAX + 1 }, () => new Vector2()) };
+const towerHullCount = { value: 0 };
 /** The drawing buffer's size in pixels and its aspect, to find NDC per fragment. */
 export const shadeViewport = { value: new Vector3(1, 1, 1) };
 /** The gradient's width (NDC). */

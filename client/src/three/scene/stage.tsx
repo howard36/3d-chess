@@ -424,7 +424,7 @@ const SIZES = GARDEN.map(({ type, at }) => ({
  * How each sculpture stands on screen: how much the tower's shade darkens
  * it, and how much of it is in frame.
  */
-export interface SculptureView {
+interface SculptureView {
   /** The tower's shade over the sculpture, on average: 0 clear, 1 dark. */
   cover: number;
   /** Share of the sculpture's screen rectangle inside the frame, 0–1. */

@@ -77,7 +77,7 @@ const smooth = (t: number) => t * t * (3 - 2 * t);
 const clamp01 = (t: number) => Math.min(Math.max(t, 0), 1);
 
 /** The held light's state, advanced by stepSelection and read by SelectionLight. */
-export interface SelectState {
+interface SelectState {
   /** ms since the piece was picked up, or -1 while it is not held. */
   since: number;
   /** How far the column has risen, 0–1 of its height. */
@@ -195,7 +195,7 @@ const columnGeometry = new CylinderGeometry(
  * the piece's own height (times the setting), so a pawn's is shorter; never
  * as tall as the gap to the level above.
  */
-export const COLUMN_SCALE = 0.9;
+const COLUMN_SCALE = 0.9;
 const COLUMN_MAX = 1.55;
 export const columnHeight = (top: number, heldLift: number, setting: number) =>
   Math.min(heldLift + COLUMN_SCALE * setting * top, COLUMN_MAX);

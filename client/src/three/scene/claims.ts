@@ -31,7 +31,7 @@ export const useClaim = (kind: ClaimKind, floor: Vec3) => {
 };
 
 /** A point in world space (a Vector3, or any x, y, z). */
-export interface Point {
+interface Point {
   x: number;
   y: number;
   z: number;

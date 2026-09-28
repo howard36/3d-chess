@@ -51,7 +51,7 @@ const JX = 0.137;
 const JZ = 0.291;
 
 /** Every triangle of `geometries` as vertical-ray crossings, filled into a solid grid. */
-export const voxelize = (geometries: BufferGeometry[]): Uint8Array => {
+const voxelize = (geometries: BufferGeometry[]): Uint8Array => {
   const crossings: number[][] = Array.from({ length: NX * NX }, () => []);
   for (const g of geometries) {
     const p = g.getAttribute('position');

@@ -301,7 +301,7 @@ const colorAtLevel = (level: number, out: Color) => {
  * own). With a `level`, its foot band shows that level's light; without,
  * the foot is painted like the body.
  */
-export const bodyMaterial = (color: PieceColor, type: PieceType, level?: number) => {
+const bodyMaterial = (color: PieceColor, type: PieceType, level?: number) => {
   const g = GLAZE[color];
   // The charcoal knight's accent is its whole carved mane, many small faces
   // turned to the key: a shade deeper and less glossy, so it stays pewter

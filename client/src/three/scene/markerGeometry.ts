@@ -106,7 +106,7 @@ export const pointAlong = (
   return { point: add(points[i - 1], scale(d, k)), tangent: unit(d) };
 };
 
-export interface TubeOptions {
+interface TubeOptions {
   /** Radius of the tube (world units). */
   radius: number;
   /** Vertices round each ring (default 8: thin lines need few). */
@@ -121,7 +121,7 @@ export interface TubeOptions {
   radiusAt?: (s: number, length: number) => number;
 }
 
-export interface TubeData {
+interface TubeData {
   position: Float32Array;
   normal: Float32Array;
   /**

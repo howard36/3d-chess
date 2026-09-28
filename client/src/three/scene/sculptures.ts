@@ -16,16 +16,16 @@ import { smoothLoop } from '../pieces/profile';
 // axis, so the flat outline stands on a real footprint. Pure geometry, so it
 // can be tested without WebGL.
 
-export type P2 = [number, number];
+type P2 = [number, number];
 
-export interface Outline {
+interface Outline {
   points: P2[];
   closed: boolean;
   /** Bent smooth, as a neon tube is (a silhouette); false keeps it as drawn (a detail). */
   smooth?: boolean;
 }
 
-export interface SculptureDrawing {
+interface SculptureDrawing {
   /** Curves in the drawing plane (x across, y up), turned to face the viewer. */
   outlines: Outline[];
   /** Horizontal rings round the axis: radius and height. */

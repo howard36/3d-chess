@@ -1,19 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import {
-  BackSide,
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  DynamicDrawUsage,
-  InstancedMesh,
-  Matrix4,
-  ShaderMaterial,
-  SphereGeometry,
-} from 'three';
+import { BufferAttribute, BufferGeometry, Color, ShaderMaterial } from 'three';
 import { prefersReducedMotion } from '../motion';
 import { LAYER } from './layers';
-import { pathDistances, pointAlong, tracePath, tubeData } from './markerGeometry';
+import { pathDistances, tracePath, tubeData } from './markerGeometry';
 import type { TracePathOptions } from './markerGeometry';
 import { noRaycast } from '../noRaycast';
 import type { Vec3 } from '../types';
@@ -27,45 +17,23 @@ import type { Vec3 } from '../types';
 // an `inset` (TracePathOptions) it lands on the destination's floor beside
 // the piece standing there rather than running into it.
 
-export type LinePattern = 'solid' | 'dashed' | 'dotted';
-
-export interface LineStyle extends Omit<TracePathOptions, 'arc'> {
+interface LineStyle extends Omit<TracePathOptions, 'arc'> {
   color?: string;
   /** Colour the flow brightens toward (default: `color` lifted toward white). */
   pulseColor?: string;
   opacity?: number;
   /** Radius of the tube (world units). Thin: the line should not take much room. */
   radius?: number;
-  /**
-   * 'solid': a soft pulse drifts along the line. 'dashed': the dashes drift,
-   * each brightening toward its front. 'dotted': a row of small beads drifts.
-   */
-  pattern?: LinePattern;
-  /** Speed of the flow toward the destination, world units a second (0: still). */
+  /** Speed of the soft pulse drifting toward the destination, world units a second (0: still). */
   flowSpeed?: number;
-  /**
-   * Contrast of the flow, 0–1: how far the pulse brightens the line toward
-   * `pulseColor` (solid), or how much brighter a dash's front is than its
-   * back (dashed).
-   */
+  /** Contrast of the pulse, 0–1: how far it brightens the line toward `pulseColor`. */
   pulse?: number;
-  /** Length of the solid line's pulse (world units). */
+  /** Length of the pulse (world units). */
   pulseLength?: number;
-  /** Distance between pulses, dashes or beads (world units). */
+  /** Distance between pulses (world units). */
   spacing?: number;
-  /** Share of each spacing a dash fills (dashed). */
-  dash?: number;
-  /** Radius of a bead (dotted; default twice the tube's radius). */
-  beadRadius?: number;
   /** How much darker the tube's sides are than its middle, so it reads as round (0: flat). */
   shade?: number;
-  /**
-   * A thin keyline round the tube in this colour (solid and dashed), for a
-   * line that must hold on any background or a drawn, inked look.
-   */
-  outline?: string;
-  /** Width of the keyline (world units; default 0.6 of the radius). */
-  outlineWidth?: number;
   /** Vertices round the tube. */
   radialSegments?: number;
   /**
@@ -82,15 +50,13 @@ const LINE_DEFAULTS = {
   color: '#4cc9f0',
   opacity: 0.95,
   radius: 0.018,
-  pattern: 'solid',
   flowSpeed: 0.6,
   pulse: 0.5,
   pulseLength: 0.3,
+  spacing: 1.6,
   shade: 0.35,
-  dash: 0.55,
 } as const satisfies LineStyle;
 
-const SPACING: Record<LinePattern, number> = { solid: 1.6, dashed: 0.16, dotted: 0.14 };
 // A reveal past any line's length: the whole line
 const ALL = 1e6;
 
@@ -119,9 +85,7 @@ const lineMaterial = (clock: { value: number }) =>
       uPulse: { value: 0 },
       uPulseLength: { value: 0.3 },
       uSpacing: { value: 1 },
-      uDash: { value: 0.5 },
       uReveal: { value: ALL },
-      uPattern: { value: 0 },
     },
     vertexShader,
     fragmentShader,
@@ -133,17 +97,9 @@ const vertexShader = /* glsl */ `
   varying vec3 vNormal;
   varying vec3 vView;
   void main() {
-    mat4 model = modelMatrix;
-    #ifdef USE_INSTANCING
-      model = modelMatrix * instanceMatrix;
-    #endif
-    vec4 world = model * vec4(position, 1.0);
-    #ifdef USE_INSTANCING
-      vAlong = 0.0;
-    #else
-      vAlong = aAlong;
-    #endif
-    vNormal = normalize(mat3(model) * normal);
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vAlong = aAlong;
+    vNormal = normalize(mat3(modelMatrix) * normal);
     vView = cameraPosition - world.xyz;
     gl_Position = projectionMatrix * viewMatrix * world;
   }`;
@@ -158,43 +114,24 @@ const fragmentShader = /* glsl */ `
   uniform float uPulse;
   uniform float uPulseLength;
   uniform float uSpacing;
-  uniform float uDash;
   uniform float uReveal;
-  uniform int uPattern;
   varying float vAlong;
   varying vec3 vNormal;
   varying vec3 vView;
   void main() {
     if (vAlong > uReveal) discard;
     // Position within the repeating flow, moving toward the destination
-    float phase = (vAlong - uTime * uFlow) / uSpacing;
-    float f = fract(phase);
-    float a = uOpacity;
-    float glow = 0.0;
-    if (uPattern == 1) {
-      // Dashes centred in each period, antialiased along the line, each
-      // brightening toward its front
-      float d = abs(f - 0.5) - uDash * 0.5;
-      float aa = max(fwidth(phase), 1e-4);
-      float on = 1.0 - smoothstep(-aa, aa, d);
-      if (on < 0.01) discard;
-      a *= on;
-      glow = uPulse * clamp((f - 0.5 + uDash * 0.5) / max(uDash, 1e-3), 0.0, 1.0);
-    } else if (uPattern == 0) {
-      // One soft pulse per period
-      float x = (f - 0.5) * uSpacing / max(uPulseLength, 1e-3);
-      glow = uPulse * exp(-x * x * 4.0);
-    }
+    float f = fract((vAlong - uTime * uFlow) / uSpacing);
+    // One soft pulse per period
+    float x = (f - 0.5) * uSpacing / max(uPulseLength, 1e-3);
+    float glow = uPulse * exp(-x * x * 4.0);
     float facing = abs(dot(normalize(vNormal), normalize(vView)));
     vec3 col = uColor * (1.0 - uShade + uShade * facing);
     col = mix(col, uPulseColor, glow);
-    gl_FragColor = vec4(col, a);
+    gl_FragColor = vec4(col, uOpacity);
     #include <colorspace_fragment>
   }`;
 
-const PATTERN_ID: Record<LinePattern, number> = { solid: 0, dashed: 1, dotted: 2 };
-const bead = new SphereGeometry(1, 12, 8);
-const matrix = new Matrix4();
 const WHITE = new Color('#ffffff');
 /**
  * The last move's line between two cell floors (MarkerProps.floor), with
@@ -209,16 +146,11 @@ export const LastMoveLine = ({
   pulseColor,
   opacity = LINE_DEFAULTS.opacity,
   radius = LINE_DEFAULTS.radius,
-  pattern = LINE_DEFAULTS.pattern,
   flowSpeed = LINE_DEFAULTS.flowSpeed,
   pulse = LINE_DEFAULTS.pulse,
   pulseLength = LINE_DEFAULTS.pulseLength,
-  spacing,
-  dash = LINE_DEFAULTS.dash,
-  beadRadius,
+  spacing = LINE_DEFAULTS.spacing,
   shade = LINE_DEFAULTS.shade,
-  outline,
-  outlineWidth,
   radialSegments = 8,
   drawInMs = 0,
   drawInDelayMs = 0,
@@ -229,13 +161,10 @@ export const LastMoveLine = ({
   insetFront,
 }: LineStyle & { from: Vec3; to: Vec3; arc?: number }) => {
   const invalidate = useThree((s) => s.invalidate);
-  const beadSize = beadRadius ?? radius * 2;
   // Clear of the platform, whatever the thickness
-  const height = lift ?? (pattern === 'dotted' ? beadSize : radius) + 0.012;
-  const gap = spacing ?? SPACING[pattern];
+  const height = lift ?? radius + 0.012;
   const flow = prefersReducedMotion() ? 0 : flowSpeed;
 
-  const keyline = outline && pattern !== 'dotted' ? (outlineWidth ?? radius * 0.6) : 0;
   const key = JSON.stringify([
     from,
     to,
@@ -244,12 +173,11 @@ export const LastMoveLine = ({
     segments,
     radius,
     radialSegments,
-    pattern,
     inset,
     insetSide,
     insetFront,
   ]);
-  const { geometry, points, distances, length } = useMemo(() => {
+  const { geometry, length } = useMemo(() => {
     const points = tracePath(from, to, {
       lift: height,
       arc,
@@ -260,72 +188,26 @@ export const LastMoveLine = ({
     });
     const distances = pathDistances(points);
     const length = distances[distances.length - 1];
-    const geometry = pattern === 'dotted' ? null : tubeGeometry(points, radius, radialSegments);
-    return { geometry, points, distances, length };
+    const geometry = tubeGeometry(points, radius, radialSegments);
+    return { geometry, length };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
   }, [key]);
-  useEffect(() => () => geometry?.dispose(), [geometry]);
-  // The keyline: a slightly fatter tube showing only its far side, round the line
-  const hull = useMemo(
-    () => (keyline > 0 ? tubeGeometry(points, radius + keyline, radialSegments) : null),
-    [points, radius, keyline, radialSegments],
-  );
-  useEffect(() => () => hull?.dispose(), [hull]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   // The flow's clock: time on r3f's clock since the line appeared
   const clock = useMemo(() => ({ value: 0 }), []);
   const material = useMemo(() => lineMaterial(clock), [clock]);
-  const hullMaterial = useMemo(() => {
-    const m = lineMaterial(clock);
-    m.side = BackSide;
-    return m;
-  }, [clock]);
-  useEffect(
-    () => () => {
-      material.dispose();
-      hullMaterial.dispose();
-    },
-    [material, hullMaterial],
-  );
+  useEffect(() => () => material.dispose(), [material]);
   const u = material.uniforms;
-  const h = hullMaterial.uniforms;
   (u.uColor.value as Color).set(color);
   if (pulseColor) (u.uPulseColor.value as Color).set(pulseColor);
   else (u.uPulseColor.value as Color).set(color).lerp(WHITE, 0.6);
-  (h.uColor.value as Color).set(outline ?? color);
-  for (const v of [u, h]) {
-    v.uOpacity.value = opacity;
-    v.uFlow.value = flow;
-    v.uSpacing.value = gap;
-    v.uDash.value = dash;
-    v.uPattern.value = PATTERN_ID[pattern];
-  }
+  u.uOpacity.value = opacity;
+  u.uFlow.value = flow;
+  u.uSpacing.value = spacing;
   u.uShade.value = shade;
   u.uPulse.value = pulse;
   u.uPulseLength.value = pulseLength;
-  h.uShade.value = 0;
-  h.uPulse.value = 0;
-
-  // Beads: as many as fit the line, plus one entering while another leaves
-  const beads = useRef<InstancedMesh>(null);
-  const beadCount = pattern === 'dotted' ? Math.max(1, Math.ceil(length / gap) + 1) : 0;
-  const placeBeads = (revealed: number) => {
-    const mesh = beads.current;
-    if (!mesh) return;
-    const cycle = beadCount * gap;
-    const offset = (((clock.value * flow) % cycle) + cycle) % cycle;
-    for (let k = 0; k < beadCount; k++) {
-      const s = (k * gap + offset) % cycle;
-      // Grow in at the source, shrink away past the destination's centre
-      const grow = Math.min(s / (gap * 0.8), 1, Math.max((length - s) / (gap * 0.5), 0));
-      const shown = s <= length && s <= revealed ? grow : 0;
-      const { point } = pointAlong(points, Math.min(s, length), distances);
-      const r = beadSize * Math.max(shown, 1e-4);
-      matrix.makeScale(r, r, r).setPosition(point[0], point[1], point[2]);
-      mesh.setMatrixAt(k, matrix);
-    }
-    mesh.instanceMatrix.needsUpdate = true;
-  };
 
   // How much of the line is drawn, from its source, as time since mounting
   // (below zero while it waits to start)
@@ -335,8 +217,7 @@ export const LastMoveLine = ({
     const k = since.current / drawInMs;
     return k < 0 ? -1 : (1 - (1 - k) ** 2) * length;
   };
-  u.uReveal.value = h.uReveal.value = reveal();
-  useLayoutEffect(() => placeBeads(reveal()));
+  u.uReveal.value = reveal();
   useEffect(() => invalidate(), [invalidate]);
 
   useFrame((_, delta) => {
@@ -350,45 +231,17 @@ export const LastMoveLine = ({
       clock.value += Math.min(delta, 1 / 20);
       moving = true;
     }
-    u.uReveal.value = h.uReveal.value = reveal();
-    if (pattern === 'dotted') placeBeads(reveal());
+    u.uReveal.value = reveal();
     if (moving) invalidate();
   });
 
-  if (pattern === 'dotted') {
-    return (
-      <instancedMesh
-        ref={(m) => {
-          beads.current = m;
-          m?.instanceMatrix.setUsage(DynamicDrawUsage);
-        }}
-        key={beadCount}
-        args={[bead, material, beadCount]}
-        renderOrder={LAYER.trace}
-        raycast={noRaycast}
-        frustumCulled={false}
-      />
-    );
-  }
   return (
-    <>
-      {hull && (
-        <mesh
-          geometry={hull}
-          material={hullMaterial}
-          renderOrder={LAYER.trace}
-          raycast={noRaycast}
-          frustumCulled={false}
-        />
-      )}
-      <mesh
-        geometry={geometry!}
-        material={material}
-        // After its keyline, which it covers but for the rim
-        renderOrder={LAYER.trace + 0.1}
-        raycast={noRaycast}
-        frustumCulled={false}
-      />
-    </>
+    <mesh
+      geometry={geometry}
+      material={material}
+      renderOrder={LAYER.trace + 0.1}
+      raycast={noRaycast}
+      frustumCulled={false}
+    />
   );
 };

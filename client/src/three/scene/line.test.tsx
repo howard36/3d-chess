@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { act } from 'react';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
-import { BackSide, LessEqualDepth, Matrix4, Vector3 } from 'three';
-import type { BufferGeometry, InstancedMesh, Mesh, ShaderMaterial } from 'three';
+import { LessEqualDepth } from 'three';
+import type { BufferGeometry, Mesh, ShaderMaterial } from 'three';
 import { LastMoveLine } from './line';
 import { LAYER } from './layers';
 import type { Vec3 } from '../types';
@@ -75,15 +75,6 @@ describe('LastMoveLine', () => {
     expect(gd.boundingBox!.max.x).toBeCloseTo(0.01, 2);
   });
 
-  it('draws a keyline behind the tube when asked', async () => {
-    const r = await ReactThreeTestRenderer.create(
-      <LastMoveLine from={FROM} to={TO} outline="#111111" pattern="dashed" />,
-    );
-    const [hull, tube] = meshes(r.scene as ReactThreeTestInstance);
-    expect((hull.material as ShaderMaterial).side).toBe(BackSide);
-    expect(tube.renderOrder).toBeGreaterThan(hull.renderOrder);
-  });
-
   it('keeps flowing on a demand-rendered canvas, and draws in from the source', async () => {
     const r = await ReactThreeTestRenderer.create(
       <LastMoveLine from={FROM} to={TO} flowSpeed={0.5} drawInMs={300} />,
@@ -98,26 +89,5 @@ describe('LastMoveLine', () => {
     await act(async () => r.advanceFrames(20, 1 / 30));
     expect(u.uReveal.value).toBeGreaterThan(100);
     expect(u.uTime.value).not.toBe(t0);
-  });
-
-  it('lays beads along the line for the dotted pattern', async () => {
-    const r = await ReactThreeTestRenderer.create(
-      <LastMoveLine from={FROM} to={[1, 0, 0]} pattern="dotted" spacing={0.2} beadRadius={0.04} />,
-    );
-    const beads = (r.scene as ReactThreeTestInstance).findAll(
-      (n) => (n.instance as unknown as InstancedMesh).isInstancedMesh === true,
-    )[0].instance as unknown as InstancedMesh;
-    expect(beads.count).toBe(6);
-    const m = new Matrix4();
-    const p = new Vector3();
-    for (let i = 0; i < beads.count; i++) {
-      beads.getMatrixAt(i, m);
-      p.setFromMatrixPosition(m);
-      // On the line from source to destination, just off the floor
-      expect(p.z).toBeCloseTo(0);
-      expect(p.y).toBeCloseTo(0.04 + 0.012);
-      expect(p.x).toBeGreaterThanOrEqual(0);
-      expect(p.x).toBeLessThanOrEqual(1);
-    }
   });
 });
