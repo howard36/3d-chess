@@ -443,12 +443,6 @@ export const ringMaterial = (level: number) =>
 const HOVER_RATE = 1 / 0.18;
 const HOLD_RATE = 1 / 0.28;
 const CHECK_RATE = 1 / 0.25;
-/**
- * @deprecated Board's Lift is now the piece's whole lift (index.tsx reads the
- * heights from the settings), so a piece stands at Board's lift `y`. Kept
- * only until markers.tsx stops importing it; with no scale it returns `y`.
- */
-export const liftFor = (y: number, k = 1) => (y <= 0.08 ? y * k : 0.08 * k + (y - 0.08));
 const smooth = (x: number) => x * x * (3 - 2 * x);
 
 const at = new Vector3();
