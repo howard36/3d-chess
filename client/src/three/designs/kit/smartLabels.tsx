@@ -110,7 +110,10 @@ const origin = new Vector3();
  * ranks 1–5 just outside the two edges of the bottom platform (or of every
  * platform) nearest the camera, and each level letter A–E beside its own
  * platform at the corner furthest left on screen, so no label ever sits
- * inside or behind the tower, from either seat. When an orbit carries a label
+ * inside or behind the tower, from either seat. From a camera that dips
+ * under 6° (a design whose orbit allows it), files and ranks fade as their
+ * platform comes edge-on and take its far edges once the camera is under it;
+ * the level letters stay. When an orbit carries a label
  * to another edge or corner (past a hysteresis band), it crossfades there
  * rather than jumping. Labels are camera-facing sprites and grow part of the
  * way with distance (`distanceScaling`), so they stay legible zoomed out
@@ -271,14 +274,16 @@ export const SmartLabels = ({
         const sprite = sprites.current.get(label.id)?.[i];
         if (!sprite) continue;
         const fade = slot.fades[i];
-        sprite.visible = fade > 0.001;
         sprite.position.set(...slot.positions[i]);
         const w = label.level !== undefined ? emphasis.current[label.level] : 0;
         const s =
           size * grow * (label.level !== undefined ? levelScale * (1 + (focusScale - 1) * w) : 1);
         sprite.scale.set(s, s, 1);
         const dim = label.level !== undefined ? 1 - anyFocus.current * (1 - focusDim) * (1 - w) : 1;
-        (sprite.material as SpriteMaterial).opacity = opacity * fade * dim;
+        // A file or rank on a platform seen edge-on fades (labelAnchors' axisView)
+        const seen = label.opacity ?? 1;
+        sprite.visible = fade * seen > 0.001;
+        (sprite.material as SpriteMaterial).opacity = opacity * fade * dim * seen;
       }
     }
     if (moving) invalidate();

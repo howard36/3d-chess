@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { FILES, LEVELS, RANKS } from '../../../engine/coords';
 import { clarityTower, towerFrame } from './layouts';
 import {
+  axisView,
   cameraAzimuth,
   cameraRight,
   chooseEdges,
   chooseLevelCorner,
   CORNERS,
   labelAnchors,
+  LOW_ELEVATION,
 } from './labelAnchors';
 import type { AnchorState } from './labelAnchors';
 import type { Vec3 } from '../types';
@@ -286,5 +288,86 @@ describe('axis labels seen from above', () => {
     const a = low.labels.find((l) => l.id === 'file-a-0')!;
     const b = high.labels.find((l) => l.id === 'file-a-0')!;
     expect(a.key).not.toBe(b.key);
+  });
+});
+
+describe('axis labels seen from low down (a design whose orbit dips under 6°)', () => {
+  // Zenith's tower: the camera may look up from 20° below the horizon
+  const low = clarityTower({ minElevation: -20 });
+  const levelA = towerFrame(low).levelY[0];
+  const DIST = 14;
+  const axis = (labels: ReturnType<typeof labelAnchors>['labels']) =>
+    labels.filter((l) => l.level === undefined);
+  const letters = (labels: ReturnType<typeof labelAnchors>['labels']) =>
+    labels.filter((l) => l.level !== undefined);
+
+  it('leaves every label as it was at 6° and above, whatever the platform', () => {
+    for (const e of [6, 10, 18, 45, 89.9]) {
+      for (const y of [levelA, 0, 3, 40]) {
+        expect(axisView(cameraAt(16, e, DIST), TARGET, y)).toEqual({ opacity: 1, below: false });
+      }
+      const { labels } = labelAnchors(low, 'white', cameraAt(16, e, DIST), TARGET, null);
+      expect(labels.every((l) => l.opacity === undefined)).toBe(true);
+    }
+    expect(LOW_ELEVATION).toBeCloseTo(6 * DEG);
+  });
+
+  it('fades the files and ranks out as their platform comes edge-on, keeping the level letters', () => {
+    // The camera in the plane of level A
+    const onPlane = (Math.asin(levelA / DIST) * 180) / Math.PI;
+    for (const orientation of ['white', 'black'] as const) {
+      const { labels } = labelAnchors(low, orientation, cameraAt(16, onPlane, DIST), TARGET, null);
+      expect(axis(labels)).toHaveLength(10);
+      for (const l of axis(labels)) expect(l.opacity).toBeCloseTo(0);
+      expect(letters(labels).map((l) => l.text)).toEqual(LEVELS);
+      for (const l of letters(labels)) expect(l.opacity).toBeUndefined();
+    }
+  });
+
+  it('puts them on the far edges once the camera is under the platform, clear of it', () => {
+    for (const azimuth of [16, 100, 200, -60]) {
+      // Far under it (Zenith's lowest view shows them part-faded, at -20°)
+      const partly = labelAnchors(low, 'white', cameraAt(azimuth, -20, 20), TARGET, null).labels;
+      const cam = cameraAt(azimuth, -40, 20);
+      const above = labelAnchors(low, 'white', cameraAt(azimuth, 18, 20), TARGET, null).labels;
+      const under = labelAnchors(low, 'white', cam, TARGET, null).labels;
+      const fileAbove = above.find((l) => l.id === 'file-c-0')!;
+      const fileUnder = under.find((l) => l.id === 'file-c-0')!;
+      const rankAbove = above.find((l) => l.id === 'rank-3-0')!;
+      const rankUnder = under.find((l) => l.id === 'rank-3-0')!;
+      // Well under the plane: fully shown again, on the opposite edges
+      expect(fileUnder.opacity).toBeUndefined();
+      expect(Math.sign(fileUnder.position[2])).toBe(-Math.sign(fileAbove.position[2]));
+      expect(Math.sign(rankUnder.position[0])).toBe(-Math.sign(rankAbove.position[0]));
+      expect(fileUnder.key).not.toBe(fileAbove.key);
+      const fileLow = partly.find((l) => l.id === 'file-c-0')!;
+      expect(fileLow.key).toBe(fileUnder.key);
+      expect(fileLow.opacity).toBeGreaterThan(0);
+      // ...the far ones from this camera, outside the platform
+      const far = (p: Vec3) => Math.hypot(p[0] - cam[0], p[2] - cam[2]);
+      expect(far(fileUnder.position)).toBeGreaterThan(far(fileAbove.position));
+      expect(Math.abs(fileUnder.position[2])).toBeGreaterThan(frame.half);
+    }
+  });
+
+  it('changes smoothly on the way down, moving edge only while unseen', () => {
+    let prev: ReturnType<typeof labelAnchors> | null = null;
+    let moves = 0;
+    for (let e = 8; e >= -20; e -= 0.25) {
+      const next = labelAnchors(low, 'white', cameraAt(16, e, DIST), TARGET, prev?.state ?? null);
+      const file = next.labels.find((l) => l.id === 'file-a-0')!;
+      if (prev) {
+        const was = prev.labels.find((l) => l.id === 'file-a-0')!;
+        expect(Math.abs((file.opacity ?? 1) - (was.opacity ?? 1))).toBeLessThan(0.12);
+        if (file.key !== was.key) {
+          moves++;
+          expect(Math.max(file.opacity ?? 1, was.opacity ?? 1)).toBeLessThan(0.05);
+        }
+      }
+      // The level letters never fade
+      for (const l of letters(next.labels)) expect(l.opacity).toBeUndefined();
+      prev = next;
+    }
+    expect(moves).toBe(1);
   });
 });

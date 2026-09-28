@@ -9,6 +9,9 @@ import type { BoardLayout, Vec3 } from '../types';
 // level letter beside its platform's screen-left corner, outside the tower's
 // silhouette. Choices only change past a hysteresis band,
 // so an orbit that wavers around a boundary never makes the labels flicker.
+// A camera below LOW_ELEVATION (a design whose orbit goes that low) may see
+// the platform carrying the files and ranks edge-on, or from below: they
+// fade out near its plane, and take its far edges once under it (axisView).
 
 /** Which platform edges carry the axis labels: the sign of the edge's z (files) and x (ranks). */
 export interface EdgeChoice {
@@ -168,6 +171,52 @@ export const chooseAxisLevel = (
   return bottom <= 0 || worst(top) > 0 ? 0 : top;
 };
 
+const DEG = Math.PI / 180;
+
+/**
+ * Camera elevation (about the orbit target) under which the file and rank
+ * labels watch for their platform seen edge-on or from below. The kit's
+ * towers stop the camera at 6°, and above it the labels are exactly as they
+ * always were; the rules below take over across the 2° beneath it.
+ */
+export const LOW_ELEVATION = 6 * DEG;
+
+export interface AxisView {
+  /** How much the platform's files and ranks show, 0–1. */
+  opacity: number;
+  /** The camera is under the platform: the labels take its far edges. */
+  below: boolean;
+}
+
+/**
+ * How the file and rank labels of the platform at height `y` read from
+ * `camera`. The camera's grazing angle over the platform (its height above
+ * the plane, seen from the tower's axis) decides: near the plane the
+ * platform is seen edge-on, the ranks (a pitch apart in depth) crowd into
+ * one blot and the files sit among its pieces, so they fade out between
+ * `fadeFrom` and `fadeTo`; under the plane, its far edges are the lowest part of it on
+ * screen, clear of every piece and platform, so the labels move there (the
+ * mirror of the near edges from above). Only below LOW_ELEVATION.
+ */
+export const axisView = (
+  camera: Vec3,
+  target: Vec3,
+  y: number,
+  fadeFrom = 15 * DEG,
+  fadeTo = 6 * DEG,
+): AxisView => {
+  const v = sub(camera, target);
+  const elevation = Math.asin(v[1] / (Math.hypot(v[0], v[1], v[2]) || 1));
+  // 0 at LOW_ELEVATION and above (as always), 1 from 2° under it
+  const low = Math.min(Math.max((LOW_ELEVATION - elevation) / (2 * DEG), 0), 1);
+  // (a hair's tolerance, so a camera held at exactly 6° is above it)
+  if (low < 1e-6) return { opacity: 1, below: false };
+  const grazing = Math.atan2(camera[1] - y, Math.hypot(v[0], v[2]));
+  const k = Math.min(Math.max((Math.abs(grazing) - fadeTo) / (fadeFrom - fadeTo), 0), 1);
+  const shown = k * k * (3 - 2 * k);
+  return { opacity: 1 - low * (1 - shown), below: grazing < 0 };
+};
+
 export interface LabelAnchor {
   /** Stable identity of the label (one sprite pair per id). */
   id: string;
@@ -177,6 +226,11 @@ export interface LabelAnchor {
   position: Vec3;
   /** A level letter (A–E), index into the levels. */
   level?: number;
+  /**
+   * A file or rank label's visibility, 0–1, where its platform is seen
+   * edge-on (axisView); unset: fully shown.
+   */
+  opacity?: number;
 }
 
 export interface AnchorState {
@@ -242,20 +296,28 @@ export const labelAnchors = (
   for (const z of levels) {
     const files = o.everyLevel ? z : axisLevels.files;
     const ranks = o.everyLevel ? z : axisLevels.ranks;
+    // Seen from low down: faded near the platform's plane, on its far edges under it
+    const fileView = axisView(camera, target, frame.levelY[files]);
+    const rankView = axisView(camera, target, frame.levelY[ranks]);
+    const fileEdge = fileView.below ? -edges.files : edges.files;
+    const rankEdge = rankView.below ? -edges.ranks : edges.ranks;
+    const shown = (view: AxisView) => (view.opacity < 1 ? { opacity: view.opacity } : {});
     FILES.forEach((text, x) =>
       labels.push({
         id: `file-${text}-${z}`,
         text,
-        key: `z${edges.files}l${files}`,
-        position: [fileX[x], frame.levelY[files], fileZ],
+        key: `z${fileEdge}l${files}`,
+        position: [fileX[x], frame.levelY[files], fileEdge * (frame.half + offset)],
+        ...shown(fileView),
       }),
     );
     RANKS.forEach((text, r) =>
       labels.push({
         id: `rank-${text}-${z}`,
         text,
-        key: `x${edges.ranks}l${ranks}`,
-        position: [rankX, frame.levelY[ranks], rankZ[r]],
+        key: `x${rankEdge}l${ranks}`,
+        position: [rankEdge * (frame.half + offset), frame.levelY[ranks], rankZ[r]],
+        ...shown(rankView),
       }),
     );
   }
