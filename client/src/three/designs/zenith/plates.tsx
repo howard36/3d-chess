@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
 import { Color, DoubleSide, MeshBasicMaterial, PlaneGeometry, ShaderMaterial } from 'three';
 import { GRID_SIZE } from '../../layout';
@@ -117,6 +117,7 @@ const fragmentShader = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
+const WHITE = new Color('#ffffff');
 const FROST = 0.12;
 const SMOKE = 0.06;
 const LINE = 0.5;
@@ -128,21 +129,21 @@ const FILL = EDGE_WIDTH / 2;
 /** The five levels (see above). Decorative: nothing here takes a click. */
 export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
   const reach = FRAME.half + MARGIN;
-  const { plane, edge } = useMemo(
-    () => ({
-      // Out to the middle of the edge's light, so no seam can open between them
-      plane: new PlaneGeometry((reach + FILL) * 2, (reach + FILL) * 2).rotateX(-Math.PI / 2),
-      edge: frameGeometry(reach, EDGE_WIDTH, 0.03),
-    }),
+  // The player's border width and brightness (settings-env.ts): the square
+  // of light widens outward from the glass's edge, never into the squares
+  const borderWidth = useEnvSetting<number>('env.borderWidth');
+  const borderBright = useEnvSetting<number>('env.borderBrightness');
+  const plane = useMemo(
+    // Out to the middle of the edge's light, so no seam can open between them
+    () => new PlaneGeometry((reach + FILL) * 2, (reach + FILL) * 2).rotateX(-Math.PI / 2),
     [reach],
   );
-  useEffect(
-    () => () => {
-      plane.dispose();
-      edge.dispose();
-    },
-    [plane, edge],
+  const edge = useMemo(
+    () => frameGeometry(reach, EDGE_WIDTH * borderWidth, 0.03),
+    [reach, borderWidth],
   );
+  useEffect(() => () => plane.dispose(), [plane]);
+  useEffect(() => () => edge.dispose(), [edge]);
   const materials = useMemo(
     () =>
       LEVEL_COLORS.map((hex, z) => {
@@ -175,6 +176,7 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
             fragmentShader,
           }),
           // The edge: one thin square of the level's light, lifted toward white
+          edgeColor: tint.clone().lerp(new Color('#ffffff'), 0.3),
           edge: new MeshBasicMaterial({
             color: tint.clone().lerp(new Color('#ffffff'), 0.3),
             transparent: true,
@@ -207,6 +209,28 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
     }
     invalidate();
   }, [materials, checker, lines, invalidate]);
+  // Each edge's light: its focus (below) times the player's brightness. Up to
+  // full opacity the light is the edge's opacity; past it, its colour, which
+  // keeps its hue at full strength and then pales a little toward white, so
+  // a focused edge still stands out, in its own colour, at any brightness
+  const edgeLight = useRef(LEVEL_COLORS.map(() => EDGE));
+  const bright = useRef(borderBright);
+  bright.current = borderBright;
+  const applyEdge = (z: number) => {
+    const m = materials[z];
+    const light = edgeLight.current[z] * bright.current;
+    m.edge.opacity = Math.min(light, 1);
+    const c = m.edge.color.copy(m.edgeColor).multiplyScalar(Math.max(light, 1));
+    const peak = Math.max(c.r, c.g, c.b);
+    if (peak > 1) {
+      c.multiplyScalar(1 / peak).lerp(WHITE, Math.min((peak - 1) * 0.35, 0.4));
+    }
+  };
+  useEffect(() => {
+    materials.forEach((_, z) => applyEdge(z));
+    invalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- applyEdge reads refs
+  }, [materials, borderBright, invalidate]);
   useLevelFocus(
     focusLevel,
     (weights, any) => {
@@ -219,7 +243,8 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
         // The lead from above: the level attended to, else the top one
         const top = z === weights.length - 1 ? 1 : 0;
         m.glass.uniforms.uLead.value = Math.min(1, w + (1 - any) * top);
-        m.edge.opacity = EDGE * (1 - 0.35 * dim) + (1 - EDGE) * w;
+        edgeLight.current[z] = EDGE * (1 - 0.35 * dim) + (1 - EDGE) * w;
+        applyEdge(z);
       });
     },
     { ms: 160, key: materials },
