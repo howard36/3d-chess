@@ -139,12 +139,19 @@ Key decisions:
   the board in the window (`zoomRange` in `three/cameraFit.ts`); `FitCameraToBoard`
   recomputes the fit and the range whenever the window changes shape (a phone turned on
   its side) and opens the camera inside it, so a phone zooms over the same share of its
-  view as a desktop. The fit centres the board's outline on screen (with its labels: the
-  layout's `framePoints`) below the band kept for the HUD's top pill and the captured
-  pieces under it (82 px; 56 in a short window, where they stand beside the tower:
-  `hudBands`), by a lens shift
-  (a view offset, `three/viewOffset.ts`) rather than a pan, worked out again as the view
-  turns and zooms. The layout's `orbit.minDistance` only narrows the range, and its
+  view as a desktop. What the fit frames is the same from every side: circles about the
+  tower's axis round its platforms, its tallest pieces and every label wherever it can
+  stand (the layout's `frameRings`, `towerFrameRings` in `three/scene/labelAnchors.ts`; the
+  letters' ring only behind the tower, where their corner keeps to). It centres them
+  between the band kept for the HUD's top pill and the captured pieces under it (82 px; 56
+  in a short window, where they stand beside the tower: `hudBands`) and the bottom of the
+  window, by a lens shift (a view offset, `three/viewOffset.ts`) rather than a pan. A
+  circle about the axis looks the same whichever way the camera has turned, so the shift
+  is only ever vertical and follows the elevation and the zoom alone (`ringBounds`, eased
+  where one ring takes over from another): turning the view never moves it, and the
+  tower's axis stays in the middle of the window across. (Centring the outline as seen,
+  a diamond one moment and a square the next, with its labels wherever they stood, slid
+  the view sideways with kinks and jumps as it turned.) The layout's `orbit.minDistance` only narrows the range, and its
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
   sky, to straight down). The controls (`three/CameraControls.tsx`) are three's own
   OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the
@@ -290,8 +297,20 @@ foot. Far out, a colossal chessboard drawn in faint light carries twelve giant p
 outlined in white neon, which sink into the tower's shade as they near it on screen, so
 nothing competes with the board; overhead are stars and chess constellations for a camera
 that looks up. Files and ranks label the two edges of the bottom platform nearest the
-camera (the top one's, seen from high above), and each level letter sits beside its own
-platform, moving with a short crossfade as the view turns.
+camera (the top one's, seen from high above). The five level letters share one corner post:
+the one touching neither of those edges, diagonally across from the corner where they meet
+(`letterCorner` in `three/scene/labelAnchors.ts`). Each stands just outside its own
+platform's corner, out along the corner's diagonal, at its platform's height, so from the
+side they make one column up the post, A at the bottom, and from above a short line along
+the diagonal, each beside its own ring, never in line with the files or the ranks. They
+stand behind the tower from low down, so they are drawn over any piece in front of them.
+The edges, and with them the letters' corner, change only 5° past the point where two
+edges tie, with a short crossfade (the five letters together); held longer, from 40° to
+70° up the letters would stand at the tower's side level with the row running away from
+the camera on the other side, reading as its labels. Near a square view from those
+elevations that row runs up the screen like every corner post, and the letters stand
+across the tower from it. `scene/labelSweep.test.ts` checks every label at every pose
+the orbit reaches, from both seats.
 
 Play is marked in light on the glass: a thin gold circle round each square the selected
 piece can reach (fuller under the pointer), red round a capture, a mint line from the last
@@ -394,7 +413,13 @@ minutes). `--stills-fast` takes `--stills`' pictures without drawing the frames 
 them, several times faster. `--interact` records the pointer at work instead of a game:
 hover and unhover, selecting, hovering a quiet and a capture destination, switching
 straight to another piece, and deselecting, to `interact.mp4` plus a still per beat.
-`--knight arc` plays the game with knights arcing. Usage is at the top of the script.
+`--knight arc` plays the game with knights arcing. `--orbit` turns the camera slowly all the
+way round at five elevations from -14° to 89.9° and climbs from -14° to overhead and back,
+to `orbit.mp4` and a contact sheet, and prints a jitter report: how far the tower's centre
+moved on screen, the worst frame-to-frame lurch of any label, where the level letters
+changed corner, and a flag for every discontinuity, letter out of line, overlap or letters
+reading as one axis with the files or ranks (`--seat black`, `--width`/`--height` for a
+phone). Usage is at the top of the script.
 
 ### Piece set
 
