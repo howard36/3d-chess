@@ -85,7 +85,6 @@ const settled = async (page: Page) => {
 test('a one-finger drag turns the view even after a finger was never reported up', async ({
   browser,
 }) => {
-  test.setTimeout(120_000);
   const game = await startGame(browser);
   const page = game.white;
   const cdp = await page.context().newCDPSession(page);
