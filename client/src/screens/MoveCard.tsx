@@ -101,6 +101,20 @@ const MoveCard: React.FC<MoveCardProps> = ({
       aria-label="Moves"
       data-testid="move-card"
       data-hidden={revealed ? undefined : ''}
+      // Shown while keyboard focus is anywhere in it (the field or its
+      // button), so Tab never lands on something out of sight
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+      }}
+      onKeyDown={(e) => {
+        // Escape puts a card that Tab brought up away again (the text with it)
+        if (e.key === 'Escape' && !shown) {
+          setText('');
+          setProblem(null);
+          (document.activeElement as HTMLElement | null)?.blur();
+        }
+      }}
     >
       {shown && (
         <div className="hud-readout" aria-hidden style={{ opacity: readout ? 1 : 0.5 }}>
@@ -152,16 +166,6 @@ const MoveCard: React.FC<MoveCardProps> = ({
             onChange={(e) => {
               setText(e.target.value);
               setProblem(null);
-            }}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            onKeyDown={(e) => {
-              // Escape puts a revealed field away again (the text with it)
-              if (e.key === 'Escape' && !shown) {
-                setText('');
-                setProblem(null);
-                e.currentTarget.blur();
-              }
             }}
             autoComplete="off"
             autoCapitalize="off"

@@ -945,6 +945,10 @@ test('GameScreen keeps the move card out of sight until Keyboard play or Tab ask
   expect(field).toHaveFocus();
   expect(card).not.toHaveAttribute('data-hidden');
   expect(screen.getByText(/Esc to hide/)).toBeInTheDocument();
+  // Tab on to its button keeps it up; Escape puts it away
+  await userEvent.tab();
+  expect(screen.getByRole('button', { name: 'Play the move' })).toHaveFocus();
+  expect(card).not.toHaveAttribute('data-hidden');
   await userEvent.keyboard('{Escape}');
   expect(card).toHaveAttribute('data-hidden');
 
