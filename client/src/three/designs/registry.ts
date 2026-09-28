@@ -12,40 +12,45 @@ export const DESIGNS: DesignEntry[] = [
   {
     id: 'lumina',
     name: 'Lumina',
-    blurb: 'A holographic chess studio.',
-    swatch: ['#05070f', '#e9edf4', '#3a3450', '#4cc9f0'],
+    blurb:
+      'A holographic chess studio: pearl and graphite hard-light pieces in hexagons of light on teal-to-orchid panes.',
+    swatch: ['#05070f', '#eaeef5', '#3a374c', '#ffc458'],
     load: () => import('./lumina'),
     group: 'round4',
   },
   {
     id: 'meridian',
     name: 'Meridian',
-    blurb: 'A chess observatory under constellations of pieces.',
-    swatch: ['#05070f', '#e9edf4', '#3a3450', '#4cc9f0'],
+    blurb:
+      'A chess observatory at night: moonstone and obsidian on rose-to-ice glass decks, under constellations of chess pieces.',
+    swatch: ['#060913', '#e7ecf4', '#232a3c', '#ecd08a'],
     load: () => import('./meridian'),
     group: 'round4',
   },
   {
     id: 'simul',
     name: 'Simul',
-    blurb: 'A hall of light where a simultaneous exhibition plays on.',
-    swatch: ['#05070f', '#e9edf4', '#3a3450', '#4cc9f0'],
+    blurb:
+      'A hall of light where a simultaneous exhibition plays on: ivory and ebony on five boards of warm light, amid rows of glowing tables and chess clocks.',
+    swatch: ['#0c0806', '#f1e7d4', '#2e2019', '#efc64a'],
     load: () => import('./simul'),
     group: 'round4',
   },
   {
     id: 'monolith',
     name: 'Monolith',
-    blurb: 'A light-art garden of colossal chess sculptures.',
-    swatch: ['#05070f', '#e9edf4', '#3a3450', '#4cc9f0'],
+    blurb:
+      'A light-art garden at night: porcelain and charcoal pieces on five glass levels, colossal neon chess sculptures standing far off in the dark.',
+    swatch: ['#05070d', '#f0ede7', '#383b43', '#96a7ff'],
     load: () => import('./monolith'),
     group: 'round4',
   },
   {
     id: 'codex',
     name: 'Codex',
-    blurb: 'An opening book written in light.',
-    swatch: ['#05070f', '#e9edf4', '#3a3450', '#4cc9f0'],
+    blurb:
+      'An opening book written in light: jade and graphite pieces on phosphor-glass panes, with lines of theory drifting in the dark.',
+    swatch: ['#030b08', '#e6f0ea', '#28322e', '#6fe3b0'],
     load: () => import('./codex'),
     group: 'round4',
   },
