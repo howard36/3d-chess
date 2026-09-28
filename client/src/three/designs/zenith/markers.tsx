@@ -11,7 +11,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three';
-import type { Group, Mesh, Object3D } from 'three';
+import type { Group, Mesh } from 'three';
 import { PieceType } from '../../../engine/pieces';
 import { prefersReducedMotion } from '../../motion';
 import { pieceSet, pieceTop } from '../../pieces';
@@ -19,14 +19,13 @@ import { LAYER } from '../kit/layers';
 import { LastMoveLine } from '../kit/line';
 import { tracePath, tubeData } from '../kit/markerGeometry';
 import { noRaycast } from '../kit/noRaycast';
-import { useDesignSetting } from '../settings';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { claimed, heldAt, useClaim, useHeld } from './claims';
 import type { ClaimKind } from './claims';
-import { liftFor } from './pieces';
 import { LEVEL_COLORS, levelAt, MOTION, PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
-import { CAPTURE_STYLES, useMarkSetting } from './settings-markers';
-import type { CaptureStyle } from './settings-markers';
+import { Blades } from './blades';
+import { BLADE_STYLES, CAPTURE_STYLES, useMarkSetting } from './settings-markers';
+import type { BladeStyle, CaptureStyle } from './settings-markers';
 
 // The marks of play, one family of thin circles of light lying on the glass:
 //
@@ -39,11 +38,12 @@ import type { CaptureStyle } from './settings-markers';
 //   rim for a soft pool, so it never rings the piece.
 // - a capture: the same circle in red, drawn in place of the victim's own
 //   level ring (which steps aside, claims.ts), so two circles never stack;
-//   its one idea is a setting (settings-markers.ts): a short wall of red
-//   light rising from it round the victim's foot like a threat (the
-//   default), sparks of heat glowing up and dying away in a dark fill, a
-//   glow drawing in tight onto its rim from outside, four arcs
-//   closing in and breathing, or one mote circling it.
+//   its one idea is a setting (settings-markers.ts): four arcs of one
+//   radius and length turning slowly and evenly round the victim (the
+//   default), a short wall of red light rising round the victim's foot like
+//   a threat, sparks of heat glowing up and dying away in a dark fill, a
+//   glow drawing in tight onto its rim from outside, or one mote circling
+//   it.
 //   Hover as above (the rising glow also stands a little taller).
 // - the last move: a thin continuous line of deep mint light, a soft glow
 //   of white travelling calmly along it, from a small circle where the piece
@@ -52,10 +52,10 @@ import type { CaptureStyle } from './settings-markers';
 //   band with eight points. It strikes when check arrives (it lands a little
 //   large, flashes and sends one strong wave out), then breathes slowly,
 //   one faint ripple leaving it with each breath (reaching further when it
-//   stands alone). Over the king's cross floats a small crown of red light,
-//   turning slowly and riding up with him when he is lifted; four tall
-//   blades of red light with white-hot hearts can rise round him too. At
-//   mate it all settles as the king falls.
+//   stands alone). Round him stand dark, keen blades with red edges, in a
+//   style of the player's choosing (blades.tsx), and a small crown of red
+//   light can float over his cross, turning slowly. At mate it all settles
+//   as the king falls.
 //
 // Every flat mark is one quad shaded by a signed distance, crisp at any
 // angle, and drawn over every level (LAYER), so a mark three levels down
@@ -172,10 +172,7 @@ const fragmentShader = /* glsl */ `
       float R = mix(uRadius, uSoftRadius, soft);
       float k = r / R;
       bool capture = uKind == 1;
-      // Closing arcs: the circle draws in and out, slowly
-      float breath = 0.5 - 0.5 * cos(uTime * TAU / 3.6);
-      float rim = capture && uStyle == 2 ? R * (1.05 - 0.07 * breath) : R;
-      float inside = mix(fillOf(r - rim), 1.0 - smoothstep(0.55 * R, R, r), soft);
+      float inside = mix(fillOf(r - R), 1.0 - smoothstep(0.55 * R, R, r), soft);
       // The fill: slight at rest; under the pointer fuller and deeper at the
       // heart, like light pooling in glass
       float rest = uFillA * (0.75 + 0.25 * k) * (1.0 + 0.9 * soft);
@@ -196,7 +193,9 @@ const fragmentShader = /* glsl */ `
       c = over(c, uColor, exp(-max(R - r, 0.0) / (0.2 * R)) * fillOf(r - R) * uWashA * (1.0 - soft));
       float line = stroke(r - R, uWidth);
       if (capture && uStyle == 2) {
-        line = stroke(arcs(p, rim, mix(0.5, 0.78, breath), uTime * 0.11), uWidth * 1.4);
+        // Turning arcs: four arcs of one radius and one length, turning
+        // round the victim at one slow, even speed
+        line = stroke(arcs(p, R, 0.62, uTime * TAU / 16.0), uWidth * 1.4);
       }
       c = over(c, uColor, line * uOpacity * (1.0 - soft));
       if (capture && uStyle == 1) {
@@ -882,8 +881,8 @@ const Shimmer = ({
 // --- Check --------------------------------------------------------------------------------
 
 // The crown over the king: a short open band of red light with eight tines,
-// floating just over his cross (clear of it even held up), turning slowly.
-// Drawn by its shader on an open cylinder.
+// floating over his cross at a height of its own (a setting), turning
+// slowly. Drawn by its shader on an open cylinder.
 const CROWN_R = 0.13;
 const CROWN_H = 0.08;
 const crownGeometry = new CylinderGeometry(CROWN_R, CROWN_R * 0.92, CROWN_H, 64, 1, true).translate(
@@ -891,30 +890,8 @@ const crownGeometry = new CylinderGeometry(CROWN_R, CROWN_R * 0.92, CROWN_H, 64,
   CROWN_H / 2,
   0,
 );
-const KING_TOP = pieceTop(pieceSet(), PieceType.King) * PIECE_SCALE;
-/** How far the crown floats over the king's cross, wherever he is lifted to. */
-const CROWN_GAP = 0.06;
-/**
- * The lift group Board raises the piece standing at `floor` with (the kit's
- * Lift, tagged userData.lift), found in the scene once.
- */
-const findLift = (scene: Object3D, floor: Vec3): Object3D | null => {
-  let found: Object3D | null = null;
-  scene.traverse((o) => {
-    if (found || !o.userData.lift) return;
-    o.getWorldPosition(at);
-    const dy = at.y - floor[1];
-    if (
-      Math.abs(at.x - floor[0]) < 0.05 &&
-      Math.abs(at.z - floor[2]) < 0.05 &&
-      dy > -0.05 &&
-      dy < 0.6
-    )
-      found = o;
-  });
-  return found;
-};
-const at = new Vector3();
+/** The top of the king's cross, standing on his floor (world units). */
+const KING_HEIGHT = pieceTop(pieceSet(), PieceType.King) * PIECE_SCALE;
 
 const crownMaterial = () =>
   new ShaderMaterial({
@@ -975,25 +952,14 @@ const Crown = ({ floor, mated, strength }: { floor: Vec3; mated: boolean; streng
   const since = useRef(0);
   const time = useRef(0);
   const fall = useRef(0);
-  const scene = useThree((s) => s.scene);
-  const liftScale = useDesignSetting<number>('piece.lift') ?? 1;
-  const lift = useRef<Object3D | null>(null);
-  const looked = useRef(0);
+  // Its own height over the cross, a share of the king's height (the
+  // default clears him even held up at Zenith's lift heights)
+  const height = KING_HEIGHT * (1 + useMarkSetting<number>('mark.crownHeight'));
   const still = prefersReducedMotion();
-  useEffect(() => invalidate(), [mated, strength, liftScale, invalidate]);
+  useEffect(() => invalidate(), [mated, strength, height, invalidate]);
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 8);
     since.current += dt;
-    // The king's lift as it is drawn now (Board's Lift, as the lift setting
-    // scales it: liftFor in pieces.tsx), so the crown rides at one small gap
-    // over his cross however high he is lifted
-    if (!lift.current?.parent && since.current - looked.current > 0.5) {
-      looked.current = since.current;
-      lift.current = findLift(scene, floor);
-    }
-    const y = lift.current?.parent ? Math.max(lift.current.position.y, 0) : 0;
-    const raised = liftFor(y, liftScale) * PIECE_SCALE;
-    const height = KING_TOP + CROWN_GAP + raised;
     if (mated) fall.current = Math.min(1, fall.current + dt / SETTLE_S);
     else if (!still) time.current += dt;
     const f = 1 - (1 - fall.current) ** 2;
@@ -1017,7 +983,7 @@ const Crown = ({ floor, mated, strength }: { floor: Vec3; mated: boolean; streng
   });
   return (
     <group position={floor}>
-      <group ref={spin} position={[0, KING_TOP + CROWN_GAP, 0]}>
+      <group ref={spin} position={[0, height, 0]}>
         <mesh
           geometry={crownGeometry}
           material={material}
@@ -1029,149 +995,19 @@ const Crown = ({ floor, mated, strength }: { floor: Vec3; mated: boolean; streng
   );
 };
 
-// The blades: four tall slivers of red light with a hot white heart rising from the points of the
-// crown round the king (after Codex), each turned to face the viewer, a slow
-// shimmer climbing them in turn. They shoot up past their height when check
-// arrives and settle; at mate they fold down.
-const BLADE_R = FOOT_RING + 0.01 + 0.085;
-const BLADE_H = 0.55;
-const BLADE_W = 0.12;
-
-const bladeGeometry = (() => {
-  const g = new BufferGeometry();
-  const pos: number[] = [];
-  const corner: number[] = [];
-  const phase: number[] = [];
-  const index: number[] = [];
-  for (let i = 0; i < 4; i++) {
-    const a = (i * Math.PI) / 2;
-    const [x, z] = [BLADE_R * Math.cos(a), BLADE_R * Math.sin(a)];
-    for (const [cx, cy] of [
-      [-1, 0],
-      [1, 0],
-      [1, 1],
-      [-1, 1],
-    ]) {
-      pos.push(x, 0, z);
-      corner.push(cx, cy);
-      phase.push(i * 0.25);
-    }
-    const o = i * 4;
-    index.push(o, o + 1, o + 2, o, o + 2, o + 3);
-  }
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setAttribute('aCorner', new BufferAttribute(new Float32Array(corner), 2));
-  g.setAttribute('aPhase', new BufferAttribute(new Float32Array(phase), 1));
-  g.setIndex(index);
-  return g;
-})();
-
-const bladeMaterial = () =>
-  new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
-    blending: AdditiveBlending,
-    uniforms: {
-      uColor: { value: new Color(PALETTE.check) },
-      uTime: { value: 0 },
-      uFlare: { value: 0 },
-      uGrow: { value: 0 },
-      uHot: { value: new Color('#ffe2dc') },
-      uHeight: { value: BLADE_H },
-      uWidth: { value: BLADE_W / 2 },
-    },
-    vertexShader: /* glsl */ `
-      attribute vec2 aCorner;
-      attribute float aPhase;
-      uniform float uGrow;
-      uniform float uHeight;
-      uniform float uWidth;
-      varying vec2 vUv;
-      varying float vPhase;
-      void main() {
-        // Each blade turns about its own upright to face the viewer
-        vec4 base = modelMatrix * vec4(position, 1.0);
-        vec2 toCam = cameraPosition.xz - base.xz;
-        vec2 across = length(toCam) > 1e-4 ? normalize(vec2(-toCam.y, toCam.x)) : vec2(1.0, 0.0);
-        vec3 world = base.xyz + vec3(across.x, 0.0, across.y) * aCorner.x * uWidth
-          + vec3(0.0, aCorner.y * uHeight * uGrow, 0.0);
-        vUv = aCorner;
-        vPhase = aPhase;
-        gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
-      }`,
-    fragmentShader: /* glsl */ `
-      uniform vec3 uColor;
-      uniform float uTime;
-      uniform float uFlare;
-      uniform vec3 uHot;
-      varying vec2 vUv;
-      varying float vPhase;
-      void main() {
-        float h = vUv.y;
-        // A sliver tapering to its point, with a bright core
-        float hw = 1.0 - pow(h, 0.8);
-        float x = abs(vUv.x) / max(hw, 1e-3);
-        if (x > 1.0) discard;
-        float core = exp(-x * x * 9.0) + 0.35 * exp(-x * x * 1.6);
-        // A hot, near-white heart down the middle, so they stand out even
-        // against the red king
-        float heart = exp(-x * x * 40.0) * (1.0 - 0.7 * h);
-        // The slow shimmer climbing each blade in turn
-        float band = fract(uTime / 2.6 + vPhase);
-        float shimmer = exp(-pow((h - band * 1.3 + 0.15) / 0.14, 2.0));
-        float a = 1.8 * core * mix(1.0, 0.3, h) * (0.85 + 0.8 * shimmer + 2.2 * uFlare);
-        gl_FragColor = vec4(mix(uColor, uHot, heart) * a, a);
-        #include <colorspace_fragment>
-      }`,
-  });
-
-const Blades = ({ floor, mated, strength }: { floor: Vec3; mated: boolean; strength: number }) => {
-  const invalidate = useThree((s) => s.invalidate);
-  const material = useMemo(bladeMaterial, []);
-  useEffect(() => () => material.dispose(), [material]);
-  const since = useRef(0);
-  const settled = useRef(0);
-  const still = prefersReducedMotion();
-  useEffect(() => invalidate(), [mated, strength, invalidate]);
-  useFrame((_, delta) => {
-    const dt = Math.min(delta, 1 / 20);
-    since.current += dt;
-    settled.current = Math.min(1, Math.max(0, settled.current + (mated ? 1 : -1) * (dt / 0.7)));
-    const k = settled.current * settled.current * (3 - 2 * settled.current);
-    const t = still ? 1 : Math.min((since.current * 1000) / STRIKE_MS, 1);
-    // They shoot up past their height (as far as the strike is strong) and settle
-    const over = 0.22 * Math.min(strength, 1.5);
-    const grow =
-      t < 0.5 ? (1 + over) * (1 - (1 - t / 0.5) ** 3) : 1 + over * Math.cos((t - 0.5) * Math.PI);
-    const u = material.uniforms;
-    u.uGrow.value = (t >= 1 ? 1 : grow) * (1 - k);
-    u.uFlare.value = strength * (1 - t) ** 2;
-    if (!still && !mated) u.uTime.value += dt;
-    if (!(mated && settled.current >= 1)) invalidate();
-  });
-  return (
-    <mesh
-      geometry={bladeGeometry}
-      material={material}
-      position={[floor[0], floor[1] + 0.012, floor[2]]}
-      renderOrder={LAYER.trace + 0.4}
-      raycast={noRaycast}
-      frustumCulled={false}
-    />
-  );
-};
-
 /**
  * Check: a crown of red light lying round the king in place of his ring; it
- * strikes when check arrives, then breathes slowly. A small crown floats
- * over him, and (a setting) four blades rise round him. At mate it all
- * settles as the king falls.
+ * strikes when check arrives, then breathes slowly. Dark blades stand round
+ * him (blades.tsx) and a small crown can float over him (both settings). At
+ * mate it all settles as the king falls.
  */
 export const Check = ({ floor, mated = false }: MarkerProps) => {
   useClaim('check', floor);
   const crown = useMarkSetting<boolean>('mark.checkCrown');
-  const blades = useMarkSetting<boolean>('mark.checkBlades');
+  const chosen = useMarkSetting<string>('mark.checkBlades');
+  const blades = (BLADE_STYLES as readonly string[]).includes(chosen)
+    ? (chosen as BladeStyle)
+    : null;
   const strength = useMarkSetting<number>('mark.checkPulse');
   return (
     <>
@@ -1184,13 +1020,13 @@ export const Check = ({ floor, mated = false }: MarkerProps) => {
         opacity={0.95}
         growMs={0}
         pulse={strength}
-        loud={!crown}
+        loud={!crown && !blades}
         animate
         settle={mated}
         renderOrder={LAYER.marker + 0.2}
       />
       {crown && <Crown floor={floor} mated={mated} strength={strength} />}
-      {blades && <Blades floor={floor} mated={mated} strength={strength} />}
+      {blades && <Blades floor={floor} mated={mated} strength={strength} style={blades} />}
     </>
   );
 };
