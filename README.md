@@ -125,7 +125,8 @@ Key decisions:
   moves the camera. With a piece selected, clicking an opposing piece it can take plays
   the capture (the piece fills its cell, so it would otherwise hide the cell's click
   target). A move can also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is
-  how a keyboard-only or screen-reader player plays.
+  how a keyboard-only or screen-reader player plays: it is the first thing Tab reaches on
+  the board screen, and appears when it does (see HUD).
 - **Camera.** The only camera control is turning the view about the board's centre: drag
   with the left mouse button or one finger. The wheel or a two-finger pinch zooms. There
   is no pan (right-drag, a two-finger drag and the arrow keys do nothing), so the orbit
@@ -139,18 +140,32 @@ Key decisions:
   OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the
   scene and `showcase.mjs` read.
 - **Touch.** The game screen takes no text selection, long-press callout or double-tap
-  zoom (iOS would otherwise select the whole page on a double tap), except in the move box
-  and the move list (`.game-screen` in `client/src/index.css`); the canvas takes every
+  zoom (iOS would otherwise select the whole page on a double tap), except in the move card
+  (`.game-screen` in `client/src/index.css`); the canvas takes every
   touch itself (`touch-action: none`). When a mobile browser loses a finger's pointer-up,
   the controls would keep counting that finger and read the next one-finger drag as a
   pinch against it. `three/useTouchSafeControls.ts` checks the controls' pointers against
   the finger list of every touch event, and on a lost pointer capture, a blur or a hidden
   page, and drops the ones no finger accounts for, so a lone finger always turns the view
   (`e2e/touchCamera.spec.ts` loses a finger's pointer-up through real touch input).
-- **Turn chip.** The chip at the top says whose move it is ("White to move — in check").
-  Once the game is over it gives the result instead ("Checkmate · White wins",
-  "Stalemate · Draw"); it carries `data-turn` while the game is on and `data-result` /
-  `data-winner` after, for tests, `showcase.mjs` and stylesheets.
+- **HUD.** Quiet by default: a glass **turn pill** at the top centre, the settings gear at
+  the top right, and nothing else unless something needs saying. The pill's left half is
+  the player and its right half the opponent, each with a small stone in its army's
+  material (porcelain, charcoal); the half of the side to move is lit, its stone ringed in
+  light ("Your move" / "Their move"), red with a CHECK badge in check. An opponent with no
+  live connection shows as an outlined stone and "Offline"; a connected one is not marked.
+  Once the game is over the pill gives the result from the player's side ("Checkmate ·
+  you win"). Under the pill, only while they apply: "Reconnecting…" (the pill dims), the
+  latest error and the frozen-record notice. The **Keyboard play** setting (the panel's
+  first group, Play) shows the **move card** at the bottom left: the cell under the
+  pointer, the moves so far and the move box; off, the card stays in the page out of
+  sight, its list for screen readers and its field for Tab. A visually hidden live region
+  announces every move as it lands ("White bishop Ad2 takes pawn on Dd5. Check. Your
+  move.", `game/announce.ts`). The parts are `screens/TurnPill.tsx`, `MoveCard.tsx` and
+  `MoveAnnouncer.tsx`, styled in `index.css`. For tests and tools the pill carries
+  `data-turn`, `data-check`, `data-result` and `data-winner`; `data-testid="seat"` its
+  `data-seat`; `opponent-presence` its `data-online`; and `move-announcer` the latest move
+  as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion) and `data-move-count`.
 
 ## Protocol
 
@@ -199,7 +214,7 @@ Message flow, happy path:
    `presence {color: <opponent>, online}` for the opponent's current state, and tells the
    opponent the player is online; when a player's live socket drops it tells the opponent
    `online: false`. A replaced socket's late disconnect is not a departure. The client shows
-   "Opponent: online/offline" from the latest presence message about the opponent.
+   the opponent as offline (an outlined stone) from the latest presence message about them.
 
 Coordinates on the wire use the display notation described below (e.g. `"Aa1"`).
 
@@ -294,13 +309,15 @@ All motion runs on r3f's clock, and the canvas renders on demand.
 
 ### Settings
 
-A gear at the top right, in the game and on the start screen, opens the board's settings
-(`screens/SettingsPanel.tsx`) in six groups: Board, World, Pieces, Selection, Markers and
-Check. Among them are the checker and borders of the levels, the garden's sculptures and
+A gear at the top right, in the game and on the start screen, opens the settings
+(`screens/SettingsPanel.tsx`) in seven groups: Play, Board, World, Pieces, Selection,
+Markers and Check. Play holds **Keyboard play**, which shows the move card (see HUD).
+Among the rest are the checker and borders of the levels, the garden's sculptures and
 sky, the dark army's tone, how far pieces lift, **Knight moves** (Straight, the default, or
 Arc), the capture marker, the last-move line and the blades round a king in check.
 
-- groups are listed in a fixed order, and each group's settings as declared;
+- groups are listed in a fixed order, and each group's settings as declared; Play and
+  Board start unfolded and the others folded, each heading a button that folds it;
 - toggles are switches, and sliders show their formatted value;
 - a choice is a row of buttons, or a drop-down beyond four options;
 - hints appear in small muted text;
@@ -310,9 +327,11 @@ Arc), the capture marker, the last-move line and the blades round a king in chec
 Every change applies at once. The panel is not modal: the board stays in play and
 clicking it leaves the panel open. Escape, the gear, or its close button closes the panel,
 and so does a click anywhere else. It scrolls on its own on a small screen, and no pointer
-or wheel event on it reaches the board's camera. The settings are cosmetic: they are kept
-in this browser (`localStorage`, `3dchess:settings`, only the values that differ from the
-defaults), are never game state and are never sent to the opponent. A stored value that no
+or wheel event on it reaches the board's camera. On a phone held upright (520 px wide or
+less) it opens as a sheet across the bottom of the screen, and on a touch screen every
+control is at least 44 px tall. The settings change only what this browser shows: they
+are kept in this browser (`localStorage`, `3dchess:settings`, only the values that differ
+from the defaults), are never game state and are never sent to the opponent. A stored value that no
 longer fits its setting (a renamed option, a narrower range, a changed kind) is dropped.
 
 The scene declares its settings (`scene/settings-env.ts`, `settings-pieces.ts` and
