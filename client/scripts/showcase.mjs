@@ -83,6 +83,27 @@
 // and draws only their frames. --select-white Cc4 chooses P; --select-black
 // Db4 chooses P and records Black's seat instead (unless --select-white is
 // given too).
+//
+// --orbit reviews the view's framing and the labels through a continuous
+// orbit, never sampled poses (do this after any change to the camera's fit or
+// the labels, and watch the video):
+//
+//   node scripts/showcase.mjs --orbit --out /tmp/orbit [--seat black] [--width 390 --height 844]
+//
+// From the opening position, the seat's camera turns all the way round at
+// each of the elevations -14°, 18°, 45°, 75° and 89.9° (--orbit-elevations
+// "e,e,…"), --orbit-step degrees a frame (1 by default), then climbs from -14°
+// to 89.9° at the opening azimuth and comes back down 45° further round, half
+// a step a frame. It writes orbit.mp4, orbit-sheet.png (a still every 30° of
+// each orbit and 15° of each climb) and a jitter report, printed and saved as
+// orbit-report.txt and orbit-report.json: how far the view's centre (the orbit
+// target on screen) moved, the largest change in any label's step from one
+// frame to the next (a jump or a kink shows as a spike), where the level
+// letters switched corner, and a flag for every discontinuity, letters out of
+// line or out of order or switching apart, and the tower running past the
+// window's edge or into a HUD band. The orbit's limits apply (it reaches -14°
+// only near enough the tower). --stills skips the video and draws only the
+// sheet's stills, several times faster.
 
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
@@ -108,6 +129,7 @@ const TOUR = flag('tour');
 const REVIEW = flag('review');
 const QUICK = flag('quick');
 const INTERACT = flag('interact');
+const ORBIT = flag('orbit');
 const FPS = Number(opt('fps', 30));
 const WIDTH = Number(opt('width', 1280));
 const HEIGHT = Number(opt('height', 720));
@@ -481,6 +503,97 @@ const SHOW_HELPERS = () => {
           if (gl) gl.render = draw;
         }
       }
+    },
+    /**
+     * The camera straight to an absolute azimuth and elevation (degrees)
+     * about the orbit target, at the opening view's distance times `zoom`.
+     * The controls apply their limits (pose() gives the elevation reached).
+     */
+    orbitAt(azimuthDeg, elevationDeg, zoom = 1) {
+      const st = store();
+      if (!st) return;
+      const { camera, controls } = st;
+      const target = controls?.target ?? new camera.position.constructor();
+      if (!base) window.__show.orbit(0, 0, 1, null, 0);
+      const yaw = (azimuthDeg * Math.PI) / 180;
+      const pitch = Math.max(-1.4, Math.min(1.5691, (elevationDeg * Math.PI) / 180));
+      const r = base.r * zoom;
+      camera.position.set(
+        target.x + r * Math.cos(pitch) * Math.sin(yaw),
+        target.y + r * Math.sin(pitch),
+        target.z + r * Math.cos(pitch) * Math.cos(yaw),
+      );
+      camera.lookAt(target);
+      controls?.update?.();
+      st.invalidate();
+    },
+    /**
+     * Where things fall on screen (page px): the orbit target (the tower's
+     * centre, which the view keeps on its vertical axis), the view's lens
+     * shift, the tower's outline (its squares' bounds) and both sprites of
+     * every label (SmartLabels crossfades between them), each with its
+     * opacity and its height in px.
+     */
+    measure() {
+      const st = store();
+      const { camera, controls, scene, size } = st;
+      camera.updateMatrixWorld();
+      scene.updateMatrixWorld(true);
+      const V = camera.position.constructor;
+      const r = document.querySelector('canvas').getBoundingClientRect();
+      const px = (v) => {
+        const p = v.clone().project(camera);
+        return [r.left + (p.x * 0.5 + 0.5) * size.width, r.top + (-p.y * 0.5 + 0.5) * size.height];
+      };
+      const target = controls?.target ?? new V();
+      const d = camera.position.clone().sub(target);
+      const forward = target.clone().sub(camera.position).normalize();
+      // Pixels per world unit at one unit of depth
+      const scale = size.height / (2 * Math.tan((camera.fov * Math.PI) / 360));
+      // The labels in the order SmartLabels draws them, for a build that
+      // does not name its sprites
+      const order = [
+        ...['a', 'b', 'c', 'd', 'e'].map((f) => `file-${f}-0`),
+        ...[1, 2, 3, 4, 5].map((n) => `rank-${n}-0`),
+        ...['A', 'B', 'C', 'D', 'E'].map((l) => `level-${l}`),
+      ];
+      const labels = {};
+      scene.getObjectByName('smart-labels')?.children.forEach((s, i) => {
+        const id = s.userData?.labelId ?? order[i >> 1];
+        const w = s.getWorldPosition(new V());
+        const depth = w.clone().sub(camera.position).dot(forward);
+        (labels[id] ??= []).push({
+          at: px(w),
+          opacity: s.visible ? s.material.opacity : 0,
+          h: (s.scale.y * scale) / Math.max(depth, 1e-3),
+        });
+      });
+      let box = null;
+      scene.traverse((o) => {
+        if (!o.userData?.cube) return;
+        const g = o.geometry;
+        if (!g.boundingBox) g.computeBoundingBox();
+        const b = g.boundingBox.clone().applyMatrix4(o.matrixWorld);
+        box = box ? box.union(b) : b;
+      });
+      const xs = [];
+      const ys = [];
+      for (const x of [box.min.x, box.max.x])
+        for (const y of [box.min.y, box.max.y])
+          for (const z of [box.min.z, box.max.z]) {
+            const [u, v] = px(new V(x, y, z));
+            xs.push(u);
+            ys.push(v);
+          }
+      return {
+        azimuth: (Math.atan2(d.x, d.z) * 180) / Math.PI,
+        elevation: (Math.asin(d.y / d.length()) * 180) / Math.PI,
+        distance: d.length(),
+        centre: px(target),
+        shift: camera.userData.lensShift ?? [0, 0],
+        outline: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
+        labels,
+      };
     },
     /** The camera's azimuth and elevation about the orbit target, in degrees. */
     pose() {
@@ -1033,6 +1146,416 @@ async function sheets(context, shots, notes) {
   await page.close();
 }
 
+// ---------------------------------------------------------------------------
+// Orbit
+
+/** Every `step` from `from` to `to`, both included. */
+const range = (from, to, step) => {
+  const n = Math.max(1, Math.round(Math.abs(to - from) / step));
+  return Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);
+};
+
+/**
+ * Each glyph's ink as a share of its sprite, across and up (Manrope as the
+ * grid draws it; the same table as scene/labelSweep.test.ts).
+ */
+const INK = {
+  A: [0.43, 0.48],
+  B: [0.36, 0.48],
+  C: [0.45, 0.5],
+  D: [0.4, 0.48],
+  E: [0.32, 0.48],
+  a: [0.32, 0.39],
+  b: [0.34, 0.5],
+  c: [0.34, 0.39],
+  d: [0.34, 0.5],
+  e: [0.36, 0.38],
+  1: [0.17, 0.48],
+  2: [0.33, 0.49],
+  3: [0.33, 0.49],
+  4: [0.34, 0.48],
+  5: [0.33, 0.5],
+};
+const INK_HEIGHT = 0.5;
+/** A label's ink box, from its id (file-a-0, rank-3-0, level-C). */
+const inkOf = (id) => INK[id.split('-')[1]] ?? [0.5, 0.5];
+
+/**
+ * The jitter report for one stretch of an --orbit recording: how the view's
+ * centre and every label moved from frame to frame. A turning camera moves a
+ * label smoothly, so its step changes little from one frame to the next; a
+ * jump or a kink (the centre or a label lurching sideways) shows as a spike in
+ * that change. A label crossfading to a new place (both its sprites showing)
+ * is a switch, not a jump; the level letters must switch together.
+ */
+function jitter(name, frames, bands) {
+  const flags = [];
+  const flag = (i, what) => {
+    const f = frames[i];
+    flags.push(`az ${f.azimuth.toFixed(1)}° el ${f.elevation.toFixed(1)}°: ${what}`);
+  };
+  const turning = name.startsWith('orbit');
+  // The view's centre (the orbit target on screen): still while the camera
+  // turns, gliding smoothly while it climbs
+  const cx = frames.map((f) => f.centre[0]);
+  const cy = frames.map((f) => f.centre[1]);
+  const steps = frames.slice(1).map((f, i) => Math.hypot(cx[i + 1] - cx[i], cy[i + 1] - cy[i]));
+  const kinks = frames
+    .slice(2)
+    .map((_, i) =>
+      Math.hypot(cx[i + 2] - 2 * cx[i + 1] + cx[i], cy[i + 2] - 2 * cy[i + 1] + cy[i]),
+    );
+  steps.forEach((s, i) => {
+    if (turning && s > 0.5) flag(i + 1, `the centre moved ${s.toFixed(2)} px`);
+  });
+  kinks.forEach((k, i) => {
+    if (!turning && k > 0.5) flag(i + 2, `the centre kinked ${k.toFixed(2)} px`);
+  });
+  // Each label where it shows: the sprite most opaque, crossfading while both show
+  const ids = Object.keys(frames[0].labels);
+  const shown = (f, id) => {
+    const [a, b = { opacity: 0 }] = f.labels[id];
+    return a.opacity >= b.opacity ? a : b;
+  };
+  const fading = (f, id) => f.labels[id].filter((s) => s.opacity > 0.02).length > 1;
+  const letters = ids.filter((id) => id.startsWith('level-'));
+  let worstLabel = 0;
+  const switches = {};
+  for (const id of ids) {
+    const at = frames.map((f) => shown(f, id).at);
+    for (let i = 2; i < frames.length; i++) {
+      // Only while it shows, and not crossfading (a faded-out file or rank
+      // may take another edge unseen)
+      const hidden = (k) => shown(frames[k], id).opacity < 0.05;
+      if ([i - 2, i - 1, i].some((k) => fading(frames[k], id) || hidden(k))) continue;
+      const k = Math.hypot(
+        at[i][0] - 2 * at[i - 1][0] + at[i - 2][0],
+        at[i][1] - 2 * at[i - 1][1] + at[i - 2][1],
+      );
+      const h = shown(frames[i], id).h;
+      // A label turning with the view changes its step by well under a
+      // pixel a frame; a jump by far more than that
+      if (k > Math.max(3, 0.25 * h)) flag(i, `${id} jumped ${k.toFixed(1)} px`);
+      else worstLabel = Math.max(worstLabel, k);
+    }
+    // Crossfades begin where a hidden sprite starts to show
+    switches[id] = [];
+    for (let i = 1; i < frames.length; i++) {
+      if (fading(frames[i], id) && !fading(frames[i - 1], id)) switches[id].push(i);
+    }
+  }
+  // The letters switch together, and stand in one straight line in order
+  const letterSwitches = new Set(letters.flatMap((id) => switches[id]));
+  for (const i of letterSwitches) {
+    const apart = letters.filter((id) => !switches[id].some((j) => Math.abs(j - i) <= 1));
+    if (apart.length) flag(i, `the level letters switched apart (${apart.join(' ')} did not)`);
+  }
+  let worstLine = 0;
+  let nearestParallel = 90;
+  // Frames where the letters stood near-parallel to a row across the tower,
+  // near a square view (see below)
+  const acrossSquare = new Set();
+  const row = (f, prefix) => ids.filter((id) => id.startsWith(prefix)).map((id) => shown(f, id));
+  frames.forEach((f, i) => {
+    // Where each letter shows (mid-crossfade, the sprite more opaque)
+    const p = letters.map((id) => shown(f, id).at);
+    const [a, e] = [p[0], p[p.length - 1]];
+    const l = Math.hypot(e[0] - a[0], e[1] - a[1]) || 1;
+    const u = [(e[0] - a[0]) / l, (e[1] - a[1]) / l];
+    const off = Math.max(...p.map((q) => Math.abs(u[0] * (q[1] - a[1]) - u[1] * (q[0] - a[0]))));
+    // Along the line, A to E in order
+    const along = p.map((q) => (q[0] - a[0]) * u[0] + (q[1] - a[1]) * u[1]);
+    if (along.some((v, k) => k > 0 && v <= along[k - 1])) {
+      flag(i, 'the level letters are out of order');
+    }
+    worstLine = Math.max(worstLine, off);
+    if (off > 3) flag(i, `the level letters are ${off.toFixed(1)} px off one straight line`);
+    // The letters never line up with the files or the ranks as one axis:
+    // near parallel and side by side, or one carrying on the other's line
+    for (const [name, labels] of [
+      ['files', row(f, 'file-')],
+      ['ranks', row(f, 'rank-')],
+    ]) {
+      if (labels.some((s) => s.opacity < 0.5)) continue;
+      const [r0, r1] = [labels[0].at, labels[labels.length - 1].at];
+      const rl = Math.hypot(r1[0] - r0[0], r1[1] - r0[1]) || 1;
+      const v = [(r1[0] - r0[0]) / rl, (r1[1] - r0[1]) / rl];
+      const angle = (Math.acos(Math.min(1, Math.abs(u[0] * v[0] + u[1] * v[1]))) * 180) / Math.PI;
+      nearestParallel = Math.min(nearestParallel, angle);
+      if (angle >= 20) continue;
+      const span = (q) => (q[0] - a[0]) * u[0] + (q[1] - a[1]) * u[1];
+      const [s0, s1] = [span(r0), span(r1)].sort((x, y) => x - y);
+      const shared = Math.min(s1, l) - Math.max(s0, 0);
+      const mid = [(r0[0] + r1[0]) / 2, (r0[1] + r1[1]) / 2];
+      const across = Math.abs(u[0] * (mid[1] - a[1]) - u[1] * (mid[0] - a[0]));
+      const h = INK_HEIGHT * shown(f, letters[0]).h;
+      if (across < 3 * h) {
+        flag(i, `the level letters run on in line with the ${name} (${angle.toFixed(0)}° apart)`);
+      } else if (shared > 0.25 * Math.min(l, rl)) {
+        // Inevitable near a square view from 35° to 75° up, where the row
+        // running away from the camera stands up the screen like every
+        // corner post, and allowed there only across the tower from it
+        // (scene/labelSweep.test.ts)
+        const side = (xs) => Math.sign(xs.reduce((m, x) => m + x, 0) / xs.length - f.centre[0]);
+        const opposite = side(p.map((q) => q[0])) === -side(labels.map((q) => q.at[0]));
+        const square =
+          Math.abs(f.azimuth - 90 * Math.round(f.azimuth / 90)) <= 15 &&
+          f.elevation >= 35 &&
+          f.elevation <= 75;
+        if (square && opposite) acrossSquare.add(i);
+        else flag(i, `the level letters stand beside the ${name} (${angle.toFixed(0)}° apart)`);
+      }
+    }
+    // No two labels showing overlap: each glyph's ink, from the table the
+    // unit tests measure with (a faded file or rank is not read)
+    const boxes = ids.map((id) => ({ id, ...shown(f, id) })).filter((b) => b.opacity >= 0.5);
+    for (let x = 0; x < boxes.length; x++) {
+      for (let y = x + 1; y < boxes.length; y++) {
+        const [b, c] = [boxes[x], boxes[y]];
+        const [bw, bh] = inkOf(b.id).map((k) => (k * b.h) / 2);
+        const [cw, ch] = inkOf(c.id).map((k) => (k * c.h) / 2);
+        const over = Math.min(
+          bw + cw - Math.abs(b.at[0] - c.at[0]),
+          bh + ch - Math.abs(b.at[1] - c.at[1]),
+        );
+        // Neighbouring letters may touch from overhead in an upright window
+        const letterPair = b.id.startsWith('level-') && c.id.startsWith('level-');
+        const slack = letterPair && f.elevation >= 88 && bands.height > bands.width ? 1 : 0;
+        if (over > slack) flag(i, `${b.id} overlaps ${c.id} by ${over.toFixed(1)} px`);
+      }
+    }
+  });
+  // The tower's outline inside the window, clear of the HUD's bands
+  const room = frames.map((f) => {
+    const [x0, y0, x1, y1] = f.outline;
+    return Math.min(x0, y0 - bands.top, bands.width - x1, bands.height - bands.bottom - y1);
+  });
+  room.forEach((m, i) => {
+    if (m < 0) flag(i, `the tower runs ${(-m).toFixed(0)} px past the window's edge or a HUD band`);
+  });
+  const spread = (v) => Math.max(...v) - Math.min(...v);
+  return {
+    name,
+    frames: frames.length,
+    centre: {
+      xRange: spread(cx),
+      yRange: spread(cy),
+      maxStep: Math.max(0, ...steps),
+      maxKink: Math.max(0, ...kinks),
+    },
+    labels: { maxKink: worstLabel, letterLine: worstLine, nearestParallel },
+    acrossSquare: acrossSquare.size,
+    letterSwitches: [...letterSwitches].sort((a, b) => a - b).map((i) => frames[i].azimuth),
+    minRoom: Math.min(...room),
+    flags,
+  };
+}
+
+/**
+ * --orbit: the camera turned slowly all the way round at several elevations,
+ * then climbed from below the horizon to overhead and back down, to an MP4
+ * and a contact sheet, with a jitter report (see the header).
+ */
+async function orbitReview(rec, seat) {
+  const started = Date.now();
+  const elapsed = () => `${((Date.now() - started) / 1000).toFixed(0)}s`;
+  const cdp = await rec.context().newCDPSession(rec);
+  const step = Number(opt('orbit-step', 1));
+  const elevations = opt('orbit-elevations', '-14,18,45,75,89.9').split(',').map(Number);
+  const opening = await rec.evaluate(() => window.__show.measure());
+  const a0 = Math.round(opening.azimuth);
+  const segments = [
+    ...elevations.map((e) => ({
+      name: `orbit at ${e}°`,
+      poses: range(a0, a0 + 360, step).map((a) => [a, e]),
+      sheetEvery: 30,
+    })),
+    {
+      name: `climb at ${a0}°`,
+      poses: range(-14, 89.9, step / 2).map((e) => [a0, e]),
+      sheetEvery: 15,
+    },
+    {
+      name: `descent at ${a0 + 45}°`,
+      poses: range(89.9, -14, step / 2).map((e) => [a0 + 45, e]),
+      sheetEvery: 15,
+    },
+  ];
+  // The HUD's bands for this window (the move card is off: its setting's default)
+  const bands = await rec.evaluate(
+    async ([width, height]) => {
+      const { hudBands } = await import('/src/three/cameraFit.ts');
+      return { width, height, ...hudBands(width, height, false) };
+    },
+    [WIDTH, HEIGHT],
+  );
+  const VIDEO = path.join(OUT, 'orbit.mp4');
+  let ffmpeg = null;
+  if (!STILLS) {
+    ffmpeg = spawn(
+      FFMPEG,
+      [
+        ...['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS)],
+        ...['-c:v', 'mjpeg', '-i', '-', '-c:v', 'libx264', '-preset', 'medium', '-crf', '22'],
+        ...['-pix_fmt', 'yuv420p', '-movflags', '+faststart', VIDEO],
+      ],
+      { stdio: ['pipe', 'inherit', 'inherit'] },
+    );
+  }
+  const frame = async ([azimuth, elevation], draw) =>
+    rec.evaluate(
+      ({ azimuth, elevation, ms, draw }) => {
+        window.__show.orbitAt(azimuth, elevation);
+        if (draw) window.__vclock.step(ms);
+        else window.__show.settle(1, ms, false);
+        return window.__show.measure();
+      },
+      { azimuth, elevation, ms: 1000 / FPS, draw },
+    );
+  const capture = async () => {
+    const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 90 });
+    if (!ffmpeg.stdin.write(Buffer.from(data, 'base64'))) {
+      await new Promise((r) => ffmpeg.stdin.once('drain', r));
+    }
+  };
+  const reports = [];
+  const sheet = [];
+  let last = null;
+  for (const [s, segment] of segments.entries()) {
+    const [first] = segment.poses;
+    // Glide to where the segment starts (recorded, not measured), then let
+    // any crossfade finish
+    if (last) {
+      for (const t of range(0, 1, 1 / 20).slice(1)) {
+        const k = ease(t);
+        await frame(
+          [last[0] + (first[0] - last[0]) * k, last[1] + (first[1] - last[1]) * k],
+          !STILLS,
+        );
+        if (ffmpeg) await capture();
+      }
+    }
+    for (let i = 0; i < 12; i++) {
+      await frame(first, !STILLS && i === 11);
+      if (ffmpeg && i === 11) await capture();
+    }
+    const frames = [];
+    let next = 0;
+    for (const [i, pose] of segment.poses.entries()) {
+      const travelled = Math.abs(
+        segment.name.startsWith('orbit') ? pose[0] - first[0] : pose[1] - first[1],
+      );
+      const still = travelled >= next - 1e-6;
+      const m = await frame(pose, !STILLS || still);
+      frames.push(m);
+      if (ffmpeg) await capture();
+      if (still) {
+        next += segment.sheetEvery;
+        const file = path.join(OUT, `orbit-${s}-${String(i).padStart(4, '0')}.png`);
+        const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+        fs.writeFileSync(file, Buffer.from(data, 'base64'));
+        sheet.push({ segment: s, file, azimuth: m.azimuth, elevation: m.elevation });
+      }
+    }
+    last = segment.poses[segment.poses.length - 1];
+    const report = jitter(segment.name, frames, bands);
+    reports.push(report);
+    console.log(
+      `${elapsed()} ${segment.name}: centre moved ${report.centre.xRange.toFixed(1)} px across, ` +
+        `${report.centre.yRange.toFixed(1)} px down (worst step ${report.centre.maxStep.toFixed(2)} px, ` +
+        `kink ${report.centre.maxKink.toFixed(2)} px); letters ${report.labels.letterLine.toFixed(1)} px ` +
+        `off a line at worst, ${report.letterSwitches.length} switch(es); ` +
+        `${report.flags.length} flag(s)`,
+    );
+  }
+  if (ffmpeg) {
+    ffmpeg.stdin.end();
+    await new Promise((r) => ffmpeg.on('close', r));
+    console.log(VIDEO);
+  }
+  // The report, in full
+  const lines = [`--orbit, ${seat}'s seat, ${WIDTH}x${HEIGHT}, ${step}° a frame`];
+  for (const r of reports) {
+    lines.push(
+      '',
+      `${r.name} (${r.frames} frames)`,
+      `  centre: ${r.centre.xRange.toFixed(2)} px across, ${r.centre.yRange.toFixed(2)} px down; ` +
+        `worst step ${r.centre.maxStep.toFixed(2)} px, worst kink ${r.centre.maxKink.toFixed(2)} px`,
+      `  labels: worst kink ${r.labels.maxKink.toFixed(2)} px; letters at most ` +
+        `${r.labels.letterLine.toFixed(1)} px off one line, at least ` +
+        `${r.labels.nearestParallel.toFixed(0)}° off the files' or ranks' line (near-parallel ` +
+        `across the tower near a square view in ${r.acrossSquare} frame(s)); letter switches at ` +
+        `${r.letterSwitches.map((a) => `${a.toFixed(0)}°`).join(', ') || 'none'}`,
+      `  tightest room round the tower: ${r.minRoom.toFixed(0)} px`,
+      `  ${r.flags.length} flag(s)${r.flags.length ? ':' : ''}`,
+      ...Object.entries(
+        r.flags.reduce((kinds, f) => {
+          // Grouped by kind: the flag without its pose, numbers or label names
+          const kind = f
+            .replace(/^.*?°: /, '')
+            .replace(/\b(file|rank|level)-\w+(-\d)?/g, '$1')
+            .replace(/-?\d[\d.]*/g, '#');
+          kinds[kind] = (kinds[kind] ?? 0) + 1;
+          return kinds;
+        }, {}),
+      ).map(([kind, n]) => `    ${n} × ${kind}`),
+      ...(r.flags.length ? ['  first flags:'] : []),
+      ...r.flags.slice(0, 40).map((f) => `    ${f}`),
+      ...(r.flags.length > 40 ? [`    ... and ${r.flags.length - 40} more`] : []),
+    );
+  }
+  const text = lines.join('\n');
+  fs.writeFileSync(path.join(OUT, 'orbit-report.txt'), `${text}\n`);
+  fs.writeFileSync(path.join(OUT, 'orbit-report.json'), JSON.stringify(reports, null, 2));
+  console.log(`\n${text}\n`);
+  await orbitSheet(rec.context(), segments, sheet, seat);
+  console.log(`orbit took ${elapsed()}`);
+}
+
+/** The --orbit contact sheet: a row of stills per stretch of the recording. */
+async function orbitSheet(context, segments, shots, seat) {
+  const page = await context.newPage();
+  const files = new Map();
+  await page.route('http://review.local/**', (route) => {
+    const name = decodeURIComponent(new URL(route.request().url()).pathname.slice(1));
+    if (files.has(name)) return route.fulfill({ path: files.get(name) });
+    return route.fulfill({ body: files.get('/html') ?? '', contentType: 'text/html' });
+  });
+  const thumb = Math.round((220 * WIDTH) / Math.max(WIDTH, HEIGHT));
+  let html = `<h1>Orbit, ${seat}'s seat, ${WIDTH}x${HEIGHT}</h1>`;
+  for (const [s, segment] of segments.entries()) {
+    html += `<h2>${segment.name}</h2><div class="row">`;
+    for (const shot of shots.filter((x) => x.segment === s)) {
+      const name = path.basename(shot.file);
+      files.set(name, shot.file);
+      html += `<figure><img src="http://review.local/${name}" width="${thumb}"><figcaption>az ${shot.azimuth.toFixed(0)}° · el ${shot.elevation.toFixed(1)}°</figcaption></figure>`;
+    }
+    html += '</div>';
+  }
+  const style = `
+    body { margin: 0; padding: 16px 20px; background: #111418; color: #e6eaf0;
+      font: 13px/1.3 system-ui, sans-serif; }
+    h1 { font-size: 20px; margin: 0 0 10px; }
+    h2 { font-size: 15px; margin: 16px 0 6px; }
+    .row { display: flex; flex-wrap: nowrap; gap: 6px; }
+    figure { margin: 0; }
+    figure img { display: block; border-radius: 3px; }
+    figcaption { font-size: 11px; color: #aeb7c4; padding: 2px 1px 0; }`;
+  files.set(
+    '/html',
+    `<!doctype html><meta charset="utf-8"><style>${style}</style><body>${html}</body>`,
+  );
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto('http://review.local/index.html');
+  await page.waitForFunction(() => [...document.images].every((i) => i.complete));
+  const width = await page.evaluate(() => document.body.scrollWidth);
+  await page.setViewportSize({ width, height: 600 });
+  const file = path.join(OUT, 'orbit-sheet.png');
+  await page.screenshot({ path: file, fullPage: true });
+  console.log(file);
+  await page.close();
+}
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: EXECUTABLE,
@@ -1077,6 +1600,18 @@ async function main() {
   const colorOf = (p) => p.getByTestId('seat').getAttribute('data-seat');
   const white = (await colorOf(pageA)) === 'white' ? pageA : pageB;
   const black = white === pageA ? pageB : pageA;
+  if (ORBIT) {
+    const seat = opt('seat', 'white') === 'black' ? 'black' : 'white';
+    const rec = seat === 'white' ? white : black;
+    // The other page is only there to take the seat; keep its renderer cheap
+    await (rec === white ? black : white).setViewportSize({ width: 400, height: 300 });
+    await rec.evaluate(() => document.fonts.ready);
+    await rec.waitForTimeout(1500);
+    await rec.evaluate(() => window.__vclock.enable());
+    await orbitReview(rec, seat);
+    await browser.close();
+    return;
+  }
   if (REVIEW) {
     for (const p of [white, black]) await p.evaluate(() => document.fonts.ready);
     await white.waitForTimeout(1500);
