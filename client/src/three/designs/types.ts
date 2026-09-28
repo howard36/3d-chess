@@ -3,6 +3,7 @@ import type { Material, ToneMapping } from 'three';
 import type { Coord } from '../../engine/coords';
 import type { PieceType } from '../../engine/pieces';
 import type { Orientation } from '../layout';
+import type { SettingSpec } from './settings';
 
 // A design is the whole look of the game: where the cells sit in the scene,
 // what is drawn around them, what the pieces are made of, how moves and
@@ -335,6 +336,11 @@ export interface Design {
    */
   pieceScale?: number;
   hud: DesignHud;
+  /**
+   * Visual settings the player may adjust in the settings panel, each with
+   * the design's chosen default. Read them with useDesignSetting (settings.ts).
+   */
+  settings?: SettingSpec[];
 }
 
 /**
@@ -354,7 +360,7 @@ export interface PieceLift {
 }
 
 /** Picker sections, listed in this order (see DESIGN_GROUPS in registry.ts). */
-export type DesignGroup = 'round4' | 'round3' | 'clarity' | 'classic' | 'earlier';
+export type DesignGroup = 'round5' | 'round4' | 'round3' | 'clarity' | 'classic' | 'earlier';
 
 export interface DesignEntry {
   id: string;
