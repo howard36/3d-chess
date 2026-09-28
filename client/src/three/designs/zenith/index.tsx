@@ -51,10 +51,12 @@ const Grid = ({ layout: l, orientation, focus }: GridProps) => {
         outlineWidth={0.08}
         shadow="rgba(200, 215, 255, 0.25)"
         size={0.32}
-        levelScale={1.5}
+        // The level letters keep their colours at the files' and ranks' size;
+        // the level in play stands out by the others dimming, not by growing
+        levelScale={1}
         opacity={0.9}
         focusLevel={focusLevel}
-        focusScale={1.3}
+        focusScale={1}
         focusDim={0.55}
       />
     </>
