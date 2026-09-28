@@ -49,12 +49,6 @@ export interface SmartLabelsProps extends SmartLabelStyle, AnchorOptions {
   /** Test against depth, so pieces can hide labels (they sit outside the tower, so off by default). */
   depthTest?: boolean;
   /**
-   * The same for the level letters (`depthTest` by default). They stand at
-   * the corner behind the tower, so from low down a piece is often in front
-   * of one: without the test they show over it.
-   */
-  levelDepthTest?: boolean;
-  /**
    * The level whose letter to emphasise (usually `focusLevelOf(focus)` from
    * GridProps): it grows by `focusScale` while the other letters dim to
    * `focusDim` of their opacity, eased over `focusMs`. Null or unset for none.
@@ -114,18 +108,20 @@ const origin = new Vector3();
 /**
  * Coordinate labels for a tower layout that follow the camera: files a–e and
  * ranks 1–5 just outside the two edges of the bottom platform (or of every
- * platform) nearest the camera, and the level letters A–E up the one corner
- * post that touches neither of those edges, each beside its own platform's
- * corner: a column up the post from the side, a short line along the
- * corner's diagonal from above, never in line with the files or ranks, from
- * either seat (labelAnchors). From a camera that dips under 6° (the orbit
- * sinks below the horizon), files and ranks fade as their platform comes
- * edge-on and take its far edges once the camera is under it; the level
- * letters stay. When an orbit carries labels to another edge or corner (past
- * a hysteresis band), they crossfade there rather than jumping, the five
- * letters together. Labels are camera-facing sprites and grow part of the
- * way with distance (`distanceScaling`), so they stay legible zoomed out
- * without swamping a close view. Drawn last, over everything (LAYER.label).
+ * platform) nearest the camera, and the level letters A–E up one corner post,
+ * each beside its own platform's corner: from low down a column up the side
+ * of the tower's outline that carries no labels, from high up a short line
+ * along the diagonal of the corner across from the files and ranks, never in
+ * line with them, from either seat (labelAnchors). From a camera that dips
+ * under 6° (the orbit sinks below the horizon), files and ranks fade as
+ * their platform comes edge-on and take its far edges once the camera is
+ * under it; the level letters stay. When an orbit or a climb carries labels
+ * to another edge or post (past a hysteresis band), they crossfade there
+ * rather than jumping, the five letters together. Labels are camera-facing
+ * sprites and grow part of the way with distance (`distanceScaling`), so
+ * they stay legible zoomed out without swamping a close view. Drawn last
+ * (LAYER.label), after the platforms, so with `depthTest` only a piece in
+ * front of a label hides it.
  * Each sprite carries its label's id (userData.labelId) and the group the
  * current choice of edges and corner (userData.anchors), for tests and tools.
  */
@@ -147,7 +143,6 @@ export const SmartLabels = ({
   referenceDistance,
   fadeMs = 240,
   depthTest = false,
-  levelDepthTest = depthTest,
   focusLevel = null,
   focusScale = 1.3,
   focusDim = 0.5,
@@ -323,7 +318,7 @@ export const SmartLabels = ({
               map={textures.get(label.level !== undefined ? `level-${label.text}` : label.text)}
               transparent
               depthWrite={false}
-              depthTest={label.level !== undefined ? levelDepthTest : depthTest}
+              depthTest={depthTest}
               toneMapped={false}
               fog={false}
             />

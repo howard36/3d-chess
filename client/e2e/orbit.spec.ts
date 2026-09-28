@@ -2,10 +2,11 @@ import { test, expect } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
 
 // The real camera turned all the way round the tower, a few degrees at a
-// time, at three elevations, from both seats: the view never slides
+// time, at three elevations, and climbed from under the horizon to overhead
+// and back at a few azimuths, from both seats: the view never slides
 // sideways (the tower's axis stays in the middle of the canvas, and its
 // height holds while the elevation does), and the level letters never jump
-// except in a corner switch, which crossfades all five together. Measured
+// except in a change of post, which crossfades all five together. Measured
 // from the page itself (window.__r3fState): the camera the app fitted, its
 // lens shift, and the label sprites SmartLabels drew. The pages run on a
 // virtual clock, as scripts/showcase.mjs records, so every step is one frame
@@ -24,6 +25,13 @@ const STEP = 3;
 const ELEVATIONS = [18, 55, 89.9];
 /** A letter turning with the view moves about 15 px a step here; a jump, hundreds. */
 const JUMP_PX = 60;
+/** Changes of post in a turn at each elevation: from low down twice a quarter turn, from high up once. */
+const SWITCHES: Record<number, number> = { 18: 8, 55: 4, 89.9: 4 };
+/** Azimuths of the climbs, and their elevations: under the horizon (as low as the orbit goes) to overhead. */
+const CLIMB_AZIMUTHS = [16, 110, 200];
+const CLIMB = [...Array.from({ length: 52 }, (_, k) => -14 + 2 * k), 89.9];
+/** Where the letters leave the side post climbing, and come back to it dipping (labelAnchors). */
+const [LETTERS_HIGH, LETTERS_LOW] = [55, 45];
 
 /** Installed before any page script: a clock that moves only when told to. */
 const VIRTUAL_CLOCK = () => {
@@ -104,6 +112,8 @@ interface SceneLike {
 interface Pose {
   azimuth: number;
   elevation: number;
+  /** The camera's elevation as the orbit's limits left it, degrees. */
+  actual: number;
   /** The orbit target (the tower's centre) on the canvas, px. */
   centre: [number, number];
   /** The level letters' corner post (labelAnchors' state). */
@@ -183,7 +193,9 @@ const pose = (page: Page, azimuth: number, elevation: number): Promise<Pose> =>
         });
       }
       const anchors = group.userData.anchors as { corner: number };
-      return { azimuth, elevation, centre: px(new V()), corner: anchors.corner, letters };
+      const p = camera.position;
+      const actual = (Math.asin(p.y / Math.hypot(p.x, p.y, p.z)) * 180) / Math.PI;
+      return { azimuth, elevation, actual, centre: px(new V()), corner: anchors.corner, letters };
     },
     { azimuth, elevation },
   );
@@ -193,6 +205,41 @@ const shown = (sprites: Pose['letters'][string]) =>
   sprites.reduce((a, b) => (b.opacity > a.opacity ? b : a));
 const crossfading = (p: Pose) =>
   Object.values(p.letters).some((s) => s.filter((x) => x.opacity > 0.02).length > 1);
+/** Every one of the five letters crossfading, as when they all change post at once. */
+const allCrossfading = (p: Pose) =>
+  Object.keys(p.letters).length === 5 &&
+  Object.values(p.letters).every((s) => s.filter((x) => x.opacity > 0.02).length === 2);
+
+/**
+ * The problems between one pose and the next: the letters change post only
+ * all five together, crossfading, and otherwise each moves with the view.
+ */
+const stepProblems = (p: Pose, q: Pose): string[] => {
+  if (p.corner !== q.corner) {
+    return allCrossfading(p) ? [] : ['the letters changed post, not all five crossfading'];
+  }
+  if (crossfading(p) || crossfading(q)) return [];
+  const out: string[] = [];
+  for (const [id, sprites] of Object.entries(p.letters)) {
+    const [a, b] = [shown(sprites).at, shown(q.letters[id]).at];
+    const moved = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    if (moved > JUMP_PX) out.push(`${id} jumped ${moved.toFixed(0)} px`);
+  }
+  return out;
+};
+
+/** How far (px) the letters stray from one straight line A to E; 0 mid-crossfade. */
+const offLine = (p: Pose) => {
+  if (crossfading(p)) return 0;
+  const pts = ['A', 'B', 'C', 'D', 'E'].map((l) => shown(p.letters[`level-${l}`]).at);
+  const [a, e] = [pts[0], pts[4]];
+  const l = Math.hypot(e[0] - a[0], e[1] - a[1]);
+  return Math.max(
+    ...pts.map((q) =>
+      Math.abs(((e[0] - a[0]) * (q[1] - a[1]) - (e[1] - a[1]) * (q[0] - a[0])) / l),
+    ),
+  );
+};
 
 /**
  * Pictures of the poses around each failure, attached to the report, drawn
@@ -276,35 +323,112 @@ for (const seat of ['white', 'black'] as const) {
           flag(i, `the centre moved ${(p.centre[1] - poses[start].centre[1]).toFixed(1)} px down`);
         }
         if (i === start) continue;
-        const q = poses[i - 1];
-        // The letters change corner together, crossfading; otherwise each
-        // turns with the view
-        if (p.corner !== q.corner && !crossfading(p)) flag(i, 'the letters changed corner unseen');
-        if (crossfading(p) || crossfading(q)) continue;
-        for (const [id, sprites] of Object.entries(p.letters)) {
-          const [a, b] = [shown(sprites).at, shown(q.letters[id]).at];
-          const moved = Math.hypot(a[0] - b[0], a[1] - b[1]);
-          if (moved > JUMP_PX) flag(i, `${id} jumped ${moved.toFixed(0)} px`);
-        }
+        for (const what of stepProblems(p, poses[i - 1])) flag(i, what);
       }
       // One straight line of letters, in order A to E, at every pose
       for (let i = start; i < poses.length; i++) {
-        if (crossfading(poses[i])) continue;
-        const pts = ['A', 'B', 'C', 'D', 'E'].map((l) => shown(poses[i].letters[`level-${l}`]).at);
-        const [a, e] = [pts[0], pts[4]];
-        const l = Math.hypot(e[0] - a[0], e[1] - a[1]);
-        const off = Math.max(
-          ...pts.map((q) =>
-            Math.abs(((e[0] - a[0]) * (q[1] - a[1]) - (e[1] - a[1]) * (q[0] - a[0])) / l),
-          ),
-        );
+        const off = offLine(poses[i]);
         if (off > 2) flag(i, `the letters are ${off.toFixed(1)} px off one line`);
       }
+      // Each change of post the band past a tie, no more often
+      const turn = poses.slice(start);
+      const switches = turn.filter((p, k) => k > 0 && p.corner !== turn[k - 1].corner).length;
+      if (switches > SWITCHES[elevation]) {
+        flag(poses.length - 1, `${switches} changes of post in a turn`);
+      }
     }
-    // Four corner switches a turn at each elevation, no more
-    const switches = poses.filter((p, i) => i > 0 && p.corner !== poses[i - 1].corner).length;
     if (problems.length) await attachFailures(page, info, poses, bad);
     expect(problems.slice(0, 20)).toEqual([]);
-    expect(switches).toBeLessThanOrEqual(4 * ELEVATIONS.length + ELEVATIONS.length);
+  });
+
+  test(`climbing to overhead moves the level letters to the far post in one crossfade, seated as ${seat}`, async ({
+    page,
+  }, info) => {
+    await seated(page, seat);
+    const poses: Pose[] = [];
+    const bad: number[] = [];
+    const problems: string[] = [];
+    const flag = (i: number, what: string) => {
+      bad.push(i);
+      problems.push(`az ${poses[i].azimuth} el ${poses[i].elevation}: ${what}`);
+    };
+    for (const azimuth of CLIMB_AZIMUTHS) {
+      // To the bottom of the climb, and a few frames for any crossfade to finish
+      for (let k = 0; k < 12; k++) await pose(page, azimuth, CLIMB[0]);
+      for (const [way, elevations] of [
+        ['up', CLIMB],
+        ['down', [...CLIMB].reverse()],
+      ] as const) {
+        const start = poses.length;
+        for (const elevation of elevations) {
+          const i = poses.push(await pose(page, azimuth, elevation)) - 1;
+          const p = poses[i];
+          if (Math.abs(p.centre[0] - WIDTH / 2) > 0.5) {
+            flag(i, `the centre is ${(p.centre[0] - WIDTH / 2).toFixed(1)} px off the middle`);
+          }
+          const off = offLine(p);
+          if (off > 2) flag(i, `the letters are ${off.toFixed(1)} px off one line`);
+          if (i > start) for (const what of stepProblems(p, poses[i - 1])) flag(i, what);
+        }
+        // One change of post each way: climbing just past LETTERS_HIGH,
+        // dipping just under LETTERS_LOW
+        const climb = poses.slice(start);
+        const at = climb.filter((p, k) => k > 0 && p.corner !== climb[k - 1].corner);
+        const [lo, hi] =
+          way === 'up' ? [LETTERS_HIGH, LETTERS_HIGH + 2] : [LETTERS_LOW - 2, LETTERS_LOW];
+        if (at.length !== 1 || at[0].actual < lo || at[0].actual > hi) {
+          flag(
+            poses.length - 1,
+            `going ${way}, the letters changed post at ${at.map((p) => p.actual.toFixed(1)).join(', ') || 'no elevation'}`,
+          );
+        }
+      }
+    }
+    if (problems.length) await attachFailures(page, info, poses, bad);
+    expect(problems.slice(0, 20)).toEqual([]);
   });
 }
+
+test('only a piece in front hides a label: the platforms write no depth and are drawn before them', async ({
+  page,
+}) => {
+  await seated(page, 'white');
+  const found = await page.evaluate(() => {
+    type Mat = { depthWrite: boolean; depthTest: boolean };
+    type Obj = {
+      name: string;
+      renderOrder: number;
+      material?: Mat | Mat[];
+      userData: Record<string, unknown>;
+      traverse(cb: (o: Obj) => void): void;
+    };
+    const st = (
+      window as unknown as {
+        __r3fState: { get(): { scene: { getObjectByName(n: string): Obj | undefined } } };
+      }
+    ).__r3fState.get();
+    const mats = (o: Obj) => (o.material ? [o.material].flat() : []);
+    const levels: { writes: boolean; order: number }[] = [];
+    st.scene.getObjectByName('levels')!.traverse((o) => {
+      for (const m of mats(o)) levels.push({ writes: m.depthWrite, order: o.renderOrder });
+    });
+    const labels: { tests: boolean; writes: boolean; order: number }[] = [];
+    st.scene.getObjectByName('smart-labels')!.traverse((o) => {
+      if (!o.userData.labelId) return;
+      for (const m of mats(o)) {
+        labels.push({ tests: m.depthTest, writes: m.depthWrite, order: o.renderOrder });
+      }
+    });
+    return { levels, labels };
+  });
+  // Glass, borders and rims: seen through, never a wall
+  expect(found.levels.length).toBeGreaterThanOrEqual(10);
+  expect(found.levels.filter((l) => l.writes)).toEqual([]);
+  // Every label: hidden by what writes depth in front of it (a piece), drawn
+  // after every platform so none tints it
+  expect(found.labels.length).toBeGreaterThanOrEqual(30);
+  const last = Math.max(...found.levels.map((l) => l.order));
+  for (const l of found.labels)
+    expect(l).toEqual({ tests: true, writes: false, order: expect.any(Number) });
+  expect(Math.min(...found.labels.map((l) => l.order))).toBeGreaterThan(last);
+});

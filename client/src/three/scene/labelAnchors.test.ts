@@ -10,9 +10,15 @@ import {
   chooseEdges,
   CORNERS,
   EDGE_HYSTERESIS,
+  facingRow,
   labelAnchors,
+  LETTER_LIFT,
   LETTER_OFFSET,
+  LETTER_OFFSET_HIGH,
   letterCorner,
+  LETTERS_HIGH,
+  LETTERS_LOW,
+  lettersHigh,
   LOW_ELEVATION,
   towerFrameRings,
 } from './labelAnchors';
@@ -49,29 +55,49 @@ describe('label anchors', () => {
       });
 
       it.each(AZIMUTHS)(
-        'stands every level letter at the far corner, outside it, at its own level, from %i°',
+        'stands every level letter at one post, outside it, at its own level, from %i°',
         (azimuth) => {
           for (const elevation of [-10, 8, 22, 45, 70, 89.9]) {
             const camera = cameraAt(azimuth, elevation);
             const { labels, state } = labelAnchors(layout, orientation, camera, TARGET, null);
             const [sx, sz] = CORNERS[state.corner];
-            // The corner across from the one where the files and ranks meet
-            expect([sx, sz]).toEqual([-state.edges.ranks, -state.edges.files]);
-            // ...which is the corner furthest from the camera
+            const { edges } = state;
+            // (the camera's own screen: x of a point on the floor)
+            const right = cameraRight(camera, TARGET);
+            const across = (c: number) => CORNERS[c][0] * right[0] + CORNERS[c][1] * right[2];
             const far = (c: number) =>
               Math.hypot(
                 CORNERS[c][0] * frame.half - camera[0],
                 CORNERS[c][1] * frame.half - camera[2],
               );
-            expect(far(state.corner)).toBeCloseTo(Math.max(...CORNERS.map((_, c) => far(c))), 6);
-            const out = frame.half + LETTER_OFFSET / Math.SQRT2;
+            expect(state.high).toBe(elevation >= 50);
+            if (state.high) {
+              // From high up, the post across from where the files and ranks
+              // meet: the corner furthest from the camera
+              expect([sx, sz]).toEqual([-edges.ranks, -edges.files]);
+              expect(far(state.corner)).toBeCloseTo(Math.max(...CORNERS.map((_, c) => far(c))), 6);
+            } else {
+              // From low down, the far end of the row facing the camera...
+              // (on a diagonal, where the two tie, either)
+              const cos = Math.abs(Math.cos(azimuth * DEG));
+              if (Math.abs(cos - Math.SQRT1_2) > 1e-9) {
+                expect(state.facing).toBe(cos > Math.SQRT1_2 ? 'files' : 'ranks');
+              }
+              if (state.facing === 'files') expect([sx, sz]).toEqual([-edges.ranks, edges.files]);
+              else expect([sx, sz]).toEqual([edges.ranks, -edges.files]);
+              // ...a side of the tower's outline on screen
+              const widest = Math.max(...CORNERS.map((_, c) => Math.abs(across(c))));
+              expect(Math.abs(across(state.corner))).toBeCloseTo(widest, 6);
+            }
+            const offset = state.high ? LETTER_OFFSET_HIGH : LETTER_OFFSET;
+            const out = frame.half + offset / Math.SQRT2;
             for (const label of labels.filter((l) => l.level !== undefined)) {
               const y = frame.levelY[label.level!];
               expect(label.text).toBe(LEVELS[label.level!]);
               expect(label.position[0]).toBeCloseTo(sx * out);
               expect(label.position[2]).toBeCloseTo(sz * out);
               // Beside its own platform, not another one
-              expect(label.position[1]).toBeGreaterThan(y);
+              expect(label.position[1]).toBeCloseTo(y + LETTER_LIFT);
               expect(label.position[1]).toBeLessThan(y + frame.gap / 4);
               expect(label.key).toBe(`c${state.corner}`);
             }
@@ -119,10 +145,23 @@ describe('label anchors', () => {
     expect(x(black, 'file-e-0')).toBeCloseTo(-2);
   });
 
-  it('opens with the level letters at the far-left corner and the ranks on the right', () => {
-    const { state } = labelAnchors(layout, 'white', cameraAt(16), TARGET, null);
-    expect(CORNERS[state.corner]).toEqual([-1, -1]);
-    expect(state.edges).toEqual({ files: 1, ranks: 1 });
+  it('opens with the level letters at the near-left post and the ranks on the right', () => {
+    for (const orientation of ['white', 'black'] as const) {
+      const camera = cameraAt(16, 18);
+      const { state, labels } = labelAnchors(layout, orientation, camera, TARGET, null);
+      // On the files' edge, at the end away from the ranks
+      expect(CORNERS[state.corner]).toEqual([-1, 1]);
+      expect(state.edges).toEqual({ files: 1, ranks: 1 });
+      // ...left of the tower on screen, the files between them and the ranks
+      const right = cameraRight(camera, TARGET);
+      const x = (id: string) => {
+        const p = labels.find((l) => l.id === id)!.position;
+        return p[0] * right[0] + p[2] * right[2];
+      };
+      const files = FILES.map((f) => x(`file-${f}-0`));
+      for (const l of LEVELS) expect(x(`level-${l}`)).toBeLessThan(Math.min(...files));
+      expect(x('rank-3-0')).toBeGreaterThan(Math.max(...files));
+    }
   });
 
   it('labels every platform on request', () => {
@@ -164,9 +203,53 @@ describe('hysteresis', () => {
     expect(edges.files).toBe(-1);
     edges = chooseEdges((90 - band - 1) * DEG, edges);
     expect(edges.files).toBe(1);
-    // ...and the letters' corner follows the edges
-    expect(letterCorner({ files: 1, ranks: 1 })).toBe(0);
-    expect(letterCorner({ files: -1, ranks: 1 })).toBe(3);
+    // ...and the letters' corner follows the edges: from high up the post
+    // touching neither row...
+    expect(letterCorner({ files: 1, ranks: 1 }, true)).toBe(0);
+    expect(letterCorner({ files: -1, ranks: 1 }, true)).toBe(3);
+    // ...from low down the far end of the row facing the camera
+    expect(letterCorner({ files: 1, ranks: 1 }, false)).toBe(3);
+    expect(letterCorner({ files: 1, ranks: 1 }, false, 'ranks')).toBe(1);
+    expect(letterCorner({ files: -1, ranks: 1 }, false, 'ranks')).toBe(2);
+  });
+
+  it('turns the letters to the row facing the camera only past the band', () => {
+    const band = EDGE_HYSTERESIS / DEG;
+    let facing = facingRow(30 * DEG, null);
+    expect(facing).toBe('files');
+    // The files and the ranks face the camera equally on the diagonals
+    for (const a of [44, 46, 45 + band - 0.5, 43]) {
+      facing = facingRow(a * DEG, facing);
+      expect(facing).toBe('files');
+    }
+    facing = facingRow((45 + band + 0.5) * DEG, facing);
+    expect(facing).toBe('ranks');
+    for (const a of [46, 44, 45 - band + 0.5, 90, 135 + band - 0.5, 225]) {
+      facing = facingRow(a * DEG, facing);
+      expect(facing).toBe('ranks');
+    }
+    expect(facingRow(-30 * DEG, facing)).toBe('files');
+    expect(facingRow(100 * DEG, null)).toBe('ranks');
+  });
+
+  it('moves the letters up to the far post past LETTERS_HIGH, and down again under LETTERS_LOW', () => {
+    expect(LETTERS_HIGH / DEG).toBeCloseTo(55);
+    expect(LETTERS_LOW / DEG).toBeCloseTo(45);
+    // Opening at a pose, the middle of the band decides
+    expect(lettersHigh(49 * DEG, null)).toBe(false);
+    expect(lettersHigh(50 * DEG, null)).toBe(true);
+    let high = lettersHigh(20 * DEG, null);
+    for (const e of [30, 46, 54, 54.9, 47]) {
+      high = lettersHigh(e * DEG, high);
+      expect(high).toBe(false);
+    }
+    high = lettersHigh(55 * DEG, high);
+    expect(high).toBe(true);
+    for (const e of [89.9, 54, 46, 45.1]) {
+      high = lettersHigh(e * DEG, high);
+      expect(high).toBe(true);
+    }
+    expect(lettersHigh(45 * DEG, high)).toBe(false);
   });
 
   it('measures the azimuth from +z toward +x', () => {
@@ -483,18 +566,33 @@ describe('towerFrameRings', () => {
     }
   });
 
-  it('reach the letters only behind the tower, and never past the platforms across', () => {
+  it('reach the side post all round but the front, and the far one only behind', () => {
     const letters = rings.filter((r) => r.behind !== undefined);
-    expect(letters).toHaveLength(2);
-    for (const r of letters) {
-      expect(r.behind).toBeCloseTo(Math.PI / 4 + EDGE_HYSTERESIS);
+    const side = letters.filter((r) => r.behind! > Math.PI / 2);
+    const far = letters.filter((r) => r.behind! < Math.PI / 2);
+    expect(side).toHaveLength(2);
+    expect(far).toHaveLength(2);
+    for (const r of side) {
+      // From low down the post is never within 45° (less the band) of the front
+      expect(r.behind).toBeCloseTo((3 * Math.PI) / 4 + EDGE_HYSTERESIS);
       expect(r.radius).toBeGreaterThan(Math.SQRT2 * frame.half + LETTER_OFFSET);
     }
-    // From the side the widest thing is the platforms' diagonal (with the
-    // files and ranks, just inside it), not a letter
+    for (const r of far) {
+      expect(r.behind).toBeCloseTo(Math.PI / 4 + EDGE_HYSTERESIS);
+      expect(r.radius).toBeGreaterThan(Math.SQRT2 * frame.half + LETTER_OFFSET_HIGH);
+    }
+    // From the side the widest thing is the side post's letters, just
+    // outside the platforms' diagonal
     const { right } = ringBounds(rings, 0, 20);
-    const edge = Math.max(...rings.filter((r) => r.behind === undefined).map((r) => r.radius));
-    expect(right).toBeCloseTo(edge / Math.sqrt(20 * 20 - edge * edge), 9);
-    expect(edge).toBeLessThan(Math.SQRT2 * frame.half + 0.2);
+    const r = side[0].radius;
+    expect(right).toBeCloseTo(r / Math.sqrt(20 * 20 - r * r), 9);
+    expect(r).toBeLessThan(Math.SQRT2 * frame.half + 0.5);
+    // ...and the far post, behind the tower, never widens the view
+    const near = rings.filter((ring) => !far.includes(ring));
+    for (let e = -14; e <= 90; e += 2) {
+      const elevation = Math.min(e, 89.9) * DEG;
+      const all = ringBounds(rings, elevation, 20);
+      expect(all.right).toBeCloseTo(ringBounds(near, elevation, 20).right, 9);
+    }
   });
 });

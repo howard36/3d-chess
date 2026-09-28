@@ -34,12 +34,10 @@ export const Grid = ({ layout, orientation, focus }: GridProps) => {
         focusLevel={focusLevel}
         focusScale={1}
         focusDim={0.55}
-        // Files and ranks are hidden by a piece in front of them, as anything
-        // behind a piece is; the glass writes no depth, so it never hides one.
-        // The level letters stand at the corner behind the tower, where from
-        // low down a piece is often in front of one: they show over it.
+        // Hidden by a piece in front of them, as anything behind a piece is;
+        // the glass, its border and its rim write no depth, so they never
+        // hide one
         depthTest
-        levelDepthTest={false}
       />
     </>
   );

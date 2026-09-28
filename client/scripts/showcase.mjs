@@ -99,7 +99,7 @@
 // orbit-report.txt and orbit-report.json: how far the view's centre (the orbit
 // target on screen) moved, the largest change in any label's step from one
 // frame to the next (a jump or a kink shows as a spike), where the level
-// letters switched corner, and a flag for every discontinuity, letters out of
+// letters changed post, and a flag for every discontinuity, letters out of
 // line or out of order or switching apart, and the tower running past the
 // window's edge or into a HUD band. The orbit's limits apply (it reaches -14°
 // only near enough the tower). --stills skips the video and draws only the
@@ -530,9 +530,9 @@ const SHOW_HELPERS = () => {
     /**
      * Where things fall on screen (page px): the orbit target (the tower's
      * centre, which the view keeps on its vertical axis), the view's lens
-     * shift, the tower's outline (its squares' bounds) and both sprites of
-     * every label (SmartLabels crossfades between them), each with its
-     * opacity and its height in px.
+     * shift, the tower's outline (its platforms' and pieces' bounds) and
+     * both sprites of every label (SmartLabels crossfades between them),
+     * each with its opacity and its height in px.
      */
     measure() {
       const st = store();
@@ -568,23 +568,34 @@ const SHOW_HELPERS = () => {
           h: (s.scale.y * scale) / Math.max(depth, 1e-3),
         });
       });
-      let box = null;
+      // The tower as drawn: each platform (glass, border and rim) and each
+      // piece, by its own bounds (the squares' click boxes are not drawn)
+      const boxes = [];
+      const boundsOf = (root) => {
+        let b = null;
+        root.traverse((o) => {
+          if (!o.isMesh || !o.visible || o.userData?.hitProxy) return;
+          const g = o.geometry;
+          if (!g.boundingBox) g.computeBoundingBox();
+          const w = g.boundingBox.clone().applyMatrix4(o.matrixWorld);
+          b = b ? b.union(w) : w;
+        });
+        if (b) boxes.push(b);
+      };
+      scene.getObjectByName('levels')?.children.forEach(boundsOf);
       scene.traverse((o) => {
-        if (!o.userData?.cube) return;
-        const g = o.geometry;
-        if (!g.boundingBox) g.computeBoundingBox();
-        const b = g.boundingBox.clone().applyMatrix4(o.matrixWorld);
-        box = box ? box.union(b) : b;
+        if (o.userData?.piece) boundsOf(o);
       });
       const xs = [];
       const ys = [];
-      for (const x of [box.min.x, box.max.x])
-        for (const y of [box.min.y, box.max.y])
-          for (const z of [box.min.z, box.max.z]) {
-            const [u, v] = px(new V(x, y, z));
-            xs.push(u);
-            ys.push(v);
-          }
+      for (const box of boxes)
+        for (const x of [box.min.x, box.max.x])
+          for (const y of [box.min.y, box.max.y])
+            for (const z of [box.min.z, box.max.z]) {
+              const [u, v] = px(new V(x, y, z));
+              xs.push(u);
+              ys.push(v);
+            }
       return {
         azimuth: (Math.atan2(d.x, d.z) * 180) / Math.PI,
         elevation: (Math.asin(d.y / d.length()) * 180) / Math.PI,
@@ -1289,9 +1300,11 @@ function jitter(name, frames, bands) {
       const mid = [(r0[0] + r1[0]) / 2, (r0[1] + r1[1]) / 2];
       const across = Math.abs(u[0] * (mid[1] - a[1]) - u[1] * (mid[0] - a[0]));
       const h = INK_HEIGHT * shown(f, letters[0]).h;
+      // (a like spacing: side by side, each letter level with a label)
+      const pitch = l / (p.length - 1) / (rl / (labels.length - 1));
       if (across < 3 * h) {
         flag(i, `the level letters run on in line with the ${name} (${angle.toFixed(0)}° apart)`);
-      } else if (shared > 0.25 * Math.min(l, rl)) {
+      } else if (shared > 0.25 * Math.min(l, rl) && pitch > 2 / 3 && pitch < 1.5) {
         // Inevitable near a square view from 35° to 75° up, where the row
         // running away from the camera stands up the screen like every
         // corner post, and allowed there only across the tower from it
@@ -1345,7 +1358,12 @@ function jitter(name, frames, bands) {
     },
     labels: { maxKink: worstLabel, letterLine: worstLine, nearestParallel },
     acrossSquare: acrossSquare.size,
-    letterSwitches: [...letterSwitches].sort((a, b) => a - b).map((i) => frames[i].azimuth),
+    // Where: the azimuth turning, the elevation climbing
+    letterSwitches: [...letterSwitches]
+      .sort((a, b) => a - b)
+      .map((i) =>
+        turning ? `az ${frames[i].azimuth.toFixed(0)}°` : `el ${frames[i].elevation.toFixed(1)}°`,
+      ),
     minRoom: Math.min(...room),
     flags,
   };
@@ -1485,7 +1503,7 @@ async function orbitReview(rec, seat) {
         `${r.labels.letterLine.toFixed(1)} px off one line, at least ` +
         `${r.labels.nearestParallel.toFixed(0)}° off the files' or ranks' line (near-parallel ` +
         `across the tower near a square view in ${r.acrossSquare} frame(s)); letter switches at ` +
-        `${r.letterSwitches.map((a) => `${a.toFixed(0)}°`).join(', ') || 'none'}`,
+        `${r.letterSwitches.join(', ') || 'none'}`,
       `  tightest room round the tower: ${r.minRoom.toFixed(0)} px`,
       `  ${r.flags.length} flag(s)${r.flags.length ? ':' : ''}`,
       ...Object.entries(

@@ -293,16 +293,19 @@ describe('fitView', () => {
     }
   });
 
-  it('frames the tower larger than the symmetric fit, which it used to sit low or aside in', () => {
+  it('frames the tower about as large as the symmetric fit, which it used to sit low or aside in', () => {
     // The tower with its labels, as the game frames it, against the box its
     // layout gives for the labels' room, fitted symmetrically
     const tower = towerLayout({ pieceHeight: 0.87 * 0.8, minElevation: -14 });
     const rings = towerFrameRings(tower, { size: 0.32, levelScale: 1 });
-    // (8%, 5% and 1% closer, where the framing of the outline as seen was
-    // 10%, 8% and 3% closer, before it held still as the view turned)
+    // (7% and 1% closer in a desktop window and a phone on its side, where
+    // the framing of the outline as seen was 10% and 3% closer, before it
+    // held still as the view turned; an upright phone, which the tower fills
+    // across, stands 3.5% further back for the level letters' column at a
+    // side of the tower's outline)
     for (const [w, h, most] of [
       [1280, 720, 0.93],
-      [390, 844, 0.95],
+      [390, 844, 1.04],
       [844, 390, 1],
     ]) {
       const old = fitDistance(VIEW, w / h, 36, tower.halfExtents);

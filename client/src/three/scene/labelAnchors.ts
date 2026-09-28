@@ -7,17 +7,19 @@ import type { BoardLayout, Vec3 } from '../types';
 // Where a tower's coordinate labels go, as a pure function of the camera:
 // files and ranks along the two edges of a platform nearest the camera, just
 // outside it (the bottom platform, or the top one from high above), and the
-// five level letters up the one corner post that touches neither of those
-// edges (letterCorner), each just outside its own platform's corner. From
-// the side the letters make one column up the post, A at the bottom; from
-// above, a short line along the corner's diagonal, each beside its own ring;
-// never in line with the files or the ranks, and the same rule at every
-// pose. The edges, and with them the letters' corner, change only past a
-// hysteresis band, so an orbit that wavers around a boundary never makes the
-// labels flicker; the letters change corner all together. A camera below
-// LOW_ELEVATION (the orbit dips under the horizon) may see the platform
-// carrying the files and ranks edge-on, or from below: they fade out near its
-// plane, and take its far edges once under it (axisView).
+// five level letters up one corner post (letterCorner), each just outside its
+// own platform's corner. From low and middling heights the post is a side of
+// the tower's outline that carries no labels, the far end of the row facing
+// the camera: the letters make one column up it, A at the bottom, outside the
+// tower. From high up it is the corner across from where the files and ranks
+// meet: a short line along its diagonal, each letter beside its own ring.
+// Never in line with the files or the ranks. The edges, the row facing the
+// camera and the height, and with them the letters' post, change only past a
+// hysteresis band, so an orbit or a climb that wavers around a boundary
+// never makes the labels flicker; the letters change post all together. A
+// camera below LOW_ELEVATION (the orbit dips under the horizon) may see the
+// platform carrying the files and ranks edge-on, or from below: they fade out
+// near its plane, and take its far edges once under it (axisView).
 
 /** Which platform edges carry the axis labels: the sign of the edge's z (files) and x (ranks). */
 export interface EdgeChoice {
@@ -40,12 +42,13 @@ export const cameraAzimuth = (camera: Vec3, target: Vec3): number =>
 /**
  * How far (radians) the camera turns past the tie between two edges before
  * the labels change edge (the files, the ranks and with them the level
- * letters' corner): enough that no wobble ever makes them flicker, and no
- * more. Held further, the letters' far corner comes round to the tower's side
- * while the row held on the other side runs straight away from the camera,
- * and from 40° to 70° up the two stand as a pair of columns either side of
- * the tower, each letter level with a label of the row, as if they labelled
- * its squares.
+ * letters' post), and before the letters take the other row's far end from
+ * low down (facingRow): enough that no wobble ever makes them flicker, and no
+ * more. Held further, from high up the letters' far post comes round to the
+ * tower's side while the row held on the other side runs straight away from
+ * the camera, and the two stand as a pair of columns either side of the
+ * tower, each letter level with a label of the row, as if they labelled its
+ * squares; from low down the side post comes round toward the front.
  */
 export const EDGE_HYSTERESIS = (5 * Math.PI) / 180;
 
@@ -209,26 +212,82 @@ export const axisView = (
 };
 
 /**
- * The corner post the level letters stand at (an index into CORNERS): the one
- * touching neither the files' edge nor the ranks', diagonally across from the
- * corner where they meet. All five letters share it, so they stand in one
- * line and change corner together, only when the edges do (past their
- * hysteresis). It is the far corner, on the far side of the tower from the
- * camera, as far as the platform goes from both rows of labels; from high
- * above it is the top of the tower's outline.
+ * Camera elevations (radians, about the orbit target) where the level
+ * letters change post: climbing past LETTERS_HIGH they leave the side post
+ * for the far one, and dipping under LETTERS_LOW they come back, so a camera
+ * wavering in between never makes them flicker.
  */
-export const letterCorner = (edges: EdgeChoice): number =>
-  CORNERS.findIndex(([x, z]) => x === -edges.ranks && z === -edges.files);
+export const LETTERS_HIGH = 55 * DEG;
+export const LETTERS_LOW = 45 * DEG;
+
+/** Whether the letters stand at the far post (seen from high up): past LETTERS_HIGH, until back under LETTERS_LOW. */
+export const lettersHigh = (elevation: number, prev: boolean | null): boolean => {
+  if (prev === null) return elevation >= (LETTERS_HIGH + LETTERS_LOW) / 2;
+  return prev ? elevation > LETTERS_LOW : elevation >= LETTERS_HIGH;
+};
+
+/**
+ * Which row of labels faces the camera more squarely: the files (on a
+ * z-edge) or the ranks (on an x-edge). They tie on the diagonals; the row
+ * facing is only given up once the camera is `hysteresis` radians past one.
+ */
+export const facingRow = (
+  azimuth: number,
+  prev: 'files' | 'ranks' | null,
+  hysteresis = EDGE_HYSTERESIS,
+): 'files' | 'ranks' => {
+  const files = Math.abs(Math.cos(azimuth));
+  if (prev === null) return files >= Math.SQRT1_2 ? 'files' : 'ranks';
+  if (prev === 'files') return files < Math.cos(Math.PI / 4 + hysteresis) ? 'ranks' : 'files';
+  return files > Math.cos(Math.PI / 4 - hysteresis) ? 'files' : 'ranks';
+};
+
+/**
+ * The corner post the level letters stand at (an index into CORNERS). From
+ * low and middling heights, a post on the side of the tower's outline that
+ * carries no labels: at the far end of the row that faces the camera (the
+ * files, from the seat's own side; the ranks, looking along the files), so
+ * the letters stand in a column outside the tower, square to that row and
+ * across the tower from the other, which runs away from the camera. From
+ * high up (`high`), the post touching neither the files' edge nor the ranks',
+ * diagonally across from where they meet: a short line along its diagonal,
+ * clear of both rows. All five letters share it, so they stand in one line
+ * and change post together: when the edges or the facing row change (past
+ * their hysteresis) or the camera climbs or dips past LETTERS_HIGH or
+ * LETTERS_LOW.
+ */
+export const letterCorner = (
+  edges: EdgeChoice,
+  high: boolean,
+  facing: 'files' | 'ranks' = 'files',
+): number => {
+  const [x, z] = high
+    ? [-edges.ranks, -edges.files]
+    : facing === 'files'
+      ? [-edges.ranks, edges.files]
+      : [edges.ranks, -edges.files];
+  return CORNERS.findIndex(([cx, cz]) => cx === x && cz === z);
+};
 
 /**
  * How far a level letter stands out from its platform's corner, along the
- * corner's diagonal: clear of the platform's border and rim (which reach
- * about 0.13 along it) by more than half a letter.
+ * corner's diagonal: from low down, clear of the platform's border and rim
+ * (which reach about 0.13 along it) by half a letter and more, and two
+ * letters' height from the end of the files or ranks beside it at every
+ * pose; standing at a side of the outline, the letters widen what the view
+ * frames (towerFrameRings), so no further. From high up, behind the tower,
+ * where they widen nothing, a little further (LETTER_OFFSET_HIGH), so seen
+ * from overhead on a phone they stand clear of one another.
  */
-export const LETTER_OFFSET = 0.45;
+export const LETTER_OFFSET = 0.35;
+export const LETTER_OFFSET_HIGH = 0.45;
 
-/** How far a level letter stands above its platform. */
-export const LETTER_LIFT = 0.12;
+/**
+ * How far a level letter stands above its platform: enough that where the
+ * row at its post runs away from the camera, from level with the bottom
+ * platform, A stands clear above the row's last label rather than beside it.
+ */
+export const LETTER_LIFT = 0.16;
 
 export interface LabelAnchor {
   /** Stable identity of the label (one sprite pair per id). */
@@ -252,13 +311,19 @@ export interface AnchorState {
   axisLevels: { files: number; ranks: number };
   /** The corner post the level letters stand at (letterCorner), an index into CORNERS. */
   corner: number;
+  /** The letters stand at the far post, seen from high up (lettersHigh). */
+  high: boolean;
+  /** The row facing the camera more squarely (facingRow), whose far end the letters take from low down. */
+  facing: 'files' | 'ranks';
 }
 
 export interface AnchorOptions {
   /** Distance of the file and rank labels outside the platform's edge. */
   offset?: number;
-  /** Distance of the level letters out from their platform's corner, along its diagonal (LETTER_OFFSET). */
+  /** Distance of the level letters out from their platform's corner, along its diagonal, from low down (LETTER_OFFSET)... */
   levelOffset?: number;
+  /** ...and from high up (LETTER_OFFSET_HIGH). */
+  levelOffsetHigh?: number;
   /** Axis labels on every platform, not only the bottom one. */
   everyLevel?: boolean;
   /** Radians past the tie before the axis labels (and so the letters) change edge. */
@@ -267,10 +332,19 @@ export interface AnchorOptions {
   levelLift?: number;
 }
 
-/** Where level `z`'s letter stands at corner post `corner`. */
-const letterAt = (frame: TowerFrame, z: number, corner: number, o: AnchorOptions): Vec3 => {
+/** Where level `z`'s letter stands at corner post `corner`, from high up or low down. */
+const letterAt = (
+  frame: TowerFrame,
+  z: number,
+  corner: number,
+  high: boolean,
+  o: AnchorOptions,
+): Vec3 => {
   const [sx, sz] = CORNERS[corner];
-  const out = frame.half + (o.levelOffset ?? LETTER_OFFSET) / Math.SQRT2;
+  const offset = high
+    ? (o.levelOffsetHigh ?? LETTER_OFFSET_HIGH)
+    : (o.levelOffset ?? LETTER_OFFSET);
+  const out = frame.half + offset / Math.SQRT2;
   return [sx * out, frame.levelY[z] + (o.levelLift ?? LETTER_LIFT), sz * out];
 };
 
@@ -336,17 +410,21 @@ export const labelAnchors = (
       }),
     );
   }
-  const corner = letterCorner(edges);
+  const v = sub(camera, target);
+  const elevation = Math.asin(v[1] / (Math.hypot(v[0], v[1], v[2]) || 1));
+  const high = lettersHigh(elevation, prev?.high ?? null);
+  const facing = facingRow(cameraAzimuth(camera, target), prev?.facing ?? null, o.edgeHysteresis);
+  const corner = letterCorner(edges, high, facing);
   LEVELS.forEach((text, z) =>
     labels.push({
       id: `level-${text}`,
       text,
       key: `c${corner}`,
-      position: letterAt(frame, z, corner, o),
+      position: letterAt(frame, z, corner, high, o),
       level: z,
     }),
   );
-  return { state: { edges, axisLevels, corner }, labels };
+  return { state: { edges, axisLevels, corner, high, facing }, labels };
 };
 
 export interface LabelFrameOptions extends AnchorOptions {
@@ -377,9 +455,10 @@ export const GLYPH_REACH = 0.3;
  *   layout's box, over its outer squares;
  * - the files and ranks, round the bottom and the top platform (either may
  *   carry them), wherever along either edge;
- * - the level letters, on the arc behind the tower that their corner post
- *   keeps to (letterCorner stands on the far side, at most 45° plus the
- *   edges' hysteresis from straight behind).
+ * - the level letters, on the arcs their post keeps to: from low down never
+ *   nearer the front of the tower than 45° less the hysteresis (a side of
+ *   the outline), from high up never more than 45° and the hysteresis off
+ *   straight behind it (letterCorner).
  *
  * Every label's ring reaches its glyph's size further out, up and down. Pass
  * the size, level scale and anchor options the grid gives SmartLabels.
@@ -405,8 +484,15 @@ export const towerFrameRings = (
   // A row's end label stands off the platform's edge beside its last square
   const row = Math.hypot(half + (o.offset ?? 0.42), ((GRID_SIZE - 1) / 2) * pitch) + glyph;
   const corner = Math.SQRT2 * half + (o.levelOffset ?? LETTER_OFFSET) + letter;
+  const far = Math.SQRT2 * half + (o.levelOffsetHigh ?? LETTER_OFFSET_HIGH) + letter;
   const lift = o.levelLift ?? LETTER_LIFT;
-  const behind = Math.PI / 4 + (o.edgeHysteresis ?? EDGE_HYSTERESIS);
+  // The letters' post is never within 45° (less the edges' hysteresis) of
+  // straight in front of the axis: at a side of the outline from low down;
+  // from high up, further out, never more than 45° (and the hysteresis) off
+  // straight behind it
+  const hysteresis = o.edgeHysteresis ?? EDGE_HYSTERESIS;
+  const sides = (3 * Math.PI) / 4 + hysteresis;
+  const behind = Math.PI / 4 + hysteresis;
   // (one ring each round the bottom and the top platform with its files and
   // ranks, which nearly coincide: two would only add to the fit's easing)
   const edge = Math.max(plates, row);
@@ -414,7 +500,9 @@ export const towerFrameRings = (
     { y: bottom - Math.max(rimDepth, glyph), radius: edge },
     { y: top + glyph, radius: edge },
     { y: layout.halfExtents[1], radius: pieces },
-    { y: bottom + lift - letter, radius: corner, behind },
-    { y: top + lift + letter, radius: corner, behind },
+    { y: bottom + lift - letter, radius: corner, behind: sides },
+    { y: top + lift + letter, radius: corner, behind: sides },
+    { y: bottom + lift - letter, radius: far, behind },
+    { y: top + lift + letter, radius: far, behind },
   ];
 };
