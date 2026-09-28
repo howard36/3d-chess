@@ -366,7 +366,7 @@ const useNesting = (
     if (!halo) return;
     // A destination off the level in play is drawn as its fill alone: a
     // stack of them reads as one crisp hexagon (the lead's) over deeper light
-    u.uLine.value = 1 - 0.75 * s * (1 - lead);
+    u.uLine.value = 1 - 0.85 * s * (1 - lead);
     const column = overHeld(floor) ? s : 0;
     u.uShow.value = 1 - column;
     halo.uniforms.uAlpha.value =

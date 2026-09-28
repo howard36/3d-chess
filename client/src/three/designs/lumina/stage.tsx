@@ -672,7 +672,7 @@ const LINE_OPACITY = 0.065;
 const PLINTH = new Color(PALETTE.plinth);
 const CAP = new Color(PALETTE.holo).multiplyScalar(0.07);
 /** How dim a sculpture's plinth gets behind the tower: a quiet object, never a hole. */
-const PLINTH_FLOOR = 0.35;
+const PLINTH_FLOOR = 0.8;
 const FADE_MS = 300;
 const across = new Vector3();
 
