@@ -339,7 +339,7 @@ describe('3-D checkmate & stalemate scenarios', () => {
     expect(board.isCheckmate('black')).toBe(true);
   });
 
-  it("Classic 2-D Fool's-mate analogue is NOT mate in 3-D (king escapes vertically)", () => {
+  it("2-D chess's Fool's-mate analogue is NOT mate in 3-D (king escapes vertically)", () => {
     const board = new Board();
     // Place black king at (4,0,0) (E a 1)
     board.setPiece({ x: 0, y: 0, z: 4 }, { type: PieceType.King, color: 'black' });
@@ -536,9 +536,9 @@ const START_LAYOUT: Layout = {
   E5: 'rnknr',
 };
 
-// The classic 5×5×5 set-up, before rank and level were exchanged: each
+// The traditional 5×5×5 set-up, before rank and level were exchanged: each
 // army's pieces and pawns share two levels.
-const CLASSIC_LAYOUT: Layout = {
+const TRADITIONAL_LAYOUT: Layout = {
   A1: 'RNKNR',
   A2: 'PPPPP',
   B1: 'BUQBU',
@@ -951,10 +951,10 @@ describe('Starting position baseline', () => {
     expect(layoutOf(board)).toEqual(START_LAYOUT);
   });
 
-  it('is the classic set-up with rank and level exchanged', () => {
-    const classic = boardFromLayout(CLASSIC_LAYOUT);
+  it('is the traditional set-up with rank and level exchanged', () => {
+    const traditional = boardFromLayout(TRADITIONAL_LAYOUT);
     for (const cell of ALL_CELLS) {
-      expect(board.getPiece(cell)).toEqual(classic.getPiece(transpose(cell)));
+      expect(board.getPiece(cell)).toEqual(traditional.getPiece(transpose(cell)));
     }
   });
 
@@ -989,7 +989,7 @@ describe('Starting position baseline', () => {
 });
 
 describe('Exchanging rank and level is a symmetry of the rules', () => {
-  // The starting position is the classic one transposed, so the game stays the
+  // The starting position is the traditional one transposed, so the game stays the
   // same only if the rules cannot tell rank from level: in any position, the
   // legal moves of the transposed position are the transposed legal moves.
   const moveKeys = (moves: Move[]) =>

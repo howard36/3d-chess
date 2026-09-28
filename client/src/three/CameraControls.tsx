@@ -23,7 +23,7 @@ export interface CameraControlsProps {
  * the finger goes. Otherwise it behaves as drei's did: damped, updated every
  * frame, redrawing the demand-driven canvas when the view moves, and
  * registered as the default controls (drei's makeDefault), which
- * FitCameraToBoard, the designs and scripts/showcase.mjs read.
+ * FitCameraToBoard, the scene and scripts/showcase.mjs read.
  */
 export function CameraControls({
   minPolarAngle = 0,

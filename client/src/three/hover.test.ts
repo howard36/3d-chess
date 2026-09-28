@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PieceType } from '../engine';
-import { readoutParts, readoutText, resolveHover } from './hover';
+import { readoutParts, resolveHover } from './hover';
 import type { FloorSquare, HoverRay } from './hover';
 
 // Two levels of three squares in a row along z, one unit apart, the upper
@@ -57,18 +57,19 @@ describe('resolveHover', () => {
   });
 });
 
-describe('readoutText', () => {
+describe('readoutParts', () => {
   it('names the cell and what stands there', () => {
-    expect(readoutText('Cc4', { type: PieceType.Bishop, color: 'white' })).toBe(
-      'Cc4 · White Bishop',
-    );
-    expect(readoutText('Ee5', { type: PieceType.Unicorn, color: 'black' })).toBe(
-      'Ee5 · Black Unicorn',
-    );
+    expect(readoutParts('Cc4', { type: PieceType.Bishop, color: 'white' })).toEqual({
+      cell: 'Cc4',
+      piece: 'White Bishop',
+    });
+    expect(readoutParts('Ee5', { type: PieceType.Unicorn, color: 'black' })).toEqual({
+      cell: 'Ee5',
+      piece: 'Black Unicorn',
+    });
   });
 
   it('is just the cell when it is empty', () => {
-    expect(readoutText('Aa1', null)).toBe('Aa1');
     expect(readoutParts('Aa1', null)).toEqual({ cell: 'Aa1', piece: null });
   });
 });

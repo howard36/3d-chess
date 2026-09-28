@@ -167,7 +167,3 @@ export const revolve = (
     },
   });
 };
-
-/** Samples and turns a profile in one go. */
-export const lathe = (profile: Profile, tolerance: number, options: RevolveOptions) =>
-  revolve(sampleProfile(profile, tolerance), options);

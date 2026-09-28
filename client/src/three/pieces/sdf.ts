@@ -97,9 +97,6 @@ export const roundCone = (a: Vec3, b: Vec3, ra: number, rb: number, squash = 1):
   );
 };
 
-/** Capsule of constant radius between a and b. */
-export const capsule = (a: Vec3, b: Vec3, r: number): Sdf => roundCone(a, b, r, r);
-
 /** Half-space below the plane through `p` with outward normal `n` (unit). */
 export const halfSpace =
   (p: Vec3, n: Vec3): Sdf =>

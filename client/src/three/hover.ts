@@ -68,9 +68,3 @@ export const readoutParts = (zxy: string, piece: Piece | null) => ({
   cell: zxy,
   piece: piece ? `${capitalise(piece.color)} ${piece.type}` : null,
 });
-
-/** The HUD readout of a hovered cell: "Cc4 · White Bishop", or "Cc4" when empty. */
-export const readoutText = (zxy: string, piece: Piece | null): string => {
-  const parts = readoutParts(zxy, piece);
-  return parts.piece ? `${parts.cell} · ${parts.piece}` : parts.cell;
-};

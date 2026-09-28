@@ -6,7 +6,7 @@ import { materialBalance } from '../game/material';
 type Side = 'white' | 'black';
 
 // Small silhouettes on a 24-unit grid. The unicorn has no chess glyph in any
-// font, so the whole set is drawn here and matches whatever font a design uses.
+// font, so the whole set is drawn here and matches whatever font the HUD uses.
 const GLYPHS: Record<PieceType, string> = {
   [PieceType.Pawn]:
     'M12 3.6a3.3 3.3 0 1 1 0 6.6a3.3 3.3 0 1 1 0-6.6zM9 11.4h6l1.6 7.1H7.4zM6 18.9h12V21H6z',

@@ -29,15 +29,15 @@ import type { Sdf } from './sdf';
 // nostrils and an open mouth, and a mane down the crest: a narrow band of
 // locks laid in herringbone, standing proud enough to break the outline of
 // the neck. The relief names it in any finish; the mane and the eyes are
-// separate shells (the knight's accent), so a design can paint them too. It
+// separate shells (the knight's accent), so they can be painted apart. It
 // faces +x, stands on the turned base (buried in its collar below
-// KNIGHT_SEAT), and is drawn at SCALE of its design size (so it stands about
+// KNIGHT_SEAT), and is drawn at SCALE of its profile's size (so it stands about
 // 0.72 tall, below the bishop).
 
 /** Height at which the neck disappears into the base's collar. */
 export const KNIGHT_SEAT = 0.14;
 
-/** The design is drawn scaled about the seat, in profile only (its thickness is as given). */
+/** The head is drawn scaled about the seat, in profile only (its thickness is as given). */
 const SCALE = 0.92;
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
@@ -46,7 +46,7 @@ const ramp = (a: number, b: number, x: number) =>
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /**
- * The side profile (in design units, before SCALE), facing +x,
+ * The side profile (in profile units, before SCALE), facing +x,
  * counter-clockwise from the foot of the chest: up the chest and throat,
  * under the jaw to the muzzle, back up the face to the poll, and down the
  * crest of the neck.

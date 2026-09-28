@@ -6,8 +6,8 @@ import type { Vec3 } from './mesh';
 // the slab between two parallel planes, stopped at a floor; the shell's
 // triangles inside it are clipped away and the cut faces (both walls and
 // the floor) are built from the shell's own cross-sections, so they meet the
-// clipped surface edge for edge. The cut faces come back separately, for a
-// design to paint the cut in its own colour.
+// clipped surface edge for edge. The cut faces come back separately, so the
+// cut can be painted in its own colour.
 
 interface V {
   p: Vec3;

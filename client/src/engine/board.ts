@@ -324,7 +324,7 @@ export class Board {
   }
 
   /**
-   * The starting position: the classic 5×5×5 set-up with ranks and levels
+   * The starting position: the traditional 5×5×5 set-up with ranks and levels
    * exchanged, so each army's pawns stand on a level of their own. White
    * holds level A (R N K N R on rank 1, B U Q B U on rank 2) with pawns
    * filling ranks 1 and 2 of level B; Black's army is White's turned through
@@ -332,7 +332,7 @@ export class Board {
    *
    * Every rule treats rank and level alike (the move vectors, the pawn's
    * forward and up steps and its captures, promotion on rank 5 of level E),
-   * so this is the classic game with two axes renamed.
+   * so this is the traditional game with two axes renamed.
    */
   static setupStartingPosition(): Board {
     const board = new Board();
