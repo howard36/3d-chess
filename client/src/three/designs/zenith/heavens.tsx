@@ -198,7 +198,7 @@ export const SKY_PLAN: Placement[] = [
   { c: BISHOP, azimuth: 264, elevation: 19, size: 8, tilt: -0.05 },
   { c: ROOK, azimuth: 306, elevation: 22, size: 7, tilt: 0.06 },
   { c: QUEEN, azimuth: 352, elevation: 20, size: 8.5, tilt: 0.04 },
-  { c: UNICORN, azimuth: 40, elevation: 23, size: 9, tilt: 0.07 },
+  { c: UNICORN, azimuth: 40, elevation: 22, size: 9, tilt: 0.07 },
   { c: PAWN, azimuth: 84, elevation: 18, size: 7, tilt: -0.08 },
   { c: KNIGHT_WEST, azimuth: 128, elevation: 21, size: 9.5, tilt: 0.05 },
 ];

@@ -14,7 +14,6 @@ import {
   SphereGeometry,
   Vector2,
   Vector3,
-  Vector4,
 } from 'three';
 import type { Camera } from 'three';
 import type { StageProps } from '../types';
@@ -22,7 +21,7 @@ import { PieceType } from '../../../engine/pieces';
 import { PROFILES } from '../../pieces';
 import { CLARITY_TOWER_DEFAULTS } from '../kit/layouts';
 import { noRaycast } from '../kit/noRaycast';
-import { TOWER_MASK } from './mask';
+import { SLAB, TOPS, TOWER_MASK } from './mask';
 import { FRAME, GROUND_Y, layout, MARGIN, PALETTE, PIECE_SCALE } from './palette';
 import { Details } from './details';
 import { Heavens } from './heavens';
@@ -135,14 +134,10 @@ const CLEAR = [17, 27] as const;
 const groundVertex = /* glsl */ `
   varying vec2 vP;
   varying vec3 vWorld;
-  varying float vCover;
-  ${TOWER_MASK}
   void main() {
     vec4 w = modelMatrix * vec4(position, 1.0);
     vP = w.xz;
     vWorld = w.xyz;
-    // The mask is smooth: per vertex, on a finer mesh
-    vCover = towerCover(w.xyz);
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
@@ -154,7 +149,7 @@ const groundFragment = /* glsl */ `
   uniform vec2 uClear;
   varying vec2 vP;
   varying vec3 vWorld;
-  varying float vCover;
+  ${TOWER_MASK}
   void main() {
     vec3 view = normalize(vWorld - cameraPosition);
     float r = length(vP);
@@ -185,7 +180,8 @@ const groundFragment = /* glsl */ `
     // nothing at all where the tower stands in front of it
     float clear = smoothstep(uClear.x, uClear.y, r);
     float far = 1.0 - smoothstep(40.0, 110.0, dist);
-    float hidden = 1.0 - vCover;
+    // Per pixel, as the mask hugs the tower's own outline
+    float hidden = 1.0 - towerCover(vWorld);
     float lit = (line * 0.04 + lightSq * 0.004) * clear * far * hidden;
     // Polished: toward the horizon it gives back the mist
     float fresnel = pow(1.0 - abs(view.y), 5.0);
@@ -197,7 +193,7 @@ const groundFragment = /* glsl */ `
 const Ground = () => {
   const { geometry, material } = useMemo(
     () => ({
-      geometry: new PlaneGeometry(260, 260, 24, 24).rotateX(-Math.PI / 2),
+      geometry: new PlaneGeometry(260, 260, 4, 4).rotateX(-Math.PI / 2),
       material: new ShaderMaterial({
         // Drawn first and writing no depth: the reflections go under it
         depthWrite: false,
@@ -372,8 +368,15 @@ const neonGeometry = (): BufferGeometry => {
  * beside it, and no line of it ever shows through the glass.
  */
 const covers = { value: GARDEN.map(() => 0) };
-/** The tower's rectangle on screen (NDC, x scaled by the aspect). */
-const towerRect = { value: new Vector4(0, 0, 0, 0) };
+/** The most corners the tower's outline on screen can have. */
+const HULL_MAX = 12;
+/**
+ * The tower's own outline on screen (TOWER_SCREEN): the convex hull of its
+ * platforms and top pieces (mask.ts), up to 12 corners (NDC, x scaled by
+ * the aspect), counterclockwise, the first repeated after the last.
+ */
+const towerHull = { value: Array.from({ length: HULL_MAX + 1 }, () => new Vector2()) };
+const towerHullCount = { value: 0 };
 /** The drawing buffer's size in pixels and its aspect, to find NDC per fragment. */
 const viewport = { value: new Vector3(1, 1, 1) };
 /** The player's sculpture brightness (settings-env.ts). */
@@ -473,6 +476,66 @@ export const towerOnScreen = (camera: Camera, aspect: number): Rect | null => {
   };
 };
 
+const cornersAt = (half: number, y: number): [number, number, number][] =>
+  [-1, 1].flatMap((sx) => [-1, 1].map((sz): [number, number, number] => [sx * half, y, sz * half]));
+/** The tower as it stands: its platforms and the pieces on its top level (mask.ts). */
+const SILHOUETTE = [
+  ...cornersAt(SLAB.half, SLAB.y[0]),
+  ...cornersAt(SLAB.half, SLAB.y[1]),
+  ...cornersAt(TOPS.half, TOPS.y[1]),
+];
+type P2 = [number, number];
+const cross = (o: P2, a: P2, b: P2) =>
+  (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+
+/**
+ * The tower's real outline on screen: the convex hull of its platforms and
+ * top pieces (NDC, x scaled by the aspect), counterclockwise; null when it
+ * is not wholly in front of the camera.
+ */
+export const towerHullOnScreen = (camera: Camera, aspect: number): P2[] | null => {
+  camera.updateMatrixWorld();
+  const pts: P2[] = [];
+  for (const [x, y, z] of SILHOUETTE) {
+    corner.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
+    if (corner.z > -0.1) return null;
+    corner.applyMatrix4(camera.projectionMatrix);
+    pts.push([corner.x * aspect, corner.y]);
+  }
+  // Andrew's monotone chain
+  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const half = (list: P2[]) => {
+    const out: P2[] = [];
+    for (const p of list) {
+      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop();
+      out.push(p);
+    }
+    out.pop();
+    return out;
+  };
+  return [...half(pts), ...half([...pts].reverse())];
+};
+
+/** Whether a point lies inside a counterclockwise convex outline. */
+const insideHull = (hull: P2[], p: P2) =>
+  hull.every((a, i) => cross(a, hull[(i + 1) % hull.length], p) >= 0);
+
+/** The share of a screen rectangle inside the tower's outline, sampled on a grid. */
+const shareInside = (hull: P2[], r: Rect) => {
+  const n = 7;
+  let hits = 0;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const p: P2 = [
+        r.x0 + ((i + 0.5) / n) * (r.x1 - r.x0),
+        r.y0 + ((j + 0.5) / n) * (r.y1 - r.y0),
+      ];
+      if (insideHull(hull, p)) hits++;
+    }
+  }
+  return hits / (n * n);
+};
+
 /**
  * Every sculpture's cover and framing for a camera (pure, for tests and the
  * sweep). `fade` widens (above 1) or narrows the dimming before the tower;
@@ -480,6 +543,7 @@ export const towerOnScreen = (camera: Camera, aspect: number): Rect | null => {
  */
 export const gardenView = (camera: Camera, aspect: number, fade = 1, turn = 1): SculptureView[] => {
   const t = towerOnScreen(camera, aspect);
+  const hull = towerHullOnScreen(camera, aspect);
   right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
   return SIZES.map(({ at: home, radius, ys }) => {
     const at = [home[0] * turn, home[1], home[2] * turn];
@@ -494,16 +558,16 @@ export const gardenView = (camera: Camera, aspect: number, fade = 1, turn = 1): 
       );
     const r = rectOf(camera, around(ys), aspect);
     if (!r.seen || !t) return { cover: 0, inFrame: 0 };
-    // Nearing the tower it dims by degrees, to TOUCH_LIGHT as the two touch;
-    // passing behind, the share of it over the tower fades what is left
-    // (the part over the tower itself is held down further, per pixel)
-    const width = Math.max(r.x1 - r.x0, 1e-6);
-    const height = Math.max(r.y1 - r.y0, 1e-6);
+    // Nearing the tower (its rectangle on screen, labels included) it dims
+    // by degrees, to TOUCH_LIGHT as the two touch; passing behind the tower
+    // itself (its real outline, not the rectangle), the share of it the
+    // tower covers fades what is left (and the part over the tower is held
+    // down further, per pixel)
     const ox = Math.min(r.x1, t.x1) - Math.max(r.x0, t.x0);
     const oy = Math.min(r.y1, t.y1) - Math.max(r.y0, t.y0);
     const gap = Math.hypot(Math.max(-ox, 0), Math.max(-oy, 0));
     const near = smooth(1 - gap / (FADE_NDC * fade));
-    const over = ox > 0 && oy > 0 ? smooth((ox * oy) / (width * height) / FADE_OVER) : 0;
+    const over = hull ? smooth(shareInside(hull, r) / FADE_OVER) : 0;
     const light = (1 - (1 - TOUCH_LIGHT) * near) * (1 - over);
     // In frame: the sculpture itself, above the ground
     const body = rectOf(camera, around([GROUND_Y, ys[1]]), aspect);
@@ -531,12 +595,11 @@ const TowerCovers = ({ turn }: { turn: number }) => {
     view.forEach(({ cover }, i) => {
       covers.value[i] = cover;
     });
-    // The glass itself, without the room for its labels
-    const t = towerOnScreen(camera, aspect);
-    if (t) {
-      const m = MARGIN_NDC;
-      towerRect.value.set(t.x0 + m, t.x1 - m, t.y0 + m, t.y1 - m);
-    } else towerRect.value.set(0, 0, 0, 0);
+    // The tower's own outline, for the hard part of the mask
+    const hull = towerHullOnScreen(camera, aspect) ?? [];
+    hull.forEach(([x, y], i) => towerHull.value[i].set(x, y));
+    if (hull.length) towerHull.value[hull.length].set(hull[0][0], hull[0][1]);
+    towerHullCount.value = hull.length;
     gl.getDrawingBufferSize(drawingBuffer);
     viewport.value.set(drawingBuffer.x, drawingBuffer.y, aspect);
   });
@@ -544,20 +607,31 @@ const TowerCovers = ({ turn }: { turn: number }) => {
 };
 
 /**
- * GLSL: `float towerScreen()`, 1 where this fragment lies over the tower's
- * glass on screen, easing to 0 across a soft band round its outline.
+ * GLSL: `float towerScreen()`, 1 where this fragment lies over the tower
+ * itself on screen (its real outline: towerHull), easing to 0 across a
+ * narrow soft band round it.
  */
 const TOWER_SCREEN = /* glsl */ `
-  uniform vec4 uTowerRect;
+  uniform vec2 uHull[${HULL_MAX + 1}];
+  uniform float uHullCount;
   uniform vec3 uViewport;
   float towerScreen() {
-    vec2 ndc = gl_FragCoord.xy / uViewport.xy * 2.0 - 1.0;
-    ndc.x *= uViewport.z;
-    vec2 c = vec2(uTowerRect.x + uTowerRect.y, uTowerRect.z + uTowerRect.w) * 0.5;
-    vec2 h = vec2(uTowerRect.y - uTowerRect.x, uTowerRect.w - uTowerRect.z) * 0.5;
-    vec2 q = abs(ndc - c) - h;
-    float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
-    return 1.0 - smoothstep(-0.05, 0.05, d);
+    if (uHullCount < 3.0) return 0.0;
+    vec2 p = gl_FragCoord.xy / uViewport.xy * 2.0 - 1.0;
+    p.x *= uViewport.z;
+    // Signed distance to the convex outline: inside is left of every edge
+    float d = 1e3;
+    bool inside = true;
+    for (int i = 0; i < ${HULL_MAX}; i++) {
+      if (float(i) >= uHullCount) break;
+      vec2 a = uHull[i];
+      vec2 e = uHull[i + 1] - a;
+      vec2 w = p - a;
+      if (e.x * w.y - e.y * w.x < 0.0) inside = false;
+      float t = clamp(dot(w, e) / max(dot(e, e), 1e-8), 0.0, 1.0);
+      d = min(d, length(w - e * t));
+    }
+    return 1.0 - smoothstep(-0.03, 0.03, inside ? -d : d);
   }`;
 
 const neonVertex = /* glsl */ `
@@ -665,7 +739,8 @@ const neonMaterial = (o: {
       uColor: { value: new Color(PALETTE.neon) },
       uCover: covers,
       uBright: brightness,
-      uTowerRect: towerRect,
+      uHull: towerHull,
+      uHullCount: towerHullCount,
       uViewport: viewport,
       uTurn: gardenTurn,
       uWidth: { value: o.width },
@@ -779,7 +854,8 @@ const Mist = () => {
           uBoost: gardenBoost,
           uCover: covers,
           uBright: brightness,
-          uTowerRect: towerRect,
+          uHull: towerHull,
+          uHullCount: towerHullCount,
           uViewport: viewport,
           uTurn: gardenTurn,
         },
@@ -899,7 +975,7 @@ export const Stage = ({ orientation }: StageProps) => {
       <Ground />
       <Sculptures turn={turn} />
       <Mist />
-      {details && <Details turn={turn} />}
+      {details && <Details />}
     </>
   );
 };
