@@ -95,13 +95,35 @@ const drawGlyph = (
   return t;
 };
 
-interface Slot {
+export interface Slot {
   key: string;
   /** Which of the label's two sprites shows its current anchor. */
   active: 0 | 1;
+  /** The anchor (its key) each sprite stands at. */
+  keys: [string, string];
   positions: [Vec3, Vec3];
   fades: [number, number];
 }
+
+/**
+ * A label's two sprites once its anchor changes to `key`: the fainter one
+ * takes the new anchor and fades in from nothing while the other fades out
+ * where it stands, so however quickly the anchor changes again (an orbit
+ * crossing two boundaries a degree apart), what shows only ever fades, never
+ * jumps. Back to the anchor the other sprite still stands at, that one fades
+ * back in from where it is.
+ */
+export const retarget = (slot: Slot, key: string): Slot => {
+  if (key === slot.key) return slot;
+  const other = slot.active === 0 ? 1 : 0;
+  if (slot.keys[other] === key) return { ...slot, key, active: other };
+  const faint = slot.fades[0] <= slot.fades[1] ? 0 : 1;
+  const keys: [string, string] = [...slot.keys];
+  const fades: [number, number] = [...slot.fades];
+  keys[faint] = key;
+  fades[faint] = 0;
+  return { ...slot, key, active: faint, keys, fades };
+};
 
 const origin = new Vector3();
 
@@ -263,15 +285,15 @@ export const SmartLabels = ({
         slot = {
           key: label.key,
           active: 0,
+          keys: [label.key, ''],
           positions: [label.position, label.position],
           fades: [first ? 1 : 0, 0],
         };
         slots.current.set(label.id, slot);
       } else if (slot.key !== label.key) {
-        slot.key = label.key;
-        // Crossfade: the idle sprite takes the new anchor and fades in
-        slot.active = slot.active === 0 ? 1 : 0;
-        slot.fades[slot.active] = 0;
+        // Crossfade to the new anchor
+        slot = retarget(slot, label.key);
+        slots.current.set(label.id, slot);
       }
       slot.positions[slot.active] = label.position;
       for (const i of [0, 1] as const) {
