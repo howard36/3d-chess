@@ -156,7 +156,7 @@ Navigation has no request of its own, but each interrupt row applies to the page
 - The claim that the crash screen closes the page's connection (the crashed page is taken down along with everything it owned) is read from code; not observed.
 - Whether a browser without 3D support reaches the crash screen was not tried.
 
-- The HUD wording in this document (the turn pill, presence as "Offline" on it, the move box behind Keyboard play or Tab, the dialogs as glass cards over a veil) was brought up to the new HUD from `client/src/screens/` and the [game page documents](../game-page/turn-indicator.md) at `bb16fed`, not checked in the running app, and needs re-verification.
+- The HUD wording in this document (the turn pill, presence as "Offline" on it, the move box behind the Notation panel or Tab, the dialogs as glass cards over a veil) was brought up to the new HUD from `client/src/screens/` and the [game page documents](../game-page/turn-indicator.md) at `bb16fed`, not checked in the running app, and needs re-verification.
 - The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`

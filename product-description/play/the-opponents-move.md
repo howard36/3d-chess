@@ -8,7 +8,7 @@ Half of every game is waiting: after a player's move lands, the turn passes to t
 
 The player has just moved; the turn pill lights the opponent's half, "Their move" beside their stone, and the player's half reads "You". None of the player's pieces respond to a press, and a move typed in the move box is answered "Wait for their move.". The player can turn the view, read the move list, and look at the position. While the opponent is connected the pill says nothing about it; nothing says whether they are thinking, selecting, or away from the keyboard.
 
-Then, with no warning, the opponent's piece glides to its new cell. If it captured one of the player's pieces, that piece burns away as it arrives. The mint last-move line moves to the opponent's move, the move list gains the move (in the move card, if it is showing), and the light on the turn pill passes to the player's half: "Your move". If the move put the player in check, the player's King turns red and the pill rings the player's stone in red with "CHECK" beside it. It is now the player's turn.
+Then, with no warning, the opponent's piece glides to its new cell. If it captured one of the player's pieces, that piece burns away as it arrives, and joins the [captured pieces](../game-page/turn-indicator.md#the-pieces-each-side-has-taken) under the opponent's half of the turn pill. The mint last-move line moves to the opponent's move, the move list gains the move (in the move card, if it is showing), and the light on the turn pill passes to the player's half: "Your move". If the move put the player in check, the player's King turns red and the pill rings the player's stone in red with "CHECK" beside it. It is now the player's turn.
 
 ## The interaction, event by event
 
@@ -124,7 +124,7 @@ How the move lands depends on when the player sees it:
 
 **Stored seat.** Lets the player close the tab during a long wait and come back to the game through the link.
 
-**Keyboard, touch, and screen size.** Nothing to do from any device. A screen reader hears the move announcement when the opponent's move lands. On a small window the glide is small and easy to miss; the move list (with Keyboard play on) and the turn pill are the lasting record.
+**Keyboard, touch, and screen size.** Nothing to do from any device. A screen reader hears the move announcement when the opponent's move lands. On a small window the glide is small and easy to miss; the move list (with the Notation panel on) and the turn pill are the lasting record.
 
 ## Edge cases
 
@@ -144,7 +144,7 @@ How the move lands depends on when the player sees it:
 - Reduced motion is read from the system setting whenever the board is redrawn (`client/src/three/Board.tsx:131-132`, `client/src/three/motion.ts:22-25`), not watched for changes. Turning it on in the middle of a glide may end that glide early at the next redraw; not tried.
 - Moves while the opponent is disconnected, their arrival on rejoin, and presence are covered by `server/tests/test_local_ws.py` and `client/e2e/session.spec.ts`; animation on arrival versus on mount, and its absence under reduced motion, by `client/src/three/Board.test.tsx`.
 
-- The HUD wording in this document (the turn pill, presence as "Offline" on it, the move box behind Keyboard play or Tab, the dialogs as glass cards over a veil) was brought up to the new HUD from `client/src/screens/` and the [game page documents](../game-page/turn-indicator.md) at `bb16fed`, not checked in the running app, and needs re-verification.
+- The HUD wording in this document (the turn pill, presence as "Offline" on it, the move box behind the Notation panel or Tab, the dialogs as glass cards over a veil) was brought up to the new HUD from `client/src/screens/` and the [game page documents](../game-page/turn-indicator.md) at `bb16fed`, not checked in the running app, and needs re-verification.
 - The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](../foundations/the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`

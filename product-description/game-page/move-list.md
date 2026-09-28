@@ -2,11 +2,11 @@
 
 ## Summary
 
-The move list is the one place the game's [move record](../glossary.md#games-and-seats) appears as text: every recorded move, one numbered row per White–Black pair, in [cell notation](../glossary.md#the-board) (`1  Ab2–De5  Ed4–Ba1`). It lives in the [move card](../glossary.md#the-interface) at the bottom left of the [board screen](../glossary.md#the-product-and-its-screens), and is on screen only while the **Keyboard play** setting is on (the settings panel's first group, "Play"); with the setting off, the board screen shows no history at all. Either way the list is in the page for screen readers, who can read the whole game at any time, and every move is also announced as it lands (the [move announcement](../glossary.md#the-interface)). The list changes only when a move lands on this board (its [echo](../glossary.md#requests), or a snapshot containing it, arrives), never when a move is sent, and it always shows the whole record exactly as the server holds it, including a move this browser cannot replay. It has no request of its own and never sends anything; the player can read it and scroll it.
+The move list is the one place the game's [move record](../glossary.md#games-and-seats) appears as text: every recorded move, one numbered row per White–Black pair, in [cell notation](../glossary.md#the-board) (`1  Ab2–De5  Ed4–Ba1`). It lives in the [move card](../glossary.md#the-interface) at the bottom left of the [board screen](../glossary.md#the-product-and-its-screens), and is on screen only while the **Notation panel** setting is on (the settings panel's first group, "Play"); with the setting off, the board screen shows no history at all. Either way the list is in the page for screen readers, who can read the whole game at any time, and every move is also announced as it lands (the [move announcement](../glossary.md#the-interface)). The list changes only when a move lands on this board (its [echo](../glossary.md#requests), or a snapshot containing it, arrives), never when a move is sent, and it always shows the whole record exactly as the server holds it, including a move this browser cannot replay. It has no request of its own and never sends anything; the player can read it and scroll it.
 
 ## The simple case
 
-A player who wants the history opens the settings gear at the top right and turns on **Keyboard play**. A glass card appears at the bottom left: in a wide window on a device with a mouse, a top line naming the cell under the pointer ("Dd5  Black pawn"); then, once a move has been played, a porcelain and a charcoal stone heading two columns; and at the foot, the [move box](../glossary.md#the-interface). The setting is kept in this browser, so the card is there in every game from then on, until it is turned off.
+A player who wants the history opens the settings gear at the top right and turns on the **Notation panel**. A glass card appears at the bottom left: in a wide window on a device with a mouse, a top line naming the cell under the pointer ("Dd5  Black pawn"); then, once a move has been played, a porcelain and a charcoal stone heading two columns; and at the foot, the [move box](../glossary.md#the-interface). The setting is kept in this browser, so the card is there in every game from then on, until it is turned off.
 
 White plays `Ab2` to `De5`. As the unicorn lands on both boards, row `1  Ab2–De5` appears in the card, the move in full ink and the row number fainter. Black answers `Ed4–Ba1`; as it lands, it fills the row's second column and becomes the brightest entry, while White's move dims a little. White's next move starts row 2 under it.
 
@@ -26,8 +26,8 @@ stateDiagram-v2
     state "Under the end-game dialog" as over
     [*] --> hidden : board screen appears, setting off
     [*] --> newest : board screen appears, setting on
-    hidden --> newest : Keyboard play turned on
-    newest --> hidden : Keyboard play turned off
+    hidden --> newest : Notation panel turned on
+    newest --> hidden : Notation panel turned off
     newest --> newest : a move lands (list scrolls to it)
     newest --> back : player scrolls up
     back --> newest : a move lands (list jumps to it)
@@ -37,7 +37,7 @@ stateDiagram-v2
 
 ### Begin
 
-The list exists from the moment the board screen appears, holding every move in the record the page received (a reloading player sees the whole game at once). While Keyboard play is on it is drawn in the move card; while it is off it is drawn nowhere, and a screen reader finds it as a list named "Move history". Before the first move the card shows only its cell line and the move box, with no column heads.
+The list exists from the moment the board screen appears, holding every move in the record the page received (a reloading player sees the whole game at once). While the Notation panel is on it is drawn in the move card; while it is off it is drawn nowhere, and a screen reader finds it as a list named "Move history". Before the first move the card shows only its cell line and the move box, with no column heads.
 
 Turning the setting on or off takes effect at once, in this game and every later one in this browser, and never reaches the opponent. Scrolling with the wheel, a one-finger drag, or the scrollbar is the only other thing the player can do; it stays inside the list and never turns the view.
 
@@ -109,7 +109,7 @@ The list shows the record as it stood before the move: the player's own move in 
 ## Edge cases
 
 - **Hidden by default.** A player who never opens the settings never sees the history; the board's last-move line shows the latest move, and the rest is not on screen.
-- **A setting, not a panel.** The list cannot be collapsed on its own: Keyboard play shows the list, the cell line, and the move box together.
+- **One setting for the whole card.** The list cannot be collapsed on its own: the Notation panel shows the list, the cell line, and the move box together.
 - **Hyphen in, en dash out.** The move box accepts a hyphen, and the list shows an en dash.
 - **Long games.** The list scrolls after about six rows; nothing is ever dropped from it.
 
