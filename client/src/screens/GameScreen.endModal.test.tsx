@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GameSocket } from '../hooks/useGameSocket';
 import type { WebSocketMessage } from '../types/messages';
 import { forgetSettings } from '../three/settings';
+import { Board } from '../engine';
+import { fromZXY } from '../engine/coords';
 import GameScreen from './GameScreen';
 
 // As in App.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
@@ -117,5 +119,33 @@ describe('the result card after a mate', () => {
   it('shows at once when a finished game is reopened', () => {
     render(screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }]));
     expect(result()).toBeInTheDocument();
+  });
+});
+
+describe('the result card after a stalemate', () => {
+  it('follows the last move shortly, once it has landed', () => {
+    // A stalemate stood in for: the engine calls White stalemated once Black's
+    // unicorn stands on Ba1 (the game's second move)
+    const stalemate = vi.spyOn(Board.prototype, 'isStalemate').mockImplementation(function (
+      this: Board,
+      side,
+    ) {
+      return side === 'white' && this.getPiece(fromZXY('Ba1'))?.color === 'black';
+    });
+    const before: WebSocketMessage[] = [
+      { type: 'game_start', color: 'white' },
+      { type: 'move_made', ...records[0] },
+    ];
+    const { rerender } = render(screenFor(before));
+    rerender(screenFor([...before, { type: 'move_made', ...records[1] }]));
+    expect(screen.getByTestId('turn-indicator')).toHaveTextContent('Stalemate · draw');
+    const draw = () => screen.queryByRole('dialog', { name: 'Draw' });
+    // The move's glide (460 ms) lands first...
+    act(() => vi.advanceTimersByTime(500));
+    expect(draw()).not.toBeInTheDocument();
+    // ...and the card follows at 0.6 s
+    act(() => vi.advanceTimersByTime(150));
+    expect(draw()).toHaveAccessibleDescription('by stalemate');
+    stalemate.mockRestore();
   });
 });

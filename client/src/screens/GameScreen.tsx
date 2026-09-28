@@ -40,8 +40,11 @@ type Phase = 'waiting' | 'joined' | 'started';
 const RESULT_BEAT_MS = 400;
 /** If the scene never says the king has fallen (frames stopped), the card shows anyway. */
 const MATE_FALLBACK_MS = 12000;
-/** At stalemate nothing plays out: the last move lands and the card follows. */
-const STALEMATE_WAIT_MS = 1200;
+/**
+ * At stalemate nothing plays out: the card follows the last move as soon as
+ * it has landed (its glide takes 460 ms) and a moment more.
+ */
+const STALEMATE_WAIT_MS = 600;
 
 const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { gameId } = useParams<{ gameId: string }>();
