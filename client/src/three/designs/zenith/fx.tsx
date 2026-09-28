@@ -8,7 +8,7 @@ import { LAYER } from '../kit/layers';
 import { noRaycast } from '../kit/noRaycast';
 import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
 import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
-import { bodyMaterial, ringMaterial, ringPlane, useLevelCue, wholePiece } from './pieces';
+import { ringMaterial, ringPlane, useLevelCue, usePieceMaterial, wholePiece } from './pieces';
 import { gardenBoost } from './stage';
 import { useMarkSetting } from './settings-markers';
 
@@ -95,22 +95,19 @@ export const CaptureFx = ({
   const level = levelAt(floor[1]);
   // It stands in its level ring only where pieces wear one (settings-pieces.ts)
   const ringed = useLevelCue().ring;
-  // The victim in its own glaze, standing in its own ring, until it burns
-  const { body, ring, outline } = useMemo(
-    () => ({
-      body: bodyMaterial(victim.color, victim.type, level),
-      ring: ringMaterial(level),
-      outline: outlineMaterial(),
-    }),
-    [victim.color, victim.type, level],
+  // The victim in its own glaze (the live piece's, settings and all),
+  // standing in its own ring, until it burns
+  const body = usePieceMaterial(victim.color, victim.type, level);
+  const { ring, outline } = useMemo(
+    () => ({ ring: ringMaterial(level), outline: outlineMaterial() }),
+    [level],
   );
   useEffect(
     () => () => {
-      body.dispose();
       ring.dispose();
       outline.dispose();
     },
-    [body, ring, outline],
+    [ring, outline],
   );
   const whole = useRef<Group>(null);
   const ghost = useRef<Group>(null);
