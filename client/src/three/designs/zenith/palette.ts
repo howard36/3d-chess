@@ -30,17 +30,28 @@ export const PALETTE = {
   /** The mist at the sculptures' feet. */
   mist: '#7d8aa6',
 
-  // The armies
+  // The armies (pieces.tsx)
   porcelain: '#f0ede7',
   porcelainBase: '#d2cdc4',
+  /** Porcelain's accent (the parts that name a piece): a warm grey. */
   porcelainAccent: '#a8a298',
-  charcoal: '#383b43',
-  charcoalBase: '#1b1c20',
-  charcoalAccent: '#555a64',
-  /** The charcoal army's rim: dim and cool, so it never reads as white. */
+  /** Charcoal: a lifted slate, clearly the dark army, light enough to model. */
+  charcoal: '#4a4e58',
+  charcoalBase: '#2a2c33',
+  /** Charcoal's accent: a lighter satin pewter that catches the key. */
+  charcoalAccent: '#7c8391',
+  /** The floor of the rook's well, each army's own value (from above it is most of a rook). */
+  porcelainWell: '#d6d1c8',
+  charcoalWell: '#2c2f36',
+  /** The charcoal army's rim and kicker: dim and cool, so it never reads as white. */
   charcoalRim: '#7f8ca3',
   /** The porcelain army's rim: a soft sheen, warmer than the level colours. */
   porcelainRim: '#fffaf2',
+  /**
+   * The held piece's light (selection.tsx): its column, motes, the circle
+   * round its foot and the click's ring. A cool starlight white.
+   */
+  select: '#e6eeff',
 
   // Marks, one meaning each
   /** White light: the held piece's glow and cone, hover's halo. */
@@ -88,7 +99,16 @@ export const MOTION: DesignMotion = { style: 'slide', durationMs: 460 };
 /** Knights turn this far off the rank line, to show their profile. */
 export const KNIGHT_YAW = 0.5;
 
-/** Radius of the level ring at a piece's foot (piece units). */
+/**
+ * Radius of the level ring at a piece's foot (piece units; ×PIECE_SCALE in
+ * the world, 0.268). With the ring cue ('ring' or 'both', a setting) it is a
+ * hairline in the level's own colour (LEVEL_COLORS, blended between two
+ * levels while a piece glides), with a soft halo, brightening a little
+ * toward white under the pointer. The held piece's circle (PALETTE.select)
+ * lies at the same radius, in the ring's place, and its click ring spreads
+ * from there to 1.62× (0.43 in the world). With the default band cue there
+ * is no ring: the level shows as a thin band of its colour round the foot.
+ */
 export const RING_RADIUS = 0.335;
 
 /** The level (engine z) of the platform nearest a floor height. */

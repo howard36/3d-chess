@@ -10,9 +10,10 @@ import { MARKER_SETTINGS } from './settings-markers';
 import { PIECE_SETTINGS } from './settings-pieces';
 import type { Design, GridProps } from '../types';
 import { CaptureFx, Celebration } from './fx';
-import { Capture, Check, LastMove, Quiet, Selection } from './markers';
+import { Capture, Check, LastMove, Quiet } from './markers';
 import { KNIGHT_YAW, layout, LEVEL_COLORS, MOTION, PALETTE, PIECE_SCALE } from './palette';
 import { PieceBody } from './pieces';
+import { Selection } from './selection';
 import { Levels } from './plates';
 import { Stage } from './stage';
 
