@@ -142,7 +142,8 @@ Key decisions:
   view as a desktop. What the fit frames is the same from every side: circles about the
   tower's axis round its platforms, its tallest pieces and every label wherever it can
   stand (the layout's `frameRings`, `towerFrameRings` in `three/scene/labelAnchors.ts`; the
-  letters' ring only behind the tower, where their corner keeps to). It centres them
+  letters' rings only where their post can stand: anywhere but the front from low down,
+  behind the tower from high up). It centres them
   between the band kept for the HUD's top pill and the captured pieces under it (82 px; 56
   in a short window, where they stand beside the tower: `hudBands`) and the bottom of the
   window, by a lens shift (a view offset, `three/viewOffset.ts`) rather than a pan. A
@@ -297,20 +298,26 @@ foot. Far out, a colossal chessboard drawn in faint light carries twelve giant p
 outlined in white neon, which sink into the tower's shade as they near it on screen, so
 nothing competes with the board; overhead are stars and chess constellations for a camera
 that looks up. Files and ranks label the two edges of the bottom platform nearest the
-camera (the top one's, seen from high above). The five level letters share one corner post:
-the one touching neither of those edges, diagonally across from the corner where they meet
-(`letterCorner` in `three/scene/labelAnchors.ts`). Each stands just outside its own
-platform's corner, out along the corner's diagonal, at its platform's height, so from the
-side they make one column up the post, A at the bottom, and from above a short line along
-the diagonal, each beside its own ring, never in line with the files or the ranks. They
-stand behind the tower from low down, so they are drawn over any piece in front of them.
-The edges, and with them the letters' corner, change only 5° past the point where two
-edges tie, with a short crossfade (the five letters together); held longer, from 40° to
-70° up the letters would stand at the tower's side level with the row running away from
-the camera on the other side, reading as its labels. Near a square view from those
-elevations that row runs up the screen like every corner post, and the letters stand
-across the tower from it. `scene/labelSweep.test.ts` checks every label at every pose
-the orbit reaches, from both seats.
+camera (the top one's, seen from high above). The five level letters share one corner post
+(`letterCorner` in `three/scene/labelAnchors.ts`), each just outside its own platform's
+corner, out along the corner's diagonal, a little above its platform. From low and middling
+heights the post is a side of the tower's outline that carries no labels: the far end of
+the row facing the camera (the files at either seat's opening view, so the near-left
+post), and the letters make one column up the side of the tower, A at the bottom, clear of
+it and as large as the files. Climbing past 55° they move to the post diagonally across
+from where the files and ranks meet, a short line along its diagonal seen from above, each
+letter beside its own ring, and dipping under 45° they come back: one crossfade of all
+five, never a flicker in between. Never in line with the files or the ranks. The edges,
+and with them the letters' post, change only 5° past the point where two edges tie (from
+low down also where the files and the ranks face the camera equally), with a short
+crossfade (the five letters together); held longer, from high up the letters would stand
+at the tower's side level with the row running away from the camera on the other side,
+reading as its labels. Near a square view from 35° to 75° that row runs up the screen like
+every corner post, and the letters stand across the tower from it. Every label is
+depth-tested, so a piece in front of one hides it; the glass, its border and its rim write
+no depth and are drawn before the labels, so they never hide or tint one.
+`scene/labelSweep.test.ts` checks every label at every pose the orbit reaches, from both
+seats, and that at the side post no letter stands on the tower on screen.
 
 Play is marked in light on the glass: a thin gold circle round each square the selected
 piece can reach (fuller under the pointer), red round a capture, a mint line from the last
@@ -417,7 +424,7 @@ straight to another piece, and deselecting, to `interact.mp4` plus a still per b
 way round at five elevations from -14° to 89.9° and climbs from -14° to overhead and back,
 to `orbit.mp4` and a contact sheet, and prints a jitter report: how far the tower's centre
 moved on screen, the worst frame-to-frame lurch of any label, where the level letters
-changed corner, and a flag for every discontinuity, letter out of line, overlap or letters
+changed post, and a flag for every discontinuity, letter out of line, overlap or letters
 reading as one axis with the files or ranks (`--seat black`, `--width`/`--height` for a
 phone). Usage is at the top of the script.
 
