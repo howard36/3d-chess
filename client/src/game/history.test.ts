@@ -27,31 +27,31 @@ describe('deriveHistory: the move record', () => {
     expect(h.replayFailedAt).toBeNull();
     expect(h.gameOver).toBeNull();
     expect(h.snapshot).toBeUndefined();
-    expect(h.board.getPiece(fromZXY('Aa2'))).toEqual({ type: PieceType.Pawn, color: 'white' });
+    expect(h.board.getPiece(fromZXY('Ba1'))).toEqual({ type: PieceType.Pawn, color: 'white' });
   });
 
   it('is the latest snapshot plus the move_made messages after it', () => {
     const messages: WebSocketMessage[] = [
       { type: 'game_start', color: 'white' },
-      moveMade('white', 'Aa2', 'Aa3'), // superseded by the snapshot below
-      snapshot([{ by: 'white', from: 'Aa2', to: 'Aa3' }]),
-      moveMade('black', 'Ed4', 'Ed3'),
+      moveMade('white', 'Ba1', 'Ca1'), // superseded by the snapshot below
+      snapshot([{ by: 'white', from: 'Ba1', to: 'Ca1' }]),
+      moveMade('black', 'Dd5', 'Cd5'),
       { type: 'presence', color: 'black', online: true },
-      moveMade('white', 'Aa3', 'Aa4'),
+      moveMade('white', 'Ca1', 'Da1'),
     ];
     const h = deriveHistory(messages);
     expect(h.moveRecords).toMatchObject([
-      { by: 'white', from: 'Aa2', to: 'Aa3' },
-      { by: 'black', from: 'Ed4', to: 'Ed3' },
-      { by: 'white', from: 'Aa3', to: 'Aa4' },
+      { by: 'white', from: 'Ba1', to: 'Ca1' },
+      { by: 'black', from: 'Dd5', to: 'Cd5' },
+      { by: 'white', from: 'Ca1', to: 'Da1' },
     ]);
     expect(h.snapshot).toBe(messages[2]);
     expect(h.appliedMoveCount).toBe(3);
     expect(h.currentTurn).toBe('black');
-    expect(h.board.getPiece(fromZXY('Aa4'))).toEqual({ type: PieceType.Pawn, color: 'white' });
-    expect(h.board.getPiece(fromZXY('Aa2'))).toBeNull();
+    expect(h.board.getPiece(fromZXY('Da1'))).toEqual({ type: PieceType.Pawn, color: 'white' });
+    expect(h.board.getPiece(fromZXY('Ba1'))).toBeNull();
     expect(h.lastMove).toEqual({
-      move: { from: fromZXY('Aa3'), to: fromZXY('Aa4'), promotion: undefined },
+      move: { from: fromZXY('Ca1'), to: fromZXY('Da1'), promotion: undefined },
       moveCount: 3,
       capturedPiece: null,
     });
@@ -59,11 +59,11 @@ describe('deriveHistory: the move record', () => {
 
   it('takes the last of several snapshots (each reconnect replays the whole history)', () => {
     const h = deriveHistory([
-      snapshot([{ by: 'white', from: 'Aa2', to: 'Aa3' }]),
-      moveMade('black', 'Ed4', 'Ed3'),
+      snapshot([{ by: 'white', from: 'Ba1', to: 'Ca1' }]),
+      moveMade('black', 'Dd5', 'Cd5'),
       snapshot([
-        { by: 'white', from: 'Aa2', to: 'Aa3' },
-        { by: 'black', from: 'Ed4', to: 'Ed3' },
+        { by: 'white', from: 'Ba1', to: 'Ca1' },
+        { by: 'black', from: 'Dd5', to: 'Cd5' },
       ]),
     ]);
     expect(h.appliedMoveCount).toBe(2);
@@ -80,8 +80,8 @@ describe('deriveHistory: the move record', () => {
   it('applies promotions from the record', () => {
     const h = deriveHistory([
       snapshot([
-        { by: 'white', from: 'Aa2', to: 'Da4' },
-        { by: 'black', from: 'Ee4', to: 'Ee3' },
+        { by: 'white', from: 'Ba1', to: 'Da4' },
+        { by: 'black', from: 'De5', to: 'Ce5' },
         { by: 'white', from: 'Da4', to: 'Ea5', promotion: 'U' }, // forward-up capture of the rook
       ]),
     ]);
@@ -95,7 +95,7 @@ describe('deriveHistory: the move record', () => {
 describe('deriveHistory: identity', () => {
   const played: WebSocketMessage[] = [
     { type: 'game_start', color: 'white' },
-    moveMade('white', 'Aa2', 'Aa3'),
+    moveMade('white', 'Ba1', 'Ca1'),
   ];
 
   it('returns the previous history unchanged when only non-move messages arrived', () => {
@@ -113,7 +113,7 @@ describe('deriveHistory: identity', () => {
 
   it('returns a new history when a move arrives', () => {
     const first = deriveHistory(played);
-    const next = deriveHistory([...played, moveMade('black', 'Ed4', 'Ed3')], first);
+    const next = deriveHistory([...played, moveMade('black', 'Dd5', 'Cd5')], first);
     expect(next).not.toBe(first);
     expect(next.appliedMoveCount).toBe(2);
     expect(next.board).not.toBe(first.board);
@@ -122,19 +122,19 @@ describe('deriveHistory: identity', () => {
   it('returns a new history when a snapshot arrives, even with the same moves', () => {
     const first = deriveHistory(played);
     const next = deriveHistory(
-      [...played, snapshot([{ by: 'white', from: 'Aa2', to: 'Aa3' }])],
+      [...played, snapshot([{ by: 'white', from: 'Ba1', to: 'Ca1' }])],
       first,
     );
     expect(next).not.toBe(first);
-    expect(next.moveRecords).toMatchObject([{ by: 'white', from: 'Aa2', to: 'Aa3' }]);
-    expect(next.board.getPiece(fromZXY('Aa3'))).toEqual({ type: PieceType.Pawn, color: 'white' });
+    expect(next.moveRecords).toMatchObject([{ by: 'white', from: 'Ba1', to: 'Ca1' }]);
+    expect(next.board.getPiece(fromZXY('Ca1'))).toEqual({ type: PieceType.Pawn, color: 'white' });
   });
 
   it('ignores a previous history built from a different record', () => {
-    const other = deriveHistory([moveMade('white', 'Ab2', 'Ab3')]);
+    const other = deriveHistory([moveMade('white', 'Bb1', 'Cb1')]);
     const h = deriveHistory(played, other);
     expect(h).not.toBe(other);
-    expect(h.board.getPiece(fromZXY('Aa3'))).toEqual({ type: PieceType.Pawn, color: 'white' });
+    expect(h.board.getPiece(fromZXY('Ca1'))).toEqual({ type: PieceType.Pawn, color: 'white' });
   });
 });
 
@@ -142,13 +142,13 @@ describe('deriveHistory: game over', () => {
   it('detects checkmate and names the winner', () => {
     // The corner mate from board.test.ts, reached by teleporting: replay does
     // not check legality, so the record only has to be shape-valid. White's
-    // queen lands on De5 defended by a rook on Ce5; Black's king walks onto
+    // queen lands on Ee4 defended by a rook on Ee3; Black's king walks onto
     // Ee5, where every neighbour is one of its own pieces.
     const h = deriveHistory([
       snapshot([
-        { by: 'white', from: 'Bc1', to: 'De5' },
+        { by: 'white', from: 'Ac2', to: 'Ee4' },
         { by: 'black', from: 'Ec5', to: 'Ee5' },
-        { by: 'white', from: 'Aa1', to: 'Ce5' },
+        { by: 'white', from: 'Aa1', to: 'Ee3' },
       ]),
     ]);
     expect(h.replayFailedAt).toBeNull();
@@ -157,7 +157,7 @@ describe('deriveHistory: game over', () => {
   });
 
   it('is null while the game is on', () => {
-    expect(deriveHistory([moveMade('white', 'Aa2', 'Aa3')]).gameOver).toBeNull();
+    expect(deriveHistory([moveMade('white', 'Ba1', 'Ca1')]).gameOver).toBeNull();
   });
 });
 
@@ -165,17 +165,17 @@ describe('deriveHistory: unplayable records', () => {
   it('freezes at the first record that cannot be applied', () => {
     const h = deriveHistory([
       snapshot([
-        { by: 'white', from: 'Aa2', to: 'Aa3' },
-        { by: 'black', from: 'Ed4', to: 'Ed3' },
-        { by: 'white', from: 'Cc3', to: 'Cc4' }, // Cc3 is empty: no client could have made this
-        { by: 'black', from: 'Ed3', to: 'Ed2' },
+        { by: 'white', from: 'Ba1', to: 'Ca1' },
+        { by: 'black', from: 'Dd5', to: 'Cd5' },
+        { by: 'white', from: 'Cc3', to: 'Dc3' }, // Cc3 is empty: no client could have made this
+        { by: 'black', from: 'Cd5', to: 'Bd5' },
       ]),
     ]);
     expect(h.replayFailedAt).toBe(2);
     expect(h.appliedMoveCount).toBe(2);
     expect(h.currentTurn).toBe('white');
     expect(h.moveRecords).toHaveLength(4); // the record itself is still listed in full
-    expect(h.board.getPiece(fromZXY('Ed3'))).toEqual({ type: PieceType.Pawn, color: 'black' });
+    expect(h.board.getPiece(fromZXY('Cd5'))).toEqual({ type: PieceType.Pawn, color: 'black' });
     expect(h.lastMove?.moveCount).toBe(2);
     expect(h.gameOver).toBeNull();
   });
@@ -185,17 +185,17 @@ describe('deriveHistory: unplayable records', () => {
     // rules cannot evaluate (no king to find for check detection).
     const h = deriveHistory([
       snapshot([
-        { by: 'white', from: 'Aa2', to: 'Aa3' },
-        { by: 'black', from: 'Ed4', to: 'Ed3' },
-        { by: 'white', from: 'Bc1', to: 'Ec5' }, // queen "captures" the black king
+        { by: 'white', from: 'Ba1', to: 'Ca1' },
+        { by: 'black', from: 'Dd5', to: 'Cd5' },
+        { by: 'white', from: 'Ac2', to: 'Ec5' }, // queen "captures" the black king
       ]),
     ]);
     expect(h.replayFailedAt).toBe(2);
     expect(h.appliedMoveCount).toBe(2);
     expect(h.currentTurn).toBe('white');
     expect(h.board.getPiece(fromZXY('Ec5'))).toEqual({ type: PieceType.King, color: 'black' });
-    expect(h.board.getPiece(fromZXY('Bc1'))).toEqual({ type: PieceType.Queen, color: 'white' });
-    expect(h.lastMove?.move.to).toEqual(fromZXY('Ed3'));
+    expect(h.board.getPiece(fromZXY('Ac2'))).toEqual({ type: PieceType.Queen, color: 'white' });
+    expect(h.lastMove?.move.to).toEqual(fromZXY('Cd5'));
     expect(h.gameOver).toBeNull();
   });
 
@@ -205,10 +205,10 @@ describe('deriveHistory: unplayable records', () => {
     // to happen at the capturing move itself.
     const h = deriveHistory([
       snapshot([
-        { by: 'white', from: 'Aa2', to: 'Aa3' },
-        { by: 'black', from: 'Ed4', to: 'Ed3' },
-        { by: 'white', from: 'Bc1', to: 'Ec5' }, // captures the black king
-        { by: 'black', from: 'Ed3', to: 'Ed2' },
+        { by: 'white', from: 'Ba1', to: 'Ca1' },
+        { by: 'black', from: 'Dd5', to: 'Cd5' },
+        { by: 'white', from: 'Ac2', to: 'Ec5' }, // captures the black king
+        { by: 'black', from: 'Cd5', to: 'Bd5' },
       ]),
     ]);
     expect(h.replayFailedAt).toBe(2);
@@ -217,7 +217,7 @@ describe('deriveHistory: unplayable records', () => {
   });
 
   it('freezes at the start when the first record captures a king', () => {
-    const h = deriveHistory([moveMade('white', 'Bc1', 'Ec5')]);
+    const h = deriveHistory([moveMade('white', 'Ac2', 'Ec5')]);
     expect(h.replayFailedAt).toBe(0);
     expect(h.appliedMoveCount).toBe(0);
     expect(h.lastMove).toBeUndefined();

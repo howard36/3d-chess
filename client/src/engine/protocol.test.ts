@@ -4,9 +4,9 @@ import { PieceType } from './pieces';
 
 describe('moveFromMessage', () => {
   it('parses coordinates and no promotion', () => {
-    expect(moveFromMessage({ by: 'white', from: 'Aa2', to: 'Aa3' })).toEqual({
-      from: { x: 0, y: 1, z: 0 },
-      to: { x: 0, y: 2, z: 0 },
+    expect(moveFromMessage({ by: 'white', from: 'Ba1', to: 'Ca1' })).toEqual({
+      from: { x: 0, y: 0, z: 1 },
+      to: { x: 0, y: 0, z: 2 },
       promotion: undefined,
     });
   });
@@ -22,7 +22,7 @@ describe('moveFromMessage', () => {
     for (const [letter, pieceType] of cases) {
       const move = moveFromMessage({
         by: 'white',
-        from: 'Ea4',
+        from: 'Da5',
         to: 'Ea5',
         promotion: letter,
       });
@@ -33,17 +33,17 @@ describe('moveFromMessage', () => {
 
 describe('moveToMessage', () => {
   it('serializes coordinates and omits promotion when absent', () => {
-    expect(moveToMessage({ from: { x: 0, y: 1, z: 0 }, to: { x: 0, y: 2, z: 0 } })).toEqual({
+    expect(moveToMessage({ from: { x: 0, y: 0, z: 1 }, to: { x: 0, y: 0, z: 2 } })).toEqual({
       type: 'move',
-      from: 'Aa2',
-      to: 'Aa3',
+      from: 'Ba1',
+      to: 'Ca1',
       promotion: undefined,
     });
   });
 
   it('sends N for a knight promotion (not K)', () => {
     const msg = moveToMessage({
-      from: { x: 0, y: 3, z: 4 },
+      from: { x: 0, y: 4, z: 3 },
       to: { x: 0, y: 4, z: 4 },
       promotion: PieceType.Knight,
     });
@@ -59,7 +59,7 @@ describe('moveToMessage', () => {
       PieceType.Unicorn,
     ]) {
       const msg = moveToMessage({
-        from: { x: 0, y: 3, z: 4 },
+        from: { x: 0, y: 4, z: 3 },
         to: { x: 0, y: 4, z: 4 },
         promotion: pieceType,
       });
@@ -76,14 +76,14 @@ describe('moveToMessage', () => {
   it('throws for piece types that cannot be promotions', () => {
     expect(() =>
       moveToMessage({
-        from: { x: 0, y: 3, z: 4 },
+        from: { x: 0, y: 4, z: 3 },
         to: { x: 0, y: 4, z: 4 },
         promotion: PieceType.King,
       }),
     ).toThrow();
     expect(() =>
       moveToMessage({
-        from: { x: 0, y: 3, z: 4 },
+        from: { x: 0, y: 4, z: 3 },
         to: { x: 0, y: 4, z: 4 },
         promotion: PieceType.Pawn,
       }),

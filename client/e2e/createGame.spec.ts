@@ -7,7 +7,7 @@ test('create game flow', async ({ page }) => {
   await page.goto('/');
 
   // Check if the start button is visible
-  const startButton = page.getByRole('button', { name: 'Start New Game' });
+  const startButton = page.getByRole('button', { name: 'Start a game' });
   await expect(startButton).toBeVisible();
 
   // Click the start button

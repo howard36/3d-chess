@@ -14,6 +14,13 @@ class Color(Enum):
     black = 'black'
 
 
+class ClientId(RootModel[constr(min_length=1, max_length=64)]):
+    root: constr(min_length=1, max_length=64) = Field(
+        ...,
+        description="Random id a browser tab picks for itself. The server remembers which tab claimed each seat, so a tab can re-send a join whose answer it lost, and an automatic rejoin can tell its own stale connection from another tab's live one.",
+    )
+
+
 class Promotion(Enum):
     Q = 'Q'
     R = 'R'
@@ -31,6 +38,7 @@ class ErrorCode(Enum):
     invalid_move = 'invalid_move'
     game_not_started = 'game_not_started'
     wrong_turn = 'wrong_turn'
+    seat_in_use = 'seat_in_use'
 
 
 class CreateGame(BaseModel):
@@ -38,6 +46,7 @@ class CreateGame(BaseModel):
         extra='forbid',
     )
     type: Literal['create_game']
+    clientId: Optional[ClientId] = None
 
 
 class GameCreated(BaseModel):
@@ -55,6 +64,7 @@ class JoinGame(BaseModel):
     )
     type: Literal['join_game']
     gameId: str
+    clientId: Optional[ClientId] = None
 
 
 class GameJoined(BaseModel):
@@ -72,6 +82,11 @@ class RejoinGame(BaseModel):
     type: Literal['rejoin_game']
     gameId: str
     color: Color
+    clientId: Optional[ClientId] = None
+    takeover: Optional[bool] = Field(
+        None,
+        description="Whether to take the seat from another tab's live connection (the default). An automatic reconnect sends false, and is refused with seat_in_use instead.",
+    )
 
 
 class GameStart(BaseModel):

@@ -57,15 +57,15 @@ describe('useGameSocket', () => {
 
     act(() => {
       server.send(JSON.stringify({ type: 'game_start', color: 'white' }));
-      server.send(JSON.stringify({ type: 'move_made', by: 'white', from: 'Aa2', to: 'Aa3' }));
-      server.send(JSON.stringify({ type: 'move_made', by: 'black', from: 'Ee4', to: 'Ee3' }));
+      server.send(JSON.stringify({ type: 'move_made', by: 'white', from: 'Ba1', to: 'Ca1' }));
+      server.send(JSON.stringify({ type: 'move_made', by: 'black', from: 'De5', to: 'Ce5' }));
     });
 
     await waitFor(() => {
       expect(result.current.messages).toEqual([
         { type: 'game_start', color: 'white' },
-        { type: 'move_made', by: 'white', from: 'Aa2', to: 'Aa3' },
-        { type: 'move_made', by: 'black', from: 'Ee4', to: 'Ee3' },
+        { type: 'move_made', by: 'white', from: 'Ba1', to: 'Ca1' },
+        { type: 'move_made', by: 'black', from: 'De5', to: 'Ce5' },
       ]);
     });
   });
@@ -120,7 +120,7 @@ describe('useGameSocket', () => {
     // Sent while disconnected: the move must not survive into the next
     // session (the game may have moved on), the rejoin must.
     act(() => {
-      result.current.send({ type: 'move', from: 'Ab2', to: 'Ab3' });
+      result.current.send({ type: 'move', from: 'Bb1', to: 'Cb1' });
       result.current.send({ type: 'rejoin_game', gameId: 'ABC123', color: 'white' });
     });
 
@@ -130,7 +130,7 @@ describe('useGameSocket', () => {
       JSON.stringify({ type: 'rejoin_game', gameId: 'ABC123', color: 'white' }),
     );
     expect(server.messages).not.toContainEqual(
-      JSON.stringify({ type: 'move', from: 'Ab2', to: 'Ab3' }),
+      JSON.stringify({ type: 'move', from: 'Bb1', to: 'Cb1' }),
     );
   });
 
@@ -215,10 +215,14 @@ describe('useGameSocket', () => {
     });
 
     expect(result.current.messages).toEqual([]);
+    // No session until the fresh socket opens, so a screen can't rejoin on
+    // the one being torn down
+    expect(result.current.sessionId).toBe(0);
     // A new connection is established and works
     await server.connected;
+    await waitFor(() => expect(result.current.sessionId).toBeGreaterThan(1));
     act(() => {
-      result.current.send({ type: 'create_game' });
+      expect(result.current.send({ type: 'create_game' })).toBe(true);
     });
     await expect(server).toReceiveMessage(JSON.stringify({ type: 'create_game' }));
   });

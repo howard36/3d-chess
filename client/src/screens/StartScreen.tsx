@@ -3,6 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import type { GameCreated, Error as ServerError } from '../types/messages';
 import type { GameSocket } from '../hooks/useGameSocket';
 import { setStoredRole } from '../lib/playerRole';
+import { getClientId } from '../lib/clientId';
+import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
+import { prefersReducedMotion } from '../three/motion';
+import { LandingPreview } from './LandingPreview';
+import { PieceGlyph } from './PieceGlyph';
+import { PieceType } from '../engine/pieces';
 
 interface StartScreenProps {
   gameSocket: GameSocket;
@@ -36,35 +42,92 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
     }
   }, [gameCreated, navigate]);
 
+  // If the connection drops before the answer, ask again on the next one
+  // rather than leave the button stuck at "Creating game…".
+  const requestGame = useResendOnReconnect(gameSocket, !isLoading);
+
   const handleCreateGame = () => {
+    // Held (aria-disabled, not disabled, so a keyboard player keeps their
+    // place) while the request is answered
+    if (isLoading) return;
     setRequestIndex(messages.length);
-    gameSocket.send({ type: 'create_game' });
+    requestGame({ type: 'create_game', clientId: getClientId() });
   };
 
+  const still = useReducedMotion();
+
+  // Nothing is written under the button: what the request is waiting on is
+  // its label (the connection, then the game), and an error answering it
+  // turns it to "Try again", the message itself said to a screen reader and
+  // kept in the button's tooltip.
+  const waitingOnSocket = isLoading && status !== 'connected';
+  const label = !isLoading
+    ? latestError
+      ? 'Try again'
+      : 'Start a game'
+    : waitingOnSocket
+      ? status === 'reconnecting'
+        ? 'Reconnecting…'
+        : 'Connecting…'
+      : 'Creating game…';
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8">
-      <div className="text-center flex flex-col items-center gap-8">
-        <h1 className="text-6xl font-bold text-white tracking-wide">3D Chess</h1>
+    <main className="landing" data-testid="landing">
+      <LandingPreview still={still} />
+      <p className="sr-only">
+        Preview: a sample game plays itself on the five-level tower and ends in checkmate by White.
+      </p>
+      <div className="landing-scrim" aria-hidden="true" />
+      <header className="landing-head">
+        <h1>3D Chess</h1>
+      </header>
+      <div className="landing-foot">
+        {/* Can be pressed before the socket opens: the request is queued
+            and sent when it does (useResendOnReconnect), the button held
+            meanwhile */}
         <button
+          className="landing-play"
           onClick={handleCreateGame}
-          disabled={isLoading}
-          className="py-3 px-6 text-2xl font-semibold text-gray-900 bg-white rounded-xl hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105"
+          aria-disabled={isLoading || undefined}
+          aria-busy={isLoading || undefined}
+          title={latestError ? `Couldn't start a game: ${latestError.message}` : undefined}
         >
-          {isLoading ? 'Creating Game...' : 'Start New Game'}
+          <span className="landing-play-piece" aria-hidden>
+            {isLoading ? (
+              <span className="hud-dot" />
+            ) : (
+              <PieceGlyph type={PieceType.Knight} color="black" size={24} />
+            )}
+          </span>
+          {label}
         </button>
-        {latestError && (
-          <p role="alert" className="text-red-400 text-lg">
-            Error: {latestError.message}
-          </p>
-        )}
-        {status !== 'connected' && (
-          <p role="status" className="text-gray-400 text-lg">
-            {status === 'reconnecting' ? 'Reconnecting to server…' : 'Connecting to server…'}
-          </p>
-        )}
+        {/* Said, not shown */}
+        <p role="alert" className="sr-only">
+          {latestError ? `Couldn't start a game: ${latestError.message}` : ''}
+        </p>
+        <p role="status" className="sr-only">
+          {waitingOnSocket
+            ? status === 'reconnecting'
+              ? 'Reconnecting to server…'
+              : 'Connecting to server…'
+            : ''}
+        </p>
       </div>
-    </div>
+    </main>
   );
 };
+
+/** Whether the player asked their system for less motion, following a change while the page is open. */
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = React.useState(prefersReducedMotion);
+  React.useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReduced(query.matches);
+    query.addEventListener?.('change', update);
+    return () => query.removeEventListener?.('change', update);
+  }, []);
+  return reduced;
+}
 
 export default StartScreen;

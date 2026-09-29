@@ -1,52 +1,46 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { Turn } from '../game/history';
+import { Stone } from './TurnPill';
 
 interface EndGameModalProps {
   result: 'checkmate' | 'stalemate';
-  winner?: 'white' | 'black';
+  winner?: Turn;
+  /** This player's colour: the result is said to them. */
+  seat: Turn;
 }
 
-const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner }) => {
+/**
+ * The result, over the final position: "You win" or "You lose" by checkmate,
+ * or a draw by stalemate, with the winner's stone lit. Its one button, which
+ * has focus, leaves for the start screen.
+ */
+const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat }) => {
   const navigate = useNavigate();
-  let message = '';
-  if (result === 'checkmate') {
-    message = winner
-      ? `${winner.charAt(0).toUpperCase() + winner.slice(1)} wins by checkmate!`
-      : 'Checkmate!';
-  } else if (result === 'stalemate') {
-    message = 'Draw by stalemate!';
-  }
+  const title = result === 'stalemate' ? 'Draw' : winner === seat ? 'You win' : 'You lose';
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-      }}
-    >
+    <div className="hud-veil" style={{ zIndex: 1000 }}>
       <div
-        style={{
-          background: 'white',
-          color: 'black',
-          padding: '2rem 3rem',
-          borderRadius: 16,
-          boxShadow: '0 4px 32px rgba(0,0,0,0.18)',
-          textAlign: 'center',
-          minWidth: 300,
-        }}
+        className="hud-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="end-game-title"
+        aria-describedby="end-game-how"
+        data-testid="end-game"
+        data-result={result}
+        data-winner={winner}
+        style={{ padding: '22px 44px 20px' }}
       >
-        <h2 style={{ marginBottom: 16 }}>{message}</h2>
-        <button
-          style={{ marginTop: 16, fontSize: 18, padding: '0.7em 2em' }}
-          onClick={() => navigate('/')}
-        >
+        <div className="hud-pair" aria-hidden>
+          <Stone color="white" lit={winner === 'white'} />
+          <Stone color="black" lit={winner === 'black'} />
+        </div>
+        <h2 id="end-game-title">{title}</h2>
+        <p id="end-game-how" style={{ marginTop: 4 }}>
+          {result === 'stalemate' ? 'by stalemate' : 'by checkmate'}
+        </p>
+        {/* The dialog takes focus: a keyboard player lands on its only action */}
+        <button autoFocus className="hud-button" onClick={() => navigate('/')}>
           Start new game
         </button>
       </div>

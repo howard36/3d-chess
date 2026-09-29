@@ -8,14 +8,14 @@ import { clickSquare, waitForDestination } from './helpers/board';
 // Shortest legal line to a promotion (found with the engine): White's a-file
 // pawn takes two steps, then captures forward-up twice, the second onto the
 // black rook's square Ea5, which is rank 5 on level E. Black pushes a pawn.
-const APPROACH = ['Ba2-Ba3', 'Ee4-Ee3', 'Ba3-Ca3', 'Ee3-Ee2', 'Ca3-Da4', 'Ee2-Ee1'];
+const APPROACH = ['Ba2-Ca2', 'De5-Ce5', 'Ca2-Ca3', 'Ce5-Be5', 'Ca3-Da4', 'Be5-Ae5'];
 
 test('a promoting pawn lets the player pick the piece', async ({ browser }) => {
   const game = await startGame(browser);
   await game.playAll(APPROACH);
 
   await clickSquare(game.white, 'Da4', 'white');
-  await waitForDestination(game.white, 'Ea5', 'white');
+  await waitForDestination(game.white, 'Ea5');
   await clickSquare(game.white, 'Ea5', 'white');
 
   const dialog = game.white.getByRole('dialog', { name: 'Promote to' });
@@ -29,14 +29,14 @@ test('a promoting pawn lets the player pick the piece', async ({ browser }) => {
     'Cancel',
   ]);
   // Nothing is sent until a piece is picked
-  await expect(game.white.getByText('White to move')).toBeVisible();
+  await expect(game.white.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
   await game.screenshot('promotion-picker', 'white');
 
   await dialog.getByRole('button', { name: 'Unicorn' }).click();
   await expect(dialog).toHaveCount(0);
   for (const page of [game.white, game.black]) {
-    await expect(page.getByText('Black to move')).toBeVisible();
-    await expect(page.getByTestId('move-list')).toContainText('Da4–Ea5=U');
+    await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
+    await expect(page.getByTestId('move-announcer')).toHaveAttribute('data-last-move', 'Da4-Ea5=U');
   }
 
   await game.close();

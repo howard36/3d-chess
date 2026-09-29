@@ -1,62 +1,65 @@
 import type { Page } from '@playwright/test';
-import { fromZXY } from '../../src/engine/coords';
-import { toWorld } from '../../src/three/layout';
 import type { Orientation } from '../../src/three/layout';
 
 export type { Orientation };
 
 /**
- * Reads which colour a page is seated as, from the in-game indicator.
- * The creator's colour is random, so tests must discover it rather than
- * assume it.
+ * Reads which colour a page is seated as, from the turn pill (its seat,
+ * `data-seat`). The creator's colour is random, so tests must discover it
+ * rather than assume it.
  */
 export async function getPlayerColor(page: Page): Promise<Orientation> {
-  const label = await page.locator('text=/You are playing as/').textContent();
-  const match = label?.match(/as (white|black)/);
-  if (!match) throw new Error(`Could not read player colour from "${label}"`);
-  return match[1] as Orientation;
+  const seat = await page.getByTestId('seat').getAttribute('data-seat');
+  if (seat !== 'white' && seat !== 'black') {
+    throw new Error(`Could not read player colour from data-seat="${seat}"`);
+  }
+  return seat;
 }
 
 /**
- * Clicks a board square (ZXY notation, e.g. 'Ab2') on the WebGL canvas with a
+ * Clicks a board square (ZXY notation, e.g. 'Bb1') on the WebGL canvas with a
  * real mouse event, so the click travels the app's actual raycasting path.
  *
- * The board renders mirrored per player (toWorld flips all three axes for
- * Black), so the pixel depends on which seat this page holds — pass the
- * colour from getPlayerColor.
+ * The board is drawn for the seat this page holds (Black walks round the
+ * tower), so the pixel depends on it: `seat` names it in errors.
  *
- * The projection and the occlusion check run in the page against the live
- * r3f state exposed by the Canvas onCreated hook in GameScreen.tsx, so they
- * stay correct if the camera moves or the default setup changes. A 3D board
- * is not a grid: the ray through a cell's centre often passes through another
- * cell first, and if that cell is also a legal destination (or holds a piece)
- * it takes the click, so the helper samples several points inside the target
- * cell and uses the first one whose ray reaches the target before any other
- * interactive object — mirroring how r3f dispatches to the nearest hit with a
- * handler. It throws if no such point exists rather than clicking blindly.
+ * The square is found, projected and checked for occlusion in the page,
+ * against the live r3f state exposed by the Canvas onCreated hook in
+ * GameScreen.tsx: the square's click box carries its name (userData.zxy), so
+ * the helper never recomputes the layout, and it stays correct if the camera
+ * moves. A 3D board is not a grid: the ray through a square often passes
+ * through another first, and if that one is also a legal destination (or
+ * holds a piece) it takes the click, so the helper samples several points in
+ * and above the target square and uses the first one whose ray reaches the
+ * target before any other interactive object — mirroring how r3f dispatches
+ * to the nearest hit with a handler. It throws if no such point exists rather
+ * than clicking blindly.
  */
 export async function clickSquare(page: Page, zxy: string, seat: Orientation): Promise<void> {
-  const world = toWorld(fromZXY(zxy), seat);
   const locate = () =>
-    page.evaluate(([wx, wy, wz]) => {
-      const state = (
-        window as Window & {
-          __r3fState?: { get?: () => unknown } & Record<string, unknown>;
-        }
-      ).__r3fState;
+    page.evaluate((target) => {
+      const state = (window as Window & { __r3fState?: { get(): unknown } }).__r3fState;
       if (!state) throw new Error('window.__r3fState missing — has the game Canvas mounted?');
       type Obj = {
         position: { x: number; y: number; z: number };
         userData: Record<string, unknown>;
         parent: Obj | null;
         children: Obj[];
+        geometry?: {
+          boundingBox: { min: { y: number }; max: { y: number } } | null;
+          computeBoundingBox(): void;
+        };
       };
       // state.get() returns a fresh store snapshot (size changes on resize);
       // the camera and scene objects are live references either way.
-      const { camera, size, scene, raycaster } = (state.get ? state.get() : state) as {
+      const { camera, size, scene, raycaster } = state.get() as {
         camera: { updateMatrixWorld(): void; [k: string]: unknown };
         size: { width: number; height: number };
-        scene: { children: Obj[]; updateMatrixWorld(force: boolean): void };
+        scene: {
+          children: Obj[];
+          updateMatrixWorld(force: boolean): void;
+          traverse(cb: (o: Obj) => void): void;
+        };
         raycaster: {
           setFromCamera(ndc: { x: number; y: number }, camera: unknown): void;
           intersectObjects(objects: Obj[], recursive: boolean): { object: Obj }[];
@@ -67,6 +70,17 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
       // one yet, and Mesh.raycast reads matrixWorld directly.
       camera.updateMatrixWorld();
       scene.updateMatrixWorld(true);
+      // The square's click box: at the centre of its cell, where a piece on it
+      // stands too; its geometry is a thin slab on the cell's floor
+      let cube: Obj | null = null;
+      scene.traverse((o) => {
+        if (o.userData.cube && o.userData.zxy === target) cube = o;
+      });
+      if (!cube) throw new Error(`No square ${target} in the scene`);
+      const box = cube as Obj;
+      const { x: wx, y: wy, z: wz } = box.position;
+      box.geometry!.computeBoundingBox();
+      const { min, max } = box.geometry!.boundingBox!;
       const project = ([x, y, z]: number[]) => {
         const apply = (m: { elements: number[] }, [px, py, pz]: number[]) => {
           const e = m.elements;
@@ -101,11 +115,13 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
       const blockers: string[] = [];
       const canvasEl = document.querySelector('canvas');
       if (!canvasEl) throw new Error('No canvas on the page');
-      // Sample the centre first, then points spread inside the cell (the box
-      // is 1 unit wide; spacing is a little more, so ±0.4 stays inside it).
+      // Sample the centre first, then points spread across the square (a
+      // square is about 1 unit wide, so ±0.4 stays on it), at the height of a
+      // piece standing there and of the click box on its floor.
       const offsets = [0, 0.4, -0.4];
+      const heights = [0, 0.4, -0.4, (min.y + max.y) / 2];
       for (const dx of offsets) {
-        for (const dy of offsets) {
+        for (const dy of heights) {
           for (const dz of offsets) {
             const [nx, ny] = project([wx + dx, wy + dy, wz + dz]);
             raycaster.setFromCamera({ x: nx, y: ny }, camera);
@@ -133,7 +149,7 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
         }
       }
       return { blockers, size: `${size.width}x${size.height}` };
-    }, world);
+    }, zxy);
 
   // A piece gliding through the line of sight (the last move's animation)
   // can block every sample for a moment; poll briefly before giving up.
@@ -175,42 +191,129 @@ export async function waitForBoard(page: Page): Promise<void> {
  * enough to hit that window every time, so the driver has to wait for the
  * commit explicitly.
  */
-export async function waitForDestination(
-  page: Page,
-  zxy: string,
-  seat: Orientation,
-): Promise<void> {
-  const world = toWorld(fromZXY(zxy), seat);
-  await page.waitForFunction(([wx, wy, wz]) => {
-    const state = (
-      window as Window & {
-        __r3fState?: { get?: () => unknown } & Record<string, unknown>;
-      }
-    ).__r3fState;
+export async function waitForDestination(page: Page, zxy: string): Promise<void> {
+  await page.waitForFunction((target) => {
+    const state = (window as Window & { __r3fState?: { get(): unknown } }).__r3fState;
     if (!state) return false;
-    const { scene } = (state.get ? state.get() : state) as {
-      scene: {
-        traverse(
-          cb: (o: {
-            position: { x: number; y: number; z: number };
-            userData: Record<string, unknown>;
-          }) => void,
-        ): void;
-      };
+    const { scene } = state.get() as {
+      scene: { traverse(cb: (o: { userData: Record<string, unknown> }) => void): void };
     };
-    const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
     let found = false;
     scene.traverse((o) => {
-      if (
-        o.userData.cube &&
-        o.userData.highlight &&
-        near(o.position.x, wx) &&
-        near(o.position.y, wy) &&
-        near(o.position.z, wz)
-      ) {
-        found = true;
-      }
+      if (o.userData.cube && o.userData.highlight && o.userData.zxy === target) found = true;
     });
     return found;
-  }, world);
+  }, zxy);
+}
+
+/** A rect in page pixels, named for what it is. */
+export interface ScreenRect {
+  what: string;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * Where the tower's pieces and labels stand on screen now: for each piece,
+ * the page rect of its body (the world bounds of its visible meshes, without
+ * the hit proxy, projected through the live camera), and for each label shown
+ * (a level letter, a file or a rank), the rect of its sprite. For checking
+ * that nothing laid over the canvas covers any of them.
+ */
+export async function towerRects(page: Page): Promise<ScreenRect[]> {
+  return page.evaluate(() => {
+    type V = {
+      x: number;
+      y: number;
+      z: number;
+      clone(): V;
+      add(v: V): V;
+      multiplyScalar(s: number): V;
+      project(camera: unknown): V;
+      setFromMatrixColumn(m: unknown, i: number): V;
+    };
+    type Box = {
+      min: V;
+      max: V;
+      clone(): Box;
+      union(b: Box): Box;
+      applyMatrix4(m: unknown): Box;
+    };
+    type Obj = {
+      userData: Record<string, unknown>;
+      isMesh?: boolean;
+      isSprite?: boolean;
+      matrixWorld: unknown;
+      geometry?: { boundingBox: Box | null; computeBoundingBox(): void };
+      material?: { opacity: number };
+      traverseVisible(cb: (o: Obj) => void): void;
+      getWorldPosition(v: V): V;
+      getWorldScale(v: V): V;
+    };
+    const state = (window as Window & { __r3fState?: { get(): unknown } }).__r3fState;
+    if (!state) throw new Error('window.__r3fState missing — has the game Canvas mounted?');
+    const { camera, scene, size } = state.get() as {
+      camera: { position: V; matrixWorld: unknown; updateMatrixWorld(): void };
+      scene: Obj & { updateMatrixWorld(force: boolean): void };
+      size: { width: number; height: number };
+    };
+    scene.updateMatrixWorld(true);
+    camera.updateMatrixWorld();
+    const canvas = document.querySelector('canvas')!.getBoundingClientRect();
+    const Vec = camera.position.constructor as new (x?: number, y?: number, z?: number) => V;
+    const rectOf = (what: string, points: V[]) => {
+      const xs: number[] = [];
+      const ys: number[] = [];
+      for (const p of points) {
+        const s = p.clone().project(camera);
+        xs.push(canvas.left + ((s.x + 1) / 2) * size.width);
+        ys.push(canvas.top + ((1 - s.y) / 2) * size.height);
+      }
+      return {
+        what,
+        left: Math.min(...xs),
+        top: Math.min(...ys),
+        right: Math.max(...xs),
+        bottom: Math.max(...ys),
+      };
+    };
+    // The camera's right and up, for a sprite (which always faces it)
+    const right = new Vec().setFromMatrixColumn(camera.matrixWorld, 0);
+    const up = new Vec().setFromMatrixColumn(camera.matrixWorld, 1);
+    const rects: ScreenRect[] = [];
+    scene.traverseVisible((o) => {
+      const piece = o.userData.piece as { type: string; color: string } | undefined;
+      if (piece) {
+        let box: Box | null = null;
+        o.traverseVisible((m) => {
+          if (!m.isMesh || m.userData.hitProxy || !m.geometry) return;
+          if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+          const b = m.geometry.boundingBox!.clone().applyMatrix4(m.matrixWorld);
+          box = box ? box.union(b) : b;
+        });
+        if (!box) return;
+        const { min, max } = box as Box;
+        const corners = [min.x, max.x].flatMap((x) =>
+          [min.y, max.y].flatMap((y) => [min.z, max.z].map((z) => new Vec(x, y, z))),
+        );
+        rects.push(rectOf(`${piece.color} ${piece.type}`, corners));
+      }
+      if (o.isSprite && (o.material?.opacity ?? 1) > 0.05) {
+        const c = o.getWorldPosition(new Vec());
+        const s = o.getWorldScale(new Vec());
+        const corners = [-1, 1].flatMap((i) =>
+          [-1, 1].map((j) =>
+            c
+              .clone()
+              .add(right.clone().multiplyScalar((i * s.x) / 2))
+              .add(up.clone().multiplyScalar((j * s.y) / 2)),
+          ),
+        );
+        rects.push(rectOf('label', corners));
+      }
+    });
+    return rects;
+  });
 }

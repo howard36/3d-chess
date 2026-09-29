@@ -1,49 +1,140 @@
 import { FILES } from '../engine/coords';
 import type { Coord } from '../engine/coords';
+import type { BoardLayout, Vec3 } from './types';
 
 export const GRID_SIZE = FILES.length;
-export const SPACING = 1.1;
 const HALF = (GRID_SIZE - 1) / 2;
+const DEG = Math.PI / 180;
 
-/**
- * Cell-local height of the floor a piece stands on — the bottom face of the
- * unit cell. Pieces are modeled base-at-y=0, so this is both the offset that
- * seats a piece in its cell and the height anything drawn at a piece's feet
- * (the selection ring) has to sit at.
- */
-export const CELL_FLOOR_Y = -0.5;
-
+/** The seat the board is drawn for: each player sees their own army nearest. */
 export type Orientation = 'white' | 'black';
 
-/** Every cell of the 5x5x5 grid, in z -> y -> x order. */
+/**
+ * Every cell of the 5x5x5 grid, in y -> z -> x order: rank by rank, each
+ * rank's levels bottom to top, each level's files left to right.
+ */
 export const CELLS: Coord[] = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => ({
   x: i % GRID_SIZE,
-  y: Math.floor(i / GRID_SIZE) % GRID_SIZE,
-  z: Math.floor(i / GRID_SIZE ** 2),
+  z: Math.floor(i / GRID_SIZE) % GRID_SIZE,
+  y: Math.floor(i / GRID_SIZE ** 2),
 }));
 
-/**
- * Maps a logical board coordinate to a world position.
- *
- * Screen axes, as seen from the default camera (which sits on +Z):
- *   world X = file  (a..e, left to right)
- *   world Y = rank  (the viewing player's back rank at the bottom)
- *   world Z = level (the viewing player's own levels nearest the camera)
- *
- * Viewing as Black inverts all three axes, which is the symmetry the starting
- * position is actually built on: Black's army is White's under
- * (x, y, z) -> (4 - x, 4 - y, 4 - z), files included (White's B U Q B U second
- * rank is Black's U B Q U B). Mirroring the files too is therefore what makes
- * each player see their own army laid out identically — flipping only rank and
- * level would show Black their back rank reversed.
- *
- * Inverting the files is a reflection rather than a rigid rotation, but nothing
- * observable depends on the handedness: only positions are transformed (piece
- * meshes are never mirrored, and stay upright for both players), and every move
- * vector set in pieces.ts is closed under negating a single axis, so no piece's
- * legal moves can render misleadingly.
- */
-export function toWorld({ x, y, z }: Coord, orientation: Orientation): [number, number, number] {
-  const flip = (v: number) => (orientation === 'white' ? v : GRID_SIZE - 1 - v);
-  return [(flip(x) - HALF) * SPACING, (flip(y) - HALF) * SPACING, (HALF - flip(z)) * SPACING];
+/** What a caller may change about the tower; everything else is fixed (TOWER_DEFAULTS). */
+interface TowerOptions {
+  /**
+   * Height of the tallest piece as drawn (the Staunton king is 0.87 at a
+   * piece scale of 1). Centres the tower on its visual mass, pieces included.
+   */
+  pieceHeight?: number;
+  /** Lowest camera elevation the player can orbit to, in degrees. */
+  minElevation?: number;
 }
+
+/**
+ * A 1.35 gap keeps the stack close to a cube (diagonals between levels look
+ * natural) while the pieces, at 0.8 scale, stand clear of the platform above
+ * (weighed against gaps of 1.2–1.7 pitches and elevations of 12°–38°, from
+ * both seats, in the opening and a busy middle game). The camera looks
+ * between the levels: above about atan(gap / 4) (19° here) the back row of
+ * one level interleaves on screen with the front row of the level above it,
+ * so a piece at the back of A reads as standing on B; much below it (12°–14°)
+ * the squares flatten into lines. 18° is the steepest view before the rows
+ * interleave. The orbit goes all the way up to a bird's-eye view (89.9°, a
+ * hair off vertical so the view keeps its heading), where the levels nest
+ * like a 2D board seen through glass.
+ */
+export const TOWER_DEFAULTS = {
+  /** Distance between neighbouring cell centres on a level (world units). */
+  pitch: 1,
+  /** Distance between one level's platform and the next, in pitches. */
+  levelGap: 1.35,
+  pieceHeight: 0.87 * 0.8,
+  /** Opening camera elevation above the horizon, in degrees. */
+  elevation: 18,
+  /**
+   * Opening camera azimuth off the players' axis, in degrees (positive swings
+   * the camera to the player's right), so ranks do not stack into columns.
+   */
+  azimuth: 16,
+  minElevation: 6,
+  /** Highest camera elevation the player can orbit to, in degrees. */
+  maxElevation: 89.9,
+  /** Closest the camera can zoom to the tower's centre. */
+  minDistance: 5,
+  /**
+   * Height of each cell's click box above its floor (BoardLayout.hitHeight).
+   * Thin, so a click lands on the square whose floor is under the pointer.
+   */
+  hitHeight: 0.1,
+};
+
+/**
+ * A compact 3D chess tower: five continuous platforms, A at the bottom and
+ * E at the top, close enough together that the stack stays near a cube and
+ * diagonals look natural, seen from a low, slightly turned camera that looks
+ * between the levels rather than down through them. Rank 1 is nearest
+ * White; Black walks around the tower (files and ranks flip, levels stay).
+ * The orbit is limited so the camera never dips under the bottom platform;
+ * it may rise to look straight down the stack.
+ *
+ * A cell's click box is a thin slab on its square (`hitHeight`): a taller
+ * box is entered by rays aimed at the square behind it, so a click on one
+ * floor marker could land on the square in front. Cell centres (and so
+ * `floorY` and MarkerProps.floor) are still half the level's lower part up.
+ */
+export const towerLayout = (options: TowerOptions = {}): BoardLayout => {
+  const o = { ...TOWER_DEFAULTS, ...options };
+  const gap = o.levelGap * o.pitch;
+  const boxHeight = Math.min(gap * 0.6, 1);
+  // Platforms sit so the whole stack, pieces on the top level included, is
+  // centred on the origin (the orbit target).
+  const levelY = (z: number) => (z - HALF) * gap - o.pieceHeight / 2;
+  const half = HALF * o.pitch;
+  const [elevation, azimuth] = [o.elevation * DEG, o.azimuth * DEG];
+  return {
+    toWorld: ({ x, y, z }: Coord, orientation: Orientation): Vec3 => {
+      const fx = orientation === 'white' ? x : GRID_SIZE - 1 - x;
+      const fy = orientation === 'white' ? y : GRID_SIZE - 1 - y;
+      return [(fx - HALF) * o.pitch, levelY(z) + boxHeight / 2, (HALF - fy) * o.pitch];
+    },
+    floorY: -boxHeight / 2,
+    cellSize: [o.pitch * 0.98, boxHeight, o.pitch * 0.98],
+    hitHeight: o.hitHeight,
+    // Framed with room for the coordinate labels just outside the platforms
+    halfExtents: [
+      half + o.pitch * 0.5 + 0.3,
+      (HALF * 2 * gap + o.pieceHeight) / 2 + 0.1,
+      half + o.pitch * 0.5 + 0.3,
+    ],
+    viewDirection: [
+      Math.sin(azimuth) * Math.cos(elevation),
+      Math.sin(elevation),
+      Math.cos(azimuth) * Math.cos(elevation),
+    ],
+    orbit: {
+      minPolarAngle: (90 - o.maxElevation) * DEG,
+      maxPolarAngle: (90 - o.minElevation) * DEG,
+      minDistance: o.minDistance,
+    },
+  };
+};
+
+/** The measurements of a tower layout that its platforms and labels are built from. */
+export interface TowerFrame {
+  /** Distance between neighbouring cell centres on a level. */
+  pitch: number;
+  /** Vertical distance between neighbouring levels. */
+  gap: number;
+  /** Half the side of a level's platform (the outer edge of its outer squares). */
+  half: number;
+  /** World height of each level's surface, A (index 0) to E. */
+  levelY: number[];
+}
+
+/** Measures a tower layout from its own cell positions. */
+export const towerFrame = (layout: BoardLayout): TowerFrame => {
+  const at = (x: number, z: number) => layout.toWorld({ x, y: 0, z }, 'white');
+  const pitch = at(1, 0)[0] - at(0, 0)[0];
+  const levelY = [0, 1, 2, 3, 4].map((z) => at(0, z)[1] + layout.floorY);
+  return { pitch, gap: levelY[1] - levelY[0], half: (GRID_SIZE / 2) * pitch, levelY };
+};
