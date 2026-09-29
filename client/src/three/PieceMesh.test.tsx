@@ -5,9 +5,7 @@ import type { Group } from 'three';
 import { PieceMesh } from './PieceMesh';
 import type { PieceMeshProps } from './PieceMesh';
 import { PieceType } from '../engine';
-import type { PieceBodyProps } from './types';
-
-type PieceColor = 'white' | 'black';
+import type { PieceBodyProps, PieceColor } from './types';
 
 const TYPES = [
   PieceType.Pawn,

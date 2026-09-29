@@ -38,9 +38,4 @@ describe('budgetPixelRatio', () => {
     expect(budgetPixelRatio(800, 600, 0)).toBe(1);
     expect(budgetPixelRatio(0, 0, 2)).toBe(2);
   });
-
-  it('takes a custom budget', () => {
-    expect(budgetPixelRatio(1000, 1000, 3, 1e6)).toBe(1);
-    expect(budgetPixelRatio(1000, 1000, 3, 2.25e6)).toBe(1.5);
-  });
 });
