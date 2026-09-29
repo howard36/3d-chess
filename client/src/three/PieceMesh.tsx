@@ -15,8 +15,7 @@ import { noRaycast } from './noRaycast';
 import { Lift, Topple } from './pieceMotion';
 import { layout, PIECE_SCALE } from './scene/palette';
 import { PieceBody } from './scene/pieces';
-import { pieceLift } from './scene/settings-pieces';
-import { useSettings } from './settings';
+import { PIECE_LIFT } from './scene/selection';
 
 export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   type: PieceType;
@@ -50,19 +49,18 @@ const PIECE_TYPES = new Set<string>(Object.values(PieceType));
 const skipSubtree = () => false as const;
 // Never drawn (the proxy is invisible), but Mesh.raycast needs a material
 const proxyMaterial = new MeshBasicMaterial();
+// The proxy takes in the body at its highest, held
+const EXTRA = PIECE_LIFT.selected;
 // Until a body has been measured (or when it draws nothing): a generic piece
 const FALLBACK = { radius: 0.3, height: 0.9 };
-const fallbacks = new Map<number, BufferGeometry>();
-const fallbackProxy = (extra: number) => {
-  let g = fallbacks.get(extra);
-  if (!g) {
-    const h = FALLBACK.height + extra;
-    g = new CylinderGeometry(FALLBACK.radius, FALLBACK.radius, h, 16).translate(0, h / 2, 0);
-    fallbacks.set(extra, g);
-  }
-  return g;
-};
-// Measured proxies, per piece, army and lift
+const fallbackHeight = FALLBACK.height + EXTRA;
+const fallbackProxy = new CylinderGeometry(
+  FALLBACK.radius,
+  FALLBACK.radius,
+  fallbackHeight,
+  16,
+).translate(0, fallbackHeight / 2, 0);
+// Measured proxies, per piece and army
 const proxies = new Map<string, BufferGeometry>();
 const SLICES = 8;
 
@@ -112,13 +110,13 @@ const measureBody = (
   return { heights: radii.map((_, k) => ((k + 1) / SLICES) * top), radii, top };
 };
 
-/** A stepped solid of revolution round a measured body, `extra` taller at the top. */
-const proxyGeometry = (body: NonNullable<ReturnType<typeof measureBody>>, extra: number) => {
+/** A stepped solid of revolution round a measured body, EXTRA taller at the top. */
+const proxyGeometry = (body: NonNullable<ReturnType<typeof measureBody>>) => {
   const pad = 0.01;
   const profile = [new Vector2(0, 0)];
   let from = 0;
   body.radii.forEach((r, k) => {
-    const to = k === SLICES - 1 ? body.top + extra : body.heights[k];
+    const to = k === SLICES - 1 ? body.top + EXTRA : body.heights[k];
     profile.push(new Vector2(r + pad, from), new Vector2(r + pad, to));
     from = to;
   });
@@ -146,13 +144,10 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
 }) {
   const seat = useRef<Group>(null);
   const proxy = useRef<Mesh>(null);
-  const lift = pieceLift(useSettings());
-  // The proxy takes in the body at its highest
-  const extra = Math.max(lift.hover, lift.selected);
 
   // Fit the proxy to the body once per piece and army (bodies of a kind
   // share their shape), after the body's meshes exist
-  const proxyKey = `${type}/${color}/${extra}`;
+  const proxyKey = `${type}/${color}`;
   useLayoutEffect(() => {
     if (!seat.current || !proxy.current) return;
     let geometry = proxies.get(proxyKey);
@@ -160,11 +155,11 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
       const body = measureBody(seat.current);
       // Not remembered when there is nothing to measure yet
       if (!body) return;
-      geometry = proxyGeometry(body, extra);
+      geometry = proxyGeometry(body);
       proxies.set(proxyKey, geometry);
     }
     proxy.current.geometry = geometry;
-  }, [proxyKey, extra]);
+  }, [proxyKey]);
 
   if (!PIECE_TYPES.has(type)) return null;
 
@@ -178,8 +173,8 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   const body = (
     <Topple active={mated}>
       <Lift
-        height={selected ? lift.selected : hovered ? lift.hover : 0}
-        seconds={selected ? lift.selectSeconds : lift.hoverSeconds}
+        height={selected ? PIECE_LIFT.selected : hovered ? PIECE_LIFT.hover : 0}
+        seconds={selected ? PIECE_LIFT.selectSeconds : PIECE_LIFT.hoverSeconds}
       >
         <PieceBody
           type={type}
@@ -213,7 +208,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
         ref={proxy}
         position={seatAt}
         scale={PIECE_SCALE}
-        geometry={fallbackProxy(extra)}
+        geometry={fallbackProxy}
         material={proxyMaterial}
         visible={false}
         userData={{ hitProxy: true }}

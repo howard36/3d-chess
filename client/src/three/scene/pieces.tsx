@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Color, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
-import type { BufferGeometry, Group } from 'three';
+import { Color, PlaneGeometry, ShaderMaterial } from 'three';
+import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { prefersReducedMotion } from '../motion';
 import { pieceTop, preloadPieceSet } from '../pieces';
@@ -10,13 +10,9 @@ import { ON_FLOOR, useGlide } from '../pieceMotion';
 import { noRaycast } from '../noRaycast';
 
 import type { PieceBodyProps, PieceColor } from '../types';
-import { anyClaims, claimed } from './claims';
-import type { ClaimKind } from './claims';
 import { bakedSet, preloadBakedSet, wholePiece as bakedPiece } from './occlusion';
-import { LEVEL_COLORS, PALETTE, RING_RADIUS } from './palette';
+import { LEVEL_COLORS, PALETTE } from './palette';
 import { SelectionLight, selectState, stepSelection } from './selection';
-import { usePieceSetting } from './settings-pieces';
-import type { LevelCue } from './settings-pieces';
 
 // The armies: satin porcelain and charcoal, the shared Staunton set. Both are
 // shaded by one small shader (headless browsers render in software, where
@@ -40,15 +36,13 @@ import type { LevelCue } from './settings-pieces';
 // and eye) are a lighter satin pewter, so they catch the key where the body
 // stays dark. Its edges are dim and cool, never white.
 //
-// The level: by default a thin band of the level's light round the foot
-// (the set's foot part); or a ring of it on the glass; or both (a
-// setting). Either one passes through the colours of the levels crossed
-// while the piece glides, and the ring stays on the glass when the piece
-// lifts (ON_FLOOR). The ring steps aside where a capture, check or last-move
-// marker takes its floor (claims.ts).
+// The level: a thin band of the level's light round the foot (the set's foot
+// part), passing through the colours of the levels crossed while the piece
+// glides.
 //
 // Under the pointer a piece lifts a little, the key turns up on it, its band
-// brightens, and a small soft light gathers on the glass under its base.
+// brightens, and a small soft light gathers on the glass under its base (it
+// stays on the glass when the piece lifts: ON_FLOOR).
 // Picked up, it lifts only a little more into its column of light
 // (selection.tsx), lit faintly from below by it. In check, the whole king,
 // cross and all, takes the red, and the red platform lights its base.
@@ -101,11 +95,9 @@ const glazeFragment = /* glsl */ `
   uniform float uRelief;
   uniform float uTone;
   uniform float uEdge;
-  uniform float uBandOn;
   uniform float uHover;
   uniform float uHold;
   uniform float uCheck;
-  uniform float uCheckTint;
   uniform float uTop;
   uniform float uCut;
   varying vec3 vN;
@@ -158,7 +150,7 @@ const glazeFragment = /* glsl */ `
     bool well = abs(vPart - 3.0) <= 0.5;
     // (its side only: the cap under the foot, seen from below, stays the
     // body's, never a coloured disc under the piece)
-    bool band = vPart > 3.5 && uBandOn > 0.5 && vUp > -0.5;
+    bool band = vPart > 3.5 && vUp > -0.5;
     float ao = mix(1.0, vAo, uOcc);
     // A touch deeper toward the foot
     vec3 albedo = accent ? uAccent : well ? uWell : mix(uBase, uColor, smoothstep(0.02, 0.42, y));
@@ -204,15 +196,13 @@ const glazeFragment = /* glsl */ `
     }
     // In check the whole king takes the red, keeping its army's value, its
     // edge burns red, and the red platform under it lights its base
-    // (with the tint off, the platform's red light on the base remains, fainter)
     if (uCheck > 0.0) {
       float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
       // Lit from below: reddest at the base, the cross still clearly red
       float up = (1.0 - smoothstep(0.0, 0.45, h)) * (0.45 + 0.55 * clamp(0.4 - n.y, 0.0, 1.0));
-      float tint = uCheck * uCheckTint;
-      col = mix(col, uCheckColor * (lum * 1.45 + 0.012), tint * (0.5 + 0.3 * up));
-      col += uCheckColor * uCheck * mix(0.45, 1.0, uCheckTint) * up * (0.08 + 0.5 * lum) * ao;
-      col = mix(col, uCheckColor, clamp(tint * 0.5 * pow(1.0 - facing, 2.2) * fromAbove, 0.0, 1.0));
+      col = mix(col, uCheckColor * (lum * 1.45 + 0.012), uCheck * (0.5 + 0.3 * up));
+      col += uCheckColor * uCheck * up * (0.08 + 0.5 * lum) * ao;
+      col = mix(col, uCheckColor, clamp(uCheck * 0.5 * pow(1.0 - facing, 2.2) * fromAbove, 0.0, 1.0));
     }
     // The burning edge: a thin line of white light
     col = mix(uBurn, col, burn);
@@ -231,6 +221,10 @@ interface Glaze {
   key: number;
   fill: number;
   ambient: number;
+  /** How light the albedo is. */
+  tone: number;
+  /** How strong the cool light along the edges is. */
+  edge: number;
   /** The cool kicker from behind (charcoal only). */
   kick: number;
   rimMix: number;
@@ -255,6 +249,8 @@ const GLAZE: Record<PieceColor, Glaze> = {
     key: 0.95,
     fill: 0.2,
     ambient: 0.72,
+    tone: 1,
+    edge: 1,
     kick: 0,
     rimMix: 0.24,
     rimPower: 2.6,
@@ -274,6 +270,8 @@ const GLAZE: Record<PieceColor, Glaze> = {
     key: 1.6,
     fill: 0.26,
     ambient: 0.4,
+    tone: 0.8,
+    edge: 1.1,
     kick: 0.9,
     rimMix: 0.2,
     rimPower: 3,
@@ -298,10 +296,9 @@ const colorAtLevel = (level: number, out: Color) => {
 
 /**
  * A piece's own material (its hover, hold, check and band ease on their
- * own). With a `level`, its foot band shows that level's light; without,
- * the foot is painted like the body.
+ * own). Its foot band shows the light of `level`.
  */
-const bodyMaterial = (color: PieceColor, type: PieceType, level?: number) => {
+const bodyMaterial = (color: PieceColor, type: PieceType, level: number) => {
   const g = GLAZE[color];
   // The charcoal knight's accent is its whole carved mane, many small faces
   // turned to the key: a shade deeper and less glossy, so it stays pewter
@@ -313,7 +310,7 @@ const bodyMaterial = (color: PieceColor, type: PieceType, level?: number) => {
       uAccent: { value: new Color(g.accent).multiplyScalar(mane ? 0.8 : 1) },
       uWell: { value: new Color(g.well) },
       uRim: { value: new Color(g.rim) },
-      uBand: { value: colorAtLevel(level ?? 0, new Color()) },
+      uBand: { value: colorAtLevel(level, new Color()) },
       uSelect: { value: new Color(PALETTE.select) },
       uCheckColor: { value: new Color(PALETTE.check) },
       uBurn: { value: new Color(PALETTE.light).multiplyScalar(1.4) },
@@ -329,13 +326,11 @@ const bodyMaterial = (color: PieceColor, type: PieceType, level?: number) => {
       uAccentShine: { value: g.accentShine },
       uOcc: { value: g.occlusion },
       uRelief: { value: g.relief },
-      uTone: { value: 1 },
-      uEdge: { value: 1 },
-      uBandOn: { value: level === undefined ? 0 : 1 },
+      uTone: { value: g.tone },
+      uEdge: { value: g.edge },
       uHover: { value: 0 },
       uHold: { value: 0 },
       uCheck: { value: 0 },
-      uCheckTint: { value: 1 },
       uTop: { value: pieceTop(bakedSet(), type) },
       uCut: { value: -1 },
     },
@@ -347,79 +342,44 @@ const bodyMaterial = (color: PieceColor, type: PieceType, level?: number) => {
 /** The whole piece as one geometry, its occlusion and parts baked in (occlusion.ts). */
 export const wholePiece = (type: PieceType): BufferGeometry => bakedPiece(type);
 
-/** The level cue the player chose: the band at the foot, the ring on the glass, or both. */
-export const useLevelCue = () => {
-  const cue = usePieceSetting<LevelCue>('piece.levelCue');
-  return { band: cue !== 'ring', ring: cue !== 'band' };
-};
-
 /**
- * A piece's own material, kept to the player's settings (the charcoal's tone
- * and edge light, the band) and disposed with the caller: what PieceBody
- * draws, and what an effect that redraws a piece (a capture) should use so
- * the piece looks the same.
+ * A piece's own material, disposed with the caller: what PieceBody draws, and
+ * what an effect that redraws a piece (a capture) should use so the piece
+ * looks the same.
  */
 export const usePieceMaterial = (color: PieceColor, type: PieceType, level: number) => {
-  const invalidate = useThree((s) => s.invalidate);
-  const { band } = useLevelCue();
-  const tone = usePieceSetting<number>('piece.darkTone');
-  const edge = usePieceSetting<number>('piece.edgeLight');
   const material = useMemo(() => bodyMaterial(color, type, level), [color, type, level]);
   useEffect(() => () => material.dispose(), [material]);
-  useEffect(() => {
-    const u = material.uniforms;
-    u.uTone.value = color === 'black' ? tone : 1;
-    u.uEdge.value = color === 'black' ? edge : 1;
-    u.uBandOn.value = band ? 1 : 0;
-    invalidate();
-  }, [material, color, tone, edge, band, invalidate]);
   return material;
 };
 
-// --- The level ring and the hover light on the glass ------------------------------------------
+// --- The hover light on the glass -------------------------------------------------------------
 
-// Rings the markers must stay clear of: this ring is RING_RADIUS (piece
-// units) round the foot, in its level's colour (LEVEL_COLORS, blended
-// between levels while gliding), brightening toward white under the pointer.
+// A small soft light inside the base of a hovered piece, in its level's colour
+// (LEVEL_COLORS, blended between levels while gliding) lifted toward white.
 
-const ringVertex = /* glsl */ `
+const poolVertex = /* glsl */ `
   varying vec2 vP;
   void main() {
     vP = position.xz;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 
-const ringFragment = /* glsl */ `
+const poolFragment = /* glsl */ `
   uniform vec3 uColor;
-  uniform float uRadius;
-  uniform float uAmount;
-  uniform float uRing;
-  uniform float uGlow;
   uniform float uPool;
   varying vec2 vP;
   void main() {
     float r = length(vP);
-    float d = abs(r - uRadius);
-    float fw = max(fwidth(r), 1e-4);
-    // A hairline of light, never thinner than about a pixel
-    float w = max(0.012, fw * 0.8);
-    float ring = (1.0 - smoothstep(w - fw, w + fw, d)) * min(0.012 / w, 1.0);
-    // Its soft light on the glass, which gathers under the pointer
-    float halo = exp(-d * d / (0.035 * 0.035)) * (0.08 + 0.3 * uGlow);
-    float inner = (1.0 - smoothstep(0.0, uRadius, r)) * 0.07 * uGlow;
-    float a = (ring * (0.85 + 0.15 * uGlow) + halo + inner) * uAmount * uRing;
-    // Under a hovered piece, a small soft light inside its base
-    float pool = exp(-r * r / (0.13 * 0.13)) * (1.0 - smoothstep(0.16, 0.24, r)) * 0.4 * uPool;
-    vec3 col = uColor * (1.0 + 0.35 * uGlow) * a + mix(uColor, vec3(1.0), 0.5) * pool;
-    a += pool;
+    float a = exp(-r * r / (0.13 * 0.13)) * (1.0 - smoothstep(0.16, 0.24, r)) * 0.4 * uPool;
     if (a < 0.003) discard;
-    gl_FragColor = vec4(col / max(a, 1e-4), min(a, 1.0));
+    gl_FragColor = vec4(mix(uColor, vec3(1.0), 0.5), min(a, 1.0));
     #include <colorspace_fragment>
   }`;
 
-export const ringPlane = new PlaneGeometry(1.1, 1.1).rotateX(-Math.PI / 2);
+const poolPlane = new PlaneGeometry(1.1, 1.1).rotateX(-Math.PI / 2);
 
-export const ringMaterial = (level: number) =>
+const poolMaterial = (level: number) =>
   new ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -428,53 +388,37 @@ export const ringMaterial = (level: number) =>
     polygonOffsetUnits: -1,
     uniforms: {
       uColor: { value: colorAtLevel(level, new Color()) },
-      uRadius: { value: RING_RADIUS },
-      uAmount: { value: 1 },
-      uRing: { value: 1 },
-      uGlow: { value: 0 },
       uPool: { value: 0 },
     },
-    vertexShader: ringVertex,
-    fragmentShader: ringFragment,
+    vertexShader: poolVertex,
+    fragmentShader: poolFragment,
   });
 
 // --- The piece -------------------------------------------------------------------------------
 
-/** Rates of the eases (per second): hover in and out, the check light. */
+/** Rates of the eases (per second): hover in, hold, the check light. */
 const HOVER_RATE = 1 / 0.18;
 const HOLD_RATE = 1 / 0.28;
 const CHECK_RATE = 1 / 0.25;
 const smooth = (x: number) => x * x * (3 - 2 * x);
 
-const at = new Vector3();
-const RING_YIELDS: ClaimKind[] = ['capture', 'check', 'trace'];
-
 /**
- * A Staunton piece in porcelain or charcoal, with its level band or ring, its
- * light on the glass under the pointer, and its column of light when held.
- * Board's Lift raises it (index.tsx, from the settings).
+ * A Staunton piece in porcelain or charcoal, with its level band, its light on
+ * the glass under the pointer, and its column of light when held. PieceMesh's
+ * Lift raises it.
  */
 export const PieceBody = (props: PieceBodyProps) => {
   const { type, color, selected, hovered, inCheck } = props;
   const level = props.level ?? 0;
   const invalidate = useThree((s) => s.invalidate);
   const glide = useGlide();
-  const { ring: ringCue } = useLevelCue();
-  const checkTint = usePieceSetting<boolean>('piece.checkTint');
-  const pulse = usePieceSetting<boolean>('piece.clickPulse');
   const still = useMemo(prefersReducedMotion, []);
 
   // (its band's colour is set every frame: one material whatever the level)
   const body = usePieceMaterial(color, type, 0);
-  const floorMaterial = useMemo(() => ringMaterial(level), [level]);
+  const floorMaterial = useMemo(() => poolMaterial(level), [level]);
   useEffect(() => () => floorMaterial.dispose(), [floorMaterial]);
-  const floor = useRef<Group>(null);
   const top = pieceTop(bakedSet(), type);
-
-  useEffect(() => {
-    floorMaterial.uniforms.uRing.value = ringCue ? 1 : 0;
-    invalidate();
-  }, [floorMaterial, ringCue, invalidate]);
 
   // Eased weights; the floor light and the held light are mounted only while
   // they show
@@ -484,7 +428,7 @@ export const PieceBody = (props: PieceBodyProps) => {
   const [lit, setLit] = useState(false);
   if ((hovered || selected) && !awake) setAwake(true);
   if (selected && !lit) setLit(true);
-  useEffect(() => invalidate(), [hovered, selected, inCheck, checkTint, invalidate]);
+  useEffect(() => invalidate(), [hovered, selected, inCheck, invalidate]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20);
@@ -498,17 +442,14 @@ export const PieceBody = (props: PieceBodyProps) => {
     w.hover = hover;
     w.hold = hold;
     w.check = c;
-    const showing = stepSelection(held.current, selected, dt * 1000, { still, pulse });
+    const showing = stepSelection(held.current, selected, dt * 1000, still);
     const u = body.uniforms;
-    const lifted = smooth(Math.max(hover, hold));
     u.uHover.value = smooth(hover);
     u.uHold.value = smooth(hold) * held.current.strength;
     u.uCheck.value = smooth(c);
-    u.uCheckTint.value = checkTint ? 1 : 0;
     const f = floorMaterial.uniforms;
-    f.uGlow.value = lifted;
     f.uPool.value = smooth(hover);
-    // While gliding, the band and the ring pass through the colours of the
+    // While gliding, the band and the pool pass through the colours of the
     // levels crossed
     if (glide) {
       const p = glide.progress.current;
@@ -519,14 +460,6 @@ export const PieceBody = (props: PieceBodyProps) => {
       colorAtLevel(level, f.uColor.value);
       colorAtLevel(level, u.uBand.value);
     }
-    // A capture, check or last-move ring drawn here takes the ring's place
-    let amount = 1;
-    if (ringCue && anyClaims() && floor.current) {
-      floor.current.getWorldPosition(at);
-      if (claimed(at, RING_YIELDS)) amount = 0;
-    }
-    // Held, the circle of the held light takes the ring's place
-    f.uAmount.value = amount * (1 - held.current.circle);
     if (showing) moving = true;
     if (moving) invalidate();
     else {
@@ -537,17 +470,17 @@ export const PieceBody = (props: PieceBodyProps) => {
 
   return (
     <>
-      <group ref={floor} userData={ON_FLOOR}>
-        {(ringCue || awake) && (
+      <group userData={ON_FLOOR}>
+        {awake && (
           <mesh
-            geometry={ringPlane}
+            geometry={poolPlane}
             material={floorMaterial}
             position={[0, 0.005, 0]}
             renderOrder={LAYER.shadow}
             raycast={noRaycast}
           />
         )}
-        {lit && <SelectionLight state={held} top={top} still={still} />}
+        {lit && <SelectionLight state={held} top={top} />}
       </group>
       <mesh geometry={wholePiece(type)} material={body} />
     </>
