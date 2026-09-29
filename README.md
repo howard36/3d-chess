@@ -159,7 +159,12 @@ Key decisions:
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
   sky, to straight down). The controls (`three/CameraControls.tsx`) are three's own
   OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the
-  scene and `showcase.mjs` read. The canvas draws at the screen's pixel ratio up to 2x,
+  scene and `showcase.mjs` read. In the game's entrance (see The board) the camera starts
+  2.4 times the fitted distance out on the opening line of sight (1.3 times on a rejoin)
+  and dollies in to exactly the fitted distance, with the fit's lens shift, so the tower's
+  centre holds its place on screen throughout; the controls take no input until it lands,
+  and it lands where a load without an entrance starts (`FitCameraToBoard` leaves the
+  fitted distance on the camera, `userData.fitDistance`). The canvas draws at the screen's pixel ratio up to 2x,
   within a budget of 4.5 million pixels (`three/pixelBudget.ts`), so a large
   high-density window costs no more than it needs.
 - **Touch.** The game screen takes no text selection, long-press callout or double-tap
@@ -198,7 +203,12 @@ Key decisions:
   `data-winner`; `data-testid="seat"` its `data-seat`; `opponent-presence` its
   `data-online`; `captured-pieces` each haul as `data-side` (`me`, `them`); and
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
-  and `data-move-count`.
+  and `data-move-count`. In the game's entrance the pill and the captured pieces fade in
+  last, settling down onto their place as the last pawns form (`--intro-hud`), and the
+  canvas's wrapper carries `data-intro` (`playing`, then `done`), which e2e's
+  `waitForBoard` waits for; the move box stays the first Tab stop throughout. The
+  started game's page is `screens/GameView.tsx`, which `GameScreen` renders with
+  everything it derives from the log.
 
 ## Protocol
 
@@ -284,7 +294,7 @@ freely about the tower's centre, so the opening view is just a starting point. O
 positions are transformed; piece meshes are never mirrored (Board turns each knight to
 face the opponent). The levels are 1.35 cell pitches apart (`TOWER_DEFAULTS`), and
 `towerFrame(layout)` measures a layout's pitch, gap and platform heights. The scene
-assumes world-Y-up; the camera lives in `screens/GameScreen.tsx` (its starting
+assumes world-Y-up; the camera lives in `screens/GameView.tsx` (its starting
 direction), `three/cameraFit.ts` (its distance, fitted to the window's shape so the whole
 tower is framed on a phone too, and the zoom range around it) and
 `three/CameraControls.tsx` (turning and zooming). The engine and wire formats are
@@ -332,6 +342,29 @@ topples and a pulse of light spreads across his own level at an even speed (`sce
 strikes the floor (`onToppled` in `three/pieceMotion.tsx`) while his bounce and the pulse
 play on behind it.
 
+**The entrance.** Opening the game plays a short entrance, just under 4 seconds when the
+game starts while the page is open and 1.3 when the page opens on a game already under
+way (a reload, a rejoin): the night fades up and the camera closes in (see Camera) while
+the tower draws itself in light, level by level from A up, each overlapping the next.
+A level's edge grows out of its four corners along its sides to meet in their middles,
+a white-hot tip at each front; its hairlines run in across it from both ends, the outer
+ones first; its glass floods in from the edge to the middle; and every line settles
+from a little brighter to its own light. The labels settle in once the tower is up, the
+letters from A. Then the armies form, both at once and each piece with its mirror image
+through the centre: the back ranks from the royal pair outward, then the pawns, so the
+two sides close in on the empty level C. Each piece rises from its foot behind a thin
+line of white light over about half a second, the capture's burn run the other way, what
+it leaves behind glowing with its level's light before it cools to its glaze, while a
+flash of that light and a ring spread on the glass at its foot. The pill fades in last.
+The board takes no input until it is over. With reduced motion the scene only fades in
+(150 ms). The timings are pure functions in `three/intro/timeline.ts`; the clock is
+advanced on r3f's clock by `three/intro/IntroDirector.tsx`, which moves the camera, and
+each part reads it in its own frames (the levels' `uBuild`, the pieces' `uForm`, the
+labels' fade). Anything drawn outside the game (no `IntroContext`) is simply there: a
+level drawn alone (`<Levels focusLevel={null} levels={[0]} />`) is whole. `GameView` can
+hold the entrance at its first frame (`introPaused`) and reports the canvas's first
+drawn frame (`onFirstFrame`).
+
 How the code is split:
 
 - `three/Board.tsx` owns every interaction rule: selecting and deselecting, legal
@@ -351,10 +384,10 @@ How the code is split:
 - `three/scene/` draws everything else: the garden and sky (`stage.tsx`, `heavens.tsx`),
   the levels and labels (`plates.tsx`, `grid.tsx`, `smartLabels.tsx`), the piece bodies
   (`pieces.tsx`), the marks of play (`markers.tsx`, `line.tsx`, `selection.tsx`,
-  `blades.tsx`) and the capture and mate (`fx.tsx`). `palette.ts` holds the colours, the
+  `blades.tsx`) and the capture and mate (`fx.tsx`). `three/intro/` times the entrance. `palette.ts` holds the colours, the
   layout and the sizes they share. Every see-through part writes no depth and draws in a
   fixed order (`layers.ts`), so the glass never hides or tints a marker or a label.
-  Board, PieceMesh and GameScreen import these parts directly; unit tests stand them in
+  Board, PieceMesh and GameView import these parts directly; unit tests stand them in
   with `vi.mock`.
 
 All motion runs on r3f's clock, and the canvas renders on demand.
@@ -385,7 +418,9 @@ to `orbit.mp4` and a contact sheet, and prints a jitter report: how far the towe
 moved on screen, the worst frame-to-frame lurch of any label, where the level letters
 changed post, and a flag for every discontinuity, letter out of line, overlap or letters
 reading as one axis with the files or ranks (`--seat black`, `--width`/`--height` for a
-phone). Usage is at the top of the script.
+phone). `--intro` records the game's entrance from its first frame (`--seat black`,
+`--rejoin` for the short one, `--reduced`), to `intro-<seat>.mp4`, stills at `--at
+"s,s,…"` seconds and a contact sheet. Usage is at the top of the script.
 
 ### Piece set
 
