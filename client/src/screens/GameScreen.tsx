@@ -433,6 +433,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       beat: 'wait',
       taken: { [storedRole]: true, [other(storedRole)]: false } as Record<Color, boolean>,
       mine: storedRole,
+      card: true,
       hover: null,
       toss: null,
       seat: storedRole,
@@ -447,6 +448,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       // Filled at once, on the glass; its light comes on with the host's
       // king's when the game starts
       mine: null,
+      // Framed as the host's wait, with "Join game" under the kings; the
+      // click eases the camera on as the game gets under way
+      card: !joining,
       hover: null,
       toss: null,
       seat: invitation.seat,
@@ -456,6 +460,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       beat: 'invited',
       taken: { white: false, black: false },
       mine: null,
+      card: true,
       hover: null,
       toss: null,
       seat: 'white',

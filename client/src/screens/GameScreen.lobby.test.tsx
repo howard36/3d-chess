@@ -175,6 +175,8 @@ describe("a guest's invitation", () => {
       beat: 'invited',
       taken: { [host]: true, [seat]: false },
       mine: null,
+      // Framed as the host's wait, "Join game" under the kings
+      card: true,
       seat,
     });
   });
@@ -191,7 +193,8 @@ describe("a guest's invitation", () => {
     });
     const button = screen.getByRole('button', { name: 'Joining…' });
     expect(button).toHaveAttribute('aria-disabled', 'true');
-    expect(view).toMatchObject({ taken: { white: true, black: true }, mine: null });
+    // The camera eases on from the invitation's framing as the game gets under way
+    expect(view).toMatchObject({ taken: { white: true, black: true }, mine: null, card: false });
     expect(seatLabels()).toEqual(['Opponent', 'You']);
     // Held: nothing more goes out
     fireEvent.click(button);
@@ -281,11 +284,13 @@ describe("the host's invitation to send", () => {
     expect(seatLabels()).toEqual(['Opponent', 'You']);
     // Nothing to ask the server: the seat is held, the game is known
     expect(send).not.toHaveBeenCalled();
-    // The host's king lifted, across from the empty seat
+    // The host's king in its light, across from the empty seat, framed
+    // higher over the card
     expect(view).toMatchObject({
       beat: 'wait',
       taken: { black: true, white: false },
       mine: 'black',
+      card: true,
       seat: 'black',
     });
   });

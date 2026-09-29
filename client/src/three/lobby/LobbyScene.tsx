@@ -44,6 +44,12 @@ export interface LobbyView {
   taken: Record<Side, boolean>;
   /** This player's seat once they have one: lifted into the column of light. */
   mine: Side | null;
+  /**
+   * Something is docked under the kings (the host's invitation, the guest's
+   * "Join game"): they are framed higher to leave it room. Its going (the
+   * game starting, or the guest's click) eases them back down.
+   */
+  card?: boolean;
   /** Choosing: the king under the pointer or keyboard focus. */
   hover: Choice | null;
   /** Choosing "Random": the side the coin will land on. */
@@ -198,13 +204,18 @@ const LobbyRig = ({
   const left = useRef(false);
   const shifted = useRef(false);
   const last = useRef('');
-  useEffect(() => invalidate(), [size, view.beat, invalidate]);
+  useEffect(() => invalidate(), [size, view.beat, view.card, invalidate]);
 
   useFrame((_, delta) => {
     const aspect = size.width / Math.max(size.height, 1);
     const { beat, since } = clock.current;
-    // (a card is docked under the kings, or beside them, while the host waits)
-    const rest = lobbyPose(aspect, beat === 'wait', cardBeside(size.width, size.height));
+    // (a card is docked under the kings; the host's docks beside them in a
+    // short, wide window)
+    const rest = lobbyPose(
+      aspect,
+      !!view.card,
+      beat === 'wait' && cardBeside(size.width, size.height),
+    );
     let pose = rest;
     let moving = false;
     // From one beat's framing to the next, eased (the card coming in lifts
@@ -394,7 +405,7 @@ export const LobbyScene = ({
   // rises into a column of its own beside the player's: the two stand level
   // before they are taken up together
   const filling = view.beat === 'arrive' || view.beat === 'leave';
-  const fills = useRef<KingPair>({ white: 0, black: 0, both: 0 });
+  const fills = useRef<KingPair>({ white: 0, black: 0, started: 0, both: 0 });
   const newcomer = view.beat === 'arrive' ? (view.arriving ?? null) : null;
 
   return (

@@ -26,6 +26,7 @@ const samePicture = (a: LobbyStage | null, b: LobbyStage | null) =>
     a.taken.white === b.taken.white &&
     a.taken.black === b.taken.black &&
     a.mine === b.mine &&
+    !!a.card === !!b.card &&
     a.hover === b.hover &&
     a.toss === b.toss &&
     a.seat === b.seat &&

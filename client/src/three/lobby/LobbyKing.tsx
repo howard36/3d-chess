@@ -69,12 +69,19 @@ const pickHandlers = (p: Pickable, enabled: boolean) =>
       }
     : {};
 
-/** What the two lobby kings share: their fills, and how long both have been filled at the start. */
+/**
+ * What the two lobby kings share: their fills, and at the start, how long it
+ * has been under way and how long both have been filled.
+ */
 export interface KingPair {
   white: number;
   black: number;
+  started: number;
   both: number;
 }
+
+/** How long a king takes to fill (to the 0.9 its light waits for), from the start of the arrival. */
+const FILLED_BY = LOBBY_TIMING.fill * 0.9;
 
 /** The body's shine, lift and light, eased toward their goals each frame. */
 const useKingMotion = () => useRef({ fill: 1, outline: 0, lift: 0, hover: 0, hold: 0, gone: 0 });
@@ -165,14 +172,19 @@ export const LobbyKing = ({
     m.outline = gone ? toward(m.outline, 0, dt * rate) : outlineForFill(m.fill);
     m.hover = toward(m.hover, hovered && !lit && present ? 1 : 0, dt * HOVER_RATE);
     // The start: from both kings filled, their columns come on together,
-    // then the two lift together (White's king keeps the shared time)
+    // then the two lift together (White's king keeps the shared time). A
+    // king already filled before the start (the guest's, filled on the click)
+    // waits as long as a fresh fill would: the same beat on both pages
     const pair = fills?.current;
     if (pair) {
       pair[color] = m.fill;
-      if (color === 'white')
+      if (color === 'white') {
+        pair.started = together ? pair.started + dt : 0;
         pair.both = together && Math.min(pair.white, pair.black) > 0.9 ? pair.both + dt : 0;
+      }
     }
-    const since = together && pair ? (still ? Infinity : pair.both) : 0;
+    const since =
+      together && pair ? (still ? Infinity : Math.min(pair.both, pair.started - FILLED_BY)) : 0;
     const waiting = together && since < LOBBY_TIMING.arriveLift;
     // Its column of light as soon as it is the player's and filled (a king
     // already in its light keeps it); at the start, with the other's
