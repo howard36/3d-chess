@@ -117,16 +117,17 @@ export const LOBBY_FOV = 36;
  * never covers them.
  */
 export const lobbyPose = (aspect: number, card = false): CameraPose => {
-  const halfRow = seatSpacing(aspect) + 0.75;
+  const narrow = aspect < 0.9;
+  const halfRow = seatSpacing(aspect) + (narrow ? 0.45 : 0.75);
   const tanV = Math.tan(VFOV / 2);
   const tanH = tanV * aspect;
-  // The row inside 84% of the width, and never so close that a king fills
+  // The row inside most of the width, and never so close that a king fills
   // the height
-  const distance = Math.max(halfRow / (tanH * 0.84), 4.4);
+  const distance = Math.max(halfRow / (tanH * (narrow ? 0.94 : 0.84)), 4.4);
   const kingMid = FLOOR_Y + KING_TOP * KING_SCALE * 0.55;
   // The kings' middle this far above the centre of the frame (NDC)
   // (higher while a card is docked under them)
-  const raise = aspect < 0.9 ? 0.32 : card ? 0.3 : 0.12;
+  const raise = narrow ? 0.3 : card ? 0.3 : 0.12;
   return {
     target: [0, kingMid - raise * distance * tanV, 0],
     azimuth: 0,

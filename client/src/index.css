@@ -1192,18 +1192,6 @@
     opacity: 0;
   }
 }
-@media (max-width: 420px) {
-  .lobby-choice {
-    min-width: 100px;
-    padding: 9px 10px 8px;
-  }
-  .lobby-choice-name {
-    font-size: 15px;
-  }
-  .lobby-choice-note {
-    font-size: 11px;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .lobby * {
     animation: none !important;
@@ -1361,4 +1349,34 @@
   transform: translateX(-50%);
   width: min(440px, calc(100vw - 32px));
   pointer-events: auto;
+}
+/* A phone upright: the choices stack at the bottom, thumb-high, each a row */
+@media (max-aspect-ratio: 9/10) {
+  .lobby-choices {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: max(56px, calc(env(safe-area-inset-bottom) + 40px));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .lobby-choice {
+    position: static;
+    transform: none;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: baseline;
+    min-width: 0;
+    padding: 14px 18px;
+  }
+  .lobby-choice[data-faded] {
+    visibility: hidden;
+  }
+  .lobby-choice-name {
+    font-size: 16px;
+  }
+  .lobby-choice-note {
+    font-size: 13px;
+  }
 }
