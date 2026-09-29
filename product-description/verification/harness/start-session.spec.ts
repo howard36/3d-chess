@@ -210,12 +210,13 @@ test('create', async ({ browser }) => {
     expect(await focused(p)).toBe('BODY');
     await p.keyboard.press('Tab');
     expect(await focused(p)).toBe('BUTTON:Start a game');
-    expect(await hasFocusRing(p)).toBe(true);
+    // The start button always casts a glow, so its focus ring is the outline alone
+    expect(await p.evaluate(() => getComputedStyle(document.activeElement as HTMLElement).outlineStyle)).not.toBe('none');
     await p.keyboard.press('Enter');
     await p.waitForURL(/\/game\/[A-Z0-9]{6}$/);
     await expect(p.getByText(SHARE)).toBeVisible();
     await p.context().close();
-    return 'focus ring read from the computed box-shadow';
+    return 'focus ring read from the computed outline';
   });
 
   // Storage off: the browser refuses site data, so both storages throw on access
