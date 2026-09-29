@@ -3,7 +3,7 @@
 // chroma held constant keep every colour equally bright and equally vivid.
 // Pure, so the ramps can be tested (and picked) without WebGL.
 
-export interface Oklch {
+interface Oklch {
   /** Lightness, 0 (black) to 1 (white). */
   l: number;
   /** Chroma: 0 is grey; sRGB reaches about 0.37 at most. */
@@ -75,39 +75,25 @@ export const hexToOklch = (hex: string): Oklch => {
   return { l, c: Math.hypot(a, bb), h };
 };
 
-export interface LevelRampOptions {
-  /**
-   * Hue of level A and of level E (OKLCH degrees). The ramp runs from one to
-   * the other the way given: 20 → 260 passes through yellow and green, 20 →
-   * -100 through magenta.
-   */
-  from: number;
-  to: number;
-  /** OKLCH lightness of every level, or of A and E with the rest in between (default 0.72). */
-  lightness?: number | [number, number];
-  /** OKLCH chroma (default 0.13); a colour sRGB cannot show loses only what it must. */
-  chroma?: number;
-  /** How many colours (default 5, one per level). */
-  count?: number;
-}
-
 /**
- * Evenly spaced colours for the levels, A to E: real colours of one
- * lightness and vividness, stepping in equal perceptual steps of hue, with
- * no white or grey among them. Hand them to LevelPlates (tints, edgeColors),
- * LevelGrid (colors), SmartLabels (levelColors), LevelFootprint or LevelBand,
- * so every part says a level in the same colour.
+ * The five level colours, A to E: real colours stepping in equal perceptual
+ * steps of hue from `from` to `to` (OKLCH degrees, the way given: 20 → 260
+ * passes through yellow and green, 20 → -100 through magenta) and of
+ * lightness from A's to E's, all of one chroma (a colour sRGB cannot show
+ * loses only what it must), with no white or grey among them.
  */
 export const levelRamp = ({
   from,
   to,
-  lightness = 0.72,
-  chroma = 0.13,
-  count = 5,
-}: LevelRampOptions): string[] => {
-  const [l0, l1] = typeof lightness === 'number' ? [lightness, lightness] : lightness;
-  return Array.from({ length: count }, (_, i) => {
-    const k = count === 1 ? 0 : i / (count - 1);
+  lightness: [l0, l1],
+  chroma,
+}: {
+  from: number;
+  to: number;
+  lightness: [number, number];
+  chroma: number;
+}): string[] =>
+  Array.from({ length: 5 }, (_, i) => {
+    const k = i / 4;
     return oklchToHex({ l: l0 + (l1 - l0) * k, c: chroma, h: from + (to - from) * k });
   });
-};

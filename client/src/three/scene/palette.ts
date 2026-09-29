@@ -71,9 +71,8 @@ export const PALETTE = {
   /** Check: a deeper red, drawn in shapes of its own (plate, blades). */
   check: '#ff3338',
 
-  // Type and HUD
+  /** The coordinate labels' type. */
   ink: '#eef1f7',
-  inkMuted: 'rgba(214, 222, 236, 0.58)',
 } as const;
 
 /**

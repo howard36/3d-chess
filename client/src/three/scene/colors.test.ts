@@ -8,7 +8,7 @@ const hueGap = (a: number, b: number) => {
 
 describe('levelRamp', () => {
   it('gives five real colours, evenly spaced in hue, of one lightness and vividness', () => {
-    const ramp = levelRamp({ from: 250, to: 20, lightness: 0.7, chroma: 0.12 });
+    const ramp = levelRamp({ from: 250, to: 20, lightness: [0.7, 0.7], chroma: 0.12 });
     expect(ramp).toHaveLength(5);
     expect(new Set(ramp).size).toBe(5);
     const lch = ramp.map(hexToOklch);
@@ -22,11 +22,15 @@ describe('levelRamp', () => {
   });
 
   it('runs the way it is given, and can ramp lightness too', () => {
-    const long = levelRamp({ from: 20, to: 260 }).map(hexToOklch);
+    const long = levelRamp({ from: 20, to: 260, lightness: [0.72, 0.72], chroma: 0.13 }).map(
+      hexToOklch,
+    );
     // Through yellow and green (about 110° and 145°), not magenta
     expect(long[2].h).toBeGreaterThan(120);
     expect(long[2].h).toBeLessThan(160);
-    const shaded = levelRamp({ from: 200, to: 280, lightness: [0.5, 0.9] }).map(hexToOklch);
+    const shaded = levelRamp({ from: 200, to: 280, lightness: [0.5, 0.9], chroma: 0.13 }).map(
+      hexToOklch,
+    );
     for (let i = 1; i < 5; i++) expect(shaded[i].l).toBeGreaterThan(shaded[i - 1].l);
     expect(shaded[0].l).toBeCloseTo(0.5, 2);
     expect(shaded[4].l).toBeCloseTo(0.9, 2);
@@ -47,6 +51,5 @@ describe('levelRamp', () => {
     for (const hex of ['#4cc9f0', '#ffd166', '#e8b0d0', '#2352b0']) {
       expect(oklchToHex(hexToOklch(hex))).toBe(hex);
     }
-    expect(levelRamp({ from: 90, to: 90, count: 1 })).toHaveLength(1);
   });
 });
