@@ -10,6 +10,7 @@ import type { Vec3 } from '../types';
 
 const FROM: Vec3 = [0, 0, 0];
 const TO: Vec3 = [2, 1.35, -1];
+const LOOK = { color: '#4cc9f0', opacity: 0.7 };
 
 const meshes = (scene: ReactThreeTestInstance) =>
   scene.findAll((n) => n.type === 'Mesh').map((n) => n.instance as unknown as Mesh);
@@ -17,7 +18,7 @@ const meshes = (scene: ReactThreeTestInstance) =>
 describe('LastMoveLine', () => {
   it('is one thin tube from centre to centre, depth-tested, with no arrowhead', async () => {
     const r = await ReactThreeTestRenderer.create(
-      <LastMoveLine from={FROM} to={TO} radius={0.02} />,
+      <LastMoveLine from={FROM} to={TO} radius={0.02} {...LOOK} />,
     );
     const [tube] = meshes(r.scene as ReactThreeTestInstance);
     const material = tube.material as ShaderMaterial;
@@ -36,7 +37,9 @@ describe('LastMoveLine', () => {
   });
 
   it('is hidden by whatever stands in front of it: never drawn through a piece', async () => {
-    const r = await ReactThreeTestRenderer.create(<LastMoveLine from={FROM} to={TO} />);
+    const r = await ReactThreeTestRenderer.create(
+      <LastMoveLine from={FROM} to={TO} radius={0.02} {...LOOK} />,
+    );
     const all = meshes(r.scene as ReactThreeTestInstance);
     // One tube, one ordinary depth test (no second pass drawn where hidden)
     expect(all).toHaveLength(1);
@@ -47,7 +50,14 @@ describe('LastMoveLine', () => {
     const inset = 0.27;
     // Down a level, diagonally: it lands on the side facing the source
     const r = await ReactThreeTestRenderer.create(
-      <LastMoveLine from={[0, 1.35, 0]} to={[1, 0, 1]} radius={0.01} lift={0.02} inset={inset} />,
+      <LastMoveLine
+        from={[0, 1.35, 0]}
+        to={[1, 0, 1]}
+        radius={0.01}
+        lift={0.02}
+        inset={inset}
+        {...LOOK}
+      />,
     );
     const [tube] = meshes(r.scene as ReactThreeTestInstance);
     const g = tube.geometry as BufferGeometry;
@@ -58,26 +68,20 @@ describe('LastMoveLine', () => {
     // On the floor, not above it
     expect(g.boundingBox!.min.y).toBeGreaterThan(0);
     expect(g.boundingBox!.min.y).toBeLessThan(0.02);
-    // Straight down: on the given side
+    // Straight down: on the +x side
     const v = await ReactThreeTestRenderer.create(
-      <LastMoveLine
-        from={[0, 1.35, 0]}
-        to={[0, 0, 0]}
-        radius={0.01}
-        inset={inset}
-        insetSide={[0, -1]}
-      />,
+      <LastMoveLine from={[0, 1.35, 0]} to={[0, 0, 0]} radius={0.01} inset={inset} {...LOOK} />,
     );
     const [down] = meshes(v.scene as ReactThreeTestInstance);
     const gd = down.geometry as BufferGeometry;
     gd.computeBoundingBox();
-    expect(gd.boundingBox!.min.z).toBeCloseTo(-inset - 0.01, 2);
-    expect(gd.boundingBox!.max.x).toBeCloseTo(0.01, 2);
+    expect(gd.boundingBox!.max.x).toBeCloseTo(inset + 0.01, 2);
+    expect(gd.boundingBox!.max.z).toBeCloseTo(0.01, 2);
   });
 
-  it('keeps flowing on a demand-rendered canvas, and draws in from the source', async () => {
+  it('draws in from the source on a demand-rendered canvas', async () => {
     const r = await ReactThreeTestRenderer.create(
-      <LastMoveLine from={FROM} to={TO} flowSpeed={0.5} drawInMs={300} />,
+      <LastMoveLine from={FROM} to={TO} radius={0.02} drawInMs={300} {...LOOK} />,
     );
     const [tube] = meshes(r.scene as ReactThreeTestInstance);
     const u = (tube.material as ShaderMaterial).uniforms;
@@ -85,9 +89,7 @@ describe('LastMoveLine', () => {
     const early = u.uReveal.value as number;
     expect(early).toBeGreaterThan(0);
     expect(early).toBeLessThan(2.5);
-    const t0 = u.uTime.value as number;
     await act(async () => r.advanceFrames(20, 1 / 30));
     expect(u.uReveal.value).toBeGreaterThan(100);
-    expect(u.uTime.value).not.toBe(t0);
   });
 });

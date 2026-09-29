@@ -10,7 +10,6 @@ import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
 import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
 import { ringMaterial, ringPlane, useLevelCue, usePieceMaterial, wholePiece } from './pieces';
 import { gardenBoost } from './stage';
-import { useMarkSetting } from './settings-markers';
 
 // Motion in light, kept brief. A captured piece burns away from the crown
 // down behind a thin edge of white light, and its outline, drawn in light
@@ -164,8 +163,7 @@ export const CaptureFx = ({
 
 // One pulse of light leaves the mated king's foot as he starts to fall and
 // spreads across his own level's glass: a ring growing from him, a white
-// front with a glow of the level's colour behind it, at an even speed (a
-// setting), so it takes longer from a corner than from the middle. The
+// front with a glow of the level's colour behind it, at an even speed, so it takes longer from a corner than from the middle. The
 // result card doesn't wait for it; it plays on behind the card. The garden's
 // colossal pieces brighten for a breath with it.
 
@@ -205,12 +203,8 @@ const REACH = FRAME.half + MARGIN;
 const levelPlane = new PlaneGeometry(REACH * 2, REACH * 2).rotateX(-Math.PI / 2);
 /** The pulse leaves this soon after the king starts to fall. */
 const PULSE_DELAY_MS = 60;
-/**
- * How fast the pulse's front spreads at 1× (world units, one per square, a
- * second): the pace the tower-wide pulse kept on a typical mate before it
- * was held to the king's level.
- */
-export const PULSE_SPEED = 3;
+/** How fast the pulse's front spreads (world units, one per square, a second). */
+export const PULSE_SPEED = 4.2;
 
 /** How far the pulse must spread from `(x, z)`: to the farthest corner of the level's glass. */
 const farthestCorner = (x: number, z: number) =>
@@ -218,17 +212,16 @@ const farthestCorner = (x: number, z: number) =>
     ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => Math.hypot(sx * REACH - x, sz * REACH - z))),
   );
 
-/** How long the pulse from `(x, z)` lasts at `speed`× (seconds). */
-export const pulseSeconds = (x: number, z: number, speed: number) =>
+/** How long the pulse from `(x, z)` lasts (seconds). */
+export const pulseSeconds = (x: number, z: number) =>
   // The front reaches the far corner at 95% of the pulse's life, as it fades
-  (farthestCorner(x, z) + 0.15) / (PULSE_SPEED * speed) / 0.95;
+  (farthestCorner(x, z) + 0.15) / PULSE_SPEED / 0.95;
 
 /**
  * Mate: one pulse of light from the king's foot across his level as he
  * falls, and the garden's colossal pieces brighten for a breath.
  */
 export const Celebration = ({ floor }: CelebrationProps) => {
-  const speed = useMarkSetting<number>('mark.mateSpeed');
   const [kx, ky, kz] = floor;
   const level = levelAt(ky);
   const material = useMemo(
@@ -259,7 +252,7 @@ export const Celebration = ({ floor }: CelebrationProps) => {
     [],
   );
   const reach = farthestCorner(kx, kz) + 0.15;
-  const lifeMs = pulseSeconds(kx, kz, speed) * 1000;
+  const lifeMs = pulseSeconds(kx, kz) * 1000;
   const still = prefersReducedMotion();
   // (With reduced motion nothing crosses the board, so it is over at once)
   const alive = useLife(PULSE_DELAY_MS + (still ? 0 : lifeMs), (ms) => {

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pathDistances, pointAlong, tracePath, tubeData } from './markerGeometry';
-import { movePoint } from '../movePath';
+import { pathDistances, tracePath, tubeData } from './markerGeometry';
 import { fromZXY } from '../../engine/coords';
 import type { Orientation } from '../layout';
 import { towerLayout } from '../layout';
@@ -52,28 +51,6 @@ describe('tracePath', () => {
       expect(path[1][1] - path[0][1]).toBeCloseTo(to[1] - from[1]);
     }
   });
-
-  it('follows a knight’s arc exactly where the piece flies, at the same height whatever the level change', () => {
-    for (const to of [
-      [2, 0, 1],
-      [1, 1.35, -2],
-      [0, 2.7, 1],
-      [2, -1.35, 0],
-    ] as Vec3[]) {
-      const from: Vec3 = [0, 0, 0];
-      const path = tracePath(from, to, { lift: 0.03, arc: 0.6, segments: 20 });
-      expect(path).toHaveLength(21);
-      path.forEach((p, i) => {
-        const on = movePoint(from, to, i / 20, 0.6);
-        expect(p[0]).toBeCloseTo(on[0]);
-        expect(p[1]).toBeCloseTo(on[1] + 0.03);
-        expect(p[2]).toBeCloseTo(on[2]);
-      });
-      // Mid-flight it is the arc's height above the straight line between the ends
-      const mid = path[10];
-      expect(mid[1] - (0.03 + to[1] / 2)).toBeCloseTo(0.6);
-    }
-  });
 });
 
 describe('the last-move line’s ends', () => {
@@ -84,22 +61,23 @@ describe('the last-move line’s ends', () => {
     return [x, y + layout.floorY, z];
   };
   // Moves that come down onto their destination: diagonally (along a rank, a
-  // file, and through the cube), straight down, and over a knight's arc
-  const MOVES: [string, string, number][] = [
-    ['Eb4', 'Cb2', 0],
-    ['Eb4', 'Da4', 0],
-    ['Ed4', 'Ba1', 0],
-    ['Dc4', 'Cc4', 0],
-    ['Cc4', 'Bc3', 0],
-    ['Eb5', 'Db3', 0.6],
-    ['Eb5', 'Ec3', 0.6],
+  // file, and through the cube), straight down, and a knight's
+  const MOVES: [string, string][] = [
+    ['Eb4', 'Cb2'],
+    ['Eb4', 'Da4'],
+    ['Ed4', 'Ba1'],
+    ['Dc4', 'Cc4'],
+    ['Cc4', 'Bc3'],
+    ['Eb5', 'Db3'],
+    ['Eb5', 'Ec3'],
   ];
+  const RADIAL = 8;
   const ringCentre = (tube: ReturnType<typeof tubeData>, s: number): Vec3 => {
     const c: Vec3 = [0, 0, 0];
     let n = 0;
     tube.along.forEach((a, v) => {
       // Each ring once round (its last vertex repeats its first, for the seam)
-      if (Math.abs(a - s) > 1e-6 || tube.angle[v] === 1) return;
+      if (Math.abs(a - s) > 1e-6 || v % (RADIAL + 1) === RADIAL) return;
       const p = vec(tube.position, v);
       c[0] += p[0];
       c[1] += p[1];
@@ -111,15 +89,15 @@ describe('the last-move line’s ends', () => {
 
   it('sit exactly `lift` above the centres of both floors, from either seat', () => {
     for (const o of ['white', 'black'] as const) {
-      for (const [a, b, arc] of MOVES) {
+      for (const [a, b] of MOVES) {
         const from = floorOf(a, o);
         const to = floorOf(b, o);
         const lift = 0.0225;
-        const path = tracePath(from, to, { lift, arc, segments: 24 });
+        const path = tracePath(from, to, { lift });
         expect(path[0]).toEqual([from[0], from[1] + lift, from[2]]);
         expect(path[path.length - 1]).toEqual([to[0], to[1] + lift, to[2]]);
         // And the tube built round it ends there too, not above the square
-        const tube = tubeData(path, { radius: 0.01, radialSegments: 8 });
+        const tube = tubeData(path, { radius: 0.01, radialSegments: RADIAL });
         const start = ringCentre(tube, 0);
         const end = ringCentre(tube, tube.length);
         for (let i = 0; i < 3; i++) {
@@ -134,10 +112,10 @@ describe('the last-move line’s ends', () => {
     const inset = 0.268;
     const lift = 0.02;
     for (const o of ['white', 'black'] as const) {
-      for (const [a, b, arc] of [...MOVES, ['Cc4', 'Dc4', 0] as [string, string, number]]) {
+      for (const [a, b] of [...MOVES, ['Cc4', 'Dc4']]) {
         const from = floorOf(a, o);
         const to = floorOf(b, o);
-        const path = tracePath(from, to, { lift, arc, segments: 24, inset });
+        const path = tracePath(from, to, { lift, inset });
         expect(path[0]).toEqual([from[0], from[1] + lift, from[2]]);
         const end = path[path.length - 1];
         // On the destination's floor, `inset` from its centre...
@@ -204,32 +182,21 @@ describe('the last-move line’s landing, seen from the seat', () => {
   });
 });
 
-describe('pointAlong', () => {
-  const points: Vec3[] = [
-    [0, 0, 0],
-    [1, 0, 0],
-    [1, 2, 0],
-  ];
-
-  it('walks the path by distance, clamped to its ends', () => {
-    expect(pathDistances(points)).toEqual([0, 1, 3]);
-    expect(pointAlong(points, 0.5).point).toEqual([0.5, 0, 0]);
-    expect(pointAlong(points, 2).point).toEqual([1, 1, 0]);
-    expect(pointAlong(points, 2).tangent).toEqual([0, 1, 0]);
-    expect(pointAlong(points, -1).point).toEqual([0, 0, 0]);
-    expect(pointAlong(points, 9).point).toEqual([1, 2, 0]);
-  });
-});
-
 const vec = (a: Float32Array, i: number): Vec3 => [a[i * 3], a[i * 3 + 1], a[i * 3 + 2]];
+
+// The point `s` world units along a straight path
+const pointAt = ([a, b]: Vec3[], s: number): Vec3 => {
+  const k = s / Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+  return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+};
 
 describe('tubeData', () => {
   const straight = tracePath([0, 0, 0], [2, 0, -1], { lift: 0.03 });
-  const arc = tracePath([0, 0, 0], [1, 1.35, -2], { arc: 0.6, segments: 16 });
+  const rising = tracePath([0, 0, 0], [1, 1.35, -2]);
   const vertical = tracePath([1, 0, 1], [1, 2.7, 1]);
 
   it('is a round tube of the given radius round the path, with rounded ends', () => {
-    for (const points of [straight, arc, vertical]) {
+    for (const points of [straight, rising, vertical]) {
       const tube = tubeData(points, { radius: 0.02, radialSegments: 8, capSegments: 3 });
       const n = tube.along.length;
       const distances = pathDistances(points);
@@ -239,7 +206,7 @@ describe('tubeData', () => {
         const p = vec(tube.position, v);
         const s = tube.along[v];
         // Every vertex lies a radius from the path (the caps from its ends)
-        const { point } = pointAlong(points, Math.min(Math.max(s, 0), length));
+        const point = pointAt(points, Math.min(Math.max(s, 0), length));
         const d = Math.hypot(p[0] - point[0], p[1] - point[1], p[2] - point[2]);
         expect(d).toBeCloseTo(0.02, 4);
         // Unit normals, pointing out of the tube
@@ -272,22 +239,16 @@ describe('tubeData', () => {
     }
   });
 
-  it('tapers where asked, and says where round the tube each vertex is', () => {
-    const tube = tubeData(straight, {
-      radius: 0.04,
-      radialSegments: 4,
-      capSegments: 0,
-      radiusAt: (s, total) => 0.04 * (0.25 + (0.75 * s) / total),
-    });
-    // Two rings of five vertices (the seam repeats)
+  it('has one ring of vertices at each end, the seam repeating its first vertex', () => {
+    const tube = tubeData(straight, { radius: 0.04, radialSegments: 4, capSegments: 0 });
+    // Two rings of five vertices
     expect(tube.along.length).toBe(10);
-    const ringRadius = (ring: number) => {
+    expect(Array.from(tube.along.slice(0, 5))).toEqual(Array(5).fill(0));
+    expect(vec(tube.position, 4)).toEqual(vec(tube.position, 0));
+    for (const ring of [0, 1]) {
       const p = vec(tube.position, ring * 5);
       const c = straight[ring];
-      return Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]);
-    };
-    expect(ringRadius(0)).toBeCloseTo(0.01);
-    expect(ringRadius(1)).toBeCloseTo(0.04);
-    expect(Array.from(tube.angle.slice(0, 5))).toEqual([0, 0.25, 0.5, 0.75, 1]);
+      expect(Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2])).toBeCloseTo(0.04);
+    }
   });
 });
