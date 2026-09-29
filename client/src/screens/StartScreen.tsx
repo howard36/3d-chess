@@ -48,9 +48,16 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8">
+    <div
+      className="relative flex flex-col items-center justify-center min-h-screen p-8"
+      style={{
+        background: 'var(--page-bg)',
+        color: 'var(--page-fg)',
+        fontFamily: 'var(--hud-font)',
+      }}
+    >
       <div className="text-center flex flex-col items-center gap-8">
-        <h1 className="text-6xl font-bold text-white tracking-wide">3D Chess</h1>
+        <h1 className="text-6xl font-bold tracking-wide">3D Chess</h1>
         <button
           onClick={handleCreateGame}
           disabled={isLoading}

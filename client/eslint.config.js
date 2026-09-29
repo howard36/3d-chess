@@ -23,4 +23,11 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
+  {
+    // The scene's modules keep each part's components beside the constants and
+    // helpers that go with it; an edit to the scene redraws the canvas anyway,
+    // so component-only modules would buy nothing here.
+    files: ['src/three/scene/**/*.{ts,tsx}', 'src/three/pieceMotion.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 );

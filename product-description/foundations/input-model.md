@@ -11,16 +11,16 @@ The one rule to remember: **the board acts on a click, not on the pointer going 
 A [press](../glossary.md#input) is a click on the board: the primary (left) mouse button, a finger, or a pen going down and coming back up within 6 pixels of where it went down, on the same piece or cell. Nothing happens while the button is held. On release, the press is resolved:
 
 - If it lands on a [legal destination](../glossary.md#moves-and-the-rules) of the selected piece, the move is played (or, for a promotion square, the [promotion dialog](../play/promotion.md) opens).
-- If it lands on one of the player's own pieces that can move now, that piece becomes the [selection](../glossary.md#selection-and-board-state).
-- If it lands anywhere else inside the board, the selection is [cleared](../glossary.md#selection-and-board-state).
-- If it misses the board entirely (the background around the cube), nothing happens to the selection.
+- If it lands on one of the player's own pieces that can move now, that piece becomes the [selection](../glossary.md#selection-and-board-state); if it lands on the selected piece itself, the piece is put down and the selection [cleared](../glossary.md#selection-and-board-state).
+- If it lands on an empty cell that is not a destination, or misses the pieces and cells altogether (the gap between two levels, the garden, the sky), the selection is cleared.
+- If it lands on any other piece (the opponent's, where it is not a capture, or any piece while it is not the player's turn), nothing happens.
 
 Everything else the pointer can do over the board is a [drag](../glossary.md#input) and only [turns the view](the-view.md#turning-the-view):
 
 - A left drag that travels more than 6 pixels before release orbits the view and does nothing to the board, wherever it started: on a legal destination, on an empty cell, or on a piece. A selection survives it, so "select a piece, then turn the view to see where it can go" works from anywhere on the screen.
-- The right button pans and the middle button zooms; neither ever selects, clears, or plays, even without moving. The browser's context menu never opens over the board.
+- The right button does nothing to the view (with Shift, Ctrl, or Cmd it orbits) and the middle button zooms; neither ever selects, clears, or plays, even without moving. The browser's context menu never opens over the board.
 - The wheel, and a trackpad's scroll or pinch where the browser reports it as a wheel, zooms and never touches the selection.
-- On a touch screen a one-finger tap is a press. A one-finger drag orbits, and a second finger landing turns the gesture into a pinch or two-finger pan; neither selects, clears, or plays.
+- On a touch screen a one-finger tap is a press. A one-finger drag orbits, and a second finger landing turns the gesture into a pinch that zooms; neither selects, clears, or plays. A tap that just misses what it was aimed at is helped by [tap assist](#what-takes-a-press).
 
 A drag of 6 pixels or less still counts as a press: the view may turn by that small amount and the press acts as well. A press whose pointer ends over a different piece or cell than it started on goes only to what was under the pointer both times; usually that means it does nothing, or only clears the selection.
 
@@ -28,21 +28,25 @@ A drag of 6 pixels or less still counts as a press: the view may turn by that sm
 
 ## What takes a press
 
-The board is a lattice of 125 cells seen in perspective, so the point under the pointer usually has several cells and pieces behind it. The press follows the line from the camera through the pointer into the board and meets things in order, nearest first:
+The board is a tower of five glass levels seen in perspective, so the point under the pointer usually has several cells and pieces behind it. Each piece takes presses on a fixed outline fitted round it (so a piece that lifts under the pointer cannot slip out from under it), and each cell takes presses only on a thin slab lying on its glass, so a press on a level lands on the square whose glass is under the pointer. The press follows the line from the camera through the pointer into the tower and meets things in order, nearest first:
 
 1. **The first piece or legal destination on the line takes the press.** Nothing behind it sees the press.
-   - A legal destination plays the move. This includes a destination holding an opponent's piece: the cell's surface is in front of the piece standing in it, so the capture is taken, not the piece.
-   - One of the player's own pieces that can move now becomes the selection, whether or not another piece was selected; pressing the already selected piece keeps it selected.
-   - Any other piece (the opponent's, or any piece while it is not the player's turn) takes the press and does nothing with it.
-2. **Every other cell the line enters before that point clears the selection.** A cell a piece stands in is entered before the piece itself, so pressing any piece that cannot be selected clears the current selection. When the press goes on to select a piece or play a move, the clearing makes no difference.
-3. **Markers, fills, rings, the lattice lines, and a captured piece that is fading out are never hit.** A press passes through them as if they were not there. A piece in the middle of its [glide](../glossary.md#selection-and-board-state) is hit where it is drawn at that moment.
+   - A legal destination plays the move.
+   - An opponent's piece standing on a legal destination is the capture itself: pressing the piece plays the move, as pressing its cell would.
+   - One of the player's own pieces that can move now becomes the selection, whether or not another piece was selected; pressing the selected piece again puts it down.
+   - Any other piece (the opponent's, where it is not a capture, or any piece while it is not the player's turn) takes the press and does nothing with it: the selection stays.
+2. **An empty cell that is not a destination clears the selection** when the line crosses its glass before reaching a piece or destination. When the press goes on to select a piece or play a move, the clearing makes no difference.
+3. **A press that reaches no piece and no cell clears the selection**: the gap between two levels, the garden, and the sky all count.
+4. **The marks of play, the glass, the borders, the labels, the garden, and a captured piece that is burning away are never hit.** A press passes through them as if they were not there. A piece in the middle of its [glide](../glossary.md#selection-and-board-state) is hit where it stands.
+
+On a touch screen, [tap assist](../glossary.md#input) helps a finger that is wider than the piece it aims at: a tap that reaches nothing the player can act on (an empty cell, the space round the tower, or a piece that cannot be selected) goes instead to the nearest of the player's own selectable pieces or legal destinations whose outline on screen lies within about 22 pixels of the touch. While a piece is held, a destination wins a near tie with another piece, so a tap between them plays the move rather than trading the held piece. A tap out of reach of everything is an ordinary press. A mouse or pen click is never redirected.
 
 Two consequences shape how the game feels:
 
-- **A piece in front of a destination blocks it.** If one of the player's own pieces stands between the camera and the destination, pressing there selects that piece instead; if an opponent's piece stands there, the press does nothing except clear the selection. The player has to turn the view until the destination is in clear sight, or type the move in the [move box](#the-move-box). Empty cells in front of a destination do not block it.
-- **Only the destination's own box counts.** A destination's highlighted fill and dot sit inside its cell; pressing just beside the dot, still within the cell, plays the move, while pressing the thin gap between two cells may reach a different cell behind.
+- **A piece in front of a destination blocks it.** If one of the player's own pieces stands between the camera and the destination, pressing there selects that piece instead; if an opponent's piece that is not a capture stands there, the press does nothing. The player has to turn the view until the destination is in clear sight, or type the move in the [move box](#the-move-box). Empty cells, and the glass of the levels, in front of a destination do not block it.
+- **The whole cell counts.** A destination's gold circle lies inside its cell; pressing anywhere on that cell's glass plays the move, not only inside the circle.
 
-The HTML panels laid over the board are in front of all of this. Only three of them take the pointer: the [move box](#the-move-box) at the bottom left, the [error banner](../game-page/error-banner.md) at the bottom center, and the [move list](../game-page/move-list.md) at the bottom right. A press on them never reaches the board or the view. Everything else in the [HUD](../glossary.md#input) lets presses through to the board behind it: the [turn indicator](../game-page/turn-indicator.md), the [seat label](../game-page/seat-and-opponent-status.md), the reconnecting banner, the frozen-board banner, and the empty space between panels. The promotion dialog, the end-game dialog, and the replaced dialog cover the whole window and block the board completely.
+The HTML laid over the board is in front of all of this. Only two parts of it take the pointer: the [error banner](../game-page/error-banner.md)'s "✕" in the status column under the turn pill, and the [move card](../game-page/move-list.md) at the bottom left while it is shown (which is only while its [move box](#the-move-box) has keyboard focus). A press on them never reaches the board or the view. Everything else in the [HUD](../glossary.md#the-interface) lets presses through to the board behind it: the [turn pill](../game-page/turn-indicator.md), with the player's and the opponent's [status](../game-page/seat-and-opponent-status.md) on it, the reconnecting line, the frozen-board banner, and the empty space around them. The promotion dialog, the end-game dialog, and the replaced dialog cover the whole window and block the board completely.
 
 ## When the board takes input
 
@@ -53,9 +57,9 @@ The HTML panels laid over the board are in front of all of this. Only three of t
 3. the move record is not [frozen](../cross-cutting/broken-game-record.md);
 4. none of this player's own moves is in flight (the board is not [held](../glossary.md#selection-and-board-state)).
 
-While it does not, presses on pieces and destinations do nothing, the move box's "Move" button is disabled, and nothing looks different about the board itself: pieces are drawn as usual, and the only signs are the banner or dialog that explains why (or, for the short wait for a snapshot, nothing at all) and the absence of any reaction to a press. The moment the board stops taking input, any selection is cleared and the promotion dialog closes. The view can always be turned.
+While it does not, presses on pieces and destinations do nothing, the move box sends nothing, and nothing looks different about the board itself: pieces are drawn as usual, and the only signs are the banner or dialog that explains why (or, for the short wait for a snapshot, nothing at all) and the absence of any reaction to a press. The moment the board stops taking input, any selection is cleared and the promotion dialog closes. The view can always be turned.
 
-Whose turn it is does not decide whether the board takes input. On the opponent's turn the board takes input, but none of the player's pieces can be selected, so presses only clear (there is nothing to clear) or do nothing. The move box, by contrast, accepts a move only on the player's own turn.
+Whose turn it is does not decide whether the board takes input. On the opponent's turn the board takes input, but none of the player's pieces can be selected, so presses only clear (there is nothing to clear) or do nothing. The move box, by contrast, accepts a move only on the player's own turn, and says "Wait for their move." to a move submitted on the opponent's.
 
 The board also cannot be used while a dialog covers it: the promotion dialog, the end-game dialog, the replaced dialog, and the [crash screen](screens-and-navigation.md#the-crash-screen). These do not change whether the board takes input; they stand in front of it, and while one of the three dialogs is up, everything behind it (the board and the whole HUD) is inert: it cannot be clicked, reached with Tab, or read by a screen reader.
 
@@ -63,21 +67,21 @@ A very fast second press on a destination can still send the move twice, if it a
 
 ## The move box
 
-The move box, at the bottom left of the board screen, is the second way to play a move and the only one that works without a pointer. It is a small dark panel labelled "Type a move (e.g. Ab2-Ab3)", with a text field and a "Move" button. Its full behavior belongs to [making a move](../play/making-a-move.md); for the input model it matters in three ways:
+The move box is the second way to play a move and the only one that works without a pointer. It is a text field ("Type a move") with a small ↵ button, the field of the [move card](../glossary.md#the-interface). The card is never shown as a panel: it is out of sight, but the move box is the first thing Tab reaches on the board screen, and appears (alone, at the bottom left, with a one-line hint) the moment it has keyboard focus; it goes again when it loses focus with nothing typed, or on Escape. Its full behavior belongs to [making a move](../play/making-a-move.md); for the input model it matters in three ways:
 
-- It is an ordinary HTML form. Typing is always possible; Enter or the "Move" button submits, and the button is disabled unless the board takes input, the game is not over, it is the player's turn, and the field is not empty.
+- It is an ordinary HTML form. Typing is always possible; Enter or the ↵ button submits. A move is sent only while the board takes input, the game is not over, and it is the player's turn; on the opponent's turn it says "Wait for their move.", and at any other time a submit does nothing.
 - A move typed there is checked against the same rules as a press and is sent exactly as a pressed move is: the board is held until the echo, and a typed promotion names its piece (`=Q`, `=R`, `=B`, `=N`, or `=U`) and is sent without the promotion dialog.
 - A move that cannot be played is not sent; a line of text under the field says why.
 
 ## HTML controls and the keyboard
 
-Buttons and links behave as they do on any web page: they act on click (release), can be reached with Tab, and are activated with Enter or Space. The app's buttons are "Start New Game", "Join Game", "Copy link" on the share-link screen, the move box's "Move", the error banner's "✕" ("Dismiss error"), the five piece buttons and "Cancel" in the promotion dialog, "Start new game" in the end-game dialog, "Play here" in the replaced dialog, and the crash screen's "Back to start" link. A disabled button cannot be reached with Tab.
+Buttons and links behave as they do on any web page: they act on click (release), can be reached with Tab, and are activated with Enter or Space. The app's buttons are "Start New Game", "Join Game", "Copy link" on the share-link screen, the move box's ↵ ("Play the move"), the error banner's "✕" ("Dismiss error"), the five piece buttons and "Cancel" in the promotion dialog, "Start new game" in the end-game dialog, "Play here" in the replaced dialog, and the crash screen's "Back to start" link. A disabled button cannot be reached with Tab. On the board screen, Tab goes first to the move box, then its ↵ button.
 
 Each dialog puts keyboard focus on its first button when it opens: "Queen" in the promotion dialog, "Start new game" in the end-game dialog, and "Play here" in the replaced dialog. Enter or Space then answers it at once, and Tab moves between the dialog's buttons only, because everything behind it is inert.
 
-The only key the app handles itself is **Escape**, and only in the promotion dialog, while keyboard focus is inside it (which it is from the moment the dialog opens); there it cancels the promotion. There are no keyboard shortcuts, the board cannot be navigated from the keyboard, and the arrow keys do not move the view. A keyboard player plays by typing moves into the move box. The canvas itself is described to screen readers as a picture of the board that says which side is nearest and points to the move box. What this means for players who cannot use a pointer is in [accessibility](../cross-cutting/accessibility.md).
+The key the app handles itself is **Escape**: in the promotion dialog, while keyboard focus is inside it (which it is from the moment the dialog opens), it cancels the promotion. Escape also puts away a move box that Tab brought up. There are no keyboard shortcuts, the board cannot be navigated from the keyboard, and the arrow keys do not move the view. A keyboard player plays by typing moves into the move box. The canvas itself is described to screen readers as a picture of the board that says which side is nearest and to press Tab to type a move. What this means for players who cannot use a pointer is in [accessibility](../cross-cutting/accessibility.md).
 
-Shift, Ctrl, Cmd, and Alt change nothing about a press on the board or a click on a button. Shift, Ctrl, or Cmd held during a left drag pans the view instead of orbiting it, and during a right drag orbits instead of panning; see [the view](the-view.md#turning-the-view).
+Shift, Ctrl, Cmd, and Alt change nothing about a press on the board or a click on a button. Shift, Ctrl, or Cmd held during a left drag stops it turning the view, and during a right drag makes it orbit; see [the view](the-view.md#turning-the-view).
 
 ## The interrupt events
 
@@ -85,8 +89,8 @@ Every feature document has the same eleven-row [cancel and interrupt](../README.
 
 | Row | What counts | What it is, in the glossary's terms |
 | --- | --- | --- |
-| Escape or Cancel | Escape (handled only by the promotion dialog), the promotion dialog's "Cancel" button, and a click on the promotion dialog's darkened backdrop. No other part of the app has a cancel. | [Cancel](../glossary.md#events-that-end-or-interrupt-a-request) |
-| Pressing elsewhere or turning the view | Any press on the board, any drag or wheel turn of the view, and clicks on other HTML controls (dismissing an error, scrolling the move list, typing in the move box). A press may clear a selection; turning the view never does. | The player doing something else |
+| Escape or Cancel | Escape (handled only by the promotion dialog), the promotion dialog's "Cancel" button, and a click on the veil round the promotion dialog. No other part of the app has a cancel. | [Cancel](../glossary.md#events-that-end-or-interrupt-a-request) |
+| Pressing elsewhere or turning the view | Any press on the board, any drag or wheel turn of the view, and clicks on other HTML controls (dismissing an error, typing in the move box). A press may clear a selection; turning the view never does. | The player doing something else |
 | Leaving the game page within the app | Browser Back or Forward to the start screen or straight to another game's page, the end-game dialog's "Start new game", and the crash screen's "Back to start" (which reloads the app at `/`). Each of these [resets](../glossary.md#events-that-end-or-interrupt-a-request) the connection. | Interrupt |
 | The game ends | This browser, replaying the record after a move arrives, finds checkmate or stalemate. The end-game dialog then covers the page. | Interrupt |
 | The server answers with an error | The server refuses a request; see [error messages](../cross-cutting/error-messages.md). | [Complete](../glossary.md#events-that-end-or-interrupt-a-request) (refused) |
@@ -95,7 +99,7 @@ Every feature document has the same eleven-row [cancel and interrupt](../README.
 | Reload or closing the tab | Reload, closing the tab or window, typing another address, or following a link off the app. Everything in the page is lost except the [stored seat](connection-and-seat.md#the-stored-seat) and the tab's [client id](connection-and-seat.md#the-client-id) (which a reload keeps and closing the tab loses); the server notices the connection closing. | Interrupt |
 | The opponent acts | The opponent's move arrives, the opponent joins, or the opponent's connection drops or returns. | Interrupt when it changes the position |
 | Another tab takes the seat | Another tab or window of the same browser opens the same game, or clicks "Play here" there; or this tab's connection returns after a drop and finds the seat held by another tab ([seat in use](connection-and-seat.md#last-connection-wins)). This tab becomes [replaced](../session/second-tab.md). | Interrupt |
-| A second touch point or a cancelled touch | A second finger landing, which turns a one-finger gesture into a pinch or two-finger pan, or the browser or system cancelling a touch in progress. Neither ever acts on the board; a cancelled touch simply ends the gesture. | Usually no effect |
+| A second touch point or a cancelled touch | A second finger landing, which turns a one-finger gesture into a pinch that zooms, or the browser or system cancelling a touch in progress. Neither ever acts on the board; a cancelled touch simply ends the gesture. | Usually no effect |
 
 "Before sending" and "while in flight" are the two columns. A request that has not been sent can be discarded by any interrupt without trace. A request in flight cannot be recalled: an interrupt only decides whether the player sees its answer.
 
@@ -103,9 +107,10 @@ Every feature document has the same eleven-row [cancel and interrupt](../README.
 
 - The click-on-release rule is read from the 3D library's event dispatch and the board's handlers, and covered by `client/src/three/Board.test.tsx` (a drag over 6 pixels and a right or middle button do nothing; 4 pixels of jitter still plays the move). That a press released over a different object goes only to what was under the pointer both times is the 3D library's rule, not tested here. Whether every browser suppresses the click after a right or middle press, and after a two-finger gesture, was not confirmed by hand.
 - A second touch landing during a one-finger gesture should never act, because browsers do not produce a click for a multi-touch gesture. Read from code; not tried on a real touch device.
-- Whether a trackpad pinch in each browser arrives as a wheel event or as touches does not matter for the board any more (neither acts on it), but which of zoom or pan it produces was not checked.
+- Whether a trackpad pinch in each browser arrives as a wheel event or as touches does not matter for the board any more (neither acts on it), and it can only zoom, since the view has no pan.
 - A drag of 6 pixels or less both nudges the view and acts as a press. The threshold is chosen to absorb a finger's jitter; whether it feels right on a trackpad was not checked.
 - Two presses on a destination before the page redraws both send the move ([bug-triage B-14](../bug-triage.md), low). With presses now acting on release, a normal double click is probably slow enough for the redraw to come first; not measured.
-- The seat label, the reconnecting banner, and the frozen-board banner let presses through to the board, because only the move box, the error banner, and the move list take the pointer. That is read from the page's styles; whether it is intended for the seat label was not asked.
+- What takes a press on the tower (the fixed outline round each piece, the thin slab on each cell's glass, pressing a capturable piece to capture it, a second press putting the selected piece down, a press on nothing clearing the selection) and tap assist are read from `client/src/three/Board.tsx`, `tapAssist.ts`, and `useTapAssist.ts`, and covered by `Board.test.tsx`. That a press on an opponent's piece that is not a capture keeps the selection is read from the code, not tested or tried. Tap assist was not tried on a real phone. This section needs re-verification in the running app.
+- The turn pill, the reconnecting line, and the frozen-board banner let presses through to the board, because only the error banner's "✕" and the shown move card take the pointer. Checked in headless Chromium for the pill.
 
-Verified against 3D Chess commit `4e18386`
+Verified against 3D Chess commit `4e18386`; the HUD parts (the move box, what takes the pointer, Tab and Escape) against `f7bff4d`; what takes a press on the tower was brought up to the new board from the code at `bb16fed`, not re-verified

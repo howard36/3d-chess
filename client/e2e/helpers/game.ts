@@ -11,18 +11,17 @@ import type { Orientation } from './board';
 export interface Game {
   white: Page;
   black: Page;
-  /** The page seated as `seat`. */
-  page(seat: Orientation): Page;
-  /** Whose turn it is, read from the turn indicator. */
+  /** Whose turn it is, read from the turn indicator (while the game is on). */
   turn(): Promise<Orientation>;
   /**
    * Plays one move for the side to move: selects `from`, waits for `to` to
    * light up as a legal destination, clicks it, then waits until both
-   * clients show the turn flipping — i.e. the move round-tripped through the
-   * server. Throws if `to` never becomes legal (illegal move, wrong piece).
+   * clients show the turn flipping (or the result, for a move that ends the
+   * game) — i.e. the move round-tripped through the server. Throws if `to`
+   * never becomes legal (illegal move, wrong piece).
    */
   play(from: string, to: string): Promise<void>;
-  /** Plays several moves in order; each is `'Ab2-Ab3'` or `['Ab2', 'Ab3']`. */
+  /** Plays several moves in order; each is `'Bb1-Cb1'` or `['Bb1', 'Cb1']`. */
   playAll(moves: Array<string | [string, string]>): Promise<void>;
   /** Screenshots the board as seen by `seat` into client/test-results/. */
   screenshot(name: string, seat?: Orientation): Promise<string>;
@@ -61,20 +60,31 @@ export async function startGame(browser: Browser): Promise<Game> {
   const game: Game = {
     white: seats.white,
     black: seats.black,
-    page: (seat) => seats[seat],
     turn: async () => {
-      const text = await seats.white.locator('text=/(White|Black) to move/').textContent();
-      return text?.startsWith('White') ? 'white' : 'black';
+      const turn = await seats.white
+        .locator('[data-testid="turn-indicator"][data-turn]')
+        .getAttribute('data-turn');
+      return turn === 'white' ? 'white' : 'black';
     },
     play: async (from, to) => {
       const seat = await game.turn();
       const page = seats[seat];
       await clickSquare(page, from, seat);
-      await waitForDestination(page, to, seat);
+      await waitForDestination(page, to);
       await clickSquare(page, to, seat);
-      const next = seat === 'white' ? 'Black to move' : 'White to move';
-      await expect(seats.white.getByText(next)).toBeVisible();
-      await expect(seats.black.getByText(next)).toBeVisible();
+      // The turn chip names the other side, or gives the result if this
+      // move ended the game
+      const next = seat === 'white' ? 'black' : 'white';
+      const passed = `[data-testid="turn-indicator"]:is([data-turn="${next}"], [data-result])`;
+      await expect(seats.white.locator(passed)).toBeVisible();
+      await expect(seats.black.locator(passed)).toBeVisible();
+      // ...and both were told of this very move (the screen reader's announcement)
+      for (const page of [seats.white, seats.black]) {
+        await expect(page.getByTestId('move-announcer')).toHaveAttribute(
+          'data-last-move',
+          new RegExp(`^${from}-${to}(=[QRBNU])?$`),
+        );
+      }
     },
     playAll: async (moves) => {
       for (const m of moves) {

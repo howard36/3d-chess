@@ -16,7 +16,7 @@ The board has 125 [cells](../glossary.md#the-board). A cell is named by three ch
 | Second, lower case | File | a b c d e | left to right, a to e | the same files, drawn right to left (see [orientation](the-view.md#orientation)) |
 | Third, digit | Rank | 1 2 3 4 5 | 1 is White's back rank; *forward* is toward 5 | 5 is Black's back rank; *forward* is toward 1 |
 
-So `Aa1` is White's home corner and `Ee5` is Black's. The same notation appears in the [move list](../game-page/move-list.md), is what the player types into the [move box](input-model.md#the-move-box), and is used in every message the server exchanges, but it appears nowhere on the board itself: cells carry no labels, and a player who wants to find `Cc3` has to count. How the levels, files, and ranks are laid out on screen is in [the view](the-view.md#orientation).
+So `Aa1` is White's home corner and `Ee5` is Black's. The same notation appears in the [move list](../game-page/move-list.md) (which only screen readers see), is what the player types into the [move box](input-model.md#the-move-box), and is used in every message the server exchanges, but on the board itself only its parts appear: the files and ranks are written along two edges of the bottom level and each level's letter beside its level, so a player who wants to find `Cc3` reads off the level, then the file and rank. How the levels, files, and ranks are laid out on screen is in [the view](the-view.md#orientation).
 
 ## The starting position
 
@@ -71,7 +71,7 @@ A pawn reaches them by a quiet step (forward from rank 4 on the top level, or up
 
 These work as in standard chess, across all three dimensions.
 
-- **Check.** The side to move's King is attacked by at least one opposing piece. The player must answer it: every move offered is one that leaves the King unattacked. The board shows check by the [check glow](the-view.md#markers-and-colors) on the King, and the [turn indicator](../game-page/turn-indicator.md) adds " — in check" after "White to move" or "Black to move" while the game is not over.
+- **Check.** The side to move's King is attacked by at least one opposing piece. The player must answer it: every move offered is one that leaves the King unattacked. The board shows check by the [check glow](the-view.md#markers-and-colors): the whole King turns red, over a red plate of light, with dark blades round him. The [turn pill](../game-page/turn-indicator.md) rings that side's stone in red with a "CHECK" badge beside it while the game is not over.
 - **Checkmate.** The side to move is in check and has no legal move. The other side wins.
 - **Stalemate.** The side to move is not in check and has no legal move. The game is a draw.
 
@@ -99,6 +99,6 @@ The server checks only that a move names two valid cells, carries a promotion le
 
 - The mirrored starting position, the 61 opening moves, the movement of every piece, pawn edges, promotion squares, check detection, and the mate and stalemate patterns are covered by the engine's unit tests (`client/src/engine/board.test.ts`); the shortest mate is the line played by `client/e2e/gameOver.spec.ts`.
 - A game reduced to two Kings never ends; there is no draw rule for it. This is by design (no draw rules exist) but a player may not expect it.
-- The board has no coordinate labels, so the move list's notation cannot be matched to cells without counting. Whether that is intended is a product call; see [the view](the-view.md).
+- The board's labels (files, ranks, level letters) were seen in screenshots of the running app at `bb16fed`; the rest of this document was not re-verified after the board's new look and needs re-verification.
 
 Verified against 3D Chess commit `4e18386`

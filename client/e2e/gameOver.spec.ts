@@ -8,16 +8,26 @@ import { startGame } from './helpers/game';
 // new request.
 
 // Shortest cooperative mate from the starting position (found by exhaustive
-// search with the engine): Black's queen lands on Ab2, defended along the
-// Cb4-Bb3 diagonal, and every other neighbour of White's king is White's own.
-const MATE = ['Ad1-Cc1', 'Dc5-Bc3', 'Bc1-Ad1', 'Bc3-Ab2'];
+// search with the engine): Black's queen lands on Bb1, defended along the
+// Db3-Cb2 diagonal, and every other neighbour of White's king is White's own.
+const MATE = ['Ad1-Ac3', 'Ec4-Cc2', 'Ac2-Ad1', 'Cc2-Bb1'];
 
 test('a finished game shows the result and lets both players start over', async ({ browser }) => {
   const game = await startGame(browser);
   await game.playAll(MATE);
 
-  for (const page of [game.white, game.black]) {
-    await expect(page.getByText('Black wins by checkmate!')).toBeVisible();
+  // Each is told the result from their own side, in the dialog and the pill
+  for (const [page, verdict] of [
+    [game.white, 'You lose'],
+    [game.black, 'You win'],
+  ] as const) {
+    // The card waits for the mated king to fall on the board; drawn in
+    // software on a busy machine that can take up to the page's 12 s fallback
+    await expect(page.getByRole('dialog', { name: verdict })).toBeVisible({ timeout: 30_000 });
+    const pill = page.getByTestId('turn-indicator');
+    await expect(pill).toHaveAttribute('data-result', 'checkmate');
+    await expect(pill).toHaveAttribute('data-winner', 'black');
+    await expect(pill).toContainText(`Checkmate · ${verdict.toLowerCase()}`);
   }
 
   const oldUrl = game.white.url();
@@ -30,7 +40,7 @@ test('a finished game shows the result and lets both players start over', async 
     // moment and make sure the page is still there and the old game is gone.
     await page.waitForTimeout(1000);
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByText('Black wins by checkmate!')).toHaveCount(0);
+    await expect(page.getByTestId('end-game')).toHaveCount(0);
   }
 
   // The session is fresh: creating a game from here starts a new one.

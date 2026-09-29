@@ -6,7 +6,7 @@ import type { Orientation } from './helpers/board';
  * Parameterised driver for looking at the board, not a regression test.
  * Skipped unless DRIVE_MOVES is set, so `npm run e2e` never runs it.
  *
- *   DRIVE_MOVES="Ab2-Ab3 Ed4-Ed3" npx playwright test drive
+ *   DRIVE_MOVES="Bb1-Cb1 Dd5-Cd5" npx playwright test drive
  *
  * Plays the moves in order (sides alternate automatically) and screenshots
  * the board into test-results/ after each one, plus the starting position.

@@ -46,15 +46,15 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## The board
 
-**Board.** The 5 × 5 × 5 grid of 125 *cells* the game is played on, drawn as a wireframe lattice. See [the rules](foundations/game-rules.md#the-board).
+**Board.** The 5 × 5 × 5 grid of 125 *cells* the game is played on, drawn as a tower of five glass levels. See [the rules](foundations/game-rules.md#the-board) and [the view](foundations/the-view.md#the-scene).
 
-**Level.** One of the five horizontal slices of the board in game terms, named A to E, A at the bottom. On screen, levels are drawn as depth, not height: see [the view](foundations/the-view.md#orientation).
+**Level.** One of the five horizontal slices of the board, named A to E, A at the bottom. On screen each level is a sheet of glass edged in its own color (cyan, azure, periwinkle, orchid, and rose, A to E), stacked A at the bottom and E at the top for both players: see [the view](foundations/the-view.md#orientation).
 
 **File.** One of the five columns within a level, named a to e.
 
 **Rank.** One of the five rows within a level, numbered 1 to 5. White's back ranks are rank 1; Black's are rank 5.
 
-**Cell.** One position on the board, written as level, file, rank: `Aa1` is level A, file a, rank 1; `Ee5` is the opposite corner. This notation is used in the *move list* and nowhere else on screen: the board itself has no labels.
+**Cell.** One position on the board, written as level, file, rank: `Aa1` is level A, file a, rank 1; `Ee5` is the opposite corner. This notation is used in the *move box* and the *move list*. The board carries its parts as labels: the files and ranks along two edges of the bottom level, and each level's letter beside it.
 
 **Pieces.** King, Queen, Rook, Bishop, Knight, Unicorn, and Pawn, each side starting with 20. The Unicorn is the piece this variant adds. How each moves is in [the rules](foundations/game-rules.md#how-the-pieces-move).
 
@@ -72,7 +72,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Side to move.** The color whose turn it is. White moves first, and the turn alternates with every recorded move.
 
-**Check.** The side to move's king is attacked. Its king glows red on the board, and the turn indicator adds " — in check" while the game is not over.
+**Check.** The side to move's king is attacked. The board marks the king in red, and the turn pill rings that side's stone in red with a "CHECK" badge beside it while the game is not over.
 
 **Checkmate.** The side to move is in check and has no legal move. The other side wins.
 
@@ -86,19 +86,21 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## Selection and board state
 
-**Selection, selected piece.** The one piece, at most, that the player has picked up to move. It is marked by a gold ring on the floor of its cell and a faint amber glow, and its legal destinations are marked. Selection is local to this browser; nothing is sent.
+**Selection, selected piece.** The one piece, at most, that the player has picked up to move. It rises a little and holds still inside a column of cool white light, with a thin circle of light round its foot, and its legal destinations are marked. Pressing it again puts it down. Selection is local to this browser; nothing is sent.
+
+**Hover.** One of the player's own pieces that can be selected now lifts a little under the pointer and catches more light; the level under the pointer brightens its lines, border, and letter. Hover is only a hint: nothing happens until a press.
 
 **Clear (a selection).** Remove the selection and its markers. A selection is cleared by pressing an empty part of the board, by making a move, and automatically whenever the position, the side to move, or whether the board takes input changes. See [making a move](play/making-a-move.md#end-without-sending).
 
-**Move markers.** The marks drawn for the selected piece's legal destinations: an amber dot in an empty cell, a red ring around the foot of a capturable piece, and a faint amber fill over every destination cell. See [the view](foundations/the-view.md#markers-and-colors).
+**Move markers.** The marks drawn on the glass for the selected piece's legal destinations: a thin gold circle round a slight fill on an empty cell, and a red circle with four slowly turning red arcs round the foot of a capturable piece. Under the pointer a destination's fill deepens and its circle grows a little. See [the view](foundations/the-view.md#markers-and-colors).
 
-**Last-move trace.** A teal fill over the two cells of the most recent move, its origin and its destination. It stays until the next move. A legal destination's amber fill replaces it on a shared cell.
+**Last-move trace.** A thin mint line from a small circle on the cell the most recent move left to a larger mint circle round the piece where it landed, with a soft white light travelling along it. It stays until the next move. Where a destination or capture marker falls on one of its cells, that circle steps aside for the marker.
 
-**Glide.** The 300 ms animation of a piece travelling from its origin to its destination, lifted slightly at the midpoint, played on both boards for every newly arrived move.
+**Glide.** The 460 ms animation of a piece travelling in a straight line from its origin to its destination (a Knight's too), played on both boards for every newly arrived move.
 
-**Fade.** The 300 ms animation of a captured piece shrinking into its cell floor and fading out while the capturer glides in.
+**Fade.** The animation of a captured piece burning away, from its crown down behind a thin edge of white light, as the capturer arrives, while its outline in light rises a little and fades.
 
-**Check glow.** The red glow on a king in check. It takes precedence over the amber glow of a selected king.
+**Check glow.** How the board marks a king in check: the whole king turns red, lit from below by a red eight-pointed plate of light on the glass, with dark obsidian blades edged in red round him. A selected king in check keeps his red.
 
 **The board takes input.** The board accepts presses only while all four hold: the connection is *connected*, this connection's create, join, or rejoin has been answered (so the position shown is the server's, not the one from before a drop), the move record is not *frozen*, and none of this player's own moves is *in flight*. The move box follows the same rule. When the board does not take input, presses on pieces and cells do nothing, any selection is cleared, and the promotion dialog closes. The view can still be turned. The board takes input on the opponent's turn too; there is simply nothing of the player's that can be selected.
 
@@ -122,7 +124,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Start notice.** The server's message, sent the moment a game's second seat is taken, telling every player connected to the game that it has started, and each one its own color. It moves the share-link and joined screens to the board screen. A player whose page is not connected at that moment never receives it; the snapshot from their next rejoin says the game has started instead.
 
-**Land.** A move lands on a board when its echo, or a snapshot containing it, arrives and the browser replays it: the piece glides (or is simply drawn, for a move already in the record when the board appeared), the last-move trace moves, the turn indicator changes, and the move list gains the move, all at that moment and never before.
+**Land.** A move lands on a board when its echo, or a snapshot containing it, arrives and the browser replays it: the piece glides (or is simply drawn, for a move already in the record when the board appeared), the last-move trace moves, the turn pill changes, and the move list gains the move, all at that moment and never before.
 
 **Snapshot.** The server's answer to a rejoin: the player's color, whether the game has started, and the entire move record. A snapshot replaces everything the page knew about the move record, so moves are never counted twice.
 
@@ -140,19 +142,21 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Press.** A click on the board: the primary mouse button, a finger, or a pen going down and coming back up within 6 pixels of where it went down, on the same piece or cell. The board acts on the release: that is when a piece is selected, a selection is cleared, or a move is played. Holding the button down does nothing yet; moving more than 6 pixels first makes it a *drag*; the right and middle mouse buttons never act on the board. See [the input model](foundations/input-model.md#a-press-acts-on-release).
 
-**Click.** A press and release on an HTML control (a button, a link, the dialog backdrop). HTML controls act on release, as usual in a browser.
+**Tap assist.** On a touch screen, a tap that reaches nothing the player can act on goes to the nearest thing they can (one of their own selectable pieces, or a legal destination) within a finger's reach, about 22 pixels. A mouse or pen click is never redirected. See [the input model](foundations/input-model.md#what-takes-a-press).
+
+**Click.** A press and release on an HTML control (a button, a link, the veil round a dialog). HTML controls act on release, as usual in a browser.
 
 **Takes the press.** The first piece or legal destination along the line from the camera through the pointer receives the press, and nothing behind it does. It must be the same object at the release as when the pointer went down. See [the input model](foundations/input-model.md#what-takes-a-press).
 
 **Drag.** A pointer that moves more than 6 pixels between going down and coming up, or any use of the right or middle mouse button, the wheel, or a second finger. On the board, a drag only turns the view: it never selects, clears a selection, or plays a move. There is no dragging of pieces.
 
-**Orbit, zoom, pan.** The three ways to turn the view: orbit rotates the camera around the board (left drag, or one-finger drag), zoom moves it closer or farther (wheel, middle drag, or pinch), and pan slides it sideways (right drag, Shift/Ctrl/Cmd with left drag, or two-finger drag). See [the view](foundations/the-view.md#turning-the-view).
+**Orbit, zoom.** The two ways to turn the view: orbit rotates the camera round the tower's center (left drag, Shift/Ctrl/Cmd with right drag, or one-finger drag), and zoom moves it closer or farther (wheel, middle drag, or pinch). There is no pan: the camera always looks at the tower's center. See [the view](foundations/the-view.md#turning-the-view).
 
-**HUD.** The HTML panels laid over the board. Along the top: the *seat label* at the left, the *turn indicator* in the center, and the *reconnecting banner* at the right, with the *frozen-board banner* below them when it applies. Along the bottom: the *move box* at the left, the *error banner* in the center, and the *move list* at the right. In a window narrower than 640 pixels each row stacks: the turn indicator and the error banner take a row of their own above the other two panels. Only the move box, the move list, and the error banner catch the pointer; everything else in the HUD (the seat label, the turn indicator, and the reconnecting and frozen-board banners) lets presses and drags through to the board.
+**HUD.** The HTML laid over the board. At the top center, the *turn pill* with the *captured pieces* hanging under it, and the *status column* under them; and, only while the *move box* has keyboard focus, the *move card* at the bottom left. On a phone held upright the pill fills the top row, to a 12 pixel gutter; in a window 480 pixels tall or less (a phone on its side) the pill, the captured pieces, and the status column stand at the top left, beside the tower. Only the move card (while shown) and the error banner's "✕" catch the pointer; everything else in the HUD lets presses and drags through to the board.
 
 ## Events that end or interrupt a request
 
-**Cancel.** The player abandons a request before it is sent: Escape, a Cancel button, a click on a dialog's backdrop, or a press on an empty cell of the board. Nothing is sent and nothing is recorded. A request that has been sent cannot be cancelled.
+**Cancel.** The player abandons a request before it is sent: Escape, a Cancel button, a click on the veil round the promotion dialog, or a press on an empty cell of the board. Nothing is sent and nothing is recorded. A request that has been sent cannot be cancelled.
 
 **Complete.** A request's answer arrives. What happens next depends on whether it was accepted or refused.
 
@@ -166,7 +170,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Connection.** The one live link between a browser tab and the server. It is opened as soon as the app loads, on either screen, and kept open while the tab stays on the app.
 
-**Connection state.** One of four: *connecting* (the first attempt after the app loads or after a reset), *connected*, *reconnecting* (the connection dropped and the browser is retrying on its own), and *replaced*. The start screen shows the first and third as a status line; the game page shows only *reconnecting* ("Reconnecting…" in an amber box at the top right) and *replaced* (a dialog).
+**Connection state.** One of four: *connecting* (the first attempt after the app loads or after a reset), *connected*, *reconnecting* (the connection dropped and the browser is retrying on its own), and *replaced*. The start screen shows the first and third as a status line; the game page shows only *reconnecting* (the *reconnecting line*) and *replaced* (a dialog).
 
 **Retry schedule.** After an unexpected drop, the browser waits 0.5 s, then 1 s, 2 s, 4 s, and then 8 s between attempts, forever. The schedule starts over whenever a connection opens. There is no limit on attempts and no manual retry button.
 
@@ -184,38 +188,46 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Replaced signal.** The way the server closes a connection whose seat a newer connection has taken (last connection wins). A tab that receives it does not retry and shows the replaced dialog; every other close starts the retry schedule. A connection that has already died never receives it; a tab that was reconnecting when another tab took the seat learns of it instead from *seat in use* when its retry succeeds.
 
-**Presence.** Whether the opponent currently has a live connection to the game, shown as "Opponent: online" or "Opponent: offline" under the seat label. The server announces it when a player joins or rejoins and when a player's connection drops. See [seat and opponent status](game-page/seat-and-opponent-status.md).
+**Presence.** Whether the opponent currently has a live connection to the game. The turn pill shows it only when they do not: their stone becomes an outline and their half reads "Offline". Screen readers are told both ways ("Your opponent is offline.", "Your opponent is online."). The server announces it when a player joins or rejoins and when a player's connection drops. See [seat and opponent status](game-page/seat-and-opponent-status.md).
 
 ## The interface
 
-**Seat label.** The dark box at the top left of the board screen: "You are playing as white." (or black, in lower case), with the presence line under it once known.
+**Seat label.** The left half of the turn pill: the player's own stone, porcelain for White or charcoal for Black, with "You" (or "Your move"). It is the only place the player's color shows; a screen reader reaching the pill hears "You play White." (or Black). The page never writes the player's color in words.
 
-**Presence line.** The smaller second line of the seat label, "Opponent: online" or "Opponent: offline". It is absent until the first presence report arrives, and after that shows the latest report about the opponent that this page has received, even while this page's own connection is down.
+**Stone.** A small disc in one army's material, porcelain for White and charcoal for Black, standing for that side in the turn pill and the end-game dialog. The side to move's stone wears a thin ring of light, red when that side is in check.
 
-**Turn indicator.** The light box at the top center of the board screen: "White to move" or "Black to move", followed by " — in check" when the side to move is in check. Like the rest of the HUD except the move box, move list, and error banner, it lets presses through to the board. Screen readers announce each change.
+**Turn indicator, turn pill.** The glass pill at the top center of the board screen. Its left half is the player: their stone and "Your move" when it is their turn, "You" when it is not. Its right half is the opponent: "Their move" or "Opponent" (or "Offline"), and their stone. The half whose side is to move is lit: brighter words and a ring of light round its stone. In check the ring is red and a "CHECK" badge stands beside the stone. Once the game is over the pill gives the result instead ("Checkmate · you win", "Checkmate · you lose", "Stalemate · draw"). It is the only place the page shows the player's color. It lets presses through to the board. See [the turn indicator](game-page/turn-indicator.md) and [seat and opponent status](game-page/seat-and-opponent-status.md).
 
-**Move box.** The dark panel at the bottom left of the board screen where a move can be typed ("Type a move (e.g. Ab2-Ab3)", a text field, and a "Move" button). It plays the move exactly as pressing its piece and destination would, and is how a player without a pointer plays. See [making a move](play/making-a-move.md).
+**Captured pieces.** Under the turn pill, what each side has taken: the player's under their half, beginning under their stone, and the opponent's under theirs, ending under their stone. Each is a small silhouette per kind of piece taken (the same silhouettes as the promotion dialog's), in the taken army's material, with how many beside it when there is more than one (one pawn and "3" for three pawns), most valuable first from the stone inward, and a small "+N" on the side ahead on material (queen 9, rook 5, bishop, unicorn and knight 3, pawn 1, counting a promotion). Nothing shows before the first capture. In a short window the two stand one above the other under the pill at the top left, the player's first. A screen reader reaches them after the pill as words ("You have taken a knight and 3 pawns; you are 5 ahead."), never announced. See [the turn indicator](game-page/turn-indicator.md#the-pieces-each-side-has-taken).
 
-**Move list.** The dark panel at the bottom right of the board screen listing every move in the record, one numbered row per White–Black pair, in cell notation with an en dash (`Ab2–Ab3`) and `=` plus a letter for a promotion (`Da4–Ea5=U`). Hidden until the first move. See [the move list](game-page/move-list.md).
+**Status column.** Under the turn pill and the captured pieces (at the top left in a short window): the reconnecting line while the connection is *reconnecting*, the error banner, and the frozen-board banner, stacked, each only while it applies.
 
-**Error banner.** The red box at the bottom center of the game page: "Error: " followed by the server's message, with a "✕" button that dismisses it. *Dismissing* hides every error received on the page so far; nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The start screen shows errors differently, as red text under its button.
+**Move card.** The glass card at the bottom left of the board screen (across the bottom in a window no wider than 13:9, at the bottom right in a short one). It is never shown as a panel: it stays in the page out of sight, holding the *move list* for screen readers and the *move box*, and shows (with just the box) only while the box has keyboard focus. See [the move list](game-page/move-list.md).
 
-**Reconnecting banner.** The amber "Reconnecting…" box at the top right of the game page while the connection state is *reconnecting*.
+**Move announcement.** What a screen reader is told as each move lands, whatever is on screen: the move ("White bishop Ad2 takes pawn on Dd5"), then check or the result, then whose move it is ("Your move." or "Black to move."). See [accessibility](cross-cutting/accessibility.md).
 
-**Frozen-board banner.** The red box below the turn indicator that says a move in the game's history "is not a legal move for this client" and that the board is frozen. It cannot be dismissed.
+**Move box.** The field of the move card where a move can be typed ("Type a move"; "Ab2-Ab3", "=Q" to promote), sent with Enter or the ↵ button beside it. It plays the move exactly as pressing its piece and destination would, and is how a player without a pointer plays. It is the first thing Tab reaches on the board screen, and appears when it does. See [making a move](play/making-a-move.md).
 
-**Promotion dialog.** The white dialog titled "Promote to" with the buttons "Queen", "Rook", "Bishop", "Knight", "Unicorn", and "Cancel", over a darkened board. See [promotion](play/promotion.md).
+**Move list.** The game's moves in the move card, one numbered row per White–Black pair, in cell notation with an en dash (`Ab2–Ab3`) and `=` plus a letter for a promotion (`Da4–Ea5=U`). Never visible: it is in the page for screen readers only. See [the move list](game-page/move-list.md).
 
-**End-game dialog.** The white dialog over a darkened board announcing "White wins by checkmate!", "Black wins by checkmate!", or "Draw by stalemate!", with a "Start new game" button, which has keyboard focus when the dialog opens. It cannot be closed any other way.
+**Error banner.** A glass notice with a thin red rule at its left edge: the server's message (a screen reader hears "Error: " before it), with a "✕" button that dismisses it. On the board screen it is in the status column under the turn pill; on the share-link, join, and joined screens it sits at the bottom center. *Dismissing* hides every error received on the page so far; nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The start screen shows errors differently, as red text under its button.
 
-**Replaced dialog.** The white dialog titled "This game is open in another tab", with the text "Your seat moved to the newer tab or window. Close this one, or take the game back here." and a "Play here" button, which has keyboard focus when the dialog opens.
+**Reconnecting line, reconnecting banner.** "Reconnecting…" beside a small breathing light, in the status column while the connection state is *reconnecting*; the turn pill dims behind it, since what it says may be out of date. On the pre-game screens it sits at the top right.
+
+**Frozen-board banner.** A glass notice with a red rule in the status column that says a move in the game's history can't be replayed by this version of the app and that the board stays at the position before it. It cannot be dismissed.
+
+**Promotion dialog.** A glass card over a lightly veiled board: "PROMOTE TO" above five tiles, each a piece's silhouette in the player's material with its name ("Queen", "Rook", "Bishop", "Knight", "Unicorn"), and "Cancel" under them. See [promotion](play/promotion.md).
+
+**End-game dialog.** A glass card over the veiled final position: the two stones with the winner's lit, "You win", "You lose", or "Draw", "by checkmate" or "by stalemate" under it, and a "Start new game" button, which has keyboard focus when the dialog opens. It cannot be closed any other way.
+
+**Replaced dialog.** A glass card titled "This game is open in another tab", with the text "Your seat moved to the newer tab or window. Close this one, or take the game back here." and a "Play here" button, which has keyboard focus when the dialog opens.
 
 ## The view
 
 **View.** What the camera shows of the board. Each player's view is independent and local; turning it changes nothing for the opponent and nothing on the server.
 
-**Default view.** The view every board screen starts from: up and to the right of the board, looking at its center, at the distance that just fits the whole cube in the window, whatever its shape. Reloading returns to it. Resizing the window keeps the direction the player has turned to but moves the camera back to the distance that fits the new shape.
+**Default view.** The view every board screen starts from: a little above the bottom level and to the player's right, looking at the tower's center, at the distance that just fits the whole tower and its labels in the window, whatever its shape, centered below the turn pill. Reloading returns to it. Resizing the window keeps the direction the player has turned to but moves the camera back to the distance that fits the new shape.
 
 **Orientation.** Each player sees the board from their own side: their own back ranks at the bottom of the screen, their own levels nearest the camera, and their army laid out left to right exactly as the other player sees theirs. See [the view](foundations/the-view.md#orientation).
 
-**Near and far.** Toward and away from the camera in the default view. Because levels are drawn as depth, a piece moving *up* a level moves *away* from the player who owns it.
+**Near and far.** Toward and away from the camera in the default view. Ranks are drawn as depth, so a piece moving *forward* moves *away* from the player who owns it; levels are drawn as height.

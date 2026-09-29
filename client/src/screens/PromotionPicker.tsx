@@ -1,9 +1,13 @@
 import React from 'react';
 import type { Move } from '../engine';
+import type { Turn } from '../game/history';
+import { PieceGlyph } from './PieceGlyph';
 
-export interface PromotionPickerProps {
+interface PromotionPickerProps {
   /** The legal promotion moves for the clicked square, one per piece. */
   choices: Move[];
+  /** The player's colour: the pieces are drawn in their army's material. */
+  color: Turn;
   onPick: (move: Move) => void;
   onCancel: () => void;
 }
@@ -11,8 +15,9 @@ export interface PromotionPickerProps {
 /**
  * Asks which piece a pawn becomes. Shown over the board when a pawn is moved
  * onto a promotion square; the move is only sent once a piece is picked.
+ * Escape, Cancel or a press on the veil around the card cancels.
  */
-const PromotionPicker: React.FC<PromotionPickerProps> = ({ choices, onPick, onCancel }) => {
+const PromotionPicker: React.FC<PromotionPickerProps> = ({ choices, color, onPick, onCancel }) => {
   const firstButton = React.useRef<HTMLButtonElement | null>(null);
   React.useEffect(() => {
     firstButton.current?.focus();
@@ -20,55 +25,34 @@ const PromotionPicker: React.FC<PromotionPickerProps> = ({ choices, onPick, onCa
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="promotion-title"
+      className="hud-veil"
+      style={{ zIndex: 1001 }}
       onKeyDown={(e) => {
         if (e.key === 'Escape') onCancel();
       }}
-      // Clicking the backdrop cancels, like Escape
+      // Clicking the veil cancels, like Escape
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1001,
-      }}
     >
-      <div
-        style={{
-          background: 'white',
-          color: '#222',
-          padding: '1.5rem 2rem',
-          borderRadius: 16,
-          boxShadow: '0 4px 32px rgba(0,0,0,0.18)',
-          textAlign: 'center',
-        }}
-      >
-        <h2 id="promotion-title" style={{ marginTop: 0, marginBottom: 12 }}>
+      <div className="hud-dialog" role="dialog" aria-modal="true" aria-labelledby="promotion-title">
+        <h2 id="promotion-title" className="hud-eyebrow">
           Promote to
         </h2>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div className="hud-tiles">
           {choices.map((move, i) => (
             <button
               key={move.promotion}
               ref={i === 0 ? firstButton : undefined}
+              className="hud-tile"
               onClick={() => onPick(move)}
-              style={{ fontSize: 16, padding: '0.6em 1.2em' }}
             >
-              {move.promotion}
+              {move.promotion && <PieceGlyph type={move.promotion} color={color} size={30} />}
+              <span>{move.promotion}</span>
             </button>
           ))}
         </div>
-        <button
-          onClick={onCancel}
-          style={{ marginTop: 14, background: 'none', border: 'none', color: '#555' }}
-        >
+        <button className="hud-link" onClick={onCancel}>
           Cancel
         </button>
       </div>

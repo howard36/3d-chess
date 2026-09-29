@@ -6,7 +6,7 @@ A written description of the user experience of 3D Chess: what a player sees, wh
 
 3D Chess is, from the player's point of view, a large state chart. The player moves through it with a handful of inputs: clicks on HTML buttons, presses on the 3D board, drags and wheel turns that move the view, the Escape key, and the browser's own reload, back, and tab controls. A second player moves through the same chart at the same time, and the server's answers arrive in between. Most of that behavior is defined implicitly, spread across React effects, a message log that the client replays, a WebSocket hook with its own retry loop, a Python relay, and the tests of all four. There is no single place that says, in plain language, "when the player does X, this is what happens, and this is what happens if the connection drops or the opponent moves halfway through."
 
-This project is that place. It describes the full experience a player has on the 3D Chess web client (the start screen at `/` and the game page at `/game/{id}`) in a desktop browser, with the default settings and nothing customized, playing against a second person in a second browser.
+This project is that place. It describes the full experience a player has on the 3D Chess web client (the start screen at `/` and the game page at `/game/{id}`) in a desktop browser, playing against a second person in a second browser.
 
 The documents are for people who need to understand or change the product: designers, engineers, writers, testers, and anyone evaluating whether a behavior is intentional. They are written from the outside in. They describe the experience, not the implementation.
 
@@ -102,7 +102,7 @@ Progress is tracked in the [coverage table](#coverage) below.
 - **Modified clients are out of scope, except for what an honest client shows.** The server trusts clients and does not check move legality. What a player running the real client sees when the record holds a move it cannot replay is described in [the broken game record](cross-cutting/broken-game-record.md); how to write such a client is not.
 - **Test hooks are out of scope.** `window.__r3fState` and the Playwright helpers exist for testing and change nothing a player sees.
 - **The rules are described once.** Piece movement, check, checkmate, stalemate, and promotion squares live in [the rules](foundations/game-rules.md). Feature documents link there rather than restate a rule.
-- **Visual language is described once.** The colors and shapes of selection, legal-move markers, the last-move trace, check, and the move glide live in [the view](foundations/the-view.md).
+- **Visual language is described once.** The look of the board (the tower, the pieces, the garden), the colors and shapes of hover, selection, legal-move markers, the last-move trace, check, and checkmate, and the move glide live in [the view](foundations/the-view.md).
 - **Every server message a player can see is catalogued once.** [Error messages](cross-cutting/error-messages.md) lists each error text, what causes it, and where it appears; feature documents say which ones they can produce and link.
 - **Interaction shape.** The unit of interaction is a request and its phases are Begin, End without sending, Send, While in flight, and The answer arrives. The interrupt list and the order of cross-cutting concerns are fixed as written in the document template above.
 - **Numbered rules.** These are prose documents, not numbered specifications. Stable heading anchors are enough for cross-references.
@@ -135,8 +135,8 @@ foundations/
                                  presence, and what the server keeps
   screens-and-navigation.md      the two addresses, the game page's three phases, moving between them,
                                  and the crash screen
-  the-view.md                    the 3D scene, orientation per player, markers and motion, orbit,
-                                 zoom, and pan
+  the-view.md                    the 3D scene, orientation per player, markers and motion, orbit
+                                 and zoom
 
 start/
   creating-a-game.md             the pilot: Start New Game, to the game page
@@ -147,13 +147,13 @@ play/
   making-a-move.md               selecting a piece, legal-move markers, sending a move, the move in flight
   promotion.md                   the "Promote to" dialog
   the-opponents-move.md          waiting through the opponent's turn and seeing their move land
-  check-and-game-end.md          the check glow, checkmate and stalemate, the end-game dialog
+  check-and-game-end.md          the red King in check, checkmate and stalemate, the end-game dialog
 
 game-page/
-  seat-and-opponent-status.md    "You are playing as …" and "Opponent: online/offline"
-  turn-indicator.md              "White to move" / "Black to move"
-  move-list.md                   the move history panel
-  error-banner.md                the red banner at the bottom of the game page and its dismiss button
+  seat-and-opponent-status.md    the player's stone on the turn pill, and an opponent shown "Offline"
+  turn-indicator.md              the turn pill: "Your move" / "Their move", check, the result, and the captured pieces under it
+  move-list.md                   the move card: the move box and the move list, out of sight until Tab
+  error-banner.md                the error notice under the turn pill and its dismiss button
 
 session/
   reload-and-return.md           reloading, closing and coming back, and games that have expired
@@ -171,7 +171,7 @@ cross-cutting/
 
 Status is one of `not started`, `drafted`, or `verified`.
 
-The documents were first written against commit `d94507b` and have since been brought up to `4e18386`, which carries the fixes for B-01 to B-10 (see [`bug-triage.md`](bug-triage.md), each entry's **Fix** and **Follow-up** lines). The checklists were rewritten to match, and their Result columns come from the second scripted pass, against `c571311` (`4e18386` adds only a server change no item depends on) (216 of 218 items pass; 2 need a real phone). No document is marked `verified`, which still needs a person's pass.
+The documents were first written against commit `d94507b` and have since been brought up to `4e18386`, which carries the fixes for B-01 to B-10 (see [`bug-triage.md`](bug-triage.md), each entry's **Fix** and **Follow-up** lines). The checklists were rewritten to match, and their Result columns come from the second scripted pass, against `c571311` (`4e18386` adds only a server change no item depends on) (216 of 218 items pass; 2 need a real phone). No document is marked `verified`, which still needs a person's pass. The HUD then changed at `f7bff4d` (the turn pill, the move card behind the Notation panel setting, spoken moves): the glossary, [the turn indicator](game-page/turn-indicator.md), [seat and opponent status](game-page/seat-and-opponent-status.md), [the move list](game-page/move-list.md), [the error banner](game-page/error-banner.md), [the input model](foundations/input-model.md), [accessibility](cross-cutting/accessibility.md), [error messages](cross-cutting/error-messages.md), and [screen sizes and touch](cross-cutting/screen-sizes-and-touch.md) describe it; the other documents were then brought up to it from the code (the turn pill's lit half, "CHECK", and the result; "Offline" on the pill; the move box, brought up by Tab; the glass dialogs with "You win", "You lose", or "Draw") and say in their open questions that this wording needs re-verification, and the checklists other than game-page.md say how to read their rows that quote the old HUD. The board's look then changed entirely (by `bb16fed`): a tower of five glass levels in a night garden, porcelain and charcoal pieces, gold destination circles, red capture arcs, a mint last-move line, a red King in check, a checkmate pulse before the result, labels on the board, no pan, and a settings panel for the look. [The view](foundations/the-view.md) was rewritten for it and checked against screenshots of the running app; [the input model](foundations/input-model.md), the glossary, and every other document that mentioned the old look were brought up to it from the code and say in their open questions that they need re-verification; the checklists say how to read their rows that expect the old marks. The captured pieces then came back under the turn pill ([the turn indicator](game-page/turn-indicator.md#the-pieces-each-side-has-taken), the glossary, [accessibility](cross-cutting/accessibility.md), [screen sizes and touch](cross-cutting/screen-sizes-and-touch.md)), the setting that shows the move card is now called the Notation panel, and a stalemate's dialog now follows the last move after 0.6 s rather than 1.2 s ([check and game end](play/check-and-game-end.md#checkmate-and-stalemate)). Later, the checkmate dialog was brought forward to the moment the King strikes the floor ([check and game end](play/check-and-game-end.md#checkmate-and-stalemate)), and the camera's centring was fixed at the fit, so the view no longer slides as it climbs or zooms ([the view](foundations/the-view.md)). Finally the settings were removed: the gear and its panel, the Notation panel setting, and every adjustable look option (including the Knight's arc) are gone, the look is fixed, and the move card is never shown as a panel, only its field, on keyboard focus.
 
 | Document | Status |
 | --- | --- |
@@ -212,7 +212,7 @@ The source of truth is the 3D Chess repository (`howard36/3d-chess`), the parent
 - `client/src/game/history.ts`, `client/src/game/session.ts`, `client/src/game/typedMove.ts`: how the position, the turn, the seat, presence, and errors are derived from the message log, and how a typed move is read
 - `client/src/hooks/useGameSocket.ts`: the connection, its states, the retry timing, and what is queued or dropped
 - `client/src/lib/playerRole.ts`: the stored seat
-- `client/src/three/`: the 3D board, what counts as a press (`tap.ts`), selection and markers, orientation, the fitted camera (`cameraFit.ts`), the turn indicator, animation, colors
+- `client/src/three/`: the 3D board, what counts as a press (`tap.ts`, `tapAssist.ts`), orientation (`layout.ts`), the fitted camera (`cameraFit.ts`), animation; `client/src/three/scene/` draws the look (the levels, labels, pieces, garden, and marks of play), with its colors in `palette.ts`
 - `client/src/engine/`: the rules (move generation, check, checkmate, stalemate, promotion, starting position, coordinates)
 - `server/modal_app.py`, `server/schema.json`: what the server accepts, records, relays, and rejects, and with which messages
 - Tests: `client/src/App.test.tsx`, `client/src/three/Board.test.tsx`, `client/src/hooks/useGameSocket.test.ts`, `client/src/game/*.test.ts`, `client/src/engine/*.test.ts`, `server/tests/test_local_ws.py`, and the Playwright specs in `client/e2e/`

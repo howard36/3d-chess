@@ -1,15 +1,13 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import type { Group, Mesh, MeshStandardMaterial } from 'three';
-import type { PieceType } from '../engine/pieces';
-import { CELL_FLOOR_Y } from './layout';
+import type { Group } from 'three';
 import { easeInOutCubic, MOVE_ANIMATION } from './motion';
-import { PieceMesh } from './PieceMesh';
-
-type Vec3 = [number, number, number];
+import { GlideContext } from './pieceMotion';
+import type { Vec3 } from './types';
 
 /**
- * Glides its children from the `from` cell into their resting place.
+ * Glides its children from the `from` cell into their resting place, in a
+ * straight line, whatever its level change.
  *
  * The children keep their own declarative world `position`; this wrapper only
  * carries the animated remainder of the journey, easing from `from - to` to
@@ -18,21 +16,44 @@ type Vec3 = [number, number, number];
  * back. Mount the wrapper freshly (via key) for each move to be animated.
  *
  * The Canvas runs a demand-driven frame loop (nothing renders unless asked),
- * so both animations here request a frame on mount and again from every
- * in-flight frame; the frame that lands the tween needs no successor. The
- * per-frame delta is clamped because the first frame after an idle stretch
- * reports the whole idle time.
+ * so the glide requests a frame on mount and again from every in-flight
+ * frame; the frame that lands it needs no successor. The per-frame delta is
+ * clamped because the first frame after an idle stretch reports the whole
+ * idle time.
  */
 export const MoveGlide = ({
   from,
   to,
   children,
+  durationMs,
+  fromLevel,
+  toLevel,
+  onLanded,
 }: {
   from: Vec3;
   to: Vec3;
   children: React.ReactNode;
+  durationMs: number;
+  /**
+   * The levels (engine z) the move leaves and lands on, handed to the piece
+   * body through useGlide (pieceMotion.tsx) with the glide's progress.
+   */
+  fromLevel?: number;
+  toLevel?: number;
+  /**
+   * Called once when the piece lands, so what the move brings about can
+   * wait for it. (A newer move's glide supersedes this one, and reports its
+   * own landing.)
+   */
+  onLanded?: () => void;
 }) => {
   const group = useRef<Group>(null);
+  const progress = useRef(0);
+  const glide = useMemo(
+    () =>
+      fromLevel === undefined || toLevel === undefined ? null : { fromLevel, toLevel, progress },
+    [fromLevel, toLevel],
+  );
   const elapsedMs = useRef(0);
   const done = useRef(false);
   const invalidate = useThree((s) => s.invalidate);
@@ -47,96 +68,31 @@ export const MoveGlide = ({
   }, []);
 
   useEffect(() => invalidate(), [invalidate]);
+  const landed = useRef(onLanded);
+  landed.current = onLanded;
 
   useFrame((_, delta) => {
     const g = group.current;
     if (done.current || !g) return;
     elapsedMs.current += Math.min(delta * 1000, MOVE_ANIMATION.maxFrameMs);
-    const t = Math.min(elapsedMs.current / MOVE_ANIMATION.durationMs, 1);
-    if (t >= 1) {
+    const t = Math.min(elapsedMs.current / durationMs, 1);
+    const eased = easeInOutCubic(t);
+    progress.current = eased;
+    if (elapsedMs.current >= durationMs) {
+      progress.current = 1;
       g.position.set(0, 0, 0);
       done.current = true;
+      landed.current?.();
       return;
     }
-    const e = easeInOutCubic(t);
-    const remain = 1 - e;
-    g.position.set(
-      dx * remain,
-      // Parabolic lift with its apex at the spatial midpoint of the glide
-      dy * remain + MOVE_ANIMATION.liftWorld * 4 * e * remain,
-      dz * remain,
-    );
+    // Straight from the source (offset d) to rest (0), eased
+    g.position.set(dx - dx * eased, dy - dy * eased, dz - dz * eased);
     invalidate();
   });
 
   return (
     <group ref={group} userData={{ moveGlide: true }}>
-      {children}
-    </group>
-  );
-};
-
-/**
- * The piece just captured on the last move, fading and shrinking away under
- * the arriving capturer. Scales about the piece's base so it sinks into the
- * cell floor, then unmounts its meshes once fully gone.
- */
-export const GhostPiece = ({
-  type,
-  color,
-  position,
-}: {
-  type: PieceType;
-  color: 'white' | 'black';
-  position: Vec3;
-}) => {
-  const group = useRef<Group>(null);
-  const elapsedMs = useRef(0);
-  const materials = useRef<MeshStandardMaterial[] | null>(null);
-  const [finished, setFinished] = useState(false);
-  const invalidate = useThree((s) => s.invalidate);
-
-  useEffect(() => invalidate(), [invalidate]);
-
-  useFrame((_, delta) => {
-    const g = group.current;
-    if (finished || !g) return;
-    if (!materials.current) {
-      // First frame: the ghost must never intercept pointer events, and its
-      // materials (fresh instances per PieceMesh, so live pieces are
-      // unaffected) need to blend rather than punch holes in the cell fills.
-      const mats: MeshStandardMaterial[] = [];
-      g.traverse((obj) => {
-        const mesh = obj as Mesh;
-        if (!mesh.isMesh) return;
-        mesh.raycast = () => null;
-        const material = mesh.material as MeshStandardMaterial;
-        material.transparent = true;
-        material.depthWrite = false;
-        mats.push(material);
-      });
-      materials.current = mats;
-    }
-    elapsedMs.current += Math.min(delta * 1000, MOVE_ANIMATION.maxFrameMs);
-    const t = Math.min(elapsedMs.current / MOVE_ANIMATION.durationMs, 1);
-    const e = easeInOutCubic(t);
-    g.scale.setScalar(Math.max(1 - e, 1e-4));
-    for (const material of materials.current) material.opacity = 1 - e;
-    // Unmounting is a React commit, which requests the frame that removes it.
-    if (t >= 1) setFinished(true);
-    else invalidate();
-  });
-
-  if (finished) return null;
-  // Anchor the wrapper at the cell floor and push the PieceMesh back up, so
-  // the scale pivot is the piece's base rather than the cell centre.
-  return (
-    <group
-      ref={group}
-      position={[position[0], position[1] + CELL_FLOOR_Y, position[2]]}
-      userData={{ ghostPiece: true }}
-    >
-      <PieceMesh type={type} color={color} position={[0, -CELL_FLOOR_Y, 0]} />
+      <GlideContext.Provider value={glide}>{children}</GlideContext.Provider>
     </group>
   );
 };

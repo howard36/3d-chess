@@ -2,20 +2,20 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e', // Only run tests in the e2e directory
+  // Every page draws the real board in software (SwiftShader, below). A frame
+  // of the scene costs a few hundred milliseconds of CPU, several times that
+  // on a busy machine, and each move takes several frames on each of a game's
+  // two pages, during which a page answers slowly. So a test that plays a few
+  // moves needs far longer than the default 30 s, and a page may take longer
+  // than the default 5 s to show what a move changed.
+  timeout: 180_000,
+  expect: { timeout: 15_000 },
   // On CI, retry once so a failure leaves a trace (trace: 'on-first-retry'
   // below), and write the HTML report the workflow uploads on failure. The
   // default reporter never writes playwright-report/, so the upload step
   // used to find nothing.
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['dot'], ['html', { open: 'never' }]] : 'list',
-  // Configure projects for major browsers
-  // projects: [
-  //   {
-  //     name: 'chromium',
-  //     use: { ...devices['Desktop Chrome'] },
-  //   },
-  // ],
-
   // Start the websocket backend locally (no Modal deploy needed) and the Vite
   // dev server before running the tests. Export VITE_WS_URL to point the app
   // at a different backend (e.g. a deployed Modal app) instead.

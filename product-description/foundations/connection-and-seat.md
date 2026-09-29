@@ -69,7 +69,7 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | connecting | The first attempt after the app loaded, after a reset, or after "Play here". | "Connecting to server…" under the button | Nothing extra. The board, if shown, does not take input. |
 | connected | The connection is open. | Nothing extra | Nothing extra. After every new connection the board takes no input until the rejoin's snapshot arrives. |
-| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | "Reconnecting to server…" under the button | The amber "Reconnecting…" box at the top right. The board does not take input. |
+| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | "Reconnecting to server…" under the button | The [reconnecting line](../glossary.md#the-interface): under the turn pill on the board screen, at the top right on the other screens. The board does not take input. |
 | replaced | Another tab or window of this browser holds the seat: either the server closed this connection because the other tab took the seat, or this tab's connection came back after a drop and the server answered that the seat is in use. No retry happens. | Cannot occur | The [replaced dialog](../session/second-tab.md) over everything |
 
 In the second kind of *replaced*, the connection itself stays open but holds no seat; the player sees the same dialog either way.
@@ -125,7 +125,7 @@ An automatic rejoin after a drop does not take over. If another tab's live conne
 
 The replaced tab, whichever way it got there, does not retry. It shows the [replaced dialog](../session/second-tab.md), whose "Play here" button opens a new connection and rejoins with take-over, which in turn replaces the other tab. At any moment exactly one tab plays the seat; they never play it at once, and they never take it from each other without the player clicking or opening the game again.
 
-The opponent sees none of this except "Opponent: online" being repeated: a connection replaced by the same player's newer one is never reported as the player leaving, and a rejoin refused as seat in use reports nothing.
+The opponent sees none of this except a repeated report that the player is online: a connection replaced by the same player's newer one is never reported as the player leaving, and a rejoin refused as seat in use reports nothing.
 
 ## Presence
 
@@ -135,7 +135,7 @@ The opponent sees none of this except "Opponent: online" being repeated: a conne
 - When a player rejoins: the rejoining player is told whether the opponent is connected, and the opponent is told that the player is online.
 - When a player's live connection closes (drop, reload, closing the tab, returning to the start screen): the opponent is told that the player is offline. A replaced connection closing does not count.
 
-The board screen shows the latest report about the opponent as "Opponent: online" or "Opponent: offline" under the seat label; see [seat and opponent status](../game-page/seat-and-opponent-status.md). Nothing is shown before the first report. While this player's own connection is down, the last report stays on screen even though it may no longer be true.
+The board screen shows the latest report about the opponent on the turn pill: nothing while they are online, their stone as an outline and "Offline" while they are not; see [seat and opponent status](../game-page/seat-and-opponent-status.md). Nothing is shown before the first report. While this player's own connection is down, the last report stays on screen even though it may no longer be true.
 
 Presence is information only. A player may move while the opponent is offline; the move is recorded and the opponent sees it in the snapshot when they return.
 
@@ -149,11 +149,14 @@ This is what guarantees that a new game, or another game's page, starts on a con
 
 - The ~30-day expiry is the storage provider's inactivity rule, quoted from the repository README. Whether reading a game (a rejoin) counts as activity, or only writing to it (a join or a move), is not stated anywhere in the repository; a game that is only ever looked at may expire 30 days after its last move.
 - The share-link screen shown to a returning joiner while a rejoin is in flight says "Game created! Share this link with a friend:", which is wrong for a joiner and for any started game ([bug-triage B-12](../bug-triage.md)). It is normally too brief to notice, except during an outage.
-- Presence keeps showing the last report while this player is reconnecting, so "Opponent: online" can be stale ([bug-triage B-16](../bug-triage.md)). Read from code.
+- Presence keeps showing the last report while this player is reconnecting, so the opponent shown online can be stale ([bug-triage B-16](../bug-triage.md)). Read from code.
 - A player who clears site data, or switches browsers or tabs, cannot recover their seat through the app: the join is refused with "Game full" and there is no other way in. Only the tab that claimed the seat can join back into it. Whether that is acceptable is a product call.
 - A creator who loses the stored seat but keeps the tab (for example by clearing only local storage and reloading) and clicks "Join Game" gets their seat back as a repeated join, but the page shows the joined screen ("Joined game, waiting for start...") rather than the share-link screen until the opponent arrives. Read from `server/modal_app.py` and `client/src/game/session.ts`; not tried.
 - A duplicated tab shares the original's client id, so an automatic rejoin in either can take the seat from the other without a click. Read from code; not tried.
 - A tab shown the replaced dialog because of seat in use keeps its connection open without a seat. If that connection later drops and returns after the other tab has closed, its automatic rejoin gets the seat back and the dialog goes away without a click. Read from code; not tried.
 - The retry schedule, queueing, dropped moves, the replaced state, last-connection-wins, seat in use, re-sent joins and creates, and the wait for the snapshot are covered by `client/src/hooks/useGameSocket.test.ts`, `client/src/App.test.tsx`, `server/tests/test_local_ws.py`, and `client/e2e/session.spec.ts`.
+
+- The HUD wording in this document (the turn pill, presence as "Offline" on it, the move box, brought up by Tab, the dialogs as glass cards over a veil) was brought up to the new HUD from `client/src/screens/` and the [game page documents](../game-page/turn-indicator.md) at `bb16fed`, not checked in the running app, and needs re-verification.
+- The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`

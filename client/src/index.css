@@ -1,1 +1,698 @@
 @import 'tailwindcss';
+
+/*
+ * The HUD round the board: black glass, white type and hairline borders, the
+ * chrome of a gallery's wall text at night. Every screen and dialog reads
+ * these.
+ */
+:root {
+  --hud-font: 'Manrope', system-ui, sans-serif;
+  --hud-bg: linear-gradient(180deg, rgba(14, 16, 22, 0.82), rgba(6, 7, 11, 0.86));
+  --hud-fg: #eef1f7;
+  --hud-muted: rgba(214, 222, 236, 0.58);
+  --hud-accent: #f3f6ff;
+  --hud-accent-fg: #07080c;
+  --hud-border: 1px solid rgba(236, 241, 255, 0.16);
+  --hud-radius: 4px;
+  --hud-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --hud-blur: blur(8px);
+  --hud-tracking: 0.01em;
+  --hud-hair-strong: rgba(236, 241, 255, 0.28);
+  --hud-light: #e6eeff;
+  --hud-check: #ff3338;
+  --hud-check-ink: #ff6a6d;
+  /* Dialogs and their buttons */
+  --modal-bg: linear-gradient(180deg, rgba(14, 16, 22, 0.97), rgba(5, 6, 10, 0.98));
+  --modal-fg: #eef1f7;
+  --modal-backdrop: rgba(1, 2, 5, 0.55);
+  --modal-radius: 6px;
+  --modal-shadow: 0 0 0 1px rgba(236, 241, 255, 0.14), 0 24px 60px rgba(0, 0, 0, 0.6);
+  --button-bg: transparent;
+  --button-fg: #f6f8ff;
+  --button-border: 1px solid rgba(236, 241, 255, 0.55);
+  --button-radius: 3px;
+  /* The start and waiting pages */
+  --page-bg: radial-gradient(ellipse at 50% 60%, #0a0d15 0%, #04050a 60%, #010205 100%);
+  --page-fg: #eef1f7;
+}
+
+/*
+ * The game screen is played with fingers as much as a mouse. A double tap or
+ * a long press must never select text (iOS would select the whole page) or
+ * raise the callout, and a double tap must not zoom the page; the board's
+ * canvas takes every touch itself (touch-action: none, on the canvas
+ * wrapper). The move box stays selectable, for typing.
+ */
+.game-screen {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+.game-screen :is(input, textarea) {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+/* iOS zooms the page into a focused field whose text is under 16px */
+@media (pointer: coarse) {
+  .game-screen :is(input, textarea) {
+    font-size: 16px;
+  }
+}
+
+/*
+ * The HUD over the board: the turn pill at the top centre, the status column
+ * under it, the move card at the bottom left, and the dialogs. Night glass
+ * and hairlines; the two armies' materials are the only colour besides the
+ * starlight that marks the side to move and the red of check. Nothing here
+ * takes the pointer but the controls themselves.
+ */
+.hud {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  color: var(--hud-fg);
+  font-family: var(--hud-font);
+  letter-spacing: var(--hud-tracking);
+}
+.hud-glass {
+  background: var(--hud-bg);
+  border: var(--hud-border);
+  border-radius: var(--hud-radius);
+  box-shadow: var(--hud-shadow);
+  backdrop-filter: var(--hud-blur);
+}
+
+/* The two armies' materials: porcelain and charcoal */
+.hud-stone {
+  position: relative;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+.hud-stone[data-color='white'] {
+  background: radial-gradient(circle at 34% 28%, #fff 0%, #f4f1eb 30%, #ddd7cd 70%, #b3ab9f 100%);
+  box-shadow: inset 0 -1.5px 2px rgba(60, 45, 30, 0.3);
+}
+.hud-stone[data-color='black'] {
+  background: radial-gradient(
+    circle at 34% 28%,
+    #a3abbb 0%,
+    #626876 26%,
+    #3b3e47 64%,
+    #24262c 100%
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(150, 162, 184, 0.75),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.35);
+}
+/* An opponent who is not connected: the stone is only its outline */
+.hud-stone[data-absent] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(214, 222, 236, 0.5);
+}
+.hud-stone[data-absent][data-color='black'] {
+  box-shadow: inset 0 0 0 1.5px rgba(150, 162, 184, 0.8);
+}
+/* The side to move: a ring of starlight round its stone, red in check */
+.hud-stone::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1.5px solid var(--hud-light);
+  box-shadow:
+    0 0 10px rgba(230, 238, 255, 0.45),
+    inset 0 0 4px rgba(230, 238, 255, 0.2);
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+.hud-stone[data-lit]::after {
+  opacity: 1;
+  transform: none;
+}
+.hud-stone[data-check]::after {
+  border-color: var(--hud-check);
+  box-shadow:
+    0 0 10px rgba(255, 51, 56, 0.6),
+    inset 0 0 4px rgba(255, 51, 56, 0.3);
+}
+
+/* The top: the pill, and under it the status column */
+.hud-top {
+  position: absolute;
+  top: 12px;
+  left: 60px;
+  right: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.hud-pill {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  /* As wide as its words need (check adds a badge), never narrower than
+     this, so the pill does not jump as the turn passes */
+  width: auto;
+  min-width: 300px;
+  max-width: 100%;
+  height: 40px;
+  border-radius: 20px;
+  font-size: 14.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: opacity 200ms ease;
+}
+.hud-pill[data-stale] {
+  opacity: 0.45;
+}
+.hud-half {
+  flex: 1 1 0;
+  min-width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 16px 0 14px;
+  color: var(--hud-muted);
+  font-weight: 500;
+  transition: color 200ms ease;
+}
+.hud-half[data-side='them'] {
+  justify-content: flex-end;
+  padding: 0 14px 0 16px;
+}
+.hud-half[data-on] {
+  color: var(--hud-fg);
+  font-weight: 600;
+}
+.hud-rule {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  background: var(--hud-hair-strong);
+}
+.hud-check {
+  padding: 2px 5px 1px;
+  border: 1px solid rgba(255, 74, 80, 0.7);
+  border-radius: 3px;
+  color: var(--hud-check-ink);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.hud-result {
+  justify-content: center;
+  gap: 12px;
+  color: var(--hud-fg);
+}
+.hud-result .hud-sub {
+  color: var(--hud-muted);
+  font-weight: 500;
+}
+.hud-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.hud-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 14px;
+  border-radius: 15px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.hud-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hud-light);
+  box-shadow: 0 0 8px rgba(230, 238, 255, 0.8);
+  animation: hud-breathe 1.6s ease-in-out infinite;
+}
+@keyframes hud-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+/* An error, or the frozen record: glass with a thin red rule */
+.hud-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  max-width: min(440px, calc(100vw - 24px));
+  padding: 8px 8px 8px 14px;
+  border-left: 2px solid var(--hud-check);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  pointer-events: auto;
+}
+.hud-notice[data-frozen] {
+  padding: 9px 14px;
+  font-size: 13px;
+  pointer-events: none;
+}
+.hud-dismiss {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.hud-dismiss:hover,
+.hud-dismiss:focus-visible {
+  color: var(--hud-fg);
+  background: rgba(236, 241, 255, 0.08);
+}
+/* The pill, with the pieces each side has taken hanging under its halves */
+.hud-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  max-width: 100%;
+}
+.hud-captures {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  /* As wide as the pill, and no wider; each haul starts under its stone */
+  width: 0;
+  min-width: 100%;
+  height: 18px;
+  padding: 0 14px;
+  transition: opacity 200ms ease;
+}
+/* Read off the same position as the pill: dimmed with it while it may be stale */
+.hud-pill[data-stale] + .hud-captures {
+  opacity: 0.45;
+}
+.hud-haul {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+}
+/* The opponent's haul hangs from their stone, at the right: mirrored */
+.hud-haul[data-side='them'] {
+  flex-direction: row-reverse;
+}
+.hud-taken {
+  display: flex;
+  align-items: flex-end;
+}
+.hud-taken svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0 -3px;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.7));
+}
+/* Charcoal against the night sky: a brighter rim than on the promotion tile */
+.hud-taken svg[data-color='black'] path {
+  stroke: rgba(178, 190, 212, 0.95);
+  stroke-width: 1.3px;
+}
+.hud-count {
+  margin-left: 1px;
+  color: var(--hud-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.hud-lead {
+  margin: 0 3px;
+  color: var(--hud-fg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A phone upright: the pill fills the row */
+@media (max-width: 520px) {
+  .hud-top {
+    left: 12px;
+    right: 12px;
+  }
+  .hud-bar {
+    width: 100%;
+  }
+  .hud-pill {
+    width: 100%;
+    min-width: 0;
+  }
+}
+@media (max-width: 400px) {
+  .hud-pill {
+    font-size: 13.5px;
+  }
+  .hud-half {
+    gap: 9px;
+    padding: 0 12px 0 11px;
+  }
+  .hud-half[data-side='them'] {
+    padding: 0 11px 0 12px;
+  }
+  .hud-captures {
+    padding: 0 11px;
+  }
+  /* In check the lit half needs its badge's room: the other half keeps only
+     its stone (hollow for an absent opponent), the words go to screen readers */
+  .hud-pill[data-check] .hud-half:not([data-on]) > span:not(.hud-stone) {
+    display: none;
+  }
+}
+/* A touch screen: the pill at least 44 px tall */
+@media (pointer: coarse) {
+  .hud-pill {
+    height: 44px;
+    border-radius: 22px;
+  }
+}
+/* A short window (a phone on its side): the tower reaches the top of the
+   window, so the pill and the status column stand at the top left, where
+   the window is empty beside the tower */
+@media (max-height: 480px) {
+  .hud-top {
+    left: 12px;
+    right: auto;
+    align-items: flex-start;
+  }
+  .hud-pill {
+    min-width: 264px;
+    font-size: 13.5px;
+  }
+  .hud-status {
+    align-items: flex-start;
+    max-width: 264px;
+  }
+  /* The hauls one above the other, beside the tower: yours, then theirs */
+  .hud-bar {
+    align-items: flex-start;
+  }
+  .hud-captures {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: auto;
+    min-width: 0;
+    height: auto;
+  }
+  .hud-haul[data-side='them'] {
+    flex-direction: row;
+  }
+  .hud-haul[data-empty] {
+    display: none;
+  }
+}
+
+/* The move card: a field to type the next move, out of sight until it takes keyboard focus */
+.hud-card {
+  position: absolute;
+  left: 12px;
+  bottom: 14px;
+  box-sizing: border-box;
+  width: 232px;
+  max-width: calc(100vw - 24px);
+  padding: 10px;
+  font-size: 13px;
+  pointer-events: auto;
+  animation: hud-rise 150ms ease both;
+}
+/* Hidden until its field takes keyboard focus; still in the page (and the
+   tab order) for keyboards and screen readers */
+.hud-card[data-hidden] {
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  animation: none;
+}
+@keyframes hud-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.hud-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--hud-hair-strong);
+  border-radius: 3px;
+  background: rgba(236, 241, 255, 0.04);
+}
+.hud-field:focus-within {
+  border-color: rgba(230, 238, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.12);
+}
+.hud-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--hud-fg);
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.hud-field input::placeholder {
+  color: var(--hud-muted);
+  font-weight: 500;
+}
+.hud-go {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--hud-muted);
+  cursor: pointer;
+}
+.hud-go[data-ready] {
+  background: var(--hud-accent);
+  color: var(--hud-accent-fg);
+}
+.hud-hint {
+  padding: 6px 4px 0;
+  color: var(--hud-muted);
+  font-size: 11.5px;
+}
+.hud-problem {
+  padding: 6px 4px 0;
+  color: #ff8a8c;
+  font-size: 12px;
+}
+.hud-problem:empty {
+  display: none;
+}
+
+/* Dialogs: one glass card over a light veil, so the board stays in view */
+.hud-veil {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--modal-backdrop);
+  pointer-events: auto;
+}
+.hud-dialog {
+  box-sizing: border-box;
+  max-width: 420px;
+  padding: 18px 20px 16px;
+  border: 1px solid rgba(236, 241, 255, 0.18);
+  border-radius: var(--modal-radius);
+  background: var(--modal-bg);
+  box-shadow: var(--modal-shadow);
+  color: var(--modal-fg);
+  font-family: var(--hud-font);
+  text-align: center;
+}
+.hud-dialog .hud-eyebrow {
+  margin: 0;
+  color: var(--hud-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.hud-dialog h2 {
+  margin: 6px 0 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+.hud-dialog p {
+  margin: 8px 0 0;
+  color: var(--hud-muted);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.hud-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  margin-top: 16px;
+  padding: 0 22px;
+  border: var(--button-border);
+  border-radius: var(--button-radius);
+  background: var(--button-bg);
+  color: var(--button-fg);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hud-button:hover,
+.hud-button:focus-visible {
+  border-color: #f3f6ff;
+  box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.25);
+  outline: none;
+}
+.hud-link {
+  margin-top: 12px;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.hud-link:hover,
+.hud-link:focus-visible {
+  color: var(--hud-fg);
+}
+.hud-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.hud-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 62px;
+  height: 70px;
+  padding: 0;
+  border: 1px solid rgba(236, 241, 255, 0.16);
+  border-radius: 4px;
+  background: rgba(236, 241, 255, 0.03);
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hud-tile:hover,
+.hud-tile:focus-visible {
+  border-color: rgba(230, 238, 255, 0.75);
+  color: var(--hud-fg);
+  box-shadow:
+    0 0 0 3px rgba(230, 238, 255, 0.14),
+    inset 0 0 18px rgba(230, 238, 255, 0.08);
+  outline: none;
+}
+@media (max-width: 400px) {
+  .hud-veil .hud-dialog {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .hud-tiles {
+    flex-wrap: nowrap;
+    gap: 5px;
+  }
+  .hud-tile {
+    width: 54px;
+  }
+}
+.hud-pair {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-bottom: 12px;
+}
+.hud-pair .hud-stone {
+  width: 18px;
+  height: 18px;
+}
+
+/* A window no wider than 13:9 (a phone or tablet upright, a squarish
+   window): the board reaches the window's bottom corners, so the card, while
+   it shows, spans the bottom instead */
+@media (max-aspect-ratio: 13/9) and (min-height: 481px) {
+  .hud-card {
+    right: 12px;
+    width: auto;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+}
+/* A phone on its side: the card docks at the bottom right, beside the tower
+   (the level letters stand at its left), narrower */
+@media (max-height: 480px) {
+  .hud-card {
+    left: auto;
+    right: 12px;
+    width: clamp(160px, calc(50vw - 170px), 232px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud *,
+  .hud *::after,
+  .hud-veil * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Keyboard focus: the HUD's starlight halo, not the browser's ring */
+.hud-go:focus-visible {
+  outline: none !important;
+  box-shadow:
+    0 0 0 2px rgba(243, 246, 255, 0.9),
+    0 0 0 5px rgba(230, 238, 255, 0.25) !important;
+}

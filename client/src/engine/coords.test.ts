@@ -30,12 +30,8 @@ describe('coords', () => {
     expect(() => fromZXY('A1a')).toThrow();
     expect(() => fromZXY('Aa')).toThrow();
     expect(() => fromZXY('Aa11')).toThrow();
-  });
-
-  it('throws if ZXY string has valid format but invalid chars (fromZXY)', () => {
-    // These pass the regex but have at least one invalid char for LEVELS, FILES, or RANKS
-    expect(() => fromZXY('Fa1')).toThrow(); // F not in LEVELS
-    expect(() => fromZXY('Af1')).toThrow(); // f not in FILES
-    expect(() => fromZXY('Aa6')).toThrow(); // 6 not in RANKS
+    expect(() => fromZXY('Fa1')).toThrow();
+    expect(() => fromZXY('Af1')).toThrow();
+    expect(() => fromZXY('Aa6')).toThrow();
   });
 });

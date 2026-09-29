@@ -1,0 +1,436 @@
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  DoubleSide,
+  MeshBasicMaterial,
+  PlaneGeometry,
+  ShaderMaterial,
+} from 'three';
+import { GRID_SIZE } from '../layout';
+import { useLevelFocus } from './focus';
+import { LAYER } from './layers';
+import { noRaycast } from '../noRaycast';
+import { GRID_LINES } from './gridLines';
+import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
+
+// The levels: five sheets of clear glass, each edged by one thin square of
+// light in its level's colour. On the glass, the 3D chess checker (dark
+// where x + y + z is even, so a bishop keeps to its colour through the
+// levels): the light squares faintly frosted with the level's light, the
+// dark squares left clear with a breath of smoke. Crisp hairlines of the
+// level's colour divide the 25 squares, running whole from edge to edge and
+// joined where they cross by taking the brighter of the two (never summed),
+// so no crossing ever shows a dot. The checker holds from any side. Looking
+// straight down, where the five would average into a grey plaid, the lead
+// level (the one attended to, else the top one) keeps its checker whole and
+// the others ease back part of the way, still clearly there, their inner
+// hairlines thinner; each level's frost leans toward its own hue, so the
+// nested checkers part by colour. The level the player is attending to
+// (pointed at, or holding the selected piece) brightens its lines and edge;
+// the others step back a little.
+
+const vertexShader = /* glsl */ `
+  uniform float uHalf;
+  uniform float uPitch;
+  varying vec2 vCell;
+  varying vec3 vWorld;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    // Squares from the board's corner: lines fall on whole numbers, 0 to 5
+    vCell = (w.xz * vec2(1.0, -1.0) + uHalf) / uPitch;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }`;
+
+const fragmentShader = /* glsl */ `
+  uniform vec3 uColor;
+  uniform vec3 uFrost;
+  uniform vec3 uSmoke;
+  uniform float uCells;
+  uniform float uLevel;
+  uniform float uReach;
+  uniform float uFill;
+  uniform float uFrostA;
+  uniform float uSmokeA;
+  uniform float uLine;
+  uniform float uWidth;
+  uniform float uFocus;
+  uniform float uDim;
+  uniform float uLead;
+  varying vec2 vCell;
+  varying vec3 vWorld;
+  ${GRID_LINES}
+
+  vec4 over(vec4 dst, vec3 c, float a) {
+    return vec4(c * a + dst.rgb * (1.0 - a), a + dst.a * (1.0 - a));
+  }
+
+  void main() {
+    vec2 uv = vCell;
+    vec3 v = normalize(cameraPosition - vWorld);
+    // 1 looking straight down the stack, 0 from the side
+    float above = smoothstep(0.8, 0.97, abs(v.y));
+    float grazing = pow(1.0 - abs(v.y), 2.0);
+    // The glass runs out under the edge's square of light, and so does the
+    // checker: the outer squares reach the border whole, never stopping
+    // short of it in a thin dark seam (the glass used to end at the outer
+    // squares, a margin inside the edge)
+    float inside = step(-uFill, uv.x) * step(uv.x, uCells + uFill)
+      * step(-uFill, uv.y) * step(uv.y, uCells + uFill);
+
+    // The checker: dark where x + y + z is even, as in 3D chess.
+    // Every level keeps it from any side. Looking straight down all five
+    // ease back a little (so pieces three levels down keep their own
+    // colour), the lead level least, so one clear 5 x 5 reads through the
+    // rest; each level's frost leans toward its own hue there
+    vec2 sq = floor(clamp(uv, 0.0, uCells - 0.001));
+    float light = mod(sq.x + sq.y + uLevel, 2.0);
+    float back = above * (1.0 - uLead);
+    float keep = (1.0 - mix(0.15, 0.3, back) * above) * mix(1.0, 0.5, back) * (1.0 + 0.35 * grazing);
+    // The level attended to (pointed at, or holding the selection) a little more
+    float focus = (1.0 + 0.25 * uFocus) * (1.0 - 0.15 * uDim);
+    vec3 frost = mix(uFrost, uColor, 0.5 * above);
+    vec4 c = vec4(0.0);
+    c = over(c, uSmoke, (1.0 - light) * uSmokeA * inside * keep);
+    c = over(c, frost, light * uFrostA * inside * keep * focus);
+
+    // Hairlines between the squares, running out to the edge of the light
+    vec2 lines = gridLines(uv, uWidth);
+    vec2 nearest = floor(uv + 0.5);
+    vec2 innerLine = step(0.5, nearest) * step(nearest, vec2(uCells - 0.5));
+    vec2 span = vec2(
+      step(-uReach, uv.y) * step(uv.y, uCells + uReach),
+      step(-uReach, uv.x) * step(uv.x, uCells + uReach)
+    );
+    lines *= innerLine * span;
+    // The brighter of the two where they cross: an even line, never a dot
+    float line = max(lines.x, lines.y) * uLine * (1.0 - 0.15 * above) * (1.0 - 0.5 * back);
+    line *= (1.0 + 0.4 * uFocus) * (1.0 - 0.2 * uDim);
+    c = over(c, uColor, min(line, 1.0));
+
+    if (c.a < 0.002) discard;
+    gl_FragColor = vec4(c.rgb / c.a, c.a);
+    #include <colorspace_fragment>
+  }`;
+
+const WHITE = new Color('#ffffff');
+const FROST = 0.108;
+const SMOKE = 0.054;
+const LINE = 0.5;
+const EDGE = 0.8;
+/** The edge's brightness: the level attended to reaches past full opacity. */
+const EDGE_BRIGHT = 1.1;
+/**
+ * The square of light widens outward from the glass's edge, never into the
+ * squares, and deepens downward from it into a rim, never rising in front of
+ * the pieces standing on the edge squares.
+ */
+const EDGE_WIDTH = 0.0286;
+/** The edge's depth below the glass. */
+const EDGE_HEIGHT = 0.021;
+/** How far the glass runs in under the edge's light: half its width. */
+const FILL = EDGE_WIDTH / 2;
+/** The glass's half-side out to its edge's light. */
+const REACH = FRAME.half + MARGIN;
+
+type V3 = [number, number, number];
+
+/** The corners' radius on the ring's inner edge, as a share of its width. */
+const CORNER = 0.5;
+/** Segments round each corner. */
+const CORNER_STEPS = 6;
+const QUADRANTS: [number, number][] = [
+  [1, 1],
+  [-1, 1],
+  [-1, -1],
+  [1, -1],
+];
+
+/**
+ * A square of half-side `half` with its corners rounded to radius `r`, as
+ * points (x, z) round it; squares drawn with the same `half - r` share their
+ * corners' centres, so their points pair up across an even band.
+ */
+const roundedSquare = (half: number, r: number): [number, number][] =>
+  QUADRANTS.flatMap(([sx, sz], k) =>
+    Array.from({ length: CORNER_STEPS + 1 }, (_, j): [number, number] => {
+      const a = ((k + j / CORNER_STEPS) * Math.PI) / 2;
+      return [sx * (half - r) + r * Math.cos(a), sz * (half - r) + r * Math.sin(a)];
+    }),
+  );
+
+/**
+ * One level's square of light as a single solid: a ring from the glass's
+ * edge (`inner`) out `width`, hanging `height` below the glass, its corners
+ * very slightly rounded (inner and outer edges on one centre, so the band
+ * keeps its width round the bend) and nothing inside it, so no two faces
+ * ever lie over each other and the ring is equally bright all the way round,
+ * corners included (four overlapping bars drew their corners twice). The
+ * glass it frames stays square: its corner lies inside the rounded band.
+ */
+const rimGeometry = (inner: number, width: number, height: number) => {
+  const r = CORNER * width;
+  const ins = roundedSquare(inner, r);
+  const outs = roundedSquare(inner + width, r + width);
+  const pos: number[] = [];
+  // A quad facing `normal`, wound to face it
+  const quad = (a: V3, b: V3, c: V3, d: V3, normal: V3) => {
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const flip = n[0] * normal[0] + n[1] * normal[1] + n[2] * normal[2] < 0;
+    const corners = flip ? [a, d, c, b] : [a, b, c, d];
+    for (const i of [0, 1, 2, 0, 2, 3]) {
+      const p = corners[i];
+      pos.push(...p);
+    }
+  };
+  // Face by face: the top, the underside and the outer sides (group 0), then
+  // the inner sides (group 1), the only faces that can lie behind another
+  // face of the same ring on screen (seen through the top, the underside or
+  // the near outer side); their material discards those fragments (rimSkip)
+  const n = ins.length;
+  let front = 0;
+  const top = 0;
+  const bottom = -height;
+  for (const face of ['top', 'bottom', 'outer', 'inner'] as const) {
+    for (let j = 0; j < n; j++) {
+      const [ix0, iz0] = ins[j];
+      const [ix1, iz1] = ins[(j + 1) % n];
+      const [ox0, oz0] = outs[j];
+      const [ox1, oz1] = outs[(j + 1) % n];
+      const out: V3 = [(ox0 + ox1) / 2, 0, (oz0 + oz1) / 2];
+      if (face === 'top') {
+        quad([ix0, top, iz0], [ix1, top, iz1], [ox1, top, oz1], [ox0, top, oz0], [0, 1, 0]);
+      } else if (face === 'bottom') {
+        quad(
+          [ix0, bottom, iz0],
+          [ix1, bottom, iz1],
+          [ox1, bottom, oz1],
+          [ox0, bottom, oz0],
+          [0, -1, 0],
+        );
+      } else if (face === 'outer') {
+        quad([ox0, top, oz0], [ox1, top, oz1], [ox1, bottom, oz1], [ox0, bottom, oz0], out);
+        front = pos.length / 3;
+      } else {
+        quad(
+          [ix0, top, iz0],
+          [ix1, top, iz1],
+          [ix1, bottom, iz1],
+          [ix0, bottom, iz0],
+          [-out[0], 0, -out[2]],
+        );
+      }
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.addGroup(0, front, 0);
+  g.addGroup(front, pos.length / 3 - front, 1);
+  return g;
+};
+
+/**
+ * Gives a ring's inner-side material the one test that keeps the ring a
+ * single layer of light at every angle without writing depth: a fragment of
+ * an inner side is dropped when the ray from the camera reaches it through
+ * another face of the same ring, the near outer side (entering the ring's
+ * outer square between its top and bottom), its top or its underside
+ * (crossing their planes within the band). Those are the only faces that
+ * can lie over an inner side on screen. `top` is the level's height: the
+ * ring's measures in world space are its inner and outer half-sides and its
+ * top and bottom.
+ */
+const rimSkip = (m: MeshBasicMaterial, top: number) => {
+  const shape = {
+    uRimInner: { value: REACH },
+    uRimOuter: { value: REACH + EDGE_WIDTH },
+    uRimTop: { value: top },
+    uRimBottom: { value: top - EDGE_HEIGHT },
+  };
+  m.customProgramCacheKey = () => 'rim-inner';
+  m.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, shape);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vRimWorld;')
+      .replace(
+        '#include <project_vertex>',
+        '#include <project_vertex>\nvRimWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vRimWorld;
+        uniform float uRimInner;
+        uniform float uRimOuter;
+        uniform float uRimTop;
+        uniform float uRimBottom;
+        // Whether the segment from the camera to p crosses the plane y = h
+        // within the band between the inner and outer squares
+        bool rimCapHit(vec3 c, vec3 d, float h) {
+          if (abs(d.y) < 1e-6) return false;
+          float t = (h - c.y) / d.y;
+          if (t <= 0.0 || t >= 0.999) return false;
+          vec2 q = abs(c.xz + d.xz * t);
+          float m = max(q.x, q.y);
+          return m > uRimInner && m < uRimOuter;
+        }`,
+      )
+      .replace(
+        'void main() {',
+        `void main() {
+        {
+          vec3 c = cameraPosition;
+          vec3 d = vRimWorld - c;
+          // Entering the outer square's column: through the near outer side?
+          vec2 sd = vec2(abs(d.x) < 1e-6 ? 1e-6 : d.x, abs(d.z) < 1e-6 ? 1e-6 : d.z);
+          vec2 ta = (vec2(-uRimOuter) - c.xz) / sd;
+          vec2 tb = (vec2(uRimOuter) - c.xz) / sd;
+          vec2 lo = min(ta, tb);
+          float tIn = max(lo.x, lo.y);
+          if (tIn > 0.0 && tIn < 0.999) {
+            float y = c.y + d.y * tIn;
+            if (y > uRimBottom && y < uRimTop) discard;
+          }
+          if (rimCapHit(c, d, uRimTop) || rimCapHit(c, d, uRimBottom)) discard;
+        }`,
+      );
+  };
+};
+
+/** The five levels (see above). Decorative: nothing here takes a click. */
+export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
+  const plane = useMemo(
+    // Out to the middle of the edge's light, so no seam can open between them
+    () => new PlaneGeometry((REACH + FILL) * 2, (REACH + FILL) * 2).rotateX(-Math.PI / 2),
+    [],
+  );
+  const edge = useMemo(() => rimGeometry(REACH, EDGE_WIDTH, EDGE_HEIGHT), []);
+  useEffect(() => () => plane.dispose(), [plane]);
+  useEffect(() => () => edge.dispose(), [edge]);
+  const materials = useMemo(
+    () =>
+      LEVEL_COLORS.map((hex, z) => {
+        const tint = new Color(hex);
+        // The edge: one thin square of the level's light, lifted toward white
+        const edgeColor = tint.clone().lerp(WHITE, 0.3);
+        return {
+          glass: new ShaderMaterial({
+            transparent: true,
+            depthWrite: false,
+            side: DoubleSide,
+            uniforms: {
+              uColor: { value: tint.clone() },
+              // The frost: the level's light, mostly white
+              uFrost: { value: tint.clone().lerp(WHITE, 0.55) },
+              uSmoke: { value: new Color('#000000') },
+              uCells: { value: GRID_SIZE },
+              uLevel: { value: z },
+              uReach: { value: MARGIN / FRAME.pitch },
+              // Under the inner half of the edge's light, and inside its
+              // rounded corners: the glass's square corner never shows past them
+              uFill: { value: (MARGIN + FILL) / FRAME.pitch },
+              uFrostA: { value: FROST },
+              uSmokeA: { value: SMOKE },
+              uLine: { value: LINE },
+              uWidth: { value: 0.011 },
+              uFocus: { value: 0 },
+              uDim: { value: 0 },
+              uLead: { value: z === LEVEL_COLORS.length - 1 ? 1 : 0 },
+              uHalf: { value: FRAME.half },
+              uPitch: { value: FRAME.pitch },
+            },
+            vertexShader,
+            fragmentShader,
+          }),
+          edgeColor,
+          // It writes no depth, so it hides nothing behind it (a glow, a
+          // marker, a label): light, not a wall. Its faces never stack all
+          // the same: the inner sides skip what lies behind the others
+          edge: [false, true].map((inner) => {
+            const m = new MeshBasicMaterial({
+              color: edgeColor.clone(),
+              transparent: true,
+              opacity: EDGE,
+              depthWrite: false,
+              toneMapped: false,
+              fog: false,
+            });
+            if (inner) rimSkip(m, FRAME.levelY[z]);
+            return m;
+          }),
+        };
+      }),
+    [],
+  );
+  useEffect(
+    () => () =>
+      materials.forEach((m) => {
+        m.glass.dispose();
+        m.edge.forEach((e) => e.dispose());
+      }),
+    [materials],
+  );
+  // Each edge's light: its focus (below) times its brightness. Up to full
+  // opacity the light is the edge's opacity; past it, its colour, which keeps
+  // its hue at full strength and then pales a little toward white, so a
+  // focused edge still stands out, in its own colour, at any brightness
+  const edgeLight = useRef(LEVEL_COLORS.map(() => EDGE));
+  const applyEdge = (z: number) => {
+    const m = materials[z];
+    const light = edgeLight.current[z] * EDGE_BRIGHT;
+    const [caps, sides] = m.edge;
+    caps.opacity = Math.min(light, 1);
+    const c = caps.color.copy(m.edgeColor).multiplyScalar(Math.max(light, 1));
+    const peak = Math.max(c.r, c.g, c.b);
+    if (peak > 1) {
+      c.multiplyScalar(1 / peak).lerp(WHITE, Math.min((peak - 1) * 0.35, 0.4));
+    }
+    sides.opacity = caps.opacity;
+    sides.color.copy(caps.color);
+  };
+  useLevelFocus(
+    focusLevel,
+    (weights, any) => {
+      weights.forEach((w, z) => {
+        const m = materials[z];
+        if (!m) return;
+        const dim = any * (1 - w);
+        m.glass.uniforms.uFocus.value = w;
+        m.glass.uniforms.uDim.value = dim;
+        // The lead from above: the level attended to, else the top one
+        const top = z === weights.length - 1 ? 1 : 0;
+        m.glass.uniforms.uLead.value = Math.min(1, w + (1 - any) * top);
+        edgeLight.current[z] = EDGE * (1 - 0.35 * dim) + (1 - EDGE) * w;
+        applyEdge(z);
+      });
+    },
+    { ms: 160, key: materials },
+  );
+
+  return (
+    <group name="levels">
+      {FRAME.levelY.map((y, z) => (
+        <group key={z} position={[0, y, 0]}>
+          <mesh
+            geometry={plane}
+            material={materials[z].glass}
+            position={[0, -0.002, 0]}
+            renderOrder={LAYER.plate}
+            raycast={noRaycast}
+          />
+          <mesh
+            geometry={edge}
+            material={materials[z].edge}
+            renderOrder={LAYER.plateEdge}
+            raycast={noRaycast}
+          />
+        </group>
+      ))}
+    </group>
+  );
+};
