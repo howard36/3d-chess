@@ -70,7 +70,7 @@ Clicking "Start new game" is the dialog's only action. It sends no request about
 
 ### While in flight
 
-Nothing is in flight: the move to the start screen is immediate. The start screen shows "Connecting to server…" for the moment it takes the fresh connection to open.
+Nothing is in flight: the move to the start screen is immediate. The start screen says nothing while the fresh connection opens; a click on "Start a game" before it has opened reads "Connecting…" until it does.
 
 ### The answer arrives
 

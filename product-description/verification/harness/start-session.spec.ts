@@ -146,11 +146,12 @@ test('create', async ({ browser }) => {
     const q = await c.newPage();
     await q.goto('/');
     await q.waitForFunction(() => (window as any).__attempts.length >= 2);
-    // Nothing about the connection shows until the click
-    await expect(q.getByRole('status')).toHaveCount(0);
+    // Nothing about the connection is said until the click (the status region is always there, empty)
+    await expect(q.getByRole('status')).toHaveText('');
     await q.getByRole('button', { name: 'Start a game' }).click();
-    await expect(q.getByRole('button', { name: 'Creating game…' })).toBeDisabled();
-    await expect(q.getByText('Reconnecting to server…')).toBeVisible();
+    // What the click waits on is the button's own label; the status says it to a screen reader
+    await expect(q.getByRole('button', { name: /^(Connecting|Reconnecting)…$/ })).toBeDisabled();
+    await expect(q.getByRole('status')).toHaveText('Reconnecting to server…');
     const log: (string | null)[] = await q.evaluate(() => (window as any).__statusLog);
     await q.waitForTimeout(2000);
     await releaseConnection(q);
@@ -162,19 +163,17 @@ test('create', async ({ browser }) => {
     expect(seen).toContain('Reconnecting to server…');
     expect(dt).toBeLessThan(8.5);
     await c.close();
-    return `status line: ${JSON.stringify(seen)}; share link ${dt.toFixed(1)} s after the connection was allowed (server stop simulated by refusing every connection from the page; the local server kept running)`;
+    return `status (hidden): ${JSON.stringify(seen)}; share link ${dt.toFixed(1)} s after the connection was allowed (server stop simulated by refusing every connection from the page; the local server kept running)`;
   });
 
   await item('CREATE-03', async () => {
     const p = await page(browser);
     await connectedStart(p);
     await clickThenCut(p, 'Start a game');
-    const btn = p.getByRole('button', { name: 'Creating game…' });
+    // The lost answer shows in the button's label; nothing is written under it
+    const btn = p.getByRole('button', { name: 'Reconnecting…' });
     await expect(btn).toBeDisabled();
-    const status = p.getByText('Reconnecting to server…');
-    await expect(status).toBeVisible();
-    const bb = (await btn.boundingBox())!, sb = (await status.boundingBox())!;
-    expect(sb.y).toBeGreaterThan(bb.y + bb.height - 1);
+    await expect(p.getByRole('status')).toHaveText('Reconnecting to server…');
     await p.waitForTimeout(1500);
     await expect(btn).toBeDisabled();
     await releaseConnection(p);
@@ -185,7 +184,7 @@ test('create', async ({ browser }) => {
     const dt = (Date.now() - t0) / 1000;
     const creates = (await sent(p)).filter((m) => m.type === 'create_game').length;
     await p.context().close();
-    return `"Creating game…" disabled with "Reconnecting to server…" below it; share-link screen ${dt.toFixed(1)} s after the connection returned; create_game sent ${creates} times`;
+    return `button "Reconnecting…" disabled, status "Reconnecting to server…"; share-link screen ${dt.toFixed(1)} s after the connection returned; create_game sent ${creates} times`;
   });
 
   await item('CREATE-04', async () => {
@@ -269,7 +268,8 @@ test('create', async ({ browser }) => {
     await g.white.waitForTimeout(2000);
     await expect(g.white.getByRole('button', { name: 'Start a game', exact: true })).toBeEnabled();
     expect(new URL(g.white.url()).pathname).toBe('/');
-    expect(await g.white.getByRole('alert').count()).toBe(0);
+    // The start screen's alert region is always there; empty means no error
+    await expect(g.white.getByRole('alert')).toHaveText('');
     await g.close();
   });
 });
@@ -480,7 +480,7 @@ test('wait', async ({ browser }) => {
     try {
       await a.goto(LAN + '/');
       await a.getByRole('button', { name: 'Start a game' }).waitFor({ timeout: 15000 });
-      await expect(a.getByRole('status')).toHaveCount(0, { timeout: 10000 });
+      await expect(a.getByRole('status')).toHaveText('', { timeout: 10000 });
       served = true;
     } catch { /* below */ }
     if (!served) record('WAIT-11', 'blocked', 'the dev server could not be reached and connected under a LAN address in this container');
@@ -509,7 +509,7 @@ test('wait', async ({ browser }) => {
     await dropConnection(a, { block: true });
     // The start screen does not show it, but the page is now reconnecting
     await a.waitForFunction(() => (window as any).__sockets.every((s: WebSocket) => s.readyState === 3));
-    await expect(a.getByRole('status')).toHaveCount(0);
+    await expect(a.getByRole('status')).toHaveText('');
     const before = (await sent(a)).length;
     await a.goForward();
     await expect(a.getByText(SHARE)).toBeVisible();
@@ -786,7 +786,7 @@ test('reload', async ({ browser }) => {
     await expect(P.getByRole('button', { name: 'Start a game' })).toBeVisible();
     let aUrl = '', colorA = '', tries = 0;
     for (; tries < 12; tries++) {
-      await expect(P.getByRole('status')).toHaveCount(0, { timeout: 10000 });
+      await expect(P.getByRole('status')).toHaveText('', { timeout: 10000 });
       await P.getByRole('button', { name: 'Start a game' }).click();
       await P.waitForURL(/\/game\/[A-Z0-9]{6}$/);
       aUrl = P.url(); colorA = (await role(P))!;
