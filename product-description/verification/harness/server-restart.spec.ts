@@ -20,9 +20,11 @@ test('server stop and restart', async ({ browser }) => {
     await p.waitForFunction(() => (window as any).__sockets.some((s: WebSocket) => s.readyState === 1), null, { timeout: 5000 });
     stopServer();
     await p.waitForTimeout(1000);
-    // Nothing about the connection until a create waits for it
-    await expect(p.getByRole('status')).toHaveCount(0);
+    // Nothing about the connection until a create waits for it (the status region is always there, empty)
+    await expect(p.getByRole('status')).toHaveText('');
     await p.getByRole('button', { name: 'Start a game' }).click();
+    // The button's label says it; the hidden status says it to a screen reader
+    await expect(p.getByRole('button', { name: 'Reconnecting…' })).toBeVisible();
     await expect(p.getByRole('status')).toHaveText('Reconnecting to server…');
     startServer();
     await p.waitForURL(/\/game\//, { timeout: 15000 });

@@ -318,7 +318,8 @@ test('lost answers', async ({ browser }) => {
     const p = await newTappedPage(browser);
     await p.goto('/'); await startScreenReady(p);
     await clickThenCut(p, 'Start a game');
-    const btn = p.getByRole('button', { name: 'Creating game…' });
+    // The lost answer shows in the button's own label
+    const btn = p.getByRole('button', { name: 'Reconnecting…' });
     await expect(btn).toBeDisabled();
     await p.waitForTimeout(2000);
     await expect(btn).toBeDisabled();
@@ -328,7 +329,7 @@ test('lost answers', async ({ browser }) => {
     await expect(p.getByText('Game created! Share this link with a friend:')).toBeVisible();
     const u = p.url();
     await p.context().close();
-    return `"Creating game…" disabled while down; then share-link screen of ${u.split('/game/')[1]}`;
+    return `"Reconnecting…" disabled while down; then share-link screen of ${u.split('/game/')[1]}`;
   });
 });
 

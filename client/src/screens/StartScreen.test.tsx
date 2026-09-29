@@ -8,8 +8,8 @@ import { fakeSocket } from './testSupport';
 // The preview is a WebGL canvas, which jsdom can't provide: a stand-in that
 // shows what it was handed
 vi.mock('./LandingPreview', () => ({
-  LandingPreview: ({ paused, still }: { paused: boolean; still: boolean }) => (
-    <div data-testid="preview" data-paused={String(paused)} data-still={String(still)} />
+  LandingPreview: ({ still }: { still: boolean }) => (
+    <div data-testid="preview" data-still={String(still)} />
   ),
 }));
 
@@ -34,33 +34,19 @@ const renderStart = () =>
     </MemoryRouter>,
   );
 
-test('the start button is the first thing Tab reaches, then the pause', async () => {
+test('the start button is the first thing Tab reaches, and the preview has no controls', async () => {
   reduceMotion(false);
   renderStart();
   await userEvent.tab();
   expect(screen.getByRole('button', { name: 'Start a game' })).toHaveFocus();
-  await userEvent.tab();
-  expect(screen.getByRole('button', { name: 'Pause preview' })).toHaveFocus();
+  // It always plays: the start button is the page's only control
+  expect(screen.getAllByRole('button')).toHaveLength(1);
 });
 
-test('the pause button stops and restarts the preview', async () => {
-  reduceMotion(false);
-  renderStart();
-  const pause = screen.getByRole('button', { name: 'Pause preview' });
-  expect(pause).toHaveAttribute('aria-pressed', 'false');
-  expect(screen.getByTestId('preview')).toHaveAttribute('data-paused', 'false');
-  await userEvent.click(pause);
-  expect(pause).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByTestId('preview')).toHaveAttribute('data-paused', 'true');
-  await userEvent.click(pause);
-  expect(screen.getByTestId('preview')).toHaveAttribute('data-paused', 'false');
-});
-
-test('for a player who asked for less motion the preview holds still, with nothing to pause', () => {
+test('for a player who asked for less motion the preview holds still', () => {
   reduceMotion(true);
   renderStart();
   expect(screen.getByTestId('preview')).toHaveAttribute('data-still', 'true');
-  expect(screen.queryByRole('button', { name: 'Pause preview' })).not.toBeInTheDocument();
 });
 
 test('nothing is written under the button', () => {

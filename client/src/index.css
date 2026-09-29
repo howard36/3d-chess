@@ -700,15 +700,17 @@
 /*
  * The landing page: the live preview fills the window, the tower turning in
  * the middle, with the page's text like a gallery's wall label above and
- * below it. The title and the button each stand centred in a band of the
- * same height, the ones the preview's camera keeps clear
- * (three/landingView.ts, LANDING_BAND_PX: --landing-band), so the tower sits
- * midway between them; in a window 480 px tall or less, a phone on its side,
+ * below it. The title and the button each stand in a band of the same
+ * height, the ones the preview's camera keeps clear (three/landingView.ts,
+ * LANDING_BAND_PX: --landing-band), at the band's edge nearest the tower
+ * (--landing-hug from it): mirrored about the tower, and close to it, not
+ * the window's edges. In a window 480 px tall or less, a phone on its side,
  * the text stands in a column at the left instead. White on black, but for
  * the call to action's rim, the five level colours.
  */
 .landing {
   --landing-band: 124px;
+  --landing-hug: 16px;
   position: relative;
   height: 100dvh;
   width: 100vw;
@@ -752,14 +754,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   text-align: center;
 }
 .landing-head {
   top: env(safe-area-inset-top);
+  justify-content: flex-end;
+  padding-bottom: var(--landing-hug);
 }
 .landing-foot {
   bottom: env(safe-area-inset-bottom);
+  justify-content: flex-start;
+  padding-top: var(--landing-hug);
 }
 .landing h1 {
   margin: 0;
@@ -869,34 +874,6 @@
   /* The label and the fill change together, never white on white */
   transition: none;
 }
-/* Stops the preview (it moves on its own, beside the page's controls) */
-.landing-pause {
-  position: absolute;
-  top: max(16px, calc(env(safe-area-inset-top) + 8px));
-  right: max(16px, calc(env(safe-area-inset-right) + 8px));
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border-radius: 50%;
-  color: var(--hud-muted);
-  cursor: pointer;
-}
-.landing-pause:hover,
-.landing-pause:focus-visible {
-  color: var(--hud-fg);
-  outline: none;
-  box-shadow:
-    var(--hud-shadow),
-    0 0 0 3px rgba(230, 238, 255, 0.25);
-}
-@media (pointer: coarse) {
-  .landing-pause {
-    width: 44px;
-    height: 44px;
-  }
-}
 /* A phone held upright: the button spans the column */
 @media (max-width: 480px) {
   .landing h1 {
@@ -957,6 +934,7 @@
   .landing-foot {
     top: 50%;
     bottom: auto;
+    padding-top: 0;
   }
   .landing h1 {
     font-size: 30px;

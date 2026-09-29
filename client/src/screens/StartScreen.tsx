@@ -54,7 +54,6 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
     requestGame({ type: 'create_game', clientId: getClientId() });
   };
 
-  const [paused, setPaused] = React.useState(false);
   const still = useReducedMotion();
 
   // Nothing is written under the button: what the request is waiting on is
@@ -74,7 +73,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
 
   return (
     <main className="landing" data-testid="landing">
-      <LandingPreview paused={paused} still={still} />
+      <LandingPreview still={still} />
       <p className="sr-only">
         Preview: a sample game plays itself on the five-level tower and ends in checkmate by White.
       </p>
@@ -83,8 +82,9 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
         <h1>3D Chess</h1>
       </header>
       <div className="landing-foot">
-        {/* Not held while the socket connects: the request is queued and
-            sent when it opens (useResendOnReconnect) */}
+        {/* Can be pressed before the socket opens: the request is queued
+            and sent when it does (useResendOnReconnect), the button held
+            meanwhile */}
         <button
           className="landing-play"
           onClick={handleCreateGame}
@@ -113,28 +113,6 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
             : ''}
         </p>
       </div>
-      {/* The preview moves on its own for more than five seconds, beside the
-          page's controls: it can be stopped (nothing moves for a player who
-          asked for less motion, so there is nothing to stop) */}
-      {!still && (
-        <button
-          className="landing-pause hud-glass"
-          aria-label="Pause preview"
-          aria-pressed={paused}
-          onClick={() => setPaused((p) => !p)}
-        >
-          {paused ? (
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-              <path d="M4.5 2.8v10.4L13 8z" fill="currentColor" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-              <rect x="3.5" y="2.8" width="3" height="10.4" rx="0.6" fill="currentColor" />
-              <rect x="9.5" y="2.8" width="3" height="10.4" rx="0.6" fill="currentColor" />
-            </svg>
-          )}
-        </button>
-      )}
     </main>
   );
 };

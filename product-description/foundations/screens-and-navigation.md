@@ -37,7 +37,7 @@ stateDiagram-v2
 
 ## The start screen
 
-The page at `/`, a landing page: the [preview](../glossary.md#the-product-and-its-screens) (the glass tower turning slowly in its garden while a sample game plays itself on it) fills the window, with the title "3D Chess" above the tower, the "Start a game" button below it, and, under the button, room for one line: an error in red, the connection's state while a click waits for the connection, or the preview's result. A "Pause preview" button sits at the top right. The preview is only a picture: it takes no input and is not a game. The whole screen and its one request are described in [creating a game](../start/creating-a-game.md).
+The page at `/`, a landing page: the [preview](../glossary.md#the-product-and-its-screens) (the glass tower turning slowly in its garden while a sample game plays itself on it) fills the window, with the title "3D Chess" above the tower, the "Start a game" button below it, and nothing under the button: what a click waits on ("Connecting…", "Creating game…") and an error ("Try again") show in the button's own label. A "Pause preview" button sits at the top right. The preview is only a picture: it takes no input and is not a game. The whole screen and its one request are described in [creating a game](../start/creating-a-game.md).
 
 The start screen is where every route out of a game leads, and arriving at it by any route [resets the connection](connection-and-seat.md#returning-to-the-start-screen).
 
@@ -111,7 +111,7 @@ Navigation has no request of its own, but each interrupt row applies to the page
 | Pressing elsewhere or turning the view | No effect on navigation. | No effect. |
 | Leaving the game page within the app | Resets the connection on arrival at the start screen or at another game's page; see the table above. | Any request in flight is abandoned by the page, and a create or join is no longer re-sent; the server may still record it. See each feature's own table. |
 | The game ends | The end-game dialog appears over the board screen; its only way out is "Start new game". | Same. |
-| The server answers with an error | Shown on the page that is open when it arrives: in red under the button on the start screen ("Couldn't start a game: …"), in the error banner on the game page. | Same. |
+| The server answers with an error | Shown on the page that is open when it arrives: on the start screen as the button's "Try again", the message ("Couldn't start a game: …") announced and in its tooltip, in the error banner on the game page. | Same. |
 | The connection drops | The page stays where it is and shows its reconnecting indicator; the board screen stays up, and its board takes no input until the rejoin's snapshot arrives. | Same. |
 | The window loses focus or the tab is hidden | No effect; the page keeps its connection and phase. | No effect. |
 | Reload or closing the tab | Everything but the stored seat and the server's record is lost. | Same; the answer to a request in flight is lost. |
