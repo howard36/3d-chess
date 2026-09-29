@@ -21,7 +21,6 @@ import { parseTypedMove } from '../src/game/typedMove';
 import type { MoveRecord, WebSocketMessage } from '../src/types/messages';
 import {
   QUICK,
-  SAMPLE,
   flappingLog,
   liveLog,
   moveMade,
@@ -30,12 +29,11 @@ import {
   rejoinLog,
   sharedGames,
   shuffleRecords,
+  inRounds,
 } from './fixtures';
 import { emit } from './report';
 
 export let sink: unknown;
-
-const { normal, heavy, heaviest } = SAMPLE;
 
 const { decisive, casual } = sharedGames();
 const marathon = (plies: number) => shuffleRecords(plies);
@@ -151,199 +149,201 @@ emit('game', {
   },
 });
 
-describe(OPEN, () => {
-  for (const { label, records: r } of records) {
-    const log = rejoinLog(r);
-    // A record the engine refused would stop the replay early and time less work
-    const replayed = deriveHistory(log);
-    if (replayed.replayFailedAt !== null || replayed.appliedMoveCount !== r.length) {
-      throw new Error(`${label}: replay stopped at move ${replayed.replayFailedAt}`);
+inRounds(({ normal, heavy, heaviest }) => {
+  describe(OPEN, () => {
+    for (const { label, records: r } of records) {
+      const log = rejoinLog(r);
+      // A record the engine refused would stop the replay early and time less work
+      const replayed = deriveHistory(log);
+      if (replayed.replayFailedAt !== null || replayed.appliedMoveCount !== r.length) {
+        throw new Error(`${label}: replay stopped at move ${replayed.replayFailedAt}`);
+      }
+      bench(
+        label,
+        () => {
+          sink = deriveHistory(log);
+        },
+        r.length >= 1000 ? heavy : normal,
+      );
     }
-    bench(
-      label,
-      () => {
-        sink = deriveHistory(log);
-      },
-      r.length >= 1000 ? heavy : normal,
-    );
-  }
-  // Before any of that, useGameSocket parses the snapshot off the wire
-  for (const { label, records: r } of [records[1], records[4]]) {
-    const text = JSON.stringify(rejoinLog(r)[0]);
-    bench(
-      `JSON.parse of the snapshot: ${label}, ${(text.length / 1024).toFixed(0)} KiB`,
-      () => {
-        sink = JSON.parse(text);
-      },
-      normal,
-    );
-  }
-});
-
-describe(MOVE, () => {
-  const cases = [
-    { label: 'decisive game, ply 50', records: decisive.records.slice(0, 50) },
-    {
-      label: `decisive game, the mating move (ply ${decisive.records.length})`,
-      records: decisive.records,
-    },
-    { label: `casual game, ply ${casual.records.length}`, records: casual.records },
-    { label: 'marathon ⚠, ply 1,000', records: marathon(1000) },
-    { label: 'marathon ⚠, ply 3,000', records: marathon(3000) },
-  ];
-  for (const { label, records: r } of cases) {
-    const before = liveLog(r.slice(0, -1));
-    const prev = deriveHistory(before);
-    const after = [...before, moveMade(r[r.length - 1])];
-    bench(
-      label,
-      () => {
-        sink = deriveHistory(after, prev);
-      },
-      r.length >= 1000 ? heavy : normal,
-    );
-  }
-});
-
-describe(OTHER, () => {
-  const cases = [
-    {
-      label: `decisive game, live (${liveLog(decisive.records).length + 1} messages)`,
-      log: liveLog(decisive.records),
-    },
-    {
-      label: `marathon ⚠, live (${liveLog(marathon(3000)).length + 1} messages)`,
-      log: liveLog(marathon(3000)),
-    },
-    { label: `flaky opponent ⚠, 5,000 flaps (${flaky.length + 1} messages)`, log: flaky },
-  ];
-  for (const { label, log } of cases) {
-    const prev = deriveHistory(log);
-    const after = [...log, presence];
-    bench(
-      label,
-      () => {
-        const h = deriveHistory(after, prev);
-        if (h !== prev) throw new Error('memo missed');
-        sink = h;
-      },
-      normal,
-    );
-  }
-});
-
-describe(WHOLE, () => {
-  const play = (r: MoveRecord[]) => {
-    const log = liveLog([]);
-    let prev: GameHistory | null = null;
-    for (const record of r) {
-      log.push(moveMade(record));
-      prev = deriveHistory(log, prev);
+    // Before any of that, useGameSocket parses the snapshot off the wire
+    for (const { label, records: r } of [records[1], records[4]]) {
+      const text = JSON.stringify(rejoinLog(r)[0]);
+      bench(
+        `JSON.parse of the snapshot: ${label}, ${(text.length / 1024).toFixed(0)} KiB`,
+        () => {
+          sink = JSON.parse(text);
+        },
+        normal,
+      );
     }
-    return prev;
-  };
-  // (The marathon's growth shows per move in G1 and G2; replaying a whole
-  // marathon here would take seconds a sample for no more information.)
-  bench(
-    `decisive game (${decisive.records.length} plies)`,
-    () => {
-      sink = play(decisive.records);
-    },
-    heaviest,
-  );
-  bench(
-    `casual game (${casual.records.length} plies)`,
-    () => {
-      sink = play(casual.records);
-    },
-    heaviest,
-  );
-});
+  });
 
-describe(TAX, () => {
-  const cases = [
-    { label: 'decisive game, live', log: liveLog(decisive.records) },
-    { label: 'casual game, reconnecting every 10 moves', log: reconnecting },
-    { label: 'flaky opponent ⚠, 5,000 flaps', log: flaky },
-    { label: 'marathon ⚠ (3,000 plies), live', log: liveLog(marathon(3000)) },
-  ];
-  for (const { label, log } of cases) {
-    const prev = deriveHistory([...log, presence]);
+  describe(MOVE, () => {
+    const cases = [
+      { label: 'decisive game, ply 50', records: decisive.records.slice(0, 50) },
+      {
+        label: `decisive game, the mating move (ply ${decisive.records.length})`,
+        records: decisive.records,
+      },
+      { label: `casual game, ply ${casual.records.length}`, records: casual.records },
+      { label: 'marathon ⚠, ply 1,000', records: marathon(1000) },
+      { label: 'marathon ⚠, ply 3,000', records: marathon(3000) },
+    ];
+    for (const { label, records: r } of cases) {
+      const before = liveLog(r.slice(0, -1));
+      const prev = deriveHistory(before);
+      const after = [...before, moveMade(r[r.length - 1])];
+      bench(
+        label,
+        () => {
+          sink = deriveHistory(after, prev);
+        },
+        r.length >= 1000 ? heavy : normal,
+      );
+    }
+  });
+
+  describe(OTHER, () => {
+    const cases = [
+      {
+        label: `decisive game, live (${liveLog(decisive.records).length + 1} messages)`,
+        log: liveLog(decisive.records),
+      },
+      {
+        label: `marathon ⚠, live (${liveLog(marathon(3000)).length + 1} messages)`,
+        log: liveLog(marathon(3000)),
+      },
+      { label: `flaky opponent ⚠, 5,000 flaps (${flaky.length + 1} messages)`, log: flaky },
+    ];
+    for (const { label, log } of cases) {
+      const prev = deriveHistory(log);
+      const after = [...log, presence];
+      bench(
+        label,
+        () => {
+          const h = deriveHistory(after, prev);
+          if (h !== prev) throw new Error('memo missed');
+          sink = h;
+        },
+        normal,
+      );
+    }
+  });
+
+  describe(WHOLE, () => {
+    const play = (r: MoveRecord[]) => {
+      const log = liveLog([]);
+      let prev: GameHistory | null = null;
+      for (const record of r) {
+        log.push(moveMade(record));
+        prev = deriveHistory(log, prev);
+      }
+      return prev;
+    };
+    // (The marathon's growth shows per move in G1 and G2; replaying a whole
+    // marathon here would take seconds a sample for no more information.)
     bench(
-      `${label} (${log.length + 1} messages)`,
+      `decisive game (${decisive.records.length} plies)`,
       () => {
-        sink = perMessage(log, presence, prev);
+        sink = play(decisive.records);
+      },
+      heaviest,
+    );
+    bench(
+      `casual game (${casual.records.length} plies)`,
+      () => {
+        sink = play(casual.records);
+      },
+      heaviest,
+    );
+  });
+
+  describe(TAX, () => {
+    const cases = [
+      { label: 'decisive game, live', log: liveLog(decisive.records) },
+      { label: 'casual game, reconnecting every 10 moves', log: reconnecting },
+      { label: 'flaky opponent ⚠, 5,000 flaps', log: flaky },
+      { label: 'marathon ⚠ (3,000 plies), live', log: liveLog(marathon(3000)) },
+    ];
+    for (const { label, log } of cases) {
+      const prev = deriveHistory([...log, presence]);
+      bench(
+        `${label} (${log.length + 1} messages)`,
+        () => {
+          sink = perMessage(log, presence, prev);
+        },
+        normal,
+      );
+    }
+  });
+
+  describe(TYPED, () => {
+    const opening = Board.setupStartingPosition();
+    const rush = promotionRush();
+    const cases: { label: string; text: string; board: Board; options?: object }[] = [
+      { label: 'pawn step "Bb1-Cb1"', text: 'Bb1-Cb1', board: opening },
+      { label: 'knight, loose form "ab1 aa3"', text: 'ab1 aa3', board: opening },
+      { label: 'promotion "Db5-Eb5=Q"', text: 'Db5-Eb5=Q', board: rush },
+      { label: 'promotion missing its piece (error)', text: 'Db5-Eb5', board: rush },
+      { label: 'no piece there (error)', text: 'Cc3-Cc4', board: opening },
+      { label: 'illegal destination (error)', text: 'Aa1-Ee5', board: opening },
+      { label: 'not a move (error)', text: 'hello there', board: opening },
+      { label: '100,000 letters ⚠', text: 'x'.repeat(100_000), board: opening },
+    ];
+    for (const n of QUICK ? [1000, 4000] : [1000, 4000, 16_000]) {
+      cases.push({
+        label: `move + ${n.toLocaleString('en-US')} spaces + "!" ⚠`,
+        text: `Bb1-Cb1${' '.repeat(n)}!`,
+        board: opening,
+        options: n >= 16_000 ? heaviest : normal,
+      });
+    }
+    for (const { label, text, board, options } of cases) {
+      bench(
+        label,
+        () => {
+          sink = parseTypedMove(text, board, 'white');
+        },
+        options ?? normal,
+      );
+    }
+  });
+
+  describe(HUD, () => {
+    const mate = deriveHistory(rejoinLog(decisive.records));
+    const mid = deriveHistory(rejoinLog(decisive.records.slice(0, 60)));
+    bench(
+      'announce the mating move',
+      () => {
+        sink = announceLastMove(mate, 'white');
       },
       normal,
     );
-  }
-});
-
-describe(TYPED, () => {
-  const opening = Board.setupStartingPosition();
-  const rush = promotionRush();
-  const cases: { label: string; text: string; board: Board; options?: object }[] = [
-    { label: 'pawn step "Bb1-Cb1"', text: 'Bb1-Cb1', board: opening },
-    { label: 'knight, loose form "ab1 aa3"', text: 'ab1 aa3', board: opening },
-    { label: 'promotion "Db5-Eb5=Q"', text: 'Db5-Eb5=Q', board: rush },
-    { label: 'promotion missing its piece (error)', text: 'Db5-Eb5', board: rush },
-    { label: 'no piece there (error)', text: 'Cc3-Cc4', board: opening },
-    { label: 'illegal destination (error)', text: 'Aa1-Ee5', board: opening },
-    { label: 'not a move (error)', text: 'hello there', board: opening },
-    { label: '100,000 letters ⚠', text: 'x'.repeat(100_000), board: opening },
-  ];
-  for (const n of QUICK ? [1000, 4000] : [1000, 4000, 16_000]) {
-    cases.push({
-      label: `move + ${n.toLocaleString('en-US')} spaces + "!" ⚠`,
-      text: `Bb1-Cb1${' '.repeat(n)}!`,
-      board: opening,
-      options: n >= 16_000 ? heaviest : normal,
-    });
-  }
-  for (const { label, text, board, options } of cases) {
     bench(
-      label,
+      'announce a middlegame capture (ply 60)',
       () => {
-        sink = parseTypedMove(text, board, 'white');
+        sink = announceLastMove(mid, 'black');
       },
-      options ?? normal,
+      normal,
     );
-  }
-});
-
-describe(HUD, () => {
-  const mate = deriveHistory(rejoinLog(decisive.records));
-  const mid = deriveHistory(rejoinLog(decisive.records.slice(0, 60)));
-  bench(
-    'announce the mating move',
-    () => {
-      sink = announceLastMove(mate, 'white');
-    },
-    normal,
-  );
-  bench(
-    'announce a middlegame capture (ply 60)',
-    () => {
-      sink = announceLastMove(mid, 'black');
-    },
-    normal,
-  );
-  bench(
-    'describe the last move only',
-    () => {
-      sink = describeLastMove(mid);
-    },
-    normal,
-  );
-  bench(
-    'captured-pieces row, both sides (ply 60)',
-    () => {
-      const lead = materialLead(mid.board, 'white');
-      sink = [
-        describeTaken(groupTaken(mid.captured.white), lead, 'you'),
-        describeTaken(groupTaken(mid.captured.black), -lead, 'opponent'),
-      ];
-    },
-    normal,
-  );
+    bench(
+      'describe the last move only',
+      () => {
+        sink = describeLastMove(mid);
+      },
+      normal,
+    );
+    bench(
+      'captured-pieces row, both sides (ply 60)',
+      () => {
+        const lead = materialLead(mid.board, 'white');
+        sink = [
+          describeTaken(groupTaken(mid.captured.white), lead, 'you'),
+          describeTaken(groupTaken(mid.captured.black), -lead, 'opponent'),
+        ];
+      },
+      normal,
+    );
+  });
 });

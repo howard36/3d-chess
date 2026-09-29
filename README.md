@@ -512,7 +512,10 @@ one machine; the report records the machine, the commit and each tier's run time
 
 To measure a change, copy the last run's raw output (`cp -r bench/out /tmp/base`), change
 the code, and rerun with `--compare /tmp/base`: every table gains a "vs baseline" column and
-the report opens with what got better or worse beyond the noise. While iterating, run one
+the report opens with what got better or worse beyond the noise. Each client case runs in
+three rounds and starts from a collected heap; its "Run-to-run" spread is the noise a change
+must beat to count (the server and browser tiers get one with `--repeat 3`, at three times
+their run time; measured once, they only resolve changes of about 30% on a shared VM). While iterating, run one
 tier (`--only client`) or one file or case directly (`npx vitest bench --config
 vitest.bench.config.ts bench/engine.bench.ts -t E4`; the server and browser scripts take
 `--only <section>`). The client fixtures' games are chosen in a fixed move order and

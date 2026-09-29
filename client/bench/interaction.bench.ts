@@ -30,12 +30,10 @@ import { layout, PIECE_SCALE } from '../src/three/scene/palette';
 import { resolveTap } from '../src/three/tapAssist';
 import type { ScreenPoint, TapTarget } from '../src/three/tapAssist';
 import type { Vec3 } from '../src/three/types';
-import { SAMPLE, busiestPiece, queenStorm, seeded } from './fixtures';
+import { busiestPiece, queenStorm, seeded, inRounds } from './fixtures';
 import { emit } from './report';
 
 export let sink: unknown;
-
-const { normal } = SAMPLE;
 
 const FOV = 36; // GameScreen's camera
 const DEG = Math.PI / 180;
@@ -201,182 +199,184 @@ emit('interaction', {
   },
 });
 
-describe(HOVER, () => {
-  const camera = openingCamera(...desktop);
-  const raycaster = new Raycaster();
-  const points: Vector2[] = [];
-  for (let i = 0; i < 20; i++)
-    for (let j = 0; j < 20; j++)
-      points.push(new Vector2(-1 + (2 * i + 1) / 20, -1 + (2 * j + 1) / 20));
-  const cases = [
-    { label: 'opening, 40 pieces', scene: sceneOf(opening), destinations: new Set<string>() },
-    {
-      label: 'queen storm ⚠, a queen held (37 destinations)',
-      scene: sceneOf(storm),
-      destinations: new Set(
-        storm.generateLegalMoves(busiestPiece(storm, 'white').at).map((m) => toZXY(m.to)),
-      ),
-    },
-  ];
-  for (const { label, scene, destinations } of cases) {
+inRounds(({ normal }) => {
+  describe(HOVER, () => {
+    const camera = openingCamera(...desktop);
+    const raycaster = new Raycaster();
+    const points: Vector2[] = [];
+    for (let i = 0; i < 20; i++)
+      for (let j = 0; j < 20; j++)
+        points.push(new Vector2(-1 + (2 * i + 1) / 20, -1 + (2 * j + 1) / 20));
+    const cases = [
+      { label: 'opening, 40 pieces', scene: sceneOf(opening), destinations: new Set<string>() },
+      {
+        label: 'queen storm ⚠, a queen held (37 destinations)',
+        scene: sceneOf(storm),
+        destinations: new Set(
+          storm.generateLegalMoves(busiestPiece(storm, 'white').at).map((m) => toZXY(m.to)),
+        ),
+      },
+    ];
+    for (const { label, scene, destinations } of cases) {
+      let i = 0;
+      bench(
+        label,
+        () => {
+          raycaster.setFromCamera(points[i++ % points.length], camera);
+          sink = probe(scene, raycaster, destinations);
+        },
+        normal,
+      );
+    }
+    // A ray parallel to the platforms, and one from under the tower looking down the axis
+    const flat = new Raycaster(new Vector3(-20, 0.3, 0), new Vector3(1, 0, 0));
+    const below = new Raycaster(new Vector3(0.1, -30, 0.1), new Vector3(0, 1, 0));
+    const scene = sceneOf(opening);
+    bench(
+      'ray parallel to the platforms ⚠',
+      () => {
+        sink = probe(scene, flat, new Set());
+      },
+      normal,
+    );
+    bench(
+      'ray up the tower’s axis from below ⚠',
+      () => {
+        sink = probe(scene, below, new Set());
+      },
+      normal,
+    );
+  });
+
+  describe(TAP, () => {
+    const camera = openingCamera(...phone);
+    const own = (board: Board) =>
+      CELLS.filter((c) => board.getPiece(c)?.color === 'white').map((c: Coord) => toZXY(c));
+    const rand = seeded(3);
+    const taps: ScreenPoint[] = Array.from({ length: 64 }, () => [
+      rand() * phone[0],
+      rand() * phone[1],
+    ]);
+    const openingScene = sceneOf(opening);
+    const stormScene = sceneOf(storm);
+    const held = busiestPiece(storm, 'white');
+    const stormDestinations = storm.generateLegalMoves(held.at).map((m) => toZXY(m.to));
     let i = 0;
     bench(
-      label,
+      'opening: 20 own pieces',
       () => {
-        raycaster.setFromCamera(points[i++ % points.length], camera);
-        sink = probe(scene, raycaster, destinations);
+        sink = assist(openingScene, camera, phone, taps[i++ % taps.length], own(opening), []);
       },
       normal,
     );
-  }
-  // A ray parallel to the platforms, and one from under the tower looking down the axis
-  const flat = new Raycaster(new Vector3(-20, 0.3, 0), new Vector3(1, 0, 0));
-  const below = new Raycaster(new Vector3(0.1, -30, 0.1), new Vector3(0, 1, 0));
-  const scene = sceneOf(opening);
-  bench(
-    'ray parallel to the platforms ⚠',
-    () => {
-      sink = probe(scene, flat, new Set());
-    },
-    normal,
-  );
-  bench(
-    'ray up the tower’s axis from below ⚠',
-    () => {
-      sink = probe(scene, below, new Set());
-    },
-    normal,
-  );
-});
+    bench(
+      `queen storm ⚠: a queen held, 9 pieces + ${stormDestinations.length} destinations`,
+      () => {
+        sink = assist(
+          stormScene,
+          camera,
+          phone,
+          taps[i++ % taps.length],
+          own(storm),
+          stormDestinations,
+        );
+      },
+      normal,
+    );
+    // Degenerate outlines straight into resolveTap: every point on one line, or all the same point
+    const line: TapTarget[] = Array.from({ length: 125 }, (_, k) => ({
+      id: String(k),
+      kind: 'piece',
+      outline: Array.from({ length: 200 }, (_, p): ScreenPoint => [k * 3 + p * 0.01, k * 7]),
+    }));
+    const dots: TapTarget[] = Array.from({ length: 125 }, (_, k) => ({
+      id: String(k),
+      kind: 'piece',
+      outline: Array.from({ length: 200 }, (): ScreenPoint => [k * 3, k * 7]),
+    }));
+    bench(
+      'degenerate ⚠: 125 targets, 200 collinear points each',
+      () => {
+        sink = resolveTap([100, 200], line);
+      },
+      normal,
+    );
+    bench(
+      'degenerate ⚠: 125 targets, 200 coincident points each',
+      () => {
+        sink = resolveTap([100, 200], dots);
+      },
+      normal,
+    );
+  });
 
-describe(TAP, () => {
-  const camera = openingCamera(...phone);
-  const own = (board: Board) =>
-    CELLS.filter((c) => board.getPiece(c)?.color === 'white').map((c: Coord) => toZXY(c));
-  const rand = seeded(3);
-  const taps: ScreenPoint[] = Array.from({ length: 64 }, () => [
-    rand() * phone[0],
-    rand() * phone[1],
-  ]);
-  const openingScene = sceneOf(opening);
-  const stormScene = sceneOf(storm);
-  const held = busiestPiece(storm, 'white');
-  const stormDestinations = storm.generateLegalMoves(held.at).map((m) => toZXY(m.to));
-  let i = 0;
-  bench(
-    'opening: 20 own pieces',
-    () => {
-      sink = assist(openingScene, camera, phone, taps[i++ % taps.length], own(opening), []);
-    },
-    normal,
-  );
-  bench(
-    `queen storm ⚠: a queen held, 9 pieces + ${stormDestinations.length} destinations`,
-    () => {
-      sink = assist(
-        stormScene,
-        camera,
-        phone,
-        taps[i++ % taps.length],
-        own(storm),
-        stormDestinations,
+  describe(LABELS, () => {
+    const at = (azimuth: number, elevation: number, distance = 18): Vec3 => [
+      Math.sin(azimuth) * Math.cos(elevation) * distance,
+      Math.sin(elevation) * distance,
+      Math.cos(azimuth) * Math.cos(elevation) * distance,
+    ];
+    const paths: { label: string; poses: Vec3[] }[] = [
+      {
+        label: 'orbit: 360° at 18° (the opening elevation)',
+        poses: Array.from({ length: 720 }, (_, k) => at(k * 0.5 * DEG, 18 * DEG)),
+      },
+      {
+        label: 'climb: -14° to 89.9° and back',
+        poses: Array.from({ length: 400 }, (_, k) => {
+          const t = k < 200 ? k / 199 : (399 - k) / 199;
+          return at(30 * DEG, MathUtils.lerp(-14, 89.9, t) * DEG);
+        }),
+      },
+      {
+        label: 'jitter ⚠: across the hysteresis bands every frame',
+        poses: Array.from({ length: 400 }, (_, k) =>
+          at((45 + (k % 2 ? 6 : -6)) * DEG, (k % 4 < 2 ? 40 : 60) * DEG),
+        ),
+      },
+      {
+        label: 'straight down ⚠ (89.99°)',
+        poses: Array.from({ length: 360 }, (_, k) => at(k * DEG, 89.99 * DEG)),
+      },
+    ];
+    for (const { label, poses } of paths) {
+      let state: AnchorState | null = null;
+      let k = 0;
+      bench(
+        label,
+        () => {
+          const out = labelAnchors(layout, 'white', poses[k++ % poses.length], [0, 0, 0], state);
+          state = out.state;
+          sink = out.labels;
+        },
+        normal,
       );
-    },
-    normal,
-  );
-  // Degenerate outlines straight into resolveTap: every point on one line, or all the same point
-  const line: TapTarget[] = Array.from({ length: 125 }, (_, k) => ({
-    id: String(k),
-    kind: 'piece',
-    outline: Array.from({ length: 200 }, (_, p): ScreenPoint => [k * 3 + p * 0.01, k * 7]),
-  }));
-  const dots: TapTarget[] = Array.from({ length: 125 }, (_, k) => ({
-    id: String(k),
-    kind: 'piece',
-    outline: Array.from({ length: 200 }, (): ScreenPoint => [k * 3, k * 7]),
-  }));
-  bench(
-    'degenerate ⚠: 125 targets, 200 collinear points each',
-    () => {
-      sink = resolveTap([100, 200], line);
-    },
-    normal,
-  );
-  bench(
-    'degenerate ⚠: 125 targets, 200 coincident points each',
-    () => {
-      sink = resolveTap([100, 200], dots);
-    },
-    normal,
-  );
-});
+    }
+  });
 
-describe(LABELS, () => {
-  const at = (azimuth: number, elevation: number, distance = 18): Vec3 => [
-    Math.sin(azimuth) * Math.cos(elevation) * distance,
-    Math.sin(elevation) * distance,
-    Math.cos(azimuth) * Math.cos(elevation) * distance,
-  ];
-  const paths: { label: string; poses: Vec3[] }[] = [
-    {
-      label: 'orbit: 360° at 18° (the opening elevation)',
-      poses: Array.from({ length: 720 }, (_, k) => at(k * 0.5 * DEG, 18 * DEG)),
-    },
-    {
-      label: 'climb: -14° to 89.9° and back',
-      poses: Array.from({ length: 400 }, (_, k) => {
-        const t = k < 200 ? k / 199 : (399 - k) / 199;
-        return at(30 * DEG, MathUtils.lerp(-14, 89.9, t) * DEG);
-      }),
-    },
-    {
-      label: 'jitter ⚠: across the hysteresis bands every frame',
-      poses: Array.from({ length: 400 }, (_, k) =>
-        at((45 + (k % 2 ? 6 : -6)) * DEG, (k % 4 < 2 ? 40 : 60) * DEG),
-      ),
-    },
-    {
-      label: 'straight down ⚠ (89.99°)',
-      poses: Array.from({ length: 360 }, (_, k) => at(k * DEG, 89.99 * DEG)),
-    },
-  ];
-  for (const { label, poses } of paths) {
-    let state: AnchorState | null = null;
-    let k = 0;
-    bench(
-      label,
-      () => {
-        const out = labelAnchors(layout, 'white', poses[k++ % poses.length], [0, 0, 0], state);
-        state = out.state;
-        sink = out.labels;
-      },
-      normal,
-    );
-  }
-});
-
-describe(FIT, () => {
-  const windows: { label: string; size: [number, number] }[] = [
-    { label: 'desktop 1280×800', size: [1280, 800] },
-    { label: 'desktop 1920×1080', size: [1920, 1080] },
-    { label: 'phone upright 390×844', size: [390, 844] },
-    { label: 'phone on its side 844×390', size: [844, 390] },
-    { label: '4K 3840×2160', size: [3840, 2160] },
-    { label: 'strip ⚠ 5000×120', size: [5000, 120] },
-    { label: 'sliver ⚠ 120×5000', size: [120, 5000] },
-    { label: 'a single pixel ⚠ 1×1', size: [1, 1] },
-  ];
-  const elevation = Math.asin(new Vector3(...layout.viewDirection).normalize().y);
-  for (const { label, size } of windows) {
-    const view = { width: size[0], height: size[1], fov: FOV, topInset: hudTop(size[1]) };
-    const { distance, shift } = fitView(elevation, layout.frameRings, view);
-    const fitted = Number.isFinite(distance) ? distance.toFixed(1) : String(distance);
-    bench(
-      `${label} → distance ${fitted}, shift ${shift[1].toFixed(3)}`,
-      () => {
-        sink = fitView(elevation, layout.frameRings, view);
-      },
-      normal,
-    );
-  }
+  describe(FIT, () => {
+    const windows: { label: string; size: [number, number] }[] = [
+      { label: 'desktop 1280×800', size: [1280, 800] },
+      { label: 'desktop 1920×1080', size: [1920, 1080] },
+      { label: 'phone upright 390×844', size: [390, 844] },
+      { label: 'phone on its side 844×390', size: [844, 390] },
+      { label: '4K 3840×2160', size: [3840, 2160] },
+      { label: 'strip ⚠ 5000×120', size: [5000, 120] },
+      { label: 'sliver ⚠ 120×5000', size: [120, 5000] },
+      { label: 'a single pixel ⚠ 1×1', size: [1, 1] },
+    ];
+    const elevation = Math.asin(new Vector3(...layout.viewDirection).normalize().y);
+    for (const { label, size } of windows) {
+      const view = { width: size[0], height: size[1], fov: FOV, topInset: hudTop(size[1]) };
+      const { distance, shift } = fitView(elevation, layout.frameRings, view);
+      const fitted = Number.isFinite(distance) ? distance.toFixed(1) : String(distance);
+      bench(
+        `${label} → distance ${fitted}, shift ${shift[1].toFixed(3)}`,
+        () => {
+          sink = fitView(elevation, layout.frameRings, view);
+        },
+        normal,
+      );
+    }
+  });
 });

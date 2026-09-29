@@ -23,6 +23,8 @@ export interface Metric {
   value: number;
   unit: 'ms' | 'per_s' | 'bytes' | 'fps';
   better: 'lower' | 'higher';
+  /** The row's own noise: its repetitions' range as a percentage of the value. */
+  spread?: number;
 }
 
 export interface Sidecar {

@@ -143,10 +143,15 @@ const perType: Table = {
 };
 // Compared across runs by the warm build + bake (the cold numbers carry the
 // machine's startup noise)
+// Each warm repetition's build + bake, per type: their range is the row's
+// own noise, which --compare judges a change against
+const perRep = (t: string) => warmBake[t].map((bake, i) => warmBuild.medium[t][i] + bake);
+const spreadOf = (xs: number[]) => ((Math.max(...xs) - Math.min(...xs)) / med(xs)) * 100;
 perType.metrics = TYPES.map((t) => ({
   value: med(warmBuild.medium[t]) + med(warmBake[t]),
   unit: 'ms' as const,
   better: 'lower' as const,
+  spread: spreadOf(perRep(t)),
 }));
 const coldTotals = Array.from({ length: coldRuns }, (_, run) =>
   sum(TYPES.map((t) => cold[t].build[run] + cold[t].bake[run])),
@@ -163,6 +168,7 @@ perType.metrics.push({
   value: sum(TYPES.map((t) => med(warmBuild.medium[t]) + med(warmBake[t]))),
   unit: 'ms',
   better: 'lower',
+  spread: spreadOf(warmBake[TYPES[0]].map((_, i) => sum(TYPES.map((t) => perRep(t)[i])))),
 });
 
 const qualities: Table = {

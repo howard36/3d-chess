@@ -2,7 +2,8 @@
 // Runs the benchmark suite and writes its report as Markdown.
 //
 //   node bench/run.mjs [--quick] [--only client,server,browser] [--out bench/RESULTS.md]
-//                      [--compare <dir>] [--from <dir>]
+//                      [--compare <dir>] [--from <dir>] [--rounds N]
+//                      [--repeat N] [--files engine,game] [--grep <case name pattern>]
 //
 // Three tiers, run one after another so none times the others' load:
 //
@@ -24,6 +25,16 @@
 // somewhere (cp -r bench/out /tmp/base) before changing the code, then run
 // with --compare /tmp/base. A change inside the noise band is shown but not
 // called better or worse.
+//
+// The client benches run in --rounds rounds (default 3; 1 with --quick):
+// every case, then every case again, each round sampling its share of the
+// same time budget. Each case reports the median of its rounds and their
+// spread, so a hiccup of a shared machine spoils one round, not the result,
+// and --compare judges each case against its own measured noise.
+// --repeat N runs the server and browser tiers N times (default once: they
+// take minutes) and keeps each row's median and spread, as the rounds do.
+// --files and --grep narrow the client tier to some bench files or cases
+// (vitest's file filter and -t), for iterating on one thing quickly.
 //
 // --from <dir> runs nothing: it renders the report from a run's raw output
 // already on disk (bench/out, or a copy), e.g. to compare two saved runs.
@@ -49,6 +60,13 @@ const ONLY = option('--only', 'client,server,browser').split(',');
 const REPORT = resolve(option('--out', join(ROOT, 'bench', 'RESULTS.md')));
 const COMPARE = option('--compare', null);
 const FROM = option('--from', null);
+const ROUNDS = Math.max(1, Number(option('--rounds', QUICK ? '1' : '3')) || 1);
+const FILES = option('--files', '')
+  .split(',')
+  .filter(Boolean)
+  .map((f) => `bench/${f}.bench.ts`);
+const GREP = option('--grep', null);
+const REPEAT = Math.max(1, Number(option('--repeat', '1')) || 1);
 
 // --- Running the tiers ---------------------------------------------------------
 
@@ -116,30 +134,101 @@ function loadRun(dir) {
   return { info, results };
 }
 
+const median = (xs) => {
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+};
+
+/**
+ * vitest's JSON with each case registered once per round (inRounds in
+ * client/bench/fixtures.ts), merged case by case: the median of the rounds'
+ * medians (and of their means, p99s, rates and margins), the samples summed,
+ * and `spread`, the rounds' range as a percentage of the median.
+ */
+function mergeRounds(vitest) {
+  return {
+    ...vitest,
+    files: vitest.files.map((file) => {
+      const cases = new Map();
+      for (const group of file.groups) {
+        for (const bench of group.benchmarks) {
+          const key = `${group.fullName}\u0000${bench.name}`;
+          if (!cases.has(key)) cases.set(key, { fullName: group.fullName, runs: [] });
+          cases.get(key).runs.push(bench);
+        }
+      }
+      const groups = new Map();
+      for (const { fullName, runs } of cases.values()) {
+        const pick = (key) => median(runs.map((b) => b[key]));
+        const medians = runs.map((b) => b.median);
+        if (!groups.has(fullName)) groups.set(fullName, { fullName, benchmarks: [] });
+        groups.get(fullName).benchmarks.push({
+          ...runs[0],
+          median: pick('median'),
+          mean: pick('mean'),
+          p99: pick('p99'),
+          hz: pick('hz'),
+          rme: pick('rme'),
+          sampleCount: runs.reduce((n, b) => n + b.sampleCount, 0),
+          roundMedians: medians,
+          spread:
+            medians.length > 1
+              ? ((Math.max(...medians) - Math.min(...medians)) / pick('median')) * 100
+              : null,
+        });
+      }
+      return { ...file, groups: [...groups.values()] };
+    }),
+  };
+}
+
 function runClient() {
   const meta = join(OUT_DIR, 'client-meta');
   rmSync(meta, { recursive: true, force: true });
-  const env = { BENCH_META_DIR: meta, ...(QUICK ? { BENCH_QUICK: '1' } : {}) };
+  const env = {
+    BENCH_META_DIR: meta,
+    BENCH_ROUNDS: String(ROUNDS),
+    ...(QUICK ? { BENCH_QUICK: '1' } : {}),
+  };
   const vitestJson = join(OUT_DIR, 'client-vitest.json');
-  const benches = run(
-    'client benches',
-    'npx',
-    ['vitest', 'bench', '--run', '--config', 'vitest.bench.config.ts', '--outputJson', vitestJson],
-    { cwd: CLIENT, env },
-  );
-  const startup = run(
-    'client startup',
-    process.execPath,
-    ['--expose-gc', 'node_modules/vite-node/vite-node.mjs', 'bench/startup.ts'],
-    {
-      cwd: CLIENT,
-      env,
-    },
-  );
+  const rawJson = join(OUT_DIR, 'client-vitest.rounds.json');
+  rmSync(rawJson, { force: true });
+  const steps = [
+    run(
+      `client benches (${ROUNDS} round${ROUNDS > 1 ? 's' : ''})`,
+      'npx',
+      [
+        'vitest',
+        'bench',
+        '--run',
+        '--config',
+        'vitest.bench.config.ts',
+        '--outputJson',
+        rawJson,
+        ...FILES,
+        ...(GREP ? ['-t', GREP] : []),
+      ],
+      { cwd: CLIENT, env },
+    ),
+  ];
+  const raw = readJson(rawJson);
+  if (raw) writeFileSync(vitestJson, JSON.stringify(mergeRounds(raw)));
+  // The startup script repeats its own measurements (cold processes, warm reps);
+  // skipped when the tier is narrowed to some files or cases
+  if (!FILES.length && !GREP) {
+    steps.push(
+      run(
+        'client startup',
+        process.execPath,
+        ['--expose-gc', 'node_modules/vite-node/vite-node.mjs', 'bench/startup.ts'],
+        { cwd: CLIENT, env },
+      ),
+    );
+  }
   return {
-    ok: benches.ok && startup.ok,
-    seconds: benches.seconds + startup.seconds,
-    tail: [benches, startup]
+    ok: steps.every((r) => r.ok),
+    seconds: steps.reduce((t, r) => t + r.seconds, 0),
+    tail: steps
       .filter((r) => !r.ok)
       .map((r) => r.tail)
       .join('\n'),
@@ -148,37 +237,94 @@ function runClient() {
   };
 }
 
-function runServer() {
-  const out = join(OUT_DIR, 'server.json');
+/**
+ * Several runs of a tier that reports keyed per-row metrics (server,
+ * browser), merged row by row: each row shows the run whose metric is that
+ * row's median, and the metric gains `spread`, the runs' range as a
+ * percentage of the median. Findings and meta come from the first run.
+ */
+function mergeRepeats(runs) {
+  if (runs.length < 2) return runs[0] ?? null;
+  const merged = structuredClone(runs[0]);
+  for (const section of merged.sections) {
+    const others = runs.map((r) => r.sections.find((s) => s.title === section.title));
+    section.metrics?.forEach((metric, i) => {
+      if (!metric) return;
+      const found = others
+        .map((s) => {
+          const j = s?.metrics?.findIndex((m) => m?.key === metric.key) ?? -1;
+          return j >= 0 ? { row: s.rows[j], metric: s.metrics[j] } : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.metric.value - b.metric.value);
+      const mid = found[(found.length - 1) >> 1];
+      const values = found.map((f) => f.metric.value);
+      const value = median(values);
+      section.rows[i] = mid.row;
+      section.metrics[i] = {
+        ...mid.metric,
+        value,
+        spread: value ? ((Math.max(...values) - Math.min(...values)) / Math.abs(value)) * 100 : 0,
+      };
+    });
+  }
+  merged.raw = { ...merged.raw, repeats: runs.length };
+  return merged;
+}
+
+/** Runs a tier REPEAT times into `<name>.json` (merged), keeping each run's output beside it. */
+function runRepeated(tier, cmd, argsFor, cwd) {
+  const out = join(OUT_DIR, `${tier}.json`);
   rmSync(out, { force: true });
-  const res = run(
+  const steps = [];
+  const datas = [];
+  for (let i = 1; i <= REPEAT; i++) {
+    const each = REPEAT > 1 ? join(OUT_DIR, `${tier}.run${i}.json`) : out;
+    rmSync(each, { force: true });
+    const label = REPEAT > 1 ? `${tier}, run ${i} of ${REPEAT}` : tier;
+    steps.push(run(label, cmd, argsFor(each), { cwd }));
+    const data = readJson(each);
+    if (data) datas.push(data);
+  }
+  const data = mergeRepeats(datas);
+  if (data && REPEAT > 1) writeFileSync(out, JSON.stringify(data, null, 2));
+  return {
+    ok: steps.every((r) => r.ok),
+    seconds: steps.reduce((t, r) => t + r.seconds, 0),
+    tail: steps
+      .filter((r) => !r.ok)
+      .map((r) => r.tail)
+      .join('\n'),
+    data,
+  };
+}
+
+function runServer() {
+  const script = 'server/bench/bench_server.py';
+  return runRepeated(
     'server',
     'uv',
-    [
+    (out) => [
       'run',
       '--project',
       'server',
       'python',
-      'server/bench/bench_server.py',
+      script,
       '--out',
       out,
       ...(QUICK ? ['--quick'] : []),
     ],
-    { cwd: ROOT },
+    ROOT,
   );
-  return { ...res, data: readJson(out) };
 }
 
 function runBrowser() {
-  const out = join(OUT_DIR, 'browser.json');
-  rmSync(out, { force: true });
-  const res = run(
+  return runRepeated(
     'browser',
     'node',
-    ['scripts/bench-browser.mjs', '--out', out, ...(QUICK ? ['--quick'] : [])],
-    { cwd: CLIENT },
+    (out) => ['scripts/bench-browser.mjs', '--out', out, ...(QUICK ? ['--quick'] : [])],
+    CLIENT,
   );
-  return { ...res, data: readJson(out) };
 }
 
 // --- Formatting ------------------------------------------------------------------
@@ -250,8 +396,13 @@ const noted = (tier, where, what, cmp) => {
   return cmp ? cmp.text : 'new';
 };
 
-/** Noise bands (percent) for sections that carry `metrics`: loopback and a software renderer are noisier. */
-const BAND = { server: 10, browser: 15, startup: 10 };
+/**
+ * Noise bands (percent) for a single run of the tiers that carry `metrics`,
+ * where nothing measured the row's own noise: from A/A tests (identical code
+ * run twice) on a shared 4-core VM, whose server and browser rows moved by up
+ * to 25-50% at the 95th percentile. With --repeat each row brings its spread.
+ */
+const BAND = { server: 30, browser: 30, startup: 10 };
 
 /**
  * A pre-formatted section (server, browser, startup tables) with a
@@ -276,7 +427,10 @@ function withBaseline(tier, s, baseSections) {
       const key = keyOf(row, m);
       const b = then.get(key);
       if (!b) return [...row, 'new'];
-      const band = BAND[tier] ?? 10;
+      const band =
+        m.spread != null && b.spread != null
+          ? Math.max(5, m.spread, b.spread)
+          : Math.max(BAND[tier] ?? 10, m.spread ?? 0, b.spread ?? 0);
       return [...row, noted(tier, s.title, key, compareMetric(m.value, b.value, m.better, band))];
     }),
   };
@@ -305,12 +459,16 @@ function benchSection(g, intro, workload, baseline) {
       duration(b.p99),
       rate(b.hz),
       String(b.sampleCount),
+      b.spread == null ? '' : `${b.spread.toFixed(b.spread >= 10 ? 0 : 1)}%`,
     ];
     if (!baseline) return row;
     const then = baseline.get(`${g.group} > ${b.name}`);
     if (!then) return [...row, 'new'];
-    // The medians' noise: at least 5%, more where the samples scatter (few-sample cases)
-    const band = Math.min(Math.max((b.rme + then.rme) / 2, 5), 20);
+    // A change counts only beyond the larger of the two runs' round-to-round
+    // spreads, and 5% (an A/A test, identical code twice, flagged about 1% of
+    // cases this way on a shared VM). Without rounds nothing measures that
+    // noise, and within-run statistics understate it badly: assume 15%.
+    const band = Math.max(5, b.spread ?? 15, then.spread ?? 15);
     return [
       ...row,
       noted('client', g.group, b.name, compareMetric(b.median, then.median, 'lower', band)),
@@ -327,9 +485,10 @@ function benchSection(g, intro, workload, baseline) {
         'p99',
         'Throughput',
         'Samples',
+        'Run-to-run',
         ...(baseline ? ['vs baseline'] : []),
       ],
-      align: ['l', 'r', 'r', 'r', 'r', 'r', 'r'],
+      align: ['l', 'r', 'r', 'r', 'r', 'r', 'r', 'r'],
       rows,
     }),
   ];
@@ -606,8 +765,10 @@ if (BASELINE) {
         ? `, run ${String(was.started).slice(0, 16).replace('T', ' ')} UTC at ${was.env?.Commit ?? '?'}`
         : '') +
       (was?.quick ? ' (**a quick run: too few samples to compare against**)' : '') +
-      '. A change is called better or worse only outside its noise band (client: the cases\u2019 own ' +
-      'spread, at least 5%; server 10%; browser 15%); the tables show every change.',
+      '. A change is called better or worse only beyond its noise: the larger of the two runs\u2019 ' +
+      'round-to-round (or repeat-to-repeat) spread for that row, and at least 5%; for a row measured ' +
+      'once, 15% (client), 10% (startup) or 30% (server, browser), from A/A tests on a shared VM. ' +
+      'The tables show every change.',
   ];
   if (changes.length === 0) {
     lines.push('Nothing moved beyond its noise band.');
@@ -631,11 +792,17 @@ md.push('## Method');
 md.push(
   [
     'Each tier runs alone, one after another, on an otherwise idle machine; the numbers are only ' +
-      'comparable between runs on the same machine. A shared cloud VM like the one above is noisy: ' +
-      'read the median, and treat differences under ~10% (or inside the RME) as noise.',
-    'Client microbenchmarks: tinybench via `vitest bench` in Node (no jsdom), each case warmed up ' +
-      'then sampled for 0.3 s and at least 20 calls (cases of 20\u2013400 ms: 0.8 s and at least 6; ' +
-      'whole-game replays: 3 calls; `SAMPLE` in `client/bench/fixtures.ts`). *Median* and *p99* ' +
+      'comparable between runs on the same machine. A shared cloud VM like the one above is noisy in ' +
+      'a way no single run can see: A/A tests (identical code run twice) moved single-run medians by ' +
+      'up to 30\u201370% for a few cases while most stayed within 3%. So the client tier runs each case ' +
+      'in rounds and reports their spread, and `--compare` calls a change real only beyond that spread ' +
+      '(and 5%); with that rule, identical runs flagged about 1\u20135% of cases.',
+    'Client microbenchmarks: tinybench via `vitest bench` in Node (no jsdom), each case warmed up, ' +
+      'started from a freshly collected heap, then sampled for 0.3 s and at least 20 calls in all ' +
+      '(cases of 20\u2013400 ms: 0.8 s and at least 6; whole-game replays: 3 calls; `SAMPLE` in ' +
+      '`client/bench/fixtures.ts`), split over three rounds a pass of the whole file apart. *Median* ' +
+      'is the median of the rounds\u2019 medians and *Run-to-run* their range: how far this case moves ' +
+      'between identical runs on this machine, the noise a comparison has to beat. *Median* and *p99* ' +
       'are per call; *Mean ± RME* is the mean with its relative margin of error at 95%; *Throughput* is ' +
       'calls per second. Results are kept alive in a module-level sink so the JIT cannot skip the work.',
     'The seeded games choose among the legal moves in a fixed order of their own, so an optimisation ' +

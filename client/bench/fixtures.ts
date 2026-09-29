@@ -394,7 +394,28 @@ export const QUICK = process.env.BENCH_QUICK === '1';
  */
 const setup = () => (globalThis as { gc?: () => void }).gc?.();
 
-export const SAMPLE = QUICK
+/**
+ * bench/run.mjs runs the client benches in several rounds (inRounds) and
+ * reports each case's median over them; each round samples its share of the
+ * time budget, so the total stays the same.
+ */
+export const ROUNDS = Math.max(1, Number(process.env.BENCH_ROUNDS) || 1);
+
+/**
+ * Registers a file's cases once per round: all of them, then all of them
+ * again, so each case's rounds are the length of a pass apart, and a hiccup
+ * of the machine spoils one round. bench/run.mjs merges the rounds.
+ */
+export const inRounds = (register: (sample: typeof SAMPLE) => void) => {
+  for (let round = 0; round < ROUNDS; round++) register(round === 0 ? SAMPLE : WARM);
+};
+const share = <T extends { time: number; iterations: number }>(o: T): T => ({
+  ...o,
+  time: Math.round(o.time / ROUNDS),
+  iterations: Math.max(1, Math.round(o.iterations / ROUNDS)),
+});
+
+const BUDGET = QUICK
   ? {
       normal: { time: 40, iterations: 3, warmupTime: 10, warmupIterations: 1, setup },
       heavy: { time: 0, iterations: 2, warmupTime: 0, warmupIterations: 1, setup },
@@ -408,6 +429,20 @@ export const SAMPLE = QUICK
       // around a second a call
       heaviest: { time: 0, iterations: 3, warmupTime: 0, warmupIterations: 1, setup },
     };
+
+export const SAMPLE = {
+  normal: share(BUDGET.normal),
+  heavy: share(BUDGET.heavy),
+  heaviest: share(BUDGET.heaviest),
+};
+
+/** Later rounds run in the same, already compiled process: one call settles a case. */
+const warm = <T extends object>(o: T) => ({ ...o, warmupTime: 0, warmupIterations: 1 });
+const WARM = {
+  normal: warm(SAMPLE.normal),
+  heavy: warm(SAMPLE.heavy),
+  heaviest: warm(SAMPLE.heaviest),
+};
 
 // --- The catalogue the engine benches run over -----------------------------------
 
