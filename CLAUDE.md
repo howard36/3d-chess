@@ -40,11 +40,19 @@ Client code imports wire types from `client/src/types/messages.ts` (hand-written
 - Three coordinate systems: engine 0-indexed `(x,y,z)`, wire/display strings like `Aa1`, and the Three.js scene. Conversions live in `client/src/engine/coords.ts`; keep scene math inside `client/src/three/`.
 - **The board** (README "The board"): `Board.tsx` owns every interaction rule; the scene (`client/src/three/scene/`) only draws. Its grid, markers and effects render in the `board-decor` group, outside the clickable `board-grid` group, so decoration can never take a click. Board, `PieceMesh` and `GameCanvas` import the scene's parts directly, and unit tests stand them in with `vi.mock` (see `Board.test.tsx`). Piece geometry (`client/src/three/pieces/`, README "Piece set") is built once and shared by every piece, as are the hit proxies in `PieceMesh.tsx`: never modify either in place. The canvas renders on demand, so a value read only in `useFrame` must `invalidate()` when it changes. Animations run on r3f's clock (never `setTimeout`) so `scripts/showcase.mjs`, which records on a virtual clock, captures them.
 
+## Performance
+
+- What speed is for: the moments a player waits on the main thread. That means the start page becoming usable, a game page's first screen, the first board frame (building the piece set), a move landing, and selecting a piece. Bytes on the start page count too (phones on mobile networks). A change that buys one of these with another is a trade-off to name in the PR, not a win.
+- Measure with the suite, interleaved: `node bench/run.mjs --base main` (narrow it with `--only`, `--files`, `--grep`, `--browser-sections`), with nothing else running. A change counts only when the A/B calls it. A "worse" row in code the diff doesn't touch (the server tier on a client-only change) is the VM drifting.
+- Output stays byte-identical unless the change is meant to alter it: the piece geometry (`golden.test.ts` hashes; `knightData.test.ts` and `occlusionData.test.ts` for the precomputed parts) and the engine's move lists, order included (`board.reference.test.ts` compares with the rules written out naively; the suite's fixtures are fingerprinted).
+- Guard a win with a count where there is one, so the work cannot quietly come back: `board.reference.test.ts` ("the work the rules do"), `history.test.ts` ("the work a landing move costs").
+- Keep three.js, r3f and the scene out of the entry and out of `GameScreen.tsx`: they load in the lazy chunk that `LandingPreview.tsx` and `GameCanvas.tsx` share.
+
 ## Gotchas
 
 - `npm run dev` with no `VITE_WS_URL` connects to the **production** Modal backend. For a local backend, export `VITE_WS_URL=ws://127.0.0.1:8000/ws` before starting Vite (it is inlined at startup).
 - Seat color persists in `localStorage` keyed by game id, so a second tab of the same game takes over the seat (the first tab gets a "replaced" notice via close code 4001 and stops reconnecting). For two players use two browser contexts. The creator's color is random. The board only mounts once both players are seated.
-- The e2e suite runs against the dev server, so it never sees what only the build does (the lazy game-screen and board chunks' preload in `vite.config.ts`, and r3f given only the classes in `src/three/r3fCatalogue.ts`). A scene element whose three.js class is new must be added to that catalogue (`r3fCatalogue.test.ts` checks). The end of README "Development" says how to run e2e against a build.
+- The e2e suite runs against the dev server, so it never sees what only the build does (the game board's chunk preloaded on game pages by `vite.config.ts`, and r3f given only the classes in `src/three/r3fCatalogue.ts`). A scene element whose three.js class is new must be added to that catalogue (`r3fCatalogue.test.ts` checks). The end of README "Development" says how to run e2e against a build.
 - The e2e suite writes `playwright-report/` and traces only on CI (`reporter`/`retries` are CI-conditional in `playwright.config.ts`).
 - Python is pinned `>=3.13,<3.14`; `datamodel-code-generator` is pinned exactly so generated output is byte-stable. Keep `uv.lock` tracked.
 
