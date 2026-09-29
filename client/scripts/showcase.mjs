@@ -1566,9 +1566,10 @@ async function main() {
 
   await pageA.goto(`${BASE}/`);
   await pageA.getByRole('button', { name: 'Start a game' }).click();
+  await pageA.getByRole('button', { name: /^White/ }).click();
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
   await pageB.goto(pageA.url());
-  await pageB.getByRole('button', { name: 'Join Game' }).click();
+  await pageB.getByRole('button', { name: 'Take your seat' }).click();
   for (const p of [pageA, pageB]) {
     await p.waitForFunction(() => window.__show?.ready(), null, { timeout: 120000 });
   }

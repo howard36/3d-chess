@@ -30,19 +30,25 @@ export interface Game {
 
 /**
  * Creates a game from one browser context and joins it from a second, then
- * waits for both boards to mount. Two *contexts* rather than two tabs: the
+ * waits for both boards to mount and their openings to play out. Two *contexts* rather than two tabs: the
  * seat is persisted in localStorage per game id, so tabs sharing a context
  * would both rejoin the same seat.
  */
-export async function startGame(browser: Browser): Promise<Game> {
+export async function startGame(
+  browser: Browser,
+  { side = 'White' }: { side?: 'White' | 'Black' | 'Random' } = {},
+): Promise<Game> {
   const contexts: BrowserContext[] = [await browser.newContext(), await browser.newContext()];
   const [pageA, pageB] = await Promise.all(contexts.map((c) => c.newPage()));
 
+  // The creator picks a side (White by default: the fastest pick to play out)
+  // and lands on the invitation; the guest opens its link and takes the seat
   await pageA.goto('/');
   await pageA.getByRole('button', { name: 'Start a game' }).click();
+  await pageA.getByRole('button', { name: new RegExp(`^${side}`) }).click();
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
   await pageB.goto(pageA.url());
-  await pageB.getByRole('button', { name: 'Join Game' }).click();
+  await pageB.getByRole('button', { name: 'Take your seat' }).click();
 
   await waitForBoard(pageA);
   await waitForBoard(pageB);
