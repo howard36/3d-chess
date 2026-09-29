@@ -10,8 +10,7 @@ import type { PieceQuality } from './set';
 // The set's geometry, byte for byte. Building it faster must not move a
 // vertex: these are hashes of every attribute and index of every part, as
 // built (and, for the medium set the game draws, as drawn, with its
-// occlusion baked in). The same hashes are what client/bench/pieces.ts
-// prints. A deliberate change to a piece's shape updates them. The medium
+// occlusion baked in). A deliberate change to a piece's shape updates them. The medium
 // set's knight comes from knight.medium.ts here and the low set's is
 // sculpted, so both ways of getting a knight are pinned; the medium set's
 // occlusion comes from occlusion.medium.ts (occlusionData.test.ts pins it

@@ -6,9 +6,15 @@ import { setStoredRole } from '../lib/playerRole';
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
 import { prefersReducedMotion } from '../three/motion';
-import { LandingPreview } from './LandingPreview';
+import { cachedImport } from '../lib/cachedImport';
 import { PieceGlyph } from './PieceGlyph';
 import { PieceType } from '../engine/pieces';
+
+// The preview (three.js, the scene, a demo game) is a chunk of its own,
+// asked for at once, so the page's title and button show without waiting
+// for it; the preview appears where it stands once it has loaded
+const loadPreview = cachedImport(() => import('./LandingPreview'));
+const LandingPreview = React.lazy(() => loadPreview().then((m) => ({ default: m.LandingPreview })));
 
 interface StartScreenProps {
   gameSocket: GameSocket;
@@ -73,7 +79,9 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
 
   return (
     <main className="landing" data-testid="landing">
-      <LandingPreview still={still} />
+      <React.Suspense fallback={null}>
+        <LandingPreview still={still} />
+      </React.Suspense>
       <p className="sr-only">
         Preview: a sample game plays itself on the five-level tower and ends in checkmate by White.
       </p>
