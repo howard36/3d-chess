@@ -510,9 +510,16 @@ headless Chromium (`client/scripts/bench-browser.mjs`, software WebGL, so its fr
 are only relative). Cases marked ⚠ are adversarial. Numbers compare only between runs on
 one machine; the report records the machine, the commit and each tier's run time.
 
-To measure a change, copy the last run's raw output (`cp -r bench/out /tmp/base`), change
-the code, and rerun with `--compare /tmp/base`: every table gains a "vs baseline" column and
-the report opens with what got better or worse beyond the noise. Each client case runs in
+To measure a change, run `node bench/run.mjs --base <ref>` (e.g. `--base HEAD` for
+uncommitted work, `--base main` for a branch): it checks the base commit out into a
+temporary worktree, gives it this checkout's benchmark code, and runs the two
+interleaved (base, head, head, base, ...), judging each change by pairs of runs made next
+to each other, so a shared machine speeding up or slowing down over the run cannot pass
+for a change. It writes `bench/out/AB.md`; narrow it (`--only client --files engine --grep
+E4`) and a comparison takes under a minute. A saved run can also be compared with
+`--compare <copy of bench/out>`, which is only as good as the machine was steady between
+the two runs: every table gains a "vs baseline" column and the report opens with what got
+better or worse beyond the noise. Each client case runs in
 three rounds and starts from a collected heap; its "Run-to-run" spread is the noise a change
 must beat to count (the server and browser tiers get one with `--repeat 3`, at three times
 their run time; measured once, they only resolve changes of about 30% on a shared VM). While iterating, run one

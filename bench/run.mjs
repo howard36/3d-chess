@@ -4,6 +4,7 @@
 //   node bench/run.mjs [--quick] [--only client,server,browser] [--out bench/RESULTS.md]
 //                      [--compare <dir>] [--from <dir>] [--rounds N]
 //                      [--repeat N] [--files engine,game] [--grep <case name pattern>]
+//                      [--base <git ref> [--pairs N]] [--server-sections a,b] [--browser-sections a,b]
 //
 // Three tiers, run one after another so none times the others' load:
 //
@@ -36,11 +37,28 @@
 // --files and --grep narrow the client tier to some bench files or cases
 // (vitest's file filter and -t), for iterating on one thing quickly.
 //
+// --base <ref> is the way to measure a change: it checks <ref> out into a
+// temporary worktree, copies this checkout's benchmark code over it (so only
+// the app differs), runs the selected tiers on both, interleaved over --pairs
+// pairs (base then head, then head then base, ...), and writes an A/B report
+// (bench/out/AB.md unless --out) judging each change by pairs of runs made
+// next to each other. A/A tests on a shared VM showed its speed drifting by
+// 50-100% over minutes, which fools any comparison of runs made apart.
+//
 // --from <dir> runs nothing: it renders the report from a run's raw output
 // already on disk (bench/out, or a copy), e.g. to compare two saved runs.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -67,6 +85,24 @@ const FILES = option('--files', '')
   .map((f) => `bench/${f}.bench.ts`);
 const GREP = option('--grep', null);
 const REPEAT = Math.max(1, Number(option('--repeat', '1')) || 1);
+const BASE = option('--base', null);
+const PAIRS = Math.max(2, Number(option('--pairs', '3')) || 3);
+const SERVER_SECTIONS = option('--server-sections', null);
+const BROWSER_SECTIONS = option('--browser-sections', null);
+const VENV_PYTHON = join(
+  ROOT,
+  'server',
+  '.venv',
+  process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python',
+);
+
+/**
+ * Where a tier runs and writes: this checkout by default; with --base, also
+ * a worktree of the base commit (`python`: run the server bench with the
+ * shared venv's interpreter, never `uv run`, which would re-sync that venv
+ * against the worktree).
+ */
+const MAIN = { root: ROOT, out: OUT_DIR, rounds: ROUNDS, repeat: REPEAT, python: null };
 
 // --- Running the tiers ---------------------------------------------------------
 
@@ -182,20 +218,21 @@ function mergeRounds(vitest) {
   };
 }
 
-function runClient() {
-  const meta = join(OUT_DIR, 'client-meta');
+function runClient(ctx = MAIN) {
+  const client = join(ctx.root, 'client');
+  const meta = join(ctx.out, 'client-meta');
   rmSync(meta, { recursive: true, force: true });
   const env = {
     BENCH_META_DIR: meta,
-    BENCH_ROUNDS: String(ROUNDS),
+    BENCH_ROUNDS: String(ctx.rounds),
     ...(QUICK ? { BENCH_QUICK: '1' } : {}),
   };
-  const vitestJson = join(OUT_DIR, 'client-vitest.json');
-  const rawJson = join(OUT_DIR, 'client-vitest.rounds.json');
+  const vitestJson = join(ctx.out, 'client-vitest.json');
+  const rawJson = join(ctx.out, 'client-vitest.rounds.json');
   rmSync(rawJson, { force: true });
   const steps = [
     run(
-      `client benches (${ROUNDS} round${ROUNDS > 1 ? 's' : ''})`,
+      `client benches (${ctx.rounds} round${ctx.rounds > 1 ? 's' : ''})`,
       'npx',
       [
         'vitest',
@@ -208,7 +245,7 @@ function runClient() {
         ...FILES,
         ...(GREP ? ['-t', GREP] : []),
       ],
-      { cwd: CLIENT, env },
+      { cwd: client, env },
     ),
   ];
   const raw = readJson(rawJson);
@@ -221,7 +258,7 @@ function runClient() {
         'client startup',
         process.execPath,
         ['--expose-gc', 'node_modules/vite-node/vite-node.mjs', 'bench/startup.ts'],
-        { cwd: CLIENT, env },
+        { cwd: client, env },
       ),
     );
   }
@@ -233,7 +270,7 @@ function runClient() {
       .map((r) => r.tail)
       .join('\n'),
     vitest: readJson(vitestJson),
-    sidecars: readSidecars(OUT_DIR),
+    sidecars: readSidecars(ctx.out),
   };
 }
 
@@ -273,21 +310,21 @@ function mergeRepeats(runs) {
 }
 
 /** Runs a tier REPEAT times into `<name>.json` (merged), keeping each run's output beside it. */
-function runRepeated(tier, cmd, argsFor, cwd) {
-  const out = join(OUT_DIR, `${tier}.json`);
+function runRepeated(tier, cmd, argsFor, cwd, ctx) {
+  const out = join(ctx.out, `${tier}.json`);
   rmSync(out, { force: true });
   const steps = [];
   const datas = [];
-  for (let i = 1; i <= REPEAT; i++) {
-    const each = REPEAT > 1 ? join(OUT_DIR, `${tier}.run${i}.json`) : out;
+  for (let i = 1; i <= ctx.repeat; i++) {
+    const each = ctx.repeat > 1 ? join(ctx.out, `${tier}.run${i}.json`) : out;
     rmSync(each, { force: true });
-    const label = REPEAT > 1 ? `${tier}, run ${i} of ${REPEAT}` : tier;
+    const label = ctx.repeat > 1 ? `${tier}, run ${i} of ${ctx.repeat}` : tier;
     steps.push(run(label, cmd, argsFor(each), { cwd }));
     const data = readJson(each);
     if (data) datas.push(data);
   }
   const data = mergeRepeats(datas);
-  if (data && REPEAT > 1) writeFileSync(out, JSON.stringify(data, null, 2));
+  if (data && ctx.repeat > 1) writeFileSync(out, JSON.stringify(data, null, 2));
   return {
     ok: steps.every((r) => r.ok),
     seconds: steps.reduce((t, r) => t + r.seconds, 0),
@@ -299,31 +336,36 @@ function runRepeated(tier, cmd, argsFor, cwd) {
   };
 }
 
-function runServer() {
-  const script = 'server/bench/bench_server.py';
-  return runRepeated(
-    'server',
-    'uv',
-    (out) => [
-      'run',
-      '--project',
-      'server',
-      'python',
-      script,
-      '--out',
-      out,
-      ...(QUICK ? ['--quick'] : []),
-    ],
-    ROOT,
-  );
+function runServer(ctx = MAIN) {
+  const script = join(ctx.root, 'server', 'bench', 'bench_server.py');
+  const extra = [
+    ...(QUICK ? ['--quick'] : []),
+    ...(SERVER_SECTIONS ? ['--only', SERVER_SECTIONS] : []),
+  ];
+  return ctx.python
+    ? runRepeated('server', ctx.python, (out) => [script, '--out', out, ...extra], ctx.root, ctx)
+    : runRepeated(
+        'server',
+        'uv',
+        (out) => ['run', '--project', 'server', 'python', script, '--out', out, ...extra],
+        ctx.root,
+        ctx,
+      );
 }
 
-function runBrowser() {
+function runBrowser(ctx = MAIN) {
   return runRepeated(
     'browser',
     'node',
-    (out) => ['scripts/bench-browser.mjs', '--out', out, ...(QUICK ? ['--quick'] : [])],
-    CLIENT,
+    (out) => [
+      'scripts/bench-browser.mjs',
+      '--out',
+      out,
+      ...(QUICK ? ['--quick'] : []),
+      ...(BROWSER_SECTIONS ? ['--only', BROWSER_SECTIONS] : []),
+    ],
+    join(ctx.root, 'client'),
+    ctx,
   );
 }
 
@@ -625,9 +667,241 @@ function environment() {
   };
 }
 
+// --- A/B: the base commit and this checkout, interleaved ------------------------------
+
+/** The measuring code: copied from this checkout over the base's, so only the app differs. */
+const HARNESS = [
+  'client/bench',
+  'client/vitest.bench.config.ts',
+  'client/scripts/bench-browser.mjs',
+  'server/bench',
+];
+
+/** A worktree of `ref` with this checkout's harness and installed dependencies. */
+function baseWorktree(ref) {
+  const sha = sh('git', ['rev-parse', '--verify', `${ref}^{commit}`]);
+  if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`--base: not a commit: ${ref}`);
+  const dir = join(mkdtempSync(join(os.tmpdir(), 'bench-base-')), 'tree');
+  execFileSync('git', ['worktree', 'add', '--detach', dir, sha], { cwd: ROOT, stdio: 'ignore' });
+  for (const path of HARNESS) {
+    rmSync(join(dir, path), { recursive: true, force: true });
+    cpSync(join(ROOT, path), join(dir, path), { recursive: true });
+  }
+  symlinkSync(join(CLIENT, 'node_modules'), join(dir, 'client', 'node_modules'), 'dir');
+  symlinkSync(join(ROOT, 'server', '.venv'), join(dir, 'server', '.venv'), 'dir');
+  return { dir, sha };
+}
+
+function removeWorktree(dir) {
+  spawnSync('git', ['worktree', 'remove', '--force', dir], { cwd: ROOT, stdio: 'ignore' });
+  rmSync(dirname(dir), { recursive: true, force: true });
+  spawnSync('git', ['worktree', 'prune'], { cwd: ROOT, stdio: 'ignore' });
+}
+
+/** Every measured number of one side's run, by a key that names the same thing in both. */
+function flatten(results) {
+  const out = new Map();
+  const put = (tier, where, what, value, better, unit) => {
+    if (Number.isFinite(value))
+      out.set(`${tier}\u0000${where}\u0000${what}`, { tier, where, what, value, better, unit });
+  };
+  for (const g of clientGroups(results.client?.vitest)) {
+    for (const b of g.benchmarks) put('client', g.group, b.name, b.median, 'lower', 'ms');
+  }
+  for (const t of results.client?.sidecars?.startup?.tables ?? []) {
+    t.metrics?.forEach(
+      (m, i) => m && put('startup', t.title, m.key ?? t.rows[i][0], m.value, m.better, m.unit),
+    );
+  }
+  for (const tier of ['server', 'browser']) {
+    for (const s of results[tier]?.data?.sections ?? []) {
+      s.metrics?.forEach(
+        (m, i) => m && put(tier, s.title, m.key ?? s.rows[i][0], m.value, m.better, m.unit),
+      );
+    }
+  }
+  return out;
+}
+
+const shown = (value, unit) =>
+  unit === 'per_s'
+    ? rate(value)
+    : unit === 'bytes'
+      ? `${(value / 1024).toFixed(1)} KiB`
+      : unit === 'fps'
+        ? `${value.toFixed(2)} fps`
+        : duration(value);
+
+/**
+ * The pairs' verdict for one measured thing: each pair's ratio head/base,
+ * their geometric mean as the change, and a change called real only when
+ * every pair agrees on its direction and it exceeds both 5% and the pairs'
+ * own disagreement (their ratios' range).
+ */
+function verdict(pairs, better) {
+  const ratios = pairs.map(([b, h]) => h / b).filter((r) => Number.isFinite(r) && r > 0);
+  if (ratios.length < 2) return null;
+  const mean = Math.exp(ratios.reduce((s, r) => s + Math.log(r), 0) / ratios.length);
+  const change = (mean - 1) * 100;
+  const spread = ((Math.max(...ratios) - Math.min(...ratios)) / mean) * 100;
+  const agree = ratios.every((r) => r > 1) || ratios.every((r) => r < 1);
+  const real = agree && Math.abs(change) > Math.max(5, spread);
+  const improved = better === 'higher' ? change > 0 : change < 0;
+  return { ratios, change, spread, real, improved };
+}
+
+function abMain() {
+  const tiers = ONLY.filter((t) => ['client', 'server', 'browser'].includes(t));
+  const started = new Date();
+  const { dir, sha } = baseWorktree(BASE);
+  const headSha = sh('git', ['rev-parse', 'HEAD']);
+  const dirty =
+    sh('git', ['status', '--porcelain', '--', '.', ':!bench/RESULTS.md', ':!bench/out']) !== '';
+  const runs = { base: [], head: [] };
+  const failures = [];
+  let cleaned = false;
+  const clean = () => {
+    if (!cleaned) removeWorktree(dir);
+    cleaned = true;
+  };
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => (clean(), process.exit(130)));
+  try {
+    for (let pair = 0; pair < PAIRS; pair++) {
+      // Base first, then head first, and so on: a drift of the machine over the
+      // run weighs on both sides alike
+      for (const side of pair % 2 ? ['head', 'base'] : ['base', 'head']) {
+        const ctx = {
+          root: side === 'base' ? dir : ROOT,
+          out: join(OUT_DIR, 'ab', side, String(pair + 1)),
+          rounds: 1,
+          repeat: 1,
+          python: VENV_PYTHON,
+        };
+        rmSync(ctx.out, { recursive: true, force: true });
+        mkdirSync(ctx.out, { recursive: true });
+        log(`pair ${pair + 1} of ${PAIRS}: ${side}`);
+        const results = {};
+        if (tiers.includes('client')) results.client = runClient(ctx);
+        if (tiers.includes('server')) results.server = runServer(ctx);
+        if (tiers.includes('browser')) results.browser = runBrowser(ctx);
+        for (const [tier, r] of Object.entries(results)) {
+          if (!r.ok) failures.push({ side, pair: pair + 1, tier, tail: r.tail });
+        }
+        runs[side].push(flatten(results));
+      }
+    }
+  } finally {
+    clean();
+  }
+  const finished = new Date();
+
+  // Pair each measured thing across the sides
+  const keys = [...new Set([...runs.base, ...runs.head].flatMap((m) => [...m.keys()]))];
+  const rows = [];
+  for (const key of keys) {
+    const pairs = runs.base
+      .map((b, i) => [b.get(key)?.value, runs.head[i]?.get(key)?.value])
+      .filter(([b, h]) => Number.isFinite(b) && Number.isFinite(h));
+    const any =
+      runs.base.find((m) => m.has(key))?.get(key) ?? runs.head.find((m) => m.has(key)).get(key);
+    const v = verdict(pairs, any.better);
+    rows.push({ ...any, pairs, v });
+  }
+
+  const md = ['# A/B benchmark comparison'];
+  md.push(
+    `Base \`${BASE}\` (\`${sha.slice(0, 7)}\`) against this checkout (\`${headSha.slice(0, 7)}\`` +
+      `${dirty ? ' with uncommitted changes' : ''}), ${PAIRS} interleaved pairs (base then head, then ` +
+      `head then base, ...) of ${tiers.join(', ')}; both sides run this checkout’s benchmark code. ` +
+      `${Math.round((finished - started) / 60000)} min. Generated by ` +
+      `\`node bench/run.mjs ${process.argv.slice(2).join(' ')}\`.`,
+  );
+  md.push(
+    'Each pair’s head/base ratio compares two runs made next to each other in time, so a machine ' +
+      'that speeds up or slows down over the run weighs on both. A change is called **better** or ' +
+      '**worse** only when every pair agrees on its direction and it exceeds both 5% and the pairs’ ' +
+      'own disagreement (the ratios’ range); otherwise it is shown but not called.',
+  );
+  if (failures.length) {
+    md.push(
+      `**${failures.length} tier run(s) failed** (a side that does not build or whose API the ` +
+        'benchmarks no longer match):\n\n' +
+        failures
+          .map((f) => `- ${f.side} ${f.tier}, pair ${f.pair}:\n\n\`\`\`\n${f.tail}\n\`\`\``)
+          .join('\n'),
+    );
+  }
+  const real = rows.filter((r) => r.v?.real);
+  const better = real.filter((r) => r.v.improved);
+  md.push('## Summary');
+  md.push(
+    `${rows.length} measurements compared: **${better.length} better, ${real.length - better.length} ` +
+      `worse**, ${rows.length - real.length} unchanged within their noise.`,
+  );
+  const fmtChange = (v) =>
+    v
+      ? `${v.change > 0 ? '+' : '−'}${Math.abs(v.change).toFixed(Math.abs(v.change) >= 10 ? 0 : 1)}%`
+      : '';
+  const line = (r) => [
+    r.tier,
+    r.where,
+    r.what,
+    shown(median(r.pairs.map(([b]) => b)), r.unit),
+    shown(median(r.pairs.map(([, h]) => h)), r.unit),
+    fmtChange(r.v),
+    r.v ? r.v.ratios.map((x) => x.toFixed(2)).join(' ') : '',
+    !r.v ? 'one side only' : r.v.real ? `**${r.v.improved ? 'better' : 'worse'}**` : '',
+  ];
+  const columns = [
+    'Tier',
+    'Where',
+    'Case',
+    'Base',
+    'Head',
+    'Change',
+    'Pairs (head/base)',
+    'Verdict',
+  ];
+  const align = ['l', 'l', 'l', 'r', 'r', 'r', 'r', 'l'];
+  if (real.length) {
+    md.push(
+      table({
+        columns,
+        align,
+        rows: [...real].sort((a, b) => Math.abs(b.v.change) - Math.abs(a.v.change)).map(line),
+      }),
+    );
+  }
+  md.push('## Everything measured');
+  md.push(
+    '*Base* and *Head* are the medians over the pairs; for throughputs (/s) higher is better, for ' +
+      'everything else lower.',
+  );
+  for (const tier of ['client', 'startup', 'server', 'browser']) {
+    const mine = rows.filter((r) => r.tier === tier);
+    if (!mine.length) continue;
+    md.push(`### ${tier}`);
+    md.push(
+      table({
+        columns: columns.slice(1),
+        align: align.slice(1),
+        rows: mine.map((r) => line(r).slice(1)),
+      }),
+    );
+  }
+  const report = resolve(option('--out', join(OUT_DIR, 'AB.md')));
+  mkdirSync(dirname(report), { recursive: true });
+  writeFileSync(report, md.join('\n\n') + '\n');
+  log(
+    `A/B report written to ${report}: ${better.length} better, ${real.length - better.length} worse`,
+  );
+  process.exit(failures.length ? 1 : 0);
+}
+
 // --- Main ----------------------------------------------------------------------------
 
 mkdirSync(OUT_DIR, { recursive: true });
+if (BASE) abMain();
 // Before anything runs: the baseline may be bench/out itself, which this run overwrites
 const BASELINE = COMPARE ? loadBaseline(resolve(COMPARE)) : null;
 let started, finished, env, quick;
@@ -836,9 +1110,12 @@ md.push(
     'node bench/run.mjs --only client',
     'node bench/run.mjs --quick --out /tmp/quick.md',
     '',
-    '# before and after a change: what got better or worse, beyond the noise',
-    'cp -r bench/out /tmp/base            # the last run\u2019s raw output is the baseline',
-    'node bench/run.mjs --only client --compare /tmp/base --out /tmp/after.md',
+    '# measure a change: interleaved A/B against a commit, report in bench/out/AB.md',
+    'node bench/run.mjs --base HEAD                                    # uncommitted work vs HEAD',
+    'node bench/run.mjs --base main --only client --files engine --grep E4   # one group, < 1 min',
+    '',
+    '# or compare with a saved run (only as good as the machine was steady in between)',
+    'cp -r bench/out /tmp/base && node bench/run.mjs --only client --compare /tmp/base',
     '',
     '# a tier, a file or a single case on its own (fastest while iterating)',
     'cd client && npx vitest bench --config vitest.bench.config.ts                    # engine, game, interaction',
