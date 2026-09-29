@@ -61,7 +61,7 @@ The page's [phase](../glossary.md#the-product-and-its-screens) is worked out fro
 
 | Phase | When | Screen shown |
 | --- | --- | --- |
-| Before joining | Nothing says the game has started, and the player has not clicked "Join game" and has not been confirmed in a seat. | With a [stored seat](connection-and-seat.md#the-stored-seat): "Returning to your game…" until the rejoin is answered, then the **invitation to send** ("Invite a friend" and the link). Without one: the **invitation to the free seat** ("Opening the invitation…", then "You're invited to play …" with "Join game", or "This game is taken" or "No game here"). |
+| Before joining | Nothing says the game has started, and the player has not clicked "Join game" and has not been confirmed in a seat. | With a [stored seat](connection-and-seat.md#the-stored-seat): "Returning to your game…" until the rejoin is answered, then the **invitation to send** ("Invite a friend" and the link). Without one: the **invitation to the free seat** (nothing until the server answers, then "You're invited to play …" with "Join game", or "This game is taken" or "No game here"). |
 | Joined | The player clicked "Join game", or the server confirmed a joined seat, and the game has not started. | The invitation with the seat taken: "Joining…". |
 | Playing | The server announced the game's start, or a snapshot said both seats are taken. | The **board screen**: the 3D board filling the window with the [HUD](../glossary.md#input) over it. |
 
