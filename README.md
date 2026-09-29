@@ -184,7 +184,7 @@ Key decisions:
   12 px gutter, on a phone held upright), and nothing else unless something needs saying.
   The pill's left half is the player and its right half the opponent, each with a small stone in its army's
   material (porcelain, charcoal); the half of the side to move is lit, its stone ringed in
-  light ("Your move" / "Their move"), red with a CHECK badge in check. An opponent with no
+  light ("Your move" / "Their move"); check is shown on the board, not here. An opponent with no
   live connection shows as an outlined stone and "Offline"; a connected one is not marked.
   Once the game is over the pill gives the result from the player's side ("Checkmate · you
   win"). Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
@@ -641,7 +641,10 @@ the reload the join is re-sent on the next socket and recovers the seat.)
 client/          React app (Vite). Engine in src/engine, log-derived game state in src/game,
                  UI in src/screens + src/three.
 client/e2e/      Playwright tests; boots the real server and Vite (see playwright.config.ts).
+client/bench/    Client benchmarks (vitest bench) and their seeded fixtures.
 server/          FastAPI app + Modal deployment (modal_app.py), schema, generated models, pytest suite.
+server/bench/    Server benchmarks: store operations, live WebSocket load, adversarial input.
+bench/           The benchmark runner (run.mjs) and its latest report (RESULTS.md).
 ```
 
 ## Development
@@ -661,6 +664,9 @@ cd client && VITE_WS_URL=ws://127.0.0.1:8000/ws npm run dev
 cd client && npm run test          # unit/component (Vitest)
 cd client && npm run e2e           # Playwright; starts server + Vite itself
 uv run --project server pytest     # server tests (spawns a real uvicorn)
+
+# Benchmarks: every tier in turn, then read bench/RESULTS.md (--quick for a smoke run)
+node bench/run.mjs                 # --only client|server|browser; --compare <old bench/out>
 
 # Deploy backend manually (not normally needed — CI deploys on merge to main).
 # GITHUB_SHA is what /health reports; without it the image says "dev".
@@ -684,6 +690,38 @@ tests ran against. Authentication comes from the `MODAL_TOKEN_ID` and `MODAL_TOK
 repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
+
+### Benchmarks
+
+`node bench/run.mjs` runs three tiers one after another and writes `bench/RESULTS.md`
+(raw JSON in the ignored `bench/out/`): **client**, the rules engine, the log-derived game
+state, the board's pointer and frame math (`client/bench/*.bench.ts`, vitest bench over
+seeded games and positions built to be as expensive as the rules allow) and the piece
+geometry's cold startup (`client/bench/startup.ts`); **server**, the relay in process and
+over real sockets, with store models that mimic `modal.Dict`'s copies and blocking calls
+(`server/bench/bench_server.py`); and **browser**, the production build end to end in
+headless Chromium (`client/scripts/bench-browser.mjs`, software WebGL, so its frame times
+are only relative). Cases marked ⚠ are adversarial. Numbers compare only between runs on
+one machine; the report records the machine, the commit and each tier's run time.
+
+To measure a change, run `node bench/run.mjs --base <ref>` (e.g. `--base HEAD` for
+uncommitted work, `--base main` for a branch): it checks the base commit out into a
+temporary worktree, gives it this checkout's benchmark code, and runs the two
+interleaved (base, head, head, base, ...), judging each change by pairs of runs made next
+to each other, so a shared machine speeding up or slowing down over the run cannot pass
+for a change. It writes `bench/out/AB.md`; narrow it (`--only client --files engine --grep
+E4`) and a comparison takes under a minute. A saved run can also be compared with
+`--compare <copy of bench/out>`, which is only as good as the machine was steady between
+the two runs: every table gains a "vs baseline" column and the report opens with what got
+better or worse beyond the noise. Each client case runs in
+three rounds and starts from a collected heap; its "Run-to-run" spread is the noise a change
+must beat to count (the server and browser tiers get one with `--repeat 3`, at three times
+their run time; measured once, they only resolve changes of about 30% on a shared VM). While iterating, run one
+tier (`--only client`) or one file or case directly (`npx vitest bench --config
+vitest.bench.config.ts bench/engine.bench.ts -t E4`; the server and browser scripts take
+`--only <section>`). The client fixtures' games are chosen in a fixed move order and
+fingerprinted, so a faster engine is timed on exactly the same games, and a change to the
+rules stops the client tier instead of timing different work.
 
 ## Known limitations (accepted for this project's scope)
 
