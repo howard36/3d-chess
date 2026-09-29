@@ -67,9 +67,9 @@ stateDiagram-v2
 
 | State | Meaning | Start screen shows | Game page shows |
 | --- | --- | --- | --- |
-| connecting | The first attempt after the app loaded, after a reset, or after "Play here". | "Connecting to server…" under the button | Nothing extra. The board, if shown, does not take input. |
+| connecting | The first attempt after the app loaded, after a reset, or after "Play here". | Nothing until "Start a game" is clicked; then "Connecting to server…" under the button while the request waits | Nothing extra. The board, if shown, does not take input. |
 | connected | The connection is open. | Nothing extra | Nothing extra. After every new connection the board takes no input until the rejoin's snapshot arrives. |
-| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | "Reconnecting to server…" under the button | The [reconnecting line](../glossary.md#the-interface): under the turn pill on the board screen, at the top right on the other screens. The board does not take input. |
+| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | Nothing until "Start a game" is clicked; then "Reconnecting to server…" under the button while the request waits | The [reconnecting line](../glossary.md#the-interface): under the turn pill on the board screen, at the top right on the other screens. The board does not take input. |
 | replaced | Another tab or window of this browser holds the seat: either the server closed this connection because the other tab took the seat, or this tab's connection came back after a drop and the server answered that the seat is in use. No retry happens. | Cannot occur | The [replaced dialog](../session/second-tab.md) over everything |
 
 In the second kind of *replaced*, the connection itself stays open but holds no seat; the player sees the same dialog either way.
@@ -84,12 +84,12 @@ Each connection that opens is new to the server: it does not know which game or 
 
 A request made while the connection is not open is treated according to its kind:
 
-- **Create, join, and rejoin** are [queued](../glossary.md#requests): held in the browser and sent, in order, the moment a connection opens. The page shows the request as made ("Creating Game...", "Joined game, waiting for start...") in the meantime.
+- **Create, join, and rejoin** are [queued](../glossary.md#requests): held in the browser and sent, in order, the moment a connection opens. The page shows the request as made ("Creating game…", "Joined game, waiting for start...") in the meantime.
 - **Moves** are never queued. The board does not take input unless the connection is connected and the seat is confirmed on it, so a move cannot normally be made while disconnected; a move that was somehow still waiting to be sent when a new connection opened is [dropped](../glossary.md#requests). The position may have moved on by then, and the board never showed the move, so dropping it is invisible: the player simply moves again.
 
 A request that was already sent when the connection dropped, and whose answer never arrived, is handled according to its kind:
 
-- **Create and join** are [re-sent](../glossary.md#requests) on every new connection until they are answered. A create is answered by the new game's id or an error; a join by the seat confirmation, the start of the game, or an error that returns the page to the join screen. A request that was queued and then went out on the next connection is not sent twice. Repeating either is safe: a repeated create may leave a second, unused game on the server, which expires like any other, and a repeated join gets the same seat back through the client id. The page keeps showing "Creating Game..." or "Joined game, waiting for start..." until the answer comes. See [creating a game](../start/creating-a-game.md) and [joining a game](../start/joining-a-game.md).
+- **Create and join** are [re-sent](../glossary.md#requests) on every new connection until they are answered. A create is answered by the new game's id or an error; a join by the seat confirmation, the start of the game, or an error that returns the page to the join screen. A request that was queued and then went out on the next connection is not sent twice. Repeating either is safe: a repeated create may leave a second, unused game on the server, which expires like any other, and a repeated join gets the same seat back through the client id. The page keeps showing "Creating game…" or "Joined game, waiting for start..." until the answer comes. See [creating a game](../start/creating-a-game.md) and [joining a game](../start/joining-a-game.md).
 - **Rejoin** needs no repeat: every new connection sends its own.
 - **A move** is not re-sent. Whether the server recorded it is learned from the next snapshot; see [making a move](../play/making-a-move.md).
 

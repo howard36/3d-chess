@@ -73,6 +73,8 @@ export interface BoardProps {
   disabled?: boolean;
   /** Set once the game has ended: the mated king topples. */
   gameOver?: { result: 'checkmate' | 'stalemate'; winner?: PieceColor } | null;
+  /** Whether to draw the coordinate labels (on by default; the landing preview has none). */
+  labels?: boolean;
 }
 
 const Board = (props: BoardProps) => {
@@ -451,7 +453,7 @@ const Board = (props: BoardProps) => {
           events: r3f only raycasts objects with handlers and their children,
           so nothing here can intercept a click meant for a cell or piece. */}
       <group name="board-decor">
-        <Grid layout={layout} orientation={orientation} focus={focus} />
+        <Grid layout={layout} orientation={orientation} focus={focus} labels={props.labels} />
         {destinations.map(({ to, capture }) => {
           const key = toZXY(to);
           const hovered = hoveredCell === key;

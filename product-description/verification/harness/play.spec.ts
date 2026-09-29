@@ -31,7 +31,7 @@ async function startG(browser: Browser, opts: Parameters<Browser['newContext']>[
   for (const c of contexts) { await c.addInitScript(socketTap); await c.addInitScript(sendTap); }
   const [a, b] = await Promise.all(contexts.map((c) => c.newPage()));
   await a.goto('/');
-  await a.getByRole('button', { name: 'Start New Game' }).click();
+  await a.getByRole('button', { name: 'Start a game' }).click();
   await a.waitForURL(/\/game\/[A-Z0-9]+/);
   await b.goto(a.url());
   await b.getByRole('button', { name: 'Join Game' }).click();
@@ -881,12 +881,12 @@ test('end of game', async ({ browser }) => {
   const listB = await listText(b);
   await item('END-06', async () => {
     await w.getByRole('button', { name: 'Start new game', exact: true }).click();
-    await expect(w.getByRole('button', { name: 'Start New Game', exact: true })).toBeEnabled();
+    await expect(w.getByRole('button', { name: 'Start a game', exact: true })).toBeEnabled();
     expect(new URL(w.url()).pathname).toBe('/');
     await expect(b.getByTestId('opponent-presence')).toHaveText('Opponent: offline');
   });
   await item('END-09', async () => {
-    await w.getByRole('button', { name: 'Start New Game', exact: true }).click();
+    await w.getByRole('button', { name: 'Start a game', exact: true }).click();
     await w.waitForURL(/\/game\/[A-Z0-9]+/);
     await expect(w.getByText('Game created! Share this link with a friend:')).toBeVisible();
     expect(w.url()).not.toBe(oldUrl);
@@ -904,7 +904,7 @@ test('end of game', async ({ browser }) => {
     expect(seq).toContain('BUTTON:Start new game');
     await b.getByRole('button', { name: 'Start new game', exact: true }).focus();
     await b.keyboard.press('Enter');
-    await expect(b.getByRole('button', { name: 'Start New Game', exact: true })).toBeVisible();
+    await expect(b.getByRole('button', { name: 'Start a game', exact: true })).toBeVisible();
     return `Tab sequence: ${seq.join(' > ')} (BODY = the browser's own UI); Enter went to the start screen`;
   });
   await g.close();
