@@ -183,9 +183,13 @@ export async function waitForBoard(page: Page): Promise<void> {
   await waitForIntro(page);
 }
 
-/** Waits until the game's entrance is over (GameView's `data-intro`). */
+/**
+ * Waits until the game's entrance is over (GameView's `data-intro`). After a
+ * join in full motion that includes the lobby's handover, about 40 s drawn in
+ * software on two cores, hence the room.
+ */
 export async function waitForIntro(page: Page): Promise<void> {
-  await page.locator('[data-intro="done"]').waitFor({ state: 'attached', timeout: 60_000 });
+  await page.locator('[data-intro="done"]').waitFor({ state: 'attached', timeout: 90_000 });
 }
 
 /**

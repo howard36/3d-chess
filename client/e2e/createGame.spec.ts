@@ -61,20 +61,25 @@ test('Random lands on a side and the invitation offers the other', async ({ brow
 });
 
 test('an invitation to a game that is full or gone says so', async ({ browser }) => {
-  const gone = await (await browser.newContext()).newPage();
+  // What the pages say, not how the way in moves: reduced motion keeps its
+  // three pages light enough for a busy runner (the handover in full is the
+  // test above's)
+  const page = async () => (await browser.newContext({ reducedMotion: 'reduce' })).newPage();
+  const gone = await page();
   await gone.goto('/game/NOPE99');
   await expect(gone.getByRole('heading', { name: 'No game here' })).toBeVisible();
   await gone.getByRole('button', { name: 'Start a new game' }).click();
   await expect(gone).toHaveURL(/\/new$/);
+  await gone.context().close();
 
-  const host = await (await browser.newContext()).newPage();
-  const guest = await (await browser.newContext()).newPage();
-  const third = await (await browser.newContext()).newPage();
+  const host = await page();
+  const guest = await page();
+  const third = await page();
   await choose(host, 'White');
   await guest.goto(host.url());
   await guest.getByRole('button', { name: 'Join game' }).click();
   await waitForBoard(guest);
   await third.goto(host.url());
   await expect(third.getByRole('heading', { name: 'This game is taken' })).toBeVisible();
-  for (const p of [gone, host, guest, third]) await p.context().close();
+  for (const p of [host, guest, third]) await p.context().close();
 });
