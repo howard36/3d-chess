@@ -14,6 +14,8 @@ const reps = Number(arg('reps', '7'));
 const { Board } = await import(`${root}/src/engine/board.ts`);
 const { deriveHistory } = await import(`${root}/src/game/history.ts`);
 const { toZXY } = await import(`${root}/src/engine/coords.ts`);
+// Records carry the wire's promotion letter (Q, R, B, N, U), as the server relays them
+const { PIECE_TO_PROMOTION } = await import(`${root}/src/engine/pieces.ts`);
 
 // A deterministic random game: mulberry32, uniform over legal moves.
 const rng = (seed: number) => () => {
@@ -38,7 +40,7 @@ const playGame = (seed: number, plies: number) => {
       by: turn,
       from: toZXY(m.from),
       to: toZXY(m.to),
-      ...(m.promotion ? { promotion: m.promotion } : {}),
+      ...(m.promotion ? { promotion: PIECE_TO_PROMOTION[m.promotion] } : {}),
     });
     b = b.applyMove(m);
     boards.push(b);
@@ -110,6 +112,11 @@ const out = Object.fromEntries(
     },
   ]),
 );
+// Every fixture game must replay in full, or the replay rows time a failure
+for (const g of games) {
+  const h = deriveHistory([{ type: 'game_state', started: true, moves: g.recs }]);
+  if (h.replayFailedAt !== null) throw new Error(`fixture replay failed at ${h.replayFailedAt}`);
+}
 console.log(
   JSON.stringify({
     bench: 'engine',

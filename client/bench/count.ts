@@ -15,6 +15,8 @@ const work = arg('work', 'none');
 const { Board } = await import(`${root}/src/engine/board.ts`);
 const { deriveHistory } = await import(`${root}/src/game/history.ts`);
 const { toZXY } = await import(`${root}/src/engine/coords.ts`);
+// Records carry the wire's promotion letter (Q, R, B, N, U), as the server relays them
+const { PIECE_TO_PROMOTION } = await import(`${root}/src/engine/pieces.ts`);
 const { PieceType } = await import(`${root}/src/engine/pieces.ts`);
 const setModule = await import(`${root}/src/three/pieces/set.ts`);
 const { pieceSet } = setModule;
@@ -42,7 +44,7 @@ const game = () => {
       by: turn,
       from: toZXY(m.from),
       to: toZXY(m.to),
-      ...(m.promotion ? { promotion: m.promotion } : {}),
+      ...(m.promotion ? { promotion: PIECE_TO_PROMOTION[m.promotion] } : {}),
     });
     b = b.applyMove(m);
     boards.push(b);
