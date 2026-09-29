@@ -9,7 +9,6 @@ import {
   DoubleSide,
   PlaneGeometry,
   PointsMaterial,
-  ShaderMaterial,
   Vector3,
 } from 'three';
 import type { Mesh, Points } from 'three';
@@ -20,6 +19,8 @@ import { dotTexture, rng } from './textures';
 
 import type { MarkerProps } from '../types';
 import { claimed, useHoldAt } from './claims';
+import { clamp01, easeOutCubic, smooth } from './ease';
+import { overlayMaterial } from './overlay';
 import { PALETTE, RING_RADIUS } from './palette';
 
 // The held piece's light: a calm column of starlight.
@@ -64,10 +65,6 @@ const GLOW_MS = 420;
 const PULSE_MS = 700;
 /** Put down, everything sinks and fades in FALL_MS. */
 const FALL_MS = 300;
-
-const easeOut = (t: number) => 1 - (1 - t) ** 3;
-const smooth = (t: number) => t * t * (3 - 2 * t);
-const clamp01 = (t: number) => Math.min(Math.max(t, 0), 1);
 
 /** The held light's state, advanced by stepSelection and read by SelectionLight. */
 interface SelectState {
@@ -125,7 +122,7 @@ export const stepSelection = (
     const t = still ? RISE_MS + GLOW_MS : s.since;
     // Both only ever grow while held, from wherever a release left them:
     // the column's height and light come up gently and stay
-    s.rise = Math.max(s.rise, easeOut(clamp01(t / RISE_MS)));
+    s.rise = Math.max(s.rise, easeOutCubic(clamp01(t / RISE_MS)));
     s.strength = Math.max(s.strength, SETTLED * smooth(clamp01(t / GLOW_MS)));
     s.circle = Math.max(s.circle, smooth(clamp01(t / 220)));
   } else {
@@ -293,11 +290,9 @@ export const SelectionLight = ({
   const column = useRef<Mesh>(null);
   const floor = useRef<Mesh>(null);
   const points = useRef<Points>(null);
-  const { columnMaterial, floorMaterial, motes, moteMaterial, seeds } = useMemo(() => {
+  const { color, columnMaterial, floorMaterial, motes, moteMaterial, seeds } = useMemo(() => {
     const color = new Color(PALETTE.select);
-    const columnMaterial = new ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
+    const columnMaterial = overlayMaterial({
       side: DoubleSide,
       blending: AdditiveBlending,
       uniforms: {
@@ -309,9 +304,7 @@ export const SelectionLight = ({
       vertexShader: columnVertex,
       fragmentShader: columnFragment,
     });
-    const floorMaterial = new ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
+    const floorMaterial = overlayMaterial({
       blending: AdditiveBlending,
       uniforms: {
         uColor: { value: color },
@@ -348,7 +341,7 @@ export const SelectionLight = ({
       blending: AdditiveBlending,
       sizeAttenuation: true,
     });
-    return { columnMaterial, floorMaterial, motes, moteMaterial, seeds };
+    return { color, columnMaterial, floorMaterial, motes, moteMaterial, seeds };
   }, []);
   useEffect(
     () => () => {
@@ -359,7 +352,6 @@ export const SelectionLight = ({
     },
     [columnMaterial, floorMaterial, motes, moteMaterial],
   );
-  const tint = useMemo(() => new Color(PALETTE.select), []);
 
   useFrame(({ camera }) => {
     const s = state.current;
@@ -384,7 +376,7 @@ export const SelectionLight = ({
     f.uStrength.value = s.strength * BRIGHTNESS;
     const p = s.pulse >= 0 ? s.pulse / PULSE_MS : 1;
     f.uPulse.value = s.pulse >= 0 ? (1 - p) ** 1.6 : 0;
-    f.uPulseR.value = RING_RADIUS * (1 + (PULSE_REACH - 1) * easeOut(p));
+    f.uPulseR.value = RING_RADIUS * (1 + (PULSE_REACH - 1) * easeOutCubic(p));
     // The motes drift up round the column, fading from above (seen end-on
     // they would be specks scattered round the piece)
     const show = s.strength > 0.002;
@@ -403,7 +395,7 @@ export const SelectionLight = ({
         // Faint, and now and then a brief glimmer
         const glimmer = Math.pow(0.5 + 0.5 * Math.sin(t * m.rate * 2.4 + m.glint), 8);
         const b = Math.sin(Math.PI * h) * (0.4 + 1.1 * glimmer) * s.strength * BRIGHTNESS * side;
-        col.setXYZ(i, tint.r * b, tint.g * b, tint.b * b);
+        col.setXYZ(i, color.r * b, color.g * b, color.b * b);
       });
       pos.needsUpdate = true;
       col.needsUpdate = true;

@@ -75,7 +75,7 @@ export const pathDistances = (points: Vec3[]): number[] => {
   return at;
 };
 
-interface TubeOptions {
+export interface TubeOptions {
   /** Radius of the tube (world units). */
   radius: number;
   /** Vertices round each ring (default 8: thin lines need few). */

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { AdditiveBlending, Color, DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, PlaneGeometry } from 'three';
 import type { Group } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { MOVE_ANIMATION, prefersReducedMotion } from '../motion';
@@ -8,7 +8,10 @@ import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
 import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
 import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
-import { usePieceMaterial, wholePiece } from './pieces';
+import { easeOutQuad } from './ease';
+import { wholePiece } from './occlusion';
+import { overlayMaterial } from './overlay';
+import { usePieceMaterial } from './pieces';
 import { gardenBoost } from './stage';
 
 // Motion in light, kept brief. A captured piece burns away from the crown
@@ -55,9 +58,7 @@ const knightYaw = (piece: PieceType, color: PieceColor, orientation: PieceColor)
 // --- Capture ------------------------------------------------------------------------------
 
 const outlineMaterial = () =>
-  new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
+  overlayMaterial({
     blending: AdditiveBlending,
     uniforms: { uColor: { value: new Color(PALETTE.neon) }, uOpacity: { value: 0 } },
     vertexShader: /* glsl */ `
@@ -109,7 +110,7 @@ export const CaptureFx = ({
       if (whole.current) whole.current.visible = burn < 1;
       // Its outline in light rises a little from it and fades
       outline.uniforms.uOpacity.value = k > 0 ? 0.45 * Math.sin(Math.PI * Math.min(k, 1)) : 0;
-      if (ghost.current) ghost.current.position.y = 0.16 * (1 - (1 - k) ** 2);
+      if (ghost.current) ghost.current.position.y = 0.16 * easeOutQuad(k);
     },
     durationMs,
   );
@@ -204,9 +205,7 @@ export const Celebration = ({ floor }: CelebrationProps) => {
   const level = levelAt(ky);
   const material = useMemo(
     () =>
-      new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
+      overlayMaterial({
         side: DoubleSide,
         blending: AdditiveBlending,
         uniforms: {

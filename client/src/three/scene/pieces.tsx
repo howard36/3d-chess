@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Color, PlaneGeometry, ShaderMaterial } from 'three';
-import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { prefersReducedMotion } from '../motion';
 import { pieceTop, preloadPieceSet } from '../pieces';
@@ -10,8 +9,10 @@ import { ON_FLOOR, useGlide } from '../pieceMotion';
 import { noRaycast } from '../noRaycast';
 
 import type { PieceBodyProps, PieceColor } from '../types';
-import { bakedSet, preloadBakedSet, wholePiece as bakedPiece } from './occlusion';
+import { bakedSet, preloadBakedSet, wholePiece } from './occlusion';
 import { LEVEL_COLORS, PALETTE } from './palette';
+import { smooth, toward } from './ease';
+import { overlayMaterial } from './overlay';
 import { SelectionLight, selectState, stepSelection } from './selection';
 
 // The armies: satin porcelain and charcoal, the shared Staunton set. Both are
@@ -339,9 +340,6 @@ const bodyMaterial = (color: PieceColor, type: PieceType, level: number) => {
   });
 };
 
-/** The whole piece as one geometry, its occlusion and parts baked in (occlusion.ts). */
-export const wholePiece = (type: PieceType): BufferGeometry => bakedPiece(type);
-
 /**
  * A piece's own material, disposed with the caller: what PieceBody draws, and
  * what an effect that redraws a piece (a capture) should use so the piece
@@ -380,9 +378,7 @@ const poolFragment = /* glsl */ `
 const poolPlane = new PlaneGeometry(1.1, 1.1).rotateX(-Math.PI / 2);
 
 const poolMaterial = (level: number) =>
-  new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
+  overlayMaterial({
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
@@ -400,7 +396,6 @@ const poolMaterial = (level: number) =>
 const HOVER_RATE = 1 / 0.18;
 const HOLD_RATE = 1 / 0.28;
 const CHECK_RATE = 1 / 0.25;
-const smooth = (x: number) => x * x * (3 - 2 * x);
 
 /**
  * A Staunton piece in porcelain or charcoal, with its level band, its light on
@@ -433,11 +428,9 @@ export const PieceBody = (props: PieceBodyProps) => {
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20);
     const w = weights.current;
-    const toward = (v: number, goal: number, rate: number) =>
-      goal > v ? Math.min(goal, v + dt * rate) : Math.max(goal, v - dt * rate);
-    const hover = toward(w.hover, hovered && !selected ? 1 : 0, HOVER_RATE);
-    const hold = toward(w.hold, selected ? 1 : 0, HOLD_RATE);
-    const c = toward(w.check, inCheck ? 1 : 0, CHECK_RATE);
+    const hover = toward(w.hover, hovered && !selected ? 1 : 0, dt * HOVER_RATE);
+    const hold = toward(w.hold, selected ? 1 : 0, dt * HOLD_RATE);
+    const c = toward(w.check, inCheck ? 1 : 0, dt * CHECK_RATE);
     let moving = hover !== w.hover || hold !== w.hold || c !== w.check;
     w.hover = hover;
     w.hold = hold;
@@ -451,15 +444,11 @@ export const PieceBody = (props: PieceBodyProps) => {
     f.uPool.value = smooth(hover);
     // While gliding, the band and the pool pass through the colours of the
     // levels crossed
-    if (glide) {
-      const p = glide.progress.current;
-      const l = glide.fromLevel + (glide.toLevel - glide.fromLevel) * p;
-      colorAtLevel(l, f.uColor.value);
-      colorAtLevel(l, u.uBand.value);
-    } else {
-      colorAtLevel(level, f.uColor.value);
-      colorAtLevel(level, u.uBand.value);
-    }
+    const l = glide
+      ? glide.fromLevel + (glide.toLevel - glide.fromLevel) * glide.progress.current
+      : level;
+    colorAtLevel(l, f.uColor.value);
+    colorAtLevel(l, u.uBand.value);
     if (showing) moving = true;
     if (moving) invalidate();
     else {

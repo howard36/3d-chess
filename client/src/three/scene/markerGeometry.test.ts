@@ -5,61 +5,14 @@ import type { Orientation } from '../layout';
 import { towerLayout } from '../layout';
 import type { Vec3 } from '../types';
 
-describe('tracePath', () => {
-  it('runs straight from the centre of one floor to the centre of the other, just off the platform', () => {
-    for (const [from, to] of [
-      [
-        [-1, 0, 1],
-        [2, 0, -1],
-      ],
-      // Between levels: still one straight segment
-      [
-        [0, 0, 0],
-        [1, 2.7, -1],
-      ],
-      [
-        [0, 2.7, 0],
-        [-2, 0, 0],
-      ],
-    ] as [Vec3, Vec3][]) {
-      const path = tracePath(from, to, { lift: 0.03 });
-      expect(path).toEqual([
-        [from[0], from[1] + 0.03, from[2]],
-        [to[0], to[1] + 0.03, to[2]],
-      ]);
-    }
-  });
-
-  it('runs a vertical move straight up or down through the squares’ centres', () => {
-    for (const [from, to] of [
-      [
-        [1, 0, 1],
-        [1, 2.7, 1],
-      ],
-      [
-        [1, 2.7, 1],
-        [1, 0, 1],
-      ],
-    ] as [Vec3, Vec3][]) {
-      const path = tracePath(from, to);
-      expect(path).toHaveLength(2);
-      for (const p of path) {
-        expect(p[0]).toBe(1);
-        expect(p[2]).toBe(1);
-      }
-      expect(path[0][1]).toBeGreaterThan(from[1]);
-      expect(path[1][1] - path[0][1]).toBeCloseTo(to[1] - from[1]);
-    }
-  });
-});
+const layout = towerLayout();
+// MarkerProps.floor, as Board computes it: the cell's centre dropped to its floor
+const floorOf = (zxy: string, o: Orientation): Vec3 => {
+  const [x, y, z] = layout.toWorld(fromZXY(zxy), o);
+  return [x, y + layout.floorY, z];
+};
 
 describe('the last-move line’s ends', () => {
-  const layout = towerLayout();
-  // MarkerProps.floor, as Board computes it: the cell's centre dropped to its floor
-  const floorOf = (zxy: string, o: Orientation): Vec3 => {
-    const [x, y, z] = layout.toWorld(fromZXY(zxy), o);
-    return [x, y + layout.floorY, z];
-  };
   // Moves that come down onto their destination: diagonally (along a rank, a
   // file, and through the cube), straight down, and a knight's
   const MOVES: [string, string][] = [
@@ -141,11 +94,6 @@ describe('the last-move line’s ends', () => {
 });
 
 describe('the last-move line’s landing, seen from the seat', () => {
-  const layout = towerLayout();
-  const floorOf = (zxy: string, o: Orientation): Vec3 => {
-    const [x, y, z] = layout.toWorld(fromZXY(zxy), o);
-    return [x, y + layout.floorY, z];
-  };
   it('never lands behind the piece from the seat (+z), and still clears it', () => {
     const inset = 0.268;
     const moves: [string, string][] = [

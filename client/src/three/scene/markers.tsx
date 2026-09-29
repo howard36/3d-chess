@@ -1,23 +1,16 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import {
-  AdditiveBlending,
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  DoubleSide,
-  PlaneGeometry,
-  ShaderMaterial,
-  Vector3,
-} from 'three';
+import { AdditiveBlending, Color, DoubleSide, PlaneGeometry, Vector3 } from 'three';
 import { prefersReducedMotion } from '../motion';
 import { LAYER } from './layers';
-import { LastMoveLine } from './line';
-import { tracePath, tubeData } from './markerGeometry';
+import { LastMoveLine, tubeGeometry, tubeVertex } from './line';
+import { tracePath } from './markerGeometry';
 import { noRaycast } from '../noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { claimed, heldAt, useClaim, useHeld } from './claims';
 import type { ClaimKind } from './claims';
+import { clamp01, easeOutCubic, easeOutQuad, smooth, toward } from './ease';
+import { overlayMaterial } from './overlay';
 import { LEVEL_COLORS, levelAt, MOTION, PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
 import { Blades } from './blades';
 
@@ -245,7 +238,6 @@ interface MarkProps {
   /** Step back a little seen from high above (a destination off the held piece's level). */
   dimAbove?: boolean;
   renderOrder?: number;
-  lift?: number;
 }
 
 const HOVER_MS = 200;
@@ -279,7 +271,6 @@ const Mark = ({
   softRadius,
   dimAbove = false,
   renderOrder = LAYER.marker,
-  lift = 0.012,
 }: MarkProps) => {
   const invalidate = useThree((s) => s.invalidate);
   const widest = Math.max(radius, softRadius ?? radius);
@@ -287,9 +278,7 @@ const Mark = ({
     kind === 'check' ? 2.1 : kind === 'capture' ? widest * 3.3 + 0.08 : (widest * 1.25 + 0.1) * 2;
   const material = useMemo(
     () =>
-      new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
+      overlayMaterial({
         side: DoubleSide,
         polygonOffset: true,
         polygonOffsetFactor: -2,
@@ -349,18 +338,14 @@ const Mark = ({
     let moving = false;
     // The grow-in on arrival
     if (u.uGrow.value < 1) {
-      const k = Math.min(age.current / growMs, 1);
-      u.uGrow.value = 1 - (1 - k) ** 3;
+      u.uGrow.value = easeOutCubic(Math.min(age.current / growMs, 1));
       moving = true;
     }
     // Hover eases in and out over HOVER_MS (smoothstep of a steady ramp)
     const goal = hovered ? 1 : 0;
     if (hover.current !== goal) {
-      const step = (Math.min(delta, 1 / 20) * 1000) / HOVER_MS;
-      const h = hover.current;
-      hover.current = goal > h ? Math.min(goal, h + step) : Math.max(goal, h - step);
-      const e = hover.current;
-      u.uHover.value = e * e * (3 - 2 * e);
+      hover.current = toward(hover.current, goal, (Math.min(delta, 1 / 20) * 1000) / HOVER_MS);
+      u.uHover.value = smooth(hover.current);
       moving = true;
     }
     if (u.uPulse.value > 0) {
@@ -368,8 +353,7 @@ const Mark = ({
       moving = true;
     }
     if (drawMs > 0 && u.uReveal.value < 1) {
-      const k = Math.min(Math.max((age.current - delayMs) / drawMs, 0), 1);
-      u.uReveal.value = 1 - (1 - k) ** 2;
+      u.uReveal.value = easeOutQuad(clamp01((age.current - delayMs) / drawMs));
       moving = true;
     }
     if (settle && u.uSettle.value < 1) {
@@ -389,14 +373,12 @@ const Mark = ({
     }
     if (yieldHeld) {
       const held = heldAt();
-      if (held && Math.abs(held[0] - floor[0]) < 1e-3 && Math.abs(held[2] - floor[2]) < 1e-3) {
-        if (Math.abs(held[1] - floor[1]) < 0.3) amount = 0;
-      }
+      if (held && isStacked(held, floor) && Math.abs(held[1] - floor[1]) < 0.3) amount = 0;
     }
     if (dimAbove) {
       // From high above, the held piece's own level leads
       camera.getWorldDirection(look);
-      const k = Math.min(Math.max((-look.y - 0.8) / 0.17, 0), 1);
+      const k = clamp01((-look.y - 0.8) / 0.17);
       amount *= 1 - 0.4 * k * k * (3 - 2 * k);
     }
     u.uAmount.value = amount;
@@ -407,7 +389,7 @@ const Mark = ({
     <mesh
       geometry={planeFor(quad)}
       material={material}
-      position={[floor[0], floor[1] + lift, floor[2]]}
+      position={[floor[0], floor[1] + 0.012, floor[2]]}
       renderOrder={renderOrder}
       raycast={noRaycast}
     />
@@ -498,7 +480,7 @@ export const Capture = ({ floor, hovered = false }: MarkerProps) => {
   );
 };
 
-// The Selection marker lives in selection.tsx (the pieces agent's), with the held piece's light.
+// The Selection marker lives in selection.tsx, with the held piece's light.
 
 /**
  * The last move: a thin circle of pale mint round the piece where it landed
@@ -586,9 +568,7 @@ const lineDelay = MOTION.durationMs * 0.3;
 const SHIMMER = { speed: 0.45, spacing: 1.8, length: 0.32, peak: 0.75 };
 
 const shimmerMaterial = () =>
-  new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
+  overlayMaterial({
     blending: AdditiveBlending,
     uniforms: {
       uColor: { value: new Color('#f4fff9') },
@@ -599,18 +579,7 @@ const shimmerMaterial = () =>
       uLength: { value: SHIMMER.length },
       uPeak: { value: SHIMMER.peak },
     },
-    vertexShader: /* glsl */ `
-      attribute float aAlong;
-      varying float vAlong;
-      varying vec3 vNormal;
-      varying vec3 vView;
-      void main() {
-        vec4 w = modelMatrix * vec4(position, 1.0);
-        vAlong = aAlong;
-        vNormal = normalize(mat3(modelMatrix) * normal);
-        vView = cameraPosition - w.xyz;
-        gl_Position = projectionMatrix * viewMatrix * w;
-      }`,
+    vertexShader: tubeVertex,
     fragmentShader: /* glsl */ `
       uniform vec3 uColor;
       uniform float uTime;
@@ -650,25 +619,10 @@ const Shimmer = ({
   const invalidate = useThree((s) => s.invalidate);
   const key = JSON.stringify([from, to, radius]);
   const geometry = useMemo(() => {
-    const data = tubeData(
-      tracePath(from, to, {
-        lift: LINE_LIFT,
-        inset: LINE_LANDING,
-        insetFront: SEAT_SIDE,
-      }),
-      {
-        radius: radius * 2.4,
-        radialSegments: 8,
-        capSegments: 2,
-      },
+    return tubeGeometry(
+      tracePath(from, to, { lift: LINE_LIFT, inset: LINE_LANDING, insetFront: SEAT_SIDE }),
+      { radius: radius * 2.4, radialSegments: 8, capSegments: 2 },
     );
-    const g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(data.position, 3));
-    g.setAttribute('normal', new BufferAttribute(data.normal, 3));
-    g.setAttribute('aAlong', new BufferAttribute(data.along, 1));
-    g.setIndex(new BufferAttribute(data.index, 1));
-    g.computeBoundingSphere();
-    return g;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
   }, [key]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -682,7 +636,7 @@ const Shimmer = ({
     since.current += Math.min(delta, 1 / 20);
     const u = material.uniforms;
     u.uTime.value = Math.max(since.current, 0);
-    u.uFade.value = Math.min(Math.max(since.current / 0.4, 0), 1);
+    u.uFade.value = clamp01(since.current / 0.4);
     invalidate();
   });
   if (still) return null;
