@@ -4,7 +4,7 @@
 // the box of the square in front of it first; the floor squares themselves
 // have no such overlap. Pure, so it can be tested without WebGL.
 
-type Vec3 = [number, number, number];
+import type { Vec3 } from './types';
 
 export interface HoverRay {
   origin: Vec3;

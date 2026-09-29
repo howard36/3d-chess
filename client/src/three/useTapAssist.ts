@@ -116,7 +116,7 @@ export function useTapAssist(
         kind: actionable.destinations.has(cell) ? 'destination' : 'piece',
         outline,
       }));
-      const chosen = resolveTap(tap, targets, { holding: actionable.holding });
+      const chosen = resolveTap(tap, targets, actionable.holding);
       return chosen && { cell: chosen.id, kind: chosen.kind };
     },
     [grid, gl, camera],
