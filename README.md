@@ -533,22 +533,21 @@ repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
 
-The client builds to three chunks: the entry (the start screen, about 74 KB gzip), the game
-screen (`screens/GameScreen.tsx`, loaded with `React.lazy` in `App.tsx`: the waiting and
-join screens, the HUD, the move record; about 11 KB) and its 3D board
-(`screens/GameCanvas.tsx`, loaded lazily by the game screen: three.js, the scene, the
-engine and the set's precomputed parts; about 340 KB). The start screen fetches the game
-screen once the page is idle, and the game screen its board as soon as it loads, so
-creating a game rarely waits; on a game's address the built page preloads both from the
-start (a `modulepreload` added by a small plugin in `vite.config.ts`), so a shared link
-shows its join screen without waiting for three.js, and does not wait for the entry
-before asking for the board. In the build, r3f's `Canvas` is handed only the three.js
-classes the scene writes as elements (`src/three/r3fCatalogue.ts`) instead of the whole
-namespace, so the rest of three.js is left out of the board's chunk; a new element's class
-must be added there (`r3fCatalogue.test.ts` fails until it is). The e2e suite runs against
-the dev server, which does neither: to run it against a build, start `vite preview` on
-port 5173 (built with `VITE_WS_URL=ws://127.0.0.1:8000/ws`) and the backend first, and
-Playwright reuses them.
+The client's entry (about 85 KB gzip) holds the start screen and the game screen (the
+waiting and join screens, the HUD, the move record). Everything 3D is a chunk the entry
+loads lazily, shared by the start page's preview (`screens/LandingPreview.tsx`) and the
+game's board (`screens/GameCanvas.tsx`): three.js, the scene and the set's precomputed
+parts, about 335 KB. The start page asks for it at once and shows its title and button
+without waiting for it; on a game's address the built page preloads it from the start (a
+`modulepreload` added by a small plugin in `vite.config.ts`), so a shared link shows its
+join screen without waiting for three.js, and does not wait for the entry before asking
+for the board. In the build, r3f's `Canvas` is handed only the three.js classes the scene
+writes as elements (`src/three/r3fCatalogue.ts`) instead of the whole namespace, so the
+rest of three.js is left out; a new element's class must be added there
+(`r3fCatalogue.test.ts` fails until it is, and the build fails if the swap stops applying).
+The e2e suite runs against the dev server, which does neither: to run it against a build,
+start `vite preview` on port 5173 (built with `VITE_WS_URL=ws://127.0.0.1:8000/ws`) and the
+backend first, and Playwright reuses them.
 
 ### Benchmarks
 
