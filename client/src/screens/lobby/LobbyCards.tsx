@@ -130,7 +130,7 @@ export const InvitationCard: React.FC<{
 
 /**
  * Who stands where, in words under the kings (placed by the scene's
- * --seat-<seat>-x/foot). Not read aloud: the card says the same.
+ * --seat-<seat>-x/front). Not read aloud: the card says the same.
  */
 export const SeatLabels: React.FC<{ labels: Partial<Record<Color, string>> }> = ({ labels }) => (
   <div aria-hidden>

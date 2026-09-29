@@ -47,7 +47,7 @@ export interface LobbyView {
   beat: LobbyBeat;
   /** The seats that are taken: their kings in material, the others in neon. */
   taken: Record<Side, boolean>;
-  /** This player's seat once they have one: lifted into the column of light. */
+  /** This player's seat once they have one: its king stands in a column of light. */
   mine: Side | null;
   /**
    * Something is docked under the kings (the host's invitation, the guest's
@@ -71,17 +71,10 @@ export interface LobbyView {
   onSettled?: () => void;
   /** Arriving: the free seat has filled and the moment has been held. */
   onArrived?: () => void;
-  /** Leaving: the lobby's picture begins to fade over the game (the game's entrance may begin). */
+  /** Leaving: the lobby's picture has faded over the game's first frame (the game's entrance may begin). */
   onReveal?: () => void;
   /** Leaving: the lobby's picture has faded out over the game. */
   onLeft?: () => void;
-}
-
-/** The screen positions of the seats, for the page's labels (CSS pixels). */
-export interface SeatAnchors {
-  white: { x: number; head: number; foot: number };
-  coin: { x: number; head: number; foot: number };
-  black: { x: number; head: number; foot: number };
 }
 
 /** A lobby king's foot, with its rim's glow, from its axis (world units). */
@@ -263,7 +256,7 @@ const LobbyRig = ({
       // game's first, level A's glass in the same place, and the canvases
       // change hands under it unseen
       from.current ??= current.current ?? rest;
-      const opening = gameOpening(view.seat, size.width, size.height);
+      const opening = gameOpening(view.seat, size.width, size.height, still);
       const start = still ? 0 : LOBBY_TIMING.leaveBurn * 0.4;
       const span = still ? 0.15 : LOBBY_TIMING.leaveMove;
       const k = Math.min(Math.max((since - start) / span, 0), 1);
@@ -311,7 +304,6 @@ const LobbyRig = ({
     if (host && !host.dataset.scene) host.dataset.scene = 'on';
     if (host && beat !== 'leave') {
       const vars: string[] = [];
-      const xs: number[] = [];
       for (const seat of ['white', 'coin', 'black'] as const) {
         const x = seatX(seat);
         const at = (y: number, z = 0) => {
@@ -323,14 +315,9 @@ const LobbyRig = ({
         // The near edge of its foot (and the rim's glow), where things hang under it
         const [, front] = at(FLOOR_Y, KING_FOOT_RADIUS);
         vars.push(`--seat-${seat}-x:${sx.toFixed(1)}px`);
-        vars.push(`--seat-${seat}-head:${head.toFixed(1)}px`);
-        vars.push(`--seat-${seat}-foot:${foot.toFixed(1)}px`);
         vars.push(`--seat-${seat}-front:${front.toFixed(1)}px`);
-        xs.push(sx);
         if (seat === 'coin') vars.push(`--king-height:${(foot - head).toFixed(1)}px`);
       }
-      // How far apart the seats stand on screen, for the buttons under them
-      vars.push(`--seat-pitch:${(xs[1] - xs[0]).toFixed(1)}px`);
       const css = vars.join(';');
       if (css !== last.current) {
         last.current = css;
@@ -390,7 +377,7 @@ export const LobbyScene = ({
       c.since = 0;
       arrived.current = false;
     } else c.since += dt;
-    // The choice has played out once its king has filled and lifted into the light
+    // The choice has played out once its king has filled and its light has come on
     const s = settled.current;
     if (s.mine !== mine) {
       s.mine = mine;
@@ -426,7 +413,7 @@ export const LobbyScene = ({
   const filling = view.beat === 'arrive' || view.beat === 'leave';
   const fills = useRef<KingPair>({ white: 0, black: 0, started: 0, both: 0 });
   const newcomer = view.beat === 'arrive' ? (view.arriving ?? null) : null;
-  // A named pick: the other king drains to nothing, as the coin does, and
+  // A named pick: the other king fades to nothing, as the coin does, and
   // its outline comes up as the page moves on to the invitation (the coin's
   // toss keeps both outlines, flanking it)
   const veiled = (side: Side) =>

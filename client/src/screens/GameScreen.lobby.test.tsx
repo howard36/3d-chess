@@ -295,6 +295,24 @@ describe("the host's invitation to send", () => {
     });
   });
 
+  it('keeps the lobby through a dropped connection, not playing its entrance again', () => {
+    setStoredRole('abc123', 'black');
+    const send = vi.fn(() => true);
+    const { rerender } = render(at(fakeSocket(hosting('black'), send)));
+    expect(view).toMatchObject({ beat: 'wait' });
+    rerender(
+      at(
+        fakeSocket(hosting('black'), send, {
+          sessionId: 2,
+          sessionStartIndex: 1,
+          status: 'reconnecting',
+        }),
+      ),
+    );
+    expect(view).toMatchObject({ beat: 'wait', mine: 'black' });
+    expect(screen.getByTestId('invite-card')).toBeInTheDocument();
+  });
+
   it('copies the link, and says whether it could', async () => {
     setStoredRole('abc123', 'white');
     const writeText = vi.fn(() => Promise.resolve());

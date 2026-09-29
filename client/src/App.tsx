@@ -44,7 +44,7 @@ function App() {
     // screen, or from one game's page straight to another's. A fresh session
     // keeps the previous game's messages and server-side seat from leaking
     // into the next page, which then rejoins or creates as a new page would.
-    // (Arriving at a game from the start screen keeps the session: it holds
+    // (Arriving at a game from the side choice keeps the session: it holds
     // the creator's game_created.) `reset` is stable and a no-op unless the
     // session saw traffic, so this runs exactly once per navigation.
     if (location.pathname === '/' || (previous !== null && gameId !== previous)) {

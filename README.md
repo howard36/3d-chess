@@ -526,8 +526,9 @@ frame. The screens declare what it shows with `useLobbyView`
 `leave`, the taken seats, the player's seat and an optional caption with its note, or
 `null` to take it away), and `three/lobby/LobbyScene.tsx` moves from one picture to the
 next on r3f's clock. The scene writes the kings' places on screen as
-`--seat-<seat>-x/head/foot` (and their spacing, `--seat-pitch`) on the layout, and the page's buttons and labels hang off
-them. The page's heading at the top carries the story from one step to the next, and the
+`--seat-<seat>-x` and `--seat-<seat>-front` (the near edge of its foot) with
+`--king-height` on the layout; the page's buttons and labels hang off them and are sized
+by the king. The page's heading at the top carries the story from one step to the next, and the
 cards under the kings carry only what to do. Timings and framing are pure functions in
 `three/lobby/lobbyMotion.ts` (the kings stand 1.25 times the game's pieces; narrower than
 9:10 they stand smaller and further out; the camera draws back, never the kings apart,

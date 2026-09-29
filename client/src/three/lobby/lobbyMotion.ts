@@ -65,7 +65,7 @@ export const viewDistance = (aspect: number, beside = false) => {
 // --- Durations (seconds) --------------------------------------------------------------------
 
 export const LOBBY_TIMING = {
-  /** A seat's king filling with its material from the foot up, or draining to neon. */
+  /** A seat's king filling with its material from the foot up. */
   fill: 0.9,
   /** A king let go (not chosen) fading where it stands, back into the dark. */
   fade: 0.7,
@@ -196,7 +196,7 @@ export const tossLanded = (t: number) =>
  * The piece shader's forming (pieces.tsx `uForm`, the game's entrance) for a
  * king that is `fill` whole (0 its neon outline only, 1 its material whole):
  * filling, it forms from the foot up behind a line of light, as the pieces
- * do when the tower is built; draining, it goes from the crown down.
+ * do when the tower is built. A king let go fades instead (`fade`).
  */
 export const formForFill = (fill: number) => clamp01(fill);
 
@@ -326,7 +326,7 @@ export const leaveDirection = (seat: Side): Vec3 => {
  * centre) and the fit's lens shift. The lobby ends its leaving exactly
  * there, so its last picture is the game's first.
  */
-export const gameOpening = (seat: Side, width: number, height: number) => {
+export const gameOpening = (seat: Side, width: number, height: number, reduced = false) => {
   const direction = leaveDirection(seat);
   const pose = poseFromDirection([0, 0, 0], direction, 1);
   const view: FitWindow = { width, height, fov: LOBBY_FOV, topInset: hudTop(height) };
@@ -338,7 +338,8 @@ export const gameOpening = (seat: Side, width: number, height: number) => {
     view,
   );
   return {
-    pose: { ...pose, distance: distance * introPlan('lobby').dolly.from },
+    // (the entrance the game will play: under reduced motion it has no dolly)
+    pose: { ...pose, distance: distance * introPlan('lobby', reduced).dolly.from },
     shift,
   };
 };

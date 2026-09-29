@@ -35,9 +35,10 @@ import type { Side } from './lobbyMotion';
 // or only its outline in neon, the way the garden's colossal sculptures are
 // drawn: an empty seat. Filling, the material forms from the foot up behind
 // a bright edge (the capture's burn, run backwards) as the neon gives way;
-// draining, it goes from the crown down and the neon comes back. The
-// player's own king lifts into the game's column of light, as a piece does
-// when it is picked up, so the lobby teaches the board's language.
+// let go, it fades where it stands and the neon comes back. The player's own
+// king stands in the game's column of light, and at the start lifts in it,
+// as a piece does when it is picked up, so the lobby teaches the board's
+// language.
 
 const HOVER_RATE = 1 / PIECE_LIFT.hoverSeconds;
 const LIFT_RATE = 1 / PIECE_LIFT.selectSeconds;
@@ -164,9 +165,9 @@ export const LobbyKing = ({
   /** The game starting: lit, it lifts once both kings have filled, with the other. */
   together?: boolean;
   /**
-   * Its outline held back: the opponent's seat on a named pick drains to
-   * nothing, as the coin beside it does, and its outline comes up once this
-   * is lifted, with the invitation.
+   * Its outline held back: the opponent's seat on a named pick fades to
+   * nothing, as the coin beside it does, and its outline comes up from the
+   * foot once this is lifted, with the invitation.
    */
   veiled?: boolean;
 }) => {
@@ -206,6 +207,7 @@ export const LobbyKing = ({
   const held = useRef(selectState());
   const [showLight, setShowLight] = useState(false);
   const breathClock = useRef(0);
+  const lightClock = useRef(0);
   // Seconds since its first frame, for its entrance (none under reduced motion)
   const entrance = useRef(enter === undefined || still ? Infinity : 0);
   // Its outline's strength: a king that forms on the entrance shows none
@@ -237,8 +239,8 @@ export const LobbyKing = ({
     const before = { ...m };
     const rate = still ? 1 / 0.15 : 1 / LOBBY_TIMING.fill;
     // Taken, it forms from the foot up; let go, it fades where it stands,
-    // stepping back into the dark rather than draining, and once faded is
-    // empty again (to form anew, should its seat be taken again)
+    // stepping back into the dark, and once faded is empty again (to form
+    // anew, should its seat be taken again)
     if (!present && m.fill > 0 && !gone) {
       m.fade = toward(m.fade, 0, dt * (still ? 1 / 0.15 : 1 / LOBBY_TIMING.fade));
       if (m.fade <= 0) {
@@ -318,6 +320,10 @@ export const LobbyKing = ({
 
     const column = gone ? m.fill > 0.5 && m.gone < 0.85 : m.hold > 0.02 && lit;
     const showing = stepSelection(held.current, column, dt * 1000, still);
+    // Its motes drift for the first minute in the light, as the free seat
+    // breathes, then hold still: a page left waiting stops drawing
+    lightClock.current = showing ? lightClock.current + dt : 0;
+    const inLight = showing && !still && lightClock.current < 60;
     if (showing !== showLight) setShowLight(showing);
     const moving =
       m.fill !== before.fill ||
@@ -330,7 +336,7 @@ export const LobbyKing = ({
     // A pointer resting on it while it formed hovers it once it can be picked
     if (!(pick && present && !gone)) Object.assign(pointer.current, { over: false, told: false });
     else tellResting(pick, m.fill >= 0.999, pointer.current);
-    if (moving || showing || inBreath || waiting || entering || opening) invalidate();
+    if (moving || inLight || inBreath || waiting || entering || opening) invalidate();
   });
 
   const top = KING_TOP;
@@ -420,7 +426,7 @@ const halve = (material: ShaderMaterial, half: -1 | 1) => {
  * the right. Tossed, it is thrown up spinning like a coin, lands showing one
  * face, and glides onto that side's seat (`onGlide` as it sets off), where `onLanded` hands it over to
  * the seat's own king (seen from the front, the coin showing a face is that
- * king). Not chosen, it drains away.
+ * king). Not chosen, it fades where it stands.
  */
 export const CoinKing = ({
   shown,

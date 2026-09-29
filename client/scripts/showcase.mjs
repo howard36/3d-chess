@@ -108,8 +108,10 @@
 //
 //   node scripts/showcase.mjs --intro --out /tmp/intro [--seat black] [--rejoin] [--reduced]
 //
-// Both pages run on the virtual clock from the moment they open, so the
-// entrance is recorded from its very first frame. It writes intro.mp4 (the
+// Both pages run on the virtual clock from the moment they open: the lobby
+// is stepped through the side choice, the join and the handover, and the
+// recording starts on the game's first frame as the lobby's picture leaves
+// it (the `lobby` entrance), so the entrance is recorded from its very start. It writes intro.mp4 (the
 // entrance and a second after it) and a still at each of --at "s,s,…"
 // (seconds into the entrance; by default 0, 0.4, 0.9, 1.4, 1.9, 2.3, 2.6,
 // 2.9, 3.3 and its end), intro-<seconds>.png, plus a contact sheet of them,
@@ -1559,6 +1561,21 @@ async function orbitSheet(context, segments, shots, seat) {
   await close();
 }
 
+/**
+ * --intro: the pages' clocks stand still from the start, so the lobby only
+ * moves as they are stepped: step them a frame at a time until `done` holds
+ * on `page`.
+ */
+async function stepUntil(pages, page, done) {
+  const deadline = Date.now() + 120000;
+  while (!(await page.evaluate(done).catch(() => false))) {
+    if (Date.now() > deadline) throw new Error(`stepUntil timed out: ${done}`);
+    for (const p of pages) {
+      await p.evaluate(() => window.__vclock.step(1000 / 30)).catch(() => {});
+    }
+  }
+}
+
 /** --intro: the game's entrance, from its first frame (see the header). */
 async function introReview(browser, rec, seat) {
   const elapsed = stopwatch();
@@ -1670,9 +1687,21 @@ async function main() {
   await pageA.goto(`${BASE}/`);
   await pageA.getByRole('button', { name: 'Start a game' }).click();
   await pageA.getByRole('button', { name: /^White/ }).click();
+  // --intro: the pick plays out on the stepped clock before the page moves on
+  if (INTRO) await stepUntil([pageA], pageA, () => location.pathname.startsWith('/game/'));
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
   await pageB.goto(pageA.url());
   await pageB.getByRole('button', { name: 'Join game' }).click();
+  if (INTRO) {
+    // The arrival and the handover, up to the game's first frame on the
+    // recorded page: its board up, the lobby's canvas gone from over it
+    const rec = opt('seat', 'white') === 'black' ? pageB : pageA;
+    await stepUntil(
+      [pageA, pageB],
+      rec,
+      () => !!window.__show?.ready() && !document.querySelector('[data-testid="lobby-canvas"]'),
+    );
+  }
   for (const p of [pageA, pageB]) {
     await p.waitForFunction(() => window.__show?.ready(), null, { ...POLL, timeout: 120000 });
   }

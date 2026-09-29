@@ -8,27 +8,34 @@ import {
   blendPose,
   breath,
   cardBeside,
+  entranceFrom,
   faceAngle,
   FLOOR_Y,
   formForFill,
+  gameOpening,
+  kingEntrance,
   KING_SCALE,
   KING_TOP,
   LOBBY_FOV,
+  LOBBY_ENTRANCE,
   LOBBY_TIMING,
   leaveDirection,
   lobbyPose,
   outlineForFill,
+  placeRing,
   poseFromDirection,
   posePosition,
   SEAT_SPACING,
   seatOpening,
   seatX,
+  settlePose,
   tossAngle,
   tossGlide,
   tossHop,
   tossLanded,
 } from './lobbyMotion';
 import type { CameraPose, Side } from './lobbyMotion';
+import { introPlan } from '../intro/timeline';
 
 // Behaviour, not tuning: the timings, heights and framing shares are the
 // design's to change; what the scene relies on is tested here.
@@ -405,5 +412,66 @@ describe('handing over to the game', () => {
     expect(end.radius).toBeGreaterThan(arrivalRing(0.7).radius);
     expect(end.strength).toBe(0);
     expect(arrivalRing(10)).toEqual(end);
+  });
+
+  it("ends on the game's first frame: its fitted distance times the entrance's dolly", () => {
+    const white = gameOpening('white', 1280, 800);
+    const black = gameOpening('black', 1280, 800);
+    const opening = poseFromDirection([0, 0, 0], leaveDirection('white'), 1);
+    expect(white.pose.elevation).toBeCloseTo(opening.elevation, 12);
+    expect(white.pose.azimuth).toBeCloseTo(opening.azimuth, 12);
+    // The same framing from either side, round the tower
+    expect(black.pose.distance).toBeCloseTo(white.pose.distance, 9);
+    expect(black.shift).toEqual(white.shift);
+    // Under reduced motion the game has no dolly, so the lobby stops where it fits
+    const reduced = gameOpening('white', 1280, 800, true);
+    expect(reduced.pose.distance / introPlan('lobby', true).dolly.from).toBeCloseTo(
+      white.pose.distance / introPlan('lobby').dolly.from,
+      9,
+    );
+    expect(reduced.pose.distance).toBeLessThan(white.pose.distance);
+  });
+
+  it('answers a king set on its seat with a ring that is gone by the time it has formed', () => {
+    expect(placeRing(0).strength).toBeGreaterThan(0);
+    expect(placeRing(0.4).radius).toBeGreaterThan(placeRing(0).radius);
+    expect(placeRing(0.8).strength).toBeLessThanOrEqual(0.002);
+    expect(placeRing(5)).toEqual(placeRing(0.8));
+  });
+});
+
+describe('the entrance', () => {
+  const rest: CameraPose = { target: [0, 1, 0], azimuth: 0.3, elevation: 0.2, distance: 20 };
+
+  it('comes in from further out and higher', () => {
+    const from = entranceFrom(rest);
+    expect(from.distance).toBeGreaterThan(rest.distance);
+    expect(from.elevation).toBeGreaterThan(rest.elevation);
+    expect(from.azimuth).toBe(rest.azimuth);
+    expect(from.target).toEqual(rest.target);
+  });
+
+  it('settles onto its rest without passing it, and stays there', () => {
+    const from = entranceFrom(rest);
+    expect(settlePose(from, rest, 0)).toEqual(from);
+    const distances = samples(0, 1).map((t) => settlePose(from, rest, t).distance);
+    for (let i = 1; i < distances.length; i++) {
+      expect(distances[i]).toBeLessThanOrEqual(distances[i - 1]);
+      expect(distances[i]).toBeGreaterThanOrEqual(rest.distance);
+    }
+    expect(settlePose(from, rest, 1).distance).toBeCloseTo(rest.distance, 12);
+    expect(settlePose(from, rest, 3)).toEqual(settlePose(from, rest, 1));
+  });
+
+  it("brings a king's outline up before it forms, the kings in turn", () => {
+    const { white, coin, black } = LOBBY_ENTRANCE.king;
+    expect(white).toBeLessThan(coin);
+    expect(coin).toBeLessThan(black);
+    expect(kingEntrance(0, white)).toEqual({ outline: 0, forming: false });
+    const early = kingEntrance(white - LOBBY_ENTRANCE.outline / 2, white);
+    expect(early.outline).toBeGreaterThan(0);
+    expect(early.forming).toBe(false);
+    expect(kingEntrance(white, white)).toEqual({ outline: 1, forming: true });
+    expect(kingEntrance(10, white)).toEqual({ outline: 1, forming: true });
   });
 });

@@ -185,7 +185,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // Rejoin whenever a socket session opens without a server-side seat: on page
   // load with a stored role, and again after every mid-game reconnect (the
   // server forgets a socket the moment it drops). The creator arriving from
-  // StartScreen is the exception — their session already has game_created.
+  // the side choice (/new) is the exception — their session already has
+  // game_created.
   // Only on an open socket: a rejoin queued on a closed one would be flushed
   // on the next open and then sent again for that session.
   React.useEffect(() => {
@@ -364,8 +365,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // A guest: opened the invitation here (and may have accepted it); a host:
   // holds a seat it did not join here (it created the game)
   const guest = joinRequested || seat.joined || !storedRole;
-  // The host, waiting: this page holds a seat and the game has not begun
-  const hosting = !guest && sessionReady;
+  // The host, waiting: this page holds a seat and the game has not begun. A
+  // page that has been hosting keeps its lobby through a dropped connection
+  // (rather than tear it down and play its entrance again on the rejoin)
+  const wasHost = React.useRef(false);
+  const hosting = !guest && (sessionReady || wasHost.current);
+  if (hosting) wasHost.current = true;
   const shareLink = gameLink(gameId ?? '');
 
   // The lobby hands over to the game when the game begins on this page: the
@@ -389,8 +394,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     const timer = window.setTimeout(() => setGameDrawn(true), FIRST_FRAME_WAIT_MS);
     return () => window.clearTimeout(timer);
   }, [handover, arrived, gameDrawn]);
-  const wasHost = React.useRef(false);
-  if (hosting) wasHost.current = true;
 
   // A host whose tab is in the background when the guest arrives: the tab's
   // title says so, and the arrival waits for them (the scene draws no

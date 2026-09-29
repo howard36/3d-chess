@@ -39,7 +39,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
   const [coinGone, setCoinGone] = React.useState(false);
   // Where in the log this page asked for its game: only what follows answers
   // it (arriving from a finished game, the log still holds that game's
-  // game_created for the first render; see StartScreen's history)
+  // game_created for the first render)
   const [requestIndex, setRequestIndex] = React.useState<number | null>(null);
   const replies = requestIndex === null ? [] : messages.slice(requestIndex);
   const created = replies.find((m): m is GameCreated => m.type === 'game_created');
