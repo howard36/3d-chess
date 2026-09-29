@@ -117,6 +117,10 @@ for (const g of games) {
   const h = deriveHistory([{ type: 'game_state', started: true, moves: g.recs }]);
   if (h.replayFailedAt !== null) throw new Error(`fixture replay failed at ${h.replayFailedAt}`);
 }
+const memory = {
+  maxRssMb: +(process.resourceUsage().maxRSS / 1024).toFixed(1),
+  heapUsedMb: +(process.memoryUsage().heapUsed / 2 ** 20).toFixed(1),
+};
 console.log(
   JSON.stringify({
     bench: 'engine',
@@ -125,5 +129,6 @@ console.log(
     plies: games.map((g) => g.recs.length),
     results: out,
     sink,
+    ...memory,
   }),
 );

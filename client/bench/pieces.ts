@@ -79,6 +79,13 @@ if (quality === 'medium') {
     hashGeometry(bakeHash, t, g);
   }
 }
+// Peak memory of the process (the build is its largest user) and the heap left
+// (with --expose-gc, the heap still held once garbage is collected)
+(globalThis as { gc?: () => void }).gc?.();
+const memory = {
+  maxRssMb: +(process.resourceUsage().maxRSS / 1024).toFixed(1),
+  heapUsedMb: +(process.memoryUsage().heapUsed / 2 ** 20).toFixed(1),
+};
 console.log(
   JSON.stringify({
     bench: 'pieces',
@@ -89,6 +96,7 @@ console.log(
     times,
     triangles,
     hash: hash.digest('hex').slice(0, 16),
+    ...memory,
     ...(quality === 'medium'
       ? {
           bakeMs: +bakeTotal.toFixed(2),

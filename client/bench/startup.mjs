@@ -113,6 +113,8 @@ const measure = async (which, path, selector) => {
     await page.waitForSelector(selector, { state: 'visible', timeout: 120000 });
   }
   const ms = await page.evaluate(() => performance.now());
+  // The page's JS heap when its screen is up (Chromium's performance.memory)
+  const jsHeap = await page.evaluate(() => performance.memory?.usedJSHeapSize ?? 0);
   const bytes = await page.evaluate(() =>
     performance.getEntriesByType('resource').reduce((n, e) => n + (e.transferSize || 0), 0),
   );
@@ -120,7 +122,7 @@ const measure = async (which, path, selector) => {
   // (the stand-in-less game page fails to reach its server: expected)
   const real = errors.filter((e) => !/WebSocket|ERR_CONNECTION_REFUSED/.test(e));
   if (real.length) throw new Error(`${which} ${path}: ${real.join(' | ')}`);
-  return { ms, bytes };
+  return { ms, bytes, jsHeap };
 };
 
 const pages = [
@@ -132,9 +134,11 @@ const results = {};
 for (let r = 0; r < runs; r++) {
   for (const which of r % 2 ? ['b', 'a'] : ['a', 'b']) {
     for (const [name, path, selector] of pages) {
-      const { ms, bytes } = await measure(which, path, selector);
-      (results[`${name}.${which}`] ??= { ms: [], bytes: [] }).ms.push(ms);
-      results[`${name}.${which}`].bytes.push(bytes);
+      const { ms, bytes, jsHeap } = await measure(which, path, selector);
+      const r = (results[`${name}.${which}`] ??= { ms: [], bytes: [], jsHeap: [] });
+      r.ms.push(ms);
+      r.bytes.push(bytes);
+      r.jsHeap.push(jsHeap);
     }
   }
 }
@@ -142,12 +146,13 @@ await browser.close();
 for (const s of Object.values(servers)) s.close();
 const median = (xs) => [...xs].sort((p, q) => p - q)[Math.floor(xs.length / 2)];
 const out = {};
-for (const [k, { ms, bytes }] of Object.entries(results)) {
+for (const [k, { ms, bytes, jsHeap }] of Object.entries(results)) {
   out[k] = {
     median: +median(ms).toFixed(0),
     min: +Math.min(...ms).toFixed(0),
     max: +Math.max(...ms).toFixed(0),
     bytes: median(bytes),
+    jsHeapMb: +(median(jsHeap) / 2 ** 20).toFixed(1),
     all: ms.map((x) => Math.round(x)),
   };
 }
