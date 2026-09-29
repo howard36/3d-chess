@@ -54,9 +54,9 @@ const lobby: LobbyApi = {
   },
 };
 
-const at = (socket: GameSocket, gameId = 'abc123', state?: unknown) => (
+const at = (socket: GameSocket, gameId = 'abc123') => (
   <LobbyContext.Provider value={lobby}>
-    <MemoryRouter initialEntries={[{ pathname: `/game/${gameId}`, state }]}>
+    <MemoryRouter initialEntries={[`/game/${gameId}`]}>
       <Routes>
         <Route path="/" element={<p>home</p>} />
         <Route path="/new" element={<p>choose a side</p>} />
@@ -191,7 +191,7 @@ describe("a guest's invitation", () => {
     });
     const button = screen.getByRole('button', { name: 'Joining…' });
     expect(button).toHaveAttribute('aria-disabled', 'true');
-    expect(view).toMatchObject({ taken: { white: true, black: true }, mine: null });
+    expect(view).toMatchObject({ taken: { white: true, black: true }, mine: 'black' });
     expect(seatLabels()).toEqual(['Opponent', 'You']);
     // Held: nothing more goes out
     fireEvent.click(button);
@@ -251,7 +251,7 @@ describe("a guest's invitation", () => {
     expect(view).toMatchObject({
       beat: 'invited',
       taken: { white: true, black: true },
-      mine: null,
+      mine: 'black',
       seat: 'black',
     });
   });
@@ -288,15 +288,6 @@ describe("the host's invitation to send", () => {
       mine: 'black',
       seat: 'black',
     });
-  });
-
-  it('keeps a king that chance chose on the glass until the game starts', () => {
-    setStoredRole('abc123', 'white');
-    const { unmount } = render(at(fakeSocket(hosting('white'))));
-    expect(view).toMatchObject({ beat: 'wait', mine: 'white', grounded: false });
-    unmount();
-    render(at(fakeSocket(hosting('white')), 'abc123', { grounded: true }));
-    expect(view).toMatchObject({ beat: 'wait', mine: 'white', grounded: true });
   });
 
   it('copies the link, and says whether it could', async () => {

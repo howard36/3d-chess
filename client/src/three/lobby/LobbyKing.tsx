@@ -39,6 +39,8 @@ const HOVER_RATE = 1 / PIECE_LIFT.hoverSeconds;
 const LIFT_RATE = 1 / PIECE_LIFT.selectSeconds;
 /** How fast a king's height closes on its goal (per second): most of the way in a third of a second. */
 const LIFT_EASE = 9;
+/** Setting a chosen king down on its square: a touch quicker than lifting. */
+const SET_DOWN_EASE = 13;
 /** `from` eased toward `to` over `dt` seconds at `rate`, landing on it once within a hair. */
 const settle = (from: number, to: number, dt: number, rate: number) => {
   const next = to + (from - to) * Math.exp(-rate * dt);
@@ -90,7 +92,7 @@ export const LobbyKing = ({
   /** Leaving for the game: the king and its outline go up in light. */
   gone: boolean;
   hovered: boolean;
-  /** The player's own king: lifted into the column of light. */
+  /** The player's own king (or, at the start, both): in the column of light. */
   lit: boolean;
   /** The free seat breathes while it waits. */
   breathing: boolean;
@@ -99,7 +101,7 @@ export const LobbyKing = ({
   pick?: Pickable;
   /** Both kings' fills, shared, written by each king every frame. */
   fills?: RefObject<Record<Side, number>>;
-  /** Lit and not yet lifted, it waits for both kings to fill, and lifts with the other. */
+  /** The game starting: lit, it lifts once both kings have filled, with the other. */
   together?: boolean;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
@@ -146,11 +148,8 @@ export const LobbyKing = ({
     if (first.current || (snap && fillGoal === 1)) {
       first.current = false;
       m.fill = fillGoal;
-      // The coin that landed here arrived lifted, in the player's place
-      if (snap && lit) {
-        m.hold = 1;
-        m.lift = PIECE_LIFT.selected;
-      }
+      // The coin that slid in here is the player's king, in its light at once
+      if (snap && lit) m.hold = 1;
     }
     const before = { ...m };
     const rate = still ? 1 / 0.15 : 1 / LOBBY_TIMING.fill;
@@ -159,20 +158,21 @@ export const LobbyKing = ({
     m.outline = gone ? toward(m.outline, 0, dt * rate) : outlineForFill(m.fill);
     m.hover = toward(m.hover, hovered && !lit && present ? 1 : 0, dt * HOVER_RATE);
     if (fills?.current) fills.current[color] = m.fill;
-    // One already lifted stays; the rest start together once both have filled
-    const filled =
-      together && fills?.current && m.hold === 0
-        ? Math.min(fills.current.white, fills.current.black) > 0.9
-        : m.fill > 0.9;
-    m.hold = toward(m.hold, lit && filled ? 1 : 0, dt * (still ? 1 / 0.15 : LIFT_RATE));
+    // Its column of light as soon as it is the player's and filled; lifted
+    // only when the game starts, the two together once both have filled
+    m.hold = toward(m.hold, lit && m.fill > 0.9 ? 1 : 0, dt * (still ? 1 / 0.15 : LIFT_RATE));
+    const rising =
+      together && !!fills?.current && Math.min(fills.current.white, fills.current.black) > 0.9;
     // Leaving: each king rises, in its own column of light, and is taken up
     // into it from the foot, faster as it goes
     m.gone = gone ? toward(m.gone, 1, dt / (still ? 0.15 : LOBBY_TIMING.leaveBurn)) : 0;
-    // One height, eased toward the highest reason for it: from hover straight
-    // up to the selected height when a hovered king is chosen, never dipping
+    // One height: a hover lifts it (picked up); chosen, it is set down on its
+    // square, a little quicker; at the start it rises with the other
     const liftGoal =
-      lit && filled ? PIECE_LIFT.selected : hovered && present ? PIECE_LIFT.hover : 0;
-    m.lift = still ? liftGoal : settle(m.lift, liftGoal, dt, LIFT_EASE);
+      lit && rising ? PIECE_LIFT.selected : hovered && present && !lit ? PIECE_LIFT.hover : 0;
+    m.lift = still
+      ? liftGoal
+      : settle(m.lift, liftGoal, dt, liftGoal < m.lift ? SET_DOWN_EASE : LIFT_EASE);
     const up = m.lift + GONE_RISE * m.gone * m.gone;
     if (lift.current) lift.current.position.y = up;
 

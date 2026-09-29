@@ -57,12 +57,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
 
   React.useEffect(() => {
     if (created) setStoredRole(created.gameId, created.color);
-    // A side left to chance keeps its king on the glass there too
-    if (created && settled)
-      navigate(`/game/${created.gameId}`, {
-        replace: true,
-        state: picked?.choice === 'random' ? { grounded: true } : undefined,
-      });
+    if (created && settled) navigate(`/game/${created.gameId}`, { replace: true });
   }, [created, settled, navigate]);
 
   // Asked again on the next connection if this one drops before the answer
@@ -87,7 +82,6 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
           black: true,
         },
     mine: side,
-    grounded: picked?.choice === 'random',
     hover: picked ? null : hover,
     toss: picked?.choice === 'random' ? picked.side : null,
     seat: side ?? 'white',

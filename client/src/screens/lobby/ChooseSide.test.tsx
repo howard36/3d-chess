@@ -1,14 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  MemoryRouter,
-  Route,
-  Routes,
-  useLocation,
-  useNavigationType,
-  useParams,
-} from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigationType, useParams } from 'react-router-dom';
 import ChooseSide from './ChooseSide';
 import { LobbyContext } from './lobbyContext';
 import type { LobbyApi, LobbyStage } from './lobbyContext';
@@ -29,12 +22,10 @@ const lobby: LobbyApi = {
 
 function GamePage() {
   const { gameId } = useParams();
-  const grounded = !!(useLocation().state as { grounded?: boolean } | null)?.grounded;
   // How the page was reached: the side choice is not a page to go back to
   return (
     <p>
       game page {gameId} by {useNavigationType()}
-      {grounded && ', grounded'}
     </p>
   );
 }
@@ -148,22 +139,6 @@ describe('choosing a side', () => {
     act(() => view!.onGlide!());
     expect(random()).toHaveAttribute('data-faded');
     expect(white()).toHaveAttribute('data-faded');
-  });
-
-  it('keeps the king chance chose on the glass, here and on the game page', async () => {
-    const { rerender } = render(at(fakeSocket()));
-    vi.spyOn(Math, 'random').mockReturnValue(0.8);
-    await userEvent.click(random());
-    expect(view).toMatchObject({ toss: 'black', mine: 'black', grounded: true });
-    rerender(at(fakeSocket([created('black')])));
-    settle();
-    expect(await screen.findByText('game page ABC123 by REPLACE, grounded')).toBeInTheDocument();
-  });
-
-  it('lifts a king chosen by name', async () => {
-    render(at(fakeSocket()));
-    await userEvent.click(white());
-    expect(view).toMatchObject({ mine: 'white', grounded: false });
   });
 
   it('makes a pick final: every choice is held, and nothing more is sent', async () => {

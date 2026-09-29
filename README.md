@@ -518,7 +518,7 @@ its middle rank, each king on the middle of its own square (`SEAT_SPACING`, one 
 apart at every window size), White's seat on the left and Black's on the right. A taken seat shows its
 king in its army's material; a free seat is the king drawn in neon, like the garden's
 sculptures (`three/lobby/LobbyKing.tsx`); filling, the material forms from the foot up as
-the neon gives way, and the player's own king lifts into the game's column of light. The
+the neon gives way, and the player's own king stands on the glass in the game's column of light. The
 lobby is a layout route (`screens/lobby/LobbyLayout.tsx`) round `/new` and
 `/game/:gameId`, so its one canvas stays up from the side choice to the game's first
 frame. The screens declare what it shows with `useLobbyView`
@@ -540,17 +540,17 @@ until the row fits the width).
   just round its word under a phone's small kings to 180 px pills with 18 px text under a
   large screen's, each hanging a little under its king's foot, `--seat-<seat>-front`), and
   nothing under the heading. A king lifts under a mouse (on it or its button) or its
-  button's focus, and clicking either picks; a tap leaves no hover behind. Its height is one
-  eased value, so a chosen king goes on up from hover to the selected height without dipping. A pick is final: `create_game {color}` goes out at once (and again on the
-  next socket if its answer is lost), and the heading turns to "You play Black" (or
-  "Leaving it to chance…"), with nothing under it. Random is decided in the client,
-  and the split king is thrown like a coin, lands on that face in the middle, and slides
-  along the glass into its seat's outline, where the seat's king takes over and stays on the
-  glass, not lifted (`grounded`, carried to the game page in the router's state) until the
-  game starts;
-  the Random button fades as the coin sets off from the middle (`onGlide`).
-  The chosen king lifts into the column of light while the other drains to its neon
-  outline, and the page moves to `/game/:id` (`replace`, so Back from the invitation leads
+  button's focus, as if picked up, and clicking either picks; a tap leaves no hover behind.
+  A pick is final: `create_game {color}` goes out at once (and again on the next socket if
+  its answer is lost), and the heading turns to "You play Black" (or "Leaving it to
+  chance…"), with nothing under it. The chosen king is set down on its square (its height
+  is one eased value, a little quicker down), a small ring of light runs out to the
+  square's edge (`placeRing`) and its column of light comes on, while the other drains to
+  its neon outline. Random is decided in the client, and the split king is thrown like a
+  coin, lands on that face in the middle, and slides along the glass into its seat's
+  outline, where the seat's king takes over with the same ring and light; the Random button
+  fades as the coin sets off from the middle (`onGlide`). Every chosen king stays on the
+  glass until the game starts. The page moves to `/game/:id` (`replace`, so Back from the invitation leads
   to the landing page) once both the answer and the moment (`onSettled`) are over. A
   refusal puts the kings back with "Couldn't start a game: …". The end-game dialog's
   "Start new game" and the invitation's "Start a new game" lead here.
@@ -573,7 +573,7 @@ until the row fits the width).
   lasted 1.5 s (`useDelayed`, `SLOW_SERVER_MS`): "Connecting to server…" or "Reconnecting to
   server…", the same words and delay as the side choice's bottom line;
   "Opponent" and "You" stand under the kings, and joining fills the guest's king at once,
-  before the server answers, but does not lift it: it lifts with the host's at the arrival. A game with both seats taken, or
+  before the server answers, in its light on the glass. A game with both seats taken, or
   none, gets a card "This game is taken" or "No game here" with "Start a new game". A page
   with a stored seat shows no lobby, only "Returning to your game…", until its rejoin is
   answered.
@@ -582,11 +582,11 @@ until the row fits the width).
   the heading's place, one line: "Opponent joined" for the host, "You play White" (or
   Black) for the guest. Meanwhile `GameView` mounts under the lobby, held
   on its first frame (`introPaused`), and reports that frame; if it never comes,
-  `FIRST_FRAME_WAIT_MS` (4 s) lets the lobby go anyway. A king not yet lifted waits
-  until both kings are filled (`together`, their fills shared), then rises into a column of
-  light of its own: on the guest's page both lift at once, on the host's the arriving king
-  rises level with the host's. Then `leave`: both kings rise together in their columns of
-  light and are taken up into them from the foot (`uGone`), level A's glass stays, and the camera draws out to exactly the game's first-frame pose
+  `FIRST_FRAME_WAIT_MS` (4 s) lets the lobby go anyway. Both kings, in their columns of
+  light, wait until both are filled (`together`, their fills shared) and then lift together
+  on both pages. Then `leave`: both rise on up in their columns of light and are taken up
+  into them from the foot (`uGone`), level A's glass stays, and the camera draws out to
+  exactly the game's first-frame pose
   (`gameOpening`: the fitted distance times the `lobby` entrance's `dolly.from`, on the
   opening line of sight from the player's seat, with the fit's lens shift) while the
   sculptures come back up to the game's brightness. The lobby's canvas then fades over an

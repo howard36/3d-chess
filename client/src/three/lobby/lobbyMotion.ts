@@ -216,6 +216,12 @@ export const arrivalRing = (t: number) => {
   return { radius: 0.3 + easeOutCubic(k) * 2.6, strength: 0.45 * (1 - k) ** 2 };
 };
 
+/** The smaller ring when the player's king is set down on its square: out to its edge and gone. */
+export const placeRing = (t: number) => {
+  const k = clamp01(t / 0.8);
+  return { radius: 0.28 + easeOutCubic(k) * 0.3, strength: 0.4 * (1 - k) ** 2 };
+};
+
 // --- Handing over to the game ------------------------------------------------------------
 
 /**

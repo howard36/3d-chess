@@ -16,6 +16,7 @@ import { introPlan } from '../intro/timeline';
 import { setLensShift } from '../viewOffset';
 import {
   arrivalRing,
+  placeRing,
   blendPose,
   FLOOR_Y,
   KING_SCALE,
@@ -42,11 +43,6 @@ export interface LobbyView {
   taken: Record<Side, boolean>;
   /** This player's seat once they have one: lifted into the column of light. */
   mine: Side | null;
-  /**
-   * The player's king stands on the glass, not lifted, until the game starts
-   * (a side left to chance: the coin slid into it along the glass).
-   */
-  grounded?: boolean;
   /** Choosing: the king under the pointer or keyboard focus. */
   hover: Choice | null;
   /** Choosing "Random": the side the coin will land on. */
@@ -83,7 +79,15 @@ const KING_FOOT_RADIUS = 0.3;
 
 const ringGeometry = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 
-const SeatRing = ({ x, playing }: { x: number; playing: boolean }) => {
+const SeatRing = ({
+  x,
+  playing,
+  ring = arrivalRing,
+}: {
+  x: number;
+  playing: boolean;
+  ring?: (t: number) => { radius: number; strength: number };
+}) => {
   const invalidate = useThree((s) => s.invalidate);
   const mesh = useRef<Mesh>(null);
   const t = useRef(-1);
@@ -139,7 +143,7 @@ const SeatRing = ({ x, playing }: { x: number; playing: boolean }) => {
   useFrame((_, delta) => {
     if (t.current < 0) return;
     t.current += Math.min(delta, 1 / 20);
-    const { radius, strength } = arrivalRing(t.current);
+    const { radius, strength } = ring(t.current);
     material.uniforms.uRadius.value = radius;
     material.uniforms.uStrength.value = strength;
     if (mesh.current) mesh.current.visible = strength > 0.002;
@@ -404,7 +408,7 @@ export const LobbyScene = ({
           present={taken[side]}
           gone={gone}
           hovered={view.hover === side}
-          lit={(mine === side && !view.grounded) || filling}
+          lit={mine === side || filling}
           fills={fills}
           together={filling}
           breathing={!taken[side] && (view.beat === 'wait' || view.beat === 'invited')}
@@ -422,6 +426,10 @@ export const LobbyScene = ({
         onLanded={setLanded}
       />
       {filling && newcomer && <SeatRing x={seatX(newcomer)} playing={filling} />}
+      {/* The chosen king set down on its square (or the coin come to rest there) */}
+      {view.beat === 'choose' && mine && (
+        <SeatRing key={mine} x={seatX(mine)} playing ring={placeRing} />
+      )}
       <LobbyRig
         view={view}
         clock={clock}
