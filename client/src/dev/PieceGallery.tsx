@@ -95,17 +95,13 @@ const Piece = ({ cell, set }: { cell: Cell; set: PieceSet }) =>
     />
   );
 
-/** Tells scripts/pieces.mjs the page is ready for its screenshot. */
-const markReady = () => {
-  (window as unknown as { __galleryReady: boolean }).__galleryReady = true;
-};
-
-/** Marks the page ready once a few frames are drawn. */
+/** Tells scripts/pieces.mjs the page is ready for its screenshot, once a few frames are drawn. */
 const Ready = () => {
   const frames = useRef(0);
   useFrame(() => {
     frames.current++;
-    if (frames.current === 4) markReady();
+    if (frames.current === 4)
+      (window as unknown as { __galleryReady: boolean }).__galleryReady = true;
   });
   return null;
 };
