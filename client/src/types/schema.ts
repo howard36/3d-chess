@@ -8,6 +8,8 @@
 export type WebSocketV1MessageEnvelope =
   | CreateGame
   | GameCreated
+  | LookGame
+  | GameInfo
   | JoinGame
   | GameJoined
   | RejoinGame
@@ -37,11 +39,30 @@ export type ErrorCode =
 export interface CreateGame {
   type: "create_game";
   clientId?: ClientId;
+  /**
+   * The side the creator wants to play. Omitted, the server picks one at random.
+   */
+  color?: "white" | "black";
 }
 export interface GameCreated {
   type: "game_created";
   gameId: string;
   color: Color;
+}
+/**
+ * Asks which seats of a game are taken, without joining it: what an invitation shows before the player accepts.
+ */
+export interface LookGame {
+  type: "look_game";
+  gameId: string;
+}
+export interface GameInfo {
+  type: "game_info";
+  gameId: string;
+  /**
+   * The seats already claimed, in the order they were taken.
+   */
+  seats: Color[];
 }
 export interface JoinGame {
   type: "join_game";

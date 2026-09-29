@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
+import { waitForIntro } from './helpers/board';
 import { openStandInGame } from './helpers/standIn';
 
 // The real camera turned all the way round the tower, a few degrees at a
@@ -34,26 +35,52 @@ const CLIMB = [...Array.from({ length: 52 }, (_, k) => -14 + 2 * k), 89.9];
 /** Where the letters leave the side post climbing, and come back to it dipping (labelAnchors). */
 const [LETTERS_HIGH, LETTERS_LOW] = [55, 45];
 
-/** Installed before any page script: a clock that moves only when told to. */
+/**
+ * Installed before any page script: a clock that moves only when told to.
+ *
+ * Taking over, it also takes the frames already asked for on the browser's
+ * clock and not yet run: r3f asks for its next frame before drawing one, and
+ * while that request is out it asks for no other, so a frame left pending on
+ * the browser's clock (the entrance's last, slow to draw in software) would
+ * leave the scene's frame callbacks never running on this one. Its frame ids
+ * are kept apart from the browser's so a cancel reaches the right one.
+ */
 const VIRTUAL_CLOCK = () => {
   const realNow = performance.now.bind(performance);
   let now: number | null = null;
   const queue = new Map<number, FrameRequestCallback>();
-  let next = 1;
+  // The browser's frames asked for and not yet run, by id
+  const pending = new Map<number, FrameRequestCallback>();
+  let next = 1e9;
   const w = window as Window & {
     __vclock?: { enable(): void; disable(): void; step(ms: number): void };
   };
   const realRaf = window.requestAnimationFrame.bind(window);
+  const realCancel = window.cancelAnimationFrame.bind(window);
+  const askReal = (cb: FrameRequestCallback) => {
+    const id = realRaf((t) => {
+      pending.delete(id);
+      cb(t);
+    });
+    pending.set(id, cb);
+    return id;
+  };
   w.__vclock = {
     enable() {
-      if (now === null) now = realNow();
+      if (now !== null) return;
+      now = realNow();
+      for (const [id, cb] of pending) {
+        realCancel(id);
+        queue.set(id, cb);
+      }
+      pending.clear();
     },
     /** Back to the browser's own clock, the frames asked for so far with it. */
     disable() {
       now = null;
       const due = [...queue.values()];
       queue.clear();
-      for (const cb of due) realRaf(cb);
+      for (const cb of due) askReal(cb);
     },
     step(ms) {
       now = (now ?? realNow()) + ms;
@@ -64,10 +91,14 @@ const VIRTUAL_CLOCK = () => {
   };
   performance.now = () => (now === null ? realNow() : now);
   window.requestAnimationFrame = (cb) => {
-    if (now === null) return realRaf(cb);
+    if (now === null) return askReal(cb);
     const id = next++;
     queue.set(id, cb);
     return id;
+  };
+  window.cancelAnimationFrame = (id) => {
+    if (pending.delete(id)) realCancel(id);
+    else queue.delete(id);
   };
 };
 
@@ -84,6 +115,8 @@ async function seated(page: Page, seat: 'white' | 'black') {
     });
     return cells === 125;
   });
+  // The camera is the player's once the game's entrance has played
+  await waitForIntro(page);
   await page.evaluate(() => document.fonts.ready);
   // Let the fonts reach the label textures, then take over the clock
   await page.waitForTimeout(500);

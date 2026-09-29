@@ -1,6 +1,8 @@
 import { Routes, Route, matchPath, useLocation, useParams } from 'react-router-dom';
 import StartScreen from './screens/StartScreen';
 import GameScreen from './screens/GameScreen';
+import LobbyLayout from './screens/lobby/LobbyLayout';
+import ChooseSide from './screens/lobby/ChooseSide';
 import { useGameSocket } from './hooks/useGameSocket';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
@@ -42,7 +44,7 @@ function App() {
     // screen, or from one game's page straight to another's. A fresh session
     // keeps the previous game's messages and server-side seat from leaking
     // into the next page, which then rejoins or creates as a new page would.
-    // (Arriving at a game from the start screen keeps the session: it holds
+    // (Arriving at a game from the side choice keeps the session: it holds
     // the creator's game_created.) `reset` is stable and a no-op unless the
     // session saw traffic, so this runs exactly once per navigation.
     if (location.pathname === '/' || (previous !== null && gameId !== previous)) {
@@ -53,11 +55,16 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<StartScreen gameSocket={gameSocket} />} />
-      <Route
-        path="/game/:gameId"
-        element={<GameRoute gameSocket={gameSocket} readyGameId={readyGameId} />}
-      />
+      <Route path="/" element={<StartScreen />} />
+      {/* The lobby's stage stays up from choosing a side to the game's
+          first frame, across the move from /new to the game's page */}
+      <Route element={<LobbyLayout />}>
+        <Route path="/new" element={<ChooseSide gameSocket={gameSocket} />} />
+        <Route
+          path="/game/:gameId"
+          element={<GameRoute gameSocket={gameSocket} readyGameId={readyGameId} />}
+        />
+      </Route>
     </Routes>
   );
 }

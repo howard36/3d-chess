@@ -13,7 +13,7 @@ interface EndGameModalProps {
 /**
  * The result, over the final position: "You win" or "You lose" by checkmate,
  * or a draw by stalemate, with the winner's stone lit. Its one button, which
- * has focus, leaves for the start screen.
+ * has focus, starts another game: the side choice.
  */
 const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat }) => {
   const navigate = useNavigate();
@@ -40,7 +40,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat }) => 
           {result === 'stalemate' ? 'by stalemate' : 'by checkmate'}
         </p>
         {/* The dialog takes focus: a keyboard player lands on its only action */}
-        <button autoFocus className="hud-button" onClick={() => navigate('/')}>
+        <button autoFocus className="hud-button" onClick={() => navigate('/new')}>
           Start new game
         </button>
       </div>

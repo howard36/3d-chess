@@ -21,6 +21,7 @@ import { PieceType } from '../../engine/pieces';
 import { PROFILES } from '../pieces';
 import { noRaycast } from '../noRaycast';
 import { GRID_LINES } from './gridLines';
+import type { platformStack } from './mask';
 import {
   shadeAt,
   shadeUniforms,
@@ -270,9 +271,13 @@ export const GARDEN = PLACES.map(({ type, square }) => ({ type, square, at: anch
  * sculpture's anchor, its point and tangent (in the drawing plane for an
  * outline, in 3D for a ring) and its side of the ribbon; the vertex shader
  * turns an outline to face the camera and widens every tube across the view,
- * so the whole garden is one draw call.
+ * so the whole garden is one draw call. (The lobby draws its empty seats with
+ * the same tubes: a king at piece scale.)
  */
-const neonGeometry = (): BufferGeometry => {
+export const neonGeometry = (
+  places: readonly { type: PieceType; at: readonly [number, number, number] }[] = GARDEN,
+  scale = SCALE,
+): BufferGeometry => {
   const anchor: number[] = [];
   const local: number[] = [];
   const tangent: number[] = [];
@@ -280,7 +285,7 @@ const neonGeometry = (): BufferGeometry => {
   const mode: number[] = [];
   const index: number[] = [];
   const addCurve = (
-    at: [number, number, number],
+    at: readonly [number, number, number],
     pts: [number, number, number][],
     closed: boolean,
     fixed: boolean,
@@ -307,12 +312,12 @@ const neonGeometry = (): BufferGeometry => {
       index.push(a, a + 1, b, b, a + 1, b + 1);
     }
   };
-  GARDEN.forEach(({ type, at }) => {
+  places.forEach(({ type, at }) => {
     const drawing = sculptureOf(type);
     for (const o of drawing.outlines) {
       addCurve(
         at,
-        o.points.map(([x, y]) => [x * SCALE, y * SCALE, 0]),
+        o.points.map(([x, y]) => [x * scale, y * scale, 0]),
         o.closed,
         false,
       );
@@ -321,9 +326,9 @@ const neonGeometry = (): BufferGeometry => {
       const pts = Array.from({ length: 24 }, (_, k): [number, number, number] => {
         const a = (k / 24) * Math.PI * 2;
         return [
-          Math.cos(a) * ring.radius * SCALE,
-          ring.y * SCALE,
-          Math.sin(a) * ring.radius * SCALE,
+          Math.cos(a) * ring.radius * scale,
+          ring.y * scale,
+          Math.sin(a) * ring.radius * scale,
         ];
       });
       addCurve(at, pts, true, true);
@@ -358,6 +363,9 @@ const BRIGHT = 0.7;
  * on the tower. (Its lines and checker look the same either way.)
  */
 const gardenTurn = { value: 1 };
+/** The sculptures' and their mist's brightness: 1 in the game, less behind the lobby's kings. */
+const gardenDim = { value: 1 };
+type ShadeStack = ReturnType<typeof platformStack>;
 
 const corner = new Vector3();
 const right = new Vector3();
@@ -446,15 +454,25 @@ const drawingBuffer = new Vector2();
  * Every frame, the tower's outline on screen for the shade (mask.ts), and
  * which way the garden is turned into its uniforms.
  */
-const GardenUniforms = ({ turn }: { turn: number }) => {
+const GardenUniforms = ({
+  turn,
+  shade,
+  dim = 1,
+}: {
+  turn: number;
+  shade?: ShadeStack;
+  dim?: number | (() => number);
+}) => {
   const invalidate = useThree((s) => s.invalidate);
-  useEffect(() => {
-    gardenTurn.value = turn;
-    invalidate();
-  }, [turn, invalidate]);
+  useEffect(() => invalidate(), [turn, shade, dim, invalidate]);
+  // Written as each frame is drawn, like the outline: the uniforms are
+  // shared, and two canvases (the lobby's, fading, over the game's) each set
+  // their own just before they render
   useFrame(({ camera, size, gl }) => {
+    gardenTurn.value = turn;
+    gardenDim.value = typeof dim === 'function' ? dim() : dim;
     const aspect = size.width / Math.max(size.height, 1);
-    updateTowerOutline(camera, aspect);
+    updateTowerOutline(camera, aspect, shade);
     gl.getDrawingBufferSize(drawingBuffer);
     shadeViewport.value.set(drawingBuffer.x, drawingBuffer.y, aspect);
   });
@@ -507,6 +525,9 @@ const neonVertex = /* glsl */ `
     gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
   }`;
 
+/** The soft edge of a tube drawn up to a height (`uReveal`, world units). */
+export const REVEAL_SOFT = 0.12;
+
 const neonFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uCore;
@@ -514,6 +535,10 @@ const neonFragment = /* glsl */ `
   uniform float uIntensity;
   uniform float uFade;
   uniform float uBoost;
+  uniform float uShaded;
+  uniform float uDim;
+  uniform float uGround;
+  uniform float uReveal;
   varying float vAcross;
   varying float vDepth;
   varying float vRing;
@@ -530,22 +555,34 @@ const neonFragment = /* glsl */ `
     // A reflection fades with its depth under the polished ground
     light *= uFade > 0.0 ? exp(-vDepth / uFade) : 1.0;
     // Into the tower's shade, steadily, nearest the tower darkest
-    light *= 1.0 - towerShade();
+    light *= (1.0 - uShaded * towerShade()) * uDim;
+    // Drawn up to a height (a lobby seat opening), with a soft edge
+    light *= 1.0 - smoothstep(uReveal - ${REVEAL_SOFT.toFixed(2)}, uReveal, vDepth + uGround);
     if (light < 0.001) discard;
     gl_FragColor = vec4(uColor * light, 1.0);
     #include <colorspace_fragment>
   }`;
 
+/** `uReveal` for tubes drawn whole: above everything. */
+export const NEON_WHOLE = 1e4;
+
 /** Brightens the garden for a moment at mate (fx.tsx). */
 export const gardenBoost = { value: 0 };
 
-const neonMaterial = (o: {
+/**
+ * The tubes' light. `turn` is the garden's (gardenTurn) unless given, and
+ * `shaded: false` keeps them out of the tower's shade (the lobby's seats).
+ */
+export const neonMaterial = (o: {
   width: number;
   core: number;
   halo: number;
   intensity: number;
   mirror: boolean;
   fade: number;
+  turn?: { value: number };
+  shaded?: boolean;
+  dim?: { value: number };
 }) =>
   new ShaderMaterial({
     transparent: true,
@@ -559,7 +596,9 @@ const neonMaterial = (o: {
     uniforms: {
       uColor: { value: new Color(PALETTE.neon) },
       ...shadeUniforms(),
-      uTurn: gardenTurn,
+      uTurn: o.turn ?? gardenTurn,
+      uShaded: { value: o.shaded === false ? 0 : 1 },
+      uDim: o.dim ?? gardenDim,
       uWidth: { value: o.width },
       uCore: { value: o.core },
       uHalo: { value: o.halo },
@@ -567,13 +606,22 @@ const neonMaterial = (o: {
       uMirror: { value: o.mirror ? 1 : 0 },
       uGround: { value: GROUND_Y },
       uFade: { value: o.fade },
+      uReveal: { value: NEON_WHOLE },
       uBoost: gardenBoost,
     },
     vertexShader: neonVertex,
     fragmentShader: neonFragment,
   });
 
-const Sculptures = ({ turn }: { turn: number }) => {
+const Sculptures = ({
+  turn,
+  shade,
+  dim,
+}: {
+  turn: number;
+  shade?: ShadeStack;
+  dim?: number | (() => number);
+}) => {
   const parts = useMemo(
     () => ({
       geometry: neonGeometry(),
@@ -601,7 +649,7 @@ const Sculptures = ({ turn }: { turn: number }) => {
   const { geometry, tubes, reflection } = parts;
   return (
     <group name="garden">
-      <GardenUniforms turn={turn} />
+      <GardenUniforms turn={turn} shade={shade} dim={dim} />
       <mesh
         geometry={geometry}
         material={reflection}
@@ -660,6 +708,7 @@ const Mist = () => {
         uniforms: {
           uColor: { value: new Color(PALETTE.mist) },
           uBoost: gardenBoost,
+          uDim: gardenDim,
           ...shadeUniforms(),
           uTurn: gardenTurn,
         },
@@ -679,12 +728,13 @@ const Mist = () => {
         fragmentShader: /* glsl */ `
           uniform vec3 uColor;
           uniform float uBoost;
+          uniform float uDim;
           varying vec2 vC;
           ${TOWER_SHADE}
           void main() {
             float m = exp(-dot(vC * vec2(2.0, 2.6), vC * vec2(2.0, 2.6)));
             float a = m * 0.075 * (1.0 + 0.6 * uBoost) * ${BRIGHT.toFixed(1)};
-            a *= 1.0 - towerShade();
+            a *= (1.0 - towerShade()) * uDim;
             if (a < 0.001) discard;
             gl_FragColor = vec4(uColor * a, 1.0);
             #include <colorspace_fragment>
@@ -743,13 +793,22 @@ const CameraFloor = () => {
   return null;
 };
 
-export const Stage = ({ orientation }: StageProps) => (
+/**
+ * The garden. `shade` is what casts the tower's shade when that is not the
+ * whole tower (the lobby's single platform: platformStack in mask.ts), and
+ * `dim` quiets the sculptures (the lobby's kings stand in front of them).
+ */
+export const Stage = ({
+  orientation,
+  shade,
+  dim,
+}: StageProps & { shade?: ShadeStack; dim?: number | (() => number) }) => (
   <>
     <CameraFloor />
     <Heavens />
     <Sky />
     <Ground />
-    <Sculptures turn={orientation === 'black' ? -1 : 1} />
+    <Sculptures turn={orientation === 'black' ? -1 : 1} shade={shade} dim={dim} />
     <Mist />
     <ShootingStar />
   </>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Color, PlaneGeometry, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, PlaneGeometry, ShaderMaterial } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { prefersReducedMotion } from '../motion';
 import { pieceTop, preloadPieceSet } from '../pieces';
@@ -14,6 +14,8 @@ import { LEVEL_COLORS, PALETTE } from './palette';
 import { smooth, toward } from './ease';
 import { overlayMaterial } from './overlay';
 import { SelectionLight, selectState, stepSelection } from './selection';
+import { useIntro } from '../intro/clock';
+import { introDone, pieceForm, pieceRing } from '../intro/timeline';
 
 // The armies: satin porcelain and charcoal, the shared Staunton set. Both are
 // shaded by one small shader (headless browsers render in software, where
@@ -101,6 +103,7 @@ const glazeFragment = /* glsl */ `
   uniform float uCheck;
   uniform float uTop;
   uniform float uCut;
+  uniform float uForm;
   varying vec3 vN;
   varying float vUp;
   varying vec3 vW;
@@ -137,6 +140,17 @@ const glazeFragment = /* glsl */ `
       float e = 0.7 * (1.0 - h) + 0.3 * noise(vLocal * 20.0) - uCut;
       if (e < 0.0) discard;
       burn = smoothstep(0.0, 0.05, e);
+    }
+    // The game's entrance: the piece forms from the foot up (uForm from 0 to
+    // 1; at 1, whole), the capture's burn run the other way: a thin line of
+    // white light rises through it, and what it leaves behind glows with its
+    // level's light for a moment before it cools to its glaze
+    float formed = 0.0;
+    if (uForm < 1.0) {
+      float e = uForm * 1.2 - 0.06 - (h + 0.09 * noise(vLocal * 16.0));
+      if (e < 0.0) discard;
+      burn = min(burn, smoothstep(0.0, 0.03, e));
+      formed = exp(-e / 0.16) * (1.0 - uForm * uForm);
     }
     vec3 n = normalize(vN);
     if (!gl_FrontFacing) n = -n;
@@ -205,6 +219,8 @@ const glazeFragment = /* glsl */ `
       col += uCheckColor * uCheck * up * (0.08 + 0.5 * lum) * ao;
       col = mix(col, uCheckColor, clamp(uCheck * 0.5 * pow(1.0 - facing, 2.2) * fromAbove, 0.0, 1.0));
     }
+    // Just formed: the level's light, cooling as the edge rises on
+    col = mix(col, uBand * 1.5 + 0.1, clamp(formed * 0.8, 0.0, 1.0));
     // The burning edge: a thin line of white light
     col = mix(uBurn, col, burn);
     gl_FragColor = vec4(col, 1.0);
@@ -334,6 +350,7 @@ const bodyMaterial = (color: PieceColor, type: PieceType, level: number) => {
       uCheck: { value: 0 },
       uTop: { value: pieceTop(bakedSet(), type) },
       uCut: { value: -1 },
+      uForm: { value: 1 },
     },
     vertexShader: glazeVertex,
     fragmentShader: glazeFragment,
@@ -390,6 +407,59 @@ const poolMaterial = (level: number) =>
     fragmentShader: poolFragment,
   });
 
+// --- The ring of light under a piece as it forms (the game's entrance) ------------------------
+
+// As a piece forms, a flash of its level's light on the glass at its foot, and
+// a ring spreading from it across its square and fading, like a stone dropped
+// in still water, in light.
+
+const ringFragment = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uRing;
+  varying vec2 vP;
+  void main() {
+    float r = length(vP);
+    float k = uRing;
+    float radius = mix(0.2, 0.56, 1.0 - pow(1.0 - k, 3.0));
+    float fade = (1.0 - k) * smoothstep(0.0, 0.06, k);
+    float fw = max(fwidth(r), 1e-4);
+    float line = exp(-pow((r - radius) / max(0.022, fw), 2.0));
+    float flash = exp(-r * r / (0.26 * 0.26)) * (1.0 - smoothstep(0.02, 0.4, k)) * smoothstep(0.0, 0.04, k);
+    float a = (line * 0.95 + flash * 0.7) * fade;
+    if (a < 0.003) discard;
+    gl_FragColor = vec4(mix(uColor, vec3(1.0), 0.3 + 0.4 * line * (1.0 - k)), min(a, 1.0));
+    #include <colorspace_fragment>
+  }`;
+
+const ringPlane = new PlaneGeometry(1.5, 1.5).rotateX(-Math.PI / 2);
+
+/** The ring under a forming piece, `progress` (0 to 1, set each frame) through its life. */
+const FormRing = ({ level, progress }: { level: number; progress: { current: number } }) => {
+  const material = useMemo(
+    () =>
+      overlayMaterial({
+        blending: AdditiveBlending,
+        uniforms: { uColor: { value: colorAtLevel(level, new Color()) }, uRing: { value: 0 } },
+        vertexShader: poolVertex,
+        fragmentShader: ringFragment,
+      }),
+    [level],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+  useFrame(() => {
+    material.uniforms.uRing.value = progress.current;
+  });
+  return (
+    <mesh
+      geometry={ringPlane}
+      material={material}
+      position={[0, 0.006, 0]}
+      renderOrder={LAYER.shadow}
+      raycast={noRaycast}
+    />
+  );
+};
+
 // --- The piece -------------------------------------------------------------------------------
 
 /** Rates of the eases (per second): hover in, hold, the check light. */
@@ -421,6 +491,12 @@ export const PieceBody = (props: PieceBodyProps) => {
   const held = useRef(selectState());
   const [awake, setAwake] = useState(false);
   const [lit, setLit] = useState(false);
+  // The game's entrance: the piece forms at its arrival (intro/timeline.ts),
+  // its ring on the glass mounted only until it has faded
+  const intro = useIntro();
+  const arrival = props.arrival ?? 0;
+  const [forming, setForming] = useState(() => !introDone(intro.plan, intro.t));
+  const ring = useRef(0);
   if ((hovered || selected) && !awake) setAwake(true);
   if (selected && !lit) setLit(true);
   useEffect(() => invalidate(), [hovered, selected, inCheck, invalidate]);
@@ -440,6 +516,13 @@ export const PieceBody = (props: PieceBodyProps) => {
     u.uHover.value = smooth(hover);
     u.uHold.value = smooth(hold) * held.current.strength;
     u.uCheck.value = smooth(c);
+    if (forming) {
+      u.uForm.value = pieceForm(intro.plan, arrival, intro.t);
+      ring.current = pieceRing(intro.plan, arrival, intro.t);
+      if (ring.current >= 1 && u.uForm.value >= 1) setForming(false);
+    } else {
+      u.uForm.value = 1;
+    }
     const f = floorMaterial.uniforms;
     f.uPool.value = smooth(hover);
     // While gliding, the band and the pool pass through the colours of the
@@ -470,6 +553,7 @@ export const PieceBody = (props: PieceBodyProps) => {
           />
         )}
         {lit && <SelectionLight state={held} top={top} />}
+        {forming && <FormRing level={level} progress={ring} />}
       </group>
       <mesh geometry={wholePiece(type)} material={body} />
     </>

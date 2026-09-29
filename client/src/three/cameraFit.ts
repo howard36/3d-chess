@@ -159,7 +159,7 @@ export function ringBounds(
 }
 
 /** The window a fit is for: its size in CSS px, vertical field of view and HUD band. */
-interface FitWindow {
+export interface FitWindow {
   width: number;
   height: number;
   fov: number;
