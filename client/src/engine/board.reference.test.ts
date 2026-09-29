@@ -245,3 +245,24 @@ describe('the engine agrees with the rules written out naively', () => {
     squares.forEach((s, i) => expect(b.getPiece(s)).toBe(before[i]));
   });
 });
+
+describe('the work the rules do', () => {
+  it('tries candidate moves without copying the board', () => {
+    const clone = vi.spyOn(Board.prototype, 'clone');
+    const b = Board.setupStartingPosition();
+    expect(b.generateAllLegalMoves('white')).toHaveLength(61);
+    b.isCheckmate('white');
+    b.isStalemate('black');
+    expect(clone).not.toHaveBeenCalled();
+    clone.mockRestore();
+  });
+
+  it('stops at the first legal move when asking whether the game is over', () => {
+    const tried = vi.spyOn(Board.prototype, 'generatePotentialMoves');
+    Board.setupStartingPosition().isStalemate('white');
+    // The first white piece in cell order (the a-file rook) is hemmed in; the
+    // knight after it has a move
+    expect(tried).toHaveBeenCalledTimes(2);
+    tried.mockRestore();
+  });
+});

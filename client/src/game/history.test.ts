@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { deriveHistory } from './history';
 import type { Turn } from './history';
 import { PieceType } from '../engine';
@@ -271,5 +271,21 @@ describe('deriveHistory: unplayable records', () => {
     expect(h.replayFailedAt).toBe(0);
     expect(h.appliedMoveCount).toBe(0);
     expect(h.lastMove).toBeUndefined();
+  });
+});
+
+describe('deriveHistory: the work a landing move costs', () => {
+  it('applies only the new move', async () => {
+    const { Board } = await import('../engine');
+    const log: WebSocketMessage[] = [
+      moveMade('white', 'Ba1', 'Ca1'),
+      moveMade('black', 'Dd5', 'Cd5'),
+      moveMade('white', 'Ca1', 'Da1'),
+    ];
+    const prev = deriveHistory(log);
+    const applied = vi.spyOn(Board.prototype, 'applyMove');
+    deriveHistory([...log, moveMade('black', 'Cd5', 'Bd5')], prev);
+    expect(applied).toHaveBeenCalledTimes(1);
+    applied.mockRestore();
   });
 });
