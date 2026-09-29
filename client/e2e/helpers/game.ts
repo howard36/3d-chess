@@ -30,19 +30,38 @@ export interface Game {
 
 /**
  * Creates a game from one browser context and joins it from a second, then
- * waits for both boards to mount. Two *contexts* rather than two tabs: the
+ * waits for both boards to mount and their openings to play out. Two *contexts* rather than two tabs: the
  * seat is persisted in localStorage per game id, so tabs sharing a context
  * would both rejoin the same seat.
+ *
+ * The pages ask for reduced motion unless `motion: 'full'`: the lobby and the
+ * game's entrance play as short fades and moves land at once. Played in full,
+ * on two software-rendered pages, the way in alone takes most of a minute on a
+ * busy CI runner, which left the tests that play on after it short of their
+ * time. `createGame.spec.ts` walks the way in with full motion.
  */
-export async function startGame(browser: Browser): Promise<Game> {
-  const contexts: BrowserContext[] = [await browser.newContext(), await browser.newContext()];
+export async function startGame(
+  browser: Browser,
+  {
+    side = 'White',
+    motion = 'reduced',
+  }: { side?: 'White' | 'Black' | 'Random'; motion?: 'reduced' | 'full' } = {},
+): Promise<Game> {
+  const reducedMotion = motion === 'reduced' ? 'reduce' : 'no-preference';
+  const contexts: BrowserContext[] = [
+    await browser.newContext({ reducedMotion }),
+    await browser.newContext({ reducedMotion }),
+  ];
   const [pageA, pageB] = await Promise.all(contexts.map((c) => c.newPage()));
 
+  // The creator picks a side (White by default: the fastest pick to play out)
+  // and lands on the invitation; the guest opens its link and takes the seat
   await pageA.goto('/');
   await pageA.getByRole('button', { name: 'Start a game' }).click();
+  await pageA.getByRole('button', { name: new RegExp(`^${side}`) }).click();
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
   await pageB.goto(pageA.url());
-  await pageB.getByRole('button', { name: 'Join Game' }).click();
+  await pageB.getByRole('button', { name: 'Join game' }).click();
 
   await waitForBoard(pageA);
   await waitForBoard(pageB);

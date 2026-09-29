@@ -4,6 +4,8 @@
   "oneOf": [
     { "$ref": "#/definitions/create_game" },
     { "$ref": "#/definitions/game_created" },
+    { "$ref": "#/definitions/look_game" },
+    { "$ref": "#/definitions/game_info" },
     { "$ref": "#/definitions/join_game" },
     { "$ref": "#/definitions/game_joined" },
     { "$ref": "#/definitions/rejoin_game" },
@@ -40,7 +42,11 @@
       "type": "object",
       "properties": {
         "type": { "const": "create_game" },
-        "clientId": { "$ref": "#/definitions/client_id" }
+        "clientId": { "$ref": "#/definitions/client_id" },
+        "color": {
+          "description": "The side the creator wants to play. Omitted, the server picks one at random.",
+          "$ref": "#/definitions/color"
+        }
       },
       "required": ["type"],
       "additionalProperties": false
@@ -53,6 +59,30 @@
         "color": { "$ref": "#/definitions/color" }
       },
       "required": ["type", "gameId", "color"],
+      "additionalProperties": false
+    },
+    "look_game": {
+      "description": "Asks which seats of a game are taken, without joining it: what an invitation shows before the player accepts.",
+      "type": "object",
+      "properties": {
+        "type": { "const": "look_game" },
+        "gameId": { "type": "string" }
+      },
+      "required": ["type", "gameId"],
+      "additionalProperties": false
+    },
+    "game_info": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "game_info" },
+        "gameId": { "type": "string" },
+        "seats": {
+          "description": "The seats already claimed, in the order they were taken.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/color" }
+        }
+      },
+      "required": ["type", "gameId", "seats"],
       "additionalProperties": false
     },
     "join_game": {

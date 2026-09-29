@@ -134,7 +134,7 @@ These are not errors and never appear in the error banner, but each tells the pl
 | "Connecting…" (a screen reader hears "Connecting to server…") | The start screen's button's own label, with a breathing dot in the knight's place, only after a click on "Start a game". | The first connection attempt has not opened yet, and the click is queued until it does. | [Creating a game](../start/creating-a-game.md) |
 | "Reconnecting…" (a screen reader hears "Reconnecting to server…") | The same label, under the same condition. | The connection failed or dropped and is being retried while a create waits. | [Creating a game](../start/creating-a-game.md) and [connection states](../foundations/connection-and-seat.md#connection-states) |
 | "This game is open in another tab", then "Your seat moved to the newer tab or window. Close this one, or take the game back here.", and a "Play here" button | The replaced dialog, over the whole game page. | Another tab's connection holds this tab's seat: it took the seat, or this tab found it in use when its connection came back. This tab does not take the seat back by itself. | [A second tab](../session/second-tab.md) |
-| "Could not copy; select the link instead" | A gray line beside the share-link screen's "Copy link" button, after a click on it. | The browser refused to copy the link. On success the same line reads "Copied". | [Waiting for an opponent](../start/waiting-for-an-opponent.md) |
+| "Couldn't copy. Select the link." | A small line under the invitation to send's "Copy link" button, after a click on it. | The browser refused to copy the link. On success the same line reads "Copied". | [Waiting for an opponent](../start/waiting-for-an-opponent.md) |
 
 ### Failures with no message
 

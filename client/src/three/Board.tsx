@@ -24,6 +24,7 @@ import { Grid } from './scene/grid';
 import { Capture, Check, LastMove, Quiet } from './scene/markers';
 import { KNIGHT_YAW, layout, MOTION } from './scene/palette';
 import { Selection } from './scene/selection';
+import { pieceArrival } from './intro/timeline';
 
 // The 125 cell boxes are click targets only, never drawn: every one is
 // `visible={false}`, and three's Raycaster tests layers, not visibility, so
@@ -425,6 +426,7 @@ const Board = (props: BoardProps) => {
               level={coord.z}
               mated={type === PieceType.King && color === matedColor}
               facing={knightFacing(color)}
+              arrival={pieceArrival({ type, color, ...coord })}
             />
           );
           // The just-moved piece glides in from its source cell. Piece keys are

@@ -21,6 +21,7 @@ from modal_app import (
     create_game,
     find_seat,
     record_move,
+    taken_seats,
 )
 
 
@@ -41,6 +42,14 @@ def test_create_game_claims_one_seat(white_creator):
     assert len(gid) == 6
     assert color == "white"
     assert store[gid] == {"seats": ["white"], "moves": []}
+
+
+def test_create_game_gives_the_creator_the_side_asked_for(white_creator):
+    store = {}
+    gid, color = create_game(store, "tab-a", "black")
+    assert color == "black"
+    assert store[gid] == {"seats": ["black"], "moves": [], "claimants": {"black": "tab-a"}}
+    assert claim_seat(store, gid) == ("white", False)
 
 
 def test_create_game_never_reuses_an_id(monkeypatch):
@@ -85,6 +94,17 @@ def test_claim_seat_errors():
     assert e.value.code.value == "game_full"
     # A rejected claim never touches the store
     assert store["FULL00"]["seats"] == ["white", "black"]
+
+
+def test_taken_seats(white_creator):
+    store = {}
+    gid, _ = create_game(store)
+    assert taken_seats(store, gid) == ["white"]
+    claim_seat(store, gid)
+    assert taken_seats(store, gid) == ["white", "black"]
+    with pytest.raises(GameError) as err:
+        taken_seats(store, "MISSING")
+    assert err.value.code.value == "invalid_game"
 
 
 def test_find_seat():

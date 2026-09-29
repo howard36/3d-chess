@@ -29,7 +29,7 @@ export const gameScreenAt = (socket: GameSocket, gameId = 'abc123') => (
 );
 
 /**
- * Loads the game screen's 3D board (GameCanvas.tsx, a lazy chunk) once for
+ * Loads the game's 3D board (GameCanvas.tsx, a lazy chunk) once for
  * the test file, by drawing a started game until the board is up: React
  * suspends the first time any file draws it, so a test that looks for the
  * board straight after its render would otherwise pass or fail by the order

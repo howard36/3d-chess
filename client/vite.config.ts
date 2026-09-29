@@ -3,16 +3,18 @@ import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 /**
- * The game screen is a chunk of its own (App.tsx), and its 3D board another
- * (GameScreen.tsx), which carries the set's precomputed parts too. On a
- * game's address the page needs both at once, so the built page starts
- * fetching them (and the chunks they import) alongside the entry, instead of
- * after the entry has loaded and run; the start page leaves them for later.
- * The build fails if either chunk is not found, rather than quietly shipping
- * a page without the preload.
+ * three.js, the scene and the set's precomputed parts load in a chunk of
+ * their own, the one the lobby's canvas (LobbyCanvas.tsx), the game's board
+ * (GameCanvas.tsx) and the landing page's preview share. On the side choice
+ * (/new) and a game's address (/game/:id) the page needs it at once, so the
+ * built page starts fetching it (and the chunks it imports) alongside the
+ * entry, instead of after the entry has loaded and run; the start page leaves
+ * it for later. The build fails if a chunk is not found, rather than quietly
+ * shipping a page without the preload.
  */
-const preloadGameScreenOnGamePages = (): Plugin => ({
-  name: 'preload-game-screen-on-game-pages',
+const PRELOADED = ['/src/screens/lobby/LobbyCanvas.tsx', '/src/screens/GameCanvas.tsx'];
+const preloadSceneOnGamePages = (): Plugin => ({
+  name: 'preload-scene-on-game-pages',
   apply: 'build',
   transformIndexHtml: {
     order: 'post',
@@ -20,15 +22,17 @@ const preloadGameScreenOnGamePages = (): Plugin => ({
       const chunks = Object.values(ctx.bundle ?? {}).filter((c) => c.type === 'chunk');
       // The chunk that holds a module (not always its facade: a dynamic
       // entry can share its chunk)
-      const from = (file: string) =>
-        chunks.find((c) => c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(file)));
-      const game = from('/src/screens/GameScreen.tsx');
-      const board = from('/src/screens/GameCanvas.tsx');
-      if (!game || !board) throw new Error('preload-game-screen-on-game-pages: no game chunk');
-      // Both, and what they import, less the entry (loading anyway)
+      const from = (file: string) => {
+        const chunk = chunks.find((c) =>
+          c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(file)),
+        );
+        if (!chunk) throw new Error(`preload-scene-on-game-pages: no chunk holds ${file}`);
+        return chunk;
+      };
+      // Each, and what it imports, less the entry (loading anyway)
       const entry = chunks.find((c) => c.isEntry);
       const files = [
-        ...new Set([game.fileName, board.fileName, ...game.imports, ...board.imports]),
+        ...new Set(PRELOADED.map(from).flatMap((c) => [c.fileName, ...c.imports])),
       ].filter((f) => f !== entry?.fileName);
       const preload = (f: string) =>
         `{const l=document.createElement('link');l.rel='modulepreload';l.crossOrigin='';l.href='/${f}';document.head.appendChild(l)}`;
@@ -36,7 +40,7 @@ const preloadGameScreenOnGamePages = (): Plugin => ({
         {
           tag: 'script',
           injectTo: 'head',
-          children: `if(location.pathname.startsWith('/game/')){${files.map(preload).join('')}}`,
+          children: `if(/^\\/(game\\/|new$)/.test(location.pathname)){${files.map(preload).join('')}}`,
         },
       ];
     },
@@ -84,7 +88,7 @@ const r3fCatalogue = (): Plugin => {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), r3fCatalogue(), preloadGameScreenOnGamePages()],
+  plugins: [react(), r3fCatalogue(), preloadSceneOnGamePages()],
   css: {
     postcss: './postcss.config.js',
   },

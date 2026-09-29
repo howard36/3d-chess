@@ -82,8 +82,9 @@ Key decisions:
   ordered log of received messages and derives everything (board, turn, phase, game over)
   by replaying moves from the fixed starting position. The derivation is pure code in
   `client/src/game/` (`history.ts` replays the record, `session.ts` reads the seat,
-  presence and errors); `GameScreen` only wires its output to the UI. A local move is
-  only _sent_; the board updates when the server's `move_made` echo arrives. This keeps
+  presence and errors, `invitation.ts` what a guest's invitation says); `GameScreen` only
+  wires its output to the UI (the lobby before the game, `GameView` once it has begun). A
+  local move is only _sent_; the board updates when the server's `move_made` echo arrives. This keeps
   both clients in lockstep and makes rejoin trivial. The replay hands back the same
   result object while the move record is unchanged, so a presence or error message
   neither replays the game nor resets the 3D board (which would drop the player's
@@ -99,7 +100,7 @@ Key decisions:
   `modal.Dict` returns deserialized copies, every mutation is read-modify-write and is
   written back **before any `await`** — that ordering is what makes concurrent handlers
   safe. Two rules keep it true, and `test_store_ops.py` asserts both: the store operations
-  in `modal_app.py` (`create_game`, `claim_seat`, `find_seat`, `record_move`) are
+  in `modal_app.py` (`create_game`, `claim_seat`, `taken_seats`, `find_seat`, `record_move`) are
   synchronous functions, so nothing inside them can yield to the event loop; and the
   WebSocket handler never reads or writes the store itself, only passes it to those
   operations. `modal.Dict`'s calls block; never switch to the `.aio` variants.
@@ -115,8 +116,10 @@ Key decisions:
   no input on a fresh socket until its rejoin is answered: before that it shows the
   position from before the drop, and a move made against it could be recorded but
   unplayable. A `create_game` or `join_game` whose answer is lost to a drop is sent again
-  on the next socket. Leaving a game's page (for the start screen, or straight for
-  another game's page through history) resets the socket session.
+  on the next socket. Leaving a game's page (for the landing page or the side choice, or
+  straight for another game's page through history) resets the socket session; the move
+  from the side choice at `/new` to the new game's page keeps it, since it holds the
+  creator's `game_created`.
 - **Tab identity.** Each tab picks a random `clientId` (`client/src/lib/clientId.ts`,
   kept in `sessionStorage`, so it survives a reload but is not shared with other tabs)
   and sends it with `create_game`, `join_game` and `rejoin_game`.
@@ -160,7 +163,12 @@ Key decisions:
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
   sky, to straight down). The controls (`three/CameraControls.tsx`) are three's own
   OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the
-  scene and `showcase.mjs` read. The canvas draws at the screen's pixel ratio up to 2x,
+  scene and `showcase.mjs` read. In the game's entrance (see The board) the camera starts
+  2.4 times the fitted distance out on the opening line of sight (1.3 times on a rejoin)
+  and dollies in to exactly the fitted distance, with the fit's lens shift, so the tower's
+  centre holds its place on screen throughout; the controls take no input until it lands,
+  and it lands where a load without an entrance starts (`FitCameraToBoard` leaves the
+  fitted distance on the camera, `userData.fitDistance`). The canvas draws at the screen's pixel ratio up to 2x,
   within a budget of 4.5 million pixels (`three/pixelBudget.ts`), so a large
   high-density window costs no more than it needs.
 - **Touch.** The game screen takes no text selection, long-press callout or double-tap
@@ -199,7 +207,13 @@ Key decisions:
   `data-winner`; `data-testid="seat"` its `data-seat`; `opponent-presence` its
   `data-online`; `captured-pieces` each haul as `data-side` (`me`, `them`); and
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
-  and `data-move-count`.
+  and `data-move-count`. In the game's entrance the pill and the captured pieces fade in
+  last, settling down onto their place as the last pawns form (`--intro-hud`), and the
+  canvas's wrapper carries `data-intro` (`playing`, then `done`), which e2e's
+  `waitForBoard` waits for; the move box stays the first Tab stop throughout. The
+  started game's page is `screens/GameView.tsx`, which `GameScreen` renders with
+  everything it derives from the log; its `Canvas onCreated` publishes
+  `window.__r3fState`, which e2e reads to project clicks (the lobby's canvas never does).
 - **Landing page.** The start screen at `/` (`screens/StartScreen.tsx`) fills the window
   with a live preview (`screens/LandingPreview.tsx`): the real `Board`, drawn without its
   labels (`labels={false}`) and framed on the tower alone (`towerBodyRings`), plays a
@@ -214,20 +228,13 @@ Key decisions:
   124 px, 140 in a window 860 px tall or more, `LANDING_BAND_PX` and `--landing-band`),
   at the band's edge nearest the tower, 16 px from it (`--landing-hug`), so the two
   mirror each other about the tower; a window 480 px tall or less
-  sets the text in a column at the left instead (band 12). Nothing is written under the
-  button: what a create waits on is its label ("Connecting…" or "Reconnecting…" while
-  the socket opens, then "Creating game…"), and a visually hidden `role="status"` says
-  "Connecting to server…" / "Reconnecting to server…" meanwhile (empty otherwise). A
-  server error answering the create turns the label to "Try again"; the message
-  ("Couldn't start a game: …") is in a visually hidden `role="alert"` and the button's
-  `title`. The button can be pressed while the socket connects (the create is queued);
-  once pressed it is held until answered, by `aria-disabled` rather than `disabled`, so a
-  keyboard player keeps focus on it. The canvas is `aria-hidden` and
-  takes no pointer, and a visually hidden sentence says what it shows. The start button
-  is the page's only control: the preview always plays (it has no pause), except under
-  `prefers-reduced-motion`, where it is a still of the final position, the king left
-  standing, with a still rim. In development `?t=<seconds>` starts the demo
-  that far in.
+  sets the text in a column at the left instead (band 12). The button creates nothing: it
+  opens the side choice at `/new` (see The lobby), and nothing is written under it. The
+  canvas is `aria-hidden` and takes no pointer, and a visually hidden sentence says what it
+  shows. The start button is the page's only control: the preview always plays (it has no
+  pause), except under `prefers-reduced-motion`, where it is a still of the final
+  position, the king left standing, with a still rim. In development `?t=<seconds>` starts
+  the demo that far in.
 
 ## Protocol
 
@@ -250,8 +257,13 @@ App code imports the TypeScript types via the thin re-export layer
 
 Message flow, happy path:
 
-1. Creator: `create_game` → `game_created {gameId, color}` (creator's color is random).
-2. Joiner opens `/game/:gameId`, sends `join_game {gameId, clientId?}` → the joiner gets
+1. Creator: `create_game {color?}` → `game_created {gameId, color}` (the side the creator
+   asked for, or a random one if the request names none; the client always names one,
+   deciding Random itself so the lobby's coin can land on it).
+2. Joiner opens `/game/:gameId`. The invitation first asks `look_game {gameId}` →
+   `game_info {gameId, seats}` (the seats already taken; it binds nothing), so it can say
+   which side the player will take, or that the game is full or gone (`invalid_game`),
+   before they accept. Accepting sends `join_game {gameId, clientId?}` → the joiner gets
    `game_joined {color}` (its seat, confirmed before anything is broadcast, so a drop right
    after is still rejoinable), then both players get `game_start {color}`. A `join_game`
    from the client id that already claimed a seat in the game gets that seat again rather
@@ -313,7 +325,7 @@ freely about the tower's centre, so the opening view is just a starting point. O
 positions are transformed; piece meshes are never mirrored (Board turns each knight to
 face the opponent). The levels are 1.35 cell pitches apart (`TOWER_DEFAULTS`), and
 `towerFrame(layout)` measures a layout's pitch, gap and platform heights. The scene
-assumes world-Y-up; the camera lives in `screens/GameScreen.tsx` (its starting
+assumes world-Y-up; the camera lives in `screens/GameCanvas.tsx` (its starting
 direction), `three/cameraFit.ts` (its distance, fitted to the window's shape so the whole
 tower is framed on a phone too, and the zoom range around it) and
 `three/CameraControls.tsx` (turning and zooming). The engine and wire formats are
@@ -361,6 +373,31 @@ topples and a pulse of light spreads across his own level at an even speed (`sce
 strikes the floor (`onToppled` in `three/pieceMotion.tsx`) while his bounce and the pulse
 play on behind it.
 
+**The entrance.** Opening the game plays a short entrance, just under 4 seconds when the
+game starts while the page is open and 1.3 when the page opens on a game already under
+way (a reload, a rejoin), and about 3.6 after the lobby (the `lobby` variant: see The
+lobby). The night fades up (except after the lobby, whose last picture is the entrance's
+first, level A already standing) and the camera closes in (see Camera) while the tower
+draws itself in light, level by level from A up, each overlapping the next.
+A level's edge grows out of its four corners along its sides to meet in their middles,
+a white-hot tip at each front; its hairlines run in across it from both ends, the outer
+ones first; its glass floods in from the edge to the middle; and every line settles
+from a little brighter to its own light. The labels settle in once the tower is up, the
+letters from A. Then the armies form, both at once and each piece with its mirror image
+through the centre: the back ranks from the royal pair outward, then the pawns, so the
+two sides close in on the empty level C. Each piece rises from its foot behind a thin
+line of white light over about half a second, the capture's burn run the other way, what
+it leaves behind glowing with its level's light before it cools to its glaze, while a
+flash of that light and a ring spread on the glass at its foot. The pill fades in last.
+The board takes no input until it is over. With reduced motion the scene only fades in
+(150 ms). The timings are pure functions in `three/intro/timeline.ts`; the clock is
+advanced on r3f's clock by `three/intro/IntroDirector.tsx`, which moves the camera, and
+each part reads it in its own frames (the levels' `uBuild`, the pieces' `uForm`, the
+labels' fade). Anything drawn outside the game (no `IntroContext`) is simply there: a
+level drawn alone (`<Levels focusLevel={null} levels={[0]} />`) is whole. `GameView` can
+hold the entrance at its first frame (`introPaused`) and reports the canvas's first
+drawn frame (`onFirstFrame`), which the lobby's handover uses (see The lobby).
+
 How the code is split:
 
 - `three/Board.tsx` owns every interaction rule: selecting and deselecting, legal
@@ -380,10 +417,10 @@ How the code is split:
 - `three/scene/` draws everything else: the garden and sky (`stage.tsx`, `heavens.tsx`),
   the levels and labels (`plates.tsx`, `grid.tsx`, `smartLabels.tsx`), the piece bodies
   (`pieces.tsx`), the marks of play (`markers.tsx`, `line.tsx`, `selection.tsx`,
-  `blades.tsx`) and the capture and mate (`fx.tsx`). `palette.ts` holds the colours, the
+  `blades.tsx`) and the capture and mate (`fx.tsx`). `three/intro/` times the entrance. `palette.ts` holds the colours, the
   layout and the sizes they share. Every see-through part writes no depth and draws in a
   fixed order (`layers.ts`), so the glass never hides or tints a marker or a label.
-  Board, PieceMesh and GameScreen import these parts directly; unit tests stand them in
+  Board, PieceMesh and GameCanvas import these parts directly; unit tests stand them in
   with `vi.mock`.
 
 All motion runs on r3f's clock, and the canvas renders on demand.
@@ -414,7 +451,9 @@ to `orbit.mp4` and a contact sheet, and prints a jitter report: how far the towe
 moved on screen, the worst frame-to-frame lurch of any label, where the level letters
 changed post, and a flag for every discontinuity, letter out of line, overlap or letters
 reading as one axis with the files or ranks (`--seat black`, `--width`/`--height` for a
-phone). Usage is at the top of the script.
+phone). `--intro` records the game's entrance from its first frame (`--seat black`,
+`--rejoin` for the short one, `--reduced`), to `intro-<seat>.mp4`, stills at `--at
+"s,s,…"` seconds and a contact sheet. Usage is at the top of the script.
 
 ### Piece set
 
@@ -477,6 +516,134 @@ density of the silhouette sheet. The silhouette sheet is the legibility test: ev
 outline alone, from any side (from directly above an outline is only the base, so its last
 column shows the relief in one plain material instead).
 
+## The lobby
+
+Everything before the first move happens in the lobby: level A's glass alone in the night
+garden (the game's `Stage`, its sculptures dimmed behind the kings through `Stage`'s
+`dim`, and a platform that draws itself on the entrance's build clock) with the kings on
+its middle rank, each king on the middle of its own square (`SEAT_SPACING`, one square
+apart at every window size), White's seat on the left and Black's on the right. A taken seat shows its
+king in its army's material; a free seat is the king drawn in neon, like the garden's
+sculptures (`three/lobby/LobbyKing.tsx`); filling, the material forms from the foot up as
+the neon gives way, and the player's own king stands on the glass in the game's column of light. The
+lobby is a layout route (`screens/lobby/LobbyLayout.tsx`) round `/new` and
+`/game/:gameId`, so its one canvas stays up from the side choice to the game's first
+frame. The screens declare what it shows with `useLobbyView`
+(`screens/lobby/lobbyContext.ts`: a beat, `choose`, `wait`, `invited`, `arrive` or
+`leave`, the taken seats, the player's seat and an optional caption with its note, or
+`null` to take it away), and `three/lobby/LobbyScene.tsx` moves from one picture to the
+next on r3f's clock. The scene writes the kings' places on screen as
+`--seat-<seat>-x` and `--seat-<seat>-front` (the near edge of its foot) with
+`--king-height` on the layout; the page's buttons and labels hang off them and are sized
+by the king. The page's heading at the top carries the story from one step to the next, and the
+cards under the kings carry only what to do. Timings and framing are pure functions in
+`three/lobby/lobbyMotion.ts` (the kings stand 1.25 times the game's pieces; narrower than
+9:10 they stand smaller and further out; the camera draws back, never the kings apart,
+until the row fits the width).
+
+- **The entrance** (`LOBBY_ENTRANCE` in `lobbyMotion.ts`), when the lobby is first shown,
+  about 2.4 s and calm: the picture fades up from the page (0.9 s) while the camera settles
+  in from a little further out and higher, easing out (`entranceFrom`, `settlePose`); the
+  glass draws itself over 1.4 s; each king forms from the foot out of nothing, with no
+  outline first (a free seat's outline comes up instead), White's, the coin's and Black's a
+  beat apart (from 0.6 s). No king can be hovered or picked until it has formed; a pointer
+  already resting on one hovers it then. On the side choice the heading rises as the glass
+  draws, and "← Home" and each button come in (hidden and unpressable until then) once its
+  king has formed (CSS, held until the scene's first frame sets `data-scene` on the layout,
+  or 1.5 s).
+- **Choosing a side** (`/new`, `screens/lobby/ChooseSide.tsx`). "Choose your side" over
+  three kings, porcelain, one split porcelain and charcoal for Random, and charcoal, with a
+  a button under each named only "White", "Random" or "Black" (sized with the kings as
+  they stand on screen, `--king-height`: word, padding and width all scale, from 12 px text
+  just round its word under a phone's small kings to 180 px pills with 18 px text under a
+  large screen's, each hanging a little under its king's foot, `--seat-<seat>-front`), and
+  nothing under the heading. A king lifts under a mouse (on it or its button) or its
+  button's focus, as if picked up, and clicking either picks; a tap leaves no hover behind.
+  A pick is final: `create_game {color}` goes out at once (and again on the next socket if
+  its answer is lost), and the heading turns to "You play Black" (or "Leaving it to
+  chance…"), with nothing under it. The chosen king is set down on its square (its height
+  is one eased value, a little quicker down), a small ring of light runs out to the
+  square's edge (`placeRing`) and its column of light comes on, while the two not chosen
+  fade where they stand (`LOBBY_TIMING.fade`, 0.7 s, easing out; blended over the glass,
+  drawn after it, `FADING_ORDER`), with no outline: the free seat's outline rises from its
+  foot only as the invitation comes (`veiled`, `seatOpening`, the neon's `uReveal`). Random
+  is decided in the client: the side kings cross from solid to their outlines as they fade,
+  and the split king is thrown like a coin, lands on that face in the middle, and slides
+  along the glass into its seat's outline, where the seat's king takes over with the same
+  ring and light; the Random button fades as the coin sets off from the middle
+  (`onGlide`). Every chosen king stays on the glass until the game starts. The page moves
+  to `/game/:id` (`replace`, so Back from the invitation leads to the landing page) once
+  both the answer and the moment are over (`onSettled`, `LOBBY_TIMING.settle`: 0.3 s after
+  the pick or the coin's rest, while the others still fade, so the pick, the camera's
+  move and the card run as one). A
+  refusal puts the kings back with "Couldn't start a game: …". The end-game dialog's
+  "Start new game" and the invitation's "Start a new game" lead here.
+- **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
+  `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
+  breathing dot and "Waiting for your friend…" under it. The card under the kings: "Invite
+  a friend", the link (`lib/gameLink.ts`, plain, without its scheme, on one line and
+  cut off at its end when long), and "Share link" where `navigator.share` exists and "Copy
+  link"; nothing else. A copy turns the button to
+  "Copied ✓" (and is said, "Link copied"); only a failed one is written: "Couldn't copy.
+  Select the link." "You" and "Opponent" stand under the kings, the neon seat breathes (for its
+  first minute, calmer after half of it), and the camera holds still. In a short, wide
+  window (a phone on its side: `cardBeside`, at most 500 px high and 13:10 or wider) the
+  card docks at the right and the kings and heading stand in the room left of it.
+- **The guest** (the `invited` beat and `InvitationCard`). A page with no stored seat asks
+  `look_game` once per socket until answered, and `game/invitation.ts` reads the answer.
+  With a seat free the heading reads "You're invited to play" with the side's stone and
+  name, and under the scene there is only "Join game" ("Joining…" once pressed). Until the
+  look is answered nothing is said; a wait on the server is only mentioned once it has
+  lasted 1.5 s (`useDelayed`, `SLOW_SERVER_MS`): "Connecting to server…" or "Reconnecting to
+  server…", the same words and delay as the side choice's bottom line;
+  "Opponent" and "You" stand under the kings, and joining fills the guest's king at once,
+  before the server answers, on the glass and not yet in its light. The scene is framed as
+  the host's wait, the kings a little higher over "Join game" (the view's `card`), and the
+  click eases it down to the arrival's framing, as the game's start does on the host's page. A game with both seats taken, or
+  none, gets a card "This game is taken" or "No game here" with "Start a new game". A page
+  with a stored seat shows no lobby, only "Returning to your game…", until its rejoin is
+  answered.
+- **The handover.** When the game starts on a page that showed the lobby, `arrive`: the
+  free seat fills, a ring of light spreads across the glass from it, and the caption takes
+  the heading's place, one line: "Opponent joined" for the host, "You play White" (or
+  Black) for the guest. Meanwhile `GameView` mounts under the lobby, held
+  on its first frame (`introPaused`), and reports that frame; if it never comes,
+  `FIRST_FRAME_WAIT_MS` (4 s) lets the lobby go anyway. Once both kings are filled, and no sooner
+  than a fresh fill would take from the start (so a guest's king filled on the click keeps
+  the same beat) (`together`, shared as a `KingPair`), a king not yet in its light gets its
+  column `arriveLight` (0.4 s) later, so it follows the new king going solid and the ring
+  rather than competing with them (on the guest's page both columns come on at once), and
+  at `arriveLift` (0.65 s) both lift together on both pages. Then `leave`: both rise on up in their columns of light and are taken up
+  into them from the foot (`uGone`), level A's glass stays, and the camera draws out to
+  exactly the game's first-frame pose
+  (`gameOpening`: the fitted distance times the `lobby` entrance's `dolly.from`, on the
+  opening line of sight from the player's seat, with the fit's lens shift) while the
+  sculptures come back up to the game's brightness. The lobby's canvas then fades over an
+  identical first frame of the game's (`leaveFade`), and only then (`onReveal`, `onLeft`)
+  does the game's entrance run its `lobby` variant (`three/intro/timeline.ts`): level A
+  stands from the start (`levels.built`), nothing fades up, and B to E build on up from A
+  while the camera closes in and the armies form, in about 3.6 s. A host whose tab is
+  hidden when the guest arrives gets the title "● Opponent joined · 3D Chess", and the
+  arrival waits for them (a hidden tab draws no frames). A page that opens on a game
+  already under way skips the lobby and plays the short entrance.
+
+Under `prefers-reduced-motion` the seat does not breathe, the
+coin lands without its flight and each beat takes a fraction of a second. The lobby's
+canvas never publishes `window.__r3fState`, so e2e's click projection always reads the
+game's; `waitForBoard` waits for `data-intro="done"`, by which time the lobby has gone.
+`e2e/createGame.spec.ts` walks the way in, and `startGame(browser, { side })` in
+`e2e/helpers/game.ts` picks a side (White by default). Its pages ask for reduced
+motion unless given `motion: 'full'`: played in full on two software-rendered pages,
+the way in alone takes most of a minute on a busy CI runner.
+
+Known limitations: a page decides host or guest from the stored seat alone, so with
+browser storage refused the creator is invited to the other seat of their own game, and
+"Join game" is refused with "Already in a game" (the connection already holds the
+seat). And a guest whose join was recorded but whose answer was lost, who then reloads
+before any seat was stored, is told "This game is taken": the look sees both seats taken,
+although a join from that tab would get its own seat back through its client id. (Without
+the reload the join is re-sent on the next socket and recovers the seat.)
+
 ## Repository layout
 
 ```
@@ -533,15 +700,16 @@ repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
 
-The client's entry (about 85 KB gzip) holds the start screen and the game screen (the
-waiting and join screens, the HUD, the move record). Everything 3D is a chunk the entry
-loads lazily, shared by the start page's preview (`screens/LandingPreview.tsx`) and the
-game's board (`screens/GameCanvas.tsx`): three.js, the scene and the set's precomputed
-parts, about 335 KB. The start page asks for it at once and shows its title and button
-without waiting for it; on a game's address the built page preloads it from the start (a
+The client's entry (about 88 KB gzip) holds the start screen, the side choice and the game
+screen (the invitation, the HUD, the move record). Everything 3D is a chunk the entry loads
+lazily, shared by the start page's preview (`screens/LandingPreview.tsx`), the lobby's
+canvas (`screens/lobby/LobbyCanvas.tsx`) and the game's board (`screens/GameCanvas.tsx`):
+three.js, the scene and the set's precomputed parts, about 350 KB. The start page asks for
+it at once and shows its title and button without waiting for it; on the side choice
+(`/new`) and a game's address the built page preloads it from the start (a
 `modulepreload` added by a small plugin in `vite.config.ts`), so a shared link shows its
-join screen without waiting for three.js, and does not wait for the entry before asking
-for the board. In the build, r3f's `Canvas` is handed only the three.js classes the scene
+invitation without waiting for three.js, and does not wait for the entry before asking
+for the scene. In the build, r3f's `Canvas` is handed only the three.js classes the scene
 writes as elements (`src/three/r3fCatalogue.ts`) instead of the whole namespace, so the
 rest of three.js is left out; a new element's class must be added there
 (`r3fCatalogue.test.ts` fails until it is, and the build fails if the swap stops applying).

@@ -1,9 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, test, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import StartScreen from './StartScreen';
-import { fakeSocket } from './testSupport';
 
 // The preview is a WebGL canvas, which jsdom can't provide: a stand-in that
 // shows what it was handed
@@ -30,7 +29,10 @@ afterEach(() => {
 const renderStart = () =>
   render(
     <MemoryRouter>
-      <StartScreen gameSocket={fakeSocket()} />
+      <Routes>
+        <Route path="/" element={<StartScreen />} />
+        <Route path="/new" element={<p>choose a side</p>} />
+      </Routes>
     </MemoryRouter>,
   );
 
@@ -53,27 +55,20 @@ test('nothing is written under the button', () => {
   reduceMotion(false);
   renderStart();
   const foot = screen.getByRole('button', { name: 'Start a game' }).parentElement!;
-  // Only the button shows; the live regions beside it are empty and unseen
-  for (const region of foot.querySelectorAll('[role="status"], [role="alert"]')) {
-    expect(region).toBeEmptyDOMElement();
-    expect(region).toHaveClass('sr-only');
-  }
+  expect(foot.children).toHaveLength(1);
 });
 
-test('a keyboard player keeps their place while the game is created', async () => {
+test('the start button opens the side choice, which creates the game', async () => {
   reduceMotion(false);
-  const send = vi.fn(() => true);
-  render(
-    <MemoryRouter>
-      <StartScreen gameSocket={fakeSocket([], send)} />
-    </MemoryRouter>,
-  );
+  renderStart();
+  await userEvent.click(screen.getByRole('button', { name: 'Start a game' }));
+  expect(screen.getByText('choose a side')).toBeInTheDocument();
+});
+
+test('a keyboard player reaches the side choice with the first Tab and Enter', async () => {
+  reduceMotion(false);
+  renderStart();
   await userEvent.tab();
   await userEvent.keyboard('{Enter}');
-  const button = screen.getByRole('button', { name: 'Creating game…' });
-  expect(button).toHaveFocus();
-  expect(button).toHaveAttribute('aria-disabled', 'true');
-  // Held: a second press sends nothing more
-  await userEvent.keyboard('{Enter}');
-  expect(send).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('choose a side')).toBeInTheDocument();
 });

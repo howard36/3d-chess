@@ -47,6 +47,10 @@ class CreateGame(BaseModel):
     )
     type: Literal['create_game']
     clientId: Optional[ClientId] = None
+    color: Optional[Color] = Field(
+        None,
+        description='The side the creator wants to play. Omitted, the server picks one at random.',
+    )
 
 
 class GameCreated(BaseModel):
@@ -56,6 +60,25 @@ class GameCreated(BaseModel):
     type: Literal['game_created']
     gameId: str
     color: Color
+
+
+class LookGame(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['look_game']
+    gameId: str
+
+
+class GameInfo(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['game_info']
+    gameId: str
+    seats: List[Color] = Field(
+        ..., description='The seats already claimed, in the order they were taken.'
+    )
 
 
 class JoinGame(BaseModel):
@@ -161,6 +184,8 @@ class WebsocketV1MessageEnvelope(
         Union[
             CreateGame,
             GameCreated,
+            LookGame,
+            GameInfo,
             JoinGame,
             GameJoined,
             RejoinGame,
@@ -176,6 +201,8 @@ class WebsocketV1MessageEnvelope(
     root: Union[
         CreateGame,
         GameCreated,
+        LookGame,
+        GameInfo,
         JoinGame,
         GameJoined,
         RejoinGame,

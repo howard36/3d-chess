@@ -15,10 +15,12 @@ from messages import (
     Error,
     ErrorCode,
     GameCreated,
+    GameInfo,
     GameJoined,
     GameStart,
     GameState,
     JoinGame,
+    LookGame,
     Move,
     MoveMade,
     Presence,
@@ -119,18 +121,20 @@ class GameError(Exception):
 # access pattern.
 
 
-def create_game(store, client_id: str | None = None) -> tuple[str, str]:
+def create_game(store, client_id: str | None = None, color: str | None = None) -> tuple[str, str]:
     """Create a game with one seat claimed; return (game id, creator's color).
 
-    `client_id`, when the client sent one, is remembered as the seat's
-    claimant (see claim_seat).
+    `color` is the side the creator asked for; without one it is picked at
+    random. `client_id`, when the client sent one, is remembered as the
+    seat's claimant (see claim_seat).
     """
     while True:
         gid = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
         if gid not in store:
             break
     # Creator can be white or black, but white always moves first
-    color = random.choice(["white", "black"])
+    if color is None:
+        color = random.choice(["white", "black"])
     record: dict = {"seats": [color], "moves": []}
     if client_id is not None:
         record["claimants"] = {color: client_id}
@@ -165,6 +169,14 @@ def claim_seat(store, gid: str, client_id: str | None = None) -> tuple[str, bool
     return free[0], False
 
 
+def taken_seats(store, gid: str) -> list[str]:
+    """Return the seats claimed in `gid` (read-only)."""
+    record = store.get(gid)
+    if record is None:
+        raise GameError(ErrorCode.invalid_game, "No such game")
+    return list(record["seats"])
+
+
 def find_seat(store, gid: str, color: str) -> dict:
     """Return the record of `gid` if `color` holds a seat in it (read-only)."""
     record = store.get(gid)
@@ -196,7 +208,7 @@ def record_move(store, gid: str | None, color: str | None, move: Move) -> dict:
     return move_dict
 
 
-STORE_OPERATIONS = (create_game, claim_seat, find_seat, record_move)
+STORE_OPERATIONS = (create_game, claim_seat, taken_seats, find_seat, record_move)
 
 
 def _turn(record: dict) -> str:
@@ -342,7 +354,8 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                     if isinstance(envelope, CreateGame):
                         _require_not_in_game(gid)
                         client_id = envelope.clientId.root if envelope.clientId else None
-                        gid, player_color = create_game(store, client_id)
+                        asked = envelope.color.value if envelope.color else None
+                        gid, player_color = create_game(store, client_id, asked)
                         ws.state.client_id = client_id
                         connections[gid] = {player_color: ws}
                         logger.info(
@@ -352,6 +365,16 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                             type="game_created", gameId=gid, color=Color(player_color)
                         )
                         await _safe_send(ws, created.model_dump(mode="json"))
+                    elif isinstance(envelope, LookGame):
+                        # A look binds nothing: the connection stays free to
+                        # join this game or any other.
+                        seats = taken_seats(store, envelope.gameId)
+                        info = GameInfo(
+                            type="game_info",
+                            gameId=envelope.gameId,
+                            seats=[Color(c) for c in seats],
+                        )
+                        await _safe_send(ws, info.model_dump(mode="json"))
                     elif isinstance(envelope, JoinGame):
                         _require_not_in_game(gid)
                         client_id = envelope.clientId.root if envelope.clientId else None

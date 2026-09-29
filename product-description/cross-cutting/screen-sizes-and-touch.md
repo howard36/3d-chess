@@ -24,9 +24,9 @@ The text keeps clear of a phone's notch and rounded corners. The button is the p
 
 The [share-link screen](../start/waiting-for-an-opponent.md), the [join screen](../start/joining-a-game.md), the joined screen, and the crash screen are each one column, centered both ways, with a margin of 32 px on every side. Their text wraps to the window's width. The title "3D Chess" on these screens is set smaller below 640 pixels wide, so on a phone it stays on one line.
 
-The [share link](../glossary.md#games-and-seats) on the share-link screen, `{origin}/game/{id}`, is shown in bold type in a dark box that wraps it anywhere, between any two characters, so a long address breaks onto as many lines as it needs and never runs off the screen. In a 375 px window a 34-character local address took two lines in a box 311 px wide.
+The [share link](../glossary.md#games-and-seats) on the [invitation to send](../glossary.md#the-product-and-its-screens), `{origin}/game/{id}` without its `https://`, stands on one line in a dark box on the card, in plain muted text, with no part of it set apart. The card sits at the bottom center, at most 440 px wide and 16 px clear of each edge. In a short, wide window (at most 500 px tall and 13:10 or wider, a phone on its side) there is no room under the kings, so the card docks at the bottom right instead, 320 px wide or 42% of the window's width if that is less, and the kings and the heading stand in the room left of it. At every size the kings stand one square apart on the glass, each on the middle of its own square: a narrower window draws the camera back rather than pushing them apart. A link too long for its box is cut off at its end, with an ellipsis; what is copied or shared is still the whole address.
 
-Below the link is a "Copy link" button, which copies the link and then says "Copied" beside it (or "Could not copy; select the link instead" if the browser refused). The button is offered only where the browser lets a page copy text, which means an `https` address or `localhost`. On a plain `http` address, such as a development computer's address on a home network opened from a phone, there is no button, and the link has to be selected by hand: a long press on it, as on any web page text.
+Below the link is a "Copy link" button, which copies the link and then says "Copied ✓" (or, under it, "Couldn't copy. Select the link." if the browser refused). The button is offered only where the browser lets a page copy text, which means an `https` address or `localhost`. On a plain `http` address, such as a development computer's address on a home network opened from a phone, there is no button, and the link has to be selected by hand: a long press on it, as on any web page text.
 
 ## The board at any size
 
@@ -88,7 +88,7 @@ A touch on the board acts only as a tap: the finger touching down and lifting ag
 | Double tap | Two taps, each acting on its own. The page does not zoom. |
 | Long press | No menu opens. Whether the lift that ends it counts as a tap depends on whether the browser reports it as a click; not tried. |
 
-There is no hover on a touch screen, and the board never uses hover anyway: nothing on the board lights up under a resting mouse either, so touch loses nothing. The join screen's button grows slightly, and the start screen's lifts and its knight hops, under a hovering mouse; on a touch screen they never do, and no hover effect sticks after a tap. Taps do not flash the gray highlight some phone browsers draw over tapped elements.
+There is no hover on a touch screen, and the board never uses hover anyway: nothing on the board lights up under a resting mouse either, so touch loses nothing. The join screen's button grows slightly, and the start screen's lifts and its knight hops, under a hovering mouse; on the side choice a king lifts a little under the mouse once it has formed, as if picked up, and a chosen king is set down on its square in its column of light. On a touch screen none of these hover effects happens: a tap on a king or its button picks it straight away, the chosen king standing on the glass as after a click, and no hover effect sticks after a tap. Taps do not flash the gray highlight some phone browsers draw over tapped elements.
 
 Touches on the board never scroll or zoom the page: the board claims every touch that starts on it for the view.
 
@@ -186,5 +186,6 @@ After any interrupt, the view keeps its direction unless the board screen itself
 
 - The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](../foundations/the-view.md), not checked in the running app, and need re-verification.
 - The start screen became a landing page with a 3D preview after `4e18386`. Its arrangement at each size is read from the `.landing` rules in `client/src/index.css` and `client/src/three/landingView.ts`, not checked on a phone or in the running app. How smoothly the preview plays, and what it costs in battery, on a slow phone was not measured; nor was what a browser without WebGL shows at `/`.
+- The side choice's kings taking no hover until they have formed was brought up to `1881e28` from `client/src/three/lobby/LobbyKing.tsx`, not checked in the running app.
 
 Verified against 3D Chess commit `4e18386`; the HUD's arrangement at each size against `f7bff4d`

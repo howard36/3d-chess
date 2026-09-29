@@ -4,4 +4,4 @@
 // the rest of three.js can be left out of the game screen's chunk. An element
 // not listed here fails at runtime ("X is not part of the THREE namespace"):
 // add its class here when the scene starts using a new one.
-export { Group, LineSegments, Mesh, Points, Sprite, SpriteMaterial } from 'three';
+export { CylinderGeometry, Group, LineSegments, Mesh, Points, Sprite, SpriteMaterial } from 'three';
