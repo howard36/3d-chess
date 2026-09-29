@@ -133,12 +133,14 @@ function fitted(
   height: number,
   rings = RINGS,
   topInset?: number,
+  bottomInset?: number,
 ) {
   const view = {
     width,
     height,
     fov: 36,
     ...(topInset !== undefined ? { topInset } : {}),
+    ...(bottomInset !== undefined ? { bottomInset } : {}),
   };
   const { distance, shift } = fitView(elevation * DEG, rings, view);
   const camera = cameraAt(elevation, azimuth, distance, width / height);
@@ -201,6 +203,49 @@ describe('fitView', () => {
     const { rect, framed } = fitted(18, 16, 1280, 720, RINGS, 0);
     expect(Math.abs(framed.top - framed.bottom)).toBeLessThan(0.5);
     expect(Math.abs(rect.left - rect.right)).toBeLessThan(0.5);
+  });
+
+  it.each([
+    ['a desktop', 1280, 720, 120, 116],
+    ['a tall window', 1440, 900, 140, 132],
+    ['an upright phone', 390, 844, 120, 116],
+  ])('centres the rings in %s between a top and a bottom band', (_, w, h, top, bottom) => {
+    for (const elevation of [18, 22, 45]) {
+      for (const azimuth of [0, 28, 200]) {
+        const { rect, framed, shift } = fitted(elevation, azimuth, w, h, RINGS, top, bottom);
+        expect(Math.abs(rect.left - rect.right)).toBeLessThan(0.5);
+        expect(Math.abs(framed.top - top - (framed.bottom - bottom))).toBeLessThan(0.5);
+        expect(framed.top).toBeGreaterThan(top);
+        expect(framed.bottom).toBeGreaterThan(bottom);
+        // Fills what the bands leave on its tighter axis
+        const across = (w - rect.left - rect.right) / w;
+        const down = (h - framed.top - framed.bottom) / (h - top - bottom);
+        expect(Math.max(across, down)).toBeGreaterThan(0.94);
+        expect(Math.max(across, down)).toBeLessThan(0.96);
+        expect(shift[0]).toBe(0);
+      }
+    }
+  });
+
+  it('fits exactly as before without a bottom band', () => {
+    const view = { width: 1280, height: 720, fov: 36, topInset: 82 };
+    expect(fitView(18 * DEG, RINGS, { ...view, bottomInset: 0 })).toEqual(
+      fitView(18 * DEG, RINGS, view),
+    );
+  });
+
+  it('never lets the two bands together take more than half the window', () => {
+    const view = { width: 800, height: 800, fov: 36 };
+    const [, y] = centringShift(
+      { left: 0, right: 0, bottom: 0, top: 0 },
+      {
+        ...view,
+        topInset: 300,
+        bottomInset: 300,
+      },
+    );
+    // The top band takes 300 of 800 rows; the bottom only the 100 left of half
+    expect(y).toBeCloseTo(((300 - 100) / 800) * tanV);
   });
 
   it('stands further back for wider rings', () => {

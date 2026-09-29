@@ -126,6 +126,8 @@ export interface GridProps {
   orientation: Orientation;
   /** Which level to emphasise. */
   focus: LevelFocus;
+  /** Whether to draw the coordinate labels (on by default). */
+  labels?: boolean;
 }
 
 export interface StageProps {

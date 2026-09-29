@@ -14,9 +14,7 @@ import type { Vec3 } from '../types';
 // source when the move is fresh. No arrowhead: the destination's own marker
 // says where the move ended. The line is depth-tested like any solid, and
 // drawn after the platforms and markers, so pieces hide it where it passes
-// behind them; with an `inset` (TracePathOptions) it lands on the
-// destination's floor beside the piece standing there rather than running
-// into it.
+// behind them, and the piece that moved hides its end.
 
 interface LineStyle extends TracePathOptions {
   color: string;
@@ -105,14 +103,12 @@ export const LastMoveLine = ({
   drawInMs = 0,
   drawInDelayMs = 0,
   lift = radius + 0.012,
-  inset = 0,
-  insetFront,
 }: LineStyle & { from: Vec3; to: Vec3 }) => {
   const invalidate = useThree((s) => s.invalidate);
 
-  const key = JSON.stringify([from, to, lift, radius, inset, insetFront]);
+  const key = JSON.stringify([from, to, lift, radius]);
   const { geometry, length } = useMemo(() => {
-    const points = tracePath(from, to, { lift, inset, insetFront });
+    const points = tracePath(from, to, { lift });
     const distances = pathDistances(points);
     const length = distances[distances.length - 1];
     const geometry = tubeGeometry(points, { radius });

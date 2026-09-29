@@ -146,7 +146,8 @@ Key decisions:
   behind the tower from high up). It centres them
   between the band kept for the HUD's top pill and the captured pieces under it (82 px; 56
   in a short window, where they stand beside the tower: `hudTop`) and the bottom of the
-  window, by a lens shift (a view offset, `three/viewOffset.ts`) rather than a pan. A
+  window (or a band kept clear above it, `bottomInset`, which only the landing page's
+  preview asks for: see Landing page), by a lens shift (a view offset, `three/viewOffset.ts`) rather than a pan. A
   circle about the axis looks the same whichever way the camera has turned, so the shift
   is only ever vertical. It is set with the fit (on opening and when the window changes
   shape) and then left alone: turning, climbing and zooming never move the tower's centre
@@ -199,6 +200,30 @@ Key decisions:
   `data-online`; `captured-pieces` each haul as `data-side` (`me`, `them`); and
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
   and `data-move-count`.
+- **Landing page.** The start screen at `/` (`screens/StartScreen.tsx`) fills the window
+  with a live preview (`screens/LandingPreview.tsx`): the real `Board`, drawn without its
+  labels (`labels={false}`) and framed on the tower alone (`towerBodyRings`), plays a
+  scripted 17-ply game ending in White's mate (`game/demo.ts`, the game `showcase.mjs`
+  records) as a log of `move_made` messages through `deriveHistory`, like a live game,
+  then fades under a veil and plays it again, while `three/AutoOrbit.tsx` turns the camera
+  round the tower at a fixed elevation, a full turn every two passes
+  (`three/landingView.ts`). The demo's clock is r3f's. The title stands above the
+  tower and "Start a game" (a pill with a knight glyph and a slowly turning rim in the
+  five level colours) below it, in bands the fit keeps clear (`hudTopBand`
+  and `bottomBand`; a window 480 px tall or less sets the text in a column at the left
+  instead). Under the button a slot, kept open so the button never moves, shows the first
+  that applies: the create's error ("Couldn't start a game: …", `role="alert"`), the
+  connection's state (`role="status"`, only while a create waits on the socket), or
+  "Checkmate · White wins" (`aria-hidden`) while the moving demo's mate stands; otherwise
+  nothing. The button is not held while the socket connects (the create is queued), only
+  while it is answered ("Creating game…"), and then by `aria-disabled` rather than
+  `disabled`, so a keyboard player keeps focus on it. The canvas is `aria-hidden` and
+  takes no pointer, and a visually hidden sentence says what it shows. A pause button at the top right ("Pause preview",
+  `aria-pressed`, the second Tab stop after the start button) stops the demo, the turn and
+  the drawing (the canvas draws no frames while paused). Under `prefers-reduced-motion`
+  the preview is a still of the final position, the king left standing, with no result
+  line, no pause button and a still rim. In development `?t=<seconds>` starts the demo
+  that far in.
 
 ## Protocol
 

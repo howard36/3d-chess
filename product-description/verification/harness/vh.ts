@@ -160,7 +160,7 @@ export async function startTappedGame(browser: Browser, opts: Parameters<Browser
   for (const c of contexts) await c.addInitScript(socketTap);
   const [a, b] = await Promise.all(contexts.map((c) => c.newPage()));
   await a.goto('/');
-  await a.getByRole('button', { name: 'Start New Game' }).click();
+  await a.getByRole('button', { name: 'Start a game' }).click();
   await a.waitForURL(/\/game\/[A-Z0-9]+/);
   await b.goto(a.url());
   await b.getByRole('button', { name: 'Join Game' }).click();
@@ -262,7 +262,7 @@ export async function loseIncoming(page: Page, on: boolean) {
 /** Click a DOM button and cut the connection in the same task, so the request leaves but no answer is seen. */
 export async function clickThenCut(page: Page, name: string) {
   await page.evaluate((n) => {
-    const b = [...document.querySelectorAll('button')].find((x) => x.textContent?.trim() === n) as HTMLButtonElement;
+    const b = [...document.querySelectorAll('button')].find((x) => (x.getAttribute('aria-label') ?? x.textContent?.trim()) === n || x.textContent?.trim().endsWith(n)) as HTMLButtonElement;
     b.click();
     const w = window as any;
     w.__blockSockets = true;

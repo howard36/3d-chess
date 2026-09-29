@@ -17,15 +17,19 @@ const role = (p: Page, url: string) => p.evaluate((id) => localStorage.getItem(`
 test('server stop and restart', async ({ browser }) => {
   await item('CONN-04', async () => {
     const p = await newTappedPage(browser); await p.goto('/');
-    await expect(p.getByRole('status')).toHaveCount(0, { timeout: 5000 });
+    await p.waitForFunction(() => (window as any).__sockets.some((s: WebSocket) => s.readyState === 1), null, { timeout: 5000 });
     stopServer();
+    await p.waitForTimeout(1000);
+    // Nothing about the connection until a create waits for it
+    await expect(p.getByRole('status')).toHaveCount(0);
+    await p.getByRole('button', { name: 'Start a game' }).click();
     await expect(p.getByRole('status')).toHaveText('Reconnecting to server…');
     startServer();
-    await expect(p.getByRole('status')).toHaveCount(0, { timeout: 15000 });
+    await p.waitForURL(/\/game\//, { timeout: 15000 });
     await p.context().close();
   });
   await item('NAV-07', async () => {
-    const p = await newTappedPage(browser); await p.goto('/'); await p.getByRole('button', { name: 'Start New Game' }).click(); await p.waitForURL(/\/game\//);
+    const p = await newTappedPage(browser); await p.goto('/'); await p.getByRole('button', { name: 'Start a game' }).click(); await p.waitForURL(/\/game\//);
     stopServer();
     await expect(p.getByText('Reconnecting…')).toBeVisible();
     const box = await p.getByText('Reconnecting…').boundingBox();

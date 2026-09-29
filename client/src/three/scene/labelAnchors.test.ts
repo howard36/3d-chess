@@ -15,6 +15,7 @@ import {
   LETTER_OFFSET_HIGH,
   letterCorner,
   lettersHigh,
+  towerBodyRings,
   towerFrameRings,
 } from './labelAnchors';
 import type { AnchorState } from './labelAnchors';
@@ -537,6 +538,35 @@ describe('towerFrameRings', () => {
       const elevation = Math.min(e, 89.9) * DEG;
       const all = ringBounds(rings, elevation, 20);
       expect(all.right).toBeCloseTo(ringBounds(near, elevation, 20).right, 9);
+    }
+  });
+});
+
+describe('towerBodyRings', () => {
+  it('hold the platforms and frame tighter than the rings that make room for the labels', () => {
+    const body = towerBodyRings(layout);
+    const full = towerFrameRings(layout);
+    for (const elevation of [-14, 0, 18, 22, 45, 89.9]) {
+      const tight = ringBounds(body, elevation * DEG, 20);
+      const loose = ringBounds(full, elevation * DEG, 20);
+      expect(tight.right).toBeLessThan(loose.right);
+      expect(tight.top).toBeLessThanOrEqual(loose.top);
+      expect(tight.bottom).toBeGreaterThanOrEqual(loose.bottom);
+      // Every platform's corners stay inside
+      const camera = new PerspectiveCamera(36, 1, 0.1, 100);
+      camera.position.set(...cameraAt(33, elevation, 20));
+      camera.lookAt(0, 0, 0);
+      camera.updateMatrixWorld();
+      for (const y of frame.levelY) {
+        for (const [x, z] of CORNERS) {
+          const v = new Vector3(x * frame.half, y, z * frame.half).applyMatrix4(
+            camera.matrixWorldInverse,
+          );
+          expect(Math.abs(v.x / -v.z)).toBeLessThanOrEqual(tight.right + 1e-9);
+          expect(v.y / -v.z).toBeLessThanOrEqual(tight.top + 1e-9);
+          expect(v.y / -v.z).toBeGreaterThanOrEqual(tight.bottom - 1e-9);
+        }
+      }
     }
   });
 });
