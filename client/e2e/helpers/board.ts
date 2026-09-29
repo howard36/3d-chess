@@ -38,11 +38,7 @@ export async function getPlayerColor(page: Page): Promise<Orientation> {
 export async function clickSquare(page: Page, zxy: string, seat: Orientation): Promise<void> {
   const locate = () =>
     page.evaluate((target) => {
-      const state = (
-        window as Window & {
-          __r3fState?: { get?: () => unknown } & Record<string, unknown>;
-        }
-      ).__r3fState;
+      const state = (window as Window & { __r3fState?: { get(): unknown } }).__r3fState;
       if (!state) throw new Error('window.__r3fState missing — has the game Canvas mounted?');
       type Obj = {
         position: { x: number; y: number; z: number };
@@ -56,7 +52,7 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
       };
       // state.get() returns a fresh store snapshot (size changes on resize);
       // the camera and scene objects are live references either way.
-      const { camera, size, scene, raycaster } = (state.get ? state.get() : state) as {
+      const { camera, size, scene, raycaster } = state.get() as {
         camera: { updateMatrixWorld(): void; [k: string]: unknown };
         size: { width: number; height: number };
         scene: {
@@ -197,13 +193,9 @@ export async function waitForBoard(page: Page): Promise<void> {
  */
 export async function waitForDestination(page: Page, zxy: string): Promise<void> {
   await page.waitForFunction((target) => {
-    const state = (
-      window as Window & {
-        __r3fState?: { get?: () => unknown } & Record<string, unknown>;
-      }
-    ).__r3fState;
+    const state = (window as Window & { __r3fState?: { get(): unknown } }).__r3fState;
     if (!state) return false;
-    const { scene } = (state.get ? state.get() : state) as {
+    const { scene } = state.get() as {
       scene: { traverse(cb: (o: { userData: Record<string, unknown> }) => void): void };
     };
     let found = false;
@@ -260,9 +252,9 @@ export async function towerRects(page: Page): Promise<ScreenRect[]> {
       getWorldPosition(v: V): V;
       getWorldScale(v: V): V;
     };
-    const state = (window as Window & { __r3fState?: { get?: () => unknown } }).__r3fState;
+    const state = (window as Window & { __r3fState?: { get(): unknown } }).__r3fState;
     if (!state) throw new Error('window.__r3fState missing — has the game Canvas mounted?');
-    const { camera, scene, size } = (state.get ? state.get() : state) as {
+    const { camera, scene, size } = state.get() as {
       camera: { position: V; matrixWorld: unknown; updateMatrixWorld(): void };
       scene: Obj & { updateMatrixWorld(force: boolean): void };
       size: { width: number; height: number };

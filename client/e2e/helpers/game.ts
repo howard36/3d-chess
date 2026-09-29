@@ -11,8 +11,6 @@ import type { Orientation } from './board';
 export interface Game {
   white: Page;
   black: Page;
-  /** The page seated as `seat`. */
-  page(seat: Orientation): Page;
   /** Whose turn it is, read from the turn indicator (while the game is on). */
   turn(): Promise<Orientation>;
   /**
@@ -62,7 +60,6 @@ export async function startGame(browser: Browser): Promise<Game> {
   const game: Game = {
     white: seats.white,
     black: seats.black,
-    page: (seat) => seats[seat],
     turn: async () => {
       const turn = await seats.white
         .locator('[data-testid="turn-indicator"][data-turn]')
