@@ -176,7 +176,7 @@ Key decisions:
   12 px gutter, on a phone held upright), and nothing else unless something needs saying.
   The pill's left half is the player and its right half the opponent, each with a small stone in its army's
   material (porcelain, charcoal); the half of the side to move is lit, its stone ringed in
-  light ("Your move" / "Their move"), the ring red in check. An opponent with no
+  light ("Your move" / "Their move"); check is shown on the board, not here. An opponent with no
   live connection shows as an outlined stone and "Offline"; a connected one is not marked.
   Once the game is over the pill gives the result from the player's side ("Checkmate · you
   win"). Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from

@@ -22,20 +22,17 @@ const other = (side: Turn): Turn => (side === 'white' ? 'black' : 'white');
 export const Stone = ({
   color,
   lit = false,
-  check = false,
   absent = false,
   ...rest
 }: {
   color: Turn;
   lit?: boolean;
-  check?: boolean;
   absent?: boolean;
 } & React.HTMLAttributes<HTMLSpanElement>) => (
   <span
     className="hud-stone"
     data-color={color}
     data-lit={lit || undefined}
-    data-check={(lit && check) || undefined}
     data-absent={absent || undefined}
     {...rest}
   />
@@ -97,13 +94,13 @@ const TurnPill: React.FC<TurnPillProps> = (props) => {
     <div className="hud-pill hud-glass" {...common}>
       {label}
       <span className="hud-half" data-side="me" data-on={mine || undefined} aria-hidden>
-        <Stone color={seat} lit={mine} check={inCheck} />
+        <Stone color={seat} lit={mine} />
         <span>{mine ? 'Your move' : 'You'}</span>
       </span>
       <span className="hud-rule" aria-hidden />
       <span className="hud-half" data-side="them" data-on={!mine || undefined} aria-hidden>
         <span>{away ? 'Offline' : mine ? 'Opponent' : 'Their move'}</span>
-        <Stone color={them} lit={!mine} check={inCheck} absent={away} />
+        <Stone color={them} lit={!mine} absent={away} />
       </span>
     </div>
   );
