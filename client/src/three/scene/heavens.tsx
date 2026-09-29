@@ -371,8 +371,8 @@ const pointMaterial = (opacity: number) =>
     fragmentShader: pointFragment,
   });
 
-/** The sky's stars (`stars`) and its chess constellations (`figures`). */
-export const Heavens = ({ stars, figures }: { stars: boolean; figures: boolean }) => {
+/** The sky's stars and its chess constellations. */
+export const Heavens = () => {
   const dpr = useThree((s) => s.viewport.dpr);
   const parts = useMemo(
     () => ({
@@ -402,33 +402,27 @@ export const Heavens = ({ stars, figures }: { stars: boolean; figures: boolean }
   parts.starMaterial.uniforms.uDpr.value = dpr;
   return (
     <group name="heavens">
-      {stars && (
-        <points
-          geometry={parts.field}
-          material={parts.fieldMaterial}
-          renderOrder={-990}
-          raycast={noRaycast}
-          frustumCulled={false}
-        />
-      )}
-      {figures && (
-        <>
-          <lineSegments
-            geometry={parts.figureLines}
-            material={parts.lineMaterial}
-            renderOrder={-989}
-            raycast={noRaycast}
-            frustumCulled={false}
-          />
-          <points
-            geometry={parts.figureStars}
-            material={parts.starMaterial}
-            renderOrder={-988}
-            raycast={noRaycast}
-            frustumCulled={false}
-          />
-        </>
-      )}
+      <points
+        geometry={parts.field}
+        material={parts.fieldMaterial}
+        renderOrder={-990}
+        raycast={noRaycast}
+        frustumCulled={false}
+      />
+      <lineSegments
+        geometry={parts.figureLines}
+        material={parts.lineMaterial}
+        renderOrder={-989}
+        raycast={noRaycast}
+        frustumCulled={false}
+      />
+      <points
+        geometry={parts.figureStars}
+        material={parts.starMaterial}
+        renderOrder={-988}
+        raycast={noRaycast}
+        frustumCulled={false}
+      />
     </group>
   );
 };

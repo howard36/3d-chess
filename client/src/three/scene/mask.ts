@@ -14,12 +14,12 @@ import { FRAME, MARGIN } from './palette';
 // and the pieces standing on the top level (opaque, and close above their
 // platform) sit in the gradient's darkest part. The gradient is a smooth
 // function of the screen distance to that outline (a signed distance field,
-// evaluated per pixel); its width is the player's "Fade near the tower".
+// evaluated per pixel).
 
 /** Half the side of a platform, its edge light included. */
 const PLATFORM_HALF = FRAME.half + MARGIN + 0.02;
-/** The gradient's width at the default setting (NDC, screen height = 2). */
-export const SHADE_WIDTH = 0.3;
+/** The gradient's width (NDC, screen height = 2). */
+const SHADE_WIDTH = 0.45;
 /** The most corners the tower's outline on screen can have (a box's is six). */
 const HULL_MAX = 8;
 
@@ -33,15 +33,12 @@ const towerHull = { value: Array.from({ length: HULL_MAX + 1 }, () => new Vector
 const towerHullCount = { value: 0 };
 /** The drawing buffer's size in pixels and its aspect, to find NDC per fragment. */
 export const shadeViewport = { value: new Vector3(1, 1, 1) };
-/** The gradient's width (NDC). */
-export const shadeWidth = { value: SHADE_WIDTH };
 
 /** Uniforms for a material that uses TOWER_SHADE. */
 export const shadeUniforms = () => ({
   uHull: towerHull,
   uHullCount: towerHullCount,
   uShadeViewport: shadeViewport,
-  uShadeWidth: shadeWidth,
 });
 
 const CORNERS: P2[] = [
@@ -120,8 +117,10 @@ const smoothstep = (a: number, b: number, x: number) => {
 };
 
 /** The shade at a point on screen, 0–1 (the CPU twin of TOWER_SHADE, for tests). */
-export const shadeAt = (hull: P2[] | null, p: P2, width = SHADE_WIDTH) =>
-  hull && hull.length >= 3 ? 1 - smoothstep(-0.25 * width, width, outlineDistance(hull, p)) : 0;
+export const shadeAt = (hull: P2[] | null, p: P2) =>
+  hull && hull.length >= 3
+    ? 1 - smoothstep(-0.25 * SHADE_WIDTH, SHADE_WIDTH, outlineDistance(hull, p))
+    : 0;
 
 /**
  * GLSL: `float towerShade()`, the tower's shade at this fragment: 1 over the
@@ -132,7 +131,6 @@ export const TOWER_SHADE = /* glsl */ `
   uniform vec2 uHull[${HULL_MAX + 1}];
   uniform float uHullCount;
   uniform vec3 uShadeViewport;
-  uniform float uShadeWidth;
   float towerShade() {
     if (uHullCount < 3.0) return 0.0;
     vec2 p = gl_FragCoord.xy / uShadeViewport.xy * 2.0 - 1.0;
@@ -149,5 +147,5 @@ export const TOWER_SHADE = /* glsl */ `
       float t = clamp(dot(w, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
       d = min(d, length(w - e * t));
     }
-    return 1.0 - smoothstep(-0.25 * uShadeWidth, uShadeWidth, inside ? -d : d);
+    return 1.0 - smoothstep(-0.25 * ${SHADE_WIDTH.toFixed(2)}, ${SHADE_WIDTH.toFixed(2)}, inside ? -d : d);
   }`;
