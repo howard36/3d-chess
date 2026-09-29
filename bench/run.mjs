@@ -2,6 +2,7 @@
 // Runs the benchmark suite and writes its report as Markdown.
 //
 //   node bench/run.mjs [--quick] [--only client,server,browser] [--out bench/RESULTS.md]
+//                      [--compare <dir>]
 //
 // Three tiers, run one after another so none times the others' load:
 //
@@ -17,6 +18,12 @@
 // (uv sync --extra test in server/). Raw JSON goes to bench/out/ (ignored by
 // git); the report is the only file meant to be committed. --quick takes a
 // few samples of everything, to check the suite runs, not to measure.
+//
+// --compare <dir> adds a "vs baseline" column and a summary of what got
+// better or worse, against the raw output of an earlier run: copy bench/out
+// somewhere (cp -r bench/out /tmp/base) before changing the code, then run
+// with --compare /tmp/base. A change inside the noise band is shown but not
+// called better or worse.
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -37,6 +44,7 @@ const option = (name, fallback) => {
 const QUICK = flag('--quick');
 const ONLY = option('--only', 'client,server,browser').split(',');
 const REPORT = resolve(option('--out', join(ROOT, 'bench', 'RESULTS.md')));
+const COMPARE = option('--compare', null);
 
 // --- Running the tiers ---------------------------------------------------------
 
@@ -64,6 +72,19 @@ function run(label, cmd, cmdArgs, opts = {}) {
 }
 
 const readJson = (path) => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null);
+
+/** An earlier run's raw output (a copy of bench/out), read before this run overwrites bench/out. */
+function loadBaseline(dir) {
+  if (!existsSync(dir)) throw new Error(`--compare: no such directory ${dir}`);
+  return {
+    dir,
+    run: readJson(join(dir, 'run.json')),
+    client: readJson(join(dir, 'client-vitest.json')),
+    startup: readJson(join(dir, 'client-meta', 'startup.json')),
+    server: readJson(join(dir, 'server.json')),
+    browser: readJson(join(dir, 'browser.json')),
+  };
+}
 
 function runClient() {
   const meta = join(OUT_DIR, 'client-meta');
@@ -170,6 +191,67 @@ function section(level, { title, intro, notes, ...t }) {
   return parts.join('\n\n');
 }
 
+// --- Comparing with a baseline --------------------------------------------------------
+
+/** Everything that moved beyond its noise band, for the summary. */
+const changes = [];
+
+/**
+ * A metric's change against the baseline, judged in the direction that
+ * matters (`better`: 'lower' for times, 'higher' for rates). Within `band`
+ * percent it is shown but not called better or worse.
+ */
+function compareMetric(now, then, better, band) {
+  if (!Number.isFinite(now) || !Number.isFinite(then) || then === 0) return null;
+  const change = ((now - then) / Math.abs(then)) * 100;
+  const improved = better === 'higher' ? change > 0 : change < 0;
+  const significant = Math.abs(change) > band;
+  const pct = `${change > 0 ? '+' : '−'}${Math.abs(change).toFixed(Math.abs(change) >= 10 ? 0 : 1)}%`;
+  return {
+    change,
+    improved,
+    significant,
+    text: significant ? `**${pct} ${improved ? 'better' : 'worse'}**` : pct,
+  };
+}
+
+const noted = (tier, where, what, cmp) => {
+  if (cmp?.significant) changes.push({ tier, where, what, ...cmp });
+  return cmp ? cmp.text : 'new';
+};
+
+/** Noise bands (percent) for sections that carry `metrics`: loopback and a software renderer are noisier. */
+const BAND = { server: 10, browser: 15, startup: 10 };
+
+/**
+ * A pre-formatted section (server, browser, startup tables) with a
+ * "vs baseline" column, matched by title and by each row's first two cells,
+ * when the section carries per-row `metrics` and a baseline is loaded.
+ */
+function withBaseline(tier, s, baseSections) {
+  if (!baseSections || !s.metrics) return s;
+  const base = baseSections.find((b) => b.title === s.title);
+  // A row is the same row in both runs by its metric's key, or else by its first cell
+  const keyOf = (row, metric) => metric?.key ?? row[0];
+  const then = new Map(
+    (base?.rows ?? []).map((row, i) => [keyOf(row, base.metrics?.[i]), base.metrics?.[i]]),
+  );
+  return {
+    ...s,
+    columns: [...s.columns, 'vs baseline'],
+    align: [...(s.align ?? s.columns.map(() => 'l')), 'r'],
+    rows: s.rows.map((row, i) => {
+      const m = s.metrics[i];
+      if (!m) return [...row, ''];
+      const key = keyOf(row, m);
+      const b = then.get(key);
+      if (!b) return [...row, 'new'];
+      const band = BAND[tier] ?? 10;
+      return [...row, noted(tier, s.title, key, compareMetric(m.value, b.value, m.better, band))];
+    }),
+  };
+}
+
 // --- The client tier as report sections ----------------------------------------
 
 /** vitest's JSON as [{ file, group, benchmarks }], group being the describe block's name. */
@@ -184,21 +266,40 @@ function clientGroups(vitest) {
   );
 }
 
-function benchSection(g, intro, workload) {
-  const rows = g.benchmarks.map((b) => [
-    b.name,
-    duration(b.median),
-    `${duration(b.mean)} ±${b.rme.toFixed(1)}%`,
-    duration(b.p99),
-    rate(b.hz),
-    String(b.sampleCount),
-  ]);
+function benchSection(g, intro, workload, baseline) {
+  const rows = g.benchmarks.map((b) => {
+    const row = [
+      b.name,
+      duration(b.median),
+      `${duration(b.mean)} ±${b.rme.toFixed(1)}%`,
+      duration(b.p99),
+      rate(b.hz),
+      String(b.sampleCount),
+    ];
+    if (!baseline) return row;
+    const then = baseline.get(`${g.group} > ${b.name}`);
+    if (!then) return [...row, 'new'];
+    // The medians' noise: at least 5%, more where the samples scatter (few-sample cases)
+    const band = Math.min(Math.max((b.rme + then.rme) / 2, 5), 20);
+    return [
+      ...row,
+      noted('client', g.group, b.name, compareMetric(b.median, then.median, 'lower', band)),
+    ];
+  });
   const parts = [
     section(4, {
       title: g.group,
       intro: intro ?? '',
-      columns: ['Case', 'Median', 'Mean ± RME', 'p99', 'Throughput', 'Samples'],
-      align: ['l', 'r', 'r', 'r', 'r', 'r'],
+      columns: [
+        'Case',
+        'Median',
+        'Mean ± RME',
+        'p99',
+        'Throughput',
+        'Samples',
+        ...(baseline ? ['vs baseline'] : []),
+      ],
+      align: ['l', 'r', 'r', 'r', 'r', 'r', 'r'],
       rows,
     }),
   ];
@@ -239,13 +340,14 @@ function clientFindings(groups, sidecars) {
     );
   }
   const whole = b('G4', 'decisive');
-  const wholeM = b('G4', 'marathon');
-  if (whole && wholeM) {
+  const lastMove = b('G2', 'decisive game, the mating move');
+  const move3000 = b('G2', 'marathon ⚠, ply 3,000');
+  if (whole && lastMove && move3000) {
     out.push(
-      `**Over a whole game, each client spends ${duration(whole.median)} of main-thread time ` +
-        `replaying a 100-ply game played live** (one full replay plus one end-of-game test per move). ` +
-        `The replay part grows quadratically with the game: 400 plies of the marathon cost ` +
-        `${duration(wholeM.median)}.`,
+      `**Every move replays the whole game from the start:** ${duration(lastMove.median)} when the ` +
+        `mating move of a ${whole.name.match(/\d+/)?.[0] ?? ''}-ply game lands, ${duration(move3000.median)} ` +
+        `at ply 3,000, on both players' screens. Over that whole game, one client spends ` +
+        `${duration(whole.median)} of main-thread time replaying.`,
     );
   }
   const typed = [1000, 4000, 16000]
@@ -337,6 +439,8 @@ function environment() {
 // --- Main ----------------------------------------------------------------------------
 
 mkdirSync(OUT_DIR, { recursive: true });
+// Before anything runs: the baseline may be bench/out itself, which this run overwrites
+const BASELINE = COMPARE ? loadBaseline(resolve(COMPARE)) : null;
 const started = new Date();
 const env = environment();
 const results = {};
@@ -344,6 +448,15 @@ if (ONLY.includes('client')) results.client = runClient();
 if (ONLY.includes('server')) results.server = runServer();
 if (ONLY.includes('browser')) results.browser = runBrowser();
 const finished = new Date();
+writeFileSync(
+  join(OUT_DIR, 'run.json'),
+  JSON.stringify({ started, finished, quick: QUICK, tiers: Object.keys(results), env }, null, 2),
+);
+const minutes = (sec) => (sec >= 90 ? `${(sec / 60).toFixed(1)} min` : `${sec.toFixed(0)} s`);
+env['Run time'] = [
+  ...Object.entries(results).map(([tier, r]) => `${tier} ${minutes(r.seconds)}`),
+  `total ${minutes((finished - started) / 1000)}`,
+].join(' · ');
 
 const md = [];
 md.push('# Benchmark results');
@@ -393,12 +506,19 @@ if (results.client) {
     ['game', 'Event-sourced game state (`client/src/game`)'],
     ['interaction', 'Board interaction math (`client/src/three`)'],
   ];
+  const baseBench = BASELINE?.client
+    ? new Map(
+        clientGroups(BASELINE.client).flatMap((g) =>
+          g.benchmarks.map((b) => [`${g.group} > ${b.name}`, b]),
+        ),
+      )
+    : null;
   for (const [key, title] of parts) {
     const sc = sidecars[key] ?? {};
     md.push(`### ${title}`);
     for (const t of sc.tables ?? []) md.push(section(4, t));
     for (const g of groups.filter((x) => x.file.endsWith(`${key}.bench.ts`))) {
-      md.push(benchSection(g, sc.intros?.[g.group], sc.workloads?.[g.group]));
+      md.push(benchSection(g, sc.intros?.[g.group], sc.workloads?.[g.group], baseBench));
     }
     if (key === 'engine' && sc.facts) {
       md.push(
@@ -412,7 +532,9 @@ if (results.client) {
   md.push(
     'Measured by hand (`client/bench/startup.ts`): one-time work tinybench cannot repeat cold.',
   );
-  for (const t of sidecars.startup?.tables ?? []) md.push(section(4, t));
+  for (const t of sidecars.startup?.tables ?? []) {
+    md.push(section(4, withBaseline('startup', t, BASELINE?.startup?.tables)));
+  }
 }
 
 for (const [tier, name] of [
@@ -423,7 +545,40 @@ for (const [tier, name] of [
   if (!r) continue;
   md.push(`## ${r.data?.title ?? name}`);
   if (!r.ok || !r.data) md.push(failed(tier, r));
-  for (const s of r.data?.sections ?? []) md.push(section(3, s));
+  for (const s of r.data?.sections ?? []) {
+    md.push(section(3, withBaseline(tier, s, BASELINE?.[tier]?.sections)));
+  }
+}
+
+// What changed against the baseline, placed right after the summary
+if (BASELINE) {
+  const was = BASELINE.run;
+  const lines = [
+    '## Compared with the baseline',
+    `Baseline: \`${BASELINE.dir.startsWith(ROOT) ? relative(ROOT, BASELINE.dir) : BASELINE.dir}\`` +
+      (was
+        ? `, run ${String(was.started).slice(0, 16).replace('T', ' ')} UTC at ${was.env?.Commit ?? '?'}`
+        : '') +
+      (was?.quick ? ' (**a quick run: too few samples to compare against**)' : '') +
+      '. A change is called better or worse only outside its noise band (client: the cases\u2019 own ' +
+      'spread, at least 5%; server 10%; browser 15%); the tables show every change.',
+  ];
+  if (changes.length === 0) {
+    lines.push('Nothing moved beyond its noise band.');
+  } else {
+    const count = (improved) => changes.filter((c) => c.improved === improved).length;
+    lines.push(`${count(true)} better, ${count(false)} worse. The largest changes:`);
+    const top = [...changes].sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 15);
+    lines.push(
+      table({
+        columns: ['Tier', 'Where', 'Case', 'Change'],
+        align: ['l', 'l', 'l', 'r'],
+        rows: top.map((c) => [c.tier, c.where, c.what, c.text]),
+      }),
+    );
+  }
+  const at = md.findIndex((m) => m.startsWith('## Environment'));
+  md.splice(at, 0, ...lines);
 }
 
 md.push('## Method');
@@ -433,9 +588,14 @@ md.push(
       'comparable between runs on the same machine. A shared cloud VM like the one above is noisy: ' +
       'read the median, and treat differences under ~10% (or inside the RME) as noise.',
     'Client microbenchmarks: tinybench via `vitest bench` in Node (no jsdom), each case warmed up ' +
-      'then sampled for at least 0.5 s (heavy cases: a fixed number of iterations). *Median* and *p99* ' +
+      'then sampled for 0.3 s and at least 20 calls (cases of 20\u2013400 ms: 0.8 s and at least 6; ' +
+      'whole-game replays: 3 calls; `SAMPLE` in `client/bench/fixtures.ts`). *Median* and *p99* ' +
       'are per call; *Mean ± RME* is the mean with its relative margin of error at 95%; *Throughput* is ' +
       'calls per second. Results are kept alive in a module-level sink so the JIT cannot skip the work.',
+    'The seeded games choose among the legal moves in a fixed order of their own, so an optimisation ' +
+      'that only reorders move generation times exactly the same games; their fingerprints and the ' +
+      'perft counts are checked on every run, and a mismatch stops the client tier (the engine\u2019s ' +
+      'rules changed) rather than timing different work.',
     'The client benches run the app’s own modules unmodified. Where the app computes something inside a ' +
       'React component (the per-message work of `GameScreen.tsx`, the hover probe of `Board.tsx`, the tap ' +
       'assist’s projection), the bench reproduces those few lines around the real functions; ' +
@@ -463,11 +623,16 @@ md.push(
     'node bench/run.mjs --only client',
     'node bench/run.mjs --quick --out /tmp/quick.md',
     '',
-    '# a tier on its own',
-    'cd client && npx vitest bench --config vitest.bench.config.ts   # engine, game, interaction',
-    'cd client && npx vite-node bench/startup.ts                     # piece geometry startup',
-    'uv run --project server python server/bench/bench_server.py --out /tmp/server.json',
-    'cd client && node scripts/bench-browser.mjs --out /tmp/browser.json',
+    '# before and after a change: what got better or worse, beyond the noise',
+    'cp -r bench/out /tmp/base            # the last run\u2019s raw output is the baseline',
+    'node bench/run.mjs --only client --compare /tmp/base --out /tmp/after.md',
+    '',
+    '# a tier, a file or a single case on its own (fastest while iterating)',
+    'cd client && npx vitest bench --config vitest.bench.config.ts                    # engine, game, interaction',
+    'cd client && npx vitest bench --config vitest.bench.config.ts bench/engine.bench.ts -t "E4"',
+    'cd client && npx vite-node bench/startup.ts                                      # piece geometry startup',
+    'uv run --project server python server/bench/bench_server.py --out /tmp/server.json [--only store,move-rtt]',
+    'cd client && node scripts/bench-browser.mjs --out /tmp/browser.json [--only reopen]',
     '```',
     '',
     'The browser tier needs Playwright’s Chromium; in a container with a preinstalled one, set ' +

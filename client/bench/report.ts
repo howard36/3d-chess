@@ -13,6 +13,16 @@ export interface Table {
   rows: string[][];
   align?: ('l' | 'r' | 'c')[];
   notes?: string[];
+  /** Each row's primary number, for comparing runs (bench/run.mjs --compare); null: none. */
+  metrics?: (Metric | null)[];
+}
+
+export interface Metric {
+  /** The row's identity across runs (defaults to its first cell); never a measured value. */
+  key?: string;
+  value: number;
+  unit: 'ms' | 'per_s' | 'bytes' | 'fps';
+  better: 'lower' | 'higher';
 }
 
 export interface Sidecar {

@@ -21,6 +21,7 @@ import { parseTypedMove } from '../src/game/typedMove';
 import type { MoveRecord, WebSocketMessage } from '../src/types/messages';
 import {
   QUICK,
+  SAMPLE,
   flappingLog,
   liveLog,
   moveMade,
@@ -34,13 +35,7 @@ import { emit } from './report';
 
 export let sink: unknown;
 
-const normal = QUICK ? { time: 40, iterations: 3, warmupTime: 10, warmupIterations: 1 } : {};
-const heavy = QUICK
-  ? { time: 0, iterations: 1, warmupTime: 0, warmupIterations: 0 }
-  : { time: 2000, iterations: 5, warmupIterations: 1 };
-const heaviest = QUICK
-  ? { time: 0, iterations: 1, warmupTime: 0, warmupIterations: 0 }
-  : { time: 0, iterations: 3, warmupTime: 0, warmupIterations: 1 };
+const { normal, heavy, heaviest } = SAMPLE;
 
 const { decisive, casual } = sharedGames();
 const marathon = (plies: number) => shuffleRecords(plies);
@@ -50,7 +45,10 @@ const records: { label: string; records: MoveRecord[] }[] = [
     label: `decisive game (${decisive.records.length} plies, ends in mate)`,
     records: decisive.records,
   },
-  { label: `casual game (${casual.records.length} plies, a promotion)`, records: casual.records },
+  {
+    label: `casual game (${casual.records.length} plies, ${casual.records.filter((r) => r.promotion).length} promotions)`,
+    records: casual.records,
+  },
   { label: 'marathon ⚠ (1,000 plies)', records: marathon(1000) },
   { label: 'marathon ⚠ (3,000 plies)', records: marathon(3000) },
 ];
@@ -110,7 +108,7 @@ emit('game', {
     [WHOLE]:
       'The total replay time one client spends over a whole game played live: one replay per move, ' +
       'each longer than the last, and one end-of-game test per move. The test is a fixed cost per ' +
-      'move; the replay grows with the game, so over a long game its total grows quadratically.',
+      'move; the replay grows with the game (G2), so over a long game its total grows quadratically.',
     [TAX]:
       'Everything the game screen recomputes when any message lands (`GameScreen.tsx`: the log ' +
       'copy in `useGameSocket`, the seat/presence/error selectors, the replay or its memo, the ' +
@@ -244,24 +242,19 @@ describe(WHOLE, () => {
     }
     return prev;
   };
+  // (The marathon's growth shows per move in G1 and G2; replaying a whole
+  // marathon here would take seconds a sample for no more information.)
   bench(
     `decisive game (${decisive.records.length} plies)`,
     () => {
       sink = play(decisive.records);
     },
-    heavy,
+    heaviest,
   );
   bench(
     `casual game (${casual.records.length} plies)`,
     () => {
       sink = play(casual.records);
-    },
-    heavy,
-  );
-  bench(
-    'marathon ⚠ (400 plies)',
-    () => {
-      sink = play(marathon(400));
     },
     heaviest,
   );
@@ -304,7 +297,7 @@ describe(TYPED, () => {
       label: `move + ${n.toLocaleString('en-US')} spaces + "!" ⚠`,
       text: `Bb1-Cb1${' '.repeat(n)}!`,
       board: opening,
-      options: n >= 4000 ? heaviest : normal,
+      options: n >= 16_000 ? heaviest : normal,
     });
   }
   for (const { label, text, board, options } of cases) {

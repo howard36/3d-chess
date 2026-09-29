@@ -57,16 +57,21 @@ if (process.env.BENCH_STARTUP_CHILD === '1') {
 
 // --- Cold: each run in a fresh process --------------------------------------------
 
-const coldRuns = QUICK ? 1 : 5;
+const coldRuns = QUICK ? 1 : 3;
 const cold: Record<string, { build: number[]; bake: number[] }> = Object.fromEntries(
   TYPES.map((t) => [t, { build: [], bake: [] }]),
 );
 for (let run = 0; run < coldRuns; run++) {
-  const child = spawnSync('npx', ['vite-node', 'bench/startup.ts'], {
-    env: { ...process.env, BENCH_STARTUP_CHILD: '1' },
-    encoding: 'utf8',
-    timeout: 120_000,
-  });
+  // (node on vite-node's entry directly: npx would add a second or so per run)
+  const child = spawnSync(
+    process.execPath,
+    ['node_modules/vite-node/vite-node.mjs', 'bench/startup.ts'],
+    {
+      env: { ...process.env, BENCH_STARTUP_CHILD: '1' },
+      encoding: 'utf8',
+      timeout: 120_000,
+    },
+  );
   const match = /@@(.*)@@/s.exec(child.stdout ?? '');
   if (!match) throw new Error(`cold run failed: ${child.stderr}`);
   const result = JSON.parse(match[1]) as Record<string, { build: number; bake: number }>;
@@ -78,7 +83,7 @@ for (let run = 0; run < coldRuns; run++) {
 
 // --- Warm: fresh module instances in this (by now JIT-compiled) process ----------
 
-const reps = QUICK ? 2 : 7; // the first is discarded as warm-up
+const reps = QUICK ? 2 : 5; // the first is discarded as warm-up
 const warmBuild: Record<PieceQuality, Record<string, number[]>> = {
   low: {},
   medium: {},
@@ -132,6 +137,13 @@ const perType: Table = {
     ];
   }),
 };
+// Compared across runs by the warm build + bake (the cold numbers carry the
+// machine's startup noise)
+perType.metrics = TYPES.map((t) => ({
+  value: med(warmBuild.medium[t]) + med(warmBake[t]),
+  unit: 'ms' as const,
+  better: 'lower' as const,
+}));
 const coldTotals = Array.from({ length: coldRuns }, (_, run) =>
   sum(TYPES.map((t) => cold[t].build[run] + cold[t].bake[run])),
 );
@@ -143,6 +155,11 @@ perType.rows.push([
   duration(sum(TYPES.map((t) => med(warmBake[t])))),
   `total ${duration(med(coldTotals))}`,
 ]);
+perType.metrics.push({
+  value: sum(TYPES.map((t) => med(warmBuild.medium[t]) + med(warmBake[t]))),
+  unit: 'ms',
+  better: 'lower',
+});
 
 const qualities: Table = {
   title: 'S2 · Piece geometry by quality (warm)',

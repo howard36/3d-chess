@@ -44,6 +44,8 @@ export interface PlayedGame {
   result: 'checkmate' | 'stalemate' | null;
 }
 
+const keyOf = (move: Move) => `${toZXY(move.from)}${toZXY(move.to)}${move.promotion ?? ''}`;
+
 const record = (move: Move, by: Side): MoveRecord => {
   const { from, to, promotion } = moveToMessage(move);
   return promotion ? { by, from, to, promotion } : { by, from, to };
@@ -72,7 +74,12 @@ export function playGame(
   let result: PlayedGame['result'] = null;
   for (let ply = 0; ply < maxPlies; ply++) {
     const board = positions[positions.length - 1];
-    const moves = board.generateAllLegalMoves(side);
+    // In a fixed order of their own, so the game depends only on which moves
+    // are legal, never on the order the engine lists them in: an optimisation
+    // that reorders move generation must not change the workload it is timed on
+    const moves = board
+      .generateAllLegalMoves(side)
+      .sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
     if (moves.length === 0) {
       result = board.inCheck(side) ? 'checkmate' : 'stalemate';
       break;
@@ -370,6 +377,29 @@ export function busiestPiece(board: Board, side: Side): { at: Coord; name: strin
 /** Is this run a quick smoke run (fewer samples)? */
 export const QUICK = process.env.BENCH_QUICK === '1';
 
+/**
+ * How long each case samples, by what one call costs. Sized so the medians
+ * are stable on a noisy VM while the whole client tier stays quick enough to
+ * rerun on every change: a microsecond case gets thousands of samples in
+ * 300 ms, a 5 ms one about 60, and nothing gets fewer than its minimum.
+ * BENCH_QUICK=1 takes a handful of samples of everything: a check that the
+ * suite runs, too few to compare.
+ */
+export const SAMPLE = QUICK
+  ? {
+      normal: { time: 40, iterations: 3, warmupTime: 10, warmupIterations: 1 },
+      heavy: { time: 0, iterations: 2, warmupTime: 0, warmupIterations: 1 },
+      heaviest: { time: 0, iterations: 1, warmupTime: 0, warmupIterations: 0 },
+    }
+  : {
+      // under ~20 ms a call
+      normal: { time: 300, iterations: 20, warmupTime: 50, warmupIterations: 5 },
+      // ~20-400 ms a call
+      heavy: { time: 800, iterations: 6, warmupTime: 0, warmupIterations: 1 },
+      // around a second a call
+      heaviest: { time: 0, iterations: 3, warmupTime: 0, warmupIterations: 1 },
+    };
+
 // --- The catalogue the engine benches run over -----------------------------------
 
 export interface Position {
@@ -382,15 +412,52 @@ export interface Position {
 
 let games: { decisive: PlayedGame; casual: PlayedGame } | null = null;
 
+/** FNV-1a over a game's records: changes if any move of the game does. */
+export const fingerprint = (records: MoveRecord[]) => {
+  let h = 0x811c9dc5;
+  for (const ch of records.map((r) => `${r.from}${r.to}${r.promotion ?? ''}`).join(',')) {
+    h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+};
+
 /**
- * The two played games the benches share: `decisive`, a 100-ply tactical game
- * that ends in mate (19 captures), and `casual`, 200 plies of random moves.
+ * What the seeded games must come out as. The policies only see which moves
+ * are legal, so these hold however the engine is optimised; if they change,
+ * the engine's rules did (or a fixture was changed on purpose: update them).
+ */
+export const EXPECTED = {
+  decisive: { plies: 98, result: 'checkmate', fingerprint: '911fac19' },
+  casual: { plies: 200, result: null, fingerprint: 'd7e796d5' },
+  perft: { opening1: 61, opening2: 3615, middlegame2: 4952 },
+} as const;
+
+/** Throws, naming what differs, unless `actual` matches the expected value. */
+export function expectSame(what: string, actual: unknown, expected: unknown) {
+  if (actual === expected) return;
+  throw new Error(
+    `Benchmark fixture check failed: ${what} is ${String(actual)}, expected ${String(expected)}. ` +
+      'The rules engine now plays the seeded games differently, so these benchmarks would time ' +
+      'different work than before. If you changed the engine, its rules changed: run `npm run ' +
+      'test`. If you changed a fixture on purpose, update EXPECTED in client/bench/fixtures.ts.',
+  );
+}
+
+/**
+ * The two played games the benches share: `decisive`, a 98-ply tactical game
+ * that ends in mate (23 captures), and `casual`, 200 plies of random moves
+ * (three promotions). Both are checked against EXPECTED.
  */
 export function sharedGames() {
-  games ??= {
-    decisive: playGame('tactical', 15, 400),
-    casual: playGame('random', 1, 200),
-  };
+  if (games) return games;
+  games = { decisive: playGame('tactical', 2, 400), casual: playGame('random', 1, 200) };
+  for (const key of ['decisive', 'casual'] as const) {
+    const game = games[key];
+    const want = EXPECTED[key];
+    expectSame(`the ${key} game's length`, game.records.length, want.plies);
+    expectSame(`the ${key} game's result`, game.result, want.result);
+    expectSame(`the ${key} game's fingerprint`, fingerprint(game.records), want.fingerprint);
+  }
   return games;
 }
 
@@ -411,7 +478,7 @@ export function positions(): Position[] {
     },
     {
       name: 'late middlegame',
-      about: 'Ply 90 of the decisive game.',
+      about: 'Ply 90 of the decisive game: White in check.',
       board: decisive.positions[90],
       side: 'white',
     },

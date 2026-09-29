@@ -472,7 +472,7 @@ cd client && npm run e2e           # Playwright; starts server + Vite itself
 uv run --project server pytest     # server tests (spawns a real uvicorn)
 
 # Benchmarks: every tier in turn, then read bench/RESULTS.md (--quick for a smoke run)
-node bench/run.mjs                 # --only client|server|browser for one tier
+node bench/run.mjs                 # --only client|server|browser; --compare <old bench/out>
 
 # Deploy backend manually (not normally needed — CI deploys on merge to main).
 # GITHUB_SHA is what /health reports; without it the image says "dev".
@@ -508,7 +508,16 @@ over real sockets, with store models that mimic `modal.Dict`'s copies and blocki
 (`server/bench/bench_server.py`); and **browser**, the production build end to end in
 headless Chromium (`client/scripts/bench-browser.mjs`, software WebGL, so its frame times
 are only relative). Cases marked ⚠ are adversarial. Numbers compare only between runs on
-one machine; the report records the machine and commit.
+one machine; the report records the machine, the commit and each tier's run time.
+
+To measure a change, copy the last run's raw output (`cp -r bench/out /tmp/base`), change
+the code, and rerun with `--compare /tmp/base`: every table gains a "vs baseline" column and
+the report opens with what got better or worse beyond the noise. While iterating, run one
+tier (`--only client`) or one file or case directly (`npx vitest bench --config
+vitest.bench.config.ts bench/engine.bench.ts -t E4`; the server and browser scripts take
+`--only <section>`). The client fixtures' games are chosen in a fixed move order and
+fingerprinted, so a faster engine is timed on exactly the same games, and a change to the
+rules stops the client tier instead of timing different work.
 
 ## Known limitations (accepted for this project's scope)
 

@@ -30,12 +30,12 @@ import { layout, PIECE_SCALE } from '../src/three/scene/palette';
 import { resolveTap } from '../src/three/tapAssist';
 import type { ScreenPoint, TapTarget } from '../src/three/tapAssist';
 import type { Vec3 } from '../src/three/types';
-import { QUICK, busiestPiece, queenStorm, seeded } from './fixtures';
+import { SAMPLE, busiestPiece, queenStorm, seeded } from './fixtures';
 import { emit } from './report';
 
 export let sink: unknown;
 
-const normal = QUICK ? { time: 40, iterations: 3, warmupTime: 10, warmupIterations: 1 } : {};
+const { normal } = SAMPLE;
 
 const FOV = 36; // GameScreen's camera
 const DEG = Math.PI / 180;

@@ -8,17 +8,22 @@ import { Board, PieceType } from '../src/engine';
 import type { Coord } from '../src/engine';
 import { fromZXY, toZXY } from '../src/engine/coords';
 import { moveFromMessage, moveToMessage } from '../src/engine/protocol';
-import { QUICK, other, positionTable, positions, sharedGames } from './fixtures';
+import {
+  EXPECTED,
+  SAMPLE,
+  expectSame,
+  other,
+  positionTable,
+  positions,
+  sharedGames,
+} from './fixtures';
 import type { Side } from './fixtures';
 import { emit } from './report';
 
 /** Keeps results alive so the JIT cannot drop the work. */
 export let sink: unknown;
 
-const normal = QUICK ? { time: 40, iterations: 3, warmupTime: 10, warmupIterations: 1 } : {};
-const heavy = QUICK
-  ? { time: 0, iterations: 2, warmupTime: 0, warmupIterations: 1 }
-  : { time: 1500, iterations: 8, warmupIterations: 2 };
+const { normal, heavy } = SAMPLE;
 
 const list = positions();
 
@@ -82,6 +87,9 @@ const perftCounts = {
   opening2: perft(opening, 'white', 2),
   middlegame2: perft(list[1].board, 'white', 2),
 };
+for (const [key, count] of Object.entries(perftCounts)) {
+  expectSame(`perft ${key}`, count, EXPECTED.perft[key as keyof typeof perftCounts]);
+}
 
 emit('engine', {
   tables: [positionTable(list)],
