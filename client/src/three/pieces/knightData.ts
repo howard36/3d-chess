@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, Uint16BufferAttribute } from 'three';
 import type { KnightGeometry } from './knight';
 
 // The sculpted knight's meshes as bytes, so the set the game draws can ship
-// them precomputed (knight.medium.ts, written by `npm run bake:knight`)
+// them precomputed (knight.medium.ts, written by `npm run bake:pieces`)
 // rather than sculpt and decimate them in the browser. Every attribute and
 // index is stored bit for bit: decoding gives back exactly what buildKnight
 // returns.

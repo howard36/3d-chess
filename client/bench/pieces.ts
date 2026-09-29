@@ -66,7 +66,10 @@ const bakeTimes: Record<string, number> = {};
 let bakeTotal = 0;
 const bakeHash = createHash('sha256');
 if (quality === 'medium') {
-  const { wholePiece } = await import(`${root}/src/three/scene/occlusion.ts`);
+  const occlusion = await import(`${root}/src/three/scene/occlusion.ts`);
+  const { wholePiece } = occlusion;
+  // Likewise the precomputed occlusion, where the checkout ships it
+  await occlusion.loadBakedOcclusion?.();
   for (const t of Object.values(PieceType) as string[]) {
     const s = performance.now();
     const g = wholePiece(t);

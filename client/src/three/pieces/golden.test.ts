@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
-import { wholePiece } from '../scene/occlusion';
+import { loadBakedOcclusion, wholePiece } from '../scene/occlusion';
 import { PIECE_PARTS } from './parts';
 import { loadBakedKnight, pieceSet } from './set';
 import type { PieceQuality } from './set';
@@ -13,7 +13,9 @@ import type { PieceQuality } from './set';
 // occlusion baked in). The same hashes are what client/bench/pieces.ts
 // prints. A deliberate change to a piece's shape updates them. The medium
 // set's knight comes from knight.medium.ts here and the low set's is
-// sculpted, so both ways of getting a knight are pinned.
+// sculpted, so both ways of getting a knight are pinned; the medium set's
+// occlusion comes from occlusion.medium.ts (occlusionData.test.ts pins it
+// against the bake worked out afresh).
 
 const hashInto = (h: ReturnType<typeof createHash>, key: string, g: BufferGeometry) => {
   for (const name of Object.keys(g.attributes).sort()) {
@@ -42,7 +44,8 @@ describe('the piece set, byte for byte', () => {
     expect(setHash('medium')).toBe('77ffc3796d9dd007');
   });
 
-  it('medium, as drawn (occlusion and parts baked in)', () => {
+  it('medium, as drawn (occlusion and parts baked in, from the precomputed values)', async () => {
+    await loadBakedOcclusion();
     const h = createHash('sha256');
     for (const type of Object.values(PieceType)) hashInto(h, type, wholePiece(type));
     expect(h.digest('hex').slice(0, 16)).toBe('196a80b3120abc54');

@@ -3,6 +3,8 @@ import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { PIECE_PARTS, loadBakedKnight, partsGeometry, pieceSet } from '../pieces';
 import type { PiecePart, PieceParts, PieceSet } from '../pieces';
+import { decodeOcclusion } from './occlusionData';
+import type { OcclusionData } from './occlusionData';
 
 // The game's copy of the Staunton set: the same shapes, with two
 // numbers baked into every vertex's uv, so one small shader can paint and
@@ -25,7 +27,9 @@ import type { PiecePart, PieceParts, PieceSet } from '../pieces';
 // its closed shells) and the floor it stands on: from each vertex, rays over
 // the hemisphere round its normal, a short way out, and the share that meet
 // the solid. Each piece is baked the first time it is drawn, in a few
-// milliseconds. The shared set is never touched (clone first).
+// milliseconds. The shared set is never touched (clone first). The medium
+// set's occlusion also ships precomputed, byte for byte (occlusion.medium.ts,
+// `npm run bake:pieces`): once it has loaded, baking a piece only copies it in.
 
 /** The part a vertex belongs to, as the shader reads it from uv.y. */
 export const PART_ID: Record<PiecePart, number> = { body: 0, collar: 1, accent: 2, foot: 4 };
@@ -228,15 +232,56 @@ const occlusionOf = (g: BufferGeometry, solid: Uint8Array): Float32Array => {
   return out;
 };
 
+/** A piece's occlusion, part by part (the parts it has, in PIECE_PARTS order). */
+export const occlusionOfPiece = (parts: PieceParts): Float32Array[] => {
+  const present = PIECE_PARTS.filter((part) => parts[part]);
+  const solid = voxelize(present.map((part) => parts[part]!));
+  return present.map((part) => occlusionOf(parts[part]!, solid));
+};
+
+// The medium set's occlusion, precomputed, once loaded (loadBakedOcclusion)
+let storedData: OcclusionData | null = null;
+let stored: Record<PieceType, Float32Array[]> | null = null;
+let storedLoad: Promise<void> | null = null;
+
+/**
+ * Starts loading the medium set's precomputed occlusion (occlusion.medium.ts,
+ * its own chunk) and settles once it is in or has failed to load. A piece
+ * baked before then works its occlusion out here instead: the same bytes, a
+ * few tens of milliseconds a piece later.
+ */
+export const loadBakedOcclusion = (): Promise<void> =>
+  (storedLoad ??= import('./occlusion.medium').then(
+    (m) => {
+      storedData = m.OCCLUSION_MEDIUM;
+    },
+    () => {},
+  ));
+
+/** The stored occlusion for a piece, if loaded and made for parts of these sizes. */
+const storedOcclusion = (type: PieceType, parts: BufferGeometry[]): Float32Array[] | null => {
+  if (!storedData) return null;
+  stored ??= decodeOcclusion(storedData);
+  const ao = stored[type];
+  const fits =
+    ao.length === parts.length &&
+    ao.every((a, i) => a.length === parts[i].getAttribute('position').count);
+  return fits ? ao : null;
+};
+
 /** A piece's parts, cloned, each vertex's uv holding its occlusion and part. */
 const bake = (type: PieceType, parts: PieceParts): PieceParts => {
   const present = PIECE_PARTS.filter((part) => parts[part]);
-  const solid = voxelize(present.map((part) => parts[part]!));
+  const aos =
+    storedOcclusion(
+      type,
+      present.map((part) => parts[part]!),
+    ) ?? occlusionOfPiece(parts);
   const out = {} as PieceParts;
-  for (const part of present) {
+  present.forEach((part, n) => {
     const source = parts[part]!;
     const g = source.clone();
-    const ao = occlusionOf(source, solid);
+    const ao = aos[n];
     const p = source.getAttribute('position');
     const well = type === PieceType.Rook && part === 'accent';
     const uv = new Float32Array(ao.length * 2);
@@ -248,7 +293,7 @@ const bake = (type: PieceType, parts: PieceParts): PieceParts => {
     g.setAttribute('uv', new BufferAttribute(uv, 2));
     if (!g.boundingBox) g.computeBoundingBox();
     (out as Record<PiecePart, BufferGeometry>)[part] = g;
-  }
+  });
   return out;
 };
 
@@ -276,12 +321,16 @@ export const wholePiece = (type: PieceType): BufferGeometry =>
 
 /**
  * Bakes the set's pieces while the browser is idle, one piece per idle
- * moment, so the first board does not wait for them; the knight last, once
- * its precomputed meshes have loaded (loadBakedKnight). Does nothing where
- * there is no idle callback (tests): each piece is then baked when first drawn.
+ * moment, so the first board does not wait for them: once the precomputed
+ * occlusion has loaded (loadBakedOcclusion, started here either way), and
+ * the knight last, once its precomputed meshes have too (loadBakedKnight).
+ * Where there is no idle callback (tests) each piece is baked when first
+ * drawn.
  */
 export const preloadBakedSet = () => {
-  if (typeof window === 'undefined' || typeof window.requestIdleCallback !== 'function') return;
+  if (typeof window === 'undefined') return;
+  const occlusionReady = loadBakedOcclusion();
+  if (typeof window.requestIdleCallback !== 'function') return;
   const built = bakedSet();
   const pending = Object.values(PieceType).filter((t) => t !== PieceType.Knight);
   const next = () => {
@@ -295,5 +344,5 @@ export const preloadBakedSet = () => {
     void built[type];
     window.requestIdleCallback(next, { timeout: 4000 });
   };
-  window.requestIdleCallback(next, { timeout: 4000 });
+  void occlusionReady.then(() => window.requestIdleCallback(next, { timeout: 4000 }));
 };

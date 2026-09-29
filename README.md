@@ -425,12 +425,14 @@ is idle with `preloadPieceSet()`). The medium knight is not sculpted in the brow
 head, mane and eyes (a few hundred milliseconds of sculpting and decimating) ship
 precomputed, byte for byte, in `pieces/knight.medium.ts`, a chunk of its own that
 `preloadPieceSet()` starts loading; a knight drawn before it arrives is sculpted as before,
-to the same bytes. After changing the knight (`knight.ts`, `sdf.ts`, `decimate.ts` or the
-medium detail in `set.ts`), run `npm run bake:knight` in `client/`; `knightData.test.ts`
-fails while the file is stale, and `golden.test.ts` pins the medium and low sets' geometry
-by hash (the medium set as built and as drawn). `partsGeometry(set, type, parts)` hands
-back a piece's parts merged into one geometry, and `pieceTop(set, type)` its height. `scene/pieces.tsx` draws each
-piece in one draw call with one small shader: every vertex carries its part, and the
+to the same bytes. The medium set's baked occlusion (below) ships the same way, in
+`scene/occlusion.medium.ts`. After changing a piece's shape (anything in `three/pieces/`,
+or the bake in `scene/occlusion.ts`), run `npm run bake:pieces` in `client/`;
+`knightData.test.ts` and `occlusionData.test.ts` fail while either file is stale, and
+`golden.test.ts` pins the medium and low sets' geometry by hash (the medium set as built
+and as drawn). `partsGeometry(set, type, parts)` hands back a piece's parts merged into one
+geometry, and `pieceTop(set, type)` its height. `scene/pieces.tsx` draws each piece in one
+draw call with one small shader: every vertex carries its part, and the
 ambient occlusion baked beside it (`scene/occlusion.ts`).
 
 To look at the set, open `http://127.0.0.1:5173/pieces.html` while Vite runs (a dev-only page,

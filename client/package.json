@@ -14,7 +14,7 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "generate:types": "json2ts --input ../server/schema.json --output src/types/schema.ts",
-    "bake:knight": "vite-node scripts/bake-knight.ts"
+    "bake:pieces": "vite-node scripts/bake-pieces.ts"
   },
   "dependencies": {
     "@fontsource/manrope": "^5.3.0",

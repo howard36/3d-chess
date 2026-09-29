@@ -24,7 +24,7 @@ const bytesOf = (g: BufferGeometry) => ({
 describe('the precomputed medium knight', () => {
   const fresh = buildKnight(DETAIL.medium.step, DETAIL.medium.knight);
 
-  it('is what the sculpt builds now (else run `npm run bake:knight`)', () => {
+  it('is what the sculpt builds now (else run `npm run bake:pieces`)', () => {
     expect(KNIGHT_MEDIUM).toEqual(encodeKnight(fresh));
   });
 
