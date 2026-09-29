@@ -88,7 +88,7 @@ A touch on the board acts only as a tap: the finger touching down and lifting ag
 | Double tap | Two taps, each acting on its own. The page does not zoom. |
 | Long press | No menu opens. Whether the lift that ends it counts as a tap depends on whether the browser reports it as a click; not tried. |
 
-There is no hover on a touch screen, and the board never uses hover anyway: nothing on the board lights up under a resting mouse either, so touch loses nothing. The join screen's button grows slightly, and the start screen's lifts and its knight hops, under a hovering mouse; on the side choice a king lifts a little under the mouse, as if picked up, and a chosen king is set down on its square in its column of light. On a touch screen none of these hover effects happens: a tap on a king or its button picks it straight away, the chosen king standing on the glass as after a click, and no hover effect sticks after a tap. Taps do not flash the gray highlight some phone browsers draw over tapped elements.
+There is no hover on a touch screen, and the board never uses hover anyway: nothing on the board lights up under a resting mouse either, so touch loses nothing. The join screen's button grows slightly, and the start screen's lifts and its knight hops, under a hovering mouse; on the side choice a king lifts a little under the mouse once it has formed, as if picked up, and a chosen king is set down on its square in its column of light. On a touch screen none of these hover effects happens: a tap on a king or its button picks it straight away, the chosen king standing on the glass as after a click, and no hover effect sticks after a tap. Taps do not flash the gray highlight some phone browsers draw over tapped elements.
 
 Touches on the board never scroll or zoom the page: the board claims every touch that starts on it for the view.
 
@@ -186,5 +186,6 @@ After any interrupt, the view keeps its direction unless the board screen itself
 
 - The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](../foundations/the-view.md), not checked in the running app, and need re-verification.
 - The start screen became a landing page with a 3D preview after `4e18386`. Its arrangement at each size is read from the `.landing` rules in `client/src/index.css` and `client/src/three/landingView.ts`, not checked on a phone or in the running app. How smoothly the preview plays, and what it costs in battery, on a slow phone was not measured; nor was what a browser without WebGL shows at `/`.
+- The side choice's kings taking no hover until they have formed was brought up to `1881e28` from `client/src/three/lobby/LobbyKing.tsx`, not checked in the running app.
 
 Verified against 3D Chess commit `4e18386`; the HUD's arrangement at each size against `f7bff4d`
