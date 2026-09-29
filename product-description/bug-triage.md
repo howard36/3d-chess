@@ -21,7 +21,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 | B-09 | The game cannot be played without a pointer, and dialogs and cues are not accessible | medium | cross-cutting | product call | fixed |
 | B-10 | Back then Forward before the start screen's connection opens shows "Error: Already in a game" | low | session | fix | fixed |
 | B-11 | With browser storage disabled, the creator lands on the join screen and a reload loses the seat | low | start | fix | — |
-| B-12 | Returning players see "Game created! Share this link with a friend:" while their rejoin is in flight | low | session | fix | — |
+| B-12 | Returning players see "Game created! Share this link with a friend:" while their rejoin is in flight | low | session | fix | resolved (from code) |
 | B-13 | Unknown addresses render an empty dark page | low | navigation | fix | — |
 | B-14 | A very fast double press on a destination sends the move twice and shows "Not your turn" | low | play | fix | — |
 | B-15 | Old errors keep acting: success never clears the banner, and earlier refusals steer later joins | low | game page | fix | — |
@@ -72,6 +72,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Status:** confirmed 2026-09-25 by the scripted pass: JOIN-05.
 - **Fix:** fixed 2026-09-26. Every tab sends a random `clientId` (per tab, kept in `sessionStorage`) with `join_game`; the server records which client claimed each seat and answers a repeated join from that client with its own seat instead of "Game full". The page re-sends an unanswered join on each new connection (`useResendOnReconnect`), and a reload followed by "Join Game" also gets the seat back.
 - **Follow-up:** fixed again 2026-09-26 (by `c571311`): a repeated join is now answered with the seat confirmation and a snapshot of the whole record, not a second start notice, so a joiner whose first answer was lost sees the moves made in the meantime. Checked by JOIN-10 and CONN-18 in the second pass.
+- **Status:** partly back at `1928567` (read from code, JOIN-18 unverified). The re-send on the next connection still recovers the seat. But a tab reloaded after a lost answer now opens the invitation to the free seat, which asks which seats are taken, sees both, and says "This game is taken" with no way to join, so the reload-then-join recovery is gone. See [joining a game](start/joining-a-game.md#open-questions-and-verification).
 
 ## Medium
 
@@ -173,6 +174,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Carry the creator's seat into the game page in memory (the connection already holds it).
 - **Raised by:** [creating a game](start/creating-a-game.md#open-questions-and-verification), [waiting for an opponent](start/waiting-for-an-opponent.md#edge-cases), [connection loss](session/connection-loss.md#edge-cases).
 - **Status:** confirmed 2026-09-25 by the scripted pass: CREATE-06.
+- **Status:** still present at `1928567` in a new form (read from code, CREATE-28 unverified): the side choice stores the seat, the game page finds none, and invites the creator to the other seat of their own game; "Take your seat" is refused with "Already in a game".
 
 ### B-12: Returning players see "Game created! Share this link with a friend:" while their rejoin is in flight
 
@@ -185,6 +187,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Raised by:** [the connection and seat model](foundations/connection-and-seat.md#open-questions-and-verification), [reloading and returning](session/reload-and-return.md#while-in-flight), [waiting for an opponent](start/waiting-for-an-opponent.md#edge-cases), [joining a game](start/joining-a-game.md#edge-cases).
 - **Status:** confirmed 2026-09-25 by the scripted pass: CONN-09.
 - **Status:** still present at `4e18386` (CONN-09, second pass).
+- **Status:** resolved at `1928567` (read from code, not re-run): a page with a stored seat shows "Returning to your game…", with no lobby, until its rejoin is answered.
 
 ### B-13: Unknown addresses render an empty dark page
 
@@ -275,6 +278,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Severity:** `low`.
 - **Decision needed:** `product call`. Each is a feature decision; the dismissible dialog is the cheapest.
 - **Raised by:** [check and the end of the game](play/check-and-game-end.md#open-questions-and-verification), [the opponent's move](play/the-opponents-move.md#open-questions-and-verification), [the rules](foundations/game-rules.md#open-questions-and-verification).
+- **Status:** unchanged at `1928567`, except that "Start new game" now leads to the side choice at `/new`.
 
 ### B-21: Nothing signals the player's turn, an opponent joining, or a move in flight
 
@@ -283,6 +287,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Severity:** `low`.
 - **Decision needed:** `product call`.
 - **Raised by:** [the opponent's move](play/the-opponents-move.md#open-questions-and-verification), [waiting for an opponent](start/waiting-for-an-opponent.md#open-questions-and-verification), [screens and navigation](foundations/screens-and-navigation.md#open-questions-and-verification), [making a move](play/making-a-move.md#open-questions-and-verification).
+- **Status:** partly addressed at `1928567` (read from code, WAIT-18 unverified): a host whose tab is in the background when the guest arrives sees the title "● They're here · 3D Chess", and the arrival waits for them. The player's turn and a move in flight are still not signalled.
 
 ### B-22: The board has no coordinate labels, so the move list cannot be matched to cells
 

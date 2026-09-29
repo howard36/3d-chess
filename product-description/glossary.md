@@ -4,19 +4,25 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## The product and its screens
 
-**Start screen, landing page.** The page at `/`. The *preview* fills the window; over it stand the title "3D Chess" above the tower, a "Start a game" button below it (a pale pill with a small knight and a slowly turning rim in the five levels' colors), and under the button a space for one line that shows, first that applies, an error answering the click ("Couldn't start a game: " and the message), the connection's state while a click waits for the connection ("Connecting to server…" or "Reconnecting to server…"), or "Checkmate · White wins" while the moving preview's mate stands, and is otherwise empty. A round "Pause preview" button sits at the top right. It is the only way to create a game. See [creating a game](start/creating-a-game.md).
+**Start screen, landing page.** The page at `/`. The *preview* fills the window; over it stand the title "3D Chess" above the tower, a "Start a game" button below it (a pale pill with a small knight and a slowly turning rim in the five levels' colors), and under the button a space for one line, "Checkmate · White wins" while the moving preview's mate stands, otherwise empty. A round "Pause preview" button sits at the top right. "Start a game" sends nothing: it opens the *side choice*. See [creating a game](start/creating-a-game.md).
 
 **Preview.** The start screen's live picture: the board screen's glass tower in its garden, without labels, playing the same 17-move game (checkmate by White) over and over, a veil fading between one game and the next, while the camera circles the tower about once every 90 seconds. It is decoration: it takes no input, belongs to no game on the server, and a screen reader hears one sentence in its place. "Pause preview" stops it; for a player whose system asks for reduced motion it is a still picture of the final position. See [creating a game](start/creating-a-game.md#the-preview).
 
+**Lobby.** The scene behind the *side choice* and the game page before the game starts: one sheet of glass (the tower's bottom level) in the night garden, with the kings on it, White's seat on the left and Black's on the right. A taken seat shows its king in its army's material; a free seat is the king's outline drawn in neon. The player's own king stands lifted in a column of light. The scene stays up, without reloading, from the side choice to the new game's page, and until the *arrival* hands over to the board. See [creating a game](start/creating-a-game.md) and [waiting for an opponent](start/waiting-for-an-opponent.md).
+
+**Side choice.** The page at `/new`: "Choose your side" over three kings (porcelain, a king split porcelain and charcoal, and charcoal) with a button under each, "White" ("Moves first"), "Random" ("Let chance decide"), and "Black" ("Moves second"). A pick is final and creates the game. It is the only way to create a game; "Start a game", the end-game dialog's "Start new game", and an invitation's "Start a new game" lead to it. See [creating a game](start/creating-a-game.md#the-side-choice).
+
+**Arrival.** What a page that showed the lobby plays when the game starts on it: the free seat fills, a ring of light spreads across the glass, and a caption ("They're here · …" for the host, "You play … · …" for the guest) is held for a moment; then the kings go up in light, the glass takes itself back, and the lobby fades off the board screen as the game's entrance begins. See [waiting for an opponent](start/waiting-for-an-opponent.md#the-answer-arrives).
+
 **Game page.** The page at `/game/{id}`. What it shows depends on the *game page phase*. See [screens and navigation](foundations/screens-and-navigation.md).
 
-**Game page phase.** One of three: *before joining*, *joined*, and *playing*. The phase is worked out from what the server has said on the current page, not stored anywhere. Before joining, a player with a *stored seat* sees the *share-link screen* and a *visitor* sees the *join screen*; joined shows the *joined screen*; playing shows the *board screen*.
+**Game page phase.** One of three: *before joining*, *joined*, and *playing*. The phase is worked out from what the server has said on the current page, not stored anywhere. Before the game starts, a player with a *stored seat* sees "Returning to your game…" until the server answers its rejoin, then the *invitation to send*; a *visitor* sees the *invitation to the free seat*, which shows "Taking your seat…" once they have accepted (the joined phase). Playing shows the *board screen*.
 
-**Share-link screen.** The game page before the game starts, for a player with a stored seat: "Game created! Share this link with a friend:" above the *share link* in a dark box (wrapping onto as many lines as the window needs), with a "Copy link" button under it where the browser allows copying (https or localhost). Despite the wording, a returning joiner sees it too for the moment between loading the page and the server's answer. See [waiting for an opponent](start/waiting-for-an-opponent.md).
+**Invitation to send** (the *share-link screen* in older documents). The game page before the game starts, for the *host* once the server has confirmed the seat: over the lobby, a glass card with "You play White" (or Black), "Invite a friend", the *share link*, "Share link" where the browser has a share sheet and "Copy link" where it allows copying, "Waiting for your friend…", and "Keep this tab open. We'll bring you in." "You" and "Open seat" stand under the kings. See [waiting for an opponent](start/waiting-for-an-opponent.md).
 
-**Join screen.** The game page for a *visitor*: the title and a "Join Game" button, nothing else. See [joining a game](start/joining-a-game.md).
+**Invitation to the free seat** (the *join screen* in older documents). The game page for a *visitor*, over the lobby: "Opening the invitation…" while the page asks the server which seats are taken, then "You're invited to play" and the free side with a "Take your seat" button, or "This game is taken" or "No game here" with "Start a new game". "Your host" and "Your seat" stand under the kings. See [joining a game](start/joining-a-game.md).
 
-**Joined screen.** The game page between clicking "Join Game" and the game starting: "Joined game, waiting for start...". Normally it shows for a fraction of a second.
+**Taking your seat** (the *joined screen* in older documents). The invitation between clicking "Take your seat" and the game starting: the visitor's seat already filled on the glass and the button reading "Taking your seat…". Normally it shows for a fraction of a second.
 
 **Board screen.** The game page once the game has started: the 3D board filling the window, with the *HUD* laid over it.
 
@@ -24,23 +30,23 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## Games and seats
 
-**Game.** One match between two seats, created on the server by "Start a game". A game is identified by its *game id* and consists of its two *seats* and its *move record*. There is no other game state on the server: no clock, no result, no player names.
+**Game.** One match between two seats, created on the server by a pick on the side choice. A game is identified by its *game id* and consists of its two *seats* and its *move record*. There is no other game state on the server: no clock, no result, no player names.
 
 **Game id.** Six characters, each an uppercase letter A–Z or a digit 0–9, chosen at random by the server (for example `K7Q2ZD`). It is case-sensitive: `/game/k7q2zd` is a different, unknown game.
 
-**Share link.** The address of the game page, `{origin}/game/{id}`, shown as plain text on the share-link screen. It is the only way a second player reaches a game. Anyone with it can open the game page.
+**Share link.** The address of the game page, `{origin}/game/{id}`, shown as text on the invitation to send. It is the only way a second player reaches a game. Anyone with it can open the game page.
 
 **Seat.** One of the game's two colors, white or black, held by one player. The *creator* holds one seat from the moment the game exists; the *joiner* claims the other. Seats are held for the life of the game: a seat stays taken while its player is disconnected, and a game with both seats taken answers any further join with "Game full". Nothing about a seat proves who holds it; the server gives a seat to whichever connection names the game and the color.
 
-**Creator.** The player who clicked "Start a game". The server gives the creator white or black at random; the creator does not learn which until the game starts.
+**Creator, host.** The player who created the game on the side choice. The creator holds the side they picked (with Random, the side the page's coin gave), shown to them from the invitation to send on.
 
-**Joiner.** The player who clicked "Join Game" on a game with a free seat. The joiner gets whichever color the creator did not.
+**Joiner, guest.** The player who clicked "Take your seat" on a game with a free seat. The joiner gets whichever color the creator did not, and is told which before accepting.
 
 **Opponent.** From one player's point of view, whoever holds the other seat.
 
 **Visitor.** Someone on a game page whose browser has no stored seat for that game: a first-time arrival from a share link, a third person who was sent the link, or a seated player on another browser or device.
 
-**Stored seat.** The color this browser holds in a game, kept in the browser's local storage under the game id. It is written the moment the server assigns a seat (on creating, on joining, and when the game starts) and read every time the game page loads, where it causes an automatic *rejoin*. It is kept indefinitely, with one exception: if the server refuses the rejoin before the game has shown any state, the stored seat is deleted and the page falls back to the join screen. Two tabs of the same browser share the stored seat; two browsers, or a private window, do not. See [the connection and seat model](foundations/connection-and-seat.md#the-stored-seat).
+**Stored seat.** The color this browser holds in a game, kept in the browser's local storage under the game id. It is written the moment the server assigns a seat (on creating, on joining, and when the game starts) and read every time the game page loads, where it causes an automatic *rejoin*. It is kept indefinitely, with one exception: if the server refuses the rejoin before the game has shown any state, the stored seat is deleted and the page falls back to the invitation to the free seat (or "No game here"). Two tabs of the same browser share the stored seat; two browsers, or a private window, do not. See [the connection and seat model](foundations/connection-and-seat.md#the-stored-seat).
 
 **Move record.** The ordered list of every move played in a game, as the server recorded it. It is the only durable part of a game besides the seats. Every position, whose turn it is, and whether the game is over are worked out from it by each player's browser.
 
@@ -124,7 +130,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Seat confirmation.** The server's answer to a successful join, sent to the joiner alone just before the *start notice*, carrying the color the joiner got. The stored seat is written when it arrives. A drop before it is recovered too: the join is *re-sent*, and the server hands the tab the seat it already claimed for it.
 
-**Start notice.** The server's message, sent the moment a game's second seat is taken, telling every player connected to the game that it has started, and each one its own color. It moves the share-link and joined screens to the board screen. A player whose page is not connected at that moment never receives it; the snapshot from their next rejoin says the game has started instead.
+**Start notice.** The server's message, sent the moment a game's second seat is taken, telling every player connected to the game that it has started, and each one its own color. On a page showing the lobby it plays the *arrival*, which hands over to the board screen. A player whose page is not connected at that moment never receives it; the snapshot from their next rejoin says the game has started instead.
 
 **Land.** A move lands on a board when its echo, or a snapshot containing it, arrives and the browser replays it: the piece glides (or is simply drawn, for a move already in the record when the board appeared), the last-move trace moves, the turn pill changes, and the move list gains the move, all at that moment and never before.
 
@@ -164,7 +170,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Interrupt.** Something the player did not choose ends a request's local state: the connection drops, the position changes under it, the game ends, another tab takes the seat, or the page goes away. An interrupted request that had not been sent is discarded. One that had been sent may still have been recorded by the server; the player finds out from the next snapshot.
 
-**Reset.** What returning to the start screen does to the connection: the page's knowledge of the old game is thrown away, the connection is closed, and a fresh one is opened. The opponent sees the player go offline. The stored seat is kept, so opening the share link again rejoins the game.
+**Reset.** What returning to the start screen or the side choice does to the connection: the page's knowledge of the old game is thrown away, the connection is closed, and a fresh one is opened. The opponent sees the player go offline. The stored seat is kept, so opening the share link again rejoins the game.
 
 **Replaced.** The state a tab is left in when another tab or window of the same browser holds the seat: either the other tab took it (the *replaced signal*), or this tab's connection came back after a drop and found the seat held by the other tab (*seat in use*). The tab shows "This game is open in another tab" and holds no seat until the player clicks "Play here". See [a second tab](session/second-tab.md).
 
@@ -172,7 +178,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Connection.** The one live link between a browser tab and the server. It is opened as soon as the app loads, on either screen, and kept open while the tab stays on the app.
 
-**Connection state.** One of four: *connecting* (the first attempt after the app loads or after a reset), *connected*, *reconnecting* (the connection dropped and the browser is retrying on its own), and *replaced*. The start screen shows the first and third in the line under its button, and only while a create is waiting for the connection; the game page shows only *reconnecting* (the *reconnecting line*) and *replaced* (a dialog).
+**Connection state.** One of four: *connecting* (the first attempt after the app loads or after a reset), *connected*, *reconnecting* (the connection dropped and the browser is retrying on its own), and *replaced*. The side choice shows the first (until a pick) and the third in the line at its bottom; the start screen shows none; the game page shows only *reconnecting* (the *reconnecting line*) and *replaced* (a dialog).
 
 **Retry schedule.** After an unexpected drop, the browser waits 0.5 s, then 1 s, 2 s, 4 s, and then 8 s between attempts, forever. The schedule starts over whenever a connection opens. There is no limit on attempts and no manual retry button.
 
@@ -212,7 +218,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Move list.** The game's moves in the move card, one numbered row per White–Black pair, in cell notation with an en dash (`Ab2–Ab3`) and `=` plus a letter for a promotion (`Da4–Ea5=U`). Never visible: it is in the page for screen readers only. See [the move list](game-page/move-list.md).
 
-**Error banner.** A glass notice with a thin red rule at its left edge: the server's message (a screen reader hears "Error: " before it), with a "✕" button that dismisses it. On the board screen it is in the status column under the turn pill; on the share-link, join, and joined screens it sits at the bottom center. *Dismissing* hides every error received on the page so far; nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The start screen shows errors differently, as red text under its button ("Couldn't start a game: " and the message).
+**Error banner.** A glass notice with a thin red rule at its left edge: the server's message (a screen reader hears "Error: " before it), with a "✕" button that dismisses it. On the board screen it is in the status column under the turn pill; on the game page before the game starts (over the lobby) it sits at the top center; there "Cannot join" and "Game full" never show in it, because the invitation says "No game here" or "This game is taken" instead. *Dismissing* hides every error received on the page so far; nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The side choice shows errors differently, as red text at its bottom ("Couldn't start a game: " and the message).
 
 **Reconnecting line, reconnecting banner.** "Reconnecting…" beside a small breathing light, in the status column while the connection state is *reconnecting*; the turn pill dims behind it, since what it says may be out of date. On the pre-game screens it sits at the top right.
 
@@ -220,7 +226,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Promotion dialog.** A glass card over a lightly veiled board: "PROMOTE TO" above five tiles, each a piece's silhouette in the player's material with its name ("Queen", "Rook", "Bishop", "Knight", "Unicorn"), and "Cancel" under them. See [promotion](play/promotion.md).
 
-**End-game dialog.** A glass card over the veiled final position: the two stones with the winner's lit, "You win", "You lose", or "Draw", "by checkmate" or "by stalemate" under it, and a "Start new game" button, which has keyboard focus when the dialog opens. It cannot be closed any other way.
+**End-game dialog.** A glass card over the veiled final position: the two stones with the winner's lit, "You win", "You lose", or "Draw", "by checkmate" or "by stalemate" under it, and a "Start new game" button, which has keyboard focus when the dialog opens and leads to the side choice. It cannot be closed any other way.
 
 **Replaced dialog.** A glass card titled "This game is open in another tab", with the text "Your seat moved to the newer tab or window. Close this one, or take the game back here." and a "Play here" button, which has keyboard focus when the dialog opens.
 

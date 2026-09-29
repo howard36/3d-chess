@@ -2,74 +2,85 @@
 
 ## Summary
 
-Creating a game turns one click on the start screen into a new game on the server, with this browser holding one of its two seats, and takes the player to that game's page to wait for an opponent. It lives on the [start screen](../glossary.md#the-product-and-its-screens) at `/`, the page every visit to the app's root address shows, and it is the only way a game comes into existence. The "Start a game" button is the whole feature: there are no options, no name to enter, and no choice of color. Behind it the page shows a [preview](#the-preview) of the game playing itself, which is decoration and takes no input. The button works in every [connection state](../glossary.md#the-connection) the start screen can be in; a click made before the connection is open waits for it, and a request whose answer is lost to a drop is [re-sent](../glossary.md#requests) when the connection comes back.
+Creating a game turns a choice of side into a new game on the server, with this browser holding the seat the player chose, and takes the player to that game's page to invite an opponent. It begins on the [start screen](../glossary.md#the-product-and-its-screens) at `/`, whose "Start a game" button asks nothing of the server: it opens the [side choice](../glossary.md#the-product-and-its-screens) at `/new`, where three kings stand on a sheet of glass in the night garden and the player picks White, Black, or Random. The pick is the request. It is final the moment it is made: the game is asked for at once, while the pick plays out on the glass, and the page moves on to the new game's [invitation to send](waiting-for-an-opponent.md) once both the answer and the moment are over. The side choice is the only way a game comes into existence. A pick made before the connection is open waits for it, and a request whose answer is lost to a drop is [re-sent](../glossary.md#requests) when the connection comes back.
 
 ## The simple case
 
-The player opens the app's address. The whole window is a night scene: the glass tower of the [board screen](../foundations/the-view.md#the-scene) stands in the middle of its garden, turning slowly, while a game plays itself on it. Above the tower stands the title "3D Chess"; below it, the "Start a game" button: a pale pill with a small charcoal knight before the words, ringed by a rim of the five levels' colors that turns slowly round it (a turn every 9 seconds), glowing cyan on its left and rose on its right. Under a hovering mouse it lifts a little and the knight hops. A round "Pause preview" button sits at the top right. There is nothing else: the page says nothing about the connection, which opens in the background, and the space under the button stays empty until there is [something to say there](#the-line-under-the-button).
+The player opens the app's address. The whole window is a night scene: the glass tower of the [board screen](../foundations/the-view.md#the-scene) stands in the middle of its garden, turning slowly, while a game plays itself on it (see [the preview](#the-preview)). Above the tower stands the title "3D Chess"; below it, the "Start a game" button: a pale pill with a small charcoal knight before the words, ringed by a rim of the five levels' colors that turns slowly round it. A round "Pause preview" button sits at the top right.
 
-The player clicks "Start a game". The pill turns dark, its rim spins fast, a breathing dot takes the knight's place, and it reads "Creating game…"; it no longer responds. Almost at once the address changes to `/game/{id}`, where `{id}` is the new [game id](../glossary.md#games-and-seats), and the page shows the [share-link screen](../start/waiting-for-an-opponent.md): "Game created! Share this link with a friend:", the link, and a "Copy link" button.
+The player clicks "Start a game". The address becomes `/new` and the page changes to the [lobby](../glossary.md#the-product-and-its-screens): the tower is gone, and one sheet of glass, the tower's bottom level with its cyan edge, draws itself in light in the same night garden. On it stand three large kings side by side: a porcelain king on the left, a king split down its middle, porcelain on its left half and charcoal on its right, in the middle, and a charcoal king on the right. Above them the page reads "Choose your side", and under it "Then send a friend the link to take the other side." Under each king is a dark glass button: "White" with "Moves first" under it, "Random" with "Let chance decide", and "Black" with "Moves second". "← Home" sits at the top left.
 
-The player now holds one seat of the new game, white or black, chosen at random by the server. The page does not say which until an opponent joins and the board appears. The browser remembers the seat as the game's [stored seat](../foundations/connection-and-seat.md#the-stored-seat), so the player can close the tab and come back through the link.
+Pointing at a king or its button lifts that king a little; a button under the pointer is rimmed in the levels' colors. The player clicks "White" (or the porcelain king itself). At once the heading reads "You play White" and "Setting the board…", the other two buttons fade away and the chosen one stays lit. On the glass the charcoal king drains from the crown down until only its outline is left, drawn in neon like the giant pieces of the garden: an open seat. The split king drains away. The porcelain king rises into a column of cool light, as a piece does when it is picked up on the board. About a second later the address becomes `/game/{id}`, where `{id}` is the new [game id](../glossary.md#games-and-seats), and the page, without reloading its scene, shows the [invitation to send](waiting-for-an-opponent.md): "You play White", "Invite a friend", the link, and a button to share or copy it.
+
+The player now holds the chosen seat of the new game. The browser remembers it as the game's [stored seat](../foundations/connection-and-seat.md#the-stored-seat), so the player can close the tab and come back through the link.
 
 ### The preview
 
-The game on the tower is always the same short game of 17 moves, ending in checkmate by White. Nothing about it is live: it is not a game on the server, and it is the same in every browser. The tower opens on the starting position, holds it for about 3 seconds, and then a move lands every 2.2 seconds, gliding, capturing, and checking exactly as on the board screen, with the last move's mint line and a king in check among the dark blades. At the mate the black king topples and the pulse spreads across his level, and a little over a second after the mating move "Checkmate · White wins" fades in under the button, in small capitals (if nothing more important is showing there, see [the line under the button](#the-line-under-the-button)). The finished game holds for 5 seconds, a black veil closes over the window in 0.7 seconds, the board is set up again under it, and the veil opens on the starting position in 0.9 seconds, which holds for 2 seconds before the first move; the result line goes as the veil shuts. A whole game takes about 44 seconds, and it repeats for as long as the page is open.
+The game on the tower is always the same short game of 17 moves, ending in checkmate by White. Nothing about it is live: it is not a game on the server, and it is the same in every browser. The tower opens on the starting position, holds it for about 3 seconds, and then a move lands every 2.2 seconds, gliding, capturing, and checking exactly as on the board screen, with the last move's mint line and a king in check among the dark blades. At the mate the black king topples and the pulse spreads across his level, and a little over a second after the mating move "Checkmate · White wins" fades in under the button, in small capitals. The finished game holds for 5 seconds, a black veil closes over the window in 0.7 seconds, the board is set up again under it, and the veil opens on the starting position in 0.9 seconds, which holds for 2 seconds before the first move; the result line goes as the veil shuts. A whole game takes about 44 seconds, and it repeats for as long as the page is open.
 
-All the while the camera circles the tower at one height, a little above the board screen's opening view, a full turn every two games (about 90 seconds), so every game begins, and its mate lands, at one of the same two angles. The tower is framed alone, larger than on the board screen, between the title above and the button below: the preview draws no file, rank, or level labels. The preview belongs to neither player.
+All the while the camera circles the tower at one height, a little above the board screen's opening view, a full turn every two games (about 90 seconds). The tower is framed alone, larger than on the board screen, between the title above and the button below: the preview draws no file, rank, or level labels. The preview belongs to neither player.
 
 The preview takes nothing from the player: a click, drag, wheel turn, or touch on it does nothing, the view cannot be turned or zoomed by hand, and a screen reader skips it and reads instead "Preview: a sample game plays itself on the five-level tower and ends in checkmate by White." "Pause preview" stops it (see [modifiers](#modifiers)), and a player whose system asks for reduced motion sees it still.
 
 ### The line under the button
 
-The space under the button holds one line at a time, the first of these that applies, or nothing:
+The space under "Start a game" holds one line, or nothing: while the moving preview's mate stands on the board, "Checkmate · White wins", which a screen reader does not read. The space stays reserved, so the button never moves when the line comes or goes. The start screen says nothing about the connection and shows no errors: it sends nothing.
 
-1. An error answering this page's request: "Couldn't start a game: " and the server's message, in red. It is an alert, so a screen reader announces it.
-2. The connection's state, only while the player's request is waiting for the connection: "Connecting to server…", or "Reconnecting to server…" after a failed attempt or a drop, beside a breathing dot. It is a status, which a screen reader announces politely. Before a click, and after an answer, the page never mentions the connection, whatever state it is in.
-3. While the moving preview's mate stands on the board: "Checkmate · White wins". A screen reader does not read it. The still preview shown for reduced motion never shows it.
-4. Otherwise nothing. The space stays reserved, so the button never moves when a line comes or goes.
+### The side choice
 
-Because it is one line, an error or the connection's state hides the preview's result. Each new line fades in.
+The page at `/new` is where the request is made. It can be reached by "Start a game", by the [end-game dialog](../play/check-and-game-end.md)'s "Start new game", by the "Start a new game" button of an invitation that leads nowhere (see [joining a game](joining-a-game.md#the-answer-arrives)), or by typing the address.
+
+- **The kings.** White's seat is on the left and Black's on the right, the split king between them for Random, on the glass's middle row; the camera looks at them from a little above, from White's side. In a window narrower than it is tall (an aspect under 9:10, a phone held upright) the kings stand smaller and further apart, and the three buttons become full-width rows stacked near the bottom of the window, name on the left and note on the right, in easy reach of a thumb.
+- **Hover and focus.** The king under the pointer, or the king whose button is under the pointer or has keyboard focus, lifts a little. A button under the pointer or focused from the keyboard gets the levels' rim; the chosen one keeps it. Clicking or tapping a king picks it exactly as its button does.
+- **The line at the bottom.** A line at the bottom center shows the connection's state: "Connecting to the server…" while the first connection opens and no pick has been made, "Reconnecting to the server…" whenever the connection is retrying, and, once the pick has played out, "Waiting for the server…" until the answer arrives. A refusal shows there in red: "Couldn't start a game: " and the server's message. It is a status, which a screen reader announces politely.
 
 ## The interaction, event by event
 
 ```mermaid
 stateDiagram-v2
-    state "Start a game" as ready
-    state "Creating game… (queued)" as queued
-    state "Creating game… (in flight)" as creating
-    state "Creating game… (Reconnecting to server…)" as retrying
-    state "Share-link screen" as share
-    [*] --> ready : start screen loads
-    ready --> queued : click while not connected
-    queued --> creating : connection opens (request sent)
-    ready --> creating : click while connected (request sent)
-    creating --> share : game id arrives (seat stored, page changes)
-    creating --> ready : error (message shown under the button)
-    creating --> retrying : connection drops (answer lost)
-    retrying --> creating : connection opens (request re-sent)
+    state "Start screen" as start
+    state "Choose your side" as choose
+    state "The pick plays out (queued)" as queued
+    state "The pick plays out (in flight)" as flight
+    state "Waiting for the server…" as waiting
+    state "Reconnecting to the server…" as retrying
+    state "Invitation to send" as invite
+    [*] --> start : app's address
+    [*] --> choose : /new typed, "Start new game", "Start a new game"
+    start --> choose : "Start a game"
+    choose --> start : "← Home"
+    choose --> queued : pick while not connected
+    queued --> flight : connection opens (request sent)
+    choose --> flight : pick while connected (request sent)
+    flight --> waiting : the moment is over first
+    flight --> invite : answer and moment both over (seat stored, page replaced)
+    waiting --> invite : game id arrives
+    flight --> choose : error (kings put back, message in red)
+    waiting --> choose : error
+    flight --> retrying : connection drops (answer lost)
+    retrying --> flight : connection opens (request re-sent)
 ```
 
 ### Begin
 
-The start screen loads with the button enabled, nothing focused, and the preview playing from the start of its game. The app opens its [connection](../foundations/connection-and-seat.md#connection-states) as it loads, without a word on the page, even while the connection is still opening or retrying. The button does not wait for the connection: it is enabled from the first moment.
+The side choice opens with all three kings standing in their material, the glass drawing itself in about a second, nothing focused, and all three buttons enabled, whatever the connection is doing. If the player arrived from a game (the end-game dialog's "Start new game", or browser Back or Forward), the connection is [reset](../glossary.md#events-that-end-or-interrupt-a-request) as the page appears, and anything the server said about the old game is ignored from then on. Nothing on the page refers to earlier games.
 
-If the player arrived from a game (the [end-game dialog](../play/check-and-game-end.md)'s "Start new game", browser Back, or the crash screen's "Back to start"), the connection is [reset](../glossary.md#events-that-end-or-interrupt-a-request) as the start screen appears, and anything the server said about the old game is ignored from then on. Nothing on the start screen refers to earlier games: it does not list them and cannot resume one, even when the browser has stored seats for several.
-
-The click is the whole of the begin phase. At that instant the start screen marks where its answer will start: only messages that arrive after the click count as the reply. An error still visible from an earlier attempt disappears at the same moment.
+The pick is the whole of the begin phase: a click or tap on a button or a king, or Enter or Space on a focused button. At that instant the page decides the side. For White or Black it is that side. For Random the page tosses its own coin, there and then, before anything is sent: the side is fixed from this moment, and the split king's flight only shows it. The page also marks where its answer will start: only messages that arrive after the pick count as the reply.
 
 ### End without sending
 
-There is no way to end the request without sending it. The one exception is timing: a click made while the connection is not open is [queued](../glossary.md#requests), not sent. The button reads "Creating game…" and ignores presses exactly as if the request were in flight, and only now does the line under it show the connection's state, "Connecting to server…" or "Reconnecting to server…", until the connection opens and the request is sent. Leaving the page (Back, reload, closing the tab) at this point discards the queued request; nothing reaches the server and nothing is recorded.
+Until the player picks, nothing is sent and nothing is recorded: a player who opens the side choice and leaves ("← Home", Back, closing the tab) leaves no trace.
 
-A player who opens the start screen and never clicks leaves no trace: no game is created and nothing is stored in the browser.
+A pick made while the connection is not open is [queued](../glossary.md#requests), not sent. The page plays the pick out exactly as if the request were in flight; "Connecting to the server…" goes away at the pick, but "Reconnecting to the server…" stays while the connection retries. Leaving the page now (Back, "← Home", reload, closing the tab) discards the queued request; nothing reaches the server and nothing is recorded.
+
+There is no way to take a pick back on the page: the buttons are disabled from the pick on, and the kings no longer answer the pointer.
 
 ### Send
 
-The request leaves the browser the instant the button is clicked on an open connection, or the instant the connection opens for a queued click. It carries this tab's [client id](../glossary.md#requests) and nothing else. From here it cannot be taken back. The server, on receiving it:
+The request leaves the browser the instant of the pick on an open connection, or the instant the connection opens for a queued pick. It carries the chosen side and this tab's [client id](../glossary.md#requests). From here it cannot be taken back. The server, on receiving it:
 
 - picks a new game id that no existing game uses;
-- picks white or black at random for the creator;
+- gives the creator the side asked for (a request with no side, which this client never sends, gets one at random);
 - records the game with that one seat taken, remembers the client id as the seat's claimant, and starts an empty [move record](../glossary.md#games-and-seats);
 - ties this connection to the game and seat, so that everything else sent on the connection is on the creator's behalf;
 - answers with the game id and the creator's color.
@@ -78,97 +89,96 @@ The game exists from this moment whether or not the answer ever reaches the play
 
 ### While in flight
 
-The button stays dark, labeled "Creating game…", and does nothing when pressed, so a double click creates one game, not two. It keeps keyboard focus if it had it: Enter or Space on it again does nothing, and Tab moves on from it as before. The line under it shows the preview's result or nothing, as before the click, or the connection's state if the request was queued and the connection has not opened yet. The preview plays on and "Pause preview" still works; nothing else can be done on the page, and the player can only wait or leave. On an ordinary connection this lasts a fraction of a second.
+The pick plays out on the glass, and it has its own length, independent of the answer:
 
-If the connection drops before the answer arrives, the answer is lost with it. The button stays at "Creating game…", "Reconnecting to server…" appears under it, and the browser retries on its [retry schedule](../glossary.md#the-connection). When a connection opens, the page sends the request again on it, and goes on doing so on every new connection until an answer arrives. The player does nothing and sees nothing but the connection's state coming and going in the line under the button.
+- **White or Black.** The heading reads "You play White" (or "You play Black") and "Setting the board…"; the chosen button stays, pressed and rimmed, and the other two fade out. The other side's king drains from the crown down to its neon outline, the split king drains away, and the chosen king rises into the column of light. The moment is over about 1.2 seconds after the pick.
+- **Random.** The heading reads "Leaving it to chance…" and "Setting the board…". Both side kings drain to their outlines, and the split king is thrown up, spinning like a coin about its upright axis, two turns and a little more, slowing as it falls, until it lands showing one face to the camera, porcelain or charcoal. It holds for a moment and glides sideways onto that side's seat, where it becomes that seat's king and rises into the light. The moment is over about 2.9 seconds after the pick. The page does not name the side in words until the invitation to send ("You play Black").
+
+On an ordinary connection the answer arrives long before the moment is over, and the page moves on as soon as the moment ends. If the moment ends first, "Waiting for the server…" appears at the bottom until the answer comes.
+
+If the connection drops before the answer arrives, the answer is lost with it. "Reconnecting to the server…" appears at the bottom, the scene stays as the pick left it, and the browser retries on its [retry schedule](../glossary.md#the-connection). When a connection opens, the page sends the request again on it, with the same side, and goes on doing so on every new connection until an answer arrives.
 
 > Technical note: The server forgets a connection the moment it drops, so the answer to a request sent on it can never arrive on the next one. Repeating the create is safe: if the first request had reached the server, it made a game whose id no browser ever learns. That game waits with one seat taken and is deleted by [expiry](../glossary.md#games-and-seats) about 30 days later, like any other unused game.
 
 ### The answer arrives
 
-On success, two things happen in order: the browser writes the stored seat for the new game (key: the game id, value: the color), and then the page moves to `/game/{id}` as a new entry in the browser's history. The game page recognizes that this connection already holds the seat, so it does not rejoin; it shows the share-link screen straight away. What happens from there is described in [waiting for an opponent](waiting-for-an-opponent.md).
+On success, the browser writes the stored seat for the new game (key: the game id, value: the color) at once. When the moment is also over, the page moves to `/game/{id}`, replacing `/new` in the browser's history, so Back from the new game's page leads to the page before the side choice (usually the start screen), not to the side choice. The glass, the garden, and the kings stay as they are across the move: the lobby's scene is one and the same on both addresses. The game page recognizes that this connection already holds the seat, so it does not rejoin; it shows the invitation to send straight away. What happens from there is described in [waiting for an opponent](waiting-for-an-opponent.md).
 
-On an error, the start screen shows it in red in the line under the button as "Couldn't start a game: " followed by the server's message, and the button returns to "Start a game", enabled. Nothing is re-sent after an error. Clicking again sends a fresh request and clears the message. The only error the server can give a correct client here is "Already in a game", which cannot happen in practice because the connection is always fresh on the start screen; the client itself reports "Received a malformed message from the server" if the answer cannot be read. Both are listed in [error messages](../cross-cutting/error-messages.md).
+On an error, "Couldn't start a game: " and the server's message appear in red at the bottom, the kings are put back (the drained ones fill again from the foot up, the split king returns), the heading returns to "Choose your side", and the buttons are enabled again. Nothing is re-sent after an error. A new pick sends a fresh request and clears the message. The only error the server can give a correct client here is "Already in a game", which cannot happen in practice because the connection is always fresh on the side choice; the client itself reports "Received a malformed message from the server" if the answer cannot be read. Both are listed in [error messages](../cross-cutting/error-messages.md).
 
 ## Modifiers
 
 | Modifier | At the start | Changes while in flight |
 | --- | --- | --- |
-| Your color | Not decided yet. The server picks it at random when it creates the game, and the start screen never shows it. | No effect. A re-sent request makes a new game with its own random color. |
+| Your color | The player chooses it: White, Black, or Random, which the page decides with its own coin at the pick. | Cannot change. A re-sent request asks for the same side. |
 | Whose turn it is | No game yet. No effect. | No effect. |
-| How you reached the page | The start screen looks and behaves the same whether the address was typed, opened from a bookmark, or reached from a game. Arriving from a game resets the connection first and ignores the old game's messages. | Leaving the start screen while in flight: see "Leaving the game page within the app" below. |
-| Connection state | Connected: the request is sent on the click. Connecting or reconnecting: the click is queued and sent when the connection opens. Replaced cannot occur here: reaching the start screen resets the connection. | A drop while in flight loses the answer; the request is re-sent when a connection opens. See "The connection drops" below. |
+| How you reached the page | The start screen looks and behaves the same however it was reached. The side choice is the same from "Start a game", "Start new game", "Start a new game", or a typed address; arriving from a game resets the connection first and ignores the old game's messages. | Leaving while in flight: see "Leaving the game page within the app" below. |
+| Connection state | The start screen sends nothing, so its connection state never matters there. On the side choice: connected, the request is sent at the pick; connecting or reconnecting, the pick is queued and sent when the connection opens. Replaced cannot occur: reaching the side choice from a game resets the connection. | A drop while in flight loses the answer; the request is re-sent when a connection opens. See "The connection drops" below. |
 | Game state | No game yet. No effect. | No effect. |
-| Shift, Ctrl, or Cmd held | No effect. The button is a button, not a link, so Ctrl-click or Cmd-click does not open a new tab. | No effect. |
-| Input device | A mouse click, a tap, and Enter or Space on the focused button all do the same thing. The button is the first thing Tab reaches, and "Pause preview" the second; nothing is focused on arrival. | No effect; the button ignores input while in flight but keeps focus and stays in the Tab order. |
+| Shift, Ctrl, or Cmd held | No effect. "Start a game" and the side buttons are buttons, not links, so Ctrl-click or Cmd-click does not open a new tab. | No effect. |
+| Input device | A mouse click, a tap, and Enter or Space on a focused button all do the same thing; a click or tap on a king picks it too. On the start screen "Start a game" is the first Tab stop and "Pause preview" the second. On the side choice Tab reaches "← Home", then "White", "Random", and "Black"; nothing is focused on arrival, and a focused button lifts its king. | No effect; the buttons are disabled and the kings take no pointer. |
 
-Nothing the player can change mid-way alters the request: the color is the server's choice, and the request carries no options.
+Two settings change the start screen's preview, never the request:
 
-Two settings change the preview, never the request:
-
-- **"Pause preview"** stops the preview where it stands: the game, the camera's turn, the veil, and every glimmer on the board (the canvas stops drawing altogether). The button stays pressed (a screen reader hears "Pause preview, pressed") and shows a play triangle instead of its two bars; pressing it again carries on from the same moment. The line under the button keeps what it showed. If the window changes size while paused, the still preview is redrawn to fit.
-- **Reduced motion.** When the player's system asks for less motion, the preview is a still picture of the game's final position: the mating move's line and the check showing, the black king still standing, the camera at its opening angle. Nothing turns, fades, or repeats, there is no "Pause preview" button, and the line under the button never says "Checkmate · White wins" (the still picture always shows the mate). The button's rim holds still and its knight does not hop. Changing the setting while the page is open takes effect at once: the preview switches between moving and still, starting its game again from the beginning when it starts moving.
+- **"Pause preview"** stops the preview where it stands: the game, the camera's turn, the veil, and every glimmer on the board (the canvas stops drawing altogether). The button stays pressed (a screen reader hears "Pause preview, pressed") and shows a play triangle instead of its two bars; pressing it again carries on from the same moment.
+- **Reduced motion.** When the player's system asks for less motion, the preview is a still picture of the game's final position, with no "Pause preview" button and no result line, and the button's rim holds still. On the side choice the kings' filling and draining take a fraction of a second, the split king lands on its seat without its flight, the headings do not rise into place, and the page moves on about 0.2 seconds after the pick (once the answer is in).
 
 ## Cancel and interrupt
 
 | Event | Before sending | While in flight |
 | --- | --- | --- |
-| Escape or Cancel | No effect. There is no Cancel control and Escape is ignored. | No effect. The request cannot be cancelled; the button ignores presses until the answer. |
-| Pressing elsewhere or turning the view | The tower on this screen is only a preview. Clicking, dragging, or scrolling on it, or anywhere around the button, does nothing, and the view cannot be turned by hand. | Same. |
-| Leaving the game page within the app | Back or Forward leaves the start screen. A queued request is discarded; nothing was sent or recorded. | Back or Forward leaves the start screen before the answer. Nothing re-sends the request after that, and the answer, when it comes, is ignored: no seat is stored and the page does not move. The game still exists on the server, tied to this tab's connection. See the edge cases. |
+| Escape or Cancel | No effect. There is no Cancel control and Escape is ignored. | No effect. The pick cannot be taken back. |
+| Pressing elsewhere or turning the view | The start screen's tower is only a preview and takes no input. On the side choice, clicking the glass or the garden around the kings does nothing, and the view cannot be turned. | Same. |
+| Leaving the game page within the app | "← Home", Back, or Forward leaves the side choice. A queued request is discarded; nothing was sent or recorded. | "← Home", Back, or Forward leaves before the answer. Nothing re-sends the request after that, and the answer, when it comes, is ignored: no seat is stored and the page does not move. Arriving at the start screen resets the connection. If the server received the request, the game exists, unused and unreachable. |
 | The game ends | Not applicable: no game yet. | Not applicable. |
-| The server answers with an error | Not applicable: nothing sent yet. | "Couldn't start a game: {message}" in red under the button; the button returns to "Start a game" and works again. |
-| The connection drops | Nothing on the page changes: the line under the button goes on showing the preview's result, an error, or nothing. The button still works; a click is queued, and "Reconnecting to server…" then takes the line until the connection is back. | The answer is lost. "Reconnecting to server…" appears and the button stays at "Creating game…". When a connection opens, the request is sent again; its answer takes the player to the new game. If the first request had reached the server, that first game is left unused on the server. |
-| The window loses focus or the tab is hidden | No effect on the request. The connection stays open in a background tab. The browser stops drawing a hidden tab, so the preview stands still there and carries on from the same moment when the tab is shown again, never jumping ahead. | No effect. The answer is handled when it arrives, and the page moves to the game even in a background tab. |
-| Reload or closing the tab | Nothing is recorded; a queued request is discarded. After a reload the start screen is fresh. | The answer is lost, and nothing re-sends the request. If the server received it, a game exists with one seat taken whose id no browser knows; it is deleted after about 30 days. |
+| The server answers with an error | Not applicable: nothing sent yet. | "Couldn't start a game: {message}" in red at the bottom; the kings are put back and the player can pick again. |
+| The connection drops | "Reconnecting to the server…" appears at the bottom. A pick is still possible and is queued. | The answer is lost. "Reconnecting to the server…" appears; the scene stays as the pick left it. When a connection opens, the request is sent again; its answer takes the player to the new game. If the first request had reached the server, that first game is left unused on the server. |
+| The window loses focus or the tab is hidden | No effect on the request. The connection stays open in a background tab. The browser stops drawing a hidden tab, so the preview and the kings stand still there and carry on from the same moment when the tab is shown again. | The answer is stored when it arrives, but the page moves on only when the pick's moment is over, and the moment runs only while the tab is drawn: a pick left in a hidden tab finishes, and the page moves to the game, when the tab is shown again. |
+| Reload or closing the tab | Nothing is recorded; a queued request is discarded. A reload of `/new` shows the side choice afresh. | The answer is lost, and nothing re-sends the request. If the server received it, a game exists with one seat taken whose id no browser knows; it is deleted after about 30 days. |
 | The opponent acts | No opponent yet. | No opponent yet. |
-| Another tab takes the seat | Not applicable. Each tab has its own connection and creates its own games; start screens in other tabs are unaffected. | Not applicable. |
-| A second touch point or a cancelled touch | A touch that is cancelled before it lifts does not click the button. | No effect. |
+| Another tab takes the seat | Not applicable. Each tab has its own connection and creates its own games; side choices in other tabs are unaffected. | Not applicable. |
+| A second touch point or a cancelled touch | A touch that is cancelled before it lifts does not press a button or pick a king. | No effect. |
 
-After any interrupt the player stays on the start screen, or reaches the new game once a re-sent request is answered, except when the page itself went away. Nothing is saved in the browser until a successful answer, so an interrupted create never leaves a stored seat behind.
+After any interrupt the player stays on the side choice (or the start screen), or reaches the new game once a re-sent request is answered, except when the page itself went away. Nothing is saved in the browser until a successful answer, so an interrupted create never leaves a stored seat behind.
 
 ## Interactions with other systems
 
-**Seat and turn.** The creator gets one seat at random and learns which only when the board appears. White always moves first, so a creator who got black starts by waiting for the joiner's move.
+**Seat and turn.** The creator chooses the seat; with Random the page chooses it at the pick. White always moves first, so a creator who chose Black starts by waiting for the joiner's move.
 
 **The game record.** The server records the game with one seat taken and no moves, and remembers which client id claimed the seat. A game has no name, no settings, and no time limit; there is nothing else to record. A create re-sent after a drop can leave a second, unused game behind.
 
-**Connection.** The request travels on the app's single connection. After a successful create, the server treats that connection as the creator's seat in the new game until it closes. A later connection (after a drop or a reload) has to [rejoin](../foundations/connection-and-seat.md#rejoining), which the game page does by itself. A drop before the answer is covered by re-sending the request, not by a rejoin: until the answer arrives, the browser does not know which game to rejoin.
+**Connection.** The request travels on the app's single connection, which opens as the app loads on any page and is kept from the start screen to the side choice and on to the new game's page. After a successful create, the server treats that connection as the creator's seat in the new game until it closes. A later connection (after a drop or a reload) has to [rejoin](../foundations/connection-and-seat.md#rejoining), which the game page does by itself. A drop before the answer is covered by re-sending the request, not by a rejoin: until the answer arrives, the browser does not know which game to rejoin.
 
-**The opponent.** There is none yet. The game waits for someone to open the share link and click "Join Game"; see [joining a game](joining-a-game.md).
+**The opponent.** There is none yet. The game waits for someone to open the link and take the other seat; see [waiting for an opponent](waiting-for-an-opponent.md) and [joining a game](joining-a-game.md).
 
-**Other tabs and devices.** Start screens in several tabs create separate games. The stored seat, however, is shared by every tab of the same browser: opening the new game's share link in another tab of the same browser rejoins as the creator and takes the seat from the first tab (see [a second tab](../session/second-tab.md)) instead of joining as the opponent. To play both sides on one computer, open the link in a different browser or a private window.
+**Other tabs and devices.** Side choices in several tabs create separate games. The stored seat, however, is shared by every tab of the same browser: opening the new game's link in another tab of the same browser rejoins as the creator and takes the seat from the first tab (see [a second tab](../session/second-tab.md)) instead of offering the other seat. To play both sides on one computer, open the link in a different browser or a private window.
 
-**Game over.** Not applicable.
+**Game over.** Not applicable. The end-game dialog of a finished game leads here with "Start new game".
 
 **Stored seat.** Written the moment the answer arrives, before the page changes, so that even a tab closed right after the page changes can come back through the link. If the browser refuses to store it (storage disabled), the write fails silently; see the edge cases.
 
-**Keyboard, touch, and screen size.** The button is the first Tab stop and "Pause preview" the second; either is pressed with Enter or Space, and each shows a ring of light when focused from the keyboard. A tap works like a click. The preview fills the window at any size, with the title above the tower and the button below it; on a phone held upright the button spans the width, and in a window 480 pixels tall or less (a phone on its side) the text stands in a column at the left of the tower instead; see [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
+**Keyboard, touch, and screen size.** On the start screen, "Start a game" is the first Tab stop and "Pause preview" the second; on the side choice, "← Home" then the three side buttons. Each shows a ring or the levels' rim when focused from the keyboard. A tap works like a click, on a button or on a king. The start screen's text stands in a column at the left of the tower in a window 480 pixels tall or less; the side choice stacks its buttons at the bottom on a phone held upright. The lobby's scene is decoration to a screen reader: the headings and buttons say everything. See [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
 
 ## Edge cases
 
-- **Coming back from a finished game.** "Start new game" in the end-game dialog lands on the start screen while the old game's messages are still in memory for a moment. The start screen ignores everything that arrived before its own click, so it does not mistake the old game for a new answer and bounce the player back into it.
-- **A stale error.** An error that arrived before the click (for example from the previous page) is never shown on the start screen. An error from the previous attempt is cleared by the next click.
-- **Every click is a new game.** There is no "resume" and no list of games, even when the browser holds stored seats. A player who wants an earlier game needs its link.
+- **Coming back from a finished game.** "Start new game" in the end-game dialog lands on the side choice while the old game's messages are still in memory for a moment. The side choice ignores everything that arrived before its own pick, so it does not mistake the old game for a new answer and move the player back into it.
+- **The server gives another side.** The page shows whatever side the answer names, even if it is not the one asked for. A correct server always gives the side asked for.
+- **Every pick is a new game.** There is no "resume" and no list of games, even when the browser holds stored seats. A player who wants an earlier game needs its link.
 - **Game id collisions.** The server never reuses an id that is still stored; it draws again until the id is free.
-- **A long outage mid-create.** The button stays at "Creating game…" for as long as the server cannot be reached, with "Reconnecting to server…" under it, and the page moves to the new game on the first connection that gets an answer. Nothing tells the player that the request will be repeated; the only way to give up is to leave or reload.
-- **Storage disabled.** When the browser will not store the seat, the create still succeeds and the page still moves to the game, but the game page, which reads the stored seat, finds none and shows the creator the [join screen](joining-a-game.md) instead of the share link. Clicking "Join Game" there shows "Joined game, waiting for start..." with "Error: Already in a game", because the connection already holds the creator's seat; the board still appears when the opponent joins, since the connection is the creator's. If the connection drops while that page shows "Joined game, waiting for start...", the join is re-sent on the next connection, and the server, recognizing the creator's client id, hands back the creator's own seat with a snapshot saying the game has not started: the page stays on "Joined game, waiting for start..." (the old error still in the banner), now holding the seat on the new connection, and the board appears when the opponent joins. A reload loses the seat: a browser that refuses storage cannot keep the tab's client id across a reload either, so the reloaded page is a new client, and its "Join Game" takes the other seat. This looks like a bug; see open questions.
-- **Back within the round trip.** If the player presses Back in the fraction of a second between the click and the answer, and Back leads to an earlier game's page, that page opens on a connection the server has just tied to the new game. Its automatic rejoin is refused with "Error: Already in a game", and it shows the earlier game's share-link screen until reloaded. The new game is created but its id is never shown.
-- **A malformed answer.** A reply the browser cannot read shows "Couldn't start a game: Received a malformed message from the server" and re-enables the button, like any error.
-- **An error, then a drop.** While an error shows in the line under the button, a drop does not replace it: the error stays until the next click, which clears it and, while the connection is still down, shows "Reconnecting to server…" in its place.
-- **A connection that never opens.** A player who opens the start screen while the server cannot be reached sees nothing wrong until they click: the page looks exactly as it does when connected. The click is queued, and only then does "Connecting to server…" or "Reconnecting to server…" appear.
+- **A long outage mid-create.** The scene stays as the pick left it for as long as the server cannot be reached, with "Reconnecting to the server…" at the bottom, and the page moves to the new game on the first connection that gets an answer. Nothing tells the player that the request will be repeated; the only way to give up is to leave or reload.
+- **Storage disabled.** When the browser will not store the seat, the create still succeeds and the page still moves to the game, but the game page, which reads the stored seat, finds none and treats the creator as a guest: it asks which seats are taken and offers the creator the other seat of their own game ("You're invited to play Black" for a creator who chose White). "Take your seat" there is refused with "Error: Already in a game", because the connection already holds the creator's seat. See the open questions.
+- **Back within the round trip.** If the player presses Back in the fraction of a second between the pick and the answer, the answer is ignored and the new game's id is never shown.
+- **A malformed answer.** A reply the browser cannot read shows "Couldn't start a game: Received a malformed message from the server" and puts the kings back, like any error.
 - **Coming back to the start screen.** The preview starts its game from the beginning every time the start screen appears, including after Back from a game.
 - **The page title** stays "3D Chess — Online Multiplayer" throughout.
 
 ## Open questions and verification
 
+- This document was rewritten for the side choice (`/new`) from the code at `1928567`: `client/src/App.tsx`, `client/src/screens/StartScreen.tsx`, `client/src/screens/lobby/ChooseSide.tsx`, `client/src/screens/lobby/LobbyLayout.tsx`, `client/src/three/lobby/LobbyScene.tsx`, `client/src/three/lobby/LobbyKing.tsx`, `client/src/three/lobby/lobbyMotion.ts` (the timings: a fill of 0.9 s, a toss of 1.05 s plus 0.22 s held and a 0.45 s glide, 0.7 s for the light to rise), the `.lobby` rules in `client/src/index.css`, `client/src/screens/lobby/ChooseSide.test.tsx`, `server/modal_app.py` (`create_game`), and `client/e2e/createGame.spec.ts`. It was not checked in the running app. The durations quoted ("about 1.2 seconds", "about 2.9 seconds") are sums of those timings, not measurements.
+- With browser storage disabled, the creator is offered the other seat of their own game ([bug triage](../bug-triage.md) B-11, in a new form). Read from code: the game page reads the seat only from storage (`client/src/screens/GameScreen.tsx`, `storedRole`), so a creator without one counts as a guest and sends a look. Not tried.
 - A create re-sent after a drop can leave the first game orphaned on the server, with one seat taken and no browser that knows its id. It costs nothing visible and expires like any unused game; whether that is acceptable is a product call.
-- With browser storage disabled, the creator lands on the join screen instead of the share-link screen, and a reload loses the seat ([bug triage](../bug-triage.md) B-11). Read from code: the game page reads the seat only from storage and does not count the creation answer as an assigned seat (`client/src/game/session.ts:35-50`, `client/src/screens/GameScreen.tsx:37-39`, `:149-155`). The re-sent join after a drop in that state is also read from code: the server hands a claimant its own seat back (`server/modal_app.py:153-157`) and answers with a snapshot of the record, which says the game has not started (`:379-394`). Neither was confirmed in a browser with storage disabled.
-- The Back-within-the-round-trip case is read from code; it depends on a race of a few tens of milliseconds and was not reproduced.
-- The landing page (the preview, "Pause preview", the line under the button, and the new labels "Start a game", "Creating game…", and "Couldn't start a game: ") replaced the plain start screen after `4e18386`. This document was brought up to it from `client/src/screens/StartScreen.tsx`, `client/src/screens/LandingPreview.tsx`, `client/src/game/demo.ts`, `client/src/three/landingView.ts`, the `.landing` rules in `client/src/index.css`, and `client/src/screens/StartScreen.test.tsx`, not checked in the running app, and needs re-verification, including how the preview looks and how smoothly it plays on a slow machine.
-- The preview needs WebGL, which the start screen did not before. What a browser without it shows at `/`, and whether it can still create a game there, was not tried.
-- The breathing dot beside "Connecting to server…" and "Creating game…" keeps breathing when the system asks for reduced motion (the rule that stills the game page's HUD does not cover the start screen). Read from `client/src/index.css`; whether this is wanted is a design call.
-- How long "Connecting to server…" lasts on a cold server (the first connection after the server has been idle or redeployed) is a property of the deployment and was not measured.
-- Everything else was read from `client/src/screens/StartScreen.tsx` (the re-send at `:47`), `client/src/hooks/useResendOnReconnect.ts`, `client/src/hooks/useGameSocket.ts`, `client/src/lib/clientId.ts`, `server/modal_app.py` (`create_game` at `:122-138`), `client/src/App.test.tsx` (including the create re-sent after a drop), and `client/e2e/createGame.spec.ts` / `gameOver.spec.ts`; the simple case is exercised by the end-to-end suite.
+- Whether a button keeps keyboard focus after the pick disables it depends on the browser; where focus goes then was not tried.
+- The lobby needs WebGL, like the preview. What a browser without it shows at `/new`, and whether a game can still be created there, was not tried.
+- How long "Connecting to the server…" lasts on a cold server is a property of the deployment and was not measured.
 
-Verified against 3D Chess commit `4e18386`
+Verified against 3D Chess commit `1928567`
