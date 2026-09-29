@@ -6,6 +6,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
+    // Lets each case start from a collected heap (SAMPLE's setup in bench/fixtures.ts)
+    poolOptions: { forks: { execArgv: ['--expose-gc'] }, threads: { execArgv: ['--expose-gc'] } },
     benchmark: {
       include: ['bench/**/*.bench.ts'],
     },

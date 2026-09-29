@@ -385,19 +385,28 @@ export const QUICK = process.env.BENCH_QUICK === '1';
  * BENCH_QUICK=1 takes a handful of samples of everything: a check that the
  * suite runs, too few to compare.
  */
+/**
+ * A full collection before each case, when Node was started with
+ * --expose-gc (vitest.bench.config.ts): every case then starts from the same
+ * clean heap, whatever the cases before it allocated. Without it the
+ * allocation-heavy cases (a replay clones a board per move) swing by tens of
+ * percent between otherwise identical runs, with the garbage collector's state.
+ */
+const setup = () => (globalThis as { gc?: () => void }).gc?.();
+
 export const SAMPLE = QUICK
   ? {
-      normal: { time: 40, iterations: 3, warmupTime: 10, warmupIterations: 1 },
-      heavy: { time: 0, iterations: 2, warmupTime: 0, warmupIterations: 1 },
-      heaviest: { time: 0, iterations: 1, warmupTime: 0, warmupIterations: 0 },
+      normal: { time: 40, iterations: 3, warmupTime: 10, warmupIterations: 1, setup },
+      heavy: { time: 0, iterations: 2, warmupTime: 0, warmupIterations: 1, setup },
+      heaviest: { time: 0, iterations: 1, warmupTime: 0, warmupIterations: 0, setup },
     }
   : {
       // under ~20 ms a call
-      normal: { time: 300, iterations: 20, warmupTime: 50, warmupIterations: 5 },
+      normal: { time: 300, iterations: 20, warmupTime: 50, warmupIterations: 5, setup },
       // ~20-400 ms a call
-      heavy: { time: 800, iterations: 6, warmupTime: 0, warmupIterations: 1 },
+      heavy: { time: 800, iterations: 6, warmupTime: 0, warmupIterations: 1, setup },
       // around a second a call
-      heaviest: { time: 0, iterations: 3, warmupTime: 0, warmupIterations: 1 },
+      heaviest: { time: 0, iterations: 3, warmupTime: 0, warmupIterations: 1, setup },
     };
 
 // --- The catalogue the engine benches run over -----------------------------------

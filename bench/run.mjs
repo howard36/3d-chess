@@ -127,10 +127,15 @@ function runClient() {
     ['vitest', 'bench', '--run', '--config', 'vitest.bench.config.ts', '--outputJson', vitestJson],
     { cwd: CLIENT, env },
   );
-  const startup = run('client startup', 'npx', ['vite-node', 'bench/startup.ts'], {
-    cwd: CLIENT,
-    env,
-  });
+  const startup = run(
+    'client startup',
+    process.execPath,
+    ['--expose-gc', 'node_modules/vite-node/vite-node.mjs', 'bench/startup.ts'],
+    {
+      cwd: CLIENT,
+      env,
+    },
+  );
   return {
     ok: benches.ok && startup.ok,
     seconds: benches.seconds + startup.seconds,
@@ -671,7 +676,7 @@ md.push(
     '# a tier, a file or a single case on its own (fastest while iterating)',
     'cd client && npx vitest bench --config vitest.bench.config.ts                    # engine, game, interaction',
     'cd client && npx vitest bench --config vitest.bench.config.ts bench/engine.bench.ts -t "E4"',
-    'cd client && npx vite-node bench/startup.ts                                      # piece geometry startup',
+    'cd client && node --expose-gc node_modules/vite-node/vite-node.mjs bench/startup.ts  # piece geometry startup',
     'uv run --project server python server/bench/bench_server.py --out /tmp/server.json [--only store,move-rtt]',
     'cd client && node scripts/bench-browser.mjs --out /tmp/browser.json [--only reopen]',
     '```',

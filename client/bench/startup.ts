@@ -7,7 +7,7 @@
 // cold, so cold is measured in fresh processes; warm (JIT-compiled) numbers
 // come from fresh module instances in this one.
 //
-//   npx vite-node bench/startup.ts [--quick]
+//   node --expose-gc node_modules/vite-node/vite-node.mjs bench/startup.ts [--quick]
 //
 // Both caches (the set per quality, the baked set) live in module state, so
 // a fresh instance of the module (imported under a unique query) starts
@@ -31,7 +31,11 @@ const freshSet = (): Promise<SetModule> =>
 const freshOcclusion = (): Promise<OcclusionModule> =>
   import(/* @vite-ignore */ `/src/three/scene/occlusion.ts?instance=${fresh++}`);
 
+// A full collection first (when started with --expose-gc, as bench/run.mjs
+// does), so each measurement starts from the same clean heap
+const gc = (globalThis as { gc?: () => void }).gc;
 const time = (fn: () => unknown) => {
+  gc?.();
   const start = performance.now();
   fn();
   return performance.now() - start;
@@ -65,7 +69,7 @@ for (let run = 0; run < coldRuns; run++) {
   // (node on vite-node's entry directly: npx would add a second or so per run)
   const child = spawnSync(
     process.execPath,
-    ['node_modules/vite-node/vite-node.mjs', 'bench/startup.ts'],
+    ['--expose-gc', 'node_modules/vite-node/vite-node.mjs', 'bench/startup.ts'],
     {
       env: { ...process.env, BENCH_STARTUP_CHILD: '1' },
       encoding: 'utf8',
