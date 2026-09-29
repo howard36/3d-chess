@@ -2,14 +2,12 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { Group } from 'three';
 import { easeInOutCubic, MOVE_ANIMATION } from './motion';
-import { movePoint } from './movePath';
 import { GlideContext } from './pieceMotion';
-
-type Vec3 = [number, number, number];
+import type { Vec3 } from './types';
 
 /**
  * Glides its children from the `from` cell into their resting place, in a
- * straight line (see movePath.ts).
+ * straight line, whatever its level change.
  *
  * The children keep their own declarative world `position`; this wrapper only
  * carries the animated remainder of the journey, easing from `from - to` to
@@ -78,7 +76,8 @@ export const MoveGlide = ({
     if (done.current || !g) return;
     elapsedMs.current += Math.min(delta * 1000, MOVE_ANIMATION.maxFrameMs);
     const t = Math.min(elapsedMs.current / durationMs, 1);
-    progress.current = easeInOutCubic(t);
+    const eased = easeInOutCubic(t);
+    progress.current = eased;
     if (elapsedMs.current >= durationMs) {
       progress.current = 1;
       g.position.set(0, 0, 0);
@@ -87,8 +86,7 @@ export const MoveGlide = ({
       return;
     }
     // Straight from the source (offset d) to rest (0), eased
-    const [x, y, z] = movePoint([dx, dy, dz], ORIGIN, easeInOutCubic(t));
-    g.position.set(x, y, z);
+    g.position.set(dx - dx * eased, dy - dy * eased, dz - dz * eased);
     invalidate();
   });
 
@@ -98,5 +96,3 @@ export const MoveGlide = ({
     </group>
   );
 };
-
-const ORIGIN: Vec3 = [0, 0, 0];

@@ -1,5 +1,7 @@
 export type Coord = { x: number; y: number; z: number };
 
+export const sameCoord = (a: Coord, b: Coord): boolean => a.x === b.x && a.y === b.y && a.z === b.z;
+
 // UI constants for levels, files, and ranks
 export const LEVELS = ['A', 'B', 'C', 'D', 'E']; // z
 export const FILES = ['a', 'b', 'c', 'd', 'e']; // x

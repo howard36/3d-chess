@@ -92,6 +92,8 @@ describe('zoomRange', () => {
 });
 
 const DEG = Math.PI / 180;
+// The half-height of the 36 degree view at one unit out
+const tanV = Math.tan(18 * DEG);
 
 /** A camera `distance` out at this elevation and azimuth (degrees), looking at the origin. */
 const cameraAt = (elevation: number, azimuth: number, distance: number, aspect = 1) => {
@@ -175,7 +177,6 @@ describe('ringBounds', () => {
   });
 
   it('frames a box by the circles round its top and bottom', () => {
-    const [hx, hy, hz] = BOX;
     const bounds = ringBounds(boxRings(BOX), 18 * DEG, 20);
     for (const azimuth of [0, 16, 45, 90]) {
       const camera = cameraAt(18, azimuth, 20);
@@ -232,7 +233,7 @@ function fitted(
   // The bounds the fit centres: the rings' top and bottom eased from ring to
   // ring (FIT_SOFTNESS), never inside the rings themselves
   const soft = ringBounds(rings, elevation * DEG, distance, FIT_SOFTNESS);
-  const k = height / (2 * Math.tan(18 * DEG));
+  const k = height / (2 * tanV);
   const framed = {
     ...rect,
     top: height / 2 - (soft.top - shift[1]) * k,
@@ -316,7 +317,6 @@ describe('fitView', () => {
 describe('centringShift', () => {
   it('aims the view at the middle of the bounds, lowered by half the HUD band', () => {
     const bounds = { left: -0.1, right: 0.3, bottom: -0.2, top: 0.2 };
-    const tanV = Math.tan((36 * Math.PI) / 360);
     const [x, y] = centringShift(bounds, { width: 800, height: 800, fov: 36, topInset: 80 });
     expect(x).toBeCloseTo(0.1);
     // A band of 80 of 800 rows: the middle of the rest is 40 rows (0.1 tanV) below the middle
@@ -340,7 +340,6 @@ describe('hudTop', () => {
 
   it('never lets the band take more than half the window', () => {
     const bounds = { left: -0.1, right: 0.1, bottom: -0.2, top: 0.2 };
-    const tanV = Math.tan((36 * Math.PI) / 360);
     // 600 of 800 rows, scaled to 400: the middle of the rest is 0.5 tanV below the middle
     const [, y] = centringShift(bounds, { width: 800, height: 800, fov: 36, topInset: 600 });
     expect(y).toBeCloseTo(0.5 * tanV);
@@ -355,7 +354,6 @@ describe('the lens shift', () => {
     c.updateMatrixWorld();
     return c;
   };
-  const tanV = Math.tan((36 * Math.PI) / 360);
 
   it('puts the view centre where the shift points', () => {
     const c = camera();

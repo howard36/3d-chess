@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 import { useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { BoxGeometry, MeshBasicMaterial, Raycaster, Vector2 } from 'three';
@@ -6,9 +7,8 @@ import type { Group, Object3D } from 'three';
 import { Board as EngineBoard } from '../engine';
 import type { Move, Piece } from '../engine';
 import { PieceMesh } from './PieceMesh';
-import React from 'react';
 import { PieceType } from '../engine/pieces';
-import { Coord, fromZXY, toZXY } from '../engine/coords';
+import { Coord, fromZXY, sameCoord, toZXY } from '../engine/coords';
 import { CELLS } from './layout';
 import { MoveGlide } from './moveAnimation';
 import { prefersReducedMotion } from './motion';
@@ -50,8 +50,6 @@ const cellMaterial = new MeshBasicMaterial();
 const atCellFloor = ([x, y, z]: Vec3): Vec3 => [x, y + layout.floorY, z];
 
 export type BoardTurn = 'white' | 'black';
-
-const coordEquals = (a: Coord, b: Coord) => a.x === b.x && a.y === b.y && a.z === b.z;
 
 export interface LastMoveInfo {
   move: Move;
@@ -99,7 +97,7 @@ const Board = (props: BoardProps) => {
   const lastMove = props.lastMove;
   // Moves already played when this board mounted are history (a rejoin
   // replay): they keep their highlight but must not animate.
-  const mountMoveCount = React.useRef(lastMove?.moveCount ?? 0);
+  const mountMoveCount = useRef(lastMove?.moveCount ?? 0);
   const animate =
     !!lastMove && lastMove.moveCount > mountMoveCount.current && !prefersReducedMotion();
   // What a live move brings about for the kings (a check's strike, a mate's
@@ -144,7 +142,7 @@ const Board = (props: BoardProps) => {
   // turn changes (e.g. the opponent's move arrives) — clear it so a stale
   // highlighted destination can't be sent as a move. Disabling the board
   // (reconnect in progress, broken replay) clears it for the same reason.
-  React.useEffect(() => {
+  useEffect(() => {
     held.current = null;
     setSelected(null);
     setLegalMoves([]);
@@ -177,7 +175,7 @@ const Board = (props: BoardProps) => {
       return;
     }
     // A second click on the selected piece puts it back down
-    if (selected && coordEquals(selected, coord)) {
+    if (selected && sameCoord(selected, coord)) {
       choose(null);
       return;
     }
@@ -242,7 +240,7 @@ const Board = (props: BoardProps) => {
     if (props.disabled || !selected || !held.current) return;
     // Several legal moves share a destination only when a pawn promotes there
     // (one per promotion piece); otherwise there is exactly one.
-    const choices = legalMoves.filter((m) => coordEquals(m.to, targetCoord));
+    const choices = legalMoves.filter((m) => sameCoord(m.to, targetCoord));
     if (choices.length === 0) return; // Should not happen if cube is highlighted
 
     // Put the piece down first, so the move cannot be played twice
@@ -255,8 +253,7 @@ const Board = (props: BoardProps) => {
   };
 
   // Helper to check if a cube is a legal move destination
-  const isHighlighted = ({ x, y, z }: Coord) =>
-    legalMoves.some((m) => m.to.x === x && m.to.y === y && m.to.z === z);
+  const isHighlighted = (coord: Coord) => legalMoves.some((m) => sameCoord(m.to, coord));
 
   // Distinct destination cells (promotions produce several moves per cell),
   // split by whether the move is a capture, to pick the marker shape.
@@ -264,7 +261,7 @@ const Board = (props: BoardProps) => {
     (to) => ({ to, capture: !!board.getPiece(to) }),
   );
 
-  const isSelected = (c: Coord) => !!selected && coordEquals(selected, c);
+  const isSelected = (c: Coord) => !!selected && sameCoord(selected, c);
 
   // Kings standing in check, with where they stand (once a live move has landed).
   const checkedKings = landing
@@ -511,7 +508,7 @@ const HoverProbe = ({
   probe,
   onHover,
 }: {
-  probe: React.RefObject<(raycaster: Raycaster | null) => string | null>;
+  probe: RefObject<(raycaster: Raycaster | null) => string | null>;
   onHover: (key: string | null) => void;
 }) => {
   const gl = useThree((s) => s.gl);
