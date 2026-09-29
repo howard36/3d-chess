@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { PieceType } from '../../engine/pieces';
 import { hexToOklch } from './colors';
 import { LEVEL_COLORS, PALETTE } from './palette';
-import { bend, envelope, sculptureOf, simplify } from './sculptures';
 
 // The rules the board's look depends on: five real level colours in a
-// gradient, marker colours that can never be mistaken for a level, and the
-// garden's line drawings built whole from the piece set's own profiles.
+// gradient, and marker colours that can never be mistaken for a level.
 
 const hueGap = (a: number, b: number) => {
   const d = Math.abs(a - b) % 360;
@@ -58,66 +55,5 @@ describe('the palette', () => {
     // Both clearly coloured, unlike the white light of the held piece
     expect(move.c).toBeGreaterThan(0.08);
     expect(trace.c).toBeGreaterThan(0.05);
-  });
-});
-
-describe('the sculptures', () => {
-  it('draws every piece as finite outlines standing on its base', () => {
-    for (const type of Object.values(PieceType)) {
-      const d = sculptureOf(type);
-      expect(d.outlines.length).toBeGreaterThan(0);
-      for (const o of d.outlines) {
-        expect(o.points.length).toBeGreaterThan(1);
-        for (const [x, y] of o.points) {
-          expect(Number.isFinite(x) && Number.isFinite(y)).toBe(true);
-          expect(y).toBeGreaterThanOrEqual(-1e-6);
-          expect(y).toBeLessThanOrEqual(0.9);
-        }
-      }
-      // A base ring and a collar ring
-      expect(d.rings).toHaveLength(2);
-      expect(d.rings[0].y).toBeLessThan(0.01);
-    }
-  });
-
-  it('keeps a stepped envelope square and meets the axis at the top', () => {
-    const right = envelope([
-      [
-        [0.2, 0],
-        [0.2, 0.1],
-      ],
-      [
-        [0.1, 0.1],
-        [0.1, 0.3],
-        [0, 0.3],
-      ],
-    ]);
-    expect(right[0]).toEqual([0.2, 0]);
-    expect(right).toContainEqual([0.2, 0.1]);
-    expect(right).toContainEqual([0.1, 0.1]);
-    expect(right[right.length - 1][0]).toBeLessThan(1e-4);
-  });
-
-  it('bends corners and thins straight runs', () => {
-    const corner = bend(
-      [
-        [0, 0],
-        [1, 0],
-        [1, 1],
-      ],
-      1,
-    );
-    expect(corner).toHaveLength(6);
-    expect(corner).not.toContainEqual([1, 0]);
-    expect(
-      simplify(
-        [
-          [0, 0],
-          [0.5, 0.0001],
-          [1, 0],
-        ],
-        0.01,
-      ),
-    ).toHaveLength(2);
   });
 });

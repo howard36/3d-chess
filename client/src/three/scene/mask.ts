@@ -1,4 +1,4 @@
-import { Vector2, Vector3 } from 'three';
+import { MathUtils, Vector2, Vector3 } from 'three';
 import type { Camera } from 'three';
 import { FRAME, MARGIN } from './palette';
 
@@ -111,15 +111,10 @@ const outlineDistance = (hull: P2[], [px, py]: P2) => {
   return inside ? -d : d;
 };
 
-const smoothstep = (a: number, b: number, x: number) => {
-  const k = Math.min(Math.max((x - a) / (b - a), 0), 1);
-  return k * k * (3 - 2 * k);
-};
-
 /** The shade at a point on screen, 0–1 (the CPU twin of TOWER_SHADE, for tests). */
 export const shadeAt = (hull: P2[] | null, p: P2) =>
   hull && hull.length >= 3
-    ? 1 - smoothstep(-0.25 * SHADE_WIDTH, SHADE_WIDTH, outlineDistance(hull, p))
+    ? 1 - MathUtils.smoothstep(outlineDistance(hull, p), -0.25 * SHADE_WIDTH, SHADE_WIDTH)
     : 0;
 
 /**

@@ -12,6 +12,7 @@ import { GRID_SIZE } from '../layout';
 import { useLevelFocus } from './focus';
 import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
+import { GRID_LINES } from './gridLines';
 import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
 
 // The levels: five sheets of clear glass, each edged by one thin square of
@@ -60,6 +61,7 @@ const fragmentShader = /* glsl */ `
   uniform float uLead;
   varying vec2 vCell;
   varying vec3 vWorld;
+  ${GRID_LINES}
 
   vec4 over(vec4 dst, vec3 c, float a) {
     return vec4(c * a + dst.rgb * (1.0 - a), a + dst.a * (1.0 - a));
@@ -94,17 +96,8 @@ const fragmentShader = /* glsl */ `
     c = over(c, uSmoke, (1.0 - light) * uSmokeA * inside * keep);
     c = over(c, frost, light * uFrostA * inside * keep * focus);
 
-    // Hairlines between the squares, coverage-correct at any distance (Ben
-    // Golus's pristine grid), running out to the edge of the light
-    vec4 dd = vec4(dFdx(uv), dFdy(uv));
-    vec2 deriv = max(vec2(length(dd.xz), length(dd.yw)), vec2(1e-6));
-    vec2 target = vec2(uWidth);
-    vec2 draw = clamp(target, deriv, vec2(0.5));
-    vec2 aa = deriv * 1.5;
-    vec2 g = 1.0 - abs(fract(uv) * 2.0 - 1.0);
-    vec2 lines = smoothstep(draw + aa, draw - aa, g);
-    lines *= clamp(target / draw, 0.0, 1.0);
-    lines = mix(lines, target, clamp(deriv * 2.0 - 1.0, 0.0, 1.0));
+    // Hairlines between the squares, running out to the edge of the light
+    vec2 lines = gridLines(uv, uWidth);
     vec2 nearest = floor(uv + 0.5);
     vec2 innerLine = step(0.5, nearest) * step(nearest, vec2(uCells - 0.5));
     vec2 span = vec2(

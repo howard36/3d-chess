@@ -10,6 +10,7 @@ import {
   Vector3,
 } from 'three';
 import { noRaycast } from '../noRaycast';
+import { skyDirection } from './heavens';
 import { rng } from './textures';
 import { shadeUniforms, TOWER_SHADE } from './mask';
 import { PALETTE } from './palette';
@@ -18,8 +19,6 @@ import { PALETTE } from './palette';
 // slow, faint shooting star high overhead, well off to one side of the
 // tower, falling away from it. Whatever lies behind the tower is held down
 // to nothing (mask.ts). The world itself carries no text.
-
-// --- A shooting star ------------------------------------------------------------------
 
 /** Points along the streak's path. */
 const TRAIL = 48;
@@ -63,12 +62,6 @@ const meteorFragment = /* glsl */ `
   }`;
 
 const DEG = Math.PI / 180;
-const skyDirection = (azimuth: number, elevation: number) =>
-  new Vector3(
-    Math.sin(azimuth) * Math.cos(elevation),
-    Math.sin(elevation),
-    Math.cos(azimuth) * Math.cos(elevation),
-  );
 
 /**
  * Now and then, while the camera looks up past the tower, one faint streak
@@ -78,7 +71,7 @@ const skyDirection = (azimuth: number, elevation: number) =>
  * for a moment (a player exploring the sky is turning the view), and then
  * keeps the frames coming only while it lasts.
  */
-const ShootingStar = () => {
+export const ShootingStar = () => {
   const invalidate = useThree((s) => s.invalidate);
   const { geometry, material, line } = useMemo(() => {
     const along = Float32Array.from({ length: TRAIL }, (_, i) => i / (TRAIL - 1));
@@ -154,10 +147,3 @@ const ShootingStar = () => {
   });
   return <primitive object={line} />;
 };
-
-/** The close-look touches (see above). */
-export const Details = () => (
-  <group name="details">
-    <ShootingStar />
-  </group>
-);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
@@ -9,6 +9,7 @@ import {
   Vector3,
 } from 'three';
 import { noRaycast } from '../noRaycast';
+import { useDisposeOnUnmount } from './dispose';
 import { rng } from './textures';
 import { shadeUniforms, TOWER_SHADE } from './mask';
 import { PALETTE } from './palette';
@@ -206,17 +207,17 @@ export const SKY_PLAN: Placement[] = [
 const DEG = Math.PI / 180;
 const UP = new Vector3(0, 1, 0);
 
-/** A direction on the dome at this azimuth and elevation (degrees). */
-const onDome = (azimuth: number, elevation: number) =>
+/** A direction in the sky at this azimuth (from +z toward +x) and elevation (radians). */
+export const skyDirection = (azimuth: number, elevation: number) =>
   new Vector3(
-    Math.sin(azimuth * DEG) * Math.cos(elevation * DEG),
-    Math.sin(elevation * DEG),
-    Math.cos(azimuth * DEG) * Math.cos(elevation * DEG),
+    Math.sin(azimuth) * Math.cos(elevation),
+    Math.sin(elevation),
+    Math.cos(azimuth) * Math.cos(elevation),
   );
 
 /** A point on the dome from a constellation's unit box. */
 export const placeStar = ([u, v]: P2, plan: Placement): [number, number, number] => {
-  const centre = onDome(plan.azimuth, plan.elevation);
+  const centre = skyDirection(plan.azimuth * DEG, plan.elevation * DEG);
   const inward = centre.clone().negate();
   const right = UP.clone().cross(inward).normalize();
   const up = inward.clone().cross(right).normalize();
@@ -287,6 +288,16 @@ const lineFragment = /* glsl */ `
 
 const FIELD = 900;
 
+/** Points with a size, a brightness and a colour each, for the star shader. */
+const starGeometry = (pos: number[], size: number[], bright: number[], color: number[]) => {
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('aSize', new BufferAttribute(new Float32Array(size), 1));
+  g.setAttribute('aBright', new BufferAttribute(new Float32Array(bright), 1));
+  g.setAttribute('aColor', new BufferAttribute(new Float32Array(color), 3));
+  return g;
+};
+
 /** The background field: sparse and dim, thinning into the horizon's mist. */
 const fieldGeometry = () => {
   const random = rng(53);
@@ -308,12 +319,7 @@ const fieldGeometry = () => {
     const c = random() < 0.2 ? warm : cool;
     color.push(c.r, c.g, c.b);
   }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setAttribute('aSize', new BufferAttribute(new Float32Array(size), 1));
-  g.setAttribute('aBright', new BufferAttribute(new Float32Array(bright), 1));
-  g.setAttribute('aColor', new BufferAttribute(new Float32Array(color), 3));
-  return g;
+  return starGeometry(pos, size, bright, color);
 };
 
 /** The constellations' stars: a little brighter and larger than the field's. */
@@ -340,12 +346,7 @@ const figureStarGeometry = () => {
       color.push(cool.r, cool.g, cool.b);
     }
   }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setAttribute('aSize', new BufferAttribute(new Float32Array(size), 1));
-  g.setAttribute('aBright', new BufferAttribute(new Float32Array(bright), 1));
-  g.setAttribute('aColor', new BufferAttribute(new Float32Array(color), 3));
-  return g;
+  return starGeometry(pos, size, bright, color);
 };
 
 const figureLineGeometry = () => {
@@ -396,7 +397,7 @@ export const Heavens = () => {
     }),
     [],
   );
-  useEffect(() => () => Object.values(parts).forEach((p) => p.dispose()), [parts]);
+  useDisposeOnUnmount(parts);
   // Point sizes are in CSS pixels; the shader draws in device pixels
   parts.fieldMaterial.uniforms.uDpr.value = dpr;
   parts.starMaterial.uniforms.uDpr.value = dpr;

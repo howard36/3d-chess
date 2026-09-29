@@ -1,18 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { fitView, hudTop } from '../cameraFit';
-import { towerFrame, towerLayout } from '../layout';
 import type { Orientation } from '../layout';
 import type { Vec3 } from '../types';
+import { DEG, eyeAt, viewer } from './testKit';
 import {
   CORNERS,
   EDGE_HYSTERESIS,
+  LABEL_SIZE,
   labelAnchors,
   letterCorner,
   LETTERS_HIGH,
   LETTERS_LOW,
-  towerFrameRings,
 } from './labelAnchors';
 import type { AnchorState, LabelAnchor } from './labelAnchors';
+import { FRAME as frame, layout, PIECE_SCALE } from './palette';
 
 // Every label at every pose the orbit can reach, both seats: the camera
 // turned all the way round a degree at a time, at every whole degree of
@@ -36,12 +37,7 @@ import type { AnchorState, LabelAnchor } from './labelAnchors';
 // - the letters change post only well past the tie, or past LETTERS_HIGH
 //   climbing and LETTERS_LOW dipping, and never back within the band.
 
-const layout = towerLayout({ pieceHeight: 0.87 * 0.8, minElevation: -14 });
-const frame = towerFrame(layout);
-// As the grid draws them (grid.tsx): every label's sprite 0.32 high
-const SIZE = 0.32;
-const rings = towerFrameRings(layout, { size: SIZE, levelScale: 1 });
-const DEG = Math.PI / 180;
+const rings = layout.frameRings;
 // Each sweep takes a few seconds on an idle machine and several times that on
 // a busy one, past vitest's 5 s default
 const SWEEP = { timeout: 30_000 };
@@ -56,30 +52,6 @@ const WINDOWS = [
 /** The fitted distance for a window at an elevation (degrees), as FitCameraToBoard stands. */
 const fitted = (width: number, height: number, elevation: number) =>
   fitView(elevation * DEG, rings, { width, height, fov: 36, topInset: hudTop(height) }).distance;
-
-const eyeAt = (azimuth: number, elevation: number, distance: number): Vec3 => [
-  Math.sin(azimuth * DEG) * Math.cos(elevation * DEG) * distance,
-  Math.sin(elevation * DEG) * distance,
-  Math.cos(azimuth * DEG) * Math.cos(elevation * DEG) * distance,
-];
-
-/** Screen coordinates (tangents of the view angle, y up) and depth of world points, seen from `eye` looking at the origin. */
-const viewer = (eye: Vec3) => {
-  const l = Math.hypot(...eye);
-  const f: Vec3 = [-eye[0] / l, -eye[1] / l, -eye[2] / l];
-  const rl = Math.hypot(f[2], f[0]);
-  const r: Vec3 = [-f[2] / rl, 0, f[0] / rl];
-  const u: Vec3 = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
-  return (p: Vec3) => {
-    const v = [p[0] - eye[0], p[1] - eye[1], p[2] - eye[2]];
-    const depth = v[0] * f[0] + v[1] * f[1] + v[2] * f[2];
-    return {
-      x: (v[0] * r[0] + v[1] * r[1] + v[2] * r[2]) / depth,
-      y: (v[0] * u[0] + v[1] * u[1] + v[2] * u[2]) / depth,
-      depth,
-    };
-  };
-};
 
 /**
  * Each glyph's ink as a share of its sprite, across and up: Manrope as the
@@ -119,7 +91,13 @@ const boxesOf = (labels: LabelAnchor[], eye: Vec3): Box[] => {
   return labels.map((label) => {
     const { x, y, depth } = see(label.position);
     const [w, h] = INK[label.text] ?? [0.5, 0.5];
-    return { label, x, y, halfX: (w * SIZE) / (2 * depth), halfY: (h * SIZE) / (2 * depth) };
+    return {
+      label,
+      x,
+      y,
+      halfX: (w * LABEL_SIZE) / (2 * depth),
+      halfY: (h * LABEL_SIZE) / (2 * depth),
+    };
   });
 };
 
@@ -150,7 +128,7 @@ const OVERHEAD_TOUCH = 1;
  * letters stood in a column beside the ranks as if they labelled the same
  * rows. Null when they do not.
  */
-export const readsAsOneAxis = (letters: Box[], row: Box[]): string | null => {
+const readsAsOneAxis = (letters: Box[], row: Box[]): string | null => {
   const [a, e] = [letters[0], letters[letters.length - 1]];
   const [r0, r1] = [row[0], row[row.length - 1]];
   const ll = Math.hypot(e.x - a.x, e.y - a.y);
@@ -401,7 +379,7 @@ const clearance = (b: Box, poly: { x: number; y: number }[], height: number) => 
 const towerPoints = (): Vec3[] => {
   const plate = frame.half + 0.08;
   const piece = frame.half - frame.pitch / 2 + 0.3 * frame.pitch;
-  const pieceHeight = 0.87 * 0.8;
+  const pieceHeight = 0.87 * PIECE_SCALE;
   const out: Vec3[] = [];
   for (const y of frame.levelY) {
     for (const [sx, sz] of CORNERS) {
@@ -458,7 +436,7 @@ describe('the letters from low down', SWEEP, () => {
         const { labels } = labelAnchors(layout, orientation, eye, [0, 0, 0], null);
         const px = height / (2 * Math.tan(18 * DEG));
         const see = viewer(eye);
-        const tall = (l: LabelAnchor) => (SIZE / see(l.position).depth) * px;
+        const tall = (l: LabelAnchor) => (LABEL_SIZE / see(l.position).depth) * px;
         const n = LEGIBLE * Math.min(...labels.filter((l) => l.id.startsWith('file-')).map(tall));
         for (const l of letters(labels)) expect(tall(l), l.id).toBeGreaterThanOrEqual(n);
         // (and never tiny: a file label's sprite is 10 px tall or more even on the phone)

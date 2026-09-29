@@ -1,4 +1,4 @@
-import { BufferAttribute } from 'three';
+import { BufferAttribute, MathUtils } from 'three';
 import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { PIECE_PARTS, partsGeometry, pieceSet } from '../pieces';
@@ -151,10 +151,6 @@ const REACH = STEPS[STEPS.length - 1];
 
 /** How much darker a face turned straight in toward the axis is. */
 const INWARD_SHADE = 0.4;
-const ramp = (a: number, b: number, x: number) => {
-  const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
-  return t * t * (3 - 2 * t);
-};
 
 /** Ambient occlusion at each vertex of `g` against `solid`: 1 open, 0 shut in. */
 const occlusionOf = (g: BufferGeometry, solid: Uint8Array): Float32Array => {
@@ -197,7 +193,9 @@ const occlusionOf = (g: BufferGeometry, solid: Uint8Array): Float32Array => {
     const pz = p.getZ(v);
     const radial = Math.hypot(px, pz);
     const inward =
-      radial > 1e-4 ? Math.max(0, -(nx * px + nz * pz) / radial) * ramp(0.015, 0.05, radial) : 0;
+      radial > 1e-4
+        ? Math.max(0, -(nx * px + nz * pz) / radial) * MathUtils.smoothstep(radial, 0.015, 0.05)
+        : 0;
     out[v] = open * (1 - INWARD_SHADE * inward);
   }
   return out;
