@@ -212,12 +212,6 @@ const LobbyRig = ({
   // The entrance: seconds since the lobby's first frame (done at once under
   // reduced motion)
   const entered = useRef(still ? Infinity : 0);
-  // From the pick to the invitation: a glide from where the camera stood
-  const glide = useRef<{ from: CameraPose | null; t: number; beat: string }>({
-    from: null,
-    t: 0,
-    beat: '',
-  });
   useEffect(() => invalidate(), [size, view.beat, view.card, invalidate]);
 
   useFrame((_, delta) => {
@@ -237,21 +231,9 @@ const LobbyRig = ({
     // From one beat's framing to the next, eased (the card coming in lifts
     // the kings); the first frame takes its place at once
     const prev = current.current;
-    const g = glide.current;
-    if (g.beat !== beat) {
-      g.from = g.beat === 'choose' && beat === 'wait' && prev && !still ? prev : null;
-      g.t = 0;
-      g.beat = beat;
-    }
-    if (g.from && g.t < LOBBY_TIMING.invite) g.t += Math.min(delta, LOBBY_MAX_STEP);
     if (entering && beat !== 'leave') {
       // Settling in, the picture fading up from the page
       pose = settlePose(entranceFrom(rest), rest, entered.current / LOBBY_ENTRANCE.camera);
-      moving = true;
-    } else if (g.from && g.t < LOBBY_TIMING.invite) {
-      // Moving on to the invitation, the camera eases in and out: a gentle
-      // start after the pick, rather than the arrival's quick answer
-      pose = blendPose(g.from, rest, g.t / LOBBY_TIMING.invite);
       moving = true;
     } else if (prev && beat !== 'leave' && !still) {
       const k = 1 - Math.exp(-Math.min(delta, LOBBY_MAX_STEP) * 3.2);
