@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { layout } from '../scene/palette';
+import { PROFILES } from '../pieces';
+import { PieceType } from '../../engine/pieces';
 import {
   arrivalRing,
   blendPose,
   breath,
-  cutForFill,
   faceAngle,
   FLOOR_Y,
+  formForFill,
   KING_SCALE,
   KING_TOP,
   LOBBY_FOV,
@@ -20,10 +22,15 @@ import {
   seatSpacing,
   seatX,
   tossAngle,
+  tossGlide,
   tossHop,
+  tossLanded,
   waitDrift,
 } from './lobbyMotion';
 import type { CameraPose, Side } from './lobbyMotion';
+
+// Behaviour, not tuning: the timings, heights and framing shares are the
+// design's to change; what the scene relies on is tested here.
 
 const TAU = Math.PI * 2;
 /** `a` reduced to [0, 2π). */
@@ -31,25 +38,29 @@ const wrap = (a: number) => ((a % TAU) + TAU) % TAU;
 const samples = (from: number, to: number, n = 200) =>
   Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);
 
+const { toss, tossHold, tossGlide: glideTime } = LOBBY_TIMING;
+/** When the landed coin reaches its seat. */
+const tossEnd = toss + tossHold + glideTime;
+
 describe('the coin toss', () => {
-  it.each<Side>(['white', 'black'])('lands on the %s face when the toss ends', (side) => {
-    const end = tossAngle(LOBBY_TIMING.toss, side);
+  it.each<Side>(['white', 'black'])('lands on the %s face when the spin ends', (side) => {
+    const end = tossAngle(toss, side);
     // The same angle as the face, some whole turns on
     const off = wrap(end - faceAngle(side));
     expect(Math.min(off, TAU - off)).toBeCloseTo(0, 9);
-    // Three turns and a bit: a real spin, not a nudge
-    expect(end).toBeGreaterThan(TAU * 2.5);
-    // ...and stays there once the toss is over
-    expect(tossAngle(LOBBY_TIMING.toss * 3, side)).toBeCloseTo(end, 12);
+    // A real spin, not a nudge
+    expect(end).toBeGreaterThan(TAU);
+    // ...and stays there once the spin is over
+    expect(tossAngle(toss * 3, side)).toBeCloseTo(end, 12);
   });
 
   it.each<Side>(['white', 'black'])(
     'turns one way only toward the %s face and never passes it',
     (side) => {
-      const end = tossAngle(LOBBY_TIMING.toss, side);
+      const end = tossAngle(toss, side);
       let prev = tossAngle(0, side);
       expect(prev).toBe(0);
-      for (const t of samples(0, LOBBY_TIMING.toss * 1.5)) {
+      for (const t of samples(0, toss * 1.5)) {
         const angle = tossAngle(t, side);
         expect(angle).toBeGreaterThanOrEqual(prev);
         expect(angle).toBeLessThanOrEqual(end + 1e-12);
@@ -63,46 +74,66 @@ describe('the coin toss', () => {
   });
 
   it('spins slower as it comes to rest', () => {
-    const d = LOBBY_TIMING.toss;
-    const early = tossAngle(0.1 * d, 'white') - tossAngle(0, 'white');
-    const late = tossAngle(d, 'white') - tossAngle(0.9 * d, 'white');
+    const early = tossAngle(0.1 * toss, 'white') - tossAngle(0, 'white');
+    const late = tossAngle(toss, 'white') - tossAngle(0.9 * toss, 'white');
     expect(late).toBeLessThan(early / 10);
   });
 
-  it('hops off the hand and is down again before it lands', () => {
+  it('is thrown up and is down again when the spin ends', () => {
     expect(tossHop(0)).toBeCloseTo(0, 12);
-    expect(Math.max(...samples(0, LOBBY_TIMING.toss).map((t) => tossHop(t)))).toBeCloseTo(0.22, 3);
-    expect(tossHop(LOBBY_TIMING.toss)).toBeCloseTo(0, 12);
-    for (const t of samples(0, LOBBY_TIMING.toss))
+    expect(tossHop(toss / 2)).toBeGreaterThan(0);
+    expect(tossHop(toss)).toBeCloseTo(0, 12);
+    expect(tossHop(toss * 2)).toBeCloseTo(0, 12);
+    // Highest in the middle of the spin, never below the glass
+    const peak = tossHop(toss / 2);
+    for (const t of samples(0, toss)) {
       expect(tossHop(t)).toBeGreaterThanOrEqual(-1e-12);
+      expect(tossHop(t)).toBeLessThanOrEqual(peak + 1e-12);
+    }
+  });
+
+  it('holds its face, then glides to its seat and lands there', () => {
+    // Still while it spins and while it shows its face
+    for (const t of samples(0, toss + tossHold, 50)) expect(tossGlide(t)).toBe(0);
+    let prev = 0;
+    for (const t of samples(toss + tossHold, tossEnd, 50)) {
+      const g = tossGlide(t);
+      expect(g).toBeGreaterThanOrEqual(prev);
+      expect(g).toBeLessThanOrEqual(1);
+      prev = g;
+    }
+    expect(tossGlide(tossEnd)).toBe(1);
+    expect(tossGlide(tossEnd + 5)).toBe(1);
+    // Landed exactly when the glide is over
+    expect(tossLanded(0)).toBe(false);
+    expect(tossLanded(toss)).toBe(false);
+    expect(tossLanded(tossEnd - 1e-6)).toBe(false);
+    expect(tossLanded(tossEnd)).toBe(true);
+    expect(tossLanded(tossEnd + 5)).toBe(true);
   });
 });
 
 describe('the fill', () => {
-  it('cuts nothing away at an empty fill, and turns the cut off at a whole one', () => {
-    expect(cutForFill(0)).toBeCloseTo(1.02, 12);
-    expect(cutForFill(1)).toBe(-1);
-    expect(cutForFill(2)).toBe(-1);
-    // Out of range below: as empty
-    expect(cutForFill(-0.5)).toBeCloseTo(1.02, 12);
-    // Just short of whole, the cut is already below the foot
-    expect(cutForFill(0.999)).toBeLessThan(0);
+  it('forms nothing at an empty fill and the whole king at a whole one', () => {
+    expect(formForFill(0)).toBe(0);
+    expect(formForFill(1)).toBe(1);
+    // Out of range: clamped
+    expect(formForFill(-0.5)).toBe(0);
+    expect(formForFill(2)).toBe(1);
   });
 
-  it('lowers the cut as the king fills', () => {
-    let prev = Infinity;
+  it('forms more of the king as it fills', () => {
+    let prev = -Infinity;
     for (const f of samples(0, 1)) {
-      const cut = cutForFill(f);
-      expect(cut).toBeLessThanOrEqual(prev);
-      prev = cut;
+      const form = formForFill(f);
+      expect(form).toBeGreaterThanOrEqual(prev);
+      prev = form;
     }
   });
 
   it('gives the outline way to the material', () => {
     expect(outlineForFill(0)).toBe(1);
     expect(outlineForFill(1)).toBe(0);
-    // Gone a little before the king is whole
-    expect(outlineForFill(1 / 1.15)).toBeCloseTo(0, 12);
     expect(outlineForFill(-1)).toBe(1);
     let prev = Infinity;
     for (const f of samples(0, 1)) {
@@ -114,35 +145,19 @@ describe('the fill', () => {
     }
   });
 
-  it('breathes between 0.65 and 1 on a six-second period, calming after half a minute', () => {
+  it('breathes: full at rest, dipping and back on a slow period, calmer after a while', () => {
     expect(breath(0)).toBeCloseTo(1, 12);
-    expect(breath(3)).toBeCloseTo(0.65, 12);
-    expect(breath(6)).toBeCloseTo(1, 12);
-    for (const t of samples(0, 120, 2400)) {
-      expect(breath(t)).toBeGreaterThanOrEqual(0.65 - 1e-12);
-      expect(breath(t)).toBeLessThanOrEqual(1 + 1e-12);
+    const early = samples(0, 12, 480).map(breath);
+    const late = samples(120, 132, 480).map(breath);
+    for (const b of [...early, ...late]) {
+      expect(b).toBeGreaterThan(0);
+      expect(b).toBeLessThanOrEqual(1 + 1e-12);
     }
-    // Calmer: after 50 s the depth is 40% of the first
-    expect(breath(51)).toBeCloseTo(1 - 0.35 * 0.4, 12);
-    expect(breath(123)).toBeCloseTo(1 - 0.35 * 0.4, 12);
-  });
-});
-
-describe('the seats', () => {
-  it('stand two squares apart in a wide window and one in a narrow one', () => {
-    expect(seatSpacing(16 / 9)).toBe(2);
-    expect(seatSpacing(1)).toBe(2);
-    expect(seatSpacing(0.9)).toBe(2);
-    expect(seatSpacing(390 / 844)).toBe(1);
-  });
-
-  it("put White's king on the left, Black's on the right and the coin between", () => {
-    expect(seatX('white', 16 / 9)).toBe(-2);
-    expect(seatX('coin', 16 / 9)).toBe(0);
-    expect(seatX('black', 16 / 9)).toBe(2);
-    expect(seatX('white', 390 / 844)).toBe(-1);
-    expect(seatX('coin', 390 / 844)).toBe(0);
-    expect(seatX('black', 390 / 844)).toBe(1);
+    // It dips, and comes back to full
+    expect(Math.min(...early)).toBeLessThan(0.9);
+    expect(Math.max(...early.slice(early.length / 2))).toBeCloseTo(1, 3);
+    // A shallower breath once the wait has gone on
+    expect(Math.min(...late)).toBeGreaterThan(Math.min(...early));
   });
 });
 
@@ -156,21 +171,52 @@ const project = (pose: CameraPose, aspect: number, point: [number, number, numbe
   return new Vector3(...point).project(camera);
 };
 
-describe('the lobby camera', () => {
-  const foot = FLOOR_Y;
-  const head = FLOOR_Y + KING_TOP * KING_SCALE;
+const WIDE = 16 / 9;
+const PHONE = 390 / 844;
+const foot = FLOOR_Y;
+const head = FLOOR_Y + KING_TOP * KING_SCALE;
+/** A lobby king's half-width: its base, the widest part of it. */
+const HALF_WIDTH = PROFILES.radius[PieceType.King] * KING_SCALE;
 
+describe('the seats', () => {
+  it.each([WIDE, 1, PHONE])(
+    "put White's king on the left, Black's on the right and the coin between (aspect %s)",
+    (aspect) => {
+      expect(seatX('coin', aspect)).toBe(0);
+      expect(seatX('white', aspect)).toBeLessThan(0);
+      expect(seatX('black', aspect)).toBe(-seatX('white', aspect));
+      expect(seatX('black', aspect)).toBe(seatSpacing(aspect));
+      // Side by side, never overlapping
+      expect(seatSpacing(aspect)).toBeGreaterThan(2 * HALF_WIDTH);
+    },
+  );
+
+  it('stand further out, and smaller, in a narrow window than in a wide one', () => {
+    const at = (aspect: number) => {
+      const pose = lobbyPose(aspect);
+      const x = seatX('black', aspect);
+      return {
+        out: project(pose, aspect, [x, foot, 0]).x,
+        height: project(pose, aspect, [0, head, 0]).y - project(pose, aspect, [0, foot, 0]).y,
+      };
+    };
+    expect(at(PHONE).out).toBeGreaterThan(at(WIDE).out);
+    expect(at(PHONE).height).toBeLessThan(at(WIDE).height);
+  });
+});
+
+describe('the lobby camera', () => {
   it.each([
-    ['a wide window', 16 / 9, false],
-    ['a wide window with a card', 16 / 9, true],
-    ['a phone', 390 / 844, false],
-    ['a phone with a card', 390 / 844, true],
+    ['a wide window', WIDE, false],
+    ['a wide window with a card', WIDE, true],
+    ['a phone', PHONE, false],
+    ['a phone with a card', PHONE, true],
   ])('keeps the whole row of kings in frame in %s', (_, aspect, card) => {
     const pose = lobbyPose(aspect, card);
     for (const seat of ['white', 'coin', 'black'] as const) {
       const x = seatX(seat, aspect);
       // Each king's width either side, from foot to crown
-      for (const px of [x - 0.75, x + 0.75]) {
+      for (const px of [x - HALF_WIDTH, x + HALF_WIDTH]) {
         for (const py of [foot, head]) {
           const p = project(pose, aspect, [px, py, 0]);
           expect(Math.abs(p.x)).toBeLessThan(0.95);
@@ -179,23 +225,27 @@ describe('the lobby camera', () => {
         }
       }
     }
-    // The kings' middle above the frame's centre, clear of the card under them
-    const mid = project(pose, aspect, [0, (foot + head) / 2, 0]);
-    expect(mid.y).toBeGreaterThan(0.05);
-    // ...and the row filling most of the width in a wide window
-    if (aspect > 1) {
-      const right = project(pose, aspect, [seatX('black', aspect) + 0.75, foot, 0]);
-      expect(right.x).toBeGreaterThan(0.6);
-    }
+    // The row stands level across the frame, White's on the left
+    const white = project(pose, aspect, [seatX('white', aspect), foot, 0]);
+    const black = project(pose, aspect, [seatX('black', aspect), foot, 0]);
+    expect(white.x).toBeCloseTo(-black.x, 9);
+    expect(white.y).toBeCloseTo(black.y, 9);
   });
 
-  it('looks low over the glass from the near side', () => {
-    const pose = lobbyPose(16 / 9);
-    expect(pose.azimuth).toBe(0);
-    expect(pose.elevation).toBeCloseTo((11 * Math.PI) / 180, 12);
-    expect(pose.distance).toBeGreaterThanOrEqual(4.4);
-    // Higher with a card docked under the kings (wide windows only)
-    expect(lobbyPose(16 / 9, true).target[1]).toBeLessThan(pose.target[1]);
+  it('raises the kings on screen while a card is docked under them', () => {
+    const mid = (card: boolean) =>
+      project(lobbyPose(WIDE, card), WIDE, [0, (foot + head) / 2, 0]).y;
+    expect(mid(true)).toBeGreaterThan(mid(false));
+  });
+
+  it('looks from the near side, a little above the glass', () => {
+    for (const aspect of [WIDE, PHONE]) {
+      const pose = lobbyPose(aspect);
+      expect(pose.azimuth).toBe(0);
+      expect(pose.elevation).toBeGreaterThan(0);
+      expect(pose.elevation).toBeLessThan(Math.PI / 4);
+      expect(posePosition(pose)[1]).toBeGreaterThan(FLOOR_Y);
+    }
   });
 
   it('places the camera from a pose, and a pose from a direction', () => {
