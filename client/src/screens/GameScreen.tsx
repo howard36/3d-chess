@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import Board from '../three/Board';
 import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
@@ -26,6 +26,11 @@ import TurnPill from './TurnPill';
 import CapturedPieces from './CapturedPieces';
 import MoveCard from './MoveCard';
 import MoveAnnouncer from './MoveAnnouncer';
+import { selectInvitation } from '../game/invitation';
+import type { Color } from '../types/messages';
+import { InvitationCard, InviteCard } from './lobby/LobbyCards';
+import { useLobbyView } from './lobby/lobbyContext';
+import type { LobbyStage } from './lobby/lobbyContext';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
@@ -43,6 +48,7 @@ const STALEMATE_WAIT_MS = 600;
 
 const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { gameId } = useParams<{ gameId: string }>();
+  const navigate = useNavigate();
   // Whether this client has sent join_game (players with a stored role never do)
   const [joinRequested, setJoinRequested] = React.useState(false);
   // Errors the user has already dismissed (by count, since the log is append-only)
@@ -269,12 +275,19 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     !joinRequested || seat.joined || seat.started,
   );
 
-  // Send join_game when button is clicked
-  const handleJoin = () => {
-    if (!gameId || phase !== 'waiting') return;
-    requestJoin({ type: 'join_game', gameId, clientId: getClientId() });
-    setJoinRequested(true);
-  };
+  // A guest's invitation first asks which seats are taken (look_game), once
+  // on each socket until answered, so it can say which side they will play,
+  // or that the game is full or gone, before they accept.
+  const lookSessionRef = React.useRef(0);
+  const looked = messages.some(
+    (m) => (m.type === 'game_info' && m.gameId === gameId) || m.type === 'error',
+  );
+  React.useEffect(() => {
+    if (!gameId || storedRole || joinRequested || looked) return;
+    if (sessionId === 0 || status !== 'connected' || lookSessionRef.current === sessionId) return;
+    lookSessionRef.current = sessionId;
+    gameSocket.send({ type: 'look_game', gameId });
+  }, [gameId, storedRole, joinRequested, looked, sessionId, status, gameSocket]);
 
   const handlePlayHere = () => {
     takeoverRef.current = true;
@@ -345,6 +358,48 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       stays at the position before it.
     </div>
   );
+
+  // --- Before the game: the lobby (screens/lobby) ---------------------------------
+  const other = (c: Color): Color => (c === 'white' ? 'black' : 'white');
+  const invitation = selectInvitation(messages, gameId ?? '', joinRequested || seat.joined);
+  // The host, waiting: this page holds a seat and the game has not begun
+  const hosting = !!storedRole && sessionReady && !seat.joined && !joinRequested;
+  const shareLink = `${window.location.origin}/game/${gameId}`;
+  let lobbyView: LobbyStage | null = null;
+  if (phase === 'started') {
+    lobbyView = null;
+  } else if (hosting && storedRole) {
+    lobbyView = {
+      beat: 'wait',
+      taken: { [storedRole]: true, [other(storedRole)]: false } as Record<Color, boolean>,
+      mine: storedRole,
+      hover: null,
+      toss: null,
+      seat: storedRole,
+    };
+  } else if (!storedRole && (invitation.state === 'open' || invitation.state === 'joining')) {
+    const host = other(invitation.seat);
+    const joining = invitation.state === 'joining';
+    lobbyView = {
+      beat: 'invited',
+      // Accepting fills the guest's seat at once, before the server answers
+      taken: { [host]: true, [invitation.seat]: joining } as Record<Color, boolean>,
+      mine: joining ? invitation.seat : null,
+      hover: null,
+      toss: null,
+      seat: invitation.seat,
+    };
+  } else if (!storedRole) {
+    lobbyView = {
+      beat: 'invited',
+      taken: { white: false, black: false },
+      mine: null,
+      hover: null,
+      toss: null,
+      seat: 'white',
+    };
+  }
+  useLobbyView(lobbyView);
 
   if (phase === 'started') {
     const inCheck = !gameOver && board.inCheck(currentTurn);
@@ -505,84 +560,37 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     );
   }
 
-  const shareLink = `${window.location.origin}/game/${gameId}`;
 
-  // UI for waiting/joining phase
+  const acceptInvitation = () => {
+    if (!gameId || phase !== 'waiting') return;
+    requestJoin({ type: 'join_game', gameId, clientId: getClientId() });
+    setJoinRequested(true);
+  };
+
   return (
-    <div
-      className="flex flex-col items-center justify-center min-h-screen p-8"
-      style={{
-        background: 'var(--page-bg)',
-        color: 'var(--page-fg)',
-        fontFamily: 'var(--hud-font)',
-      }}
-    >
-      <div
-        inert={replaced}
-        className="text-center flex flex-col items-center gap-8 w-full max-w-2xl"
-      >
-        <h1 className="text-5xl sm:text-6xl font-bold tracking-wide">3D Chess</h1>
-        {phase === 'waiting' && !storedRole && (
-          <button
-            onClick={handleJoin}
-            className="py-3 px-6 text-2xl font-semibold text-gray-900 bg-white rounded-xl hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 transition-all duration-200 transform hover:scale-105"
-          >
-            Join Game
-          </button>
-        )}
-        {phase === 'waiting' && storedRole && (
-          <div className="text-center w-full">
-            <p className="text-xl mb-4">Game created! Share this link with a friend:</p>
-            {/* Wraps anywhere, so a long address never runs off a phone */}
-            <p className="text-lg sm:text-2xl font-bold bg-gray-800 px-4 py-2 rounded-lg break-all">
-              {shareLink}
-            </p>
-            <CopyLinkButton link={shareLink} />
-          </div>
-        )}
-        {phase === 'joined' && <p className="text-xl">Joined game, waiting for start...</p>}
-      </div>
-      <div className="absolute top-2.5 right-2.5" role="status" style={{ zIndex: 1001 }}>
+    <div className="lobby-page" inert={replaced}>
+      <header className="lobby-top">
+        <button className="lobby-link" onClick={() => navigate('/')}>
+          <span aria-hidden>←</span> {hosting ? 'Back to home' : 'Home'}
+        </button>
+      </header>
+      {hosting && storedRole ? (
+        <InviteCard link={shareLink} seat={storedRole} />
+      ) : !storedRole ? (
+        <InvitationCard invitation={invitation} onAccept={acceptInvitation} />
+      ) : (
+        // A stored seat, rejoining: a moment
+        <p className="lobby-foot" role="status">
+          Returning to your game…
+        </p>
+      )}
+      <div className="lobby-status" role="status">
         {reconnectingBanner}
       </div>
-      {errorBanner && (
-        <div
-          inert={replaced}
-          className="absolute inset-x-2.5 bottom-4 flex justify-center"
-          style={{ zIndex: 1001 }}
-        >
-          {errorBanner}
-        </div>
+      {errorBanner && !['invalid_game', 'game_full'].includes(latestError?.code ?? '') && (
+        <div className="lobby-errors">{errorBanner}</div>
       )}
       {replacedNotice}
-    </div>
-  );
-};
-
-/** Copies the share link, for a phone where selecting a long address is fiddly. */
-const CopyLinkButton: React.FC<{ link: string }> = ({ link }) => {
-  const [copied, setCopied] = React.useState<boolean | null>(null);
-  if (typeof navigator === 'undefined' || !navigator.clipboard) return null;
-  return (
-    <div className="mt-3 flex items-center justify-center gap-3">
-      <button
-        onClick={() => {
-          navigator.clipboard.writeText(link).then(
-            () => setCopied(true),
-            () => setCopied(false),
-          );
-        }}
-        className="py-2 px-4 text-lg font-semibold text-gray-900 bg-white rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-blue-500"
-      >
-        Copy link
-      </button>
-      <span role="status" className="text-gray-300">
-        {copied === true
-          ? 'Copied'
-          : copied === false
-            ? 'Could not copy; select the link instead'
-            : ''}
-      </span>
     </div>
   );
 };

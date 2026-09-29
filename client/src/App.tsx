@@ -1,6 +1,8 @@
 import { Routes, Route, matchPath, useLocation, useParams } from 'react-router-dom';
 import StartScreen from './screens/StartScreen';
 import GameScreen from './screens/GameScreen';
+import LobbyLayout from './screens/lobby/LobbyLayout';
+import ChooseSide from './screens/lobby/ChooseSide';
 import { useGameSocket } from './hooks/useGameSocket';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
@@ -53,11 +55,16 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<StartScreen gameSocket={gameSocket} />} />
-      <Route
-        path="/game/:gameId"
-        element={<GameRoute gameSocket={gameSocket} readyGameId={readyGameId} />}
-      />
+      <Route path="/" element={<StartScreen />} />
+      {/* The lobby's stage stays up from choosing a side to the game's
+          first frame, across the move from /new to the game's page */}
+      <Route element={<LobbyLayout />}>
+        <Route path="/new" element={<ChooseSide gameSocket={gameSocket} />} />
+        <Route
+          path="/game/:gameId"
+          element={<GameRoute gameSocket={gameSocket} readyGameId={readyGameId} />}
+        />
+      </Route>
     </Routes>
   );
 }
