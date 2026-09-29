@@ -14,7 +14,7 @@ const name = (c: Color) => (c === 'white' ? 'White' : 'Black');
 /** The link as it is set on the card: no scheme, the game's id (its end) standing out. */
 const shownLink = (link: string) => {
   const bare = link.replace(/^[a-z]+:\/\//, '');
-  const id = bare.match(/[A-Z0-9]+$/)?.[0] ?? '';
+  const id = bare.match(/[^/#]+$/)?.[0] ?? '';
   return { rest: bare.slice(0, bare.length - id.length), id };
 };
 

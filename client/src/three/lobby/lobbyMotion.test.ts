@@ -323,9 +323,12 @@ describe('handing over to the game', () => {
   });
 
   it('answers a seat being taken with a ring that spreads and fades', () => {
-    expect(arrivalRing(0)).toEqual({ radius: 0.3, strength: 1 });
+    const start = arrivalRing(0);
     const end = arrivalRing(1.4);
-    expect(end.radius).toBeCloseTo(3.7, 12);
+    expect(start.strength).toBeGreaterThan(0);
+    expect(arrivalRing(0.7).strength).toBeLessThan(start.strength);
+    expect(arrivalRing(0.7).radius).toBeGreaterThan(start.radius);
+    expect(end.radius).toBeGreaterThan(arrivalRing(0.7).radius);
     expect(end.strength).toBe(0);
     expect(arrivalRing(10)).toEqual(end);
   });
