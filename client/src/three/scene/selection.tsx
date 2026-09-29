@@ -15,9 +15,10 @@ import {
 import type { Mesh, Points } from 'three';
 import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
+import { PIECE_LIFT } from '../pieceMotion';
 import { dotTexture, rng } from './textures';
 
-import type { MarkerProps, PieceLift } from '../types';
+import type { MarkerProps } from '../types';
 import { claimed, useHoldAt } from './claims';
 import { PALETTE, RING_RADIUS } from './palette';
 
@@ -48,18 +49,6 @@ import { PALETTE, RING_RADIUS } from './palette';
 export const Selection = ({ floor }: MarkerProps) => {
   useHoldAt(floor);
   return null;
-};
-
-/**
- * How far a piece rises: under the pointer it stirs; held, it rises a little
- * higher, answering the click at once and settling over a longer ease, and
- * holds still (heights in piece units, a king stands 0.87 tall).
- */
-export const PIECE_LIFT: PieceLift = {
-  hover: 0.09,
-  selected: 0.09 + 0.05,
-  hoverSeconds: 0.24,
-  selectSeconds: 0.6,
 };
 
 // --- The timeline ---------------------------------------------------------------------------

@@ -68,27 +68,6 @@ export interface PieceBodyProps {
   level: number;
 }
 
-/**
- * How far a piece rises off its floor, and how quickly. Heights are in piece
- * units (before the pieces' scale).
- */
-export interface PieceLift {
-  /** Under the pointer. */
-  hover: number;
-  /** Selected. */
-  selected: number;
-  /**
-   * Seconds a piece takes to rise to its hover height or settle from it,
-   * setting off at once and slowing into the target without passing it.
-   */
-  hoverSeconds: number;
-  /**
-   * The same for a rise to the selected height or a fall from it (so hover
-   * to held and back both take it).
-   */
-  selectSeconds: number;
-}
-
 export interface MarkerProps {
   /** The floor of the cell, where a piece's base sits. */
   floor: Vec3;

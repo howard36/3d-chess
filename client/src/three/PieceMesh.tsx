@@ -12,10 +12,9 @@ import {
 import type { BufferGeometry, Group, Mesh, Object3D } from 'three';
 import { PieceType } from '../engine';
 import { noRaycast } from './noRaycast';
-import { Lift, Topple } from './pieceMotion';
+import { Lift, PIECE_LIFT, Topple } from './pieceMotion';
 import { layout, PIECE_SCALE } from './scene/palette';
 import { PieceBody } from './scene/pieces';
-import { PIECE_LIFT } from './scene/selection';
 
 export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   type: PieceType;

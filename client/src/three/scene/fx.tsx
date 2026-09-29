@@ -8,7 +8,7 @@ import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
 import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
 import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
-import { ringMaterial, ringPlane, useLevelCue, usePieceMaterial, wholePiece } from './pieces';
+import { usePieceMaterial, wholePiece } from './pieces';
 import { gardenBoost } from './stage';
 
 // Motion in light, kept brief. A captured piece burns away from the crown
@@ -92,22 +92,10 @@ export const CaptureFx = ({
 }: CaptureFxProps) => {
   const geometry = wholePiece(victim.type);
   const level = levelAt(floor[1]);
-  // It stands in its level ring only where pieces wear one (settings-pieces.ts)
-  const ringed = useLevelCue().ring;
-  // The victim in its own glaze (the live piece's, settings and all),
-  // standing in its own ring, until it burns
+  // The victim in its own glaze (the live piece's) until it burns
   const body = usePieceMaterial(victim.color, victim.type, level);
-  const { ring, outline } = useMemo(
-    () => ({ ring: ringMaterial(level), outline: outlineMaterial() }),
-    [level],
-  );
-  useEffect(
-    () => () => {
-      ring.dispose();
-      outline.dispose();
-    },
-    [ring, outline],
-  );
+  const outline = useMemo(outlineMaterial, []);
+  useEffect(() => () => outline.dispose(), [outline]);
   const whole = useRef<Group>(null);
   const ghost = useRef<Group>(null);
   // The attacker is on its way: the victim holds, then burns away as it arrives
@@ -118,7 +106,6 @@ export const CaptureFx = ({
       const k = Math.max(ms - start, 0) / CAPTURE_MS;
       const burn = Math.min(k / 0.65, 1);
       body.uniforms.uCut.value = k > 0 ? burn * 1.05 : -1;
-      ring.uniforms.uAmount.value = 1 - burn;
       if (whole.current) whole.current.visible = burn < 1;
       // Its outline in light rises a little from it and fades
       outline.uniforms.uOpacity.value = k > 0 ? 0.45 * Math.sin(Math.PI * Math.min(k, 1)) : 0;
@@ -131,15 +118,6 @@ export const CaptureFx = ({
   return (
     <group position={floor} scale={PIECE_SCALE}>
       <group ref={whole}>
-        {ringed && (
-          <mesh
-            geometry={ringPlane}
-            material={ring}
-            position={[0, 0.005, 0]}
-            renderOrder={LAYER.shadow}
-            raycast={noRaycast}
-          />
-        )}
         <mesh
           geometry={geometry}
           material={body}

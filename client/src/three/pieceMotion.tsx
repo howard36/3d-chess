@@ -157,6 +157,18 @@ export const Lift = ({
   );
 };
 
+/**
+ * How far a piece rises: under the pointer it stirs; held, it rises a little
+ * higher, answering the click at once and settling over a longer ease, and
+ * holds still (heights in piece units, a king stands 0.87 tall).
+ */
+export const PIECE_LIFT = {
+  hover: 0.09,
+  selected: 0.09 + 0.05,
+  hoverSeconds: 0.24,
+  selectSeconds: 0.6,
+};
+
 /** How long a mated king takes to fall and settle. */
 export const TOPPLE_MS = 900;
 /** The share of that at which he strikes the floor (a settling bounce follows). */

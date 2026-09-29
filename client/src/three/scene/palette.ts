@@ -68,7 +68,7 @@ export const PALETTE = {
   trace: '#acefd1',
   /** A capture: a clear red. */
   capture: '#ff4a3d',
-  /** Check: a deeper red, drawn in shapes of its own (crown, blades). */
+  /** Check: a deeper red, drawn in shapes of its own (plate, blades). */
   check: '#ff3338',
 
   // Type and HUD
@@ -120,14 +120,11 @@ export const MOTION = { durationMs: 460 };
 export const KNIGHT_YAW = 0.5;
 
 /**
- * Radius of the level ring at a piece's foot (piece units; ×PIECE_SCALE in
- * the world, 0.268). With the ring cue ('ring' or 'both', a setting) it is a
- * hairline in the level's own colour (LEVEL_COLORS, blended between two
- * levels while a piece glides), with a soft halo, brightening a little
- * toward white under the pointer. The held piece's circle (PALETTE.select)
- * lies at the same radius, in the ring's place, and its click ring spreads
- * from there to 1.62× (0.43 in the world). With the default band cue there
- * is no ring: the level shows as a thin band of its colour round the foot.
+ * Radius of a piece's foot circle (piece units; ×PIECE_SCALE in the world,
+ * 0.268): where the held piece's circle (PALETTE.select) lies, the click
+ * ring starts (spreading to 1.62×, 0.43 in the world) and the check plate
+ * and column are sized from. The level shows as a thin band of its colour
+ * round the foot instead of a ring.
  */
 export const RING_RADIUS = 0.335;
 
