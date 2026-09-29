@@ -3,7 +3,10 @@
 // its first screen, alternating the builds run by run.
 //   node bench/startup.mjs --a <dist> --b <dist> [--runs 7] [--rtt 150] [--kbps 1600] [--cpu 4]
 // Build both with VITE_WS_URL pointing nowhere (ws://127.0.0.1:9/ws), so a game
-// page never reaches a real backend.
+// page never reaches a real backend. The "rejoin" page is a player reloading a
+// started game: its seat is in localStorage, and a stand-in server answers
+// its rejoin_game (after one round trip) with a started game; it is timed to
+// the first frame drawn with every piece on the board.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
@@ -57,7 +60,23 @@ const browser = await chromium.launch({
 
 const measure = async (which, path, selector) => {
   const context = await browser.newContext();
+  const rejoin = selector === 'board';
+  if (rejoin) {
+    await context.addInitScript(() => localStorage.setItem('3dchess:role:BENCH1', 'white'));
+  }
   const page = await context.newPage();
+  if (rejoin) {
+    await page.routeWebSocket(/\/ws$/, (ws) => {
+      ws.onMessage((raw) => {
+        const m = JSON.parse(String(raw));
+        if (m.type !== 'rejoin_game') return;
+        setTimeout(() => {
+          ws.send(JSON.stringify({ type: 'game_state', color: m.color, started: true, moves: [] }));
+          ws.send(JSON.stringify({ type: 'presence', color: 'black', online: true }));
+        }, rtt);
+      });
+    });
+  }
   const cdp = await context.newCDPSession(page);
   await cdp.send('Network.enable');
   await cdp.send('Network.emulateNetworkConditions', {
@@ -69,7 +88,23 @@ const measure = async (which, path, selector) => {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: cpu });
   const port = servers[which].address().port;
   await page.goto(`http://127.0.0.1:${port}${path}`, { waitUntil: 'commit' });
-  await page.waitForSelector(selector, { state: 'visible', timeout: 120000 });
+  if (rejoin) {
+    await page.waitForFunction(
+      () => {
+        const state = window.__r3fState?.get();
+        if (!state || state.gl.info.render.frame < 1) return false;
+        let pieces = 0;
+        state.scene.traverse((o) => {
+          if (o.userData.piece) pieces++;
+        });
+        return pieces >= 40;
+      },
+      null,
+      { timeout: 120000, polling: 50 },
+    );
+  } else {
+    await page.waitForSelector(selector, { state: 'visible', timeout: 120000 });
+  }
   const ms = await page.evaluate(() => performance.now());
   const bytes = await page.evaluate(() =>
     performance.getEntriesByType('resource').reduce((n, e) => n + (e.transferSize || 0), 0),
@@ -81,7 +116,8 @@ const measure = async (which, path, selector) => {
 const pages = [
   ['start', '/', 'text=Start New Game'],
   ['game', '/game/BENCH1', '#root > *'],
-];
+  ['rejoin', '/game/BENCH1', 'board'],
+].filter(([name]) => arg('pages', 'start,game,rejoin').split(',').includes(name));
 const results = {};
 for (let r = 0; r < runs; r++) {
   for (const which of r % 2 ? ['b', 'a'] : ['a', 'b']) {
