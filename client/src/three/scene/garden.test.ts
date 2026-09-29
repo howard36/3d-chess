@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
+import { PieceType } from '../../engine/pieces';
 import { fitDistance } from '../cameraFit';
 import { layout } from './palette';
 import { GARDEN, gardenView, SQUARE, squareCentre } from './stage';
 import { placeStar, SKY_PLAN } from './heavens';
+import { sculptureOf } from './sculptures';
+import { eyeAt } from './testKit';
 
 // The garden's promises: every sculpture stands on the centre of a square of
 // the colossal board, all about as far out; from every side at least one
 // stands clear of the tower and in frame; the constellations sit above the
-// frame in every ordinary view.
+// frame in every ordinary view; and each is a line drawing of its piece.
 
 const ASPECT = 16 / 9;
 const FOV = 36;
@@ -18,14 +21,8 @@ const CLEAR = 0.6;
 const cameraAt = (azimuthDeg: number, elevationDeg: number, zoom = 1) => {
   const dir = new Vector3(...layout.viewDirection);
   const d = fitDistance(dir, ASPECT, FOV, layout.halfExtents) * zoom;
-  const az = (azimuthDeg * Math.PI) / 180;
-  const el = (elevationDeg * Math.PI) / 180;
   const cam = new PerspectiveCamera(FOV, ASPECT, 0.1, 1000);
-  cam.position.set(
-    d * Math.cos(el) * Math.sin(az),
-    d * Math.sin(el),
-    d * Math.cos(el) * Math.cos(az),
-  );
+  cam.position.set(...eyeAt(azimuthDeg, elevationDeg, d));
   cam.lookAt(0, 0, 0);
   cam.updateMatrixWorld();
   return cam;
@@ -91,4 +88,22 @@ describe('the garden', () => {
       }
     }
   });
+});
+
+it('draws every piece as finite outlines standing on its base', () => {
+  for (const type of Object.values(PieceType)) {
+    const d = sculptureOf(type);
+    expect(d.outlines.length).toBeGreaterThan(0);
+    for (const o of d.outlines) {
+      expect(o.points.length).toBeGreaterThan(1);
+      for (const [x, y] of o.points) {
+        expect(Number.isFinite(x) && Number.isFinite(y)).toBe(true);
+        expect(y).toBeGreaterThanOrEqual(-1e-6);
+        expect(y).toBeLessThanOrEqual(0.9);
+      }
+    }
+    // A base ring and a collar ring
+    expect(d.rings).toHaveLength(2);
+    expect(d.rings[0].y).toBeLessThan(0.01);
+  }
 });

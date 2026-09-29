@@ -1,7 +1,7 @@
 import type { Vec3 } from '../types';
 
-// What the label tests share (labelAnchors.test.ts, labelSweep.test.ts): a
-// camera standing at an azimuth and elevation, and what it sees of a point.
+// What the scene's tests share: a camera standing at an azimuth and elevation,
+// and what it sees of a point.
 
 export const DEG = Math.PI / 180;
 

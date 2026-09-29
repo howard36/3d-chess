@@ -20,6 +20,7 @@ import type { StageProps } from '../types';
 import { PieceType } from '../../engine/pieces';
 import { PROFILES } from '../pieces';
 import { noRaycast } from '../noRaycast';
+import { GRID_LINES } from './gridLines';
 import {
   shadeAt,
   shadeUniforms,
@@ -29,7 +30,8 @@ import {
   updateTowerOutline,
 } from './mask';
 import { GROUND_Y, layout, PALETTE } from './palette';
-import { Details } from './details';
+import { ShootingStar } from './shootingStar';
+import { useDisposeOnUnmount } from './dispose';
 import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
 
@@ -55,7 +57,7 @@ import { sculptureOf } from './sculptures';
 // --- The night sky ------------------------------------------------------------------
 
 const Sky = () => {
-  const { geometry, material } = useMemo(
+  const parts = useMemo(
     () => ({
       geometry: new SphereGeometry(400, 32, 16),
       material: new ShaderMaterial({
@@ -104,13 +106,8 @@ const Sky = () => {
     }),
     [],
   );
-  useEffect(
-    () => () => {
-      geometry.dispose();
-      material.dispose();
-    },
-    [geometry, material],
-  );
+  useDisposeOnUnmount(parts);
+  const { geometry, material } = parts;
   return (
     <mesh
       geometry={geometry}
@@ -154,22 +151,15 @@ const groundFragment = /* glsl */ `
   varying vec2 vP;
   varying vec3 vWorld;
   ${TOWER_SHADE}
+  ${GRID_LINES}
   void main() {
     vec3 view = normalize(vWorld - cameraPosition);
     float r = length(vP);
     float dist = distance(vWorld, cameraPosition);
-    // The colossal board's lines, coverage-correct at any distance, joined
-    // by taking the brighter (never summed), so crossings stay even
+    // The colossal board's lines, joined by taking the brighter (never
+    // summed), so crossings stay even
     vec2 uv = vP / uSquare + 4.0;
-    vec4 dd = vec4(dFdx(uv), dFdy(uv));
-    vec2 deriv = max(vec2(length(dd.xz), length(dd.yw)), vec2(1e-6));
-    vec2 target = vec2(0.006);
-    vec2 draw = clamp(target, deriv, vec2(0.5));
-    vec2 aa = deriv * 1.5;
-    vec2 g = 1.0 - abs(fract(uv) * 2.0 - 1.0);
-    vec2 lines = smoothstep(draw + aa, draw - aa, g);
-    lines *= clamp(target / draw, 0.0, 1.0);
-    lines = mix(lines, target, clamp(deriv * 2.0 - 1.0, 0.0, 1.0));
+    vec2 lines = gridLines(uv, 0.006);
     float onBoard = step(-0.02, uv.x) * step(uv.x, 8.02) * step(-0.02, uv.y) * step(uv.y, 8.02);
     vec2 span = vec2(step(-0.01, uv.y) * step(uv.y, 8.01), step(-0.01, uv.x) * step(uv.x, 8.01));
     lines *= span;
@@ -195,7 +185,7 @@ const groundFragment = /* glsl */ `
   }`;
 
 const Ground = () => {
-  const { geometry, material } = useMemo(
+  const parts = useMemo(
     () => ({
       geometry: new PlaneGeometry(260, 260, 4, 4).rotateX(-Math.PI / 2),
       material: new ShaderMaterial({
@@ -215,13 +205,8 @@ const Ground = () => {
     }),
     [],
   );
-  useEffect(
-    () => () => {
-      geometry.dispose();
-      material.dispose();
-    },
-    [geometry, material],
-  );
+  useDisposeOnUnmount(parts);
+  const { geometry, material } = parts;
   return (
     <mesh
       geometry={geometry}
@@ -589,7 +574,7 @@ const neonMaterial = (o: {
   });
 
 const Sculptures = ({ turn }: { turn: number }) => {
-  const { geometry, tubes, reflection } = useMemo(
+  const parts = useMemo(
     () => ({
       geometry: neonGeometry(),
       tubes: neonMaterial({
@@ -612,14 +597,8 @@ const Sculptures = ({ turn }: { turn: number }) => {
     }),
     [],
   );
-  useEffect(
-    () => () => {
-      geometry.dispose();
-      tubes.dispose();
-      reflection.dispose();
-    },
-    [geometry, tubes, reflection],
-  );
+  useDisposeOnUnmount(parts);
+  const { geometry, tubes, reflection } = parts;
   return (
     <group name="garden">
       <GardenUniforms turn={turn} />
@@ -671,7 +650,7 @@ const mistGeometry = (): BufferGeometry => {
 };
 
 const Mist = () => {
-  const { geometry, material } = useMemo(
+  const parts = useMemo(
     () => ({
       geometry: mistGeometry(),
       material: new ShaderMaterial({
@@ -714,13 +693,8 @@ const Mist = () => {
     }),
     [],
   );
-  useEffect(
-    () => () => {
-      geometry.dispose();
-      material.dispose();
-    },
-    [geometry, material],
-  );
+  useDisposeOnUnmount(parts);
+  const { geometry, material } = parts;
   return (
     <mesh
       geometry={geometry}
@@ -777,6 +751,6 @@ export const Stage = ({ orientation }: StageProps) => (
     <Ground />
     <Sculptures turn={orientation === 'black' ? -1 : 1} />
     <Mist />
-    <Details />
+    <ShootingStar />
   </>
 );

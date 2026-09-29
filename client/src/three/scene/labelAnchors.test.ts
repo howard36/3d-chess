@@ -18,7 +18,7 @@ import {
   towerFrameRings,
 } from './labelAnchors';
 import type { AnchorState } from './labelAnchors';
-import { DEG, eyeAt, viewer } from './labelTestKit';
+import { DEG, eyeAt, viewer } from './testKit';
 import type { Vec3 } from '../types';
 
 const layout = towerLayout();

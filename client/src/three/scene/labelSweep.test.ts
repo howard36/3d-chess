@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fitView, hudTop } from '../cameraFit';
 import type { Orientation } from '../layout';
 import type { Vec3 } from '../types';
-import { DEG, eyeAt, viewer } from './labelTestKit';
+import { DEG, eyeAt, viewer } from './testKit';
 import {
   CORNERS,
   EDGE_HYSTERESIS,

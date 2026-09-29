@@ -63,7 +63,7 @@ const radiusAt = (segments: [P2, P2][], y: number) => {
  * Ramer–Douglas–Peucker: drops points within `tolerance` of the line
  * through their neighbours.
  */
-export const simplify = (pts: P2[], tolerance: number): P2[] => {
+const simplify = (pts: P2[], tolerance: number): P2[] => {
   if (pts.length < 3) return pts.slice();
   const keep = new Array<boolean>(pts.length).fill(false);
   keep[0] = keep[pts.length - 1] = true;
@@ -96,7 +96,7 @@ export const simplify = (pts: P2[], tolerance: number): P2[] => {
  * top, or up to `cap` (still off the axis) when given. Where the envelope
  * steps (a ledge, the top of a collar) the step is kept square.
  */
-export const envelope = (profiles: readonly (readonly P2[])[], cap?: number): P2[] => {
+const envelope = (profiles: readonly (readonly P2[])[], cap?: number): P2[] => {
   const segments = segmentsOf(profiles);
   const ys = new Set<number>();
   for (const [a, b] of segments) {
@@ -130,7 +130,7 @@ export const envelope = (profiles: readonly (readonly P2[])[], cap?: number): P2
 };
 
 /** Corner-cutting (Chaikin): bends a polyline's corners the way a neon tube bends. */
-export const bend = (pts: P2[], iterations = 2, closed = false): P2[] => {
+const bend = (pts: P2[], iterations = 2, closed = false): P2[] => {
   let cur = pts;
   for (let it = 0; it < iterations; it++) {
     const next: P2[] = closed ? [] : [cur[0]];
@@ -293,7 +293,7 @@ const build = (type: PieceType): SculptureDrawing => {
         horn,
       ]);
       // The spiral round the horn: the half of each turn that faces the viewer
-      const spiral = Array.from({ length: HORN.turns }, (_, k) => {
+      const spiral = Array.from({ length: HORN.turns - 1 }, (_, k) => {
         const pts: P2[] = [];
         for (let j = 0; j <= 16; j++) {
           const theta = Math.PI * (2 * k + j / 16);
@@ -301,7 +301,7 @@ const build = (type: PieceType): SculptureDrawing => {
           pts.push([hornRadius(t) * Math.cos(theta), hornY(t) + 0.012]);
         }
         return { points: pts, closed: false };
-      }).filter((_, k) => k < HORN.turns - 1);
+      });
       return {
         outlines: [{ points: mirrored(right), closed: false, smooth: true }, ...spiral],
         rings: [baseRing(type), collarRing(u.collar)],
@@ -335,7 +335,7 @@ const build = (type: PieceType): SculptureDrawing => {
         outlines: [
           // The body smooth up each side to the rim; the coronet's points kept sharp
           {
-            points: [...right.map(([r, y]): P2 => [-r, y])].reverse(),
+            points: right.map(([r, y]): P2 => [-r, y]).reverse(),
             closed: false,
             smooth: true,
           },
