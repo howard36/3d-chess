@@ -88,7 +88,7 @@ A touch on the board acts only as a tap: the finger touching down and lifting ag
 | Double tap | Two taps, each acting on its own. The page does not zoom. |
 | Long press | No menu opens. Whether the lift that ends it counts as a tap depends on whether the browser reports it as a click; not tried. |
 
-There is no hover on a touch screen, and the board never uses hover anyway: nothing on the board lights up under a resting mouse either, so touch loses nothing. The join screen's button grows slightly, and the start screen's lifts and its knight hops, under a hovering mouse; on a touch screen they never do, and no hover effect sticks after a tap. Taps do not flash the gray highlight some phone browsers draw over tapped elements.
+There is no hover on a touch screen, and the board never uses hover anyway: nothing on the board lights up under a resting mouse either, so touch loses nothing. The join screen's button grows slightly, and the start screen's lifts and its knight hops, under a hovering mouse; on the side choice a king lifts a little under the mouse, as if picked up, and a chosen king is set down on its square in its column of light. On a touch screen none of these hover effects happens: a tap on a king or its button picks it straight away, the chosen king standing on the glass as after a click, and no hover effect sticks after a tap. Taps do not flash the gray highlight some phone browsers draw over tapped elements.
 
 Touches on the board never scroll or zoom the page: the board claims every touch that starts on it for the view.
 
