@@ -221,7 +221,8 @@ App code imports the TypeScript types via the thin re-export layer
 
 Message flow, happy path:
 
-1. Creator: `create_game` → `game_created {gameId, color}` (creator's color is random).
+1. Creator: `create_game {color?}` → `game_created {gameId, color}` (the side the creator
+   asked for, or a random one if the request names none).
 2. Joiner opens `/game/:gameId`, sends `join_game {gameId, clientId?}` → the joiner gets
    `game_joined {color}` (its seat, confirmed before anything is broadcast, so a drop right
    after is still rejoinable), then both players get `game_start {color}`. A `join_game`

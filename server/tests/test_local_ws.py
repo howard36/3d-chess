@@ -277,6 +277,24 @@ def test_finished_games_do_not_leak_sockets(client, store):
     assert len(store) == 3
 
 
+@pytest.mark.parametrize("side", ["white", "black"])
+def test_create_game_with_a_chosen_side(client, side):
+    with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
+        ws1.send_json({"type": "create_game", "color": side})
+        created = ws1.receive_json()
+        assert created["type"] == "game_created"
+        assert created["color"] == side
+        ws2.send_json({"type": "join_game", "gameId": created["gameId"]})
+        other = "black" if side == "white" else "white"
+        assert ws2.receive_json() == {"type": "game_joined", "color": other}
+
+
+def test_create_game_rejects_an_unknown_side(client):
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json({"type": "create_game", "color": "green"})
+        assert ws.receive_json()["code"] == "invalid_message"
+
+
 def test_rejoin_unknown_game(client):
     with client.websocket_connect("/ws") as ws:
         ws.send_json({"type": "rejoin_game", "gameId": "NOPE99", "color": "white"})

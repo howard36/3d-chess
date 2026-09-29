@@ -37,6 +37,10 @@ export type ErrorCode =
 export interface CreateGame {
   type: "create_game";
   clientId?: ClientId;
+  /**
+   * The side the creator wants to play. Omitted, the server picks one at random.
+   */
+  color?: "white" | "black";
 }
 export interface GameCreated {
   type: "game_created";

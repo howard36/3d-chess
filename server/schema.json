@@ -40,7 +40,11 @@
       "type": "object",
       "properties": {
         "type": { "const": "create_game" },
-        "clientId": { "$ref": "#/definitions/client_id" }
+        "clientId": { "$ref": "#/definitions/client_id" },
+        "color": {
+          "description": "The side the creator wants to play. Omitted, the server picks one at random.",
+          "$ref": "#/definitions/color"
+        }
       },
       "required": ["type"],
       "additionalProperties": false

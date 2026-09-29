@@ -47,6 +47,10 @@ class CreateGame(BaseModel):
     )
     type: Literal['create_game']
     clientId: Optional[ClientId] = None
+    color: Optional[Color] = Field(
+        None,
+        description='The side the creator wants to play. Omitted, the server picks one at random.',
+    )
 
 
 class GameCreated(BaseModel):

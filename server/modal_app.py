@@ -119,18 +119,20 @@ class GameError(Exception):
 # access pattern.
 
 
-def create_game(store, client_id: str | None = None) -> tuple[str, str]:
+def create_game(store, client_id: str | None = None, color: str | None = None) -> tuple[str, str]:
     """Create a game with one seat claimed; return (game id, creator's color).
 
-    `client_id`, when the client sent one, is remembered as the seat's
-    claimant (see claim_seat).
+    `color` is the side the creator asked for; without one it is picked at
+    random. `client_id`, when the client sent one, is remembered as the
+    seat's claimant (see claim_seat).
     """
     while True:
         gid = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
         if gid not in store:
             break
     # Creator can be white or black, but white always moves first
-    color = random.choice(["white", "black"])
+    if color is None:
+        color = random.choice(["white", "black"])
     record: dict = {"seats": [color], "moves": []}
     if client_id is not None:
         record["claimants"] = {color: client_id}
@@ -342,7 +344,8 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                     if isinstance(envelope, CreateGame):
                         _require_not_in_game(gid)
                         client_id = envelope.clientId.root if envelope.clientId else None
-                        gid, player_color = create_game(store, client_id)
+                        asked = envelope.color.value if envelope.color else None
+                        gid, player_color = create_game(store, client_id, asked)
                         ws.state.client_id = client_id
                         connections[gid] = {player_color: ws}
                         logger.info(

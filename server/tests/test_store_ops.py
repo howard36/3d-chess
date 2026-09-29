@@ -43,6 +43,14 @@ def test_create_game_claims_one_seat(white_creator):
     assert store[gid] == {"seats": ["white"], "moves": []}
 
 
+def test_create_game_gives_the_creator_the_side_asked_for(white_creator):
+    store = {}
+    gid, color = create_game(store, "tab-a", "black")
+    assert color == "black"
+    assert store[gid] == {"seats": ["black"], "moves": [], "claimants": {"black": "tab-a"}}
+    assert claim_seat(store, gid) == ("white", False)
+
+
 def test_create_game_never_reuses_an_id(monkeypatch):
     store = {"AAAAAA": {"seats": ["white"], "moves": []}}
     ids = iter(["AAAAAA", "BBBBBB"])
