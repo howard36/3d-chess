@@ -16,13 +16,17 @@ const meshes = (scene: ReactThreeTestInstance) =>
   scene.findAll((n) => n.type === 'Mesh').map((n) => n.instance as unknown as Mesh);
 
 describe('LastMoveLine', () => {
-  it('is one thin tube from centre to centre, depth-tested, with no arrowhead', async () => {
+  it('is one thin tube from centre to centre, depth-tested (a piece hides it), with no arrowhead', async () => {
     const r = await ReactThreeTestRenderer.create(
       <LastMoveLine from={FROM} to={TO} radius={0.02} {...LOOK} />,
     );
-    const [tube] = meshes(r.scene as ReactThreeTestInstance);
+    const all = meshes(r.scene as ReactThreeTestInstance);
+    // One tube, no second pass drawn where it is hidden
+    expect(all).toHaveLength(1);
+    const [tube] = all;
     const material = tube.material as ShaderMaterial;
     expect(material.depthTest).toBe(true);
+    expect(material.depthFunc).toBe(LessEqualDepth);
     expect(material.depthWrite).toBe(false);
     expect(tube.renderOrder).toBeGreaterThanOrEqual(LAYER.trace);
     const g = tube.geometry as BufferGeometry;
@@ -34,16 +38,6 @@ describe('LastMoveLine', () => {
     expect(box.max.y).toBeLessThan(1.35 + 0.1);
     // No raycasting: decoration never takes a click
     expect(tube.raycast.length).toBe(0);
-  });
-
-  it('is hidden by whatever stands in front of it: never drawn through a piece', async () => {
-    const r = await ReactThreeTestRenderer.create(
-      <LastMoveLine from={FROM} to={TO} radius={0.02} {...LOOK} />,
-    );
-    const all = meshes(r.scene as ReactThreeTestInstance);
-    // One tube, one ordinary depth test (no second pass drawn where hidden)
-    expect(all).toHaveLength(1);
-    expect((all[0].material as ShaderMaterial).depthFunc).toBe(LessEqualDepth);
   });
 
   it('lands `inset` short of the destination, beside the piece standing there', async () => {

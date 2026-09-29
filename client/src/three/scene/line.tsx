@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { BufferAttribute, BufferGeometry, Color, ShaderMaterial } from 'three';
+import { BufferAttribute, BufferGeometry, Color } from 'three';
 import { LAYER } from './layers';
 import { pathDistances, tracePath, tubeData } from './markerGeometry';
-import type { TracePathOptions } from './markerGeometry';
+import type { TracePathOptions, TubeOptions } from './markerGeometry';
+import { easeOutQuad } from './ease';
+import { overlayMaterial } from './overlay';
 import { noRaycast } from '../noRaycast';
 import type { Vec3 } from '../types';
 
@@ -36,8 +38,9 @@ const SHADE = 0.3;
 // A reveal past any line's length: the whole line
 const ALL = 1e6;
 
-const tubeGeometry = (points: Vec3[], radius: number) => {
-  const data = tubeData(points, { radius });
+/** A tube along `points` as geometry, with each vertex's distance along the path as `aAlong`. */
+export const tubeGeometry = (points: Vec3[], options: TubeOptions) => {
+  const data = tubeData(points, options);
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(data.position, 3));
   g.setAttribute('normal', new BufferAttribute(data.normal, 3));
@@ -47,7 +50,8 @@ const tubeGeometry = (points: Vec3[], radius: number) => {
   return g;
 };
 
-const vertexShader = /* glsl */ `
+/** Shared with the shimmer travelling along the line (markers.tsx). */
+export const tubeVertex = /* glsl */ `
   attribute float aAlong;
   varying float vAlong;
   varying vec3 vNormal;
@@ -77,16 +81,14 @@ const fragmentShader = /* glsl */ `
   }`;
 
 const lineMaterial = () =>
-  new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
+  overlayMaterial({
     uniforms: {
       uColor: { value: new Color() },
       uOpacity: { value: 1 },
       uShade: { value: SHADE },
       uReveal: { value: ALL },
     },
-    vertexShader,
+    vertexShader: tubeVertex,
     fragmentShader,
   });
 
@@ -113,7 +115,7 @@ export const LastMoveLine = ({
     const points = tracePath(from, to, { lift, inset, insetFront });
     const distances = pathDistances(points);
     const length = distances[distances.length - 1];
-    const geometry = tubeGeometry(points, radius);
+    const geometry = tubeGeometry(points, { radius });
     return { geometry, length };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
   }, [key]);
@@ -131,7 +133,7 @@ export const LastMoveLine = ({
   const reveal = () => {
     if (since.current >= drawInMs) return ALL;
     const k = since.current / drawInMs;
-    return k < 0 ? -1 : (1 - (1 - k) ** 2) * length;
+    return k < 0 ? -1 : easeOutQuad(k) * length;
   };
   u.uReveal.value = reveal();
   useEffect(() => invalidate(), [invalidate]);

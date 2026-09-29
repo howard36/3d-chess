@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { LevelFocus } from '../types';
+import { toward } from './ease';
 
 /**
  * The level to emphasise, from GridProps.focus: the level under the pointer
@@ -21,18 +22,16 @@ export const useLevelFocus = (
   focusLevel: number | null | undefined,
   onChange: (weights: number[], anyFocus: number) => void,
   {
-    levels = 5,
     ms = 150,
     key,
   }: {
-    levels?: number;
     ms?: number;
     /** Anything whose change means the weights must be applied again (new materials). */
     key?: unknown;
   } = {},
 ) => {
   const invalidate = useThree((s) => s.invalidate);
-  const weights = useRef<number[]>(Array.from({ length: levels }, () => 0));
+  const weights = useRef<number[]>(Array.from({ length: 5 }, () => 0));
   const any = useRef(0);
   const settled = useRef(false);
   const latest = useRef(onChange);
@@ -43,17 +42,15 @@ export const useLevelFocus = (
   }, [focusLevel, key, invalidate]);
   useFrame((_, delta) => {
     if (settled.current) return;
-    const step = ms > 0 ? Math.min(delta, 1 / 20) / (ms / 1000) : 1;
-    const toward = (v: number, goal: number) =>
-      goal > v ? Math.min(goal, v + step) : Math.max(goal, v - step);
+    const step = Math.min(delta, 1 / 20) / (ms / 1000);
     let moving = false;
     weights.current = weights.current.map((w, z) => {
-      const next = toward(w, z === focusLevel ? 1 : 0);
+      const next = toward(w, z === focusLevel ? 1 : 0, step);
       if (next !== (z === focusLevel ? 1 : 0)) moving = true;
       return next;
     });
     const goalAny = focusLevel === null || focusLevel === undefined ? 0 : 1;
-    any.current = toward(any.current, goalAny);
+    any.current = toward(any.current, goalAny, step);
     if (any.current !== goalAny) moving = true;
     latest.current(weights.current, any.current);
     if (moving) invalidate();

@@ -44,10 +44,6 @@ const near = (a: Vec3, p: Point) =>
 export const claimed = (p: Point, kinds: readonly ClaimKind[]) =>
   kinds.some((kind) => claims[kind].some((a) => near(a, p)));
 
-/** Whether any floor is taken over (a cheap test before looking). */
-export const anyClaims = () =>
-  claims.capture.length + claims.check.length + claims.trace.length + claims.quiet.length > 0;
-
 // --- Where the held piece stands ----------------------------------------------------------
 
 // The Selection marker (selection.tsx) publishes the held piece's floor here;

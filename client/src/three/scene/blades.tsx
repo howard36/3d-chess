@@ -5,6 +5,7 @@ import type { IUniform } from 'three';
 import { prefersReducedMotion } from '../motion';
 import { noRaycast } from '../noRaycast';
 import type { Vec3 } from '../types';
+import { clamp01, easeOutCubic } from './ease';
 import { PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
 
 // The blades round a king in check: threat, not glare. Four clusters of
@@ -57,9 +58,9 @@ const useLife = (mated: boolean, strength: number) => {
     const dt = Math.min(delta, 1 / 20);
     since.current += dt;
     const k = still ? 1 : Math.min(since.current / ENTER_S, 1);
-    u.uEnter.value = 1 - (1 - k) ** 3;
+    u.uEnter.value = easeOutCubic(k);
     u.uFlare.value = still ? 0 : strength * Math.max(0, 1 - since.current / STRIKE_S) ** 2;
-    const settle = Math.min(1, Math.max(0, u.uSettle.value + ((mated ? 1 : -1) * dt) / SETTLE_S));
+    const settle = clamp01(u.uSettle.value + ((mated ? 1 : -1) * dt) / SETTLE_S);
     u.uSettle.value = settle;
     if (!still && settle < 1) u.uTime.value += dt;
     // A world unit's size in pixels at unit distance, for lines kept at
