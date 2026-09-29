@@ -1,12 +1,5 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import Board from '../three/Board';
-import { Canvas } from '@react-three/fiber';
-import type { RootState } from '@react-three/fiber';
-import { FitCameraToBoard } from '../three/FitCameraToBoard';
-import { hudTop } from '../three/cameraFit';
-import { usePixelBudget } from '../three/pixelBudget';
-import { CameraControls } from '../three/CameraControls';
 import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
 import EndGameModal from './EndGameModal';
@@ -18,14 +11,17 @@ import type { GameSocket } from '../hooks/useGameSocket';
 import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole';
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
-import { NeutralToneMapping } from 'three';
-import { onToppled } from '../three/pieceMotion';
-import { layout } from '../three/scene/palette';
-import { Stage } from '../three/scene/stage';
+import { onToppled } from '../three/toppled';
+import { cachedImport } from '../lib/cachedImport';
 import TurnPill from './TurnPill';
 import CapturedPieces from './CapturedPieces';
 import MoveCard from './MoveCard';
 import MoveAnnouncer from './MoveAnnouncer';
+
+// The 3D board is a chunk of its own, asked for as soon as this screen loads
+const loadGameCanvas = cachedImport(() => import('./GameCanvas'));
+const GameCanvas = React.lazy(loadGameCanvas);
+void loadGameCanvas().catch(() => {});
 
 interface GameScreenProps {
   gameSocket: GameSocket;
@@ -108,7 +104,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   historyRef.current = history;
   const { board, moveRecords, currentTurn, lastMove, captured, replayFailedAt, gameOver } = history;
 
-  const pixelRatio = usePixelBudget();
   // The mate plays out (the king topples) before the result covers the
   // board, while the pulse runs on behind it — when the mate was just played,
   // not when a finished game is reopened.
@@ -370,64 +365,20 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               nearest and the depth layers don't perfectly occlude;
               FitCameraToBoard then sets its distance so the whole cube fits
               whatever the window's shape. */}
-          <Canvas
-            data-testid="r3f-canvas"
-            role="img"
-            aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, press Tab to type a move.`}
-            // Every touch on the board is the camera's or a tap on a
-            // square: never a page scroll or zoom, and no grey tap flash
-            style={{
-              height: '100%',
-              width: '100%',
-              touchAction: 'none',
-              WebkitTapHighlightColor: 'transparent',
-            }}
-            camera={{ position: layout.viewDirection, fov: 36 }}
-            // A pixel budget rather than r3f's fixed cap: the screen's own
-            // ratio up to 2x, a large high-density window a little under it
-            dpr={pixelRatio}
-            gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
-            // A chess position is static: render only when something changes.
-            // React commits and OrbitControls invalidate on their own; the
-            // animations (the move glide, the lift, the scene's effects)
-            // request frames while they run.
-            frameloop="demand"
-            // Test hook: r3f v9 no longer exposes its store on the canvas
-            // element, so drivers (e2e/helpers/board.ts) read the live camera
-            // here to project board cells to pixels — correct even after the
-            // user orbits or the camera setup above changes.
-            onCreated={(state: RootState) => {
-              (window as Window & { __r3fState?: RootState }).__r3fState = state;
-            }}
-          >
-            <Stage orientation={color ?? 'white'} />
-            <Board
-              board={board} // Pass the EngineBoard instance
+          {/* The 3D board, from its own chunk: nothing shows there until it
+              has loaded (the HUD over it does) */}
+          <React.Suspense fallback={null}>
+            <GameCanvas
+              color={color}
+              board={board}
               currentTurn={currentTurn}
-              playerColor={color} // Pass the determined player color
-              onMove={handleMove}
-              onChoosePromotion={setPromotionChoices}
               lastMove={lastMove}
               disabled={boardDisabled}
               gameOver={gameOver}
+              onMove={handleMove}
+              onChoosePromotion={setPromotionChoices}
             />
-            {/* The only camera control is turning the view about the
-                board's centre, which never moves (no pan by mouse, touch or
-                keyboard), plus a zoom that FitCameraToBoard limits relative
-                to the fitted view. */}
-            <CameraControls
-              // The tower's orbit limits: the camera stays above the ground and
-              // may rise to look straight down
-              minPolarAngle={layout.orbit.minPolarAngle}
-              maxPolarAngle={layout.orbit.maxPolarAngle}
-            />
-            <FitCameraToBoard
-              viewDirection={layout.viewDirection}
-              minDistance={layout.orbit.minDistance}
-              frameRings={layout.frameRings}
-              hudTopBand={hudTop}
-            />
-          </Canvas>
+          </React.Suspense>
           {/* The HUD over the canvas (index.css): the turn pill at the top
               centre with the status column under it, the move card at the
               bottom left. Only the controls

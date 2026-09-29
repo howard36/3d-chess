@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Quaternion, Vector3 } from 'three';
+import { toppled } from './toppled';
 import type { Group, Object3D } from 'three';
 
 /**
@@ -178,15 +179,7 @@ const TOPPLE_STEP_MS = 125;
 
 // When a toppling king strikes the floor (on the scene's own clock, however
 // slowly the frames come), for the result card to follow (GameScreen.tsx)
-const toppled = new Set<() => void>();
-
-/** Calls `listener` each time a mated king strikes the floor; returns the unsubscribe. */
-export const onToppled = (listener: () => void) => {
-  toppled.add(listener);
-  return () => {
-    toppled.delete(listener);
-  };
-};
+export { onToppled } from './toppled';
 // The base is a disc of about this radius: the piece pivots on its rim, as a
 // real one tips over, rather than sinking through the board around its centre.
 const PIVOT = 0.22;
@@ -257,7 +250,7 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
     }
     if (t >= TOPPLE_STRIKE && !struck.current) {
       struck.current = true;
-      toppled.forEach((listener) => listener());
+      toppled();
     }
     if (t < 1) invalidate();
   });

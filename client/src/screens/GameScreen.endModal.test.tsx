@@ -15,7 +15,7 @@ vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
 vi.mock('../three/Board', () => ({ default: () => null }));
 // The mated king's topple, which the card follows: fired by hand here
 const topple = vi.hoisted(() => ({ listeners: new Set<() => void>() }));
-vi.mock('../three/pieceMotion', () => ({
+vi.mock('../three/toppled', () => ({
   onToppled: (listener: () => void) => {
     topple.listeners.add(listener);
     return () => topple.listeners.delete(listener);

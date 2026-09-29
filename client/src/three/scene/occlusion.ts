@@ -1,10 +1,10 @@
 import { BufferAttribute, MathUtils } from 'three';
 import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
-import { PIECE_PARTS, loadBakedKnight, partsGeometry, pieceSet } from '../pieces';
+import { PIECE_PARTS, partsGeometry, pieceSet } from '../pieces';
 import type { PiecePart, PieceParts, PieceSet } from '../pieces';
 import { decodeOcclusion } from './occlusionData';
-import type { OcclusionData } from './occlusionData';
+import { OCCLUSION_MEDIUM } from './occlusion.medium';
 
 // The game's copy of the Staunton set: the same shapes, with two
 // numbers baked into every vertex's uv, so one small shader can paint and
@@ -29,7 +29,7 @@ import type { OcclusionData } from './occlusionData';
 // the solid. Each piece is baked the first time it is drawn, in a few
 // milliseconds. The shared set is never touched (clone first). The medium
 // set's occlusion also ships precomputed, byte for byte (occlusion.medium.ts,
-// `npm run bake:pieces`): once it has loaded, baking a piece only copies it in.
+// `npm run bake:pieces`): baking one of its pieces only copies it in.
 
 /** The part a vertex belongs to, as the shader reads it from uv.y. */
 export const PART_ID: Record<PiecePart, number> = { body: 0, collar: 1, accent: 2, foot: 4 };
@@ -239,29 +239,12 @@ export const occlusionOfPiece = (parts: PieceParts): Float32Array[] => {
   return present.map((part) => occlusionOf(parts[part]!, solid));
 };
 
-// The medium set's occlusion, precomputed, once loaded (loadBakedOcclusion)
-let storedData: OcclusionData | null = null;
+// The medium set's occlusion, precomputed (occlusion.medium.ts), decoded on first use
 let stored: Record<PieceType, Float32Array[]> | null = null;
-let storedLoad: Promise<void> | null = null;
 
-/**
- * Starts loading the medium set's precomputed occlusion (occlusion.medium.ts,
- * its own chunk) and settles once it is in or has failed to load. A piece
- * baked before then works its occlusion out here instead: the same bytes, a
- * few tens of milliseconds a piece later.
- */
-export const loadBakedOcclusion = (): Promise<void> =>
-  (storedLoad ??= import('./occlusion.medium').then(
-    (m) => {
-      storedData = m.OCCLUSION_MEDIUM;
-    },
-    () => {},
-  ));
-
-/** The stored occlusion for a piece, if loaded and made for parts of these sizes. */
+/** The stored occlusion for a piece, if made for parts of these sizes. */
 const storedOcclusion = (type: PieceType, parts: BufferGeometry[]): Float32Array[] | null => {
-  if (!storedData) return null;
-  stored ??= decodeOcclusion(storedData);
+  stored ??= decodeOcclusion(OCCLUSION_MEDIUM);
   const ao = stored[type];
   const fits =
     ao.length === parts.length &&
@@ -321,28 +304,18 @@ export const wholePiece = (type: PieceType): BufferGeometry =>
 
 /**
  * Bakes the set's pieces while the browser is idle, one piece per idle
- * moment, so the first board does not wait for them: once the precomputed
- * occlusion has loaded (loadBakedOcclusion, started here either way), and
- * the knight last, once its precomputed meshes have too (loadBakedKnight).
- * Where there is no idle callback (tests) each piece is baked when first
- * drawn.
+ * moment, so the first board does not wait for them. Does nothing where
+ * there is no idle callback (tests): each piece is then baked when first drawn.
  */
 export const preloadBakedSet = () => {
-  if (typeof window === 'undefined') return;
-  const occlusionReady = loadBakedOcclusion();
-  if (typeof window.requestIdleCallback !== 'function') return;
+  if (typeof window === 'undefined' || typeof window.requestIdleCallback !== 'function') return;
   const built = bakedSet();
-  const pending = Object.values(PieceType).filter((t) => t !== PieceType.Knight);
+  const pending = Object.values(PieceType);
   const next = () => {
     const type = pending.shift();
-    if (!type) {
-      void loadBakedKnight().then(() =>
-        window.requestIdleCallback(() => void built[PieceType.Knight], { timeout: 4000 }),
-      );
-      return;
-    }
+    if (!type) return;
     void built[type];
     window.requestIdleCallback(next, { timeout: 4000 });
   };
-  void occlusionReady.then(() => window.requestIdleCallback(next, { timeout: 4000 }));
+  window.requestIdleCallback(next, { timeout: 4000 });
 };

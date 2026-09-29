@@ -423,9 +423,8 @@ The geometry is built once per quality and shared by every piece: `pieceSet('low
 piece is built the first time it is drawn, and the board warms the set while the browser
 is idle with `preloadPieceSet()`). The medium knight is not sculpted in the browser: its
 head, mane and eyes (a few hundred milliseconds of sculpting and decimating) ship
-precomputed, byte for byte, in `pieces/knight.medium.ts`, a chunk of its own that
-`preloadPieceSet()` starts loading; a knight drawn before it arrives is sculpted as before,
-to the same bytes. The medium set's baked occlusion (below) ships the same way, in
+precomputed, byte for byte, in `pieces/knight.medium.ts` (the low and high knights are
+sculpted as before). The medium set's baked occlusion (below) ships the same way, in
 `scene/occlusion.medium.ts`. After changing a piece's shape (anything in `three/pieces/`,
 or the bake in `scene/occlusion.ts`), run `npm run bake:pieces` in `client/`;
 `knightData.test.ts` and `occlusionData.test.ts` fail while either file is stale, and
@@ -499,19 +498,22 @@ repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
 
-The client builds to four chunks: the entry (the start screen, about 74 KB gzip), the game
-screen (three.js, the scene and the rules engine, loaded with `React.lazy` in `App.tsx`),
-and the medium set's precomputed knight and occlusion (see Piece set). The start screen fetches the
-game screen once the page is idle; on a game's address the built page preloads it from
-the start (a `modulepreload` added by a small plugin in `vite.config.ts`), so a shared
-link does not wait for the entry before asking for it, and fetches the precomputed pieces
-as soon as the game screen has arrived. In the build, r3f's `Canvas` is handed only the
-three.js classes the scene writes as elements (`src/three/r3fCatalogue.ts`) instead of the
-whole namespace, so the rest of three.js is left out of the game screen's chunk; a new
-element's class must be added there (`r3fCatalogue.test.ts` fails until it is). The e2e
-suite runs against the dev server, which does neither: to run it against a build, start
-`vite preview` on port 5173 (built with `VITE_WS_URL=ws://127.0.0.1:8000/ws`) and the
-backend first, and Playwright reuses them.
+The client builds to three chunks: the entry (the start screen, about 74 KB gzip), the game
+screen (`screens/GameScreen.tsx`, loaded with `React.lazy` in `App.tsx`: the waiting and
+join screens, the HUD, the move record; about 11 KB) and its 3D board
+(`screens/GameCanvas.tsx`, loaded lazily by the game screen: three.js, the scene, the
+engine and the set's precomputed parts; about 340 KB). The start screen fetches the game
+screen once the page is idle, and the game screen its board as soon as it loads, so
+creating a game rarely waits; on a game's address the built page preloads both from the
+start (a `modulepreload` added by a small plugin in `vite.config.ts`), so a shared link
+shows its join screen without waiting for three.js, and does not wait for the entry
+before asking for the board. In the build, r3f's `Canvas` is handed only the three.js
+classes the scene writes as elements (`src/three/r3fCatalogue.ts`) instead of the whole
+namespace, so the rest of three.js is left out of the board's chunk; a new element's class
+must be added there (`r3fCatalogue.test.ts` fails until it is). The e2e suite runs against
+the dev server, which does neither: to run it against a build, start `vite preview` on
+port 5173 (built with `VITE_WS_URL=ws://127.0.0.1:8000/ws`) and the backend first, and
+Playwright reuses them.
 
 ## Known limitations (accepted for this project's scope)
 

@@ -3,7 +3,7 @@ import { PieceType } from '../../engine/pieces';
 import { cutSlot } from './cut';
 import { buildKnight } from './knight';
 import { decodeKnight } from './knightData';
-import type { KnightData } from './knightData';
+import { KNIGHT_MEDIUM } from './knight.medium';
 import { flatPolygon, gridSurface, mergeShells } from './mesh';
 import type { Vec3 } from './mesh';
 import { arc, corner, revolve, sampleProfile } from './profile';
@@ -499,29 +499,10 @@ const rook = (c: Ctx): PieceParts => {
   };
 };
 
-// The medium knight's sculpted meshes, once loaded (loadBakedKnight)
-let bakedKnight: KnightData | null = null;
-let bakedKnightLoad: Promise<void> | null = null;
-
-/**
- * Starts loading the medium knight's precomputed meshes (knight.medium.ts,
- * its own chunk) and settles once they are in or have failed to load. A
- * medium knight built before then is sculpted here instead: the same bytes,
- * a few hundred milliseconds later.
- */
-export const loadBakedKnight = (): Promise<void> =>
-  (bakedKnightLoad ??= import('./knight.medium').then(
-    (m) => {
-      bakedKnight = m.KNIGHT_MEDIUM;
-    },
-    () => {},
-  ));
-
 const knight = (c: Ctx): PieceParts => {
+  // The medium knight ships precomputed, byte for byte (knight.medium.ts)
   const k =
-    c.quality === 'medium' && bakedKnight
-      ? decodeKnight(bakedKnight)
-      : buildKnight(c.d.step, c.d.knight);
+    c.quality === 'medium' ? decodeKnight(KNIGHT_MEDIUM) : buildKnight(c.d.step, c.d.knight);
   return {
     // The mane and the eyes are the accent
     body: mergeShells([turn(c, c.profiles.knight.body), k.head]),
@@ -878,26 +859,17 @@ export const pieceSet = (quality: PieceQuality = 'medium'): PieceSet => {
 
 /**
  * Builds the shared set's pieces while the browser is idle, one piece per
- * idle moment, so the first board does not wait for them; the medium
- * knight last, once its precomputed meshes have loaded (loadBakedKnight,
- * started here whether or not there is an idle callback). Where there is no
- * idle callback (tests, some browsers) each piece is built when it is first
- * drawn.
+ * idle moment, so the first board does not wait for them. Does nothing where
+ * there is no idle callback (tests, some browsers): each piece is then built
+ * when it is first drawn.
  */
 export const preloadPieceSet = (quality: PieceQuality = 'medium') => {
-  if (typeof window === 'undefined') return;
-  const knightReady = quality === 'medium' ? loadBakedKnight() : Promise.resolve();
-  if (typeof window.requestIdleCallback !== 'function') return;
+  if (typeof window === 'undefined' || typeof window.requestIdleCallback !== 'function') return;
   const set = pieceSet(quality);
-  const pending = Object.values(PieceType).filter((t) => t !== PieceType.Knight);
+  const pending = Object.values(PieceType);
   const next = () => {
     const type = pending.shift();
-    if (!type) {
-      void knightReady.then(() =>
-        window.requestIdleCallback(() => void set[PieceType.Knight], { timeout: 4000 }),
-      );
-      return;
-    }
+    if (!type) return;
     void set[type];
     window.requestIdleCallback(next, { timeout: 4000 });
   };

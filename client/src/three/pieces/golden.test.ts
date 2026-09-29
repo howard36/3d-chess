@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
-import { loadBakedOcclusion, wholePiece } from '../scene/occlusion';
+import { wholePiece } from '../scene/occlusion';
 import { PIECE_PARTS } from './parts';
-import { loadBakedKnight, pieceSet } from './set';
+import { pieceSet } from './set';
 import type { PieceQuality } from './set';
 
 // The set's geometry, byte for byte. Building it faster must not move a
@@ -39,13 +39,11 @@ const setHash = (quality: PieceQuality) => {
 };
 
 describe('the piece set, byte for byte', () => {
-  it('medium, as built (its knight from the precomputed meshes)', async () => {
-    await loadBakedKnight();
+  it('medium, as built (its knight from the precomputed meshes)', () => {
     expect(setHash('medium')).toBe('77ffc3796d9dd007');
   });
 
-  it('medium, as drawn (occlusion and parts baked in, from the precomputed values)', async () => {
-    await loadBakedOcclusion();
+  it('medium, as drawn (occlusion and parts baked in, from the precomputed values)', () => {
     const h = createHash('sha256');
     for (const type of Object.values(PieceType)) hashInto(h, type, wholePiece(type));
     expect(h.digest('hex').slice(0, 16)).toBe('196a80b3120abc54');
