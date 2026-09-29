@@ -85,7 +85,6 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
   );
 };
 
-
 /** The guest's card: whose seat is free, and the one thing to do about it. */
 export const InvitationCard: React.FC<{ invitation: Invitation; onAccept: () => void }> = ({
   invitation,

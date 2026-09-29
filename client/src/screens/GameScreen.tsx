@@ -279,8 +279,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // on each socket until answered, so it can say which side they will play,
   // or that the game is full or gone, before they accept.
   const lookSessionRef = React.useRef(0);
+  // Answered by game_info, or by the one refusal a look can get (no such
+  // game). Any other error (a stale role's refused rejoin, say) leaves the
+  // question open: the invitation would wait on it forever.
   const looked = messages.some(
-    (m) => (m.type === 'game_info' && m.gameId === gameId) || m.type === 'error',
+    (m) =>
+      (m.type === 'game_info' && m.gameId === gameId) ||
+      (m.type === 'error' && m.code === 'invalid_game'),
   );
   React.useEffect(() => {
     if (!gameId || storedRole || joinRequested || looked) return;
@@ -559,7 +564,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       </div>
     );
   }
-
 
   const acceptInvitation = () => {
     if (!gameId || phase !== 'waiting') return;
