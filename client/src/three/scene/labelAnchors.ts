@@ -452,3 +452,21 @@ export const towerFrameRings = (layout: BoardLayout): FrameRing[] => {
     { y: top + LETTER_LIFT + glyph, radius: far, behind },
   ];
 };
+
+/**
+ * The rings round the tower alone, with no labels (the landing page's
+ * preview, which draws none): its top and bottom platforms and its tallest
+ * pieces. Framed on these the tower stands larger than towerFrameRings
+ * would have it.
+ */
+export const towerBodyRings = (layout: BoardLayout): FrameRing[] => {
+  const { half, pitch, levelY } = towerFrame(layout);
+  const [bottom, top] = [levelY[0], levelY[levelY.length - 1]];
+  const pieces = Math.SQRT2 * (half - pitch / 2 + 0.3 * pitch);
+  const plates = Math.SQRT2 * (half + PLATE_REACH);
+  return [
+    { y: bottom - RIM_DEPTH, radius: plates },
+    { y: top, radius: plates },
+    { y: layout.halfExtents[1], radius: pieces },
+  ];
+};

@@ -46,13 +46,19 @@ export const DEMO_PACE = {
   ply: 2.4,
   /** The mate, the king's fall and the result, before the board fades. */
   mate: 5,
-  /** The fade out to the next game, and the fade back in. */
-  fade: 0.9,
+  /** The veil closing over the finished game (easing in)... */
+  fadeOut: 0.7,
+  /** ...and opening on the next one (easing out). */
+  fadeIn: 0.9,
 } as const;
 
 /** One pass of the demo: the opening, every move, the mate's hold and the fade out and in. */
 export const DEMO_LOOP_SECONDS =
-  DEMO_PACE.open + (DEMO_GAME.length - 1) * DEMO_PACE.ply + DEMO_PACE.mate + 2 * DEMO_PACE.fade;
+  DEMO_PACE.fadeIn +
+  DEMO_PACE.open +
+  (DEMO_GAME.length - 1) * DEMO_PACE.ply +
+  DEMO_PACE.mate +
+  DEMO_PACE.fadeOut;
 
 export interface DemoFrame {
   /** Which pass of the game this is, from 0: a new pass starts a fresh board. */
@@ -72,12 +78,13 @@ export function demoFrame(seconds: number): DemoFrame {
   const t = Math.max(0, seconds);
   const pass = Math.floor(t / DEMO_LOOP_SECONDS);
   const s = t - pass * DEMO_LOOP_SECONDS;
-  const { open, ply: step, fade } = DEMO_PACE;
+  const { open, ply: step, fadeIn, fadeOut } = DEMO_PACE;
   // The very first pass opens without a fade: the page arrives on the board.
-  const fadeIn = pass === 0 ? 0 : Math.max(0, 1 - s / fade);
-  const playFrom = fade + open;
+  // The veil opens easing out (quick, then settling) and closes easing in.
+  const opening = pass === 0 ? 0 : Math.max(0, 1 - s / fadeIn) ** 2;
+  const playFrom = fadeIn + open;
   const ply = s < playFrom ? 0 : Math.min(DEMO_GAME.length, 1 + Math.floor((s - playFrom) / step));
-  const outFrom = DEMO_LOOP_SECONDS - fade;
-  const fadeOut = s <= outFrom ? 0 : Math.min(1, (s - outFrom) / fade);
-  return { pass, ply, veil: Math.max(fadeIn, fadeOut) };
+  const outFrom = DEMO_LOOP_SECONDS - fadeOut;
+  const closing = s <= outFrom ? 0 : Math.min(1, (s - outFrom) / fadeOut) ** 2;
+  return { pass, ply, veil: Math.max(opening, closing) };
 }

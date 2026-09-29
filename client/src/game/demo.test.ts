@@ -29,7 +29,7 @@ describe('the demo game', () => {
 });
 
 describe('demoFrame', () => {
-  const firstMove = DEMO_PACE.fade + DEMO_PACE.open;
+  const firstMove = DEMO_PACE.fadeIn + DEMO_PACE.open;
   const lastMove = firstMove + (DEMO_GAME.length - 1) * DEMO_PACE.ply;
 
   it('opens on the starting position without a fade', () => {
@@ -50,11 +50,13 @@ describe('demoFrame', () => {
 
   it('fades out at the end of a pass and back in on a fresh board', () => {
     const end = DEMO_LOOP_SECONDS;
-    expect(demoFrame(end - DEMO_PACE.fade / 2).veil).toBeCloseTo(0.5);
+    // Closing eases in, opening eases out: a quarter shut halfway through each
+    expect(demoFrame(end - DEMO_PACE.fadeOut - 0.01).veil).toBe(0);
+    expect(demoFrame(end - DEMO_PACE.fadeOut / 2).veil).toBeCloseTo(0.25);
     expect(demoFrame(end - 1e-6).veil).toBeCloseTo(1);
     expect(demoFrame(end)).toEqual({ pass: 1, ply: 0, veil: 1 });
-    expect(demoFrame(end + DEMO_PACE.fade / 2).veil).toBeCloseTo(0.5);
-    expect(demoFrame(end + DEMO_PACE.fade).veil).toBeCloseTo(0);
+    expect(demoFrame(end + DEMO_PACE.fadeIn / 2).veil).toBeCloseTo(0.25);
+    expect(demoFrame(end + DEMO_PACE.fadeIn).veil).toBeCloseTo(0);
     expect(demoFrame(end + firstMove + 0.01).ply).toBe(1);
   });
 

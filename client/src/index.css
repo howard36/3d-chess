@@ -696,3 +696,281 @@
     0 0 0 2px rgba(243, 246, 255, 0.9),
     0 0 0 5px rgba(230, 238, 255, 0.25) !important;
 }
+
+/*
+ * The landing page: the live preview fills the window, the tower turning in
+ * the middle, with the page's text like a gallery's wall label above and
+ * below it. The bands the text stands in are the ones the preview's camera
+ * keeps clear (three/landingView.ts: 120 px above and 116 below; 140 and 132
+ * in a window 860 px tall or more; in one 480 px tall or less, a phone on its
+ * side, the text stands in a column at the left instead). White on black
+ * only: the level colours stay with the levels.
+ */
+.landing {
+  position: relative;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+  background: #010205;
+  color: var(--hud-fg);
+  font-family: var(--hud-font);
+  letter-spacing: var(--hud-tracking);
+}
+.landing-preview {
+  position: absolute;
+  inset: 0;
+}
+/* The veil the demo closes between one game and the next (LandingPreview) */
+.landing-veil {
+  position: absolute;
+  inset: 0;
+  background: #010205;
+  pointer-events: none;
+}
+/*
+ * Scrims behind the text, clear well before the tower: darker at the top and
+ * bottom edges, and a soft vignette that calms the neon sculptures as they
+ * pass behind the words.
+ */
+.landing-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(1, 2, 5, 0.72) 0, rgba(1, 2, 5, 0) 168px),
+    linear-gradient(0deg, rgba(1, 2, 5, 0.82) 0, rgba(1, 2, 5, 0) 172px),
+    radial-gradient(ellipse at 50% 50%, rgba(1, 2, 5, 0) 55%, rgba(1, 2, 5, 0.45) 100%);
+}
+.landing-head,
+.landing-foot {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.landing-head {
+  top: 0;
+  padding-top: max(32px, calc(env(safe-area-inset-top) + 20px));
+}
+.landing-foot {
+  bottom: 0;
+  gap: 12px;
+  padding-bottom: max(28px, calc(env(safe-area-inset-bottom) + 16px));
+}
+.landing h1 {
+  margin: 0;
+  font-size: 42px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.6);
+}
+.landing-tagline {
+  margin: 6px 0 0;
+  max-width: 300px;
+  color: var(--hud-muted);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-wrap: balance;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+}
+@media (min-width: 560px) {
+  .landing-tagline {
+    max-width: none;
+  }
+}
+/* The one call to action: filled starlight, the brightest thing on the page */
+.landing-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 48px;
+  min-width: 232px;
+  padding: 0 28px;
+  border: 1px solid transparent;
+  border-radius: var(--button-radius);
+  background: var(--hud-accent);
+  color: var(--hud-accent-fg);
+  font: inherit;
+  font-size: 15.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 150ms,
+    box-shadow 150ms;
+}
+.landing-play:hover:not(:disabled) {
+  background: #fff;
+  box-shadow:
+    0 0 0 4px rgba(230, 238, 255, 0.16),
+    0 0 28px rgba(230, 238, 255, 0.22);
+}
+.landing-play:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.landing-play:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px #010205,
+    0 0 0 4px rgba(243, 246, 255, 0.9);
+}
+.landing-play:disabled {
+  border-color: var(--hud-hair-strong);
+  background: rgba(243, 246, 255, 0.12);
+  color: var(--hud-fg);
+  cursor: progress;
+}
+/* The slot under the button: facts, the connection's state, or an error */
+.landing-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 18px;
+  max-width: 420px;
+  margin: 0;
+  color: var(--hud-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  animation: landing-note-in 200ms ease-out;
+}
+.landing-facts {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.landing-error {
+  color: var(--hud-check-ink);
+}
+@keyframes landing-note-in {
+  from {
+    opacity: 0;
+  }
+}
+/* Stops the preview (it moves on its own, beside the page's controls) */
+.landing-pause {
+  position: absolute;
+  top: max(16px, calc(env(safe-area-inset-top) + 8px));
+  right: max(16px, calc(env(safe-area-inset-right) + 8px));
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--hud-muted);
+  cursor: pointer;
+}
+.landing-pause:hover,
+.landing-pause:focus-visible {
+  color: var(--hud-fg);
+  outline: none;
+  box-shadow:
+    var(--hud-shadow),
+    0 0 0 3px rgba(230, 238, 255, 0.25);
+}
+@media (pointer: coarse) {
+  .landing-play {
+    height: 52px;
+  }
+  .landing-pause {
+    width: 44px;
+    height: 44px;
+  }
+}
+/* A phone held upright: the button spans the column */
+@media (max-width: 480px) {
+  .landing h1 {
+    font-size: 34px;
+  }
+  .landing-tagline {
+    font-size: 15px;
+  }
+  .landing-foot {
+    left: 20px;
+    right: 20px;
+  }
+  .landing-play {
+    width: 100%;
+    max-width: 360px;
+    min-width: 0;
+  }
+}
+/* A tall window: the type a step up, in the wider bands */
+@media (min-height: 860px) and (min-width: 700px) {
+  .landing-head {
+    padding-top: 40px;
+  }
+  .landing h1 {
+    font-size: 52px;
+  }
+  .landing-tagline {
+    font-size: 17px;
+  }
+  .landing-foot {
+    padding-bottom: 36px;
+  }
+}
+/* A phone on its side: the text in a column at the left of the tower */
+@media (max-height: 480px) {
+  .landing-scrim {
+    background:
+      linear-gradient(
+        90deg,
+        rgba(1, 2, 5, 0.82) 0,
+        rgba(1, 2, 5, 0.82) 200px,
+        rgba(1, 2, 5, 0) 300px
+      ),
+      radial-gradient(ellipse at 50% 50%, rgba(1, 2, 5, 0) 55%, rgba(1, 2, 5, 0.45) 100%);
+  }
+  .landing-head,
+  .landing-foot {
+    left: max(16px, calc(env(safe-area-inset-left) + 8px));
+    right: auto;
+    width: 188px;
+    align-items: flex-start;
+    text-align: left;
+    padding: 0;
+  }
+  .landing-head {
+    top: auto;
+    bottom: 50%;
+    padding-bottom: 14px;
+  }
+  .landing-foot {
+    top: 50%;
+    bottom: auto;
+    gap: 10px;
+  }
+  .landing h1 {
+    font-size: 26px;
+  }
+  .landing-tagline {
+    font-size: 13px;
+  }
+  .landing-play {
+    width: 100%;
+    min-width: 0;
+    padding: 0 16px;
+  }
+  .landing-note {
+    justify-content: flex-start;
+  }
+  .landing-facts {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-note,
+  .landing-play {
+    animation: none;
+    transition: none;
+  }
+}

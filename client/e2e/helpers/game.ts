@@ -39,7 +39,7 @@ export async function startGame(browser: Browser): Promise<Game> {
   const [pageA, pageB] = await Promise.all(contexts.map((c) => c.newPage()));
 
   await pageA.goto('/');
-  await pageA.getByRole('button', { name: 'Start New Game' }).click();
+  await pageA.getByRole('button', { name: 'Start new game' }).click();
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
   await pageB.goto(pageA.url());
   await pageB.getByRole('button', { name: 'Join Game' }).click();

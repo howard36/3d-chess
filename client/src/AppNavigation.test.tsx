@@ -10,6 +10,10 @@ import App from './App';
 import { WS_URL } from './hooks/useGameSocket';
 import { getStoredRole, setStoredRole } from './lib/playerRole';
 
+// The landing page's live preview is a WebGL canvas, which jsdom can't provide
+vi.mock('./screens/LandingPreview', () => ({
+  LandingPreview: () => null,
+}));
 beforeAll(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -42,7 +46,7 @@ test('the default route is the start screen', async () => {
       <App />
     </MemoryRouter>,
   );
-  expect(await screen.findByRole('button', { name: 'Start New Game' })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Start new game' })).toBeInTheDocument();
 });
 
 test('jumping from one game page to another keeps each game its own seat', async () => {
