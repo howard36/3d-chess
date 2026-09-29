@@ -41,8 +41,8 @@ Client code imports wire types from `client/src/types/messages.ts` (hand-written
 ## Git
 
 - Conventional Commits with scope: `feat(client):`, `fix(server):`, `test(e2e):`, `ci:`, `docs:`.
-- Branch and open a PR to `main`; never push to `main` directly (a ruleset blocks it). Merging to `main` deploys to Modal via CI.
-- PRs are **squash-merged** (`gh pr merge --squash --delete-branch`), so the PR title becomes the commit subject on `main`: make it a Conventional Commit. The PR description becomes the commit body: say what changed and why, notable decisions, and how it was verified. Per-commit messages on the branch don't survive, so don't rely on them.
-- One session, one branch, one PR, scoped to one logical change (it is what gets reverted or blamed). If the work grows a second concern, don't widen this PR: if it's independent, do it in parallel on its own branch from fresh `main` (another session or worktree) without waiting for this one to merge; if it depends on this PR, wait for it to merge, then branch from `main`. Don't stack PRs on unmerged PRs.
-- Several agents may run in parallel. Stay in your own area, and avoid editing `server/schema.json` while another PR does. Independent PRs can be open and green at the same time; they merge one at a time, each updated onto the latest `main` first.
-- The ruleset requires the branch to be up to date with `main` and CI green on that head. To update, merge `main` into the branch (never rebase or force-push a pushed branch). Don't hand-merge generated files (`server/messages.py`, `client/src/types/schema.ts`) or lockfiles: take either side and regenerate (`/regen-types`, `npm ci` / `uv lock`), then re-run `/check`. A clean textual merge can still break the build, so trust CI on the updated head, not the absence of conflicts.
+- Branch and open a PR to `main` (a ruleset blocks direct pushes). Merging to `main` deploys to Modal via CI.
+- Merge with `gh pr merge --squash --delete-branch`. The PR title becomes the commit subject (Conventional Commit) and the description its body: what changed, why, how verified.
+- One PR per session, scoped to one logical change. Independent extra work goes on its own branch from fresh `main` in parallel; dependent work waits for the merge. Don't stack PRs.
+- Keep a branch current by merging `main` in, not rebasing or force-pushing. For conflicts in generated files or lockfiles, take either side and regenerate, then re-run `/check`; a clean merge can still break the build.
+- Parallel agents: stay in your own area, and don't edit `server/schema.json` while another PR does.
