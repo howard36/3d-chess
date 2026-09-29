@@ -21,9 +21,9 @@ type Vec = { x: number; y: number; z: number };
 const FROM: [number, number, number] = [0, 0, 2];
 const TO: [number, number, number] = [0, 0, 0];
 
-async function glide(arc = 0, from = FROM) {
+async function glide(from = FROM) {
   const renderer = await ReactThreeTestRenderer.create(
-    <MoveGlide from={from} to={TO} durationMs={300} arc={arc}>
+    <MoveGlide from={from} to={TO} durationMs={300}>
       <mesh userData={{ body: true }} />
     </MoveGlide>,
   );
@@ -48,7 +48,7 @@ describe('MoveGlide', () => {
 
   it('glides in a straight line even between levels', async () => {
     // Two levels up and two ranks back: the offset shrinks along one line
-    const { frames, pos } = await glide(0, [0, 2, 2]);
+    const { frames, pos } = await glide([0, 2, 2]);
     for (let i = 0; i < 9; i++) {
       await frames(1);
       const { x, y, z } = pos();
@@ -56,17 +56,6 @@ describe('MoveGlide', () => {
       expect(y).toBeCloseTo(z, 6);
       expect(z).toBeGreaterThanOrEqual(0);
       expect(z).toBeLessThanOrEqual(2);
-    }
-  });
-
-  it('arcs a knight over a constant height above the line, whatever the level change', async () => {
-    for (const from of [FROM, [0, 2, 1] as [number, number, number]]) {
-      const { frames, pos } = await glide(0.6, from);
-      // Halfway through the glide (the ease is symmetric): the arc's peak
-      await frames(5);
-      expect(pos().y - from[1] / 2).toBeCloseTo(0.6, 1);
-      await frames(8);
-      expect(pos()).toMatchObject({ x: 0, y: 0, z: 0 });
     }
   });
 });

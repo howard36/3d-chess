@@ -12,8 +12,6 @@ test('two players each play a move by clicking the board', async ({ browser }) =
   await expect(game.black.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
   await expect(game.white.getByTestId('turn-indicator')).toContainText('Your move');
   await expect(game.black.getByTestId('turn-indicator')).toContainText('Their move');
-  // The HUD carries the gear that opens the board's settings
-  await expect(game.white.getByTestId('settings')).toBeVisible();
 
   // White: pawn Bb1 one step up. play() waits for both clients to flip
   // the turn, which proves the move round-tripped through the server.
@@ -29,11 +27,8 @@ test('two players each play a move by clicking the board', async ({ browser }) =
 });
 
 // The keyboard's way to play: Tab reaches the move field (hidden until then),
-// Enter sends the move, and it lands on both boards. With the Notation panel on,
-// the move card stays on screen with the moves so far.
-test('a player can play from the keyboard, and show the moves with the Notation panel', async ({
-  browser,
-}) => {
+// Enter sends the move, and it lands on both boards.
+test('a player can play from the keyboard', async ({ browser }) => {
   const game = await startGame(browser);
   const white = game.white;
   const field = white.getByRole('textbox', { name: 'Type a move, like Bb1-Cb1' });
@@ -50,15 +45,6 @@ test('a player can play from the keyboard, and show the moves with the Notation 
     await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
     await expect(page.getByTestId('move-announcer')).toHaveAttribute('data-last-move', 'Bb1-Cb1');
   }
-
-  // The Notation panel, from the settings panel: the card and its list stay shown
-  const black = game.black;
-  await black.getByTestId('settings').click();
-  await black.getByRole('switch', { name: 'Notation panel' }).click();
-  await black.getByRole('button', { name: 'Close settings' }).click();
-  await expect(black.getByTestId('move-card')).not.toHaveAttribute('data-hidden');
-  await expect(black.getByRole('list', { name: 'Move history' })).toBeVisible();
-  await expect(black.getByRole('list', { name: 'Move history' })).toContainText('Bb1–Cb1');
 
   await game.close();
 });

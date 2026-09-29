@@ -3,8 +3,7 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import {
   CAPTURES_BAND_PX,
   HUD_TOP_PX,
-  hudBands,
-  MOVE_CARD_BAND_PX,
+  hudTop,
   ZOOM_IN,
   ZOOM_OUT,
   boxRings,
@@ -206,14 +205,12 @@ function fitted(
   height: number,
   rings = RINGS,
   topInset?: number,
-  bottomInset?: number,
 ) {
   const view = {
     width,
     height,
     fov: 36,
     ...(topInset !== undefined ? { topInset } : {}),
-    ...(bottomInset !== undefined ? { bottomInset } : {}),
   };
   const { distance, shift } = fitView(elevation * DEG, rings, view);
   const camera = cameraAt(elevation, azimuth, distance, width / height);
@@ -278,21 +275,6 @@ describe('fitView', () => {
     expect(Math.abs(rect.left - rect.right)).toBeLessThan(0.5);
   });
 
-  it('keeps a bottom band clear too, centring between the bands', () => {
-    for (const [w, h] of [
-      [700, 900],
-      [390, 844],
-      [768, 1024],
-    ]) {
-      const { rect, framed } = fitted(18, 16, w, h, RINGS, HUD_TOP_PX, MOVE_CARD_BAND_PX);
-      expect(rect.bottom).toBeGreaterThan(MOVE_CARD_BAND_PX);
-      expect(rect.top).toBeGreaterThan(HUD_TOP_PX);
-      expect(Math.abs(framed.top - HUD_TOP_PX - (framed.bottom - MOVE_CARD_BAND_PX))).toBeLessThan(
-        0.5,
-      );
-    }
-  });
-
   it('frames the tower about as large as the symmetric fit, which it used to sit low or aside in', () => {
     // The tower with its labels, as the game frames it, against the box its
     // layout gives for the labels' room, fitted symmetrically
@@ -345,67 +327,23 @@ describe('centringShift', () => {
   });
 });
 
-describe('hudBands', () => {
-  it('keeps the pill band always, and the move card band only while the card spans the bottom', () => {
-    const top = HUD_TOP_PX + CAPTURES_BAND_PX;
-    expect(hudBands(1280, 720, false)).toEqual({ top, bottom: 0 });
-    // A wide window keeps the card in a corner beside the board
-    expect(hudBands(1280, 720, true)).toEqual({ top, bottom: 0 });
-    // Upright and squarish windows put it across the bottom
-    for (const [w, h] of [
-      [390, 844],
-      [700, 900],
-      [768, 1024],
-      [1024, 768],
-    ]) {
-      expect(hudBands(w, h, true).bottom).toBe(MOVE_CARD_BAND_PX);
-      expect(hudBands(w, h, false).bottom).toBe(0);
-    }
-    // A phone on its side docks it beside the board
-    expect(hudBands(844, 390, true).bottom).toBe(0);
-  });
-
+describe('hudTop', () => {
   it('keeps the row of pieces taken under the pill, except where it stands beside the tower', () => {
-    for (const [w, h] of [
-      [360, 640],
-      [700, 900],
-      [1280, 720],
-      [1280, 560],
-      [3440, 1440],
-    ]) {
-      expect(hudBands(w, h, false).top).toBe(HUD_TOP_PX + CAPTURES_BAND_PX);
+    for (const h of [640, 900, 720, 560, 1440]) {
+      expect(hudTop(h)).toBe(HUD_TOP_PX + CAPTURES_BAND_PX);
     }
     // A short window (a phone on its side): at the top left, beside the tower
-    for (const [w, h] of [
-      [640, 360],
-      [844, 390],
-      [932, 430],
-    ]) {
-      expect(hudBands(w, h, true).top).toBe(HUD_TOP_PX);
+    for (const h of [360, 390, 430]) {
+      expect(hudTop(h)).toBe(HUD_TOP_PX);
     }
   });
 
-  it('never lets the bands take more than half the window', () => {
+  it('never lets the band take more than half the window', () => {
     const bounds = { left: -0.1, right: 0.1, bottom: -0.2, top: 0.2 };
     const tanV = Math.tan((36 * Math.PI) / 360);
-    // 300 + 300 of 800 rows, scaled to 200 + 200: the middle of the rest is the middle
-    const [, y] = centringShift(bounds, {
-      width: 800,
-      height: 800,
-      fov: 36,
-      topInset: 300,
-      bottomInset: 300,
-    });
-    expect(y).toBeCloseTo(0);
-    const [, lower] = centringShift(bounds, {
-      width: 800,
-      height: 800,
-      fov: 36,
-      topInset: 0,
-      bottomInset: 80,
-    });
-    // A bottom band of 80 rows raises the middle of the rest by 40 rows
-    expect(lower).toBeCloseTo(-0.1 * tanV);
+    // 600 of 800 rows, scaled to 400: the middle of the rest is 0.5 tanV below the middle
+    const [, y] = centringShift(bounds, { width: 800, height: 800, fov: 36, topInset: 600 });
+    expect(y).toBeCloseTo(0.5 * tanV);
   });
 });
 

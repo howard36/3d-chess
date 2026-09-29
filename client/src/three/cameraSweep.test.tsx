@@ -4,7 +4,7 @@ import ReactThreeTestRenderer from '@react-three/test-renderer';
 import { useThree } from '@react-three/fiber';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { FitCameraToBoard } from './FitCameraToBoard';
-import { FIT_SOFTNESS, hudBands, ringBounds } from './cameraFit';
+import { FIT_SOFTNESS, hudTop, ringBounds } from './cameraFit';
 import { towerFrame } from './layout';
 import { CORNERS, GLYPH_REACH, labelAnchors } from './scene/labelAnchors';
 import type { AnchorState } from './scene/labelAnchors';
@@ -23,7 +23,7 @@ import type { Vec3 } from './types';
 //   the tower's centre stands still on screen and the camera only turns
 //   about it;
 // - the whole tower and every label, where the grid puts it, stays inside the
-//   window clear of the HUD's bands, at the fitted distance and zoomed all the
+//   window clear of the HUD's top band, at the fitted distance and zoomed all the
 //   way out; zoomed all the way in (where it cannot fit) it stays centred.
 
 const DEG = Math.PI / 180;
@@ -70,7 +70,6 @@ async function mount(width: number, height: number, from: [number, number] = [16
     React.useLayoutEffect(() => set({ controls: controls as never }), [set]);
     return null;
   };
-  const bands = (w: number, h: number) => hudBands(w, h, false);
   await ReactThreeTestRenderer.create(
     <>
       <Controls />
@@ -79,7 +78,7 @@ async function mount(width: number, height: number, from: [number, number] = [16
         viewDirection={layout.viewDirection}
         minDistance={layout.orbit.minDistance}
         frameRings={layout.frameRings}
-        bands={bands}
+        hudTopBand={hudTop}
       />
     </>,
     { width, height, camera },
@@ -96,7 +95,7 @@ async function mount(width: number, height: number, from: [number, number] = [16
     const [x, y] = lensShiftOf(camera);
     return [x * px, y * px];
   };
-  return { camera, controls, fitted, turn, bands: bands(width, height) };
+  return { camera, controls, fitted, turn, top: hudTop(height) };
 }
 
 describe('the fitted view', SWEEP, () => {
@@ -128,7 +127,7 @@ describe('the fitted view', SWEEP, () => {
       let tightest = Infinity;
       for (const elevation of ELEVATIONS) {
         const view = await mount(width, height, [16, elevation]);
-        const { camera, bands } = view;
+        const { camera, top } = view;
         const { minDistance: min, maxDistance: max } = view.controls;
         for (const [name, distance] of [
           ['fitted', view.fitted],
@@ -171,9 +170,7 @@ describe('the fitted view', SWEEP, () => {
               continue;
             }
             const room = Math.min(
-              ...points.map(([x, y]) =>
-                Math.min(x, width - x, y - bands.top, height - bands.bottom - y),
-              ),
+              ...points.map(([x, y]) => Math.min(x, width - x, y - top, height - y)),
             );
             tightest = Math.min(tightest, room);
             if (room < 0)
@@ -191,7 +188,7 @@ describe('the fitted view', SWEEP, () => {
     const bounds = ringBounds(layout.frameRings, 18 * DEG, view.fitted, FIT_SOFTNESS);
     const [, y] = view.turn(123, 18);
     const px = 720 / (2 * Math.tan(18 * DEG));
-    const band = (hudBands(1280, 720, false).top / 720) * Math.tan(18 * DEG);
+    const band = (hudTop(720) / 720) * Math.tan(18 * DEG);
     expect(y / px).toBeCloseTo((bounds.top + bounds.bottom) / 2 + band, 9);
   });
 });

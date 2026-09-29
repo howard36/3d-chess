@@ -2,8 +2,6 @@ import React from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import Board from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
-import { forgetSettings, setSetting } from './settings';
-import { knightArcHeight } from './movePath';
 import { layout, MOTION, PIECE_SCALE } from './scene/palette';
 import { useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
@@ -98,8 +96,6 @@ beforeEach(() => {
   drawn.lastMoveMounts.length = 0;
   drawn.captures.length = 0;
   drawn.selectionMounts = 0;
-  localStorage.clear();
-  forgetSettings();
 });
 
 // Where the board's layout (the tower) puts a cell's centre and its floor
@@ -962,17 +958,12 @@ describe('Board and what it hands the scene', () => {
     expect(piece.children[0].props.position).toEqual([0, FLOOR_Y, 0]);
   });
 
-  it('reports the cell under the pointer, and its level as the hovered focus', async () => {
-    const onHoverCell = vi.fn();
-    const pointer = await pointerOn({ onHoverCell });
+  it('passes the level of the cell under the pointer as the hovered focus', async () => {
+    const pointer = await pointerOn();
 
     // Onto the level-B pawn's body
     const [px, py, pz] = toWorld(LEVEL_B_PAWN, 'white');
     await pointer.moveTo([px, py + FLOOR_Y + 0.25, pz]);
-    expect(onHoverCell).toHaveBeenLastCalledWith({
-      zxy: 'Ba2',
-      piece: { type: PieceType.Pawn, color: 'white' },
-    });
     expect(last(focusSeen())).toEqual({ selected: null, hovered: 1 });
 
     // Selecting it keeps the hover (it is still under the pointer)
@@ -980,7 +971,6 @@ describe('Board and what it hands the scene', () => {
     expect(last(focusSeen())).toEqual({ selected: 1, hovered: 1 });
 
     await pointer.leave();
-    expect(onHoverCell).toHaveBeenLastCalledWith(null);
     expect(last(focusSeen())).toEqual({ selected: 1, hovered: null });
   });
 
@@ -1080,50 +1070,6 @@ describe('Board and what it hands the scene', () => {
     const view = (board: EngineBoard, lastMove: LastMoveInfo | undefined, turn: Color) => (
       <Board board={board} currentTurn={turn} lastMove={lastMove} />
     );
-
-    it('hands the glide and the last move a knight’s arc only when knights arc', async () => {
-      const knightBoard = (at: Coord, type = PieceType.Knight) => {
-        const board = new EngineBoard();
-        board.setPiece(at, { type, color: 'white' });
-        board.setPiece({ x: 0, y: 0, z: 0 }, { type: PieceType.King, color: 'white' });
-        board.setPiece({ x: 4, y: 4, z: 4 }, { type: PieceType.King, color: 'black' });
-        return board;
-      };
-      const jump = { x: 3, y: 4, z: 2 };
-      const arcFor = async (type = PieceType.Knight, promotion?: PieceType) => {
-        seen.length = 0;
-        const at = (board: EngineBoard, lastMove?: LastMoveInfo) => (
-          <Board board={board} currentTurn={lastMove ? 'black' : 'white'} lastMove={lastMove} />
-        );
-        const renderer = await ReactThreeTestRenderer.create(at(knightBoard(FROM, type)));
-        const move: LastMoveInfo = {
-          move: { from: FROM, to: jump, ...(promotion ? { promotion } : {}) },
-          moveCount: 1,
-          capturedPiece: null,
-        };
-        await renderer.update(at(knightBoard(jump, type), move));
-        const glide = (renderer.scene as ReactThreeTestInstance).findAll(
-          (node) => node.props.userData?.moveGlide === true,
-        )[0].instance as unknown as { position: { y: number } };
-        // Half-way through the glide (both squares are on one level): the arc's peak
-        await act(async () => {
-          await renderer.advanceFrames(MOTION.durationMs / 20, 0.01);
-        });
-        return { arc: last(seen)!.arc, glideArc: Math.round(glide.position.y * 1e3) / 1e3 };
-      };
-      const height = knightArcHeight(layout);
-      // 0.6 of the cell pitch (1 in the tower)
-      expect(height).toBeCloseTo(0.6);
-      // Straight until the player chooses the arc (Knight moves, a setting)
-      expect(await arcFor()).toEqual({ arc: 0, glideArc: 0 });
-      setSetting('piece.knightMoves', 'arc');
-      expect(await arcFor()).toEqual({ arc: height, glideArc: height });
-      // Only a knight arcs: not a rook, nor a pawn that promotes to a knight
-      expect((await arcFor(PieceType.Rook)).arc).toBe(0);
-      expect((await arcFor(PieceType.Knight, PieceType.Knight)).arc).toBe(0);
-      setSetting('piece.knightMoves', 'straight');
-      expect(await arcFor()).toEqual({ arc: 0, glideArc: 0 });
-    });
 
     it('is not fresh when replayed at mount, fresh for a live move, and remounts per move', async () => {
       const renderer = await ReactThreeTestRenderer.create(

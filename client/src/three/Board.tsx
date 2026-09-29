@@ -13,12 +13,9 @@ import { CELLS } from './layout';
 import { MoveGlide } from './moveAnimation';
 import { prefersReducedMotion } from './motion';
 import { isTap } from './tap';
-import { useSetting } from './settings';
 import { useExactClicks } from './exactClicks';
 import { useTapAssist } from './useTapAssist';
 import type { AssistedTap } from './useTapAssist';
-import { moveArc } from './movePath';
-import type { KnightMoves } from './movePath';
 import type { LevelFocus, MarkerProps, Vec3 } from './types';
 import { resolveHover } from './hover';
 import type { FloorSquare } from './hover';
@@ -64,12 +61,6 @@ export interface LastMoveInfo {
   capturedPiece: Piece | null;
 }
 
-/** The cell under the pointer, and what stands on it. */
-export interface HoveredCell {
-  zxy: string;
-  piece: Piece | null;
-}
-
 export interface BoardProps {
   currentTurn: BoardTurn;
   playerColor?: 'white' | 'black' | null;
@@ -86,8 +77,6 @@ export interface BoardProps {
   disabled?: boolean;
   /** Set once the game has ended: the mated king topples. */
   gameOver?: { result: 'checkmate' | 'stalemate'; winner?: BoardTurn } | null;
-  /** Told which cell the pointer is on (null when it is on none), for the HUD's readout. */
-  onHoverCell?: (cell: HoveredCell | null) => void;
 }
 
 const Board = (props: BoardProps) => {
@@ -119,12 +108,6 @@ const Board = (props: BoardProps) => {
   const [landedMove, setLandedMove] = useState(mountMoveCount.current);
   const landing = animate && !!lastMove && lastMove.moveCount > landedMove;
   const lastToKey = lastMove ? toZXY(lastMove.move.to) : null;
-  // Every move runs straight; a knight arcs when the player asks for it (a
-  // setting). The glide and the last-move line both take this one arc.
-  const knightMoves = useSetting<KnightMoves>('piece.knightMoves');
-  const lastArc = lastMove
-    ? moveArc(layout, board.getPiece(lastMove.move.to)?.type, lastMove.move.promotion, knightMoves)
-    : 0;
 
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | Coord>(null);
@@ -374,14 +357,6 @@ const Board = (props: BoardProps) => {
     latestEmptyTap.current = handleEmptyTap;
   });
 
-  const onHoverCell = props.onHoverCell;
-  const hoveredPiece = hoveredCell ? board.getPiece(fromZXY(hoveredCell)) : null;
-  useEffect(() => {
-    onHoverCell?.(hoveredCell ? { zxy: hoveredCell, piece: hoveredPiece } : null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the piece is read with the cell
-  }, [onHoverCell, hoveredCell, hoveredPiece?.type, hoveredPiece?.color]);
-  useEffect(() => () => onHoverCell?.(null), [onHoverCell]);
-
   const selectedLevel = selected?.z ?? null;
   const hoveredLevel = hoveredCell ? fromZXY(hoveredCell).z : null;
   const focus = useMemo<LevelFocus>(
@@ -466,7 +441,6 @@ const Board = (props: BoardProps) => {
                 from={worldOf(lastMove.move.from)}
                 to={worldOf(coord)}
                 durationMs={MOTION.durationMs}
-                arc={lastArc}
                 fromLevel={lastMove.move.from.z}
                 toLevel={coord.z}
                 onLanded={() => setLandedMove((n) => Math.max(n, lastMove.moveCount))}
@@ -502,7 +476,6 @@ const Board = (props: BoardProps) => {
             from={markerAt(lastMove.move.from)}
             to={markerAt(lastMove.move.to)}
             fresh={animate}
-            arc={lastArc}
           />
         )}
         {checkedKings.map(({ color, coord }) => (

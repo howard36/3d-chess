@@ -1,12 +1,11 @@
 import React from 'react';
-import { act, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, test, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import App from './App';
 import GameScreen from './screens/GameScreen';
 import StartScreen from './screens/StartScreen';
 import TurnPill from './screens/TurnPill';
-import { forgetSettings, setSetting } from './three/settings';
 import userEvent from '@testing-library/user-event';
 import { waitFor } from '@testing-library/react';
 import type { GameSocket } from './hooks/useGameSocket';
@@ -106,7 +105,6 @@ const fakeSocket = (
 
 beforeEach(() => {
   localStorage.clear();
-  forgetSettings();
 });
 
 test('renders StartScreen for the default route', () => {
@@ -929,17 +927,16 @@ test("GameScreen's move box only plays on the player's turn, and says so", async
   expect(screen.getByText('Wait for their move.')).toBeInTheDocument();
 });
 
-test('GameScreen keeps the move card out of sight until the Notation panel or Tab asks for it', async () => {
+test('GameScreen keeps the move card out of sight until Tab asks for it', async () => {
   renderGameScreen('abc123', fakeSocket(started));
   const card = screen.getByTestId('move-card');
   // Out of sight, but in the page: the list for screen readers, the field for Tab
   expect(card).toHaveAttribute('data-hidden');
   expect(screen.getByRole('list', { name: 'Move history' })).toHaveClass('sr-only');
   // The first tab stop after the board (a few buttons in these tests; the
-  // real canvas takes no focus), before the settings gear
+  // real canvas takes no focus)
   const field = screen.getByRole('textbox', { name: 'Type a move, like Bb1-Cb1' });
   for (let i = 0; i < 6 && document.activeElement !== field; i++) {
-    expect(document.activeElement).not.toBe(screen.getByTestId('settings'));
     await userEvent.tab();
   }
   expect(field).toHaveFocus();
@@ -956,12 +953,6 @@ test('GameScreen keeps the move card out of sight until the Notation panel or Ta
   expect(screen.getByRole('textbox', { name: 'Type a move, like Bb1-Cb1' })).toHaveFocus();
   expect(card).not.toHaveAttribute('data-hidden');
   await userEvent.keyboard('{Escape}');
-  expect(card).toHaveAttribute('data-hidden');
-
-  act(() => setSetting('play.notation', true));
-  expect(card).not.toHaveAttribute('data-hidden');
-  expect(screen.getByRole('list', { name: 'Move history' })).toHaveClass('hud-moves');
-  act(() => setSetting('play.notation', false));
   expect(card).toHaveAttribute('data-hidden');
 });
 

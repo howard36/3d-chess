@@ -9,8 +9,7 @@ type Vec3 = [number, number, number];
 
 /**
  * Glides its children from the `from` cell into their resting place, in a
- * straight line (see movePath.ts), or over an `arc` for a knight when the
- * player has knights jump.
+ * straight line (see movePath.ts).
  *
  * The children keep their own declarative world `position`; this wrapper only
  * carries the animated remainder of the journey, easing from `from - to` to
@@ -29,7 +28,6 @@ export const MoveGlide = ({
   to,
   children,
   durationMs,
-  arc = 0,
   fromLevel,
   toLevel,
   onLanded,
@@ -38,11 +36,6 @@ export const MoveGlide = ({
   to: Vec3;
   children: React.ReactNode;
   durationMs: number;
-  /**
-   * Height of the path's arc above the straight line (world units): 0 for
-   * every move but a knight's when knights arc (moveArc in movePath.ts).
-   */
-  arc?: number;
   /**
    * The levels (engine z) the move leaves and lands on, handed to the piece
    * body through useGlide (pieceMotion.tsx) with the glide's progress.
@@ -93,9 +86,8 @@ export const MoveGlide = ({
       landed.current?.();
       return;
     }
-    // Straight from the source (offset d) to rest (0), eased; a knight's
-    // arc rises over the line's midpoint
-    const [x, y, z] = movePoint([dx, dy, dz], ORIGIN, easeInOutCubic(t), arc);
+    // Straight from the source (offset d) to rest (0), eased
+    const [x, y, z] = movePoint([dx, dy, dz], ORIGIN, easeInOutCubic(t));
     g.position.set(x, y, z);
     invalidate();
   });

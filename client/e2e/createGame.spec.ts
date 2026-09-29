@@ -10,9 +10,6 @@ test('create game flow', async ({ page }) => {
   const startButton = page.getByRole('button', { name: 'Start New Game' });
   await expect(startButton).toBeVisible();
 
-  // The board's settings are a gear away, before a game as during one
-  await expect(page.getByTestId('settings')).toBeVisible();
-
   // Click the start button
   await startButton.click();
 

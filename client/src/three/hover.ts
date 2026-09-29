@@ -1,5 +1,3 @@
-import type { Piece } from '../engine';
-
 // What the pointer is on, worked out from the pointer's ray rather than from
 // r3f's pointer events on the cells' click boxes. A click box stands up from
 // its floor, so a ray aimed at the middle of a square usually passes through
@@ -60,11 +58,3 @@ export const resolveHover = (
   }
   return nearestDestination?.key ?? nearest?.key ?? null;
 };
-
-const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-/** The two parts of the HUD readout: the cell ("Cc4") and what stands there, if anything. */
-export const readoutParts = (zxy: string, piece: Piece | null) => ({
-  cell: zxy,
-  piece: piece ? `${capitalise(piece.color)} ${piece.type}` : null,
-});

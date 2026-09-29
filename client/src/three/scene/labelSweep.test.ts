@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitView, hudBands } from '../cameraFit';
+import { fitView, hudTop } from '../cameraFit';
 import { towerFrame, towerLayout } from '../layout';
 import type { Orientation } from '../layout';
 import type { Vec3 } from '../types';
@@ -54,16 +54,8 @@ const WINDOWS = [
 ] as const;
 
 /** The fitted distance for a window at an elevation (degrees), as FitCameraToBoard stands. */
-const fitted = (width: number, height: number, elevation: number) => {
-  const { top, bottom } = hudBands(width, height, false);
-  return fitView(elevation * DEG, rings, {
-    width,
-    height,
-    fov: 36,
-    topInset: top,
-    bottomInset: bottom,
-  }).distance;
-};
+const fitted = (width: number, height: number, elevation: number) =>
+  fitView(elevation * DEG, rings, { width, height, fov: 36, topInset: hudTop(height) }).distance;
 
 const eyeAt = (azimuth: number, elevation: number, distance: number): Vec3 => [
   Math.sin(azimuth * DEG) * Math.cos(elevation * DEG) * distance,

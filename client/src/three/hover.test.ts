@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PieceType } from '../engine';
-import { readoutParts, resolveHover } from './hover';
+import { resolveHover } from './hover';
 import type { FloorSquare, HoverRay } from './hover';
 
 // Two levels of three squares in a row along z, one unit apart, the upper
@@ -54,22 +53,5 @@ describe('resolveHover', () => {
     ).toBeNull();
     // Looking up and away from every floor
     expect(resolveHover(ray(camera, [0, 9, 0]), floors, half, null, new Set())).toBeNull();
-  });
-});
-
-describe('readoutParts', () => {
-  it('names the cell and what stands there', () => {
-    expect(readoutParts('Cc4', { type: PieceType.Bishop, color: 'white' })).toEqual({
-      cell: 'Cc4',
-      piece: 'White Bishop',
-    });
-    expect(readoutParts('Ee5', { type: PieceType.Unicorn, color: 'black' })).toEqual({
-      cell: 'Ee5',
-      piece: 'Black Unicorn',
-    });
-  });
-
-  it('is just the cell when it is empty', () => {
-    expect(readoutParts('Aa1', null)).toEqual({ cell: 'Aa1', piece: null });
   });
 });

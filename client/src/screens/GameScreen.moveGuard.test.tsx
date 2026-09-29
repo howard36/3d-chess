@@ -5,7 +5,6 @@ import type { GameSocket } from '../hooks/useGameSocket';
 import type { WebSocketMessage } from '../types/messages';
 import type { Move } from '../engine';
 import type { BoardProps } from '../three/Board';
-import { forgetSettings } from '../three/settings';
 import GameScreen from './GameScreen';
 
 // No WebGL in jsdom: the three.js layer is stubbed, and the board only
@@ -46,7 +45,6 @@ const socket = (messages: WebSocketMessage[], send: GameSocket['send']): GameSoc
 
 beforeEach(() => {
   localStorage.clear();
-  forgetSettings();
   board.onMove = null;
 });
 

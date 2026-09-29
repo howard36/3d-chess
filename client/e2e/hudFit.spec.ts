@@ -46,8 +46,8 @@ const records = (moves: string[]) =>
     return { by: i % 2 === 0 ? 'white' : 'black', from, to };
   });
 
-/** A page seated as `seat` in a game whose record the test sets, with the Notation panel on or off. */
-async function seated(page: Page, seat: 'white' | 'black', notation = false) {
+/** A page seated as `seat` in a game whose record the test sets. */
+async function seated(page: Page, seat: 'white' | 'black') {
   let socket: WebSocketRoute | null = null;
   let record = CHECK;
   await page.routeWebSocket(/\/ws$/, (ws) => {
@@ -67,13 +67,7 @@ async function seated(page: Page, seat: 'white' | 'black', notation = false) {
       );
     });
   });
-  await page.addInitScript(
-    ([s, panel]) => {
-      localStorage.setItem('3dchess:role:FITTED', s);
-      localStorage.setItem('3dchess:settings', JSON.stringify({ 'play.notation': panel }));
-    },
-    [seat, notation] as const,
-  );
+  await page.addInitScript((s) => localStorage.setItem('3dchess:role:FITTED', s), seat);
   await page.goto('/game/FITTED');
   await expect(page.getByTestId('turn-indicator')).toBeVisible();
   return {
@@ -136,7 +130,7 @@ for (const seat of ['white', 'black'] as const) {
   });
 }
 
-/** The HUD's rects over the board: the pill, each side's captured pieces, the gear, and the move card while shown. */
+/** The HUD's rects over the board: the pill, and each side's captured pieces. */
 const hudRects = (page: Page) =>
   page.evaluate(() => {
     const rect = (what: string, el: Element | null) => {
@@ -145,7 +139,6 @@ const hudRects = (page: Page) =>
         ? { what, left: b.left, top: b.top, right: b.right, bottom: b.bottom }
         : null;
     };
-    const card = document.querySelector('[data-testid="move-card"]:not([data-hidden])');
     return [
       rect('pill', document.querySelector('[data-testid="turn-indicator"]')),
       rect(
@@ -156,8 +149,6 @@ const hudRects = (page: Page) =>
         'their captures',
         document.querySelector('[data-testid="captured-pieces"] [data-side="them"]'),
       ),
-      rect('gear', document.querySelector('[data-testid="settings"]')),
-      rect('move card', card),
     ].filter((r) => r !== null);
   });
 
@@ -168,8 +159,8 @@ const meet = (a: ScreenRect, b: ScreenRect, gap = 0) =>
 /**
  * What is wrong at this size, in words (nothing when all is well): a HUD rect
  * over a piece or label of the tower, and the captured pieces out of the
- * window, outside the pill's width where they hang under it, too close to each
- * other or on the gear.
+ * window, outside the pill's width where they hang under it, or too close to
+ * each other.
  */
 async function problemsAt(page: Page, width: number, height: number) {
   await page.setViewportSize({ width, height });
@@ -204,7 +195,6 @@ async function problemsAt(page: Page, width: number, height: number) {
     for (const t of tower) if (meet(h, t)) problems.push(`${h.what} covers ${t.what}`);
   }
   const pill = hud.find((r) => r.what === 'pill')!;
-  const gear = hud.find((r) => r.what === 'gear')!;
   const hauls = hud.filter((r) => r.what.endsWith('captures'));
   for (const h of hauls) {
     if (h.left < 0 || h.right > width) problems.push(`${h.what} run out of the window`);
@@ -212,39 +202,36 @@ async function problemsAt(page: Page, width: number, height: number) {
     if (height > 480 && (h.left < pill.left - 0.5 || h.right > pill.right + 0.5)) {
       problems.push(`${h.what} run past the pill`);
     }
-    if (meet(h, gear)) problems.push(`${h.what} meet the gear`);
   }
   if (hauls.length === 2 && meet(hauls[0], hauls[1], 3)) problems.push('the captures meet');
   return problems.map((p) => `${width}x${height}: ${p}`);
 }
 
 for (const seat of ['white', 'black'] as const) {
-  for (const notation of [false, true]) {
-    test(`the HUD never covers the tower, captured pieces and all, seated as ${seat}, Notation panel ${notation ? 'on' : 'off'}`, async ({
-      page,
-    }) => {
-      const game = await seated(page, seat, notation);
-      const everywhere = async () => {
-        const problems: string[] = [];
-        for (const [width, height] of SIZES)
-          problems.push(...(await problemsAt(page, width, height)));
-        return problems;
-      };
-      // Every kind of piece taken, White ahead
-      await game.show(STRIPPED);
-      await expect(page.getByTestId('captured-pieces')).toContainText('taken');
-      expect(await everywhere()).toEqual([]);
-      // ...and Black in check a move before
-      await game.show(STRIPPED.slice(0, -1));
-      await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-check', 'true');
-      expect(await everywhere()).toEqual([]);
-      // The opening: Black's army stands at the top of the tower
-      await game.show([]);
-      expect(await everywhere()).toEqual([]);
-      // The result
-      await game.show(MATE);
-      await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-result', 'checkmate');
-      expect(await everywhere()).toEqual([]);
-    });
-  }
+  test(`the HUD never covers the tower, captured pieces and all, seated as ${seat}`, async ({
+    page,
+  }) => {
+    const game = await seated(page, seat);
+    const everywhere = async () => {
+      const problems: string[] = [];
+      for (const [width, height] of SIZES)
+        problems.push(...(await problemsAt(page, width, height)));
+      return problems;
+    };
+    // Every kind of piece taken, White ahead
+    await game.show(STRIPPED);
+    await expect(page.getByTestId('captured-pieces')).toContainText('taken');
+    expect(await everywhere()).toEqual([]);
+    // ...and Black in check a move before
+    await game.show(STRIPPED.slice(0, -1));
+    await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-check', 'true');
+    expect(await everywhere()).toEqual([]);
+    // The opening: Black's army stands at the top of the tower
+    await game.show([]);
+    expect(await everywhere()).toEqual([]);
+    // The result
+    await game.show(MATE);
+    await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-result', 'checkmate');
+    expect(await everywhere()).toEqual([]);
+  });
 }
