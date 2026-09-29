@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { PerspectiveCamera, Vector3 } from 'three';
+import { PerspectiveCamera } from 'three';
 import { PieceType } from '../../engine/pieces';
-import { fitDistance } from '../cameraFit';
-import { layout } from './palette';
 import { GARDEN, gardenView, SQUARE, squareCentre } from './stage';
 import { placeStar, SKY_PLAN } from './heavens';
 import { sculptureOf } from './sculptures';
@@ -18,9 +16,11 @@ const FOV = 36;
 // The tower's shade is wide, so a sculpture beside it still averages a little dark
 const CLEAR = 0.6;
 
+// About how far out the game opens in a 16:9 window
+const DISTANCE = 16;
+
 const cameraAt = (azimuthDeg: number, elevationDeg: number, zoom = 1) => {
-  const dir = new Vector3(...layout.viewDirection);
-  const d = fitDistance(dir, ASPECT, FOV, layout.halfExtents) * zoom;
+  const d = DISTANCE * zoom;
   const cam = new PerspectiveCamera(FOV, ASPECT, 0.1, 1000);
   cam.position.set(...eyeAt(azimuthDeg, elevationDeg, d));
   cam.lookAt(0, 0, 0);

@@ -6,81 +6,23 @@ import {
   hudTop,
   ZOOM_IN,
   ZOOM_OUT,
-  boxRings,
   centringShift,
   elevationOf,
   FIT_SOFTNESS,
-  fitDistance,
   fitView,
   ringBounds,
   zoomRange,
 } from './cameraFit';
 import type { FrameRing } from './cameraFit';
-import { towerLayout } from './layout';
-import { towerFrameRings } from './scene/labelAnchors';
 import { lensShiftOf, setLensShift } from './viewOffset';
-
-// The board's box and opening view: the tower's
-const { halfExtents: BOX, viewDirection } = towerLayout();
-const VIEW = new Vector3(...viewDirection);
-const [hx, hy, hz] = BOX;
-const corners = [-1, 1].flatMap((x) =>
-  [-1, 1].flatMap((y) => [-1, 1].map((z) => new Vector3(x * hx, y * hy, z * hz))),
-);
-
-// Where each board corner lands on screen, in normalized device coordinates
-// (the visible window is -1..1 on both axes).
-function projectCorners(direction: Vector3, aspect: number, fov = 40) {
-  const camera = new PerspectiveCamera(fov, aspect, 0.1, 100);
-  camera.position
-    .copy(direction)
-    .normalize()
-    .multiplyScalar(fitDistance(direction, aspect, fov, BOX));
-  camera.lookAt(0, 0, 0);
-  camera.updateMatrixWorld();
-  camera.updateProjectionMatrix();
-  return corners.map((c) => c.clone().project(camera));
-}
-
-describe('fitDistance', () => {
-  it.each([
-    ['a wide desktop window', 1280 / 720],
-    ['a square window', 1],
-    ['an upright phone', 375 / 667],
-    ['a very tall, narrow window', 0.3],
-  ])('keeps the whole board in frame in %s', (_, aspect) => {
-    for (const direction of [VIEW, new Vector3(0, 1, 0.01), new Vector3(-1, -0.4, 0.2)]) {
-      const ndc = projectCorners(direction, aspect);
-      for (const p of ndc) {
-        expect(Math.abs(p.x)).toBeLessThanOrEqual(1);
-        expect(Math.abs(p.y)).toBeLessThanOrEqual(1);
-      }
-      // ...and fills it: the fit is tight on at least one axis
-      const extent = Math.max(...ndc.map((p) => Math.max(Math.abs(p.x), Math.abs(p.y))));
-      expect(extent).toBeGreaterThan(0.85);
-    }
-  });
-
-  it('stands further back the narrower the window', () => {
-    const wide = fitDistance(VIEW, 16 / 9, 40, BOX);
-    const phone = fitDistance(VIEW, 375 / 667, 40, BOX);
-    expect(phone).toBeGreaterThan(wide * 1.3);
-  });
-
-  it('stands further back for a taller box', () => {
-    const taller = fitDistance(VIEW, 16 / 9, 40, [hx, hy * 2, hz]);
-    expect(taller).toBeGreaterThan(fitDistance(VIEW, 16 / 9, 40, BOX));
-  });
-});
 
 describe('zoomRange', () => {
   it('lets the player zoom a fixed fraction in and out of the fitted view', () => {
     expect(zoomRange(20)).toEqual({ min: 20 * ZOOM_IN, max: 20 * ZOOM_OUT });
-    // Proportionally the same on an upright phone, which fits from farther away
-    const phone = fitDistance(VIEW, 375 / 667, 40, BOX);
-    const { min, max } = zoomRange(phone);
-    expect(min / phone).toBeCloseTo(ZOOM_IN);
-    expect(max / phone).toBeCloseTo(ZOOM_OUT);
+    // Proportionally the same from farther away (an upright phone)
+    const { min, max } = zoomRange(31);
+    expect(min / 31).toBeCloseTo(ZOOM_IN);
+    expect(max / 31).toBeCloseTo(ZOOM_OUT);
   });
 
   it("only narrows the range by the layout's nearest distance", () => {
@@ -176,21 +118,6 @@ describe('ringBounds', () => {
     }
   });
 
-  it('frames a box by the circles round its top and bottom', () => {
-    const bounds = ringBounds(boxRings(BOX), 18 * DEG, 20);
-    for (const azimuth of [0, 16, 45, 90]) {
-      const camera = cameraAt(18, azimuth, 20);
-      for (const c of corners) {
-        const { x, y } = tangents(camera, c);
-        expect(x).toBeLessThanOrEqual(bounds.right + 1e-12);
-        expect(x).toBeGreaterThanOrEqual(bounds.left - 1e-12);
-        expect(y).toBeLessThanOrEqual(bounds.top + 1e-12);
-        expect(y).toBeGreaterThanOrEqual(bounds.bottom - 1e-12);
-      }
-    }
-    expect(boxRings(BOX)[0]).toEqual({ y: -hy, radius: Math.hypot(hx, hz) });
-  });
-
   it('reads the elevation off the camera', () => {
     const camera = cameraAt(35, 120, 18);
     expect(elevationOf(camera.position, new Vector3()) / DEG).toBeCloseTo(35, 9);
@@ -274,27 +201,6 @@ describe('fitView', () => {
     const { rect, framed } = fitted(18, 16, 1280, 720, RINGS, 0);
     expect(Math.abs(framed.top - framed.bottom)).toBeLessThan(0.5);
     expect(Math.abs(rect.left - rect.right)).toBeLessThan(0.5);
-  });
-
-  it('frames the tower about as large as the symmetric fit, which it used to sit low or aside in', () => {
-    // The tower with its labels, as the game frames it, against the box its
-    // layout gives for the labels' room, fitted symmetrically
-    const tower = towerLayout({ pieceHeight: 0.87 * 0.8, minElevation: -14 });
-    const rings = towerFrameRings(tower);
-    // (7% and 1% closer in a desktop window and a phone on its side, where
-    // the framing of the outline as seen was 10% and 3% closer, before it
-    // held still as the view turned; an upright phone, which the tower fills
-    // across, stands 3.5% further back for the level letters' column at a
-    // side of the tower's outline)
-    for (const [w, h, most] of [
-      [1280, 720, 0.93],
-      [390, 844, 1.04],
-      [844, 390, 1],
-    ]) {
-      const old = fitDistance(VIEW, w / h, 36, tower.halfExtents);
-      const elevation = Math.asin(VIEW.y / VIEW.length()) / DEG;
-      expect(fitted(elevation, 16, w, h, rings).distance).toBeLessThan(old * most);
-    }
   });
 
   it('stands further back for wider rings', () => {

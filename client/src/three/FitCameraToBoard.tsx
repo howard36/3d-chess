@@ -2,12 +2,10 @@ import React from 'react';
 import { MathUtils, PerspectiveCamera, Vector3 } from 'three';
 import { useThree } from '@react-three/fiber';
 import {
-  boxRings,
   centringShift,
   elevationOf,
   FIT_SOFTNESS,
   fitView,
-  HUD_TOP_PX,
   ringBounds,
   zoomRange,
 } from './cameraFit';
@@ -38,29 +36,25 @@ interface OrbitControlsLike {
  * moves nearer or farther.
  */
 export function FitCameraToBoard({
-  halfExtents,
   viewDirection,
   minDistance,
   frameRings,
   hudTopBand,
 }: {
-  /** Half the board's bounding box, framed when there are no rings. */
-  halfExtents: readonly [number, number, number];
   /** Where the camera looks from when it sits on the target. */
   viewDirection: readonly [number, number, number];
   /** The layout's nearest zoom, which may only narrow the range. */
   minDistance: number;
-  /** What the view keeps in frame instead of the box (BoardLayout.frameRings). */
-  frameRings?: readonly FrameRing[];
-  /** The HUD's band at the top for a window this size (hudTop); HUD_TOP_PX by default. */
-  hudTopBand?: (height: number) => number;
+  /** What the view keeps in frame (BoardLayout.frameRings). */
+  frameRings: readonly FrameRing[];
+  /** The HUD's band at the top for a window this size (hudTop). */
+  hudTopBand: (height: number) => number;
 }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as OrbitControlsLike | null;
   const width = useThree((s) => s.size.width);
   const height = useThree((s) => s.size.height);
   const invalidate = useThree((s) => s.invalidate);
-  const rings = React.useMemo(() => frameRings ?? boxRings(halfExtents), [frameRings, halfExtents]);
 
   React.useLayoutEffect(() => {
     if (!(camera instanceof PerspectiveCamera) || width === 0 || height === 0) return;
@@ -69,12 +63,12 @@ export function FitCameraToBoard({
       width,
       height,
       fov: camera.fov,
-      topInset: hudTopBand?.(height) ?? HUD_TOP_PX,
+      topInset: hudTopBand(height),
     };
     const direction = camera.position.clone().sub(target);
     if (direction.lengthSq() === 0) direction.copy(new Vector3(...viewDirection));
     direction.normalize();
-    const fit = fitView(Math.asin(MathUtils.clamp(direction.y, -1, 1)), rings, view).distance;
+    const fit = fitView(Math.asin(MathUtils.clamp(direction.y, -1, 1)), frameRings, view).distance;
     const { min, max } = zoomRange(fit, minDistance);
     // The fitted view, or as near it as the zoom limits allow: the camera
     // never starts outside the range the player can zoom over.
@@ -87,7 +81,7 @@ export function FitCameraToBoard({
     }
     // The shift that centres the rings as fitted, kept as the view moves
     const bounds = ringBounds(
-      rings,
+      frameRings,
       elevationOf(camera.position, target),
       camera.position.distanceTo(target),
       FIT_SOFTNESS,
@@ -95,7 +89,7 @@ export function FitCameraToBoard({
     setLensShift(camera, centringShift(bounds, view), width, height);
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the layout's extents and limits are fixed
-  }, [camera, controls, width, height, invalidate, hudTopBand, rings]);
+  }, [camera, controls, width, height, invalidate, hudTopBand, frameRings]);
 
   return null;
 }

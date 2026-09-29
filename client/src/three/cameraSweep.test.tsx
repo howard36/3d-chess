@@ -74,7 +74,6 @@ async function mount(width: number, height: number, from: [number, number] = [16
     <>
       <Controls />
       <FitCameraToBoard
-        halfExtents={layout.halfExtents}
         viewDirection={layout.viewDirection}
         minDistance={layout.orbit.minDistance}
         frameRings={layout.frameRings}

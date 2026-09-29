@@ -1,7 +1,4 @@
-import { MathUtils, PerspectiveCamera, Vector3 } from 'three';
-
-/** Breathing room around the board, as a fraction of the fitted distance. */
-const MARGIN = 1.08;
+import { MathUtils, Vector3 } from 'three';
 
 /**
  * How far the player may zoom, as fractions of the fitted distance: in until
@@ -23,52 +20,14 @@ export function zoomRange(fit: number, minDistance = 0): { min: number; max: num
   return { min, max };
 }
 
-const cornersOf = ([hx, hy, hz]: readonly [number, number, number]) =>
-  [-1, 1].flatMap((x) =>
-    [-1, 1].flatMap((y) => [-1, 1].map((z) => new Vector3(x * hx, y * hy, z * hz))),
-  );
-
-/**
- * How far from the board's centre a camera looking at it from `direction`
- * must stand for the whole board to fit in a viewport of this aspect ratio
- * (width / height) with this vertical field of view. The fixed distance the
- * view used to open at fitted the height only, so a window narrower than it
- * was tall (a phone held upright) cut off both sides of the board. The board
- * is a box of the given half extents.
- */
-export function fitDistance(
-  direction: Vector3,
-  aspect: number,
-  fovDeg: number,
-  halfExtents: readonly [number, number, number],
-): number {
-  const tanV = Math.tan(MathUtils.degToRad(fovDeg) / 2);
-  const tanH = tanV * aspect;
-  // A camera one unit out along `direction`: in its frame a corner sits at
-  // lateral (x, y) and depth 1 - p·d, and moving the camera out to distance D
-  // only changes the depth, to D - p·d. The corner is in frame once
-  // |x| / (D - p·d) <= tanH and |y| / (D - p·d) <= tanV.
-  const probe = new PerspectiveCamera();
-  probe.position.copy(direction).normalize();
-  probe.lookAt(0, 0, 0);
-  probe.updateMatrixWorld();
-  let distance = 0;
-  for (const corner of cornersOf(halfExtents)) {
-    const c = corner.clone().applyMatrix4(probe.matrixWorldInverse);
-    const along = 1 + c.z; // p·d
-    distance = Math.max(distance, along + Math.abs(c.x) / tanH, along + Math.abs(c.y) / tanV);
-  }
-  return distance * MARGIN;
-}
-
 // --- The centred fit -------------------------------------------------------------
 //
-// fitDistance fits the box symmetrically about the orbit target, but under
-// perspective its near corners project further from the middle than its far
-// ones: the board sat low in a landscape window. The centred fit shifts the
-// lens (a view offset: the camera still stands and turns about the board's
-// centre, nothing pans) so the board sits in the middle of the window between
-// the HUD's bands, and fits the distance to it.
+// Under perspective a box's near corners project further from the middle than
+// its far ones, so a board fitted symmetrically about the orbit target sat low
+// in a landscape window. The fit shifts the lens (a view offset: the camera
+// still stands and turns about the board's centre, nothing pans) so the board
+// sits in the middle of the window between the HUD's bands, and fits the
+// distance to it.
 //
 // What it frames is the same from every side: circles about the tower's
 // vertical axis (FrameRing), wide enough for the tower and its labels at any
@@ -101,10 +60,7 @@ export const hudTop = (height: number): number =>
   HUD_TOP_PX + (height <= 480 ? 0 : CAPTURES_BAND_PX);
 
 /**
- * Breathing room for the centred fit, as a factor on the room the board
- * takes. Smaller than fitDistance's MARGIN: that one also had to cover the
- * labels outside the box and the uneven margins, and the centred fit frames
- * the labels and shares the room evenly.
+ * Breathing room for the fit, as a factor on the room the board takes.
  */
 const FRAME_MARGIN = 1.05;
 
@@ -124,15 +80,6 @@ export interface FrameRing {
    */
   behind?: number;
 }
-
-/**
- * The rings round a box of these half extents about the origin: its top and
- * bottom faces' circumscribed circles, which hold the box from every side.
- */
-export const boxRings = ([hx, hy, hz]: readonly [number, number, number]): FrameRing[] => [
-  { y: -hy, radius: Math.hypot(hx, hz) },
-  { y: hy, radius: Math.hypot(hx, hz) },
-];
 
 /**
  * Where things fall in a camera's view, as tangents of the angle off its axis

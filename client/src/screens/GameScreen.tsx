@@ -422,7 +422,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               maxPolarAngle={layout.orbit.maxPolarAngle}
             />
             <FitCameraToBoard
-              halfExtents={layout.halfExtents}
               viewDirection={layout.viewDirection}
               minDistance={layout.orbit.minDistance}
               frameRings={layout.frameRings}
