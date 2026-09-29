@@ -1,7 +1,7 @@
 import { BufferAttribute, MathUtils } from 'three';
 import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
-import { PIECE_PARTS, partsGeometry, pieceSet } from '../pieces';
+import { PIECE_PARTS, loadBakedKnight, partsGeometry, pieceSet } from '../pieces';
 import type { PiecePart, PieceParts, PieceSet } from '../pieces';
 
 // The game's copy of the Staunton set: the same shapes, with two
@@ -249,16 +249,22 @@ export const wholePiece = (type: PieceType): BufferGeometry =>
 
 /**
  * Bakes the set's pieces while the browser is idle, one piece per idle
- * moment, so the first board does not wait for them. Does nothing where
+ * moment, so the first board does not wait for them; the knight last, once
+ * its precomputed meshes have loaded (loadBakedKnight). Does nothing where
  * there is no idle callback (tests): each piece is then baked when first drawn.
  */
 export const preloadBakedSet = () => {
   if (typeof window === 'undefined' || typeof window.requestIdleCallback !== 'function') return;
   const built = bakedSet();
-  const pending = Object.values(PieceType);
+  const pending = Object.values(PieceType).filter((t) => t !== PieceType.Knight);
   const next = () => {
     const type = pending.shift();
-    if (!type) return;
+    if (!type) {
+      void loadBakedKnight().then(() =>
+        window.requestIdleCallback(() => void built[PieceType.Knight], { timeout: 4000 }),
+      );
+      return;
+    }
     void built[type];
     window.requestIdleCallback(next, { timeout: 4000 });
   };

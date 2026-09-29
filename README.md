@@ -420,9 +420,14 @@ separately:
 
 The geometry is built once per quality and shared by every piece: `pieceSet('low' |
 'medium' | 'high')` (medium, the default, keeps every piece within about 5k triangles; each
-piece is built the first time it is drawn, the sculpted knight in a few hundred
-milliseconds, and the board warms the set while the browser is idle with
-`preloadPieceSet()`). `partsGeometry(set, type, parts)` hands back a piece's parts merged
+piece is built the first time it is drawn, and the board warms the set while the browser
+is idle with `preloadPieceSet()`). The medium knight is not sculpted in the browser: its
+head, mane and eyes (a few hundred milliseconds of sculpting and decimating) ship
+precomputed, byte for byte, in `pieces/knight.medium.ts`, a chunk of its own that
+`preloadPieceSet()` starts loading; a knight drawn before it arrives is sculpted as before,
+to the same bytes. After changing the knight (`knight.ts`, `sdf.ts`, `decimate.ts` or the
+medium detail in `set.ts`), run `npm run bake:knight` in `client/`; `knightData.test.ts`
+fails while the file is stale, and `golden.test.ts` pins every set's geometry by hash. `partsGeometry(set, type, parts)` hands back a piece's parts merged
 into one geometry, and `pieceTop(set, type)` its height. `scene/pieces.tsx` draws each
 piece in one draw call with one small shader: every vertex carries its part, and the
 ambient occlusion baked beside it (`scene/occlusion.ts`).

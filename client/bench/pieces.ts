@@ -15,8 +15,18 @@ const quality = arg('quality', 'medium');
 
 const { PieceType } = await import(`${root}/src/engine/pieces.ts`);
 const t0 = performance.now();
-const { pieceSet } = await import(`${root}/src/three/pieces/set.ts`);
+const setModule = await import(`${root}/src/three/pieces/set.ts`);
+const { pieceSet } = setModule;
 const importMs = performance.now() - t0;
+// Where the checkout ships the medium knight precomputed, its chunk loads in
+// the background before the board is drawn: load it first, and report how
+// long that took apart from the build
+let knightLoadMs: number | undefined;
+if (quality === 'medium' && setModule.loadBakedKnight) {
+  const s = performance.now();
+  await setModule.loadBakedKnight();
+  knightLoadMs = +(performance.now() - s).toFixed(2);
+}
 
 const set = pieceSet(quality);
 type Geometry = {
@@ -71,6 +81,7 @@ console.log(
     bench: 'pieces',
     quality,
     importMs: +importMs.toFixed(2),
+    knightLoadMs,
     totalMs: +total.toFixed(2),
     times,
     triangles,

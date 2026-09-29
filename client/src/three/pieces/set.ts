@@ -2,6 +2,8 @@ import { BufferGeometry, ExtrudeGeometry, Matrix4, Shape, SphereGeometry } from 
 import { PieceType } from '../../engine/pieces';
 import { cutSlot } from './cut';
 import { buildKnight } from './knight';
+import { decodeKnight } from './knightData';
+import type { KnightData } from './knightData';
 import { flatPolygon, gridSurface, mergeShells } from './mesh';
 import type { Vec3 } from './mesh';
 import { arc, corner, revolve, sampleProfile } from './profile';
@@ -403,7 +405,7 @@ interface Detail {
   knight: number;
 }
 
-const DETAIL: Record<PieceQuality, Detail> = {
+export const DETAIL: Record<PieceQuality, Detail> = {
   low: { segments: 14, tolerance: 0.003, step: 0.018, knight: 1400 },
   medium: { segments: 24, tolerance: 0.002, step: 0.013, knight: 3300 },
   high: { segments: 48, tolerance: 0.0004, step: 0.0065, knight: 14000 },
@@ -412,6 +414,7 @@ const DETAIL: Record<PieceQuality, Detail> = {
 // --- Builders --------------------------------------------------------------------
 
 interface Ctx {
+  quality: PieceQuality;
   d: Detail;
   segments: number;
   profiles: PieceProfiles;
@@ -496,8 +499,29 @@ const rook = (c: Ctx): PieceParts => {
   };
 };
 
+// The medium knight's sculpted meshes, once loaded (loadBakedKnight)
+let bakedKnight: KnightData | null = null;
+let bakedKnightLoad: Promise<void> | null = null;
+
+/**
+ * Starts loading the medium knight's precomputed meshes (knight.medium.ts,
+ * its own chunk) and settles once they are in or have failed to load. A
+ * medium knight built before then is sculpted here instead: the same bytes,
+ * a few hundred milliseconds later.
+ */
+export const loadBakedKnight = (): Promise<void> =>
+  (bakedKnightLoad ??= import('./knight.medium').then(
+    (m) => {
+      bakedKnight = m.KNIGHT_MEDIUM;
+    },
+    () => {},
+  ));
+
 const knight = (c: Ctx): PieceParts => {
-  const k = buildKnight(c.d.step, c.d.knight);
+  const k =
+    c.quality === 'medium' && bakedKnight
+      ? decodeKnight(bakedKnight)
+      : buildKnight(c.d.step, c.d.knight);
   return {
     // The mane and the eyes are the accent
     body: mergeShells([turn(c, c.profiles.knight.body), k.head]),
@@ -823,7 +847,7 @@ const BUILDERS: Record<PieceType, (c: Ctx) => PieceParts> = {
 /** A whole set (every piece, every part), each piece built on first use. */
 const buildPieceSet = (quality: PieceQuality): PieceSet => {
   const d = DETAIL[quality];
-  const c: Ctx = { d, segments: d.segments, profiles: PROFILES };
+  const c: Ctx = { quality, d, segments: d.segments, profiles: PROFILES };
   // Each piece is built when it is first asked for, then kept: a test that
   // draws only pawns never pays for the sculpted knight
   const set = {} as PieceSet;
@@ -854,18 +878,26 @@ export const pieceSet = (quality: PieceQuality = 'medium'): PieceSet => {
 
 /**
  * Builds the shared set's pieces while the browser is idle, one piece per
- * idle moment, so the first board does not wait for them (the sculpted
- * knight takes a few hundred milliseconds). Does nothing where there is no
- * idle callback (tests, some browsers): each piece is then built when it is
- * first drawn.
+ * idle moment, so the first board does not wait for them; the medium
+ * knight last, once its precomputed meshes have loaded (loadBakedKnight,
+ * started here whether or not there is an idle callback). Where there is no
+ * idle callback (tests, some browsers) each piece is built when it is first
+ * drawn.
  */
 export const preloadPieceSet = (quality: PieceQuality = 'medium') => {
-  if (typeof window === 'undefined' || typeof window.requestIdleCallback !== 'function') return;
+  if (typeof window === 'undefined') return;
+  const knightReady = quality === 'medium' ? loadBakedKnight() : Promise.resolve();
+  if (typeof window.requestIdleCallback !== 'function') return;
   const set = pieceSet(quality);
-  const pending = Object.values(PieceType);
+  const pending = Object.values(PieceType).filter((t) => t !== PieceType.Knight);
   const next = () => {
     const type = pending.shift();
-    if (!type) return;
+    if (!type) {
+      void knightReady.then(() =>
+        window.requestIdleCallback(() => void set[PieceType.Knight], { timeout: 4000 }),
+      );
+      return;
+    }
     void set[type];
     window.requestIdleCallback(next, { timeout: 4000 });
   };
