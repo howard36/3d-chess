@@ -85,7 +85,8 @@ export interface KingPair {
 const FILLED_BY = LOBBY_TIMING.fill * 0.9;
 
 /** The body's shine, lift and light, eased toward their goals each frame. */
-const useKingMotion = () => useRef({ fill: 1, outline: 0, lift: 0, hover: 0, hold: 0, gone: 0 });
+const useKingMotion = () =>
+  useRef({ fill: 1, fade: 1, outline: 0, lift: 0, hover: 0, hold: 0, gone: 0 });
 
 export const LobbyKing = ({
   color,
@@ -187,15 +188,29 @@ export const LobbyKing = ({
     }
     if (first.current || (snap && fillGoal === 1)) {
       m.fill = first.current && entering ? 0 : fillGoal;
+      m.fade = 1;
       first.current = false;
       // The coin that slid in here is the player's king, in its light at once
       if (snap && lit) m.hold = 1;
     }
     const before = { ...m };
     const rate = still ? 1 / 0.15 : 1 / LOBBY_TIMING.fill;
-    if (!shown || shown.forming) m.fill = toward(m.fill, fillGoal, dt * rate);
-    // Gone, the outline fades with the body; else it answers the fill
-    m.outline = gone ? toward(m.outline, 0, dt * rate) : outlineForFill(m.fill);
+    // Taken, it forms from the foot up; let go, it fades where it stands,
+    // stepping back into the dark rather than draining, and once faded is
+    // empty again (to form anew, should its seat be taken again)
+    if (!present && m.fill > 0 && !gone) {
+      m.fade = toward(m.fade, 0, dt * (still ? 1 / 0.15 : 1 / LOBBY_TIMING.fade));
+      if (m.fade <= 0) {
+        m.fill = 0;
+        m.fade = 1;
+      }
+    } else {
+      m.fade = toward(m.fade, 1, dt * rate);
+      if (!shown || shown.forming) m.fill = toward(m.fill, fillGoal, dt * rate);
+    }
+    // Gone, the outline fades with the body; else it answers what shows of
+    // the body (fading, the two cross: the solid king gives way to its outline)
+    m.outline = gone ? toward(m.outline, 0, dt * rate) : outlineForFill(m.fill * smooth(m.fade));
     m.hover = toward(m.hover, hovered && !lit && present ? 1 : 0, dt * HOVER_RATE);
     // The start: from both kings filled, their columns come on together,
     // then the two lift together (White's king keeps the shared time). A
@@ -234,6 +249,9 @@ export const LobbyKing = ({
     const u = body.uniforms;
     u.uForm.value = formForFill(m.fill);
     u.uGone.value = m.gone * m.gone;
+    u.uFade.value = smooth(m.fade);
+    // Blended only while it fades: solid, it draws with the opaque pieces
+    body.transparent = m.fade < 0.999;
     u.uHover.value = smooth(m.hover);
     u.uHold.value = smooth(m.hold) * held.current.strength;
 
@@ -266,6 +284,7 @@ export const LobbyKing = ({
       m.hover !== before.hover ||
       m.hold !== before.hold ||
       m.lift !== before.lift ||
+      m.fade !== before.fade ||
       m.gone !== before.gone;
     if (moving || showing || inBreath || waiting || entering || opening) invalidate();
   });
@@ -313,11 +332,13 @@ const GONE_RISE = 0.5;
  */
 const lobbyGlaze = (material: ShaderMaterial) => {
   material.uniforms.uGone = { value: 0 };
+  material.uniforms.uFade = { value: 1 };
   // (once: React may build the memo twice over the same material)
   if (material.fragmentShader.includes('uGone')) return material;
   material.fragmentShader = material.fragmentShader
     .replace('0.09 * noise(vLocal * 16.0)', '0.0')
-    .replace('void main() {', 'uniform float uGone;\n  void main() {')
+    .replace('void main() {', 'uniform float uGone;\n  uniform float uFade;\n  void main() {')
+    .replace('gl_FragColor = vec4(col, 1.0);', 'gl_FragColor = vec4(col, uFade);')
     .replace(
       'vec3 n = normalize(vN);',
       `if (uGone > 0.0) {
@@ -389,6 +410,7 @@ export const CoinKing = ({
   const state = useRef({
     fill: shown && !entering ? 1 : 0,
     wait: entering ? enter : 0,
+    fade: 1,
     hover: 0,
     tossT: -1,
     gliding: false,
@@ -438,7 +460,18 @@ export const CoinKing = ({
       if (s.wait > 0) {
         s.wait -= dt;
         moving = true;
-      } else s.fill = toward(s.fill, shown ? 1 : 0, dt * rate);
+      } else if (!shown && s.fill > 0) {
+        // Not chosen, it fades where it stands, as the side kings do
+        s.fade = toward(s.fade, 0, dt * (still ? 1 / 0.15 : 1 / LOBBY_TIMING.fade));
+        moving = true;
+        if (s.fade <= 0) {
+          s.fill = 0;
+          s.fade = 1;
+        }
+      } else {
+        s.fade = toward(s.fade, 1, dt * rate);
+        s.fill = toward(s.fill, shown ? 1 : 0, dt * rate);
+      }
     }
     s.hover = toward(s.hover, hovered && !toss ? 1 : 0, dt * HOVER_RATE);
     if (root.current) {
@@ -450,6 +483,8 @@ export const CoinKing = ({
     for (const m of halves) {
       m.uniforms.uForm.value = formForFill(s.fill);
       m.uniforms.uHover.value = smooth(s.hover);
+      m.uniforms.uFade.value = smooth(s.fade);
+      m.transparent = s.fade < 0.999;
     }
     if (moving || s.fill !== before.fill || s.hover !== before.hover) invalidate();
   });

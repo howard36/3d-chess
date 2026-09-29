@@ -67,6 +67,8 @@ export const viewDistance = (aspect: number, beside = false) => {
 export const LOBBY_TIMING = {
   /** A seat's king filling with its material from the foot up, or draining to neon. */
   fill: 0.9,
+  /** A king let go (not chosen) fading where it stands, back into the dark. */
+  fade: 1.0,
   /** The coin thrown up spinning, the moment it shows its face, its glide to that seat. */
   toss: 1.05,
   tossHold: 0.22,
