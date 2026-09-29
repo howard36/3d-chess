@@ -330,6 +330,7 @@ const BENCH_INIT = () => {
     online: [], // opponent-presence data-online: [time, value]
     problems: [], // the move box's problem text: [time, text]
     links: [], // WebGL programs linked (compiled shaders): [time]
+    syncs: [], // WebGL queries that held the main thread ≥ 2 ms: [time, name, duration]
   };
   Object.defineProperty(window, '__bench', { value: b });
   Object.defineProperty(window, '__benchNow', { value: now });
@@ -350,6 +351,26 @@ const BENCH_INIT = () => {
       b.links.push(now());
       return link.call(this, program);
     };
+  }
+  // The queries that wait on the GPU process (a program's link status and
+  // uniforms, a read-back): each one it had to wait for, and how long
+  for (const Ctx of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
+    if (!Ctx) continue;
+    for (const name of Object.getOwnPropertyNames(Ctx.prototype)) {
+      if (!/^(get|read|finish|clientWaitSync)/.test(name)) continue;
+      const d = Object.getOwnPropertyDescriptor(Ctx.prototype, name);
+      if (typeof d?.value !== 'function') continue;
+      const f = d.value;
+      Ctx.prototype[name] = function (...args) {
+        const t0 = performance.now();
+        try {
+          return f.apply(this, args);
+        } finally {
+          const dt = performance.now() - t0;
+          if (dt >= 2) b.syncs.push([performance.timeOrigin + t0, name, dt]);
+        }
+      };
+    }
   }
   // Timestamps each message as it arrives, ahead of the app's own handler
   const Native = window.WebSocket;
@@ -1072,6 +1093,9 @@ async function setupViaUI(browser, scope) {
     joinerLongest: maxOf(tasksIn(b.lt, clickB, frameB).map((l) => l[1])),
     joinerLongTotal: sum(tasksIn(b.lt, clickB, frameB).map((l) => l[1])),
     joinerLinks: (b.links ?? []).filter((l) => l >= clickB && l <= frameB).length,
+    firstRenderSyncs: (b.syncs ?? [])
+      .filter(([t]) => t >= b.renders[0][0] && t <= b.renders[0][0] + b.renders[0][1])
+      .map(([t, n, d]) => [Math.round(t - b.renders[0][0]), n, Math.round(d)]),
     firstRenderLinks: (b.links ?? []).filter(
       (l) => l >= b.renders[0][0] && l <= b.renders[0][0] + b.renders[0][1],
     ).length,
@@ -1199,6 +1223,9 @@ async function movesSection(browser, shared) {
           longestOpp: maxOf([0, ...tasksO]),
           longestRenderMover: maxOf(inWindow(m.renders, enter, drawnM).map((f) => f[1])),
           linksMover: (m.links ?? []).filter((l) => l >= enter && l <= drawnM).length,
+          syncsMover: (m.syncs ?? [])
+            .filter(([t]) => t >= enter && t <= drawnM)
+            .map(([t, n, d]) => [Math.round(t - enter), n, Math.round(d)]),
           linksOpp: (o.links ?? []).filter((l) => l >= enter && l <= drawnO).length,
         });
       }
@@ -1319,6 +1346,9 @@ async function selectSection(browser) {
           frame: drawn - t,
           render: frame[1],
           links: s.links.filter((l) => l >= t && l <= drawn).length,
+          syncs: (s.syncs ?? [])
+            .filter(([u]) => u >= t && u <= drawn)
+            .map(([u, n, d]) => [Math.round(u - t), n, Math.round(d)]),
           longest: maxOf([0, ...tasksIn(s.lt, t, drawn).map((l) => l[1])]),
         });
         // Put it down: a click on empty space beside the tower

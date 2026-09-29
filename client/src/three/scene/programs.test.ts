@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PerspectiveCamera, PointsMaterial, Scene, ShaderMaterial } from 'three';
-import type { Material, Object3D, WebGLRenderer } from 'three';
-import { retireMaterial, warmPrograms } from './programs';
+import { Mesh, Points, PointsMaterial, ShaderMaterial } from 'three';
+import type { WebGLRenderer } from 'three';
+import { keepPrograms, retireMaterial, warmObjects } from './programs';
 
 /** A renderer stand-in whose materials drew with the given programs. */
 const rendererWith = (programs: Map<object, object>) =>
@@ -63,33 +63,33 @@ describe('retireMaterial', () => {
   });
 });
 
-describe('warmPrograms', () => {
-  it('compiles meshes and points without drawing, and keeps their programs', () => {
-    const programs = new Map<object, object>();
-    const compiled: { type: string; material: Material }[] = [];
-    const gl = {
-      properties: { get: (m: object) => ({ currentProgram: programs.get(m) }) },
-      compile: (scene: Object3D) => {
-        scene.traverse((o) => {
-          const m = (o as Object3D & { material?: Material }).material;
-          if (!m) return;
-          compiled.push({ type: o.type, material: m });
-          programs.set(m, { shader: m.type });
-        });
-        return new Set();
-      },
-    } as unknown as WebGLRenderer;
+describe('warmObjects and keepPrograms', () => {
+  it('draws each material once on an object that covers no pixel', () => {
     const [mark, mote] = [material(), new PointsMaterial()];
-    warmPrograms(gl, new PerspectiveCamera(), new Scene(), [mark], [mote]);
-    expect(compiled.map((c) => [c.type, c.material])).toEqual([
-      ['Mesh', mark],
-      ['Points', mote],
-    ]);
-    // A mark made later with the same program is disposed: the warm one keeps it
-    const later = material();
-    programs.set(later, programs.get(mark)!);
+    const { group } = warmObjects([mark], [mote]);
+    const [mesh, points] = group.children as (Mesh | Points)[];
+    expect(mesh).toBeInstanceOf(Mesh);
+    expect(mesh.material).toBe(mark);
+    expect(points).toBeInstanceOf(Points);
+    expect(points.material).toBe(mote);
+    // A triangle of no area, and a point far beyond any far plane
+    expect([...mesh.geometry.getAttribute('position').array]).toEqual(new Array(9).fill(0));
+    expect(points.geometry.getAttribute('position').getZ(0)).toBeGreaterThan(1e6);
+    expect(group.children.every((o) => !o.frustumCulled)).toBe(true);
+  });
+
+  it('keeps the programs the warmed materials drew with', () => {
+    const program = {};
+    const [warm, later] = [material(), material()];
+    const gl = rendererWith(
+      new Map([
+        [warm, program],
+        [later, program],
+      ]),
+    );
+    keepPrograms(gl, [warm]);
     retireMaterial(gl, later);
     expect(later.dispose).toHaveBeenCalledOnce();
-    expect(mark.dispose).not.toHaveBeenCalled();
+    expect(warm.dispose).not.toHaveBeenCalled();
   });
 });

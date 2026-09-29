@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
-import { BufferAttribute, BufferGeometry, Mesh, Points, Scene } from 'three';
-import type { Camera, Material, WebGLRenderer } from 'three';
+import { BufferAttribute, BufferGeometry, Group, Mesh, Points } from 'three';
+import type { Material, WebGLRenderer } from 'three';
 
 // three.js deletes a shader program as soon as the last material drawn with
 // it is disposed, and the next material with the same shaders compiles and
@@ -38,32 +38,42 @@ export const useRetireOnUnmount = (material: Material) => {
   useEffect(() => () => retireMaterial(gl, material), [gl, material]);
 };
 
-/**
- * Compiles these materials' programs now, between frames, drawing nothing,
- * and keeps each program alive as retireMaterial does (the materials are
- * never disposed). A program three.js has linked this way is ready by the
- * time a frame first draws with it, so the mark that needs it (the first
- * move's line, the first piece picked up) draws in a frame of the usual
- * cost. `points` materials are compiled for points, the rest for meshes;
- * `target` supplies the lights, as three.js's compile() takes them.
- */
-export const warmPrograms = (
-  gl: WebGLRenderer,
-  camera: Camera,
-  target: Scene,
-  meshes: Material[],
-  points: Material[] = [],
-) => {
-  const scene = new Scene();
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new BufferAttribute(new Float32Array(9), 3));
-  for (const m of meshes) scene.add(new Mesh(geometry, m));
-  for (const m of points) scene.add(new Points(geometry, m));
-  gl.compile(scene, camera, target);
-  for (const m of [...meshes, ...points]) {
-    const state = gl.properties.get(m) as { currentProgram?: object } | undefined;
+/** Keeps the programs these materials have drawn with alive (as retireMaterial keeps one). */
+export const keepPrograms = (gl: WebGLRenderer, materials: Material[]) => {
+  for (const m of materials) {
+    const state = gl.properties?.get(m) as { currentProgram?: object } | undefined;
     const program = state?.currentProgram;
     if (program && !keepers.has(program)) keepers.set(program, m);
   }
-  geometry.dispose();
+};
+
+/** The name of warmObjects' group. */
+export const WARM = 'warm-programs';
+
+/**
+ * Objects that draw these materials without touching a pixel, for warming
+ * their programs up (WarmPrograms): a mesh each on a triangle of no area,
+ * and a points object each (`points`) on one point far beyond any far plane.
+ * Drawn once in a frame, each compiles and links its program and sets up
+ * its GPU state as the real mark will, so that mark's first frame costs no
+ * more than any other.
+ */
+export const warmObjects = (meshes: Material[], points: Material[] = []) => {
+  const group = new Group();
+  group.name = WARM;
+  const flat = new BufferGeometry();
+  flat.setAttribute('position', new BufferAttribute(new Float32Array(9), 3));
+  const far = new BufferGeometry();
+  far.setAttribute('position', new BufferAttribute(new Float32Array([0, 0, 1e9]), 3));
+  for (const m of meshes) group.add(new Mesh(flat, m));
+  for (const m of points) group.add(new Points(far, m));
+  group.traverse((o) => {
+    o.frustumCulled = false;
+    o.raycast = () => {};
+  });
+  const dispose = () => {
+    flat.dispose();
+    far.dispose();
+  };
+  return { group, dispose };
 };

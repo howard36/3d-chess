@@ -62,6 +62,7 @@ const GameCanvas = ({
   const pixelRatio = usePixelBudget();
   // The entrance is over: the board takes input from now on
   const [introOver, setIntroOver] = useState(() => introDone(clock.plan, clock.t));
+  const [drawn, setDrawn] = useState(false);
   return (
     <>
       {/* Main 3D Board canvas. The camera starts on the viewing player's
@@ -134,13 +135,16 @@ const GameCanvas = ({
             clock={clock}
             paused={introPaused}
             styleTarget={styleTarget}
-            onFirstFrame={onFirstFrame}
+            onFirstFrame={() => {
+              setDrawn(true);
+              onFirstFrame?.();
+            }}
             onDone={() => {
               setIntroOver(true);
               onIntroDone();
             }}
           />
-          {introOver && <WarmPrograms />}
+          {introOver && drawn && <WarmPrograms />}
         </IntroContext.Provider>
       </Canvas>
     </>

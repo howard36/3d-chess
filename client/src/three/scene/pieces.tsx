@@ -395,7 +395,7 @@ const poolFragment = /* glsl */ `
 
 const poolPlane = new PlaneGeometry(1.1, 1.1).rotateX(-Math.PI / 2);
 
-const poolMaterial = (level: number) =>
+export const poolMaterial = (level: number) =>
   overlayMaterial({
     polygonOffset: true,
     polygonOffsetFactor: -1,
