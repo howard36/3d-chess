@@ -49,4 +49,8 @@ Client code imports wire types from `client/src/types/messages.ts` (hand-written
 ## Git
 
 - Conventional Commits with scope: `feat(client):`, `fix(server):`, `test(e2e):`, `ci:`, `docs:`.
-- Branch and open a PR to `main`; never push to `main` directly. Merging to `main` deploys to Modal via CI.
+- Branch and open a PR to `main` (a ruleset blocks direct pushes). Merging to `main` deploys to Modal via CI.
+- Merge with `gh pr merge --squash --delete-branch`. The PR title becomes the commit subject (Conventional Commit) and the description its body: what changed, why, how verified.
+- One PR per session, scoped to one logical change. Independent extra work goes on its own branch from fresh `main` in parallel; dependent work waits for the merge. Don't stack PRs.
+- Keep a branch current by merging `main` in, not rebasing or force-pushing. For conflicts in generated files or lockfiles, take either side and regenerate, then re-run `/check`; a clean merge can still break the build.
+- Parallel agents: stay in your own area, and don't edit `server/schema.json` while another PR does.
