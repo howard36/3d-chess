@@ -4,7 +4,9 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## The product and its screens
 
-**Start screen.** The page at `/`. It shows the title "3D Chess", a "Start New Game" button, and, while the connection is not open, a gray status line ("Connecting to server…" or "Reconnecting to server…"). It is the only way to create a game. See [creating a game](start/creating-a-game.md).
+**Start screen, landing page.** The page at `/`. The *preview* fills the window; over it stand the title "3D Chess" and the tagline "Five stacked boards. One link to play a friend." above the tower, a "Start a game" button below it, and one gray line under the button that shows, first that applies, an error answering the click ("Couldn't start a game: " and the message), the connection's state while it is not open ("Connecting to server…" or "Reconnecting to server…"), "Checkmate · White wins" while the preview's mate stands, or "5×5×5 · 125 squares · No sign-up". A round "Pause preview" button sits at the top right. It is the only way to create a game. See [creating a game](start/creating-a-game.md).
+
+**Preview.** The start screen's live picture: the board screen's glass tower in its garden, without labels, playing the same 17-move game (checkmate by White) over and over, a veil fading between one game and the next, while the camera circles the tower about once every 90 seconds. It is decoration: it takes no input, belongs to no game on the server, and a screen reader hears one sentence in its place. "Pause preview" stops it; for a player whose system asks for reduced motion it is a still picture of the final position. See [creating a game](start/creating-a-game.md#the-preview).
 
 **Game page.** The page at `/game/{id}`. What it shows depends on the *game page phase*. See [screens and navigation](foundations/screens-and-navigation.md).
 
@@ -22,7 +24,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## Games and seats
 
-**Game.** One match between two seats, created on the server by "Start New Game". A game is identified by its *game id* and consists of its two *seats* and its *move record*. There is no other game state on the server: no clock, no result, no player names.
+**Game.** One match between two seats, created on the server by "Start a game". A game is identified by its *game id* and consists of its two *seats* and its *move record*. There is no other game state on the server: no clock, no result, no player names.
 
 **Game id.** Six characters, each an uppercase letter A–Z or a digit 0–9, chosen at random by the server (for example `K7Q2ZD`). It is case-sensitive: `/game/k7q2zd` is a different, unknown game.
 
@@ -30,7 +32,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Seat.** One of the game's two colors, white or black, held by one player. The *creator* holds one seat from the moment the game exists; the *joiner* claims the other. Seats are held for the life of the game: a seat stays taken while its player is disconnected, and a game with both seats taken answers any further join with "Game full". Nothing about a seat proves who holds it; the server gives a seat to whichever connection names the game and the color.
 
-**Creator.** The player who clicked "Start New Game". The server gives the creator white or black at random; the creator does not learn which until the game starts.
+**Creator.** The player who clicked "Start a game". The server gives the creator white or black at random; the creator does not learn which until the game starts.
 
 **Joiner.** The player who clicked "Join Game" on a game with a free seat. The joiner gets whichever color the creator did not.
 
@@ -170,7 +172,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Connection.** The one live link between a browser tab and the server. It is opened as soon as the app loads, on either screen, and kept open while the tab stays on the app.
 
-**Connection state.** One of four: *connecting* (the first attempt after the app loads or after a reset), *connected*, *reconnecting* (the connection dropped and the browser is retrying on its own), and *replaced*. The start screen shows the first and third as a status line; the game page shows only *reconnecting* (the *reconnecting line*) and *replaced* (a dialog).
+**Connection state.** One of four: *connecting* (the first attempt after the app loads or after a reset), *connected*, *reconnecting* (the connection dropped and the browser is retrying on its own), and *replaced*. The start screen shows the first and third in the line under its button; the game page shows only *reconnecting* (the *reconnecting line*) and *replaced* (a dialog).
 
 **Retry schedule.** After an unexpected drop, the browser waits 0.5 s, then 1 s, 2 s, 4 s, and then 8 s between attempts, forever. The schedule starts over whenever a connection opens. There is no limit on attempts and no manual retry button.
 
@@ -210,7 +212,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Move list.** The game's moves in the move card, one numbered row per White–Black pair, in cell notation with an en dash (`Ab2–Ab3`) and `=` plus a letter for a promotion (`Da4–Ea5=U`). Never visible: it is in the page for screen readers only. See [the move list](game-page/move-list.md).
 
-**Error banner.** A glass notice with a thin red rule at its left edge: the server's message (a screen reader hears "Error: " before it), with a "✕" button that dismisses it. On the board screen it is in the status column under the turn pill; on the share-link, join, and joined screens it sits at the bottom center. *Dismissing* hides every error received on the page so far; nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The start screen shows errors differently, as red text under its button.
+**Error banner.** A glass notice with a thin red rule at its left edge: the server's message (a screen reader hears "Error: " before it), with a "✕" button that dismisses it. On the board screen it is in the status column under the turn pill; on the share-link, join, and joined screens it sits at the bottom center. *Dismissing* hides every error received on the page so far; nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The start screen shows errors differently, as red text under its button ("Couldn't start a game: " and the message).
 
 **Reconnecting line, reconnecting banner.** "Reconnecting…" beside a small breathing light, in the status column while the connection state is *reconnecting*; the turn pill dims behind it, since what it says may be out of date. On the pre-game screens it sits at the top right.
 
