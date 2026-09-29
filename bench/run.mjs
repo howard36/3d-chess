@@ -730,7 +730,9 @@ const shown = (value, unit) =>
       ? `${(value / 1024).toFixed(1)} KiB`
       : unit === 'fps'
         ? `${value.toFixed(2)} fps`
-        : duration(value);
+        : unit === 'count'
+          ? String(Number(value.toPrecision(3)))
+          : duration(value);
 
 /**
  * The pairs' verdict for one measured thing: each pair's ratio head/base,
