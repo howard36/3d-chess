@@ -21,7 +21,7 @@ writeFileSync(
 import type { KnightData } from './knightData';
 
 export const KNIGHT_MEDIUM: KnightData = {
-  counts: ${JSON.stringify(data.counts)},
+  counts: [${data.counts.join(', ')}],
   base64:
     '${data.base64}',
 };
