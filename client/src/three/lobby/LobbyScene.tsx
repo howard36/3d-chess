@@ -9,6 +9,11 @@ import { PALETTE } from '../scene/palette';
 import { Stage } from '../scene/stage';
 import { LAYER } from '../scene/layers';
 import { CoinKing, LobbyKing } from './LobbyKing';
+import { Levels } from '../scene/plates';
+import { IntroContext } from '../intro/clock';
+import type { IntroClock } from '../intro/clock';
+import { introPlan } from '../intro/timeline';
+import { toward } from '../scene/ease';
 import {
   arrivalRing,
   blendPose,
@@ -287,8 +292,8 @@ export const LobbyScene = ({
   const [landed, setLanded] = useState<Side | null>(null);
   if (view.toss === null && landed !== null) setLanded(null);
   const tossing = view.toss !== null && landed === null;
-  // The picture shown: while the coin is in the air, nothing is decided yet
-  const taken = tossing ? { white: true, black: true } : view.taken;
+  // The picture shown: while the coin is in the air both seats stand open
+  const taken = tossing ? { white: false, black: false } : view.taken;
   const mine = tossing ? null : view.mine;
   const settled = useRef<{ mine: Side | null; since: number; told: boolean }>({
     mine: null,
@@ -346,8 +351,8 @@ export const LobbyScene = ({
 
   return (
     <>
-      <Stage orientation="white" shade={gone ? undefined : shade} />
-      {!gone && <LobbyPlatform />}
+      <Stage orientation="white" shade={gone ? undefined : shade} dim={0.35} />
+      <LobbyPlatform gone={gone} />
       {(['white', 'black'] as const).map((side) => (
         <LobbyKing
           key={side}
@@ -358,6 +363,7 @@ export const LobbyScene = ({
           hovered={view.hover === side}
           lit={mine === side}
           breathing={!taken[side] && (view.beat === 'wait' || view.beat === 'invited')}
+          snap={landed === side}
           pick={choosing ? pick(side) : undefined}
         />
       ))}
@@ -365,6 +371,7 @@ export const LobbyScene = ({
         shown={view.beat === 'choose' && (!view.mine || view.toss !== null)}
         hovered={view.hover === 'random'}
         toss={view.toss}
+        landX={view.toss ? seatX(view.toss, aspect) : 0}
         pick={choosing ? pick('random') : undefined}
         onLanded={setLanded}
       />
@@ -380,5 +387,40 @@ export const LobbyScene = ({
   );
 };
 
-/** The glass the kings stand on: level A of the tower. */
-const LobbyPlatform = () => null;
+// --- The glass --------------------------------------------------------------------------------
+
+/** How long the platform takes to draw itself (its edge, lines and glass), and to go. */
+const PLATFORM_BUILD = 1.1;
+
+/**
+ * The glass the kings stand on: level A of the tower, drawing itself as the
+ * game's entrance draws each level (its build clock, IntroContext), when the
+ * lobby first opens, and taking itself back the same way as the lobby
+ * leaves for the game.
+ */
+const LobbyPlatform = ({ gone }: { gone: boolean }) => {
+  const invalidate = useThree((s) => s.invalidate);
+  const still = useMemo(prefersReducedMotion, []);
+  const clock = useMemo<IntroClock>(
+    () => ({
+      plan: {
+        ...introPlan('full'),
+        levels: { start: 0, duration: PLATFORM_BUILD, step: 0 },
+      },
+      t: still ? PLATFORM_BUILD : 0,
+    }),
+    [still],
+  );
+  useFrame((_, delta) => {
+    const goal = gone ? 0 : PLATFORM_BUILD;
+    if (clock.t === goal) return;
+    const rate = still ? 10 : gone ? 1.5 : 1;
+    clock.t = toward(clock.t, goal, Math.min(delta, 1 / 20) * rate);
+    invalidate();
+  });
+  return (
+    <IntroContext.Provider value={clock}>
+      <Levels focusLevel={null} levels={[0]} />
+    </IntroContext.Provider>
+  );
+};

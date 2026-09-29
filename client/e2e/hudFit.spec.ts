@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { towerRects } from './helpers/board';
+import { towerRects, waitForIntro } from './helpers/board';
 import type { ScreenRect } from './helpers/board';
 import { openStandInGame } from './helpers/standIn';
 
@@ -45,12 +45,14 @@ const SIZES = [
 async function seated(page: Page, seat: 'white' | 'black') {
   const game = await openStandInGame(page, seat, 'FITTED', CHECK);
   await expect(page.getByTestId('turn-indicator')).toBeVisible();
+  await waitForIntro(page);
   return {
     /** Serves `moves` as the record, through a fresh snapshot. */
     show: async (moves: string[]) => {
       game.setMoves(moves);
       await page.reload();
       await expect(page.getByTestId('turn-indicator')).toBeVisible();
+      await waitForIntro(page);
     },
     presence: game.presence,
   };

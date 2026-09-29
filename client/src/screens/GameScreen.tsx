@@ -1,34 +1,25 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import Board from '../three/Board';
-import { Canvas } from '@react-three/fiber';
-import type { RootState } from '@react-three/fiber';
-import { FitCameraToBoard } from '../three/FitCameraToBoard';
-import { hudTop } from '../three/cameraFit';
-import { usePixelBudget } from '../three/pixelBudget';
-import { CameraControls } from '../three/CameraControls';
 import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
-import EndGameModal from './EndGameModal';
-import PromotionPicker from './PromotionPicker';
 import { deriveHistory } from '../game/history';
 import type { GameHistory } from '../game/history';
-import { hasSessionSince, selectErrors, selectOpponentOnline, selectSeat } from '../game/session';
+import {
+  hasSessionSince,
+  selectErrors,
+  selectOpponentOnline,
+  selectSeat,
+  startedLive,
+} from '../game/session';
 import type { GameSocket } from '../hooks/useGameSocket';
 import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole';
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
-import { NeutralToneMapping } from 'three';
 import { onToppled } from '../three/pieceMotion';
-import { layout } from '../three/scene/palette';
-import { Stage } from '../three/scene/stage';
-import TurnPill from './TurnPill';
-import CapturedPieces from './CapturedPieces';
-import MoveCard from './MoveCard';
-import MoveAnnouncer from './MoveAnnouncer';
+import GameView from './GameView';
 import { selectInvitation } from '../game/invitation';
 import type { Color } from '../types/messages';
-import { InvitationCard, InviteCard } from './lobby/LobbyCards';
+import { InvitationCard, InviteCard, SeatLabels } from './lobby/LobbyCards';
 import { useLobbyView } from './lobby/lobbyContext';
 import type { LobbyStage } from './lobby/lobbyContext';
 
@@ -112,9 +103,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const historyRef = React.useRef<GameHistory | null>(null);
   const history = deriveHistory(messages, historyRef.current);
   historyRef.current = history;
-  const { board, moveRecords, currentTurn, lastMove, captured, replayFailedAt, gameOver } = history;
+  const { board, replayFailedAt, gameOver } = history;
 
-  const pixelRatio = usePixelBudget();
   // The mate plays out (the king topples) before the result covers the
   // board, while the pulse runs on behind it — when the mate was just played,
   // not when a finished game is reopened.
@@ -362,12 +352,65 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // --- Before the game: the lobby (screens/lobby) ---------------------------------
   const other = (c: Color): Color => (c === 'white' ? 'black' : 'white');
   const invitation = selectInvitation(messages, gameId ?? '', joinRequested || seat.joined);
+  // A guest: opened the invitation here (and may have accepted it); a host:
+  // holds a seat it did not join here (it created the game)
+  const guest = joinRequested || seat.joined || !storedRole;
   // The host, waiting: this page holds a seat and the game has not begun
-  const hosting = !!storedRole && sessionReady && !seat.joined && !joinRequested;
+  const hosting = !guest && sessionReady;
   const shareLink = `${window.location.origin}/game/${gameId}`;
+
+  // The lobby hands over to the game when the game begins on this page: the
+  // free seat fills (arrive), then the kings go up in light and the lobby
+  // fades off the game's first frame (leave), whose entrance then plays.
+  // A page that opens on a game already under way has no lobby to leave.
+  const [handover, setHandover] = React.useState<'none' | 'arrive' | 'leave' | 'done'>('none');
+  const [arrived, setArrived] = React.useState(false);
+  const [gameDrawn, setGameDrawn] = React.useState(false);
+  const lobbyShown = React.useRef(false);
+  if (phase === 'started' && lobbyShown.current && handover === 'none') setHandover('arrive');
+  React.useEffect(() => {
+    if (handover === 'arrive' && arrived && gameDrawn) setHandover('leave');
+  }, [handover, arrived, gameDrawn]);
+  const wasHost = React.useRef(false);
+  if (hosting) wasHost.current = true;
+
+  // A host whose tab is in the background when the guest arrives: the tab's
+  // title says so, and the arrival waits for them (the scene draws no
+  // frames in a hidden tab)
+  React.useEffect(() => {
+    if (handover !== 'arrive' || !wasHost.current || !document.hidden) return;
+    const title = document.title;
+    document.title = "● They're here · 3D Chess";
+    const back = () => {
+      if (!document.hidden) document.title = title;
+    };
+    document.addEventListener('visibilitychange', back);
+    return () => {
+      document.removeEventListener('visibilitychange', back);
+      document.title = title;
+    };
+  }, [handover]);
+
   let lobbyView: LobbyStage | null = null;
   if (phase === 'started') {
-    lobbyView = null;
+    if ((handover === 'arrive' || handover === 'leave') && color) {
+      const host = wasHost.current;
+      lobbyView = {
+        beat: handover,
+        taken: { white: true, black: true },
+        mine: color,
+        hover: null,
+        toss: null,
+        seat: color,
+        // The seat that has just filled: the guest's own, or the host's opponent's
+        arriving: host ? other(color) : color,
+        caption: host
+          ? `They're here · ${color === 'white' ? 'You move first' : 'They move first'}`
+          : `You play ${color === 'white' ? 'White · You move first' : 'Black · White moves first'}`,
+        onArrived: () => setArrived(true),
+        onLeft: () => setHandover('done'),
+      };
+    }
   } else if (hosting && storedRole) {
     lobbyView = {
       beat: 'wait',
@@ -377,7 +420,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       toss: null,
       seat: storedRole,
     };
-  } else if (!storedRole && (invitation.state === 'open' || invitation.state === 'joining')) {
+  } else if (guest && (invitation.state === 'open' || invitation.state === 'joining')) {
     const host = other(invitation.seat);
     const joining = invitation.state === 'joining';
     lobbyView = {
@@ -389,7 +432,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       toss: null,
       seat: invitation.seat,
     };
-  } else if (!storedRole) {
+  } else if (guest) {
     lobbyView = {
       beat: 'invited',
       taken: { white: false, black: false },
@@ -399,167 +442,39 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       seat: 'white',
     };
   }
+  if (lobbyView && phase !== 'started') lobbyShown.current = true;
   useLobbyView(lobbyView);
 
   if (phase === 'started') {
-    const inCheck = !gameOver && board.inCheck(currentTurn);
-    // While a dialog is up, everything behind it is out of reach: not
-    // clickable (the backdrop covers it) and not focusable or readable either.
-    const behindDialog = replaced || showEndModal || (!!promotionChoices && !boardDisabled);
     return (
-      // game-screen (index.css): no text selection, callout or double-tap
-      // zoom on a touch screen, except in the move box and the move list
-      <div
-        className="game-screen"
-        style={{
-          position: 'relative',
-          height: '100dvh',
-          width: '100vw',
-          overflow: 'hidden',
-          fontFamily: 'var(--hud-font)',
-        }}
-      >
-        <div inert={behindDialog} style={{ position: 'absolute', inset: 0 }}>
-          {/* Main 3D Board canvas. The camera starts on the viewing player's
-              side (mostly +Z, up and to the right) so their levels stay
-              nearest and the depth layers don't perfectly occlude;
-              FitCameraToBoard then sets its distance so the whole cube fits
-              whatever the window's shape. */}
-          <Canvas
-            data-testid="r3f-canvas"
-            role="img"
-            aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, press Tab to type a move.`}
-            // Every touch on the board is the camera's or a tap on a
-            // square: never a page scroll or zoom, and no grey tap flash
-            style={{
-              height: '100%',
-              width: '100%',
-              touchAction: 'none',
-              WebkitTapHighlightColor: 'transparent',
-            }}
-            camera={{ position: layout.viewDirection, fov: 36 }}
-            // A pixel budget rather than r3f's fixed cap: the screen's own
-            // ratio up to 2x, a large high-density window a little under it
-            dpr={pixelRatio}
-            gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
-            // A chess position is static: render only when something changes.
-            // React commits and OrbitControls invalidate on their own; the
-            // animations (the move glide, the lift, the scene's effects)
-            // request frames while they run.
-            frameloop="demand"
-            // Test hook: r3f v9 no longer exposes its store on the canvas
-            // element, so drivers (e2e/helpers/board.ts) read the live camera
-            // here to project board cells to pixels — correct even after the
-            // user orbits or the camera setup above changes.
-            onCreated={(state: RootState) => {
-              (window as Window & { __r3fState?: RootState }).__r3fState = state;
-            }}
-          >
-            <Stage orientation={color ?? 'white'} />
-            <Board
-              board={board} // Pass the EngineBoard instance
-              currentTurn={currentTurn}
-              playerColor={color} // Pass the determined player color
-              onMove={handleMove}
-              onChoosePromotion={setPromotionChoices}
-              lastMove={lastMove}
-              disabled={boardDisabled}
-              gameOver={gameOver}
-            />
-            {/* The only camera control is turning the view about the
-                board's centre, which never moves (no pan by mouse, touch or
-                keyboard), plus a zoom that FitCameraToBoard limits relative
-                to the fitted view. */}
-            <CameraControls
-              // The tower's orbit limits: the camera stays above the ground and
-              // may rise to look straight down
-              minPolarAngle={layout.orbit.minPolarAngle}
-              maxPolarAngle={layout.orbit.maxPolarAngle}
-            />
-            <FitCameraToBoard
-              viewDirection={layout.viewDirection}
-              minDistance={layout.orbit.minDistance}
-              frameRings={layout.frameRings}
-              hudTopBand={hudTop}
-            />
-          </Canvas>
-          {/* The HUD over the canvas (index.css): the turn pill at the top
-              centre with the status column under it, the move card at the
-              bottom left. Only the controls
-              take the pointer; the rest lets it through to the board. */}
-          <div className="hud">
-            <div className="hud-top">
-              {color && (
-                // The pill, and under it the pieces each side has taken
-                <div className="hud-bar">
-                  <TurnPill
-                    seat={color}
-                    turn={currentTurn}
-                    inCheck={inCheck}
-                    gameOver={gameOver}
-                    opponentOnline={opponentOnline}
-                    stale={status === 'reconnecting'}
-                  />
-                  <CapturedPieces seat={color} captured={captured} board={board} />
-                </div>
-              )}
-              <div className="hud-status">
-                {/* Always in the page, so its first change is announced */}
-                <div role="status">{reconnectingBanner}</div>
-                {errorBanner}
-                {replayErrorBanner}
-              </div>
-            </div>
-            <MoveCard
-              board={board}
-              color={color}
-              moves={moveRecords}
-              canMove={!boardDisabled && !gameOver && color === currentTurn}
-              yourTurn={!gameOver && color === currentTurn}
-              onMove={handleMove}
-            />
-            {/* Said, not shown: each move as it lands, and the opponent's presence */}
-            <MoveAnnouncer history={history} seat={color} />
-            <div
-              className="sr-only"
-              role="status"
-              data-testid="opponent-presence"
-              data-online={opponentOnline === null ? undefined : String(opponentOnline)}
-            >
-              {opponentOnline === null
-                ? ''
-                : opponentOnline
-                  ? 'Your opponent is online.'
-                  : 'Your opponent is offline.'}
-            </div>
-          </div>
-        </div>
-        {promotionChoices && !boardDisabled && (
-          <PromotionPicker
-            choices={promotionChoices}
-            color={color ?? 'white'}
-            onPick={(move) => {
-              setPromotionChoices(null);
-              handleMove(move);
-            }}
-            onCancel={() => setPromotionChoices(null)}
-          />
-        )}
-        {/* End Game Modal */}
-        {gameOver && showEndModal && (
-          <div inert={replaced}>
-            <EndGameModal
-              result={gameOver.result}
-              winner={gameOver.winner}
-              seat={color ?? 'white'}
-            />
-          </div>
-        )}
-        {replacedNotice}
-      </div>
+      <GameView
+        history={history}
+        color={color}
+        opponentOnline={opponentOnline}
+        reconnecting={status === 'reconnecting'}
+        boardDisabled={boardDisabled}
+        onMove={handleMove}
+        promotionChoices={promotionChoices}
+        onChoosePromotion={setPromotionChoices}
+        showEndModal={showEndModal}
+        replaced={replaced}
+        replacedNotice={replacedNotice}
+        reconnectingBanner={reconnectingBanner}
+        alerts={
+          <>
+            {errorBanner}
+            {replayErrorBanner}
+          </>
+        }
+        // The whole entrance for a game that started while this page was
+        // open, a short one for a page that opened on a game under way
+        intro={handover !== 'none' || startedLive(messages) ? 'full' : 'short'}
+        // Held on its first frame while the lobby plays out over it
+        introPaused={handover === 'arrive' || handover === 'leave'}
+        onFirstFrame={() => setGameDrawn(true)}
+      />
     );
   }
-
 
   const acceptInvitation = () => {
     if (!gameId || phase !== 'waiting') return;
@@ -571,12 +486,23 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
     <div className="lobby-page" inert={replaced}>
       <header className="lobby-top">
         <button className="lobby-link" onClick={() => navigate('/')}>
-          <span aria-hidden>←</span> {hosting ? 'Back to home' : 'Home'}
+          <span aria-hidden>←</span> Home
         </button>
       </header>
+      {hosting && storedRole && (
+        <SeatLabels labels={{ [storedRole]: 'You', [other(storedRole)]: 'Open seat' }} />
+      )}
+      {guest && (invitation.state === 'open' || invitation.state === 'joining') && (
+        <SeatLabels
+          labels={{
+            [other(invitation.seat)]: 'Your host',
+            [invitation.seat]: invitation.state === 'joining' ? 'You' : 'Your seat',
+          }}
+        />
+      )}
       {hosting && storedRole ? (
         <InviteCard link={shareLink} seat={storedRole} />
-      ) : !storedRole ? (
+      ) : guest ? (
         <InvitationCard invitation={invitation} onAccept={acceptInvitation} />
       ) : (
         // A stored seat, rejoining: a moment

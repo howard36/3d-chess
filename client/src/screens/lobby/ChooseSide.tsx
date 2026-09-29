@@ -87,6 +87,14 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
   });
 
   const waiting = settled && !created && !failed;
+  const heading = !picked
+    ? 'Choose your side'
+    : picked.choice === 'random'
+      ? 'Leaving it to chance…'
+      : `You play ${picked.side === 'white' ? 'White' : 'Black'}`;
+  const subheading = !picked
+    ? 'Then send a friend the link to take the other side.'
+    : 'Setting the board…';
   return (
     <div className="lobby-page" data-testid="choose-side">
       <header className="lobby-top">
@@ -94,9 +102,10 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
           <span aria-hidden>←</span> Home
         </button>
       </header>
-      <div className="lobby-heading">
-        <h1>Choose your side</h1>
-        <p>Next, you'll get a link to send to your opponent.</p>
+      {/* The heading answers the pick at once; keyed, so each line fades in */}
+      <div className="lobby-heading" key={heading}>
+        <h1>{heading}</h1>
+        <p>{subheading}</p>
       </div>
       <div className="lobby-choices" role="group" aria-label="Choose your side">
         {CHOICES.map(({ choice, name, note }) => {
@@ -137,7 +146,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
         ) : status !== 'connected' && !picked ? (
           'Connecting to the server…'
         ) : waiting ? (
-          'Setting the board…'
+          'Waiting for the server…'
         ) : (
           ''
         )}

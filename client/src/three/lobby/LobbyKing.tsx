@@ -13,14 +13,16 @@ import { SelectionLight, selectState, stepSelection } from '../scene/selection';
 import { neonGeometry, neonMaterial } from '../scene/stage';
 import {
   breath,
-  cutForFill,
+  formForFill,
   FLOOR_Y,
   KING_SCALE,
   KING_TOP,
   LOBBY_TIMING,
   outlineForFill,
   tossAngle,
+  tossGlide,
   tossHop,
+  tossLanded,
 } from './lobbyMotion';
 import type { Side } from './lobbyMotion';
 
@@ -68,6 +70,7 @@ export const LobbyKing = ({
   hovered,
   lit,
   breathing,
+  snap = false,
   pick,
 }: {
   color: Side;
@@ -81,6 +84,8 @@ export const LobbyKing = ({
   lit: boolean;
   /** The free seat breathes while it waits. */
   breathing: boolean;
+  /** Taken at once, with no forming: the tossed coin has landed here and is this king. */
+  snap?: boolean;
   pick?: Pickable;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
@@ -98,6 +103,7 @@ export const LobbyKing = ({
         fade: 0,
         turn: { value: 1 },
         shaded: false,
+        dim: { value: 1 },
       }),
     }),
     [x],
@@ -116,13 +122,13 @@ export const LobbyKing = ({
   const held = useRef(selectState());
   const [showLight, setShowLight] = useState(false);
   const breathClock = useRef(0);
-  useEffect(() => invalidate(), [present, gone, hovered, lit, breathing, invalidate]);
+  useEffect(() => invalidate(), [present, gone, hovered, lit, breathing, snap, invalidate]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20);
     const m = motion.current;
     const fillGoal = present && !gone ? 1 : 0;
-    if (first.current) {
+    if (first.current || (snap && fillGoal === 1)) {
       first.current = false;
       m.fill = fillGoal;
     }
@@ -137,7 +143,7 @@ export const LobbyKing = ({
     if (lift.current) lift.current.position.y = up;
 
     const u = body.uniforms;
-    u.uCut.value = cutForFill(m.fill);
+    u.uForm.value = formForFill(m.fill);
     u.uHover.value = smooth(m.hover);
     u.uHold.value = smooth(m.hold) * held.current.strength;
 
@@ -201,19 +207,24 @@ const halve = (material: ShaderMaterial, half: -1 | 1) => {
 
 /**
  * "Random": a king split down its axis, porcelain on the left and charcoal on
- * the right. Tossed, it spins like a coin, slows, and settles showing one
- * face; then it burns away and `onLanded` hands the result to its seat.
+ * the right. Tossed, it is thrown up spinning like a coin, lands showing one
+ * face, and glides onto that side's seat, where `onLanded` hands it over to
+ * the seat's own king (seen from the front, the coin showing a face is that
+ * king). Not chosen, it drains away.
  */
 export const CoinKing = ({
   shown,
   hovered,
   toss,
+  landX,
   pick,
   onLanded,
 }: {
   shown: boolean;
   hovered: boolean;
   toss: Side | null;
+  /** Where the seat it lands on stands. */
+  landX: number;
   pick?: Pickable;
   onLanded: (side: Side) => void;
 }) => {
@@ -225,9 +236,9 @@ export const CoinKing = ({
     () => [halve(whiteBody, -1), halve(blackBody, 1)] as const,
     [whiteBody, blackBody],
   );
+  const root = useRef<Group>(null);
   const spin = useRef<Group>(null);
   const lift = useRef<Group>(null);
-  const root = useRef<Group>(null);
   // Starts as it is first shown: a page that opens without it never shows it
   const state = useRef({ fill: shown ? 1 : 0, hover: 0, tossT: -1, landed: false });
   const landedRef = useRef(onLanded);
@@ -244,59 +255,64 @@ export const CoinKing = ({
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20);
     const s = state.current;
-    let moving = false;
+    const before = { fill: s.fill, hover: s.hover };
     let angle = 0;
     let hop = 0;
-    let goal = shown ? 1 : 0;
-    if (toss && s.tossT >= 0) {
-      s.tossT += dt;
-      const spinFor = still ? 0.01 : LOBBY_TIMING.toss;
-      angle = tossAngle(s.tossT, toss, spinFor);
-      hop = still ? 0 : tossHop(s.tossT, spinFor);
-      const done = s.tossT > spinFor + (still ? 0 : LOBBY_TIMING.tossHold);
-      if (done) goal = 0;
-      if (done && s.fill <= 0 && !s.landed) {
+    let x = 0;
+    let moving = false;
+    if (toss && s.tossT >= 0 && !s.landed) {
+      s.tossT = still ? Infinity : s.tossT + dt;
+      angle = tossAngle(s.tossT, toss);
+      hop = still ? 0 : tossHop(s.tossT);
+      x = landX * tossGlide(s.tossT);
+      s.fill = 1;
+      moving = true;
+      if (tossLanded(s.tossT)) {
         s.landed = true;
+        s.fill = 0;
         landedRef.current(toss);
       }
-      moving = !s.landed;
+    } else if (!toss) {
+      const rate = still ? 1 / 0.15 : 1 / LOBBY_TIMING.fill;
+      s.fill = toward(s.fill, shown ? 1 : 0, dt * rate);
     }
-    const before = s.fill;
-    const rate = still ? 1 / 0.15 : 1 / (toss ? LOBBY_TIMING.tossBurn : LOBBY_TIMING.fill);
-    s.fill = toward(s.fill, goal, dt * rate);
-    const h = s.hover;
     s.hover = toward(s.hover, hovered && !toss ? 1 : 0, dt * HOVER_RATE);
-    if (root.current) root.current.visible = s.fill > 0;
+    if (root.current) {
+      root.current.visible = s.fill > 0;
+      root.current.position.x = x;
+    }
     if (spin.current) spin.current.rotation.y = angle;
     if (lift.current) lift.current.position.y = hop + PIECE_LIFT.hover * smooth(s.hover);
     for (const m of halves) {
-      m.uniforms.uCut.value = cutForFill(s.fill);
+      m.uniforms.uForm.value = formForFill(s.fill);
       m.uniforms.uHover.value = smooth(s.hover);
     }
-    if (moving || s.fill !== before || s.hover !== h) invalidate();
+    if (moving || s.fill !== before.fill || s.hover !== before.hover) invalidate();
   });
 
   const canPick = !!pick && shown && !toss;
   return (
-    <group ref={root} position={[0, FLOOR_Y, 0]}>
-      <group scale={KING_SCALE}>
-        <group ref={lift}>
-          <group ref={spin}>
-            {halves.map((m, i) => (
-              <mesh
-                key={i}
-                geometry={wholePiece(PieceType.King)}
-                material={m}
-                raycast={noRaycast}
-              />
-            ))}
+    <group position={[0, FLOOR_Y, 0]}>
+      <group ref={root}>
+        <group scale={KING_SCALE}>
+          <group ref={lift}>
+            <group ref={spin}>
+              {halves.map((m, i) => (
+                <mesh
+                  key={i}
+                  geometry={wholePiece(PieceType.King)}
+                  material={m}
+                  raycast={noRaycast}
+                />
+              ))}
+            </group>
           </group>
+          {canPick && pick && (
+            <mesh position={[0, KING_TOP / 2, 0]} {...pickHandlers(pick, true)} visible={false}>
+              <cylinderGeometry args={[0.33, 0.33, KING_TOP + 0.2, 12]} />
+            </mesh>
+          )}
         </group>
-        {canPick && pick && (
-          <mesh position={[0, KING_TOP / 2, 0]} {...pickHandlers(pick, true)} visible={false}>
-            <cylinderGeometry args={[0.33, 0.33, KING_TOP + 0.2, 12]} />
-          </mesh>
-        )}
       </group>
     </group>
   );

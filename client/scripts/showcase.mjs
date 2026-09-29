@@ -102,6 +102,21 @@
 // window's edge or into the HUD's top band. The orbit's limits apply (it reaches -14°
 // only near enough the tower). --stills skips the video and draws only the
 // sheet's stills, several times faster.
+//
+// --intro records the game's entrance instead (the camera closing in, the
+// tower building itself, the armies forming, the HUD fading in):
+//
+//   node scripts/showcase.mjs --intro --out /tmp/intro [--seat black] [--rejoin] [--reduced]
+//
+// Both pages run on the virtual clock from the moment they open, so the
+// entrance is recorded from its very first frame. It writes intro.mp4 (the
+// entrance and a second after it) and a still at each of --at "s,s,…"
+// (seconds into the entrance; by default 0, 0.4, 0.9, 1.4, 1.9, 2.3, 2.6,
+// 2.9, 3.3 and its end), intro-<seconds>.png, plus a contact sheet of them,
+// intro-sheet.png. --rejoin reloads the page once the game has started and
+// records the short entrance of a page opening on a game under way;
+// --reduced records it for a player who asked for less motion. --stills
+// skips the video and draws only the stills.
 
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
@@ -124,6 +139,7 @@ const REVIEW = flag('review');
 const QUICK = flag('quick');
 const INTERACT = flag('interact');
 const ORBIT = flag('orbit');
+const INTRO = flag('intro');
 const FPS = 30;
 const WIDTH = Number(opt('width', 1280));
 const HEIGHT = Number(opt('height', 720));
@@ -858,6 +874,10 @@ async function endEncoder(ffmpeg) {
  * (the first is waited on) on the virtual clock.
  */
 async function startClocks(pages) {
+  // The camera and the board are the player's once the game's entrance is over
+  for (const p of pages) {
+    await p.waitForSelector('[data-intro="done"]', { state: 'attached', timeout: 120000 });
+  }
   for (const p of pages) await p.evaluate(() => document.fonts.ready);
   await pages[0].waitForTimeout(1500);
   for (const p of pages) await p.evaluate(() => window.__vclock.enable());
@@ -1539,6 +1559,82 @@ async function orbitSheet(context, segments, shots, seat) {
   await close();
 }
 
+/** --intro: the game's entrance, from its first frame (see the header). */
+async function introReview(browser, rec, seat) {
+  const elapsed = stopwatch();
+  if (flag('rejoin')) {
+    await rec.reload();
+    await rec.waitForFunction(() => window.__show?.ready(), null, { ...POLL, timeout: 120000 });
+  }
+  // The fonts reach the label textures before the first frame is drawn
+  await rec.evaluate(() => document.fonts.ready);
+  await rec.waitForTimeout(500);
+  const cdp = await rec.context().newCDPSession(rec);
+  const at = opt('at', '0,0.4,0.9,1.4,1.9,2.3,2.6,2.9,3.3,end')
+    .split(',')
+    .map((x) => (x === 'end' ? Infinity : Number(x)));
+  const VIDEO = path.join(OUT, `intro-${seat}${flag('rejoin') ? '-rejoin' : ''}.mp4`);
+  const ffmpeg = STILLS ? null : startEncoder(VIDEO, 'slow', 18);
+  const shots = [];
+  const tail = FPS;
+  let after = 0;
+  // Frame by frame: the entrance reads its clock in its own frame, so the
+  // first frame is its first moment and each after it 1/FPS later
+  for (let f = 0; after < tail; f++) {
+    const t = f / FPS;
+    const wanted = at.filter((a) => a <= t + 1e-6 && !shots.some((s) => s.at === a));
+    const done = await rec.evaluate(() => !!document.querySelector('[data-intro="done"]'));
+    const endShot = done && at.includes(Infinity) && !shots.some((s) => s.at === Infinity);
+    const draw = !STILLS || wanted.length > 0 || endShot;
+    await rec.evaluate(
+      ({ ms, draw }) => {
+        if (draw) {
+          window.__r3fState.get().invalidate();
+          window.__vclock.step(ms);
+        } else window.__show.settle(1, ms, false);
+      },
+      { ms: 1000 / FPS, draw },
+    );
+    if (ffmpeg) await writeFrame(ffmpeg, cdp, 95);
+    for (const a of endShot ? [...wanted, Infinity] : wanted) {
+      const name = a === Infinity ? 'end' : a.toFixed(2);
+      const file = path.join(OUT, `intro-${seat}${flag('rejoin') ? '-rejoin' : ''}-${name}.png`);
+      await savePng(cdp, file);
+      shots.push({
+        at: a,
+        file,
+        caption: a === Infinity ? `end (${t.toFixed(2)} s)` : `${name} s`,
+      });
+      console.log(file);
+    }
+    if (done) after++;
+    if (f > FPS * 20) throw new Error('the entrance never ended');
+  }
+  if (ffmpeg) {
+    await endEncoder(ffmpeg);
+    console.log(VIDEO);
+  }
+  if (shots.length) {
+    const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+    const page = await context.newPage();
+    const cells = shots
+      .map(
+        (s) =>
+          `<figure><img src="data:image/png;base64,${fs.readFileSync(s.file).toString('base64')}"><figcaption>${s.caption}</figcaption></figure>`,
+      )
+      .join('');
+    await page.setContent(
+      `<style>body{margin:0;background:#111;color:#ddd;font:14px system-ui;display:grid;grid-template-columns:repeat(${WIDTH > HEIGHT ? 3 : 5},1fr);gap:8px;padding:8px}img{width:100%;display:block}figure{margin:0}figcaption{padding:4px 0}</style>${cells}`,
+    );
+    await page.waitForFunction(() => [...document.images].every((i) => i.complete));
+    const sheet = path.join(OUT, `intro-${seat}${flag('rejoin') ? '-rejoin' : ''}-sheet.png`);
+    await page.screenshot({ path: sheet, fullPage: true });
+    console.log(sheet);
+    await context.close();
+  }
+  console.log(`intro recorded in ${elapsed()}`);
+}
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: EXECUTABLE,
@@ -1550,12 +1646,19 @@ async function main() {
     ],
   });
   const contexts = await Promise.all(
-    [0, 1].map(() => browser.newContext({ viewport: { width: WIDTH, height: HEIGHT } })),
+    [0, 1].map(() =>
+      browser.newContext({
+        viewport: { width: WIDTH, height: HEIGHT },
+        reducedMotion: INTRO && flag('reduced') ? 'reduce' : 'no-preference',
+      }),
+    ),
   );
   for (const ctx of contexts) {
     await ctx.addInitScript(NO_HOT_RELOAD);
     await ctx.addInitScript(VIRTUAL_CLOCK);
     await ctx.addInitScript(SHOW_HELPERS);
+    // --intro: on the virtual clock from the start, so the entrance waits for it
+    if (INTRO) await ctx.addInitScript(() => window.__vclock.enable());
   }
   const [pageA, pageB] = await Promise.all(contexts.map((c) => c.newPage()));
   for (const p of [pageA, pageB]) {
@@ -1571,12 +1674,20 @@ async function main() {
   await pageB.goto(pageA.url());
   await pageB.getByRole('button', { name: 'Take your seat' }).click();
   for (const p of [pageA, pageB]) {
-    await p.waitForFunction(() => window.__show?.ready(), null, { timeout: 120000 });
+    await p.waitForFunction(() => window.__show?.ready(), null, { ...POLL, timeout: 120000 });
   }
 
   const colorOf = (p) => p.getByTestId('seat').getAttribute('data-seat');
   const white = (await colorOf(pageA)) === 'white' ? pageA : pageB;
   const black = white === pageA ? pageB : pageA;
+  if (INTRO) {
+    const seat = opt('seat', 'white') === 'black' ? 'black' : 'white';
+    const rec = seat === 'white' ? white : black;
+    await (rec === white ? black : white).setViewportSize({ width: 400, height: 300 });
+    await introReview(browser, rec, seat);
+    await browser.close();
+    return;
+  }
   if (ORBIT) {
     const seat = opt('seat', 'white') === 'black' ? 'black' : 'white';
     const rec = seat === 'white' ? white : black;

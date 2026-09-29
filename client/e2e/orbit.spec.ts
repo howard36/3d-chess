@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
+import { waitForIntro } from './helpers/board';
 import { openStandInGame } from './helpers/standIn';
 
 // The real camera turned all the way round the tower, a few degrees at a
@@ -84,6 +85,8 @@ async function seated(page: Page, seat: 'white' | 'black') {
     });
     return cells === 125;
   });
+  // The camera is the player's once the game's entrance has played
+  await waitForIntro(page);
   await page.evaluate(() => document.fonts.ready);
   // Let the fonts reach the label textures, then take over the clock
   await page.waitForTimeout(500);

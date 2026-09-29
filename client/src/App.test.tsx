@@ -38,6 +38,19 @@ vi.mock('./three/FitCameraToBoard', () => ({
 vi.mock('./three/scene/stage', () => ({
   Stage: () => null,
 }));
+// No frames in jsdom: the game's entrance is over as soon as it mounts
+vi.mock('./three/intro/IntroDirector', async () => {
+  const { useEffect } = await import('react');
+  return {
+    INTRO_SCENE_VAR: '--intro-scene',
+    INTRO_HUD_VAR: '--intro-hud',
+    IntroDirector: ({ onDone }: { onDone?: () => void }) => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+      useEffect(() => onDone?.(), []);
+      return null;
+    },
+  };
+});
 // The 3D board itself is covered by Board.test.tsx; here it is a button that
 // plays a fixed pawn move, so GameScreen's move wiring can be exercised.
 vi.mock('./three/Board', () => ({

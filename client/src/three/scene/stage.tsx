@@ -363,6 +363,8 @@ const BRIGHT = 0.7;
  * on the tower. (Its lines and checker look the same either way.)
  */
 const gardenTurn = { value: 1 };
+/** The sculptures' and their mist's brightness: 1 in the game, less behind the lobby's kings. */
+const gardenDim = { value: 1 };
 type ShadeStack = ReturnType<typeof platformStack>;
 
 const corner = new Vector3();
@@ -452,14 +454,23 @@ const drawingBuffer = new Vector2();
  * Every frame, the tower's outline on screen for the shade (mask.ts), and
  * which way the garden is turned into its uniforms.
  */
-const GardenUniforms = ({ turn, shade }: { turn: number; shade?: ShadeStack }) => {
+const GardenUniforms = ({
+  turn,
+  shade,
+  dim = 1,
+}: {
+  turn: number;
+  shade?: ShadeStack;
+  dim?: number;
+}) => {
   const invalidate = useThree((s) => s.invalidate);
-  useEffect(() => invalidate(), [turn, shade, invalidate]);
+  useEffect(() => invalidate(), [turn, shade, dim, invalidate]);
   // Written as each frame is drawn, like the outline: the uniforms are
   // shared, and two canvases (the lobby's, fading, over the game's) each set
   // their own just before they render
   useFrame(({ camera, size, gl }) => {
     gardenTurn.value = turn;
+    gardenDim.value = dim;
     const aspect = size.width / Math.max(size.height, 1);
     updateTowerOutline(camera, aspect, shade);
     gl.getDrawingBufferSize(drawingBuffer);
@@ -522,6 +533,7 @@ const neonFragment = /* glsl */ `
   uniform float uFade;
   uniform float uBoost;
   uniform float uShaded;
+  uniform float uDim;
   varying float vAcross;
   varying float vDepth;
   varying float vRing;
@@ -538,7 +550,7 @@ const neonFragment = /* glsl */ `
     // A reflection fades with its depth under the polished ground
     light *= uFade > 0.0 ? exp(-vDepth / uFade) : 1.0;
     // Into the tower's shade, steadily, nearest the tower darkest
-    light *= 1.0 - uShaded * towerShade();
+    light *= (1.0 - uShaded * towerShade()) * uDim;
     if (light < 0.001) discard;
     gl_FragColor = vec4(uColor * light, 1.0);
     #include <colorspace_fragment>
@@ -560,6 +572,7 @@ export const neonMaterial = (o: {
   fade: number;
   turn?: { value: number };
   shaded?: boolean;
+  dim?: { value: number };
 }) =>
   new ShaderMaterial({
     transparent: true,
@@ -575,6 +588,7 @@ export const neonMaterial = (o: {
       ...shadeUniforms(),
       uTurn: o.turn ?? gardenTurn,
       uShaded: { value: o.shaded === false ? 0 : 1 },
+      uDim: o.dim ?? gardenDim,
       uWidth: { value: o.width },
       uCore: { value: o.core },
       uHalo: { value: o.halo },
@@ -588,7 +602,7 @@ export const neonMaterial = (o: {
     fragmentShader: neonFragment,
   });
 
-const Sculptures = ({ turn, shade }: { turn: number; shade?: ShadeStack }) => {
+const Sculptures = ({ turn, shade, dim }: { turn: number; shade?: ShadeStack; dim?: number }) => {
   const parts = useMemo(
     () => ({
       geometry: neonGeometry(),
@@ -616,7 +630,7 @@ const Sculptures = ({ turn, shade }: { turn: number; shade?: ShadeStack }) => {
   const { geometry, tubes, reflection } = parts;
   return (
     <group name="garden">
-      <GardenUniforms turn={turn} shade={shade} />
+      <GardenUniforms turn={turn} shade={shade} dim={dim} />
       <mesh
         geometry={geometry}
         material={reflection}
@@ -675,6 +689,7 @@ const Mist = () => {
         uniforms: {
           uColor: { value: new Color(PALETTE.mist) },
           uBoost: gardenBoost,
+          uDim: gardenDim,
           ...shadeUniforms(),
           uTurn: gardenTurn,
         },
@@ -694,12 +709,13 @@ const Mist = () => {
         fragmentShader: /* glsl */ `
           uniform vec3 uColor;
           uniform float uBoost;
+          uniform float uDim;
           varying vec2 vC;
           ${TOWER_SHADE}
           void main() {
             float m = exp(-dot(vC * vec2(2.0, 2.6), vC * vec2(2.0, 2.6)));
             float a = m * 0.075 * (1.0 + 0.6 * uBoost) * ${BRIGHT.toFixed(1)};
-            a *= 1.0 - towerShade();
+            a *= (1.0 - towerShade()) * uDim;
             if (a < 0.001) discard;
             gl_FragColor = vec4(uColor * a, 1.0);
             #include <colorspace_fragment>
@@ -760,15 +776,20 @@ const CameraFloor = () => {
 
 /**
  * The garden. `shade` is what casts the tower's shade when that is not the
- * whole tower (the lobby's single platform: platformStack in mask.ts).
+ * whole tower (the lobby's single platform: platformStack in mask.ts), and
+ * `dim` quiets the sculptures (the lobby's kings stand in front of them).
  */
-export const Stage = ({ orientation, shade }: StageProps & { shade?: ShadeStack }) => (
+export const Stage = ({
+  orientation,
+  shade,
+  dim,
+}: StageProps & { shade?: ShadeStack; dim?: number }) => (
   <>
     <CameraFloor />
     <Heavens />
     <Sky />
     <Ground />
-    <Sculptures turn={orientation === 'black' ? -1 : 1} shade={shade} />
+    <Sculptures turn={orientation === 'black' ? -1 : 1} shade={shade} dim={dim} />
     <Mist />
     <ShootingStar />
   </>

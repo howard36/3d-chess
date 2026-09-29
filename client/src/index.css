@@ -290,6 +290,10 @@
   align-items: stretch;
   gap: 4px;
   max-width: 100%;
+  /* The game's entrance fades the pill in last, settling down onto its place
+     (--intro-hud, set on the game screen by IntroDirector while it plays) */
+  opacity: var(--intro-hud, 1);
+  transform: translateY(calc((1 - var(--intro-hud, 1)) * -6px));
 }
 .hud-captures {
   display: flex;
@@ -1045,9 +1049,6 @@
 }
 /* Handing over to the game: the game mounts underneath, the lobby's picture
    fades off it, and nothing of the lobby takes the pointer */
-.lobby[data-over] {
-  background: transparent;
-}
 .lobby[data-over] .lobby-stage {
   z-index: 1500;
   pointer-events: none;
@@ -1114,12 +1115,14 @@
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  min-width: 118px;
-  padding: 10px 16px 9px;
-  border: 1px solid rgba(236, 241, 255, 0.22);
-  border-radius: var(--button-radius);
-  background: var(--hud-bg);
-  backdrop-filter: var(--hud-blur);
+  min-width: 168px;
+  padding: 9px 22px 8px;
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px;
+  background:
+    linear-gradient(rgba(10, 12, 18, 0.78), rgba(10, 12, 18, 0.78)) padding-box,
+    linear-gradient(rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.14)) border-box;
+  backdrop-filter: blur(12px);
   color: var(--hud-fg);
   font: inherit;
   cursor: pointer;
@@ -1137,13 +1140,17 @@
   font-size: 12px;
   font-weight: 500;
 }
+/* Pointed at, focused or chosen: the landing button's rim in the level colours */
 .lobby-choice:hover,
 .lobby-choice:focus-visible,
 .lobby-choice[data-chosen] {
-  border-color: rgba(243, 246, 255, 0.85);
+  border-color: transparent;
+  background:
+    linear-gradient(rgba(10, 12, 18, 0.86), rgba(10, 12, 18, 0.86)) padding-box,
+    linear-gradient(100deg, #00d7e0, #96a7ff, #de77ab) border-box;
   box-shadow:
-    0 0 0 3px rgba(230, 238, 255, 0.16),
-    0 0 24px rgba(230, 238, 255, 0.12);
+    -10px 0 26px -12px rgba(0, 215, 224, 0.55),
+    10px 0 26px -12px rgba(222, 119, 171, 0.55);
   outline: none;
 }
 .lobby-choice:disabled {
@@ -1208,10 +1215,11 @@
   transform: translateX(-50%);
   box-sizing: border-box;
   width: min(440px, calc(100vw - 32px));
-  padding: 20px 22px 18px;
-  border: 1px solid rgba(236, 241, 255, 0.16);
-  border-radius: var(--modal-radius);
-  background: var(--modal-bg);
+  padding: 22px 24px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  background: rgba(10, 12, 18, 0.8);
+  backdrop-filter: blur(14px);
   box-shadow: var(--modal-shadow);
   text-align: center;
   pointer-events: auto;
@@ -1227,6 +1235,79 @@
   margin: 6px 0 0;
   font-size: 23px;
   font-weight: 600;
+  text-wrap: balance;
+}
+.lobby-card h2 .hud-stone {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin: 0 7px 0 2px;
+  vertical-align: -1px;
+}
+/* The player's side: a chip in the HUD pill's manner */
+.lobby-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 5px 12px 5px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+  font-weight: 600;
+}
+.lobby-chip .hud-stone {
+  width: 13px;
+  height: 13px;
+}
+.lobby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+.lobby-go {
+  height: 48px;
+  min-width: 200px;
+  padding: 0 26px;
+  font-size: 16px;
+}
+.lobby-secondary {
+  height: 44px;
+  padding: 0 20px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hud-fg);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lobby-secondary:hover,
+.lobby-secondary:focus-visible {
+  border-color: rgba(243, 246, 255, 0.8);
+  outline: none;
+}
+/* Who stands where: a word under each king */
+.lobby-seat {
+  position: absolute;
+  left: var(--x);
+  top: calc(var(--y) + 14px);
+  transform: translateX(-50%);
+  padding: 3px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(10, 12, 18, 0.7);
+  color: var(--hud-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  animation: lobby-rise 600ms 200ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 .lobby-eyebrow {
   display: flex;
@@ -1245,6 +1326,7 @@
   height: 12px;
 }
 .lobby-text {
+  text-wrap: balance;
   margin: 8px auto 0;
   max-width: 34ch;
   color: var(--hud-muted);
@@ -1252,33 +1334,16 @@
   line-height: 1.45;
 }
 .lobby-url {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  margin-top: 16px;
-  padding: 11px 12px 11px 14px;
-  border: 1px solid rgba(236, 241, 255, 0.22);
-  border-radius: var(--button-radius);
-  background: rgba(236, 241, 255, 0.04);
-  color: var(--hud-fg);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.lobby-url:hover,
-.lobby-url:focus-visible {
-  border-color: rgba(243, 246, 255, 0.85);
-  box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.16);
-  outline: none;
-}
-.lobby-url-text {
-  flex: 1;
-  min-width: 0;
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14.5px;
+  user-select: all;
 }
 .lobby-url-rest {
   color: var(--hud-muted);
@@ -1286,14 +1351,6 @@
 .lobby-url-id {
   font-weight: 700;
   letter-spacing: 0.08em;
-}
-.lobby-url-action {
-  flex: none;
-  padding-left: 12px;
-  border-left: 1px solid rgba(236, 241, 255, 0.18);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
 }
 .lobby-primary {
   display: inline-flex;
@@ -1368,7 +1425,8 @@
     justify-content: space-between;
     align-items: baseline;
     min-width: 0;
-    padding: 14px 18px;
+    padding: 14px 20px;
+    border-radius: 16px;
   }
   .lobby-choice[data-faded] {
     visibility: hidden;

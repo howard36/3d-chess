@@ -6,6 +6,8 @@ import { Stone } from '../TurnPill';
 
 // The cards over the lobby's scene on a game's page before it starts: the
 // creator's invitation to send, and the invitation as its guest opens it.
+// Their one action is the landing page's pill (.landing-play), so the way
+// in looks the same at every step.
 
 const name = (c: Color) => (c === 'white' ? 'White' : 'Black');
 
@@ -16,11 +18,19 @@ const shownLink = (link: string) => {
   return { rest: `${url.host}${url.pathname.slice(0, url.pathname.length - id.length)}`, id };
 };
 
+/** How long "Copied" stands on the button before it says "Copy link" again. */
+const COPIED_MS = 1800;
+
 /** The creator's card while the opponent's seat is empty. */
 export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat }) => {
   const [copied, setCopied] = React.useState<boolean | null>(null);
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
   const canCopy = typeof navigator !== 'undefined' && !!navigator.clipboard;
+  React.useEffect(() => {
+    if (copied !== true) return;
+    const timer = window.setTimeout(() => setCopied(null), COPIED_MS);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
   const copy = () => {
     navigator.clipboard.writeText(link).then(
       () => setCopied(true),
@@ -33,9 +43,9 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
     });
   };
   const { rest, id } = shownLink(link);
-  const copyFirst = React.useRef<HTMLButtonElement>(null);
+  const first = React.useRef<HTMLButtonElement>(null);
   // The choice is made; the next thing to do is send the link
-  React.useEffect(() => copyFirst.current?.focus({ preventScroll: true }), []);
+  React.useEffect(() => first.current?.focus({ preventScroll: true }), []);
   return (
     <section
       className="lobby-card"
@@ -43,48 +53,45 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
       data-testid="invite-card"
       data-seat={seat}
     >
-      <p className="lobby-eyebrow">
+      <p className="lobby-chip">
         <Stone color={seat} />
         You play {name(seat)}
       </p>
       <h2 id="invite-title">Invite a friend</h2>
-      <p className="lobby-text">Send this link. The game starts the moment they join.</p>
-      <button
-        ref={canShare ? undefined : copyFirst}
-        className="lobby-url"
-        onClick={canCopy ? copy : undefined}
-        aria-label={canCopy ? `Copy the link, ${link}` : link}
-        data-testid="share-link"
-        data-link={link}
-      >
-        <span className="lobby-url-text">
-          <span className="lobby-url-rest">{rest}</span>
-          <span className="lobby-url-id">{id}</span>
-        </span>
-        {canCopy && (
-          <span className="lobby-url-action" aria-hidden>
-            {copied ? 'Copied' : 'Copy'}
-          </span>
+      <p className="lobby-text">Send this link. The game begins the moment they arrive.</p>
+      {/* The link itself, to read or select; the buttons under it copy or share it */}
+      <p className="lobby-url" data-testid="share-link" data-link={link}>
+        <span className="lobby-url-rest">{rest}</span>
+        <span className="lobby-url-id">{id}</span>
+      </p>
+      <div className="lobby-actions">
+        {canShare && (
+          <button ref={first} className="landing-play lobby-go" onClick={share}>
+            Share link
+          </button>
         )}
-      </button>
-      {canShare && (
-        <button ref={copyFirst} className="lobby-primary" onClick={share}>
-          Share link
-        </button>
-      )}
+        {canCopy && (
+          <button
+            ref={canShare ? undefined : first}
+            className={canShare ? 'lobby-secondary' : 'landing-play lobby-go'}
+            onClick={copy}
+          >
+            {copied ? 'Copied ✓' : 'Copy link'}
+          </button>
+        )}
+      </div>
       <p className="lobby-waiting" role="status">
         <span className="hud-dot" aria-hidden />
-        {copied === true
-          ? 'Link copied. Waiting for them to join…'
-          : copied === false
-            ? "Couldn't copy; select the link instead. Waiting for them to join…"
-            : 'Waiting for them to join…'}
+        {copied === false
+          ? "Couldn't copy: select the link instead. Waiting for your friend…"
+          : copied
+            ? 'Link copied. Waiting for your friend…'
+            : 'Waiting for your friend…'}
       </p>
-      <p className="lobby-note">Keep this tab open, and we'll bring you in when they join.</p>
+      <p className="lobby-note">Keep this tab open. We'll bring you in.</p>
     </section>
   );
 };
-
 
 /** The guest's card: whose seat is free, and the one thing to do about it. */
 export const InvitationCard: React.FC<{ invitation: Invitation; onAccept: () => void }> = ({
@@ -103,9 +110,11 @@ export const InvitationCard: React.FC<{ invitation: Invitation; onAccept: () => 
             ? 'It already has two players. If one of them is you, open it where you started.'
             : "This link doesn't lead to a game. It may be mistyped, or the game has expired."}
         </p>
-        <button autoFocus className="lobby-primary" onClick={() => navigate('/new')}>
-          Start a new game
-        </button>
+        <div className="lobby-actions">
+          <button autoFocus className="landing-play lobby-go" onClick={() => navigate('/new')}>
+            Start a new game
+          </button>
+        </div>
       </section>
     );
   }
@@ -123,23 +132,50 @@ export const InvitationCard: React.FC<{ invitation: Invitation; onAccept: () => 
   const joining = invitation.state === 'joining';
   return (
     <section className="lobby-card" aria-labelledby="invitation-title" data-testid="invitation">
-      <p className="lobby-eyebrow">
-        <Stone color={seat === 'white' ? 'black' : 'white'} />
-        An invitation
-      </p>
-      <h2 id="invitation-title">You're invited to play {name(seat)}</h2>
+      <h2 id="invitation-title">
+        You're invited to play <Stone color={seat} />
+        {name(seat)}
+      </h2>
       <p className="lobby-text">
         Chess on five boards stacked into a tower. Pieces move up and down as well as across.
       </p>
-      <button
-        autoFocus
-        className="lobby-primary"
-        onClick={onAccept}
-        disabled={joining}
-        data-testid="accept-invitation"
-      >
-        {joining ? 'Taking your seat…' : 'Take your seat'}
-      </button>
+      <div className="lobby-actions">
+        <button
+          autoFocus
+          className="landing-play lobby-go"
+          onClick={onAccept}
+          aria-disabled={joining || undefined}
+          data-testid="accept-invitation"
+        >
+          {joining ? 'Taking your seat…' : 'Take your seat'}
+        </button>
+      </div>
     </section>
   );
 };
+
+/**
+ * Who stands where, in words under the kings (placed by the scene's
+ * --seat-<seat>-x/foot). Not read aloud: the card says the same.
+ */
+export const SeatLabels: React.FC<{ labels: Partial<Record<Color, string>> }> = ({ labels }) => (
+  <div aria-hidden>
+    {(['white', 'black'] as const).map(
+      (seat) =>
+        labels[seat] && (
+          <span
+            key={seat}
+            className="lobby-seat"
+            style={
+              {
+                '--x': `var(--seat-${seat}-x, ${seat === 'white' ? '30%' : '70%'})`,
+                '--y': `var(--seat-${seat}-foot, 55%)`,
+              } as React.CSSProperties
+            }
+          >
+            {labels[seat]}
+          </span>
+        ),
+    )}
+  </div>
+);

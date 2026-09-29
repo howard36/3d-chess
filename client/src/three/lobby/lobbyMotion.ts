@@ -19,12 +19,26 @@ export const KING_TOP = 0.87;
 /** The platform the kings stand on: level A's floor. */
 export const FLOOR_Y = FRAME.levelY[0];
 
+const VFOV = (36 * Math.PI) / 180;
+export const LOBBY_FOV = 36;
+const TAN_V = Math.tan(VFOV / 2);
+
 /**
- * How far apart the seats stand (world units, one square is 1): two squares
- * in a wide window, one in a narrow one, where three kings side by side
- * would otherwise be too small to read.
+ * How the kings are framed: their height as a share of the window's, and
+ * how far out the side seats stand (NDC, from the middle). In a wide window
+ * they stand large at a third and two thirds across; in a narrow one smaller
+ * and further out, three abreast still readable.
  */
-export const seatSpacing = (aspect: number) => (aspect < 0.9 ? 1 : 2);
+const framing = (aspect: number) =>
+  aspect < 0.9 ? { share: 0.15, out: 0.62 } : { share: 0.3, out: 0.38 };
+
+/** The camera's distance from the kings (world units). */
+const viewDistance = (aspect: number) =>
+  (KING_TOP * KING_SCALE) / (framing(aspect).share * 2 * TAN_V);
+
+/** How far apart the seats stand (world units, one square is 1). */
+export const seatSpacing = (aspect: number) =>
+  framing(aspect).out * viewDistance(aspect) * TAN_V * aspect;
 
 /** Where a seat's king stands: White's on the left, Black's on the right, the coin between. */
 export const seatX = (seat: Side | 'coin', aspect: number) =>
@@ -34,12 +48,11 @@ export const seatX = (seat: Side | 'coin', aspect: number) =>
 
 export const LOBBY_TIMING = {
   /** A seat's king filling with its material from the foot up, or draining to neon. */
-  fill: 0.95,
-  /** The coin's spin, and the moment it holds its face before it goes. */
-  toss: 1.7,
-  tossHold: 0.35,
-  /** The coin burning away once it has landed. */
-  tossBurn: 0.45,
+  fill: 0.9,
+  /** The coin thrown up spinning, the moment it shows its face, its glide to that seat. */
+  toss: 1.05,
+  tossHold: 0.22,
+  tossGlide: 0.45,
   /** From the column of light rising to the choice counting as settled. */
   settle: 0.7,
   /** The arrival: the empty seat fills, and the moment held after it. */
@@ -60,30 +73,35 @@ export const LOBBY_TIMING = {
  */
 export const faceAngle = (side: Side) => (side === 'white' ? Math.PI / 2 : -Math.PI / 2);
 
-/** The coin's turn `t` seconds into a toss landing on `side`: three turns and a bit, slowing. */
+/** The coin's turn `t` seconds into a toss landing on `side`: two turns and a bit, slowing. */
 export const tossAngle = (t: number, side: Side, duration = LOBBY_TIMING.toss) => {
-  const end = faceAngle(side) + Math.PI * 2 * 3;
+  const end = faceAngle(side) + Math.PI * 2 * 2;
   // Fast off the hand, slowing to rest on its face without passing it
   const k = clamp01(t / duration);
   return end * (1 - (1 - k) ** 3);
 };
 
-/** The coin's small hop while it spins (world units, before scale). */
-export const tossHop = (t: number, duration = LOBBY_TIMING.toss) => {
-  const k = clamp01(t / duration);
-  return Math.sin(Math.PI * Math.min(k * 1.6, 1)) * 0.22;
-};
+/** How high the coin is thrown while it spins (piece units): up and back down. */
+export const tossHop = (t: number, duration = LOBBY_TIMING.toss) =>
+  Math.sin(Math.PI * clamp01(t / duration)) * 0.4;
+
+/** How far the landed coin has glided toward its seat, 0 to 1, eased in and out. */
+export const tossGlide = (t: number) =>
+  smooth(clamp01((t - LOBBY_TIMING.toss - LOBBY_TIMING.tossHold) / LOBBY_TIMING.tossGlide));
+
+/** Whether a toss `t` seconds in has reached its seat. */
+export const tossLanded = (t: number) =>
+  t >= LOBBY_TIMING.toss + LOBBY_TIMING.tossHold + LOBBY_TIMING.tossGlide;
 
 // --- The fill ---------------------------------------------------------------------------------
 
 /**
- * The piece shader's cut (pieces.tsx `uCut`) for a king that is `fill` whole
- * (0 its neon outline only, 1 its material whole). The cut burns from the
- * crown down as it rises, so a filling king (the cut falling) forms from the
- * foot up and a draining one goes from the crown down, each with its bright
- * edge. Below zero the cut is off.
+ * The piece shader's forming (pieces.tsx `uForm`, the game's entrance) for a
+ * king that is `fill` whole (0 its neon outline only, 1 its material whole):
+ * filling, it forms from the foot up behind a line of light, as the pieces
+ * do when the tower is built; draining, it goes from the crown down.
  */
-export const cutForFill = (fill: number) => (fill >= 1 ? -1 : 1.02 - 1.04 * clamp01(fill));
+export const formForFill = (fill: number) => clamp01(fill);
 
 /** The neon outline's brightness for a king `fill` whole: it gives way to the material. */
 export const outlineForFill = (fill: number) => 1 - smooth(clamp01(fill * 1.15));
@@ -106,32 +124,21 @@ export interface CameraPose {
   distance: number;
 }
 
-const VFOV = (36 * Math.PI) / 180;
-export const LOBBY_FOV = 36;
-
 /**
  * The lobby's view of the kings (`card`: with a card docked under them):
- * low over the glass, from White's near
- * side, far enough that the row fills most of the width, the kings a little
- * above the middle so the card under them (docked at the bottom on a phone)
- * never covers them.
+ * from White's near side, a little above the glass, at the framing's
+ * distance, the kings' middle a little above the frame's (higher while a
+ * card is docked under them, and on a phone, whose choices stack at the
+ * bottom).
  */
 export const lobbyPose = (aspect: number, card = false): CameraPose => {
-  const narrow = aspect < 0.9;
-  const halfRow = seatSpacing(aspect) + (narrow ? 0.45 : 0.75);
-  const tanV = Math.tan(VFOV / 2);
-  const tanH = tanV * aspect;
-  // The row inside most of the width, and never so close that a king fills
-  // the height
-  const distance = Math.max(halfRow / (tanH * (narrow ? 0.94 : 0.84)), 4.4);
-  const kingMid = FLOOR_Y + KING_TOP * KING_SCALE * 0.55;
-  // The kings' middle this far above the centre of the frame (NDC)
-  // (higher while a card is docked under them)
-  const raise = narrow ? 0.3 : card ? 0.3 : 0.12;
+  const distance = viewDistance(aspect);
+  const kingMid = FLOOR_Y + KING_TOP * KING_SCALE * 0.5;
+  const raise = aspect < 0.9 ? 0.14 : card ? 0.42 : 0.02;
   return {
-    target: [0, kingMid - raise * distance * tanV, 0],
+    target: [0, kingMid - raise * distance * TAN_V, 0],
     azimuth: 0,
-    elevation: (11 * Math.PI) / 180,
+    elevation: (17 * Math.PI) / 180,
     distance,
   };
 };

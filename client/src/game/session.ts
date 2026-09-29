@@ -82,3 +82,13 @@ export const hasSessionSince = (messages: WebSocketMessage[], fromIndex: number)
         m.type === 'game_start' ||
         m.type === 'game_state',
     );
+
+/**
+ * Whether this page saw its game start: the log's first word that play has
+ * begun is the live game_start, not a rejoin's snapshot of a game already
+ * under way (a reload, a second visit). The game's entrance plays in full
+ * for the first and briefly for the second.
+ */
+export const startedLive = (messages: WebSocketMessage[]) =>
+  messages.find((m) => m.type === 'game_start' || (m.type === 'game_state' && m.started))?.type ===
+  'game_start';
