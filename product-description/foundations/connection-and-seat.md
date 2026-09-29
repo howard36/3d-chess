@@ -67,9 +67,9 @@ stateDiagram-v2
 
 | State | Meaning | Start screen shows | Game page shows |
 | --- | --- | --- | --- |
-| connecting | The first attempt after the app loaded, after a reset, or after "Play here". | "Connecting to server…" under the button | Nothing extra. The board, if shown, does not take input. |
-| connected | The connection is open. | Nothing extra | Nothing extra. After every new connection the board takes no input until the rejoin's snapshot arrives. |
-| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | "Reconnecting to server…" under the button | The [reconnecting line](../glossary.md#the-interface): under the turn pill on the board screen, at the top right on the other screens. The board does not take input. |
+| connecting | The first attempt after the app loaded, after a reset, or after "Play here". | "Connecting to server…" under the button, unless an error is showing there | Nothing extra. The board, if shown, does not take input. |
+| connected | The connection is open. | The line under the button goes back to the facts (or the preview's result) | Nothing extra. After every new connection the board takes no input until the rejoin's snapshot arrives. |
+| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | "Reconnecting to server…" under the button, unless an error is showing there | The [reconnecting line](../glossary.md#the-interface): under the turn pill on the board screen, at the top right on the other screens. The board does not take input. |
 | replaced | Another tab or window of this browser holds the seat: either the server closed this connection because the other tab took the seat, or this tab's connection came back after a drop and the server answered that the seat is in use. No retry happens. | Cannot occur | The [replaced dialog](../session/second-tab.md) over everything |
 
 In the second kind of *replaced*, the connection itself stays open but holds no seat; the player sees the same dialog either way.
