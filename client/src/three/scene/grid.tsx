@@ -8,12 +8,12 @@ import { SmartLabels } from './smartLabels';
  * outside the clickable group. The level the player points at (or has a
  * piece picked up on) brightens its lines, edge and letter.
  */
-export const Grid = ({ layout, orientation, focus }: GridProps) => {
+export const Grid = ({ layout, orientation, focus, labels = true }: GridProps) => {
   const focusLevel = focusLevelOf(focus);
   return (
     <>
       <Levels focusLevel={focusLevel} />
-      <SmartLabels layout={layout} orientation={orientation} focusLevel={focusLevel} />
+      {labels && <SmartLabels layout={layout} orientation={orientation} focusLevel={focusLevel} />}
     </>
   );
 };

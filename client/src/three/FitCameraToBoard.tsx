@@ -40,6 +40,7 @@ export function FitCameraToBoard({
   minDistance,
   frameRings,
   hudTopBand,
+  bottomBand,
 }: {
   /** Where the camera looks from when it sits on the target. */
   viewDirection: readonly [number, number, number];
@@ -49,6 +50,8 @@ export function FitCameraToBoard({
   frameRings: readonly FrameRing[];
   /** The HUD's band at the top for a window this size (hudTop). */
   hudTopBand: (height: number) => number;
+  /** The band kept clear at the bottom for a window this size, if any. */
+  bottomBand?: (height: number) => number;
 }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as OrbitControlsLike | null;
@@ -64,6 +67,7 @@ export function FitCameraToBoard({
       height,
       fov: camera.fov,
       topInset: hudTopBand(height),
+      bottomInset: bottomBand?.(height),
     };
     const direction = camera.position.clone().sub(target);
     if (direction.lengthSq() === 0) direction.copy(new Vector3(...viewDirection));
@@ -89,7 +93,7 @@ export function FitCameraToBoard({
     setLensShift(camera, centringShift(bounds, view), width, height);
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the layout's extents and limits are fixed
-  }, [camera, controls, width, height, invalidate, hudTopBand, frameRings]);
+  }, [camera, controls, width, height, invalidate, hudTopBand, bottomBand, frameRings]);
 
   return null;
 }

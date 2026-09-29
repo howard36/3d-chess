@@ -66,12 +66,13 @@ async function onBoard(p: Page, timeout = 20000) {
 }
 async function connectedStart(p: Page) {
   await p.goto('/');
-  await expect(p.getByRole('button', { name: 'Start New Game' })).toBeEnabled();
-  await expect(p.getByRole('status')).toHaveCount(0, { timeout: 10000 });
+  await expect(p.getByRole('button', { name: 'Start a game' })).toBeEnabled();
+  // The start screen shows nothing about the connection before a click: wait for the socket
+  await socketOpen(p);
 }
 async function createOn(p: Page) {
   await connectedStart(p);
-  await p.getByRole('button', { name: 'Start New Game' }).click();
+  await p.getByRole('button', { name: 'Start a game' }).click();
   await p.waitForURL(/\/game\/[A-Z0-9]{6}$/);
   await expect(p.getByText(SHARE)).toBeVisible();
   return p.url();
@@ -121,8 +122,8 @@ test('create', async ({ browser }) => {
     await connectedStart(p);
     // Hold the answer back 2 s so the in-flight button can be read at 9 fps
     await p.evaluate(() => { (window as any).__delayUntil = Date.now() + 2000; });
-    await p.getByRole('button', { name: 'Start New Game' }).click();
-    const btn = p.getByRole('button', { name: 'Creating Game...' });
+    await p.getByRole('button', { name: 'Start a game' }).click();
+    const btn = p.getByRole('button', { name: 'Creating game…' });
     await expect(btn).toBeVisible();
     await expect(btn).toBeDisabled();
     await p.waitForURL(/\/game\/[A-Z0-9]{6}$/);
@@ -131,7 +132,7 @@ test('create', async ({ browser }) => {
     await expect(p.getByRole('button', { name: 'Copy link' })).toBeVisible();
     const id = gid(p);
     await p.context().close();
-    return `"Creating Game..." disabled while the answer was held back 2 s; then /game/${id} with the share link and "Copy link"`;
+    return `"Creating game…" disabled while the answer was held back 2 s; then /game/${id} with the share link and "Copy link"`;
   });
 
   await item('CREATE-02', async () => {
@@ -144,9 +145,11 @@ test('create', async ({ browser }) => {
     });
     const q = await c.newPage();
     await q.goto('/');
-    await expect(q.getByText('Reconnecting to server…')).toBeVisible();
-    await q.getByRole('button', { name: 'Start New Game' }).click();
-    await expect(q.getByRole('button', { name: 'Creating Game...' })).toBeDisabled();
+    await q.waitForFunction(() => (window as any).__attempts.length >= 2);
+    // Nothing about the connection shows until the click
+    await expect(q.getByRole('status')).toHaveCount(0);
+    await q.getByRole('button', { name: 'Start a game' }).click();
+    await expect(q.getByRole('button', { name: 'Creating game…' })).toBeDisabled();
     await expect(q.getByText('Reconnecting to server…')).toBeVisible();
     const log: (string | null)[] = await q.evaluate(() => (window as any).__statusLog);
     await q.waitForTimeout(2000);
@@ -156,7 +159,6 @@ test('create', async ({ browser }) => {
     await expect(q.getByText(SHARE)).toBeVisible();
     const dt = (Date.now() - t0) / 1000;
     const seen = log.filter((s) => s);
-    expect(seen[0]).toBe('Connecting to server…');
     expect(seen).toContain('Reconnecting to server…');
     expect(dt).toBeLessThan(8.5);
     await c.close();
@@ -166,8 +168,8 @@ test('create', async ({ browser }) => {
   await item('CREATE-03', async () => {
     const p = await page(browser);
     await connectedStart(p);
-    await clickThenCut(p, 'Start New Game');
-    const btn = p.getByRole('button', { name: 'Creating Game...' });
+    await clickThenCut(p, 'Start a game');
+    const btn = p.getByRole('button', { name: 'Creating game…' });
     await expect(btn).toBeDisabled();
     const status = p.getByText('Reconnecting to server…');
     await expect(status).toBeVisible();
@@ -183,7 +185,7 @@ test('create', async ({ browser }) => {
     const dt = (Date.now() - t0) / 1000;
     const creates = (await sent(p)).filter((m) => m.type === 'create_game').length;
     await p.context().close();
-    return `"Creating Game..." disabled with "Reconnecting to server…" below it; share-link screen ${dt.toFixed(1)} s after the connection returned; create_game sent ${creates} times`;
+    return `"Creating game…" disabled with "Reconnecting to server…" below it; share-link screen ${dt.toFixed(1)} s after the connection returned; create_game sent ${creates} times`;
   });
 
   await item('CREATE-04', async () => {
@@ -191,7 +193,7 @@ test('create', async ({ browser }) => {
     await connectedStart(p);
     const urls: string[] = [];
     p.on('framenavigated', (f) => { if (f === p.mainFrame()) urls.push(f.url()); });
-    await p.getByRole('button', { name: 'Start New Game' }).dblclick();
+    await p.getByRole('button', { name: 'Start a game' }).dblclick();
     await p.waitForURL(/\/game\//);
     await p.waitForTimeout(1500);
     const gameNavs = urls.filter((u) => u.includes('/game/'));
@@ -207,13 +209,14 @@ test('create', async ({ browser }) => {
     await connectedStart(p);
     expect(await focused(p)).toBe('BODY');
     await p.keyboard.press('Tab');
-    expect(await focused(p)).toBe('BUTTON:Start New Game');
-    expect(await hasFocusRing(p)).toBe(true);
+    expect(await focused(p)).toBe('BUTTON:Start a game');
+    // The start button always casts a glow, so its focus ring is the outline alone
+    expect(await p.evaluate(() => getComputedStyle(document.activeElement as HTMLElement).outlineStyle)).not.toBe('none');
     await p.keyboard.press('Enter');
     await p.waitForURL(/\/game\/[A-Z0-9]{6}$/);
     await expect(p.getByText(SHARE)).toBeVisible();
     await p.context().close();
-    return 'focus ring read from the computed box-shadow';
+    return 'focus ring read from the computed outline';
   });
 
   // Storage off: the browser refuses site data, so both storages throw on access
@@ -225,7 +228,7 @@ test('create', async ({ browser }) => {
   let url6 = '';
   await item('CREATE-06', async () => {
     await connectedStart(s6);
-    await s6.getByRole('button', { name: 'Start New Game' }).click();
+    await s6.getByRole('button', { name: 'Start a game' }).click();
     await s6.waitForURL(/\/game\/[A-Z0-9]{6}$/);
     url6 = s6.url();
     await expect(s6.getByRole('button', { name: 'Join Game' })).toBeVisible();
@@ -264,7 +267,7 @@ test('create', async ({ browser }) => {
     await expect(g.white.getByText('Black wins by checkmate!')).toBeVisible();
     await g.white.getByRole('button', { name: 'Start new game', exact: true }).click();
     await g.white.waitForTimeout(2000);
-    await expect(g.white.getByRole('button', { name: 'Start New Game', exact: true })).toBeEnabled();
+    await expect(g.white.getByRole('button', { name: 'Start a game', exact: true })).toBeEnabled();
     expect(new URL(g.white.url()).pathname).toBe('/');
     expect(await g.white.getByRole('alert').count()).toBe(0);
     await g.close();
@@ -348,7 +351,7 @@ test('wait', async ({ browser }) => {
     // Hold every new connection down before leaving the game page
     await a.evaluate(() => { (window as any).__blockSockets = true; });
     await a.goBack();
-    await expect(a.getByRole('button', { name: 'Start New Game' })).toBeVisible();
+    await expect(a.getByRole('button', { name: 'Start a game' })).toBeVisible();
     const before = (await sent(a)).length;
     await a.goForward();
     await expect(a.getByText(SHARE)).toBeVisible();
@@ -476,14 +479,14 @@ test('wait', async ({ browser }) => {
     let served = false;
     try {
       await a.goto(LAN + '/');
-      await a.getByRole('button', { name: 'Start New Game' }).waitFor({ timeout: 15000 });
+      await a.getByRole('button', { name: 'Start a game' }).waitFor({ timeout: 15000 });
       await expect(a.getByRole('status')).toHaveCount(0, { timeout: 10000 });
       served = true;
     } catch { /* below */ }
     if (!served) record('WAIT-11', 'blocked', 'the dev server could not be reached and connected under a LAN address in this container');
     else await item('WAIT-11', async () => {
       const secure = await a.evaluate(() => window.isSecureContext);
-      await a.getByRole('button', { name: 'Start New Game' }).click();
+      await a.getByRole('button', { name: 'Start a game' }).click();
       await a.waitForURL(/\/game\/[A-Z0-9]{6}$/);
       await expect(a.getByText(SHARE)).toBeVisible();
       await expect(a.getByText(`${LAN}/game/${gid(a)}`, { exact: true })).toBeVisible();
@@ -501,10 +504,12 @@ test('wait', async ({ browser }) => {
     const url = await createOn(a);
     const stored = await role(a);
     await a.goBack();
-    await expect(a.getByRole('button', { name: 'Start New Game' })).toBeVisible();
-    await expect(a.getByRole('status')).toHaveCount(0, { timeout: 10000 });
+    await expect(a.getByRole('button', { name: 'Start a game' })).toBeVisible();
+    await socketOpen(a);
     await dropConnection(a, { block: true });
-    await expect(a.getByText('Reconnecting to server…')).toBeVisible();
+    // The start screen does not show it, but the page is now reconnecting
+    await a.waitForFunction(() => (window as any).__sockets.every((s: WebSocket) => s.readyState === 3));
+    await expect(a.getByRole('status')).toHaveCount(0);
     const before = (await sent(a)).length;
     await a.goForward();
     await expect(a.getByText(SHARE)).toBeVisible();
@@ -737,7 +742,7 @@ test('reload', async ({ browser }) => {
     await expect(n.white.getByText('Black wins by checkmate!')).toBeVisible();
     const finalMap = await pieceMap(n.white, 'white');
     await n.white.getByRole('button', { name: 'Start new game', exact: true }).click();
-    await n.white.getByRole('button', { name: 'Start New Game', exact: true }).click();
+    await n.white.getByRole('button', { name: 'Start a game', exact: true }).click();
     await n.white.waitForURL(/\/game\/[A-Z0-9]{6}$/);
     const bUrl = n.white.url(), bId = gid(n.white);
     await expect(n.white.getByText(SHARE)).toBeVisible();
@@ -778,16 +783,16 @@ test('reload', async ({ browser }) => {
     await onBoard(P);
     expect(await getPlayerColor(P)).toBe(colorB);
     await pushStart(P);
-    await expect(P.getByRole('button', { name: 'Start New Game' })).toBeVisible();
+    await expect(P.getByRole('button', { name: 'Start a game' })).toBeVisible();
     let aUrl = '', colorA = '', tries = 0;
     for (; tries < 12; tries++) {
       await expect(P.getByRole('status')).toHaveCount(0, { timeout: 10000 });
-      await P.getByRole('button', { name: 'Start New Game' }).click();
+      await P.getByRole('button', { name: 'Start a game' }).click();
       await P.waitForURL(/\/game\/[A-Z0-9]{6}$/);
       aUrl = P.url(); colorA = (await role(P))!;
       if (colorA !== colorB) break;
       await P.goBack();
-      await expect(P.getByRole('button', { name: 'Start New Game' })).toBeVisible();
+      await expect(P.getByRole('button', { name: 'Start a game' })).toBeVisible();
     }
     expect(colorA).not.toBe(colorB);
     const qA = await qc.newPage();

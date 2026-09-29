@@ -165,24 +165,33 @@ interface FitWindow {
   fov: number;
   /** CSS px kept clear at the top (HUD_TOP_PX by default). */
   topInset?: number;
+  /** CSS px kept clear at the bottom (none by default). */
+  bottomInset?: number;
 }
 
-/** The band as a share of the window's height, at most half of it. */
+/** The top band as a share of the window's height, at most half of it. */
 const bandShare = (w: FitWindow): number => Math.min((w.topInset ?? HUD_TOP_PX) / w.height, 0.5);
 
+/** The bottom band as a share of the window's height, at most what the top band leaves of half of it. */
+const bottomShare = (w: FitWindow): number =>
+  Math.min((w.bottomInset ?? 0) / w.height, Math.max(0, 0.5 - bandShare(w)));
+
 /**
- * The lens shift that centres `bounds` in the window below its top band, in
- * the same tangent units (x right, y up): the view's centre
+ * The lens shift that centres `bounds` in the window between its top and
+ * bottom bands, in the same tangent units (x right, y up): the view's centre
  * moves there. For ringBounds, whose left is -right, it is vertical only.
  */
 export function centringShift(bounds: ViewBounds, w: FitWindow): [number, number] {
   const tanV = Math.tan(MathUtils.degToRad(w.fov) / 2);
-  return [(bounds.left + bounds.right) / 2, (bounds.bottom + bounds.top) / 2 + tanV * bandShare(w)];
+  return [
+    (bounds.left + bounds.right) / 2,
+    (bounds.bottom + bounds.top) / 2 + tanV * (bandShare(w) - bottomShare(w)),
+  ];
 }
 
 /**
  * The distance from the orbit target at which `rings`, seen from `elevation`
- * (radians) and centred by a lens shift, fill the window below its band
+ * (radians) and centred by a lens shift, fill the window between its bands
  * with FRAME_MARGIN to spare on the tighter axis; and that shift (both with
  * the top and bottom eased from ring to ring, FIT_SOFTNESS). Neither depends
  * on the camera's azimuth. Zooming is relative to this distance
@@ -195,7 +204,7 @@ export function fitView(
 ): { distance: number; shift: [number, number] } {
   const tanV = Math.tan(MathUtils.degToRad(w.fov) / 2);
   const tanH = tanV * (w.width / w.height);
-  const band = bandShare(w);
+  const band = bandShare(w) + bottomShare(w);
   // How much of the room the rings take at distance D (1: exactly the room)
   const fill = (distance: number) => {
     const b = ringBounds(rings, elevation, distance, FIT_SOFTNESS);

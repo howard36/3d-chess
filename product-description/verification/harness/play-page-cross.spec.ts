@@ -36,7 +36,7 @@ async function startG(browser: Browser, opts: Parameters<Browser['newContext']>[
   for (const c of contexts) { await c.addInitScript(socketTap); await c.addInitScript(sendTap); }
   const [a, b] = await Promise.all(contexts.map((c) => c.newPage()));
   await a.goto('/');
-  await a.getByRole('button', { name: 'Start New Game' }).click();
+  await a.getByRole('button', { name: 'Start a game' }).click();
   await a.waitForURL(/\/game\/[A-Z0-9]+/);
   await b.goto(a.url());
   await b.getByRole('button', { name: 'Join Game' }).click();
@@ -318,8 +318,10 @@ test('game page: desktop', async ({ browser }) => {
     await expect(banner).toHaveCount(1);
     await expect(banner).toContainText('Error: Not your turn');
     const p = await newTapped(browser); await p.goto('/');
-    await expect(p.getByRole('button', { name: 'Start New Game' })).toBeVisible();
+    await expect(p.getByRole('button', { name: 'Start a game' })).toBeVisible();
     await p.evaluate(() => { const x = window as any; x.__blockSockets = true; for (const s of x.__sockets) s.close(); });
+    // The connection's state shows only while a create waits for it
+    await p.getByRole('button', { name: 'Start a game' }).click();
     await expect(p.getByRole('status')).toHaveText(/Reconnecting to server…|Connecting to server…/);
     const st = await p.getByRole('status').textContent();
     await p.context().close();
@@ -665,11 +667,12 @@ test('errors: start screen', async ({ browser }) => {
   const p = await newTapped(browser);
   await item('ERR-01', async () => {
     await p.goto('/');
-    await expect(p.getByRole('status')).toHaveCount(0);
+    // The start screen no longer shows the connection before a click: wait for the socket itself
+    await p.waitForFunction(() => (window as any).__sockets.some((s: WebSocket) => s.readyState === 1));
     await rawSend(p, { type: 'create_game' }); await p.waitForTimeout(400);
-    const btn = p.getByRole('button', { name: 'Start New Game' });
+    const btn = p.getByRole('button', { name: 'Start a game' });
     await btn.click();
-    const err = p.getByText(/^Error: /);
+    const err = p.getByText(/^Couldn't start a game: /);
     await expect(err).toBeVisible();
     const txt = await err.textContent();
     const color = await err.evaluate((e) => getComputedStyle(e).color);
@@ -844,7 +847,7 @@ test('reduced motion', async ({ browser }) => {
 test('share link', async ({ browser }) => {
   await item('SIZE-02', async () => {
     const x = await newTapped(browser, { viewport: { width: 375, height: 667 } });
-    await x.goto('/'); await x.getByRole('button', { name: 'Start New Game' }).click(); await x.waitForURL(/\/game\//);
+    await x.goto('/'); await x.getByRole('button', { name: 'Start a game' }).click(); await x.waitForURL(/\/game\//);
     const link = x.locator('p.break-all');
     await expect(link).toHaveText(x.url());
     const lb = await bbox(link);
@@ -863,7 +866,7 @@ test('share link', async ({ browser }) => {
     const ctx = await browser.newContext();
     await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://localhost:5173' });
     const x = await ctx.newPage();
-    await x.goto('/'); await x.getByRole('button', { name: 'Start New Game' }).click(); await x.waitForURL(/\/game\//);
+    await x.goto('/'); await x.getByRole('button', { name: 'Start a game' }).click(); await x.waitForURL(/\/game\//);
     await x.getByRole('button', { name: 'Copy link' }).click();
     await expect(x.getByText('Copied', { exact: true })).toBeVisible();
     const clip = await x.evaluate(() => navigator.clipboard.readText());
@@ -880,7 +883,7 @@ test('share link', async ({ browser }) => {
       const y = await ctx2.newPage();
       await y.goto(`http://${lan}:${port}/`);
       const secure = await y.evaluate(() => window.isSecureContext);
-      await y.getByRole('button', { name: 'Start New Game' }).click();
+      await y.getByRole('button', { name: 'Start a game' }).click();
       await expect(y.getByText('Game created! Share this link with a friend:')).toBeVisible({ timeout: 20000 });
       const copy = await y.getByRole('button', { name: 'Copy link' }).count();
       const shown = await y.locator('p.break-all').textContent();
