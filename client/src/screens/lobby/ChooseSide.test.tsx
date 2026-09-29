@@ -117,6 +117,23 @@ describe('choosing a side', () => {
     expect(random()).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it.each([
+    ['White Moves first', 0.5, 'You play White'],
+    ['Black Moves second', 0.5, 'You play Black'],
+    // The toss's outcome is not told before the coin lands
+    ['Random Let chance decide', 0.2, 'Leaving it to chance…'],
+  ])('answers a pick of %s in its heading at once', async (name, draw, heading) => {
+    render(at(fakeSocket()));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Choose your side');
+    expect(
+      screen.getByText('Then send a friend the link to take the other side.'),
+    ).toBeInTheDocument();
+    vi.spyOn(Math, 'random').mockReturnValue(draw);
+    await userEvent.click(screen.getByRole('button', { name }));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(heading);
+    expect(screen.getByText('Setting the board…')).toBeInTheDocument();
+  });
+
   it('makes a pick final: every choice is held, and nothing more is sent', async () => {
     const send = vi.fn(() => true);
     render(at(fakeSocket([], send)));
@@ -170,7 +187,7 @@ describe('choosing a side', () => {
     await userEvent.click(white());
     expect(screen.getByRole('status')).toHaveTextContent('');
     settle();
-    expect(screen.getByRole('status')).toHaveTextContent('Setting the board…');
+    expect(screen.getByRole('status')).toHaveTextContent('Waiting for the server…');
     expect(screen.getByTestId('choose-side')).toBeInTheDocument();
 
     rerender(at(fakeSocket([created('white')], send)));

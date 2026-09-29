@@ -12,16 +12,40 @@ import { getStoredRole, setStoredRole } from '../lib/playerRole';
 import { fakeSocket } from './testSupport';
 
 // The game's page before it starts: the host's invitation to send, and the
-// guest's invitation to accept, over the lobby's stage. The stage (WebGL) is
-// LobbyLayout's; a stand-in keeps the latest view the page shows. The board
-// is stubbed for the moment the game starts.
-vi.mock('@react-three/fiber', () => ({
-  Canvas: () => <div data-testid="r3f-canvas" />,
-}));
+// guest's invitation to accept, over the lobby's stage, and the handover from
+// the lobby to the game. The stage (WebGL) is LobbyLayout's; a stand-in keeps
+// the latest view the page shows. The game's canvas renders its component
+// children only, the board is stubbed, and the entrance's director is a
+// stand-in that shows whether it is held and plays the canvas's first frame.
+vi.mock('@react-three/fiber', async () => {
+  const React = await import('react');
+  return {
+    Canvas: ({ children }: { children?: React.ReactNode }) => (
+      <div data-testid="r3f-canvas">
+        {React.Children.map(children, (child) =>
+          React.isValidElement(child) && typeof child.type !== 'string' ? child : null,
+        )}
+      </div>
+    ),
+  };
+});
 vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
 vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
 vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
 vi.mock('../three/Board', () => ({ default: () => null }));
+const intro = vi.hoisted(() => ({
+  paused: null as boolean | null,
+  firstFrame: null as (() => void) | null,
+}));
+vi.mock('../three/intro/IntroDirector', () => ({
+  INTRO_SCENE_VAR: '--intro-scene',
+  INTRO_HUD_VAR: '--intro-hud',
+  IntroDirector: ({ paused, onFirstFrame }: { paused?: boolean; onFirstFrame?: () => void }) => {
+    intro.paused = !!paused;
+    intro.firstFrame = onFirstFrame ?? null;
+    return null;
+  },
+}));
 
 let view: LobbyStage | null | undefined;
 const lobby: LobbyApi = {
@@ -50,9 +74,15 @@ const info = (seats: ('white' | 'black')[], gameId = 'abc123'): WebSocketMessage
 const looks = (send: ReturnType<typeof vi.fn>) =>
   send.mock.calls.filter(([m]) => (m as WebSocketMessage).type === 'look_game');
 
+/** The words under the kings (aria-hidden: the card says the same). */
+const seatLabels = () =>
+  Array.from(document.querySelectorAll('.lobby-seat')).map((el) => el.textContent);
+
 beforeEach(() => {
   localStorage.clear();
   view = undefined;
+  intro.paused = null;
+  intro.firstFrame = null;
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -134,6 +164,9 @@ describe("a guest's invitation", () => {
     const accept = screen.getByRole('button', { name: 'Take your seat' });
     expect(accept).toBeEnabled();
     expect(accept).toHaveFocus();
+    // Named under the kings too
+    expect(seatLabels()).toContain('Your host');
+    expect(seatLabels()).toContain('Your seat');
     // The host's king in material across from the guest's free seat
     expect(view).toMatchObject({
       beat: 'invited',
@@ -154,8 +187,9 @@ describe("a guest's invitation", () => {
       clientId: expect.any(String),
     });
     const button = screen.getByRole('button', { name: 'Taking your seat…' });
-    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-disabled', 'true');
     expect(view).toMatchObject({ taken: { white: true, black: true }, mine: 'black' });
+    expect(seatLabels()).toEqual(['Your host', 'You']);
     // Held: nothing more goes out
     fireEvent.click(button);
     expect(send).toHaveBeenCalledTimes(1);
@@ -204,13 +238,14 @@ describe("a guest's invitation", () => {
     expect(screen.getByText('home')).toBeInTheDocument();
   });
 
-  it('keeps the seat once the join is confirmed, and hands the stage over when the game starts', () => {
+  it('keeps the seat once the join is confirmed, still as the guest', () => {
     const joined: WebSocketMessage[] = [info(['white']), { type: 'game_joined', color: 'black' }];
-    const { rerender } = render(at(fakeSocket(joined)));
+    render(at(fakeSocket(joined)));
     expect(getStoredRole('abc123')).toBe('black');
-    rerender(at(fakeSocket([...joined, { type: 'game_start', color: 'black' }])));
-    expect(screen.getByTestId('r3f-canvas')).toBeInTheDocument();
-    expect(view).toBeNull();
+    // A stored seat, but joined here: not the host's card
+    expect(screen.queryByTestId('invite-card')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Taking your seat…' })).toBeInTheDocument();
+    expect(view).toMatchObject({ beat: 'invited', mine: 'black', seat: 'black' });
   });
 });
 
@@ -232,7 +267,8 @@ describe("the host's invitation to send", () => {
     // Set without its scheme, the game's id standing on its own
     expect(link).toHaveTextContent(`${window.location.host}/game/abc123`);
     expect(link.querySelector('.lobby-url-id')).toHaveTextContent(/^abc123$/);
-    expect(screen.getByText('Waiting for them to join…')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for your friend…')).toBeInTheDocument();
+    expect(seatLabels()).toEqual(['Open seat', 'You']);
     // Nothing to ask the server: the seat is held, the game is known
     expect(send).not.toHaveBeenCalled();
     // The host's king lifted, across from the empty seat
@@ -248,57 +284,138 @@ describe("the host's invitation to send", () => {
     setStoredRole('abc123', 'white');
     const writeText = vi.fn(() => Promise.resolve());
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
-    const { unmount } = render(at(fakeSocket(hosting('white'))));
-    const link = screen.getByTestId('share-link');
-    expect(link).toHaveAccessibleName(`Copy the link, ${window.location.origin}/game/abc123`);
-    // First in line: the next thing to do is send the link
-    expect(link).toHaveFocus();
-    expect(link).toHaveTextContent('Copy');
-    await act(async () => fireEvent.click(link));
-    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/game/abc123`);
-    expect(link).toHaveTextContent('Copied');
-    expect(screen.getByText('Link copied. Waiting for them to join…')).toBeInTheDocument();
-    unmount();
+    vi.useFakeTimers();
+    try {
+      const { unmount } = render(at(fakeSocket(hosting('white'))));
+      const copy = screen.getByRole('button', { name: 'Copy link' });
+      // First in line: the next thing to do is send the link
+      expect(copy).toHaveFocus();
+      expect(screen.queryByRole('button', { name: 'Share link' })).not.toBeInTheDocument();
+      await act(async () => fireEvent.click(copy));
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/game/abc123`);
+      expect(copy).toHaveTextContent(/Copied/);
+      expect(screen.getByText('Link copied. Waiting for your friend…')).toBeInTheDocument();
+      // ...for a moment, then the button offers to copy again
+      act(() => vi.advanceTimersByTime(10_000));
+      expect(copy).toHaveTextContent('Copy link');
+      unmount();
 
-    writeText.mockImplementation(() => Promise.reject(new Error('denied')));
-    render(at(fakeSocket(hosting('white'))));
-    await act(async () => fireEvent.click(screen.getByTestId('share-link')));
-    expect(
-      screen.getByText("Couldn't copy; select the link instead. Waiting for them to join…"),
-    ).toBeInTheDocument();
+      writeText.mockImplementation(() => Promise.reject(new Error('denied')));
+      render(at(fakeSocket(hosting('white'))));
+      await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy link' })));
+      const status = screen.getByText(/Couldn't copy/);
+      expect(status).toHaveTextContent('Waiting for your friend…');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it('offers the system share sheet where there is one', async () => {
+  it('offers the system share sheet where there is one, first', async () => {
     setStoredRole('abc123', 'white');
     const share = vi.fn(() => Promise.reject(new Error('dismissed')));
-    vi.stubGlobal('navigator', { ...navigator, share, clipboard: undefined });
+    vi.stubGlobal('navigator', { ...navigator, share, clipboard: { writeText: vi.fn() } });
     render(at(fakeSocket(hosting('white'))));
     const button = screen.getByRole('button', { name: 'Share link' });
     expect(button).toHaveFocus();
-    // No clipboard: the link is only shown
-    expect(screen.getByTestId('share-link')).not.toHaveTextContent('Copy');
+    expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
     await act(async () => fireEvent.click(button));
     expect(share).toHaveBeenCalledWith(
       expect.objectContaining({ url: `${window.location.origin}/game/abc123` }),
     );
     // A dismissed sheet changes nothing
-    expect(screen.getByText('Waiting for them to join…')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for your friend…')).toBeInTheDocument();
+  });
+
+  it('shows the link alone where it can be neither shared nor copied', () => {
+    setStoredRole('abc123', 'white');
+    vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
+    render(at(fakeSocket(hosting('white'))));
+    expect(screen.getByTestId('share-link')).toHaveTextContent('/game/abc123');
+    expect(screen.queryByRole('button', { name: /link/ })).not.toBeInTheDocument();
   });
 
   it('goes back home from its link', async () => {
     setStoredRole('abc123', 'white');
     render(at(fakeSocket(hosting('white'))));
-    await userEvent.click(screen.getByRole('button', { name: /Back to home/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Home/ }));
     expect(screen.getByText('home')).toBeInTheDocument();
   });
+});
 
-  it('gives way to the board when the guest arrives', () => {
+describe('the handover from the lobby to the game', () => {
+  const start = (color: 'white' | 'black'): WebSocketMessage => ({ type: 'game_start', color });
+  const created: WebSocketMessage[] = [{ type: 'game_created', gameId: 'abc123', color: 'white' }];
+
+  it("fills the guest's seat, then leaves for the game once its first frame is drawn", () => {
     setStoredRole('abc123', 'white');
-    const { rerender } = render(at(fakeSocket(hosting('white'))));
-    rerender(at(fakeSocket([...hosting('white'), { type: 'game_start', color: 'white' }])));
+    const { rerender } = render(at(fakeSocket(created)));
+    rerender(at(fakeSocket([...created, start('white')])));
+
+    // The game mounts under the lobby, held on its first frame
     expect(screen.queryByTestId('invite-card')).not.toBeInTheDocument();
     expect(screen.getByTestId('r3f-canvas')).toBeInTheDocument();
+    expect(intro.paused).toBe(true);
+    // The empty seat across from the host fills
+    expect(view).toMatchObject({
+      beat: 'arrive',
+      arriving: 'black',
+      mine: 'white',
+      seat: 'white',
+      taken: { white: true, black: true },
+    });
+    expect(view!.caption).toMatch(/They're here/);
+
+    // The arrival alone does not leave: the game has not drawn yet
+    act(() => view!.onArrived!());
+    expect(view!.beat).toBe('arrive');
+    act(() => intro.firstFrame!());
+    expect(view!.beat).toBe('leave');
+    // Still held until the lobby begins to fade off it
+    expect(intro.paused).toBe(true);
+    act(() => view!.onReveal!());
+    expect(intro.paused).toBe(false);
+    act(() => view!.onLeft!());
     expect(view).toBeNull();
+  });
+
+  it("fills the guest's own seat on their page, in either order", () => {
+    const joined: WebSocketMessage[] = [info(['white']), { type: 'game_joined', color: 'black' }];
+    const { rerender } = render(at(fakeSocket(joined)));
+    rerender(at(fakeSocket([...joined, start('black')])));
+    expect(view).toMatchObject({ beat: 'arrive', arriving: 'black', mine: 'black' });
+    expect(view!.caption).toMatch(/You play Black/);
+    // The game drawn first, then the arrival over
+    act(() => intro.firstFrame!());
+    expect(view!.beat).toBe('arrive');
+    act(() => view!.onArrived!());
+    expect(view!.beat).toBe('leave');
+  });
+
+  it('has no lobby to leave on a page that opens on a game under way', () => {
+    setStoredRole('abc123', 'white');
+    render(at(fakeSocket([{ type: 'game_state', color: 'white', started: true, moves: [] }])));
+    expect(screen.getByTestId('r3f-canvas')).toBeInTheDocument();
+    expect(view).toBeNull();
+    expect(intro.paused).toBe(false);
+  });
+
+  it('tells a host in another tab that their guest is here, until they look', () => {
+    setStoredRole('abc123', 'white');
+    let hidden = true;
+    const spy = vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    const title = document.title;
+    try {
+      const { rerender } = render(at(fakeSocket(created)));
+      rerender(at(fakeSocket([...created, start('white')])));
+      expect(document.title).toMatch(/They're here/);
+      hidden = false;
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(document.title).toBe(title);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 
