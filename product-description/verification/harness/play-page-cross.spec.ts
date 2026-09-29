@@ -320,7 +320,8 @@ test('game page: desktop', async ({ browser }) => {
     const p = await newTapped(browser); await p.goto('/');
     await expect(p.getByRole('button', { name: 'Start a game' })).toBeVisible();
     await p.evaluate(() => { const x = window as any; x.__blockSockets = true; for (const s of x.__sockets) s.close(); });
-    // The connection's state shows only while a create waits for it
+    // The connection's state is said (the status region is always there, visually hidden) only while a create waits for it
+    await expect(p.getByRole('status')).toHaveText('');
     await p.getByRole('button', { name: 'Start a game' }).click();
     await expect(p.getByRole('status')).toHaveText(/Reconnecting to server…|Connecting to server…/);
     const st = await p.getByRole('status').textContent();
@@ -670,17 +671,19 @@ test('errors: start screen', async ({ browser }) => {
     // The start screen no longer shows the connection before a click: wait for the socket itself
     await p.waitForFunction(() => (window as any).__sockets.some((s: WebSocket) => s.readyState === 1));
     await rawSend(p, { type: 'create_game' }); await p.waitForTimeout(400);
-    const btn = p.getByRole('button', { name: 'Start a game' });
-    await btn.click();
-    const err = p.getByText(/^Couldn't start a game: /);
-    await expect(err).toBeVisible();
-    const txt = await err.textContent();
-    const color = await err.evaluate((e) => getComputedStyle(e).color);
-    const eb = await bbox(err), bb = await bbox(btn);
+    await p.getByRole('button', { name: 'Start a game' }).click();
+    // Said, not shown: the message is a visually hidden alert and the button's tooltip; the button offers another try
+    const err = p.getByRole('alert');
+    await expect(err).toHaveText(/^Couldn't start a game: /);
+    const txt = (await err.textContent()) ?? '';
+    const btn = p.getByRole('button', { name: 'Try again' });
+    await expect(btn).toBeEnabled();
+    await expect(btn).toHaveAttribute('title', txt);
+    const eb = await bbox(err);
     const dismiss = await p.getByRole('button', { name: 'Dismiss error' }).count();
-    expect(eb.y).toBeGreaterThanOrEqual(bb.y + bb.height);
+    expect(eb.width * eb.height).toBeLessThanOrEqual(1);
     expect(dismiss).toBe(0);
-    return `"${txt}" in ${color} under the button (error provoked by a second create_game on the same connection); no banner or "✕"`;
+    return `alert "${txt}" (visually hidden, ${eb.width}×${eb.height} px), the same in the tooltip of an enabled "Try again" (error provoked by a second create_game on the same connection); no banner or "✕"`;
   });
   await p.context().close();
 });

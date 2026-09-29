@@ -223,18 +223,18 @@ Key decisions:
   round the tower at a fixed elevation, a full turn every two passes
   (`three/landingView.ts`). The demo's clock is r3f's. The title stands above the
   tower and "Start a game" (a pill with a knight glyph and a slowly turning rim in the
-  five level colours) below it, in bands the fit keeps clear (`hudTopBand`
-  and `bottomBand`; a window 480 px tall or less sets the text in a column at the left
-  instead). The button creates nothing: it opens the side choice at `/new` (see The
-  lobby). Under it a slot, kept open so the button never moves, shows "Checkmate · White
-  wins" (`aria-hidden`) while the moving demo's mate stands, and otherwise nothing. The
-  canvas is `aria-hidden` and takes no pointer, and a visually hidden sentence says what
-  it shows. A pause button at the top right ("Pause preview",
-  `aria-pressed`, the second Tab stop after the start button) stops the demo, the turn and
-  the drawing (the canvas draws no frames while paused). Under `prefers-reduced-motion`
-  the preview is a still of the final position, the king left standing, with no result
-  line, no pause button and a still rim. In development `?t=<seconds>` starts the demo
-  that far in.
+  five level colours) below it, each in a band of the same height that the fit keeps
+  clear above and below the tower (`hudTopBand` and `bottomBand`, both `landingBand`:
+  124 px, 140 in a window 860 px tall or more, `LANDING_BAND_PX` and `--landing-band`),
+  at the band's edge nearest the tower, 16 px from it (`--landing-hug`), so the two
+  mirror each other about the tower; a window 480 px tall or less
+  sets the text in a column at the left instead (band 12). The button creates nothing: it
+  opens the side choice at `/new` (see The lobby), and nothing is written under it. The
+  canvas is `aria-hidden` and takes no pointer, and a visually hidden sentence says what it
+  shows. The start button is the page's only control: the preview always plays (it has no
+  pause), except under `prefers-reduced-motion`, where it is a still of the final
+  position, the king left standing, with a still rim. In development `?t=<seconds>` starts
+  the demo that far in.
 
 ## Protocol
 

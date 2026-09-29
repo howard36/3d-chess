@@ -14,10 +14,9 @@ const ORIGIN = new Vector3();
  * r3f's clock and asks for the next frame itself, so it turns on a canvas
  * that renders on demand.
  */
-export function AutoOrbit({ period, paused = false }: { period: number; paused?: boolean }) {
+export function AutoOrbit({ period }: { period: number }) {
   const controls = useThree((s) => s.controls) as unknown as { target?: Vector3 } | null;
   useFrame(({ camera, invalidate }, delta) => {
-    if (paused) return;
     // A stalled frame (a background tab) resumes the turn, never jumps it
     const step = Math.min(delta, MOVE_ANIMATION.maxFrameMs / 1000);
     const target = controls?.target ?? ORIGIN;

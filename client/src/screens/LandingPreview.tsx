@@ -7,9 +7,8 @@ import { FitCameraToBoard } from '../three/FitCameraToBoard';
 import { usePixelBudget } from '../three/pixelBudget';
 import {
   LANDING_VIEW,
-  landingBottomBand,
+  landingBand,
   landingFrameRings,
-  landingTopBand,
   landingViewDirection,
 } from '../three/landingView';
 import { layout } from '../three/scene/palette';
@@ -40,11 +39,9 @@ const startAt = (): number => {
  * rather than through React.
  */
 function DemoDirector({
-  paused,
   veil,
   onFrame,
 }: {
-  paused: boolean;
   veil: React.RefObject<HTMLDivElement | null>;
   onFrame: (frame: DemoFrame) => void;
 }) {
@@ -53,12 +50,7 @@ function DemoDirector({
   // stands, whatever the page showed before this director mounted
   const shown = React.useRef<DemoFrame | null>(null);
   const invalidate = useThree((s) => s.invalidate);
-  // Coming back from a pause, the next frame has to be asked for
-  React.useEffect(() => {
-    if (!paused) invalidate();
-  }, [paused, invalidate]);
   useFrame((_, delta) => {
-    if (paused) return;
     clock.current += Math.min(delta, MAX_STEP_S);
     const frame = demoFrame(clock.current);
     if (veil.current) veil.current.style.opacity = String(frame.veil);
@@ -73,23 +65,6 @@ function DemoDirector({
 }
 
 /**
- * Paused, the canvas draws no frames at all (the last move's shimmer and a
- * check's blades would otherwise play on); it draws one when the window
- * changes size, so a resize never leaves it blank. That frame is drawn at
- * the clock's own time (the canvas then counts time in seconds, from the
- * timestamp it is handed), so nothing in the scene moves on in it.
- */
-function RedrawWhilePaused({ paused }: { paused: boolean }) {
-  const size = useThree((s) => s.size);
-  const advance = useThree((s) => s.advance);
-  const get = useThree((s) => s.get);
-  React.useEffect(() => {
-    if (paused) advance(get().clock.elapsedTime);
-  }, [paused, size, advance, get]);
-  return null;
-}
-
-/**
  * The landing page's live preview: the real tower in its garden, playing a
  * real game on its own (the demo, game/demo.ts) and turning slowly round,
  * over and over. Purely decorative: it takes no pointer (the page's controls
@@ -100,16 +75,7 @@ function RedrawWhilePaused({ paused }: { paused: boolean }) {
  * camera holds where it is on the game's final position, the mating move's
  * line and the check showing, the king still standing.
  */
-export function LandingPreview({
-  paused,
-  still,
-  onEnded,
-}: {
-  paused: boolean;
-  still: boolean;
-  /** Told whether the demo's game stands finished (its mate on the board), as that changes. */
-  onEnded?: (ended: boolean) => void;
-}) {
+export function LandingPreview({ still }: { still: boolean }) {
   const pixelRatio = usePixelBudget();
   const veil = React.useRef<HTMLDivElement>(null);
   // Where the moving demo stands (DemoDirector reports each new ply and pass)
@@ -130,13 +96,10 @@ export function LandingPreview({
     if (still && veil.current) veil.current.style.opacity = '0';
   }, [still]);
   const frame = still ? { pass: 0, ply: DEMO_GAME.length } : played;
-  const halted = paused && !still;
 
   const historyRef = React.useRef<GameHistory | null>(null);
   const history = deriveHistory(demoLog(frame.ply), historyRef.current);
   historyRef.current = history;
-  const ended = !!history.gameOver;
-  React.useEffect(() => onEnded?.(ended), [ended, onEnded]);
 
   return (
     <div className="landing-preview" aria-hidden="true">
@@ -147,8 +110,8 @@ export function LandingPreview({
         dpr={pixelRatio}
         gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
         // The turn and the demo ask for their own frames; still, the preview
-        // draws only when something changes, and paused, not at all
-        frameloop={halted ? 'never' : 'demand'}
+        // draws only when something changes
+        frameloop="demand"
       >
         <Stage orientation="white" />
         {/* A fresh board for each pass (the next game opens under the veil),
@@ -169,14 +132,11 @@ export function LandingPreview({
           viewDirection={landingViewDirection}
           minDistance={layout.orbit.minDistance}
           frameRings={landingFrameRings}
-          hudTopBand={landingTopBand}
-          bottomBand={landingBottomBand}
+          hudTopBand={landingBand}
+          bottomBand={landingBand}
         />
-        {!still && <AutoOrbit period={LANDING_VIEW.period} paused={halted} />}
-        {!still && (
-          <DemoDirector key={motion.epoch} paused={halted} veil={veil} onFrame={setPlayed} />
-        )}
-        <RedrawWhilePaused paused={halted} />
+        {!still && <AutoOrbit period={LANDING_VIEW.period} />}
+        {!still && <DemoDirector key={motion.epoch} veil={veil} onFrame={setPlayed} />}
       </Canvas>
       <div ref={veil} className="landing-veil" style={{ opacity: 0 }} />
     </div>

@@ -65,11 +65,11 @@ stateDiagram-v2
     replaced --> connecting : "Play here"
 ```
 
-| State | Meaning | Start screen shows | Game page shows |
+| State | Meaning | Start screen and side choice show | Game page shows |
 | --- | --- | --- | --- |
-| connecting | The first attempt after the app loaded, after a reset, or after "Play here". | Nothing until "Start a game" is clicked; then "Connecting to server…" under the button while the request waits | Nothing extra. The board, if shown, does not take input. |
+| connecting | The first attempt after the app loaded, after a reset, or after "Play here". | The start screen: nothing, ever. The side choice: "Connecting to the server…" at its bottom until a pick is made | Nothing extra. The board, if shown, does not take input. |
 | connected | The connection is open. | Nothing extra | Nothing extra. After every new connection the board takes no input until the rejoin's snapshot arrives. |
-| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | Nothing until "Start a game" is clicked; then "Reconnecting to server…" under the button while the request waits | The [reconnecting line](../glossary.md#the-interface): under the turn pill on the board screen, at the top right on the other screens. The board does not take input. |
+| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | The start screen: nothing. The side choice: "Reconnecting to the server…" at its bottom, before or after a pick | The [reconnecting line](../glossary.md#the-interface): under the turn pill on the board screen, at the top right on the other screens. The board does not take input. |
 | replaced | Another tab or window of this browser holds the seat: either the server closed this connection because the other tab took the seat, or this tab's connection came back after a drop and the server answered that the seat is in use. No retry happens. | Cannot occur | The [replaced dialog](../session/second-tab.md) over everything |
 
 In the second kind of *replaced*, the connection itself stays open but holds no seat; the player sees the same dialog either way.
