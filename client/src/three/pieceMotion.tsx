@@ -34,7 +34,7 @@ const showFloorDecals = (root: Object3D | null, show: boolean) =>
  * its level (a ring in the level colour) can change colour as the piece
  * travels rather than wearing the destination's colour from the start.
  */
-export interface GlideInfo {
+interface GlideInfo {
   /** Level (engine z, 0 = A) the move started on. */
   fromLevel: number;
   /** Level it lands on: the body's own `level`. */

@@ -24,7 +24,7 @@ const withBound = (f: Sdf, c: Vec3, r: number, s = 1): Sdf => {
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
 /** Polynomial smooth minimum: a union that fillets the join with radius ~k. */
-export const smin = (a: number, b: number, k: number) => {
+const smin = (a: number, b: number, k: number) => {
   if (k <= 0) return Math.min(a, b);
   const h = Math.max(k - Math.abs(a - b), 0) / k;
   return Math.min(a, b) - (h * h * k) / 4;
@@ -161,7 +161,7 @@ export const carve =
     smax(f(x, y, z), -cut(x, y, z), k);
 
 /** A 2D field: signed distance to a closed outline, negative inside. */
-export type Field2 = (x: number, y: number) => number;
+type Field2 = (x: number, y: number) => number;
 
 /** Exact signed distance from (x, y) to a closed polygon. */
 const polygonDistance = (poly: readonly (readonly [number, number])[], x: number, y: number) => {
@@ -281,7 +281,7 @@ export const tiltedEllipsoid = (c: Vec3, r: Vec3, angle: number): Sdf => {
   return f;
 };
 
-export interface NetsOptions {
+interface NetsOptions {
   min: Vec3;
   max: Vec3;
   /** Grid spacing. */

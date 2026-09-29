@@ -20,7 +20,7 @@ export const CELLS: Coord[] = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => (
 }));
 
 /** What a caller may change about the tower; everything else is fixed (TOWER_DEFAULTS). */
-export interface TowerOptions {
+interface TowerOptions {
   /**
    * Height of the tallest piece as drawn (the Staunton king is 0.87 at a
    * piece scale of 1). Centres the tower on its visual mass, pieces included.

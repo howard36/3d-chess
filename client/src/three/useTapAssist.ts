@@ -13,7 +13,7 @@ import type { ScreenPoint, TapTarget } from './tapAssist';
 // makes.
 
 /** What the player can act on right now, by cell (ZXY). */
-export interface Actionable {
+interface Actionable {
   /** Own pieces that can be picked up (the held one included: a tap puts it down). */
   pieces: ReadonlySet<string>;
   /** The held piece's destinations, captures included. */

@@ -8,7 +8,7 @@ import type { Board, Move } from '../engine';
 import { PROMOTION_TO_PIECE } from '../engine/pieces';
 import type { Color, Promotion } from '../types/messages';
 
-export type TypedMoveResult = { move: Move } | { error: string };
+type TypedMoveResult = { move: Move } | { error: string };
 
 // Level letter, file letter, rank digit, either case; any of "-", "–", "x",
 // spaces, or nothing between the cells; an optional "=" before the piece.

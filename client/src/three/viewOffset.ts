@@ -6,7 +6,7 @@ import type { PerspectiveCamera } from 'three';
 // and turns about the board's centre (nothing pans).
 
 /** A lens shift: where the view's centre points, as tangents of the angle off the camera's axis (x right, y up). */
-export type LensShift = [number, number];
+type LensShift = [number, number];
 
 /** The camera's lens shift ([0, 0] until one is set). */
 export const lensShiftOf = (camera: PerspectiveCamera): LensShift =>

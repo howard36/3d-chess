@@ -138,7 +138,7 @@ export const boxRings = ([hx, hy, hz]: readonly [number, number, number]): Frame
  * Where things fall in a camera's view, as tangents of the angle off its axis
  * (x right, y up): the frustum spans ±tan(fov / 2) vertically.
  */
-export interface ViewBounds {
+interface ViewBounds {
   left: number;
   right: number;
   bottom: number;
@@ -212,7 +212,7 @@ export function ringBounds(
 }
 
 /** The window a fit is for: its size in CSS px, vertical field of view and HUD band. */
-export interface FitWindow {
+interface FitWindow {
   width: number;
   height: number;
   fov: number;

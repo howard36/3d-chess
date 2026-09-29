@@ -16,7 +16,7 @@ export const SEAT_REPLACED_CLOSE_CODE = 4001;
 /** Delay before reconnect attempt n (0-based): 0.5s, 1s, 2s, 4s, then 8s forever. */
 const reconnectDelayMs = (attempt: number) => Math.min(500 * 2 ** attempt, 8000);
 
-export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'replaced';
+type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'replaced';
 
 export interface GameSocket {
   /**

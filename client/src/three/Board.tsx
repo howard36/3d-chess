@@ -49,7 +49,7 @@ const cellMaterial = new MeshBasicMaterial();
 // rather than centred in it.
 const atCellFloor = ([x, y, z]: Vec3): Vec3 => [x, y + layout.floorY, z];
 
-export type BoardTurn = 'white' | 'black';
+type BoardTurn = 'white' | 'black';
 
 export interface LastMoveInfo {
   move: Move;
