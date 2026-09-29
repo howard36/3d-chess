@@ -65,18 +65,50 @@ export interface Pickable {
  */
 const FADING_ORDER = LAYER.label + 1;
 
-/** The pointer on a king; `ready` says whether it has formed (none is picked while forming). */
-const pickHandlers = (p: Pickable, ready: () => boolean) => ({
+/**
+ * How much of a king shows as it fades, from the share of its fade left:
+ * leaving at once and settling out softly, so the eye moves on to the
+ * chosen king without waiting on the others.
+ */
+const fadeLeft = (fade: number) => fade * fade;
+
+/** Where the pointer is on a king: over it, and whether that has been told (it was ready). */
+interface Pointer {
+  over: boolean;
+  told: boolean;
+}
+
+/**
+ * The pointer on a king; `ready` says whether it has formed (none is hovered
+ * or picked while forming). A pointer already resting on a king as it forms
+ * is told once it is ready (`tellResting`, each frame), with no need to move.
+ */
+const pickHandlers = (p: Pickable, ready: () => boolean, pointer: Pointer) => ({
   onPointerOver: (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
-    if (ready()) p.onOver?.();
+    pointer.over = true;
+    if (ready() && !pointer.told) {
+      pointer.told = true;
+      p.onOver?.();
+    }
   },
-  onPointerOut: () => p.onOut?.(),
+  onPointerOut: () => {
+    pointer.over = false;
+    if (pointer.told) p.onOut?.();
+    pointer.told = false;
+  },
   onClick: (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     if (ready()) p.onPick?.();
   },
 });
+
+const tellResting = (p: Pickable | undefined, ready: boolean, pointer: Pointer) => {
+  if (p && ready && pointer.over && !pointer.told) {
+    pointer.told = true;
+    p.onOver?.();
+  }
+};
 
 /**
  * What the two lobby kings share: their fills, and at the start, how long it
@@ -167,6 +199,7 @@ export const LobbyKing = ({
     [neon],
   );
   const motion = useKingMotion();
+  const pointer = useRef<Pointer>({ over: false, told: false });
   // Start as the seat stands, with no entrance on the first frame
   const first = useRef(true);
   const lift = useRef<Group>(null);
@@ -218,7 +251,7 @@ export const LobbyKing = ({
     }
     // Gone, the outline fades with the body; else it answers what shows of
     // the body (fading, the two cross: the solid king gives way to its outline)
-    m.outline = gone ? toward(m.outline, 0, dt * rate) : outlineForFill(m.fill * smooth(m.fade));
+    m.outline = gone ? toward(m.outline, 0, dt * rate) : outlineForFill(m.fill * fadeLeft(m.fade));
     m.hover = toward(m.hover, hovered && !lit && present ? 1 : 0, dt * HOVER_RATE);
     // The start: from both kings filled, their columns come on together,
     // then the two lift together (White's king keeps the shared time). A
@@ -257,7 +290,7 @@ export const LobbyKing = ({
     const u = body.uniforms;
     u.uForm.value = formForFill(m.fill);
     u.uGone.value = m.gone * m.gone;
-    u.uFade.value = smooth(m.fade);
+    u.uFade.value = fadeLeft(m.fade);
     // Blended only while it fades: solid, it draws with the opaque pieces
     body.transparent = m.fade < 0.999;
     u.uHover.value = smooth(m.hover);
@@ -294,6 +327,9 @@ export const LobbyKing = ({
       m.lift !== before.lift ||
       m.fade !== before.fade ||
       m.gone !== before.gone;
+    // A pointer resting on it while it formed hovers it once it can be picked
+    if (!(pick && present && !gone)) Object.assign(pointer.current, { over: false, told: false });
+    else tellResting(pick, m.fill >= 0.999, pointer.current);
     if (moving || showing || inBreath || waiting || entering || opening) invalidate();
   });
 
@@ -316,7 +352,7 @@ export const LobbyKing = ({
         {canPick && pick && (
           <mesh
             position={[0, top / 2, 0]}
-            {...pickHandlers(pick, () => motion.current.fill >= 0.999)}
+            {...pickHandlers(pick, () => motion.current.fill >= 0.999, pointer.current)}
             visible={false}
           >
             <cylinderGeometry args={[0.33, 0.33, top + 0.2, 12]} />
@@ -421,6 +457,7 @@ export const CoinKing = ({
   // Starts as it is first shown (forming, on its entrance): a page that opens
   // without it never shows it
   const entering = enter !== undefined && !still;
+  const pointer = useRef<Pointer>({ over: false, told: false });
   const state = useRef({
     fill: shown && !entering ? 1 : 0,
     wait: entering ? enter : 0,
@@ -497,9 +534,11 @@ export const CoinKing = ({
     for (const m of halves) {
       m.uniforms.uForm.value = formForFill(s.fill);
       m.uniforms.uHover.value = smooth(s.hover);
-      m.uniforms.uFade.value = smooth(s.fade);
+      m.uniforms.uFade.value = fadeLeft(s.fade);
       m.transparent = s.fade < 0.999;
     }
+    if (!(pick && shown && !toss)) Object.assign(pointer.current, { over: false, told: false });
+    else tellResting(pick, s.fill >= 0.999 && s.wait <= 0, pointer.current);
     if (moving || s.fill !== before.fill || s.hover !== before.hover) invalidate();
   });
 
@@ -524,7 +563,11 @@ export const CoinKing = ({
           {canPick && pick && (
             <mesh
               position={[0, KING_TOP / 2, 0]}
-              {...pickHandlers(pick, () => state.current.fill >= 0.999 && state.current.wait <= 0)}
+              {...pickHandlers(
+                pick,
+                () => state.current.fill >= 0.999 && state.current.wait <= 0,
+                pointer.current,
+              )}
               visible={false}
             >
               <cylinderGeometry args={[0.33, 0.33, KING_TOP + 0.2, 12]} />
