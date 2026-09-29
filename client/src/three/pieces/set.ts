@@ -2,6 +2,8 @@ import { BufferGeometry, ExtrudeGeometry, Matrix4, Shape, SphereGeometry } from 
 import { PieceType } from '../../engine/pieces';
 import { cutSlot } from './cut';
 import { buildKnight } from './knight';
+import { decodeKnight } from './knightData';
+import { KNIGHT_MEDIUM } from './knight.medium';
 import { flatPolygon, gridSurface, mergeShells } from './mesh';
 import type { Vec3 } from './mesh';
 import { arc, corner, revolve, sampleProfile } from './profile';
@@ -403,7 +405,7 @@ interface Detail {
   knight: number;
 }
 
-const DETAIL: Record<PieceQuality, Detail> = {
+export const DETAIL: Record<PieceQuality, Detail> = {
   low: { segments: 14, tolerance: 0.003, step: 0.018, knight: 1400 },
   medium: { segments: 24, tolerance: 0.002, step: 0.013, knight: 3300 },
   high: { segments: 48, tolerance: 0.0004, step: 0.0065, knight: 14000 },
@@ -412,6 +414,7 @@ const DETAIL: Record<PieceQuality, Detail> = {
 // --- Builders --------------------------------------------------------------------
 
 interface Ctx {
+  quality: PieceQuality;
   d: Detail;
   segments: number;
   profiles: PieceProfiles;
@@ -497,7 +500,9 @@ const rook = (c: Ctx): PieceParts => {
 };
 
 const knight = (c: Ctx): PieceParts => {
-  const k = buildKnight(c.d.step, c.d.knight);
+  // The medium knight ships precomputed, byte for byte (knight.medium.ts)
+  const k =
+    c.quality === 'medium' ? decodeKnight(KNIGHT_MEDIUM) : buildKnight(c.d.step, c.d.knight);
   return {
     // The mane and the eyes are the accent
     body: mergeShells([turn(c, c.profiles.knight.body), k.head]),
@@ -823,7 +828,7 @@ const BUILDERS: Record<PieceType, (c: Ctx) => PieceParts> = {
 /** A whole set (every piece, every part), each piece built on first use. */
 const buildPieceSet = (quality: PieceQuality): PieceSet => {
   const d = DETAIL[quality];
-  const c: Ctx = { d, segments: d.segments, profiles: PROFILES };
+  const c: Ctx = { quality, d, segments: d.segments, profiles: PROFILES };
   // Each piece is built when it is first asked for, then kept: a test that
   // draws only pawns never pays for the sculpted knight
   const set = {} as PieceSet;
@@ -854,10 +859,9 @@ export const pieceSet = (quality: PieceQuality = 'medium'): PieceSet => {
 
 /**
  * Builds the shared set's pieces while the browser is idle, one piece per
- * idle moment, so the first board does not wait for them (the sculpted
- * knight takes a few hundred milliseconds). Does nothing where there is no
- * idle callback (tests, some browsers): each piece is then built when it is
- * first drawn.
+ * idle moment, so the first board does not wait for them. Does nothing where
+ * there is no idle callback (tests, some browsers): each piece is then built
+ * when it is first drawn.
  */
 export const preloadPieceSet = (quality: PieceQuality = 'medium') => {
   if (typeof window === 'undefined' || typeof window.requestIdleCallback !== 'function') return;

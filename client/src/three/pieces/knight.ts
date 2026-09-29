@@ -279,7 +279,7 @@ const sculpt = (() => {
   };
 })();
 
-interface KnightGeometry {
+export interface KnightGeometry {
   /** The head and neck (body). */
   head: BufferGeometry;
   /** The mane and the eyes (the knight's accent). */

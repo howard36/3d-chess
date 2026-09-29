@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import GameScreen from './GameScreen';
 import EndGameModal from './EndGameModal';
@@ -9,7 +9,7 @@ import type { LobbyApi, LobbyStage } from './lobby/lobbyContext';
 import type { GameSocket } from '../hooks/useGameSocket';
 import type { WebSocketMessage } from '../types/messages';
 import { getStoredRole, setStoredRole } from '../lib/playerRole';
-import { fakeSocket } from './testSupport';
+import { fakeSocket, loadBoardChunk } from './testSupport';
 
 // The game's page before it starts: the host's invitation to send, and the
 // guest's invitation to accept, over the lobby's stage, and the handover from
@@ -53,6 +53,9 @@ const lobby: LobbyApi = {
     view = next;
   },
 };
+
+// The 3D board is a lazy chunk: load it before any test looks for it
+beforeAll(loadBoardChunk);
 
 const at = (socket: GameSocket, gameId = 'abc123') => (
   <LobbyContext.Provider value={lobby}>

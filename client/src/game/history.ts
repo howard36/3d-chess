@@ -34,6 +34,8 @@ export interface GameHistory {
   moveRecords: MoveRecord[];
   /** Position after the last applied move. */
   board: Board;
+  /** Position before the last applied move (null before the first). */
+  boardBefore: Board | null;
   /** How many of `moveRecords` were applied (all of them unless replay failed). */
   appliedMoveCount: number;
   /** White moves first; alternates with each applied move. */
@@ -114,29 +116,42 @@ export function deriveHistory(
   const { snapshot, moveRecords } = locateRecord(messages);
   if (prev && sameRecord(prev, snapshot, moveRecords)) return prev;
 
-  // positions[i] is the board after i applied moves.
-  const positions: Board[] = [Board.setupStartingPosition()];
-  const captured: Record<Turn, PieceType[]> = { white: [], black: [] };
+  // Replay from the starting position, or carry on from `prev` when this
+  // record only adds moves to the one it was made from (a move landing):
+  // its boards are never touched, and new moves give new boards
+  const extending =
+    prev &&
+    prev.snapshot === snapshot &&
+    prev.replayFailedAt === null &&
+    prev.moveRecords.length < moveRecords.length &&
+    prev.moveRecords.every((r, i) => r === moveRecords[i]);
+  let board = extending ? prev.board : Board.setupStartingPosition();
+  // The board before the last applied move, for what that move captured
+  let before = extending ? prev.boardBefore : null;
+  const captured: Record<Turn, PieceType[]> = extending
+    ? { white: [...prev.captured.white], black: [...prev.captured.black] }
+    : { white: [], black: [] };
   let replayFailedAt: number | null = null;
-  for (let i = 0; i < moveRecords.length; i++) {
+  let appliedMoveCount = extending ? prev.appliedMoveCount : 0;
+  for (let i = appliedMoveCount; i < moveRecords.length; i++) {
     try {
       const move = moveFromMessage(moveRecords[i]);
-      const next = positions[i].applyMove(move);
+      const next = board.applyMove(move);
       // The rules evaluate a position by finding each king (check detection),
       // so a record that captured one is unplayable from that move on.
       next.findKing('white');
       next.findKing('black');
-      const taken = positions[i].getPiece(move.to);
+      const taken = board.getPiece(move.to);
       if (taken) captured[turnAfter(i)].push(taken.type);
-      positions.push(next);
+      before = board;
+      board = next;
+      appliedMoveCount = i + 1;
     } catch {
       replayFailedAt = i;
       break;
     }
   }
 
-  const appliedMoveCount = positions.length - 1;
-  const board = positions[appliedMoveCount];
   const gameOver = replayFailedAt === null ? gameOverAt(board, turnAfter(appliedMoveCount)) : null;
   let lastMove: LastMove | undefined;
   if (appliedMoveCount > 0) {
@@ -145,7 +160,7 @@ export function deriveHistory(
     lastMove = {
       move,
       moveCount: appliedMoveCount,
-      capturedPiece: positions[appliedMoveCount - 1].getPiece(move.to),
+      capturedPiece: before!.getPiece(move.to),
     };
   }
 
@@ -153,6 +168,7 @@ export function deriveHistory(
     snapshot,
     moveRecords,
     board,
+    boardBefore: before,
     appliedMoveCount,
     currentTurn: turnAfter(appliedMoveCount),
     lastMove,

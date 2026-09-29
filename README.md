@@ -325,7 +325,7 @@ freely about the tower's centre, so the opening view is just a starting point. O
 positions are transformed; piece meshes are never mirrored (Board turns each knight to
 face the opponent). The levels are 1.35 cell pitches apart (`TOWER_DEFAULTS`), and
 `towerFrame(layout)` measures a layout's pitch, gap and platform heights. The scene
-assumes world-Y-up; the camera lives in `screens/GameView.tsx` (its starting
+assumes world-Y-up; the camera lives in `screens/GameCanvas.tsx` (its starting
 direction), `three/cameraFit.ts` (its distance, fitted to the window's shape so the whole
 tower is framed on a phone too, and the zoom range around it) and
 `three/CameraControls.tsx` (turning and zooming). The engine and wire formats are
@@ -420,7 +420,7 @@ How the code is split:
   `blades.tsx`) and the capture and mate (`fx.tsx`). `three/intro/` times the entrance. `palette.ts` holds the colours, the
   layout and the sizes they share. Every see-through part writes no depth and draws in a
   fixed order (`layers.ts`), so the glass never hides or tints a marker or a label.
-  Board, PieceMesh and GameView import these parts directly; unit tests stand them in
+  Board, PieceMesh and GameCanvas import these parts directly; unit tests stand them in
   with `vi.mock`.
 
 All motion runs on r3f's clock, and the canvas renders on demand.
@@ -488,11 +488,18 @@ separately:
 
 The geometry is built once per quality and shared by every piece: `pieceSet('low' |
 'medium' | 'high')` (medium, the default, keeps every piece within about 5k triangles; each
-piece is built the first time it is drawn, the sculpted knight in a few hundred
-milliseconds, and the board warms the set while the browser is idle with
-`preloadPieceSet()`). `partsGeometry(set, type, parts)` hands back a piece's parts merged
-into one geometry, and `pieceTop(set, type)` its height. `scene/pieces.tsx` draws each
-piece in one draw call with one small shader: every vertex carries its part, and the
+piece is built the first time it is drawn, and the board warms the set while the browser
+is idle with `preloadPieceSet()`). The medium knight is not sculpted in the browser: its
+head, mane and eyes (a few hundred milliseconds of sculpting and decimating) ship
+precomputed, byte for byte, in `pieces/knight.medium.ts` (the low and high knights are
+sculpted as before). The medium set's baked occlusion (below) ships the same way, in
+`scene/occlusion.medium.ts`. After changing a piece's shape (anything in `three/pieces/`,
+or the bake in `scene/occlusion.ts`), run `npm run bake:pieces` in `client/`;
+`knightData.test.ts` and `occlusionData.test.ts` fail while either file is stale, and
+`golden.test.ts` pins the medium and low sets' geometry by hash (the medium set as built
+and as drawn). `partsGeometry(set, type, parts)` hands back a piece's parts merged into one
+geometry, and `pieceTop(set, type)` its height. `scene/pieces.tsx` draws each piece in one
+draw call with one small shader: every vertex carries its part, and the
 ambient occlusion baked beside it (`scene/occlusion.ts`).
 
 To look at the set, open `http://127.0.0.1:5173/pieces.html` while Vite runs (a dev-only page,
@@ -693,6 +700,23 @@ tests ran against. Authentication comes from the `MODAL_TOKEN_ID` and `MODAL_TOK
 repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
+
+The client's entry (about 88 KB gzip) holds the start screen, the side choice and the game
+screen (the invitation, the HUD, the move record). Everything 3D is a chunk the entry loads
+lazily, shared by the start page's preview (`screens/LandingPreview.tsx`), the lobby's
+canvas (`screens/lobby/LobbyCanvas.tsx`) and the game's board (`screens/GameCanvas.tsx`):
+three.js, the scene and the set's precomputed parts, about 350 KB. The start page asks for
+it at once and shows its title and button without waiting for it; on the side choice
+(`/new`) and a game's address the built page preloads it from the start (a
+`modulepreload` added by a small plugin in `vite.config.ts`), so a shared link shows its
+invitation without waiting for three.js, and does not wait for the entry before asking
+for the scene. In the build, r3f's `Canvas` is handed only the three.js classes the scene
+writes as elements (`src/three/r3fCatalogue.ts`) instead of the whole namespace, so the
+rest of three.js is left out; a new element's class must be added there
+(`r3fCatalogue.test.ts` fails until it is, and the build fails if the swap stops applying).
+The e2e suite runs against the dev server, which does neither: to run it against a build,
+start `vite preview` on port 5173 (built with `VITE_WS_URL=ws://127.0.0.1:8000/ws`) and the
+backend first, and Playwright reuses them.
 
 ### Benchmarks
 

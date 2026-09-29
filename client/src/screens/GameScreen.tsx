@@ -16,7 +16,7 @@ import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole
 import { getClientId } from '../lib/clientId';
 import { gameLink } from '../lib/gameLink';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
-import { onToppled } from '../three/pieceMotion';
+import { onToppled } from '../three/toppled';
 import GameView from './GameView';
 import { selectInvitation } from '../game/invitation';
 import type { Color } from '../types/messages';

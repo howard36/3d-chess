@@ -3,12 +3,11 @@ import {
   PieceType,
   ROOK_VECTORS,
   BISHOP_VECTORS,
-  UNICORN_VECTORS,
   QUEEN_VECTORS,
   KING_VECTORS,
   KNIGHT_VECTORS,
 } from './pieces';
-import { Coord, LEVELS, FILES, RANKS, sameCoord, toZXY } from './coords';
+import { Coord, LEVELS, RANKS, toZXY } from './coords';
 
 export type Move = { from: Coord; to: Coord; promotion?: PieceType };
 
@@ -29,48 +28,123 @@ const pawnCaptureDeltas = (dir: number): [number, number, number][] => [
   [1, 0, dir], // Up-Right
 ];
 
-/** Movement vectors ([dz, dx, dy]) and whether they repeat, for every non-pawn type. */
-const MOVEMENT_VECTORS: Record<
-  Exclude<PieceType, PieceType.Pawn>,
-  { vectors: ReadonlyArray<[number, number, number]>; sliding: boolean }
+// The board is one array of 125 cells, cell z * 25 + x * 5 + y, so walking
+// the cells in order visits squares level by level, file by file, rank by
+// rank (the order every move list comes out in). What each piece could reach
+// from each cell is worked out once, below, as lists of cells.
+
+const SIZE = LEVELS.length; // the board is a cube: as many files and ranks as levels
+const CELLS = SIZE * SIZE * SIZE;
+const cellOf = (x: number, y: number, z: number) => z * SIZE * SIZE + x * SIZE + y;
+const inBoard = (x: number, y: number, z: number) =>
+  x >= 0 && x < SIZE && y >= 0 && y < SIZE && z >= 0 && z < SIZE;
+const CX: number[] = [];
+const CY: number[] = [];
+const CZ: number[] = [];
+for (let z = 0; z < SIZE; z++)
+  for (let x = 0; x < SIZE; x++)
+    for (let y = 0; y < SIZE; y++) {
+      CX.push(x);
+      CY.push(y);
+      CZ.push(z);
+    }
+const coordOf = (cell: number): Coord => ({ x: CX[cell], y: CY[cell], z: CZ[cell] });
+
+/**
+ * RAYS[cell][d]: the cells along QUEEN_VECTORS[d] from `cell`, nearest first.
+ * The rook's directions are the first 6, the bishop's the next 12 and the
+ * unicorn's the last 8 (QUEEN_VECTORS is the three in that order).
+ */
+const RAYS: number[][][] = [];
+/** KNIGHT_JUMPS[cell]: the cells a knight reaches, in KNIGHT_VECTORS order. */
+const KNIGHT_JUMPS: number[][] = [];
+/** PAWN_CAPTURES[colour][cell]: a pawn's capture cells, in pawnCaptureDeltas order. */
+const PAWN_CAPTURES: Record<'white' | 'black', number[][]> = { white: [], black: [] };
+/** PAWN_ATTACKERS[colour][cell]: the cells a pawn of that colour attacks `cell` from. */
+const PAWN_ATTACKERS: Record<'white' | 'black', number[][]> = { white: [], black: [] };
+for (let c = 0; c < CELLS; c++) {
+  const x = CX[c];
+  const y = CY[c];
+  const z = CZ[c];
+  RAYS.push(
+    QUEEN_VECTORS.map(([dz, dx, dy]) => {
+      const ray: number[] = [];
+      for (let n = 1; inBoard(x + dx * n, y + dy * n, z + dz * n); n++)
+        ray.push(cellOf(x + dx * n, y + dy * n, z + dz * n));
+      return ray;
+    }),
+  );
+  KNIGHT_JUMPS.push(
+    KNIGHT_VECTORS.filter(([dz, dx, dy]) => inBoard(x + dx, y + dy, z + dz)).map(([dz, dx, dy]) =>
+      cellOf(x + dx, y + dy, z + dz),
+    ),
+  );
+  for (const [color, dir] of [
+    ['white', 1],
+    ['black', -1],
+  ] as const) {
+    const deltas = pawnCaptureDeltas(dir);
+    PAWN_CAPTURES[color].push(
+      deltas
+        .filter(([dx, dy, dz]) => inBoard(x + dx, y + dy, z + dz))
+        .map(([dx, dy, dz]) => cellOf(x + dx, y + dy, z + dz)),
+    );
+    PAWN_ATTACKERS[color].push(
+      deltas
+        .filter(([dx, dy, dz]) => inBoard(x - dx, y - dy, z - dz))
+        .map(([dx, dy, dz]) => cellOf(x - dx, y - dy, z - dz)),
+    );
+  }
+}
+/** The slider that moves along each of QUEEN_VECTORS besides the queen. */
+const SLIDER = QUEEN_VECTORS.map((_, d) =>
+  d < ROOK_VECTORS.length
+    ? PieceType.Rook
+    : d < ROOK_VECTORS.length + BISHOP_VECTORS.length
+      ? PieceType.Bishop
+      : PieceType.Unicorn,
+);
+
+/** The directions (indices into QUEEN_VECTORS) each non-pawn type moves along. */
+const DIRECTIONS: Record<
+  Exclude<PieceType, PieceType.Pawn | PieceType.Knight>,
+  { from: number; to: number; sliding: boolean }
 > = {
-  [PieceType.Rook]: { vectors: ROOK_VECTORS, sliding: true },
-  [PieceType.Bishop]: { vectors: BISHOP_VECTORS, sliding: true },
-  [PieceType.Unicorn]: { vectors: UNICORN_VECTORS, sliding: true },
-  [PieceType.Queen]: { vectors: QUEEN_VECTORS, sliding: true },
-  [PieceType.King]: { vectors: KING_VECTORS, sliding: false },
-  [PieceType.Knight]: { vectors: KNIGHT_VECTORS, sliding: false },
+  [PieceType.Rook]: { from: 0, to: ROOK_VECTORS.length, sliding: true },
+  [PieceType.Bishop]: {
+    from: ROOK_VECTORS.length,
+    to: ROOK_VECTORS.length + BISHOP_VECTORS.length,
+    sliding: true,
+  },
+  [PieceType.Unicorn]: {
+    from: ROOK_VECTORS.length + BISHOP_VECTORS.length,
+    to: QUEEN_VECTORS.length,
+    sliding: true,
+  },
+  [PieceType.Queen]: { from: 0, to: QUEEN_VECTORS.length, sliding: true },
+  [PieceType.King]: { from: 0, to: KING_VECTORS.length, sliding: false },
 };
 
+type Color = 'white' | 'black';
+
 export class Board {
-  grid: (Piece | null)[][][];
+  /** The pieces by cell (see cellOf). */
+  private cells: (Piece | null)[];
 
   constructor() {
-    // 5x5x5 grid, all null by default
-    this.grid = Array.from({ length: LEVELS.length }, () =>
-      Array.from({ length: FILES.length }, () =>
-        Array.from({ length: RANKS.length }, () => null as Piece | null),
-      ),
-    );
+    this.cells = new Array<Piece | null>(CELLS).fill(null);
   }
 
   isInside(coord: Coord): boolean {
-    return (
-      coord.z >= 0 &&
-      coord.z < LEVELS.length &&
-      coord.x >= 0 &&
-      coord.x < FILES.length &&
-      coord.y >= 0 &&
-      coord.y < RANKS.length
-    );
+    return inBoard(coord.x, coord.y, coord.z);
   }
 
   setPiece(coord: Coord, piece: Piece | null): void {
-    this.grid[coord.z][coord.x][coord.y] = piece;
+    this.cells[cellOf(coord.x, coord.y, coord.z)] = piece;
   }
 
   getPiece(coord: Coord): Piece | null {
-    return this.grid[coord.z][coord.x][coord.y];
+    return this.cells[cellOf(coord.x, coord.y, coord.z)];
   }
 
   isPromotionSquare(coord: Coord, color: 'white' | 'black'): boolean {
@@ -83,70 +157,64 @@ export class Board {
   generatePotentialMoves(from: Coord): Move[] {
     const piece = this.getPiece(from);
     if (!piece) throw new Error(`No piece at ${toZXY(from)}`);
-
-    const potentialMoves: Move[] = [];
+    const moves: Move[] = [];
+    const cells = this.cells;
+    const color = piece.color;
+    const add = (to: number) => moves.push({ from, to: coordOf(to), promotion: undefined });
 
     if (piece.type === PieceType.Pawn) {
-      const dir = piece.color === 'white' ? 1 : -1;
-
-      // Helper to add pawn moves, handling promotions
-      const addPawnMove = (to: Coord, isCapture: boolean) => {
-        if (!this.isInside(to)) return;
-        const targetPiece = this.getPiece(to);
-
-        if (isCapture) {
-          if (!targetPiece || targetPiece.color === piece.color) return; // Must capture opponent
+      const dir = color === 'white' ? 1 : -1;
+      // Pawn moves, handling promotions
+      const addPawnMove = (to: number) => {
+        const toCoord = coordOf(to);
+        if (this.isPromotionSquare(toCoord, color)) {
+          for (const promotion of ALL_PROMOTION_TYPES) moves.push({ from, to: toCoord, promotion });
         } else {
-          if (targetPiece) return; // Cannot move to occupied square
-        }
-
-        if (this.isPromotionSquare(to, piece.color)) {
-          for (const promotionType of ALL_PROMOTION_TYPES) {
-            potentialMoves.push({ from, to, promotion: promotionType });
-          }
-        } else {
-          potentialMoves.push({ from, to, promotion: undefined });
+          moves.push({ from, to: toCoord, promotion: undefined });
         }
       };
-
-      // Forward (y axis) - non-capture
-      const forward: Coord = { x: from.x, y: from.y + dir, z: from.z };
-      addPawnMove(forward, false);
-
-      // Up (z axis) - non-capture
-      const up: Coord = { x: from.x, y: from.y, z: from.z + dir };
-      addPawnMove(up, false);
-
-      for (const [dx, dy, dz] of pawnCaptureDeltas(dir)) {
-        const to: Coord = { x: from.x + dx, y: from.y + dy, z: from.z + dz };
-        addPawnMove(to, true);
+      // Forward (y axis), then up (z axis): non-captures, onto an empty square
+      if (inBoard(from.x, from.y + dir, from.z)) {
+        const to = cellOf(from.x, from.y + dir, from.z);
+        if (!cells[to]) addPawnMove(to);
       }
-      return potentialMoves;
+      if (inBoard(from.x, from.y, from.z + dir)) {
+        const to = cellOf(from.x, from.y, from.z + dir);
+        if (!cells[to]) addPawnMove(to);
+      }
+      // Captures: an opponent's piece only
+      for (const to of PAWN_CAPTURES[color][cellOf(from.x, from.y, from.z)]) {
+        const target = cells[to];
+        if (target && target.color !== color) addPawnMove(to);
+      }
+      return moves;
     }
 
-    // Other pieces (Rook, Bishop, Unicorn, Queen, King, Knight)
-    const { vectors, sliding } = MOVEMENT_VECTORS[piece.type];
-
-    for (const [dz, dx, dy] of vectors) {
-      let n = 1;
-      while (true) {
-        const to: Coord = { z: from.z + dz * n, x: from.x + dx * n, y: from.y + dy * n };
-        if (!this.isInside(to)) break;
-
-        const targetPiece = this.getPiece(to);
-        if (!targetPiece) {
-          potentialMoves.push({ from, to, promotion: undefined });
-        } else {
-          if (targetPiece.color !== piece.color) {
-            potentialMoves.push({ from, to, promotion: undefined });
-          }
-          break; // Blocked by a piece
+    const at = cellOf(from.x, from.y, from.z);
+    if (piece.type === PieceType.Knight) {
+      for (const to of KNIGHT_JUMPS[at]) {
+        const target = cells[to];
+        if (!target || target.color !== color) add(to);
+      }
+      return moves;
+    }
+    // Rook, Bishop, Unicorn, Queen, King: along rays, stopping at a piece
+    const { from: d0, to: d1, sliding } = DIRECTIONS[piece.type];
+    const rays = RAYS[at];
+    for (let d = d0; d < d1; d++) {
+      const ray = rays[d];
+      const reach = sliding ? ray.length : Math.min(1, ray.length);
+      for (let n = 0; n < reach; n++) {
+        const target = cells[ray[n]];
+        if (!target) {
+          add(ray[n]);
+          continue;
         }
-        if (!sliding) break;
-        n++;
+        if (target.color !== color) add(ray[n]);
+        break; // Blocked by a piece
       }
     }
-    return potentialMoves;
+    return moves;
   }
 
   applyMove(move: Move): Board {
@@ -179,18 +247,18 @@ export class Board {
     return newBoard;
   }
 
-  findKing(color: 'white' | 'black'): Coord {
-    for (let z = 0; z < LEVELS.length; z++) {
-      for (let x = 0; x < FILES.length; x++) {
-        for (let y = 0; y < RANKS.length; y++) {
-          const piece = this.getPiece({ x, y, z });
-          if (piece && piece.type === PieceType.King && piece.color === color) {
-            return { x, y, z };
-          }
-        }
-      }
+  /** The cell of the first king of `color` in cell order. */
+  private kingCell(color: Color): number {
+    const cells = this.cells;
+    for (let c = 0; c < CELLS; c++) {
+      const piece = cells[c];
+      if (piece && piece.type === PieceType.King && piece.color === color) return c;
     }
     throw new Error(`King of color ${color} not found`);
+  }
+
+  findKing(color: 'white' | 'black'): Coord {
+    return coordOf(this.kingCell(color));
   }
 
   /**
@@ -204,56 +272,91 @@ export class Board {
   generateAttackedSquares(from: Coord): Coord[] {
     const piece = this.getPiece(from);
     if (!piece) throw new Error(`No piece at ${toZXY(from)}`);
-
+    const at = cellOf(from.x, from.y, from.z);
+    if (piece.type === PieceType.Pawn) return PAWN_CAPTURES[piece.color][at].map(coordOf);
+    if (piece.type === PieceType.Knight) return KNIGHT_JUMPS[at].map(coordOf);
     const attacked: Coord[] = [];
-    if (piece.type === PieceType.Pawn) {
-      const dir = piece.color === 'white' ? 1 : -1;
-      for (const [dx, dy, dz] of pawnCaptureDeltas(dir)) {
-        const to: Coord = { x: from.x + dx, y: from.y + dy, z: from.z + dz };
-        if (this.isInside(to)) attacked.push(to);
-      }
-      return attacked;
-    }
-
-    const { vectors, sliding } = MOVEMENT_VECTORS[piece.type];
-    for (const [dz, dx, dy] of vectors) {
-      let n = 1;
-      while (true) {
-        const to: Coord = { z: from.z + dz * n, x: from.x + dx * n, y: from.y + dy * n };
-        if (!this.isInside(to)) break;
-        attacked.push(to);
-        if (this.getPiece(to) || !sliding) break;
-        n++;
+    const { from: d0, to: d1, sliding } = DIRECTIONS[piece.type];
+    for (let d = d0; d < d1; d++) {
+      for (const to of RAYS[at][d]) {
+        attacked.push(coordOf(to));
+        if (this.cells[to] || !sliding) break;
       }
     }
     return attacked;
   }
 
-  /** True if any piece of `byColor` attacks `target` (see generateAttackedSquares). */
-  isSquareAttacked(target: Coord, byColor: 'white' | 'black'): boolean {
-    for (let z = 0; z < LEVELS.length; z++) {
-      for (let x = 0; x < FILES.length; x++) {
-        for (let y = 0; y < RANKS.length; y++) {
-          const piece = this.getPiece({ x, y, z });
-          if (piece && piece.color === byColor) {
-            const squares = this.generateAttackedSquares({ x, y, z });
-            if (squares.some((c) => sameCoord(c, target))) {
-              return true;
-            }
-          }
+  /**
+   * True if any piece of `byColor` attacks the cell (as generateAttackedSquares
+   * counts attacks). Looks outward from the cell instead of at every piece:
+   * along each direction the first piece met attacks it if it moves that way
+   * (the queen always, the king from one step), then the knights' and pawns'
+   * squares.
+   */
+  private attacks(target: number, byColor: Color): boolean {
+    const cells = this.cells;
+    const rays = RAYS[target];
+    for (let d = 0; d < rays.length; d++) {
+      const ray = rays[d];
+      for (let n = 0; n < ray.length; n++) {
+        const piece = cells[ray[n]];
+        if (!piece) continue;
+        if (piece.color === byColor) {
+          const type = piece.type;
+          if (
+            type === PieceType.Queen ||
+            type === SLIDER[d] ||
+            (n === 0 && type === PieceType.King)
+          )
+            return true;
         }
+        break;
       }
     }
+    for (const from of KNIGHT_JUMPS[target]) {
+      const piece = cells[from];
+      if (piece && piece.type === PieceType.Knight && piece.color === byColor) return true;
+    }
+    for (const from of PAWN_ATTACKERS[byColor][target]) {
+      const piece = cells[from];
+      if (piece && piece.type === PieceType.Pawn && piece.color === byColor) return true;
+    }
     return false;
+  }
+
+  /** True if any piece of `byColor` attacks `target` (see generateAttackedSquares). */
+  isSquareAttacked(target: Coord, byColor: 'white' | 'black'): boolean {
+    return this.attacks(cellOf(target.x, target.y, target.z), byColor);
   }
 
   /**
    * Returns true if the king of the given color is in check.
    */
   inCheck(color: 'white' | 'black'): boolean {
-    const kingPos = this.findKing(color);
-    const enemyColor = color === 'white' ? 'black' : 'white';
-    return this.isSquareAttacked(kingPos, enemyColor);
+    return this.attacks(this.kingCell(color), color === 'white' ? 'black' : 'white');
+  }
+
+  /**
+   * Whether `move` (one of the piece's potential moves) leaves the mover's
+   * king safe: played on this board and taken back, instead of on a copy.
+   * `king` is the mover's king's cell before the move.
+   */
+  private isSafe(move: Move, piece: Piece, king: number): boolean {
+    const cells = this.cells;
+    const from = cellOf(move.from.x, move.from.y, move.from.z);
+    const to = cellOf(move.to.x, move.to.y, move.to.z);
+    const taken = cells[to];
+    cells[from] = null;
+    cells[to] = move.promotion ? { type: move.promotion, color: piece.color } : piece;
+    try {
+      // A king that moves takes the check test with it (and with two kings,
+      // the first in cell order is the one tested, as findKing would say)
+      const at = piece.type === PieceType.King ? this.kingCell(piece.color) : king;
+      return !this.attacks(at, piece.color === 'white' ? 'black' : 'white');
+    } finally {
+      cells[to] = taken;
+      cells[from] = piece;
+    }
   }
 
   /**
@@ -266,17 +369,10 @@ export class Board {
     if (!piece) {
       throw new Error(`No piece at ${toZXY(from)} to generate legal moves for.`);
     }
-
-    const legalMovesForPiece: Move[] = [];
     const potentialMoves = this.generatePotentialMoves(from);
-
-    for (const potentialMove of potentialMoves) {
-      const newBoard = this.applyMove(potentialMove);
-      if (!newBoard.inCheck(piece.color)) {
-        legalMovesForPiece.push(potentialMove);
-      }
-    }
-    return legalMovesForPiece;
+    if (potentialMoves.length === 0) return potentialMoves;
+    const king = this.kingCell(piece.color);
+    return potentialMoves.filter((move) => this.isSafe(move, piece, king));
   }
 
   /**
@@ -285,41 +381,49 @@ export class Board {
    */
   generateAllLegalMoves(color: 'white' | 'black'): Move[] {
     const allLegalMovesForColor: Move[] = [];
-    for (let z = 0; z < LEVELS.length; z++) {
-      for (let x = 0; x < FILES.length; x++) {
-        for (let y = 0; y < RANKS.length; y++) {
-          const piece = this.getPiece({ x, y, z });
-          if (piece && piece.color === color) {
-            const movesForThisPiece = this.generateLegalMoves({ x, y, z });
-            allLegalMovesForColor.push(...movesForThisPiece);
-          }
-        }
+    for (let c = 0; c < CELLS; c++) {
+      const piece = this.cells[c];
+      if (piece && piece.color === color) {
+        allLegalMovesForColor.push(...this.generateLegalMoves(coordOf(c)));
       }
     }
     return allLegalMovesForColor;
+  }
+
+  /** Whether the given color has any legal move (stops at the first). */
+  hasLegalMove(color: 'white' | 'black'): boolean {
+    let king = -1;
+    for (let c = 0; c < CELLS; c++) {
+      const piece = this.cells[c];
+      if (!piece || piece.color !== color) continue;
+      const moves = this.generatePotentialMoves(coordOf(c));
+      if (moves.length === 0) continue;
+      if (king < 0) king = this.kingCell(color);
+      for (const move of moves) if (this.isSafe(move, piece, king)) return true;
+    }
+    return false;
   }
 
   /**
    * Returns true if the given color is checkmated.
    */
   isCheckmate(color: 'white' | 'black'): boolean {
-    return this.inCheck(color) && this.generateAllLegalMoves(color).length === 0;
+    return this.inCheck(color) && !this.hasLegalMove(color);
   }
 
   /**
    * Returns true if the given color is stalemated.
    */
   isStalemate(color: 'white' | 'black'): boolean {
-    return !this.inCheck(color) && this.generateAllLegalMoves(color).length === 0;
+    return !this.inCheck(color) && !this.hasLegalMove(color);
   }
 
   /**
-   * Shallow clone of the board (for move simulation)
+   * Copy of the board (for move simulation); the pieces themselves are shared.
    */
   clone(): Board {
     const newBoard = new Board();
-    // Deep copy grid (3D array)
-    newBoard.grid = this.grid.map((level) => level.map((file) => file.slice()));
+    newBoard.cells = this.cells.slice();
     return newBoard;
   }
 
