@@ -280,7 +280,7 @@ describe('fitView', () => {
     // The tower with its labels, as the game frames it, against the box its
     // layout gives for the labels' room, fitted symmetrically
     const tower = towerLayout({ pieceHeight: 0.87 * 0.8, minElevation: -14 });
-    const rings = towerFrameRings(tower, { size: 0.32, levelScale: 1 });
+    const rings = towerFrameRings(tower);
     // (7% and 1% closer in a desktop window and a phone on its side, where
     // the framing of the outline as seen was 10% and 3% closer, before it
     // held still as the view turned; an upright phone, which the tower fills
