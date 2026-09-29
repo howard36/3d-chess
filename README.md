@@ -496,6 +496,13 @@ repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
 
+The client builds to three chunks: the entry (the start screen, about 74 KB gzip), the game
+screen (three.js, the scene and the rules engine, loaded with `React.lazy` in `App.tsx`)
+and the medium knight's precomputed meshes (see Piece set). The start screen fetches the
+game screen once the page is idle; on a game's address the built page preloads it from
+the start (a `modulepreload` added by a small plugin in `vite.config.ts`), so a shared
+link does not wait for the entry before asking for it.
+
 ## Known limitations (accepted for this project's scope)
 
 - The server doesn't detect checkmate/stalemate; game-over is decided independently by

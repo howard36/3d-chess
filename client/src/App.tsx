@@ -1,9 +1,19 @@
 import { Routes, Route, matchPath, useLocation, useParams } from 'react-router-dom';
 import StartScreen from './screens/StartScreen';
-import GameScreen from './screens/GameScreen';
 import { useGameSocket } from './hooks/useGameSocket';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
+
+// The game screen (three.js, the scene, the rules engine: most of the app's
+// code) is a chunk of its own, so the start screen shows without it. A game's
+// address asks for it at once; the start screen fetches it once the page is
+// idle, so creating a game rarely waits for it.
+let gameScreenChunk: Promise<typeof import('./screens/GameScreen')> | null = null;
+const loadGameScreen = () => (gameScreenChunk ??= import('./screens/GameScreen'));
+const GameScreen = React.lazy(loadGameScreen);
+if (typeof window !== 'undefined' && window.location.pathname.startsWith('/game/')) {
+  void loadGameScreen();
+}
 
 // One GameScreen per game: moving between two game pages (browser history can
 // jump straight from one to another) mounts a fresh screen, so nothing the
@@ -21,7 +31,11 @@ function GameRoute({
 }) {
   const { gameId } = useParams<{ gameId: string }>();
   if (gameId !== readyGameId) return null;
-  return <GameScreen key={gameId} gameSocket={gameSocket} />;
+  return (
+    <React.Suspense fallback={null}>
+      <GameScreen key={gameId} gameSocket={gameSocket} />
+    </React.Suspense>
+  );
 }
 
 function App() {
@@ -50,6 +64,16 @@ function App() {
     }
     setReadyGameId(gameId);
   }, [location.pathname, gameId, reset]);
+
+  // Fetch the game screen once the start screen has had its turn
+  React.useEffect(() => {
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(() => void loadGameScreen(), { timeout: 2000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(() => void loadGameScreen(), 200);
+    return () => window.clearTimeout(id);
+  }, []);
 
   return (
     <Routes>
