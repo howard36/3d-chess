@@ -1,6 +1,5 @@
 import type { GridProps } from '../types';
 import { focusLevelOf } from './focus';
-import { LEVEL_COLORS, PALETTE } from './palette';
 import { Levels } from './plates';
 import { SmartLabels } from './smartLabels';
 
@@ -14,31 +13,7 @@ export const Grid = ({ layout, orientation, focus }: GridProps) => {
   return (
     <>
       <Levels focusLevel={focusLevel} />
-      <SmartLabels
-        layout={layout}
-        orientation={orientation}
-        // Manrope's double-storey "a" never reads as "o"; its "1" has a flag
-        font='"Manrope", system-ui, sans-serif'
-        weight={600}
-        levelWeight={700}
-        color={PALETTE.ink}
-        levelColors={LEVEL_COLORS}
-        outline="rgba(2, 3, 7, 0.9)"
-        outlineWidth={0.08}
-        shadow="rgba(200, 215, 255, 0.25)"
-        size={0.32}
-        // The level letters keep their colours at the files' and ranks' size;
-        // the level in play stands out by the others dimming, not by growing
-        levelScale={1}
-        opacity={0.9}
-        focusLevel={focusLevel}
-        focusScale={1}
-        focusDim={0.55}
-        // Hidden by a piece in front of them, as anything behind a piece is;
-        // the glass, its border and its rim write no depth, so they never
-        // hide one
-        depthTest
-      />
+      <SmartLabels layout={layout} orientation={orientation} focusLevel={focusLevel} />
     </>
   );
 };

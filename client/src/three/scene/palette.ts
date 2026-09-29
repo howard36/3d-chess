@@ -101,11 +101,8 @@ export const PIECE_SCALE = 0.8;
  * CameraFloor keeps it above the ground however far out it is zoomed.
  */
 const tower = towerLayout({ pieceHeight: 0.87 * PIECE_SCALE, minElevation: -14 });
-/** The tower, framed with its labels as the grid draws them (grid.tsx: size 0.32, letters at 1x). */
-export const layout = {
-  ...tower,
-  frameRings: towerFrameRings(tower, { size: 0.32, levelScale: 1 }),
-};
+/** The tower, framed with its labels as the grid draws them. */
+export const layout = { ...tower, frameRings: towerFrameRings(tower) };
 export const FRAME = towerFrame(layout);
 
 /** How far each level's glass reaches past its outer squares. */

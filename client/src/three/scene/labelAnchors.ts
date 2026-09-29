@@ -22,7 +22,7 @@ import type { BoardLayout, Vec3 } from '../types';
 // near its plane, and take its far edges once under it (axisView).
 
 /** Which platform edges carry the axis labels: the sign of the edge's z (files) and x (ranks). */
-export interface EdgeChoice {
+interface EdgeChoice {
   files: 1 | -1;
   ranks: 1 | -1;
 }
@@ -36,7 +36,7 @@ export const CORNERS: readonly (readonly [number, number])[] = [
 ];
 
 /** The camera's azimuth about the vertical through `target`: 0 on +z, PI/2 on +x. */
-export const cameraAzimuth = (camera: Vec3, target: Vec3): number =>
+const cameraAzimuth = (camera: Vec3, target: Vec3): number =>
   Math.atan2(camera[0] - target[0], camera[2] - target[2]);
 
 /**
@@ -55,14 +55,10 @@ export const EDGE_HYSTERESIS = (5 * Math.PI) / 180;
 /**
  * The edges nearest the camera: files run along the z-edge on the camera's
  * side, ranks along the x-edge on its side. An edge is only given up once the
- * camera is `hysteresis` radians past the point where the two tie.
+ * camera is EDGE_HYSTERESIS past the point where the two tie.
  */
-export const chooseEdges = (
-  azimuth: number,
-  prev: EdgeChoice | null,
-  hysteresis = EDGE_HYSTERESIS,
-): EdgeChoice => {
-  const band = Math.sin(hysteresis);
+export const chooseEdges = (azimuth: number, prev: EdgeChoice | null): EdgeChoice => {
+  const band = Math.sin(EDGE_HYSTERESIS);
   const pick = (value: number, was: 1 | -1 | undefined): 1 | -1 => {
     if (was === undefined) return value >= 0 ? 1 : -1;
     return value * was < -band ? (-was as 1 | -1) : was;
@@ -83,7 +79,7 @@ const norm = (a: Vec3): Vec3 => {
 };
 
 /** The camera's horizontal right-hand direction, looking from `camera` at `target`. */
-export const cameraRight = (camera: Vec3, target: Vec3): Vec3 => {
+const cameraRight = (camera: Vec3, target: Vec3): Vec3 => {
   const f = sub(target, camera);
   // forward × up, with up = +y
   return norm([-f[2], 0, f[0]]);
@@ -111,6 +107,9 @@ const depthInside = (p: [number, number], q: [number, number][]): number => {
   return depth;
 };
 
+const AXIS_MARGIN = 0.01;
+const AXIS_MIN_ELEVATION = (40 * Math.PI) / 180;
+
 /**
  * Which platform carries a row of axis labels (the files, or the ranks). The
  * bottom one (A) is their home, below everything from the usual low camera;
@@ -118,23 +117,22 @@ const depthInside = (p: [number, number], q: [number, number][]): number => {
  * screen, so the bottom one's labels would land on top of them. Then they
  * move to the top platform (E), whose edges are outermost from up there.
  * `placements(z)` gives where the labels would sit on level `z`. A move
- * needs the other platform clearly better (by `margin`, in units of the
+ * needs the other platform clearly better (by AXIS_MARGIN, in units of the
  * tangent of the view angle), so the labels never flicker between the two;
- * below `minElevation` (radians) they stay home whatever happens, as they
- * always have.
+ * below AXIS_MIN_ELEVATION they stay home whatever happens, as they always
+ * have.
  */
-export const chooseAxisLevel = (
+const chooseAxisLevel = (
   camera: Vec3,
   target: Vec3,
   half: number,
   levelY: number[],
   placements: (z: number) => Vec3[],
   prev: number | null,
-  margin = 0.01,
-  minElevation = (40 * Math.PI) / 180,
 ): number => {
+  const margin = AXIS_MARGIN;
   const forward = norm(sub(target, camera));
-  if (-forward[1] < Math.sin(minElevation)) return 0;
+  if (-forward[1] < Math.sin(AXIS_MIN_ELEVATION)) return 0;
   const right = cameraRight(camera, target);
   const up: Vec3 = [
     right[1] * forward[2] - right[2] * forward[1],
@@ -173,9 +171,12 @@ export const chooseAxisLevel = (
  * labels keep to the nearest edges; the rules below take over across the 2°
  * beneath it.
  */
-export const LOW_ELEVATION = 6 * DEG;
+const LOW_ELEVATION = 6 * DEG;
+/** Between these grazing angles (above and below the platform's plane) the labels fade in. */
+const FADE_FROM = 15 * DEG;
+const FADE_TO = 6 * DEG;
 
-export interface AxisView {
+interface AxisView {
   /** How much the platform's files and ranks show, 0–1. */
   opacity: number;
   /** The camera is under the platform: the labels take its far edges. */
@@ -188,17 +189,11 @@ export interface AxisView {
  * the plane, seen from the tower's axis) decides: near the plane the
  * platform is seen edge-on, the ranks (a pitch apart in depth) crowd into
  * one blot and the files sit among its pieces, so they fade out between
- * `fadeFrom` and `fadeTo`; under the plane, its far edges are the lowest part of it on
+ * FADE_FROM and FADE_TO; under the plane, its far edges are the lowest part of it on
  * screen, clear of every piece and platform, so the labels move there (the
  * mirror of the near edges from above). Only below LOW_ELEVATION.
  */
-export const axisView = (
-  camera: Vec3,
-  target: Vec3,
-  y: number,
-  fadeFrom = 15 * DEG,
-  fadeTo = 6 * DEG,
-): AxisView => {
+export const axisView = (camera: Vec3, target: Vec3, y: number): AxisView => {
   const v = sub(camera, target);
   const elevation = Math.asin(v[1] / (Math.hypot(v[0], v[1], v[2]) || 1));
   // 0 at LOW_ELEVATION and above (as always), 1 from 2° under it
@@ -206,7 +201,7 @@ export const axisView = (
   // (a hair's tolerance, so a camera held at exactly 6° is above it)
   if (low < 1e-6) return { opacity: 1, below: false };
   const grazing = Math.atan2(camera[1] - y, Math.hypot(v[0], v[2]));
-  const k = Math.min(Math.max((Math.abs(grazing) - fadeTo) / (fadeFrom - fadeTo), 0), 1);
+  const k = Math.min(Math.max((Math.abs(grazing) - FADE_TO) / (FADE_FROM - FADE_TO), 0), 1);
   const shown = k * k * (3 - 2 * k);
   return { opacity: 1 - low * (1 - shown), below: grazing < 0 };
 };
@@ -229,17 +224,13 @@ export const lettersHigh = (elevation: number, prev: boolean | null): boolean =>
 /**
  * Which row of labels faces the camera more squarely: the files (on a
  * z-edge) or the ranks (on an x-edge). They tie on the diagonals; the row
- * facing is only given up once the camera is `hysteresis` radians past one.
+ * facing is only given up once the camera is EDGE_HYSTERESIS past one.
  */
-export const facingRow = (
-  azimuth: number,
-  prev: 'files' | 'ranks' | null,
-  hysteresis = EDGE_HYSTERESIS,
-): 'files' | 'ranks' => {
+export const facingRow = (azimuth: number, prev: 'files' | 'ranks' | null): 'files' | 'ranks' => {
   const files = Math.abs(Math.cos(azimuth));
   if (prev === null) return files >= Math.SQRT1_2 ? 'files' : 'ranks';
-  if (prev === 'files') return files < Math.cos(Math.PI / 4 + hysteresis) ? 'ranks' : 'files';
-  return files > Math.cos(Math.PI / 4 - hysteresis) ? 'files' : 'ranks';
+  if (prev === 'files') return files < Math.cos(Math.PI / 4 + EDGE_HYSTERESIS) ? 'ranks' : 'files';
+  return files > Math.cos(Math.PI / 4 - EDGE_HYSTERESIS) ? 'files' : 'ranks';
 };
 
 /**
@@ -317,35 +308,14 @@ export interface AnchorState {
   facing: 'files' | 'ranks';
 }
 
-export interface AnchorOptions {
-  /** Distance of the file and rank labels outside the platform's edge. */
-  offset?: number;
-  /** Distance of the level letters out from their platform's corner, along its diagonal, from low down (LETTER_OFFSET)... */
-  levelOffset?: number;
-  /** ...and from high up (LETTER_OFFSET_HIGH). */
-  levelOffsetHigh?: number;
-  /** Axis labels on every platform, not only the bottom one. */
-  everyLevel?: boolean;
-  /** Radians past the tie before the axis labels (and so the letters) change edge. */
-  edgeHysteresis?: number;
-  /** Height of the level letters above their platform (LETTER_LIFT). */
-  levelLift?: number;
-}
+/** Distance of the file and rank labels outside the platform's edge. */
+const AXIS_OFFSET = 0.42;
 
 /** Where level `z`'s letter stands at corner post `corner`, from high up or low down. */
-const letterAt = (
-  frame: TowerFrame,
-  z: number,
-  corner: number,
-  high: boolean,
-  o: AnchorOptions,
-): Vec3 => {
+const letterAt = (frame: TowerFrame, z: number, corner: number, high: boolean): Vec3 => {
   const [sx, sz] = CORNERS[corner];
-  const offset = high
-    ? (o.levelOffsetHigh ?? LETTER_OFFSET_HIGH)
-    : (o.levelOffset ?? LETTER_OFFSET);
-  const out = frame.half + offset / Math.SQRT2;
-  return [sx * out, frame.levelY[z] + (o.levelLift ?? LETTER_LIFT), sz * out];
+  const out = frame.half + (high ? LETTER_OFFSET_HIGH : LETTER_OFFSET) / Math.SQRT2;
+  return [sx * out, frame.levelY[z] + LETTER_LIFT, sz * out];
 };
 
 /**
@@ -359,88 +329,77 @@ export const labelAnchors = (
   camera: Vec3,
   target: Vec3,
   prev: AnchorState | null,
-  o: AnchorOptions = {},
 ): { state: AnchorState; labels: LabelAnchor[] } => {
   const frame = towerFrame(layout);
-  const offset = o.offset ?? 0.42;
-  const edges = chooseEdges(cameraAzimuth(camera, target), prev?.edges ?? null, o.edgeHysteresis);
+  const edges = chooseEdges(cameraAzimuth(camera, target), prev?.edges ?? null);
   const fileX = FILES.map((_, x) => layout.toWorld({ x, y: 0, z: 0 }, orientation)[0]);
   const rankZ = RANKS.map((_, r) => layout.toWorld({ x: 0, y: r, z: 0 }, orientation)[2]);
   // The files and the ranks each take the platform that keeps them clear of
   // the tower on screen (usually the bottom one)
   const fileAt = (z: number): Vec3[] =>
-    fileX.map((px) => [px, frame.levelY[z], edges.files * (frame.half + offset)]);
+    fileX.map((px) => [px, frame.levelY[z], edges.files * (frame.half + AXIS_OFFSET)]);
   const rankAt = (z: number): Vec3[] =>
-    rankZ.map((pz) => [edges.ranks * (frame.half + offset), frame.levelY[z], pz]);
+    rankZ.map((pz) => [edges.ranks * (frame.half + AXIS_OFFSET), frame.levelY[z], pz]);
   const pick = (at: (z: number) => Vec3[], was: number | undefined) =>
-    o.everyLevel ? 0 : chooseAxisLevel(camera, target, frame.half, frame.levelY, at, was ?? null);
+    chooseAxisLevel(camera, target, frame.half, frame.levelY, at, was ?? null);
   const axisLevels = {
     files: pick(fileAt, prev?.axisLevels.files),
     ranks: pick(rankAt, prev?.axisLevels.ranks),
   };
   const labels: LabelAnchor[] = [];
-  // One set of axis labels (ids from level A, whichever platform carries
-  // them), or one per platform
-  const levels = o.everyLevel ? [0, 1, 2, 3, 4] : [0];
-  for (const z of levels) {
-    const files = o.everyLevel ? z : axisLevels.files;
-    const ranks = o.everyLevel ? z : axisLevels.ranks;
-    // Seen from low down: faded near the platform's plane, on its far edges under it
-    const fileView = axisView(camera, target, frame.levelY[files]);
-    const rankView = axisView(camera, target, frame.levelY[ranks]);
-    const fileEdge = fileView.below ? -edges.files : edges.files;
-    const rankEdge = rankView.below ? -edges.ranks : edges.ranks;
-    const shown = (view: AxisView) => (view.opacity < 1 ? { opacity: view.opacity } : {});
-    FILES.forEach((text, x) =>
-      labels.push({
-        id: `file-${text}-${z}`,
-        text,
-        key: `z${fileEdge}l${files}`,
-        position: [fileX[x], frame.levelY[files], fileEdge * (frame.half + offset)],
-        ...shown(fileView),
-      }),
-    );
-    RANKS.forEach((text, r) =>
-      labels.push({
-        id: `rank-${text}-${z}`,
-        text,
-        key: `x${rankEdge}l${ranks}`,
-        position: [rankEdge * (frame.half + offset), frame.levelY[ranks], rankZ[r]],
-        ...shown(rankView),
-      }),
-    );
-  }
+  const { files, ranks } = axisLevels;
+  // Seen from low down: faded near the platform's plane, on its far edges under it
+  const fileView = axisView(camera, target, frame.levelY[files]);
+  const rankView = axisView(camera, target, frame.levelY[ranks]);
+  const fileEdge = fileView.below ? -edges.files : edges.files;
+  const rankEdge = rankView.below ? -edges.ranks : edges.ranks;
+  const shown = (view: AxisView) => (view.opacity < 1 ? { opacity: view.opacity } : {});
+  // (ids end in 0, whichever platform carries them)
+  FILES.forEach((text, x) =>
+    labels.push({
+      id: `file-${text}-0`,
+      text,
+      key: `z${fileEdge}l${files}`,
+      position: [fileX[x], frame.levelY[files], fileEdge * (frame.half + AXIS_OFFSET)],
+      ...shown(fileView),
+    }),
+  );
+  RANKS.forEach((text, r) =>
+    labels.push({
+      id: `rank-${text}-0`,
+      text,
+      key: `x${rankEdge}l${ranks}`,
+      position: [rankEdge * (frame.half + AXIS_OFFSET), frame.levelY[ranks], rankZ[r]],
+      ...shown(rankView),
+    }),
+  );
   const v = sub(camera, target);
   const elevation = Math.asin(v[1] / (Math.hypot(v[0], v[1], v[2]) || 1));
   const high = lettersHigh(elevation, prev?.high ?? null);
-  const facing = facingRow(cameraAzimuth(camera, target), prev?.facing ?? null, o.edgeHysteresis);
+  const facing = facingRow(cameraAzimuth(camera, target), prev?.facing ?? null);
   const corner = letterCorner(edges, high, facing);
   LEVELS.forEach((text, z) =>
     labels.push({
       id: `level-${text}`,
       text,
       key: `c${corner}`,
-      position: letterAt(frame, z, corner, high, o),
+      position: letterAt(frame, z, corner, high),
       level: z,
     }),
   );
   return { state: { edges, axisLevels, corner, high, facing }, labels };
 };
 
-export interface LabelFrameOptions extends AnchorOptions {
-  /** World height of a file or rank label's sprite, as given to SmartLabels. */
-  size?: number;
-  /** How much larger the level letters are drawn, as given to SmartLabels. */
-  levelScale?: number;
-  /**
-   * How far a platform's glass and border reach past its outer squares
-   * (0.08: the glass's margin and a border of the default width; the widest
-   * adds a hundredth, well inside the fit's margin).
-   */
-  plateReach?: number;
-  /** How far a platform's rim hangs below it (0.03: the default rim's depth, and then some). */
-  rimDepth?: number;
-}
+/** World height of a file, rank or level letter's sprite. */
+export const LABEL_SIZE = 0.32;
+/**
+ * How far a platform's glass and border reach past its outer squares (0.08:
+ * the glass's margin and a border of the default width; the widest adds a
+ * hundredth, well inside the fit's margin).
+ */
+const PLATE_REACH = 0.08;
+/** How far a platform's rim hangs below it (0.03: the default rim's depth, and then some). */
+const RIM_DEPTH = 0.03;
 
 /** How far a label's glyph (with its outline) reaches from its anchor, as a share of its sprite's height. */
 export const GLYPH_REACH = 0.3;
@@ -460,49 +419,36 @@ export const GLYPH_REACH = 0.3;
  *   the outline), from high up never more than 45° and the hysteresis off
  *   straight behind it (letterCorner).
  *
- * Every label's ring reaches its glyph's size further out, up and down. Pass
- * the size, level scale and anchor options the grid gives SmartLabels.
+ * Every label's ring reaches its glyph's size further out, up and down.
  */
-export const towerFrameRings = (
-  layout: BoardLayout,
-  {
-    size = 0.36,
-    levelScale = 1.45,
-    plateReach = 0.08,
-    rimDepth = 0.03,
-    ...o
-  }: LabelFrameOptions = {},
-): FrameRing[] => {
+export const towerFrameRings = (layout: BoardLayout): FrameRing[] => {
   const { half, pitch, levelY } = towerFrame(layout);
   const [bottom, top] = [levelY[0], levelY[levelY.length - 1]];
-  const glyph = GLYPH_REACH * size;
-  const letter = glyph * levelScale;
+  const glyph = GLYPH_REACH * LABEL_SIZE;
   // The outer pieces stand half a square in from the edge, about a third of
   // a square wide either side of their centre
   const pieces = Math.SQRT2 * (half - pitch / 2 + 0.3 * pitch);
-  const plates = Math.SQRT2 * (half + plateReach);
+  const plates = Math.SQRT2 * (half + PLATE_REACH);
   // A row's end label stands off the platform's edge beside its last square
-  const row = Math.hypot(half + (o.offset ?? 0.42), ((GRID_SIZE - 1) / 2) * pitch) + glyph;
-  const corner = Math.SQRT2 * half + (o.levelOffset ?? LETTER_OFFSET) + letter;
-  const far = Math.SQRT2 * half + (o.levelOffsetHigh ?? LETTER_OFFSET_HIGH) + letter;
-  const lift = o.levelLift ?? LETTER_LIFT;
+  const row = Math.hypot(half + AXIS_OFFSET, ((GRID_SIZE - 1) / 2) * pitch) + glyph;
+  const corner = Math.SQRT2 * half + LETTER_OFFSET + glyph;
+  const far = Math.SQRT2 * half + LETTER_OFFSET_HIGH + glyph;
   // The letters' post is never within 45° (less the edges' hysteresis) of
   // straight in front of the axis: at a side of the outline from low down;
   // from high up, further out, never more than 45° (and the hysteresis) off
   // straight behind it
-  const hysteresis = o.edgeHysteresis ?? EDGE_HYSTERESIS;
-  const sides = (3 * Math.PI) / 4 + hysteresis;
-  const behind = Math.PI / 4 + hysteresis;
+  const sides = (3 * Math.PI) / 4 + EDGE_HYSTERESIS;
+  const behind = Math.PI / 4 + EDGE_HYSTERESIS;
   // (one ring each round the bottom and the top platform with its files and
   // ranks, which nearly coincide: two would only add to the fit's easing)
   const edge = Math.max(plates, row);
   return [
-    { y: bottom - Math.max(rimDepth, glyph), radius: edge },
+    { y: bottom - Math.max(RIM_DEPTH, glyph), radius: edge },
     { y: top + glyph, radius: edge },
     { y: layout.halfExtents[1], radius: pieces },
-    { y: bottom + lift - letter, radius: corner, behind: sides },
-    { y: top + lift + letter, radius: corner, behind: sides },
-    { y: bottom + lift - letter, radius: far, behind },
-    { y: top + lift + letter, radius: far, behind },
+    { y: bottom + LETTER_LIFT - glyph, radius: corner, behind: sides },
+    { y: top + LETTER_LIFT + glyph, radius: corner, behind: sides },
+    { y: bottom + LETTER_LIFT - glyph, radius: far, behind },
+    { y: top + LETTER_LIFT + glyph, radius: far, behind },
   ];
 };

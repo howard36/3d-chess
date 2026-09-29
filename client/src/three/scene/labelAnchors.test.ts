@@ -5,8 +5,6 @@ import { FILES, LEVELS, RANKS } from '../../engine/coords';
 import { towerLayout, towerFrame } from '../layout';
 import {
   axisView,
-  cameraAzimuth,
-  cameraRight,
   chooseEdges,
   CORNERS,
   EDGE_HYSTERESIS,
@@ -16,26 +14,25 @@ import {
   LETTER_OFFSET,
   LETTER_OFFSET_HIGH,
   letterCorner,
-  LETTERS_HIGH,
-  LETTERS_LOW,
   lettersHigh,
-  LOW_ELEVATION,
   towerFrameRings,
 } from './labelAnchors';
 import type { AnchorState } from './labelAnchors';
+import { DEG, eyeAt, viewer } from './labelTestKit';
 import type { Vec3 } from '../types';
 
 const layout = towerLayout();
 const frame = towerFrame(layout);
 const TARGET: Vec3 = [0, 0, 0];
-const DEG = Math.PI / 180;
 
-/** A camera `distance` from the centre at this azimuth and elevation (degrees). */
-const cameraAt = (azimuth: number, elevation = 22, distance = 13): Vec3 => [
-  Math.sin(azimuth * DEG) * Math.cos(elevation * DEG) * distance,
-  Math.sin(elevation * DEG) * distance,
-  Math.cos(azimuth * DEG) * Math.cos(elevation * DEG) * distance,
-];
+const cameraAt = (azimuth: number, elevation = 22, distance = 13) =>
+  eyeAt(azimuth, elevation, distance);
+
+/** Screen position (tangents of the view angles, y up) of `p`, as the camera sees it. */
+const screen = (camera: Vec3, p: Vec3): [number, number] => {
+  const { x, y } = viewer(camera)(p);
+  return [x, y];
+};
 
 const AZIMUTHS = [0, 16, 45, 80, 100, 135, 180, 225, 270, 315, -16];
 
@@ -63,8 +60,8 @@ describe('label anchors', () => {
             const [sx, sz] = CORNERS[state.corner];
             const { edges } = state;
             // (the camera's own screen: x of a point on the floor)
-            const right = cameraRight(camera, TARGET);
-            const across = (c: number) => CORNERS[c][0] * right[0] + CORNERS[c][1] * right[2];
+            const right = [Math.cos(azimuth * DEG), -Math.sin(azimuth * DEG)];
+            const across = (c: number) => CORNERS[c][0] * right[0] + CORNERS[c][1] * right[1];
             const far = (c: number) =>
               Math.hypot(
                 CORNERS[c][0] * frame.half - camera[0],
@@ -153,23 +150,15 @@ describe('label anchors', () => {
       expect(CORNERS[state.corner]).toEqual([-1, 1]);
       expect(state.edges).toEqual({ files: 1, ranks: 1 });
       // ...left of the tower on screen, the files between them and the ranks
-      const right = cameraRight(camera, TARGET);
+      const right = [Math.cos(16 * DEG), -Math.sin(16 * DEG)];
       const x = (id: string) => {
         const p = labels.find((l) => l.id === id)!.position;
-        return p[0] * right[0] + p[2] * right[2];
+        return p[0] * right[0] + p[2] * right[1];
       };
       const files = FILES.map((f) => x(`file-${f}-0`));
       for (const l of LEVELS) expect(x(`level-${l}`)).toBeLessThan(Math.min(...files));
       expect(x('rank-3-0')).toBeGreaterThan(Math.max(...files));
     }
-  });
-
-  it('labels every platform on request', () => {
-    const { labels } = labelAnchors(layout, 'white', cameraAt(30), TARGET, null, {
-      everyLevel: true,
-    });
-    expect(labels).toHaveLength(5 * 10 + 5);
-    expect(new Set(labels.map((l) => l.id)).size).toBe(labels.length);
   });
 
   it('carries the level letters round all four corners in a full orbit, all together', () => {
@@ -233,8 +222,6 @@ describe('hysteresis', () => {
   });
 
   it('moves the letters up to the far post past LETTERS_HIGH, and down again under LETTERS_LOW', () => {
-    expect(LETTERS_HIGH / DEG).toBeCloseTo(55);
-    expect(LETTERS_LOW / DEG).toBeCloseTo(45);
     // Opening at a pose, the middle of the band decides
     expect(lettersHigh(49 * DEG, null)).toBe(false);
     expect(lettersHigh(50 * DEG, null)).toBe(true);
@@ -251,12 +238,6 @@ describe('hysteresis', () => {
     }
     expect(lettersHigh(45 * DEG, high)).toBe(false);
   });
-
-  it('measures the azimuth from +z toward +x', () => {
-    expect(cameraAzimuth([0, 3, 10], TARGET)).toBeCloseTo(0);
-    expect(cameraAzimuth([10, 3, 0], TARGET)).toBeCloseTo(Math.PI / 2);
-    expect(cameraRight([0, 3, 10], TARGET)).toEqual([1, 0, 0]);
-  });
 });
 
 describe('axis labels seen from above', () => {
@@ -264,25 +245,6 @@ describe('axis labels seen from above', () => {
     labelAnchors(layout, orientation, camera, TARGET, null).labels.filter(
       (l) => l.level === undefined,
     );
-  /** Screen position (tangents of the view angles) of `p`, as the camera sees it. */
-  const screen = (camera: Vec3, p: Vec3): [number, number] => {
-    const f = [TARGET[0] - camera[0], TARGET[1] - camera[1], TARGET[2] - camera[2]];
-    const fl = Math.hypot(f[0], f[1], f[2]);
-    const fw = [f[0] / fl, f[1] / fl, f[2] / fl];
-    const r = cameraRight(camera, TARGET);
-    const up = [
-      r[1] * fw[2] - r[2] * fw[1],
-      r[2] * fw[0] - r[0] * fw[2],
-      r[0] * fw[1] - r[1] * fw[0],
-    ];
-    const v = [p[0] - camera[0], p[1] - camera[1], p[2] - camera[2]];
-    const depth = v[0] * fw[0] + v[1] * fw[1] + v[2] * fw[2];
-    return [
-      (v[0] * r[0] + v[1] * r[1] + v[2] * r[2]) / depth,
-      (v[0] * up[0] + v[1] * up[1] + v[2] * up[2]) / depth,
-    ];
-  };
-
   it('keeps them on the bottom platform from low, and puts them on the top one from overhead', () => {
     for (const orientation of ['white', 'black'] as const) {
       for (const azimuth of [0, 16, 135, 200]) {
@@ -385,7 +347,6 @@ describe('axis labels seen from low down (an orbit that dips under 6°)', () => 
       const { labels } = labelAnchors(low, 'white', cameraAt(16, e, DIST), TARGET, null);
       expect(labels.every((l) => l.opacity === undefined)).toBe(true);
     }
-    expect(LOW_ELEVATION).toBeCloseTo(6 * DEG);
   });
 
   it('fades the files and ranks out as their platform comes edge-on, keeping the level letters', () => {
@@ -449,24 +410,6 @@ describe('axis labels seen from low down (an orbit that dips under 6°)', () => 
 });
 
 describe('level letters seen from above', () => {
-  /** Screen position (tangents of the view angle, y up) of a point. */
-  const screen = (camera: Vec3, p: Vec3): [number, number] => {
-    const f = [-camera[0], -camera[1], -camera[2]];
-    const fl = Math.hypot(f[0], f[1], f[2]);
-    const r = cameraRight(camera, TARGET);
-    const up = [
-      r[1] * f[2] - r[2] * f[1],
-      r[2] * f[0] - r[0] * f[2],
-      r[0] * f[1] - r[1] * f[0],
-    ].map((c) => c / fl);
-    const v = [p[0] - camera[0], p[1] - camera[1], p[2] - camera[2]];
-    const depth = (v[0] * f[0] + v[1] * f[1] + v[2] * f[2]) / fl;
-    return [
-      (v[0] * r[0] + v[2] * r[2]) / depth,
-      (v[0] * up[0] + v[1] * up[1] + v[2] * up[2]) / depth,
-    ];
-  };
-
   for (const azimuth of [0, 16, 45, 100, 196, 290]) {
     it(`stands them in a short line along the corner's diagonal, each beside its own ring, from ${azimuth}°`, () => {
       const camera = cameraAt(azimuth, 89.9, 25);
@@ -510,7 +453,7 @@ describe('level letters seen from above', () => {
 });
 
 describe('towerFrameRings', () => {
-  const rings = towerFrameRings(layout, { size: 0.32, levelScale: 1 });
+  const rings = towerFrameRings(layout);
 
   // A sweep of every pose: a few seconds idle, past vitest's 5 s default when busy
   it('hold the platforms and every label, wherever the hysteresis has left it', () => {
