@@ -504,7 +504,14 @@ screen (three.js, the scene and the rules engine, loaded with `React.lazy` in `A
 and the medium knight's precomputed meshes (see Piece set). The start screen fetches the
 game screen once the page is idle; on a game's address the built page preloads it from
 the start (a `modulepreload` added by a small plugin in `vite.config.ts`), so a shared
-link does not wait for the entry before asking for it.
+link does not wait for the entry before asking for it, and fetches the precomputed pieces
+as soon as the game screen has arrived. In the build, r3f's `Canvas` is handed only the
+three.js classes the scene writes as elements (`src/three/r3fCatalogue.ts`) instead of the
+whole namespace, so the rest of three.js is left out of the game screen's chunk; a new
+element's class must be added there (`r3fCatalogue.test.ts` fails until it is). The e2e
+suite runs against the dev server, which does neither: to run it against a build, start
+`vite preview` on port 5173 (built with `VITE_WS_URL=ws://127.0.0.1:8000/ws`) and the
+backend first, and Playwright reuses them.
 
 ## Known limitations (accepted for this project's scope)
 

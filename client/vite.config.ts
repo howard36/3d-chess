@@ -48,9 +48,27 @@ const preloadGameScreenOnGamePages = (): Plugin => ({
   },
 });
 
+/**
+ * r3f's Canvas registers the whole three namespace (extend(THREE)), which
+ * keeps all of three.js in the build. In the build it is handed the classes
+ * the scene uses as elements instead (src/three/r3fCatalogue.ts), and the
+ * rest of three.js is left to tree-shaking.
+ */
+const r3fCatalogue = (): Plugin => ({
+  name: 'r3f-catalogue',
+  apply: 'build',
+  enforce: 'pre',
+  async resolveId(source, importer) {
+    if (source !== 'three' || !importer?.replaceAll('\\', '/').includes('/@react-three/fiber/'))
+      return null;
+    if (!importer.includes('react-three-fiber.esm')) return null;
+    return this.resolve('/src/three/r3fCatalogue.ts', importer, { skipSelf: true });
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), preloadGameScreenOnGamePages()],
+  plugins: [react(), r3fCatalogue(), preloadGameScreenOnGamePages()],
   css: {
     postcss: './postcss.config.js',
   },

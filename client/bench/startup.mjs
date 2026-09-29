@@ -65,6 +65,10 @@ const measure = async (which, path, selector) => {
     await context.addInitScript(() => localStorage.setItem('3dchess:role:BENCH1', 'white'));
   }
   const page = await context.newPage();
+  // A page that throws (an element r3f doesn't know, say) is a failed run
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   if (rejoin) {
     await page.routeWebSocket(/\/ws$/, (ws) => {
       ws.onMessage((raw) => {
@@ -110,6 +114,9 @@ const measure = async (which, path, selector) => {
     performance.getEntriesByType('resource').reduce((n, e) => n + (e.transferSize || 0), 0),
   );
   await context.close();
+  // (the stand-in-less game page fails to reach its server: expected)
+  const real = errors.filter((e) => !/WebSocket|ERR_CONNECTION_REFUSED/.test(e));
+  if (real.length) throw new Error(`${which} ${path}: ${real.join(' | ')}`);
   return { ms, bytes };
 };
 
