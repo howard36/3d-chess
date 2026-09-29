@@ -43,7 +43,7 @@ export const DEMO_PACE = {
   /** The opening position, before the first move. */
   open: 2,
   /** From one move to the next (a glide takes about half a second of it). */
-  ply: 2.4,
+  ply: 2.2,
   /** The mate, the king's fall and the result, before the board fades. */
   mate: 5,
   /** The veil closing over the finished game (easing in)... */

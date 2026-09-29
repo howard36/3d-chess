@@ -51,10 +51,13 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
 
   const [paused, setPaused] = React.useState(false);
   const still = useReducedMotion();
+  // The preview's game stands finished: the slot names the result
+  const [demoEnded, setDemoEnded] = React.useState(false);
 
   // One line under the button: an error answering this request, else the
-  // connection's state, else a few facts about the game. One slot, so the
-  // band under the tower never grows.
+  // connection's state, else the preview's result while its mate stands (the
+  // mated king is small, far up the tower), else a few facts about the game.
+  // One slot, so the band under the tower never grows.
   let note: React.ReactNode;
   if (latestError) {
     note = (
@@ -69,13 +72,20 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
         {status === 'reconnecting' ? 'Reconnecting to server…' : 'Connecting to server…'}
       </p>
     );
+  } else if (demoEnded) {
+    // Part of the preview, which the page's text description already tells
+    note = (
+      <p className="landing-note landing-facts landing-result" aria-hidden="true">
+        Checkmate · White wins
+      </p>
+    );
   } else {
-    note = <p className="landing-note landing-facts">125 squares · The Unicorn · No account</p>;
+    note = <p className="landing-note landing-facts">5×5×5 · 125 squares · No sign-up</p>;
   }
 
   return (
     <main className="landing" data-testid="landing">
-      <LandingPreview paused={paused} still={still} />
+      <LandingPreview paused={paused} still={still} onEnded={setDemoEnded} />
       <p className="sr-only">
         Preview: a sample game plays itself on the five-level tower and ends in checkmate by White.
       </p>
@@ -94,7 +104,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
           aria-busy={isLoading || undefined}
         >
           {isLoading && <span className="hud-dot" aria-hidden />}
-          {isLoading ? 'Creating game…' : 'Start new game'}
+          {isLoading ? 'Creating game…' : 'Start a game'}
         </button>
         {note}
       </div>

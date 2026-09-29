@@ -46,7 +46,7 @@ test('the default route is the start screen', async () => {
       <App />
     </MemoryRouter>,
   );
-  expect(await screen.findByRole('button', { name: 'Start new game' })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Start a game' })).toBeInTheDocument();
 });
 
 test('jumping from one game page to another keeps each game its own seat', async () => {

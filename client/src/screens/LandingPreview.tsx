@@ -49,7 +49,9 @@ function DemoDirector({
   onFrame: (frame: DemoFrame) => void;
 }) {
   const clock = React.useRef(startAt());
-  const shown = React.useRef<DemoFrame>(demoFrame(clock.current));
+  // Nothing reported yet: the first frame always reports where the demo
+  // stands, whatever the page showed before this director mounted
+  const shown = React.useRef<DemoFrame | null>(null);
   const invalidate = useThree((s) => s.invalidate);
   // Coming back from a pause, the next frame has to be asked for
   React.useEffect(() => {
@@ -61,12 +63,26 @@ function DemoDirector({
     const frame = demoFrame(clock.current);
     if (veil.current) veil.current.style.opacity = String(frame.veil);
     const was = shown.current;
-    if (frame.ply !== was.ply || frame.pass !== was.pass) {
+    if (!was || frame.ply !== was.ply || frame.pass !== was.pass) {
       shown.current = frame;
       onFrame(frame);
     }
     invalidate();
   });
+  return null;
+}
+
+/**
+ * Paused, the canvas draws no frames at all (the last move's shimmer and a
+ * check's blades would otherwise play on); it draws one when the window
+ * changes size, so a resize never leaves it blank.
+ */
+function RedrawWhilePaused({ paused }: { paused: boolean }) {
+  const size = useThree((s) => s.size);
+  const advance = useThree((s) => s.advance);
+  React.useEffect(() => {
+    if (paused) advance(performance.now());
+  }, [paused, size, advance]);
   return null;
 }
 
@@ -78,22 +94,37 @@ function DemoDirector({
  * page's text description instead.
  *
  * With `still`, for a player who asked for less motion, nothing moves: the
- * camera holds its opening view on the game's final position, the mating
- * move's line and the check showing, the king still standing.
+ * camera holds where it is on the game's final position, the mating move's
+ * line and the check showing, the king still standing.
  */
-export function LandingPreview({ paused, still }: { paused: boolean; still: boolean }) {
+export function LandingPreview({
+  paused,
+  still,
+  onEnded,
+}: {
+  paused: boolean;
+  still: boolean;
+  /** Told whether the demo's game stands finished (its mate on the board), as that changes. */
+  onEnded?: (ended: boolean) => void;
+}) {
   const pixelRatio = usePixelBudget();
   const veil = React.useRef<HTMLDivElement>(null);
   const [frame, setFrame] = React.useState<Pick<DemoFrame, 'pass' | 'ply'>>(() =>
     still ? { pass: 0, ply: DEMO_GAME.length } : demoFrame(startAt()),
   );
   React.useEffect(() => {
-    if (still) setFrame({ pass: 0, ply: DEMO_GAME.length });
+    if (!still) return;
+    setFrame({ pass: 0, ply: DEMO_GAME.length });
+    // Held still mid-fade, the veil would stay part-way closed over the board
+    if (veil.current) veil.current.style.opacity = '0';
   }, [still]);
+  const halted = paused && !still;
 
   const historyRef = React.useRef<GameHistory | null>(null);
   const history = deriveHistory(demoLog(frame.ply), historyRef.current);
   historyRef.current = history;
+  const ended = !!history.gameOver;
+  React.useEffect(() => onEnded?.(ended), [ended, onEnded]);
 
   return (
     <div className="landing-preview" aria-hidden="true">
@@ -103,14 +134,16 @@ export function LandingPreview({ paused, still }: { paused: boolean; still: bool
         camera={{ position: landingViewDirection, fov: 36 }}
         dpr={pixelRatio}
         gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
-        // The turn and the demo ask for their own frames; paused, or still,
-        // the preview draws only when something changes
-        frameloop="demand"
+        // The turn and the demo ask for their own frames; still, the preview
+        // draws only when something changes, and paused, not at all
+        frameloop={halted ? 'never' : 'demand'}
       >
         <Stage orientation="white" />
-        {/* A fresh board for each pass: the next game opens under the veil */}
+        {/* A fresh board for each pass (the next game opens under the veil),
+            and when motion is turned off or on: a board plays only the
+            moves made after it mounts */}
         <Board
-          key={frame.pass}
+          key={`${still}-${frame.pass}`}
           board={history.board}
           currentTurn={history.currentTurn}
           playerColor={null}
@@ -127,8 +160,9 @@ export function LandingPreview({ paused, still }: { paused: boolean; still: bool
           hudTopBand={landingTopBand}
           bottomBand={landingBottomBand}
         />
-        {!still && <AutoOrbit period={LANDING_VIEW.period} paused={paused} />}
-        {!still && <DemoDirector paused={paused} veil={veil} onFrame={setFrame} />}
+        {!still && <AutoOrbit period={LANDING_VIEW.period} paused={halted} />}
+        {!still && <DemoDirector paused={halted} veil={veil} onFrame={setFrame} />}
+        <RedrawWhilePaused paused={halted} />
       </Canvas>
       <div ref={veil} className="landing-veil" style={{ opacity: 0 }} />
     </div>

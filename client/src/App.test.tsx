@@ -93,7 +93,7 @@ const renderStartScreen = (socket: GameSocket) => render(startScreenAt(socket));
 test('StartScreen stores the assigned role and navigates when its create request is answered', async () => {
   const send = vi.fn();
   const { rerender } = renderStartScreen(fakeSocket([], send));
-  await userEvent.click(screen.getByRole('button', { name: 'Start new game' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Start a game' }));
   expect(send).toHaveBeenCalledWith({ type: 'create_game', clientId: expect.any(String) });
   expect(screen.getByRole('button', { name: 'Creating game…' })).toBeDisabled();
 
@@ -112,7 +112,7 @@ test('StartScreen ignores a game_created left in the log by a previous game', ()
   // runs after this screen's). Reacting to it navigated straight back into
   // the finished game.
   renderStartScreen(fakeSocket([{ type: 'game_created', gameId: 'ABC123', color: 'white' }]));
-  expect(screen.getByRole('button', { name: 'Start new game' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Start a game' })).toBeEnabled();
   expect(screen.queryByText('game page for ABC123')).not.toBeInTheDocument();
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });
@@ -124,7 +124,7 @@ test('StartScreen shows the server error that answers its request, not an older 
   const { rerender } = render(startScreenAt(fakeSocket(stale)));
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
-  await userEvent.click(screen.getByRole('button', { name: 'Start new game' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Start a game' }));
   rerender(
     startScreenAt(
       fakeSocket([...stale, { type: 'error', code: 'invalid_message', message: 'Bad request' }]),
@@ -136,7 +136,7 @@ test('StartScreen shows the server error that answers its request, not an older 
 test('StartScreen re-enables the create button when the server answers with an error', async () => {
   const send = vi.fn();
   const { rerender } = render(startScreenAt(fakeSocket([], send)));
-  await userEvent.click(screen.getByRole('button', { name: 'Start new game' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Start a game' }));
   expect(send).toHaveBeenCalledWith({ type: 'create_game', clientId: expect.any(String) });
   expect(screen.getByRole('button', { name: 'Creating game…' })).toBeDisabled();
 
@@ -146,7 +146,7 @@ test('StartScreen re-enables the create button when the server answers with an e
     ),
   );
   expect(screen.getByRole('alert')).toHaveTextContent('Already in a game');
-  expect(screen.getByRole('button', { name: 'Start new game' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Start a game' })).toBeEnabled();
 });
 
 test('StartScreen reports the connection status until the socket is open', () => {
@@ -662,7 +662,7 @@ test('GameScreen does not repeat a join that was queued and flushed by the next 
 test('StartScreen asks again when the connection drops before the game is created', async () => {
   const send = vi.fn<GameSocket['send']>(() => true);
   const { rerender } = renderStartScreen(fakeSocket([], send));
-  await userEvent.click(screen.getByRole('button', { name: 'Start new game' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Start a game' }));
   rerender(startScreenAt(fakeSocket([], send, { status: 'reconnecting' })));
   rerender(startScreenAt(fakeSocket([], send, { sessionId: 2 })));
   await waitFor(() => expect(send).toHaveBeenCalledTimes(2));

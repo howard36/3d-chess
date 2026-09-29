@@ -38,9 +38,9 @@ describe('demoFrame', () => {
   });
 
   it('plays a move every step and holds the mate', () => {
-    expect(demoFrame(firstMove).ply).toBe(1);
-    expect(demoFrame(firstMove + DEMO_PACE.ply).ply).toBe(2);
-    expect(demoFrame(lastMove).ply).toBe(DEMO_GAME.length);
+    expect(demoFrame(firstMove + 0.01).ply).toBe(1);
+    expect(demoFrame(firstMove + DEMO_PACE.ply + 0.01).ply).toBe(2);
+    expect(demoFrame(lastMove + 0.01).ply).toBe(DEMO_GAME.length);
     expect(demoFrame(lastMove + DEMO_PACE.mate - 0.01)).toEqual({
       pass: 0,
       ply: DEMO_GAME.length,

@@ -404,6 +404,19 @@ const RIM_DEPTH = 0.03;
 /** How far a label's glyph (with its outline) reaches from its anchor, as a share of its sprite's height. */
 export const GLYPH_REACH = 0.3;
 
+/** The tower's own reach from its axis: its lowest and highest platform, and the pieces and platforms' corners. */
+const towerReach = (layout: BoardLayout) => {
+  const { half, pitch, levelY } = towerFrame(layout);
+  return {
+    bottom: levelY[0],
+    top: levelY[levelY.length - 1],
+    // The outer pieces stand half a square in from the edge, about a third
+    // of a square wide either side of their centre
+    pieces: Math.SQRT2 * (half - pitch / 2 + 0.3 * pitch),
+    plates: Math.SQRT2 * (half + PLATE_REACH),
+  };
+};
+
 /**
  * What the camera keeps in frame for a tower (BoardLayout.frameRings): rings
  * about its axis round everything it shows, wherever it stands as the view
@@ -422,13 +435,9 @@ export const GLYPH_REACH = 0.3;
  * Every label's ring reaches its glyph's size further out, up and down.
  */
 export const towerFrameRings = (layout: BoardLayout): FrameRing[] => {
-  const { half, pitch, levelY } = towerFrame(layout);
-  const [bottom, top] = [levelY[0], levelY[levelY.length - 1]];
+  const { half, pitch } = towerFrame(layout);
+  const { bottom, top, pieces, plates } = towerReach(layout);
   const glyph = GLYPH_REACH * LABEL_SIZE;
-  // The outer pieces stand half a square in from the edge, about a third of
-  // a square wide either side of their centre
-  const pieces = Math.SQRT2 * (half - pitch / 2 + 0.3 * pitch);
-  const plates = Math.SQRT2 * (half + PLATE_REACH);
   // A row's end label stands off the platform's edge beside its last square
   const row = Math.hypot(half + AXIS_OFFSET, ((GRID_SIZE - 1) / 2) * pitch) + glyph;
   const corner = Math.SQRT2 * half + LETTER_OFFSET + glyph;
@@ -460,10 +469,7 @@ export const towerFrameRings = (layout: BoardLayout): FrameRing[] => {
  * would have it.
  */
 export const towerBodyRings = (layout: BoardLayout): FrameRing[] => {
-  const { half, pitch, levelY } = towerFrame(layout);
-  const [bottom, top] = [levelY[0], levelY[levelY.length - 1]];
-  const pieces = Math.SQRT2 * (half - pitch / 2 + 0.3 * pitch);
-  const plates = Math.SQRT2 * (half + PLATE_REACH);
+  const { bottom, top, pieces, plates } = towerReach(layout);
   return [
     { y: bottom - RIM_DEPTH, radius: plates },
     { y: top, radius: plates },
