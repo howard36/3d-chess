@@ -10,6 +10,9 @@ import type { AnchorState, LabelAnchor } from './labelAnchors';
 import { noRaycast } from '../noRaycast';
 import { LEVEL_COLORS, PALETTE } from './palette';
 import type { BoardLayout, Vec3 } from '../types';
+import { useIntro } from '../intro/clock';
+import { labelFade } from '../intro/timeline';
+import { smooth } from './ease';
 
 // How the labels are drawn. Manrope's double-storey "a" never reads as "o";
 // its "1" has a flag.
@@ -92,6 +95,16 @@ export const retarget = (slot: Slot, key: string): Slot => {
 const origin = new Vector3();
 
 /**
+ * Where a label comes in the entrance's settling (0 first, 1 last): the
+ * letters up their post from A, the files and the ranks along their edges
+ * from a and 1.
+ */
+const entranceOrder = (label: LabelAnchor) =>
+  label.level !== undefined
+    ? label.level / 4
+    : Math.max(FILES.indexOf(label.text), RANKS.indexOf(label.text), 0) / 4;
+
+/**
  * Coordinate labels for a tower layout that follow the camera: files a–e and
  * ranks 1–5 just outside the two edges of the bottom platform nearest the
  * camera, and the level letters A–E up one corner post,
@@ -111,6 +124,9 @@ const origin = new Vector3();
  * write no depth.
  * Each sprite carries its label's id (userData.labelId) and the group the
  * current choice of edges and corner (userData.anchors), for tests and tools.
+ * In the game's entrance (intro/timeline.ts) they settle in once the tower
+ * is up, and grow from the fitted view's distance, not the entrance's camera
+ * still far out.
  */
 export const SmartLabels = ({
   layout,
@@ -128,6 +144,7 @@ export const SmartLabels = ({
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as { target?: Vector3 } | null;
   const invalidate = useThree((s) => s.invalidate);
+  const intro = useIntro();
 
   // Draw once the font is ready: a canvas drawn before then silently uses a
   // fallback face and never updates.
@@ -189,7 +206,8 @@ export const SmartLabels = ({
     state.current = next;
     if (group.current) group.current.userData.anchors = next;
     const distance = camera.position.distanceTo(target);
-    reference.current ??= distance;
+    // The view as fitted, even while the entrance's camera is still far out
+    reference.current ??= (camera.userData.fitDistance as number | undefined) ?? distance;
     const grow = Math.min(Math.max((distance / reference.current) ** DISTANCE_SCALING, 0.6), 2);
     const step = Math.min(delta, 1 / 20) / (FADE_MS / 1000);
     let moving = false;
@@ -232,14 +250,17 @@ export const SmartLabels = ({
         const fade = slot.fades[i];
         sprite.position.set(...slot.positions[i]);
         const w = label.level !== undefined ? emphasis.current[label.level] : 0;
-        const s = LABEL_SIZE * grow;
+        // The entrance: the letters settle in up their post, A first, the
+        // files and ranks along their edges, each easing down from a little larger
+        const arrive = smooth(labelFade(intro.plan, intro.t, entranceOrder(label)));
+        const s = LABEL_SIZE * grow * (1 + 0.3 * (1 - arrive) ** 2);
         sprite.scale.set(s, s, 1);
         const dim =
           label.level !== undefined ? 1 - anyFocus.current * (1 - FOCUS_DIM) * (1 - w) : 1;
         // A file or rank on a platform seen edge-on fades (labelAnchors' axisView)
         const seen = label.opacity ?? 1;
-        sprite.visible = fade * seen > 0.001;
-        (sprite.material as SpriteMaterial).opacity = OPACITY * fade * dim * seen;
+        sprite.visible = fade * seen * arrive > 0.001;
+        (sprite.material as SpriteMaterial).opacity = OPACITY * fade * dim * seen * arrive;
       }
     }
     if (moving) invalidate();

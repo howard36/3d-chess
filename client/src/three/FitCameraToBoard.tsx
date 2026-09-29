@@ -34,6 +34,10 @@ interface OrbitControlsLike {
  * fit and then left alone: turning, climbing and zooming the view never move
  * the board's centre on screen, so the camera only ever turns about it and
  * moves nearer or farther.
+ *
+ * The fitted distance is kept on the camera (`userData.fitDistance`): the
+ * game's entrance (intro/IntroDirector.tsx) starts farther out on the same
+ * line of sight and dollies in to it.
  */
 export function FitCameraToBoard({
   viewDirection,
@@ -76,8 +80,12 @@ export function FitCameraToBoard({
     const { min, max } = zoomRange(fit, minDistance);
     // The fitted view, or as near it as the zoom limits allow: the camera
     // never starts outside the range the player can zoom over.
-    camera.position.copy(target).addScaledVector(direction, MathUtils.clamp(fit, min, max));
+    const distance = MathUtils.clamp(fit, min, max);
+    camera.position.copy(target).addScaledVector(direction, distance);
     camera.lookAt(target);
+    // Where the view lands, for the game's entrance (IntroDirector), which
+    // dollies in to it
+    camera.userData.fitDistance = distance;
     if (controls) {
       controls.minDistance = min;
       controls.maxDistance = max;

@@ -8,8 +8,8 @@ import { defineConfig } from '@playwright/test';
 // measured time. `rest` is every file not named, so a new spec always runs.
 // Unset, the whole suite runs.
 const GROUPS: Record<string, string[]> = {
-  games: ['gameOver', 'promotion'],
-  session: ['session', 'playMove', 'createGame'],
+  games: ['gameOver', 'promotion', 'playMove'],
+  session: ['session', 'createGame'],
 };
 const named = Object.values(GROUPS)
   .flat()

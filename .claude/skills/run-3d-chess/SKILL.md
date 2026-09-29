@@ -31,7 +31,8 @@ normal dev machine with browsers installed, omit it.
 DRIVE_MOVES="Bb1-Cb1 Dd5-Cd5 Cb1-Db1" npx playwright test drive
 ```
 
-`e2e/drive.spec.ts` creates a game, seats two players, plays the moves
+`e2e/drive.spec.ts` creates a game (the creator picks White on the side
+choice), seats two players, plays the moves
 in order (sides alternate automatically), and writes
 `test-results/drive-0-start.png` plus one screenshot after each move.
 It prints each path. `DRIVE_VIEW=black` screenshots from Black's page.
@@ -56,6 +57,7 @@ import { clickSquare } from './helpers/board';
 
 test('inspect', async ({ browser }) => {
   const game = await startGame(browser);          // { white, black, play, screenshot, ... }
+  // startGame(browser, { side: 'Black' | 'Random' }) has the creator pick another side
   await game.playAll(['Bb1-Cb1', 'Dd5-Cd5']);
   await clickSquare(game.white, 'Ab1', 'white');  // select only: rings its destinations
   await game.screenshot('knight-selected');
@@ -73,11 +75,15 @@ test('inspect', async ({ browser }) => {
 });
 ```
 
-`helpers/game.ts` — `startGame(browser)` returns a `Game`:
+`helpers/game.ts` — `startGame(browser, { side })` walks the real way in
+(landing page "Start a game" → `/new` "Choose your side" → the side's
+button, White by default → the guest opens the link and clicks "Take
+your seat"), waits for both boards (`waitForBoard`: the entrance is over
+and the lobby gone), and returns a `Game`:
 
 | member | what it does |
 |---|---|
-| `white`, `black` | the Playwright page holding each seat (the creator's colour is random; this is already resolved) |
+| `white`, `black` | the Playwright page holding each seat (with `side: 'Random'` the creator's colour is up to chance; this is already resolved) |
 | `play(from, to)` | select, wait for the destination to become legal, click, wait for both clients to flip the turn |
 | `playAll([...])` | `play` in sequence; items are `'Bb1-Cb1'` or `['Bb1','Cb1']` |
 | `turn()` | `'white'` or `'black'` from the turn indicator |
@@ -114,10 +120,17 @@ noise, not failures.
   other side. `clickSquare` finds the square in the page's own scene, so
   it works from either seat; its `seat` only labels its errors.
 - **Click projection relies on `window.__r3fState`**, published by the
-  Canvas `onCreated` hook in `src/screens/GameScreen.tsx`. If it is
-  removed, every helper throws `window.__r3fState missing`.
-- **The board only mounts once both players are seated.** A single page
-  waits forever; there is nothing to screenshot before the join.
+  Canvas `onCreated` hook in `src/screens/GameView.tsx` (the game's
+  canvas; the lobby's never publishes it). If it is removed, every
+  helper throws `window.__r3fState missing`.
+- **The board only mounts once both players are seated.** Before that a
+  page shows the lobby (the kings on one glass level, `data-testid="lobby-canvas"`):
+  the side choice at `/new`, the host's invite card
+  (`data-testid="invite-card"`, `data-seat`) or the guest's invitation.
+  Screenshot those if the task is about the lobby; there is no board yet.
+- **The way in takes a few seconds.** The pick plays out before the page
+  moves to the game, and the arrival and the game's entrance play before
+  `waitForBoard` returns; `startGame` already waits for all of it.
 - **`VITE_WS_URL` is inlined when Vite starts.** The Playwright
   `webServer` sets it to the local backend. If you start `npm run dev`
   by hand without it, the app talks to the production Modal backend.

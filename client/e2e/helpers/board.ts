@@ -25,7 +25,7 @@ export async function getPlayerColor(page: Page): Promise<Orientation> {
  *
  * The square is found, projected and checked for occlusion in the page,
  * against the live r3f state exposed by the Canvas onCreated hook in
- * GameScreen.tsx: the square's click box carries its name (userData.zxy), so
+ * GameView.tsx: the square's click box carries its name (userData.zxy), so
  * the helper never recomputes the layout, and it stays correct if the camera
  * moves. A 3D board is not a grid: the ray through a square often passes
  * through another first, and if that one is also a legal destination (or
@@ -173,9 +173,23 @@ export async function clickSquare(page: Page, zxy: string, seat: Orientation): P
   await page.mouse.click(box.x + pixel.x, box.y + pixel.y);
 }
 
-/** Waits until the game Canvas has mounted and published its r3f state. */
+/**
+ * Waits until the game Canvas has mounted and published its r3f state, and
+ * its entrance has played (the board takes no input until then, and the
+ * camera is still closing in): `data-intro="done"` on the canvas's wrapper.
+ */
 export async function waitForBoard(page: Page): Promise<void> {
   await page.waitForFunction(() => !!(window as Window & { __r3fState?: unknown }).__r3fState);
+  await waitForIntro(page);
+}
+
+/**
+ * Waits until the game's entrance is over (GameView's `data-intro`). After a
+ * join in full motion that includes the lobby's handover, about 40 s drawn in
+ * software on two cores, hence the room.
+ */
+export async function waitForIntro(page: Page): Promise<void> {
+  await page.locator('[data-intro="done"]').waitFor({ state: 'attached', timeout: 90_000 });
 }
 
 /**

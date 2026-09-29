@@ -47,10 +47,21 @@ const CORNERS: P2[] = [
   [1, 1],
   [-1, 1],
 ];
+type Stack = readonly (readonly [number, number, number])[];
+/**
+ * The corners of the platforms from level `lo` to `hi`, the outline of the
+ * stack between them: the lowest and highest platforms' corners.
+ */
+export const platformStack = (lo: number, hi: number): Stack =>
+  [FRAME.levelY[lo], FRAME.levelY[hi]].flatMap((y) =>
+    CORNERS.map(([sx, sz]): [number, number, number] => [
+      sx * PLATFORM_HALF,
+      y,
+      sz * PLATFORM_HALF,
+    ]),
+  );
 /** The bottom and top platforms' corners: the stack's outline is theirs. */
-const STACK = [FRAME.levelY[0], FRAME.levelY[FRAME.levelY.length - 1]].flatMap((y) =>
-  CORNERS.map(([sx, sz]): [number, number, number] => [sx * PLATFORM_HALF, y, sz * PLATFORM_HALF]),
-);
+const STACK = platformStack(0, FRAME.levelY.length - 1);
 const v = new Vector3();
 const cross = (o: P2, a: P2, b: P2) =>
   (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
@@ -60,10 +71,14 @@ const cross = (o: P2, a: P2, b: P2) =>
  * platforms (NDC, x scaled by the aspect), counterclockwise; null when it is
  * not wholly in front of the camera.
  */
-export const towerOutlineOnScreen = (camera: Camera, aspect: number): P2[] | null => {
+export const towerOutlineOnScreen = (
+  camera: Camera,
+  aspect: number,
+  stack: Stack = STACK,
+): P2[] | null => {
   camera.updateMatrixWorld();
   const pts: P2[] = [];
-  for (const [x, y, z] of STACK) {
+  for (const [x, y, z] of stack) {
     v.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
     if (v.z > -0.05) return null;
     v.applyMatrix4(camera.projectionMatrix);
@@ -85,9 +100,12 @@ export const towerOutlineOnScreen = (camera: Camera, aspect: number): P2[] | nul
   return [...half(pts), ...half([...pts].reverse())];
 };
 
-/** Writes the tower's outline on screen into the shared uniforms. */
-export const updateTowerOutline = (camera: Camera, aspect: number) => {
-  const hull = towerOutlineOnScreen(camera, aspect) ?? [];
+/**
+ * Writes the tower's outline on screen into the shared uniforms (or the
+ * outline of `stack`, fewer platforms than the whole tower).
+ */
+export const updateTowerOutline = (camera: Camera, aspect: number, stack: Stack = STACK) => {
+  const hull = towerOutlineOnScreen(camera, aspect, stack) ?? [];
   const n = Math.min(hull.length, HULL_MAX);
   for (let i = 0; i < n; i++) towerHull.value[i].set(hull[i][0], hull[i][1]);
   if (n) towerHull.value[n].set(hull[0][0], hull[0][1]);

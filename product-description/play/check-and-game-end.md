@@ -2,13 +2,13 @@
 
 ## Summary
 
-This document covers the two ways the position itself speaks to the player: **check**, shown by the King turning red on the board and by a "CHECK" badge on the turn pill, and the **end of the game**, shown as a dialog that covers the board and offers a single way out. A game ends only by [checkmate or stalemate](../foundations/game-rules.md#check-checkmate-and-stalemate), decided independently by each player's browser as soon as the move that causes it lands; the server never learns that a game is over. The [end-game dialog](../glossary.md#the-interface) announces the result to each player from their own side ("You win", "You lose", or "Draw") and offers "Start new game", which takes the player to the start screen. This document owns a King in check, checkmate and stalemate, the dialog, and that button.
+This document covers the two ways the position itself speaks to the player: **check**, shown by the King turning red on the board and by a "CHECK" badge on the turn pill, and the **end of the game**, shown as a dialog that covers the board and offers a single way out. A game ends only by [checkmate or stalemate](../foundations/game-rules.md#check-checkmate-and-stalemate), decided independently by each player's browser as soon as the move that causes it lands; the server never learns that a game is over. The [end-game dialog](../glossary.md#the-interface) announces the result to each player from their own side ("You win", "You lose", or "Draw") and offers "Start new game", which takes the player to the side choice for a new game. This document owns a King in check, checkmate and stalemate, the dialog, and that button.
 
 ## The simple case
 
 The opponent moves a Queen into line with the player's King. As the Queen lands, the player's King turns red from cross to foot, a red plate of light with eight points strikes on the glass under him, and dark blades rise round him; the turn pill shows "CHECK" beside the player's stone. Nothing else announces it: no sound, no dialog. When the player selects a piece, only moves that get the King out of check are marked; pieces that cannot help show no destinations. The player moves the King aside, and when that move lands, the red and the "CHECK" badge go.
 
-Later the player delivers mate. Their final move glides in, the opponent's King topples, and a pulse of light spreads across his level; both turn pills read the result from their own side, "Checkmate · you win" for the player and "Checkmate · you lose" for the opponent. A moment later a glass card appears over the veiled board: the two stones with the winner's lit, "You win" (the opponent's says "You lose"), "by checkmate" under it, and a "Start new game" button, which has keyboard focus. The final position stays visible behind the veil but cannot be touched or turned. The player clicks "Start new game" and lands on the start screen, where they can create a new game and send a new link; the opponent is told the player is offline.
+Later the player delivers mate. Their final move glides in, the opponent's King topples, and a pulse of light spreads across his level; both turn pills read the result from their own side, "Checkmate · you win" for the player and "Checkmate · you lose" for the opponent. A moment later a glass card appears over the veiled board: the two stones with the winner's lit, "You win" (the opponent's says "You lose"), "by checkmate" under it, and a "Start new game" button, which has keyboard focus. The final position stays visible behind the veil but cannot be touched or turned. The player clicks "Start new game" and lands on the side choice, where they can pick a side for a new game and send a new link; the opponent is told the player is offline.
 
 ## The interaction, event by event
 
@@ -17,7 +17,7 @@ stateDiagram-v2
     state "Game in progress" as playing
     state "Side to move in check (King red)" as check
     state "End-game dialog" as over
-    state "Start screen" as start
+    state "Side choice" as start
     [*] --> playing
     playing --> check : a move lands giving check
     check --> playing : a move lands ending the check
@@ -60,21 +60,21 @@ The dialog is not shown when the board is [frozen](../cross-cutting/broken-game-
 
 Check ends without anything sent by the player: a move that ends it lands, the King's red, the plate, and the blades go, and the turn pill drops "CHECK".
 
-The end-game dialog does not end by itself. It stays for as long as the page is open, and comes back whenever the game is opened again: a reload, a return through the link or a bookmark, or browser Back from the start screen all replay the record, reach the same final position, and show the dialog again at once, without the final glide. The player's [stored seat](../foundations/connection-and-seat.md#the-stored-seat) is never removed for a finished game, so its link always leads back to the result.
+The end-game dialog does not end by itself. It stays for as long as the page is open, and comes back whenever the game is opened again: a reload, a return through the link or a bookmark, or browser Back from the side choice all replay the record, reach the same final position, and show the dialog again at once, without the final glide. The player's [stored seat](../foundations/connection-and-seat.md#the-stored-seat) is never removed for a finished game, so its link always leads back to the result.
 
 Closing the tab or navigating away from the dialog records nothing; the server has no notion of the game being over, so there is nothing to record.
 
 ### Send
 
-Clicking "Start new game" is the dialog's only action. It sends no request about the game. It moves the page to the start screen as a new history entry, and arriving there [resets the connection](../foundations/connection-and-seat.md#returning-to-the-start-screen): the page forgets the game and closes its connection, and the server, seeing the connection close, tells the opponent, whose turn pill then shows the player's stone as an outline with "Offline". That is all the opponent learns.
+Clicking "Start new game" is the dialog's only action. It sends no request about the game. It moves the page to the [side choice](../start/creating-a-game.md#the-side-choice) at `/new` as a new history entry, and arriving there [resets the connection](../foundations/connection-and-seat.md#returning-to-the-start-screen): the page forgets the game and closes its connection, and the server, seeing the connection close, tells the opponent, whose turn pill then shows the player's stone as an outline with "Offline". That is all the opponent learns.
 
 ### While in flight
 
-Nothing is in flight: the move to the start screen is immediate. The start screen says nothing while the fresh connection opens; a click on "Start a game" before it has opened reads "Connecting…" until it does.
+Nothing is in flight: the move to the side choice is immediate. The side choice shows "Connecting to server…" for the moment it takes the fresh connection to open.
 
 ### The answer arrives
 
-The player is on the [start screen](../start/creating-a-game.md), with a fresh connection and nothing from the old game carried over. "Start a game" there creates a brand-new game, with a new id, a new random seat, and a new link to send; there is no rematch that keeps the same opponent or swaps colors. The opponent is not invited or told; each player leaves the finished game on their own.
+The player is on the [side choice](../start/creating-a-game.md#the-side-choice), "Choose your side", with a fresh connection and nothing from the old game carried over. A pick there creates a brand-new game, with a new id, the side picked, and a new link to send; there is no rematch that keeps the same opponent or swaps colors. The opponent is not invited or told; each player leaves the finished game on their own.
 
 The finished game remains on the server unchanged until it expires, about 30 days after it was last active.
 
@@ -98,7 +98,7 @@ The finished game remains on the server unchanged until it expires, about 30 day
 | --- | --- | --- |
 | Escape or Cancel | No effect on check. The dialog cannot be dismissed: Escape and a click on the veil do nothing. | Not applicable. |
 | Pressing elsewhere or turning the view | In check, presses work as in [making a move](making-a-move.md). Under the dialog, the board, the view, and the whole HUD (the turn pill, the move card, the error banner) cannot be reached, by pointer or by Tab. | Not applicable. |
-| Leaving the game page within the app | The page leaves the finished game; the connection resets on arriving at the start screen. Going Forward or reopening the link shows the dialog again. | Not applicable. |
+| Leaving the game page within the app | The page leaves the finished game; the connection resets on arriving at the side choice or the start screen. Going Forward or reopening the link shows the dialog again. | Not applicable. |
 | The game ends | This document's subject. | Not applicable. |
 | The server answers with an error | An error banner, if one arrives, shows under the veil and cannot be dismissed while the dialog is up. | Not applicable. |
 | The connection drops | Check and the dialog stay. "Reconnecting…" appears under the veil, and the page rejoins when the connection returns; the snapshot changes nothing. If another tab has taken the seat meanwhile, the replaced dialog appears instead. | Not applicable. |
@@ -130,10 +130,10 @@ The finished game remains on the server unchanged until it expires, about 30 day
 
 - **The final position cannot be studied.** The dialog cannot be closed, so the final position can only be seen under the veil, from the angle the player last left the view. Reloading shows the dialog again.
 - **The turn pill after the game.** Under the veil it reads the result from the player's side ("Checkmate · you lose" for a mated player), without the "CHECK" badge, although the mated King is still red.
-- **Enter after the last move.** Focus moves to "Start new game" as the dialog appears, so a key press meant for something else (a second Enter in the move box after typing the mating move, for example) can take the player straight to the start screen.
+- **Enter after the last move.** Focus moves to "Start new game" as the dialog appears, so a key press meant for something else (a second Enter in the move box after typing the mating move, for example) can take the player straight to the side choice.
 - **The replaced dialog over the result.** If another tab takes the seat while the end-game dialog is up, the replaced dialog covers it, and the end-game dialog is made inert with everything else: "Play here" is the only thing Tab reaches.
-- **Both players each start over.** "Start new game" does not create a game; the player still has to click "Start a game" on the start screen and send a new link.
-- **Back after starting over.** Browser Back from the start screen returns to the finished game, rejoins it (the opponent sees the player online again), and shows the dialog.
+- **Both players each start over.** "Start new game" does not create a game; the player still has to pick a side on the side choice and send a new link.
+- **Back after starting over.** Browser Back from the side choice (or from the new game's page, which replaced the side choice in the history) returns to the finished game, rejoins it (the opponent sees the player online again), and shows the dialog.
 - **Stalemate by the player's own move.** The player whose move stalemates the opponent sees "Draw" with "by stalemate" when the dialog appears, like the opponent.
 - **Two Kings alone.** Not a draw: the game continues, and can only end by the players leaving. See [the rules](../foundations/game-rules.md#what-standard-chess-has-that-this-game-does-not).
 
@@ -145,5 +145,6 @@ The finished game remains on the server unchanged until it expires, about 30 day
 - The mate line and both players' "Start new game" are exercised by `client/e2e/gameOver.spec.ts`; check detection and the red King by `client/src/engine/board.test.ts` and `client/src/three/Board.test.tsx`; the turn pill's check and result by `client/src/App.test.tsx`; stalemate detection by the engine tests only. The stalemate heading was not seen in a real game.
 
 - The end playing out before the dialog (the King's topple, the pulse on his level, the dialog waiting for the topple and a beat, and 0.6 s at stalemate) is read from `client/src/screens/GameScreen.tsx` and `client/src/three/scene/fx.tsx` at `bb16fed`, and the red King in check was seen in screenshots of the running app; neither was re-verified by hand. The turn pill, the dialog, and the rest of this document's HUD wording were brought up to the new HUD from `client/src/screens/` and [the turn indicator](../game-page/turn-indicator.md), not checked in the running app. This document needs re-verification.
+- "Start new game" leads to the side choice at `/new` since the pre-game flow was rebuilt (`client/src/screens/EndGameModal.tsx` at `1928567`); read from code, not checked in the running app.
 
 Verified against 3D Chess commit `4e18386`
