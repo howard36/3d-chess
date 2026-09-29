@@ -117,8 +117,17 @@ const voxelize = (geometries: BufferGeometry[]): Uint8Array => {
     for (let j = 0; j <= floorTop; j++) solid[j * NX * NX + c] = 1;
     if (start[c] === start[c + 1]) continue;
     // Up the column, crossings at the same height in the order found
+    // (an insertion sort: a column holds a handful of crossings)
     const list = order.subarray(start[c], start[c + 1]);
-    list.sort((a, b) => height[a] - height[b] || a - b);
+    for (let m = 1; m < list.length; m++) {
+      const n = list[m];
+      let at = m;
+      while (at > 0 && height[list[at - 1]] > height[n]) {
+        list[at] = list[at - 1];
+        at--;
+      }
+      list[at] = n;
+    }
     // Inside wherever more shells have been entered than left (shells may
     // overlap: the collars sit round the stems)
     let winding = 0;
