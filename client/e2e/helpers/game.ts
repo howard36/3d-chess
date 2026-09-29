@@ -33,12 +33,25 @@ export interface Game {
  * waits for both boards to mount and their openings to play out. Two *contexts* rather than two tabs: the
  * seat is persisted in localStorage per game id, so tabs sharing a context
  * would both rejoin the same seat.
+ *
+ * The pages ask for reduced motion unless `motion: 'full'`: the lobby and the
+ * game's entrance play as short fades and moves land at once. Played in full,
+ * on two software-rendered pages, the way in alone takes most of a minute on a
+ * busy CI runner, which left the tests that play on after it short of their
+ * time. `createGame.spec.ts` walks the way in with full motion.
  */
 export async function startGame(
   browser: Browser,
-  { side = 'White' }: { side?: 'White' | 'Black' | 'Random' } = {},
+  {
+    side = 'White',
+    motion = 'reduced',
+  }: { side?: 'White' | 'Black' | 'Random'; motion?: 'reduced' | 'full' } = {},
 ): Promise<Game> {
-  const contexts: BrowserContext[] = [await browser.newContext(), await browser.newContext()];
+  const reducedMotion = motion === 'reduced' ? 'reduce' : 'no-preference';
+  const contexts: BrowserContext[] = [
+    await browser.newContext({ reducedMotion }),
+    await browser.newContext({ reducedMotion }),
+  ];
   const [pageA, pageB] = await Promise.all(contexts.map((c) => c.newPage()));
 
   // The creator picks a side (White by default: the fastest pick to play out)

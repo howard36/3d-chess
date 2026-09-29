@@ -625,7 +625,9 @@ coin lands without its flight and each beat takes a fraction of a second. The lo
 canvas never publishes `window.__r3fState`, so e2e's click projection always reads the
 game's; `waitForBoard` waits for `data-intro="done"`, by which time the lobby has gone.
 `e2e/createGame.spec.ts` walks the way in, and `startGame(browser, { side })` in
-`e2e/helpers/game.ts` picks a side (White by default).
+`e2e/helpers/game.ts` picks a side (White by default). Its pages ask for reduced
+motion unless given `motion: 'full'`: played in full on two software-rendered pages,
+the way in alone takes most of a minute on a busy CI runner.
 
 Known limitations: a page decides host or guest from the stored seat alone, so with
 browser storage refused the creator is invited to the other seat of their own game, and

@@ -47,7 +47,7 @@ Write for a capable player who needs no hand-holding. The scene, the layout and 
 ## Gotchas
 
 - `npm run dev` with no `VITE_WS_URL` connects to the **production** Modal backend. For a local backend, export `VITE_WS_URL=ws://127.0.0.1:8000/ws` before starting Vite (it is inlined at startup).
-- Seat color persists in `localStorage` keyed by game id, so a second tab of the same game takes over the seat (the first tab gets a "replaced" notice via close code 4001 and stops reconnecting). For two players use two browser contexts. The creator picks a side (or Random, decided in the client); e2e's `startGame(browser, { side })` picks White by default. The board only mounts once both players are seated.
+- Seat color persists in `localStorage` keyed by game id, so a second tab of the same game takes over the seat (the first tab gets a "replaced" notice via close code 4001 and stops reconnecting). For two players use two browser contexts. The creator picks a side (or Random, decided in the client); e2e's `startGame(browser, { side, motion })` picks White by default, and its pages ask for reduced motion unless `motion: 'full'` (the full way in is too slow on CI for tests that play on after it; `createGame.spec.ts` covers it). The board only mounts once both players are seated.
 - The e2e suite writes `playwright-report/` and traces only on CI (`reporter`/`retries` are CI-conditional in `playwright.config.ts`).
 - Python is pinned `>=3.13,<3.14`; `datamodel-code-generator` is pinned exactly so generated output is byte-stable. Keep `uv.lock` tracked.
 
