@@ -8,7 +8,7 @@ import { lineMaterial } from './line';
 import { markMaterial, shimmerMaterial } from './markers';
 import { PALETTE } from './palette';
 import { poolMaterial } from './pieces';
-import { keepPrograms, WARM, warmObjects } from './programs';
+import { keepPrograms, warmObjects } from './programs';
 import { selectionMaterials } from './selection';
 
 /**
@@ -26,10 +26,13 @@ export const WarmPrograms = () => {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const invalidate = useThree((s) => s.invalidate);
-  // A frame of this canvas is being drawn with the warm objects in it
-  const drawing = useRef<Group | null>(null);
-  useFrame(({ scene: s }) => {
-    drawing.current = s.getObjectByName(WARM) as Group | null;
+  // The warm objects while they wait for their frame, and whether a frame
+  // of this canvas is being drawn with them in it (checked every frame, so
+  // it looks at the one group, never through the scene)
+  const warm = useRef<Group | null>(null);
+  const drawing = useRef(false);
+  useFrame(() => {
+    drawing.current = warm.current?.parent != null;
   });
   useEffect(() => {
     const selection = selectionMaterials(new Color(PALETTE.select));
@@ -47,11 +50,13 @@ export const WarmPrograms = () => {
     const { group, dispose } = warmObjects(meshes, points);
     // The warm objects join the scene for the next frame; once it has drawn
     // them they leave, and their programs stay
+    warm.current = group;
     scene.add(group);
     invalidate();
     let off: (() => void) | null = addAfterEffect(() => {
       if (!drawing.current || !off) return;
       scene.remove(group);
+      warm.current = null;
       keepPrograms(gl, [...meshes, ...points]);
       dispose();
       off();
@@ -59,6 +64,7 @@ export const WarmPrograms = () => {
     });
     return () => {
       off?.();
+      warm.current = null;
       scene.remove(group);
       dispose();
     };
