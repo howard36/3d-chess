@@ -79,6 +79,8 @@ export const LOBBY_TIMING = {
    * fading, so the pick, the camera's move and the card are one motion.
    */
   settle: 0.3,
+  /** The camera's glide from the side choice's framing to the invitation's. */
+  invite: 1.1,
   /**
    * A named pick's free seat opening with the invitation: its outline is
    * drawn up from the foot as the seat's label comes in under it
