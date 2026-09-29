@@ -73,6 +73,13 @@ export const LOBBY_TIMING = {
   tossGlide: 0.55,
   /** From the column of light rising to the choice counting as settled. */
   settle: 0.7,
+  /**
+   * A named pick's free seat opening with the invitation: its outline is
+   * drawn up from the foot as the seat's label comes in under it
+   * (index.css `.lobby-seat`: 600 ms, 200 ms in).
+   */
+  openDelay: 0.2,
+  open: 0.7,
   /** The arrival: the empty seat fills, and the moment held after it. */
   arriveHold: 1.2,
   /**
@@ -189,6 +196,10 @@ export const formForFill = (fill: number) => clamp01(fill);
 
 /** The neon outline's brightness for a king `fill` whole: it gives way to the material. */
 export const outlineForFill = (fill: number) => 1 - smooth(clamp01(fill * 1.15));
+
+/** How far a free seat's outline has come up, `t` s after its seat opened (0 to 1). */
+export const seatOpening = (t: number) =>
+  smooth(clamp01((t - LOBBY_TIMING.openDelay) / LOBBY_TIMING.open));
 
 /** The free seat's slow breath: a 6 s period, calming after the first half minute. */
 export const breath = (seconds: number) => {

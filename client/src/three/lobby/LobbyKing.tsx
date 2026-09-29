@@ -11,7 +11,7 @@ import { smooth, toward } from '../scene/ease';
 import { wholePiece } from '../scene/occlusion';
 import { usePieceMaterial } from '../scene/pieces';
 import { SelectionLight, selectState, stepSelection } from '../scene/selection';
-import { neonGeometry, neonMaterial } from '../scene/stage';
+import { NEON_WHOLE, neonGeometry, neonMaterial, REVEAL_SOFT } from '../scene/stage';
 import {
   breath,
   formForFill,
@@ -20,6 +20,7 @@ import {
   KING_TOP,
   LOBBY_TIMING,
   outlineForFill,
+  seatOpening,
   tossAngle,
   tossGlide,
   kingEntrance,
@@ -98,6 +99,7 @@ export const LobbyKing = ({
   pick,
   fills,
   together = false,
+  veiled = false,
   enter,
 }: {
   color: Side;
@@ -120,6 +122,12 @@ export const LobbyKing = ({
   enter?: number;
   /** The game starting: lit, it lifts once both kings have filled, with the other. */
   together?: boolean;
+  /**
+   * Its outline held back: the opponent's seat on a named pick drains to
+   * nothing, as the coin beside it does, and its outline comes up once this
+   * is lifted, with the invitation.
+   */
+  veiled?: boolean;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
   const still = useMemo(prefersReducedMotion, []);
@@ -162,7 +170,9 @@ export const LobbyKing = ({
   // (it comes out of nothing, as the coin does), and gets it once solid; a
   // free seat's outline comes up with the entrance
   const neonGate = useRef(entrance.current < Infinity ? 0 : 1);
-  useEffect(() => invalidate(), [present, gone, hovered, lit, breathing, snap, invalidate]);
+  // Seconds since its veil lifted (Infinity: none, or its outline fully up)
+  const opened = useRef(Infinity);
+  useEffect(() => invalidate(), [present, gone, hovered, lit, breathing, snap, veiled, invalidate]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, LOBBY_MAX_STEP);
@@ -232,6 +242,18 @@ export const LobbyKing = ({
     const inBreath = breathing && !still && breathClock.current < 60;
     if (shown) neonGate.current = present ? 0 : shown.outline;
     else if (neonGate.current < 1 && (!present || m.outline < 0.01)) neonGate.current = 1;
+    // Veiled, no outline; unveiled, it is drawn up from the foot, a soft
+    // edge of light rising up its height (at once under reduced motion)
+    const opening = !veiled && opened.current < Infinity;
+    if (veiled) opened.current = 0;
+    else if (opening) {
+      opened.current = still ? Infinity : opened.current + dt;
+      if (seatOpening(opened.current) >= 1) opened.current = Infinity;
+    }
+    const open = veiled ? 0 : seatOpening(opened.current);
+    // (from just under its foot, whose ring lights first, to over its cross)
+    neon.material.uniforms.uReveal.value =
+      open >= 1 ? NEON_WHOLE : FLOOR_Y - 0.08 + open * (KING_TOP * KING_SCALE + REVEAL_SOFT + 0.16);
     neon.material.uniforms.uIntensity.value =
       1.15 * m.outline * (inBreath ? breath(breathClock.current) : 1) * neonGate.current;
 
@@ -245,7 +267,7 @@ export const LobbyKing = ({
       m.hold !== before.hold ||
       m.lift !== before.lift ||
       m.gone !== before.gone;
-    if (moving || showing || inBreath || waiting || entering) invalidate();
+    if (moving || showing || inBreath || waiting || entering || opening) invalidate();
   });
 
   const top = KING_TOP;

@@ -426,6 +426,11 @@ export const LobbyScene = ({
   const filling = view.beat === 'arrive' || view.beat === 'leave';
   const fills = useRef<KingPair>({ white: 0, black: 0, started: 0, both: 0 });
   const newcomer = view.beat === 'arrive' ? (view.arriving ?? null) : null;
+  // A named pick: the other king drains to nothing, as the coin does, and
+  // its outline comes up as the page moves on to the invitation (the coin's
+  // toss keeps both outlines, flanking it)
+  const veiled = (side: Side) =>
+    view.beat === 'choose' && !!view.mine && !view.toss && view.mine !== side;
 
   return (
     <>
@@ -445,6 +450,7 @@ export const LobbyScene = ({
           together={filling}
           breathing={!taken[side] && (view.beat === 'wait' || view.beat === 'invited')}
           snap={landed === side}
+          veiled={veiled(side)}
           pick={choosing ? pick(side) : undefined}
         />
       ))}

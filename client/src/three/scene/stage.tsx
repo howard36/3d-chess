@@ -525,6 +525,9 @@ const neonVertex = /* glsl */ `
     gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
   }`;
 
+/** The soft edge of a tube drawn up to a height (`uReveal`, world units). */
+export const REVEAL_SOFT = 0.12;
+
 const neonFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uCore;
@@ -534,6 +537,8 @@ const neonFragment = /* glsl */ `
   uniform float uBoost;
   uniform float uShaded;
   uniform float uDim;
+  uniform float uGround;
+  uniform float uReveal;
   varying float vAcross;
   varying float vDepth;
   varying float vRing;
@@ -551,10 +556,15 @@ const neonFragment = /* glsl */ `
     light *= uFade > 0.0 ? exp(-vDepth / uFade) : 1.0;
     // Into the tower's shade, steadily, nearest the tower darkest
     light *= (1.0 - uShaded * towerShade()) * uDim;
+    // Drawn up to a height (a lobby seat opening), with a soft edge
+    light *= 1.0 - smoothstep(uReveal - ${REVEAL_SOFT.toFixed(2)}, uReveal, vDepth + uGround);
     if (light < 0.001) discard;
     gl_FragColor = vec4(uColor * light, 1.0);
     #include <colorspace_fragment>
   }`;
+
+/** `uReveal` for tubes drawn whole: above everything. */
+export const NEON_WHOLE = 1e4;
 
 /** Brightens the garden for a moment at mate (fx.tsx). */
 export const gardenBoost = { value: 0 };
@@ -596,6 +606,7 @@ export const neonMaterial = (o: {
       uMirror: { value: o.mirror ? 1 : 0 },
       uGround: { value: GROUND_Y },
       uFade: { value: o.fade },
+      uReveal: { value: NEON_WHOLE },
       uBoost: gardenBoost,
     },
     vertexShader: neonVertex,

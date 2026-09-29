@@ -21,6 +21,7 @@ import {
   poseFromDirection,
   posePosition,
   SEAT_SPACING,
+  seatOpening,
   seatX,
   tossAngle,
   tossGlide,
@@ -142,6 +143,19 @@ describe('the fill', () => {
       expect(glow).toBeLessThanOrEqual(1);
       expect(glow).toBeLessThanOrEqual(prev);
       prev = glow;
+    }
+  });
+
+  it("opens a named pick's free seat with the invitation: after its label's delay, up to whole", () => {
+    expect(seatOpening(0)).toBe(0);
+    expect(seatOpening(LOBBY_TIMING.openDelay)).toBe(0);
+    expect(seatOpening(LOBBY_TIMING.openDelay + LOBBY_TIMING.open)).toBe(1);
+    expect(seatOpening(Infinity)).toBe(1);
+    let prev = 0;
+    for (const t of samples(0, 2)) {
+      const open = seatOpening(t);
+      expect(open).toBeGreaterThanOrEqual(prev);
+      prev = open;
     }
   });
 
