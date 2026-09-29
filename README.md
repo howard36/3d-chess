@@ -552,23 +552,22 @@ cards under the kings carry only what to do. Timings and framing are pure functi
   id picked out), and "Share link" where `navigator.share` exists and "Copy link"; nothing
   else. A copy turns the button to
   "Copied ✓" (and is said, "Link copied"); only a failed one is written: "Couldn't copy.
-  Select the link." "You" and "Open seat" stand under the kings, the neon seat breathes (for its
+  Select the link." "You" and "Opponent" stand under the kings, the neon seat breathes (for its
   first minute, calmer after half of it), and the camera drifts 12° round once over 18 s
   and rests.
 - **The guest** (the `invited` beat and `InvitationCard`). A page with no stored seat asks
   `look_game` once per socket until answered, and `game/invitation.ts` reads the answer.
   With a seat free the heading reads "You're invited to play" with the side's stone and
-  name, and under the scene there is only "Take your seat";
-  "Opponent" and "Your seat" stand under the kings, and taking the seat fills it at once,
-  before the server answers, the label turning to "You". A game with both seats taken, or
+  name, and under the scene there is only "Join game" ("Joining…" once pressed);
+  "Opponent" and "You" stand under the kings, and joining fills the guest's king at once,
+  before the server answers. A game with both seats taken, or
   none, gets a card "This game is taken" or "No game here" with "Start a new game". A page
   with a stored seat shows no lobby, only "Returning to your game…", until its rejoin is
   answered.
 - **The handover.** When the game starts on a page that showed the lobby, `arrive`: the
   free seat fills, a ring of light spreads across the glass from it, and the caption takes
-  the heading's place, a heading and a note ("They're here" / "You move first" or "They
-  move first" for the host; "You play White" / "You move first", or "You play Black" /
-  "White moves first", for the guest). Meanwhile `GameView` mounts under the lobby, held
+  the heading's place, one line: "Opponent joined" for the host, "You play White" (or
+  Black) for the guest. Meanwhile `GameView` mounts under the lobby, held
   on its first frame (`introPaused`), and reports that frame; if it never comes,
   `FIRST_FRAME_WAIT_MS` (4 s) lets the lobby go anyway. Then `leave`: both kings rise in
   their columns of light and are taken up into them from the foot (`uGone`), level A's
@@ -580,7 +579,7 @@ cards under the kings carry only what to do. Timings and framing are pure functi
   does the game's entrance run its `lobby` variant (`three/intro/timeline.ts`): level A
   stands from the start (`levels.built`), nothing fades up, and B to E build on up from A
   while the camera closes in and the armies form, in about 3.6 s. A host whose tab is
-  hidden when the guest arrives gets the title "● They're here · 3D Chess", and the
+  hidden when the guest arrives gets the title "● Opponent joined · 3D Chess", and the
   arrival waits for them (a hidden tab draws no frames). A page that opens on a game
   already under way skips the lobby and plays the short entrance.
 
@@ -593,7 +592,7 @@ game's; `waitForBoard` waits for `data-intro="done"`, by which time the lobby ha
 
 Known limitations: a page decides host or guest from the stored seat alone, so with
 browser storage refused the creator is invited to the other seat of their own game, and
-"Take your seat" is refused with "Already in a game" (the connection already holds the
+"Join game" is refused with "Already in a game" (the connection already holds the
 seat). And a guest whose join was recorded but whose answer was lost, who then reloads
 before any seat was stored, is told "This game is taken": the look sees both seats taken,
 although a join from that tab would get its own seat back through its client id. (Without

@@ -30,8 +30,7 @@ const samePicture = (a: LobbyStage | null, b: LobbyStage | null) =>
     a.toss === b.toss &&
     a.seat === b.seat &&
     a.arriving === b.arriving &&
-    a.caption === b.caption &&
-    a.captionNote === b.captionNote);
+    a.caption === b.caption);
 
 const LobbyLayout = () => {
   const [view, setView] = React.useState<LobbyStage | null>(null);
@@ -91,11 +90,10 @@ const LobbyLayout = () => {
         {view?.caption && (
           <div className="lobby-heading lobby-caption" key={view.caption} aria-hidden>
             <h1>{view.caption}</h1>
-            {view.captionNote && <p>{view.captionNote}</p>}
           </div>
         )}
         <div className="sr-only" role="status">
-          {view?.caption ? `${view.caption}. ${view.captionNote ?? ''}` : ''}
+          {view?.caption ?? ''}
         </div>
         <Outlet />
       </div>

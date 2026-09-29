@@ -107,14 +107,14 @@ test('GameScreen shows the invite card once the seat this browser holds is confi
     'data-link',
     `${window.location.origin}/game/abc123`,
   );
-  expect(screen.queryByRole('button', { name: 'Take your seat' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Join game' })).not.toBeInTheDocument();
 });
 
 test('taking the seat an invitation offers sends join_game', async () => {
   const send = vi.fn();
   renderGameScreen('abc123', fakeSocket(invited, send));
   expect(screen.queryByTestId('invite-card')).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Take your seat' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Join game' }));
   await waitFor(() => {
     expect(send).toHaveBeenCalledWith({
       type: 'join_game',
@@ -123,10 +123,7 @@ test('taking the seat an invitation offers sends join_game', async () => {
     });
   });
   // Optimistic joined state
-  expect(screen.getByRole('button', { name: 'Taking your seat…' })).toHaveAttribute(
-    'aria-disabled',
-    'true',
-  );
+  expect(screen.getByRole('button', { name: 'Joining…' })).toHaveAttribute('aria-disabled', 'true');
 });
 
 test('GameScreen stores the role when game_start arrives', () => {
@@ -349,7 +346,7 @@ test('GameScreen clears a stale role and falls back to the invitation when rejoi
   );
   expect(screen.getByText('Opening the invitation…')).toBeInTheDocument();
   rerender(gameScreenAt(fakeSocket([...refused, ...invited], send)));
-  expect(screen.getByRole('button', { name: 'Take your seat' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Join game' })).toBeEnabled();
 });
 
 test('GameScreen clears a stale role and says so when the game has expired', async () => {
@@ -375,8 +372,8 @@ test.each([
   async (code, message, heading) => {
     const send = vi.fn();
     const { rerender } = renderGameScreen('abc123', fakeSocket(invited, send));
-    await userEvent.click(screen.getByRole('button', { name: 'Take your seat' }));
-    expect(screen.getByRole('button', { name: 'Taking your seat…' })).toHaveAttribute(
+    await userEvent.click(screen.getByRole('button', { name: 'Join game' }));
+    expect(screen.getByRole('button', { name: 'Joining…' })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
@@ -433,10 +430,7 @@ test('GameScreen stores the role from game_joined, so a drop before game_start i
   // Seat confirmed but the game hasn't started: still the guest's card,
   // taking the seat (not the host's invitation to send)
   expect(screen.queryByTestId('invite-card')).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Taking your seat…' })).toHaveAttribute(
-    'aria-disabled',
-    'true',
-  );
+  expect(screen.getByRole('button', { name: 'Joining…' })).toHaveAttribute('aria-disabled', 'true');
 
   // A session that already holds game_joined must not rejoin on top of it
   const send = vi.fn();
@@ -597,7 +591,7 @@ test('GameScreen shows whether the opponent is connected, from the latest presen
 test('GameScreen re-sends a join whose answer was lost to a drop, with the same client id', async () => {
   const send = vi.fn<GameSocket['send']>(() => true);
   const { rerender } = renderGameScreen('abc123', fakeSocket(invited, send));
-  await userEvent.click(screen.getByRole('button', { name: 'Take your seat' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Join game' }));
   expect(send).toHaveBeenCalledTimes(1);
 
   rerender(gameScreenAt(fakeSocket(invited, send, { status: 'reconnecting' })));
@@ -606,10 +600,7 @@ test('GameScreen re-sends a join whose answer was lost to a drop, with the same 
   const [first, second] = send.mock.calls.map(([msg]) => msg);
   expect(second).toEqual(first);
   expect(second).toMatchObject({ type: 'join_game', gameId: 'abc123' });
-  expect(screen.getByRole('button', { name: 'Taking your seat…' })).toHaveAttribute(
-    'aria-disabled',
-    'true',
-  );
+  expect(screen.getByRole('button', { name: 'Joining…' })).toHaveAttribute('aria-disabled', 'true');
 
   // Answered: the seat is stored, and a later drop rejoins instead
   const joined: WebSocketMessage[] = [...invited, { type: 'game_joined', color: 'black' }];
@@ -627,7 +618,7 @@ test('GameScreen does not repeat a join that was queued and flushed by the next 
     'abc123',
     fakeSocket(invited, send, { status: 'connecting' }),
   );
-  await userEvent.click(screen.getByRole('button', { name: 'Take your seat' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Join game' }));
   // The socket opens and flushes its queue: that was the join going out
   rerender(gameScreenAt(fakeSocket(invited, send, { sessionId: 2 })));
   await new Promise((r) => setTimeout(r, 20));
@@ -839,7 +830,7 @@ describe('the turn pill', () => {
 test('GameScreen shows the real position when a re-sent join is answered with a snapshot', async () => {
   const send = vi.fn<GameSocket['send']>(() => true);
   const { rerender } = renderGameScreen('abc123', fakeSocket(invited, send));
-  await userEvent.click(screen.getByRole('button', { name: 'Take your seat' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Join game' }));
   // The first answer was lost; the repeated join is answered with the seat
   // and the whole record, in which White has already moved
   const answered: WebSocketMessage[] = [

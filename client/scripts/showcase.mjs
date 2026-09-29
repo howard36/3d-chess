@@ -1672,7 +1672,7 @@ async function main() {
   await pageA.getByRole('button', { name: /^White/ }).click();
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
   await pageB.goto(pageA.url());
-  await pageB.getByRole('button', { name: 'Take your seat' }).click();
+  await pageB.getByRole('button', { name: 'Join game' }).click();
   for (const p of [pageA, pageB]) {
     await p.waitForFunction(() => window.__show?.ready(), null, { ...POLL, timeout: 120000 });
   }

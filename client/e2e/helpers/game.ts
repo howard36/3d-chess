@@ -48,7 +48,7 @@ export async function startGame(
   await pageA.getByRole('button', { name: new RegExp(`^${side}`) }).click();
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
   await pageB.goto(pageA.url());
-  await pageB.getByRole('button', { name: 'Take your seat' }).click();
+  await pageB.getByRole('button', { name: 'Join game' }).click();
 
   await waitForBoard(pageA);
   await waitForBoard(pageB);

@@ -161,12 +161,12 @@ describe("a guest's invitation", () => {
     expect(
       screen.getByRole('heading', { name: `You're invited to play ${name}` }),
     ).toBeInTheDocument();
-    const accept = screen.getByRole('button', { name: 'Take your seat' });
+    const accept = screen.getByRole('button', { name: 'Join game' });
     expect(accept).toBeEnabled();
     expect(accept).toHaveFocus();
     // Named under the kings too
     expect(seatLabels()).toContain('Opponent');
-    expect(seatLabels()).toContain('Your seat');
+    expect(seatLabels()).toContain('You');
     // The host's king in material across from the guest's free seat
     expect(view).toMatchObject({
       beat: 'invited',
@@ -179,14 +179,14 @@ describe("a guest's invitation", () => {
   it('takes the seat: sends join_game and fills the seat at once', async () => {
     const send = vi.fn(() => true);
     render(at(fakeSocket([info(['white'])], send)));
-    await userEvent.click(screen.getByRole('button', { name: 'Take your seat' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Join game' }));
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith({
       type: 'join_game',
       gameId: 'abc123',
       clientId: expect.any(String),
     });
-    const button = screen.getByRole('button', { name: 'Taking your seat…' });
+    const button = screen.getByRole('button', { name: 'Joining…' });
     expect(button).toHaveAttribute('aria-disabled', 'true');
     expect(view).toMatchObject({ taken: { white: true, black: true }, mine: 'black' });
     expect(seatLabels()).toEqual(['Opponent', 'You']);
@@ -198,7 +198,7 @@ describe("a guest's invitation", () => {
   it('says so when both seats are taken, and offers a new game', async () => {
     render(at(fakeSocket([info(['white', 'black'])])));
     expect(screen.getByRole('alert')).toHaveTextContent('This game is taken');
-    expect(screen.queryByRole('button', { name: 'Take your seat' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Join game' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Start a new game' }));
     expect(screen.getByText('choose a side')).toBeInTheDocument();
   });
@@ -227,7 +227,7 @@ describe("a guest's invitation", () => {
       ),
     );
     expect(screen.getByTestId('error-banner')).toHaveTextContent('Bad request');
-    expect(screen.getByRole('button', { name: 'Take your seat' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Join game' })).toBeEnabled();
     await userEvent.click(screen.getByRole('button', { name: 'Dismiss error' }));
     expect(screen.queryByTestId('error-banner')).not.toBeInTheDocument();
   });
@@ -244,7 +244,7 @@ describe("a guest's invitation", () => {
     expect(getStoredRole('abc123')).toBe('black');
     // A stored seat, but joined here: not the host's card
     expect(screen.queryByTestId('invite-card')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Taking your seat…' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Joining…' })).toBeInTheDocument();
     expect(view).toMatchObject({ beat: 'invited', mine: 'black', seat: 'black' });
   });
 });
@@ -270,7 +270,7 @@ describe("the host's invitation to send", () => {
     expect(link).toHaveTextContent(`${window.location.host}/game/abc123`);
     expect(link.querySelector('.lobby-url-id')).toHaveTextContent(/^abc123$/);
     expect(screen.getByText('Waiting for your friend…')).toBeInTheDocument();
-    expect(seatLabels()).toEqual(['Open seat', 'You']);
+    expect(seatLabels()).toEqual(['Opponent', 'You']);
     // Nothing to ask the server: the seat is held, the game is known
     expect(send).not.toHaveBeenCalled();
     // The host's king lifted, across from the empty seat
@@ -364,7 +364,7 @@ describe('the handover from the lobby to the game', () => {
       seat: 'white',
       taken: { white: true, black: true },
     });
-    expect(view!.caption).toMatch(/They're here/);
+    expect(view!.caption).toMatch(/Opponent joined/);
 
     // The arrival alone does not leave: the game has not drawn yet
     act(() => view!.onArrived!());
@@ -408,7 +408,7 @@ describe('the handover from the lobby to the game', () => {
     try {
       const { rerender } = render(at(fakeSocket(created)));
       rerender(at(fakeSocket([...created, start('white')])));
-      expect(document.title).toMatch(/They're here/);
+      expect(document.title).toMatch(/Opponent joined/);
       hidden = false;
       act(() => {
         document.dispatchEvent(new Event('visibilitychange'));

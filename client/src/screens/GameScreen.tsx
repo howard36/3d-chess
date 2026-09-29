@@ -398,7 +398,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   React.useEffect(() => {
     if (handover !== 'arrive' || !wasHost.current || !document.hidden) return;
     const title = document.title;
-    document.title = "● They're here · 3D Chess";
+    document.title = '● Opponent joined · 3D Chess';
     const back = () => {
       if (!document.hidden) document.title = title;
     };
@@ -422,9 +422,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         seat: color,
         // The seat that has just filled: the guest's own, or the host's opponent's
         arriving: host ? other(color) : color,
-        caption: host ? "They're here" : `You play ${color === 'white' ? 'White' : 'Black'}`,
-        captionNote:
-          color === 'white' ? 'You move first' : host ? 'They move first' : 'White moves first',
+        caption: host ? 'Opponent joined' : `You play ${color === 'white' ? 'White' : 'Black'}`,
         onArrived: () => setArrived(true),
         onReveal: () => setRevealed(true),
         onLeft: () => setHandover('done'),
@@ -509,13 +507,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         </button>
       </header>
       {hosting && storedRole && (
-        <SeatLabels labels={{ [storedRole]: 'You', [other(storedRole)]: 'Open seat' }} />
+        <SeatLabels labels={{ [storedRole]: 'You', [other(storedRole)]: 'Opponent' }} />
       )}
       {guest && (invitation.state === 'open' || invitation.state === 'joining') && (
         <SeatLabels
           labels={{
             [other(invitation.seat)]: 'Opponent',
-            [invitation.seat]: invitation.state === 'joining' ? 'You' : 'Your seat',
+            [invitation.seat]: 'You',
           }}
         />
       )}

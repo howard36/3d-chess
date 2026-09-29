@@ -110,12 +110,12 @@ async function userJoins() {
   act(() => {
     server.send({ type: 'game_info', gameId: 'GAMEA0', seats: ['white'] });
   });
-  const button = await screen.findByRole('button', { name: 'Take your seat' });
+  const button = await screen.findByRole('button', { name: 'Join game' });
   act(() => button.click());
   await expect(server).toReceiveMessage(
     expect.objectContaining({ type: 'join_game', gameId: 'GAMEA0' }),
   );
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'Take your seat' })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Join game' })).toBeNull());
 }
 
 test('a new game goes from the start screen through the side choice to its invitation', async () => {

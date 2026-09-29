@@ -124,7 +124,7 @@ export const InvitationCard: React.FC<{ invitation: Invitation; onAccept: () => 
           aria-disabled={joining || undefined}
           data-testid="accept-invitation"
         >
-          {joining ? 'Taking your seat…' : 'Take your seat'}
+          {joining ? 'Joining…' : 'Join game'}
         </button>
       </div>
     </section>

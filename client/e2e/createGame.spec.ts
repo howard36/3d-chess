@@ -36,7 +36,7 @@ test('the guest is told their side before taking the seat, and both boards open'
   await choose(host, 'White');
   await guest.goto(host.url());
   await expect(guest.getByRole('heading', { name: "You're invited to play Black" })).toBeVisible();
-  await guest.getByRole('button', { name: 'Take your seat' }).click();
+  await guest.getByRole('button', { name: 'Join game' }).click();
   await waitForBoard(host);
   await waitForBoard(guest);
   expect(await getPlayerColor(host)).toBe('white');
@@ -72,7 +72,7 @@ test('an invitation to a game that is full or gone says so', async ({ browser })
   const third = await (await browser.newContext()).newPage();
   await choose(host, 'White');
   await guest.goto(host.url());
-  await guest.getByRole('button', { name: 'Take your seat' }).click();
+  await guest.getByRole('button', { name: 'Join game' }).click();
   await waitForBoard(guest);
   await third.goto(host.url());
   await expect(third.getByRole('heading', { name: 'This game is taken' })).toBeVisible();
