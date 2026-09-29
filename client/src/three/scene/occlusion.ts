@@ -52,7 +52,11 @@ const JZ = 0.291;
 
 /** Every triangle of `geometries` as vertical-ray crossings, filled into a solid grid. */
 const voxelize = (geometries: BufferGeometry[]): Uint8Array => {
-  const crossings: number[][] = Array.from({ length: NX * NX }, () => []);
+  // Each crossing: its column, its height and whether the ray enters or
+  // leaves there, in the order found
+  const column: number[] = [];
+  const height: number[] = [];
+  const step: number[] = [];
   for (const g of geometries) {
     const p = g.getAttribute('position');
     const index = g.index;
@@ -90,46 +94,47 @@ const voxelize = (geometries: BufferGeometry[]): Uint8Array => {
           const w1 = ((cz - az) * (px - cx) + (ax - cx) * (pz - cz)) / d;
           const w2 = 1 - w0 - w1;
           if (w0 < 0 || w1 < 0 || w2 < 0) continue;
-          crossings[k * NX + i].push(w0 * ay + w1 * by + w2 * cy, enter);
+          column.push(k * NX + i);
+          height.push(w0 * ay + w1 * by + w2 * cy);
+          step.push(enter);
         }
       }
     }
   }
+  // Group the crossings by column, keeping the order found within each
+  const columns = NX * NX;
+  const start = new Int32Array(columns + 1);
+  for (const c of column) start[c + 1]++;
+  for (let c = 0; c < columns; c++) start[c + 1] += start[c];
+  const order = new Int32Array(column.length);
+  const fill = start.slice(0, columns);
+  for (let n = 0; n < column.length; n++) order[fill[column[n]]++] = n;
+
   const solid = new Uint8Array(NX * NX * NY);
-  const pairs: [number, number][] = [];
-  for (let c = 0; c < crossings.length; c++) {
-    const list = crossings[c];
-    // The floor under the piece is solid too: it shuts in the foot
-    const floorTop = Math.floor(-Y0 / CELL - 0.5);
+  // The floor under the piece is solid too: it shuts in the foot
+  const floorTop = Math.floor(-Y0 / CELL - 0.5);
+  for (let c = 0; c < columns; c++) {
     for (let j = 0; j <= floorTop; j++) solid[j * NX * NX + c] = 1;
-    if (list.length === 0) continue;
-    pairs.length = 0;
-    for (let n = 0; n < list.length; n += 2) pairs.push([list[n], list[n + 1]]);
-    pairs.sort((a, b) => a[0] - b[0]);
+    if (start[c] === start[c + 1]) continue;
+    // Up the column, crossings at the same height in the order found
+    const list = order.subarray(start[c], start[c + 1]);
+    list.sort((a, b) => height[a] - height[b] || a - b);
     // Inside wherever more shells have been entered than left (shells may
     // overlap: the collars sit round the stems)
     let winding = 0;
     let from = Y0;
-    for (const [y, step] of pairs) {
+    for (const n of list) {
+      const y = height[n];
       if (winding > 0) {
         const j0 = Math.max(0, Math.ceil((from - Y0) / CELL - 0.5));
         const j1 = Math.min(NY - 1, Math.floor((y - Y0) / CELL - 0.5));
         for (let j = j0; j <= j1; j++) solid[j * NX * NX + c] = 1;
       }
-      winding += step;
+      winding += step[n];
       from = y;
     }
   }
   return solid;
-};
-
-const occupied = (solid: Uint8Array, x: number, y: number, z: number) => {
-  const i = Math.floor((x - X0) / CELL - JX + 0.5);
-  const k = Math.floor((z - X0) / CELL - JZ + 0.5);
-  const j = Math.floor((y - Y0) / CELL);
-  if (i < 0 || k < 0 || i >= NX || k >= NX || j >= NY) return false;
-  if (j < 0) return true;
-  return solid[(j * NX + k) * NX + i] === 1;
 };
 
 // Directions spread evenly over the sphere (a Fibonacci lattice); each vertex
