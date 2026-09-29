@@ -514,8 +514,9 @@ cd server && uv run --extra deploy modal app stop 3d-chess-backend-staging -y
 ```
 
 CI (GitHub Actions) runs server tests, client lint (ESLint + Prettier check), build, and
-unit tests, and the E2E suite on every push/PR to `main`; on an E2E failure the Playwright
-HTML report and trace are uploaded as a workflow artifact. On a push to `main` — and only
+unit tests, and the E2E suite on every push/PR to `main`; the E2E suite is split over three
+parallel jobs (`E2E_GROUP`, the groups named in `client/playwright.config.ts`), and on a
+failure each job uploads its Playwright HTML report and trace as a workflow artifact. On a push to `main` — and only
 once those three jobs pass — it also deploys the backend to Modal. The deploy bakes the
 commit SHA into the image as `APP_VERSION`, and the job polls `/health` until it reports
 that SHA, so a deploy that never starts serving fails the job rather than passing on the

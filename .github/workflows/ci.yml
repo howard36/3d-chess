@@ -73,7 +73,15 @@ jobs:
           git diff --exit-code src/types/schema.ts
         working-directory: client
 
-  e2e:
+  e2e-group:
+    # The suite is CPU-bound (every page draws in software), so it is split
+    # over parallel runners; the groups are defined in playwright.config.ts,
+    # and `rest` takes every spec the others don't name.
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [games, session, rest]
+    name: e2e (${{ matrix.group }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -120,13 +128,25 @@ jobs:
       - name: Run Playwright E2E tests
         run: npm run e2e
         working-directory: client
+        env:
+          E2E_GROUP: ${{ matrix.group }}
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.group }}
           path: client/playwright-report
           retention-days: 7
+
+  # One check for the whole suite, under the name it always had (branch
+  # protection and the deploy wait on `e2e`): green only if every group is.
+  e2e:
+    needs: e2e-group
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every E2E group passed
+        run: test "${{ needs.e2e-group.result }}" = success
 
   deploy:
     # Publishes the merged commit's app to Modal. Gated on the full suite so a

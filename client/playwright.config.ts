@@ -1,7 +1,35 @@
 import { defineConfig } from '@playwright/test';
 
+// CI splits the suite over parallel jobs, one per group (E2E_GROUP, the e2e
+// matrix in ci.yml): every page draws in software, so the suite is bound by
+// the runner's CPU and only more runners make it faster. Playwright's own
+// --shard splits by test count, which leaves one job with all the games
+// played move by move, so the groups are named here, balanced by their
+// measured time. `rest` is every file not named, so a new spec always runs.
+// Unset, the whole suite runs.
+const GROUPS: Record<string, string[]> = {
+  games: ['gameOver', 'promotion'],
+  session: ['session', 'playMove', 'createGame'],
+};
+const named = Object.values(GROUPS)
+  .flat()
+  .map((name) => `**/${name}.spec.ts`);
+const group = process.env.E2E_GROUP;
+if (group && group !== 'rest' && !GROUPS[group]) {
+  throw new Error(`E2E_GROUP=${group}: expected one of ${[...Object.keys(GROUPS), 'rest']}`);
+}
+const selection = !group
+  ? {}
+  : group === 'rest'
+    ? { testIgnore: named }
+    : { testMatch: GROUPS[group].map((name) => `**/${name}.spec.ts`) };
+
 export default defineConfig({
   testDir: './e2e', // Only run tests in the e2e directory
+  ...selection,
+  // Tests of one file run side by side too, so a file's tests spread over
+  // the workers instead of queueing on one. Each test makes its own game.
+  fullyParallel: true,
   // Every page draws the real board in software (SwiftShader, below). A frame
   // of the scene costs a few hundred milliseconds of CPU, several times that
   // on a busy machine, and each move takes several frames on each of a game's
