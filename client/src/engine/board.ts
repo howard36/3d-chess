@@ -390,18 +390,32 @@ export class Board {
     return allLegalMovesForColor;
   }
 
+  /** Whether the given color has any legal move (stops at the first). */
+  hasLegalMove(color: 'white' | 'black'): boolean {
+    let king = -1;
+    for (let c = 0; c < CELLS; c++) {
+      const piece = this.cells[c];
+      if (!piece || piece.color !== color) continue;
+      const moves = this.generatePotentialMoves(coordOf(c));
+      if (moves.length === 0) continue;
+      if (king < 0) king = this.kingCell(color);
+      for (const move of moves) if (this.isSafe(move, piece, king)) return true;
+    }
+    return false;
+  }
+
   /**
    * Returns true if the given color is checkmated.
    */
   isCheckmate(color: 'white' | 'black'): boolean {
-    return this.inCheck(color) && this.generateAllLegalMoves(color).length === 0;
+    return this.inCheck(color) && !this.hasLegalMove(color);
   }
 
   /**
    * Returns true if the given color is stalemated.
    */
   isStalemate(color: 'white' | 'black'): boolean {
-    return !this.inCheck(color) && this.generateAllLegalMoves(color).length === 0;
+    return !this.inCheck(color) && !this.hasLegalMove(color);
   }
 
   /**
