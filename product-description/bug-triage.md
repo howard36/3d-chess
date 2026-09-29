@@ -167,7 +167,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 
 - **Where the user meets it:** Creating a game in a browser that refuses site storage.
 - **What happens / what was expected:** The create succeeds, but the game page reads the seat only from storage, so it shows the creator the join screen; "Join Game" there shows "Joined game, waiting for start..." with "Error: Already in a game". A drop before the game starts, or any reload, loses the seat. Expected: the page uses the seat it was just given.
-- **Reproduce:** Make storage throw (the harness overrides it), click "Start New Game".
+- **Reproduce:** Make storage throw (the harness overrides it), click "Start a game".
 - **Why (from the code):** `client/src/screens/GameScreen.tsx:33-35` and `:46-50` read the seat from storage only; `client/src/game/session.ts:35-49` does not count the creation answer as an assigned seat.
 - **Severity:** `low`. Rare configuration.
 - **Decision needed:** `fix`. Carry the creator's seat into the game page in memory (the connection already holds it).
@@ -259,7 +259,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
   - The move list's two spaces between a row's moves collapse to one, so the columns do not line up (`client/src/screens/MoveList.tsx:60`; confirmed LIST-02).
   - Dialog buttons ("Queen" … "Unicorn", "Cancel", "Start new game", "Play here") and dialog headings render as plain words and body-size text, because the base styles strip button borders and heading sizes (seen in the pass's screenshots).
   - "You are playing as white." names the color in lower case with a period; the turn indicator says "White to move" (`client/src/screens/GameScreen.tsx:300`).
-  - "Creating Game..." and "Joined game, waiting for start..." use three dots; "Connecting to server…" and "Reconnecting…" use an ellipsis. "Start New Game" and "Start new game" differ in capitalization.
+  - "Creating Game..." and "Joined game, waiting for start..." use three dots; "Connecting to server…" and "Reconnecting…" use an ellipsis. "Start New Game" and "Start new game" differ in capitalization. (The landing page, after `4e18386`, changed the start screen's side of both: its button reads "Start a game" and, while in flight, "Creating game…" with an ellipsis. "Joined game, waiting for start..." still uses three dots.)
   - "Error: Cannot rejoin" is all an expired game says; a player cannot tell the game is gone.
   - The error banner's "✕" is a target of about 16 × 24 px with no hand pointer.
   - Behind the end-game dialog the turn indicator still names the mated side "to move".

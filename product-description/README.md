@@ -139,7 +139,7 @@ foundations/
                                  and zoom
 
 start/
-  creating-a-game.md             the pilot: Start New Game, to the game page
+  creating-a-game.md             the pilot: the landing page and Start a game, to the game page
   waiting-for-an-opponent.md     the creator's share-link screen, until someone joins
   joining-a-game.md              Join Game from a shared link, and what happens when it fails
 
