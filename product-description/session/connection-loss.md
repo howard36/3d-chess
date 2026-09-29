@@ -55,7 +55,7 @@ What the player sees depends on the screen:
 
 | Screen | During the drop | When an attempt succeeds |
 | --- | --- | --- |
-| Start screen | The gray line under the button reads "Reconnecting to server…", beside a breathing dot (unless an error is showing there, which keeps the line). The button still works; a click is [queued](../glossary.md#requests) and the button reads "Creating game…". The preview plays on; it never needed the connection. | The line goes back to the facts, or to the preview's result while its mate stands. A queued click is sent. A create that was in flight at the drop is sent again, and its answer takes the player to the new game; see [creating a game](../start/creating-a-game.md#cancel-and-interrupt). There is no seat, so no rejoin. |
+| Start screen | Nothing, unless a create is waiting: then the gray line under the button reads "Reconnecting to server…", beside a breathing dot. The button still works; a click is [queued](../glossary.md#requests), the button reads "Creating game…", and the line then says "Reconnecting to server…". The preview plays on; it never needed the connection. | The connection's line goes, if it was showing. A queued click is sent. A create that was in flight at the drop is sent again, and its answer takes the player to the new game; see [creating a game](../start/creating-a-game.md#cancel-and-interrupt). There is no seat, so no rejoin. |
 | Join screen | The "Reconnecting…" line at the top right. "Join Game" still works; a click is queued and the page shows "Joined game, waiting for start..." at once. | The box disappears. A queued join is sent. Nothing else: a visitor has nothing to rejoin. |
 | Share-link screen | The "Reconnecting…" line at the top right, with "Game created! Share this link with a friend:", the link, and "Copy link" unchanged. The link stays valid; the opponent can open it and join meanwhile. | The page rejoins. The snapshot keeps the share-link screen, or, if the opponent joined meanwhile, the board screen appears. |
 | Joined screen | The "Reconnecting…" line at the top right, with "Joined game, waiting for start..." unchanged. | If the server had confirmed the seat before the drop, the page rejoins and the board screen appears. If the join was still in flight, the page sends the join again; the server hands back the seat it had already claimed for this tab (or claims it now, if the first join never arrived), and the board screen appears. See [joining a game](../start/joining-a-game.md). |
@@ -69,8 +69,8 @@ On the server, the drop changes nothing that lasts: the seat stays taken and the
 
 The recovery cannot be cancelled: there is no control for it and Escape does nothing. It ends without a rejoin in these cases:
 
-- **There is no seat to rejoin with.** On the start screen, the join screen, and a joined screen whose join answer was lost, a successful attempt simply opens the connection. The status line or the reconnecting line disappears, and nothing is sent except a queued create or join, or a create or join re-sent because its answer was lost. On the start screen with nothing pending, "Reconnecting to server…" just clears.
-- **The player leaves.** Browser Back or "Start new game" goes to the start screen, which resets the connection: the retry loop is abandoned and a fresh connection is attempted at once, so the start screen shows "Connecting to server…", then "Reconnecting to server…" if the network is still down. Reload, closing the tab, or typing another address ends the loop with the page; see [reloading and returning](reload-and-return.md).
+- **There is no seat to rejoin with.** On the start screen, the join screen, and a joined screen whose join answer was lost, a successful attempt simply opens the connection. The start screen's status or the reconnecting line disappears, and nothing is sent except a queued create or join, or a create or join re-sent because its answer was lost. On the start screen with nothing pending, nothing was showing: the start screen mentions the connection only while a create waits for it.
+- **The player leaves.** Browser Back or "Start new game" goes to the start screen, which resets the connection: the retry loop is abandoned and a fresh connection is attempted at once, which the start screen does not mention unless the player clicks "Start a game" before it opens ("Connecting to server…", then "Reconnecting to server…" if the network is still down). Reload, closing the tab, or typing another address ends the loop with the page; see [reloading and returning](reload-and-return.md).
 
 In every case nothing is recorded by the rejoin that was not sent. The drop itself records nothing on the server, and the stored seat is kept, so opening the game's link later rejoins as usual.
 
@@ -78,7 +78,7 @@ In every case nothing is recorded by the rejoin that was not sent. The drop itse
 
 The request is sent when an attempt succeeds. At that instant:
 
-- the connection state becomes *connected*, and the reconnecting line (or the start screen's status line) disappears;
+- the connection state becomes *connected*, and the reconnecting line (or the start screen's status, shown only while a create waits) disappears;
 - the retry schedule starts over, so a later drop begins again at half a second;
 - any create or join that was queued during the drop is sent, in order;
 - a create or join that had been sent before the drop and never answered is sent again;

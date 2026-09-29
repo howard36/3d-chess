@@ -4,7 +4,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## The product and its screens
 
-**Start screen, landing page.** The page at `/`. The *preview* fills the window; over it stand the title "3D Chess" and the tagline "Five stacked boards. One link to play a friend." above the tower, a "Start a game" button below it, and one gray line under the button that shows, first that applies, an error answering the click ("Couldn't start a game: " and the message), the connection's state while it is not open ("Connecting to server…" or "Reconnecting to server…"), "Checkmate · White wins" while the preview's mate stands, or "5×5×5 · 125 squares · No sign-up". A round "Pause preview" button sits at the top right. It is the only way to create a game. See [creating a game](start/creating-a-game.md).
+**Start screen, landing page.** The page at `/`. The *preview* fills the window; over it stand the title "3D Chess" above the tower, a "Start a game" button below it (a pale pill with a small knight and a slowly turning rim in the five levels' colors), and under the button a space for one line that shows, first that applies, an error answering the click ("Couldn't start a game: " and the message), the connection's state while a click waits for the connection ("Connecting to server…" or "Reconnecting to server…"), or "Checkmate · White wins" while the moving preview's mate stands, and is otherwise empty. A round "Pause preview" button sits at the top right. It is the only way to create a game. See [creating a game](start/creating-a-game.md).
 
 **Preview.** The start screen's live picture: the board screen's glass tower in its garden, without labels, playing the same 17-move game (checkmate by White) over and over, a veil fading between one game and the next, while the camera circles the tower about once every 90 seconds. It is decoration: it takes no input, belongs to no game on the server, and a screen reader hears one sentence in its place. "Pause preview" stops it; for a player whose system asks for reduced motion it is a still picture of the final position. See [creating a game](start/creating-a-game.md#the-preview).
 
@@ -172,7 +172,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Connection.** The one live link between a browser tab and the server. It is opened as soon as the app loads, on either screen, and kept open while the tab stays on the app.
 
-**Connection state.** One of four: *connecting* (the first attempt after the app loads or after a reset), *connected*, *reconnecting* (the connection dropped and the browser is retrying on its own), and *replaced*. The start screen shows the first and third in the line under its button; the game page shows only *reconnecting* (the *reconnecting line*) and *replaced* (a dialog).
+**Connection state.** One of four: *connecting* (the first attempt after the app loads or after a reset), *connected*, *reconnecting* (the connection dropped and the browser is retrying on its own), and *replaced*. The start screen shows the first and third in the line under its button, and only while a create is waiting for the connection; the game page shows only *reconnecting* (the *reconnecting line*) and *replaced* (a dialog).
 
 **Retry schedule.** After an unexpected drop, the browser waits 0.5 s, then 1 s, 2 s, 4 s, and then 8 s between attempts, forever. The schedule starts over whenever a connection opens. There is no limit on attempts and no manual retry button.
 

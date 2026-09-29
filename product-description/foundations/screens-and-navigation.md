@@ -37,7 +37,7 @@ stateDiagram-v2
 
 ## The start screen
 
-The page at `/`, a landing page: the [preview](../glossary.md#the-product-and-its-screens) (the glass tower turning slowly in its garden while a sample game plays itself on it) fills the window, with the title "3D Chess" and a tagline above the tower, the "Start a game" button below it, and one line under the button that shows the connection's state while it is not open, an error in red, or a few facts about the game. A "Pause preview" button sits at the top right. The preview is only a picture: it takes no input and is not a game. The whole screen and its one request are described in [creating a game](../start/creating-a-game.md).
+The page at `/`, a landing page: the [preview](../glossary.md#the-product-and-its-screens) (the glass tower turning slowly in its garden while a sample game plays itself on it) fills the window, with the title "3D Chess" above the tower, the "Start a game" button below it, and, under the button, room for one line: an error in red, the connection's state while a click waits for the connection, or the preview's result. A "Pause preview" button sits at the top right. The preview is only a picture: it takes no input and is not a game. The whole screen and its one request are described in [creating a game](../start/creating-a-game.md).
 
 The start screen is where every route out of a game leads, and arriving at it by any route [resets the connection](connection-and-seat.md#returning-to-the-start-screen).
 

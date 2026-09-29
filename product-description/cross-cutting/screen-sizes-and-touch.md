@@ -14,13 +14,13 @@ The one text field in the app is the [move box](../glossary.md#the-interface)'s,
 
 ## The start screen and the pre-game screens
 
-The start screen's [preview](../glossary.md#the-product-and-its-screens) fills the window at any size and follows it at once when it is resized or rotated, like the board screen. The camera frames the tower alone, turning, between a band kept at the top for the title and tagline and one at the bottom for the button and the line under it (120 and 116 px; 140 and 132 px in a window at least 860 px tall), so the text never covers the tower; the bands are darkened a little toward the window's edges so the garden's neon does not run behind the words. The page's text stands in those bands:
+The start screen's [preview](../glossary.md#the-product-and-its-screens) fills the window at any size and follows it at once when it is resized or rotated, like the board screen. The camera frames the tower alone, turning, between a band kept at the top for the title and one at the bottom for the button and the line under it (96 and 116 px; 116 and 132 px in a window at least 860 px tall), so the text never covers the tower; the bands are darkened a little toward the window's edges so the garden's neon does not run behind the words. The page's text stands in those bands:
 
-- **An ordinary window** has the title and tagline centered at the top and the button, with the line under it, centered at the bottom. A window at least 860 px tall and 700 px wide sets them a step larger (the title 52 px instead of 42 px, the button 56 px tall).
-- **A phone held upright** (480 px wide or less) sets the title at 34 px, lets the tagline wrap onto two balanced lines, and stretches the button across the column, 20 px from each edge, up to 360 px wide.
-- **A short window** (480 px tall or less, such as a phone on its side) keeps only a sliver above and below the tower and puts the text in a column 188 px wide at the left instead: the title (26 px) and tagline just above the middle, the button and the line under it just below. The line then shows only the connection's state or an error; the facts and the preview's result are left out. A dark band behind the column keeps it readable over the garden.
+- **An ordinary window** has the title centered at the top and the button, with the room for a line under it, centered at the bottom; the button is 52 px tall. A window at least 860 px tall and 700 px wide sets them a step larger (the title 52 px instead of 42 px, the button 58 px tall).
+- **A phone held upright** (480 px wide or less) sets the title at 34 px and stretches the button across the column, 20 px from each edge, up to 360 px wide.
+- **A short window** (480 px tall or less, such as a phone on its side) keeps only a sliver above and below the tower and puts the text in a column 188 px wide at the left instead: the title (30 px) just above the middle, the button (48 px tall) and the line under it just below, aligned left. A dark band behind the column keeps it readable over the garden.
 
-"Pause preview" is a round button in the top right corner, 36 px across (44 px on a touch screen), clear of a phone's notch and rounded corners, as is the text. On a touch screen "Start a game" is 52 px tall. The preview takes no touch: a drag or pinch on it is an ordinary page gesture and never turns the tower.
+"Pause preview" is a round button in the top right corner, 36 px across (44 px on a touch screen), clear of a phone's notch and rounded corners, as is the text. The preview takes no touch: a drag or pinch on it is an ordinary page gesture and never turns the tower.
 
 The [share-link screen](../start/waiting-for-an-opponent.md), the [join screen](../start/joining-a-game.md), the joined screen, and the crash screen are each one column, centered both ways, with a margin of 32 px on every side. Their text wraps to the window's width. The title "3D Chess" on these screens is set smaller below 640 pixels wide, so on a phone it stays on one line.
 
@@ -88,7 +88,7 @@ A touch on the board acts only as a tap: the finger touching down and lifting ag
 | Double tap | Two taps, each acting on its own. The page does not zoom. |
 | Long press | No menu opens. Whether the lift that ends it counts as a tap depends on whether the browser reports it as a click; not tried. |
 
-There is no hover on a touch screen, and the board never uses hover anyway: nothing on the board lights up under a resting mouse either, so touch loses nothing. The join screen's button grows slightly, and the start screen's brightens and rises, under a hovering mouse; on a touch screen they never do, and no hover effect sticks after a tap. Taps do not flash the gray highlight some phone browsers draw over tapped elements.
+There is no hover on a touch screen, and the board never uses hover anyway: nothing on the board lights up under a resting mouse either, so touch loses nothing. The join screen's button grows slightly, and the start screen's lifts and its knight hops, under a hovering mouse; on a touch screen they never do, and no hover effect sticks after a tap. Taps do not flash the gray highlight some phone browsers draw over tapped elements.
 
 Touches on the board never scroll or zoom the page: the board claims every touch that starts on it for the view.
 

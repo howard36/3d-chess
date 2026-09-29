@@ -207,12 +207,14 @@ Key decisions:
   records) as a log of `move_made` messages through `deriveHistory`, like a live game,
   then fades under a veil and plays it again, while `three/AutoOrbit.tsx` turns the camera
   round the tower at a fixed elevation, a full turn every two passes
-  (`three/landingView.ts`). The demo's clock is r3f's. The title and a tagline stand
-  above the tower and "Start a game" below it, in bands the fit keeps clear (`hudTopBand`
+  (`three/landingView.ts`). The demo's clock is r3f's. The title stands above the
+  tower and "Start a game" (a pill with a knight glyph and a slowly turning rim in the
+  five level colours) below it, in bands the fit keeps clear (`hudTopBand`
   and `bottomBand`; a window 480 px tall or less sets the text in a column at the left
   instead). Under the button one line shows, first that applies: the create's error
-  ("Couldn't start a game: …", `role="alert"`), the connection's state, "Checkmate ·
-  White wins" while the demo's mate stands, or a few facts. The button is not disabled
+  ("Couldn't start a game: …", `role="alert"`), the connection's state (only once a
+  create is waiting for it), "Checkmate · White wins" while the demo's mate stands, or a
+  few facts. The button is not disabled
   while the socket connects (the create is queued), only while it is answered ("Creating
   game…"). The canvas is `aria-hidden` and takes no pointer, and a visually hidden
   sentence says what it shows. A pause button at the top right ("Pause preview",
