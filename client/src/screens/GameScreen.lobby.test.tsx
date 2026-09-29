@@ -191,7 +191,7 @@ describe("a guest's invitation", () => {
     });
     const button = screen.getByRole('button', { name: 'Joining…' });
     expect(button).toHaveAttribute('aria-disabled', 'true');
-    expect(view).toMatchObject({ taken: { white: true, black: true }, mine: 'black' });
+    expect(view).toMatchObject({ taken: { white: true, black: true }, mine: null });
     expect(seatLabels()).toEqual(['Opponent', 'You']);
     // Held: nothing more goes out
     fireEvent.click(button);
@@ -251,7 +251,7 @@ describe("a guest's invitation", () => {
     expect(view).toMatchObject({
       beat: 'invited',
       taken: { white: true, black: true },
-      mine: 'black',
+      mine: null,
       seat: 'black',
     });
   });

@@ -74,7 +74,14 @@ export const LOBBY_TIMING = {
   /** From the column of light rising to the choice counting as settled. */
   settle: 0.7,
   /** The arrival: the empty seat fills, and the moment held after it. */
-  arriveHold: 0.8,
+  arriveHold: 1.2,
+  /**
+   * The arrival, from both kings filled: their columns of light come on
+   * together (once the new king is solid and the ring has spread), then,
+   * a beat later, the two lift together.
+   */
+  arriveLight: 0.4,
+  arriveLift: 0.65,
   /** Leaving for the game: the kings go up in light, then the camera draws back. */
   leaveBurn: 0.7,
   leaveMove: 1.6,

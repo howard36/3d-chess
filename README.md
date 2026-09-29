@@ -573,7 +573,7 @@ until the row fits the width).
   lasted 1.5 s (`useDelayed`, `SLOW_SERVER_MS`): "Connecting to server…" or "Reconnecting to
   server…", the same words and delay as the side choice's bottom line;
   "Opponent" and "You" stand under the kings, and joining fills the guest's king at once,
-  before the server answers, in its light on the glass. A game with both seats taken, or
+  before the server answers, on the glass and not yet in its light. A game with both seats taken, or
   none, gets a card "This game is taken" or "No game here" with "Start a new game". A page
   with a stored seat shows no lobby, only "Returning to your game…", until its rejoin is
   answered.
@@ -582,9 +582,11 @@ until the row fits the width).
   the heading's place, one line: "Opponent joined" for the host, "You play White" (or
   Black) for the guest. Meanwhile `GameView` mounts under the lobby, held
   on its first frame (`introPaused`), and reports that frame; if it never comes,
-  `FIRST_FRAME_WAIT_MS` (4 s) lets the lobby go anyway. Both kings, in their columns of
-  light, wait until both are filled (`together`, their fills shared) and then lift together
-  on both pages. Then `leave`: both rise on up in their columns of light and are taken up
+  `FIRST_FRAME_WAIT_MS` (4 s) lets the lobby go anyway. Once both kings are filled
+  (`together`, their fills shared as a `KingPair`), a king not yet in its light gets its
+  column `arriveLight` (0.4 s) later, so it follows the new king going solid and the ring
+  rather than competing with them (on the guest's page both columns come on at once), and
+  at `arriveLift` (0.65 s) both lift together on both pages. Then `leave`: both rise on up in their columns of light and are taken up
   into them from the foot (`uGone`), level A's glass stays, and the camera draws out to
   exactly the game's first-frame pose
   (`gameOpening`: the fitted distance times the `lobby` entrance's `dolly.from`, on the

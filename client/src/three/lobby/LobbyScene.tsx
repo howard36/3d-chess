@@ -9,6 +9,7 @@ import { PALETTE } from '../scene/palette';
 import { Stage } from '../scene/stage';
 import { LAYER } from '../scene/layers';
 import { CoinKing, LobbyKing } from './LobbyKing';
+import type { KingPair } from './LobbyKing';
 import { Levels } from '../scene/plates';
 import { IntroContext } from '../intro/clock';
 import type { IntroClock } from '../intro/clock';
@@ -393,7 +394,7 @@ export const LobbyScene = ({
   // rises into a column of its own beside the player's: the two stand level
   // before they are taken up together
   const filling = view.beat === 'arrive' || view.beat === 'leave';
-  const fills = useRef<Record<Side, number>>({ white: 0, black: 0 });
+  const fills = useRef<KingPair>({ white: 0, black: 0, both: 0 });
   const newcomer = view.beat === 'arrive' ? (view.arriving ?? null) : null;
 
   return (

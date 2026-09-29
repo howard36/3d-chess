@@ -69,6 +69,13 @@ const pickHandlers = (p: Pickable, enabled: boolean) =>
       }
     : {};
 
+/** What the two lobby kings share: their fills, and how long both have been filled at the start. */
+export interface KingPair {
+  white: number;
+  black: number;
+  both: number;
+}
+
 /** The body's shine, lift and light, eased toward their goals each frame. */
 const useKingMotion = () => useRef({ fill: 1, outline: 0, lift: 0, hover: 0, hold: 0, gone: 0 });
 
@@ -100,7 +107,7 @@ export const LobbyKing = ({
   snap?: boolean;
   pick?: Pickable;
   /** Both kings' fills, shared, written by each king every frame. */
-  fills?: RefObject<Record<Side, number>>;
+  fills?: RefObject<KingPair>;
   /** The game starting: lit, it lifts once both kings have filled, with the other. */
   together?: boolean;
 }) => {
@@ -157,12 +164,22 @@ export const LobbyKing = ({
     // Gone, the outline fades with the body; else it answers the fill
     m.outline = gone ? toward(m.outline, 0, dt * rate) : outlineForFill(m.fill);
     m.hover = toward(m.hover, hovered && !lit && present ? 1 : 0, dt * HOVER_RATE);
-    if (fills?.current) fills.current[color] = m.fill;
-    // Its column of light as soon as it is the player's and filled; lifted
-    // only when the game starts, the two together once both have filled
-    m.hold = toward(m.hold, lit && m.fill > 0.9 ? 1 : 0, dt * (still ? 1 / 0.15 : LIFT_RATE));
-    const rising =
-      together && !!fills?.current && Math.min(fills.current.white, fills.current.black) > 0.9;
+    // The start: from both kings filled, their columns come on together,
+    // then the two lift together (White's king keeps the shared time)
+    const pair = fills?.current;
+    if (pair) {
+      pair[color] = m.fill;
+      if (color === 'white')
+        pair.both = together && Math.min(pair.white, pair.black) > 0.9 ? pair.both + dt : 0;
+    }
+    const since = together && pair ? (still ? Infinity : pair.both) : 0;
+    const waiting = together && since < LOBBY_TIMING.arriveLift;
+    // Its column of light as soon as it is the player's and filled (a king
+    // already in its light keeps it); at the start, with the other's
+    const lightOn =
+      lit && m.fill > 0.9 && (!together || m.hold > 0 || since >= LOBBY_TIMING.arriveLight);
+    m.hold = toward(m.hold, lightOn ? 1 : 0, dt * (still ? 1 / 0.15 : LIFT_RATE));
+    const rising = together && since >= LOBBY_TIMING.arriveLift;
     // Leaving: each king rises, in its own column of light, and is taken up
     // into it from the foot, faster as it goes
     m.gone = gone ? toward(m.gone, 1, dt / (still ? 0.15 : LOBBY_TIMING.leaveBurn)) : 0;
@@ -198,7 +215,7 @@ export const LobbyKing = ({
       m.hold !== before.hold ||
       m.lift !== before.lift ||
       m.gone !== before.gone;
-    if (moving || showing || inBreath) invalidate();
+    if (moving || showing || inBreath || waiting) invalidate();
   });
 
   const top = KING_TOP;
