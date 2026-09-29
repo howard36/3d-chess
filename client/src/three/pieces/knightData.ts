@@ -1,4 +1,5 @@
 import { BufferAttribute, BufferGeometry, Uint16BufferAttribute } from 'three';
+import { fromStoredText, toStoredText } from './bytes';
 import type { KnightGeometry } from './knight';
 
 // The sculpted knight's meshes as bytes, so the set the game draws can ship
@@ -46,15 +47,17 @@ export const encodeKnight = (k: KnightGeometry): KnightData => {
     bytes.set(new Uint8Array(index.buffer, index.byteOffset, index.byteLength), at);
     chunks.push(bytes);
   }
-  let binary = '';
-  for (const c of chunks) for (let i = 0; i < c.length; i++) binary += String.fromCharCode(c[i]);
-  return { counts, base64: btoa(binary) };
+  const bytes = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.length;
+  }
+  return { counts, base64: toStoredText(bytes) };
 };
 
 export const decodeKnight = ({ counts, base64 }: KnightData): KnightGeometry => {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const bytes = fromStoredText(base64);
   const out = {} as KnightGeometry;
   let at = 0;
   MESHES.forEach((mesh, m) => {

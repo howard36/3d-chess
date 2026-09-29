@@ -1,4 +1,5 @@
 import { PieceType } from '../../engine/pieces';
+import { fromStoredText, toStoredText } from '../pieces/bytes';
 
 // The medium set's baked occlusion (every vertex's uv.x, scene/occlusion.ts)
 // as bytes, so the game can ship it precomputed (occlusion.medium.ts,
@@ -16,15 +17,15 @@ const TYPES = Object.values(PieceType);
 
 export const encodeOcclusion = (occlusion: Record<PieceType, Float32Array[]>): OcclusionData => {
   const counts = {} as Record<PieceType, number[]>;
-  let binary = '';
-  for (const type of TYPES) {
-    counts[type] = occlusion[type].map((ao) => ao.length);
-    for (const ao of occlusion[type]) {
-      const bytes = new Uint8Array(ao.buffer, ao.byteOffset, ao.byteLength);
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    }
+  const all = TYPES.flatMap((type) => occlusion[type]);
+  const bytes = new Uint8Array(all.reduce((n, ao) => n + ao.byteLength, 0));
+  let at = 0;
+  for (const type of TYPES) counts[type] = occlusion[type].map((ao) => ao.length);
+  for (const ao of all) {
+    bytes.set(new Uint8Array(ao.buffer, ao.byteOffset, ao.byteLength), at);
+    at += ao.byteLength;
   }
-  return { counts, base64: btoa(binary) };
+  return { counts, base64: toStoredText(bytes) };
 };
 
 /** Each type's parts' occlusion, decoded (each part's values in a buffer of its own). */
@@ -32,9 +33,7 @@ export const decodeOcclusion = ({
   counts,
   base64,
 }: OcclusionData): Record<PieceType, Float32Array[]> => {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const bytes = fromStoredText(base64);
   const out = {} as Record<PieceType, Float32Array[]>;
   let at = 0;
   for (const type of TYPES) {
