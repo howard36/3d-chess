@@ -183,7 +183,10 @@ describe('choosing a side', () => {
     await userEvent.click(white());
     expect(screen.getByRole('status')).toHaveTextContent('');
     settle();
-    expect(screen.getByRole('status')).toHaveTextContent('Waiting for the server…');
+    expect(screen.getByRole('status')).toHaveTextContent('');
+    expect(
+      await screen.findByText('Waiting for server…', {}, { timeout: 4000 }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId('choose-side')).toBeInTheDocument();
 
     rerender(at(fakeSocket([created('white')], send)));
@@ -260,7 +263,9 @@ describe('choosing a side', () => {
     const { rerender } = render(at(fakeSocket([], send)));
     await userEvent.click(white());
     rerender(at(fakeSocket([], send, { status: 'reconnecting' })));
-    expect(screen.getByRole('status')).toHaveTextContent('Reconnecting to the server…');
+    expect(
+      await screen.findByText('Reconnecting to server…', {}, { timeout: 4000 }),
+    ).toBeInTheDocument();
     rerender(at(fakeSocket([], send, { sessionId: 2 })));
     await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
     expect(send.mock.calls[1][0]).toEqual(send.mock.calls[0][0]);
@@ -271,14 +276,16 @@ describe('choosing a side', () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
-  it('says it is connecting only until a pick is made', async () => {
+  it('says it is connecting only once the connection is slow to open', async () => {
     const send = vi.fn<GameSocket['send']>(() => false);
     render(at(fakeSocket([], send, { status: 'connecting' })));
-    expect(screen.getByRole('status')).toHaveTextContent('Connecting to the server…');
-    // The request is queued, and goes out when the socket opens
+    expect(screen.getByRole('status')).toHaveTextContent('');
+    expect(
+      await screen.findByText('Connecting to server…', {}, { timeout: 4000 }),
+    ).toBeInTheDocument();
+    // A pick is queued, and goes out when the socket opens
     await userEvent.click(white());
     expect(send).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('status')).toHaveTextContent('');
   });
 
   it('goes home from the Home link', async () => {

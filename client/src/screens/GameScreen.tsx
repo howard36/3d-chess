@@ -539,7 +539,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       {hosting && storedRole ? (
         <InviteCard link={shareLink} seat={storedRole} />
       ) : guest ? (
-        <InvitationCard invitation={invitation} onAccept={acceptInvitation} />
+        <InvitationCard invitation={invitation} connection={status} onAccept={acceptInvitation} />
       ) : (
         // A stored seat, rejoining: a moment
         <p className="lobby-foot" role="status">

@@ -344,7 +344,8 @@ test('GameScreen clears a stale role and falls back to the invitation when rejoi
   await waitFor(() =>
     expect(send).toHaveBeenLastCalledWith({ type: 'look_game', gameId: 'abc123' }),
   );
-  expect(screen.getByText('Opening the invitation…')).toBeInTheDocument();
+  // (nothing said about the wait: it is usually over in a moment)
+  expect(screen.queryByText(/server…/)).not.toBeInTheDocument();
   rerender(gameScreenAt(fakeSocket([...refused, ...invited], send)));
   expect(screen.getByRole('button', { name: 'Join game' })).toBeEnabled();
 });

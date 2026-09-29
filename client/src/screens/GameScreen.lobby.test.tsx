@@ -124,7 +124,7 @@ describe("a guest's invitation", () => {
   it("does not take another game's answer for this one's", async () => {
     const send = vi.fn(() => true);
     const { rerender } = render(at(fakeSocket([info(['white'], 'OTHER0')], send)));
-    expect(screen.getByText('Opening the invitation…')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Join game' })).not.toBeInTheDocument();
     expect(looks(send)).toHaveLength(1);
     rerender(at(fakeSocket([info(['white'], 'OTHER0')], send, { sessionId: 2 })));
     await waitFor(() => expect(looks(send)).toHaveLength(2));
@@ -139,12 +139,15 @@ describe("a guest's invitation", () => {
     );
     expect(looks(send)).toHaveLength(0);
     expect(screen.getByText('Returning to your game…')).toBeInTheDocument();
-    expect(screen.queryByText('Opening the invitation…')).not.toBeInTheDocument();
+    expect(screen.queryByText(/server…/)).not.toBeInTheDocument();
   });
 
-  it('opens with the stage waiting and no seat offered yet', () => {
+  it('opens with the stage waiting and no seat offered yet, and speaks of the server only if it is slow', async () => {
     render(at(fakeSocket()));
-    expect(screen.getByText('Opening the invitation…')).toBeInTheDocument();
+    expect(screen.queryByText(/server…/)).not.toBeInTheDocument();
+    expect(
+      await screen.findByText('Connecting to server…', {}, { timeout: 4000 }),
+    ).toBeInTheDocument();
     expect(view).toMatchObject({
       beat: 'invited',
       taken: { white: false, black: false },

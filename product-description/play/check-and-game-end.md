@@ -70,7 +70,7 @@ Clicking "Start new game" is the dialog's only action. It sends no request about
 
 ### While in flight
 
-Nothing is in flight: the move to the side choice is immediate. The side choice shows "Connecting to the server…" for the moment it takes the fresh connection to open.
+Nothing is in flight: the move to the side choice is immediate. The side choice shows "Connecting to server…" for the moment it takes the fresh connection to open.
 
 ### The answer arrives
 

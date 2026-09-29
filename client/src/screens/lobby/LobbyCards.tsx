@@ -2,6 +2,8 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Color } from '../../types/messages';
 import type { Invitation } from '../../game/invitation';
+import type { GameSocket } from '../../hooks/useGameSocket';
+import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 
 // The cards over the lobby's scene on a game's page before it starts: the
 // creator's invitation to send, and the invitation as its guest opens it.
@@ -82,11 +84,15 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
 };
 
 /** The guest's card: whose seat is free, and the one thing to do about it. */
-export const InvitationCard: React.FC<{ invitation: Invitation; onAccept: () => void }> = ({
-  invitation,
-  onAccept,
-}) => {
+export const InvitationCard: React.FC<{
+  invitation: Invitation;
+  connection: GameSocket['status'];
+  onAccept: () => void;
+}> = ({ invitation, connection, onAccept }) => {
   const navigate = useNavigate();
+  // Asking which side is free takes a moment; it is only worth a word when
+  // the server is slow to answer (a cold start, a dropped connection)
+  const slow = useDelayed(invitation.state === 'opening', SLOW_SERVER_MS);
   if (invitation.state === 'full' || invitation.state === 'gone') {
     return (
       <section className="lobby-card" aria-labelledby="invitation-title" role="alert">
@@ -103,12 +109,10 @@ export const InvitationCard: React.FC<{ invitation: Invitation; onAccept: () => 
   }
   if (invitation.state === 'opening') {
     return (
-      <section className="lobby-card" aria-busy="true">
-        <p className="lobby-waiting" role="status">
-          <span className="hud-dot" aria-hidden />
-          Opening the invitation…
-        </p>
-      </section>
+      <p className="lobby-foot" role="status" aria-busy="true">
+        {slow &&
+          (connection === 'reconnecting' ? 'Reconnecting to server…' : 'Connecting to server…')}
+      </p>
     );
   }
   const joining = invitation.state === 'joining';

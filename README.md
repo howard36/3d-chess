@@ -558,7 +558,10 @@ cards under the kings carry only what to do. Timings and framing are pure functi
 - **The guest** (the `invited` beat and `InvitationCard`). A page with no stored seat asks
   `look_game` once per socket until answered, and `game/invitation.ts` reads the answer.
   With a seat free the heading reads "You're invited to play" with the side's stone and
-  name, and under the scene there is only "Join game" ("Joining…" once pressed);
+  name, and under the scene there is only "Join game" ("Joining…" once pressed). Until the
+  look is answered nothing is said; a wait on the server is only mentioned once it has
+  lasted 1.5 s (`useDelayed`, `SLOW_SERVER_MS`): "Connecting to server…" or "Reconnecting to
+  server…", the same words and delay as the side choice's bottom line;
   "Opponent" and "You" stand under the kings, and joining fills the guest's king at once,
   before the server answers. A game with both seats taken, or
   none, gets a card "This game is taken" or "No game here" with "Start a new game". A page

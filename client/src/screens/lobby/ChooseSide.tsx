@@ -8,6 +8,7 @@ import { setStoredRole } from '../../lib/playerRole';
 import type { Choice } from '../../three/lobby/LobbyScene';
 import type { Side } from '../../three/lobby/lobbyMotion';
 import { useLobbyView } from './lobbyContext';
+import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 
 // The first page of a new game: the player picks a side. The three kings
 // stand on the glass (LobbyScene): porcelain, the split king for Random, and
@@ -87,6 +88,9 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
   });
 
   const waiting = settled && !created && !failed;
+  // A connection is usually open in a moment: it is only mentioned once it
+  // has kept the player waiting (or would, were they to pick)
+  const stalled = useDelayed(status !== 'connected' || waiting, SLOW_SERVER_MS);
   const heading = !picked
     ? 'Choose your side'
     : picked.choice === 'random'
@@ -138,12 +142,14 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
       <div className="lobby-foot" role="status">
         {failed && !created ? (
           <span className="lobby-error">Couldn't start a game: {failed.message}</span>
+        ) : !stalled ? (
+          ''
         ) : status === 'reconnecting' ? (
-          'Reconnecting to the server…'
-        ) : status !== 'connected' && !picked ? (
-          'Connecting to the server…'
+          'Reconnecting to server…'
+        ) : status !== 'connected' ? (
+          'Connecting to server…'
         ) : waiting ? (
-          'Waiting for the server…'
+          'Waiting for server…'
         ) : (
           ''
         )}

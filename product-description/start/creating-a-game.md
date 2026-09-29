@@ -32,7 +32,7 @@ The page at `/new` is where the request is made. It can be reached by "Start a g
 
 - **The kings.** White's seat is on the left and Black's on the right, the split king between them for Random, on the glass's middle row; the camera looks at them from a little above, from White's side. In a window narrower than it is tall (an aspect under 9:10, a phone held upright) the kings stand smaller and further apart, and the three buttons become full-width rows stacked near the bottom of the window, each word centered, in easy reach of a thumb.
 - **Hover and focus.** The king under the pointer, or the king whose button is under the mouse or has keyboard focus, lifts a little. A button under the mouse or focused from the keyboard gets the levels' rim; the chosen one keeps it. A tap on a touch screen leaves no hover behind: nothing stays lit where the finger was. Clicking or tapping a king picks it exactly as its button does.
-- **The line at the bottom.** A line at the bottom center shows the connection's state: "Connecting to the server…" while the first connection opens and no pick has been made, "Reconnecting to the server…" whenever the connection is retrying, and, once the pick has played out, "Waiting for the server…" until the answer arrives. A refusal shows there in red: "Couldn't start a game: " and the server's message. It is a status, which a screen reader announces politely.
+- **The line at the bottom.** A line at the bottom center speaks of the connection only once a wait has lasted 1.5 seconds: "Connecting to server…" while the connection has not opened, "Reconnecting to server…" while it is retrying, and "Waiting for server…" when the pick has played out and the answer is late. A usual load or pick says nothing. A refusal shows there in red: "Couldn't start a game: " and the server's message. It is a status, which a screen reader announces politely.
 
 ## The interaction, event by event
 
@@ -42,8 +42,8 @@ stateDiagram-v2
     state "Choose your side" as choose
     state "The pick plays out (queued)" as queued
     state "The pick plays out (in flight)" as flight
-    state "Waiting for the server…" as waiting
-    state "Reconnecting to the server…" as retrying
+    state "Waiting for server…" as waiting
+    state "Reconnecting to server…" as retrying
     state "Invitation to send" as invite
     [*] --> start : app's address
     [*] --> choose : /new typed, "Start new game", "Start a new game"
@@ -71,7 +71,7 @@ The pick is the whole of the begin phase: a click or tap on a button or a king, 
 
 Until the player picks, nothing is sent and nothing is recorded: a player who opens the side choice and leaves ("← Home", Back, closing the tab) leaves no trace.
 
-A pick made while the connection is not open is [queued](../glossary.md#requests), not sent. The page plays the pick out exactly as if the request were in flight; "Connecting to the server…" goes away at the pick, but "Reconnecting to the server…" stays while the connection retries. Leaving the page now (Back, "← Home", reload, closing the tab) discards the queued request; nothing reaches the server and nothing is recorded.
+A pick made while the connection is not open is [queued](../glossary.md#requests), not sent. The page plays the pick out exactly as if the request were in flight; "Connecting to server…" goes away at the pick, but "Reconnecting to server…" stays while the connection retries. Leaving the page now (Back, "← Home", reload, closing the tab) discards the queued request; nothing reaches the server and nothing is recorded.
 
 There is no way to take a pick back on the page: the buttons are disabled from the pick on, and the kings no longer answer the pointer.
 
@@ -94,9 +94,9 @@ The pick plays out on the glass, and it has its own length, independent of the a
 - **White or Black.** The heading reads "You play White" (or "You play Black"); the chosen button stays, pressed and rimmed, and the other two fade out. The other side's king drains from the crown down to its neon outline, the split king drains away, and the chosen king rises into the column of light. The moment is over about 1.2 seconds after the pick.
 - **Random.** The heading reads "Leaving it to chance…". Both side kings drain to their outlines, and the split king is thrown up, spinning like a coin about its upright axis, two turns and a little more, slowing as it falls, until it lands showing one face to the camera, porcelain or charcoal. It holds for a moment and glides sideways onto that side's seat, where it becomes that seat's king and rises into the light. The moment is over about 2.9 seconds after the pick. The page does not name the side in words until the invitation to send, whose heading reads "You play Black".
 
-On an ordinary connection the answer arrives long before the moment is over, and the page moves on as soon as the moment ends. If the moment ends first, "Waiting for the server…" appears at the bottom until the answer comes.
+On an ordinary connection the answer arrives long before the moment is over, and the page moves on as soon as the moment ends. If the moment ends first, "Waiting for server…" appears at the bottom until the answer comes.
 
-If the connection drops before the answer arrives, the answer is lost with it. "Reconnecting to the server…" appears at the bottom, the scene stays as the pick left it, and the browser retries on its [retry schedule](../glossary.md#the-connection). When a connection opens, the page sends the request again on it, with the same side, and goes on doing so on every new connection until an answer arrives.
+If the connection drops before the answer arrives, the answer is lost with it. "Reconnecting to server…" appears at the bottom, the scene stays as the pick left it, and the browser retries on its [retry schedule](../glossary.md#the-connection). When a connection opens, the page sends the request again on it, with the same side, and goes on doing so on every new connection until an answer arrives.
 
 > Technical note: The server forgets a connection the moment it drops, so the answer to a request sent on it can never arrive on the next one. Repeating the create is safe: if the first request had reached the server, it made a game whose id no browser ever learns. That game waits with one seat taken and is deleted by [expiry](../glossary.md#games-and-seats) about 30 days later, like any other unused game.
 
@@ -131,7 +131,7 @@ One setting changes the start screen's preview, never the request, and there is 
 | Leaving the game page within the app | "← Home", Back, or Forward leaves the side choice. A queued request is discarded; nothing was sent or recorded. | "← Home", Back, or Forward leaves before the answer. Nothing re-sends the request after that, and the answer, when it comes, is ignored: no seat is stored and the page does not move. Arriving at the start screen resets the connection. If the server received the request, the game exists, unused and unreachable. |
 | The game ends | Not applicable: no game yet. | Not applicable. |
 | The server answers with an error | Not applicable: nothing sent yet. | "Couldn't start a game: {message}" in red at the bottom; the kings are put back and the player can pick again. |
-| The connection drops | "Reconnecting to the server…" appears at the bottom. A pick is still possible and is queued. | The answer is lost. "Reconnecting to the server…" appears; the scene stays as the pick left it. When a connection opens, the request is sent again; its answer takes the player to the new game. If the first request had reached the server, that first game is left unused on the server. |
+| The connection drops | "Reconnecting to server…" appears at the bottom. A pick is still possible and is queued. | The answer is lost. "Reconnecting to server…" appears; the scene stays as the pick left it. When a connection opens, the request is sent again; its answer takes the player to the new game. If the first request had reached the server, that first game is left unused on the server. |
 | The window loses focus or the tab is hidden | No effect on the request. The connection stays open in a background tab. The browser stops drawing a hidden tab, so the preview and the kings stand still there and carry on from the same moment when the tab is shown again. | The answer is stored when it arrives, but the page moves on only when the pick's moment is over, and the moment runs only while the tab is drawn: a pick left in a hidden tab finishes, and the page moves to the game, when the tab is shown again. |
 | Reload or closing the tab | Nothing is recorded; a queued request is discarded. A reload of `/new` shows the side choice afresh. | The answer is lost, and nothing re-sends the request. If the server received it, a game exists with one seat taken whose id no browser knows; it is deleted after about 30 days. |
 | The opponent acts | No opponent yet. | No opponent yet. |
@@ -164,7 +164,7 @@ After any interrupt the player stays on the side choice (or the start screen), o
 - **The server gives another side.** The page shows whatever side the answer names, even if it is not the one asked for. A correct server always gives the side asked for.
 - **Every pick is a new game.** There is no "resume" and no list of games, even when the browser holds stored seats. A player who wants an earlier game needs its link.
 - **Game id collisions.** The server never reuses an id that is still stored; it draws again until the id is free.
-- **A long outage mid-create.** The scene stays as the pick left it for as long as the server cannot be reached, with "Reconnecting to the server…" at the bottom, and the page moves to the new game on the first connection that gets an answer. Nothing tells the player that the request will be repeated; the only way to give up is to leave or reload.
+- **A long outage mid-create.** The scene stays as the pick left it for as long as the server cannot be reached, with "Reconnecting to server…" at the bottom, and the page moves to the new game on the first connection that gets an answer. Nothing tells the player that the request will be repeated; the only way to give up is to leave or reload.
 - **Storage disabled.** When the browser will not store the seat, the create still succeeds and the page still moves to the game, but the game page, which reads the stored seat, finds none and treats the creator as a guest: it asks which seats are taken and offers the creator the other seat of their own game ("You're invited to play Black" for a creator who chose White). "Join game" there is refused with "Error: Already in a game", because the connection already holds the creator's seat. See the open questions.
 - **Back within the round trip.** If the player presses Back in the fraction of a second between the pick and the answer, the answer is ignored and the new game's id is never shown.
 - **A malformed answer.** A reply the browser cannot read shows "Couldn't start a game: Received a malformed message from the server" and puts the kings back, like any error.
@@ -178,7 +178,7 @@ After any interrupt the player stays on the side choice (or the start screen), o
 - A create re-sent after a drop can leave the first game orphaned on the server, with one seat taken and no browser that knows its id. It costs nothing visible and expires like any unused game; whether that is acceptable is a product call.
 - Whether a button keeps keyboard focus after the pick disables it depends on the browser; where focus goes then was not tried.
 - The lobby needs WebGL, like the preview. What a browser without it shows at `/new`, and whether a game can still be created there, was not tried.
-- How long "Connecting to the server…" lasts on a cold server is a property of the deployment and was not measured.
+- How long "Connecting to server…" lasts on a cold server is a property of the deployment and was not measured.
 - The start screen as merged from main (no "Pause preview", nothing under the button, the title and the button in bands of one height, 124 px or 140 in a window 860 px tall or more, each at its band's edge nearest the tower) was read from `client/src/screens/StartScreen.tsx`, `client/src/three/landingView.ts` (`LANDING_BAND_PX`) and `client/src/index.css` (`--landing-band`, `--landing-hug`), not checked in the running app, apart from the positions measured on main (title center 85 px from the top and button center 82 px from the bottom at 1280 × 720; 95 and 95 at 1440 × 900; CREATE-29).
 
 Verified against 3D Chess commit `f38fcdb`
