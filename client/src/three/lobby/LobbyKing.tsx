@@ -56,20 +56,18 @@ export interface Pickable {
   onPick?: () => void;
 }
 
-const pickHandlers = (p: Pickable, enabled: boolean) =>
-  enabled
-    ? {
-        onPointerOver: (e: ThreeEvent<PointerEvent>) => {
-          e.stopPropagation();
-          p.onOver?.();
-        },
-        onPointerOut: () => p.onOut?.(),
-        onClick: (e: ThreeEvent<MouseEvent>) => {
-          e.stopPropagation();
-          p.onPick?.();
-        },
-      }
-    : {};
+/** The pointer on a king; `ready` says whether it has formed (none is picked while forming). */
+const pickHandlers = (p: Pickable, ready: () => boolean) => ({
+  onPointerOver: (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    if (ready()) p.onOver?.();
+  },
+  onPointerOut: () => p.onOut?.(),
+  onClick: (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    if (ready()) p.onPick?.();
+  },
+});
 
 /**
  * What the two lobby kings share: their fills, and at the start, how long it
@@ -160,6 +158,10 @@ export const LobbyKing = ({
   const breathClock = useRef(0);
   // Seconds since its first frame, for its entrance (none under reduced motion)
   const entrance = useRef(enter === undefined || still ? Infinity : 0);
+  // Its outline's strength: a king that forms on the entrance shows none
+  // (it comes out of nothing, as the coin does), and gets it once solid; a
+  // free seat's outline comes up with the entrance
+  const neonGate = useRef(entrance.current < Infinity ? 0 : 1);
   useEffect(() => invalidate(), [present, gone, hovered, lit, breathing, snap, invalidate]);
 
   useFrame((_, delta) => {
@@ -228,8 +230,10 @@ export const LobbyKing = ({
     if (breathing && !still) breathClock.current += dt;
     else breathClock.current = 0;
     const inBreath = breathing && !still && breathClock.current < 60;
+    if (shown) neonGate.current = present ? 0 : shown.outline;
+    else if (neonGate.current < 1 && (!present || m.outline < 0.01)) neonGate.current = 1;
     neon.material.uniforms.uIntensity.value =
-      1.15 * m.outline * (inBreath ? breath(breathClock.current) : 1) * (shown ? shown.outline : 1);
+      1.15 * m.outline * (inBreath ? breath(breathClock.current) : 1) * neonGate.current;
 
     const column = gone ? m.fill > 0.5 && m.gone < 0.85 : m.hold > 0.02 && lit;
     const showing = stepSelection(held.current, column, dt * 1000, still);
@@ -255,7 +259,11 @@ export const LobbyKing = ({
         </group>
         {/* A still stand-in to point at: the body lifts under the pointer */}
         {canPick && pick && (
-          <mesh position={[0, top / 2, 0]} {...pickHandlers(pick, true)} visible={false}>
+          <mesh
+            position={[0, top / 2, 0]}
+            {...pickHandlers(pick, () => motion.current.fill >= 0.999)}
+            visible={false}
+          >
             <cylinderGeometry args={[0.33, 0.33, top + 0.2, 12]} />
           </mesh>
         )}
@@ -442,7 +450,11 @@ export const CoinKing = ({
             </group>
           </group>
           {canPick && pick && (
-            <mesh position={[0, KING_TOP / 2, 0]} {...pickHandlers(pick, true)} visible={false}>
+            <mesh
+              position={[0, KING_TOP / 2, 0]}
+              {...pickHandlers(pick, () => state.current.fill >= 0.999 && state.current.wait <= 0)}
+              visible={false}
+            >
               <cylinderGeometry args={[0.33, 0.33, KING_TOP + 0.2, 12]} />
             </mesh>
           )}
