@@ -99,7 +99,7 @@ Key decisions:
   `modal.Dict` returns deserialized copies, every mutation is read-modify-write and is
   written back **before any `await`** — that ordering is what makes concurrent handlers
   safe. Two rules keep it true, and `test_store_ops.py` asserts both: the store operations
-  in `modal_app.py` (`create_game`, `claim_seat`, `find_seat`, `record_move`) are
+  in `modal_app.py` (`create_game`, `claim_seat`, `taken_seats`, `find_seat`, `record_move`) are
   synchronous functions, so nothing inside them can yield to the event loop; and the
   WebSocket handler never reads or writes the store itself, only passes it to those
   operations. `modal.Dict`'s calls block; never switch to the `.aio` variants.
@@ -223,7 +223,10 @@ Message flow, happy path:
 
 1. Creator: `create_game {color?}` → `game_created {gameId, color}` (the side the creator
    asked for, or a random one if the request names none).
-2. Joiner opens `/game/:gameId`, sends `join_game {gameId, clientId?}` → the joiner gets
+2. Joiner opens `/game/:gameId`. The invitation first asks `look_game {gameId}` →
+   `game_info {gameId, seats}` (the seats already taken; it binds nothing), so it can say
+   which side the player will take, or that the game is full or gone (`invalid_game`),
+   before they accept. Accepting sends `join_game {gameId, clientId?}` → the joiner gets
    `game_joined {color}` (its seat, confirmed before anything is broadcast, so a drop right
    after is still rejoinable), then both players get `game_start {color}`. A `join_game`
    from the client id that already claimed a seat in the game gets that seat again rather

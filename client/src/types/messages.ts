@@ -6,6 +6,7 @@
 
 export type {
   GameCreated,
+  GameInfo,
   GameJoined,
   GameStart,
   GameState,

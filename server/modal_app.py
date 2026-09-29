@@ -15,10 +15,12 @@ from messages import (
     Error,
     ErrorCode,
     GameCreated,
+    GameInfo,
     GameJoined,
     GameStart,
     GameState,
     JoinGame,
+    LookGame,
     Move,
     MoveMade,
     Presence,
@@ -167,6 +169,14 @@ def claim_seat(store, gid: str, client_id: str | None = None) -> tuple[str, bool
     return free[0], False
 
 
+def taken_seats(store, gid: str) -> list[str]:
+    """Return the seats claimed in `gid` (read-only)."""
+    record = store.get(gid)
+    if record is None:
+        raise GameError(ErrorCode.invalid_game, "No such game")
+    return list(record["seats"])
+
+
 def find_seat(store, gid: str, color: str) -> dict:
     """Return the record of `gid` if `color` holds a seat in it (read-only)."""
     record = store.get(gid)
@@ -198,7 +208,7 @@ def record_move(store, gid: str | None, color: str | None, move: Move) -> dict:
     return move_dict
 
 
-STORE_OPERATIONS = (create_game, claim_seat, find_seat, record_move)
+STORE_OPERATIONS = (create_game, claim_seat, taken_seats, find_seat, record_move)
 
 
 def _turn(record: dict) -> str:
@@ -355,6 +365,16 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                             type="game_created", gameId=gid, color=Color(player_color)
                         )
                         await _safe_send(ws, created.model_dump(mode="json"))
+                    elif isinstance(envelope, LookGame):
+                        # A look binds nothing: the connection stays free to
+                        # join this game or any other.
+                        seats = taken_seats(store, envelope.gameId)
+                        info = GameInfo(
+                            type="game_info",
+                            gameId=envelope.gameId,
+                            seats=[Color(c) for c in seats],
+                        )
+                        await _safe_send(ws, info.model_dump(mode="json"))
                     elif isinstance(envelope, JoinGame):
                         _require_not_in_game(gid)
                         client_id = envelope.clientId.root if envelope.clientId else None
