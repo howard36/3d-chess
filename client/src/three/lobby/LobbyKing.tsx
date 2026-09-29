@@ -21,6 +21,7 @@ import {
   LOBBY_TIMING,
   outlineForFill,
   tossAngle,
+  tossArc,
   tossGlide,
   tossHop,
   tossLanded,
@@ -37,6 +38,13 @@ import type { Side } from './lobbyMotion';
 
 const HOVER_RATE = 1 / PIECE_LIFT.hoverSeconds;
 const LIFT_RATE = 1 / PIECE_LIFT.selectSeconds;
+/** How fast a king's height closes on its goal (per second): most of the way in a third of a second. */
+const LIFT_EASE = 9;
+/** `from` eased toward `to` over `dt` seconds at `rate`, landing on it once within a hair. */
+const settle = (from: number, to: number, dt: number, rate: number) => {
+  const next = to + (from - to) * Math.exp(-rate * dt);
+  return Math.abs(next - to) < 1e-4 ? to : next;
+};
 
 /** Pointer handlers for a king that can be picked (the choosing screen). */
 export interface Pickable {
@@ -139,6 +147,11 @@ export const LobbyKing = ({
     if (first.current || (snap && fillGoal === 1)) {
       first.current = false;
       m.fill = fillGoal;
+      // The coin that landed here arrived lifted, in the player's place
+      if (snap && lit) {
+        m.hold = 1;
+        m.lift = PIECE_LIFT.selected;
+      }
     }
     const before = { ...m };
     const rate = still ? 1 / 0.15 : 1 / LOBBY_TIMING.fill;
@@ -156,10 +169,12 @@ export const LobbyKing = ({
     // Leaving: each king rises, in its own column of light, and is taken up
     // into it from the foot, faster as it goes
     m.gone = gone ? toward(m.gone, 1, dt / (still ? 0.15 : LOBBY_TIMING.leaveBurn)) : 0;
-    const up =
-      PIECE_LIFT.hover * smooth(m.hover) +
-      PIECE_LIFT.selected * smooth(m.hold) +
-      GONE_RISE * m.gone * m.gone;
+    // One height, eased toward the highest reason for it: from hover straight
+    // up to the selected height when a hovered king is chosen, never dipping
+    const liftGoal =
+      lit && filled ? PIECE_LIFT.selected : hovered && present ? PIECE_LIFT.hover : 0;
+    m.lift = still ? liftGoal : settle(m.lift, liftGoal, dt, LIFT_EASE);
+    const up = m.lift + GONE_RISE * m.gone * m.gone;
     if (lift.current) lift.current.position.y = up;
 
     const u = body.uniforms;
@@ -182,6 +197,7 @@ export const LobbyKing = ({
       m.outline !== before.outline ||
       m.hover !== before.hover ||
       m.hold !== before.hold ||
+      m.lift !== before.lift ||
       m.gone !== before.gone;
     if (moving || showing || inBreath) invalidate();
   });
@@ -323,7 +339,8 @@ export const CoinKing = ({
     if (toss && s.tossT >= 0 && !s.landed) {
       s.tossT = still ? Infinity : s.tossT + dt;
       angle = tossAngle(s.tossT, toss);
-      hop = still ? 0 : tossHop(s.tossT);
+      // Thrown up spinning, down in the middle, then one hop to its seat
+      hop = still ? 0 : tossHop(s.tossT) + tossArc(s.tossT, PIECE_LIFT.selected);
       const glide = tossGlide(s.tossT);
       x = landX * glide;
       s.fill = 1;

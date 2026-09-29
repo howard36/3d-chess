@@ -150,7 +150,7 @@ Navigation has no request of its own, but each interrupt row applies to the page
 
 **Stored seat.** Written by the side choice and the game page; never removed by navigation.
 
-**Keyboard, touch, and screen size.** Browser Back and Forward work from the keyboard as usual. Each dialog takes keyboard focus when it opens, and everything behind it is out of reach until it goes away. Nothing on the pages changes with window size except layout: the start screen's text moves to a column beside the tower in a window 480 pixels tall or less, the side choice's three buttons share one row across the width in a window narrower than 340 pixels, the share link is cut off at its end when it does not fit, and the board screen's HUD stacks into more rows; see [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
+**Keyboard, touch, and screen size.** Browser Back and Forward work from the keyboard as usual. Each dialog takes keyboard focus when it opens, and everything behind it is out of reach until it goes away. Nothing on the pages changes with window size except layout: the start screen's text moves to a column beside the tower in a window 480 pixels tall or less, the side choice's three buttons grow smaller as the kings stand closer, the share link is cut off at its end when it does not fit, and the board screen's HUD stacks into more rows; see [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
 
 ## Edge cases
 
