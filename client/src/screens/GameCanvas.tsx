@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { RefObject } from 'react';
 import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
@@ -10,9 +11,11 @@ import { CameraControls } from '../three/CameraControls';
 import { IntroContext } from '../three/intro/clock';
 import type { IntroClock } from '../three/intro/clock';
 import { IntroDirector } from '../three/intro/IntroDirector';
+import { introDone } from '../three/intro/timeline';
 import { INTRO_SCENE_VAR } from '../three/intro/vars';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
+import { WarmPrograms } from '../three/scene/warm';
 import type { Board as EngineBoard, Move } from '../engine';
 import type { GameOver, LastMove, Turn } from '../game/history';
 import type { Color } from '../types/messages';
@@ -57,6 +60,8 @@ const GameCanvas = ({
   onIntroDone,
 }: GameCanvasProps) => {
   const pixelRatio = usePixelBudget();
+  // The entrance is over: the board takes input from now on
+  const [introOver, setIntroOver] = useState(() => introDone(clock.plan, clock.t));
   return (
     <>
       {/* Main 3D Board canvas. The camera starts on the viewing player's
@@ -130,8 +135,12 @@ const GameCanvas = ({
             paused={introPaused}
             styleTarget={styleTarget}
             onFirstFrame={onFirstFrame}
-            onDone={onIntroDone}
+            onDone={() => {
+              setIntroOver(true);
+              onIntroDone();
+            }}
           />
+          {introOver && <WarmPrograms />}
         </IntroContext.Provider>
       </Canvas>
     </>

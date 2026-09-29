@@ -79,7 +79,7 @@ const fragmentShader = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-const lineMaterial = () =>
+export const lineMaterial = () =>
   overlayMaterial({
     uniforms: {
       uColor: { value: new Color() },

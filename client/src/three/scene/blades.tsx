@@ -143,7 +143,7 @@ const shardGeometry = (shards: Shard[]) => {
   return g;
 };
 
-const obsidianMaterial = (life: Uniforms) =>
+export const obsidianMaterial = (life: Uniforms) =>
   new ShaderMaterial({
     uniforms: {
       ...life,

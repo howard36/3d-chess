@@ -281,6 +281,46 @@ const at = new Vector3();
  * from `state` (advanced by the piece). `top` is the piece's height; the
  * circle steps aside for a check marker on the same floor.
  */
+/** The held piece's light's materials (SelectionLight), in `color`. */
+export const selectionMaterials = (color: Color) => {
+  const columnMaterial = overlayMaterial({
+    side: DoubleSide,
+    blending: AdditiveBlending,
+    uniforms: {
+      uColor: { value: color },
+      uTime: { value: 0 },
+      uRise: { value: 0 },
+      uStrength: { value: 0 },
+    },
+    vertexShader: columnVertex,
+    fragmentShader: columnFragment,
+  });
+  const floorMaterial = overlayMaterial({
+    blending: AdditiveBlending,
+    uniforms: {
+      uColor: { value: color },
+      uRadius: { value: RING_RADIUS },
+      uCircle: { value: 0 },
+      uPulse: { value: 0 },
+      uPulseR: { value: RING_RADIUS },
+      uStrength: { value: 0 },
+    },
+    vertexShader: floorVertex,
+    fragmentShader: floorFragment,
+  });
+  moteMap ??= dotTexture(0.85, 32);
+  const moteMaterial = new PointsMaterial({
+    size: 0.12,
+    map: moteMap,
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+    sizeAttenuation: true,
+  });
+  return { columnMaterial, floorMaterial, moteMaterial };
+};
+
 export const SelectionLight = ({
   state,
   top,
@@ -293,31 +333,7 @@ export const SelectionLight = ({
   const points = useRef<Points>(null);
   const { color, columnMaterial, floorMaterial, motes, moteMaterial, seeds } = useMemo(() => {
     const color = new Color(PALETTE.select);
-    const columnMaterial = overlayMaterial({
-      side: DoubleSide,
-      blending: AdditiveBlending,
-      uniforms: {
-        uColor: { value: color },
-        uTime: { value: 0 },
-        uRise: { value: 0 },
-        uStrength: { value: 0 },
-      },
-      vertexShader: columnVertex,
-      fragmentShader: columnFragment,
-    });
-    const floorMaterial = overlayMaterial({
-      blending: AdditiveBlending,
-      uniforms: {
-        uColor: { value: color },
-        uRadius: { value: RING_RADIUS },
-        uCircle: { value: 0 },
-        uPulse: { value: 0 },
-        uPulseR: { value: RING_RADIUS },
-        uStrength: { value: 0 },
-      },
-      vertexShader: floorVertex,
-      fragmentShader: floorFragment,
-    });
+    const { columnMaterial, floorMaterial, moteMaterial } = selectionMaterials(color);
     const random = rng(11);
     const seeds = Array.from({ length: MOTES }, () => ({
       angle: random() * Math.PI * 2,
@@ -332,16 +348,6 @@ export const SelectionLight = ({
     const motes = new BufferGeometry();
     motes.setAttribute('position', new BufferAttribute(new Float32Array(MOTES * 3), 3));
     motes.setAttribute('color', new BufferAttribute(new Float32Array(MOTES * 3), 3));
-    moteMap ??= dotTexture(0.85, 32);
-    const moteMaterial = new PointsMaterial({
-      size: 0.12,
-      map: moteMap,
-      vertexColors: true,
-      transparent: true,
-      depthWrite: false,
-      blending: AdditiveBlending,
-      sizeAttenuation: true,
-    });
     return { color, columnMaterial, floorMaterial, motes, moteMaterial, seeds };
   }, []);
   useEffect(() => () => motes.dispose(), [motes]);

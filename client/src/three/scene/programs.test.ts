@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ShaderMaterial } from 'three';
-import type { WebGLRenderer } from 'three';
-import { retireMaterial } from './programs';
+import { PerspectiveCamera, PointsMaterial, Scene, ShaderMaterial } from 'three';
+import type { Material, Object3D, WebGLRenderer } from 'three';
+import { retireMaterial, warmPrograms } from './programs';
 
 /** A renderer stand-in whose materials drew with the given programs. */
 const rendererWith = (programs: Map<object, object>) =>
@@ -60,5 +60,36 @@ describe('retireMaterial', () => {
     retireMaterial(rendererWith(new Map([[a, program]])), a);
     retireMaterial(rendererWith(new Map([[b, {}]])), b);
     expect(b.dispose).not.toHaveBeenCalled();
+  });
+});
+
+describe('warmPrograms', () => {
+  it('compiles meshes and points without drawing, and keeps their programs', () => {
+    const programs = new Map<object, object>();
+    const compiled: { type: string; material: Material }[] = [];
+    const gl = {
+      properties: { get: (m: object) => ({ currentProgram: programs.get(m) }) },
+      compile: (scene: Object3D) => {
+        scene.traverse((o) => {
+          const m = (o as Object3D & { material?: Material }).material;
+          if (!m) return;
+          compiled.push({ type: o.type, material: m });
+          programs.set(m, { shader: m.type });
+        });
+        return new Set();
+      },
+    } as unknown as WebGLRenderer;
+    const [mark, mote] = [material(), new PointsMaterial()];
+    warmPrograms(gl, new PerspectiveCamera(), new Scene(), [mark], [mote]);
+    expect(compiled.map((c) => [c.type, c.material])).toEqual([
+      ['Mesh', mark],
+      ['Points', mote],
+    ]);
+    // A mark made later with the same program is disposed: the warm one keeps it
+    const later = material();
+    programs.set(later, programs.get(mark)!);
+    retireMaterial(gl, later);
+    expect(later.dispose).toHaveBeenCalledOnce();
+    expect(mark.dispose).not.toHaveBeenCalled();
   });
 });

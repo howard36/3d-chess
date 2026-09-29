@@ -58,7 +58,7 @@ const knightYaw = (piece: PieceType, color: PieceColor, orientation: PieceColor)
 
 // --- Capture ------------------------------------------------------------------------------
 
-const outlineMaterial = () =>
+export const outlineMaterial = () =>
   overlayMaterial({
     blending: AdditiveBlending,
     uniforms: { uColor: { value: new Color(PALETTE.neon) }, uOpacity: { value: 0 } },
