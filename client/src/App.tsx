@@ -1,21 +1,10 @@
 import { Routes, Route, matchPath, useLocation, useParams } from 'react-router-dom';
 import StartScreen from './screens/StartScreen';
+// Small: its 3D board (GameCanvas) is the lazily loaded part
+import GameScreen from './screens/GameScreen';
 import { useGameSocket } from './hooks/useGameSocket';
-import { cachedImport } from './lib/cachedImport';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
-
-// The game screen (three.js, the scene, the rules engine: most of the app's
-// code) is a chunk of its own, so the start screen shows without it. A game's
-// address asks for it at once; the start screen fetches it once the page is
-// idle, so creating a game rarely waits for it.
-const loadGameScreen = cachedImport(() => import('./screens/GameScreen'));
-const GameScreen = React.lazy(loadGameScreen);
-// A prefetch that fails is asked for again when the screen is needed
-const prefetchGameScreen = () => void loadGameScreen().catch(() => {});
-if (typeof window !== 'undefined' && window.location.pathname.startsWith('/game/')) {
-  prefetchGameScreen();
-}
 
 // One GameScreen per game: moving between two game pages (browser history can
 // jump straight from one to another) mounts a fresh screen, so nothing the
@@ -33,11 +22,7 @@ function GameRoute({
 }) {
   const { gameId } = useParams<{ gameId: string }>();
   if (gameId !== readyGameId) return null;
-  return (
-    <React.Suspense fallback={null}>
-      <GameScreen key={gameId} gameSocket={gameSocket} />
-    </React.Suspense>
-  );
+  return <GameScreen key={gameId} gameSocket={gameSocket} />;
 }
 
 function App() {
@@ -66,16 +51,6 @@ function App() {
     }
     setReadyGameId(gameId);
   }, [location.pathname, gameId, reset]);
-
-  // Fetch the game screen once the start screen has had its turn
-  React.useEffect(() => {
-    if (typeof window.requestIdleCallback === 'function') {
-      const id = window.requestIdleCallback(prefetchGameScreen, { timeout: 2000 });
-      return () => window.cancelIdleCallback(id);
-    }
-    const id = window.setTimeout(prefetchGameScreen, 200);
-    return () => window.clearTimeout(id);
-  }, []);
 
   return (
     <Routes>
