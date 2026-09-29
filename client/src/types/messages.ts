@@ -5,21 +5,16 @@
 // envelope name) never leaks into call sites.
 
 export type {
-  CreateGame,
   GameCreated,
-  JoinGame,
   GameJoined,
-  RejoinGame,
   GameStart,
   GameState,
   Move,
   MoveMade,
   MoveRecord,
-  Presence,
   Error,
   Color,
   Promotion,
-  ErrorCode,
 } from './schema';
 
 export type { WebSocketV1MessageEnvelope as WebSocketMessage } from './schema';

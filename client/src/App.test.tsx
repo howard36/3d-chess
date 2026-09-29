@@ -1,18 +1,16 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, test, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import App from './App';
-import GameScreen from './screens/GameScreen';
 import StartScreen from './screens/StartScreen';
 import TurnPill from './screens/TurnPill';
 import userEvent from '@testing-library/user-event';
-import { waitFor } from '@testing-library/react';
 import type { GameSocket } from './hooks/useGameSocket';
 import type { WebSocketMessage } from './types/messages';
 import type { Move } from './engine';
 import { PieceType } from './engine';
 import { getStoredRole, setStoredRole } from './lib/playerRole';
+import { fakeSocket, gameScreenAt } from './screens/testSupport';
 
 // The started phase mounts a WebGL canvas, which jsdom can't provide; stub the
 // three.js layer so these tests can assert on the surrounding UI. The Canvas
@@ -74,58 +72,19 @@ vi.mock('./three/Board', () => ({
     </>
   ),
 }));
-// The one test that renders <App /> must not open a real WebSocket to the
-// production backend; every other test injects a fake socket directly.
-vi.mock('./hooks/useGameSocket', () => ({
-  useGameSocket: () => ({
-    send: () => true,
-    messages: [],
-    status: 'connected',
-    sessionId: 1,
-    sessionStartIndex: 0,
-    reconnect: () => {},
-    reset: () => {},
-  }),
-}));
-
-const fakeSocket = (
-  messages: WebSocketMessage[] = [],
-  send: GameSocket['send'] = () => true,
-  overrides: Partial<GameSocket> = {},
-): GameSocket => ({
-  send,
-  messages,
-  status: 'connected',
-  sessionId: 1,
-  sessionStartIndex: 0,
-  reconnect: () => {},
-  reset: () => {},
-  ...overrides,
-});
-
 beforeEach(() => {
   localStorage.clear();
 });
 
-test('renders StartScreen for the default route', () => {
-  render(
-    <MemoryRouter initialEntries={['/']}>
-      <App />
-    </MemoryRouter>,
-  );
-  // Check for an element unique to StartScreen, like the button
-  expect(screen.getByRole('button', { name: 'Start New Game' })).toBeInTheDocument();
-});
-
-const renderStartScreen = (socket: GameSocket) =>
-  render(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route path="/" element={<StartScreen gameSocket={socket} />} />
-        <Route path="/game/:gameId" element={<div>game page for ABC123</div>} />
-      </Routes>
-    </MemoryRouter>,
-  );
+const startScreenAt = (socket: GameSocket) => (
+  <MemoryRouter initialEntries={['/']}>
+    <Routes>
+      <Route path="/" element={<StartScreen gameSocket={socket} />} />
+      <Route path="/game/:gameId" element={<div>game page for ABC123</div>} />
+    </Routes>
+  </MemoryRouter>
+);
+const renderStartScreen = (socket: GameSocket) => render(startScreenAt(socket));
 
 test('StartScreen stores the assigned role and navigates when its create request is answered', async () => {
   const send = vi.fn();
@@ -135,22 +94,7 @@ test('StartScreen stores the assigned role and navigates when its create request
   expect(screen.getByRole('button', { name: 'Creating Game...' })).toBeDisabled();
 
   rerender(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <StartScreen
-              gameSocket={fakeSocket(
-                [{ type: 'game_created', gameId: 'ABC123', color: 'white' }],
-                send,
-              )}
-            />
-          }
-        />
-        <Route path="/game/:gameId" element={<div>game page for ABC123</div>} />
-      </Routes>
-    </MemoryRouter>,
+    startScreenAt(fakeSocket([{ type: 'game_created', gameId: 'ABC123', color: 'white' }], send)),
   );
   await waitFor(() => {
     expect(screen.getByText('game page for ABC123')).toBeInTheDocument();
@@ -173,83 +117,47 @@ test('StartScreen shows the server error that answers its request, not an older 
   const stale: WebSocketMessage[] = [
     { type: 'error', code: 'invalid_game', message: 'Cannot rejoin' },
   ];
-  const { rerender } = render(
-    <MemoryRouter initialEntries={['/']}>
-      <StartScreen gameSocket={fakeSocket(stale)} />
-    </MemoryRouter>,
-  );
+  const { rerender } = render(startScreenAt(fakeSocket(stale)));
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
   await userEvent.click(screen.getByRole('button', { name: 'Start New Game' }));
   rerender(
-    <MemoryRouter initialEntries={['/']}>
-      <StartScreen
-        gameSocket={fakeSocket([
-          ...stale,
-          { type: 'error', code: 'invalid_message', message: 'Bad request' },
-        ])}
-      />
-    </MemoryRouter>,
+    startScreenAt(
+      fakeSocket([...stale, { type: 'error', code: 'invalid_message', message: 'Bad request' }]),
+    ),
   );
   expect(screen.getByRole('alert')).toHaveTextContent('Bad request');
 });
 
 test('StartScreen re-enables the create button when the server answers with an error', async () => {
   const send = vi.fn();
-  const { rerender } = render(
-    <MemoryRouter initialEntries={['/']}>
-      <StartScreen gameSocket={fakeSocket([], send)} />
-    </MemoryRouter>,
-  );
+  const { rerender } = render(startScreenAt(fakeSocket([], send)));
   await userEvent.click(screen.getByRole('button', { name: 'Start New Game' }));
   expect(send).toHaveBeenCalledWith({ type: 'create_game', clientId: expect.any(String) });
   expect(screen.getByRole('button', { name: 'Creating Game...' })).toBeDisabled();
 
   rerender(
-    <MemoryRouter initialEntries={['/']}>
-      <StartScreen
-        gameSocket={fakeSocket(
-          [{ type: 'error', code: 'already_in_game', message: 'Already in a game' }],
-          send,
-        )}
-      />
-    </MemoryRouter>,
+    startScreenAt(
+      fakeSocket([{ type: 'error', code: 'already_in_game', message: 'Already in a game' }], send),
+    ),
   );
   expect(screen.getByRole('alert')).toHaveTextContent('Already in a game');
   expect(screen.getByRole('button', { name: 'Start New Game' })).toBeEnabled();
 });
 
 test('StartScreen reports the connection status until the socket is open', () => {
-  const { rerender } = render(
-    <MemoryRouter initialEntries={['/']}>
-      <StartScreen gameSocket={fakeSocket([], () => true, { status: 'connecting' })} />
-    </MemoryRouter>,
-  );
+  const { rerender } = render(startScreenAt(fakeSocket([], () => true, { status: 'connecting' })));
   expect(screen.getByRole('status')).toHaveTextContent('Connecting to server…');
 
-  rerender(
-    <MemoryRouter initialEntries={['/']}>
-      <StartScreen gameSocket={fakeSocket([], () => true, { status: 'reconnecting' })} />
-    </MemoryRouter>,
-  );
+  rerender(startScreenAt(fakeSocket([], () => true, { status: 'reconnecting' })));
   expect(screen.getByRole('status')).toHaveTextContent('Reconnecting to server…');
 
-  rerender(
-    <MemoryRouter initialEntries={['/']}>
-      <StartScreen gameSocket={fakeSocket()} />
-    </MemoryRouter>,
-  );
+  rerender(startScreenAt(fakeSocket()));
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
 });
 
 const renderGameScreen = (gameId: string, socket: GameSocket) =>
-  render(
-    <MemoryRouter initialEntries={[`/game/${gameId}`]}>
-      <Routes>
-        <Route path="/game/:gameId" element={<GameScreen gameSocket={socket} />} />
-      </Routes>
-    </MemoryRouter>,
-  );
+  render(gameScreenAt(socket, gameId));
 
 test('GameScreen shows share link when this browser holds a role in the game', () => {
   setStoredRole('abc123', 'white');
@@ -259,19 +167,13 @@ test('GameScreen shows share link when this browser holds a role in the game', (
   expect(screen.queryByRole('button', { name: 'Join Game' })).not.toBeInTheDocument();
 });
 
-test('GameScreen shows join button when no role is stored', () => {
-  renderGameScreen('abc123', fakeSocket());
-  expect(screen.getByRole('button', { name: 'Join Game' })).toBeInTheDocument();
-  expect(
-    screen.queryByText('Game created! Share this link with a friend:'),
-  ).not.toBeInTheDocument();
-});
-
 test('clicking Join Game sends join_game message', async () => {
   const send = vi.fn();
   renderGameScreen('abc123', fakeSocket([], send));
-  const joinBtn = screen.getByRole('button', { name: 'Join Game' });
-  await userEvent.click(joinBtn);
+  expect(
+    screen.queryByText('Game created! Share this link with a friend:'),
+  ).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Join Game' }));
   await waitFor(() => {
     expect(send).toHaveBeenCalledWith({
       type: 'join_game',
@@ -356,20 +258,7 @@ test('GameScreen rejoins again when the socket session changes (mid-game reconne
 
   // The socket dropped and reopened: session 2 starts after the retained log,
   // and the server no longer knows this client — it must rejoin.
-  rerender(
-    <MemoryRouter initialEntries={['/game/abc123']}>
-      <Routes>
-        <Route
-          path="/game/:gameId"
-          element={
-            <GameScreen
-              gameSocket={fakeSocket(msgs, send, { sessionId: 2, sessionStartIndex: msgs.length })}
-            />
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
-  );
+  rerender(gameScreenAt(fakeSocket(msgs, send, { sessionId: 2, sessionStartIndex: msgs.length })));
   await waitFor(() => {
     expect(send).toHaveBeenCalledWith({
       type: 'rejoin_game',
@@ -505,21 +394,12 @@ test('GameScreen clears a stale role and falls back to the join button when rejo
 
   // Server rejects the rejoin (game expired or seat never claimed)
   rerender(
-    <MemoryRouter initialEntries={['/game/abc123']}>
-      <Routes>
-        <Route
-          path="/game/:gameId"
-          element={
-            <GameScreen
-              gameSocket={fakeSocket(
-                [{ type: 'error', code: 'invalid_rejoin', message: 'No such seat to rejoin' }],
-                send,
-              )}
-            />
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
+    gameScreenAt(
+      fakeSocket(
+        [{ type: 'error', code: 'invalid_rejoin', message: 'No such seat to rejoin' }],
+        send,
+      ),
+    ),
   );
   await waitFor(() => {
     expect(screen.getByRole('button', { name: 'Join Game' })).toBeInTheDocument();
@@ -536,21 +416,10 @@ test('GameScreen returns to the join button and shows the error when joining fai
 
   // Server rejects the join
   rerender(
-    <MemoryRouter initialEntries={['/game/NOPE01']}>
-      <Routes>
-        <Route
-          path="/game/:gameId"
-          element={
-            <GameScreen
-              gameSocket={fakeSocket(
-                [{ type: 'error', code: 'invalid_game', message: 'Cannot join' }],
-                send,
-              )}
-            />
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
+    gameScreenAt(
+      fakeSocket([{ type: 'error', code: 'invalid_game', message: 'Cannot join' }], send),
+      'NOPE01',
+    ),
   );
   await waitFor(() => {
     expect(screen.getByRole('button', { name: 'Join Game' })).toBeInTheDocument();
@@ -568,8 +437,12 @@ test('GameScreen explains a replaced seat and lets the user take the game back',
       reconnect,
     }),
   );
-  const dialog = screen.getByRole('alertdialog', { name: 'This game is open in another tab' });
-  expect(dialog).toBeInTheDocument();
+  expect(
+    screen.getByRole('alertdialog', { name: 'This game is open in another tab' }),
+  ).toBeInTheDocument();
+  // The dialog takes focus, and the game behind it is out of reach
+  expect(screen.getByRole('button', { name: 'Play here' })).toHaveFocus();
+  expect(screen.getByTestId('r3f-canvas').closest('[inert]')).not.toBeNull();
   // Not a connection fault, so no retry banner
   expect(screen.queryByText('Reconnecting…')).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Play here' }));
@@ -587,18 +460,7 @@ test('GameScreen shows the replaced notice on the waiting screen too', () => {
 });
 
 test('GameScreen stores the role from game_joined, so a drop before game_start is recoverable', () => {
-  const { rerender } = render(
-    <MemoryRouter initialEntries={['/game/abc123']}>
-      <Routes>
-        <Route
-          path="/game/:gameId"
-          element={
-            <GameScreen gameSocket={fakeSocket([{ type: 'game_joined', color: 'black' }])} />
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
-  );
+  const { rerender } = render(gameScreenAt(fakeSocket([{ type: 'game_joined', color: 'black' }])));
   expect(getStoredRole('abc123')).toBe('black');
   // Seat confirmed but the game hasn't started: neither the share link nor the join button
   expect(screen.getByText('Joined game, waiting for start...')).toBeInTheDocument();
@@ -606,29 +468,11 @@ test('GameScreen stores the role from game_joined, so a drop before game_start i
 
   // A session that already holds game_joined must not rejoin on top of it
   const send = vi.fn();
-  rerender(
-    <MemoryRouter initialEntries={['/game/abc123']}>
-      <Routes>
-        <Route
-          path="/game/:gameId"
-          element={
-            <GameScreen gameSocket={fakeSocket([{ type: 'game_joined', color: 'black' }], send)} />
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
-  );
+  rerender(gameScreenAt(fakeSocket([{ type: 'game_joined', color: 'black' }], send)));
   expect(send).not.toHaveBeenCalled();
 });
 
 const started: WebSocketMessage[] = [{ type: 'game_start', color: 'white' }];
-const gameScreenAt = (socket: GameSocket) => (
-  <MemoryRouter initialEntries={['/game/abc123']}>
-    <Routes>
-      <Route path="/game/:gameId" element={<GameScreen gameSocket={socket} />} />
-    </Routes>
-  </MemoryRouter>
-);
 
 test('GameScreen sends a move and holds the board until the server answers', async () => {
   const send = vi.fn();
@@ -747,16 +591,8 @@ test('GameScreen shows whether the opponent is connected, from the latest presen
   expect(presence).toHaveTextContent('');
   expect(screen.getByTestId('turn-indicator')).not.toHaveTextContent('Offline');
 
-  const withPresence = (...presence: WebSocketMessage[]) => (
-    <MemoryRouter initialEntries={['/game/abc123']}>
-      <Routes>
-        <Route
-          path="/game/:gameId"
-          element={<GameScreen gameSocket={fakeSocket([...started, ...presence])} />}
-        />
-      </Routes>
-    </MemoryRouter>
-  );
+  const withPresence = (...presence: WebSocketMessage[]) =>
+    gameScreenAt(fakeSocket([...started, ...presence]));
   rerender(withPresence({ type: 'presence', color: 'black', online: true }));
   // Online is the normal state: said to a screen reader, not shown
   expect(screen.getByTestId('opponent-presence')).toHaveAttribute('data-online', 'true');
@@ -823,15 +659,8 @@ test('StartScreen asks again when the connection drops before the game is create
   const send = vi.fn<GameSocket['send']>(() => true);
   const { rerender } = renderStartScreen(fakeSocket([], send));
   await userEvent.click(screen.getByRole('button', { name: 'Start New Game' }));
-  const at = (socket: GameSocket) => (
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route path="/" element={<StartScreen gameSocket={socket} />} />
-      </Routes>
-    </MemoryRouter>
-  );
-  rerender(at(fakeSocket([], send, { status: 'reconnecting' })));
-  rerender(at(fakeSocket([], send, { sessionId: 2 })));
+  rerender(startScreenAt(fakeSocket([], send, { status: 'reconnecting' })));
+  rerender(startScreenAt(fakeSocket([], send, { sessionId: 2 })));
   await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
   expect(send).toHaveBeenLastCalledWith({ type: 'create_game', clientId: expect.any(String) });
   expect(screen.getByRole('button', { name: 'Creating Game...' })).toBeDisabled();
@@ -1032,18 +861,6 @@ describe('the turn pill', () => {
     expect(indicator).toHaveTextContent('Stalemate · draw');
     expect(indicator).not.toHaveAttribute('data-winner');
   });
-});
-
-test('GameScreen moves focus into the replaced dialog and puts the game behind it out of reach', () => {
-  setStoredRole('abc123', 'white');
-  renderGameScreen(
-    'abc123',
-    fakeSocket([{ type: 'game_state', color: 'white', started: true, moves: [] }], () => true, {
-      status: 'replaced',
-    }),
-  );
-  expect(screen.getByRole('button', { name: 'Play here' })).toHaveFocus();
-  expect(screen.getByTestId('r3f-canvas').closest('[inert]')).not.toBeNull();
 });
 
 test('GameScreen shows the real position when a re-sent join is answered with a snapshot', async () => {

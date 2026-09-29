@@ -3,7 +3,7 @@ import type { Board, Move } from '../engine';
 import type { Color, MoveRecord } from '../types/messages';
 import { parseTypedMove } from '../game/typedMove';
 
-export interface MoveCardProps {
+interface MoveCardProps {
   board: Board;
   color: Color | null;
   /** The whole move record, as the server holds it. */

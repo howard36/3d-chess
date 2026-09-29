@@ -6,7 +6,7 @@ import { describeTaken, groupTaken, materialLead } from '../game/material';
 import type { TakenGroup } from '../game/material';
 import { PieceGlyph } from './PieceGlyph';
 
-export interface CapturedPiecesProps {
+interface CapturedPiecesProps {
   /** This player's colour. */
   seat: Turn;
   /** The pieces each side has taken (GameHistory.captured). */
