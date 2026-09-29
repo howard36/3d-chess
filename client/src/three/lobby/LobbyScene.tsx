@@ -398,7 +398,7 @@ export const LobbyScene = ({
       s.told = false;
     } else s.since += dt;
     if (view.beat === 'choose' && mine && !s.told) {
-      const wait = still ? 0.2 : LOBBY_TIMING.fill * 0.5 + LOBBY_TIMING.settle;
+      const wait = still ? 0.2 : LOBBY_TIMING.settle;
       if (s.since >= wait) {
         s.told = true;
         callbacks.current.onSettled?.();

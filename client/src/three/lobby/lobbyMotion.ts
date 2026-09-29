@@ -73,8 +73,12 @@ export const LOBBY_TIMING = {
   toss: 1.05,
   tossHold: 0.22,
   tossGlide: 0.55,
-  /** From the column of light rising to the choice counting as settled. */
-  settle: 0.7,
+  /**
+   * From the pick (or the coin coming to rest) to the page moving on to the
+   * invitation: once the chosen king is set down, while the others are still
+   * fading, so the pick, the camera's move and the card are one motion.
+   */
+  settle: 0.3,
   /**
    * A named pick's free seat opening with the invitation: its outline is
    * drawn up from the foot as the seat's label comes in under it
