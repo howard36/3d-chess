@@ -186,14 +186,18 @@ jobs:
       - name: Verify deployment serves this commit
         env:
           URL: https://howard36--3d-chess-backend-serve.modal.run
+        # Each request is bounded, and so is the whole wait: an unbounded curl
+        # once held this step for 19 minutes.
         run: |
-          for _ in $(seq 1 30); do
-            if curl -fsS "$URL/health" | grep -q "\"version\":\"$GITHUB_SHA\""; then
+          deadline=$((SECONDS + 300))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if curl -fsS --connect-timeout 10 --max-time 30 "$URL/health" \
+              | grep -q "\"version\":\"$GITHUB_SHA\""; then
               echo "serving $GITHUB_SHA"
               exit 0
             fi
             sleep 5
           done
-          echo "deployment did not report version $GITHUB_SHA within 150s"
-          curl -fsS "$URL/health" || true
+          echo "deployment did not report version $GITHUB_SHA within 300s"
+          curl -fsS --connect-timeout 10 --max-time 30 "$URL/health" || true
           exit 1

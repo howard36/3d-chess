@@ -38,11 +38,11 @@ export default defineConfig({
   // than the default 5 s to show what a move changed.
   timeout: 180_000,
   expect: { timeout: 15_000 },
-  // On CI, retry once so a failure leaves a trace (trace: 'on-first-retry'
-  // below), and write the HTML report the workflow uploads on failure. The
-  // default reporter never writes playwright-report/, so the upload step
-  // used to find nothing.
-  retries: process.env.CI ? 1 : 0,
+  // No retries: a test that fails once is a bug to fix, not a flake to
+  // absorb, and a retry doubled the time a red run took. On CI, write the
+  // HTML report the workflow uploads on failure (the default reporter never
+  // writes playwright-report/), with a trace of each failed test (below).
+  retries: 0,
   reporter: process.env.CI ? [['dot'], ['html', { open: 'never' }]] : 'list',
   // Start the websocket backend locally (no Modal deploy needed) and the Vite
   // dev server before running the tests. Export VITE_WS_URL to point the app
@@ -70,8 +70,8 @@ export default defineConfig({
     // Base URL to use in actions like `await page.goto('/')`
     baseURL: 'http://localhost:5173',
 
-    // Collect trace when retrying the failed test
-    trace: 'on-first-retry',
+    // On CI, keep a trace of each failed test, for the uploaded report
+    trace: process.env.CI ? 'retain-on-failure' : 'off',
 
     launchOptions: {
       // Escape hatch for environments whose Chromium build doesn't match this
