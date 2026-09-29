@@ -536,10 +536,13 @@ until the row fits the width).
 - **The entrance** (`LOBBY_ENTRANCE` in `lobbyMotion.ts`), when the lobby is first shown,
   about 2.4 s and calm: the picture fades up from the page (0.9 s) while the camera settles
   in from a little further out and higher, easing out (`entranceFrom`, `settlePose`); the
-  glass draws itself over 1.4 s; each king's outline comes up and it forms from the foot,
-  White's, the coin's and Black's a beat apart (from 0.6 s). On the side choice the heading
-  rises as the glass draws, and "← Home" and the buttons come in once the kings have formed
-  (CSS, held until the scene's first frame sets `data-scene` on the layout, or 1.5 s).
+  glass draws itself over 1.4 s; each king forms from the foot out of nothing, with no
+  outline first (a free seat's outline comes up instead), White's, the coin's and Black's a
+  beat apart (from 0.6 s). No king can be hovered or picked until it has formed; a pointer
+  already resting on one hovers it then. On the side choice the heading rises as the glass
+  draws, and "← Home" and each button come in (hidden and unpressable until then) once its
+  king has formed (CSS, held until the scene's first frame sets `data-scene` on the layout,
+  or 1.5 s).
 - **Choosing a side** (`/new`, `screens/lobby/ChooseSide.tsx`). "Choose your side" over
   three kings, porcelain, one split porcelain and charcoal for Random, and charcoal, with a
   a button under each named only "White", "Random" or "Black" (sized with the kings as
@@ -552,13 +555,19 @@ until the row fits the width).
   its answer is lost), and the heading turns to "You play Black" (or "Leaving it to
   chance…"), with nothing under it. The chosen king is set down on its square (its height
   is one eased value, a little quicker down), a small ring of light runs out to the
-  square's edge (`placeRing`) and its column of light comes on, while the other drains to
-  its neon outline. Random is decided in the client, and the split king is thrown like a
-  coin, lands on that face in the middle, and slides along the glass into its seat's
-  outline, where the seat's king takes over with the same ring and light; the Random button
-  fades as the coin sets off from the middle (`onGlide`). Every chosen king stays on the
-  glass until the game starts. The page moves to `/game/:id` (`replace`, so Back from the invitation leads
-  to the landing page) once both the answer and the moment (`onSettled`) are over. A
+  square's edge (`placeRing`) and its column of light comes on, while the two not chosen
+  fade where they stand (`LOBBY_TIMING.fade`, 0.7 s, easing out; blended over the glass,
+  drawn after it, `FADING_ORDER`), with no outline: the free seat's outline rises from its
+  foot only as the invitation comes (`veiled`, `seatOpening`, the neon's `uReveal`). Random
+  is decided in the client: the side kings cross from solid to their outlines as they fade,
+  and the split king is thrown like a coin, lands on that face in the middle, and slides
+  along the glass into its seat's outline, where the seat's king takes over with the same
+  ring and light; the Random button fades as the coin sets off from the middle
+  (`onGlide`). Every chosen king stays on the glass until the game starts. The page moves
+  to `/game/:id` (`replace`, so Back from the invitation leads to the landing page) once
+  both the answer and the moment are over (`onSettled`, `LOBBY_TIMING.settle`: 0.3 s after
+  the pick or the coin's rest, while the others still fade, so the pick, the camera's
+  move and the card run as one). A
   refusal puts the kings back with "Couldn't start a game: …". The end-game dialog's
   "Start new game" and the invitation's "Start a new game" lead here.
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
