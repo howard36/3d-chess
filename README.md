@@ -211,17 +211,19 @@ Key decisions:
   tower and "Start a game" (a pill with a knight glyph and a slowly turning rim in the
   five level colours) below it, in bands the fit keeps clear (`hudTopBand`
   and `bottomBand`; a window 480 px tall or less sets the text in a column at the left
-  instead). Under the button one line shows, first that applies: the create's error
-  ("Couldn't start a game: …", `role="alert"`), the connection's state (only once a
-  create is waiting for it), "Checkmate · White wins" while the demo's mate stands, or a
-  few facts. The button is not disabled
-  while the socket connects (the create is queued), only while it is answered ("Creating
-  game…"). The canvas is `aria-hidden` and takes no pointer, and a visually hidden
-  sentence says what it shows. A pause button at the top right ("Pause preview",
+  instead). Under the button a slot, kept open so the button never moves, shows the first
+  that applies: the create's error ("Couldn't start a game: …", `role="alert"`), the
+  connection's state (`role="status"`, only while a create waits on the socket), or
+  "Checkmate · White wins" (`aria-hidden`) while the moving demo's mate stands; otherwise
+  nothing. The button is not held while the socket connects (the create is queued), only
+  while it is answered ("Creating game…"), and then by `aria-disabled` rather than
+  `disabled`, so a keyboard player keeps focus on it. The canvas is `aria-hidden` and
+  takes no pointer, and a visually hidden sentence says what it shows. A pause button at the top right ("Pause preview",
   `aria-pressed`, the second Tab stop after the start button) stops the demo, the turn and
   the drawing (the canvas draws no frames while paused). Under `prefers-reduced-motion`
-  the preview is a still of the final position, the king left standing, and there is no
-  pause button. In development `?t=<seconds>` starts the demo that far in.
+  the preview is a still of the final position, the king left standing, with no result
+  line, no pause button and a still rim. In development `?t=<seconds>` starts the demo
+  that far in.
 
 ## Protocol
 
