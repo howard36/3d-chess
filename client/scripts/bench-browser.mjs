@@ -368,7 +368,7 @@ const BENCH_INIT = () => {
     const t = now();
     const f = b.firsts;
     const inGame = location.pathname.startsWith('/game/');
-    if (!f.createButton && !inGame && buttonNamed('Start New Game', true)) f.createButton = t;
+    if (!f.createButton && !inGame && buttonNamed('Start a game', true)) f.createButton = t;
     if (inGame && !f.joinButton && !f.turnIndicator && buttonNamed('Join Game')) f.joinButton = t;
     if (inGame && !f.shareScreen && document.querySelector('p.break-all')) f.shareScreen = t;
     if (!f.turnIndicator && document.querySelector('[data-testid="turn-indicator"]')) {
@@ -890,7 +890,7 @@ async function coldSection(browser) {
     'cold-load',
     {
       title: 'Cold load of the start screen',
-      intro: `A first visit: a fresh browser context (empty cache) opens \`/\` until the “Start New Game” button is enabled and the socket to the server is open, ${CFG.coldRuns} runs per case. Desktop is ${VIEWPORTS.desktop.label}, phone ${VIEWPORTS.phone.label}; the third case models a mid-range phone on a mobile network: DevTools’ 4× CPU throttling and its “Fast 4G” preset (165 ms RTT, 8.1 Mbit/s down). Served from localhost by \`vite preview\` (gzip); nothing here draws WebGL.`,
+      intro: `A first visit: a fresh browser context (empty cache) opens \`/\` until the “Start a game” button is enabled and the socket to the server is open, ${CFG.coldRuns} runs per case. Desktop is ${VIEWPORTS.desktop.label}, phone ${VIEWPORTS.phone.label}; the third case models a mid-range phone on a mobile network: DevTools’ 4× CPU throttling and its “Fast 4G” preset (165 ms RTT, 8.1 Mbit/s down). Served from localhost by \`vite preview\` (gzip); nothing here draws WebGL.`,
       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
       align: ['l', 'l', 'r', 'r', 'r', 'r'],
       timeoutMs: QUICK ? 120000 : 300000,
@@ -1006,13 +1006,13 @@ async function setupViaUI(browser, scope) {
     null,
     { polling: 50 },
   );
-  await pageA.getByRole('button', { name: 'Start New Game' }).click();
+  await pageA.getByRole('button', { name: 'Start a game' }).click();
   await pageA.waitForFunction(() => window.__bench.firsts.shareScreen, null, { polling: 50 });
   await pageB.goto(pageA.url());
   await pageB.getByRole('button', { name: 'Join Game' }).click();
   await Promise.all([waitBoard(pageA), waitBoard(pageB)]);
   const [a, b] = await Promise.all([snap(pageA), snap(pageB)]);
-  const clickA = a.clicks.find((c) => c[1] === 'Start New Game')?.[0];
+  const clickA = a.clicks.find((c) => c[1] === 'Start a game')?.[0];
   const clickB = b.clicks.find((c) => c[1] === 'Join Game')?.[0];
   const rxOf = (s, type) => s.rx.find((r) => r[1] === type)?.[0];
   const frameB = firstFrameEnd(b);
@@ -1037,7 +1037,7 @@ async function setupSection(browser, shared) {
     'setup',
     {
       title: 'Game setup',
-      intro: `Two players meet: the creator clicks “Start New Game” and gets the share link; the joiner (a second fresh context) opens it and clicks “Join Game”; done when both pages have the board mounted and its first frame drawn. ${CFG.setupRuns} run(s), desktop viewport, both pages on the same VM. The first frame includes building the scene and its shader programs, which SwiftShader does on the CPU (the browser drew a board before this section, so the GPU process’s shader cache is warm, as for a returning player). ${SW_NOTE}`,
+      intro: `Two players meet: the creator clicks “Start a game” and gets the share link; the joiner (a second fresh context) opens it and clicks “Join Game”; done when both pages have the board mounted and its first frame drawn. ${CFG.setupRuns} run(s), desktop viewport, both pages on the same VM. The first frame includes building the scene and its shader programs, which SwiftShader does on the CPU (the browser drew a board before this section, so the GPU process’s shader cache is warm, as for a returning player). ${SW_NOTE}`,
       columns: ['Step', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
