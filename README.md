@@ -375,8 +375,10 @@ play on behind it.
 
 **The entrance.** Opening the game plays a short entrance, just under 4 seconds when the
 game starts while the page is open and 1.3 when the page opens on a game already under
-way (a reload, a rejoin): the night fades up and the camera closes in (see Camera) while
-the tower draws itself in light, level by level from A up, each overlapping the next.
+way (a reload, a rejoin), and about 3.6 after the lobby (the `lobby` variant: see The
+lobby). The night fades up (except after the lobby, whose last picture is the entrance's
+first, level A already standing) and the camera closes in (see Camera) while the tower
+draws itself in light, level by level from A up, each overlapping the next.
 A level's edge grows out of its four corners along its sides to meet in their middles,
 a white-hot tip at each front; its hairlines run in across it from both ends, the outer
 ones first; its glass floods in from the edge to the middle; and every line settles
@@ -510,57 +512,73 @@ column shows the relief in one plain material instead).
 ## The lobby
 
 Everything before the first move happens in the lobby: level A's glass alone in the night
-garden (the game's `Stage`, dimmed, and a platform that draws itself on the entrance's
-build clock) with the kings on its middle rank, White's seat on the left and Black's on
-the right. A taken seat shows its king in its army's material; a free seat is the king
-drawn in neon, like the garden's sculptures (`three/lobby/LobbyKing.tsx`); filling, the
-material forms from the foot up as the neon gives way, and the player's own king lifts
-into the game's column of light. The lobby is a layout route
-(`screens/lobby/LobbyLayout.tsx`) round `/new` and `/game/:gameId`, so its one canvas stays up from the side choice to the
-game's first frame. The screens declare what it shows with `useLobbyView`
+garden (the game's `Stage`, its sculptures dimmed behind the kings through `Stage`'s
+`dim`, and a platform that draws itself on the entrance's build clock) with the kings on
+its middle rank, White's seat on the left and Black's on the right. A taken seat shows its
+king in its army's material; a free seat is the king drawn in neon, like the garden's
+sculptures (`three/lobby/LobbyKing.tsx`); filling, the material forms from the foot up as
+the neon gives way, and the player's own king lifts into the game's column of light. The
+lobby is a layout route (`screens/lobby/LobbyLayout.tsx`) round `/new` and
+`/game/:gameId`, so its one canvas stays up from the side choice to the game's first
+frame. The screens declare what it shows with `useLobbyView`
 (`screens/lobby/lobbyContext.ts`: a beat, `choose`, `wait`, `invited`, `arrive` or
-`leave`, the taken seats, the player's seat and an optional caption, or `null` to take it
-away), and `three/lobby/LobbyScene.tsx` moves from one picture to the next on r3f's clock.
-The scene writes the kings' places on screen as `--seat-<seat>-x/head/foot` on the
-layout, and the page's buttons and labels hang off them. Timings and framing are pure
-functions in `three/lobby/lobbyMotion.ts` (the kings stand 1.25 times the game's pieces;
-narrower than 9:10 they stand smaller and further out).
+`leave`, the taken seats, the player's seat and an optional caption with its note, or
+`null` to take it away), and `three/lobby/LobbyScene.tsx` moves from one picture to the
+next on r3f's clock. The scene writes the kings' places on screen as
+`--seat-<seat>-x/head/foot` on the layout, and the page's buttons and labels hang off
+them. The page's heading at the top carries the story from one step to the next, and the
+cards under the kings carry only what to do. Timings and framing are pure functions in
+`three/lobby/lobbyMotion.ts` (the kings stand 1.25 times the game's pieces; narrower than
+9:10 they stand smaller and further out).
 
 - **Choosing a side** (`/new`, `screens/lobby/ChooseSide.tsx`). "Choose your side" over
   three kings, porcelain, one split porcelain and charcoal for Random, and charcoal, with a
   button under each: White "Moves first", Random "Let chance decide", Black "Moves
-  second" (stacked rows at the bottom on a phone held upright). A king lifts under the
-  pointer (on it or its button) or its button's focus, and clicking either picks. A pick
-  is final: `create_game {color}` goes out at once (and again on the next socket if its
-  answer is lost). Random
-  is decided in the client, and the split king is thrown like a coin, lands on that face
-  and glides onto its seat. The chosen king lifts into the column of light while the other
-  drains to its neon outline, and the page moves to `/game/:id` (`replace`, so Back from
-  the invitation leads to the landing page) once both the answer and the moment
-  (`onSettled`) are over. A refusal puts the kings back with "Couldn't start a game: …".
-  The end-game dialog's "Start new game" and the invitation's "Start a new game" lead here.
+  second" (stacked rows at the bottom on a phone held upright). A king lifts under a mouse
+  (on it or its button) or its button's focus, and clicking either picks; a tap leaves no
+  hover behind. A pick is final: `create_game {color}` goes out at once (and again on the
+  next socket if its answer is lost), and the heading turns to "You play Black" (or
+  "Leaving it to chance…") and "Opening your game…". Random is decided in the client,
+  and the split king is thrown like a coin, lands on that face and glides onto its seat.
+  The chosen king lifts into the column of light while the other drains to its neon
+  outline, and the page moves to `/game/:id` (`replace`, so Back from the invitation leads
+  to the landing page) once both the answer and the moment (`onSettled`) are over. A
+  refusal puts the kings back with "Couldn't start a game: …". The end-game dialog's
+  "Start new game" and the invitation's "Start a new game" lead here.
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
-  `screens/lobby/LobbyCards.tsx`). A card under the kings: a "You play White" chip,
-  "Invite a friend", the link (`lib/gameLink.ts`, its id picked out), "Share link" where
-  `navigator.share` exists and "Copy link", "Waiting for your friend…" and "Keep this tab
-  open. We'll bring you in." "You" and "Open seat" stand under the kings, the neon seat
-  breathes (for its first minute, calmer after half of it), and the camera drifts 12°
-  round once over 18 s and rests.
+  `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
+  breathing dot and "Waiting for your friend…" under it. The card under the kings: "Invite
+  a friend", the link (`lib/gameLink.ts`, its id picked out), "Share link" where
+  `navigator.share` exists and "Copy link", and a status line, "Keep this tab open. We'll
+  bring you in." ("Link copied." or "Couldn't copy: select the link instead." after a
+  copy). "You" and "Open seat" stand under the kings, the neon seat breathes (for its
+  first minute, calmer after half of it), and the camera drifts 12° round once over 18 s
+  and rests.
 - **The guest** (the `invited` beat and `InvitationCard`). A page with no stored seat asks
-  `look_game` once per socket until answered, and `game/invitation.ts` reads the answer:
-  "You're invited to play Black" with "Take your seat", or "This game is taken" or "No
-  game here" with "Start a new game". "Your host" and "Your seat" stand under the kings.
-  Taking the seat fills it at once, before the server answers. A page with a stored seat
-  shows no lobby, only "Returning to your game…", until its rejoin is answered.
+  `look_game` once per socket until answered, and `game/invitation.ts` reads the answer.
+  With a seat free the heading reads "You're invited to play" with the side's stone and
+  name, and the card (no heading of its own) a line about the game and "Take your seat";
+  "Opponent" and "Your seat" stand under the kings, and taking the seat fills it at once,
+  before the server answers, the label turning to "You". A game with both seats taken, or
+  none, gets a card "This game is taken" or "No game here" with "Start a new game". A page
+  with a stored seat shows no lobby, only "Returning to your game…", until its rejoin is
+  answered.
 - **The handover.** When the game starts on a page that showed the lobby, `arrive`: the
-  free seat fills, a ring of light spreads across the glass from it, and a caption says so
-  ("They're here · You move first" for the host, "You play Black · White moves first" for
-  the guest). Meanwhile `GameView` mounts under the lobby, held on its first frame
-  (`introPaused`), and reports that frame; if it never comes, `FIRST_FRAME_WAIT_MS` (4 s)
-  lets the lobby go anyway. Then `leave`: the kings go up in light, the glass takes itself
-  back, the camera draws out to the game's opening line of sight from the player's seat
-  (`leaveDirection`, `LEAVE_DISTANCE`), and the lobby fades off the game, whose entrance
-  begins as the fade does (`onReveal`); `onLeft` takes the canvas away. A host whose tab is
+  free seat fills, a ring of light spreads across the glass from it, and the caption takes
+  the heading's place, a heading and a note ("They're here" / "You move first" or "They
+  move first" for the host; "You play White" / "You move first", or "You play Black" /
+  "White moves first", for the guest). Meanwhile `GameView` mounts under the lobby, held
+  on its first frame (`introPaused`), and reports that frame; if it never comes,
+  `FIRST_FRAME_WAIT_MS` (4 s) lets the lobby go anyway. Then `leave`: both kings rise in
+  their columns of light and are taken up into them from the foot (`uGone`), level A's
+  glass stays, and the camera draws out to exactly the game's first-frame pose
+  (`gameOpening`: the fitted distance times the `lobby` entrance's `dolly.from`, on the
+  opening line of sight from the player's seat, with the fit's lens shift) while the
+  sculptures come back up to the game's brightness. The lobby's canvas then fades over an
+  identical first frame of the game's (`leaveFade`), and only then (`onReveal`, `onLeft`)
+  does the game's entrance run its `lobby` variant (`three/intro/timeline.ts`): level A
+  stands from the start (`levels.built`), nothing fades up, and B to E build on up from A
+  while the camera closes in and the armies form, in about 3.6 s. A host whose tab is
   hidden when the guest arrives gets the title "● They're here · 3D Chess", and the
   arrival waits for them (a hidden tab draws no frames). A page that opens on a game
   already under way skips the lobby and plays the short entrance.
@@ -571,6 +589,14 @@ canvas never publishes `window.__r3fState`, so e2e's click projection always rea
 game's; `waitForBoard` waits for `data-intro="done"`, by which time the lobby has gone.
 `e2e/createGame.spec.ts` walks the way in, and `startGame(browser, { side })` in
 `e2e/helpers/game.ts` picks a side (White by default).
+
+Known limitations: a page decides host or guest from the stored seat alone, so with
+browser storage refused the creator is invited to the other seat of their own game, and
+"Take your seat" is refused with "Already in a game" (the connection already holds the
+seat). And a guest whose join was recorded but whose answer was lost, who then reloads
+before any seat was stored, is told "This game is taken": the look sees both seats taken,
+although a join from that tab would get its own seat back through its client id. (Without
+the reload the join is re-sent on the next socket and recovers the seat.)
 
 ## Repository layout
 
