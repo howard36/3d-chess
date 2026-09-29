@@ -25,6 +25,7 @@ import {
   kingEntrance,
   tossHop,
   tossLanded,
+  LOBBY_MAX_STEP,
 } from './lobbyMotion';
 import type { Side } from './lobbyMotion';
 
@@ -162,7 +163,7 @@ export const LobbyKing = ({
   useEffect(() => invalidate(), [present, gone, hovered, lit, breathing, snap, invalidate]);
 
   useFrame((_, delta) => {
-    const dt = Math.min(delta, 1 / 20);
+    const dt = Math.min(delta, LOBBY_MAX_STEP);
     const m = motion.current;
     const fillGoal = present ? 1 : 0;
     // Entering, its outline comes up, then it forms from the foot
@@ -376,7 +377,7 @@ export const CoinKing = ({
   useEffect(() => invalidate(), [shown, hovered, invalidate]);
 
   useFrame((_, delta) => {
-    const dt = Math.min(delta, 1 / 20);
+    const dt = Math.min(delta, LOBBY_MAX_STEP);
     const s = state.current;
     const before = { fill: s.fill, hover: s.hover };
     let angle = 0;

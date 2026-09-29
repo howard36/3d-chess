@@ -89,6 +89,15 @@ export const LOBBY_TIMING = {
   leaveFade: 0.3,
 };
 
+/**
+ * The longest step one frame may take the lobby's clocks (as the game's
+ * entrance, `IntroDirector`'s MAX_STEP): a stalled frame resumes where it
+ * was, while a slow renderer (a phone, a few frames a second in software)
+ * still plays each beat in about its own time, if in fewer frames, rather
+ * than in slow motion.
+ */
+export const LOBBY_MAX_STEP = 0.25;
+
 // --- The entrance -----------------------------------------------------------------------------
 
 /**

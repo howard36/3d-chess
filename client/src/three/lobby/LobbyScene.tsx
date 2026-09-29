@@ -31,6 +31,7 @@ import {
   entranceFrom,
   LOBBY_ENTRANCE,
   settlePose,
+  LOBBY_MAX_STEP,
 } from './lobbyMotion';
 import { smooth } from '../scene/ease';
 import type { CameraPose, Side } from './lobbyMotion';
@@ -153,7 +154,7 @@ const SeatRing = ({
   }, [playing, invalidate]);
   useFrame((_, delta) => {
     if (t.current < 0) return;
-    t.current += Math.min(delta, 1 / 20);
+    t.current += Math.min(delta, LOBBY_MAX_STEP);
     const { radius, strength } = ring(t.current);
     material.uniforms.uRadius.value = radius;
     material.uniforms.uStrength.value = strength;
@@ -226,7 +227,7 @@ const LobbyRig = ({
     let pose = rest;
     let moving = false;
     const entering = entered.current < LOBBY_ENTRANCE.camera;
-    if (entering) entered.current += Math.min(delta, 1 / 20);
+    if (entering) entered.current += Math.min(delta, LOBBY_MAX_STEP);
     // From one beat's framing to the next, eased (the card coming in lifts
     // the kings); the first frame takes its place at once
     const prev = current.current;
@@ -235,7 +236,7 @@ const LobbyRig = ({
       pose = settlePose(entranceFrom(rest), rest, entered.current / LOBBY_ENTRANCE.camera);
       moving = true;
     } else if (prev && beat !== 'leave' && !still) {
-      const k = 1 - Math.exp(-Math.min(delta, 1 / 20) * 3.2);
+      const k = 1 - Math.exp(-Math.min(delta, LOBBY_MAX_STEP) * 3.2);
       const ease = (a: number, b: number) => a + (b - a) * k;
       const eased: CameraPose = {
         target: [
@@ -382,7 +383,7 @@ export const LobbyScene = ({
   useEffect(() => invalidate(), [view, invalidate]);
 
   useFrame((_, delta) => {
-    const dt = Math.min(delta, 1 / 20);
+    const dt = Math.min(delta, LOBBY_MAX_STEP);
     const c = clock.current;
     if (c.beat !== view.beat) {
       c.beat = view.beat;
@@ -501,7 +502,7 @@ const LobbyPlatform = () => {
   );
   useFrame((_, delta) => {
     if (clock.t >= PLATFORM_BUILD) return;
-    clock.t = Math.min(clock.t + Math.min(delta, 1 / 20), PLATFORM_BUILD);
+    clock.t = Math.min(clock.t + Math.min(delta, LOBBY_MAX_STEP), PLATFORM_BUILD);
     invalidate();
   });
   return (
