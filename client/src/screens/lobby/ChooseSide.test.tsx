@@ -125,12 +125,9 @@ describe('choosing a side', () => {
   ])('answers a pick of %s in its heading at once', async (name, draw, heading) => {
     render(at(fakeSocket()));
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Choose your side');
-    // Nothing under the heading until there is something to say
-    expect(screen.queryByText('Opening your game…')).not.toBeInTheDocument();
     vi.spyOn(Math, 'random').mockReturnValue(draw);
     await userEvent.click(screen.getByRole('button', { name }));
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(heading);
-    expect(screen.getByText('Opening your game…')).toBeInTheDocument();
   });
 
   it('makes a pick final: every choice is held, and nothing more is sent', async () => {

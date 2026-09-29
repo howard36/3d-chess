@@ -538,7 +538,7 @@ cards under the kings carry only what to do. Timings and framing are pure functi
   (on it or its button) or its button's focus, and clicking either picks; a tap leaves no
   hover behind. A pick is final: `create_game {color}` goes out at once (and again on the
   next socket if its answer is lost), and the heading turns to "You play Black" (or
-  "Leaving it to chance…") and "Opening your game…". Random is decided in the client,
+  "Leaving it to chance…"), with nothing under it. Random is decided in the client,
   and the split king is thrown like a coin, lands on that face and glides onto its seat.
   The chosen king lifts into the column of light while the other drains to its neon
   outline, and the page moves to `/game/:id` (`replace`, so Back from the invitation leads

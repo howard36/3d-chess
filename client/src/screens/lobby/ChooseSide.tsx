@@ -92,8 +92,6 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
     : picked.choice === 'random'
       ? 'Leaving it to chance…'
       : `You play ${picked.side === 'white' ? 'White' : 'Black'}`;
-  // What the pick is doing, once there is one
-  const subheading = picked ? 'Opening your game…' : null;
   return (
     <div className="lobby-page" data-testid="choose-side">
       <header className="lobby-top">
@@ -104,7 +102,6 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
       {/* The heading answers the pick at once; keyed, so each line fades in */}
       <div className="lobby-heading" key={heading}>
         <h1>{heading}</h1>
-        {subheading && <p>{subheading}</p>}
       </div>
       <div className="lobby-choices" role="group" aria-label="Choose your side">
         {CHOICES.map(({ choice, name }) => {
