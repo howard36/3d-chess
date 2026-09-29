@@ -6,9 +6,9 @@ Half of every game is waiting: after a player's move lands, the turn passes to t
 
 ## The simple case
 
-The player has just moved; the turn pill lights the opponent's half, "Their move" beside their stone, and the player's half reads "You". None of the player's pieces respond to a press, and a move typed in the move box is answered "Wait for their move.". The player can turn the view, read the move list, and look at the position. While the opponent is connected the pill says nothing about it; nothing says whether they are thinking, selecting, or away from the keyboard.
+The player has just moved; the turn pill lights the opponent's half, "Their move" beside their stone, and the player's half reads "You". None of the player's pieces respond to a press, and a move typed in the move box is answered "Wait for their move.". The player can turn the view and look at the position. While the opponent is connected the pill says nothing about it; nothing says whether they are thinking, selecting, or away from the keyboard.
 
-Then, with no warning, the opponent's piece glides to its new cell. If it captured one of the player's pieces, that piece burns away as it arrives, and joins the [captured pieces](../game-page/turn-indicator.md#the-pieces-each-side-has-taken) under the opponent's half of the turn pill. The mint last-move line moves to the opponent's move, the move list gains the move (in the move card, if it is showing), and the light on the turn pill passes to the player's half: "Your move". If the move put the player in check, the player's King turns red and the pill rings the player's stone in red with "CHECK" beside it. It is now the player's turn.
+Then, with no warning, the opponent's piece glides to its new cell. If it captured one of the player's pieces, that piece burns away as it arrives, and joins the [captured pieces](../game-page/turn-indicator.md#the-pieces-each-side-has-taken) under the opponent's half of the turn pill. The mint last-move line moves to the opponent's move, the move is announced (and joins the move list that only screen readers see), and the light on the turn pill passes to the player's half: "Your move". If the move put the player in check, the player's King turns red and the pill rings the player's stone in red with "CHECK" beside it. It is now the player's turn.
 
 ## The interaction, event by event
 
@@ -34,7 +34,7 @@ The opponent's turn begins on the player's board the moment the player's own mov
 - none of the player's pieces can be selected, and a press on any piece or cell does nothing (there is no selection to clear);
 - the board still [takes input](../foundations/input-model.md#when-the-board-takes-input) in the technical sense, so nothing about it looks disabled; there is simply nothing the player is allowed to pick up;
 - the move box's field accepts text, but Enter or ↵ only answers "Wait for their move.";
-- the view can be turned, the move list scrolled, and an error dismissed.
+- the view can be turned and an error dismissed.
 
 There is no way to prepare a move in advance: no pre-move, no drawing arrows, no marking cells. The nearest thing is typing a move into the move box's field; it is not sent, and is read against the position only when the player submits it on their own turn.
 
@@ -50,7 +50,7 @@ The opponent plays a move by pressing a destination, picking a piece in the [pro
 
 ### While in flight
 
-From the player's side, the move is in flight only for the time the echo takes to cross the network, a fraction of a second. There is no sign of it: the board, the turn indicator, and the move list do not change until the echo arrives.
+From the player's side, the move is in flight only for the time the echo takes to cross the network, a fraction of a second. There is no sign of it: the board and the turn indicator do not change until the echo arrives.
 
 If the player is not connected at this moment (reconnecting, replaced, or away from the game), the echo is not sent to them at all. The move waits in the record and reaches them in the snapshot the next time the page rejoins.
 
@@ -60,7 +60,7 @@ When the echo arrives, the player's board replays the record with the new move a
 
 - the opponent's piece [glides](../foundations/the-view.md#motion) from its origin to its destination in 460 ms, and a captured piece of the player's burns away as it arrives; a promoting pawn arrives as its new piece. If the player's system asks for reduced motion, there is no glide or fade: the position simply changes, and the teal trace shows what moved;
 - the mint [last-move trace](../glossary.md#selection-and-board-state) moves to the new move;
-- the [move list](../game-page/move-list.md) gains the move: a new row if the opponent is White, the second half of the last row if the opponent is Black;
+- the [move list](../game-page/move-list.md) (for screen readers) gains the move: a new row if the opponent is White, the second half of the last row if the opponent is Black;
 - the light on the turn pill passes to the player's half ("Your move"), the player's pieces become selectable, and the move box can send: see [making a move](making-a-move.md);
 - if the player is now in check, their King [turns red](check-and-game-end.md#check) and the turn pill shows "CHECK" beside their stone; if they are checkmated or stalemated, the end plays out on the board and the [end-game dialog](check-and-game-end.md) follows.
 
@@ -124,12 +124,12 @@ How the move lands depends on when the player sees it:
 
 **Stored seat.** Lets the player close the tab during a long wait and come back to the game through the link.
 
-**Keyboard, touch, and screen size.** Nothing to do from any device. A screen reader hears the move announcement when the opponent's move lands. On a small window the glide is small and easy to miss; the move list (with the Notation panel on) and the turn pill are the lasting record.
+**Keyboard, touch, and screen size.** Nothing to do from any device. A screen reader hears the move announcement when the opponent's move lands. On a small window the glide is small and easy to miss; the turn pill and the last-move line are the lasting record.
 
 ## Edge cases
 
 - **Several moves at once.** While a player is disconnected, at most one opponent move can be made (after it, it is the player's turn). Several can pile up only when this tab was [replaced](../session/second-tab.md) and the player went on playing in the other tab: after "Play here", this tab receives them all in one snapshot, the last one glides, and the others are simply in place.
-- **A move landing on a hidden piece.** From the player's angle the moving piece or its destination may be hidden behind nearer pieces. The last-move line and the move list still show where the move went.
+- **A move landing on a hidden piece.** From the player's angle the moving piece or its destination may be hidden behind nearer pieces. The last-move line and the move announcement still show where the move went.
 - **Moves in quick succession.** If the player's own move lands and the opponent answers within 460 ms, the second glide starts at once and the first piece jumps to its destination.
 - **Reduced motion.** When the player's system asks for reduced motion, no move glides or burns away on their board; each move simply appears, with the last-move line on it. The setting is read each time the board is drawn, so changing it takes effect from the next move.
 - **An opponent who never returns.** The game stays on the opponent's turn indefinitely. The player can only leave; the game expires about 30 days after it was last active.
@@ -144,7 +144,7 @@ How the move lands depends on when the player sees it:
 - Reduced motion is read from the system setting whenever the board is redrawn (`client/src/three/Board.tsx:131-132`, `client/src/three/motion.ts:22-25`), not watched for changes. Turning it on in the middle of a glide may end that glide early at the next redraw; not tried.
 - Moves while the opponent is disconnected, their arrival on rejoin, and presence are covered by `server/tests/test_local_ws.py` and `client/e2e/session.spec.ts`; animation on arrival versus on mount, and its absence under reduced motion, by `client/src/three/Board.test.tsx`.
 
-- The HUD wording in this document (the turn pill, presence as "Offline" on it, the move box behind the Notation panel or Tab, the dialogs as glass cards over a veil) was brought up to the new HUD from `client/src/screens/` and the [game page documents](../game-page/turn-indicator.md) at `bb16fed`, not checked in the running app, and needs re-verification.
+- The HUD wording in this document (the turn pill, presence as "Offline" on it, the move box, brought up by Tab, the dialogs as glass cards over a veil) was brought up to the new HUD from `client/src/screens/` and the [game page documents](../game-page/turn-indicator.md) at `bb16fed`, not checked in the running app, and needs re-verification.
 - The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](../foundations/the-view.md), not checked in the running app, and need re-verification.
 
 Verified against 3D Chess commit `4e18386`

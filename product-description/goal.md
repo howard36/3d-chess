@@ -4,7 +4,7 @@ You are working in the `product-description/` directory of the 3D Chess reposito
 
 ## Source of truth
 
-The 3D Chess source is the parent directory of this one (`client/` and `server/`), at commit `4e18386`. Describe the experience of a player using the web client (`client/src/App.tsx`: the start screen at `/` and the game page at `/game/{id}`) in a desktop browser, with the default settings and nothing customized, against a server built from the same commit. Server operations (deployment, `/health`, logs, CI), modified clients, and test hooks are out of scope; see the README's scope decisions.
+The 3D Chess source is the parent directory of this one (`client/` and `server/`), at commit `4e18386`. Describe the experience of a player using the web client (`client/src/App.tsx`: the start screen at `/` and the game page at `/game/{id}`) in a desktop browser, against a server built from the same commit. Server operations (deployment, `/health`, logs, CI), modified clients, and test hooks are out of scope; see the README's scope decisions.
 
 For each document, read in this order before writing:
 
@@ -36,8 +36,8 @@ Numbers and timings:
 - Retry schedule after a drop: 0.5 s, 1 s, 2 s, 4 s, then 8 s between attempts, forever; it starts over when a connection opens. No attempt limit, no manual retry except "Play here" after a replacement.
 - The server ends every connection after at most one hour; games idle for about 30 days are deleted.
 - Game ids are 6 characters from A–Z and 0–9, random, case-sensitive in the address.
-- The glide lasts 460 ms, eased in and out, in a straight line (a Knight arcs only with the Knight moves setting at Arc); a captured piece burns away as the capturer arrives. A stalled frame counts as at most 33 ms, so a backgrounded tab resumes an animation instead of skipping it.
-- The default view's distance is fitted to the window: the camera stands just far enough back for the whole tower and its labels to be in frame, centered below the turn pill's row, on first render and again on every resize, keeping whatever direction the player has turned to. Zoom is limited to between 0.7 and 1.5 times that fitted distance. Orbit goes all the way around horizontally and from directly above the tower to 14° below the horizon (6° above it with the Look up setting off), never below the garden's ground. The camera always looks at the tower's center: there is no pan. The view keeps drifting briefly after a drag is released (damping).
+- The glide lasts 460 ms, eased in and out, in a straight line, a Knight's too; a captured piece burns away as the capturer arrives. A stalled frame counts as at most 33 ms, so a backgrounded tab resumes an animation instead of skipping it.
+- The default view's distance is fitted to the window: the camera stands just far enough back for the whole tower and its labels to be in frame, centered below the turn pill's row, on first render and again on every resize, keeping whatever direction the player has turned to. Zoom is limited to between 0.7 and 1.5 times that fitted distance. Orbit goes all the way around horizontally and from directly above the tower to 14° below the horizon, never below the garden's ground. The camera always looks at the tower's center: there is no pan. The view keeps drifting briefly after a drag is released (damping).
 - The move list is at most 40% of the window's height or 320 pixels, whichever is less, and scrolls itself to the newest move whenever a move is added.
 - The starting position has 40 pieces, 20 per side, and White has 61 legal first moves.
 
@@ -46,7 +46,7 @@ Input:
 - The board acts on the release of a press, never on pointer down: the primary mouse button, a finger, or a pen, released within 6 pixels of where it went down, over the same piece or cell. A pointer that moves further is a drag and only turns the view; the right and middle buttons, the wheel, and a second finger never select, clear, or play a move.
 - The first piece or legal destination along the line from the camera through the pointer takes the press; nothing behind it sees it. A piece in front of a destination therefore blocks it. An empty, non-destination cell the line passes through before that point clears the selection. A press that passes through the board and reaches no piece and no destination clears the selection; a press that misses the board entirely does nothing.
 - Pressing a piece that cannot be selected (the opponent's, or any piece when it is not your turn) clears the current selection, because its own cell is in front of it on the line. Pressing your own selectable piece while another is selected moves the selection to it.
-- The turn pill, the reconnecting line, and the frozen-board banner let presses and drags through to the board; the settings gear and panel, the move card, and the error banner's "✕" do not. The promotion dialog, end-game dialog, and replaced dialog cover the whole window, block the board completely, and make everything behind them unreachable by keyboard and assistive technology (inert).
+- The turn pill, the reconnecting line, and the frozen-board banner let presses and drags through to the board; the move card (while shown) and the error banner's "✕" do not. The promotion dialog, end-game dialog, and replaced dialog cover the whole window, block the board completely, and make everything behind them unreachable by keyboard and assistive technology (inert).
 - The 3D board cannot be operated from the keyboard, but a move can be typed in the move box ("Ab2-Ab3", "=Q" to promote) and is played exactly as pressing its piece and destination would. The only other keyboard input the app handles itself is Escape in the promotion dialog. Each dialog puts keyboard focus on its first button when it opens.
 - There is no pan. Shift, Ctrl, or Cmd with a left drag does nothing to the view, and with a right drag orbits. They change nothing about what a press does to the board.
 - The browser's context menu never opens over the board.
@@ -90,7 +90,7 @@ Ownership of the playing states (the `play/` documents must agree on these hand-
 - [promotion](play/promotion.md) owns: the promotion dialog, from pressing a promotion square to picking or cancelling. Once a piece is picked, the move is in flight as in making a move.
 - [the opponent's move](play/the-opponents-move.md) owns: the opponent's turn as you see it (nothing of yours selectable), the opponent's move in flight on their side, and its echo landing on your board, up to your turn beginning.
 - [check and the end of the game](play/check-and-game-end.md) owns: a king in check, checkmate and stalemate, the end-game dialog, and "Start new game".
-- [the view](foundations/the-view.md) owns: the look of the board and its settings; orbit and zoom; orientation; every marker and animation, and when an arriving move animates or does not.
+- [the view](foundations/the-view.md) owns: the look of the board; orbit and zoom; orientation; every marker and animation, and when an arriving move animates or does not.
 - [the input model](foundations/input-model.md) owns: what a press does, what takes it, and when the board takes input.
 
 ## Order of work

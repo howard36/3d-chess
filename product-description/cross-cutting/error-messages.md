@@ -120,7 +120,7 @@ A move typed in the move box is checked in the browser, against the position on 
 | "A pawn cannot promote to that piece." | A promotion letter that names no piece the pawn can become. | Practically never: every letter the box accepts names one of the five pieces a pawn can become. |
 | "Wait for their move." | A move submitted on the opponent's turn. It is not checked or sent. | Yes. |
 
-The box checks a move only when it may send: the player's turn, the board taking input, and the game not over. On the opponent's turn it says "Wait for their move."; at any other time (a move in flight, a drop, a frozen record, a finished game) Enter and the ↵ button do nothing, with no message. The box itself is out of sight unless the Notation panel setting shows it or it has keyboard focus; its line appears with it.
+The box checks a move only when it may send: the player's turn, the board taking input, and the game not over. On the opponent's turn it says "Wait for their move."; at any other time (a move in flight, a drop, a frozen record, a finished game) Enter and the ↵ button do nothing, with no message. The box itself is out of sight unless it has keyboard focus; its line appears with it.
 
 ### Texts that act like errors
 
