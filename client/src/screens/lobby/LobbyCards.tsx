@@ -48,7 +48,6 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
       data-seat={seat}
     >
       <h2 id="invite-title">Invite a friend</h2>
-      <p className="lobby-text">The game starts when they join.</p>
       {/* The link itself, to read or select; the buttons under it copy or share it */}
       <p className="lobby-url" data-testid="share-link" data-link={link}>
         {shownLink(link)}
@@ -144,7 +143,7 @@ export const SeatLabels: React.FC<{ labels: Partial<Record<Color, string>> }> = 
             style={
               {
                 '--x': `var(--seat-${seat}-x, ${seat === 'white' ? '30%' : '70%'})`,
-                '--y': `var(--seat-${seat}-foot, 55%)`,
+                '--y': `var(--seat-${seat}-front, 55%)`,
               } as React.CSSProperties
             }
           >

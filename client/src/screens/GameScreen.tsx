@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
 import { deriveHistory } from '../game/history';
@@ -43,6 +43,8 @@ const FIRST_FRAME_WAIT_MS = 4000;
 
 const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { gameId } = useParams<{ gameId: string }>();
+  // Reached from a side left to chance: the host's king stays on the glass
+  const grounded = !!(useLocation().state as { grounded?: boolean } | null)?.grounded;
   const navigate = useNavigate();
   // Whether this client has sent join_game (players with a stored role never do)
   const [joinRequested, setJoinRequested] = React.useState(false);
@@ -433,6 +435,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       beat: 'wait',
       taken: { [storedRole]: true, [other(storedRole)]: false } as Record<Color, boolean>,
       mine: storedRole,
+      grounded,
       hover: null,
       toss: null,
       seat: storedRole,

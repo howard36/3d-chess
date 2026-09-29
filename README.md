@@ -535,15 +535,19 @@ until the row fits the width).
 
 - **Choosing a side** (`/new`, `screens/lobby/ChooseSide.tsx`). "Choose your side" over
   three kings, porcelain, one split porcelain and charcoal for Random, and charcoal, with a
-  a button under each named only "White", "Random" or "Black" (sized with the kings'
-  spacing, `--seat-pitch`: 160 px wide on a desktop, just round its word on a phone), and
+  a button under each named only "White", "Random" or "Black" (sized with the kings as
+  they stand on screen, `--king-height`: word, padding and width all scale, from 12 px text
+  just round its word under a phone's small kings to 180 px pills with 18 px text under a
+  large screen's, each hanging a little under its king's foot, `--seat-<seat>-front`), and
   nothing under the heading. A king lifts under a mouse (on it or its button) or its
   button's focus, and clicking either picks; a tap leaves no hover behind. Its height is one
   eased value, so a chosen king goes on up from hover to the selected height without dipping. A pick is final: `create_game {color}` goes out at once (and again on the
   next socket if its answer is lost), and the heading turns to "You play Black" (or
   "Leaving it to chance…"), with nothing under it. Random is decided in the client,
-  and the split king is thrown like a coin, lands on that face in the middle, and hops over
-  in one arc (`tossArc`) down into its seat's lifted place, where the seat's king takes over;
+  and the split king is thrown like a coin, lands on that face in the middle, and slides
+  along the glass into its seat's outline, where the seat's king takes over and stays on the
+  glass, not lifted (`grounded`, carried to the game page in the router's state) until the
+  game starts;
   the Random button fades as the coin sets off from the middle (`onGlide`).
   The chosen king lifts into the column of light while the other drains to its neon
   outline, and the page moves to `/game/:id` (`replace`, so Back from the invitation leads
@@ -553,9 +557,9 @@ until the row fits the width).
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
   `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
   breathing dot and "Waiting for your friend…" under it. The card under the kings: "Invite
-  a friend" and "The game starts when they join.", the link (`lib/gameLink.ts`, plain,
-  without its scheme, on one line and cut off at its end when long), and "Share link" where `navigator.share` exists and "Copy link"; nothing
-  else. A copy turns the button to
+  a friend", the link (`lib/gameLink.ts`, plain, without its scheme, on one line and
+  cut off at its end when long), and "Share link" where `navigator.share` exists and "Copy
+  link"; nothing else. A copy turns the button to
   "Copied ✓" (and is said, "Link copied"); only a failed one is written: "Couldn't copy.
   Select the link." "You" and "Opponent" stand under the kings, the neon seat breathes (for its
   first minute, calmer after half of it), and the camera holds still. In a short, wide

@@ -107,20 +107,6 @@ export const tossHop = (t: number, duration = LOBBY_TIMING.toss) =>
 export const tossGlide = (t: number) =>
   smooth(clamp01((t - LOBBY_TIMING.toss - LOBBY_TIMING.tossHold) / LOBBY_TIMING.tossGlide));
 
-/** How high the coin's hop to its seat rises above the line from floor to seat (piece units). */
-const TOSS_ARC = 0.2;
-
-/**
- * The coin's height on its hop from the middle to its seat, `t` seconds into
- * the toss: from the floor, over an arc, down into its seat's lifted place
- * `rest` above the floor (the player's king, in its column of light), so the
- * hop ends where the king it becomes stands. 0 until the hop starts.
- */
-export const tossArc = (t: number, rest: number) => {
-  const g = clamp01((t - LOBBY_TIMING.toss - LOBBY_TIMING.tossHold) / LOBBY_TIMING.tossGlide);
-  return 4 * g * (1 - g) * TOSS_ARC + rest * smooth(g);
-};
-
 /** Whether a toss `t` seconds in has reached its seat. */
 export const tossLanded = (t: number) =>
   t >= LOBBY_TIMING.toss + LOBBY_TIMING.tossHold + LOBBY_TIMING.tossGlide;

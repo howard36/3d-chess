@@ -42,6 +42,11 @@ export interface LobbyView {
   taken: Record<Side, boolean>;
   /** This player's seat once they have one: lifted into the column of light. */
   mine: Side | null;
+  /**
+   * The player's king stands on the glass, not lifted, until the game starts
+   * (a side left to chance: the coin slid into it along the glass).
+   */
+  grounded?: boolean;
   /** Choosing: the king under the pointer or keyboard focus. */
   hover: Choice | null;
   /** Choosing "Random": the side the coin will land on. */
@@ -70,6 +75,9 @@ export interface SeatAnchors {
   coin: { x: number; head: number; foot: number };
   black: { x: number; head: number; foot: number };
 }
+
+/** A lobby king's foot, with its rim's glow, from its axis (world units). */
+const KING_FOOT_RADIUS = 0.3;
 
 // --- The ring of light when a seat is taken ------------------------------------------------
 
@@ -271,16 +279,20 @@ const LobbyRig = ({
       const xs: number[] = [];
       for (const seat of ['white', 'coin', 'black'] as const) {
         const x = seatX(seat);
-        const at = (y: number) => {
-          projected.set(x, y, 0).project(camera);
+        const at = (y: number, z = 0) => {
+          projected.set(x, y, z).project(camera);
           return [(projected.x * 0.5 + 0.5) * size.width, (0.5 - projected.y * 0.5) * size.height];
         };
         const [sx, foot] = at(FLOOR_Y);
         const [, head] = at(FLOOR_Y + KING_TOP * KING_SCALE + 0.08);
+        // The near edge of its foot (and the rim's glow), where things hang under it
+        const [, front] = at(FLOOR_Y, KING_FOOT_RADIUS);
         vars.push(`--seat-${seat}-x:${sx.toFixed(1)}px`);
         vars.push(`--seat-${seat}-head:${head.toFixed(1)}px`);
         vars.push(`--seat-${seat}-foot:${foot.toFixed(1)}px`);
+        vars.push(`--seat-${seat}-front:${front.toFixed(1)}px`);
         xs.push(sx);
+        if (seat === 'coin') vars.push(`--king-height:${(foot - head).toFixed(1)}px`);
       }
       // How far apart the seats stand on screen, for the buttons under them
       vars.push(`--seat-pitch:${(xs[1] - xs[0]).toFixed(1)}px`);
@@ -392,7 +404,7 @@ export const LobbyScene = ({
           present={taken[side]}
           gone={gone}
           hovered={view.hover === side}
-          lit={mine === side || filling}
+          lit={(mine === side && !view.grounded) || filling}
           fills={fills}
           together={filling}
           breathing={!taken[side] && (view.beat === 'wait' || view.beat === 'invited')}

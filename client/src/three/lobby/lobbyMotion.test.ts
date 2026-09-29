@@ -25,7 +25,6 @@ import {
   tossAngle,
   tossGlide,
   tossHop,
-  tossArc,
   tossLanded,
 } from './lobbyMotion';
 import type { CameraPose, Side } from './lobbyMotion';
@@ -111,19 +110,6 @@ describe('the coin toss', () => {
     expect(tossLanded(tossEnd - 1e-6)).toBe(false);
     expect(tossLanded(tossEnd)).toBe(true);
     expect(tossLanded(tossEnd + 5)).toBe(true);
-  });
-
-  it('hops the landed coin to its seat, over an arc, down into its lifted place', () => {
-    const rest = 0.14;
-    const tossEnd = toss + tossHold + glideTime;
-    for (const t of samples(0, toss + tossHold, 50)) expect(tossArc(t, rest)).toBe(0);
-    expect(tossArc(tossEnd, rest)).toBeCloseTo(rest, 12);
-    expect(tossArc(tossEnd + 5, rest)).toBeCloseTo(rest, 12);
-    // Above its resting place partway, and coming down into it at the end
-    const hop = samples(toss + tossHold, tossEnd, 100).map((t) => tossArc(t, rest));
-    expect(Math.max(...hop)).toBeGreaterThan(rest);
-    expect(hop[99]).toBeGreaterThan(hop[100]);
-    for (const y of hop) expect(y).toBeGreaterThanOrEqual(0);
   });
 });
 

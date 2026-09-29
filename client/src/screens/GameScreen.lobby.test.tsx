@@ -54,9 +54,9 @@ const lobby: LobbyApi = {
   },
 };
 
-const at = (socket: GameSocket, gameId = 'abc123') => (
+const at = (socket: GameSocket, gameId = 'abc123', state?: unknown) => (
   <LobbyContext.Provider value={lobby}>
-    <MemoryRouter initialEntries={[`/game/${gameId}`]}>
+    <MemoryRouter initialEntries={[{ pathname: `/game/${gameId}`, state }]}>
       <Routes>
         <Route path="/" element={<p>home</p>} />
         <Route path="/new" element={<p>choose a side</p>} />
@@ -271,8 +271,9 @@ describe("the host's invitation to send", () => {
     // The page's heading says the side; the card, what to do about the other
     expect(screen.getByRole('heading', { name: 'You play Black' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Invite a friend' })).toBeInTheDocument();
-    expect(screen.getByText('The game starts when they join.')).toBeInTheDocument();
+    // Nothing more: the heading, the link and its button say it all
     const link = screen.getByTestId('share-link');
+    expect(card.querySelector('h2')?.nextElementSibling).toBe(link);
     expect(link).toHaveAttribute('data-link', `${window.location.origin}/game/abc123`);
     // Set without its scheme, plain
     expect(link).toHaveTextContent(new RegExp(`^${window.location.host}/game/abc123$`));
@@ -287,6 +288,15 @@ describe("the host's invitation to send", () => {
       mine: 'black',
       seat: 'black',
     });
+  });
+
+  it('keeps a king that chance chose on the glass until the game starts', () => {
+    setStoredRole('abc123', 'white');
+    const { unmount } = render(at(fakeSocket(hosting('white'))));
+    expect(view).toMatchObject({ beat: 'wait', mine: 'white', grounded: false });
+    unmount();
+    render(at(fakeSocket(hosting('white')), 'abc123', { grounded: true }));
+    expect(view).toMatchObject({ beat: 'wait', mine: 'white', grounded: true });
   });
 
   it('copies the link, and says whether it could', async () => {

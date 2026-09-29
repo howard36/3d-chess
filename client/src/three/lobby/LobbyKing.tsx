@@ -21,7 +21,6 @@ import {
   LOBBY_TIMING,
   outlineForFill,
   tossAngle,
-  tossArc,
   tossGlide,
   tossHop,
   tossLanded,
@@ -339,8 +338,9 @@ export const CoinKing = ({
     if (toss && s.tossT >= 0 && !s.landed) {
       s.tossT = still ? Infinity : s.tossT + dt;
       angle = tossAngle(s.tossT, toss);
-      // Thrown up spinning, down in the middle, then one hop to its seat
-      hop = still ? 0 : tossHop(s.tossT) + tossArc(s.tossT, PIECE_LIFT.selected);
+      // Thrown up spinning, down in the middle, then slid along the glass
+      // into its seat's outline
+      hop = still ? 0 : tossHop(s.tossT);
       const glide = tossGlide(s.tossT);
       x = landX * glide;
       s.fill = 1;

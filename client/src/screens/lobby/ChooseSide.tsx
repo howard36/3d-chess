@@ -57,7 +57,12 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
 
   React.useEffect(() => {
     if (created) setStoredRole(created.gameId, created.color);
-    if (created && settled) navigate(`/game/${created.gameId}`, { replace: true });
+    // A side left to chance keeps its king on the glass there too
+    if (created && settled)
+      navigate(`/game/${created.gameId}`, {
+        replace: true,
+        state: picked?.choice === 'random' ? { grounded: true } : undefined,
+      });
   }, [created, settled, navigate]);
 
   // Asked again on the next connection if this one drops before the answer
@@ -82,6 +87,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
           black: true,
         },
     mine: side,
+    grounded: picked?.choice === 'random',
     hover: picked ? null : hover,
     toss: picked?.choice === 'random' ? picked.side : null,
     seat: side ?? 'white',
@@ -128,7 +134,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
               style={
                 {
                   '--x': `var(--seat-${seat}-x, ${FALLBACK_X[seat]})`,
-                  '--y': `var(--seat-${seat}-foot, 62%)`,
+                  '--y': `var(--seat-${seat}-front, 62%)`,
                 } as React.CSSProperties
               }
               // A mouse's hover only: a tap leaves nothing lit behind it
