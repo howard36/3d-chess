@@ -154,11 +154,27 @@ export const unite = (k: number, ...fs: Sdf[]): Sdf => {
   return g;
 };
 
-/** Carves `cut` out of `f` with a fillet of k. */
-export const carve =
-  (f: Sdf, cut: Sdf, k: number): Sdf =>
-  (x, y, z) =>
-    smax(f(x, y, z), -cut(x, y, z), k);
+/**
+ * Carves `cut` out of `f` with a fillet of k. Where the cut's bound puts it
+ * beyond the fillet's reach, the result is f's value exactly (smax gives
+ * back its first argument when the second is k or more below it), so the
+ * cut is not evaluated there.
+ */
+export const carve = (f: Sdf, cut: Sdf, k: number): Sdf => {
+  if (!cut.bound) return (x, y, z) => smax(f(x, y, z), -cut(x, y, z), k);
+  const [cx, cy, cz] = cut.bound.c;
+  const { r, s } = cut.bound;
+  return (x, y, z) => {
+    const a = f(x, y, z);
+    const dx = x - cx;
+    const dy = y - cy;
+    const dz = z - cz;
+    // Only outside the bound's sphere (inside it the bound can overstate
+    // the cut), and with a margin, so rounding cannot skip a cut that reaches
+    if (s * (Math.sqrt(dx * dx + dy * dy + dz * dz) - r) >= Math.max(k - a, 0) + 1e-9) return a;
+    return smax(a, -cut(x, y, z), k);
+  };
+};
 
 /** A 2D field: signed distance to a closed outline, negative inside. */
 type Field2 = (x: number, y: number) => number;
