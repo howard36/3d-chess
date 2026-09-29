@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
@@ -7,7 +7,6 @@ import type { Group, Intersection, Object3D, Scene } from 'three';
 import { PieceType } from '../engine';
 import { PieceMesh } from './PieceMesh';
 import { layout, PIECE_SCALE } from './scene/palette';
-import { forgetSettings, setSetting } from './settings';
 import type { PieceBodyProps } from './types';
 
 // Regression: a piece that lifts under the pointer used to flicker when the
@@ -38,11 +37,6 @@ vi.mock('./scene/pieces', async () => {
 });
 
 const floorY = layout.floorY;
-
-beforeEach(() => {
-  localStorage.clear();
-  forgetSettings();
-});
 
 async function renderPiece(props: { hovered?: boolean; selected?: boolean }) {
   const renderer = await ReactThreeTestRenderer.create(
@@ -123,28 +117,12 @@ describe('a piece’s hit proxy', () => {
     expect(at(RADIUS * PIECE_SCALE + 0.04)).toHaveLength(0);
   });
 
-  it('lifts to the heights the player’s settings give, and covers them', async () => {
+  it('lifts a held piece by the hover height and the held gap, and covers it', async () => {
     const { frames, hitsAt, visual, piece } = await renderPiece({ selected: true });
     const rest = visual().min.y;
     await frames(40);
-    // Held: the hover height and the held gap, at the pieces' scale
+    // At the pieces' scale
     expect(visual().min.y - rest).toBeCloseTo((0.09 + 0.05) * PIECE_SCALE, 3);
-    await act(async () => {
-      setSetting('piece.hoverLift', 0.25);
-      setSetting('piece.heldGap', 0.2);
-    });
-    await frames(40);
-    expect(visual().min.y - rest).toBeCloseTo(0.45 * PIECE_SCALE, 3);
-    // The proxy grows with it
     expect(pieceOf(hitsAt(visual().max.y - 0.01)[0])).toBe(piece);
-  });
-
-  it('adds no height when pieces do not lift', async () => {
-    setSetting('piece.hoverLift', 0);
-    setSetting('piece.heldGap', 0);
-    const { hitsAt, visual } = await renderPiece({ hovered: true });
-    const top = visual().max.y;
-    expect(hitsAt(top - 0.01).length).toBeGreaterThan(0);
-    expect(hitsAt(top + 0.03)).toHaveLength(0);
   });
 });
