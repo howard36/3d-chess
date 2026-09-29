@@ -14,6 +14,7 @@ import {
 import type { GameSocket } from '../hooks/useGameSocket';
 import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole';
 import { getClientId } from '../lib/clientId';
+import { gameLink } from '../lib/gameLink';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
 import { onToppled } from '../three/pieceMotion';
 import GameView from './GameView';
@@ -36,6 +37,8 @@ const MATE_FALLBACK_MS = 12000;
  * it has landed (its glide takes 460 ms) and a moment more.
  */
 const STALEMATE_WAIT_MS = 600;
+/** The longest the lobby holds its arrival for the game's first frame. */
+const FIRST_FRAME_WAIT_MS = 4000;
 
 const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { gameId } = useParams<{ gameId: string }>();
@@ -362,7 +365,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const guest = joinRequested || seat.joined || !storedRole;
   // The host, waiting: this page holds a seat and the game has not begun
   const hosting = !guest && sessionReady;
-  const shareLink = `${window.location.origin}/game/${gameId}`;
+  const shareLink = gameLink(gameId ?? '');
 
   // The lobby hands over to the game when the game begins on this page: the
   // free seat fills (arrive), then the kings go up in light and the lobby
@@ -377,6 +380,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   if (phase === 'started' && lobbyShown.current && handover === 'none') setHandover('arrive');
   React.useEffect(() => {
     if (handover === 'arrive' && arrived && gameDrawn) setHandover('leave');
+  }, [handover, arrived, gameDrawn]);
+  // A safety net, not a beat: if the game's canvas never reports its first
+  // frame (a lost WebGL context), the lobby leaves anyway rather than hold
+  React.useEffect(() => {
+    if (handover !== 'arrive' || !arrived || gameDrawn) return;
+    const timer = window.setTimeout(() => setGameDrawn(true), FIRST_FRAME_WAIT_MS);
+    return () => window.clearTimeout(timer);
   }, [handover, arrived, gameDrawn]);
   const wasHost = React.useRef(false);
   if (hosting) wasHost.current = true;

@@ -30,7 +30,7 @@ const TAN_V = Math.tan(VFOV / 2);
  * and further out, three abreast still readable.
  */
 const framing = (aspect: number) =>
-  aspect < 0.9 ? { share: 0.15, out: 0.62 } : { share: 0.3, out: 0.38 };
+  aspect < 0.9 ? { share: 0.2, out: 0.6 } : { share: 0.3, out: 0.38 };
 
 /** The camera's distance from the kings (world units). */
 const viewDistance = (aspect: number) =>
@@ -134,7 +134,7 @@ export interface CameraPose {
 export const lobbyPose = (aspect: number, card = false): CameraPose => {
   const distance = viewDistance(aspect);
   const kingMid = FLOOR_Y + KING_TOP * KING_SCALE * 0.5;
-  const raise = aspect < 0.9 ? 0.14 : card ? 0.42 : 0.02;
+  const raise = aspect < 0.9 ? (card ? 0.24 : 0.12) : card ? 0.36 : 0.02;
   return {
     target: [0, kingMid - raise * distance * TAN_V, 0],
     azimuth: 0,
@@ -188,7 +188,7 @@ export const blendPose = (a: CameraPose, b: CameraPose, t: number): CameraPose =
 /** The ring of light that answers a seat being taken: its radius and brightness at `t` s. */
 export const arrivalRing = (t: number) => {
   const k = clamp01(t / 1.4);
-  return { radius: 0.3 + easeOutCubic(k) * 3.4, strength: (1 - k) ** 1.6 };
+  return { radius: 0.3 + easeOutCubic(k) * 2.6, strength: 0.45 * (1 - k) ** 2 };
 };
 
 // --- Handing over to the game ------------------------------------------------------------

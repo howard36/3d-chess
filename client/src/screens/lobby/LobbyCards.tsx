@@ -11,11 +11,11 @@ import { Stone } from '../TurnPill';
 
 const name = (c: Color) => (c === 'white' ? 'White' : 'Black');
 
-/** The link as it is set on the card: no scheme, the game's id standing out. */
+/** The link as it is set on the card: no scheme, the game's id (its end) standing out. */
 const shownLink = (link: string) => {
-  const url = new URL(link);
-  const id = url.pathname.split('/').pop() ?? '';
-  return { rest: `${url.host}${url.pathname.slice(0, url.pathname.length - id.length)}`, id };
+  const bare = link.replace(/^[a-z]+:\/\//, '');
+  const id = bare.match(/[A-Z0-9]+$/)?.[0] ?? '';
+  return { rest: bare.slice(0, bare.length - id.length), id };
 };
 
 /** How long "Copied" stands on the button before it says "Copy link" again. */

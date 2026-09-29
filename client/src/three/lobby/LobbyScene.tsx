@@ -106,8 +106,8 @@ const SeatRing = ({ x, playing }: { x: number; playing: boolean }) => {
           varying vec2 vP;
           void main() {
             float r = length(vP - uCentre);
-            float band = exp(-pow((r - uRadius) / 0.08, 2.0));
-            float inner = exp(-pow((r - uRadius * 0.62) / 0.22, 2.0)) * 0.25;
+            float band = exp(-pow((r - uRadius) / 0.05, 2.0));
+            float inner = exp(-pow((r - uRadius * 0.7) / 0.18, 2.0)) * 0.15;
             float a = (band + inner) * uStrength;
             // Only on the glass
             vec2 q = abs(vP);
