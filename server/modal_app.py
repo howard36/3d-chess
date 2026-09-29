@@ -2,11 +2,13 @@ import logging
 import os
 import random
 import string
+import warnings
 
 import fastapi
 import modal
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
+from modal.exception import AsyncUsageWarning
 from pydantic import ValidationError
 
 from messages import (
@@ -46,6 +48,11 @@ image = (
     )
     .add_local_python_source("messages")
 )
+
+# Modal warns whenever a blocking modal.Dict call runs on the event loop. That
+# is deliberate here (see "Store operations" below): the blocking calls are what
+# make each read-modify-write atomic, and `.aio` would let handlers interleave.
+warnings.filterwarnings("ignore", category=AsyncUsageWarning)
 
 # Close code sent to a socket whose seat was reclaimed by a newer connection
 # (rejoin_game from another tab or a refreshed page). It is an application
