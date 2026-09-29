@@ -141,7 +141,7 @@ foundations/
 start/
   creating-a-game.md             the pilot: the landing page, the side choice and its pick, to the game page
   waiting-for-an-opponent.md     the host's invitation to send, until someone joins, and the arrival
-  joining-a-game.md              the invitation to the free seat, Take your seat, and what happens when it fails
+  joining-a-game.md              the invitation to the free seat, Join game, and what happens when it fails
 
 play/
   making-a-move.md               selecting a piece, legal-move markers, sending a move, the move in flight

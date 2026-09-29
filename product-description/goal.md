@@ -65,7 +65,7 @@ The connection and the seat:
 
 The game page:
 
-- Phase is derived from the server's messages on this page: playing once the game has started (a start notice or a snapshot saying started), joined after "Take your seat" is clicked or the seat is confirmed, otherwise before joining. Before joining, a stored seat shows "Returning to your game…" and then the invitation to send, and no stored seat shows the invitation to the free seat, both over the lobby (see the glossary).
+- Phase is derived from the server's messages on this page: playing once the game has started (a start notice or a snapshot saying started), joined after "Join game" is clicked or the seat is confirmed, otherwise before joining. Before joining, a stored seat shows "Returning to your game…" and then the invitation to send, and no stored seat shows the invitation to the free seat, both over the lobby (see the glossary).
 - The board, and therefore the view, mounts only in the playing phase. Nothing can be selected or turned before both seats are taken; before that the lobby shows the kings.
 - Only the latest server error is shown, as the error banner on the game page and as red text on the side choice. Dismissing hides every error so far; a later error shows again.
 - Game over is decided by each browser from the record. The end-game dialog covers the board and offers only "Start new game", which goes to the side choice at `/new`.

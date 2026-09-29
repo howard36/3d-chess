@@ -14,14 +14,14 @@ stateDiagram-v2
         state "Returning to your game…" as returning
         state "Invitation to send" as invite
         state "Invitation to the free seat" as invitation
-        state "Taking your seat…" as taking
+        state "Joining…" as taking
         state "Board screen" as board
         [*] --> returning : stored seat
         [*] --> invitation : no stored seat
         returning --> invite : snapshot says not started
         returning --> board : snapshot says started (short entrance)
         returning --> invitation : rejoin refused (stored seat deleted)
-        invitation --> taking : "Take your seat"
+        invitation --> taking : "Join game"
         taking --> invitation : join refused ("This game is taken", "No game here")
         taking --> board : game starts (arrival, then entrance)
         invite --> board : game starts (arrival, then entrance)
@@ -61,8 +61,8 @@ The page's [phase](../glossary.md#the-product-and-its-screens) is worked out fro
 
 | Phase | When | Screen shown |
 | --- | --- | --- |
-| Before joining | Nothing says the game has started, and the player has not clicked "Take your seat" and has not been confirmed in a seat. | With a [stored seat](connection-and-seat.md#the-stored-seat): "Returning to your game…" until the rejoin is answered, then the **invitation to send** ("Invite a friend" and the link). Without one: the **invitation to the free seat** ("Opening the invitation…", then "You're invited to play …" with "Take your seat", or "This game is taken" or "No game here"). |
-| Joined | The player clicked "Take your seat", or the server confirmed a joined seat, and the game has not started. | The invitation with the seat taken: "Taking your seat…". |
+| Before joining | Nothing says the game has started, and the player has not clicked "Join game" and has not been confirmed in a seat. | With a [stored seat](connection-and-seat.md#the-stored-seat): "Returning to your game…" until the rejoin is answered, then the **invitation to send** ("Invite a friend" and the link). Without one: the **invitation to the free seat** ("Opening the invitation…", then "You're invited to play …" with "Join game", or "This game is taken" or "No game here"). |
+| Joined | The player clicked "Join game", or the server confirmed a joined seat, and the game has not started. | The invitation with the seat taken: "Joining…". |
 | Playing | The server announced the game's start, or a snapshot said both seats are taken. | The **board screen**: the 3D board filling the window with the [HUD](../glossary.md#input) over it. |
 
 The screens before the game share one look: the lobby's glass and kings in the night garden, with "← Home" at the top left, a heading at the top that carries the story from one step to the next ("Choose your side", "You play Black", "You're invited to play White"), and buttons or a glass card at the bottom ("Returning to your game…" alone is a line on a dark page, without the scene). The board screen is the whole tower in the same garden, with no title, exactly the size of the window, which never scrolls. When the game starts on a page that showed the lobby, the [arrival](../glossary.md#the-product-and-its-screens) plays, the lobby's camera ends on the board's first picture over level A's glass, which stays, and the board's entrance builds the tower on up from it; a page that opens on a game already under way goes straight to the board with a short entrance.
@@ -100,7 +100,7 @@ The app changes pages in three ways of its own, and the browser adds its usual c
 
 What survives each of these: the [stored seat](connection-and-seat.md#the-stored-seat) always survives, the server's record of the game always survives, and the tab's [client id](connection-and-seat.md#the-client-id) survives everything but closing the tab. Everything else (the selection, the view's angle and zoom, a dismissed error, an open promotion dialog, text in the move box, a request that was queued or in flight) belongs to the page and is lost.
 
-The page title is "3D Chess — Online Multiplayer" on every page. The one exception: a host whose tab is in the background when the guest arrives sees "● They're here · 3D Chess" until they return to the tab. A background tab gives no sign that it is the player's turn.
+The page title is "3D Chess — Online Multiplayer" on every page. The one exception: a host whose tab is in the background when the guest arrives sees "● Opponent joined · 3D Chess" until they return to the tab. A background tab gives no sign that it is the player's turn.
 
 ## Addresses the app does not know
 

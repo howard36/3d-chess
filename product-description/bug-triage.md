@@ -174,7 +174,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Carry the creator's seat into the game page in memory (the connection already holds it).
 - **Raised by:** [creating a game](start/creating-a-game.md#open-questions-and-verification), [waiting for an opponent](start/waiting-for-an-opponent.md#edge-cases), [connection loss](session/connection-loss.md#edge-cases).
 - **Status:** confirmed 2026-09-25 by the scripted pass: CREATE-06.
-- **Status:** still present at `1928567` in a new form (read from code, CREATE-28 unverified): the side choice stores the seat, the game page finds none, and invites the creator to the other seat of their own game; "Take your seat" is refused with "Already in a game".
+- **Status:** still present at `1928567` in a new form (read from code, CREATE-28 unverified): the side choice stores the seat, the game page finds none, and invites the creator to the other seat of their own game; "Join game" is refused with "Already in a game".
 
 ### B-12: Returning players see "Game created! Share this link with a friend:" while their rejoin is in flight
 
@@ -287,7 +287,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Severity:** `low`.
 - **Decision needed:** `product call`.
 - **Raised by:** [the opponent's move](play/the-opponents-move.md#open-questions-and-verification), [waiting for an opponent](start/waiting-for-an-opponent.md#open-questions-and-verification), [screens and navigation](foundations/screens-and-navigation.md#open-questions-and-verification), [making a move](play/making-a-move.md#open-questions-and-verification).
-- **Status:** partly addressed at `1928567` (read from code, WAIT-18 unverified): a host whose tab is in the background when the guest arrives sees the title "● They're here · 3D Chess", and the arrival waits for them. The player's turn and a move in flight are still not signalled.
+- **Status:** partly addressed at `1928567` (read from code, WAIT-18 unverified): a host whose tab is in the background when the guest arrives sees the title "● Opponent joined · 3D Chess", and the arrival waits for them. The player's turn and a move in flight are still not signalled.
 
 ### B-22: The board has no coordinate labels, so the move list cannot be matched to cells
 
