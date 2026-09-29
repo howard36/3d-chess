@@ -39,6 +39,10 @@ Client code imports wire types from `client/src/types/messages.ts` (hand-written
 - Three coordinate systems: engine 0-indexed `(x,y,z)`, wire/display strings like `Aa1`, and the Three.js scene. Conversions live in `client/src/engine/coords.ts`; keep scene math inside `client/src/three/`.
 - **The board** (README "The board"): `Board.tsx` owns every interaction rule; the scene (`client/src/three/scene/`) only draws. Its grid, markers and effects render in the `board-decor` group, outside the clickable `board-grid` group, so decoration can never take a click. Board, `PieceMesh` and `GameView` import the scene's parts directly, and unit tests stand them in with `vi.mock` (see `Board.test.tsx`). Piece geometry (`client/src/three/pieces/`, README "Piece set") is built once and shared by every piece, as are the hit proxies in `PieceMesh.tsx`: never modify either in place. The canvas renders on demand, so a value read only in `useFrame` must `invalidate()` when it changes. Animations run on r3f's clock (never `setTimeout`) so `scripts/showcase.mjs`, which records on a virtual clock, captures them.
 
+## Interface copy
+
+Write for a capable player who needs no hand-holding. The scene, the layout and a control's own label should make things obvious; add words only when something can't be shown. No subtitles restating a heading, no explanations of what a button will do, no reassurance ("we'll bring you in"), no descriptions of the game on the way into it. Prefer a single word or short phrase to a sentence, and say something only once per screen. Errors and states a player could not otherwise see (a failed copy, a lost connection) are the exception: say them, briefly.
+
 ## Gotchas
 
 - `npm run dev` with no `VITE_WS_URL` connects to the **production** Modal backend. For a local backend, export `VITE_WS_URL=ws://127.0.0.1:8000/ws` before starting Vite (it is inlined at startup).

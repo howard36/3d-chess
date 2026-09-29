@@ -1047,8 +1047,8 @@
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  min-width: 168px;
-  padding: 9px 22px 8px;
+  min-width: 140px;
+  padding: 12px 24px;
   border: 1.5px solid rgba(255, 255, 255, 0.14);
   border-radius: 28px;
   background:
@@ -1066,11 +1066,6 @@
 .lobby-choice-name {
   font-size: 16px;
   font-weight: 600;
-}
-.lobby-choice-note {
-  color: var(--hud-muted);
-  font-size: 12px;
-  font-weight: 500;
 }
 /* Pointed at (by a pointer that can hover: a tap leaves no hover behind),
    focused or chosen: the landing button's rim in the level colours */
@@ -1233,6 +1228,15 @@
   border-color: rgba(243, 246, 255, 0.8);
   outline: none;
 }
+/* An action alone under the scene, where a card would stand */
+.lobby-dock {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: max(32px, env(safe-area-inset-bottom));
+  pointer-events: none;
+  animation: lobby-rise 650ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
 /* Who stands where: a word under each king */
 .lobby-seat {
   position: absolute;
@@ -1362,9 +1366,7 @@
   .lobby-choice {
     position: static;
     transform: none;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: baseline;
+    justify-content: center;
     min-width: 0;
     padding: 14px 20px;
     border-radius: 16px;
@@ -1374,8 +1376,5 @@
   }
   .lobby-choice-name {
     font-size: 16px;
-  }
-  .lobby-choice-note {
-    font-size: 13px;
   }
 }

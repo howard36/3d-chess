@@ -295,7 +295,7 @@ describe("the host's invitation to send", () => {
       await act(async () => fireEvent.click(copy));
       expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/game/abc123`);
       expect(copy).toHaveTextContent(/Copied/);
-      expect(screen.getByText('Link copied.')).toBeInTheDocument();
+      expect(screen.getByText('Link copied')).toBeInTheDocument();
       // ...for a moment, then the button offers to copy again
       act(() => vi.advanceTimersByTime(10_000));
       expect(copy).toHaveTextContent('Copy link');

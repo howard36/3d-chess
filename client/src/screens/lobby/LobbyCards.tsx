@@ -51,7 +51,6 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
       data-seat={seat}
     >
       <h2 id="invite-title">Invite a friend</h2>
-      <p className="lobby-text">Send this link. The game begins the moment they arrive.</p>
       {/* The link itself, to read or select; the buttons under it copy or share it */}
       <p className="lobby-url" data-testid="share-link" data-link={link}>
         <span className="lobby-url-rest">{rest}</span>
@@ -73,12 +72,9 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
           </button>
         )}
       </div>
-      <p className="lobby-note" role="status">
-        {copied === false
-          ? "Couldn't copy: select the link instead."
-          : copied
-            ? 'Link copied.'
-            : "Keep this tab open. We'll bring you in."}
+      {/* The button says "Copied"; only a failed copy needs words */}
+      <p className={copied === false ? 'lobby-note' : 'sr-only'} role="status">
+        {copied === false ? "Couldn't copy. Select the link." : copied ? 'Link copied' : ''}
       </p>
     </section>
   );
@@ -96,11 +92,6 @@ export const InvitationCard: React.FC<{ invitation: Invitation; onAccept: () => 
         <h2 id="invitation-title">
           {invitation.state === 'full' ? 'This game is taken' : 'No game here'}
         </h2>
-        <p className="lobby-text">
-          {invitation.state === 'full'
-            ? 'It already has two players. If one of them is you, open it where you started.'
-            : "This link doesn't lead to a game. It may be mistyped, or the game has expired."}
-        </p>
         <div className="lobby-actions">
           <button autoFocus className="landing-play lobby-go" onClick={() => navigate('/new')}>
             Start a new game
@@ -120,12 +111,10 @@ export const InvitationCard: React.FC<{ invitation: Invitation; onAccept: () => 
     );
   }
   const joining = invitation.state === 'joining';
-  // Its heading is the page's (GameScreen): "You're invited to play …"
+  // Its heading is the page's (GameScreen): "You're invited to play …"; the
+  // scene shows the rest, so all it holds is the one thing to do
   return (
-    <section className="lobby-card" aria-labelledby="invitation-title" data-testid="invitation">
-      <p className="lobby-text">
-        Chess on five boards stacked into a tower. Pieces move up and down as well as across.
-      </p>
+    <section className="lobby-dock" aria-labelledby="invitation-title" data-testid="invitation">
       <div className="lobby-actions">
         <button
           autoFocus

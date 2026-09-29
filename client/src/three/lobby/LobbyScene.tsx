@@ -188,8 +188,8 @@ const LobbyRig = ({
   useFrame((_, delta) => {
     const aspect = size.width / Math.max(size.height, 1);
     const { beat, since } = clock.current;
-    // (a card is docked under the kings while waiting and invited)
-    const rest = lobbyPose(aspect, beat === 'wait' || beat === 'invited');
+    // (a card is docked under the kings while the host waits)
+    const rest = lobbyPose(aspect, beat === 'wait');
     let pose = rest;
     let moving = false;
     if (beat === 'wait' || (beat === 'arrive' && view.mine && view.taken[view.mine])) {

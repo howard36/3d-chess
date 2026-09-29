@@ -533,8 +533,8 @@ cards under the kings carry only what to do. Timings and framing are pure functi
 
 - **Choosing a side** (`/new`, `screens/lobby/ChooseSide.tsx`). "Choose your side" over
   three kings, porcelain, one split porcelain and charcoal for Random, and charcoal, with a
-  button under each: White "Moves first", Random "Let chance decide", Black "Moves
-  second" (stacked rows at the bottom on a phone held upright). A king lifts under a mouse
+  a button under each named only "White", "Random" or "Black" (stacked rows at the bottom
+  on a phone held upright), and nothing under the heading. A king lifts under a mouse
   (on it or its button) or its button's focus, and clicking either picks; a tap leaves no
   hover behind. A pick is final: `create_game {color}` goes out at once (and again on the
   next socket if its answer is lost), and the heading turns to "You play Black" (or
@@ -548,16 +548,16 @@ cards under the kings carry only what to do. Timings and framing are pure functi
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
   `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
   breathing dot and "Waiting for your friend…" under it. The card under the kings: "Invite
-  a friend", the link (`lib/gameLink.ts`, its id picked out), "Share link" where
-  `navigator.share` exists and "Copy link", and a status line, "Keep this tab open. We'll
-  bring you in." ("Link copied." or "Couldn't copy: select the link instead." after a
-  copy). "You" and "Open seat" stand under the kings, the neon seat breathes (for its
+  a friend", the link (`lib/gameLink.ts`, its id picked out), and "Share link" where
+  `navigator.share` exists and "Copy link"; nothing else. A copy turns the button to
+  "Copied ✓" (and is said, "Link copied"); only a failed one is written: "Couldn't copy.
+  Select the link." "You" and "Open seat" stand under the kings, the neon seat breathes (for its
   first minute, calmer after half of it), and the camera drifts 12° round once over 18 s
   and rests.
 - **The guest** (the `invited` beat and `InvitationCard`). A page with no stored seat asks
   `look_game` once per socket until answered, and `game/invitation.ts` reads the answer.
   With a seat free the heading reads "You're invited to play" with the side's stone and
-  name, and the card (no heading of its own) a line about the game and "Take your seat";
+  name, and under the scene there is only "Take your seat";
   "Opponent" and "Your seat" stand under the kings, and taking the seat fills it at once,
   before the server answers, the label turning to "You". A game with both seats taken, or
   none, gets a card "This game is taken" or "No game here" with "Start a new game". A page

@@ -17,10 +17,10 @@ import { useLobbyView } from './lobbyContext';
 // land on the side the server will give), and the page moves on to the game's
 // own page, the invitation, once both the answer and the moment are over.
 
-const CHOICES: { choice: Choice; name: string; note: string }[] = [
-  { choice: 'white', name: 'White', note: 'Moves first' },
-  { choice: 'random', name: 'Random', note: 'Let chance decide' },
-  { choice: 'black', name: 'Black', note: 'Moves second' },
+const CHOICES: { choice: Choice; name: string }[] = [
+  { choice: 'white', name: 'White' },
+  { choice: 'random', name: 'Random' },
+  { choice: 'black', name: 'Black' },
 ];
 
 // Until the scene has placed the kings on screen
@@ -92,9 +92,8 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
     : picked.choice === 'random'
       ? 'Leaving it to chance…'
       : `You play ${picked.side === 'white' ? 'White' : 'Black'}`;
-  const subheading = !picked
-    ? 'Then send a friend the link to take the other side.'
-    : 'Opening your game…';
+  // What the pick is doing, once there is one
+  const subheading = picked ? 'Opening your game…' : null;
   return (
     <div className="lobby-page" data-testid="choose-side">
       <header className="lobby-top">
@@ -105,10 +104,10 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
       {/* The heading answers the pick at once; keyed, so each line fades in */}
       <div className="lobby-heading" key={heading}>
         <h1>{heading}</h1>
-        <p>{subheading}</p>
+        {subheading && <p>{subheading}</p>}
       </div>
       <div className="lobby-choices" role="group" aria-label="Choose your side">
-        {CHOICES.map(({ choice, name, note }) => {
+        {CHOICES.map(({ choice, name }) => {
           const seat = choice === 'random' ? 'coin' : choice;
           const chosen = picked?.choice === choice;
           return (
@@ -135,7 +134,6 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
               onClick={() => pick(choice)}
             >
               <span className="lobby-choice-name">{name}</span>
-              <span className="lobby-choice-note">{note}</span>
             </button>
           );
         })}

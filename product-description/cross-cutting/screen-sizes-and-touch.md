@@ -26,7 +26,7 @@ The [share-link screen](../start/waiting-for-an-opponent.md), the [join screen](
 
 The [share link](../glossary.md#games-and-seats) on the share-link screen, `{origin}/game/{id}`, is shown in bold type in a dark box that wraps it anywhere, between any two characters, so a long address breaks onto as many lines as it needs and never runs off the screen. In a 375 px window a 34-character local address took two lines in a box 311 px wide.
 
-Below the link is a "Copy link" button, which copies the link and then says "Copied" beside it (or "Could not copy; select the link instead" if the browser refused). The button is offered only where the browser lets a page copy text, which means an `https` address or `localhost`. On a plain `http` address, such as a development computer's address on a home network opened from a phone, there is no button, and the link has to be selected by hand: a long press on it, as on any web page text.
+Below the link is a "Copy link" button, which copies the link and then says "Copied ✓" (or, under it, "Couldn't copy. Select the link." if the browser refused). The button is offered only where the browser lets a page copy text, which means an `https` address or `localhost`. On a plain `http` address, such as a development computer's address on a home network opened from a phone, there is no button, and the link has to be selected by hand: a long press on it, as on any web page text.
 
 ## The board at any size
 

@@ -130,7 +130,7 @@ test('a new game goes from the start screen through the side choice to its invit
   expect(screen.getByTestId('lobby')).toHaveAttribute('data-beat', 'choose');
   const stage = screen.getByTestId('lobby-canvas');
   await server.connected;
-  await userEvent.click(screen.getByRole('button', { name: 'Black Moves second' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Black' }));
   await expect(server).toReceiveMessage({
     type: 'create_game',
     clientId: expect.any(String),
