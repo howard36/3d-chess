@@ -444,7 +444,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       beat: 'invited',
       // Accepting fills the guest's seat at once, before the server answers
       taken: { [host]: true, [invitation.seat]: joining } as Record<Color, boolean>,
-      mine: joining ? invitation.seat : null,
+      // Not lifted on the click: the guest's king lifts with the host's once
+      // the game starts (the arrival)
+      mine: null,
       hover: null,
       toss: null,
       seat: invitation.seat,

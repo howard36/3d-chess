@@ -191,7 +191,7 @@ describe("a guest's invitation", () => {
     });
     const button = screen.getByRole('button', { name: 'Joining…' });
     expect(button).toHaveAttribute('aria-disabled', 'true');
-    expect(view).toMatchObject({ taken: { white: true, black: true }, mine: 'black' });
+    expect(view).toMatchObject({ taken: { white: true, black: true }, mine: null });
     expect(seatLabels()).toEqual(['Opponent', 'You']);
     // Held: nothing more goes out
     fireEvent.click(button);
@@ -248,7 +248,12 @@ describe("a guest's invitation", () => {
     // A stored seat, but joined here: not the host's card
     expect(screen.queryByTestId('invite-card')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Joining…' })).toBeInTheDocument();
-    expect(view).toMatchObject({ beat: 'invited', mine: 'black', seat: 'black' });
+    expect(view).toMatchObject({
+      beat: 'invited',
+      taken: { white: true, black: true },
+      mine: null,
+      seat: 'black',
+    });
   });
 });
 
@@ -269,9 +274,8 @@ describe("the host's invitation to send", () => {
     expect(screen.getByText('The game starts when they join.')).toBeInTheDocument();
     const link = screen.getByTestId('share-link');
     expect(link).toHaveAttribute('data-link', `${window.location.origin}/game/abc123`);
-    // Set without its scheme, the game's id standing on its own
-    expect(link).toHaveTextContent(`${window.location.host}/game/abc123`);
-    expect(link.querySelector('.lobby-url-id')).toHaveTextContent(/^abc123$/);
+    // Set without its scheme, plain
+    expect(link).toHaveTextContent(new RegExp(`^${window.location.host}/game/abc123$`));
     expect(screen.getByText('Waiting for your friend…')).toBeInTheDocument();
     expect(seatLabels()).toEqual(['Opponent', 'You']);
     // Nothing to ask the server: the seat is held, the game is known

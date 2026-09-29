@@ -157,7 +157,7 @@ export const lobbyPose = (aspect: number, card = false, beside = false): CameraP
   const distance = viewDistance(aspect, card && beside);
   const kingMid = FLOOR_Y + KING_TOP * KING_SCALE * 0.5;
   const tanH = TAN_V * aspect;
-  let raise = aspect < 0.9 ? (card ? 0.24 : 0.12) : card ? 0.2 : -0.04;
+  let raise = aspect < 0.9 ? (card ? 0.24 : 0) : card ? 0.2 : -0.04;
   let across = 0;
   if (card && beside) {
     raise = -0.12;

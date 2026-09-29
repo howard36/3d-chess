@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import type { Group, ShaderMaterial } from 'three';
@@ -72,6 +73,8 @@ export const LobbyKing = ({
   breathing,
   snap = false,
   pick,
+  fills,
+  together = false,
 }: {
   color: Side;
   x: number;
@@ -87,6 +90,10 @@ export const LobbyKing = ({
   /** Taken at once, with no forming: the tossed coin has landed here and is this king. */
   snap?: boolean;
   pick?: Pickable;
+  /** Both kings' fills, shared, written by each king every frame. */
+  fills?: RefObject<Record<Side, number>>;
+  /** Lit and not yet lifted, it waits for both kings to fill, and lifts with the other. */
+  together?: boolean;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
   const still = useMemo(prefersReducedMotion, []);
@@ -139,7 +146,13 @@ export const LobbyKing = ({
     // Gone, the outline fades with the body; else it answers the fill
     m.outline = gone ? toward(m.outline, 0, dt * rate) : outlineForFill(m.fill);
     m.hover = toward(m.hover, hovered && !lit && present ? 1 : 0, dt * HOVER_RATE);
-    m.hold = toward(m.hold, lit && m.fill > 0.9 ? 1 : 0, dt * (still ? 1 / 0.15 : LIFT_RATE));
+    if (fills?.current) fills.current[color] = m.fill;
+    // One already lifted stays; the rest start together once both have filled
+    const filled =
+      together && fills?.current && m.hold === 0
+        ? Math.min(fills.current.white, fills.current.black) > 0.9
+        : m.fill > 0.9;
+    m.hold = toward(m.hold, lit && filled ? 1 : 0, dt * (still ? 1 / 0.15 : LIFT_RATE));
     // Leaving: each king rises, in its own column of light, and is taken up
     // into it from the foot, faster as it goes
     m.gone = gone ? toward(m.gone, 1, dt / (still ? 0.15 : LOBBY_TIMING.leaveBurn)) : 0;
@@ -246,7 +259,7 @@ const halve = (material: ShaderMaterial, half: -1 | 1) => {
 /**
  * "Random": a king split down its axis, porcelain on the left and charcoal on
  * the right. Tossed, it is thrown up spinning like a coin, lands showing one
- * face, and glides onto that side's seat, where `onLanded` hands it over to
+ * face, and glides onto that side's seat (`onGlide` as it sets off), where `onLanded` hands it over to
  * the seat's own king (seen from the front, the coin showing a face is that
  * king). Not chosen, it drains away.
  */
@@ -256,6 +269,7 @@ export const CoinKing = ({
   toss,
   landX,
   pick,
+  onGlide,
   onLanded,
 }: {
   shown: boolean;
@@ -264,6 +278,7 @@ export const CoinKing = ({
   /** Where the seat it lands on stands. */
   landX: number;
   pick?: Pickable;
+  onGlide: () => void;
   onLanded: (side: Side) => void;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
@@ -278,13 +293,20 @@ export const CoinKing = ({
   const spin = useRef<Group>(null);
   const lift = useRef<Group>(null);
   // Starts as it is first shown: a page that opens without it never shows it
-  const state = useRef({ fill: shown ? 1 : 0, hover: 0, tossT: -1, landed: false });
-  const landedRef = useRef(onLanded);
+  const state = useRef({
+    fill: shown ? 1 : 0,
+    hover: 0,
+    tossT: -1,
+    gliding: false,
+    landed: false,
+  });
+  const told = useRef({ onGlide, onLanded });
   useEffect(() => {
-    landedRef.current = onLanded;
+    told.current = { onGlide, onLanded };
   });
   useEffect(() => {
     state.current.tossT = toss ? 0 : -1;
+    state.current.gliding = false;
     state.current.landed = false;
     invalidate();
   }, [toss, invalidate]);
@@ -302,13 +324,18 @@ export const CoinKing = ({
       s.tossT = still ? Infinity : s.tossT + dt;
       angle = tossAngle(s.tossT, toss);
       hop = still ? 0 : tossHop(s.tossT);
-      x = landX * tossGlide(s.tossT);
+      const glide = tossGlide(s.tossT);
+      x = landX * glide;
       s.fill = 1;
       moving = true;
+      if (!s.gliding && (glide > 0 || tossLanded(s.tossT))) {
+        s.gliding = true;
+        told.current.onGlide();
+      }
       if (tossLanded(s.tossT)) {
         s.landed = true;
         s.fill = 0;
-        landedRef.current(toss);
+        told.current.onLanded(toss);
       }
     } else if (!toss) {
       const rate = still ? 1 / 0.15 : 1 / LOBBY_TIMING.fill;

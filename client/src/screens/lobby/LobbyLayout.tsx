@@ -14,7 +14,7 @@ import type { LobbyApi, LobbyStage } from './lobbyContext';
 
 type Handlers = Pick<
   LobbyStage,
-  'onHover' | 'onPick' | 'onSettled' | 'onArrived' | 'onReveal' | 'onLeft'
+  'onHover' | 'onPick' | 'onGlide' | 'onSettled' | 'onArrived' | 'onReveal' | 'onLeft'
 >;
 
 /** Whether two views show the same picture (their handlers aside). */
@@ -50,6 +50,7 @@ const LobbyLayout = () => {
                 ...next,
                 onHover: (c) => handlers.current.onHover?.(c),
                 onPick: (c) => handlers.current.onPick?.(c),
+                onGlide: () => handlers.current.onGlide?.(),
                 onSettled: () => handlers.current.onSettled?.(),
                 onArrived: () => handlers.current.onArrived?.(),
                 onReveal: () => handlers.current.onReveal?.(),

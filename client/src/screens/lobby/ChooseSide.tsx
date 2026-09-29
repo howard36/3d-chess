@@ -35,6 +35,8 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
   const [hover, setHover] = React.useState<Choice | null>(null);
   const [picked, setPicked] = React.useState<{ choice: Choice; side: Side } | null>(null);
   const [settled, setSettled] = React.useState(false);
+  // Random's button goes with its king: once the coin leaves the middle
+  const [coinGone, setCoinGone] = React.useState(false);
   // Where in the log this page asked for its game: only what follows answers
   // it (arriving from a finished game, the log still holds that game's
   // game_created for the first render; see StartScreen's history)
@@ -49,6 +51,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
     if (failed && !created) {
       setPicked(null);
       setSettled(false);
+      setCoinGone(false);
     }
   }, [failed, created]);
 
@@ -84,6 +87,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
     seat: side ?? 'white',
     onHover: (c) => !picked && setHover(c),
     onPick: pick,
+    onGlide: () => setCoinGone(true),
     onSettled: () => setSettled(true),
   });
 
@@ -117,7 +121,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
               className="lobby-choice"
               data-choice={choice}
               data-chosen={chosen ? '' : undefined}
-              data-faded={picked && !chosen ? '' : undefined}
+              data-faded={picked && (!chosen || (choice === 'random' && coinGone)) ? '' : undefined}
               data-hover={!picked && hover === choice ? '' : undefined}
               disabled={!!picked}
               aria-pressed={chosen}

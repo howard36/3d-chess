@@ -130,6 +130,17 @@ describe('choosing a side', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(heading);
   });
 
+  it("lets Random's button go once the coin has left the middle", async () => {
+    render(at(fakeSocket()));
+    vi.spyOn(Math, 'random').mockReturnValue(0.2);
+    await userEvent.click(random());
+    expect(random()).toHaveAttribute('data-chosen');
+    expect(random()).not.toHaveAttribute('data-faded');
+    act(() => view!.onGlide!());
+    expect(random()).toHaveAttribute('data-faded');
+    expect(white()).toHaveAttribute('data-faded');
+  });
+
   it('makes a pick final: every choice is held, and nothing more is sent', async () => {
     const send = vi.fn(() => true);
     render(at(fakeSocket([], send)));

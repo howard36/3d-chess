@@ -52,6 +52,8 @@ export interface LobbyView {
   arriving?: Side;
   onHover?: (choice: Choice | null) => void;
   onPick?: (choice: Choice) => void;
+  /** Choosing "Random": the tossed coin has left the middle for its seat. */
+  onGlide?: () => void;
   /** Choosing: the pick has played out (the coin landed, the light has risen). */
   onSettled?: () => void;
   /** Arriving: the free seat has filled and the moment has been held. */
@@ -375,6 +377,7 @@ export const LobbyScene = ({
   // rises into a column of its own beside the player's: the two stand level
   // before they are taken up together
   const filling = view.beat === 'arrive' || view.beat === 'leave';
+  const fills = useRef<Record<Side, number>>({ white: 0, black: 0 });
   const newcomer = view.beat === 'arrive' ? (view.arriving ?? null) : null;
 
   return (
@@ -390,6 +393,8 @@ export const LobbyScene = ({
           gone={gone}
           hovered={view.hover === side}
           lit={mine === side || filling}
+          fills={fills}
+          together={filling}
           breathing={!taken[side] && (view.beat === 'wait' || view.beat === 'invited')}
           snap={landed === side}
           pick={choosing ? pick(side) : undefined}
@@ -401,6 +406,7 @@ export const LobbyScene = ({
         toss={view.toss}
         landX={view.toss ? seatX(view.toss) : 0}
         pick={choosing ? pick('random') : undefined}
+        onGlide={() => callbacks.current.onGlide?.()}
         onLanded={setLanded}
       />
       {filling && newcomer && <SeatRing x={seatX(newcomer)} playing={filling} />}

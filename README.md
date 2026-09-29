@@ -535,13 +535,15 @@ until the row fits the width).
 
 - **Choosing a side** (`/new`, `screens/lobby/ChooseSide.tsx`). "Choose your side" over
   three kings, porcelain, one split porcelain and charcoal for Random, and charcoal, with a
-  a button under each named only "White", "Random" or "Black" (stacked rows at the bottom
-  on a phone held upright), and nothing under the heading. A king lifts under a mouse
+  a button under each named only "White", "Random" or "Black" (as wide as the kings'
+  spacing allows; narrower than 340 px the three share one row across the width, just
+  under the kings), and nothing under the heading. A king lifts under a mouse
   (on it or its button) or its button's focus, and clicking either picks; a tap leaves no
   hover behind. A pick is final: `create_game {color}` goes out at once (and again on the
   next socket if its answer is lost), and the heading turns to "You play Black" (or
   "Leaving it to chance…"), with nothing under it. Random is decided in the client,
-  and the split king is thrown like a coin, lands on that face and glides onto its seat.
+  and the split king is thrown like a coin, lands on that face and glides onto its seat;
+  the Random button fades as the coin sets off from the middle (`onGlide`).
   The chosen king lifts into the column of light while the other drains to its neon
   outline, and the page moves to `/game/:id` (`replace`, so Back from the invitation leads
   to the landing page) once both the answer and the moment (`onSettled`) are over. A
@@ -550,15 +552,14 @@ until the row fits the width).
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
   `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
   breathing dot and "Waiting for your friend…" under it. The card under the kings: "Invite
-  a friend" and "The game starts when they join.", the link (`lib/gameLink.ts`, its
-  id picked out), and "Share link" where `navigator.share` exists and "Copy link"; nothing
+  a friend" and "The game starts when they join.", the link (`lib/gameLink.ts`, plain,
+  without its scheme, on one line and cut off at its end when long), and "Share link" where `navigator.share` exists and "Copy link"; nothing
   else. A copy turns the button to
   "Copied ✓" (and is said, "Link copied"); only a failed one is written: "Couldn't copy.
   Select the link." "You" and "Opponent" stand under the kings, the neon seat breathes (for its
   first minute, calmer after half of it), and the camera holds still. In a short, wide
   window (a phone on its side: `cardBeside`, at most 500 px high and 13:10 or wider) the
-  card docks at the right and the kings and heading stand in the room left of it. A long
-  link gives way from its start, so the game's code at its end always shows.
+  card docks at the right and the kings and heading stand in the room left of it.
 - **The guest** (the `invited` beat and `InvitationCard`). A page with no stored seat asks
   `look_game` once per socket until answered, and `game/invitation.ts` reads the answer.
   With a seat free the heading reads "You're invited to play" with the side's stone and
@@ -567,7 +568,7 @@ until the row fits the width).
   lasted 1.5 s (`useDelayed`, `SLOW_SERVER_MS`): "Connecting to server…" or "Reconnecting to
   server…", the same words and delay as the side choice's bottom line;
   "Opponent" and "You" stand under the kings, and joining fills the guest's king at once,
-  before the server answers. A game with both seats taken, or
+  before the server answers, but does not lift it: it lifts with the host's at the arrival. A game with both seats taken, or
   none, gets a card "This game is taken" or "No game here" with "Start a new game". A page
   with a stored seat shows no lobby, only "Returning to your game…", until its rejoin is
   answered.
@@ -576,10 +577,11 @@ until the row fits the width).
   the heading's place, one line: "Opponent joined" for the host, "You play White" (or
   Black) for the guest. Meanwhile `GameView` mounts under the lobby, held
   on its first frame (`introPaused`), and reports that frame; if it never comes,
-  `FIRST_FRAME_WAIT_MS` (4 s) lets the lobby go anyway. The arriving king, once filled,
-  rises into a column of light of its own, level with the player's, so the two stand
-  alike. Then `leave`: both kings rise together in their columns of light and are taken up into them from the foot (`uGone`), level A's
-  glass stays, and the camera draws out to exactly the game's first-frame pose
+  `FIRST_FRAME_WAIT_MS` (4 s) lets the lobby go anyway. A king not yet lifted waits
+  until both kings are filled (`together`, their fills shared), then rises into a column of
+  light of its own: on the guest's page both lift at once, on the host's the arriving king
+  rises level with the host's. Then `leave`: both kings rise together in their columns of
+  light and are taken up into them from the foot (`uGone`), level A's glass stays, and the camera draws out to exactly the game's first-frame pose
   (`gameOpening`: the fitted distance times the `lobby` entrance's `dolly.from`, on the
   opening line of sight from the player's seat, with the fit's lens shift) while the
   sculptures come back up to the game's brightness. The lobby's canvas then fades over an

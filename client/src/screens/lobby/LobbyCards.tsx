@@ -10,12 +10,8 @@ import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 // Their one action is the landing page's pill (.landing-play), so the way
 // in looks the same at every step.
 
-/** The link as it is set on the card: no scheme, the game's id (its end) standing out. */
-const shownLink = (link: string) => {
-  const bare = link.replace(/^[a-z]+:\/\//, '');
-  const id = bare.match(/[^/#]+$/)?.[0] ?? '';
-  return { rest: bare.slice(0, bare.length - id.length), id };
-};
+/** The link as it is set on the card: without its scheme. */
+const shownLink = (link: string) => link.replace(/^[a-z]+:\/\//, '');
 
 /** How long "Copied" stands on the button before it says "Copy link" again. */
 const COPIED_MS = 1800;
@@ -41,7 +37,6 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
       // Dismissed, or not allowed: the link is still there to copy
     });
   };
-  const { rest, id } = shownLink(link);
   const first = React.useRef<HTMLButtonElement>(null);
   // The choice is made; the next thing to do is send the link
   React.useEffect(() => first.current?.focus({ preventScroll: true }), []);
@@ -56,8 +51,7 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
       <p className="lobby-text">The game starts when they join.</p>
       {/* The link itself, to read or select; the buttons under it copy or share it */}
       <p className="lobby-url" data-testid="share-link" data-link={link}>
-        <span className="lobby-url-rest">{rest}</span>
-        <span className="lobby-url-id">{id}</span>
+        {shownLink(link)}
       </p>
       <div className="lobby-actions">
         {canShare && (
