@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
+import { openStandInGame } from './helpers/standIn';
 
 // The real camera turned all the way round the tower, a few degrees at a
 // time, at three elevations, and climbed from under the horizon to overhead
@@ -13,7 +14,7 @@ import type { Page, TestInfo } from '@playwright/test';
 // of known length and a crossfade takes the same steps on any machine; the
 // frames are not drawn, except for the pictures of the poses round each
 // failure, which are attached to the report. The game is served by a
-// stand-in for the server, like hudFit.spec.ts.
+// stand-in for the server (helpers/standIn.ts), like hudFit.spec.ts.
 
 const WIDTH = 1280;
 const HEIGHT = 720;
@@ -73,21 +74,7 @@ const VIRTUAL_CLOCK = () => {
 /** The page seated as `seat` in a game at its opening position, served by a stand-in. */
 async function seated(page: Page, seat: 'white' | 'black') {
   await page.addInitScript(VIRTUAL_CLOCK);
-  await page.routeWebSocket(/\/ws$/, (ws) => {
-    ws.onMessage((raw) => {
-      if (JSON.parse(String(raw)).type !== 'rejoin_game') return;
-      ws.send(JSON.stringify({ type: 'game_state', color: seat, started: true, moves: [] }));
-      ws.send(
-        JSON.stringify({
-          type: 'presence',
-          color: seat === 'white' ? 'black' : 'white',
-          online: true,
-        }),
-      );
-    });
-  });
-  await page.addInitScript((s) => localStorage.setItem('3dchess:role:ORBIT', s), seat);
-  await page.goto('/game/ORBIT');
+  await openStandInGame(page, seat, 'ORBIT');
   // The board is up once all 125 cells are in the scene
   await page.waitForFunction(() => {
     const state = (window as Window & { __r3fState?: { get(): { scene: SceneLike } } }).__r3fState;
@@ -296,34 +283,55 @@ async function attachFailures(page: Page, info: TestInfo, poses: Pose[], bad: nu
   });
 }
 
+/**
+ * The poses measured in one test, and the problems found in them: `flag`
+ * records one against pose `i`, `centre` checks that the tower's axis stayed
+ * where the pose `start` had it, and `finish` attaches the pictures round
+ * each failure and fails the test with the first few.
+ */
+function tracker(page: Page, info: TestInfo) {
+  const poses: Pose[] = [];
+  const bad: number[] = [];
+  const problems: string[] = [];
+  const flag = (i: number, what: string) => {
+    bad.push(i);
+    problems.push(`az ${poses[i].azimuth} el ${poses[i].elevation}: ${what}`);
+  };
+  return {
+    poses,
+    flag,
+    /** The tower's axis in the middle of the canvas across, at the height of pose `start`. */
+    centre(i: number, start: number) {
+      const p = poses[i];
+      if (Math.abs(p.centre[0] - WIDTH / 2) > 0.5) {
+        flag(i, `the centre is ${(p.centre[0] - WIDTH / 2).toFixed(1)} px off the middle`);
+      }
+      if (Math.abs(p.centre[1] - poses[start].centre[1]) > 0.5) {
+        flag(i, `the centre moved ${(p.centre[1] - poses[start].centre[1]).toFixed(1)} px down`);
+      }
+    },
+    finish: async () => {
+      if (problems.length) await attachFailures(page, info, poses, bad);
+      expect(problems.slice(0, 20)).toEqual([]);
+    },
+  };
+}
+
 for (const seat of ['white', 'black'] as const) {
   test(`turning the view never slides it or makes the level letters jump, seated as ${seat}`, async ({
     page,
   }, info) => {
     await seated(page, seat);
-    const poses: Pose[] = [];
-    const bad: number[] = [];
-    const problems: string[] = [];
-    const flag = (i: number, what: string) => {
-      bad.push(i);
-      problems.push(`az ${poses[i].azimuth} el ${poses[i].elevation}: ${what}`);
-    };
+    const { poses, flag, centre, finish } = tracker(page, info);
     for (const elevation of ELEVATIONS) {
       // Up to the elevation, and a few frames for any crossfade to finish
       for (let k = 0; k < 12; k++) await pose(page, 0, elevation);
       const start = poses.length;
       for (let azimuth = 0; azimuth <= 360; azimuth += STEP) {
         const i = poses.push(await pose(page, azimuth, elevation)) - 1;
-        const p = poses[i];
-        // The tower's axis in the middle of the canvas across, at one height
-        if (Math.abs(p.centre[0] - WIDTH / 2) > 0.5) {
-          flag(i, `the centre is ${(p.centre[0] - WIDTH / 2).toFixed(1)} px off the middle`);
-        }
-        if (Math.abs(p.centre[1] - poses[start].centre[1]) > 0.5) {
-          flag(i, `the centre moved ${(p.centre[1] - poses[start].centre[1]).toFixed(1)} px down`);
-        }
+        centre(i, start);
         if (i === start) continue;
-        for (const what of stepProblems(p, poses[i - 1])) flag(i, what);
+        for (const what of stepProblems(poses[i], poses[i - 1])) flag(i, what);
       }
       // One straight line of letters, in order A to E, at every pose
       for (let i = start; i < poses.length; i++) {
@@ -337,21 +345,14 @@ for (const seat of ['white', 'black'] as const) {
         flag(poses.length - 1, `${switches} changes of post in a turn`);
       }
     }
-    if (problems.length) await attachFailures(page, info, poses, bad);
-    expect(problems.slice(0, 20)).toEqual([]);
+    await finish();
   });
 
   test(`climbing to overhead moves the level letters to the far post in one crossfade, seated as ${seat}`, async ({
     page,
   }, info) => {
     await seated(page, seat);
-    const poses: Pose[] = [];
-    const bad: number[] = [];
-    const problems: string[] = [];
-    const flag = (i: number, what: string) => {
-      bad.push(i);
-      problems.push(`az ${poses[i].azimuth} el ${poses[i].elevation}: ${what}`);
-    };
+    const { poses, flag, centre, finish } = tracker(page, info);
     for (const azimuth of CLIMB_AZIMUTHS) {
       // To the bottom of the climb, and a few frames for any crossfade to finish
       for (let k = 0; k < 12; k++) await pose(page, azimuth, CLIMB[0]);
@@ -362,20 +363,11 @@ for (const seat of ['white', 'black'] as const) {
         const start = poses.length;
         for (const elevation of elevations) {
           const i = poses.push(await pose(page, azimuth, elevation)) - 1;
-          const p = poses[i];
-          if (Math.abs(p.centre[0] - WIDTH / 2) > 0.5) {
-            flag(i, `the centre is ${(p.centre[0] - WIDTH / 2).toFixed(1)} px off the middle`);
-          }
           // Climbing only turns the camera about the tower's centre, which stays put
-          if (Math.abs(p.centre[1] - poses[start].centre[1]) > 0.5) {
-            flag(
-              i,
-              `the centre moved ${(p.centre[1] - poses[start].centre[1]).toFixed(1)} px down`,
-            );
-          }
-          const off = offLine(p);
+          centre(i, start);
+          const off = offLine(poses[i]);
           if (off > 2) flag(i, `the letters are ${off.toFixed(1)} px off one line`);
-          if (i > start) for (const what of stepProblems(p, poses[i - 1])) flag(i, what);
+          if (i > start) for (const what of stepProblems(poses[i], poses[i - 1])) flag(i, what);
         }
         // One change of post each way: climbing just past LETTERS_HIGH,
         // dipping just under LETTERS_LOW
@@ -391,8 +383,7 @@ for (const seat of ['white', 'black'] as const) {
         }
       }
     }
-    if (problems.length) await attachFailures(page, info, poses, bad);
-    expect(problems.slice(0, 20)).toEqual([]);
+    await finish();
   });
 }
 

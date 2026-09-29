@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
-import type { Page, WebSocketRoute } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { towerRects } from './helpers/board';
 import type { ScreenRect } from './helpers/board';
+import { openStandInGame } from './helpers/standIn';
 
 // The turn pill holds its words in every state, at every window size, from
 // both seats: its content never runs past its rim. The pieces each side has
@@ -40,47 +41,18 @@ const SIZES = [
   [1920, 1080],
 ];
 
-const records = (moves: string[]) =>
-  moves.map((m, i) => {
-    const [from, to] = m.split('-');
-    return { by: i % 2 === 0 ? 'white' : 'black', from, to };
-  });
-
 /** A page seated as `seat` in a game whose record the test sets. */
 async function seated(page: Page, seat: 'white' | 'black') {
-  let socket: WebSocketRoute | null = null;
-  let record = CHECK;
-  await page.routeWebSocket(/\/ws$/, (ws) => {
-    socket = ws;
-    ws.onMessage((raw) => {
-      const m = JSON.parse(String(raw));
-      if (m.type !== 'rejoin_game') return;
-      ws.send(
-        JSON.stringify({ type: 'game_state', color: seat, started: true, moves: records(record) }),
-      );
-      ws.send(
-        JSON.stringify({
-          type: 'presence',
-          color: seat === 'white' ? 'black' : 'white',
-          online: true,
-        }),
-      );
-    });
-  });
-  await page.addInitScript((s) => localStorage.setItem('3dchess:role:FITTED', s), seat);
-  await page.goto('/game/FITTED');
+  const game = await openStandInGame(page, seat, 'FITTED', CHECK);
   await expect(page.getByTestId('turn-indicator')).toBeVisible();
   return {
     /** Serves `moves` as the record, through a fresh snapshot. */
     show: async (moves: string[]) => {
-      record = moves;
+      game.setMoves(moves);
       await page.reload();
       await expect(page.getByTestId('turn-indicator')).toBeVisible();
     },
-    presence: (online: boolean) =>
-      socket!.send(
-        JSON.stringify({ type: 'presence', color: seat === 'white' ? 'black' : 'white', online }),
-      ),
+    presence: game.presence,
   };
 }
 

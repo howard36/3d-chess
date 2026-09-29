@@ -36,8 +36,10 @@ fs.mkdirSync(OUT, { recursive: true });
 
 const query = new URLSearchParams({ cell: CELL });
 if (PIECE) query.set('piece', PIECE);
-if (SILHOUETTE) query.set('silhouette', '');
-if (SILHOUETTE) query.set('quality', QUALITY);
+if (SILHOUETTE) {
+  query.set('silhouette', '');
+  query.set('quality', QUALITY);
+}
 const name = ['pieces', PIECE, SILHOUETTE && `silhouette-${QUALITY}`].filter(Boolean).join('-');
 
 const browser = await chromium.launch({

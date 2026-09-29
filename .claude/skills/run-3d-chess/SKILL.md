@@ -68,7 +68,7 @@ test('inspect', async ({ browser }) => {
   await game.white.mouse.wheel(0, -400);          // negative deltaY zooms in, to 0.7–1.5× the fitted distance
   await game.screenshot('rotated');
 
-  await expect(game.white.getByText('White to move')).toBeVisible();
+  await expect(game.white.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
   await game.close();
 });
 ```
@@ -77,7 +77,7 @@ test('inspect', async ({ browser }) => {
 
 | member | what it does |
 |---|---|
-| `white`, `black`, `page(seat)` | the Playwright page holding each seat (the creator's colour is random; this is already resolved) |
+| `white`, `black` | the Playwright page holding each seat (the creator's colour is random; this is already resolved) |
 | `play(from, to)` | select, wait for the destination to become legal, click, wait for both clients to flip the turn |
 | `playAll([...])` | `play` in sequence; items are `'Bb1-Cb1'` or `['Bb1','Cb1']` |
 | `turn()` | `'white'` or `'black'` from the turn indicator |

@@ -16,14 +16,6 @@ export default defineConfig({
   // used to find nothing.
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['dot'], ['html', { open: 'never' }]] : 'list',
-  // Configure projects for major browsers
-  // projects: [
-  //   {
-  //     name: 'chromium',
-  //     use: { ...devices['Desktop Chrome'] },
-  //   },
-  // ],
-
   // Start the websocket backend locally (no Modal deploy needed) and the Vite
   // dev server before running the tests. Export VITE_WS_URL to point the app
   // at a different backend (e.g. a deployed Modal app) instead.
