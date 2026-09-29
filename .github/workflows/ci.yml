@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
 
+# A new push to a pull request cancels the runs still going on its older
+# commits: only the latest head needs checking. A push to main gets a group of
+# its own commit, so no run on main is ever cancelled or held back (a group
+# also drops a pending run when another queues), and every merge is tested
+# and deployed.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   server-tests:
     runs-on: ubuntu-latest
