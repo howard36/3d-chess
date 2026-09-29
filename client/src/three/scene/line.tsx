@@ -8,6 +8,7 @@ import { easeOutQuad } from './ease';
 import { overlayMaterial } from './overlay';
 import { noRaycast } from '../noRaycast';
 import type { Vec3 } from '../types';
+import { useRetireOnUnmount } from './programs';
 
 // The last move's line: a thin tube of real geometry from the centre of the
 // source square's floor to the centre of the destination's, drawn in from the
@@ -118,7 +119,7 @@ export const LastMoveLine = ({
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   const material = useMemo(lineMaterial, []);
-  useEffect(() => () => material.dispose(), [material]);
+  useRetireOnUnmount(material);
   const u = material.uniforms;
   (u.uColor.value as Color).set(color);
   u.uOpacity.value = opacity;

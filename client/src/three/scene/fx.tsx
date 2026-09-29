@@ -13,6 +13,7 @@ import { wholePiece } from './occlusion';
 import { overlayMaterial } from './overlay';
 import { usePieceMaterial } from './pieces';
 import { gardenBoost } from './stage';
+import { useRetireOnUnmount } from './programs';
 
 // Motion in light, kept brief. A captured piece burns away from the crown
 // down behind a thin edge of white light, and its outline, drawn in light
@@ -96,7 +97,7 @@ export const CaptureFx = ({
   // The victim in its own glaze (the live piece's) until it burns
   const body = usePieceMaterial(victim.color, victim.type, level);
   const outline = useMemo(outlineMaterial, []);
-  useEffect(() => () => outline.dispose(), [outline]);
+  useRetireOnUnmount(outline);
   const whole = useRef<Group>(null);
   const ghost = useRef<Group>(null);
   // The attacker is on its way: the victim holds, then burns away as it arrives
@@ -221,7 +222,7 @@ export const Celebration = ({ floor }: CelebrationProps) => {
       }),
     [kx, kz, level],
   );
-  useEffect(() => () => material.dispose(), [material]);
+  useRetireOnUnmount(material);
   useEffect(
     () => () => {
       gardenBoost.value = 0;

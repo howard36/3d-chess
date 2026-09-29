@@ -16,6 +16,7 @@ import { overlayMaterial } from './overlay';
 import { SelectionLight, selectState, stepSelection } from './selection';
 import { useIntro } from '../intro/clock';
 import { introDone, pieceForm, pieceRing } from '../intro/timeline';
+import { useRetireOnUnmount } from './programs';
 
 // The armies: satin porcelain and charcoal, the shared Staunton set. Both are
 // shaded by one small shader (headless browsers render in software, where
@@ -445,7 +446,7 @@ const FormRing = ({ level, progress }: { level: number; progress: { current: num
       }),
     [level],
   );
-  useEffect(() => () => material.dispose(), [material]);
+  useRetireOnUnmount(material);
   useFrame(() => {
     material.uniforms.uRing.value = progress.current;
   });

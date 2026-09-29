@@ -22,6 +22,7 @@ import { claimed, useHoldAt } from './claims';
 import { clamp01, easeOutCubic, smooth } from './ease';
 import { overlayMaterial } from './overlay';
 import { PALETTE, RING_RADIUS } from './palette';
+import { useRetireOnUnmount } from './programs';
 
 // The held piece's light: a calm column of starlight.
 //
@@ -343,15 +344,10 @@ export const SelectionLight = ({
     });
     return { color, columnMaterial, floorMaterial, motes, moteMaterial, seeds };
   }, []);
-  useEffect(
-    () => () => {
-      columnMaterial.dispose();
-      floorMaterial.dispose();
-      motes.dispose();
-      moteMaterial.dispose();
-    },
-    [columnMaterial, floorMaterial, motes, moteMaterial],
-  );
+  useEffect(() => () => motes.dispose(), [motes]);
+  useRetireOnUnmount(columnMaterial);
+  useRetireOnUnmount(floorMaterial);
+  useRetireOnUnmount(moteMaterial);
 
   useFrame(({ camera }) => {
     const s = state.current;

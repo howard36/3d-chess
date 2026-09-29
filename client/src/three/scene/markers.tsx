@@ -13,6 +13,7 @@ import { clamp01, easeOutCubic, easeOutQuad, smooth, toward } from './ease';
 import { overlayMaterial } from './overlay';
 import { LEVEL_COLORS, levelAt, MOTION, PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
 import { Blades } from './blades';
+import { useRetireOnUnmount } from './programs';
 
 // The marks of play, one family of thin circles of light lying on the glass:
 //
@@ -313,7 +314,7 @@ const Mark = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  useEffect(() => () => material.dispose(), [material]);
+  useRetireOnUnmount(material);
   const u = material.uniforms;
   (u.uColor.value as Color).set(color);
   (u.uFill.value as Color).set(fill ?? color);
@@ -615,7 +616,7 @@ const Shimmer = ({
   }, [key]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   const material = useMemo(shimmerMaterial, []);
-  useEffect(() => () => material.dispose(), [material]);
+  useRetireOnUnmount(material);
   const since = useRef(-delayMs / 1000);
   const still = prefersReducedMotion();
   useEffect(() => invalidate(), [invalidate]);
