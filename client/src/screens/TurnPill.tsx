@@ -93,19 +93,16 @@ const TurnPill: React.FC<TurnPillProps> = (props) => {
   }
   const mine = turn === seat;
   const away = opponentOnline === false;
-  const badge = <span className="hud-check">Check</span>;
   return (
     <div className="hud-pill hud-glass" {...common}>
       {label}
       <span className="hud-half" data-side="me" data-on={mine || undefined} aria-hidden>
         <Stone color={seat} lit={mine} check={inCheck} />
-        {mine && inCheck && badge}
         <span>{mine ? 'Your move' : 'You'}</span>
       </span>
       <span className="hud-rule" aria-hidden />
       <span className="hud-half" data-side="them" data-on={!mine || undefined} aria-hidden>
         <span>{away ? 'Offline' : mine ? 'Opponent' : 'Their move'}</span>
-        {!mine && inCheck && badge}
         <Stone color={them} lit={!mine} check={inCheck} absent={away} />
       </span>
     </div>

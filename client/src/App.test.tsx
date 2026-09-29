@@ -853,16 +853,17 @@ describe('the turn pill', () => {
     expect(screen.getByTestId('seat')).toHaveTextContent('You play White. Black to move.');
   });
 
-  it("marks check beside the checked side's stone, in red", () => {
+  it("marks check by reddening the checked side's ring, with no words", () => {
     const { rerender } = render(pill({ turn: 'black', inCheck: true }));
     const them = screen.getByTestId('turn-indicator').querySelector('[data-side="them"]');
-    expect(them).toHaveTextContent('Check');
+    expect(them).not.toHaveTextContent(/check/i);
     expect(them?.querySelector('.hud-stone')).toHaveAttribute('data-check');
     expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-check', 'true');
     expect(screen.getByTestId('seat')).toHaveTextContent('Black to move, in check.');
     rerender(pill({ seat: 'black', turn: 'black', inCheck: true }));
     const me = screen.getByTestId('turn-indicator').querySelector('[data-side="me"]');
-    expect(me).toHaveTextContent('Check');
+    expect(me).toHaveTextContent(/^Your move$/);
+    expect(me?.querySelector('.hud-stone')).toHaveAttribute('data-check');
     expect(screen.getByTestId('seat')).toHaveTextContent('You play Black. Your move, in check.');
   });
 
