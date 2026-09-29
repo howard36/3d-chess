@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, test, expect, vi, beforeEach } from 'vitest';
+import { describe, it, test, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import StartScreen from './screens/StartScreen';
 import TurnPill from './screens/TurnPill';
@@ -10,7 +10,7 @@ import type { WebSocketMessage } from './types/messages';
 import type { Move } from './engine';
 import { PieceType } from './engine';
 import { getStoredRole, setStoredRole } from './lib/playerRole';
-import { fakeSocket, gameScreenAt } from './screens/testSupport';
+import { fakeSocket, gameScreenAt, loadBoardChunk } from './screens/testSupport';
 
 // The started phase mounts a WebGL canvas, which jsdom can't provide; stub the
 // three.js layer so these tests can assert on the surrounding UI. The Canvas
@@ -72,6 +72,9 @@ vi.mock('./three/Board', () => ({
     </>
   ),
 }));
+
+// The 3D board is a lazy chunk: load it before any test looks for it
+beforeAll(loadBoardChunk);
 beforeEach(() => {
   localStorage.clear();
 });

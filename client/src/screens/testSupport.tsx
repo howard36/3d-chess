@@ -27,3 +27,19 @@ export const gameScreenAt = (socket: GameSocket, gameId = 'abc123') => (
     </Routes>
   </MemoryRouter>
 );
+
+/**
+ * Loads the game screen's 3D board (GameCanvas.tsx, a lazy chunk) once for
+ * the test file, by drawing a started game until the board is up: React
+ * suspends the first time any file draws it, so a test that looks for the
+ * board straight after its render would otherwise pass or fail by the order
+ * the file's tests run in. Call it in beforeAll, after the file's mocks.
+ */
+export const loadBoardChunk = async () => {
+  const { cleanup, render, screen } = await import('@testing-library/react');
+  localStorage.clear();
+  render(gameScreenAt(fakeSocket([{ type: 'game_start', color: 'white' }]), 'warm-up'));
+  await screen.findByTestId('r3f-canvas');
+  cleanup();
+  localStorage.clear();
+};
