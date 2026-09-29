@@ -139,7 +139,7 @@ export const LobbyKing = ({
     // Gone, the outline fades with the body; else it answers the fill
     m.outline = gone ? toward(m.outline, 0, dt * rate) : outlineForFill(m.fill);
     m.hover = toward(m.hover, hovered && !lit && present ? 1 : 0, dt * HOVER_RATE);
-    m.hold = toward(m.hold, lit && m.fill > 0.9 ? 1 : 0, dt * LIFT_RATE);
+    m.hold = toward(m.hold, lit && m.fill > 0.9 ? 1 : 0, dt * (still ? 1 / 0.15 : LIFT_RATE));
     // Leaving: each king rises, in its own column of light, and is taken up
     // into it from the foot, faster as it goes
     m.gone = gone ? toward(m.gone, 1, dt / (still ? 0.15 : LOBBY_TIMING.leaveBurn)) : 0;

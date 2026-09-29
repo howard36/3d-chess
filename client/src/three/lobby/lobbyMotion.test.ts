@@ -7,6 +7,7 @@ import {
   arrivalRing,
   blendPose,
   breath,
+  cardBeside,
   faceAngle,
   FLOOR_Y,
   formForFill,
@@ -19,13 +20,12 @@ import {
   outlineForFill,
   poseFromDirection,
   posePosition,
-  seatSpacing,
+  SEAT_SPACING,
   seatX,
   tossAngle,
   tossGlide,
   tossHop,
   tossLanded,
-  waitDrift,
 } from './lobbyMotion';
 import type { CameraPose, Side } from './lobbyMotion';
 
@@ -182,19 +182,21 @@ describe('the seats', () => {
   it.each([WIDE, 1, PHONE])(
     "put White's king on the left, Black's on the right and the coin between (aspect %s)",
     (aspect) => {
-      expect(seatX('coin', aspect)).toBe(0);
-      expect(seatX('white', aspect)).toBeLessThan(0);
-      expect(seatX('black', aspect)).toBe(-seatX('white', aspect));
-      expect(seatX('black', aspect)).toBe(seatSpacing(aspect));
-      // Side by side, never overlapping
-      expect(seatSpacing(aspect)).toBeGreaterThan(2 * HALF_WIDTH);
+      expect(seatX('coin')).toBe(0);
+      expect(seatX('white')).toBeLessThan(0);
+      expect(seatX('black')).toBe(-seatX('white'));
+      expect(seatX('black')).toBe(SEAT_SPACING);
+      // Side by side, never overlapping, and centred on the glass's squares
+      expect(SEAT_SPACING).toBeGreaterThan(2 * HALF_WIDTH);
+      expect(Number.isInteger(SEAT_SPACING)).toBe(true);
+      void aspect;
     },
   );
 
   it('stand further out, and smaller, in a narrow window than in a wide one', () => {
     const at = (aspect: number) => {
       const pose = lobbyPose(aspect);
-      const x = seatX('black', aspect);
+      const x = seatX('black');
       return {
         out: project(pose, aspect, [x, foot, 0]).x,
         height: project(pose, aspect, [0, head, 0]).y - project(pose, aspect, [0, foot, 0]).y,
@@ -205,7 +207,48 @@ describe('the seats', () => {
   });
 });
 
+/** Every window shape worth a thought: phones either way up, tablets, squares, ultrawides. */
+const SHAPES = [
+  360 / 800,
+  390 / 844,
+  768 / 1024,
+  0.89,
+  0.9,
+  0.95,
+  1,
+  1.1,
+  1024 / 768,
+  1.5,
+  16 / 10,
+  16 / 9,
+  2.16,
+  21 / 9,
+  32 / 9,
+];
+
 describe('the lobby camera', () => {
+  it.each(SHAPES.flatMap((aspect) => [[aspect, false] as const, [aspect, true] as const]))(
+    'keeps the whole row of kings in frame and apart at aspect %s (card: %s)',
+    (aspect, card) => {
+      const pose = lobbyPose(aspect, card);
+      // Neighbouring kings apart on screen, edge to edge
+      const edge = (x: number) => project(pose, aspect, [x, foot, 0]).x;
+      expect(edge(seatX('coin') - HALF_WIDTH)).toBeGreaterThan(edge(seatX('white') + HALF_WIDTH));
+      expect(edge(seatX('black') - HALF_WIDTH)).toBeGreaterThan(edge(seatX('coin') + HALF_WIDTH));
+      for (const seat of ['white', 'coin', 'black'] as const) {
+        const x = seatX(seat);
+        for (const px of [x - HALF_WIDTH, x + HALF_WIDTH]) {
+          for (const py of [foot, head]) {
+            const p = project(pose, aspect, [px, py, 0]);
+            expect(Math.abs(p.x)).toBeLessThan(0.95);
+            expect(Math.abs(p.y)).toBeLessThan(0.95);
+            expect(p.z).toBeLessThan(1);
+          }
+        }
+      }
+    },
+  );
+
   it.each([
     ['a wide window', WIDE, false],
     ['a wide window with a card', WIDE, true],
@@ -214,7 +257,7 @@ describe('the lobby camera', () => {
   ])('keeps the whole row of kings in frame in %s', (_, aspect, card) => {
     const pose = lobbyPose(aspect, card);
     for (const seat of ['white', 'coin', 'black'] as const) {
-      const x = seatX(seat, aspect);
+      const x = seatX(seat);
       // Each king's width either side, from foot to crown
       for (const px of [x - HALF_WIDTH, x + HALF_WIDTH]) {
         for (const py of [foot, head]) {
@@ -226,11 +269,34 @@ describe('the lobby camera', () => {
       }
     }
     // The row stands level across the frame, White's on the left
-    const white = project(pose, aspect, [seatX('white', aspect), foot, 0]);
-    const black = project(pose, aspect, [seatX('black', aspect), foot, 0]);
+    const white = project(pose, aspect, [seatX('white'), foot, 0]);
+    const black = project(pose, aspect, [seatX('black'), foot, 0]);
     expect(white.x).toBeCloseTo(-black.x, 9);
     expect(white.y).toBeCloseTo(black.y, 9);
   });
+
+  it('puts the card beside the kings only in a short, wide window', () => {
+    expect(cardBeside(844, 390)).toBe(true);
+    expect(cardBeside(667, 375)).toBe(true);
+    expect(cardBeside(1440, 900)).toBe(false);
+    expect(cardBeside(390, 844)).toBe(false);
+    expect(cardBeside(500, 480)).toBe(false);
+  });
+
+  it.each([844 / 390, 667 / 375, 1.4])(
+    'moves the row left of a card docked beside it, still in frame (aspect %s)',
+    (aspect) => {
+      const pose = lobbyPose(aspect, true, true);
+      const right = project(pose, aspect, [seatX('black') + HALF_WIDTH, foot, 0]).x;
+      const left = project(pose, aspect, [seatX('white') - HALF_WIDTH, foot, 0]).x;
+      // The card takes the right of the frame, the kings the left
+      expect(right).toBeLessThan(0.15);
+      expect(left).toBeGreaterThan(-0.95);
+      for (const py of [foot, head]) {
+        expect(Math.abs(project(pose, aspect, [0, py, 0]).y)).toBeLessThan(0.95);
+      }
+    },
+  );
 
   it('raises the kings on screen while a card is docked under them', () => {
     const mid = (card: boolean) =>
@@ -257,12 +323,6 @@ describe('the lobby camera', () => {
     expect(z).toBeCloseTo(3 + 8, 12);
     // A zero direction does not divide by zero
     expect(Number.isFinite(poseFromDirection([0, 0, 0], [0, 0, 0], 1).azimuth)).toBe(true);
-  });
-
-  it('drifts a little way round while waiting, once, and rests', () => {
-    expect(waitDrift(0)).toBe(-0);
-    expect(waitDrift(18)).toBeCloseTo((-12 * Math.PI) / 180, 12);
-    expect(waitDrift(600)).toBeCloseTo((-12 * Math.PI) / 180, 12);
   });
 });
 

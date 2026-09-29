@@ -47,13 +47,13 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
   React.useEffect(() => first.current?.focus({ preventScroll: true }), []);
   return (
     <section
-      className="lobby-card"
+      className="lobby-card lobby-invite"
       aria-labelledby="invite-title"
       data-testid="invite-card"
       data-seat={seat}
     >
       <h2 id="invite-title">Invite a friend</h2>
-      <p className="lobby-text">Send them this link to start the game.</p>
+      <p className="lobby-text">The game starts when they join.</p>
       {/* The link itself, to read or select; the buttons under it copy or share it */}
       <p className="lobby-url" data-testid="share-link" data-link={link}>
         <span className="lobby-url-rest">{rest}</span>

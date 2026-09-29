@@ -514,7 +514,8 @@ column shows the relief in one plain material instead).
 Everything before the first move happens in the lobby: level A's glass alone in the night
 garden (the game's `Stage`, its sculptures dimmed behind the kings through `Stage`'s
 `dim`, and a platform that draws itself on the entrance's build clock) with the kings on
-its middle rank, White's seat on the left and Black's on the right. A taken seat shows its
+its middle rank, each king on the middle of its own square (`SEAT_SPACING`, one square
+apart at every window size), White's seat on the left and Black's on the right. A taken seat shows its
 king in its army's material; a free seat is the king drawn in neon, like the garden's
 sculptures (`three/lobby/LobbyKing.tsx`); filling, the material forms from the foot up as
 the neon gives way, and the player's own king lifts into the game's column of light. The
@@ -525,11 +526,12 @@ frame. The screens declare what it shows with `useLobbyView`
 `leave`, the taken seats, the player's seat and an optional caption with its note, or
 `null` to take it away), and `three/lobby/LobbyScene.tsx` moves from one picture to the
 next on r3f's clock. The scene writes the kings' places on screen as
-`--seat-<seat>-x/head/foot` on the layout, and the page's buttons and labels hang off
+`--seat-<seat>-x/head/foot` (and their spacing, `--seat-pitch`) on the layout, and the page's buttons and labels hang off
 them. The page's heading at the top carries the story from one step to the next, and the
 cards under the kings carry only what to do. Timings and framing are pure functions in
 `three/lobby/lobbyMotion.ts` (the kings stand 1.25 times the game's pieces; narrower than
-9:10 they stand smaller and further out).
+9:10 they stand smaller and further out; the camera draws back, never the kings apart,
+until the row fits the width).
 
 - **Choosing a side** (`/new`, `screens/lobby/ChooseSide.tsx`). "Choose your side" over
   three kings, porcelain, one split porcelain and charcoal for Random, and charcoal, with a
@@ -548,13 +550,15 @@ cards under the kings carry only what to do. Timings and framing are pure functi
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
   `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
   breathing dot and "Waiting for your friend…" under it. The card under the kings: "Invite
-  a friend" and "Send them this link to start the game.", the link (`lib/gameLink.ts`, its
+  a friend" and "The game starts when they join.", the link (`lib/gameLink.ts`, its
   id picked out), and "Share link" where `navigator.share` exists and "Copy link"; nothing
   else. A copy turns the button to
   "Copied ✓" (and is said, "Link copied"); only a failed one is written: "Couldn't copy.
   Select the link." "You" and "Opponent" stand under the kings, the neon seat breathes (for its
-  first minute, calmer after half of it), and the camera drifts 12° round once over 18 s
-  and rests.
+  first minute, calmer after half of it), and the camera holds still. In a short, wide
+  window (a phone on its side: `cardBeside`, at most 500 px high and 13:10 or wider) the
+  card docks at the right and the kings and heading stand in the room left of it. A long
+  link gives way from its start, so the game's code at its end always shows.
 - **The guest** (the `invited` beat and `InvitationCard`). A page with no stored seat asks
   `look_game` once per socket until answered, and `game/invitation.ts` reads the answer.
   With a seat free the heading reads "You're invited to play" with the side's stone and
@@ -572,8 +576,9 @@ cards under the kings carry only what to do. Timings and framing are pure functi
   the heading's place, one line: "Opponent joined" for the host, "You play White" (or
   Black) for the guest. Meanwhile `GameView` mounts under the lobby, held
   on its first frame (`introPaused`), and reports that frame; if it never comes,
-  `FIRST_FRAME_WAIT_MS` (4 s) lets the lobby go anyway. Then `leave`: both kings rise in
-  their columns of light and are taken up into them from the foot (`uGone`), level A's
+  `FIRST_FRAME_WAIT_MS` (4 s) lets the lobby go anyway. The arriving king, once filled,
+  rises into a column of light of its own, level with the player's, so the two stand
+  alike. Then `leave`: both kings rise together in their columns of light and are taken up into them from the foot (`uGone`), level A's
   glass stays, and the camera draws out to exactly the game's first-frame pose
   (`gameOpening`: the fitted distance times the `lobby` entrance's `dolly.from`, on the
   opening line of sight from the player's seat, with the fit's lens shift) while the
@@ -586,7 +591,7 @@ cards under the kings carry only what to do. Timings and framing are pure functi
   arrival waits for them (a hidden tab draws no frames). A page that opens on a game
   already under way skips the lobby and plays the short entrance.
 
-Under `prefers-reduced-motion` the camera does not drift, the seat does not breathe, the
+Under `prefers-reduced-motion` the seat does not breathe, the
 coin lands without its flight and each beat takes a fraction of a second. The lobby's
 canvas never publishes `window.__r3fState`, so e2e's click projection always reads the
 game's; `waitForBoard` waits for `data-intro="done"`, by which time the lobby has gone.

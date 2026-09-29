@@ -22,10 +22,10 @@ import {
   KING_TOP,
   LOBBY_TIMING,
   lobbyPose,
+  cardBeside,
   gameOpening,
   posePosition,
   seatX,
-  waitDrift,
 } from './lobbyMotion';
 import type { CameraPose, Side } from './lobbyMotion';
 
@@ -188,15 +188,10 @@ const LobbyRig = ({
   useFrame((_, delta) => {
     const aspect = size.width / Math.max(size.height, 1);
     const { beat, since } = clock.current;
-    // (a card is docked under the kings while the host waits)
-    const rest = lobbyPose(aspect, beat === 'wait');
+    // (a card is docked under the kings, or beside them, while the host waits)
+    const rest = lobbyPose(aspect, beat === 'wait', cardBeside(size.width, size.height));
     let pose = rest;
     let moving = false;
-    if (beat === 'wait' || (beat === 'arrive' && view.mine && view.taken[view.mine])) {
-      const drift = still ? 0 : waitDrift(beat === 'wait' ? since : Infinity);
-      pose = { ...rest, azimuth: drift };
-      moving = beat === 'wait' && since < 18;
-    }
     // From one beat's framing to the next, eased (the card coming in lifts
     // the kings); the first frame takes its place at once
     const prev = current.current;
@@ -271,8 +266,9 @@ const LobbyRig = ({
     const host = anchors.current;
     if (host && beat !== 'leave') {
       const vars: string[] = [];
+      const xs: number[] = [];
       for (const seat of ['white', 'coin', 'black'] as const) {
-        const x = seatX(seat, aspect);
+        const x = seatX(seat);
         const at = (y: number) => {
           projected.set(x, y, 0).project(camera);
           return [(projected.x * 0.5 + 0.5) * size.width, (0.5 - projected.y * 0.5) * size.height];
@@ -282,7 +278,10 @@ const LobbyRig = ({
         vars.push(`--seat-${seat}-x:${sx.toFixed(1)}px`);
         vars.push(`--seat-${seat}-head:${head.toFixed(1)}px`);
         vars.push(`--seat-${seat}-foot:${foot.toFixed(1)}px`);
+        xs.push(sx);
       }
+      // How far apart the seats stand on screen, for the buttons under them
+      vars.push(`--seat-pitch:${(xs[1] - xs[0]).toFixed(1)}px`);
       const css = vars.join(';');
       if (css !== last.current) {
         last.current = css;
@@ -308,10 +307,8 @@ export const LobbyScene = ({
   anchors: React.RefObject<HTMLElement | null>;
   canvasHost: React.RefObject<HTMLElement | null>;
 }) => {
-  const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
   const still = useMemo(prefersReducedMotion, []);
-  const aspect = size.width / Math.max(size.height, 1);
   const shade = useMemo(() => platformStack(0, 0), []);
   // The garden's sculptures, quiet behind the kings (LobbyRig raises them as it leaves)
   const dim = useRef(LOBBY_DIM);
@@ -374,7 +371,9 @@ export const LobbyScene = ({
     onOut: () => callbacks.current.onHover?.(null),
     onPick: () => callbacks.current.onPick?.(choice),
   });
-  // The seat that fills on arrival answers with a ring of light
+  // The seat that fills on arrival answers with a ring of light, and its king
+  // rises into a column of its own beside the player's: the two stand level
+  // before they are taken up together
   const filling = view.beat === 'arrive' || view.beat === 'leave';
   const newcomer = view.beat === 'arrive' ? (view.arriving ?? null) : null;
 
@@ -386,11 +385,11 @@ export const LobbyScene = ({
         <LobbyKing
           key={side}
           color={side}
-          x={seatX(side, aspect)}
+          x={seatX(side)}
           present={taken[side]}
           gone={gone}
           hovered={view.hover === side}
-          lit={mine === side}
+          lit={mine === side || filling}
           breathing={!taken[side] && (view.beat === 'wait' || view.beat === 'invited')}
           snap={landed === side}
           pick={choosing ? pick(side) : undefined}
@@ -400,11 +399,11 @@ export const LobbyScene = ({
         shown={view.beat === 'choose' && (!view.mine || view.toss !== null)}
         hovered={view.hover === 'random'}
         toss={view.toss}
-        landX={view.toss ? seatX(view.toss, aspect) : 0}
+        landX={view.toss ? seatX(view.toss) : 0}
         pick={choosing ? pick('random') : undefined}
         onLanded={setLanded}
       />
-      {filling && newcomer && <SeatRing x={seatX(newcomer, aspect)} playing={filling} />}
+      {filling && newcomer && <SeatRing x={seatX(newcomer)} playing={filling} />}
       <LobbyRig
         view={view}
         clock={clock}

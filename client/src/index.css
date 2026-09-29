@@ -1047,8 +1047,9 @@
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  min-width: 140px;
-  padding: 12px 24px;
+  /* As wide as the space between two kings allows */
+  width: min(160px, calc(var(--seat-pitch, 180px) - 16px));
+  padding: 12px 8px;
   border: 1.5px solid rgba(255, 255, 255, 0.14);
   border-radius: 28px;
   background:
@@ -1167,6 +1168,31 @@
     transform: translate(-50%, 14px);
   }
 }
+/* A short, wide window (a phone on its side) has no room under the kings:
+   the invitation docks at the right and the kings stand left of it
+   (lobbyMotion's cardBeside) */
+@media (max-height: 500px) and (min-aspect-ratio: 13/10) {
+  .lobby-invite {
+    left: auto;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    transform: none;
+    width: min(320px, 42vw);
+    padding: 16px 18px;
+    animation-name: lobby-card-beside;
+  }
+  .lobby-heading[data-still] {
+    top: 20px;
+    left: 96px;
+    right: calc(min(320px, 42vw) + 32px);
+  }
+}
+@keyframes lobby-card-beside {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
 .lobby-card h2 {
   margin: 6px 0 0;
   font-size: 23px;
@@ -1278,22 +1304,27 @@
   font-size: 14px;
   line-height: 1.45;
 }
+/* A long link gives way from its start: the game's code at its end stays */
 .lobby-url {
+  display: flex;
+  justify-content: center;
   margin: 14px 0 0;
   padding: 10px 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.03);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14.5px;
   user-select: all;
 }
 .lobby-url-rest {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--hud-muted);
 }
 .lobby-url-id {
+  flex: none;
   font-weight: 700;
   letter-spacing: 0.08em;
 }

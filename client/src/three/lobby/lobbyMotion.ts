@@ -27,25 +27,40 @@ export const LOBBY_FOV = 36;
 const TAN_V = Math.tan(VFOV / 2);
 
 /**
- * How the kings are framed: their height as a share of the window's, and
- * how far out the side seats stand (NDC, from the middle). In a wide window
- * they stand large at a third and two thirds across; in a narrow one smaller
- * and further out, three abreast still readable.
+ * The seats stand on the middle squares of the glass's middle rank, one
+ * square apart, whatever the window: the window's shape only moves the
+ * camera. (A king's foot is 0.54 across at this scale, so they never touch.)
  */
-const framing = (aspect: number) =>
-  aspect < 0.9 ? { share: 0.2, out: 0.6 } : { share: 0.3, out: 0.38 };
-
-/** The camera's distance from the kings (world units). */
-const viewDistance = (aspect: number) =>
-  (KING_TOP * KING_SCALE) / (framing(aspect).share * 2 * TAN_V);
-
-/** How far apart the seats stand (world units, one square is 1). */
-export const seatSpacing = (aspect: number) =>
-  framing(aspect).out * viewDistance(aspect) * TAN_V * aspect;
+export const SEAT_SPACING = 1;
 
 /** Where a seat's king stands: White's on the left, Black's on the right, the coin between. */
-export const seatX = (seat: Side | 'coin', aspect: number) =>
-  seat === 'coin' ? 0 : (seat === 'white' ? -1 : 1) * seatSpacing(aspect);
+export const seatX = (seat: Side | 'coin') =>
+  seat === 'coin' ? 0 : (seat === 'white' ? -1 : 1) * SEAT_SPACING;
+
+/**
+ * The share of the frame's half-width left of a card docked beside the kings
+ * (index.css: at most 42% of the width, plus its margin).
+ */
+const BESIDE_ROOM = 0.55;
+
+/** Half the row of kings, their outer edges and a margin (world units). */
+const HALF_ROW = SEAT_SPACING + 0.5;
+
+/**
+ * The camera's distance from the kings (world units): near enough that they
+ * stand large (at most a share of the window's height), far enough that the
+ * row keeps inside most of the width. A wide window is held by the first, a
+ * narrow one by the second; a phone upright, whose choices stack at the
+ * bottom, lets them stand smaller. With a card docked `beside` them the row
+ * keeps to the room left of it, `BESIDE_ROOM` of the frame's half-width.
+ */
+export const viewDistance = (aspect: number, beside = false) => {
+  const narrow = aspect < 0.9;
+  const byHeight = (KING_TOP * KING_SCALE) / ((narrow ? 0.2 : 0.3) * 2 * TAN_V);
+  const share = beside ? BESIDE_ROOM * 0.85 : narrow ? 0.94 : 0.8;
+  const byWidth = HALF_ROW / (TAN_V * aspect * share);
+  return Math.max(byHeight, byWidth);
+};
 
 // --- Durations (seconds) --------------------------------------------------------------------
 
@@ -127,28 +142,35 @@ export interface CameraPose {
   distance: number;
 }
 
+/** A window this short and wide docks the card at the right, beside the kings (index.css). */
+export const cardBeside = (width: number, height: number) =>
+  height <= 500 && width / Math.max(height, 1) >= 1.3;
+
 /**
- * The lobby's view of the kings (`card`: with a card docked under them):
- * from White's near side, a little above the glass, at the framing's
- * distance, the kings' middle a little above the frame's (higher while a
- * card is docked under them, and on a phone, whose choices stack at the
- * bottom).
+ * The lobby's view of the kings: from White's near side, a little above the
+ * glass, at the framing's distance, the kings' middle a little above the
+ * frame's. With a `card` docked under them (the host's invitation) they
+ * stand higher; in a short window whose card docks at the right (`beside`),
+ * they stand in the room left of it instead.
  */
-export const lobbyPose = (aspect: number, card = false): CameraPose => {
-  const distance = viewDistance(aspect);
+export const lobbyPose = (aspect: number, card = false, beside = false): CameraPose => {
+  const distance = viewDistance(aspect, card && beside);
   const kingMid = FLOOR_Y + KING_TOP * KING_SCALE * 0.5;
-  const raise = aspect < 0.9 ? (card ? 0.24 : 0.12) : card ? 0.36 : 0.02;
+  const tanH = TAN_V * aspect;
+  let raise = aspect < 0.9 ? (card ? 0.24 : 0.12) : card ? 0.2 : -0.04;
+  let across = 0;
+  if (card && beside) {
+    raise = -0.12;
+    // The row's middle in the middle of the room left of the card
+    across = (1 - BESIDE_ROOM) * distance * tanH;
+  }
   return {
-    target: [0, kingMid - raise * distance * TAN_V, 0],
+    target: [across, kingMid - raise * distance * TAN_V, 0],
     azimuth: 0,
     elevation: (17 * Math.PI) / 180,
     distance,
   };
 };
-
-/** While waiting, the camera drifts a little way round the kings, once, and rests. */
-export const waitDrift = (seconds: number) =>
-  ((-12 * Math.PI) / 180) * smooth(clamp01(seconds / 18));
 
 /** A pose's camera position. */
 export const posePosition = ({ target, azimuth, elevation, distance }: CameraPose): Vec3 => [
