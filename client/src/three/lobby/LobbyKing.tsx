@@ -3,6 +3,7 @@ import type { RefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import type { Group, ShaderMaterial } from 'three';
+import { LAYER } from '../scene/layers';
 import { PieceType } from '../../engine/pieces';
 import { prefersReducedMotion } from '../motion';
 import { noRaycast } from '../noRaycast';
@@ -56,6 +57,13 @@ export interface Pickable {
   onOut?: () => void;
   onPick?: () => void;
 }
+
+/**
+ * Where a lobby king draws among the see-through layers: after the glass and
+ * its edges, so while it fades (blended) the glass behind it is already there
+ * to show through, rather than a king-shaped hole of night.
+ */
+const FADING_ORDER = LAYER.label + 1;
 
 /** The pointer on a king; `ready` says whether it has formed (none is picked while forming). */
 const pickHandlers = (p: Pickable, ready: () => boolean) => ({
@@ -296,7 +304,13 @@ export const LobbyKing = ({
       <group scale={KING_SCALE}>
         {showLight && <SelectionLight state={held} top={top} />}
         <group ref={lift}>
-          <mesh geometry={wholePiece(PieceType.King)} material={body} raycast={noRaycast} />
+          {/* Drawn after the glass, so fading it shows the glass behind */}
+          <mesh
+            geometry={wholePiece(PieceType.King)}
+            material={body}
+            raycast={noRaycast}
+            renderOrder={FADING_ORDER}
+          />
         </group>
         {/* A still stand-in to point at: the body lifts under the pointer */}
         {canPick && pick && (
@@ -502,6 +516,7 @@ export const CoinKing = ({
                   geometry={wholePiece(PieceType.King)}
                   material={m}
                   raycast={noRaycast}
+                  renderOrder={FADING_ORDER}
                 />
               ))}
             </group>
