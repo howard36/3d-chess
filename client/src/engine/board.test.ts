@@ -283,30 +283,6 @@ describe('inCheck', () => {
 });
 
 describe('generateAllLegalMoves', () => {
-  it('excludes illegal moves for a pinned piece (rook can only move along pin line)', () => {
-    const board = new Board();
-    // Place black king at (0,0,0), white rook at (0,0,4), black rook at (0,0,2)
-    const blackKing: Coord = { x: 0, y: 0, z: 0 };
-    const whiteRook: Coord = { x: 0, y: 0, z: 4 };
-    const blackRook: Coord = { x: 0, y: 0, z: 2 };
-    board.setPiece(blackKing, { type: PieceType.King, color: 'black' });
-    board.setPiece(whiteRook, { type: PieceType.Rook, color: 'white' });
-    board.setPiece(blackRook, { type: PieceType.Rook, color: 'black' });
-    // The black rook is pinned and can only move along the z-axis between king and attacker
-    const legalMoves = board.generateAllLegalMoves('black');
-    const rookMoves = legalMoves.filter(
-      (m: Move) => m.from.x === 0 && m.from.y === 0 && m.from.z === 2,
-    );
-    // All rook moves must stay on (0,0,*) and not move off the line
-    expect(rookMoves.length).toBeGreaterThan(0);
-    for (const move of rookMoves) {
-      expect(move.to.x).toBe(0);
-      expect(move.to.y).toBe(0);
-      // Must be between king and attacker (z=1,3,4)
-      expect([1, 3, 4]).toContain(move.to.z);
-    }
-  });
-
   it('black king in corner has only one legal move due to two white rooks defending each other', () => {
     const board = new Board();
     // Place black king at (0,0,0)

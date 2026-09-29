@@ -16,7 +16,7 @@ import { isTap } from './tap';
 import { useExactClicks } from './exactClicks';
 import { useTapAssist } from './useTapAssist';
 import type { AssistedTap } from './useTapAssist';
-import type { LevelFocus, MarkerProps, Vec3 } from './types';
+import type { LevelFocus, MarkerProps, PieceColor, Vec3 } from './types';
 import { resolveHover } from './hover';
 import type { FloorSquare } from './hover';
 import { CaptureFx, Celebration } from './scene/fx';
@@ -49,8 +49,6 @@ const cellMaterial = new MeshBasicMaterial();
 // rather than centred in it.
 const atCellFloor = ([x, y, z]: Vec3): Vec3 => [x, y + layout.floorY, z];
 
-type BoardTurn = 'white' | 'black';
-
 export interface LastMoveInfo {
   move: Move;
   /** Total moves played; increments exactly once per new move. */
@@ -60,8 +58,8 @@ export interface LastMoveInfo {
 }
 
 export interface BoardProps {
-  currentTurn: BoardTurn;
-  playerColor?: 'white' | 'black' | null;
+  currentTurn: PieceColor;
+  playerColor?: PieceColor | null;
   onMove?: (move: Move) => void;
   /**
    * Called instead of onMove when the clicked destination is a promotion
@@ -74,7 +72,7 @@ export interface BoardProps {
   /** Freezes interaction (selection and moves) while still rendering the position. */
   disabled?: boolean;
   /** Set once the game has ended: the mated king topples. */
-  gameOver?: { result: 'checkmate' | 'stalemate'; winner?: BoardTurn } | null;
+  gameOver?: { result: 'checkmate' | 'stalemate'; winner?: PieceColor } | null;
 }
 
 const Board = (props: BoardProps) => {
@@ -276,7 +274,7 @@ const Board = (props: BoardProps) => {
       : null;
   // A knight looks along the ranks — toward the opponent — turned a little to
   // show its profile.
-  const knightFacing = (color: BoardTurn) =>
+  const knightFacing = (color: PieceColor) =>
     (color === orientation ? 1 : -1) * (Math.PI / 2 - KNIGHT_YAW);
   const matedKing = pieces.find(
     ({ type, color }) => type === PieceType.King && color === matedColor,

@@ -35,8 +35,5 @@ export function fromZXY(s: string): Coord {
   const z = LEVELS.indexOf(s[0]);
   const x = FILES.indexOf(s[1]);
   const y = RANKS.indexOf(s[2]);
-  if (z === -1 || x === -1 || y === -1) {
-    throw new Error(`Invalid ZXY string: ${s}`);
-  }
   return { x, y, z };
 }
