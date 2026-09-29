@@ -76,15 +76,21 @@ test('for a player who asked for less motion the preview holds still, with nothi
 test("the line under the button names the preview's result while its mate stands", () => {
   reduceMotion(false);
   renderStart();
-  expect(screen.getByText('5×5×5 · 125 squares · No sign-up')).toBeInTheDocument();
+  expect(screen.queryByText('Checkmate · White wins')).not.toBeInTheDocument();
   act(() => endDemo(true));
   expect(screen.getByText('Checkmate · White wins')).toBeInTheDocument();
-  expect(screen.queryByText('5×5×5 · 125 squares · No sign-up')).not.toBeInTheDocument();
   act(() => endDemo(false));
-  expect(screen.getByText('5×5×5 · 125 squares · No sign-up')).toBeInTheDocument();
+  expect(screen.queryByText('Checkmate · White wins')).not.toBeInTheDocument();
 });
 
-test('the connection state and an error take the place of the result', () => {
+test('held still, the preview names no result (it always shows the mate)', () => {
+  reduceMotion(true);
+  renderStart();
+  act(() => endDemo(true));
+  expect(screen.queryByText('Checkmate · White wins')).not.toBeInTheDocument();
+});
+
+test('each line under the button is a fresh element, so its fade plays', async () => {
   reduceMotion(false);
   render(
     <MemoryRouter>
@@ -92,6 +98,29 @@ test('the connection state and an error take the place of the result', () => {
     </MemoryRouter>,
   );
   act(() => endDemo(true));
-  expect(screen.getByRole('status')).toHaveTextContent('Connecting to server…');
+  const result = screen.getByText('Checkmate · White wins');
+  // A request waiting on the connection takes the line's place
+  await userEvent.click(screen.getByRole('button', { name: 'Start a game' }));
+  const status = screen.getByRole('status');
+  expect(status).toHaveTextContent('Connecting to server…');
+  expect(status).not.toBe(result);
   expect(screen.queryByText('Checkmate · White wins')).not.toBeInTheDocument();
+});
+
+test('a keyboard player keeps their place while the game is created', async () => {
+  reduceMotion(false);
+  const send = vi.fn(() => true);
+  render(
+    <MemoryRouter>
+      <StartScreen gameSocket={fakeSocket([], send)} />
+    </MemoryRouter>,
+  );
+  await userEvent.tab();
+  await userEvent.keyboard('{Enter}');
+  const button = screen.getByRole('button', { name: 'Creating game…' });
+  expect(button).toHaveFocus();
+  expect(button).toHaveAttribute('aria-disabled', 'true');
+  // Held: a second press sends nothing more
+  await userEvent.keyboard('{Enter}');
+  expect(send).toHaveBeenCalledTimes(1);
 });

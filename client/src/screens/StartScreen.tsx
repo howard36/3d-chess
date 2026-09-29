@@ -7,6 +7,8 @@ import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
 import { prefersReducedMotion } from '../three/motion';
 import { LandingPreview } from './LandingPreview';
+import { PieceGlyph } from './PieceGlyph';
+import { PieceType } from '../engine/pieces';
 
 interface StartScreenProps {
   gameSocket: GameSocket;
@@ -45,6 +47,9 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
   const requestGame = useResendOnReconnect(gameSocket, !isLoading);
 
   const handleCreateGame = () => {
+    // Held (aria-disabled, not disabled, so a keyboard player keeps their
+    // place) while the request is answered
+    if (isLoading) return;
     setRequestIndex(messages.length);
     requestGame({ type: 'create_game', clientId: getClientId() });
   };
@@ -55,32 +60,32 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
   const [demoEnded, setDemoEnded] = React.useState(false);
 
   // One line under the button: an error answering this request, else the
-  // connection's state, else the preview's result while its mate stands (the
-  // mated king is small, far up the tower), else a few facts about the game.
-  // One slot, so the band under the tower never grows.
-  let note: React.ReactNode;
+  // connection's state while a request waits on it, else the preview's
+  // result while its mate stands (the mated king is small, far up the
+  // tower), else nothing. One slot, kept open when empty so the button never
+  // moves; each line keyed, so each change fades in afresh.
+  let note: React.ReactNode = null;
   if (latestError) {
     note = (
-      <p role="alert" className="landing-note landing-error">
+      <p key="error" role="alert" className="landing-note landing-error">
         Couldn't start a game: {latestError.message}
       </p>
     );
-  } else if (status !== 'connected') {
+  } else if (isLoading && status !== 'connected') {
     note = (
-      <p role="status" className="landing-note landing-status">
+      <p key="status" role="status" className="landing-note landing-status">
         <span className="hud-dot" aria-hidden />
         {status === 'reconnecting' ? 'Reconnecting to server…' : 'Connecting to server…'}
       </p>
     );
-  } else if (demoEnded) {
+  } else if (demoEnded && !still) {
     // Part of the preview, which the page's text description already tells
+    // (held still, the preview always shows the mate: nothing to announce)
     note = (
-      <p className="landing-note landing-facts landing-result" aria-hidden="true">
+      <p key="result" className="landing-note landing-facts landing-result" aria-hidden="true">
         Checkmate · White wins
       </p>
     );
-  } else {
-    note = <p className="landing-note landing-facts">5×5×5 · 125 squares · No sign-up</p>;
   }
 
   return (
@@ -92,21 +97,26 @@ const StartScreen: React.FC<StartScreenProps> = ({ gameSocket }) => {
       <div className="landing-scrim" aria-hidden="true" />
       <header className="landing-head">
         <h1>3D Chess</h1>
-        <p className="landing-tagline">Five stacked boards. One link to play a friend.</p>
       </header>
       <div className="landing-foot">
-        {/* Not disabled while the socket connects: the request is queued
-            and sent when it opens (useResendOnReconnect) */}
+        {/* Not held while the socket connects: the request is queued and
+            sent when it opens (useResendOnReconnect) */}
         <button
           className="landing-play"
           onClick={handleCreateGame}
-          disabled={isLoading}
+          aria-disabled={isLoading || undefined}
           aria-busy={isLoading || undefined}
         >
-          {isLoading && <span className="hud-dot" aria-hidden />}
+          <span className="landing-play-piece" aria-hidden>
+            {isLoading ? (
+              <span className="hud-dot" />
+            ) : (
+              <PieceGlyph type={PieceType.Knight} color="black" size={24} />
+            )}
+          </span>
           {isLoading ? 'Creating game…' : 'Start a game'}
         </button>
-        {note}
+        <div className="landing-slot">{note}</div>
       </div>
       {/* The preview moves on its own for more than five seconds, beside the
           page's controls: it can be stopped (nothing moves for a player who

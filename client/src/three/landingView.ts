@@ -50,6 +50,6 @@ export const LANDING_TALL_PX = 860;
  * window keeps only a sliver: its text stands beside the tower.
  */
 export const landingTopBand = (height: number): number =>
-  height <= LANDING_SHORT_PX ? 12 : height >= LANDING_TALL_PX ? 140 : 120;
+  height <= LANDING_SHORT_PX ? 12 : height >= LANDING_TALL_PX ? 116 : 96;
 export const landingBottomBand = (height: number): number =>
   height <= LANDING_SHORT_PX ? 12 : height >= LANDING_TALL_PX ? 132 : 116;
