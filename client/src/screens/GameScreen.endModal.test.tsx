@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GameSocket } from '../hooks/useGameSocket';
 import type { WebSocketMessage } from '../types/messages';
-import { forgetSettings } from '../three/settings';
 import { Board } from '../engine';
 import { fromZXY } from '../engine/coords';
 import GameScreen from './GameScreen';
@@ -67,7 +66,6 @@ const result = () => screen.queryByRole('dialog', { name: 'You win' });
 
 beforeEach(() => {
   localStorage.clear();
-  forgetSettings();
   vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
 });
 afterEach(() => vi.useRealTimers());

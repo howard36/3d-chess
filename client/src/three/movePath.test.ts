@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PieceType } from '../engine/pieces';
-import { towerLayout } from './layout';
-import { cellPitch, KNIGHT_ARC_PITCHES, knightArcHeight, moveArc, movePoint } from './movePath';
+import { movePoint } from './movePath';
 
 describe('movePath', () => {
   it('runs a move in a straight line, whatever its level change', () => {
@@ -15,7 +13,7 @@ describe('movePath', () => {
     }
   });
 
-  it('lifts a knight’s arc to its height above the line’s midpoint, and no further', () => {
+  it('lifts an arc to its height above the line’s midpoint, and no further', () => {
     const from: [number, number, number] = [0, 1, 0];
     const to: [number, number, number] = [1, 3.7, 2];
     const peak = movePoint(from, to, 0.5, 0.6);
@@ -24,22 +22,5 @@ describe('movePath', () => {
       const lineY = 1 + 2.7 * e;
       expect(movePoint(from, to, e, 0.6)[1] - lineY).toBeLessThanOrEqual(0.6 + 1e-9);
     }
-  });
-
-  it('measures the cell pitch of any layout, and sizes the knight’s arc by it', () => {
-    expect(cellPitch(towerLayout())).toBeCloseTo(1);
-    expect(cellPitch(towerLayout({ pitch: 1.2 }))).toBeCloseTo(1.2);
-    expect(knightArcHeight(towerLayout())).toBeCloseTo(KNIGHT_ARC_PITCHES);
-  });
-
-  it('arcs only a knight’s own move, and only when knights arc', () => {
-    const layout = towerLayout();
-    const h = knightArcHeight(layout);
-    expect(moveArc(layout, PieceType.Knight, undefined, 'arc')).toBe(h);
-    expect(moveArc(layout, PieceType.Knight, undefined, 'straight')).toBe(0);
-    expect(moveArc(layout, PieceType.Queen, undefined, 'arc')).toBe(0);
-    expect(moveArc(layout, null, undefined, 'arc')).toBe(0);
-    // A pawn that promoted to a knight walked there
-    expect(moveArc(layout, PieceType.Knight, PieceType.Knight, 'arc')).toBe(0);
   });
 });

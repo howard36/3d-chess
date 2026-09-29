@@ -84,13 +84,6 @@ export function fitDistance(
 export const HUD_TOP_PX = 56;
 
 /**
- * Rows kept at the bottom for the move card while it spans the bottom of the
- * window (index.css: the Notation panel on, in a window no wider than 13:9 and
- * taller than 480 px). The card is 82 px tall there, 14 px up.
- */
-export const MOVE_CARD_BAND_PX = 100;
-
-/**
  * Rows kept under the pill for the pieces each side has taken (index.css,
  * .hud-captures: 18 px tall, 4 px under the pill), in every window but a
  * short one, where they stand at the top left beside the tower instead. Kept
@@ -99,24 +92,13 @@ export const MOVE_CARD_BAND_PX = 100;
 export const CAPTURES_BAND_PX = 26;
 
 /**
- * The HUD's bands, in CSS px, that the fitted board keeps clear of: the pill
- * and the pieces taken under it at the top, and the move card at the bottom
- * while it shows across the bottom of the window. Wider windows keep the card
- * in a corner beside the board, and short ones (a phone on its side) at the
- * bottom right beside it, with the pieces taken at the top left.
+ * The band at the top of the window, in CSS px, that the fitted board keeps
+ * clear of: the pill and the pieces taken under it. In a short window (a phone
+ * on its side) the pieces taken stand at the top left beside the tower, so
+ * only the pill's band remains.
  */
-export function hudBands(
-  width: number,
-  height: number,
-  moveCard: boolean,
-): { top: number; bottom: number } {
-  const short = height <= 480;
-  const acrossTheBottom = moveCard && !short && width / height <= 13 / 9;
-  return {
-    top: HUD_TOP_PX + (short ? 0 : CAPTURES_BAND_PX),
-    bottom: acrossTheBottom ? MOVE_CARD_BAND_PX : 0,
-  };
-}
+export const hudTop = (height: number): number =>
+  HUD_TOP_PX + (height <= 480 ? 0 : CAPTURES_BAND_PX);
 
 /**
  * Breathing room for the centred fit, as a factor on the room the board
@@ -236,35 +218,24 @@ export interface FitWindow {
   fov: number;
   /** CSS px kept clear at the top (HUD_TOP_PX by default). */
   topInset?: number;
-  /** CSS px kept clear at the bottom (none by default). */
-  bottomInset?: number;
 }
 
-/** The bands as shares of the window's height, top and bottom, together at most half of it. */
-const bandShares = (w: FitWindow): [number, number] => {
-  const top = (w.topInset ?? HUD_TOP_PX) / w.height;
-  const bottom = (w.bottomInset ?? 0) / w.height;
-  const scale = Math.min(1, 0.5 / Math.max(top + bottom, 1e-9));
-  return [top * scale, bottom * scale];
-};
+/** The band as a share of the window's height, at most half of it. */
+const bandShare = (w: FitWindow): number => Math.min((w.topInset ?? HUD_TOP_PX) / w.height, 0.5);
 
 /**
- * The lens shift that centres `bounds` in the window between its top and
- * bottom bands, in the same tangent units (x right, y up): the view's centre
+ * The lens shift that centres `bounds` in the window below its top band, in
+ * the same tangent units (x right, y up): the view's centre
  * moves there. For ringBounds, whose left is -right, it is vertical only.
  */
 export function centringShift(bounds: ViewBounds, w: FitWindow): [number, number] {
   const tanV = Math.tan(MathUtils.degToRad(w.fov) / 2);
-  const [top, bottom] = bandShares(w);
-  return [
-    (bounds.left + bounds.right) / 2,
-    (bounds.bottom + bounds.top) / 2 + tanV * (top - bottom),
-  ];
+  return [(bounds.left + bounds.right) / 2, (bounds.bottom + bounds.top) / 2 + tanV * bandShare(w)];
 }
 
 /**
  * The distance from the orbit target at which `rings`, seen from `elevation`
- * (radians) and centred by a lens shift, fill the window between its bands
+ * (radians) and centred by a lens shift, fill the window below its band
  * with FRAME_MARGIN to spare on the tighter axis; and that shift (both with
  * the top and bottom eased from ring to ring, FIT_SOFTNESS). Neither depends
  * on the camera's azimuth. Zooming is relative to this distance
@@ -277,8 +248,7 @@ export function fitView(
 ): { distance: number; shift: [number, number] } {
   const tanV = Math.tan(MathUtils.degToRad(w.fov) / 2);
   const tanH = tanV * (w.width / w.height);
-  const [top, bottom] = bandShares(w);
-  const band = top + bottom;
+  const band = bandShare(w);
   // How much of the room the rings take at distance D (1: exactly the room)
   const fill = (distance: number) => {
     const b = ringBounds(rings, elevation, distance, FIT_SOFTNESS);

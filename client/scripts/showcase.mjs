@@ -28,8 +28,6 @@
 // show it from several sides.
 // --pose yaw,pitch,zoom holds the camera still at that offset from the
 // opening view (degrees, degrees, distance factor).
-// --knight arc|straight sets how knights move (the settings panel's Knight
-// moves; straight by default), e.g. to compare the two.
 // Needs ffmpeg with libx264 on PATH, or FFMPEG=/path/to/ffmpeg.
 //
 // --review photographs the board for a legibility check instead of recording
@@ -101,7 +99,7 @@
 // frame to the next (a jump or a kink shows as a spike), where the level
 // letters changed post, and a flag for every discontinuity, letters out of
 // line or out of order or switching apart, and the tower running past the
-// window's edge or into a HUD band. The orbit's limits apply (it reaches -14°
+// window's edge or into the HUD's top band. The orbit's limits apply (it reaches -14°
 // only near enough the tower). --stills skips the video and draws only the
 // sheet's stills, several times faster.
 
@@ -117,10 +115,6 @@ const opt = (name, fallback) => {
   return i >= 0 ? argv[i + 1] : fallback;
 };
 
-// How knights move: the player's setting, stored before the pages load
-const KNIGHT = opt('knight', 'straight');
-// Where the app keeps the board's settings (src/three/settings.ts)
-const SETTINGS_KEY = '3dchess:settings';
 const OUT = path.resolve(opt('out', 'showcase'));
 // --stills-fast takes the same stills, but draws only the frames it saves
 const STILLS_FAST = flag('stills-fast');
@@ -1335,13 +1329,14 @@ function jitter(name, frames, bands) {
       }
     }
   });
-  // The tower's outline inside the window, clear of the HUD's bands
+  // The tower's outline inside the window, clear of the HUD's top band
   const room = frames.map((f) => {
     const [x0, y0, x1, y1] = f.outline;
-    return Math.min(x0, y0 - bands.top, bands.width - x1, bands.height - bands.bottom - y1);
+    return Math.min(x0, y0 - bands.top, bands.width - x1, bands.height - y1);
   });
   room.forEach((m, i) => {
-    if (m < 0) flag(i, `the tower runs ${(-m).toFixed(0)} px past the window's edge or a HUD band`);
+    if (m < 0)
+      flag(i, `the tower runs ${(-m).toFixed(0)} px past the window's edge or the HUD's top band`);
   });
   const spread = (v) => Math.max(...v) - Math.min(...v);
   return {
@@ -1396,11 +1391,11 @@ async function orbitReview(rec, seat) {
       sheetEvery: 15,
     },
   ];
-  // The HUD's bands for this window (the move card is off: its setting's default)
+  // The HUD's top band for this window
   const bands = await rec.evaluate(
     async ([width, height]) => {
-      const { hudBands } = await import('/src/three/cameraFit.ts');
-      return { width, height, ...hudBands(width, height, false) };
+      const { hudTop } = await import('/src/three/cameraFit.ts');
+      return { width, height, top: hudTop(height) };
     },
     [WIDTH, HEIGHT],
   );
@@ -1588,13 +1583,6 @@ async function main() {
     await ctx.addInitScript(NO_HOT_RELOAD);
     await ctx.addInitScript(VIRTUAL_CLOCK);
     await ctx.addInitScript(SHOW_HELPERS);
-    // The board's settings as the player would have saved them (only a change from the defaults)
-    if (KNIGHT === 'arc') {
-      await ctx.addInitScript(
-        ([key, value]) => localStorage.setItem(key, value),
-        [SETTINGS_KEY, JSON.stringify({ 'piece.knightMoves': 'arc' })],
-      );
-    }
   }
   const [pageA, pageB] = await Promise.all(contexts.map((c) => c.newPage()));
   for (const p of [pageA, pageB]) {

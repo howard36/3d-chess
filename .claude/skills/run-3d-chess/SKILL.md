@@ -113,9 +113,6 @@ noise, not failures.
 - **Board orientation turns per seat.** Black sees the tower from the
   other side. `clickSquare` finds the square in the page's own scene, so
   it works from either seat; its `seat` only labels its errors.
-- **The board's look settings persist per browser context** (gear top
-  right, `localStorage` `3dchess:settings`); a fresh Playwright context
-  starts from the defaults.
 - **Click projection relies on `window.__r3fState`**, published by the
   Canvas `onCreated` hook in `src/screens/GameScreen.tsx`. If it is
   removed, every helper throws `window.__r3fState missing`.

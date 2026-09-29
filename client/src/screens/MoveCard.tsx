@@ -2,9 +2,6 @@ import React from 'react';
 import type { Board, Move } from '../engine';
 import type { Color, MoveRecord } from '../types/messages';
 import { parseTypedMove } from '../game/typedMove';
-import type { HoveredCell } from '../three/Board';
-import { readoutParts } from '../three/hover';
-import { Stone } from './TurnPill';
 
 export interface MoveCardProps {
   board: Board;
@@ -16,20 +13,11 @@ export interface MoveCardProps {
   /** It is this player's turn (whether or not the board takes input). */
   yourTurn: boolean;
   onMove: (move: Move) => void;
-  /** The Notation panel setting: show the list, the readout and the field. */
-  shown: boolean;
-  /** The cell under the pointer, while the card is shown. */
-  hovered: HoveredCell | null;
 }
 
 // A move as the wire writes it (level-file-rank), with an en dash, so a
 // record this client cannot replay still lists.
 const formatMove = (m: MoveRecord) => `${m.from}–${m.to}${m.promotion ? `=${m.promotion}` : ''}`;
-
-/** Marks a list scrolled on from its start, so its leading edge fades (index.css). */
-const markMore = (el: HTMLElement) => {
-  el.toggleAttribute('data-more', el.scrollTop > 1 || el.scrollLeft > 1);
-};
 
 const Enter = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden>
@@ -44,22 +32,12 @@ const Enter = () => (
 );
 
 /**
- * The moves so far and a field to type the next one ("Bb1-Cb1", "=Q" to
- * promote), at the bottom left. The Notation panel setting shows it, with the
- * cell under the pointer on top. Without the setting it stays in the page but
- * out of sight: the list for screen readers, and the field, which appears
- * when it takes keyboard focus (Tab) and goes again when it loses it empty.
+ * A field to type the next move ("Bb1-Cb1", "=Q" to promote), at the bottom
+ * left, and the moves so far. It stays in the page but out of sight: the list
+ * for screen readers, and the field, which appears when it takes keyboard
+ * focus (Tab) and goes again when it loses it empty.
  */
-const MoveCard: React.FC<MoveCardProps> = ({
-  board,
-  color,
-  moves,
-  canMove,
-  yourTurn,
-  onMove,
-  shown,
-  hovered,
-}) => {
+const MoveCard: React.FC<MoveCardProps> = ({ board, color, moves, canMove, yourTurn, onMove }) => {
   const [text, setText] = React.useState('');
   const [problem, setProblem] = React.useState<string | null>(null);
   const [focused, setFocused] = React.useState(false);
@@ -67,23 +45,6 @@ const MoveCard: React.FC<MoveCardProps> = ({
   // the card itself, until its field is reached again
   const [dismissed, setDismissed] = React.useState(false);
   const cardRef = React.useRef<HTMLElement | null>(null);
-  const listRef = React.useRef<HTMLOListElement | null>(null);
-
-  // Keep the newest move in view as rows are added, and when the window
-  // changes shape (a phone lays the moves out in one line, scrolled sideways)
-  React.useEffect(() => {
-    const toNewest = () => {
-      const el = listRef.current;
-      if (!el) return;
-      el.scrollTop = el.scrollHeight;
-      el.scrollLeft = el.scrollWidth;
-      markMore(el);
-    };
-    toNewest();
-    window.addEventListener('resize', toNewest);
-    return () => window.removeEventListener('resize', toNewest);
-  }, [moves.length, shown]);
-
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!color || text.trim() === '') return;
@@ -102,13 +63,11 @@ const MoveCard: React.FC<MoveCardProps> = ({
     onMove(result.move);
   };
 
-  const revealed = shown || ((focused || text !== '') && !dismissed);
+  const revealed = (focused || text !== '') && !dismissed;
   const rows: { number: number; white: MoveRecord; black?: MoveRecord }[] = [];
   for (let i = 0; i < moves.length; i += 2) {
     rows.push({ number: i / 2 + 1, white: moves[i], black: moves[i + 1] });
   }
-  const last = moves.length - 1;
-  const readout = hovered ? readoutParts(hovered.zxy, hovered.piece) : null;
 
   return (
     <section
@@ -134,7 +93,7 @@ const MoveCard: React.FC<MoveCardProps> = ({
       }}
       onKeyDown={(e) => {
         // Escape puts a card that Tab brought up away again (the text with it)
-        if (e.key === 'Escape' && !shown) {
+        if (e.key === 'Escape') {
           setText('');
           setProblem(null);
           setDismissed(true);
@@ -142,42 +101,11 @@ const MoveCard: React.FC<MoveCardProps> = ({
         }
       }}
     >
-      {shown && (
-        <div className="hud-readout" aria-hidden style={{ opacity: readout ? 1 : 0.5 }}>
-          {readout ? (
-            <>
-              <b>{readout.cell}</b>
-              {readout.piece && <span>{readout.piece}</span>}
-            </>
-          ) : (
-            <span>Point at a square</span>
-          )}
-        </div>
-      )}
-      {shown && moves.length > 0 && (
-        <div className="hud-heads" aria-hidden>
-          <span />
-          <Stone color="white" />
-          <Stone color="black" />
-        </div>
-      )}
-      {/* The record, in the page for screen readers whether or not it is shown */}
-      <ol
-        ref={listRef}
-        className={shown ? 'hud-moves selectable' : 'sr-only'}
-        onScroll={(e) => markMore(e.currentTarget)}
-        aria-label="Move history"
-        data-testid="move-list"
-      >
+      {/* The record, in the page for screen readers */}
+      <ol className="sr-only" aria-label="Move history" data-testid="move-list">
         {rows.map((row) => (
           <li key={row.number}>
-            <span className="hud-n">{row.number}.</span>{' '}
-            <span className="hud-m" data-last={row.number * 2 - 2 === last || undefined}>
-              {formatMove(row.white)}
-            </span>{' '}
-            <span className="hud-m" data-last={row.number * 2 - 1 === last || undefined}>
-              {row.black ? formatMove(row.black) : ''}
-            </span>
+            {row.number}. {formatMove(row.white)} {row.black ? formatMove(row.black) : ''}
           </li>
         ))}
       </ol>
@@ -215,7 +143,7 @@ const MoveCard: React.FC<MoveCardProps> = ({
         <div id="typed-move-problem" className="hud-problem" role="status">
           {problem}
         </div>
-        {!shown && focused && !problem && (
+        {focused && !problem && (
           <div className="hud-hint" aria-hidden>
             e.g. Bb1-Cb1, then Enter · Esc to hide
           </div>

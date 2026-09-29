@@ -25,7 +25,7 @@ interface OrbitControlsLike {
  * Frames the whole board: on first render, and again whenever the canvas
  * changes size, the camera moves along its current line of sight (so a turned
  * view stays turned) to the distance that fits the board in the new window,
- * centred between the HUD's bands (fitView). The zoom limits follow the fit
+ * centred below the HUD's top band (fitView). The zoom limits follow the fit
  * (zoomRange), so they are recomputed with it: a phone turned on its side
  * zooms over the same share of its view as before.
  *
@@ -42,7 +42,7 @@ export function FitCameraToBoard({
   viewDirection,
   minDistance,
   frameRings,
-  bands,
+  hudTopBand,
 }: {
   /** Half the board's bounding box, framed when there are no rings. */
   halfExtents: readonly [number, number, number];
@@ -52,8 +52,8 @@ export function FitCameraToBoard({
   minDistance: number;
   /** What the view keeps in frame instead of the box (BoardLayout.frameRings). */
   frameRings?: readonly FrameRing[];
-  /** The HUD's bands at the top and bottom for a window this size (hudBands); the top one alone by default. */
-  bands?: (width: number, height: number) => { top: number; bottom: number };
+  /** The HUD's band at the top for a window this size (hudTop); HUD_TOP_PX by default. */
+  hudTopBand?: (height: number) => number;
 }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as OrbitControlsLike | null;
@@ -65,8 +65,12 @@ export function FitCameraToBoard({
   React.useLayoutEffect(() => {
     if (!(camera instanceof PerspectiveCamera) || width === 0 || height === 0) return;
     const target = controls?.target ?? new Vector3();
-    const { top, bottom } = bands?.(width, height) ?? { top: HUD_TOP_PX, bottom: 0 };
-    const view = { width, height, fov: camera.fov, topInset: top, bottomInset: bottom };
+    const view = {
+      width,
+      height,
+      fov: camera.fov,
+      topInset: hudTopBand?.(height) ?? HUD_TOP_PX,
+    };
     const direction = camera.position.clone().sub(target);
     if (direction.lengthSq() === 0) direction.copy(new Vector3(...viewDirection));
     direction.normalize();
@@ -91,7 +95,7 @@ export function FitCameraToBoard({
     setLensShift(camera, centringShift(bounds, view), width, height);
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the layout's extents and limits are fixed
-  }, [camera, controls, width, height, invalidate, bands, rings]);
+  }, [camera, controls, width, height, invalidate, hudTopBand, rings]);
 
   return null;
 }

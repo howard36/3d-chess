@@ -4,7 +4,7 @@ import Board from '../three/Board';
 import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { FitCameraToBoard } from '../three/FitCameraToBoard';
-import { hudBands } from '../three/cameraFit';
+import { hudTop } from '../three/cameraFit';
 import { usePixelBudget } from '../three/pixelBudget';
 import { CameraControls } from '../three/CameraControls';
 import type { Move } from '../engine';
@@ -19,16 +19,13 @@ import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole
 import { getClientId } from '../lib/clientId';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
 import { NeutralToneMapping } from 'three';
-import { useSetting } from '../three/settings';
 import { onToppled } from '../three/pieceMotion';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
-import SettingsGear from './SettingsPanel';
 import TurnPill from './TurnPill';
 import CapturedPieces from './CapturedPieces';
 import MoveCard from './MoveCard';
 import MoveAnnouncer from './MoveAnnouncer';
-import type { HoveredCell } from '../three/Board';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
@@ -112,18 +109,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const { board, moveRecords, currentTurn, lastMove, captured, replayFailedAt, gameOver } = history;
 
   const pixelRatio = usePixelBudget();
-  // The Notation panel (a setting): the move card, with the moves so far, the
-  // cell under the pointer and a field to type a move, stays on screen
-  const notationPanel = useSetting<boolean>('play.notation');
-  // The board is framed clear of the pill and the captured pieces under it,
-  // and of the move card while it spans the bottom of the window (turning the
-  // Notation panel on or off refits)
-  const bandsFor = React.useCallback(
-    (width: number, height: number) => hudBands(width, height, notationPanel),
-    [notationPanel],
-  );
-  // The cell under the pointer, read out in the move card while it shows
-  const [hoverCell, setHoverCell] = React.useState<HoveredCell | null>(null);
   // The mate plays out (the king topples) before the result covers the
   // board, while the pulse runs on behind it — when the mate was just played,
   // not when a finished game is reopened.
@@ -425,7 +410,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               lastMove={lastMove}
               disabled={boardDisabled}
               gameOver={gameOver}
-              onHoverCell={notationPanel ? setHoverCell : undefined}
             />
             {/* The only camera control is turning the view about the
                 board's centre, which never moves (no pan by mouse, touch or
@@ -442,12 +426,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               viewDirection={layout.viewDirection}
               minDistance={layout.orbit.minDistance}
               frameRings={layout.frameRings}
-              bands={bandsFor}
+              hudTopBand={hudTop}
             />
           </Canvas>
           {/* The HUD over the canvas (index.css): the turn pill at the top
-              centre with the status column under it, the settings gear at the
-              top right, the move card at the bottom left. Only the controls
+              centre with the status column under it, the move card at the
+              bottom left. Only the controls
               take the pointer; the rest lets it through to the board. */}
           <div className="hud">
             <div className="hud-top">
@@ -479,13 +463,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
               canMove={!boardDisabled && !gameOver && color === currentTurn}
               yourTurn={!gameOver && color === currentTurn}
               onMove={handleMove}
-              shown={notationPanel}
-              hovered={hoverCell}
             />
-            <div className="hud-gear-slot">
-              {/* The board's settings: a gear that opens their panel */}
-              <SettingsGear />
-            </div>
             {/* Said, not shown: each move as it lands, and the opponent's presence */}
             <MoveAnnouncer history={history} seat={color} />
             <div

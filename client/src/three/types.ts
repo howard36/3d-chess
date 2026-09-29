@@ -114,12 +114,6 @@ export interface LastMoveMarkerProps {
    * and never again on a reconnect.
    */
   fresh: boolean;
-  /**
-   * Height of the move's arc above the straight line between the two floors
-   * (world units): 0 for every move but a knight's when the player has
-   * knights arc. The line follows exactly the path the piece took.
-   */
-  arc: number;
 }
 
 export interface CaptureFxProps {
