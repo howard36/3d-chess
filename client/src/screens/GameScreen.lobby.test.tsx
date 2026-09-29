@@ -263,6 +263,7 @@ describe("the host's invitation to send", () => {
     // The page's heading says the side; the card, what to do about the other
     expect(screen.getByRole('heading', { name: 'You play Black' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Invite a friend' })).toBeInTheDocument();
+    expect(screen.getByText('Send them this link to start the game.')).toBeInTheDocument();
     const link = screen.getByTestId('share-link');
     expect(link).toHaveAttribute('data-link', `${window.location.origin}/game/abc123`);
     // Set without its scheme, the game's id standing on its own

@@ -548,8 +548,9 @@ cards under the kings carry only what to do. Timings and framing are pure functi
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
   `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
   breathing dot and "Waiting for your friend…" under it. The card under the kings: "Invite
-  a friend", the link (`lib/gameLink.ts`, its id picked out), and "Share link" where
-  `navigator.share` exists and "Copy link"; nothing else. A copy turns the button to
+  a friend" and "Send them this link to start the game.", the link (`lib/gameLink.ts`, its
+  id picked out), and "Share link" where `navigator.share` exists and "Copy link"; nothing
+  else. A copy turns the button to
   "Copied ✓" (and is said, "Link copied"); only a failed one is written: "Couldn't copy.
   Select the link." "You" and "Open seat" stand under the kings, the neon seat breathes (for its
   first minute, calmer after half of it), and the camera drifts 12° round once over 18 s
