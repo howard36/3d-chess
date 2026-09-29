@@ -66,6 +66,12 @@ export interface PieceBodyProps {
   inCheck: boolean;
   /** The level (engine z, 0 = A) of the cell the piece stands on. */
   level: number;
+  /**
+   * When the piece arrives in the game's entrance, in seconds after the
+   * first (intro/timeline.ts, pieceArrival); 0 when unset. Outside the
+   * entrance the piece is simply there.
+   */
+  arrival?: number;
 }
 
 export interface MarkerProps {
