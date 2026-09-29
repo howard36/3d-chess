@@ -1,6 +1,7 @@
 import { Routes, Route, matchPath, useLocation, useParams } from 'react-router-dom';
 import StartScreen from './screens/StartScreen';
 import { useGameSocket } from './hooks/useGameSocket';
+import { cachedImport } from './lib/cachedImport';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
 
@@ -8,11 +9,12 @@ import React from 'react';
 // code) is a chunk of its own, so the start screen shows without it. A game's
 // address asks for it at once; the start screen fetches it once the page is
 // idle, so creating a game rarely waits for it.
-let gameScreenChunk: Promise<typeof import('./screens/GameScreen')> | null = null;
-const loadGameScreen = () => (gameScreenChunk ??= import('./screens/GameScreen'));
+const loadGameScreen = cachedImport(() => import('./screens/GameScreen'));
 const GameScreen = React.lazy(loadGameScreen);
+// A prefetch that fails is asked for again when the screen is needed
+const prefetchGameScreen = () => void loadGameScreen().catch(() => {});
 if (typeof window !== 'undefined' && window.location.pathname.startsWith('/game/')) {
-  void loadGameScreen();
+  prefetchGameScreen();
 }
 
 // One GameScreen per game: moving between two game pages (browser history can
@@ -68,10 +70,10 @@ function App() {
   // Fetch the game screen once the start screen has had its turn
   React.useEffect(() => {
     if (typeof window.requestIdleCallback === 'function') {
-      const id = window.requestIdleCallback(() => void loadGameScreen(), { timeout: 2000 });
+      const id = window.requestIdleCallback(prefetchGameScreen, { timeout: 2000 });
       return () => window.cancelIdleCallback(id);
     }
-    const id = window.setTimeout(() => void loadGameScreen(), 200);
+    const id = window.setTimeout(prefetchGameScreen, 200);
     return () => window.clearTimeout(id);
   }, []);
 

@@ -427,8 +427,9 @@ precomputed, byte for byte, in `pieces/knight.medium.ts`, a chunk of its own tha
 `preloadPieceSet()` starts loading; a knight drawn before it arrives is sculpted as before,
 to the same bytes. After changing the knight (`knight.ts`, `sdf.ts`, `decimate.ts` or the
 medium detail in `set.ts`), run `npm run bake:knight` in `client/`; `knightData.test.ts`
-fails while the file is stale, and `golden.test.ts` pins every set's geometry by hash. `partsGeometry(set, type, parts)` hands back a piece's parts merged
-into one geometry, and `pieceTop(set, type)` its height. `scene/pieces.tsx` draws each
+fails while the file is stale, and `golden.test.ts` pins the medium and low sets' geometry
+by hash (the medium set as built and as drawn). `partsGeometry(set, type, parts)` hands
+back a piece's parts merged into one geometry, and `pieceTop(set, type)` its height. `scene/pieces.tsx` draws each
 piece in one draw call with one small shader: every vertex carries its part, and the
 ambient occlusion baked beside it (`scene/occlusion.ts`).
 
