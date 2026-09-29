@@ -8,7 +8,13 @@ import { BufferAttribute, BufferGeometry } from 'three';
 
 export type Vec3 = [number, number, number];
 
-export interface GridSurface {
+export const cross = (a: Vec3, b: Vec3): Vec3 => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+
+interface GridSurface {
   /** Quads along u (columns of vertices: `cols + 1`). */
   cols: number;
   /** Rows of vertices along v (quads: `rows - 1`). */

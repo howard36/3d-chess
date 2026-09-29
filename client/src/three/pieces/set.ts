@@ -135,7 +135,7 @@ const foot = (R: number): Profile => [
   corner([0, FOOT_HEIGHT]),
 ];
 
-export interface PieceProfiles {
+interface PieceProfiles {
   /** Base radius per piece (the foot band's radius). */
   radius: Record<PieceType, number>;
   pawn: { body: Profile; collar: Profile };

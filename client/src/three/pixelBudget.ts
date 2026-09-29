@@ -18,19 +18,14 @@ export const MAX_PIXEL_RATIO = 2;
 /**
  * The pixel ratio for a canvas of `width` x `height` CSS pixels on a screen
  * of `deviceRatio`: the screen's own, up to MAX_PIXEL_RATIO, unless that draws
- * more than `budget` device pixels. Never under one device pixel per CSS
+ * more than PIXEL_BUDGET device pixels. Never under one device pixel per CSS
  * pixel (or the screen's own ratio, where that is lower), which would blur.
  */
-export function budgetPixelRatio(
-  width: number,
-  height: number,
-  deviceRatio: number,
-  budget = PIXEL_BUDGET,
-): number {
+export function budgetPixelRatio(width: number, height: number, deviceRatio: number): number {
   const wanted = Math.min(deviceRatio > 0 ? deviceRatio : 1, MAX_PIXEL_RATIO);
   const area = width * height;
   if (!(area > 0)) return wanted;
-  return Math.max(Math.min(wanted, Math.sqrt(budget / area)), Math.min(wanted, 1));
+  return Math.max(Math.min(wanted, Math.sqrt(PIXEL_BUDGET / area)), Math.min(wanted, 1));
 }
 
 const current = () =>

@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry } from 'three';
-import { flatPolygon } from './mesh';
+import { cross, flatPolygon } from './mesh';
 import type { Vec3 } from './mesh';
 
 // A saw cut through a convex turned shell: the bishop's mitre. The slot is
@@ -16,11 +16,6 @@ interface V {
 }
 
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a: Vec3, b: Vec3): Vec3 => [
-  a[1] * b[2] - a[2] * b[1],
-  a[2] * b[0] - a[0] * b[2],
-  a[0] * b[1] - a[1] * b[0],
-];
 const lerpV = (a: V, b: V, t: number): V => {
   const n = [0, 1, 2].map((i) => a.n[i] + (b.n[i] - a.n[i]) * t) as Vec3;
   const len = Math.hypot(...n) || 1;

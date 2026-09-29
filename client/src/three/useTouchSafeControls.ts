@@ -117,7 +117,7 @@ export function dropPointers(c: OrbitPointerState, ids: readonly number[]): void
 }
 
 /** The fields of a Touch this needs. */
-export interface TouchLike {
+interface TouchLike {
   pageX: number;
   pageY: number;
   target: EventTarget | null;

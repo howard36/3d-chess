@@ -17,7 +17,7 @@ export type PieceColor = 'white' | 'black';
  * narrows the zoom range, 0.7x to 1.5x the distance that fits the board in
  * the window (zoomRange in three/cameraFit.ts).
  */
-export interface OrbitLimits {
+interface OrbitLimits {
   minPolarAngle: number;
   maxPolarAngle: number;
   minDistance: number;

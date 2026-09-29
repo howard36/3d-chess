@@ -8,7 +8,7 @@ import {
   KING_VECTORS,
   KNIGHT_VECTORS,
 } from './pieces';
-import { Coord, LEVELS, FILES, RANKS, toZXY } from './coords';
+import { Coord, LEVELS, FILES, RANKS, sameCoord, toZXY } from './coords';
 
 export type Move = { from: Coord; to: Coord; promotion?: PieceType };
 
@@ -237,7 +237,7 @@ export class Board {
           const piece = this.getPiece({ x, y, z });
           if (piece && piece.color === byColor) {
             const squares = this.generateAttackedSquares({ x, y, z });
-            if (squares.some((c) => c.x === target.x && c.y === target.y && c.z === target.z)) {
+            if (squares.some((c) => sameCoord(c, target))) {
               return true;
             }
           }

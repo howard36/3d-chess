@@ -139,11 +139,6 @@ describe('resolveTap', () => {
     expect(resolveTap([400, 400], [piece('a', 100, 100), square('b', 120, 140)])).toBeNull();
   });
 
-  it('takes a custom reach', () => {
-    expect(resolveTap([120, 100], [piece('a', 100, 100)], { reach: 10 })).toBeNull();
-    expect(resolveTap([116, 100], [piece('a', 100, 100)], { reach: 10 })?.id).toBe('a');
-  });
-
   it('is null with nothing to act on', () => {
     expect(resolveTap([100, 100], [])).toBeNull();
     expect(resolveTap([100, 100], [{ id: 'empty', kind: 'piece', outline: [] }])).toBeNull();
@@ -171,32 +166,27 @@ describe('resolveTap', () => {
       // square's (y 135): the neighbour is 4 px nearer, outline and centre
       // together, inside the preference
       const tap: ScreenPoint = [100, 121.5];
-      expect(resolveTap(tap, [held, neighbour, destination], { holding: true })?.id).toBe('dest');
-      expect(
-        resolveTap(tap, [held, neighbour, destination], { holding: true, preference: 0 })?.id,
-      ).toBe('neighbour');
+      expect(resolveTap(tap, [held, neighbour, destination], true)?.id).toBe('dest');
     });
 
     it('still switches to a piece that is clearly nearer', () => {
       // 2 px from the neighbour's outline, 18 px from the square's
       const tap: ScreenPoint = [100, 117];
       expect(DESTINATION_PREFERENCE_PX).toBeLessThan(20);
-      expect(resolveTap(tap, [held, neighbour, destination], { holding: true })?.id).toBe(
-        'neighbour',
-      );
+      expect(resolveTap(tap, [held, neighbour, destination], true)?.id).toBe('neighbour');
     });
 
     it('treats putting the held piece down like a switch', () => {
       // Between the held piece (x 53..67) and a square just right of it
       const right = square('right', 90, 100, 24, 10);
-      expect(resolveTap([72, 100], [held, right], { holding: true })?.id).toBe('right');
-      expect(resolveTap([68, 100], [held, right], { holding: true })?.id).toBe('held');
+      expect(resolveTap([72, 100], [held, right], true)?.id).toBe('right');
+      expect(resolveTap([68, 100], [held, right], true)?.id).toBe('held');
     });
 
     it('takes a capture on a small far pawn from a tap just above it', () => {
       const pawn: TapTarget = { id: 'Dd5', kind: 'destination', outline: box(200, 60, 8, 11) };
       const ownFarPiece = piece('Cb3', 240, 110);
-      expect(resolveTap([201, 44], [pawn, ownFarPiece], { holding: true })?.id).toBe('Dd5');
+      expect(resolveTap([201, 44], [pawn, ownFarPiece], true)?.id).toBe('Dd5');
     });
   });
 });

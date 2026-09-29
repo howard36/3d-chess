@@ -14,7 +14,7 @@ import type { ComputeFunction, DomEvent } from '@react-three/fiber';
 // from the exact point of the release that made it, as its press was.
 
 /** A point in the canvas's CSS pixels. */
-export type CanvasPoint = readonly [number, number];
+type CanvasPoint = readonly [number, number];
 
 /**
  * The point to raycast `event` from: its own offset, except that a click

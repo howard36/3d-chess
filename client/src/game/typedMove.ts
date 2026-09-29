@@ -3,12 +3,12 @@
 // shows: two cells as level-file-rank, e.g. "Bb1-Cb1", with "=Q" (or R, B, N,
 // U) for a promotion.
 
-import { fromZXY, toZXY } from '../engine/coords';
+import { fromZXY, sameCoord, toZXY } from '../engine/coords';
 import type { Board, Move } from '../engine';
 import { PROMOTION_TO_PIECE } from '../engine/pieces';
 import type { Color, Promotion } from '../types/messages';
 
-export type TypedMoveResult = { move: Move } | { error: string };
+type TypedMoveResult = { move: Move } | { error: string };
 
 // Level letter, file letter, rank digit, either case; any of "-", "–", "x",
 // spaces, or nothing between the cells; an optional "=" before the piece.
@@ -28,9 +28,7 @@ export function parseTypedMove(text: string, board: Board, color: Color): TypedM
 
   const piece = board.getPiece(from);
   if (!piece || piece.color !== color) return { error: `You have no piece on ${toZXY(from)}.` };
-  const candidates = board
-    .generateLegalMoves(from)
-    .filter((c) => c.to.x === to.x && c.to.y === to.y && c.to.z === to.z);
+  const candidates = board.generateLegalMoves(from).filter((c) => sameCoord(c.to, to));
   if (candidates.length === 0) {
     return { error: `The piece on ${toZXY(from)} cannot move to ${toZXY(to)}.` };
   }

@@ -13,7 +13,7 @@ import type { ScreenPoint, TapTarget } from './tapAssist';
 // makes.
 
 /** What the player can act on right now, by cell (ZXY). */
-export interface Actionable {
+interface Actionable {
   /** Own pieces that can be picked up (the held one included: a tap puts it down). */
   pieces: ReadonlySet<string>;
   /** The held piece's destinations, captures included. */
@@ -116,7 +116,7 @@ export function useTapAssist(
         kind: actionable.destinations.has(cell) ? 'destination' : 'piece',
         outline,
       }));
-      const chosen = resolveTap(tap, targets, { holding: actionable.holding });
+      const chosen = resolveTap(tap, targets, actionable.holding);
       return chosen && { cell: chosen.id, kind: chosen.kind };
     },
     [grid, gl, camera],

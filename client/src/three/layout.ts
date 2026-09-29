@@ -19,41 +19,15 @@ export const CELLS: Coord[] = Array.from({ length: GRID_SIZE ** 3 }, (_, i) => (
   y: Math.floor(i / GRID_SIZE ** 2),
 }));
 
-/** Unit direction from the board's centre toward a camera at this elevation and azimuth (degrees). */
-export const viewDirectionFor = (elevationDeg: number, azimuthDeg: number): Vec3 => {
-  const el = elevationDeg * DEG;
-  const az = azimuthDeg * DEG;
-  return [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
-};
-
-export interface TowerOptions {
-  /** Distance between neighbouring cell centres on a level (world units). */
-  pitch?: number;
-  /** Distance between one level's platform and the next, in pitches. */
-  levelGap?: number;
+/** What a caller may change about the tower; everything else is fixed (TOWER_DEFAULTS). */
+interface TowerOptions {
   /**
    * Height of the tallest piece as drawn (the Staunton king is 0.87 at a
    * piece scale of 1). Centres the tower on its visual mass, pieces included.
    */
   pieceHeight?: number;
-  /** Opening camera elevation above the horizon, in degrees. */
-  elevation?: number;
-  /**
-   * Opening camera azimuth off the players' axis, in degrees (positive swings
-   * the camera to the player's right), so ranks do not stack into columns.
-   */
-  azimuth?: number;
   /** Lowest camera elevation the player can orbit to, in degrees. */
   minElevation?: number;
-  /** Highest camera elevation the player can orbit to, in degrees. */
-  maxElevation?: number;
-  /** Closest the camera can zoom to the tower's centre. */
-  minDistance?: number;
-  /**
-   * Height of each cell's click box above its floor (BoardLayout.hitHeight).
-   * Thin, so a click lands on the square whose floor is under the pointer.
-   */
-  hitHeight?: number;
 }
 
 /**
@@ -70,16 +44,29 @@ export interface TowerOptions {
  * like a 2D board seen through glass.
  */
 export const TOWER_DEFAULTS = {
+  /** Distance between neighbouring cell centres on a level (world units). */
   pitch: 1,
+  /** Distance between one level's platform and the next, in pitches. */
   levelGap: 1.35,
   pieceHeight: 0.87 * 0.8,
+  /** Opening camera elevation above the horizon, in degrees. */
   elevation: 18,
+  /**
+   * Opening camera azimuth off the players' axis, in degrees (positive swings
+   * the camera to the player's right), so ranks do not stack into columns.
+   */
   azimuth: 16,
   minElevation: 6,
+  /** Highest camera elevation the player can orbit to, in degrees. */
   maxElevation: 89.9,
+  /** Closest the camera can zoom to the tower's centre. */
   minDistance: 5,
+  /**
+   * Height of each cell's click box above its floor (BoardLayout.hitHeight).
+   * Thin, so a click lands on the square whose floor is under the pointer.
+   */
   hitHeight: 0.1,
-} as const satisfies Required<TowerOptions>;
+};
 
 /**
  * A compact 3D chess tower: five continuous platforms, A at the bottom and
@@ -103,6 +90,7 @@ export const towerLayout = (options: TowerOptions = {}): BoardLayout => {
   // centred on the origin (the orbit target).
   const levelY = (z: number) => (z - HALF) * gap - o.pieceHeight / 2;
   const half = HALF * o.pitch;
+  const [elevation, azimuth] = [o.elevation * DEG, o.azimuth * DEG];
   return {
     toWorld: ({ x, y, z }: Coord, orientation: Orientation): Vec3 => {
       const fx = orientation === 'white' ? x : GRID_SIZE - 1 - x;
@@ -118,7 +106,11 @@ export const towerLayout = (options: TowerOptions = {}): BoardLayout => {
       (HALF * 2 * gap + o.pieceHeight) / 2 + 0.1,
       half + o.pitch * 0.5 + 0.3,
     ],
-    viewDirection: viewDirectionFor(o.elevation, o.azimuth),
+    viewDirection: [
+      Math.sin(azimuth) * Math.cos(elevation),
+      Math.sin(elevation),
+      Math.cos(azimuth) * Math.cos(elevation),
+    ],
     orbit: {
       minPolarAngle: (90 - o.maxElevation) * DEG,
       maxPolarAngle: (90 - o.minElevation) * DEG,

@@ -11,7 +11,7 @@ import { FILES, LEVELS, RANKS } from '../engine/coords';
 import type { Turn } from './history';
 
 /** Conventional values; the unicorn is valued like the other minor pieces. */
-export const PIECE_VALUE: Record<PieceType, number> = {
+const PIECE_VALUE: Record<PieceType, number> = {
   [PieceType.King]: 0,
   [PieceType.Queen]: 9,
   [PieceType.Rook]: 5,

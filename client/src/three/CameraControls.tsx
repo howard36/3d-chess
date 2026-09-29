@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useTouchSafeControls } from './useTouchSafeControls';
 import type { OrbitPointerState } from './useTouchSafeControls';
 
-export interface CameraControlsProps {
+interface CameraControlsProps {
   /** Polar-angle limits in radians (0 is straight overhead); three's defaults without them. */
   minPolarAngle?: number;
   maxPolarAngle?: number;

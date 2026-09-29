@@ -1,5 +1,6 @@
 import type { BufferGeometry } from 'three';
 import { decimate } from './decimate';
+import { cross } from './mesh';
 import type { Vec3 } from './mesh';
 import { smoothLoop } from './profile';
 import {
@@ -127,11 +128,6 @@ const normalize = (v: Vec3): Vec3 => {
   const l = Math.hypot(...v);
   return [v[0] / l, v[1] / l, v[2] / l];
 };
-const cross = (a: Vec3, b: Vec3): Vec3 => [
-  a[1] * b[2] - a[2] * b[1],
-  a[2] * b[0] - a[0] * b[2],
-  a[0] * b[1] - a[1] * b[0],
-];
 
 /** Mane locks: pairs, each falling down the crest and out to one side. */
 const LOCK_PAIRS = 6;
@@ -283,7 +279,7 @@ const sculpt = (() => {
   };
 })();
 
-export interface KnightGeometry {
+interface KnightGeometry {
   /** The head and neck (body). */
   head: BufferGeometry;
   /** The mane and the eyes (the knight's accent). */

@@ -84,39 +84,29 @@ const centreOf = (points: readonly ScreenPoint[]): ScreenPoint => {
   return [(x0 + x1) / 2, (y0 + y1) / 2];
 };
 
-export interface TapOptions {
-  /** A piece is held: destinations win near ties with pieces (DESTINATION_PREFERENCE_PX). */
-  holding?: boolean;
-  reach?: number;
-  preference?: number;
-}
-
 /**
  * The target a tap at `tap` was meant for, among the targets it can act on
  * (the caller has already found that the tap hit none of them directly).
- * Only targets whose outline lies within `reach` count; of those, the one
+ * Only targets whose outline lies within TAP_REACH_PX count; of those, the one
  * with the least distance to its outline and to its centre added together,
- * a destination winning a near tie with a piece while one is held, and the
+ * a destination winning a near tie with a piece while one is held (`holding`), and the
  * nearer centre breaking an exact tie. Null when none is in reach, so a tap
  * well clear of everything still means "nothing here".
  */
 export function resolveTap<Id>(
   tap: ScreenPoint,
   targets: readonly TapTarget<Id>[],
-  {
-    holding = false,
-    reach = TAP_REACH_PX,
-    preference = DESTINATION_PREFERENCE_PX,
-  }: TapOptions = {},
+  holding = false,
 ): TapTarget<Id> | null {
   let best: { target: TapTarget<Id>; score: number; centre: number } | null = null;
   for (const target of targets) {
     if (target.outline.length === 0) continue;
     const distance = distanceToHull(tap, convexHull(target.outline));
-    if (!(distance <= reach)) continue;
+    if (!(distance <= TAP_REACH_PX)) continue;
     const [cx, cy] = centreOf(target.outline);
     const centre = Math.hypot(tap[0] - cx, tap[1] - cy);
-    const score = distance + centre + (holding && target.kind === 'piece' ? preference : 0);
+    const score =
+      distance + centre + (holding && target.kind === 'piece' ? DESTINATION_PREFERENCE_PX : 0);
     if (!best || score < best.score || (score === best.score && centre < best.centre)) {
       best = { target, score, centre };
     }
