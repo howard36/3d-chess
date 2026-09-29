@@ -51,7 +51,7 @@
 // destinations, then on another of the side's pieces). One to three minutes
 // for a moderately heavy scene; --quick shoots the opening view and the
 // top-down view only.
-// --poses "az,el;az,el" replaces the 12 poses: az in degrees round from the
+// --poses "az,el;az,el" replaces the 13 poses: az in degrees round from the
 // seat's opening view, el the elevation in degrees (orbit limits apply),
 // e.g. --poses "0,18;180,18;0,45". --select-white Bc2 and --select-black Db4
 // choose the piece each seat selects instead of one the rules engine picks;
@@ -124,7 +124,7 @@ const REVIEW = flag('review');
 const QUICK = flag('quick');
 const INTERACT = flag('interact');
 const ORBIT = flag('orbit');
-const FPS = Number(opt('fps', 30));
+const FPS = 30;
 const WIDTH = Number(opt('width', 1280));
 const HEIGHT = Number(opt('height', 720));
 const BASE = process.env.SHOWCASE_URL ?? 'http://127.0.0.1:5173';
@@ -133,22 +133,19 @@ const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
 // A short game that shows every kind of moment: quiet moves, captures both
 // ways, checks, and a mate by White. Found by search over the rules engine.
-const GAME = (
-  opt('moves') ??
-  [
-    'Ab2-De5 Ed4-Ba1', // unicorns trade pawns across the whole cube
-    'Ac2-Cc4 Dc4-Dc3',
-    'Ad2-Dd5 Ec4-Dd5', // bishop takes with check; the queen takes back
-    'Aa1-Ba1 Dd5-Db3', // rook takes the unicorn
-    'Cc4-Db3 Db4-Cb4', // queen trade
-    'Ad1-Cd2 Dc3-Cc3',
-    'Aa2-Da5 Eb4-Ed2',
-    'Da5-Db4 Ed2-Cb2',
-    'Db3-Ec4', // mate
-  ].join(' ')
-)
-  .split(/\s+/)
-  .filter(Boolean);
+const GAME = [
+  'Ab2-De5 Ed4-Ba1', // unicorns trade pawns across the whole cube
+  'Ac2-Cc4 Dc4-Dc3',
+  'Ad2-Dd5 Ec4-Dd5', // bishop takes with check; the queen takes back
+  'Aa1-Ba1 Dd5-Db3', // rook takes the unicorn
+  'Cc4-Db3 Db4-Cb4', // queen trade
+  'Ad1-Cd2 Dc3-Cc3',
+  'Aa2-Da5 Eb4-Ed2',
+  'Da5-Db4 Ed2-Cb2',
+  'Db3-Ec4', // mate
+]
+  .join(' ')
+  .split(' ');
 const PLIES = Number(opt('plies', GAME.length));
 
 fs.mkdirSync(OUT, { recursive: true });
@@ -226,10 +223,21 @@ const NO_HOT_RELOAD = () => {
 
 /** Installed before any page script: scene queries, camera orbit, the cursor. */
 const SHOW_HELPERS = () => {
-  const store = () => {
-    const s = window.__r3fState;
-    if (!s) return null;
-    return s.get ? s.get() : s;
+  const store = () => window.__r3fState?.get() ?? null;
+  const targetOf = ({ camera, controls }) => controls?.target ?? new camera.position.constructor();
+  /** The camera `r` from `target`, at `yaw` and `pitch` (radians; short of the poles), looking at it. */
+  const place = (st, target, r, yaw, pitch) => {
+    const { camera, controls } = st;
+    // Up to a bird's-eye view (a hair off vertical, so the view keeps its heading)
+    const p = Math.max(-1.4, Math.min(1.5691, pitch));
+    camera.position.set(
+      target.x + r * Math.cos(p) * Math.sin(yaw),
+      target.y + r * Math.sin(p),
+      target.z + r * Math.cos(p) * Math.cos(yaw),
+    );
+    camera.lookAt(target);
+    controls?.update?.();
+    st.invalidate();
   };
   let base = null;
   window.__show = {
@@ -325,17 +333,6 @@ const SHOW_HELPERS = () => {
       }
       return null;
     },
-    /** World position of a colour's king, if it is on the board. */
-    kingAt(color) {
-      let found = null;
-      store()?.scene.traverse((o) => {
-        const p = o.userData?.piece;
-        if (p && p.type === 'King' && p.color === color) {
-          found = o.getWorldPosition(o.position.clone());
-        }
-      });
-      return found && [found.x, found.y, found.z];
-    },
     /** What r3f itself hits at a page pixel: its interaction list, nearest first. */
     probe(x, y) {
       const st = store();
@@ -400,57 +397,38 @@ const SHOW_HELPERS = () => {
       return { px, under: `${under?.tagName}.${under?.className}`, hits };
     },
     /**
-     * Swings the camera around the board: yaw/pitch in degrees off the opening
-     * view, distance scaled by `zoom`, and the look-at point pulled `pull` of
-     * the way from the board's centre toward `focus`.
-     */
-    /**
      * As orbit, but to an absolute elevation (degrees above the horizon).
      * `square` turns the heading to the seat's own axis first (the opening
      * view sits a little off it), so a top-down view reads like a 2D board.
      */
-    orbitTo(yawDeg, elevationDeg, zoom = 1, square = false) {
-      window.__show.orbit(0, 0, 1, null, 0);
+    orbitTo(yawDeg, elevationDeg, square = false) {
+      window.__show.orbit(0, 0, 1);
       const pitchDeg = elevationDeg - (base.pitch * 180) / Math.PI;
       const quarter = Math.PI / 2;
       const offDeg = square
         ? ((Math.round(base.yaw / quarter) * quarter - base.yaw) * 180) / Math.PI
         : 0;
-      window.__show.orbit(yawDeg + offDeg, pitchDeg, zoom, null, 0);
+      window.__show.orbit(yawDeg + offDeg, pitchDeg, 1);
     },
-    orbit(yawDeg, pitchDeg, zoom, focus, pull) {
+    /**
+     * Swings the camera around the board: yaw/pitch in degrees off the opening
+     * view, distance scaled by `zoom`.
+     */
+    orbit(yawDeg, pitchDeg, zoom) {
       const st = store();
       if (!st) return;
-      const { camera, controls } = st;
-      const target = controls?.target ?? new camera.position.constructor();
+      const target = targetOf(st);
       if (!base) {
-        const d = camera.position.clone().sub(target);
-        base = {
-          r: d.length(),
-          yaw: Math.atan2(d.x, d.z),
-          pitch: Math.asin(d.y / d.length()),
-          centre: target.clone(),
-        };
+        const d = st.camera.position.clone().sub(target);
+        base = { r: d.length(), yaw: Math.atan2(d.x, d.z), pitch: Math.asin(d.y / d.length()) };
       }
-      if (focus) {
-        target.set(
-          base.centre.x + (focus[0] - base.centre.x) * pull,
-          base.centre.y + (focus[1] - base.centre.y) * pull,
-          base.centre.z + (focus[2] - base.centre.z) * pull,
-        );
-      }
-      const yaw = base.yaw + (yawDeg * Math.PI) / 180;
-      // Up to a bird's-eye view (a hair off vertical, so the view keeps its heading)
-      const pitch = Math.max(-1.4, Math.min(1.5691, base.pitch + (pitchDeg * Math.PI) / 180));
-      const r = base.r * zoom;
-      camera.position.set(
-        target.x + r * Math.cos(pitch) * Math.sin(yaw),
-        target.y + r * Math.sin(pitch),
-        target.z + r * Math.cos(pitch) * Math.cos(yaw),
+      place(
+        st,
+        target,
+        base.r * zoom,
+        base.yaw + (yawDeg * Math.PI) / 180,
+        base.pitch + (pitchDeg * Math.PI) / 180,
       );
-      camera.lookAt(target);
-      controls?.update?.();
-      st.invalidate();
     },
     cursor(x, y, press) {
       let el = document.getElementById('__cursor');
@@ -500,26 +478,14 @@ const SHOW_HELPERS = () => {
     },
     /**
      * The camera straight to an absolute azimuth and elevation (degrees)
-     * about the orbit target, at the opening view's distance times `zoom`.
+     * about the orbit target, at the opening view's distance.
      * The controls apply their limits (pose() gives the elevation reached).
      */
-    orbitAt(azimuthDeg, elevationDeg, zoom = 1) {
+    orbitAt(azimuthDeg, elevationDeg) {
       const st = store();
       if (!st) return;
-      const { camera, controls } = st;
-      const target = controls?.target ?? new camera.position.constructor();
-      if (!base) window.__show.orbit(0, 0, 1, null, 0);
-      const yaw = (azimuthDeg * Math.PI) / 180;
-      const pitch = Math.max(-1.4, Math.min(1.5691, (elevationDeg * Math.PI) / 180));
-      const r = base.r * zoom;
-      camera.position.set(
-        target.x + r * Math.cos(pitch) * Math.sin(yaw),
-        target.y + r * Math.sin(pitch),
-        target.z + r * Math.cos(pitch) * Math.cos(yaw),
-      );
-      camera.lookAt(target);
-      controls?.update?.();
-      st.invalidate();
+      if (!base) window.__show.orbit(0, 0, 1);
+      place(st, targetOf(st), base.r, (azimuthDeg * Math.PI) / 180, (elevationDeg * Math.PI) / 180);
     },
     /**
      * Where things fall on screen (page px): the orbit target (the tower's
@@ -530,7 +496,7 @@ const SHOW_HELPERS = () => {
      */
     measure() {
       const st = store();
-      const { camera, controls, scene, size } = st;
+      const { camera, scene, size } = st;
       camera.updateMatrixWorld();
       scene.updateMatrixWorld(true);
       const V = camera.position.constructor;
@@ -539,7 +505,7 @@ const SHOW_HELPERS = () => {
         const p = v.clone().project(camera);
         return [r.left + (p.x * 0.5 + 0.5) * size.width, r.top + (-p.y * 0.5 + 0.5) * size.height];
       };
-      const target = controls?.target ?? new V();
+      const target = targetOf(st);
       const d = camera.position.clone().sub(target);
       const forward = target.clone().sub(camera.position).normalize();
       // Pixels per world unit at one unit of depth
@@ -603,9 +569,7 @@ const SHOW_HELPERS = () => {
     /** The camera's azimuth and elevation about the orbit target, in degrees. */
     pose() {
       const st = store();
-      const { camera, controls } = st;
-      const t = controls?.target ?? new camera.position.constructor();
-      const d = camera.position.clone().sub(t);
+      const d = st.camera.position.clone().sub(targetOf(st));
       return {
         azimuth: Math.round((Math.atan2(d.x, d.z) * 180) / Math.PI),
         elevation: Math.round((Math.asin(d.y / d.length()) * 180) / Math.PI),
@@ -851,6 +815,54 @@ const playMove = async (page, from, to) => {
 
 const ease = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
+/** A stopwatch: the whole seconds since it was made, as "12s". */
+const stopwatch = () => {
+  const started = Date.now();
+  return () => `${((Date.now() - started) / 1000).toFixed(0)}s`;
+};
+
+/** Saves the page as a PNG through the DevTools session `cdp`. */
+async function savePng(cdp, file) {
+  const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+  fs.writeFileSync(file, Buffer.from(data, 'base64'));
+}
+
+/** Starts ffmpeg encoding the JPEG frames written to it to `video`. */
+const startEncoder = (video, preset, crf) =>
+  spawn(
+    FFMPEG,
+    [
+      ...['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS)],
+      ...['-c:v', 'mjpeg', '-i', '-', '-c:v', 'libx264', '-preset', preset, '-crf', String(crf)],
+      ...['-pix_fmt', 'yuv420p', '-movflags', '+faststart', video],
+    ],
+    { stdio: ['pipe', 'inherit', 'inherit'] },
+  );
+
+/** Appends the page as it is now to the video, as one frame. */
+async function writeFrame(ffmpeg, cdp, quality) {
+  const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality });
+  if (!ffmpeg.stdin.write(Buffer.from(data, 'base64'))) {
+    await new Promise((r) => ffmpeg.stdin.once('drain', r));
+  }
+}
+
+/** Closes the encoder's input and waits for the video to be written. */
+async function endEncoder(ffmpeg) {
+  ffmpeg.stdin.end();
+  await new Promise((r) => ffmpeg.on('close', r));
+}
+
+/**
+ * Lets the fonts and first frames settle in real time, then puts each page
+ * (the first is waited on) on the virtual clock.
+ */
+async function startClocks(pages) {
+  for (const p of pages) await p.evaluate(() => document.fonts.ready);
+  await pages[0].waitForTimeout(1500);
+  for (const p of pages) await p.evaluate(() => window.__vclock.enable());
+}
+
 // ---------------------------------------------------------------------------
 // Review
 
@@ -890,8 +902,7 @@ const HOVER_CAPTIONS = {
 };
 
 async function review(seats) {
-  const started = Date.now();
-  const elapsed = () => `${((Date.now() - started) / 1000).toFixed(0)}s`;
+  const elapsed = stopwatch();
   const cdps = {};
   for (const [seat, page] of Object.entries(seats)) {
     cdps[seat] = await page.context().newCDPSession(page);
@@ -910,94 +921,84 @@ async function review(seats) {
     notes[seat][state] = note;
     for (const pose of REVIEW_POSES) {
       const at = await page.evaluate(({ yaw, pitch, elevation, square }) => {
-        if (elevation !== undefined) window.__show.orbitTo(yaw, elevation, 1, square);
-        else window.__show.orbit(yaw, pitch, 1, null, 0);
+        if (elevation !== undefined) window.__show.orbitTo(yaw, elevation, square);
+        else window.__show.orbit(yaw, pitch, 1);
         // Labels crossfade to their new anchors over a few frames
         window.__show.settle(6, 50);
         return window.__show.pose();
       }, pose);
-      const { data } = await cdps[seat].send('Page.captureScreenshot', { format: 'png' });
       const file = path.join(OUT, `${seat}-${state}-${pose.id}.png`);
-      fs.writeFileSync(file, Buffer.from(data, 'base64'));
+      await savePng(cdps[seat], file);
       shots[seat][state].push({ pose: pose.id, file, ...at });
     }
     // Back to the opening view for whatever comes next
     await page.evaluate(() => {
-      window.__show.orbit(0, 0, 1, null, 0);
+      window.__show.orbit(0, 0, 1);
       window.__show.settle(2, 50);
     });
     console.log(`${elapsed()} ${seat} ${state}${note ? ` (${note})` : ''}`);
   };
 
-  // The selection once more from the opening view, the pointer resting on
-  // one of the side's other pieces (piece hover feedback, the HUD readout)
-  const shootPieceHover = async (seat, selectedZxy) => {
+  // The selection once more from the opening view, the pointer resting at
+  // `at` (null: nowhere to rest it), photographed as `id`
+  const shootPointer = async (seat, at, id, frames) => {
+    if (!at) return;
     const page = seats[seat];
-    const at = await page.evaluate(
-      ({ color, exclude }) => {
-        const cubes = [];
-        const own = [];
+    await page.mouse.move(at.x, at.y);
+    // HUD fades (the readout's) run on the real clock, not the virtual one
+    await page.waitForTimeout(250);
+    const pose = await page.evaluate((n) => {
+      window.__show.settle(n, 50);
+      return window.__show.pose();
+    }, frames);
+    const file = path.join(OUT, `${seat}-selected-${id}.png`);
+    await savePng(cdps[seat], file);
+    shots[seat].selected.push({ pose: id, file, ...pose });
+  };
+
+  // ...on one of the side's other pieces (piece hover feedback, the HUD readout)
+  const shootPieceHover = (seat, selectedZxy) =>
+    seats[seat]
+      .evaluate(
+        ({ color, exclude }) => {
+          const cubes = [];
+          const own = [];
+          window.__r3fState.get().scene.traverse((o) => {
+            if (o.userData?.cube) cubes.push(o);
+            const p = o.userData?.piece;
+            if (!p || p.color !== color) return;
+            own.push(o);
+          });
+          for (const piece of own) {
+            const cube = cubes.find((c) => c.position.distanceTo(piece.position) < 1e-4);
+            if (!cube || cube.userData.zxy === exclude) continue;
+            const px = window.__show.pixelFor(cube.userData.zxy, 'piece');
+            if (px) return px;
+          }
+          return null;
+        },
+        { color: seat, exclude: selectedZxy },
+      )
+      .then((at) => shootPointer(seat, at, 'hover-piece', 4));
+
+  // ...on one of its quiet destinations (how the board shows hover)
+  const shootHover = (seat) =>
+    seats[seat]
+      .evaluate(() => {
+        const cells = [];
+        const pieces = [];
         window.__r3fState.get().scene.traverse((o) => {
-          if (o.userData?.cube) cubes.push(o);
-          const p = o.userData?.piece;
-          if (!p || p.color !== color) return;
-          own.push(o);
+          if (o.userData?.cube && o.userData.highlight) cells.push(o);
+          if (o.userData?.piece) pieces.push(o.position);
         });
-        for (const piece of own) {
-          const cube = cubes.find((c) => c.position.distanceTo(piece.position) < 1e-4);
-          if (!cube || cube.userData.zxy === exclude) continue;
-          const px = window.__show.pixelFor(cube.userData.zxy, 'piece');
+        for (const cell of cells) {
+          if (pieces.some((p) => p.distanceTo(cell.position) < 1e-4)) continue;
+          const px = window.__show.pixelFor(cell.userData.zxy, 'cell');
           if (px) return px;
         }
         return null;
-      },
-      { color: seat, exclude: selectedZxy },
-    );
-    if (!at) return;
-    await page.mouse.move(at.x, at.y);
-    // HUD fades (the readout's) run on the real clock, not the virtual one
-    await page.waitForTimeout(250);
-    const pose = await page.evaluate(() => {
-      window.__show.settle(4, 50);
-      return window.__show.pose();
-    });
-    const { data } = await cdps[seat].send('Page.captureScreenshot', { format: 'png' });
-    const file = path.join(OUT, `${seat}-selected-hover-piece.png`);
-    fs.writeFileSync(file, Buffer.from(data, 'base64'));
-    shots[seat].selected.push({ pose: 'hover-piece', file, ...pose });
-  };
-
-  // The selection once more from the opening view, the pointer resting on
-  // one of its quiet destinations (how the board shows hover)
-  const shootHover = async (seat) => {
-    const page = seats[seat];
-    const at = await page.evaluate(() => {
-      const cells = [];
-      const pieces = [];
-      window.__r3fState.get().scene.traverse((o) => {
-        if (o.userData?.cube && o.userData.highlight) cells.push(o);
-        if (o.userData?.piece) pieces.push(o.position);
-      });
-      for (const cell of cells) {
-        if (pieces.some((p) => p.distanceTo(cell.position) < 1e-4)) continue;
-        const px = window.__show.pixelFor(cell.userData.zxy, 'cell');
-        if (px) return px;
-      }
-      return null;
-    });
-    if (!at) return;
-    await page.mouse.move(at.x, at.y);
-    // HUD fades (the readout's) run on the real clock, not the virtual one
-    await page.waitForTimeout(250);
-    const pose = await page.evaluate(() => {
-      window.__show.settle(3, 50);
-      return window.__show.pose();
-    });
-    const { data } = await cdps[seat].send('Page.captureScreenshot', { format: 'png' });
-    const file = path.join(OUT, `${seat}-selected-hover.png`);
-    fs.writeFileSync(file, Buffer.from(data, 'base64'));
-    shots[seat].selected.push({ pose: 'hover', file, ...pose });
-  };
+      })
+      .then((at) => shootPointer(seat, at, 'hover', 3));
 
   const has = (state) => !!shots.white[state] && !!shots.black[state];
   await shoot('white', 'opening');
@@ -1065,8 +1066,12 @@ async function review(seats) {
   console.log(`review took ${elapsed()}`);
 }
 
-/** Lays the shots out as labelled contact sheets, drawn by the browser itself. */
-async function sheets(context, shots, notes) {
+/**
+ * A page on `context` that draws contact sheets: `img(file)` is the address
+ * to show a saved picture at, `render(name, html)` styles `html` with `style`
+ * and saves the whole page as OUT/name.
+ */
+async function sheetPage(context, style) {
   const page = await context.newPage();
   const files = new Map();
   await page.route('http://review.local/**', (route) => {
@@ -1074,11 +1079,30 @@ async function sheets(context, shots, notes) {
     if (files.has(name)) return route.fulfill({ path: files.get(name) });
     return route.fulfill({ body: files.get('/html') ?? '', contentType: 'text/html' });
   });
-  const img = (shot) => {
-    const name = path.basename(shot.file);
-    files.set(name, shot.file);
+  const img = (file) => {
+    const name = path.basename(file);
+    files.set(name, file);
     return `http://review.local/${encodeURIComponent(name)}`;
   };
+  const render = async (name, html) => {
+    files.set(
+      '/html',
+      `<!doctype html><meta charset="utf-8"><style>${style}</style><body>${html}</body>`,
+    );
+    await page.setViewportSize({ width: 800, height: 600 });
+    await page.goto('http://review.local/index.html');
+    await page.waitForFunction(() => [...document.images].every((i) => i.complete));
+    const width = await page.evaluate(() => document.body.scrollWidth);
+    await page.setViewportSize({ width, height: 600 });
+    const file = path.join(OUT, name);
+    await page.screenshot({ path: file, fullPage: true });
+    console.log(file);
+  };
+  return { img, render, close: () => page.close() };
+}
+
+/** Lays the shots out as labelled contact sheets, drawn by the browser itself. */
+async function sheets(context, shots, notes) {
   const style = `
     body { margin: 0; padding: 20px 24px; background: #111418; color: #e6eaf0;
       font: 14px/1.35 system-ui, sans-serif; }
@@ -1094,20 +1118,7 @@ async function sheets(context, shots, notes) {
     .missing { color: #ff8a80; }`;
   const caption = (s) =>
     `${HOVER_CAPTIONS[s.pose] ?? s.pose} · azimuth ${s.azimuth}° · elevation ${s.elevation}°`;
-  const render = async (name, html) => {
-    files.set(
-      '/html',
-      `<!doctype html><meta charset="utf-8"><style>${style}</style><body>${html}</body>`,
-    );
-    await page.setViewportSize({ width: 800, height: 600 });
-    await page.goto('http://review.local/index.html');
-    await page.waitForFunction(() => [...document.images].every((i) => i.complete));
-    const width = await page.evaluate(() => document.body.scrollWidth);
-    await page.setViewportSize({ width, height: 600 });
-    const file = path.join(OUT, name);
-    await page.screenshot({ path: file, fullPage: true });
-    console.log(file);
-  };
+  const { img, render, close } = await sheetPage(context, style);
   const title = (state, seat) =>
     `${REVIEW_STATES[state]}${notes[seat]?.[state] ? `<small>${notes[seat][state]}</small>` : ''}`;
 
@@ -1118,7 +1129,7 @@ async function sheets(context, shots, notes) {
     for (const seat of ['white', 'black']) {
       const s = shots[seat][state]?.[0];
       html += s
-        ? `<figure><img src="${img(s)}" width="720"><figcaption>${seat} · ${notes[seat][state] ?? ''}</figcaption></figure>`
+        ? `<figure><img src="${img(s.file)}" width="720"><figcaption>${seat} · ${notes[seat][state] ?? ''}</figcaption></figure>`
         : `<figure class="missing">${seat}: not reached in the scripted game</figure>`;
     }
     html += '</div>';
@@ -1141,14 +1152,14 @@ async function sheets(context, shots, notes) {
         if (!group.length) continue;
         html += '<div class="row">';
         for (const s of group) {
-          html += `<figure><img class="board" src="${img(s)}" width="300" height="300"><figcaption>${caption(s)}</figcaption></figure>`;
+          html += `<figure><img class="board" src="${img(s.file)}" width="300" height="300"><figcaption>${caption(s)}</figcaption></figure>`;
         }
         html += '</div>';
       }
     }
     await render(`review-${seat}.png`, html);
   }
-  await page.close();
+  await close();
 }
 
 // ---------------------------------------------------------------------------
@@ -1367,8 +1378,7 @@ function jitter(name, frames, bands) {
  * and a contact sheet, with a jitter report (see the header).
  */
 async function orbitReview(rec, seat) {
-  const started = Date.now();
-  const elapsed = () => `${((Date.now() - started) / 1000).toFixed(0)}s`;
+  const elapsed = stopwatch();
   const cdp = await rec.context().newCDPSession(rec);
   const step = Number(opt('orbit-step', 1));
   const elevations = opt('orbit-elevations', '-14,18,45,75,89.9').split(',').map(Number);
@@ -1400,18 +1410,7 @@ async function orbitReview(rec, seat) {
     [WIDTH, HEIGHT],
   );
   const VIDEO = path.join(OUT, 'orbit.mp4');
-  let ffmpeg = null;
-  if (!STILLS) {
-    ffmpeg = spawn(
-      FFMPEG,
-      [
-        ...['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS)],
-        ...['-c:v', 'mjpeg', '-i', '-', '-c:v', 'libx264', '-preset', 'medium', '-crf', '22'],
-        ...['-pix_fmt', 'yuv420p', '-movflags', '+faststart', VIDEO],
-      ],
-      { stdio: ['pipe', 'inherit', 'inherit'] },
-    );
-  }
+  const ffmpeg = STILLS ? null : startEncoder(VIDEO, 'medium', 22);
   const frame = async ([azimuth, elevation], draw) =>
     rec.evaluate(
       ({ azimuth, elevation, ms, draw }) => {
@@ -1422,12 +1421,7 @@ async function orbitReview(rec, seat) {
       },
       { azimuth, elevation, ms: 1000 / FPS, draw },
     );
-  const capture = async () => {
-    const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 90 });
-    if (!ffmpeg.stdin.write(Buffer.from(data, 'base64'))) {
-      await new Promise((r) => ffmpeg.stdin.once('drain', r));
-    }
-  };
+  const capture = () => writeFrame(ffmpeg, cdp, 90);
   const reports = [];
   const sheet = [];
   let last = null;
@@ -1462,8 +1456,7 @@ async function orbitReview(rec, seat) {
       if (still) {
         next += segment.sheetEvery;
         const file = path.join(OUT, `orbit-${s}-${String(i).padStart(4, '0')}.png`);
-        const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
-        fs.writeFileSync(file, Buffer.from(data, 'base64'));
+        await savePng(cdp, file);
         sheet.push({ segment: s, file, azimuth: m.azimuth, elevation: m.elevation });
       }
     }
@@ -1479,8 +1472,7 @@ async function orbitReview(rec, seat) {
     );
   }
   if (ffmpeg) {
-    ffmpeg.stdin.end();
-    await new Promise((r) => ffmpeg.on('close', r));
+    await endEncoder(ffmpeg);
     console.log(VIDEO);
   }
   // The report, in full
@@ -1524,24 +1516,6 @@ async function orbitReview(rec, seat) {
 
 /** The --orbit contact sheet: a row of stills per stretch of the recording. */
 async function orbitSheet(context, segments, shots, seat) {
-  const page = await context.newPage();
-  const files = new Map();
-  await page.route('http://review.local/**', (route) => {
-    const name = decodeURIComponent(new URL(route.request().url()).pathname.slice(1));
-    if (files.has(name)) return route.fulfill({ path: files.get(name) });
-    return route.fulfill({ body: files.get('/html') ?? '', contentType: 'text/html' });
-  });
-  const thumb = Math.round((220 * WIDTH) / Math.max(WIDTH, HEIGHT));
-  let html = `<h1>Orbit, ${seat}'s seat, ${WIDTH}x${HEIGHT}</h1>`;
-  for (const [s, segment] of segments.entries()) {
-    html += `<h2>${segment.name}</h2><div class="row">`;
-    for (const shot of shots.filter((x) => x.segment === s)) {
-      const name = path.basename(shot.file);
-      files.set(name, shot.file);
-      html += `<figure><img src="http://review.local/${name}" width="${thumb}"><figcaption>az ${shot.azimuth.toFixed(0)}° · el ${shot.elevation.toFixed(1)}°</figcaption></figure>`;
-    }
-    html += '</div>';
-  }
   const style = `
     body { margin: 0; padding: 16px 20px; background: #111418; color: #e6eaf0;
       font: 13px/1.3 system-ui, sans-serif; }
@@ -1551,19 +1525,18 @@ async function orbitSheet(context, segments, shots, seat) {
     figure { margin: 0; }
     figure img { display: block; border-radius: 3px; }
     figcaption { font-size: 11px; color: #aeb7c4; padding: 2px 1px 0; }`;
-  files.set(
-    '/html',
-    `<!doctype html><meta charset="utf-8"><style>${style}</style><body>${html}</body>`,
-  );
-  await page.setViewportSize({ width: 800, height: 600 });
-  await page.goto('http://review.local/index.html');
-  await page.waitForFunction(() => [...document.images].every((i) => i.complete));
-  const width = await page.evaluate(() => document.body.scrollWidth);
-  await page.setViewportSize({ width, height: 600 });
-  const file = path.join(OUT, 'orbit-sheet.png');
-  await page.screenshot({ path: file, fullPage: true });
-  console.log(file);
-  await page.close();
+  const { img, render, close } = await sheetPage(context, style);
+  const thumb = Math.round((220 * WIDTH) / Math.max(WIDTH, HEIGHT));
+  let html = `<h1>Orbit, ${seat}'s seat, ${WIDTH}x${HEIGHT}</h1>`;
+  for (const [s, segment] of segments.entries()) {
+    html += `<h2>${segment.name}</h2><div class="row">`;
+    for (const shot of shots.filter((x) => x.segment === s)) {
+      html += `<figure><img src="${img(shot.file)}" width="${thumb}"><figcaption>az ${shot.azimuth.toFixed(0)}° · el ${shot.elevation.toFixed(1)}°</figcaption></figure>`;
+    }
+    html += '</div>';
+  }
+  await render('orbit-sheet.png', html);
+  await close();
 }
 
 async function main() {
@@ -1608,17 +1581,13 @@ async function main() {
     const rec = seat === 'white' ? white : black;
     // The other page is only there to take the seat; keep its renderer cheap
     await (rec === white ? black : white).setViewportSize({ width: 400, height: 300 });
-    await rec.evaluate(() => document.fonts.ready);
-    await rec.waitForTimeout(1500);
-    await rec.evaluate(() => window.__vclock.enable());
+    await startClocks([rec]);
     await orbitReview(rec, seat);
     await browser.close();
     return;
   }
   if (REVIEW) {
-    for (const p of [white, black]) await p.evaluate(() => document.fonts.ready);
-    await white.waitForTimeout(1500);
-    for (const p of [white, black]) await p.evaluate(() => window.__vclock.enable());
+    await startClocks([white, black]);
     await review({ white, black });
     await browser.close();
     return;
@@ -1629,12 +1598,8 @@ async function main() {
   const opp = rec === white ? black : white;
   // The opponent's page is only there to answer; keep its renderer cheap.
   await opp.setViewportSize({ width: 400, height: 300 });
-  await rec.evaluate(() => document.fonts.ready);
-  // Let the fonts and first frames settle in real time
-  await rec.waitForTimeout(1500);
-  await rec.evaluate(() => window.__vclock.enable());
-  // The other page only types, so never draws
-  if (INTERACT) await opp.evaluate(() => window.__vclock.enable());
+  // (--interact's other page only types, so never draws, but needs its clock too)
+  await startClocks(INTERACT ? [rec, opp] : [rec]);
 
   const cdp = await rec.context().newCDPSession(rec);
   if (flag('profile')) {
@@ -1711,37 +1676,7 @@ async function main() {
     return;
   }
   const VIDEO = path.join(OUT, INTERACT ? 'interact.mp4' : 'game.mp4');
-  let ffmpeg = null;
-  if (!STILLS) {
-    ffmpeg = spawn(
-      FFMPEG,
-      [
-        '-y',
-        '-loglevel',
-        'error',
-        '-f',
-        'image2pipe',
-        '-framerate',
-        String(FPS),
-        '-c:v',
-        'mjpeg',
-        '-i',
-        '-',
-        '-c:v',
-        'libx264',
-        '-preset',
-        'slow',
-        '-crf',
-        '20',
-        '-pix_fmt',
-        'yuv420p',
-        '-movflags',
-        '+faststart',
-        VIDEO,
-      ],
-      { stdio: ['pipe', 'inherit', 'inherit'] },
-    );
-  }
+  const ffmpeg = STILLS ? null : startEncoder(VIDEO, 'slow', 20);
 
   let frame = 0;
   let cursor = { x: WIDTH * 0.62, y: HEIGHT * 0.92 };
@@ -1773,35 +1708,18 @@ async function main() {
     // whole tower in the view, so leaning in on the king would crop the top
     // level (and him) off the frame
     const [yaw, pitch, zoom] = camera(frame);
-    const pull = 0;
     await rec.evaluate(
-      ({ ms, yaw, pitch, zoom, focus, pull, cx, cy, press, draw }) => {
-        window.__show.orbit(yaw, pitch, zoom, focus, pull);
+      ({ ms, yaw, pitch, zoom, cx, cy, press, draw }) => {
+        window.__show.orbit(yaw, pitch, zoom);
         window.__show.cursor(cx, cy, press);
         if (draw) window.__vclock.step(ms);
         else window.__show.settle(1, ms, false);
       },
-      {
-        ms: 1000 / FPS,
-        yaw,
-        pitch,
-        zoom,
-        focus: null,
-        pull,
-        cx: cursor.x,
-        cy: cursor.y,
-        press,
-        draw,
-      },
+      { ms: 1000 / FPS, yaw, pitch, zoom, cx: cursor.x, cy: cursor.y, press, draw },
     );
     frame++;
     press = Math.max(0, press - 0.12);
-    if (capture && ffmpeg) {
-      const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 92 });
-      if (!ffmpeg.stdin.write(Buffer.from(data, 'base64'))) {
-        await new Promise((r) => ffmpeg.stdin.once('drain', r));
-      }
-    }
+    if (capture && ffmpeg) await writeFrame(ffmpeg, cdp, 92);
   };
   const hold = async (seconds) => {
     for (let i = 0; i < Math.round(seconds * FPS); i++) await step();
@@ -1841,10 +1759,6 @@ async function main() {
     await rec.mouse.move(cursor.x, cursor.y);
     return true;
   };
-  // The fallback for a square no ray reaches from the recorded view, and the
-  // opponent's moves: played on the board by clicks (or typed, where no ray
-  // reaches), as a player would
-  const typeMove = playMove;
   const waitTurn = async (page, side) => {
     await page.waitForFunction((t) => window.__show.turnReached(t), side, {
       ...POLL,
@@ -1853,8 +1767,7 @@ async function main() {
   };
   const finish = async () => {
     if (ffmpeg) {
-      ffmpeg.stdin.end();
-      await new Promise((r) => ffmpeg.on('close', r));
+      await endEncoder(ffmpeg);
       console.log(VIDEO, `${frame} frames`);
     }
     await browser.close();
@@ -1868,8 +1781,7 @@ async function main() {
 
   /** --interact: pointing and selecting, in beats, from one position (see the header). */
   async function interact() {
-    const started = Date.now();
-    const elapsed = () => `${((Date.now() - started) / 1000).toFixed(0)}s`;
+    const elapsed = stopwatch();
     const GLIDE = 0.5;
     // Frames that advance the clock unseen (moves playing out, the rehearsal)
     const unseen = (frames) =>
@@ -1980,13 +1892,13 @@ async function main() {
     };
 
     // The scripted game, played in unseen, up to a position that shows it all
-    await rec.evaluate(([y, p, z]) => window.__show.orbit(y, p, z, null, 0), camera(0));
+    await rec.evaluate(([y, p, z]) => window.__show.orbit(y, p, z), camera(0));
     const toMove = seat;
     let plan = null;
     for (let i = 0; i < GAME.length && !plan; i++) {
       const [from, to] = GAME[i].split('-');
       const next = i % 2 === 0 ? 'black' : 'white';
-      await typeMove(i % 2 === 0 ? white : black, from, to);
+      await playMove(i % 2 === 0 ? white : black, from, to);
       for (const p of [rec, opp]) await waitTurn(p, next);
       await unseen(60);
       const plies = i + 1;
@@ -2050,8 +1962,7 @@ async function main() {
     const snap = async (file) => {
       // A video's last frame is already drawn; stills draw it now
       if (STILLS) await step(false, true);
-      const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
-      fs.writeFileSync(file, Buffer.from(data, 'base64'));
+      await savePng(cdp, file);
       console.log(file);
     };
     let n = 0;
@@ -2132,11 +2043,11 @@ async function main() {
         await white.mouse.click(cursor.x, cursor.y);
         press = 1;
       } else {
-        await typeMove(white, from, to);
+        await playMove(white, from, to);
       }
       await waitTurn(white, next);
     } else {
-      await typeMove(black, from, to);
+      await playMove(black, from, to);
       await waitTurn(white, next);
       // Drift the cursor aside while the opponent's piece moves
       cursor = {
