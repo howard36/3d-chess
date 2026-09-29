@@ -10,7 +10,7 @@ The player's pawn is one step from its promotion square, and they select it. The
 
 A light veil falls over the board and a glass card appears: "PROMOTE TO" above five tiles, each a piece's silhouette in the player's own material over its name, "Queen", "Rook", "Bishop", "Knight", and "Unicorn", and a plain "Cancel" below them. "Queen" has keyboard focus. Nothing has been sent yet, and the pawn has not moved; the turn pill, under the veil, still lights the player's half.
 
-The player clicks "Unicorn". The dialog closes and the move is sent. A moment later, on both boards, a Unicorn glides from the pawn's cell to the promotion square (the pawn does not travel and then change; the new piece travels), the mint trace marks the two cells, the move list shows the move with "=U" after it, for example `Da4–Ea5=U`, and the turn passes to the opponent.
+The player clicks "Unicorn". The dialog closes and the move is sent. A moment later, on both boards, a Unicorn glides from the pawn's cell to the promotion square (the pawn does not travel and then change; the new piece travels), the mint trace marks the two cells, the move is announced and listed for screen readers with "=U" after it, for example `Da4–Ea5=U`, and the turn passes to the opponent.
 
 ## The interaction, event by event
 
@@ -53,7 +53,7 @@ The dialog closes without sending in any of these ways:
 
 - **Cancel**: clicking "Cancel", or pressing Enter or Space on it.
 - **Escape**: pressing Escape while keyboard focus is on one of the dialog's buttons, which it is from the moment the dialog opens. Clicking the card between buttons takes focus off the buttons; Escape then does nothing until Tab brings focus back.
-- **The veil**: clicking anywhere outside the card, including over a part of the HUD such as the move card or an error banner, which are under the veil. A click on the card itself, between buttons, does nothing.
+- **The veil**: clicking anywhere outside the card, including over a part of the HUD such as an error banner, which is under the veil. A click on the card itself, between buttons, does nothing.
 - **The position changes**: a new position arrives from the server (a snapshot after a reconnect).
 - **The board stops taking input**: the connection drops, another tab takes the seat, or the record freezes. The dialog does not come back when the board takes input again.
 
@@ -73,7 +73,7 @@ As in [making a move](making-a-move.md#while-in-flight): the board ignores press
 
 ### The answer arrives
 
-On the echo, both boards replay the record with the promotion: the chosen piece [glides](../foundations/the-view.md#motion) from the pawn's cell to the promotion square, a captured piece burns away as it arrives (or, under reduced motion, the new piece is simply drawn there), the mint trace moves, and the turn passes to the opponent. The [move list](../game-page/move-list.md) shows the move with "=" and the piece's letter: Q for Queen, R for Rook, B for Bishop, N for Knight, U for Unicorn. The new piece is from then on an ordinary piece of its kind. If the promotion gives check or ends the game, that follows as for any move.
+On the echo, both boards replay the record with the promotion: the chosen piece [glides](../foundations/the-view.md#motion) from the pawn's cell to the promotion square, a captured piece burns away as it arrives (or, under reduced motion, the new piece is simply drawn there), the mint trace moves, and the turn passes to the opponent. The [move list](../game-page/move-list.md) (for screen readers) has the move with "=" and the piece's letter: Q for Queen, R for Rook, B for Bishop, N for Knight, U for Unicorn. The new piece is from then on an ordinary piece of its kind. If the promotion gives check or ends the game, that follows as for any move.
 
 An error or a drop is handled as in [making a move](making-a-move.md#the-answer-arrives): an error releases the board with the message in the error banner and the pawn still on its cell; a drop is settled by the next snapshot.
 
@@ -115,7 +115,7 @@ An error or a drop is handled as in [making a move](making-a-move.md#the-answer-
 
 **Connection.** The dialog exists only while the board takes input; a drop closes it and the choice has to be made again.
 
-**The opponent.** Sees nothing until the move lands, then the new piece gliding in, and the "=" letter in their move list.
+**The opponent.** Sees nothing until the move lands, then the new piece gliding in, and hears the "=" letter in the move announcement.
 
 **Other tabs and devices.** A replaced tab loses its dialog. The dialog is not shared between tabs.
 

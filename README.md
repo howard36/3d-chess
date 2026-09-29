@@ -171,8 +171,9 @@ Key decisions:
   the finger list of every touch event, and on a lost pointer capture, a blur or a hidden
   page, and drops the ones no finger accounts for, so a lone finger always turns the view
   (`e2e/touchCamera.spec.ts` loses a finger's pointer-up through real touch input).
-- **HUD.** Quiet by default: a glass **turn pill** at the top centre, and nothing else unless something needs saying. The pill's left half is
-  the player and its right half the opponent, each with a small stone in its army's
+- **HUD.** Quiet by default: a glass **turn pill** at the top centre (across the row, to a
+  12 px gutter, on a phone held upright), and nothing else unless something needs saying.
+  The pill's left half is the player and its right half the opponent, each with a small stone in its army's
   material (porcelain, charcoal); the half of the side to move is lit, its stone ringed in
   light ("Your move" / "Their move"), red with a CHECK badge in check. An opponent with no
   live connection shows as an outlined stone and "Offline"; a connected one is not marked.
@@ -185,11 +186,13 @@ Key decisions:
   from the first move (`hudTop`), so a capture never moves the board, and a screen
   reader reads them as a sentence per side, never announced. Under them, only while they
   apply: "Reconnecting…" (the pill and the captures dim), the latest error and the
-  frozen-record notice. The **move card** at the bottom left (across the bottom in a window
-  no wider than 13:9) stays in the page out of sight: its list for screen readers, and its
-  field to type a move (`Bb1-Cb1`), which is the first Tab stop and appears while it has
-  keyboard focus (Escape puts it away). A visually hidden live region announces every move as it lands ("White bishop Ad2 takes pawn on
-  Dd5. Check. Your move.", `game/announce.ts`). The parts are `screens/TurnPill.tsx`,
+  frozen-record notice. The **move card** is never shown as a panel: it stays in the page out
+  of sight, its list of moves for screen readers and its field to type a move (`Bb1-Cb1`),
+  which is the first Tab stop on the board screen. The field appears while it has keyboard
+  focus, at the bottom left (across the bottom in a window no wider than 13:9, at the bottom
+  right in a short one), and Escape puts it away. A visually hidden live region announces
+  every move as it lands ("White bishop Ad2 takes pawn on Dd5. Check. Your move.",
+  `game/announce.ts`). The parts are `screens/TurnPill.tsx`,
   `CapturedPieces.tsx`, `MoveCard.tsx` and `MoveAnnouncer.tsx`, styled in `index.css`. For
   tests and tools the pill carries `data-turn`, `data-check`, `data-result` and
   `data-winner`; `data-testid="seat"` its `data-seat`; `opponent-presence` its
@@ -320,12 +323,12 @@ no depth and are drawn before the labels, so they never hide or tint one.
 seats, and that at the side post no letter stands on the tower on screen.
 
 Play is marked in light on the glass: a thin gold circle round each square the selected
-piece can reach (fuller under the pointer), red round a capture, a mint line from the last
-move's source to its destination, and a king in check turns red among dark obsidian blades. A
+piece can reach (fuller under the pointer), red round a capture (four arcs turning slowly round the victim), a mint line from the last
+move's source to its destination, and a king in check turns red among four clusters of dark obsidian blades. A
 piece under the pointer lifts a little; the selected piece lifts higher and holds still in
-a column of cool light. A move glides in a straight line from square to square
-(`three/movePath.ts`). A captured piece burns away; at mate the king topples and a pulse of light spreads
-across his own level at an even speed (`scene/fx.tsx`), and the result card appears as he
+a column of cool light. A move glides in a straight line from square to square, a knight's
+too (`MoveGlide` in `three/moveAnimation.tsx`). A captured piece burns away; at mate the king
+topples and a pulse of light spreads across his own level at an even speed (`scene/fx.tsx`), and the result card appears as he
 strikes the floor (`onToppled` in `three/pieceMotion.tsx`) while his bounce and the pulse
 play on behind it.
 

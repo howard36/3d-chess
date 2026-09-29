@@ -54,7 +54,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Rank.** One of the five rows within a level, numbered 1 to 5. White's back ranks are rank 1; Black's are rank 5.
 
-**Cell.** One position on the board, written as level, file, rank: `Aa1` is level A, file a, rank 1; `Ee5` is the opposite corner. This notation is used in the *move card* (the move list, the move box, and the cell under the pointer). The board carries its parts as labels: the files and ranks along two edges of the bottom level, and each level's letter beside it.
+**Cell.** One position on the board, written as level, file, rank: `Aa1` is level A, file a, rank 1; `Ee5` is the opposite corner. This notation is used in the *move box* and the *move list*. The board carries its parts as labels: the files and ranks along two edges of the bottom level, and each level's letter beside it.
 
 **Pieces.** King, Queen, Rook, Bishop, Knight, Unicorn, and Pawn, each side starting with 20. The Unicorn is the piece this variant adds. How each moves is in [the rules](foundations/game-rules.md#how-the-pieces-move).
 
@@ -96,7 +96,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Last-move trace.** A thin mint line from a small circle on the cell the most recent move left to a larger mint circle round the piece where it landed, with a soft white light travelling along it. It stays until the next move. Where a destination or capture marker falls on one of its cells, that circle steps aside for the marker.
 
-**Glide.** The 460 ms animation of a piece travelling in a straight line from its origin to its destination (a Knight may leap over an arc instead, a setting), played on both boards for every newly arrived move.
+**Glide.** The 460 ms animation of a piece travelling in a straight line from its origin to its destination (a Knight's too), played on both boards for every newly arrived move.
 
 **Fade.** The animation of a captured piece burning away, from its crown down behind a thin edge of white light, as the capturer arrives, while its outline in light rises a little and fades.
 
@@ -152,7 +152,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Orbit, zoom.** The two ways to turn the view: orbit rotates the camera round the tower's center (left drag, Shift/Ctrl/Cmd with right drag, or one-finger drag), and zoom moves it closer or farther (wheel, middle drag, or pinch). There is no pan: the camera always looks at the tower's center. See [the view](foundations/the-view.md#turning-the-view).
 
-**HUD.** The HTML laid over the board. At the top center, the *turn pill* with the *captured pieces* hanging under it, and the *status column* under them; at the top right, the settings gear; at the bottom left, the *move card* when the Notation panel setting is on (or its field alone while it has keyboard focus). On a phone held upright the pill fills the top row beside the gear; in a window 480 pixels tall or less (a phone on its side) the pill, the captured pieces, and the status column stand at the top left, beside the tower. Only the gear, the move card, and the error banner's "✕" catch the pointer; everything else in the HUD lets presses and drags through to the board.
+**HUD.** The HTML laid over the board. At the top center, the *turn pill* with the *captured pieces* hanging under it, and the *status column* under them; and, only while the *move box* has keyboard focus, the *move card* at the bottom left. On a phone held upright the pill fills the top row, to a 12 pixel gutter; in a window 480 pixels tall or less (a phone on its side) the pill, the captured pieces, and the status column stand at the top left, beside the tower. Only the move card (while shown) and the error banner's "✕" catch the pointer; everything else in the HUD lets presses and drags through to the board.
 
 ## Events that end or interrupt a request
 
@@ -194,7 +194,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Seat label.** The left half of the turn pill: the player's own stone, porcelain for White or charcoal for Black, with "You" (or "Your move"). It is the only place the player's color shows; a screen reader reaching the pill hears "You play White." (or Black). The page never writes the player's color in words.
 
-**Stone.** A small disc in one army's material, porcelain for White and charcoal for Black, standing for that side in the turn pill, the move card's column heads, and the end-game dialog. The side to move's stone wears a thin ring of light, red when that side is in check.
+**Stone.** A small disc in one army's material, porcelain for White and charcoal for Black, standing for that side in the turn pill and the end-game dialog. The side to move's stone wears a thin ring of light, red when that side is in check.
 
 **Turn indicator, turn pill.** The glass pill at the top center of the board screen. Its left half is the player: their stone and "Your move" when it is their turn, "You" when it is not. Its right half is the opponent: "Their move" or "Opponent" (or "Offline"), and their stone. The half whose side is to move is lit: brighter words and a ring of light round its stone. In check the ring is red and a "CHECK" badge stands beside the stone. Once the game is over the pill gives the result instead ("Checkmate · you win", "Checkmate · you lose", "Stalemate · draw"). It is the only place the page shows the player's color. It lets presses through to the board. See [the turn indicator](game-page/turn-indicator.md) and [seat and opponent status](game-page/seat-and-opponent-status.md).
 
@@ -202,17 +202,13 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Status column.** Under the turn pill and the captured pieces (at the top left in a short window): the reconnecting line while the connection is *reconnecting*, the error banner, and the frozen-board banner, stacked, each only while it applies.
 
-**Notation panel.** A setting in the settings panel's first group, "Play", off unless the player turns it on, hinted "The moves so far, and a field to type a move (e.g. Bb1-Cb1). Tab reaches the field either way." On, the board screen shows the *move card*: the moves so far in *cell* notation and the *move box* to type one. It is kept in this browser, like every setting, and is never sent to the opponent.
-
-**Settings panel.** The panel the gear at the top right opens, in the game and on the start screen. Its first group, "Play", holds the *Notation panel*; the others ("Board", "World", "Pieces", "Selection", "Markers", "Check") adjust how the board looks and moves, from the checker's contrast and the garden's sculptures to how far a piece lifts, whether a Knight leaps over an arc, the capture marker, and the blades round a king in check. Every change applies at once; "Reset to defaults" puts them all back. Settings are kept in this browser and never sent to the opponent. These documents describe the defaults. See [the view](foundations/the-view.md#the-looks-settings).
-
-**Move card.** The glass card at the bottom left of the board screen, shown while the *Notation panel* is on: the cell under the pointer ("Dd5  Black pawn"), the *move list*, and the *move box*. With the setting off it is out of sight but still in the page: its move list for screen readers, and its move box, which appears (alone) when it takes keyboard focus. See [the move list](game-page/move-list.md).
+**Move card.** The glass card at the bottom left of the board screen (across the bottom in a window no wider than 13:9, at the bottom right in a short one). It is never shown as a panel: it stays in the page out of sight, holding the *move list* for screen readers and the *move box*, and shows (with just the box) only while the box has keyboard focus. See [the move list](game-page/move-list.md).
 
 **Move announcement.** What a screen reader is told as each move lands, whatever is on screen: the move ("White bishop Ad2 takes pawn on Dd5"), then check or the result, then whose move it is ("Your move." or "Black to move."). See [accessibility](cross-cutting/accessibility.md).
 
-**Move box.** The field at the foot of the move card where a move can be typed ("Type a move"; "Ab2-Ab3", "=Q" to promote), sent with Enter or the ↵ button beside it. It plays the move exactly as pressing its piece and destination would, and is how a player without a pointer plays. It is the first thing Tab reaches on the board screen, and appears when it does, whether or not the Notation panel is on. See [making a move](play/making-a-move.md).
+**Move box.** The field of the move card where a move can be typed ("Type a move"; "Ab2-Ab3", "=Q" to promote), sent with Enter or the ↵ button beside it. It plays the move exactly as pressing its piece and destination would, and is how a player without a pointer plays. It is the first thing Tab reaches on the board screen, and appears when it does. See [making a move](play/making-a-move.md).
 
-**Move list.** The game's moves in the move card, one numbered row per White–Black pair under a porcelain and a charcoal stone, in cell notation with an en dash (`Ab2–Ab3`) and `=` plus a letter for a promotion (`Da4–Ea5=U`); the latest move is brightest. Visible only with the Notation panel on; otherwise in the page for screen readers only. See [the move list](game-page/move-list.md).
+**Move list.** The game's moves in the move card, one numbered row per White–Black pair, in cell notation with an en dash (`Ab2–Ab3`) and `=` plus a letter for a promotion (`Da4–Ea5=U`). Never visible: it is in the page for screen readers only. See [the move list](game-page/move-list.md).
 
 **Error banner.** A glass notice with a thin red rule at its left edge: the server's message (a screen reader hears "Error: " before it), with a "✕" button that dismisses it. On the board screen it is in the status column under the turn pill; on the share-link, join, and joined screens it sits at the bottom center. *Dismissing* hides every error received on the page so far; nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The start screen shows errors differently, as red text under its button.
 

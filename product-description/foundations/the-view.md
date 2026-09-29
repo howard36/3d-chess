@@ -2,7 +2,7 @@
 
 ## Summary
 
-The board screen shows the game as a 3D scene: a tower of five glass levels holding the 125 cells, with the pieces standing on the glass, set in a garden at night and seen by a camera the player can turn round the tower and zoom. This document owns everything about that scene: how the board is oriented for each player (levels are drawn as height, ranks as depth), what the default view shows, how the player turns the view and what that does and does not touch, the colors and shapes of every marker, and when and how moves animate. The view exists only on the board screen, once both seats are taken, and is entirely local: turning it changes nothing on the server and nothing for the opponent. Much of the look can be adjusted in the [settings panel](#the-looks-settings); this document describes it with the default settings.
+The board screen shows the game as a 3D scene: a tower of five glass levels holding the 125 cells, with the pieces standing on the glass, set in a garden at night and seen by a camera the player can turn round the tower and zoom. This document owns everything about that scene: how the board is oriented for each player (levels are drawn as height, ranks as depth), what the default view shows, how the player turns the view and what that does and does not touch, the colors and shapes of every marker, and when and how moves animate. The view exists only on the board screen, once both seats are taken, and is entirely local: turning it changes nothing on the server and nothing for the opponent.
 
 ## The scene
 
@@ -54,7 +54,7 @@ The player turns the view with the mouse, the wheel, or touch. The camera only e
 | One-finger drag | Orbit. |
 | Two-finger pinch | Zoom. |
 
-Limits: the camera can zoom in to about seven tenths of the default distance and out to one and a half times it, whatever the window's shape, so fully zoomed in the nearest levels fill the window and fully zoomed out the tower sits small in the middle of it. Orbit goes all the way round horizontally. Vertically it goes from looking straight down on the tower, where the five levels nest like one board seen through glass, to a little below the horizon, looking up past the tower into the night sky (14° below level when zoomed in, a little less when zoomed out, since the camera always stays above the garden's ground). With the "Look up" setting off it stops 6° above level instead. The arrow keys do nothing.
+Limits: the camera can zoom in to about seven tenths of the default distance and out to one and a half times it, whatever the window's shape, so fully zoomed in the nearest levels fill the window and fully zoomed out the tower sits small in the middle of it. Orbit goes all the way round horizontally. Vertically it goes from looking straight down on the tower, where the five levels nest like one board seen through glass, to a little below the horizon, looking up past the tower into the night sky (14° below level when zoomed in, a little less when zoomed out, since the camera always stays above the garden's ground). The arrow keys do nothing.
 
 After a drag is released, the view keeps moving briefly and slows to a stop, like a spinning object with friction.
 
@@ -97,20 +97,16 @@ A promotion square that a pawn can reach is marked once, like any other destinat
 
 Color is not the only difference between the marks: a destination is a still circle, a capture carries turning arcs, the last move is a line, and a King in check is red all over and ringed by blades. But gold, red, and mint carry most of the meaning; see [accessibility](../cross-cutting/accessibility.md).
 
-### The look's settings
-
-The gear at the top right of the board screen opens the settings panel, where the player can adjust much of what this document describes: the board (the checker's contrast, the grid lines, the levels' borders), the world (the giant board, the sculptures, how far the tower's shade reaches, looking up, the stars, the constellations, and the mist and shooting stars), the pieces (how each shows its level: a foot band, a ring on the glass, or both; the dark army's tone; the edge light; how far a piece lifts under the pointer and when selected; whether a Knight glides straight or leaps over an arc), the selection (the column of light, the motes, a glint on the foot circle, the ring of light on picking up), the markers (the capture marker's style, the last-move line's strength and its travelling light), and check (the blades' style, or none; a small red crown floating over the King; the strength of the check's strike; how fast the checkmate pulse spreads). Every change applies at once and only in this browser; nothing is sent to the opponent. See [the settings panel](../glossary.md#the-interface).
-
 ## Motion
 
 Every move that arrives while the board screen is showing animates on both players' boards, the mover's included, because each board shows a move only when the server returns it (see [the connection model](connection-and-seat.md#a-move-is-shown-only-when-the-server-returns-it)):
 
-- **Glide.** The moving piece travels from its origin to its destination in 460 ms, starting and finishing gently, in a straight line, even for a Knight, and even through pieces and levels in between. Its foot band changes color as it passes from level to level. With the "Knight moves" setting at "Arc", a Knight leaps over an arc instead.
+- **Glide.** The moving piece travels from its origin to its destination in 460 ms, starting and finishing gently, in a straight line, even for a Knight, and even through pieces and levels in between. Its foot band changes color as it passes from level to level.
 - **Fade.** If the move captured, the captured piece stands until the capturer arrives, then burns away from its crown down behind a thin edge of white light, and its outline, drawn in light, rises a little from it and fades.
 - **Promotion.** A promoting pawn glides as the piece it becomes: the new Queen (or other piece) travels from the pawn's cell.
 - **Last-move line.** The line moves to the new move the moment the move arrives, and its landing circle draws itself in round the piece as it lands.
 
-**Reduced motion.** When the player's system asks for reduced motion, no move glides and no captured piece burns away: the position simply changes when the move arrives, and the last-move line still shows which two cells it involved. The marks of play hold still too: the capture arcs do not turn, no light travels along the last-move line, and a check does not strike or breathe. The setting is read each time a move lands, so changing it takes effect from the next move.
+**Reduced motion.** When the player's system asks for reduced motion, no move glides and no captured piece burns away: the position simply changes when the move arrives, and the last-move line still shows which two cells it involved. The marks of play hold still too: the capture arcs do not turn, no light travels along the last-move line, and a check does not strike or breathe. The system setting is read each time a move lands, so changing it takes effect from the next move.
 
 Moves do not animate when they were already in the record when the board screen appeared: after a reload, a return to the game, or the board appearing for the first time on a rejoin, the position is simply drawn, with the last-move line on the latest move (and a King mated in the final move already lying on his side). After a reconnect, the snapshot animates its last move only if that move is one this board had not yet shown.
 
@@ -178,7 +174,7 @@ After any interrupt the view stays where it was left, except when the board scre
 - **Occlusion.** From the default view some cells are hidden behind nearer pieces, and [a piece in front of a destination blocks it](input-model.md#what-takes-a-press). Turning the view, or typing the move in the [move box](input-model.md#the-move-box), is the only way to reach such a cell.
 - **Looking up.** Orbiting below the horizon shows the tower from beneath its bottom level and the night sky above it; the pieces' bases are closed, and nothing flips. The camera never goes below the garden's ground.
 - **Looking straight down.** From directly above, the five levels nest like one board seen through glass; the level in focus keeps its checker whole while the others ease back, and each level's frost leans toward its own color so the nested checkers can be told apart.
-- **A glide through pieces.** Glides take the straight line, so a Knight's jump (unless knights are set to arc) or a long slide passes visually through whatever lies between.
+- **A glide through pieces.** Glides take the straight line, so a Knight's jump or a long slide passes visually through whatever lies between.
 
 ## Open questions and verification
 

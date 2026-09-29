@@ -2,7 +2,7 @@
 
 ## Summary
 
-3D Chess is laid out for a desktop browser window, but it opens on a phone or a tablet too, and all of it works there. The page is sized to the device's width and never scrolls. The start screen and the other pre-game screens are a single centered column. The [board screen](../glossary.md#the-product-and-its-screens) is a 3D drawing that fills the visible window at any size, with the camera framed to fit the whole tower whatever the window's shape, and the [HUD](../glossary.md#input) panels arranged along its top and bottom edges in three columns, or in two on a window narrower than 640 pixels, so that they never overlap. On a touch screen a tap is a [press](../glossary.md#input) that acts when the finger lifts, one finger [orbits](../glossary.md#input) the view, and two fingers zoom and pan it without ever acting on the board. This document covers what changes with the window's size and shape, how touch and pens behave, and what the board needs from the device: a browser that can draw 3D (WebGL). What a press does is owned by [the input model](../foundations/input-model.md), and how the view turns by [the view](../foundations/the-view.md#turning-the-view); keyboard and screen reader use are in [accessibility](accessibility.md).
+3D Chess is laid out for a desktop browser window, but it opens on a phone or a tablet too, and all of it works there. The page is sized to the device's width and never scrolls. The start screen and the other pre-game screens are a single centered column. The [board screen](../glossary.md#the-product-and-its-screens) is a 3D drawing that fills the visible window at any size, with the camera framed to fit the whole tower whatever the window's shape, and the [HUD](../glossary.md#input) panels arranged along its top edge (and the move box along the bottom while it has keyboard focus), so that they never overlap. On a touch screen a tap is a [press](../glossary.md#input) that acts when the finger lifts, one finger [orbits](../glossary.md#input) the view, and two fingers zoom it without ever acting on the board. This document covers what changes with the window's size and shape, how touch and pens behave, and what the board needs from the device: a browser that can draw 3D (WebGL). What a press does is owned by [the input model](../foundations/input-model.md), and how the view turns by [the view](../foundations/the-view.md#turning-the-view); keyboard and screen reader use are in [accessibility](accessibility.md).
 
 ## The page and the window
 
@@ -10,7 +10,7 @@ The page declares itself as wide as the device's screen at a normal scale, so a 
 
 The page never scrolls, on any screen and at any size. Whatever does not fit in the window is cut off, and there is no way to scroll to it. On the board screen this is the intent: the board screen is exactly as tall as the part of the window the browser currently shows (on a phone, the height between the browser's own toolbars, following them as they appear and hide) and exactly as wide as the window. On the start screen, the share-link, join, and joined screens, and the crash screen, content wider or taller than the window would be lost from view, but at phone sizes everything on them fits.
 
-The one text field in the app is the [move box](../glossary.md#the-interface)'s, in the move card, which a phone shows only with the Notation panel setting on. Tapping it brings up a phone's on-screen keyboard; nothing else does.
+The one text field in the app is the [move box](../glossary.md#the-interface)'s, in the move card, which is out of sight until it takes keyboard focus, so on a phone it is met through a screen reader or an external keyboard. Once it is reached, tapping it brings up a phone's on-screen keyboard; nothing else does.
 
 ## The start screen and the pre-game screens
 
@@ -41,21 +41,18 @@ The HUD is kept to the edges and corners of the window, where the board is not: 
 
 | Part | Wide window (desktop, tablet on its side) | Phone held upright (520 px wide or less) | Short window (480 px tall or less: a phone on its side) |
 | --- | --- | --- | --- |
-| [Turn pill](../game-page/turn-indicator.md) | Top center, 12 px down, at least 300 px wide and as wide as its words need (in check, a little wider). | Across the top row, from 12 px at the left to the gear at the right (13.5 px words below 400 px; there, in check, the other half keeps only its stone). | Top left, at least 264 px wide. |
+| [Turn pill](../game-page/turn-indicator.md) | Top center, 12 px down, at least 300 px wide and as wide as its words need (in check, a little wider). | Across the top row, from 12 px at the left to 12 px at the right (13.5 px words below 400 px; there, in check, the other half keeps only its stone). | Top left, at least 264 px wide. |
 | [Captured pieces](../game-page/turn-indicator.md#the-pieces-each-side-has-taken) (from the first capture) | Under the pill, 4 px down, 18 px tall, never wider than the pill: the player's under their stone at the left, the opponent's under theirs at the right. The view is framed below them (the band kept at the top is 82 px rather than 56), from the first move. | The same, across the pill's width; everything taken from both sides, all ten pawns and a lead still fit at 360 px. | Under the pill at the top left, one above the other, the player's first, beside the tower; the view's framing is unchanged. |
 | Status column (reconnecting, the [error banner](../game-page/error-banner.md), the frozen-board banner) | Under the pill and the captured pieces, centered. | Under them. | Under them, at the left. |
-| Settings gear | Top right, 12 px in. | Top right. | Top right. |
-| [Move card](../game-page/move-list.md) (the Notation panel on, or the move box alone while it has focus) | Bottom left, 232 px wide; the moves in two columns, about six rows before it scrolls. | Across the bottom, 12 px in at each side; the moves in one line that scrolls sideways, newest at the right. | Bottom right, beside the tower, narrowed to the free band (160 to 232 px); three rows before it scrolls. |
+| [Move card](../game-page/move-list.md) (the move box alone, only while it has keyboard focus) | Bottom left, 232 px wide. | Across the bottom, 12 px in at each side. | Bottom right, beside the tower, narrowed to the free band (160 to 232 px). |
 
-A window no wider than 13:9 that is not short (a tablet upright, a squarish desktop window such as 700 × 900 or 1024 × 768) is framed by its width like a phone, and the board reaches its bottom corners, so the move card takes the phone's arrangement there too: across the bottom, at most 560 px wide and centered. While it shows, the view is framed to leave that band (100 px) clear: turning the Notation panel on or off frames the view again, as a change of window size does. Where the card sits in a corner, the board is not moved. A list scrolled past its start fades out at that edge rather than cutting a row through.
+A window no wider than 13:9 that is not short (a tablet upright, a squarish desktop window such as 700 × 900 or 1024 × 768) is framed by its width like a phone, and the board reaches its bottom corners, so the move card takes the phone's arrangement there too: across the bottom, at most 560 px wide and centered. The view is not framed to leave room for it: while the box shows, it lies over the board, and hides again when focus leaves.
 
-The move card names the cell under the pointer only in a wide window on a device with hover; on a phone or tablet, and in the phone arrangements, it leaves that line out. Nothing in the HUD overlaps anything else, and none of it covers a piece or a label of the tower at the default view: checked in headless Chromium at 1280 × 720, 1920 × 1080, 1024 × 768, 768 × 1024, 700 × 900, 500 × 1000, 390 × 844, 390 × 664, 360 × 640, 844 × 390, 932 × 430, and 640 × 360, from both seats, in check and late in a game, with the Notation panel on; and, for the captured pieces, at 21 sizes from 360 × 640 to 3440 × 1440 (phones upright and on their side, tablets, desktops, and awkward shapes such as 500 × 1000 and 1280 × 560), from both seats, from the opening to a game stripped to the kings, in check and at the result, with the Notation panel on and off. On a touch screen the pill is 44 px tall, level with the gear.
+Nothing in the HUD overlaps anything else, and none of it covers a piece or a label of the tower at the default view: checked in headless Chromium at 1280 × 720, 1920 × 1080, 1024 × 768, 768 × 1024, 700 × 900, 500 × 1000, 390 × 844, 390 × 664, 360 × 640, 844 × 390, 932 × 430, and 640 × 360, from both seats, in check and late in a game; and, for the captured pieces, at 21 sizes from 360 × 640 to 3440 × 1440 (phones upright and on their side, tablets, desktops, and awkward shapes such as 500 × 1000 and 1280 × 560), from both seats, from the opening to a game stripped to the kings, in check and at the result. On a touch screen the pill is 44 px tall.
 
-Only the gear (and its panel), the error banner's "✕", and the move card while it shows take the pointer. A press on them never reaches the board. The pill, the reconnecting line, the frozen-board banner, and the space around them all let presses through to the board behind ([the input model](../foundations/input-model.md#what-takes-a-press)).
+Only the error banner's "✕", and the move card while it shows take the pointer. A press on them never reaches the board. The pill, the reconnecting line, the frozen-board banner, and the space around them all let presses through to the board behind ([the input model](../foundations/input-model.md#what-takes-a-press)).
 
 Because the board screen is exactly the height the browser shows, the move card stays above a phone browser's bottom toolbar, and moves up and down with it as the toolbar shows and hides.
-
-The settings panel opens under the gear on a wide window; on a phone held upright it is a sheet across the bottom of the screen, up to 46% of its height, scrolling on its own, so the upper half of the board stays in view while a setting is changed. Its groups fold: Play and Board start open and the rest folded, so the panel does not run to several screens. On a touch screen every control in it is at least 44 px tall; a switch is drawn 52 × 32 px and takes presses 44 px tall. Keyboard focus on the gear and the panel's controls shows as the HUD's own soft white halo.
 
 ## Dialogs on small screens
 
@@ -91,7 +88,7 @@ Touches on the board never scroll or zoom the page: the board claims every touch
 
 ### Touch on the HTML panels
 
-Touches on the move card, the error banner, the settings gear and panel, and the dialogs are ordinary web page touches. A tap is a [click](../glossary.md#input) and acts when the finger lifts. A touch on one of these never reaches the board. A one-finger drag on the move list scrolls it. A touch on the turn pill, or on the reconnecting line or frozen-board banner, is a touch on the board behind it. A pinch on an HTML panel that takes the pointer, or anywhere on the start screen and the pre-game screens, may zoom the whole page, since the page allows it; a page zoomed that way can be zoomed back out only by pinching on such a panel, because a pinch on the board zooms the view instead. See open questions.
+Touches on the move card, the error banner, and the dialogs are ordinary web page touches. A tap is a [click](../glossary.md#input) and acts when the finger lifts. A touch on one of these never reaches the board. A touch on the turn pill, or on the reconnecting line or frozen-board banner, is a touch on the board behind it. A pinch on an HTML panel that takes the pointer, or anywhere on the start screen and the pre-game screens, may zoom the whole page, since the page allows it; a page zoomed that way can be zoomed back out only by pinching on such a panel, because a pinch on the board zooms the view instead. See open questions.
 
 The move box's field brings up the on-screen keyboard when tapped. The field turns off the browser's suggestions of earlier entries and its spell checking; a phone that capitalizes the first letter typed does no harm, because cells are read in either case. The ↵ button is a small button beside it; Enter on the on-screen keyboard also sends the move.
 
@@ -107,7 +104,7 @@ On a device with both (a laptop with a touch screen, a tablet with a mouse), eac
 
 ## Browser zoom, wheels, and trackpads
 
-Browser zoom enlarges every HTML panel but never the board, which always fills the window and is framed to fit it; at high zoom the page behaves like a narrow window, with the HUD in its two-column arrangement. While the pointer is over the board, the wheel with Ctrl, and a trackpad pinch that the browser reports the same way, zoom the view, not the page; over an HTML panel that takes the pointer they zoom the page. See [accessibility](accessibility.md#text-size-and-zoom).
+Browser zoom enlarges every HTML panel but never the board, which always fills the window and is framed to fit it; at high zoom the page behaves like a narrow window, with the HUD in its phone arrangement. While the pointer is over the board, the wheel with Ctrl, and a trackpad pinch that the browser reports the same way, zoom the view, not the page; over an HTML panel that takes the pointer they zoom the page. See [accessibility](accessibility.md#text-size-and-zoom).
 
 ## The 3D requirement and performance
 
@@ -139,9 +136,9 @@ After any interrupt, the view keeps its direction unless the board screen itself
 
 ## Interactions with other systems
 
-**Seat and turn.** The seat's color fixes the [orientation](../foundations/the-view.md#orientation) on every screen size. The turn pill keeps both stones and the lit half at every width; on a phone held upright it fills the top row beside the gear.
+**Seat and turn.** The seat's color fixes the [orientation](../foundations/the-view.md#orientation) on every screen size. The turn pill keeps both stones and the lit half at every width; on a phone held upright it fills the top row.
 
-**The game record.** The move list shows only with the Notation panel: on a phone held upright in one sideways-scrolling line, on a phone on its side in three rows; it scrolls with a finger and moves itself to the newest move whenever one is added.
+**The game record.** The move list is never drawn, at any window size; it is in the page for screen readers.
 
 **Connection.** Phones drop connections more often than desktops, through network changes, sleep, and paused background tabs; each drop is handled as described in [the connection and seat model](../foundations/connection-and-seat.md#connection-states).
 

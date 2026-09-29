@@ -16,7 +16,7 @@ The board has 125 [cells](../glossary.md#the-board). A cell is named by three ch
 | Second, lower case | File | a b c d e | left to right, a to e | the same files, drawn right to left (see [orientation](the-view.md#orientation)) |
 | Third, digit | Rank | 1 2 3 4 5 | 1 is White's back rank; *forward* is toward 5 | 5 is Black's back rank; *forward* is toward 1 |
 
-So `Aa1` is White's home corner and `Ee5` is Black's. The same notation appears in the [move list](../game-page/move-list.md), is what the player types into the [move box](input-model.md#the-move-box), and is used in every message the server exchanges, but on the board itself only its parts appear: the files and ranks are written along two edges of the bottom level and each level's letter beside its level, so a player who wants to find `Cc3` reads off the level, then the file and rank. How the levels, files, and ranks are laid out on screen is in [the view](the-view.md#orientation).
+So `Aa1` is White's home corner and `Ee5` is Black's. The same notation appears in the [move list](../game-page/move-list.md) (which only screen readers see), is what the player types into the [move box](input-model.md#the-move-box), and is used in every message the server exchanges, but on the board itself only its parts appear: the files and ranks are written along two edges of the bottom level and each level's letter beside its level, so a player who wants to find `Cc3` reads off the level, then the file and rank. How the levels, files, and ranks are laid out on screen is in [the view](the-view.md#orientation).
 
 ## The starting position
 
