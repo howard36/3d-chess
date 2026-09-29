@@ -6,13 +6,35 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import React from 'react';
+import userEvent from '@testing-library/user-event';
 import App from './App';
 import { WS_URL } from './hooks/useGameSocket';
 import { getStoredRole, setStoredRole } from './lib/playerRole';
+import type { LobbyView } from './three/lobby/LobbyScene';
 
 // The landing page's live preview is a WebGL canvas, which jsdom can't provide
 vi.mock('./screens/LandingPreview', () => ({
   LandingPreview: () => null,
+}));
+// Neither is the lobby's stage: its canvas renders the scene component only,
+// and the scene stands in for its choosing moment by saying at once that the
+// pick has played out
+vi.mock('@react-three/fiber', () => ({
+  Canvas: ({ children }: { children?: React.ReactNode }) => (
+    <div data-testid="lobby-canvas">
+      {React.Children.map(children, (child) =>
+        React.isValidElement(child) && typeof child.type !== 'string' ? child : null,
+      )}
+    </div>
+  ),
+}));
+vi.mock('./three/lobby/LobbyScene', () => ({
+  LobbyScene: ({ view }: { view: LobbyView }) => {
+    React.useEffect(() => {
+      if (view.beat === 'choose' && view.mine) view.onSettled?.();
+    }, [view]);
+    return null;
+  },
 }));
 beforeAll(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -63,8 +85,7 @@ test('jumping from one game page to another keeps each game its own seat', async
   act(() => {
     server.send({ type: 'game_joined', color: 'black' });
   });
-  await screen.findByText('Joined game, waiting for start...');
-  expect(getStoredRole('GAMEA0')).toBe('black');
+  await waitFor(() => expect(getStoredRole('GAMEA0')).toBe('black'));
 
   act(() => go('/game/GAMEB0'));
   // The old socket is closed and a fresh one opens for B, which rejoins as
@@ -84,10 +105,53 @@ test('jumping from one game page to another keeps each game its own seat', async
 });
 
 async function userJoins() {
-  const button = await screen.findByRole('button', { name: 'Join Game' });
+  // The invitation asks which seat is free before it offers one
+  await expect(server).toReceiveMessage({ type: 'look_game', gameId: 'GAMEA0' });
+  act(() => {
+    server.send({ type: 'game_info', gameId: 'GAMEA0', seats: ['white'] });
+  });
+  const button = await screen.findByRole('button', { name: 'Take your seat' });
   act(() => button.click());
   await expect(server).toReceiveMessage(
     expect.objectContaining({ type: 'join_game', gameId: 'GAMEA0' }),
   );
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'Join Game' })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Take your seat' })).toBeNull());
 }
+
+test('a new game goes from the start screen through the side choice to its invitation', async () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  );
+  await userEvent.click(await screen.findByRole('button', { name: 'Start a game' }));
+  // The side choice, over the lobby's stage
+  expect(await screen.findByTestId('choose-side')).toBeInTheDocument();
+  expect(screen.getByTestId('lobby')).toHaveAttribute('data-beat', 'choose');
+  const stage = screen.getByTestId('lobby-canvas');
+  await server.connected;
+  await userEvent.click(screen.getByRole('button', { name: 'Black Moves second' }));
+  await expect(server).toReceiveMessage({
+    type: 'create_game',
+    clientId: expect.any(String),
+    color: 'black',
+  });
+  act(() => {
+    server.send({ type: 'game_created', gameId: 'NEWG00', color: 'black' });
+  });
+
+  // The game's own page, on the same socket session: the creator's seat is
+  // already held, so it sends nothing more and shows the invitation to send
+  const card = await screen.findByTestId('invite-card');
+  expect(card).toHaveAttribute('data-seat', 'black');
+  expect(screen.getByTestId('share-link')).toHaveAttribute(
+    'data-link',
+    `${window.location.origin}/game/NEWG00`,
+  );
+  expect(getStoredRole('NEWG00')).toBe('black');
+  expect(screen.getByTestId('lobby')).toHaveAttribute('data-beat', 'wait');
+  // The stage stayed up across the move from one page to the other
+  expect(screen.getByTestId('lobby-canvas')).toBe(stage);
+  await new Promise((r) => setTimeout(r, 20));
+  expect(server.messages).toHaveLength(1);
+});

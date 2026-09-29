@@ -1,9 +1,8 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, test, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import StartScreen from './StartScreen';
-import { fakeSocket } from './testSupport';
 
 // The preview is a WebGL canvas, which jsdom can't provide: a stand-in that
 // shows what it was handed and lets a test finish or restart its game
@@ -40,7 +39,10 @@ afterEach(() => {
 const renderStart = () =>
   render(
     <MemoryRouter>
-      <StartScreen gameSocket={fakeSocket()} />
+      <Routes>
+        <Route path="/" element={<StartScreen />} />
+        <Route path="/new" element={<p>choose a side</p>} />
+      </Routes>
     </MemoryRouter>,
   );
 
@@ -90,37 +92,17 @@ test('held still, the preview names no result (it always shows the mate)', () =>
   expect(screen.queryByText('Checkmate · White wins')).not.toBeInTheDocument();
 });
 
-test('each line under the button is a fresh element, so its fade plays', async () => {
+test('the start button opens the side choice, which creates the game', async () => {
   reduceMotion(false);
-  render(
-    <MemoryRouter>
-      <StartScreen gameSocket={fakeSocket([], () => true, { status: 'connecting' })} />
-    </MemoryRouter>,
-  );
-  act(() => endDemo(true));
-  const result = screen.getByText('Checkmate · White wins');
-  // A request waiting on the connection takes the line's place
+  renderStart();
   await userEvent.click(screen.getByRole('button', { name: 'Start a game' }));
-  const status = screen.getByRole('status');
-  expect(status).toHaveTextContent('Connecting to server…');
-  expect(status).not.toBe(result);
-  expect(screen.queryByText('Checkmate · White wins')).not.toBeInTheDocument();
+  expect(screen.getByText('choose a side')).toBeInTheDocument();
 });
 
-test('a keyboard player keeps their place while the game is created', async () => {
+test('a keyboard player reaches the side choice with the first Tab and Enter', async () => {
   reduceMotion(false);
-  const send = vi.fn(() => true);
-  render(
-    <MemoryRouter>
-      <StartScreen gameSocket={fakeSocket([], send)} />
-    </MemoryRouter>,
-  );
+  renderStart();
   await userEvent.tab();
   await userEvent.keyboard('{Enter}');
-  const button = screen.getByRole('button', { name: 'Creating game…' });
-  expect(button).toHaveFocus();
-  expect(button).toHaveAttribute('aria-disabled', 'true');
-  // Held: a second press sends nothing more
-  await userEvent.keyboard('{Enter}');
-  expect(send).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('choose a side')).toBeInTheDocument();
 });

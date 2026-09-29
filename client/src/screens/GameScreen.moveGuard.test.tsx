@@ -4,6 +4,7 @@ import type { WebSocketMessage } from '../types/messages';
 import type { Move } from '../engine';
 import type { BoardProps } from '../three/Board';
 import { fakeSocket, gameScreenAt } from './testSupport';
+import { setStoredRole } from '../lib/playerRole';
 
 // No WebGL in jsdom: the three.js layer is stubbed, and the board only
 // hands over its onMove.
@@ -25,6 +26,8 @@ const move: Move = { from: { x: 0, y: 1, z: 1 }, to: { x: 0, y: 1, z: 2 } };
 
 beforeEach(() => {
   localStorage.clear();
+  // White's player: the seat was stored when the game was created
+  setStoredRole('abc123', 'white');
   board.onMove = null;
 });
 
