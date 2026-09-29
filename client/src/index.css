@@ -700,13 +700,15 @@
 /*
  * The landing page: the live preview fills the window, the tower turning in
  * the middle, with the page's text like a gallery's wall label above and
- * below it. The bands the text stands in are the ones the preview's camera
- * keeps clear (three/landingView.ts: 96 px above and 116 below; 116 and 132
- * in a window 860 px tall or more; in one 480 px tall or less, a phone on its
- * side, the text stands in a column at the left instead). White on black,
- * but for the call to action's rim, the five level colours.
+ * below it. The title and the button each stand centred in a band of the
+ * same height, the ones the preview's camera keeps clear
+ * (three/landingView.ts, LANDING_BAND_PX: --landing-band), so the tower sits
+ * midway between them; in a window 480 px tall or less, a phone on its side,
+ * the text stands in a column at the left instead. White on black, but for
+ * the call to action's rim, the five level colours.
  */
 .landing {
+  --landing-band: 124px;
   position: relative;
   height: 100dvh;
   width: 100vw;
@@ -746,19 +748,18 @@
   position: absolute;
   left: 16px;
   right: 16px;
+  height: var(--landing-band);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
 }
 .landing-head {
-  top: 0;
-  padding-top: max(32px, calc(env(safe-area-inset-top) + 20px));
+  top: env(safe-area-inset-top);
 }
 .landing-foot {
-  bottom: 0;
-  gap: 12px;
-  padding-bottom: max(28px, calc(env(safe-area-inset-bottom) + 16px));
+  bottom: env(safe-area-inset-bottom);
 }
 .landing h1 {
   margin: 0;
@@ -868,43 +869,6 @@
   /* The label and the fill change together, never white on white */
   transition: none;
 }
-/* The slot under the button: an error, the connection's state, or the
-   preview's result; kept open when empty, so the button never moves */
-.landing-slot {
-  display: flex;
-  justify-content: center;
-  min-height: 18px;
-}
-.landing-note {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  max-width: 520px;
-  margin: 0;
-  color: var(--hud-muted);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.35;
-  animation: landing-note-in 200ms ease-out;
-}
-.landing-error {
-  color: var(--hud-check-ink);
-}
-/* The preview's result: after the mating move lands and the king has fallen */
-.landing-result {
-  color: var(--hud-fg);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  animation: landing-note-in 400ms ease-out 1.1s backwards;
-}
-@keyframes landing-note-in {
-  from {
-    opacity: 0;
-  }
-}
 /* Stops the preview (it moves on its own, beside the page's controls) */
 .landing-pause {
   position: absolute;
@@ -948,24 +912,20 @@
     min-width: 0;
   }
 }
-/* A tall window: the type a step up, in the wider bands */
-@media (min-height: 860px) and (min-width: 700px) {
-  .landing-head {
-    padding-top: 40px;
+/* A tall window: wider bands, and on a wide one the type a step up */
+@media (min-height: 860px) {
+  .landing {
+    --landing-band: 140px;
   }
+}
+@media (min-height: 860px) and (min-width: 700px) {
   .landing h1 {
     font-size: 52px;
-  }
-  .landing-foot {
-    padding-bottom: 36px;
   }
   .landing-play {
     height: 58px;
     min-width: 270px;
     font-size: 18px;
-  }
-  .landing-result {
-    font-size: 12.5px;
   }
 }
 /* A phone on its side: the text in a column at the left of the tower */
@@ -985,9 +945,9 @@
     left: max(16px, calc(env(safe-area-inset-left) + 8px));
     right: auto;
     width: 188px;
+    height: auto;
     align-items: flex-start;
     text-align: left;
-    padding: 0;
   }
   .landing-head {
     top: auto;
@@ -997,7 +957,6 @@
   .landing-foot {
     top: 50%;
     bottom: auto;
-    gap: 10px;
   }
   .landing h1 {
     font-size: 30px;
@@ -1009,13 +968,8 @@
     padding: 0 16px;
     font-size: 16px;
   }
-  .landing-slot,
-  .landing-note {
-    justify-content: flex-start;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .landing-note,
   .landing-play,
   .landing-play .landing-play-piece {
     animation: none !important;

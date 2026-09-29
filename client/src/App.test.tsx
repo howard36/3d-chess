@@ -117,7 +117,7 @@ test('StartScreen ignores a game_created left in the log by a previous game', ()
   renderStartScreen(fakeSocket([{ type: 'game_created', gameId: 'ABC123', color: 'white' }]));
   expect(screen.getByRole('button', { name: 'Start a game' })).not.toHaveAttribute('aria-disabled');
   expect(screen.queryByText('game page for ABC123')).not.toBeInTheDocument();
-  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.getByRole('alert')).toBeEmptyDOMElement();
 });
 
 test('StartScreen shows the server error that answers its request, not an older one', async () => {
@@ -125,7 +125,7 @@ test('StartScreen shows the server error that answers its request, not an older 
     { type: 'error', code: 'invalid_game', message: 'Cannot rejoin' },
   ];
   const { rerender } = render(startScreenAt(fakeSocket(stale)));
-  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.getByRole('alert')).toBeEmptyDOMElement();
 
   await userEvent.click(screen.getByRole('button', { name: 'Start a game' }));
   rerender(
@@ -133,7 +133,12 @@ test('StartScreen shows the server error that answers its request, not an older 
       fakeSocket([...stale, { type: 'error', code: 'invalid_message', message: 'Bad request' }]),
     ),
   );
-  expect(screen.getByRole('alert')).toHaveTextContent('Bad request');
+  expect(screen.getByRole('alert')).toHaveTextContent("Couldn't start a game: Bad request");
+  // Said, not shown: the button offers another try, the message in its tooltip
+  expect(screen.getByRole('button', { name: 'Try again' })).toHaveAttribute(
+    'title',
+    "Couldn't start a game: Bad request",
+  );
 });
 
 test('StartScreen re-enables the create button when the server answers with an error', async () => {
@@ -152,23 +157,26 @@ test('StartScreen re-enables the create button when the server answers with an e
     ),
   );
   expect(screen.getByRole('alert')).toHaveTextContent('Already in a game');
-  expect(screen.getByRole('button', { name: 'Start a game' })).not.toHaveAttribute('aria-disabled');
+  expect(screen.getByRole('button', { name: 'Try again' })).not.toHaveAttribute('aria-disabled');
 });
 
 test('StartScreen reports the connection status only while a request waits on it', async () => {
   const send = vi.fn<GameSocket['send']>(() => true);
   const { rerender } = render(startScreenAt(fakeSocket([], send, { status: 'connecting' })));
   // Nothing asked of the server yet: nothing to say about it
-  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toBeEmptyDOMElement();
 
+  // The button says what the request waits on; a screen reader hears it too
   await userEvent.click(screen.getByRole('button', { name: 'Start a game' }));
+  expect(screen.getByRole('button', { name: 'Connecting…' })).toBeInTheDocument();
   expect(screen.getByRole('status')).toHaveTextContent('Connecting to server…');
 
   rerender(startScreenAt(fakeSocket([], send, { status: 'reconnecting' })));
+  expect(screen.getByRole('button', { name: 'Reconnecting…' })).toBeInTheDocument();
   expect(screen.getByRole('status')).toHaveTextContent('Reconnecting to server…');
 
   rerender(startScreenAt(fakeSocket([], send)));
-  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toBeEmptyDOMElement();
   expect(screen.getByRole('button', { name: 'Creating game…' })).toBeInTheDocument();
 });
 

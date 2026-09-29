@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, test, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
@@ -6,21 +6,11 @@ import StartScreen from './StartScreen';
 import { fakeSocket } from './testSupport';
 
 // The preview is a WebGL canvas, which jsdom can't provide: a stand-in that
-// shows what it was handed and lets a test finish or restart its game
-let endDemo: (ended: boolean) => void = () => {};
+// shows what it was handed
 vi.mock('./LandingPreview', () => ({
-  LandingPreview: ({
-    paused,
-    still,
-    onEnded,
-  }: {
-    paused: boolean;
-    still: boolean;
-    onEnded?: (ended: boolean) => void;
-  }) => {
-    endDemo = (ended) => onEnded?.(ended);
-    return <div data-testid="preview" data-paused={String(paused)} data-still={String(still)} />;
-  },
+  LandingPreview: ({ paused, still }: { paused: boolean; still: boolean }) => (
+    <div data-testid="preview" data-paused={String(paused)} data-still={String(still)} />
+  ),
 }));
 
 const reduceMotion = (reduce: boolean) =>
@@ -73,38 +63,15 @@ test('for a player who asked for less motion the preview holds still, with nothi
   expect(screen.queryByRole('button', { name: 'Pause preview' })).not.toBeInTheDocument();
 });
 
-test("the line under the button names the preview's result while its mate stands", () => {
+test('nothing is written under the button', () => {
   reduceMotion(false);
   renderStart();
-  expect(screen.queryByText('Checkmate · White wins')).not.toBeInTheDocument();
-  act(() => endDemo(true));
-  expect(screen.getByText('Checkmate · White wins')).toBeInTheDocument();
-  act(() => endDemo(false));
-  expect(screen.queryByText('Checkmate · White wins')).not.toBeInTheDocument();
-});
-
-test('held still, the preview names no result (it always shows the mate)', () => {
-  reduceMotion(true);
-  renderStart();
-  act(() => endDemo(true));
-  expect(screen.queryByText('Checkmate · White wins')).not.toBeInTheDocument();
-});
-
-test('each line under the button is a fresh element, so its fade plays', async () => {
-  reduceMotion(false);
-  render(
-    <MemoryRouter>
-      <StartScreen gameSocket={fakeSocket([], () => true, { status: 'connecting' })} />
-    </MemoryRouter>,
-  );
-  act(() => endDemo(true));
-  const result = screen.getByText('Checkmate · White wins');
-  // A request waiting on the connection takes the line's place
-  await userEvent.click(screen.getByRole('button', { name: 'Start a game' }));
-  const status = screen.getByRole('status');
-  expect(status).toHaveTextContent('Connecting to server…');
-  expect(status).not.toBe(result);
-  expect(screen.queryByText('Checkmate · White wins')).not.toBeInTheDocument();
+  const foot = screen.getByRole('button', { name: 'Start a game' }).parentElement!;
+  // Only the button shows; the live regions beside it are empty and unseen
+  for (const region of foot.querySelectorAll('[role="status"], [role="alert"]')) {
+    expect(region).toBeEmptyDOMElement();
+    expect(region).toHaveClass('sr-only');
+  }
 });
 
 test('a keyboard player keeps their place while the game is created', async () => {

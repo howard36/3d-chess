@@ -46,10 +46,14 @@ export const LANDING_TALL_PX = 860;
 
 /**
  * The bands above and below the tower kept for the page's title and button,
- * in CSS px (index.css, .landing: its blocks stand within them). A short
- * window keeps only a sliver: its text stands beside the tower.
+ * in CSS px: one height for both, so the tower stands midway between the two
+ * (index.css, .landing: --landing-band, in which each stands centred). A
+ * short window keeps only a sliver: its text stands beside the tower.
  */
-export const landingTopBand = (height: number): number =>
-  height <= LANDING_SHORT_PX ? 12 : height >= LANDING_TALL_PX ? 116 : 96;
-export const landingBottomBand = (height: number): number =>
-  height <= LANDING_SHORT_PX ? 12 : height >= LANDING_TALL_PX ? 132 : 116;
+export const LANDING_BAND_PX = { normal: 124, tall: 140, short: 12 } as const;
+export const landingBand = (height: number): number =>
+  height <= LANDING_SHORT_PX
+    ? LANDING_BAND_PX.short
+    : height >= LANDING_TALL_PX
+      ? LANDING_BAND_PX.tall
+      : LANDING_BAND_PX.normal;

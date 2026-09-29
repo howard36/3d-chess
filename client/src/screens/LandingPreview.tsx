@@ -7,9 +7,8 @@ import { FitCameraToBoard } from '../three/FitCameraToBoard';
 import { usePixelBudget } from '../three/pixelBudget';
 import {
   LANDING_VIEW,
-  landingBottomBand,
+  landingBand,
   landingFrameRings,
-  landingTopBand,
   landingViewDirection,
 } from '../three/landingView';
 import { layout } from '../three/scene/palette';
@@ -100,16 +99,7 @@ function RedrawWhilePaused({ paused }: { paused: boolean }) {
  * camera holds where it is on the game's final position, the mating move's
  * line and the check showing, the king still standing.
  */
-export function LandingPreview({
-  paused,
-  still,
-  onEnded,
-}: {
-  paused: boolean;
-  still: boolean;
-  /** Told whether the demo's game stands finished (its mate on the board), as that changes. */
-  onEnded?: (ended: boolean) => void;
-}) {
+export function LandingPreview({ paused, still }: { paused: boolean; still: boolean }) {
   const pixelRatio = usePixelBudget();
   const veil = React.useRef<HTMLDivElement>(null);
   // Where the moving demo stands (DemoDirector reports each new ply and pass)
@@ -135,8 +125,6 @@ export function LandingPreview({
   const historyRef = React.useRef<GameHistory | null>(null);
   const history = deriveHistory(demoLog(frame.ply), historyRef.current);
   historyRef.current = history;
-  const ended = !!history.gameOver;
-  React.useEffect(() => onEnded?.(ended), [ended, onEnded]);
 
   return (
     <div className="landing-preview" aria-hidden="true">
@@ -169,8 +157,8 @@ export function LandingPreview({
           viewDirection={landingViewDirection}
           minDistance={layout.orbit.minDistance}
           frameRings={landingFrameRings}
-          hudTopBand={landingTopBand}
-          bottomBand={landingBottomBand}
+          hudTopBand={landingBand}
+          bottomBand={landingBand}
         />
         {!still && <AutoOrbit period={LANDING_VIEW.period} paused={halted} />}
         {!still && (
