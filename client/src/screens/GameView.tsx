@@ -1,20 +1,10 @@
 import React from 'react';
-import { Canvas } from '@react-three/fiber';
-import type { RootState } from '@react-three/fiber';
-import { NeutralToneMapping } from 'three';
-import Board from '../three/Board';
-import { FitCameraToBoard } from '../three/FitCameraToBoard';
-import { hudTop } from '../three/cameraFit';
-import { usePixelBudget } from '../three/pixelBudget';
-import { CameraControls } from '../three/CameraControls';
 import { prefersReducedMotion } from '../three/motion';
-import { IntroContext } from '../three/intro/clock';
 import type { IntroClock } from '../three/intro/clock';
-import { IntroDirector, INTRO_HUD_VAR, INTRO_SCENE_VAR } from '../three/intro/IntroDirector';
+import { INTRO_HUD_VAR, INTRO_SCENE_VAR } from '../three/intro/vars';
 import { hudFade, introDone, introPlan, sceneFade } from '../three/intro/timeline';
 import type { IntroVariant } from '../three/intro/timeline';
-import { layout } from '../three/scene/palette';
-import { Stage } from '../three/scene/stage';
+import { cachedImport } from '../lib/cachedImport';
 import type { Move } from '../engine';
 import type { GameHistory } from '../game/history';
 import type { Color } from '../types/messages';
@@ -26,6 +16,13 @@ import MoveCard from './MoveCard';
 import MoveAnnouncer from './MoveAnnouncer';
 
 export type { IntroVariant };
+
+// The 3D board (three.js, the scene, the entrance's director) is a chunk of
+// its own, the one the lobby's canvas loads too, asked for as soon as this
+// view loads: the HUD and the move record show without waiting for it
+const loadGameCanvas = cachedImport(() => import('./GameCanvas'));
+const GameCanvas = React.lazy(loadGameCanvas);
+void loadGameCanvas().catch(() => {});
 
 export interface GameViewProps {
   /** The replayed game (deriveHistory). */
@@ -102,7 +99,6 @@ const GameView: React.FC<GameViewProps> = ({
   onFirstFrame,
 }) => {
   const { board, moveRecords, currentTurn, lastMove, captured, gameOver } = history;
-  const pixelRatio = usePixelBudget();
 
   // The entrance's plan and clock, fixed when the view mounts
   const [clock] = React.useState<IntroClock>(() => {
@@ -145,81 +141,26 @@ const GameView: React.FC<GameViewProps> = ({
         data-intro={introPlaying ? 'playing' : 'done'}
         style={{ position: 'absolute', inset: 0 }}
       >
-        {/* Main 3D Board canvas. The camera starts on the viewing player's
-            side (mostly +Z, up and to the right) so their levels stay
-            nearest and the depth layers don't perfectly occlude;
-            FitCameraToBoard then sets its distance so the whole cube fits
-            whatever the window's shape. */}
-        <Canvas
-          data-testid="r3f-canvas"
-          role="img"
-          aria-label={`The 3D board, ${color ?? 'white'} side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, press Tab to type a move.`}
-          // Every touch on the board is the camera's or a tap on a
-          // square: never a page scroll or zoom, and no grey tap flash.
-          // The entrance fades the whole scene up from the dark.
-          style={{
-            height: '100%',
-            width: '100%',
-            touchAction: 'none',
-            WebkitTapHighlightColor: 'transparent',
-            opacity: `var(${INTRO_SCENE_VAR}, 1)`,
-          }}
-          camera={{ position: layout.viewDirection, fov: 36 }}
-          // A pixel budget rather than r3f's fixed cap: the screen's own
-          // ratio up to 2x, a large high-density window a little under it
-          dpr={pixelRatio}
-          gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
-          // A chess position is static: render only when something changes.
-          // React commits and OrbitControls invalidate on their own; the
-          // animations (the move glide, the lift, the scene's effects, the
-          // entrance) request frames while they run.
-          frameloop="demand"
-          // Test hook: r3f v9 no longer exposes its store on the canvas
-          // element, so drivers (e2e/helpers/board.ts) read the live camera
-          // here to project board cells to pixels — correct even after the
-          // user orbits or the camera setup above changes.
-          onCreated={(state: RootState) => {
-            (window as Window & { __r3fState?: RootState }).__r3fState = state;
-          }}
-        >
-          <IntroContext.Provider value={clock}>
-            <Stage orientation={color ?? 'white'} />
-            <Board
-              board={board} // Pass the EngineBoard instance
-              currentTurn={currentTurn}
-              playerColor={color} // Pass the determined player color
-              onMove={onMove}
-              onChoosePromotion={onChoosePromotion}
-              lastMove={lastMove}
-              // Nothing can be picked up while the entrance plays
-              disabled={boardDisabled || introPlaying}
-              gameOver={gameOver}
-            />
-            {/* The only camera control is turning the view about the
-                board's centre, which never moves (no pan by mouse, touch or
-                keyboard), plus a zoom that FitCameraToBoard limits relative
-                to the fitted view. */}
-            <CameraControls
-              // The tower's orbit limits: the camera stays above the ground and
-              // may rise to look straight down
-              minPolarAngle={layout.orbit.minPolarAngle}
-              maxPolarAngle={layout.orbit.maxPolarAngle}
-            />
-            <FitCameraToBoard
-              viewDirection={layout.viewDirection}
-              minDistance={layout.orbit.minDistance}
-              frameRings={layout.frameRings}
-              hudTopBand={hudTop}
-            />
-            <IntroDirector
-              clock={clock}
-              paused={introPaused}
-              styleTarget={screen}
-              onFirstFrame={onFirstFrame}
-              onDone={() => setIntroPlaying(false)}
-            />
-          </IntroContext.Provider>
-        </Canvas>
+        {/* The 3D board, from its own chunk: nothing shows there until it
+            has loaded (the HUD over it does) */}
+        <React.Suspense fallback={null}>
+          <GameCanvas
+            color={color}
+            board={board}
+            currentTurn={currentTurn}
+            lastMove={lastMove}
+            gameOver={gameOver}
+            // Nothing can be picked up while the entrance plays
+            disabled={boardDisabled || introPlaying}
+            onMove={onMove}
+            onChoosePromotion={onChoosePromotion}
+            clock={clock}
+            introPaused={introPaused}
+            styleTarget={screen}
+            onFirstFrame={onFirstFrame}
+            onIntroDone={() => setIntroPlaying(false)}
+          />
+        </React.Suspense>
         {/* The HUD over the canvas (index.css): the turn pill at the top
             centre with the status column under it, the move card at the
             bottom left. Only the controls

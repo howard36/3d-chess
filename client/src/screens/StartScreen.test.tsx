@@ -45,10 +45,10 @@ test('the start button is the first thing Tab reaches, and the preview has no co
   expect(screen.getAllByRole('button')).toHaveLength(1);
 });
 
-test('for a player who asked for less motion the preview holds still', () => {
+test('for a player who asked for less motion the preview holds still', async () => {
   reduceMotion(true);
   renderStart();
-  expect(screen.getByTestId('preview')).toHaveAttribute('data-still', 'true');
+  expect(await screen.findByTestId('preview')).toHaveAttribute('data-still', 'true');
 });
 
 test('nothing is written under the button', () => {

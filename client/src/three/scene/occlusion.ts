@@ -3,6 +3,8 @@ import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { PIECE_PARTS, partsGeometry, pieceSet } from '../pieces';
 import type { PiecePart, PieceParts, PieceSet } from '../pieces';
+import { decodeOcclusion } from './occlusionData';
+import { OCCLUSION_MEDIUM } from './occlusion.medium';
 
 // The game's copy of the Staunton set: the same shapes, with two
 // numbers baked into every vertex's uv, so one small shader can paint and
@@ -25,7 +27,9 @@ import type { PiecePart, PieceParts, PieceSet } from '../pieces';
 // its closed shells) and the floor it stands on: from each vertex, rays over
 // the hemisphere round its normal, a short way out, and the share that meet
 // the solid. Each piece is baked the first time it is drawn, in a few
-// milliseconds. The shared set is never touched (clone first).
+// milliseconds. The shared set is never touched (clone first). The medium
+// set's occlusion also ships precomputed, byte for byte (occlusion.medium.ts,
+// `npm run bake:pieces`): baking one of its pieces only copies it in.
 
 /** The part a vertex belongs to, as the shader reads it from uv.y. */
 export const PART_ID: Record<PiecePart, number> = { body: 0, collar: 1, accent: 2, foot: 4 };
@@ -52,7 +56,11 @@ const JZ = 0.291;
 
 /** Every triangle of `geometries` as vertical-ray crossings, filled into a solid grid. */
 const voxelize = (geometries: BufferGeometry[]): Uint8Array => {
-  const crossings: number[][] = Array.from({ length: NX * NX }, () => []);
+  // Each crossing: its column, its height and whether the ray enters or
+  // leaves there, in the order found
+  const column: number[] = [];
+  const height: number[] = [];
+  const step: number[] = [];
   for (const g of geometries) {
     const p = g.getAttribute('position');
     const index = g.index;
@@ -90,46 +98,56 @@ const voxelize = (geometries: BufferGeometry[]): Uint8Array => {
           const w1 = ((cz - az) * (px - cx) + (ax - cx) * (pz - cz)) / d;
           const w2 = 1 - w0 - w1;
           if (w0 < 0 || w1 < 0 || w2 < 0) continue;
-          crossings[k * NX + i].push(w0 * ay + w1 * by + w2 * cy, enter);
+          column.push(k * NX + i);
+          height.push(w0 * ay + w1 * by + w2 * cy);
+          step.push(enter);
         }
       }
     }
   }
+  // Group the crossings by column, keeping the order found within each
+  const columns = NX * NX;
+  const start = new Int32Array(columns + 1);
+  for (const c of column) start[c + 1]++;
+  for (let c = 0; c < columns; c++) start[c + 1] += start[c];
+  const order = new Int32Array(column.length);
+  const fill = start.slice(0, columns);
+  for (let n = 0; n < column.length; n++) order[fill[column[n]]++] = n;
+
   const solid = new Uint8Array(NX * NX * NY);
-  const pairs: [number, number][] = [];
-  for (let c = 0; c < crossings.length; c++) {
-    const list = crossings[c];
-    // The floor under the piece is solid too: it shuts in the foot
-    const floorTop = Math.floor(-Y0 / CELL - 0.5);
+  // The floor under the piece is solid too: it shuts in the foot
+  const floorTop = Math.floor(-Y0 / CELL - 0.5);
+  for (let c = 0; c < columns; c++) {
     for (let j = 0; j <= floorTop; j++) solid[j * NX * NX + c] = 1;
-    if (list.length === 0) continue;
-    pairs.length = 0;
-    for (let n = 0; n < list.length; n += 2) pairs.push([list[n], list[n + 1]]);
-    pairs.sort((a, b) => a[0] - b[0]);
+    if (start[c] === start[c + 1]) continue;
+    // Up the column, crossings at the same height in the order found
+    // (an insertion sort: a column holds a handful of crossings)
+    const list = order.subarray(start[c], start[c + 1]);
+    for (let m = 1; m < list.length; m++) {
+      const n = list[m];
+      let at = m;
+      while (at > 0 && height[list[at - 1]] > height[n]) {
+        list[at] = list[at - 1];
+        at--;
+      }
+      list[at] = n;
+    }
     // Inside wherever more shells have been entered than left (shells may
     // overlap: the collars sit round the stems)
     let winding = 0;
     let from = Y0;
-    for (const [y, step] of pairs) {
+    for (const n of list) {
+      const y = height[n];
       if (winding > 0) {
         const j0 = Math.max(0, Math.ceil((from - Y0) / CELL - 0.5));
         const j1 = Math.min(NY - 1, Math.floor((y - Y0) / CELL - 0.5));
         for (let j = j0; j <= j1; j++) solid[j * NX * NX + c] = 1;
       }
-      winding += step;
+      winding += step[n];
       from = y;
     }
   }
   return solid;
-};
-
-const occupied = (solid: Uint8Array, x: number, y: number, z: number) => {
-  const i = Math.floor((x - X0) / CELL - JX + 0.5);
-  const k = Math.floor((z - X0) / CELL - JZ + 0.5);
-  const j = Math.floor((y - Y0) / CELL);
-  if (i < 0 || k < 0 || i >= NX || k >= NX || j >= NY) return false;
-  if (j < 0) return true;
-  return solid[(j * NX + k) * NX + i] === 1;
 };
 
 // Directions spread evenly over the sphere (a Fibonacci lattice); each vertex
@@ -152,6 +170,9 @@ const REACH = STEPS[STEPS.length - 1];
 /** How much darker a face turned straight in toward the axis is. */
 const INWARD_SHADE = 0.4;
 
+/** DIRECTIONS flattened (x, y, z each), for the loop below. */
+const DIRS = Float64Array.from(DIRECTIONS.flat());
+
 /** Ambient occlusion at each vertex of `g` against `solid`: 1 open, 0 shut in. */
 const occlusionOf = (g: BufferGeometry, solid: Uint8Array): Float32Array => {
   const p = g.getAttribute('position');
@@ -171,13 +192,23 @@ const occlusionOf = (g: BufferGeometry, solid: Uint8Array): Float32Array => {
     const oz = p.getZ(v) + nz * CELL * 0.75;
     let shut = 0;
     let total = 0;
-    for (const [dx, dy, dz] of DIRECTIONS) {
+    for (let d = 0; d < DIRS.length; d += 3) {
+      const dx = DIRS[d];
+      const dy = DIRS[d + 1];
+      const dz = DIRS[d + 2];
       const c = dx * nx + dy * ny + dz * nz;
       // Near-tangent rays would meet the surface's own staircase of cells
       if (c < 0.22) continue;
       total += c;
-      for (const s of STEPS) {
-        if (occupied(solid, ox + dx * s, oy + dy * s, oz + dz * s)) {
+      for (let k = 0; k < STEPS.length; k++) {
+        const s = STEPS[k];
+        // The cell the step lands in: off the grid's sides or top is open,
+        // below it (the floor) shut
+        const i = Math.floor((ox + dx * s - X0) / CELL - JX + 0.5);
+        const kz = Math.floor((oz + dz * s - X0) / CELL - JZ + 0.5);
+        const j = Math.floor((oy + dy * s - Y0) / CELL);
+        if (i < 0 || kz < 0 || i >= NX || kz >= NX || j >= NY) continue;
+        if (j < 0 || solid[(j * NX + kz) * NX + i] === 1) {
           // Nearer walls shut in more
           shut += c * (1 - 0.45 * (s / REACH));
           break;
@@ -201,15 +232,39 @@ const occlusionOf = (g: BufferGeometry, solid: Uint8Array): Float32Array => {
   return out;
 };
 
+/** A piece's occlusion, part by part (the parts it has, in PIECE_PARTS order). */
+export const occlusionOfPiece = (parts: PieceParts): Float32Array[] => {
+  const present = PIECE_PARTS.filter((part) => parts[part]);
+  const solid = voxelize(present.map((part) => parts[part]!));
+  return present.map((part) => occlusionOf(parts[part]!, solid));
+};
+
+// The medium set's occlusion, precomputed (occlusion.medium.ts), decoded on first use
+let stored: Record<PieceType, Float32Array[]> | null = null;
+
+/** The stored occlusion for a piece, if made for parts of these sizes. */
+const storedOcclusion = (type: PieceType, parts: BufferGeometry[]): Float32Array[] | null => {
+  stored ??= decodeOcclusion(OCCLUSION_MEDIUM);
+  const ao = stored[type];
+  const fits =
+    ao.length === parts.length &&
+    ao.every((a, i) => a.length === parts[i].getAttribute('position').count);
+  return fits ? ao : null;
+};
+
 /** A piece's parts, cloned, each vertex's uv holding its occlusion and part. */
 const bake = (type: PieceType, parts: PieceParts): PieceParts => {
   const present = PIECE_PARTS.filter((part) => parts[part]);
-  const solid = voxelize(present.map((part) => parts[part]!));
+  const aos =
+    storedOcclusion(
+      type,
+      present.map((part) => parts[part]!),
+    ) ?? occlusionOfPiece(parts);
   const out = {} as PieceParts;
-  for (const part of present) {
+  present.forEach((part, n) => {
     const source = parts[part]!;
     const g = source.clone();
-    const ao = occlusionOf(source, solid);
+    const ao = aos[n];
     const p = source.getAttribute('position');
     const well = type === PieceType.Rook && part === 'accent';
     const uv = new Float32Array(ao.length * 2);
@@ -221,7 +276,7 @@ const bake = (type: PieceType, parts: PieceParts): PieceParts => {
     g.setAttribute('uv', new BufferAttribute(uv, 2));
     if (!g.boundingBox) g.computeBoundingBox();
     (out as Record<PiecePart, BufferGeometry>)[part] = g;
-  }
+  });
   return out;
 };
 

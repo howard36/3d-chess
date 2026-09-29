@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { deriveHistory } from './history';
+import type { Turn } from './history';
 import { PieceType } from '../engine';
 import { fromZXY } from '../engine/coords';
 import type { MoveRecord, WebSocketMessage } from '../types/messages';
@@ -130,6 +131,55 @@ describe('deriveHistory: identity', () => {
     expect(next.board.getPiece(fromZXY('Ca1'))).toEqual({ type: PieceType.Pawn, color: 'white' });
   });
 
+  it('carries on from the previous history as moves land, as a full replay would', () => {
+    // A game with a capture in it, arriving one move at a time
+    const moves: [Turn, string, string][] = [
+      ['white', 'Ab1', 'Cb2'],
+      ['black', 'Dd5', 'Cd5'],
+      ['white', 'Cb2', 'Db4'], // the knight takes a pawn
+      ['black', 'Dc5', 'Cc5'],
+    ];
+    const log: WebSocketMessage[] = [{ type: 'game_start', color: 'white' }];
+    let h = deriveHistory(log);
+    for (const [by, from, to] of moves) {
+      const before = h;
+      const board = before.board;
+      const taken = { white: [...before.captured.white], black: [...before.captured.black] };
+      log.push(moveMade(by, from, to));
+      h = deriveHistory(log, before);
+      const full = deriveHistory(log);
+      expect(h.board).not.toBe(board);
+      expect(h.appliedMoveCount).toBe(full.appliedMoveCount);
+      expect(h.captured).toEqual(full.captured);
+      expect(h.lastMove).toEqual(full.lastMove);
+      expect(h.currentTurn).toBe(full.currentTurn);
+      expect(h.gameOver).toEqual(full.gameOver);
+      for (let i = 0; i < 125; i++) {
+        const c = { x: Math.floor(i / 5) % 5, y: i % 5, z: Math.floor(i / 25) };
+        expect(h.board.getPiece(c)).toEqual(full.board.getPiece(c));
+      }
+      // The previous history is left exactly as it was
+      expect(before.board).toBe(board);
+      expect(before.captured).toEqual(taken);
+    }
+    expect(h.captured.white).toEqual([PieceType.Pawn]);
+    expect(h.lastMove?.capturedPiece).toBeNull();
+  });
+
+  it('stays frozen when moves arrive after an unplayable one', () => {
+    const log: WebSocketMessage[] = [
+      moveMade('white', 'Ba1', 'Ca1'),
+      moveMade('black', 'Cc3', 'Dc3'), // Cc3 is empty
+    ];
+    const first = deriveHistory(log);
+    expect(first.replayFailedAt).toBe(1);
+    log.push(moveMade('white', 'Ca1', 'Da1'));
+    const next = deriveHistory(log, first);
+    expect(next.replayFailedAt).toBe(1);
+    expect(next.appliedMoveCount).toBe(1);
+    expect(next.board.getPiece(fromZXY('Da1'))).toBeNull();
+  });
+
   it('ignores a previous history built from a different record', () => {
     const other = deriveHistory([moveMade('white', 'Bb1', 'Cb1')]);
     const h = deriveHistory(played, other);
@@ -221,5 +271,21 @@ describe('deriveHistory: unplayable records', () => {
     expect(h.replayFailedAt).toBe(0);
     expect(h.appliedMoveCount).toBe(0);
     expect(h.lastMove).toBeUndefined();
+  });
+});
+
+describe('deriveHistory: the work a landing move costs', () => {
+  it('applies only the new move', async () => {
+    const { Board } = await import('../engine');
+    const log: WebSocketMessage[] = [
+      moveMade('white', 'Ba1', 'Ca1'),
+      moveMade('black', 'Dd5', 'Cd5'),
+      moveMade('white', 'Ca1', 'Da1'),
+    ];
+    const prev = deriveHistory(log);
+    const applied = vi.spyOn(Board.prototype, 'applyMove');
+    deriveHistory([...log, moveMade('black', 'Cd5', 'Bd5')], prev);
+    expect(applied).toHaveBeenCalledTimes(1);
+    applied.mockRestore();
   });
 });

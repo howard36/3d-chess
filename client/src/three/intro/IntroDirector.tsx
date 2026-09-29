@@ -4,6 +4,7 @@ import { addAfterEffect, useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import type { IntroClock } from './clock';
 import { dollyFactor, hudFade, introDone, sceneFade } from './timeline';
+import { INTRO_HUD_VAR, INTRO_SCENE_VAR } from './vars';
 
 /**
  * The longest step one frame may take the entrance: a stalled frame (a tab
@@ -19,9 +20,9 @@ interface OrbitLike {
   update: () => void;
 }
 
-/** The CSS custom properties the entrance fades the page's parts by (index.css). */
-export const INTRO_SCENE_VAR = '--intro-scene';
-export const INTRO_HUD_VAR = '--intro-hud';
+// The CSS custom properties the entrance fades the page's parts by, in a
+// module of their own so the page can name them without loading three.js
+export { INTRO_HUD_VAR, INTRO_SCENE_VAR };
 
 const ORIGIN = new Vector3();
 const direction = new Vector3();

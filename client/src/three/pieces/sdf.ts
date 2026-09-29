@@ -154,11 +154,27 @@ export const unite = (k: number, ...fs: Sdf[]): Sdf => {
   return g;
 };
 
-/** Carves `cut` out of `f` with a fillet of k. */
-export const carve =
-  (f: Sdf, cut: Sdf, k: number): Sdf =>
-  (x, y, z) =>
-    smax(f(x, y, z), -cut(x, y, z), k);
+/**
+ * Carves `cut` out of `f` with a fillet of k. Where the cut's bound puts it
+ * beyond the fillet's reach, the result is f's value exactly (smax gives
+ * back its first argument when the second is k or more below it), so the
+ * cut is not evaluated there.
+ */
+export const carve = (f: Sdf, cut: Sdf, k: number): Sdf => {
+  if (!cut.bound) return (x, y, z) => smax(f(x, y, z), -cut(x, y, z), k);
+  const [cx, cy, cz] = cut.bound.c;
+  const { r, s } = cut.bound;
+  return (x, y, z) => {
+    const a = f(x, y, z);
+    const dx = x - cx;
+    const dy = y - cy;
+    const dz = z - cz;
+    // Only outside the bound's sphere (inside it the bound can overstate
+    // the cut), and with a margin, so rounding cannot skip a cut that reaches
+    if (s * (Math.sqrt(dx * dx + dy * dy + dz * dz) - r) >= Math.max(k - a, 0) + 1e-9) return a;
+    return smax(a, -cut(x, y, z), k);
+  };
+};
 
 /** A 2D field: signed distance to a closed outline, negative inside. */
 type Field2 = (x: number, y: number) => number;
@@ -195,9 +211,76 @@ export const outlineField = (
   const nx = Math.ceil((max[0] - min[0]) / step) + 1;
   const ny = Math.ceil((max[1] - min[1]) / step) + 1;
   const grid = new Float32Array(nx * ny);
+  // polygonDistance at every node, a row at a time and with the same
+  // arithmetic, but not every edge at every node: which edges the row crosses
+  // (and where) depends only on the row, and an edge whose bounding box is
+  // farther than the nearest edge found so far cannot be the nearest (with a
+  // margin, so rounding cannot drop the one that is)
+  const n = poly.length;
+  const px = new Float64Array(n);
+  const py = new Float64Array(n);
+  const ex = new Float64Array(n);
+  const ey = new Float64Array(n);
+  const len2 = new Float64Array(n);
+  const lox = new Float64Array(n);
+  const hix = new Float64Array(n);
+  const loy = new Float64Array(n);
+  const hiy = new Float64Array(n);
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    px[i] = xi;
+    py[i] = yi;
+    ex[i] = xj - xi;
+    ey[i] = yj - yi;
+    len2[i] = ex[i] * ex[i] + ey[i] * ey[i] || 1;
+    lox[i] = Math.min(xi, xj);
+    hix[i] = Math.max(xi, xj);
+    loy[i] = Math.min(yi, yj);
+    hiy[i] = Math.max(yi, yj);
+  }
+  const rowY2 = new Float64Array(n);
+  const byRow = Array.from({ length: n }, (_, e) => e);
+  const crossings: number[] = [];
+  /** Squared distance from (x, y) to edge e, exactly as polygonDistance works it out. */
+  const edgeDistance = (e: number, x: number, y: number) => {
+    const wx = x - px[e];
+    const wy = y - py[e];
+    const h = clamp((wx * ex[e] + wy * ey[e]) / len2[e], 0, 1);
+    const bx = wx - ex[e] * h;
+    const by = wy - ey[e] * h;
+    return bx * bx + by * by;
+  };
   for (let j = 0; j < ny; j++) {
+    const y = min[1] + j * step;
+    crossings.length = 0;
+    for (let e = 0, f = n - 1; e < n; f = e++) {
+      if (py[e] > y !== py[f] > y) crossings.push(px[e] + ((y - py[e]) * ex[e]) / ey[e]);
+      const dy = y < loy[e] ? loy[e] - y : y > hiy[e] ? y - hiy[e] : 0;
+      rowY2[e] = dy * dy;
+    }
+    // Nearest the row first: once an edge's box is too far across the rows,
+    // every edge after it is too
+    byRow.sort((a, b) => rowY2[a] - rowY2[b]);
+    let near = byRow[0];
     for (let i = 0; i < nx; i++) {
-      grid[j * nx + i] = polygonDistance(poly, min[0] + i * step, min[1] + j * step);
+      const x = min[0] + i * step;
+      let inside = false;
+      for (const c of crossings) if (x < c) inside = !inside;
+      // Start from the edge nearest the previous node
+      let d = edgeDistance(near, x, y);
+      for (const e of byRow) {
+        const bound = d * (1 + 1e-6) + 1e-18;
+        if (rowY2[e] > bound) break;
+        const dx = x < lox[e] ? lox[e] - x : x > hix[e] ? x - hix[e] : 0;
+        if (dx * dx + rowY2[e] > bound) continue;
+        const de = edgeDistance(e, x, y);
+        if (de < d) {
+          d = de;
+          near = e;
+        }
+      }
+      grid[j * nx + i] = (inside ? -1 : 1) * Math.sqrt(d);
     }
   }
   return (x, y) => {

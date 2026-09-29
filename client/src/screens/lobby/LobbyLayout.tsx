@@ -1,9 +1,6 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-import { Canvas } from '@react-three/fiber';
-import { NeutralToneMapping } from 'three';
-import { LobbyScene } from '../../three/lobby/LobbyScene';
-import { LOBBY_FOV } from '../../three/lobby/lobbyMotion';
+import { cachedImport } from '../../lib/cachedImport';
 import { LobbyContext } from './lobbyContext';
 import type { LobbyApi, LobbyStage } from './lobbyContext';
 
@@ -11,6 +8,14 @@ import type { LobbyApi, LobbyStage } from './lobbyContext';
 // page while it waits for its players (/game/:id), kept across the move from
 // one to the other so the scene never reloads between them. The screens say
 // what it shows (useLobby().show); passing null takes it away.
+
+// The canvas (three.js, the lobby's scene) is a chunk of its own, the one the
+// game's board loads too, asked for as soon as the lobby loads: the pages'
+// words and buttons show before it arrives, and the scene then draws
+// behind them (the page's entrance waits for its first frame, data-scene)
+const loadLobbyCanvas = cachedImport(() => import('./LobbyCanvas'));
+const LobbyCanvas = React.lazy(loadLobbyCanvas);
+void loadLobbyCanvas().catch(() => {});
 
 type Handlers = Pick<
   LobbyStage,
@@ -85,16 +90,9 @@ const LobbyLayout = () => {
       >
         {view && (
           <div ref={canvasHost} className="lobby-stage" aria-hidden>
-            <Canvas
-              data-testid="lobby-canvas"
-              camera={{ fov: LOBBY_FOV, position: [0, 0, 8], near: 0.1, far: 900 }}
-              dpr={[1, 1.5]}
-              gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
-              frameloop="demand"
-              style={{ touchAction: 'manipulation' }}
-            >
-              <LobbyScene view={view} anchors={anchors} canvasHost={canvasHost} />
-            </Canvas>
+            <React.Suspense fallback={null}>
+              <LobbyCanvas view={view} anchors={anchors} canvasHost={canvasHost} />
+            </React.Suspense>
           </div>
         )}
         {/* The arrival's line, where the pages' headings stand */}

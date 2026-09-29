@@ -29,6 +29,12 @@ vi.mock('../three/Board', () => ({
 
 const move: Move = { from: { x: 0, y: 1, z: 1 }, to: { x: 0, y: 1, z: 2 } };
 
+/** The 3D board comes in its own chunk (GameCanvas): wait until it has mounted. */
+const boardMounted = () =>
+  vi.waitFor(() => {
+    if (!board.onMove) throw new Error('the board has not mounted yet');
+  });
+
 beforeEach(() => {
   localStorage.clear();
   // White's player: the seat was stored when the game was created
@@ -37,9 +43,10 @@ beforeEach(() => {
 });
 
 describe('sending a move', () => {
-  it('sends it once, however many times the board asks before the page redraws', () => {
+  it('sends it once, however many times the board asks before the page redraws', async () => {
     const send = vi.fn(() => true);
     render(gameScreenAt(fakeSocket([{ type: 'game_start', color: 'white' }], send)));
+    await boardMounted();
     act(() => {
       board.onMove!(move);
       board.onMove!(move);
@@ -47,10 +54,11 @@ describe('sending a move', () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it('sends the next move once the first has come back', () => {
+  it('sends the next move once the first has come back', async () => {
     const send = vi.fn(() => true);
     const start: WebSocketMessage[] = [{ type: 'game_start', color: 'white' }];
     const { rerender } = render(gameScreenAt(fakeSocket(start, send)));
+    await boardMounted();
     act(() => board.onMove!(move));
     // Still waiting: nothing more is sent
     act(() => board.onMove!(move));
@@ -66,10 +74,11 @@ describe('sending a move', () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
-  it('lets the player try again after a refusal', () => {
+  it('lets the player try again after a refusal', async () => {
     const send = vi.fn(() => true);
     const start: WebSocketMessage[] = [{ type: 'game_start', color: 'white' }];
     const { rerender } = render(gameScreenAt(fakeSocket(start, send)));
+    await boardMounted();
     act(() => board.onMove!(move));
     rerender(
       gameScreenAt(
