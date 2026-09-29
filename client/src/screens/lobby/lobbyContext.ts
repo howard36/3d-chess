@@ -6,6 +6,8 @@ import type { LobbyView } from '../../three/lobby/LobbyScene';
 export interface LobbyStage extends LobbyView {
   /** A line over the scene while it plays out (the arrival), read aloud too. */
   caption?: string;
+  /** A second, quieter line under the caption. */
+  captionNote?: string;
 }
 
 export interface LobbyApi {

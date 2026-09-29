@@ -21,6 +21,7 @@ import GameView from './GameView';
 import { selectInvitation } from '../game/invitation';
 import type { Color } from '../types/messages';
 import { InvitationCard, InviteCard, SeatLabels } from './lobby/LobbyCards';
+import { Stone } from './TurnPill';
 import { useLobbyView } from './lobby/lobbyContext';
 import type { LobbyStage } from './lobby/lobbyContext';
 
@@ -421,9 +422,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         seat: color,
         // The seat that has just filled: the guest's own, or the host's opponent's
         arriving: host ? other(color) : color,
-        caption: host
-          ? `They're here · ${color === 'white' ? 'You move first' : 'They move first'}`
-          : `You play ${color === 'white' ? 'White · You move first' : 'Black · White moves first'}`,
+        caption: host ? "They're here" : `You play ${color === 'white' ? 'White' : 'Black'}`,
+        captionNote:
+          color === 'white' ? 'You move first' : host ? 'They move first' : 'White moves first',
         onArrived: () => setArrived(true),
         onReveal: () => setRevealed(true),
         onLeft: () => setHandover('done'),
@@ -486,7 +487,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         }
         // The whole entrance for a game that started while this page was
         // open, a short one for a page that opened on a game under way
-        intro={handover !== 'none' || startedLive(messages) ? 'full' : 'short'}
+        intro={handover !== 'none' ? 'lobby' : startedLive(messages) ? 'full' : 'short'}
         // Held on its first frame while the lobby plays out over it
         introPaused={handover === 'arrive' || (handover === 'leave' && !revealed)}
         onFirstFrame={() => setGameDrawn(true)}
@@ -513,10 +514,29 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       {guest && (invitation.state === 'open' || invitation.state === 'joining') && (
         <SeatLabels
           labels={{
-            [other(invitation.seat)]: 'Your host',
+            [other(invitation.seat)]: 'Opponent',
             [invitation.seat]: invitation.state === 'joining' ? 'You' : 'Your seat',
           }}
         />
+      )}
+      {/* The story's line: the side this page plays, or the invitation */}
+      {hosting && storedRole && (
+        // Continues the side choice's last heading, so it does not rise again
+        <div className="lobby-heading" data-still="">
+          <h1>You play {storedRole === 'white' ? 'White' : 'Black'}</h1>
+          <p className="lobby-heading-wait">
+            <span className="hud-dot" aria-hidden />
+            Waiting for your friend…
+          </p>
+        </div>
+      )}
+      {guest && (invitation.state === 'open' || invitation.state === 'joining') && (
+        <div className="lobby-heading">
+          <h1 id="invitation-title">
+            You're invited to play <Stone color={invitation.seat} />
+            {invitation.seat === 'white' ? 'White' : 'Black'}
+          </h1>
+        </div>
       )}
       {hosting && storedRole ? (
         <InviteCard link={shareLink} seat={storedRole} />

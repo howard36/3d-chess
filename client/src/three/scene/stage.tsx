@@ -461,7 +461,7 @@ const GardenUniforms = ({
 }: {
   turn: number;
   shade?: ShadeStack;
-  dim?: number;
+  dim?: number | (() => number);
 }) => {
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => invalidate(), [turn, shade, dim, invalidate]);
@@ -470,7 +470,7 @@ const GardenUniforms = ({
   // their own just before they render
   useFrame(({ camera, size, gl }) => {
     gardenTurn.value = turn;
-    gardenDim.value = dim;
+    gardenDim.value = typeof dim === 'function' ? dim() : dim;
     const aspect = size.width / Math.max(size.height, 1);
     updateTowerOutline(camera, aspect, shade);
     gl.getDrawingBufferSize(drawingBuffer);
@@ -602,7 +602,15 @@ export const neonMaterial = (o: {
     fragmentShader: neonFragment,
   });
 
-const Sculptures = ({ turn, shade, dim }: { turn: number; shade?: ShadeStack; dim?: number }) => {
+const Sculptures = ({
+  turn,
+  shade,
+  dim,
+}: {
+  turn: number;
+  shade?: ShadeStack;
+  dim?: number | (() => number);
+}) => {
   const parts = useMemo(
     () => ({
       geometry: neonGeometry(),
@@ -783,7 +791,7 @@ export const Stage = ({
   orientation,
   shade,
   dim,
-}: StageProps & { shade?: ShadeStack; dim?: number }) => (
+}: StageProps & { shade?: ShadeStack; dim?: number | (() => number) }) => (
   <>
     <CameraFloor />
     <Heavens />

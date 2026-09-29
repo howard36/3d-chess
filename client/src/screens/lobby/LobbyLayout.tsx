@@ -30,7 +30,8 @@ const samePicture = (a: LobbyStage | null, b: LobbyStage | null) =>
     a.toss === b.toss &&
     a.seat === b.seat &&
     a.arriving === b.arriving &&
-    a.caption === b.caption);
+    a.caption === b.caption &&
+    a.captionNote === b.captionNote);
 
 const LobbyLayout = () => {
   const [view, setView] = React.useState<LobbyStage | null>(null);
@@ -86,13 +87,15 @@ const LobbyLayout = () => {
             </Canvas>
           </div>
         )}
+        {/* The arrival's line, where the pages' headings stand */}
         {view?.caption && (
-          <p className="lobby-caption" key={view.caption}>
-            {view.caption}
-          </p>
+          <div className="lobby-heading lobby-caption" key={view.caption} aria-hidden>
+            <h1>{view.caption}</h1>
+            {view.captionNote && <p>{view.captionNote}</p>}
+          </div>
         )}
         <div className="sr-only" role="status">
-          {view?.caption ?? ''}
+          {view?.caption ? `${view.caption}. ${view.captionNote ?? ''}` : ''}
         </div>
         <Outlet />
       </div>

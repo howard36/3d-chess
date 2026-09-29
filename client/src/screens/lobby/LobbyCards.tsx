@@ -2,14 +2,11 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Color } from '../../types/messages';
 import type { Invitation } from '../../game/invitation';
-import { Stone } from '../TurnPill';
 
 // The cards over the lobby's scene on a game's page before it starts: the
 // creator's invitation to send, and the invitation as its guest opens it.
 // Their one action is the landing page's pill (.landing-play), so the way
 // in looks the same at every step.
-
-const name = (c: Color) => (c === 'white' ? 'White' : 'Black');
 
 /** The link as it is set on the card: no scheme, the game's id (its end) standing out. */
 const shownLink = (link: string) => {
@@ -53,10 +50,6 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
       data-testid="invite-card"
       data-seat={seat}
     >
-      <p className="lobby-chip">
-        <Stone color={seat} />
-        You play {name(seat)}
-      </p>
       <h2 id="invite-title">Invite a friend</h2>
       <p className="lobby-text">Send this link. The game begins the moment they arrive.</p>
       {/* The link itself, to read or select; the buttons under it copy or share it */}
@@ -80,15 +73,13 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
           </button>
         )}
       </div>
-      <p className="lobby-waiting" role="status">
-        <span className="hud-dot" aria-hidden />
+      <p className="lobby-note" role="status">
         {copied === false
-          ? "Couldn't copy: select the link instead. Waiting for your friend…"
+          ? "Couldn't copy: select the link instead."
           : copied
-            ? 'Link copied. Waiting for your friend…'
-            : 'Waiting for your friend…'}
+            ? 'Link copied.'
+            : "Keep this tab open. We'll bring you in."}
       </p>
-      <p className="lobby-note">Keep this tab open. We'll bring you in.</p>
     </section>
   );
 };
@@ -128,14 +119,10 @@ export const InvitationCard: React.FC<{ invitation: Invitation; onAccept: () => 
       </section>
     );
   }
-  const { seat } = invitation;
   const joining = invitation.state === 'joining';
+  // Its heading is the page's (GameScreen): "You're invited to play …"
   return (
     <section className="lobby-card" aria-labelledby="invitation-title" data-testid="invitation">
-      <h2 id="invitation-title">
-        You're invited to play <Stone color={seat} />
-        {name(seat)}
-      </h2>
       <p className="lobby-text">
         Chess on five boards stacked into a tower. Pieces move up and down as well as across.
       </p>

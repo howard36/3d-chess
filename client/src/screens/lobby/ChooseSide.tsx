@@ -94,7 +94,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
       : `You play ${picked.side === 'white' ? 'White' : 'Black'}`;
   const subheading = !picked
     ? 'Then send a friend the link to take the other side.'
-    : 'Setting the board…';
+    : 'Opening your game…';
   return (
     <div className="lobby-page" data-testid="choose-side">
       <header className="lobby-top">
@@ -118,6 +118,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
               data-choice={choice}
               data-chosen={chosen ? '' : undefined}
               data-faded={picked && !chosen ? '' : undefined}
+              data-hover={!picked && hover === choice ? '' : undefined}
               disabled={!!picked}
               aria-pressed={chosen}
               style={
@@ -126,7 +127,8 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
                   '--y': `var(--seat-${seat}-foot, 62%)`,
                 } as React.CSSProperties
               }
-              onPointerEnter={() => !picked && setHover(choice)}
+              // A mouse's hover only: a tap leaves nothing lit behind it
+              onPointerEnter={(e) => !picked && e.pointerType === 'mouse' && setHover(choice)}
               onPointerLeave={() => setHover((h) => (h === choice ? null : h))}
               onFocus={() => !picked && setHover(choice)}
               onBlur={() => setHover((h) => (h === choice ? null : h))}

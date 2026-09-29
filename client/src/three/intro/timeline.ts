@@ -26,7 +26,7 @@ import { clamp01, easeOutCubic } from '../scene/ease';
 // sequence in about 1.3 s from much nearer; with reduced motion there is no
 // dolly and no drawing, only a short fade; `none` is the finished scene.
 
-export type IntroVariant = 'full' | 'short' | 'none';
+export type IntroVariant = 'full' | 'short' | 'lobby' | 'none';
 
 /** A span of the entrance, in seconds from its start. */
 interface Span {
@@ -44,8 +44,11 @@ export interface IntroPlan {
   scene: Span;
   /** The camera closing in, from `from` times the fitted distance. */
   dolly: Span & { from: number };
-  /** Level z builds over [start + z * step, + duration]. */
-  levels: Span & { step: number };
+  /**
+   * Level z builds over [start + (z - built) * step, + duration]; the levels
+   * under `built` stand from the start (the lobby's glass is level A).
+   */
+  levels: Span & { step: number; built?: number };
   /** The labels settling in, `stagger` apart from first to last. */
   labels: Span & { stagger: number };
   /**
@@ -71,7 +74,7 @@ const finish = (plan: Omit<IntroPlan, 'total'>): IntroPlan => ({
   total: Math.max(
     end(plan.scene),
     end(plan.dolly),
-    plan.levels.start + plan.levels.step * 4 + plan.levels.duration,
+    plan.levels.start + plan.levels.step * (4 - (plan.levels.built ?? 0)) + plan.levels.duration,
     plan.labels.start + plan.labels.stagger + plan.labels.duration,
     plan.pieces.start + plan.pieces.spread * LAST_ARRIVAL + plan.pieces.duration * RING_SHARE,
     end(plan.hud),
@@ -112,6 +115,21 @@ export function introPlan(variant: IntroVariant, reduced = false): IntroPlan {
       hud: span(0.85, 0.35),
     });
   }
+  if (variant === 'lobby') {
+    // Handed over from the lobby, whose glass is level A and whose last
+    // picture is this one's first: nothing fades up, the tower builds on up
+    // from A while the camera closes in
+    return finish({
+      variant,
+      reduced: false,
+      scene: span(0, 0),
+      dolly: { ...span(0, 2.3), from: 2.4 },
+      levels: { ...span(0.1, 1), step: 0.32, built: 1 },
+      labels: { ...span(1.9, 0.5), stagger: 0.35 },
+      pieces: { ...span(1.8, 0.55), spread: 1 },
+      hud: span(2.8, 0.5),
+    });
+  }
   return finish({
     variant,
     reduced: false,
@@ -147,7 +165,15 @@ export const dollyFactor = (plan: IntroPlan, t: number) => {
 
 /** How far level `z` (0 = A) has built at `t`, 0 to 1 (the shaders ease their own parts). */
 export const levelBuild = (plan: IntroPlan, z: number, t: number) =>
-  through({ start: plan.levels.start + plan.levels.step * z, duration: plan.levels.duration }, t);
+  z < (plan.levels.built ?? 0)
+    ? 1
+    : through(
+        {
+          start: plan.levels.start + plan.levels.step * (z - (plan.levels.built ?? 0)),
+          duration: plan.levels.duration,
+        },
+        t,
+      );
 
 /** A label's opacity at `t`, the `order`th (0 to 1) from the first to settle to the last. */
 export const labelFade = (plan: IntroPlan, t: number, order: number) =>

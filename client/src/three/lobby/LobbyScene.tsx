@@ -13,7 +13,7 @@ import { Levels } from '../scene/plates';
 import { IntroContext } from '../intro/clock';
 import type { IntroClock } from '../intro/clock';
 import { introPlan } from '../intro/timeline';
-import { toward } from '../scene/ease';
+import { setLensShift } from '../viewOffset';
 import {
   arrivalRing,
   blendPose,
@@ -22,12 +22,9 @@ import {
   KING_TOP,
   LOBBY_TIMING,
   lobbyPose,
-  leaveDirection,
-  LEAVE_DISTANCE,
-  poseFromDirection,
+  gameOpening,
   posePosition,
   seatX,
-  TOWER_CENTRE,
   waitDrift,
 } from './lobbyMotion';
 import type { CameraPose, Side } from './lobbyMotion';
@@ -153,6 +150,9 @@ const SeatRing = ({ x, playing }: { x: number; playing: boolean }) => {
   );
 };
 
+/** How bright the garden's sculptures stand behind the lobby's kings (1 in the game). */
+const LOBBY_DIM = 0.22;
+
 // --- The camera and the page's anchors ----------------------------------------------------------
 
 const projected = new Vector3();
@@ -162,6 +162,7 @@ const LobbyRig = ({
   clock,
   anchors,
   canvasHost,
+  dim,
   onReveal,
   onLeft,
 }: {
@@ -169,6 +170,7 @@ const LobbyRig = ({
   clock: React.RefObject<{ beat: LobbyBeat; since: number }>;
   anchors: React.RefObject<HTMLElement | null>;
   canvasHost: React.RefObject<HTMLElement | null>;
+  dim: React.RefObject<number>;
   onReveal: () => void;
   onLeft: () => void;
 }) => {
@@ -179,7 +181,7 @@ const LobbyRig = ({
   const from = useRef<CameraPose | null>(null);
   const current = useRef<CameraPose | null>(null);
   const left = useRef(false);
-  const revealed = useRef(false);
+  const shifted = useRef(false);
   const last = useRef('');
   useEffect(() => invalidate(), [size, view.beat, invalidate]);
 
@@ -221,29 +223,43 @@ const LobbyRig = ({
       }
     }
     if (beat === 'leave') {
+      // Out to where the game's camera stands on its first frame, taking
+      // on its lens shift as it goes: the lobby's last picture is the
+      // game's first, level A's glass in the same place, and the canvases
+      // change hands under it unseen
       from.current ??= current.current ?? rest;
-      const to = poseFromDirection(TOWER_CENTRE, leaveDirection(view.seat), LEAVE_DISTANCE);
-      const start = still ? 0 : LOBBY_TIMING.leaveBurn * 0.55;
+      const opening = gameOpening(view.seat, size.width, size.height);
+      const start = still ? 0 : LOBBY_TIMING.leaveBurn * 0.4;
       const span = still ? 0.15 : LOBBY_TIMING.leaveMove;
       const k = Math.min(Math.max((since - start) / span, 0), 1);
-      pose = blendPose(from.current, to, k);
-      // The picture fades as the camera arrives, over the game's first frame
-      const fade = still ? 0.15 : LOBBY_TIMING.leaveFade;
-      const opacity = Math.min(Math.max((start + span - since) / fade, 0), 1);
+      pose = blendPose(from.current, opening.pose, k);
+      const eased = k * k * (3 - 2 * k);
+      setLensShift(
+        camera,
+        [opening.shift[0] * eased, opening.shift[1] * eased],
+        size.width,
+        size.height,
+      );
+      shifted.current = true;
+      // The garden comes back up to the game's brightness on the way
+      dim.current = LOBBY_DIM + (1 - LOBBY_DIM) * eased;
+      const fade = still ? 0.1 : LOBBY_TIMING.leaveFade;
+      const opacity = Math.min(Math.max((start + span + fade - since) / fade, 0), 1);
       if (canvasHost.current) canvasHost.current.style.opacity = String(opacity);
-      if (opacity < 1 && !revealed.current) {
-        revealed.current = true;
-        onReveal();
-      }
-      if (k >= 1 && opacity <= 0 && !left.current) {
+      if (opacity <= 0 && !left.current) {
         left.current = true;
+        onReveal();
         onLeft();
       }
       moving = !left.current;
     } else {
       from.current = null;
       left.current = false;
-      revealed.current = false;
+      dim.current = LOBBY_DIM;
+      if (shifted.current) {
+        shifted.current = false;
+        setLensShift(camera, [0, 0], size.width, size.height);
+      }
       if (canvasHost.current) canvasHost.current.style.opacity = '1';
     }
     current.current = pose;
@@ -297,6 +313,8 @@ export const LobbyScene = ({
   const still = useMemo(prefersReducedMotion, []);
   const aspect = size.width / Math.max(size.height, 1);
   const shade = useMemo(() => platformStack(0, 0), []);
+  // The garden's sculptures, quiet behind the kings (LobbyRig raises them as it leaves)
+  const dim = useRef(LOBBY_DIM);
   // Seconds into the current beat, on r3f's clock
   const clock = useRef({ beat: view.beat, since: 0 });
   // The coin's result once it has landed (until then the seats wait)
@@ -362,8 +380,8 @@ export const LobbyScene = ({
 
   return (
     <>
-      <Stage orientation="white" shade={gone ? undefined : shade} dim={0.35} />
-      <LobbyPlatform gone={gone} />
+      <Stage orientation="white" shade={gone ? undefined : shade} dim={() => dim.current} />
+      <LobbyPlatform />
       {(['white', 'black'] as const).map((side) => (
         <LobbyKing
           key={side}
@@ -392,6 +410,7 @@ export const LobbyScene = ({
         clock={clock}
         anchors={anchors}
         canvasHost={canvasHost}
+        dim={dim}
         onReveal={() => callbacks.current.onReveal?.()}
         onLeft={() => callbacks.current.onLeft?.()}
       />
@@ -401,16 +420,16 @@ export const LobbyScene = ({
 
 // --- The glass --------------------------------------------------------------------------------
 
-/** How long the platform takes to draw itself (its edge, lines and glass), and to go. */
-const PLATFORM_BUILD = 1.1;
+/** How long the platform takes to draw itself (its edge, lines and glass). */
+const PLATFORM_BUILD = 0.7;
 
 /**
  * The glass the kings stand on: level A of the tower, drawing itself as the
- * game's entrance draws each level (its build clock, IntroContext), when the
- * lobby first opens, and taking itself back the same way as the lobby
- * leaves for the game.
+ * game's entrance draws each level (its build clock, IntroContext) when the
+ * lobby first opens. It stays as the lobby leaves: the game's tower builds
+ * on up from it.
  */
-const LobbyPlatform = ({ gone }: { gone: boolean }) => {
+const LobbyPlatform = () => {
   const invalidate = useThree((s) => s.invalidate);
   const still = useMemo(prefersReducedMotion, []);
   const clock = useMemo<IntroClock>(
@@ -424,10 +443,8 @@ const LobbyPlatform = ({ gone }: { gone: boolean }) => {
     [still],
   );
   useFrame((_, delta) => {
-    const goal = gone ? 0 : PLATFORM_BUILD;
-    if (clock.t === goal) return;
-    const rate = still ? 10 : gone ? 1.5 : 1;
-    clock.t = toward(clock.t, goal, Math.min(delta, 1 / 20) * rate);
+    if (clock.t >= PLATFORM_BUILD) return;
+    clock.t = Math.min(clock.t + Math.min(delta, 1 / 20), PLATFORM_BUILD);
     invalidate();
   });
   return (

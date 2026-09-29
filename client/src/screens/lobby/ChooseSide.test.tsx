@@ -131,7 +131,7 @@ describe('choosing a side', () => {
     vi.spyOn(Math, 'random').mockReturnValue(draw);
     await userEvent.click(screen.getByRole('button', { name }));
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(heading);
-    expect(screen.getByText('Setting the board…')).toBeInTheDocument();
+    expect(screen.getByText('Opening your game…')).toBeInTheDocument();
   });
 
   it('makes a pick final: every choice is held, and nothing more is sent', async () => {

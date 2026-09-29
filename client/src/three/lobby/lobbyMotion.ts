@@ -1,4 +1,7 @@
 import { FRAME, layout, PIECE_SCALE } from '../scene/palette';
+import { centringShift, FIT_SOFTNESS, fitView, hudTop, ringBounds, zoomRange } from '../cameraFit';
+import type { FitWindow } from '../cameraFit';
+import { introPlan } from '../intro/timeline';
 import { clamp01, easeOutCubic, smooth } from '../scene/ease';
 import type { Vec3 } from '../types';
 
@@ -61,7 +64,7 @@ export const LOBBY_TIMING = {
   leaveBurn: 0.7,
   leaveMove: 1.6,
   /** The lobby's picture fading over the game's, at the end of the move. */
-  leaveFade: 0.6,
+  leaveFade: 0.3,
 };
 
 // --- The coin toss ---------------------------------------------------------------------------
@@ -193,20 +196,38 @@ export const arrivalRing = (t: number) => {
 
 // --- Handing over to the game ------------------------------------------------------------
 
-/** Where the camera ends up as the lobby hands over to the game (its intro starts here). */
-export const LEAVE_DISTANCE = 34;
-export const TOWER_CENTRE: Vec3 = [
-  0,
-  (FRAME.levelY[0] + FRAME.levelY[FRAME.levelY.length - 1]) / 2,
-  0,
-];
 /**
  * The game's opening direction for a seat, in the lobby's garden. The lobby
  * never turns its garden about (it has no board to orient), so for Black the
  * camera goes round to the far side instead, which shows the same picture as
- * the game's garden turned about for Black with its camera on the near side.
+ * the game's garden turned about for Black with its camera on the near side
+ * (and level A's glass, all the lobby keeps, is the same turned about).
  */
-export const leaveDirection = (seat: Side): [number, number, number] => {
+export const leaveDirection = (seat: Side): Vec3 => {
   const [x, y, z] = layout.viewDirection;
   return seat === 'black' ? [-x, y, -z] : [x, y, z];
+};
+
+/**
+ * Where the game's camera stands on its first frame in a window this size
+ * (IntroDirector's `lobby` entrance: `dolly.from` times the distance
+ * FitCameraToBoard fits, on the opening line of sight, about the board's
+ * centre) and the fit's lens shift. The lobby ends its leaving exactly
+ * there, so its last picture is the game's first.
+ */
+export const gameOpening = (seat: Side, width: number, height: number) => {
+  const direction = leaveDirection(seat);
+  const pose = poseFromDirection([0, 0, 0], direction, 1);
+  const view: FitWindow = { width, height, fov: LOBBY_FOV, topInset: hudTop(height) };
+  const fit = fitView(pose.elevation, layout.frameRings, view).distance;
+  const { min, max } = zoomRange(fit, layout.orbit.minDistance);
+  const distance = Math.min(Math.max(fit, min), max);
+  const shift = centringShift(
+    ringBounds(layout.frameRings, pose.elevation, distance, FIT_SOFTNESS),
+    view,
+  );
+  return {
+    pose: { ...pose, distance: distance * introPlan('lobby').dolly.from },
+    shift,
+  };
 };

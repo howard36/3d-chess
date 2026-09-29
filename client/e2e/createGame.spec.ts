@@ -19,12 +19,10 @@ test('the creator picks a side and gets a link to send', async ({ page }) => {
   const card = page.getByTestId('invite-card');
   await expect(card).toBeVisible();
   await expect(card).toHaveAttribute('data-seat', 'black');
-  await expect(card).toContainText('You play Black');
   const { origin, pathname } = new URL(page.url());
   await expect(page.getByTestId('share-link')).toHaveAttribute('data-link', `${origin}${pathname}`);
-  await expect(
-    page.getByRole('status').filter({ hasText: 'Waiting for them to join' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'You play Black' })).toBeVisible();
+  await expect(page.getByText('Waiting for your friend…')).toBeVisible();
   // Back leaves the invitation for the landing page, not the side choice
   await page.goBack();
   await expect(page).toHaveURL(/\/$/);

@@ -165,7 +165,7 @@ describe("a guest's invitation", () => {
     expect(accept).toBeEnabled();
     expect(accept).toHaveFocus();
     // Named under the kings too
-    expect(seatLabels()).toContain('Your host');
+    expect(seatLabels()).toContain('Opponent');
     expect(seatLabels()).toContain('Your seat');
     // The host's king in material across from the guest's free seat
     expect(view).toMatchObject({
@@ -189,7 +189,7 @@ describe("a guest's invitation", () => {
     const button = screen.getByRole('button', { name: 'Taking your seat…' });
     expect(button).toHaveAttribute('aria-disabled', 'true');
     expect(view).toMatchObject({ taken: { white: true, black: true }, mine: 'black' });
-    expect(seatLabels()).toEqual(['Your host', 'You']);
+    expect(seatLabels()).toEqual(['Opponent', 'You']);
     // Held: nothing more goes out
     fireEvent.click(button);
     expect(send).toHaveBeenCalledTimes(1);
@@ -260,7 +260,8 @@ describe("the host's invitation to send", () => {
     render(at(fakeSocket(hosting('black'), send)));
     const card = screen.getByTestId('invite-card');
     expect(card).toHaveAttribute('data-seat', 'black');
-    expect(card).toHaveTextContent('You play Black');
+    // The page's heading says the side; the card, what to do about the other
+    expect(screen.getByRole('heading', { name: 'You play Black' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Invite a friend' })).toBeInTheDocument();
     const link = screen.getByTestId('share-link');
     expect(link).toHaveAttribute('data-link', `${window.location.origin}/game/abc123`);
@@ -294,7 +295,7 @@ describe("the host's invitation to send", () => {
       await act(async () => fireEvent.click(copy));
       expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/game/abc123`);
       expect(copy).toHaveTextContent(/Copied/);
-      expect(screen.getByText('Link copied. Waiting for your friend…')).toBeInTheDocument();
+      expect(screen.getByText('Link copied.')).toBeInTheDocument();
       // ...for a moment, then the button offers to copy again
       act(() => vi.advanceTimersByTime(10_000));
       expect(copy).toHaveTextContent('Copy link');
@@ -303,8 +304,7 @@ describe("the host's invitation to send", () => {
       writeText.mockImplementation(() => Promise.reject(new Error('denied')));
       render(at(fakeSocket(hosting('white'))));
       await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy link' })));
-      const status = screen.getByText(/Couldn't copy/);
-      expect(status).toHaveTextContent('Waiting for your friend…');
+      expect(screen.getByText(/Couldn't copy/)).toHaveAttribute('role', 'status');
     } finally {
       vi.useRealTimers();
     }

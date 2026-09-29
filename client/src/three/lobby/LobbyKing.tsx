@@ -60,7 +60,7 @@ const pickHandlers = (p: Pickable, enabled: boolean) =>
     : {};
 
 /** The body's shine, lift and light, eased toward their goals each frame. */
-const useKingMotion = () => useRef({ fill: 1, outline: 0, lift: 0, hover: 0, hold: 0 });
+const useKingMotion = () => useRef({ fill: 1, outline: 0, lift: 0, hover: 0, hold: 0, gone: 0 });
 
 export const LobbyKing = ({
   color,
@@ -90,7 +90,8 @@ export const LobbyKing = ({
 }) => {
   const invalidate = useThree((s) => s.invalidate);
   const still = useMemo(prefersReducedMotion, []);
-  const body = usePieceMaterial(color, PieceType.King, 0);
+  const piece = usePieceMaterial(color, PieceType.King, 0);
+  const body = useMemo(() => lobbyGlaze(piece), [piece]);
   const neon = useMemo(
     () => ({
       geometry: neonGeometry([{ type: PieceType.King, at: [x, FLOOR_Y, 0] }], KING_SCALE),
@@ -127,7 +128,7 @@ export const LobbyKing = ({
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20);
     const m = motion.current;
-    const fillGoal = present && !gone ? 1 : 0;
+    const fillGoal = present ? 1 : 0;
     if (first.current || (snap && fillGoal === 1)) {
       first.current = false;
       m.fill = fillGoal;
@@ -138,12 +139,19 @@ export const LobbyKing = ({
     // Gone, the outline fades with the body; else it answers the fill
     m.outline = gone ? toward(m.outline, 0, dt * rate) : outlineForFill(m.fill);
     m.hover = toward(m.hover, hovered && !lit && present ? 1 : 0, dt * HOVER_RATE);
-    m.hold = toward(m.hold, lit && m.fill > 0.9 && !gone ? 1 : 0, dt * LIFT_RATE);
-    const up = PIECE_LIFT.hover * smooth(m.hover) + PIECE_LIFT.selected * smooth(m.hold);
+    m.hold = toward(m.hold, lit && m.fill > 0.9 ? 1 : 0, dt * LIFT_RATE);
+    // Leaving: each king rises, in its own column of light, and is taken up
+    // into it from the foot, faster as it goes
+    m.gone = gone ? toward(m.gone, 1, dt / (still ? 0.15 : LOBBY_TIMING.leaveBurn)) : 0;
+    const up =
+      PIECE_LIFT.hover * smooth(m.hover) +
+      PIECE_LIFT.selected * smooth(m.hold) +
+      GONE_RISE * m.gone * m.gone;
     if (lift.current) lift.current.position.y = up;
 
     const u = body.uniforms;
     u.uForm.value = formForFill(m.fill);
+    u.uGone.value = m.gone * m.gone;
     u.uHover.value = smooth(m.hover);
     u.uHold.value = smooth(m.hold) * held.current.strength;
 
@@ -153,13 +161,15 @@ export const LobbyKing = ({
     neon.material.uniforms.uIntensity.value =
       1.15 * m.outline * (inBreath ? breath(breathClock.current) : 1);
 
-    const showing = stepSelection(held.current, m.hold > 0.02 && lit && !gone, dt * 1000, still);
+    const column = gone ? m.fill > 0.5 && m.gone < 0.85 : m.hold > 0.02 && lit;
+    const showing = stepSelection(held.current, column, dt * 1000, still);
     if (showing !== showLight) setShowLight(showing);
     const moving =
       m.fill !== before.fill ||
       m.outline !== before.outline ||
       m.hover !== before.hover ||
-      m.hold !== before.hold;
+      m.hold !== before.hold ||
+      m.gone !== before.gone;
     if (moving || showing || inBreath) invalidate();
   });
 
@@ -190,6 +200,34 @@ export const LobbyKing = ({
       />
     </group>
   );
+};
+
+/** How far a king rises as it leaves for the game (piece units). */
+const GONE_RISE = 0.5;
+
+/**
+ * The lobby's kings in the piece glaze, with a clean edge: the forming line
+ * (uForm) runs level, without the entrance's grain, and `uGone` takes the
+ * king up from the foot behind the same thin line of light.
+ */
+const lobbyGlaze = (material: ShaderMaterial) => {
+  material.uniforms.uGone = { value: 0 };
+  // (once: React may build the memo twice over the same material)
+  if (material.fragmentShader.includes('uGone')) return material;
+  material.fragmentShader = material.fragmentShader
+    .replace('0.09 * noise(vLocal * 16.0)', '0.0')
+    .replace('void main() {', 'uniform float uGone;\n  void main() {')
+    .replace(
+      'vec3 n = normalize(vN);',
+      `if (uGone > 0.0) {
+      float eg = h - uGone * 1.12 + 0.06;
+      if (eg < 0.0) discard;
+      burn = min(burn, smoothstep(0.0, 0.03, eg));
+    }
+    vec3 n = normalize(vN);`,
+    );
+  material.needsUpdate = true;
+  return material;
 };
 
 /** A body in one half only: the coin's porcelain left half or charcoal right half. */
@@ -233,7 +271,7 @@ export const CoinKing = ({
   const whiteBody = usePieceMaterial('white', PieceType.King, 0);
   const blackBody = usePieceMaterial('black', PieceType.King, 0);
   const halves = useMemo(
-    () => [halve(whiteBody, -1), halve(blackBody, 1)] as const,
+    () => [halve(lobbyGlaze(whiteBody), -1), halve(lobbyGlaze(blackBody), 1)] as const,
     [whiteBody, blackBody],
   );
   const root = useRef<Group>(null);
