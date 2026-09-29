@@ -152,6 +152,9 @@ const REACH = STEPS[STEPS.length - 1];
 /** How much darker a face turned straight in toward the axis is. */
 const INWARD_SHADE = 0.4;
 
+/** DIRECTIONS flattened (x, y, z each), for the loop below. */
+const DIRS = Float64Array.from(DIRECTIONS.flat());
+
 /** Ambient occlusion at each vertex of `g` against `solid`: 1 open, 0 shut in. */
 const occlusionOf = (g: BufferGeometry, solid: Uint8Array): Float32Array => {
   const p = g.getAttribute('position');
@@ -171,13 +174,23 @@ const occlusionOf = (g: BufferGeometry, solid: Uint8Array): Float32Array => {
     const oz = p.getZ(v) + nz * CELL * 0.75;
     let shut = 0;
     let total = 0;
-    for (const [dx, dy, dz] of DIRECTIONS) {
+    for (let d = 0; d < DIRS.length; d += 3) {
+      const dx = DIRS[d];
+      const dy = DIRS[d + 1];
+      const dz = DIRS[d + 2];
       const c = dx * nx + dy * ny + dz * nz;
       // Near-tangent rays would meet the surface's own staircase of cells
       if (c < 0.22) continue;
       total += c;
-      for (const s of STEPS) {
-        if (occupied(solid, ox + dx * s, oy + dy * s, oz + dz * s)) {
+      for (let k = 0; k < STEPS.length; k++) {
+        const s = STEPS[k];
+        // The cell the step lands in: off the grid's sides or top is open,
+        // below it (the floor) shut
+        const i = Math.floor((ox + dx * s - X0) / CELL - JX + 0.5);
+        const kz = Math.floor((oz + dz * s - X0) / CELL - JZ + 0.5);
+        const j = Math.floor((oy + dy * s - Y0) / CELL);
+        if (i < 0 || kz < 0 || i >= NX || kz >= NX || j >= NY) continue;
+        if (j < 0 || solid[(j * NX + kz) * NX + i] === 1) {
           // Nearer walls shut in more
           shut += c * (1 - 0.45 * (s / REACH));
           break;

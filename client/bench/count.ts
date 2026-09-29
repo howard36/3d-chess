@@ -16,7 +16,8 @@ const { Board } = await import(`${root}/src/engine/board.ts`);
 const { deriveHistory } = await import(`${root}/src/game/history.ts`);
 const { toZXY } = await import(`${root}/src/engine/coords.ts`);
 const { PieceType } = await import(`${root}/src/engine/pieces.ts`);
-const { pieceSet } = await import(`${root}/src/three/pieces/set.ts`);
+const setModule = await import(`${root}/src/three/pieces/set.ts`);
+const { pieceSet } = setModule;
 const { wholePiece } = await import(`${root}/src/three/scene/occlusion.ts`);
 
 // The same fixture as engine.ts, one game, recorded as a literal so building
@@ -67,9 +68,18 @@ const works: Record<string, () => void> = {
     }
   },
   knight: () => void pieceSet('medium')[PieceType.Knight],
+  bake: () => {
+    for (const t of Object.values(PieceType)) sink += wholePiece(t).attributes.position.count;
+  },
   firstBoard: () => {
     for (const t of Object.values(PieceType)) sink += wholePiece(t).attributes.position.count;
   },
 };
+// The occlusion bake alone: the set is built first (its knight precomputed
+// where the checkout ships it), in every run of this work
+if (work === 'bake') {
+  await setModule.loadBakedKnight?.();
+  for (const t of Object.values(PieceType)) void pieceSet('medium')[t];
+}
 works[work]();
 console.log(JSON.stringify({ work, sink }));
