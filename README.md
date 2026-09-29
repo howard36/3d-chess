@@ -533,6 +533,13 @@ cards under the kings carry only what to do. Timings and framing are pure functi
 9:10 they stand smaller and further out; the camera draws back, never the kings apart,
 until the row fits the width).
 
+- **The entrance** (`LOBBY_ENTRANCE` in `lobbyMotion.ts`), when the lobby is first shown,
+  about 2.4 s and calm: the picture fades up from the page (0.9 s) while the camera settles
+  in from a little further out and higher, easing out (`entranceFrom`, `settlePose`); the
+  glass draws itself over 1.4 s; each king's outline comes up and it forms from the foot,
+  White's, the coin's and Black's a beat apart (from 0.6 s). On the side choice the heading
+  rises as the glass draws, and "← Home" and the buttons come in once the kings have formed
+  (CSS, held until the scene's first frame sets `data-scene` on the layout, or 1.5 s).
 - **Choosing a side** (`/new`, `screens/lobby/ChooseSide.tsx`). "Choose your side" over
   three kings, porcelain, one split porcelain and charcoal for Random, and charcoal, with a
   a button under each named only "White", "Random" or "Black" (sized with the kings as
