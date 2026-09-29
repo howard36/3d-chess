@@ -40,37 +40,26 @@ describe('LastMoveLine', () => {
     expect(tube.raycast.length).toBe(0);
   });
 
-  it('lands `inset` short of the destination, beside the piece standing there', async () => {
-    const inset = 0.27;
-    // Down a level, diagonally: it lands on the side facing the source
-    const r = await ReactThreeTestRenderer.create(
-      <LastMoveLine
-        from={[0, 1.35, 0]}
-        to={[1, 0, 1]}
-        radius={0.01}
-        lift={0.02}
-        inset={inset}
-        {...LOOK}
-      />,
-    );
-    const [tube] = meshes(r.scene as ReactThreeTestInstance);
-    const g = tube.geometry as BufferGeometry;
-    g.computeBoundingBox();
-    const k = 1 - inset / Math.SQRT2;
-    expect(g.boundingBox!.max.x).toBeCloseTo(k + 0.01, 2);
-    expect(g.boundingBox!.max.z).toBeCloseTo(k + 0.01, 2);
-    // On the floor, not above it
-    expect(g.boundingBox!.min.y).toBeGreaterThan(0);
-    expect(g.boundingBox!.min.y).toBeLessThan(0.02);
-    // Straight down: on the +x side
-    const v = await ReactThreeTestRenderer.create(
-      <LastMoveLine from={[0, 1.35, 0]} to={[0, 0, 0]} radius={0.01} inset={inset} {...LOOK} />,
-    );
-    const [down] = meshes(v.scene as ReactThreeTestInstance);
-    const gd = down.geometry as BufferGeometry;
-    gd.computeBoundingBox();
-    expect(gd.boundingBox!.max.x).toBeCloseTo(inset + 0.01, 2);
-    expect(gd.boundingBox!.max.z).toBeCloseTo(0.01, 2);
+  it('ends at the centre of the destination floor, just above it', async () => {
+    // Down a level, diagonally, and straight down: the end is over the
+    // destination's centre either way
+    for (const from of [
+      [0, 1.35, 0],
+      [1, 1.35, 1],
+    ] as Vec3[]) {
+      const r = await ReactThreeTestRenderer.create(
+        <LastMoveLine from={from} to={[1, 0, 1]} radius={0.01} lift={0.02} {...LOOK} />,
+      );
+      const [tube] = meshes(r.scene as ReactThreeTestInstance);
+      const g = tube.geometry as BufferGeometry;
+      g.computeBoundingBox();
+      // The round end reaches a radius past the centre, no further
+      expect(g.boundingBox!.max.x).toBeCloseTo(1 + 0.01, 2);
+      expect(g.boundingBox!.max.z).toBeCloseTo(1 + 0.01, 2);
+      // On the floor, not above it
+      expect(g.boundingBox!.min.y).toBeGreaterThan(0);
+      expect(g.boundingBox!.min.y).toBeLessThan(0.02);
+    }
   });
 
   it('draws in from the source on a demand-rendered canvas', async () => {
