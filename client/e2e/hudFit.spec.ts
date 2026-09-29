@@ -30,6 +30,11 @@ const STRIPPED = `
   Ad3-Bd2 Ae2-Be2 Bd2-Cc2`
   .trim()
   .split(/\s+/);
+// The HUD's layout, not the game's entrance: each position is a reload, and
+// in full motion every reload plays the short entrance, which in software on
+// a busy runner took the test past its time. The HUD settles the same.
+test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
 const SIZES = [
   [360, 640],
   [390, 844],
