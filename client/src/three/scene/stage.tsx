@@ -19,14 +19,11 @@ import type { Camera } from 'three';
 import type { StageProps } from '../types';
 import { PieceType } from '../../engine/pieces';
 import { PROFILES } from '../pieces';
-import { TOWER_DEFAULTS } from '../layout';
 import { noRaycast } from '../noRaycast';
 import {
-  SHADE_WIDTH,
   shadeAt,
   shadeUniforms,
   shadeViewport,
-  shadeWidth,
   TOWER_SHADE,
   towerOutlineOnScreen,
   updateTowerOutline,
@@ -35,7 +32,6 @@ import { GROUND_Y, layout, PALETTE } from './palette';
 import { Details } from './details';
 import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
-import { useEnvSetting } from './settings-env';
 
 // The garden at night. The tower floats over an endless dark plain of
 // glossy stone; under it, nothing, so from straight above there is only
@@ -58,9 +54,6 @@ import { useEnvSetting } from './settings-env';
 
 // --- The night sky ------------------------------------------------------------------
 
-/** The horizon's wider glow and far banks of mist: 1 with the close-look details, else 0. */
-const skyLayers = { value: 1 };
-
 const Sky = () => {
   const { geometry, material } = useMemo(
     () => ({
@@ -74,7 +67,6 @@ const Sky = () => {
           uHorizon: { value: new Color(PALETTE.skyHorizon) },
           uBottom: { value: new Color(PALETTE.skyBottom) },
           uMist: { value: new Color(PALETTE.mist) },
-          uLayers: skyLayers,
         },
         vertexShader: /* glsl */ `
           varying vec3 vDir;
@@ -88,7 +80,6 @@ const Sky = () => {
           uniform vec3 uBottom;
           uniform vec3 uMist;
           varying vec3 vDir;
-          uniform float uLayers;
           void main() {
             vec3 d = normalize(vDir);
             float h = d.y;
@@ -97,7 +88,7 @@ const Sky = () => {
               : mix(uHorizon, uBottom, pow(-h, 0.5));
             // A breath of mist lying along the horizon, in a soft wider glow
             c += uMist * exp(-pow(h / 0.05, 2.0)) * 0.045;
-            c += uMist * exp(-pow(h / 0.16, 2.0)) * 0.008 * uLayers;
+            c += uMist * exp(-pow(h / 0.16, 2.0)) * 0.008;
             // Far off, two banks of mist, their tops rolling slowly round
             // the horizon (whole waves round it, so they close up behind)
             float az = atan(d.x, d.z);
@@ -105,7 +96,7 @@ const Sky = () => {
             float high = 0.034 + 0.009 * sin(az * 2.0 + 4.0) + 0.005 * sin(az * 5.0 + 0.3);
             float bank = smoothstep(low + 0.014, low - 0.004, h) * smoothstep(-0.05, -0.005, h);
             float stratum = exp(-pow((h - high) / 0.007, 2.0));
-            c += uMist * (bank * 0.014 + stratum * 0.008) * uLayers;
+            c += uMist * (bank * 0.014 + stratum * 0.008);
             gl_FragColor = vec4(c, 1.0);
             #include <colorspace_fragment>
           }`,
@@ -151,10 +142,12 @@ const groundVertex = /* glsl */ `
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
+/** The brightness of the colossal board: its lines and its light squares together. */
+const BOARD = 1.1;
+
 const groundFragment = /* glsl */ `
   uniform vec3 uGround;
   uniform vec3 uLine;
-  uniform float uBoard;
   uniform vec3 uHorizon;
   uniform float uSquare;
   uniform vec2 uClear;
@@ -193,7 +186,7 @@ const groundFragment = /* glsl */ `
     float far = 1.0 - smoothstep(40.0, 110.0, dist);
     // Into the tower's shade (mask.ts)
     float hidden = 1.0 - towerShade();
-    float lit = (line * 0.04 + lightSq * 0.004) * uBoard * clear * far * hidden;
+    float lit = (line * 0.04 + lightSq * 0.004) * ${BOARD.toFixed(1)} * clear * far * hidden;
     // Polished: toward the horizon it gives back the mist
     float fresnel = pow(1.0 - abs(view.y), 5.0);
     vec3 col = uGround + uLine * lit + uHorizon * fresnel * 0.9;
@@ -211,7 +204,6 @@ const Ground = () => {
         uniforms: {
           uGround: { value: new Color(PALETTE.ground) },
           uLine: { value: new Color(PALETTE.neon) },
-          uBoard: { value: 1 },
           ...shadeUniforms(),
           uHorizon: { value: new Color(PALETTE.skyHorizon) },
           uSquare: { value: SQUARE },
@@ -230,14 +222,6 @@ const Ground = () => {
     },
     [geometry, material],
   );
-  // The player's brightness for the colossal board: its lines and its light
-  // squares together (settings-env.ts)
-  const board = useEnvSetting<number>('env.giantBoard');
-  const invalidate = useThree((s) => s.invalidate);
-  useEffect(() => {
-    material.uniforms.uBoard.value = board;
-    invalidate();
-  }, [material, board, invalidate]);
   return (
     <mesh
       geometry={geometry}
@@ -376,12 +360,12 @@ const neonGeometry = (): BufferGeometry => {
  * The sculptures, their mist and reflections, like the colossal board and
  * the stars, sink into the tower's shade (mask.ts): a smooth screen-space
  * gradient, darkest over the tower's glass and easing out to nothing a set
- * distance from it ("Fade near the tower"), so a sculpture nearing the tower
+ * distance from it, so a sculpture nearing the tower
  * darkens steadily, side nearest the tower first, and slips behind it into
  * the dark with no edge or line anywhere.
  */
-/** The player's sculpture brightness (settings-env.ts). */
-const brightness = { value: 1 };
+/** The sculptures' brightness: their tubes and their mist. */
+const BRIGHT = 0.7;
 /**
  * 1, or -1 to turn the garden half about for Black: the tower's board is
  * walked around rather than turned (layout.ts), so the colossal board and
@@ -433,10 +417,9 @@ interface SculptureView {
 
 /**
  * Every sculpture's shade and framing for a camera (pure, for tests).
- * `fade` scales the shade's width (the setting); `turn` is -1 when
- * the garden is turned about for Black (gardenTurn).
+ * `turn` is -1 when the garden is turned about for Black (gardenTurn).
  */
-export const gardenView = (camera: Camera, aspect: number, fade = 1, turn = 1): SculptureView[] => {
+export const gardenView = (camera: Camera, aspect: number, turn = 1): SculptureView[] => {
   const hull = towerOutlineOnScreen(camera, aspect);
   right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
   return SIZES.map(({ at: home, radius, height }) => {
@@ -459,14 +442,10 @@ export const gardenView = (camera: Camera, aspect: number, fade = 1, turn = 1): 
     const n = 5;
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
-        shade += shadeAt(
-          hull,
-          [
-            body.x0 + ((i + 0.5) / n) * (body.x1 - body.x0),
-            body.y0 + ((j + 0.5) / n) * (body.y1 - body.y0),
-          ],
-          SHADE_WIDTH * fade,
-        );
+        shade += shadeAt(hull, [
+          body.x0 + ((i + 0.5) / n) * (body.x1 - body.x0),
+          body.y0 + ((j + 0.5) / n) * (body.y1 - body.y0),
+        ]);
       }
     }
     const w = Math.max(body.x1 - body.x0, 1e-6);
@@ -480,18 +459,14 @@ export const gardenView = (camera: Camera, aspect: number, fade = 1, turn = 1): 
 const drawingBuffer = new Vector2();
 /**
  * Every frame, the tower's outline on screen for the shade (mask.ts), and
- * the garden's settings into its uniforms.
+ * which way the garden is turned into its uniforms.
  */
 const GardenUniforms = ({ turn }: { turn: number }) => {
-  const fade = useEnvSetting<number>('env.sculptureFade');
-  const bright = useEnvSetting<number>('env.sculptures');
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
-    brightness.value = bright;
     gardenTurn.value = turn;
-    shadeWidth.value = SHADE_WIDTH * fade;
     invalidate();
-  }, [bright, fade, turn, invalidate]);
+  }, [turn, invalidate]);
   useFrame(({ camera, size, gl }) => {
     const aspect = size.width / Math.max(size.height, 1);
     updateTowerOutline(camera, aspect);
@@ -554,7 +529,6 @@ const neonFragment = /* glsl */ `
   uniform float uIntensity;
   uniform float uFade;
   uniform float uBoost;
-  uniform float uBright;
   varying float vAcross;
   varying float vDepth;
   varying float vRing;
@@ -567,7 +541,7 @@ const neonFragment = /* glsl */ `
     float core = (1.0 - smoothstep(w - fw, w + fw, a)) * min(uCore / w, 1.0);
     float halo = exp(-a * a * 7.0) * (1.0 - a) * uHalo;
     // The rings a little quieter than the outlines they stand the pieces on
-    float light = (core + halo) * uIntensity * uBright * (1.0 + uBoost) * (1.0 - 0.3 * vRing);
+    float light = (core + halo) * uIntensity * ${BRIGHT.toFixed(1)} * (1.0 + uBoost) * (1.0 - 0.3 * vRing);
     // A reflection fades with its depth under the polished ground
     light *= uFade > 0.0 ? exp(-vDepth / uFade) : 1.0;
     // Into the tower's shade, steadily, nearest the tower darkest
@@ -600,7 +574,6 @@ const neonMaterial = (o: {
     uniforms: {
       uColor: { value: new Color(PALETTE.neon) },
       ...shadeUniforms(),
-      uBright: brightness,
       uTurn: gardenTurn,
       uWidth: { value: o.width },
       uCore: { value: o.core },
@@ -709,7 +682,6 @@ const Mist = () => {
           uColor: { value: new Color(PALETTE.mist) },
           uBoost: gardenBoost,
           ...shadeUniforms(),
-          uBright: brightness,
           uTurn: gardenTurn,
         },
         vertexShader: /* glsl */ `
@@ -728,12 +700,11 @@ const Mist = () => {
         fragmentShader: /* glsl */ `
           uniform vec3 uColor;
           uniform float uBoost;
-          uniform float uBright;
           varying vec2 vC;
           ${TOWER_SHADE}
           void main() {
             float m = exp(-dot(vC * vec2(2.0, 2.6), vC * vec2(2.0, 2.6)));
-            float a = m * 0.075 * (1.0 + 0.6 * uBoost) * min(uBright, 1.4);
+            float a = m * 0.075 * (1.0 + 0.6 * uBoost) * ${BRIGHT.toFixed(1)};
             a *= 1.0 - towerShade();
             if (a < 0.001) discard;
             gl_FragColor = vec4(uColor * a, 1.0);
@@ -772,21 +743,15 @@ interface OrbitLike {
   maxPolarAngle: number;
 }
 
-/** The lowest view without looking up: the compact tower's own, 6° above level. */
-const LEVEL_MAX_POLAR = ((90 - TOWER_DEFAULTS.minElevation) * Math.PI) / 180;
-
 /**
  * The orbit may sink below the horizon to look up (layout's minElevation),
  * but never through the ground: before the controls update each frame, their
  * lowest angle is raised as far as the camera's distance needs, so zoomed in
  * it looks up the full 14° and zoomed out a little less, and a zoom out at
  * the lowest angle lifts the camera rather than sinking it into the plain.
- * With looking up turned off (settings-env.ts) the orbit stops where the
- * compact tower's does, 6° above level.
  */
 const CameraFloor = () => {
   const controls = useThree((s) => s.controls) as unknown as OrbitLike | null;
-  const lookUp = useEnvSetting<boolean>('env.lookUp');
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     if (!controls) return;
@@ -794,36 +759,24 @@ const CameraFloor = () => {
     return () => {
       controls.maxPolarAngle = BASE_MAX_POLAR;
     };
-  }, [controls, lookUp, invalidate]);
+  }, [controls, invalidate]);
   useFrame(({ camera }) => {
     if (!controls) return;
     const d = camera.position.distanceTo(controls.target);
     const lowest = (GROUND_Y + CLEARANCE - controls.target.y) / Math.max(d, 1e-3);
-    const base = lookUp ? BASE_MAX_POLAR : Math.min(BASE_MAX_POLAR, LEVEL_MAX_POLAR);
-    controls.maxPolarAngle = Math.min(base, Math.acos(Math.min(Math.max(lowest, -1), 1)));
+    controls.maxPolarAngle = Math.min(BASE_MAX_POLAR, Math.acos(Math.min(Math.max(lowest, -1), 1)));
   }, -2);
   return null;
 };
 
-export const Stage = ({ orientation }: StageProps) => {
-  const turn = orientation === 'black' ? -1 : 1;
-  const stars = useEnvSetting<boolean>('env.stars');
-  const figures = useEnvSetting<boolean>('env.constellations');
-  const details = useEnvSetting<boolean>('env.details');
-  const invalidate = useThree((s) => s.invalidate);
-  useEffect(() => {
-    skyLayers.value = details ? 1 : 0;
-    invalidate();
-  }, [details, invalidate]);
-  return (
-    <>
-      <CameraFloor />
-      <Heavens stars={stars} figures={figures} />
-      <Sky />
-      <Ground />
-      <Sculptures turn={turn} />
-      <Mist />
-      {details && <Details />}
-    </>
-  );
-};
+export const Stage = ({ orientation }: StageProps) => (
+  <>
+    <CameraFloor />
+    <Heavens />
+    <Sky />
+    <Ground />
+    <Sculptures turn={orientation === 'black' ? -1 : 1} />
+    <Mist />
+    <Details />
+  </>
+);

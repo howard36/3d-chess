@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useThree } from '@react-three/fiber';
 import {
   BufferAttribute,
   BufferGeometry,
@@ -14,7 +13,6 @@ import { useLevelFocus } from './focus';
 import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
 import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
-import { useEnvSetting } from './settings-env';
 
 // The levels: five sheets of clear glass, each edged by one thin square of
 // light in its level's colour. On the glass, the 3D chess checker (dark
@@ -125,15 +123,24 @@ const fragmentShader = /* glsl */ `
   }`;
 
 const WHITE = new Color('#ffffff');
-const FROST = 0.12;
-const SMOKE = 0.06;
+const FROST = 0.108;
+const SMOKE = 0.054;
 const LINE = 0.5;
 const EDGE = 0.8;
-const EDGE_WIDTH = 0.022;
-/** The edge's depth below the glass at "Border height" 1.0×. */
-const EDGE_HEIGHT = 0.03;
-/** How far the glass runs in under the edge's light: half its width (at 1.0×). */
+/** The edge's brightness: the level attended to reaches past full opacity. */
+const EDGE_BRIGHT = 1.1;
+/**
+ * The square of light widens outward from the glass's edge, never into the
+ * squares, and deepens downward from it into a rim, never rising in front of
+ * the pieces standing on the edge squares.
+ */
+const EDGE_WIDTH = 0.0286;
+/** The edge's depth below the glass. */
+const EDGE_HEIGHT = 0.021;
+/** How far the glass runs in under the edge's light: half its width. */
 const FILL = EDGE_WIDTH / 2;
+/** The glass's half-side out to its edge's light. */
+const REACH = FRAME.half + MARGIN;
 
 type V3 = [number, number, number];
 
@@ -167,17 +174,14 @@ const roundedSquare = (half: number, r: number): [number, number][] =>
  * very slightly rounded (inner and outer edges on one centre, so the band
  * keeps its width round the bend) and nothing inside it, so no two faces
  * ever lie over each other and the ring is equally bright all the way round,
- * corners included (four overlapping bars drew their corners twice). Each
- * vertex carries its light's alpha: full along the glass, `low` along the
- * rim's lower edge. The glass it frames stays square: its corner lies
- * inside the rounded band.
+ * corners included (four overlapping bars drew their corners twice). The
+ * glass it frames stays square: its corner lies inside the rounded band.
  */
-const rimGeometry = (inner: number, width: number, height: number, low: number) => {
+const rimGeometry = (inner: number, width: number, height: number) => {
   const r = CORNER * width;
   const ins = roundedSquare(inner, r);
   const outs = roundedSquare(inner + width, r + width);
   const pos: number[] = [];
-  const rgba: number[] = [];
   // A quad facing `normal`, wound to face it
   const quad = (a: V3, b: V3, c: V3, d: V3, normal: V3) => {
     const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
@@ -188,7 +192,6 @@ const rimGeometry = (inner: number, width: number, height: number, low: number) 
     for (const i of [0, 1, 2, 0, 2, 3]) {
       const p = corners[i];
       pos.push(...p);
-      rgba.push(1, 1, 1, p[1] < -height / 2 ? low : 1);
     }
   };
   // Face by face: the top, the underside and the outer sides (group 0), then
@@ -232,19 +235,10 @@ const rimGeometry = (inner: number, width: number, height: number, low: number) 
   }
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setAttribute('color', new BufferAttribute(new Float32Array(rgba), 4));
   g.addGroup(0, front, 0);
   g.addGroup(front, pos.length / 3 - front, 1);
   return g;
 };
-
-/** The ring's measures in world space, for rimSkip: its inner and outer half-sides and its top and bottom. */
-interface RimShape {
-  uRimInner: { value: number };
-  uRimOuter: { value: number };
-  uRimTop: { value: number };
-  uRimBottom: { value: number };
-}
 
 /**
  * Gives a ring's inner-side material the one test that keeps the ring a
@@ -253,17 +247,17 @@ interface RimShape {
  * another face of the same ring, the near outer side (entering the ring's
  * outer square between its top and bottom), its top or its underside
  * (crossing their planes within the band). Those are the only faces that
- * can lie over an inner side on screen. The shape's values are set per
- * level (Levels).
+ * can lie over an inner side on screen. `top` is the level's height: the
+ * ring's measures in world space are its inner and outer half-sides and its
+ * top and bottom.
  */
-const rimSkip = (m: MeshBasicMaterial) => {
-  const shape: RimShape = {
-    uRimInner: { value: 0 },
-    uRimOuter: { value: 0 },
-    uRimTop: { value: 0 },
-    uRimBottom: { value: 0 },
+const rimSkip = (m: MeshBasicMaterial, top: number) => {
+  const shape = {
+    uRimInner: { value: REACH },
+    uRimOuter: { value: REACH + EDGE_WIDTH },
+    uRimTop: { value: top },
+    uRimBottom: { value: top - EDGE_HEIGHT },
   };
-  m.userData.rim = shape;
   m.customProgramCacheKey = () => 'rim-inner';
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shape);
@@ -317,35 +311,20 @@ const rimSkip = (m: MeshBasicMaterial) => {
 
 /** The five levels (see above). Decorative: nothing here takes a click. */
 export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
-  const reach = FRAME.half + MARGIN;
-  // The player's border width, height and brightness (settings-env.ts): the
-  // square of light widens outward from the glass's edge, never into the
-  // squares, and deepens downward from it into a rim, never rising in front
-  // of the pieces standing on the edge squares
-  const borderWidth = useEnvSetting<number>('env.borderWidth');
-  const borderHeight = useEnvSetting<number>('env.borderHeight');
-  const borderBright = useEnvSetting<number>('env.borderBrightness');
   const plane = useMemo(
     // Out to the middle of the edge's light, so no seam can open between them
-    () => {
-      const fill = FILL * borderWidth;
-      return new PlaneGeometry((reach + fill) * 2, (reach + fill) * 2).rotateX(-Math.PI / 2);
-    },
-    [reach, borderWidth],
+    () => new PlaneGeometry((REACH + FILL) * 2, (REACH + FILL) * 2).rotateX(-Math.PI / 2),
+    [],
   );
-  const edge = useMemo(() => {
-    // A deep rim is a band of light, full at the glass and fading toward its
-    // lower edge (at the old default depth it is one even line, as it was)
-    const k = Math.min(Math.max((borderHeight - 1) / 3, 0), 1);
-    const low = 1 - 0.6 * k * k * (3 - 2 * k);
-    return rimGeometry(reach, EDGE_WIDTH * borderWidth, EDGE_HEIGHT * borderHeight, low);
-  }, [reach, borderWidth, borderHeight]);
+  const edge = useMemo(() => rimGeometry(REACH, EDGE_WIDTH, EDGE_HEIGHT), []);
   useEffect(() => () => plane.dispose(), [plane]);
   useEffect(() => () => edge.dispose(), [edge]);
   const materials = useMemo(
     () =>
       LEVEL_COLORS.map((hex, z) => {
         const tint = new Color(hex);
+        // The edge: one thin square of the level's light, lifted toward white
+        const edgeColor = tint.clone().lerp(WHITE, 0.3);
         return {
           glass: new ShaderMaterial({
             transparent: true,
@@ -354,11 +333,13 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
             uniforms: {
               uColor: { value: tint.clone() },
               // The frost: the level's light, mostly white
-              uFrost: { value: tint.clone().lerp(new Color('#ffffff'), 0.55) },
+              uFrost: { value: tint.clone().lerp(WHITE, 0.55) },
               uSmoke: { value: new Color('#000000') },
               uCells: { value: GRID_SIZE },
               uLevel: { value: z },
               uReach: { value: MARGIN / FRAME.pitch },
+              // Under the inner half of the edge's light, and inside its
+              // rounded corners: the glass's square corner never shows past them
               uFill: { value: (MARGIN + FILL) / FRAME.pitch },
               uFrostA: { value: FROST },
               uSmokeA: { value: SMOKE },
@@ -373,22 +354,20 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
             vertexShader,
             fragmentShader,
           }),
-          // The edge: one thin square of the level's light, lifted toward white
-          edgeColor: tint.clone().lerp(new Color('#ffffff'), 0.3),
+          edgeColor,
           // It writes no depth, so it hides nothing behind it (a glow, a
           // marker, a label): light, not a wall. Its faces never stack all
           // the same: the inner sides skip what lies behind the others
           edge: [false, true].map((inner) => {
             const m = new MeshBasicMaterial({
-              color: tint.clone().lerp(new Color('#ffffff'), 0.3),
-              vertexColors: true,
+              color: edgeColor.clone(),
               transparent: true,
               opacity: EDGE,
               depthWrite: false,
               toneMapped: false,
               fog: false,
             });
-            if (inner) rimSkip(m);
+            if (inner) rimSkip(m, FRAME.levelY[z]);
             return m;
           }),
         };
@@ -403,42 +382,14 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
       }),
     [materials],
   );
-  // The player's checker and line strengths (settings-env.ts)
-  const checker = useEnvSetting<number>('env.checker');
-  const lines = useEnvSetting<number>('env.gridLines');
-  const invalidate = useThree((s) => s.invalidate);
-  useEffect(() => {
-    for (const m of materials) {
-      m.glass.uniforms.uFrostA.value = FROST * checker;
-      m.glass.uniforms.uSmokeA.value = SMOKE * checker;
-      m.glass.uniforms.uLine.value = LINE * lines;
-      // Under the inner half of the edge's light, and inside its rounded
-      // corners: the glass's square corner never shows past them
-      m.glass.uniforms.uFill.value = (MARGIN + FILL * borderWidth) / FRAME.pitch;
-    }
-    invalidate();
-  }, [materials, checker, lines, borderWidth, invalidate]);
-  // Each edge's light: its focus (below) times the player's brightness. Up to
-  // full opacity the light is the edge's opacity; past it, its colour, which
-  // keeps its hue at full strength and then pales a little toward white, so
-  // a focused edge still stands out, in its own colour, at any brightness
+  // Each edge's light: its focus (below) times its brightness. Up to full
+  // opacity the light is the edge's opacity; past it, its colour, which keeps
+  // its hue at full strength and then pales a little toward white, so a
+  // focused edge still stands out, in its own colour, at any brightness
   const edgeLight = useRef(LEVEL_COLORS.map(() => EDGE));
-  const bright = useRef(borderBright);
-  bright.current = borderBright;
-  // Each ring's shape for its inner sides' test (rimSkip)
-  useEffect(() => {
-    materials.forEach((m, z) => {
-      const shape = m.edge[1].userData.rim as RimShape;
-      shape.uRimInner.value = reach;
-      shape.uRimOuter.value = reach + EDGE_WIDTH * borderWidth;
-      shape.uRimTop.value = FRAME.levelY[z];
-      shape.uRimBottom.value = FRAME.levelY[z] - EDGE_HEIGHT * borderHeight;
-    });
-    invalidate();
-  }, [materials, reach, borderWidth, borderHeight, invalidate]);
   const applyEdge = (z: number) => {
     const m = materials[z];
-    const light = edgeLight.current[z] * bright.current;
+    const light = edgeLight.current[z] * EDGE_BRIGHT;
     const [caps, sides] = m.edge;
     caps.opacity = Math.min(light, 1);
     const c = caps.color.copy(m.edgeColor).multiplyScalar(Math.max(light, 1));
@@ -449,11 +400,6 @@ export const Levels = ({ focusLevel }: { focusLevel: number | null }) => {
     sides.opacity = caps.opacity;
     sides.color.copy(caps.color);
   };
-  useEffect(() => {
-    materials.forEach((_, z) => applyEdge(z));
-    invalidate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- applyEdge reads refs
-  }, [materials, borderBright, invalidate]);
   useLevelFocus(
     focusLevel,
     (weights, any) => {
