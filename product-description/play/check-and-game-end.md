@@ -70,11 +70,11 @@ Clicking "Start new game" is the dialog's only action. It sends no request about
 
 ### While in flight
 
-Nothing is in flight: the move to the start screen is immediate. The start screen shows "Connecting to server…" for the moment it takes the fresh connection to open.
+Nothing is in flight: the move to the start screen is immediate. The start screen says nothing while the fresh connection opens; a click on "Start a game" before it has opened reads "Connecting…" until it does.
 
 ### The answer arrives
 
-The player is on the [start screen](../start/creating-a-game.md), with a fresh connection and nothing from the old game carried over. "Start New Game" there creates a brand-new game, with a new id, a new random seat, and a new link to send; there is no rematch that keeps the same opponent or swaps colors. The opponent is not invited or told; each player leaves the finished game on their own.
+The player is on the [start screen](../start/creating-a-game.md), with a fresh connection and nothing from the old game carried over. "Start a game" there creates a brand-new game, with a new id, a new random seat, and a new link to send; there is no rematch that keeps the same opponent or swaps colors. The opponent is not invited or told; each player leaves the finished game on their own.
 
 The finished game remains on the server unchanged until it expires, about 30 days after it was last active.
 
@@ -132,7 +132,7 @@ The finished game remains on the server unchanged until it expires, about 30 day
 - **The turn pill after the game.** Under the veil it reads the result from the player's side ("Checkmate · you lose" for a mated player), without the "CHECK" badge, although the mated King is still red.
 - **Enter after the last move.** Focus moves to "Start new game" as the dialog appears, so a key press meant for something else (a second Enter in the move box after typing the mating move, for example) can take the player straight to the start screen.
 - **The replaced dialog over the result.** If another tab takes the seat while the end-game dialog is up, the replaced dialog covers it, and the end-game dialog is made inert with everything else: "Play here" is the only thing Tab reaches.
-- **Both players each start over.** "Start new game" does not create a game; the player still has to click "Start New Game" on the start screen and send a new link.
+- **Both players each start over.** "Start new game" does not create a game; the player still has to click "Start a game" on the start screen and send a new link.
 - **Back after starting over.** Browser Back from the start screen returns to the finished game, rejoins it (the opponent sees the player online again), and shows the dialog.
 - **Stalemate by the player's own move.** The player whose move stalemates the opponent sees "Draw" with "by stalemate" when the dialog appears, like the opponent.
 - **Two Kings alone.** Not a draw: the game continues, and can only end by the players leaving. See [the rules](../foundations/game-rules.md#what-standard-chess-has-that-this-game-does-not).

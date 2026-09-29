@@ -75,7 +75,7 @@ The move box is the second way to play a move and the only one that works withou
 
 ## HTML controls and the keyboard
 
-Buttons and links behave as they do on any web page: they act on click (release), can be reached with Tab, and are activated with Enter or Space. The app's buttons are "Start New Game", "Join Game", "Copy link" on the share-link screen, the move box's ↵ ("Play the move"), the error banner's "✕" ("Dismiss error"), the five piece buttons and "Cancel" in the promotion dialog, "Start new game" in the end-game dialog, "Play here" in the replaced dialog, and the crash screen's "Back to start" link. A disabled button cannot be reached with Tab. On the board screen, Tab goes first to the move box, then its ↵ button.
+Buttons and links behave as they do on any web page: they act on click (release), can be reached with Tab, and are activated with Enter or Space. The app's buttons are "Start a game" on the start screen, "Join Game", "Copy link" on the share-link screen, the move box's ↵ ("Play the move"), the error banner's "✕" ("Dismiss error"), the five piece buttons and "Cancel" in the promotion dialog, "Start new game" in the end-game dialog, "Play here" in the replaced dialog, and the crash screen's "Back to start" link. A disabled button cannot be reached with Tab. On the board screen, Tab goes first to the move box, then its ↵ button.
 
 Each dialog puts keyboard focus on its first button when it opens: "Queen" in the promotion dialog, "Start new game" in the end-game dialog, and "Play here" in the replaced dialog. Enter or Space then answers it at once, and Tab moves between the dialog's buttons only, because everything behind it is inert.
 

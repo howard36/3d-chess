@@ -146,7 +146,8 @@ Key decisions:
   behind the tower from high up). It centres them
   between the band kept for the HUD's top pill and the captured pieces under it (82 px; 56
   in a short window, where they stand beside the tower: `hudTop`) and the bottom of the
-  window, by a lens shift (a view offset, `three/viewOffset.ts`) rather than a pan. A
+  window (or a band kept clear above it, `bottomInset`, which only the landing page's
+  preview asks for: see Landing page), by a lens shift (a view offset, `three/viewOffset.ts`) rather than a pan. A
   circle about the axis looks the same whichever way the camera has turned, so the shift
   is only ever vertical. It is set with the fit (on opening and when the window changes
   shape) and then left alone: turning, climbing and zooming never move the tower's centre
@@ -199,6 +200,34 @@ Key decisions:
   `data-online`; `captured-pieces` each haul as `data-side` (`me`, `them`); and
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
   and `data-move-count`.
+- **Landing page.** The start screen at `/` (`screens/StartScreen.tsx`) fills the window
+  with a live preview (`screens/LandingPreview.tsx`): the real `Board`, drawn without its
+  labels (`labels={false}`) and framed on the tower alone (`towerBodyRings`), plays a
+  scripted 17-ply game ending in White's mate (`game/demo.ts`, the game `showcase.mjs`
+  records) as a log of `move_made` messages through `deriveHistory`, like a live game,
+  then fades under a veil and plays it again, while `three/AutoOrbit.tsx` turns the camera
+  round the tower at a fixed elevation, a full turn every two passes
+  (`three/landingView.ts`). The demo's clock is r3f's. The title stands above the
+  tower and "Start a game" (a pill with a knight glyph and a slowly turning rim in the
+  five level colours) below it, each in a band of the same height that the fit keeps
+  clear above and below the tower (`hudTopBand` and `bottomBand`, both `landingBand`:
+  124 px, 140 in a window 860 px tall or more, `LANDING_BAND_PX` and `--landing-band`),
+  at the band's edge nearest the tower, 16 px from it (`--landing-hug`), so the two
+  mirror each other about the tower; a window 480 px tall or less
+  sets the text in a column at the left instead (band 12). Nothing is written under the
+  button: what a create waits on is its label ("Connecting…" or "Reconnecting…" while
+  the socket opens, then "Creating game…"), and a visually hidden `role="status"` says
+  "Connecting to server…" / "Reconnecting to server…" meanwhile (empty otherwise). A
+  server error answering the create turns the label to "Try again"; the message
+  ("Couldn't start a game: …") is in a visually hidden `role="alert"` and the button's
+  `title`. The button can be pressed while the socket connects (the create is queued);
+  once pressed it is held until answered, by `aria-disabled` rather than `disabled`, so a
+  keyboard player keeps focus on it. The canvas is `aria-hidden` and
+  takes no pointer, and a visually hidden sentence says what it shows. The start button
+  is the page's only control: the preview always plays (it has no pause), except under
+  `prefers-reduced-motion`, where it is a still of the final position, the king left
+  standing, with a still rim. In development `?t=<seconds>` starts the demo
+  that far in.
 
 ## Protocol
 
@@ -454,7 +483,10 @@ column shows the relief in one plain material instead).
 client/          React app (Vite). Engine in src/engine, log-derived game state in src/game,
                  UI in src/screens + src/three.
 client/e2e/      Playwright tests; boots the real server and Vite (see playwright.config.ts).
+client/bench/    Client benchmarks (vitest bench) and their seeded fixtures.
 server/          FastAPI app + Modal deployment (modal_app.py), schema, generated models, pytest suite.
+server/bench/    Server benchmarks: store operations, live WebSocket load, adversarial input.
+bench/           The benchmark runner (run.mjs) and its latest report (RESULTS.md).
 ```
 
 ## Development
@@ -474,6 +506,9 @@ cd client && VITE_WS_URL=ws://127.0.0.1:8000/ws npm run dev
 cd client && npm run test          # unit/component (Vitest)
 cd client && npm run e2e           # Playwright; starts server + Vite itself
 uv run --project server pytest     # server tests (spawns a real uvicorn)
+
+# Benchmarks: every tier in turn, then read bench/RESULTS.md (--quick for a smoke run)
+node bench/run.mjs                 # --only client|server|browser; --compare <old bench/out>
 
 # Deploy backend manually (not normally needed — CI deploys on merge to main).
 # GITHUB_SHA is what /health reports; without it the image says "dev".
@@ -514,6 +549,38 @@ must be added there (`r3fCatalogue.test.ts` fails until it is). The e2e suite ru
 the dev server, which does neither: to run it against a build, start `vite preview` on
 port 5173 (built with `VITE_WS_URL=ws://127.0.0.1:8000/ws`) and the backend first, and
 Playwright reuses them.
+
+### Benchmarks
+
+`node bench/run.mjs` runs three tiers one after another and writes `bench/RESULTS.md`
+(raw JSON in the ignored `bench/out/`): **client**, the rules engine, the log-derived game
+state, the board's pointer and frame math (`client/bench/*.bench.ts`, vitest bench over
+seeded games and positions built to be as expensive as the rules allow) and the piece
+geometry's cold startup (`client/bench/startup.ts`); **server**, the relay in process and
+over real sockets, with store models that mimic `modal.Dict`'s copies and blocking calls
+(`server/bench/bench_server.py`); and **browser**, the production build end to end in
+headless Chromium (`client/scripts/bench-browser.mjs`, software WebGL, so its frame times
+are only relative). Cases marked ⚠ are adversarial. Numbers compare only between runs on
+one machine; the report records the machine, the commit and each tier's run time.
+
+To measure a change, run `node bench/run.mjs --base <ref>` (e.g. `--base HEAD` for
+uncommitted work, `--base main` for a branch): it checks the base commit out into a
+temporary worktree, gives it this checkout's benchmark code, and runs the two
+interleaved (base, head, head, base, ...), judging each change by pairs of runs made next
+to each other, so a shared machine speeding up or slowing down over the run cannot pass
+for a change. It writes `bench/out/AB.md`; narrow it (`--only client --files engine --grep
+E4`) and a comparison takes under a minute. A saved run can also be compared with
+`--compare <copy of bench/out>`, which is only as good as the machine was steady between
+the two runs: every table gains a "vs baseline" column and the report opens with what got
+better or worse beyond the noise. Each client case runs in
+three rounds and starts from a collected heap; its "Run-to-run" spread is the noise a change
+must beat to count (the server and browser tiers get one with `--repeat 3`, at three times
+their run time; measured once, they only resolve changes of about 30% on a shared VM). While iterating, run one
+tier (`--only client`) or one file or case directly (`npx vitest bench --config
+vitest.bench.config.ts bench/engine.bench.ts -t E4`; the server and browser scripts take
+`--only <section>`). The client fixtures' games are chosen in a fixed move order and
+fingerprinted, so a faster engine is timed on exactly the same games, and a change to the
+rules stops the client tier instead of timing different work.
 
 ## Known limitations (accepted for this project's scope)
 

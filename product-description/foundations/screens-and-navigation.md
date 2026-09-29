@@ -37,7 +37,7 @@ stateDiagram-v2
 
 ## The start screen
 
-The page at `/`: the title "3D Chess", the "Start New Game" button, and, while the connection is not open, a gray status line. Errors appear in red under the button. The whole screen and its one request are described in [creating a game](../start/creating-a-game.md).
+The page at `/`, a landing page: the [preview](../glossary.md#the-product-and-its-screens) (the glass tower turning slowly in its garden while a sample game plays itself on it) fills the window, with the title "3D Chess" above the tower, the "Start a game" button below it, and nothing under the button: what a click waits on ("Connecting…", "Creating game…") and an error ("Try again") show in the button's own label. The button is the page's only control. The preview is only a picture, always playing: it takes no input and is not a game. The whole screen and its one request are described in [creating a game](../start/creating-a-game.md).
 
 The start screen is where every route out of a game leads, and arriving at it by any route [resets the connection](connection-and-seat.md#returning-to-the-start-screen).
 
@@ -74,7 +74,7 @@ The app changes pages in three ways of its own, and the browser adds its usual c
 
 | Action | From | To | What happens to the game on this page |
 | --- | --- | --- | --- |
-| The new game's id arrives after "Start New Game" | start screen | the new game page | The page arrives already holding the creator's seat; no rejoin. A new history entry is added. |
+| The new game's id arrives after "Start a game" | start screen | the new game page | The page arrives already holding the creator's seat; no rejoin. A new history entry is added. |
 | "Start new game" in the end-game dialog | board screen | start screen | The connection is reset: the opponent sees the player "Offline" on their turn pill. A new history entry is added, so Back returns to the finished game. |
 | "Back to start" on the crash screen | crash screen | start screen | A full page load, like typing the address. |
 | Browser Back or Forward to the start screen | game page | start screen | The connection is reset, as above. |
@@ -111,7 +111,7 @@ Navigation has no request of its own, but each interrupt row applies to the page
 | Pressing elsewhere or turning the view | No effect on navigation. | No effect. |
 | Leaving the game page within the app | Resets the connection on arrival at the start screen or at another game's page; see the table above. | Any request in flight is abandoned by the page, and a create or join is no longer re-sent; the server may still record it. See each feature's own table. |
 | The game ends | The end-game dialog appears over the board screen; its only way out is "Start new game". | Same. |
-| The server answers with an error | Shown on the page that is open when it arrives: in red under the button on the start screen, in the error banner on the game page. | Same. |
+| The server answers with an error | Shown on the page that is open when it arrives: on the start screen as the button's "Try again", the message ("Couldn't start a game: …") announced and in its tooltip, in the error banner on the game page. | Same. |
 | The connection drops | The page stays where it is and shows its reconnecting indicator; the board screen stays up, and its board takes no input until the rejoin's snapshot arrives. | Same. |
 | The window loses focus or the tab is hidden | No effect; the page keeps its connection and phase. | No effect. |
 | Reload or closing the tab | Everything but the stored seat and the server's record is lost. | Same; the answer to a request in flight is lost. |
@@ -135,7 +135,7 @@ Navigation has no request of its own, but each interrupt row applies to the page
 
 **Stored seat.** Written by the start screen and the game page; never removed by navigation.
 
-**Keyboard, touch, and screen size.** Browser Back and Forward work from the keyboard as usual. Each dialog takes keyboard focus when it opens, and everything behind it is out of reach until it goes away. Nothing on the pages changes with window size except layout: the game page's title shrinks below 640 pixels (the start screen's does not), the share link wraps anywhere, and the board screen's HUD stacks into more rows; see [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
+**Keyboard, touch, and screen size.** Browser Back and Forward work from the keyboard as usual. Each dialog takes keyboard focus when it opens, and everything behind it is out of reach until it goes away. Nothing on the pages changes with window size except layout: the game page's title shrinks below 640 pixels, the start screen's text moves to a column beside the tower in a window 480 pixels tall or less, the share link wraps anywhere, and the board screen's HUD stacks into more rows; see [screen sizes and touch](../cross-cutting/screen-sizes-and-touch.md).
 
 ## Edge cases
 
@@ -154,7 +154,8 @@ Navigation has no request of its own, but each interrupt row applies to the page
 - The phase rules, the dialogs' focus, and the inert page behind them are covered by `client/src/App.test.tsx`; the reset on returning to the start screen by `client/e2e/gameOver.spec.ts`; the crash screen by `client/src/components/ErrorBoundary.test.tsx`. Which real failures reach the crash screen is unconfirmed.
 - The reset on moving from one game's page straight to another's, and the single rejoin after Back and Forward during an outage ([bug-triage B-10](../bug-triage.md)), are read from `client/src/App.tsx`, `client/src/hooks/useGameSocket.ts`, and `client/src/screens/GameScreen.tsx`. The jump is covered by `client/src/AppNavigation.test.tsx`, which also checks that the new game's page keeps its own stored seat; the single rejoin is not covered by a test.
 - The claim that the crash screen closes the page's connection (the crashed page is taken down along with everything it owned) is read from code; not observed.
-- Whether a browser without 3D support reaches the crash screen was not tried.
+- Whether a browser without 3D support reaches the crash screen was not tried. Since the landing page, the start screen needs 3D support too, for its preview; what it shows without it was not tried either.
+- The start screen's description was brought up to the landing page from `client/src/screens/StartScreen.tsx` and `client/src/screens/LandingPreview.tsx`, not checked in the running app, and needs re-verification.
 
 - The HUD wording in this document (the turn pill, presence as "Offline" on it, the move box, brought up by Tab, the dialogs as glass cards over a veil) was brought up to the new HUD from `client/src/screens/` and the [game page documents](../game-page/turn-indicator.md) at `bb16fed`, not checked in the running app, and needs re-verification.
 - The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](the-view.md), not checked in the running app, and need re-verification.

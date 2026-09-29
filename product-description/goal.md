@@ -67,7 +67,7 @@ The game page:
 
 - Phase is derived from the server's messages on this page: playing once the game has started (a start notice or a snapshot saying started), joined after "Join Game" is clicked or the seat is confirmed, otherwise before joining. Before joining, a stored seat shows the share-link screen and no stored seat shows the join screen.
 - The board, and therefore the view, mounts only in the playing phase. Nothing can be selected or looked at before both seats are taken.
-- Only the latest server error is shown, as the error banner on the game page and as red text on the start screen. Dismissing hides every error so far; a later error shows again.
+- Only the latest server error is shown, as the error banner on the game page and, on the start screen, as a "Try again" button whose tooltip (and a screen reader's announcement) carries the message. Dismissing hides every error so far; a later error shows again.
 - Game over is decided by each browser from the record. The end-game dialog covers the board and offers only "Start new game", which goes to the start screen.
 
 Established by the verification passes (scripted; see verification/README.md):

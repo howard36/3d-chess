@@ -9,52 +9,21 @@ export interface TracePathOptions {
    * the platform (at least the line's radius), and no more.
    */
   lift?: number;
-  /**
-   * Land this far short of the destination's centre, level with its floor
-   * and on the side facing the source (default 0: at the centre). Just
-   * outside the footprint of the piece standing there, the line then meets
-   * the platform beside it, in plain view, instead of running into the piece.
-   * A move straight up or down lands on the +x side.
-   */
-  inset?: number;
-  /**
-   * The level direction [x, z] the player's seat looks from. A landing that
-   * would fall behind the piece seen from there, hidden by it, turns to the
-   * piece's side instead (toward the source's side, else +x).
-   */
-  insetFront?: readonly [number, number];
 }
-
-/** The level direction [x, z] a move straight up or down lands in. */
-const SIDE = [1, 0] as const;
 
 /**
  * The centreline of the last-move line, from the centre of the source
  * square's floor to the centre of the destination's, raised `lift` off the
  * platforms: a straight segment, whatever the level change (a vertical move
- * runs straight up or down through the squares' centres). Without an `inset`
- * it ends inside the piece that moved, which hides the end of the line
- * standing over it; with one it lands on the floor beside that piece.
+ * runs straight up or down through the squares' centres). It ends under the
+ * piece that moved, which hides the end of the line standing over it.
  */
 export const tracePath = (from: Vec3, to: Vec3, o: TracePathOptions = {}): [Vec3, Vec3] => {
   const lift = o.lift ?? 0.03;
-  const inset = o.inset ?? 0;
-  const dx = from[0] - to[0];
-  const dz = from[2] - to[2];
-  const level = Math.hypot(dx, dz);
-  let [sx, sz] = level > 1e-6 ? [dx / level, dz / level] : SIDE;
-  const front = o.insetFront;
-  const toward = front && level > 1e-6 ? sx * front[0] + sz * front[1] : 0;
-  if (front && toward < 0) {
-    // Behind the piece from the seat: to its side, on the source's side
-    const lx = sx - toward * front[0];
-    const lz = sz - toward * front[1];
-    const l = Math.hypot(lx, lz);
-    [sx, sz] = l > 1e-3 ? [lx / l, lz / l] : SIDE;
-  }
-  const a: Vec3 = [from[0], from[1] + lift, from[2]];
-  const b: Vec3 = [to[0] + sx * inset, to[1] + lift, to[2] + sz * inset];
-  return [a, b];
+  return [
+    [from[0], from[1] + lift, from[2]],
+    [to[0], to[1] + lift, to[2]],
+  ];
 };
 
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];

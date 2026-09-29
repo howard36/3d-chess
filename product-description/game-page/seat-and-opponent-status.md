@@ -37,7 +37,7 @@ The pill appears the instant the game page reaches the [playing phase](../founda
 
 The player's stone is always at the left end of the pill and the opponent's at the right, whichever color the player holds. Once shown, the stones do not change for as long as the page is open, because a [seat](../foundations/connection-and-seat.md#seats) is held for the life of the game. The pill stays fixed while the view is turned or zoomed. Where it sits at each window size is described in [the turn indicator](turn-indicator.md#begin).
 
-The share-link, join, and joined screens show no pill, even though the page may already know the color: the creator's answer to "Start New Game", the joiner's seat confirmation, and the [stored seat](../foundations/connection-and-seat.md#the-stored-seat) all carry it. A creator therefore learns their color only when the board appears (see [creating a game](../start/creating-a-game.md)).
+The share-link, join, and joined screens show no pill, even though the page may already know the color: the creator's answer to "Start a game", the joiner's seat confirmation, and the [stored seat](../foundations/connection-and-seat.md#the-stored-seat) all carry it. A creator therefore learns their color only when the board appears (see [creating a game](../start/creating-a-game.md)).
 
 ### Presence becomes known
 
