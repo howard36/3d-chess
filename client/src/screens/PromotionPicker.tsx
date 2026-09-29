@@ -3,7 +3,7 @@ import type { Move } from '../engine';
 import type { Turn } from '../game/history';
 import { PieceGlyph } from './PieceGlyph';
 
-export interface PromotionPickerProps {
+interface PromotionPickerProps {
   /** The legal promotion moves for the clicked square, one per piece. */
   choices: Move[];
   /** The player's colour: the pieces are drawn in their army's material. */

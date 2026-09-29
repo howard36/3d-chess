@@ -36,6 +36,15 @@ function Navigator() {
   return null;
 }
 
+test('the default route is the start screen', async () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  );
+  expect(await screen.findByRole('button', { name: 'Start New Game' })).toBeInTheDocument();
+});
+
 test('jumping from one game page to another keeps each game its own seat', async () => {
   // Game A: this page joined it live and got Black. Game B: this browser is White there.
   setStoredRole('GAMEB0', 'white');

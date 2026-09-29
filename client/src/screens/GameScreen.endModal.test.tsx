@@ -1,11 +1,9 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { GameSocket } from '../hooks/useGameSocket';
 import type { WebSocketMessage } from '../types/messages';
 import { Board } from '../engine';
 import { fromZXY } from '../engine/coords';
-import GameScreen from './GameScreen';
+import { fakeSocket, gameScreenAt } from './testSupport';
 
 // As in App.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
 vi.mock('@react-three/fiber', () => ({
@@ -35,23 +33,7 @@ const records = GAME.map((m, i) => {
   return { by: i % 2 === 0 ? ('white' as const) : ('black' as const), from, to };
 });
 
-const socket = (messages: WebSocketMessage[]): GameSocket => ({
-  send: () => true,
-  messages,
-  status: 'connected',
-  sessionId: 1,
-  sessionStartIndex: 0,
-  reconnect: () => {},
-  reset: () => {},
-});
-
-const screenFor = (messages: WebSocketMessage[]) => (
-  <MemoryRouter initialEntries={['/game/abc123']}>
-    <Routes>
-      <Route path="/game/:gameId" element={<GameScreen gameSocket={socket(messages)} />} />
-    </Routes>
-  </MemoryRouter>
-);
+const screenFor = (messages: WebSocketMessage[]) => gameScreenAt(fakeSocket(messages));
 
 const beforeMate: WebSocketMessage[] = [
   { type: 'game_start', color: 'white' },

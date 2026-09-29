@@ -1,7 +1,7 @@
 import React from 'react';
 import type { GameOver, Turn } from '../game/history';
 
-export interface TurnPillProps {
+interface TurnPillProps {
   /** This player's colour. */
   seat: Turn;
   /** The side to move. */

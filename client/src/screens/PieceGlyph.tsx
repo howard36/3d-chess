@@ -30,13 +30,11 @@ export const PieceGlyph = ({
   type,
   color,
   size,
-  className,
 }: {
   type: PieceType;
   color: Turn;
   /** Its height in CSS px; the box is square. */
   size: number;
-  className?: string;
 }) => {
   // Each glyph its own gradient: a shared id would draw nothing wherever the
   // first glyph to declare it is out of the page's rendering. (Only letters
@@ -47,7 +45,6 @@ export const PieceGlyph = ({
       viewBox="0 0 24 24"
       width={size}
       height={size}
-      className={className}
       data-piece={type}
       data-color={color}
       aria-hidden
