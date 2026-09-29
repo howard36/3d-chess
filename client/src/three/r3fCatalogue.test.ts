@@ -9,7 +9,8 @@ import * as catalogue from './r3fCatalogue';
 // runs the dev server) would notice a missing one: a scene element whose
 // class is not listed would only fail in production. So every lowercase
 // JSX element in the scene and the screens that names a three.js class must
-// be listed (but for SVG's own elements whose names three.js shares).
+// be listed (but, in the screens, for SVG's own elements whose names
+// three.js shares).
 const SVG = new Set(['path', 'line']);
 
 const sources = (dir: string): string[] =>
@@ -24,12 +25,16 @@ const sources = (dir: string): string[] =>
 describe('the r3f catalogue', () => {
   it('lists every three.js class the scene writes as an element', () => {
     const used = new Set<string>();
-    for (const file of [...sources(__dirname), ...sources(join(__dirname, '../screens'))]) {
-      for (const [, tag] of readFileSync(file, 'utf8').matchAll(/<([a-z][A-Za-z0-9]*)[\s>/]/g)) {
-        const name = tag[0].toUpperCase() + tag.slice(1);
-        if (name in THREE && !SVG.has(tag)) used.add(name);
+    const scan = (files: string[], skip: Set<string>) => {
+      for (const file of files) {
+        for (const [, tag] of readFileSync(file, 'utf8').matchAll(/<([a-z][A-Za-z0-9]*)[\s>/]/g)) {
+          const name = tag[0].toUpperCase() + tag.slice(1);
+          if (name in THREE && !skip.has(tag)) used.add(name);
+        }
       }
-    }
+    };
+    scan(sources(__dirname), new Set());
+    scan(sources(join(__dirname, '../screens')), SVG);
     expect(used.size).toBeGreaterThan(5);
     expect([...used].filter((name) => !(name in catalogue))).toEqual([]);
     // ...and nothing more, so the list stays the scene's own

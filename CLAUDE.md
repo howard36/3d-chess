@@ -43,7 +43,7 @@ Client code imports wire types from `client/src/types/messages.ts` (hand-written
 
 - `npm run dev` with no `VITE_WS_URL` connects to the **production** Modal backend. For a local backend, export `VITE_WS_URL=ws://127.0.0.1:8000/ws` before starting Vite (it is inlined at startup).
 - Seat color persists in `localStorage` keyed by game id, so a second tab of the same game takes over the seat (the first tab gets a "replaced" notice via close code 4001 and stops reconnecting). For two players use two browser contexts. The creator's color is random. The board only mounts once both players are seated.
-- The e2e suite runs against the dev server, so it never sees what only the build does (the lazy game-screen chunk's preload in `vite.config.ts`, and r3f given only the classes in `src/three/r3fCatalogue.ts`). A scene element whose three.js class is new must be added to that catalogue (`r3fCatalogue.test.ts` checks). README "CI" says how to run e2e against a build.
+- The e2e suite runs against the dev server, so it never sees what only the build does (the lazy game-screen chunk's preload in `vite.config.ts`, and r3f given only the classes in `src/three/r3fCatalogue.ts`). A scene element whose three.js class is new must be added to that catalogue (`r3fCatalogue.test.ts` checks). The end of README "Development" says how to run e2e against a build.
 - The e2e suite writes `playwright-report/` and traces only on CI (`reporter`/`retries` are CI-conditional in `playwright.config.ts`).
 - Python is pinned `>=3.13,<3.14`; `datamodel-code-generator` is pinned exactly so generated output is byte-stable. Keep `uv.lock` tracked.
 

@@ -54,17 +54,38 @@ const preloadGameScreenOnGamePages = (): Plugin => ({
  * the scene uses as elements instead (src/three/r3fCatalogue.ts), and the
  * rest of three.js is left to tree-shaking.
  */
-const r3fCatalogue = (): Plugin => ({
-  name: 'r3f-catalogue',
-  apply: 'build',
-  enforce: 'pre',
-  async resolveId(source, importer) {
-    if (source !== 'three' || !importer?.replaceAll('\\', '/').includes('/@react-three/fiber/'))
+const r3fCatalogue = (): Plugin => {
+  const canvasModule = (id: string) =>
+    id.replaceAll('\\', '/').includes('/@react-three/fiber/') &&
+    id.includes('react-three-fiber.esm');
+  let redirected = false;
+  return {
+    name: 'r3f-catalogue',
+    apply: 'build',
+    enforce: 'pre',
+    async resolveId(source, importer) {
+      if (source !== 'three' || !importer || !canvasModule(importer)) return null;
+      redirected = true;
+      return this.resolve('/src/three/r3fCatalogue.ts', importer, { skipSelf: true });
+    },
+    // The catalogue stands in for three only where r3f uses it to name
+    // elements: fail the build if a new r3f uses it for anything else, or if
+    // the redirect stops applying (all of three.js would quietly come back)
+    transform(code, id) {
+      if (!canvasModule(id)) return null;
+      const bare = code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+      const uses = bare.match(/\bTHREE\b/g)?.length ?? 0;
+      if (uses !== 2 || !/extend\(THREE\)/.test(bare)) {
+        this.error(`r3f-catalogue: ${id} uses THREE beyond extend(THREE); review the catalogue`);
+      }
       return null;
-    if (!importer.includes('react-three-fiber.esm')) return null;
-    return this.resolve('/src/three/r3fCatalogue.ts', importer, { skipSelf: true });
-  },
-});
+    },
+    buildEnd(error) {
+      if (!error && !redirected)
+        this.error("r3f-catalogue: r3f's Canvas module was not redirected");
+    },
+  };
+};
 
 // https://vite.dev/config/
 export default defineConfig({
