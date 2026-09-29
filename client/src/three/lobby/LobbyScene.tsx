@@ -59,6 +59,8 @@ export interface LobbyView {
   onSettled?: () => void;
   /** Arriving: the free seat has filled and the moment has been held. */
   onArrived?: () => void;
+  /** Leaving: the lobby's picture begins to fade over the game (the game's entrance may begin). */
+  onReveal?: () => void;
   /** Leaving: the lobby's picture has faded out over the game. */
   onLeft?: () => void;
 }
@@ -160,12 +162,14 @@ const LobbyRig = ({
   clock,
   anchors,
   canvasHost,
+  onReveal,
   onLeft,
 }: {
   view: LobbyView;
   clock: React.RefObject<{ beat: LobbyBeat; since: number }>;
   anchors: React.RefObject<HTMLElement | null>;
   canvasHost: React.RefObject<HTMLElement | null>;
+  onReveal: () => void;
   onLeft: () => void;
 }) => {
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
@@ -175,13 +179,15 @@ const LobbyRig = ({
   const from = useRef<CameraPose | null>(null);
   const current = useRef<CameraPose | null>(null);
   const left = useRef(false);
+  const revealed = useRef(false);
   const last = useRef('');
   useEffect(() => invalidate(), [size, view.beat, invalidate]);
 
   useFrame((_, delta) => {
     const aspect = size.width / Math.max(size.height, 1);
     const { beat, since } = clock.current;
-    const rest = lobbyPose(aspect, beat !== 'choose');
+    // (a card is docked under the kings while waiting and invited)
+    const rest = lobbyPose(aspect, beat === 'wait' || beat === 'invited');
     let pose = rest;
     let moving = false;
     if (beat === 'wait' || (beat === 'arrive' && view.mine && view.taken[view.mine])) {
@@ -225,6 +231,10 @@ const LobbyRig = ({
       const fade = still ? 0.15 : LOBBY_TIMING.leaveFade;
       const opacity = Math.min(Math.max((start + span - since) / fade, 0), 1);
       if (canvasHost.current) canvasHost.current.style.opacity = String(opacity);
+      if (opacity < 1 && !revealed.current) {
+        revealed.current = true;
+        onReveal();
+      }
       if (k >= 1 && opacity <= 0 && !left.current) {
         left.current = true;
         onLeft();
@@ -233,6 +243,7 @@ const LobbyRig = ({
     } else {
       from.current = null;
       left.current = false;
+      revealed.current = false;
       if (canvasHost.current) canvasHost.current.style.opacity = '1';
     }
     current.current = pose;
@@ -381,6 +392,7 @@ export const LobbyScene = ({
         clock={clock}
         anchors={anchors}
         canvasHost={canvasHost}
+        onReveal={() => callbacks.current.onReveal?.()}
         onLeft={() => callbacks.current.onLeft?.()}
       />
     </>

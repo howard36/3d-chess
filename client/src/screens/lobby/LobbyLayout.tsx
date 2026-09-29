@@ -12,7 +12,10 @@ import type { LobbyApi, LobbyStage } from './lobbyContext';
 // one to the other so the scene never reloads between them. The screens say
 // what it shows (useLobby().show); passing null takes it away.
 
-type Handlers = Pick<LobbyStage, 'onHover' | 'onPick' | 'onSettled' | 'onArrived' | 'onLeft'>;
+type Handlers = Pick<
+  LobbyStage,
+  'onHover' | 'onPick' | 'onSettled' | 'onArrived' | 'onReveal' | 'onLeft'
+>;
 
 /** Whether two views show the same picture (their handlers aside). */
 const samePicture = (a: LobbyStage | null, b: LobbyStage | null) =>
@@ -49,6 +52,7 @@ const LobbyLayout = () => {
                 onPick: (c) => handlers.current.onPick?.(c),
                 onSettled: () => handlers.current.onSettled?.(),
                 onArrived: () => handlers.current.onArrived?.(),
+                onReveal: () => handlers.current.onReveal?.(),
                 onLeft: () => handlers.current.onLeft?.(),
               },
         );

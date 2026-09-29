@@ -59,9 +59,9 @@ export const LOBBY_TIMING = {
   arriveHold: 0.8,
   /** Leaving for the game: the kings go up in light, then the camera draws back. */
   leaveBurn: 0.7,
-  leaveMove: 1.9,
+  leaveMove: 1.6,
   /** The lobby's picture fading over the game's, at the end of the move. */
-  leaveFade: 0.45,
+  leaveFade: 0.6,
 };
 
 // --- The coin toss ---------------------------------------------------------------------------

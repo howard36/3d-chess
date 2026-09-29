@@ -370,6 +370,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // A page that opens on a game already under way has no lobby to leave.
   const [handover, setHandover] = React.useState<'none' | 'arrive' | 'leave' | 'done'>('none');
   const [arrived, setArrived] = React.useState(false);
+  // The lobby has begun to fade off the game: its entrance plays under it
+  const [revealed, setRevealed] = React.useState(false);
   const [gameDrawn, setGameDrawn] = React.useState(false);
   const lobbyShown = React.useRef(false);
   if (phase === 'started' && lobbyShown.current && handover === 'none') setHandover('arrive');
@@ -413,6 +415,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
           ? `They're here · ${color === 'white' ? 'You move first' : 'They move first'}`
           : `You play ${color === 'white' ? 'White · You move first' : 'Black · White moves first'}`,
         onArrived: () => setArrived(true),
+        onReveal: () => setRevealed(true),
         onLeft: () => setHandover('done'),
       };
     }
@@ -475,7 +478,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         // open, a short one for a page that opened on a game under way
         intro={handover !== 'none' || startedLive(messages) ? 'full' : 'short'}
         // Held on its first frame while the lobby plays out over it
-        introPaused={handover === 'arrive' || handover === 'leave'}
+        introPaused={handover === 'arrive' || (handover === 'leave' && !revealed)}
         onFirstFrame={() => setGameDrawn(true)}
       />
     );
