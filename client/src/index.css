@@ -290,6 +290,10 @@
   align-items: stretch;
   gap: 4px;
   max-width: 100%;
+  /* The game's entrance fades the pill in last, settling down onto its place
+     (--intro-hud, set on the game screen by IntroDirector while it plays) */
+  opacity: var(--intro-hud, 1);
+  transform: translateY(calc((1 - var(--intro-hud, 1)) * -6px));
 }
 .hud-captures {
   display: flex;

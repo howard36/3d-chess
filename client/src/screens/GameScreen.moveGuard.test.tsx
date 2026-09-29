@@ -14,6 +14,11 @@ vi.mock('@react-three/fiber', () => ({
 vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
 vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
 vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
+vi.mock('../three/intro/IntroDirector', () => ({
+  INTRO_SCENE_VAR: '--intro-scene',
+  INTRO_HUD_VAR: '--intro-hud',
+  IntroDirector: () => null,
+}));
 vi.mock('../three/Board', () => ({
   default: (props: BoardProps) => {
     board.onMove = props.onMove ?? null;

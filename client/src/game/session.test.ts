@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { hasSessionSince, selectErrors, selectOpponentOnline, selectSeat } from './session';
+import {
+  hasSessionSince,
+  selectErrors,
+  selectOpponentOnline,
+  selectSeat,
+  startedLive,
+} from './session';
 import type { WebSocketMessage } from '../types/messages';
 
 describe('selectSeat', () => {
@@ -96,5 +102,28 @@ describe('selectErrors / hasSessionSince', () => {
     expect(
       hasSessionSince([{ type: 'game_state', color: 'black', started: true, moves: [] }], 0),
     ).toBe(true);
+  });
+});
+
+describe('startedLive', () => {
+  const snapshot = (started: boolean): WebSocketMessage => ({
+    type: 'game_state',
+    color: 'white',
+    started,
+    moves: [],
+  });
+
+  it('is true when the game started while the page was open', () => {
+    expect(startedLive([{ type: 'game_start', color: 'white' }])).toBe(true);
+    // A creator who reloaded while waiting, then saw the opponent arrive
+    expect(startedLive([snapshot(false), { type: 'game_start', color: 'white' }])).toBe(true);
+    // A reconnect's snapshot after the live start changes nothing
+    expect(startedLive([{ type: 'game_start', color: 'white' }, snapshot(true)])).toBe(true);
+  });
+
+  it('is false for a page that opened on a game already under way, or not yet started', () => {
+    expect(startedLive([snapshot(true)])).toBe(false);
+    expect(startedLive([snapshot(true), { type: 'game_start', color: 'white' }])).toBe(false);
+    expect(startedLive([])).toBe(false);
   });
 });
