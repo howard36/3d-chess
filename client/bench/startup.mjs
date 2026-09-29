@@ -22,6 +22,8 @@ const runs = Number(arg('runs', '7'));
 const rtt = Number(arg('rtt', '150'));
 const kbps = Number(arg('kbps', '1600'));
 const cpu = Number(arg('cpu', '4'));
+// --no-idle: a browser without requestIdleCallback (Safari), emulated
+const noIdle = process.argv.includes('--no-idle');
 const TYPES = {
   '.html': 'text/html',
   '.js': 'text/javascript',
@@ -61,6 +63,7 @@ const browser = await chromium.launch({
 const measure = async (which, path, selector) => {
   const context = await browser.newContext();
   const rejoin = selector === 'board';
+  if (noIdle) await context.addInitScript(() => delete window.requestIdleCallback);
   if (rejoin) {
     await context.addInitScript(() => localStorage.setItem('3dchess:role:BENCH1', 'white'));
   }
@@ -145,6 +148,7 @@ for (const [k, { ms, bytes }] of Object.entries(results)) {
     min: +Math.min(...ms).toFixed(0),
     max: +Math.max(...ms).toFixed(0),
     bytes: median(bytes),
+    all: ms.map((x) => Math.round(x)),
   };
 }
 console.log(
