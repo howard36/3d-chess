@@ -447,7 +447,10 @@ column shows the relief in one plain material instead).
 client/          React app (Vite). Engine in src/engine, log-derived game state in src/game,
                  UI in src/screens + src/three.
 client/e2e/      Playwright tests; boots the real server and Vite (see playwright.config.ts).
+client/bench/    Client benchmarks (vitest bench) and their seeded fixtures.
 server/          FastAPI app + Modal deployment (modal_app.py), schema, generated models, pytest suite.
+server/bench/    Server benchmarks: store operations, live WebSocket load, adversarial input.
+bench/           The benchmark runner (run.mjs) and its latest report (RESULTS.md).
 ```
 
 ## Development
@@ -467,6 +470,9 @@ cd client && VITE_WS_URL=ws://127.0.0.1:8000/ws npm run dev
 cd client && npm run test          # unit/component (Vitest)
 cd client && npm run e2e           # Playwright; starts server + Vite itself
 uv run --project server pytest     # server tests (spawns a real uvicorn)
+
+# Benchmarks: every tier in turn, then read bench/RESULTS.md (--quick for a smoke run)
+node bench/run.mjs                 # --only client|server|browser for one tier
 
 # Deploy backend manually (not normally needed — CI deploys on merge to main).
 # GITHUB_SHA is what /health reports; without it the image says "dev".
@@ -490,6 +496,19 @@ tests ran against. Authentication comes from the `MODAL_TOKEN_ID` and `MODAL_TOK
 repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
+
+### Benchmarks
+
+`node bench/run.mjs` runs three tiers one after another and writes `bench/RESULTS.md`
+(raw JSON in the ignored `bench/out/`): **client**, the rules engine, the log-derived game
+state, the board's pointer and frame math (`client/bench/*.bench.ts`, vitest bench over
+seeded games and positions built to be as expensive as the rules allow) and the piece
+geometry's cold startup (`client/bench/startup.ts`); **server**, the relay in process and
+over real sockets, with store models that mimic `modal.Dict`'s copies and blocking calls
+(`server/bench/bench_server.py`); and **browser**, the production build end to end in
+headless Chromium (`client/scripts/bench-browser.mjs`, software WebGL, so its frame times
+are only relative). Cases marked ⚠ are adversarial. Numbers compare only between runs on
+one machine; the report records the machine and commit.
 
 ## Known limitations (accepted for this project's scope)
 
