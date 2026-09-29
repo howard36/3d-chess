@@ -1,4 +1,3 @@
-import { movePoint } from '../movePath';
 import type { Vec3 } from '../types';
 
 // Pure geometry behind the last-move line, kept apart from the component so
@@ -11,49 +10,39 @@ export interface TracePathOptions {
    */
   lift?: number;
   /**
-   * Height of the move's arc above the straight line (LastMoveMarkerProps.arc):
-   * 0 (the default) for a straight line, a knight's arc when knights arc.
-   */
-  arc?: number;
-  /** Samples along an arc (a straight line is its two ends). */
-  segments?: number;
-  /**
    * Land this far short of the destination's centre, level with its floor
    * and on the side facing the source (default 0: at the centre). Just
    * outside the footprint of the piece standing there, the line then meets
    * the platform beside it, in plain view, instead of running into the piece.
-   * A move straight up or down lands on `insetSide`.
+   * A move straight up or down lands on the +x side.
    */
   inset?: number;
-  /** For a move straight up or down: the level direction to land in, [x, z] (default [1, 0]). */
-  insetSide?: readonly [number, number];
   /**
    * The level direction [x, z] the player's seat looks from. A landing that
    * would fall behind the piece seen from there, hidden by it, turns to the
-   * piece's side instead (toward the source's side, else `insetSide`).
+   * piece's side instead (toward the source's side, else +x).
    */
   insetFront?: readonly [number, number];
 }
+
+/** The level direction [x, z] a move straight up or down lands in. */
+const SIDE = [1, 0] as const;
 
 /**
  * The centreline of the last-move line, from the centre of the source
  * square's floor to the centre of the destination's, raised `lift` off the
  * platforms: a straight segment, whatever the level change (a vertical move
- * runs straight up or down through the squares' centres), or, for a knight
- * when knights arc, the arc the piece flew (movePoint in movePath.ts, the
- * same curve as the glide). Without an `inset` it ends inside the piece that
- * moved, which hides the end of the line standing over it; with one it
- * lands on the floor beside that piece.
+ * runs straight up or down through the squares' centres). Without an `inset`
+ * it ends inside the piece that moved, which hides the end of the line
+ * standing over it; with one it lands on the floor beside that piece.
  */
-export const tracePath = (from: Vec3, to: Vec3, o: TracePathOptions = {}): Vec3[] => {
+export const tracePath = (from: Vec3, to: Vec3, o: TracePathOptions = {}): [Vec3, Vec3] => {
   const lift = o.lift ?? 0.03;
-  const arc = o.arc ?? 0;
   const inset = o.inset ?? 0;
   const dx = from[0] - to[0];
   const dz = from[2] - to[2];
   const level = Math.hypot(dx, dz);
-  const side = o.insetSide ?? [1, 0];
-  let [sx, sz] = level > 1e-6 ? [dx / level, dz / level] : side;
+  let [sx, sz] = level > 1e-6 ? [dx / level, dz / level] : SIDE;
   const front = o.insetFront;
   const toward = front && level > 1e-6 ? sx * front[0] + sz * front[1] : 0;
   if (front && toward < 0) {
@@ -61,13 +50,11 @@ export const tracePath = (from: Vec3, to: Vec3, o: TracePathOptions = {}): Vec3[
     const lx = sx - toward * front[0];
     const lz = sz - toward * front[1];
     const l = Math.hypot(lx, lz);
-    [sx, sz] = l > 1e-3 ? [lx / l, lz / l] : side;
+    [sx, sz] = l > 1e-3 ? [lx / l, lz / l] : SIDE;
   }
   const a: Vec3 = [from[0], from[1] + lift, from[2]];
   const b: Vec3 = [to[0] + sx * inset, to[1] + lift, to[2] + sz * inset];
-  if (arc <= 0) return [a, b];
-  const n = Math.max(2, Math.round(o.segments ?? 32));
-  return Array.from({ length: n + 1 }, (_, i) => movePoint(a, b, i / n, arc));
+  return [a, b];
 };
 
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -88,24 +75,6 @@ export const pathDistances = (points: Vec3[]): number[] => {
   return at;
 };
 
-/**
- * The point `s` world units along `points` (clamped to its ends) and the
- * unit direction of travel there: for placing beads, dots or anything else
- * along the last-move line.
- */
-export const pointAlong = (
-  points: Vec3[],
-  s: number,
-  distances: number[] = pathDistances(points),
-): { point: Vec3; tangent: Vec3 } => {
-  let i = 1;
-  while (i < points.length - 1 && distances[i] < s) i++;
-  const span = distances[i] - distances[i - 1] || 1;
-  const k = Math.min(Math.max((s - distances[i - 1]) / span, 0), 1);
-  const d = sub(points[i], points[i - 1]);
-  return { point: add(points[i - 1], scale(d, k)), tangent: unit(d) };
-};
-
 interface TubeOptions {
   /** Radius of the tube (world units). */
   radius: number;
@@ -113,12 +82,6 @@ interface TubeOptions {
   radialSegments?: number;
   /** Rings in each rounded end cap (default 3; 0 leaves the ends open). */
   capSegments?: number;
-  /**
-   * The radius at distance `s` along a path of length `length`, for a line
-   * that tapers or swells (a brush stroke); default the constant `radius`.
-   * The end caps take the radius at their end.
-   */
-  radiusAt?: (s: number, length: number) => number;
 }
 
 interface TubeData {
@@ -129,8 +92,6 @@ interface TubeData {
    * a radius past either end: negative at the start).
    */
   along: Float32Array;
-  /** Where round the tube each vertex sits, 0 to 1 (for texture across the line). */
-  angle: Float32Array;
   index: Uint16Array | Uint32Array;
   /** Length of the path (without the caps). */
   length: number;
@@ -140,15 +101,13 @@ interface TubeData {
  * A round tube of real geometry along `points`, with rounded ends, for the
  * last-move line: lit and depth-tested like any solid, so it looks the same
  * from every side and a piece standing on it hides it. The rings are framed
- * in the plane that holds the path (a straight line or a knight's arc, both
- * vertical planes), so the tube never twists.
+ * in the vertical plane that holds the path, so the tube never twists.
  */
 export const tubeData = (points: Vec3[], o: TubeOptions): TubeData => {
   const radial = Math.max(3, Math.round(o.radialSegments ?? 8));
   const caps = Math.max(0, Math.round(o.capSegments ?? 3));
   const at = pathDistances(points);
   const total = at[at.length - 1];
-  const radiusAt = (s: number) => (o.radiusAt ? o.radiusAt(s, total) : o.radius);
   const chord = sub(points[points.length - 1], points[0]);
   // The path's plane is vertical: its normal is horizontal, across the chord
   // (any horizontal axis will do for a vertical line)
@@ -162,22 +121,18 @@ export const tubeData = (points: Vec3[], o: TubeOptions): TubeData => {
   const rings: { c: Vec3; t: Vec3; r: number; s: number; lean: number }[] = [];
   const t0 = tangentAt(0);
   const t1 = tangentAt(points.length - 1);
-  const r0 = radiusAt(0);
-  const r1 = radiusAt(total);
   for (let k = caps; k >= 1; k--) {
     const phi = (k / caps) * (Math.PI / 2);
-    const back = r0 * Math.sin(phi);
+    const back = o.radius * Math.sin(phi);
     const c = add(points[0], scale(t0, -back));
-    rings.push({ c, t: t0, r: r0 * Math.cos(phi), s: -back, lean: -Math.sin(phi) });
+    rings.push({ c, t: t0, r: o.radius * Math.cos(phi), s: -back, lean: -Math.sin(phi) });
   }
-  points.forEach((p, i) =>
-    rings.push({ c: p, t: tangentAt(i), r: radiusAt(at[i]), s: at[i], lean: 0 }),
-  );
+  points.forEach((p, i) => rings.push({ c: p, t: tangentAt(i), r: o.radius, s: at[i], lean: 0 }));
   for (let k = 1; k <= caps; k++) {
     const phi = (k / caps) * (Math.PI / 2);
-    const ahead = r1 * Math.sin(phi);
+    const ahead = o.radius * Math.sin(phi);
     const c = add(points[points.length - 1], scale(t1, ahead));
-    rings.push({ c, t: t1, r: r1 * Math.cos(phi), s: total + ahead, lean: Math.sin(phi) });
+    rings.push({ c, t: t1, r: o.radius * Math.cos(phi), s: total + ahead, lean: Math.sin(phi) });
   }
 
   const perRing = radial + 1;
@@ -185,7 +140,6 @@ export const tubeData = (points: Vec3[], o: TubeOptions): TubeData => {
   const position = new Float32Array(n * 3);
   const normal = new Float32Array(n * 3);
   const along = new Float32Array(n);
-  const angle = new Float32Array(n);
   rings.forEach((ring, i) => {
     const up = unit(cross(side, ring.t));
     // Where the ring curls into a cap, its normals lean along the path with it
@@ -197,7 +151,6 @@ export const tubeData = (points: Vec3[], o: TubeOptions): TubeData => {
       position.set(add(ring.c, scale(dir, ring.r)), v * 3);
       normal.set(unit(add(scale(dir, round), scale(ring.t, ring.lean))), v * 3);
       along[v] = ring.s;
-      angle[v] = j / radial;
     }
   });
   const quads = (rings.length - 1) * radial;
@@ -212,5 +165,5 @@ export const tubeData = (points: Vec3[], o: TubeOptions): TubeData => {
       q += 6;
     }
   }
-  return { position, normal, along, angle, index, length: total };
+  return { position, normal, along, index, length: total };
 };

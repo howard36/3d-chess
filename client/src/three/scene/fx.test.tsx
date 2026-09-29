@@ -8,8 +8,8 @@ import { FRAME } from './palette';
 
 describe('the checkmate pulse', () => {
   it('spreads at one speed, so it takes longer from a corner than from the middle', () => {
-    const middle = pulseSeconds(0, 0, 1);
-    const corner = pulseSeconds(-2, -2, 1);
+    const middle = pulseSeconds(0, 0);
+    const corner = pulseSeconds(-2, -2);
     expect(corner).toBeGreaterThan(middle * 1.5);
     // The front covers the same ground each second, whatever the distance
     const reach = (x: number, z: number) =>
@@ -21,13 +21,8 @@ describe('the checkmate pulse', () => {
       [-2, -2],
       [1, -2],
     ]) {
-      expect(((reach(x, z) + 0.15) / pulseSeconds(x, z, 1)) * (1 / 0.95)).toBeCloseTo(
-        PULSE_SPEED,
-        6,
-      );
+      expect(((reach(x, z) + 0.15) / pulseSeconds(x, z)) * (1 / 0.95)).toBeCloseTo(PULSE_SPEED, 6);
     }
-    // Twice the speed, half the time
-    expect(pulseSeconds(1, 1, 2)).toBeCloseTo(pulseSeconds(1, 1, 1) / 2, 9);
   });
 
   it('is drawn on the mated king’s own level only, and clears once it has spread', async () => {
@@ -39,7 +34,7 @@ describe('the checkmate pulse', () => {
         .map((n) => n.instance as unknown as Mesh);
     expect(meshes()).toHaveLength(1);
     expect(meshes()[0].position.y).toBeCloseTo(top, 1);
-    // From the middle it lasts about 1.3 s at the default speed
+    // From the middle it lasts about a second
     await act(async () => r.advanceFrames(10, 0.1));
     expect(meshes()).toHaveLength(1);
     await act(async () => r.advanceFrames(6, 0.1));
