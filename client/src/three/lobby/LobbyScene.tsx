@@ -28,7 +28,11 @@ import {
   gameOpening,
   posePosition,
   seatX,
+  entranceFrom,
+  LOBBY_ENTRANCE,
+  settlePose,
 } from './lobbyMotion';
+import { smooth } from '../scene/ease';
 import type { CameraPose, Side } from './lobbyMotion';
 
 // The lobby: one glass platform in the night garden and the two kings on
@@ -204,6 +208,9 @@ const LobbyRig = ({
   const left = useRef(false);
   const shifted = useRef(false);
   const last = useRef('');
+  // The entrance: seconds since the lobby's first frame (done at once under
+  // reduced motion)
+  const entered = useRef(still ? Infinity : 0);
   useEffect(() => invalidate(), [size, view.beat, view.card, invalidate]);
 
   useFrame((_, delta) => {
@@ -218,10 +225,16 @@ const LobbyRig = ({
     );
     let pose = rest;
     let moving = false;
+    const entering = entered.current < LOBBY_ENTRANCE.camera;
+    if (entering) entered.current += Math.min(delta, 1 / 20);
     // From one beat's framing to the next, eased (the card coming in lifts
     // the kings); the first frame takes its place at once
     const prev = current.current;
-    if (prev && beat !== 'leave' && !still) {
+    if (entering && beat !== 'leave') {
+      // Settling in, the picture fading up from the page
+      pose = settlePose(entranceFrom(rest), rest, entered.current / LOBBY_ENTRANCE.camera);
+      moving = true;
+    } else if (prev && beat !== 'leave' && !still) {
       const k = 1 - Math.exp(-Math.min(delta, 1 / 20) * 3.2);
       const ease = (a: number, b: number) => a + (b - a) * k;
       const eased: CameraPose = {
@@ -281,7 +294,10 @@ const LobbyRig = ({
         shifted.current = false;
         setLensShift(camera, [0, 0], size.width, size.height);
       }
-      if (canvasHost.current) canvasHost.current.style.opacity = '1';
+      if (canvasHost.current)
+        canvasHost.current.style.opacity = String(
+          smooth(Math.min(entered.current / LOBBY_ENTRANCE.fade, 1)),
+        );
     }
     current.current = pose;
     camera.position.set(...posePosition(pose));
@@ -290,6 +306,8 @@ const LobbyRig = ({
 
     // The seats on screen, for the page's labels and buttons
     const host = anchors.current;
+    // The scene is drawing: the page's words may start their entrance (index.css)
+    if (host && !host.dataset.scene) host.dataset.scene = 'on';
     if (host && beat !== 'leave') {
       const vars: string[] = [];
       const xs: number[] = [];
@@ -416,6 +434,7 @@ export const LobbyScene = ({
         <LobbyKing
           key={side}
           color={side}
+          enter={LOBBY_ENTRANCE.king[side]}
           x={seatX(side)}
           present={taken[side]}
           gone={gone}
@@ -429,6 +448,7 @@ export const LobbyScene = ({
         />
       ))}
       <CoinKing
+        enter={LOBBY_ENTRANCE.king.coin}
         shown={view.beat === 'choose' && (!view.mine || view.toss !== null)}
         hovered={view.hover === 'random'}
         toss={view.toss}
@@ -458,7 +478,7 @@ export const LobbyScene = ({
 // --- The glass --------------------------------------------------------------------------------
 
 /** How long the platform takes to draw itself (its edge, lines and glass). */
-const PLATFORM_BUILD = 0.7;
+const PLATFORM_BUILD = LOBBY_ENTRANCE.platform.start + LOBBY_ENTRANCE.platform.duration;
 
 /**
  * The glass the kings stand on: level A of the tower, drawing itself as the
@@ -473,7 +493,7 @@ const LobbyPlatform = () => {
     () => ({
       plan: {
         ...introPlan('full'),
-        levels: { start: 0, duration: PLATFORM_BUILD, step: 0 },
+        levels: { ...LOBBY_ENTRANCE.platform, step: 0 },
       },
       t: still ? PLATFORM_BUILD : 0,
     }),

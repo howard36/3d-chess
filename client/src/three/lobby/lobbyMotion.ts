@@ -89,6 +89,56 @@ export const LOBBY_TIMING = {
   leaveFade: 0.3,
 };
 
+// --- The entrance -----------------------------------------------------------------------------
+
+/**
+ * The lobby's entrance when it is first shown (seconds from its first frame):
+ * the picture fades up while the camera settles in from a little further
+ * out and higher; the glass draws itself; each king's outline comes up and
+ * it forms from the foot, left to right, a beat apart.
+ */
+export const LOBBY_ENTRANCE = {
+  fade: 0.9,
+  camera: 2.4,
+  platform: { start: 0.1, duration: 1.4 },
+  king: { white: 0.6, coin: 0.75, black: 0.9 },
+  /** A king's outline comes up over this, ending as it starts to form. */
+  outline: 0.45,
+};
+
+/** Where the camera starts its entrance from: a little further out, and higher. */
+export const entranceFrom = (rest: CameraPose): CameraPose => ({
+  ...rest,
+  distance: rest.distance * 1.14,
+  elevation: rest.elevation + (5 * Math.PI) / 180,
+});
+
+/** The camera `t` (0 to 1) into its entrance: easing out, so it settles, never stops short. */
+export const settlePose = (from: CameraPose, to: CameraPose, t: number): CameraPose => {
+  const k = easeOutCubic(clamp01(t));
+  const mix = (p: number, q: number) => p + (q - p) * k;
+  return {
+    target: [
+      mix(from.target[0], to.target[0]),
+      mix(from.target[1], to.target[1]),
+      mix(from.target[2], to.target[2]),
+    ],
+    azimuth: mix(from.azimuth, to.azimuth),
+    elevation: mix(from.elevation, to.elevation),
+    distance: mix(from.distance, to.distance),
+  };
+};
+
+/**
+ * How far a king's entrance has come `t` seconds after the lobby's first
+ * frame, for a king that starts to form at `at`: its outline's strength
+ * (0 to 1), and whether it may start to form.
+ */
+export const kingEntrance = (t: number, at: number) => ({
+  outline: smooth(clamp01((t - (at - LOBBY_ENTRANCE.outline)) / LOBBY_ENTRANCE.outline)),
+  forming: t >= at,
+});
+
 // --- The coin toss ---------------------------------------------------------------------------
 
 /**

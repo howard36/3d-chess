@@ -101,7 +101,9 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
       ? 'Leaving it to chance…'
       : `You play ${picked.side === 'white' ? 'White' : 'Black'}`;
   return (
-    <div className="lobby-page" data-testid="choose-side">
+    // Entering (until a pick): the page's words come in with the scene's
+    // entrance, the buttons once the kings have formed
+    <div className="lobby-page" data-testid="choose-side" data-enter={picked ? undefined : ''}>
       <header className="lobby-top">
         <button className="lobby-link" onClick={() => navigate('/')}>
           <span aria-hidden>←</span> Home

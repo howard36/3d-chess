@@ -22,6 +22,7 @@ import {
   outlineForFill,
   tossAngle,
   tossGlide,
+  kingEntrance,
   tossHop,
   tossLanded,
 } from './lobbyMotion';
@@ -98,6 +99,7 @@ export const LobbyKing = ({
   pick,
   fills,
   together = false,
+  enter,
 }: {
   color: Side;
   x: number;
@@ -115,6 +117,8 @@ export const LobbyKing = ({
   pick?: Pickable;
   /** Both kings' fills, shared, written by each king every frame. */
   fills?: RefObject<KingPair>;
+  /** Its entrance when the lobby first shows: when it starts to form (seconds from the first frame). */
+  enter?: number;
   /** The game starting: lit, it lifts once both kings have filled, with the other. */
   together?: boolean;
 }) => {
@@ -153,21 +157,30 @@ export const LobbyKing = ({
   const held = useRef(selectState());
   const [showLight, setShowLight] = useState(false);
   const breathClock = useRef(0);
+  // Seconds since its first frame, for its entrance (none under reduced motion)
+  const entrance = useRef(enter === undefined || still ? Infinity : 0);
   useEffect(() => invalidate(), [present, gone, hovered, lit, breathing, snap, invalidate]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20);
     const m = motion.current;
     const fillGoal = present ? 1 : 0;
+    // Entering, its outline comes up, then it forms from the foot
+    const entering = entrance.current < Infinity;
+    const shown = entering ? kingEntrance(entrance.current, enter ?? 0) : null;
+    if (entering) {
+      entrance.current += dt;
+      if (shown!.forming && shown!.outline >= 1) entrance.current = Infinity;
+    }
     if (first.current || (snap && fillGoal === 1)) {
+      m.fill = first.current && entering ? 0 : fillGoal;
       first.current = false;
-      m.fill = fillGoal;
       // The coin that slid in here is the player's king, in its light at once
       if (snap && lit) m.hold = 1;
     }
     const before = { ...m };
     const rate = still ? 1 / 0.15 : 1 / LOBBY_TIMING.fill;
-    m.fill = toward(m.fill, fillGoal, dt * rate);
+    if (!shown || shown.forming) m.fill = toward(m.fill, fillGoal, dt * rate);
     // Gone, the outline fades with the body; else it answers the fill
     m.outline = gone ? toward(m.outline, 0, dt * rate) : outlineForFill(m.fill);
     m.hover = toward(m.hover, hovered && !lit && present ? 1 : 0, dt * HOVER_RATE);
@@ -215,7 +228,7 @@ export const LobbyKing = ({
     else breathClock.current = 0;
     const inBreath = breathing && !still && breathClock.current < 60;
     neon.material.uniforms.uIntensity.value =
-      1.15 * m.outline * (inBreath ? breath(breathClock.current) : 1);
+      1.15 * m.outline * (inBreath ? breath(breathClock.current) : 1) * (shown ? shown.outline : 1);
 
     const column = gone ? m.fill > 0.5 && m.gone < 0.85 : m.hold > 0.02 && lit;
     const showing = stepSelection(held.current, column, dt * 1000, still);
@@ -227,7 +240,7 @@ export const LobbyKing = ({
       m.hold !== before.hold ||
       m.lift !== before.lift ||
       m.gone !== before.gone;
-    if (moving || showing || inBreath || waiting) invalidate();
+    if (moving || showing || inBreath || waiting || entering) invalidate();
   });
 
   const top = KING_TOP;
@@ -315,6 +328,7 @@ export const CoinKing = ({
   pick,
   onGlide,
   onLanded,
+  enter,
 }: {
   shown: boolean;
   hovered: boolean;
@@ -324,6 +338,8 @@ export const CoinKing = ({
   pick?: Pickable;
   onGlide: () => void;
   onLanded: (side: Side) => void;
+  /** Its entrance when the lobby first shows: when it starts to form (seconds from the first frame). */
+  enter?: number;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
   const still = useMemo(prefersReducedMotion, []);
@@ -336,9 +352,12 @@ export const CoinKing = ({
   const root = useRef<Group>(null);
   const spin = useRef<Group>(null);
   const lift = useRef<Group>(null);
-  // Starts as it is first shown: a page that opens without it never shows it
+  // Starts as it is first shown (forming, on its entrance): a page that opens
+  // without it never shows it
+  const entering = enter !== undefined && !still;
   const state = useRef({
-    fill: shown ? 1 : 0,
+    fill: shown && !entering ? 1 : 0,
+    wait: entering ? enter : 0,
     hover: 0,
     tossT: -1,
     gliding: false,
@@ -385,7 +404,10 @@ export const CoinKing = ({
       }
     } else if (!toss) {
       const rate = still ? 1 / 0.15 : 1 / LOBBY_TIMING.fill;
-      s.fill = toward(s.fill, shown ? 1 : 0, dt * rate);
+      if (s.wait > 0) {
+        s.wait -= dt;
+        moving = true;
+      } else s.fill = toward(s.fill, shown ? 1 : 0, dt * rate);
     }
     s.hover = toward(s.hover, hovered && !toss ? 1 : 0, dt * HOVER_RATE);
     if (root.current) {

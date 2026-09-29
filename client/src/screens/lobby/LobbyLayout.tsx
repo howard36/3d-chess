@@ -37,6 +37,15 @@ const LobbyLayout = () => {
   const [view, setView] = React.useState<LobbyStage | null>(null);
   const anchors = React.useRef<HTMLDivElement>(null);
   const canvasHost = React.useRef<HTMLDivElement>(null);
+  // The page's entrance waits for the scene's first frame (data-scene); should
+  // the scene never draw, the page comes in anyway
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const host = anchors.current;
+      if (host && !host.dataset.scene) host.dataset.scene = 'late';
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
   // The screens pass fresh handlers every render; the scene calls whichever
   // are current, so only a change in the picture renders the stage again
   const handlers = React.useRef<Handlers>({});

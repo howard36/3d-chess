@@ -1131,6 +1131,34 @@
 .lobby[data-beat='leave'] .lobby-caption {
   animation: lobby-out 500ms ease both;
 }
+/* The side choice's entrance, with the scene's (lobbyMotion's LOBBY_ENTRANCE):
+   the heading rises as the glass draws, Home and the buttons once the kings
+   have formed. Fill-mode backwards only, so a pick's own styles take over */
+.lobby-page[data-enter] .lobby-heading {
+  animation: lobby-rise 1000ms 250ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+.lobby-page[data-enter] .lobby-top {
+  animation: lobby-rise 800ms 1200ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+.lobby-page[data-enter] .lobby-choice {
+  animation: lobby-choice-in 800ms 1350ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+.lobby-page[data-enter] .lobby-choice[data-choice='random'] {
+  animation-delay: 1450ms;
+}
+.lobby-page[data-enter] .lobby-choice[data-choice='black'] {
+  animation-delay: 1550ms;
+}
+/* Held, hidden, until the scene draws its first frame, so they keep time with it */
+.lobby:not([data-scene]) .lobby-page[data-enter] :is(.lobby-heading, .lobby-top, .lobby-choice) {
+  animation-play-state: paused;
+}
+@keyframes lobby-choice-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+}
 @keyframes lobby-rise {
   from {
     opacity: 0;
