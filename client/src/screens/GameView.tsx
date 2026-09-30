@@ -4,7 +4,8 @@ import type { IntroClock } from '../three/intro/clock';
 import { INTRO_HUD_VAR, INTRO_SCENE_VAR } from '../three/intro/vars';
 import { hudFade, introDone, introPlan, sceneFade } from '../three/intro/timeline';
 import type { IntroVariant } from '../three/intro/timeline';
-import { cachedImport } from '../lib/cachedImport';
+import { lazyChunk, reloadPage } from '../lib/cachedImport';
+import { ChunkBoundary } from '../components/ChunkBoundary';
 import type { Move } from '../engine';
 import type { GameHistory } from '../game/history';
 import type { Color } from '../types/messages';
@@ -19,10 +20,10 @@ export type { IntroVariant };
 
 // The 3D board (three.js, the scene, the entrance's director) is a chunk of
 // its own, the one the lobby's canvas loads too, asked for as soon as this
-// view loads: the HUD and the move record show without waiting for it
-const loadGameCanvas = cachedImport(() => import('./GameCanvas'));
-const GameCanvas = React.lazy(loadGameCanvas);
-void loadGameCanvas().catch(() => {});
+// view loads: the HUD and the move record show without waiting for it, and
+// stay should it fail to load
+const gameCanvas = lazyChunk(() => import('./GameCanvas'));
+gameCanvas.preload();
 
 export interface GameViewProps {
   /** The replayed game (deriveHistory). */
@@ -64,7 +65,10 @@ export interface GameViewProps {
    * while it mounts and reveals it before the entrance plays.
    */
   introPaused?: boolean;
-  /** Called once, after the canvas has drawn its first frame (its shaders compiled). */
+  /**
+   * Called once, after the canvas has drawn its first frame (its shaders
+   * compiled), or once the board has failed to load: nothing more is coming.
+   */
   onFirstFrame?: () => void;
 }
 
@@ -107,6 +111,32 @@ const GameView: React.FC<GameViewProps> = ({
   });
   const [introPlaying, setIntroPlaying] = React.useState(() => !introDone(clock.plan, clock.t));
   const screen = React.useRef<HTMLDivElement>(null);
+  // The board's chunk failed to load (`failed`); each retry mounts a fresh try
+  const [boardLoad, setBoardLoad] = React.useState({ attempt: 0, failed: false });
+  const firstFrame = React.useRef(false);
+  const reportFirstFrame = () => {
+    if (firstFrame.current) return;
+    firstFrame.current = true;
+    onFirstFrame?.();
+  };
+  const boardFailed = () => {
+    // A retry that fails too: where the browser holds on to a failed chunk
+    // (Chromium does, for the page's life) and after a deploy has replaced
+    // it, only a fresh page gets the board, and the game comes back with it
+    // from the server's record
+    if (boardLoad.attempt > 0) return reloadPage();
+    // No entrance without the board: the HUD shows at once, and a board that
+    // loads on a retry shows the finished scene
+    clock.t = Infinity;
+    setIntroPlaying(false);
+    setBoardLoad((b) => ({ ...b, failed: true }));
+    reportFirstFrame();
+  };
+  const retryBoard = () => {
+    gameCanvas.retry();
+    setBoardLoad((b) => ({ attempt: b.attempt + 1, failed: false }));
+  };
+  const GameCanvas = gameCanvas.Component;
   // Until the director takes over on the first frame: the entrance's start
   const introStyle = introPlaying
     ? ({
@@ -142,25 +172,27 @@ const GameView: React.FC<GameViewProps> = ({
         style={{ position: 'absolute', inset: 0 }}
       >
         {/* The 3D board, from its own chunk: nothing shows there until it
-            has loaded (the HUD over it does) */}
-        <React.Suspense fallback={null}>
-          <GameCanvas
-            color={color}
-            board={board}
-            currentTurn={currentTurn}
-            lastMove={lastMove}
-            gameOver={gameOver}
-            // Nothing can be picked up while the entrance plays
-            disabled={boardDisabled || introPlaying}
-            onMove={onMove}
-            onChoosePromotion={onChoosePromotion}
-            clock={clock}
-            introPaused={introPaused}
-            styleTarget={screen}
-            onFirstFrame={onFirstFrame}
-            onIntroDone={() => setIntroPlaying(false)}
-          />
-        </React.Suspense>
+            has loaded (the HUD over it does), nor if it fails to */}
+        <ChunkBoundary key={boardLoad.attempt} onFail={boardFailed}>
+          <React.Suspense fallback={null}>
+            <GameCanvas
+              color={color}
+              board={board}
+              currentTurn={currentTurn}
+              lastMove={lastMove}
+              gameOver={gameOver}
+              // Nothing can be picked up while the entrance plays
+              disabled={boardDisabled || introPlaying}
+              onMove={onMove}
+              onChoosePromotion={onChoosePromotion}
+              clock={clock}
+              introPaused={introPaused}
+              styleTarget={screen}
+              onFirstFrame={reportFirstFrame}
+              onIntroDone={() => setIntroPlaying(false)}
+            />
+          </React.Suspense>
+        </ChunkBoundary>
         {/* The HUD over the canvas (index.css): the turn pill at the top
             centre with the status column under it, the move card at the
             bottom left. Only the controls
@@ -196,6 +228,17 @@ const GameView: React.FC<GameViewProps> = ({
             yourTurn={!gameOver && color === currentTurn}
             onMove={onMove}
           />
+          {/* After the move box, which stays the first Tab stop */}
+          {boardLoad.failed && (
+            <div className="hud-center">
+              <div role="alert" className="hud-notice hud-glass" data-testid="board-failed">
+                Couldn't load the board
+                <button className="hud-retry" onClick={retryBoard}>
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
           {/* Said, not shown: each move as it lands, and the opponent's presence */}
           <MoveAnnouncer history={history} seat={color} />
           <div
