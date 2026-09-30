@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-import { cachedImport } from '../../lib/cachedImport';
+import { lazyChunk } from '../../lib/cachedImport';
+import { ChunkBoundary } from '../../components/ChunkBoundary';
 import { LobbyContext } from './lobbyContext';
 import type { LobbyApi, LobbyStage } from './lobbyContext';
 
@@ -12,10 +13,11 @@ import type { LobbyApi, LobbyStage } from './lobbyContext';
 // The canvas (three.js, the lobby's scene) is a chunk of its own, the one the
 // game's board loads too, asked for as soon as the lobby loads: the pages'
 // words and buttons show before it arrives, and the scene then draws
-// behind them (the page's entrance waits for its first frame, data-scene)
-const loadLobbyCanvas = cachedImport(() => import('./LobbyCanvas'));
-const LobbyCanvas = React.lazy(loadLobbyCanvas);
-void loadLobbyCanvas().catch(() => {});
+// behind them (the page's entrance waits for its first frame, data-scene).
+// Should it fail to load, the pages go on without it
+const lobbyCanvas = lazyChunk(() => import('./LobbyCanvas'));
+const LobbyCanvas = lobbyCanvas.Component;
+lobbyCanvas.preload();
 
 type Handlers = Pick<
   LobbyStage,
@@ -42,6 +44,7 @@ const LobbyLayout = () => {
   const [view, setView] = React.useState<LobbyStage | null>(null);
   const anchors = React.useRef<HTMLDivElement>(null);
   const canvasHost = React.useRef<HTMLDivElement>(null);
+  const [noScene, setNoScene] = React.useState(false);
   // The page's entrance waits for the scene's first frame (data-scene); should
   // the scene never draw, the page comes in anyway
   React.useEffect(() => {
@@ -51,6 +54,23 @@ const LobbyLayout = () => {
     }, 1500);
     return () => window.clearTimeout(timer);
   }, []);
+  // Without the scene, each of its moments is over as soon as it begins,
+  // and the page's words come in at once
+  React.useEffect(() => {
+    if (!noScene) return;
+    const host = anchors.current;
+    if (host && !host.dataset.scene) host.dataset.scene = 'late';
+    if (!view) return;
+    if (view.beat === 'choose' && view.mine) {
+      if (view.toss) view.onGlide?.();
+      view.onSettled?.();
+    }
+    if (view.beat === 'arrive') view.onArrived?.();
+    if (view.beat === 'leave') {
+      view.onReveal?.();
+      view.onLeft?.();
+    }
+  }, [noScene, view]);
   // The screens pass fresh handlers every render; the scene calls whichever
   // are current, so only a change in the picture renders the stage again
   const handlers = React.useRef<Handlers>({});
@@ -90,9 +110,11 @@ const LobbyLayout = () => {
       >
         {view && (
           <div ref={canvasHost} className="lobby-stage" aria-hidden>
-            <React.Suspense fallback={null}>
-              <LobbyCanvas view={view} anchors={anchors} canvasHost={canvasHost} />
-            </React.Suspense>
+            <ChunkBoundary onFail={() => setNoScene(true)}>
+              <React.Suspense fallback={null}>
+                <LobbyCanvas view={view} anchors={anchors} canvasHost={canvasHost} />
+              </React.Suspense>
+            </ChunkBoundary>
           </div>
         )}
         {/* The arrival's line, where the pages' headings stand */}
