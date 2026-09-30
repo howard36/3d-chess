@@ -37,6 +37,9 @@ const intro = vi.hoisted(() => ({
   paused: null as boolean | null,
   firstFrame: null as (() => void) | null,
 }));
+vi.mock('../three/scene/warm', () => ({
+  WarmPrograms: () => null,
+}));
 vi.mock('../three/intro/IntroDirector', () => ({
   INTRO_SCENE_VAR: '--intro-scene',
   INTRO_HUD_VAR: '--intro-hud',

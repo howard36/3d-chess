@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { AdditiveBlending, Color, DoubleSide, PlaneGeometry, Vector3 } from 'three';
+import type { IUniform } from 'three';
 import { prefersReducedMotion } from '../motion';
 import { LAYER } from './layers';
 import { LastMoveLine, tubeGeometry, tubeVertex } from './line';
@@ -13,6 +14,7 @@ import { clamp01, easeOutCubic, easeOutQuad, smooth, toward } from './ease';
 import { overlayMaterial } from './overlay';
 import { LEVEL_COLORS, levelAt, MOTION, PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
 import { Blades } from './blades';
+import { useRetireOnUnmount } from './programs';
 
 // The marks of play, one family of thin circles of light lying on the glass:
 //
@@ -247,6 +249,18 @@ const STRIKE_MS = 950;
 /** How strongly the strike lands, and the blades come in with it. */
 const CHECK_PULSE = 0.9;
 
+/** A mark's material (Mark), with these uniforms. */
+export const markMaterial = (uniforms: Record<string, IUniform> = {}) =>
+  overlayMaterial({
+    side: DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms,
+    vertexShader,
+    fragmentShader,
+  });
+
 /** One mark flat on the glass at a cell's floor. */
 const Mark = ({
   floor,
@@ -279,41 +293,33 @@ const Mark = ({
     kind === 'check' ? 2.1 : kind === 'capture' ? widest * 3.3 + 0.08 : (widest * 1.25 + 0.1) * 2;
   const material = useMemo(
     () =>
-      overlayMaterial({
-        side: DoubleSide,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -2,
-        uniforms: {
-          uKind: { value: KIND[kind] },
-          uColor: { value: new Color(color) },
-          uFill: { value: new Color() },
-          uDeep: { value: new Color() },
-          uRadius: { value: radius },
-          uWidth: { value: width },
-          uFillA: { value: fillA },
-          uWashA: { value: washA },
-          uHover: { value: 0 },
-          uGrow: { value: growMs > 0 ? 0 : 1 },
-          uTime: { value: 0 },
-          uPulse: { value: pulse > 0 && !prefersReducedMotion() ? 1 : 0 },
-          uStrength: { value: pulse },
-          uReveal: { value: drawMs > 0 ? 0 : 1 },
-          uAmount: { value: 1 },
-          uOpacity: { value: opacity },
-          uSettle: { value: 0 },
-          uSoft: { value: soft ? 1 : 0 },
-          uSoftRadius: { value: softRadius ?? radius },
-          uQuad: { value: quad },
-        },
-        vertexShader,
-        fragmentShader,
+      markMaterial({
+        uKind: { value: KIND[kind] },
+        uColor: { value: new Color(color) },
+        uFill: { value: new Color() },
+        uDeep: { value: new Color() },
+        uRadius: { value: radius },
+        uWidth: { value: width },
+        uFillA: { value: fillA },
+        uWashA: { value: washA },
+        uHover: { value: 0 },
+        uGrow: { value: growMs > 0 ? 0 : 1 },
+        uTime: { value: 0 },
+        uPulse: { value: pulse > 0 && !prefersReducedMotion() ? 1 : 0 },
+        uStrength: { value: pulse },
+        uReveal: { value: drawMs > 0 ? 0 : 1 },
+        uAmount: { value: 1 },
+        uOpacity: { value: opacity },
+        uSettle: { value: 0 },
+        uSoft: { value: soft ? 1 : 0 },
+        uSoftRadius: { value: softRadius ?? radius },
+        uQuad: { value: quad },
       }),
     // Made once; the uniforms follow the props below
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  useEffect(() => () => material.dispose(), [material]);
+  useRetireOnUnmount(material);
   const u = material.uniforms;
   (u.uColor.value as Color).set(color);
   (u.uFill.value as Color).set(fill ?? color);
@@ -554,7 +560,7 @@ const LINE_DRAW_MS = 380;
 const lineDelay = MOTION.durationMs * 0.3;
 const SHIMMER = { speed: 0.45, spacing: 1.8, length: 0.32, peak: 0.75 };
 
-const shimmerMaterial = () =>
+export const shimmerMaterial = () =>
   overlayMaterial({
     blending: AdditiveBlending,
     uniforms: {
@@ -615,7 +621,7 @@ const Shimmer = ({
   }, [key]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   const material = useMemo(shimmerMaterial, []);
-  useEffect(() => () => material.dispose(), [material]);
+  useRetireOnUnmount(material);
   const since = useRef(-delayMs / 1000);
   const still = prefersReducedMotion();
   useEffect(() => invalidate(), [invalidate]);

@@ -4,6 +4,7 @@ import { NeutralToneMapping } from 'three';
 import { LobbyScene } from '../../three/lobby/LobbyScene';
 import type { LobbyView } from '../../three/lobby/LobbyScene';
 import { LOBBY_FOV } from '../../three/lobby/lobbyMotion';
+import { setUpRenderer } from '../../three/rendererSetup';
 
 // The lobby's canvas: three.js and the lobby's scene, in the chunk the game's
 // board (GameCanvas) and the landing page's preview share. LobbyLayout loads it
@@ -23,6 +24,7 @@ const LobbyCanvas = ({ view, anchors, canvasHost }: LobbyCanvasProps) => (
     dpr={[1, 1.5]}
     gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
     frameloop="demand"
+    onCreated={setUpRenderer}
     style={{ touchAction: 'manipulation' }}
   >
     <LobbyScene view={view} anchors={anchors} canvasHost={canvasHost} />

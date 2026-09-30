@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { RefObject } from 'react';
 import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
@@ -10,9 +11,12 @@ import { CameraControls } from '../three/CameraControls';
 import { IntroContext } from '../three/intro/clock';
 import type { IntroClock } from '../three/intro/clock';
 import { IntroDirector } from '../three/intro/IntroDirector';
+import { introDone } from '../three/intro/timeline';
 import { INTRO_SCENE_VAR } from '../three/intro/vars';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
+import { WarmPrograms } from '../three/scene/warm';
+import { setUpRenderer } from '../three/rendererSetup';
 import type { Board as EngineBoard, Move } from '../engine';
 import type { GameOver, LastMove, Turn } from '../game/history';
 import type { Color } from '../types/messages';
@@ -57,6 +61,9 @@ const GameCanvas = ({
   onIntroDone,
 }: GameCanvasProps) => {
   const pixelRatio = usePixelBudget();
+  // The entrance is over: the board takes input from now on
+  const [introOver, setIntroOver] = useState(() => introDone(clock.plan, clock.t));
+  const [drawn, setDrawn] = useState(false);
   return (
     <>
       {/* Main 3D Board canvas. The camera starts on the viewing player's
@@ -93,6 +100,7 @@ const GameCanvas = ({
         // here to project board cells to pixels — correct even after the
         // user orbits or the camera setup above changes.
         onCreated={(state: RootState) => {
+          setUpRenderer(state);
           (window as Window & { __r3fState?: RootState }).__r3fState = state;
         }}
       >
@@ -129,9 +137,16 @@ const GameCanvas = ({
             clock={clock}
             paused={introPaused}
             styleTarget={styleTarget}
-            onFirstFrame={onFirstFrame}
-            onDone={onIntroDone}
+            onFirstFrame={() => {
+              setDrawn(true);
+              onFirstFrame?.();
+            }}
+            onDone={() => {
+              setIntroOver(true);
+              onIntroDone();
+            }}
           />
+          {introOver && drawn && <WarmPrograms />}
         </IntroContext.Provider>
       </Canvas>
     </>

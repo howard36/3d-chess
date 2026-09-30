@@ -401,6 +401,16 @@ describe('Board', () => {
     expect(selectionRings(renderer)).toHaveLength(0);
   });
 
+  it('renders once for a new board when nothing is held (the work a landing move costs)', async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
+    drawn.grids.length = 0;
+    // The opponent's move lands: a new board, and nothing was picked up
+    await renderer.update(<Board board={createTestBoard()} currentTurn="black" />);
+    expect(drawn.grids).toHaveLength(1);
+  });
+
   it('does not unselect when clicking another piece (selection moves)', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" />,

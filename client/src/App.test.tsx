@@ -33,6 +33,9 @@ vi.mock('./three/scene/stage', () => ({
   Stage: () => null,
 }));
 // No frames in jsdom: the game's entrance is over as soon as it mounts
+vi.mock('./three/scene/warm', () => ({
+  WarmPrograms: () => null,
+}));
 vi.mock('./three/intro/IntroDirector', async () => {
   const { useEffect } = await import('react');
   return {

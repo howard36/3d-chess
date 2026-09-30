@@ -13,6 +13,7 @@ import { wholePiece } from './occlusion';
 import { overlayMaterial } from './overlay';
 import { usePieceMaterial } from './pieces';
 import { gardenBoost } from './stage';
+import { useRetireOnUnmount } from './programs';
 
 // Motion in light, kept brief. A captured piece burns away from the crown
 // down behind a thin edge of white light, and its outline, drawn in light
@@ -57,7 +58,7 @@ const knightYaw = (piece: PieceType, color: PieceColor, orientation: PieceColor)
 
 // --- Capture ------------------------------------------------------------------------------
 
-const outlineMaterial = () =>
+export const outlineMaterial = () =>
   overlayMaterial({
     blending: AdditiveBlending,
     uniforms: { uColor: { value: new Color(PALETTE.neon) }, uOpacity: { value: 0 } },
@@ -96,7 +97,7 @@ export const CaptureFx = ({
   // The victim in its own glaze (the live piece's) until it burns
   const body = usePieceMaterial(victim.color, victim.type, level);
   const outline = useMemo(outlineMaterial, []);
-  useEffect(() => () => outline.dispose(), [outline]);
+  useRetireOnUnmount(outline);
   const whole = useRef<Group>(null);
   const ghost = useRef<Group>(null);
   // The attacker is on its way: the victim holds, then burns away as it arrives
@@ -196,6 +197,23 @@ export const pulseSeconds = (x: number, z: number) =>
   // The front reaches the far corner at 95% of the pulse's life, as it fades
   (farthestCorner(x, z) + 0.15) / PULSE_SPEED / 0.95;
 
+/** The mate pulse's material (Celebration), from the king's foot at (x, z) on `level`. */
+export const pulseMaterial = (x = 0, z = 0, level = 0) =>
+  overlayMaterial({
+    side: DoubleSide,
+    blending: AdditiveBlending,
+    uniforms: {
+      uFront: { value: new Color(PALETTE.light) },
+      uTint: { value: new Color(LEVEL_COLORS[level]) },
+      uFrom: { value: [x, z] },
+      uRadius: { value: 0 },
+      uOpacity: { value: 0 },
+      uReach: { value: REACH },
+    },
+    vertexShader: pulseVertex,
+    fragmentShader: pulseFragment,
+  });
+
 /**
  * Mate: one pulse of light from the king's foot across his level as he
  * falls, and the garden's colossal pieces brighten for a breath.
@@ -203,25 +221,8 @@ export const pulseSeconds = (x: number, z: number) =>
 export const Celebration = ({ floor }: CelebrationProps) => {
   const [kx, ky, kz] = floor;
   const level = levelAt(ky);
-  const material = useMemo(
-    () =>
-      overlayMaterial({
-        side: DoubleSide,
-        blending: AdditiveBlending,
-        uniforms: {
-          uFront: { value: new Color(PALETTE.light) },
-          uTint: { value: new Color(LEVEL_COLORS[level]) },
-          uFrom: { value: [kx, kz] },
-          uRadius: { value: 0 },
-          uOpacity: { value: 0 },
-          uReach: { value: REACH },
-        },
-        vertexShader: pulseVertex,
-        fragmentShader: pulseFragment,
-      }),
-    [kx, kz, level],
-  );
-  useEffect(() => () => material.dispose(), [material]);
+  const material = useMemo(() => pulseMaterial(kx, kz, level), [kx, kz, level]);
+  useRetireOnUnmount(material);
   useEffect(
     () => () => {
       gardenBoost.value = 0;

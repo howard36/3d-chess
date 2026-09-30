@@ -12,7 +12,7 @@
 // scenarios, writes the report and tears everything down again, also on an
 // error or Ctrl-C. --quick runs fewer and shorter cases (about a minute
 // instead of about three). --only a,b runs a subset of the scenarios, by key:
-// bundle, cold-load, setup, move-latency, reopen, presence, render,
+// bundle, cold-load, setup, move-latency, reopen, presence, select, render,
 // typed-paste. --keep keeps the temporary build and logs. Every section's
 // rows come with a metrics list (the row's primary number, keyed stably) for
 // comparing runs, and raw.timings holds each step's wall time.
@@ -65,6 +65,7 @@ const SECTION_KEYS = [
   'move-latency',
   'reopen',
   'presence',
+  'select',
   'render',
   'typed-paste',
 ];
@@ -95,6 +96,7 @@ const CFG = QUICK
       coldRuns: 2,
       setupRuns: 1,
       moves: 3,
+      selects: 3,
       reopenPlies: [0, 100, 500],
       reopenRuns: 1,
       flaps: [50],
@@ -106,6 +108,7 @@ const CFG = QUICK
       coldRuns: 6,
       setupRuns: 2,
       moves: 10,
+      selects: 8,
       reopenPlies: [0, 100, 500, 2000],
       reopenRuns: 2,
       flaps: [0, 200],
@@ -195,6 +198,15 @@ const stats = (xs) => ({
 const metric = (value, unit = 'ms', better = 'lower') =>
   ok(value) ? { value: Number(value.toPrecision(6)), unit, better } : null;
 /** A [label, median, p95, max, n, ...extra] row of durations, and its median as the metric. */
+/** A stat row of counts (plain numbers, not durations). */
+function countStat(label, xs, ...extra) {
+  const s = stats(xs);
+  const f = (v) => (ok(v) ? String(Number(v.toPrecision(3))) : '–');
+  return [
+    [label, f(s.median), f(s.p95), f(s.max), String(s.n), ...extra],
+    metric(s.median, 'count'),
+  ];
+}
 function stat(label, xs, ...extra) {
   const s = stats(xs);
   return [
@@ -317,6 +329,8 @@ const BENCH_INIT = () => {
     counts: [], // move-announcer data-move-count: [time, count, data-last-move]
     online: [], // opponent-presence data-online: [time, value]
     problems: [], // the move box's problem text: [time, text]
+    links: [], // WebGL programs linked (compiled shaders): [time]
+    syncs: [], // WebGL queries that held the main thread ≥ 2 ms: [time, name, duration]
   };
   Object.defineProperty(window, '__bench', { value: b });
   Object.defineProperty(window, '__benchNow', { value: now });
@@ -327,6 +341,39 @@ const BENCH_INIT = () => {
     }).observe({ type: 'longtask', buffered: true });
   } catch {
     b.noLongtasks = true;
+  }
+  // Every shader program the page links: a new program is compiled and
+  // linked inside the render() that first draws it
+  for (const Ctx of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
+    const link = Ctx?.prototype.linkProgram;
+    if (!link) continue;
+    Ctx.prototype.linkProgram = function (program) {
+      b.links.push(now());
+      return link.call(this, program);
+    };
+  }
+  // The queries that wait on the GPU process (a program's link status and
+  // uniforms, a read-back): each one it had to wait for, and how long
+  for (const Ctx of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
+    if (!Ctx) continue;
+    for (const name of Object.getOwnPropertyNames(Ctx.prototype)) {
+      if (!/^(get|read|finish|clientWaitSync)/.test(name)) continue;
+      const d = Object.getOwnPropertyDescriptor(Ctx.prototype, name);
+      if (typeof d?.value !== 'function') continue;
+      const f = d.value;
+      Ctx.prototype[name] = function (...args) {
+        const t0 = performance.now();
+        try {
+          return f.apply(this, args);
+        } finally {
+          const dt = performance.now() - t0;
+          if (dt >= 2) {
+            const what = name === 'getExtension' ? `${name}(${args[0]})` : name;
+            b.syncs.push([performance.timeOrigin + t0, what, dt]);
+          }
+        }
+      };
+    }
   }
   // Timestamps each message as it arrives, ahead of the app's own handler
   const Native = window.WebSocket;
@@ -1032,6 +1079,16 @@ async function setupViaUI(browser, scope) {
   await pageB.getByRole('button', { name: /^Join game$/i }).click();
   await Promise.all([waitBoard(pageA), waitBoard(pageB)]);
   const [a, b] = await Promise.all([snap(pageA), snap(pageB)]);
+  // The programs the joiner's board has linked: each one's shaders, briefly
+  const programs = await pageB.evaluate(() => {
+    const { gl } = window.__r3fState.get();
+    const ctx = gl.getContext();
+    return gl.info.programs.map((p) => {
+      const src = ctx.getShaderSource(p.fragmentShader) ?? '';
+      const body = src.slice(src.lastIndexOf('void main')).replace(/\s+/g, ' ');
+      return [src.length, body.slice(0, 140)];
+    });
+  });
   const clickA = a.clicks.find((c) =>
     chose ? c[1].startsWith('White') : c[1] === 'Start a game',
   )?.[0];
@@ -1048,6 +1105,14 @@ async function setupViaUI(browser, scope) {
     firstRenderCpu: b.renders[0][1],
     joinerLongest: maxOf(tasksIn(b.lt, clickB, frameB).map((l) => l[1])),
     joinerLongTotal: sum(tasksIn(b.lt, clickB, frameB).map((l) => l[1])),
+    programs,
+    joinerLinks: (b.links ?? []).filter((l) => l >= clickB && l <= frameB).length,
+    firstRenderSyncs: (b.syncs ?? [])
+      .filter(([t]) => t >= b.renders[0][0] && t <= b.renders[0][0] + b.renders[0][1])
+      .map(([t, n, d]) => [Math.round(t - b.renders[0][0]), n, Math.round(d)]),
+    firstRenderLinks: (b.links ?? []).filter(
+      (l) => l >= b.renders[0][0] && l <= b.renders[0][0] + b.renders[0][1],
+    ).length,
   };
   const seatA = await pageA.getByTestId('seat').getAttribute('data-seat');
   const seats = { [seatA]: pageA, [other(seatA)]: pageB };
@@ -1094,6 +1159,16 @@ async function setupSection(browser, shared) {
         ),
         stat('joiner: longest task, click → frame', col('joinerLongest')),
         stat('joiner: long tasks total, click → frame', col('joinerLongTotal')),
+        countStat(
+          'joiner: shader programs linked, click → frame',
+          col('joinerLinks'),
+          'count; lobby’s and board’s',
+        ),
+        countStat(
+          'joiner’s first render(): shader programs linked',
+          col('firstRenderLinks'),
+          'count',
+        ),
       ]);
     },
   );
@@ -1161,6 +1236,11 @@ async function movesSection(browser, shared) {
           longMover: sum(tasksM),
           longestOpp: maxOf([0, ...tasksO]),
           longestRenderMover: maxOf(inWindow(m.renders, enter, drawnM).map((f) => f[1])),
+          linksMover: (m.links ?? []).filter((l) => l >= enter && l <= drawnM).length,
+          syncsMover: (m.syncs ?? [])
+            .filter(([t]) => t >= enter && t <= drawnM)
+            .map(([t, n, d]) => [Math.round(t - enter), n, Math.round(d)]),
+          linksOpp: (o.links ?? []).filter((l) => l >= enter && l <= drawnO).length,
         });
       }
       raw.moves = moves;
@@ -1185,10 +1265,151 @@ async function movesSection(browser, shared) {
           col('longestRenderMover'),
           'steady frames take a few ms',
         ),
+        countStat('mover: shader programs linked, Enter → drawn', col('linksMover'), 'count'),
+        countStat('opponent: shader programs linked, Enter → drawn', col('linksOpp'), 'count'),
       ]);
       sec.notes.push(
         `A “page handles” time is when the message event is dispatched on that page’s main thread, so it includes any wait for the thread (a frame being drawn). After the first ply both pages keep drawing (the last-move line’s shimmer asks for every frame; see Rendering), so later plies compete with that. The next move is typed as soon as both pages have drawn this one. Correctness guard: both pages’ data-last-move matched the typed move every ply.`,
       );
+    },
+  );
+}
+
+// 4b. Selecting a piece -------------------------------------------------------
+
+/**
+ * The pixel on the canvas whose ray reaches the square `zxy` (its piece or
+ * its click box) before anything else a click could go to, as the e2e
+ * suite's clickSquare finds it (e2e/helpers/board.ts), or null.
+ */
+const squarePixel = (page, zxy) =>
+  page.evaluate((target) => {
+    const { camera, size, scene, raycaster } = window.__r3fState.get();
+    camera.updateMatrixWorld();
+    scene.updateMatrixWorld(true);
+    let cube = null;
+    scene.traverse((o) => {
+      if (o.userData.cube && o.userData.zxy === target) cube = o;
+    });
+    if (!cube) return null;
+    const at = cube.position;
+    const near = (a, b) => Math.abs(a - b) < 1e-6;
+    const interactive = (hit) => {
+      for (let o = hit; o; o = o.parent) {
+        if (o.userData.piece) return o;
+        if (o.userData.cube) return o.userData.highlight ? o : null;
+      }
+      return null;
+    };
+    const canvas = document.querySelector('canvas');
+    const rect = canvas.getBoundingClientRect();
+    for (const dx of [0, 0.3, -0.3])
+      for (const dy of [0.4, 0.2, 0])
+        for (const dz of [0, 0.3, -0.3]) {
+          const v = at.clone();
+          v.x += dx;
+          v.y += dy;
+          v.z += dz;
+          v.project(camera);
+          raycaster.setFromCamera({ x: v.x, y: v.y }, camera);
+          let first = null;
+          for (const h of raycaster.intersectObjects(scene.children, true)) {
+            first = interactive(h.object);
+            if (first) break;
+          }
+          if (!first) continue;
+          const p = first.position;
+          if (!(near(p.x, at.x) && near(p.y, at.y) && near(p.z, at.z))) continue;
+          const x = rect.left + (v.x * 0.5 + 0.5) * size.width;
+          const y = rect.top + (-v.y * 0.5 + 0.5) * size.height;
+          if (document.elementFromPoint(x, y) === canvas) return { x, y };
+        }
+    return null;
+  }, zxy);
+
+async function selectSection(browser) {
+  await section(
+    'select',
+    {
+      title: 'Selecting a piece',
+      intro: `A new game from White’s seat (${VIEWPORTS.desktop.label}), at rest: White’s pieces are picked up one after another with a real click through the app’s raycasting (as the e2e suite clicks), each put down again by a click on empty space before the next is picked up. ${CFG.selects} picks. Timed on the page’s clock from the click to the end of the first frame drawn after it (the piece held, its destinations shown), with that frame’s render() call and the shader programs linked on the way. ${SW_NOTE}`,
+      columns: ['Measure', 'median', 'p95', 'max', 'n', 'Notes'],
+      align: ['l', 'r', 'r', 'r', 'r', 'l'],
+      timeoutMs: QUICK ? 150000 : 300000,
+    },
+    async (sec, scope) => {
+      const game = await seedGame(scope, 0);
+      await game.seats.white.close();
+      const { page } = await openSeat(browser, scope, 'desktop', game.gameId, 'white');
+      await waitBoard(page);
+      await settle(page);
+      // The board's frames from its first to rest (the entrance, and the
+      // frame that warms the marks' programs up): the longest one's render()
+      const rest = await snap(page);
+      const afterFirst = rest.renders.slice(1).map((r) => r[1]);
+      const squares = ['Bb2', 'Bc2', 'Bd2', 'Ab1', 'Ad1', 'Ba2', 'Be2', 'Bb1'];
+      const picks = [];
+      for (let i = 0; i < CFG.selects; i++) {
+        const zxy = squares[i % squares.length];
+        const at = await squarePixel(page, zxy);
+        if (!at) throw new Error(`no pixel reaches ${zxy}`);
+        const t = await page.evaluate(() => window.__benchNow());
+        await page.mouse.click(at.x, at.y);
+        await waitFrameAfter(page, t);
+        await quietMain(page);
+        const s = await snap(page);
+        const frame = s.renders.find((r) => r[0] >= t);
+        const drawn = frame[0] + frame[1];
+        picks.push({
+          frame: drawn - t,
+          render: frame[1],
+          links: s.links.filter((l) => l >= t && l <= drawn).length,
+          syncs: (s.syncs ?? [])
+            .filter(([u]) => u >= t && u <= drawn)
+            .map(([u, n, d]) => [Math.round(u - t), n, Math.round(d)]),
+          longest: maxOf([0, ...tasksIn(s.lt, t, drawn).map((l) => l[1])]),
+        });
+        // Put it down: a click on empty space beside the tower
+        const box = await page.locator('canvas').boundingBox();
+        const t2 = await page.evaluate(() => window.__benchNow());
+        await page.mouse.click(box.x + box.width * 0.04, box.y + box.height * 0.5);
+        await waitFrameAfter(page, t2);
+        await quietMain(page);
+      }
+      raw.selects = picks;
+      const col = (k) => picks.map((r) => r[k]);
+      raw.selectRest = afterFirst;
+      raw.selectRestPrograms = await page.evaluate(() => {
+        const { gl } = window.__r3fState.get();
+        const ctx = gl.getContext();
+        return gl.info.programs.map((p) => {
+          const src = ctx.getShaderSource(p.fragmentShader) ?? '';
+          return src.slice(src.lastIndexOf('void main')).replace(/\s+/g, ' ').slice(0, 110);
+        });
+      });
+      // Each long frame to rest: when, how long, and the programs it linked
+      raw.selectRestFrames = rest.renders
+        .filter((r) => r[1] > 100)
+        .map(([t, d]) => [
+          Math.round(t - rest.renders[0][0]),
+          Math.round(d),
+          (rest.links ?? []).filter((l) => l >= t && l <= t + d).length,
+          (rest.syncs ?? [])
+            .filter(([u]) => u >= t && u <= t + d)
+            .map(([, n, e]) => `${n} ${Math.round(e)}`)
+            .slice(0, 6),
+        ]);
+      sec.addAll([
+        stat(
+          'before any click: longest render() after the first frame',
+          [maxOf([0, ...afterFirst])],
+          'the entrance and the warm-up, to rest',
+        ),
+        stat('click → first frame with the piece held', col('frame'), 'what the player sees'),
+        stat('that frame’s render() call', col('render'), 'main thread'),
+        stat('longest task, click → frame', col('longest')),
+        countStat('shader programs linked, click → frame', col('links'), 'count'),
+      ]);
     },
   );
 }
@@ -2142,6 +2363,7 @@ async function main() {
   }
   await reopenSection(browser);
   await presenceSection(browser);
+  await selectSection(browser);
   await renderSection(browser);
   // The report lists the sections in their natural order, whatever order they ran in
   report.sections.sort((a, b) => ORDER.get(a) - ORDER.get(b));

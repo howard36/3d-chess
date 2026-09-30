@@ -7,6 +7,7 @@ import { noRaycast } from '../noRaycast';
 import type { Vec3 } from '../types';
 import { clamp01, easeOutCubic } from './ease';
 import { PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
+import { useRetireOnUnmount } from './programs';
 
 // The blades round a king in check: threat, not glare. Four clusters of
 // obsidian, solid black glass with a cool sheen, broken through the glass on
@@ -142,7 +143,7 @@ const shardGeometry = (shards: Shard[]) => {
   return g;
 };
 
-const obsidianMaterial = (life: Uniforms) =>
+export const obsidianMaterial = (life: Uniforms) =>
   new ShaderMaterial({
     uniforms: {
       ...life,
@@ -256,7 +257,7 @@ export const Blades = ({
   const geometry = useMemo(() => shardGeometry(CLUSTERS), []);
   const material = useMemo(() => obsidianMaterial(life), [life]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  useEffect(() => () => material.dispose(), [material]);
+  useRetireOnUnmount(material);
   return (
     <mesh
       geometry={geometry}
