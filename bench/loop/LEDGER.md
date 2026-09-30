@@ -41,3 +41,5 @@ Ideas from 12 read-only reviewers (one lens each), checked against the code befo
 | Board renders that change nothing on screen draw no frame (stable cell props) | mover −17%, select −18% (3 pairs, not called); invalidates on disable 126 → 0 | **kept** (commit 3) |
 | Hold the lobby's frames while the game canvas initialises (hack) | join click → first frame 10.9 s → ~10 s (cold, 2 runs): no real change | rejected |
 | Why a cold join is slow | bare context 6–9 ms + extensions 8–13 ms alone; 2.1–2.7 s in the join: contention in the shared GPU process (both pages, one browser) | finding |
+| Lazy-load GameScreen out of the entry | entry is 272 KB min: react-dom 64%, react-router 12%, GameScreen's tree ~40 KB min (~10 KB gz): ~2–3% of the throttled phone's 657 ms; adds a blank-game-page failure mode | rejected (bytes measured) |
+| Lobby's garden from the copy (commit 6) | join click → joiner's first frame −45% (4 pairs, not called) | **kept** |
