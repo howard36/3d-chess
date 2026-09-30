@@ -146,7 +146,9 @@ const Board = (props: BoardProps) => {
   useEffect(() => {
     held.current = null;
     setSelected(null);
-    setLegalMoves([]);
+    // (The same empty list when nothing was held, so a move landing with no
+    // piece picked up renders the board once, not twice)
+    setLegalMoves((moves) => (moves.length === 0 ? moves : []));
   }, [props.board, props.currentTurn, props.disabled]);
 
   // Collect all pieces with their coordinates from the provided board
