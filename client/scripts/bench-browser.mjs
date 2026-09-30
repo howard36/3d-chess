@@ -367,7 +367,10 @@ const BENCH_INIT = () => {
           return f.apply(this, args);
         } finally {
           const dt = performance.now() - t0;
-          if (dt >= 2) b.syncs.push([performance.timeOrigin + t0, name, dt]);
+          if (dt >= 2) {
+            const what = name === 'getExtension' ? `${name}(${args[0]})` : name;
+            b.syncs.push([performance.timeOrigin + t0, what, dt]);
+          }
         }
       };
     }
@@ -1376,6 +1379,26 @@ async function selectSection(browser) {
       raw.selects = picks;
       const col = (k) => picks.map((r) => r[k]);
       raw.selectRest = afterFirst;
+      raw.selectRestPrograms = await page.evaluate(() => {
+        const { gl } = window.__r3fState.get();
+        const ctx = gl.getContext();
+        return gl.info.programs.map((p) => {
+          const src = ctx.getShaderSource(p.fragmentShader) ?? '';
+          return src.slice(src.lastIndexOf('void main')).replace(/\s+/g, ' ').slice(0, 110);
+        });
+      });
+      // Each long frame to rest: when, how long, and the programs it linked
+      raw.selectRestFrames = rest.renders
+        .filter((r) => r[1] > 100)
+        .map(([t, d]) => [
+          Math.round(t - rest.renders[0][0]),
+          Math.round(d),
+          (rest.links ?? []).filter((l) => l >= t && l <= t + d).length,
+          (rest.syncs ?? [])
+            .filter(([u]) => u >= t && u <= t + d)
+            .map(([, n, e]) => `${n} ${Math.round(e)}`)
+            .slice(0, 6),
+        ]);
       sec.addAll([
         stat(
           'before any click: longest render() after the first frame',

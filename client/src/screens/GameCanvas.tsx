@@ -16,7 +16,7 @@ import { INTRO_SCENE_VAR } from '../three/intro/vars';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import { WarmPrograms } from '../three/scene/warm';
-import { shaderChecksInDevOnly } from '../three/shaderChecks';
+import { setUpRenderer } from '../three/rendererSetup';
 import type { Board as EngineBoard, Move } from '../engine';
 import type { GameOver, LastMove, Turn } from '../game/history';
 import type { Color } from '../types/messages';
@@ -100,7 +100,7 @@ const GameCanvas = ({
         // here to project board cells to pixels — correct even after the
         // user orbits or the camera setup above changes.
         onCreated={(state: RootState) => {
-          shaderChecksInDevOnly(state);
+          setUpRenderer(state);
           (window as Window & { __r3fState?: RootState }).__r3fState = state;
         }}
       >
