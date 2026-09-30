@@ -13,8 +13,8 @@ describe('the glaze', () => {
     expect(m.defines).toEqual({});
     // Each effect is behind its own switch in the shader
     const shader = m.fragmentShader;
-    expect(shader.indexOf('#ifdef GLAZE_CUT')).toBeLessThan(shader.indexOf('if (uCut'));
-    expect(shader.indexOf('#ifdef GLAZE_FORM')).toBeLessThan(shader.indexOf('if (uForm'));
+    expect(shader).toMatch(/#ifdef GLAZE_CUT\s+if \(uCut > -0\.005\) \{[^#]*\}\s+#endif/);
+    expect(shader).toMatch(/#ifdef GLAZE_FORM\s+if \(uForm < 1\.0\) \{[^#]*\}\s+#endif/);
   });
 
   it('compiles the forming in for the entrance (and the lobby), the burn for a capture', () => {

@@ -3,7 +3,9 @@ import { act } from 'react';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
 import type { Mesh } from 'three';
-import { Celebration, PULSE_SPEED, pulseSeconds } from './fx';
+import { CaptureFx, Celebration, PULSE_SPEED, pulseSeconds } from './fx';
+import { PieceType } from '../../engine/pieces';
+import type { ShaderMaterial } from 'three';
 import { FRAME } from './palette';
 
 describe('the checkmate pulse', () => {
@@ -39,5 +41,24 @@ describe('the checkmate pulse', () => {
     expect(meshes()).toHaveLength(1);
     await act(async () => r.advanceFrames(6, 0.1));
     expect(meshes()).toHaveLength(0);
+  });
+});
+
+describe('a capture', () => {
+  it('burns its victim with the glaze that has the burn compiled in', async () => {
+    const r = await ReactThreeTestRenderer.create(
+      <CaptureFx
+        floor={[0, 0, 0]}
+        victim={{ type: PieceType.Rook, color: 'black' }}
+        durationMs={600}
+        orientation="white"
+      />,
+    );
+    const glazes = (r.scene as ReactThreeTestInstance)
+      .findAll((n) => n.type === 'Mesh')
+      .map((n) => (n.instance as unknown as Mesh).material as ShaderMaterial)
+      .filter((m) => m.fragmentShader.includes('uCut'));
+    expect(glazes).toHaveLength(1);
+    expect(glazes[0].defines).toEqual({ GLAZE_CUT: '' });
   });
 });

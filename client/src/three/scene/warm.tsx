@@ -67,7 +67,10 @@ export const WarmPrograms = () => {
       return;
     }
     scene.remove(w.group);
+    // The pieces change to the glaze at rest in the next frame: ask for it
+    // now, so that change is not made in a player's frame
     markGlazeWarm(gl);
+    invalidate();
     const kept = keepPrograms(gl, w.materials);
     // The ones that kept no program (another material already keeps it) go
     for (const m of w.materials) if (!kept.has(m)) m.dispose();
@@ -85,13 +88,13 @@ export const WarmPrograms = () => {
       selection.floorMaterial,
       poolMaterial(0),
       markMaterial(),
+      // A captured piece burning away (a capture can come with the first moves)
+      bodyMaterial('white', PieceType.Pawn, 0, 'cut'),
       lineMaterial(),
       shimmerMaterial(),
       outlineMaterial(),
-      // A piece at rest (the pieces change to it once it is warm) and a
-      // captured piece burning away
+      // A piece at rest (the pieces change to it once it is warm)
       bodyMaterial('white', PieceType.Pawn, 0, 'steady'),
-      bodyMaterial('white', PieceType.Pawn, 0, 'cut'),
       obsidianMaterial({}),
       pulseMaterial(),
     ];

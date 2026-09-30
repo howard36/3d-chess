@@ -4,6 +4,7 @@ import { Color, PerspectiveCamera, ShaderMaterial, Vector2 } from 'three';
 import type { Material, Mesh, Object3D, Scene, WebGLRenderer } from 'three';
 import { BACKDROP_END, BackdropCache, backdropSignature } from './backdropCache';
 import { Stage } from './stage';
+import { LAYER } from './layers';
 
 // The garden drawn from a copy of itself while nothing it depends on
 // changes: the copy is taken on the first frame at rest and drawn in place
@@ -134,6 +135,14 @@ describe('BackdropCache', () => {
     expect(dom).toBeTruthy();
     dom!.dispatchEvent(new Event('webglcontextlost'));
     expect(frame().mode).toBe('plain');
+  });
+
+  it('takes its copy after the garden and before anything of the tower', async () => {
+    const { take, copy } = await mount();
+    // Everything of the tower draws at a LAYER, the garden below BACKDROP_END
+    expect(take.renderOrder).toBe(BACKDROP_END);
+    expect(BACKDROP_END).toBeLessThan(Math.min(0, ...Object.values(LAYER)));
+    expect(copy.renderOrder).toBeLessThan(-1000);
   });
 
   it('leaves the scene as it found it when it goes', async () => {

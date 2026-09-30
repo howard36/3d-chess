@@ -11,7 +11,7 @@ import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE 
 import { easeOutQuad } from './ease';
 import { wholePiece } from './occlusion';
 import { overlayMaterial } from './overlay';
-import { usePieceMaterial } from './pieces';
+import { bodyMaterial } from './pieces';
 import { gardenBoost } from './stage';
 import { useRetireOnUnmount } from './programs';
 
@@ -95,7 +95,13 @@ export const CaptureFx = ({
   const geometry = wholePiece(victim.type);
   const level = levelAt(floor[1]);
   // The victim in its own glaze (the live piece's) until it burns
-  const body = usePieceMaterial(victim.color, victim.type, level, 'cut');
+  // (its own program, the burn's: retired, never disposed, so the next
+  // capture's frame links nothing; programs.ts)
+  const body = useMemo(
+    () => bodyMaterial(victim.color, victim.type, level, 'cut'),
+    [victim.color, victim.type, level],
+  );
+  useRetireOnUnmount(body);
   const outline = useMemo(outlineMaterial, []);
   useRetireOnUnmount(outline);
   const whole = useRef<Group>(null);

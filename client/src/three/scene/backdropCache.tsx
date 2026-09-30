@@ -24,10 +24,12 @@ import { noRaycast } from '../noRaycast';
 // the tower's layers), and the frames after it, while that still holds,
 // draw the copy in one full-screen pass in place of the garden. The copy is
 // the canvas's own resolved pixels written back unchanged, and the garden
-// writes no depth, so every pixel comes out as the full frame would draw it
-// (the tower's edges included: they are still drawn over it sample by
-// sample). A frame whose camera, buffer or garden differs draws the garden
-// as always.
+// writes no depth, so a frame comes out as the full frame would draw it
+// (0 bytes differed at 1280x720), but for one case: where an edge of the
+// garden (a tube, a star) and an edge of the tower share a pixel, the
+// tower's uncovered samples get the garden's resolved colour, not their
+// own, a step of 1 at most. A frame whose camera, buffer or garden differs
+// draws the garden as always.
 
 /** The garden draws below this renderOrder, the tower at or above it. */
 export const BACKDROP_END = -850;
@@ -74,13 +76,13 @@ export const backdropSignature = (
   const materials = new Set<Material>();
   garden.traverse((o) => {
     if (o === garden) return;
-    out.push(o.visible ? 1 : 0);
+    out.push(o.visible ? 1 : 0, (o as Mesh).geometry?.id ?? -1);
     pushAll(out, o.matrixWorld.elements);
     const m = (o as Mesh).material;
     if (m) for (const one of Array.isArray(m) ? m : [m]) materials.add(one);
   });
   for (const m of materials) {
-    out.push(m.id, m.version);
+    out.push(m.id, m.version, m.visible ? 1 : 0);
     const uniforms = (m as ShaderMaterial).uniforms;
     if (uniforms) for (const name in uniforms) pushValue(out, uniforms[name].value);
   }
