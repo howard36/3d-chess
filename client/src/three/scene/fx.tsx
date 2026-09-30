@@ -95,7 +95,7 @@ export const CaptureFx = ({
   const geometry = wholePiece(victim.type);
   const level = levelAt(floor[1]);
   // The victim in its own glaze (the live piece's) until it burns
-  const body = usePieceMaterial(victim.color, victim.type, level);
+  const body = usePieceMaterial(victim.color, victim.type, level, 'cut');
   const outline = useMemo(outlineMaterial, []);
   useRetireOnUnmount(outline);
   const whole = useRef<Group>(null);

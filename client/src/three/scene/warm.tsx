@@ -8,7 +8,8 @@ import { outlineMaterial, pulseMaterial } from './fx';
 import { lineMaterial } from './line';
 import { markMaterial, shimmerMaterial } from './markers';
 import { PALETTE } from './palette';
-import { poolMaterial } from './pieces';
+import { PieceType } from '../../engine/pieces';
+import { bodyMaterial, markGlazeWarm, poolMaterial } from './pieces';
 import { keepPrograms, warmObjects } from './programs';
 import { selectionMaterials } from './selection';
 
@@ -66,6 +67,7 @@ export const WarmPrograms = () => {
       return;
     }
     scene.remove(w.group);
+    markGlazeWarm(gl);
     const kept = keepPrograms(gl, w.materials);
     // The ones that kept no program (another material already keeps it) go
     for (const m of w.materials) if (!kept.has(m)) m.dispose();
@@ -86,6 +88,10 @@ export const WarmPrograms = () => {
       lineMaterial(),
       shimmerMaterial(),
       outlineMaterial(),
+      // A piece at rest (the pieces change to it once it is warm) and a
+      // captured piece burning away
+      bodyMaterial('white', PieceType.Pawn, 0, 'steady'),
+      bodyMaterial('white', PieceType.Pawn, 0, 'cut'),
       obsidianMaterial({}),
       pulseMaterial(),
     ];
