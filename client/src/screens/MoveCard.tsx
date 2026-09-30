@@ -31,6 +31,54 @@ const Enter = () => (
   </svg>
 );
 
+/** Moves a block of the list holds (an even number: a row is two moves). */
+const BLOCK = 64;
+
+/** The rows of moves `start` to `start + BLOCK` (as many as there are). */
+const MoveBlock = React.memo(
+  ({ moves, start }: { moves: MoveRecord[]; start: number }) => {
+    const rows = [];
+    for (let i = start; i < Math.min(moves.length, start + BLOCK); i += 2) {
+      const white = moves[i];
+      const black = moves[i + 1];
+      rows.push(
+        <li key={i / 2 + 1}>
+          {i / 2 + 1}. {formatMove(white)} {black ? formatMove(black) : ''}
+        </li>,
+      );
+    }
+    return rows;
+  },
+  // A record grows at its end, so only the last block changes as a move
+  // lands; the others hold the same records and are left alone
+  (a, b) => {
+    if (a.start !== b.start) return false;
+    const end = a.start + BLOCK;
+    if (Math.min(a.moves.length, end) !== Math.min(b.moves.length, end)) return false;
+    for (let i = a.start; i < Math.min(a.moves.length, end); i++) {
+      if (a.moves[i] !== b.moves[i]) return false;
+    }
+    return true;
+  },
+);
+
+/**
+ * The record, in the page for screen readers: a row per two moves, in
+ * blocks, so a move landing in a long game renders one block, not the list,
+ * and typing in the field renders none.
+ */
+const MoveList = React.memo(({ moves }: { moves: MoveRecord[] }) => {
+  const blocks = [];
+  for (let start = 0; start < moves.length; start += BLOCK) {
+    blocks.push(<MoveBlock key={start} moves={moves} start={start} />);
+  }
+  return (
+    <ol className="sr-only" aria-label="Move history" data-testid="move-list">
+      {blocks}
+    </ol>
+  );
+});
+
 /**
  * A field to type the next move ("Bb1-Cb1", "=Q" to promote), at the bottom
  * left, and the moves so far. It stays in the page but out of sight: the list
@@ -64,11 +112,6 @@ const MoveCard: React.FC<MoveCardProps> = ({ board, color, moves, canMove, yourT
   };
 
   const revealed = (focused || text !== '') && !dismissed;
-  const rows: { number: number; white: MoveRecord; black?: MoveRecord }[] = [];
-  for (let i = 0; i < moves.length; i += 2) {
-    rows.push({ number: i / 2 + 1, white: moves[i], black: moves[i + 1] });
-  }
-
   return (
     <section
       className="hud-card hud-glass"
@@ -102,13 +145,7 @@ const MoveCard: React.FC<MoveCardProps> = ({ board, color, moves, canMove, yourT
       }}
     >
       {/* The record, in the page for screen readers */}
-      <ol className="sr-only" aria-label="Move history" data-testid="move-list">
-        {rows.map((row) => (
-          <li key={row.number}>
-            {row.number}. {formatMove(row.white)} {row.black ? formatMove(row.black) : ''}
-          </li>
-        ))}
-      </ol>
+      <MoveList moves={moves} />
       <form onSubmit={submit} aria-label="Type a move">
         <label htmlFor="typed-move" className="sr-only">
           Type a move, like Bb1-Cb1
