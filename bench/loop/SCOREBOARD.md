@@ -43,3 +43,15 @@ Full report: `ab1-backdrop-cache.md`. Frame raster (e2e profile, 1280×720): pla
 | click → first frame with the piece held | 185 ms | 158 ms | −18% | 0.86 0.72 0.88 |
 
 Count: disabling the board asks for 0 frames (was 126; Board.test). Report: `ab2-board-frames.md`. Rule called nothing better or worse (noise).
+
+### Commit 4 — glaze variants: A/B vs fb2d7e5, 3 pairs (move-latency, select, render), 04:33–04:55Z
+
+| Row | Before | Head | Change | Pairs (head/base) |
+| :-- | --: | --: | --: | :-- |
+| Enter → mover's first frame with the move | 282 ms | 293 ms | −2.8% (mean of ratios) | 0.96 1.12 0.85 |
+| Enter → opponent's first frame with the move | 287 ms | 255 ms | −9.1% | 1.10 0.79 0.86 |
+| click → first frame with the piece held | 165 ms | 167 ms | +11% (one outlier pair) | 1.48 0.92 1.01 |
+| phone: orbit, knight selected (fps) | 3.74 | 4.12 | +12% **better** | 1.20 1.07 1.10 |
+| desktop: orbit, knight selected (fps) | 4.65 | 5.17 | +9.9% | 1.14 0.99 1.18 |
+
+Page probe (e2e, both pages drawing): frame 343 → 294 ms; 1 byte of 4 M differs, by 1. Report: `ab3-glaze-variants.md`.

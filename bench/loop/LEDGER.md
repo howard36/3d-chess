@@ -35,6 +35,9 @@ Ideas from 12 read-only reviewers (one lens each), checked against the code befo
 | :-- | :-- | :-- |
 | Remove `discard` from the piece glaze (early-Z) | 0 ms (interleaved median, 1280×720) | rejected |
 | Glaze's rare blocks (capture burn, entrance forming) as zero-trip loops | 0 ms: SwiftShader masks loops like branches | rejected |
-| Glaze's rare blocks compiled out (#define variants) | −12…−19 ms/frame; 1 byte of 3.7 M off by 1; +2 programs to warm | open |
+| Glaze's rare blocks compiled out (#define variants) | −12…−19 ms/frame; 1 byte of 3.7 M off by 1; +2 programs to warm | **kept** (commit 4): orbit w/ selection +10–12% fps, opponent −9%, mover and select within noise |
 | `compileAsync` / KHR_parallel_shader_compile | not exposed by this Chromium's SwiftShader; 12 small links 23 ms | rejected here (can't measure; may help real GPUs) |
 | Shimmer stops asking frames after 1.5 s (hack, upper bound) | move landing −15…−19% (2 pairs, noisy) | parked (design change) |
+| Board renders that change nothing on screen draw no frame (stable cell props) | mover −17%, select −18% (3 pairs, not called); invalidates on disable 126 → 0 | **kept** (commit 3) |
+| Hold the lobby's frames while the game canvas initialises (hack) | join click → first frame 10.9 s → ~10 s (cold, 2 runs): no real change | rejected |
+| Why a cold join is slow | bare context 6–9 ms + extensions 8–13 ms alone; 2.1–2.7 s in the join: contention in the shared GPU process (both pages, one browser) | finding |
