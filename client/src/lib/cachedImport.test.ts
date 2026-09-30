@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { cachedImport } from './cachedImport';
+import { ChunkLoadError, cachedImport } from './cachedImport';
 
 describe('cachedImport', () => {
   it('loads once for every caller', async () => {
@@ -16,7 +16,9 @@ describe('cachedImport', () => {
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce('chunk');
     const get = cachedImport(load);
-    await expect(get()).rejects.toThrow('offline');
+    const failure = get();
+    await expect(failure).rejects.toBeInstanceOf(ChunkLoadError);
+    await expect(failure).rejects.toThrow('offline');
     expect(await get()).toBe('chunk');
     expect(load).toHaveBeenCalledTimes(2);
   });

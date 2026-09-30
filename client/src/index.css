@@ -266,6 +266,34 @@
   color: var(--hud-fg);
   background: rgba(236, 241, 255, 0.08);
 }
+/* Where the board would stand, when it failed to load: the notice and its retry */
+.hud-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+}
+.hud-retry {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border: var(--button-border);
+  border-radius: var(--button-radius);
+  background: var(--button-bg);
+  color: var(--button-fg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hud-retry:hover,
+.hud-retry:focus-visible {
+  border-color: #f3f6ff;
+  box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.25);
+  outline: none;
+}
 /* The pill, with the pieces each side has taken hanging under its halves */
 .hud-bar {
   display: flex;

@@ -710,7 +710,15 @@ it at once and shows its title and button without waiting for it; on the side ch
 (`/new`) and a game's address the built page preloads it from the start (a
 `modulepreload` added by a small plugin in `vite.config.ts`), so a shared link shows its
 invitation without waiting for three.js, and does not wait for the entry before asking
-for the scene. In the build, r3f's `Canvas` is handed only the three.js classes the scene
+for the scene. Should the chunk fail to load (a dropped connection, a deploy that replaced
+it), only the canvas is left out: each is loaded with `lazyChunk` (`src/lib/cachedImport.ts`)
+inside a `ChunkBoundary` (`src/components/ChunkBoundary.tsx`), so the start page goes
+without its preview, the lobby's pages play on with no scene (`LobbyLayout` ends each of
+its moments at once), and the game keeps its HUD and move record with "Couldn't load the
+board" and a Retry. The retry asks for the chunk again with a fresh `React.lazy` (which
+keeps its first failure for good) and, should that fail too, reloads the page: Chromium
+keeps a module that failed to fetch failed for the rest of the page's life, and a
+replaced chunk is gone. In the build, r3f's `Canvas` is handed only the three.js classes the scene
 writes as elements (`src/three/r3fCatalogue.ts`) instead of the whole namespace, so the
 rest of three.js is left out; a new element's class must be added there
 (`r3fCatalogue.test.ts` fails until it is, and the build fails if the swap stops applying).
