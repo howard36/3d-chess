@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Color } from 'three';
 import type { Group, Material, Object3D } from 'three';
+import { backdropMaterial } from './backdropCache';
 import { obsidianMaterial } from './blades';
 import { outlineMaterial, pulseMaterial } from './fx';
 import { lineMaterial } from './line';
@@ -76,6 +77,8 @@ export const WarmPrograms = () => {
     const selection = selectionMaterials(new Color(PALETTE.select));
     // In the order they are likely needed
     const meshes = [
+      // The garden's copy, drawn from the first frame the camera rests
+      backdropMaterial(),
       selection.columnMaterial,
       selection.floorMaterial,
       poolMaterial(0),
@@ -91,7 +94,7 @@ export const WarmPrograms = () => {
     // The motes with the rest of a piece picked up, then the others
     const objects = [...group.children];
     const [mote] = objects.splice(meshes.length, 1);
-    objects.splice(2, 0, mote);
+    objects.splice(3, 0, mote);
     group.clear();
     warming.current = {
       group,

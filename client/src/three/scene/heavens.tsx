@@ -361,11 +361,12 @@ const figureLineGeometry = () => {
   return g;
 };
 
-// Light added onto the night, before the garden and the tower
+// Light added onto the night, after the ground and before the garden and
+// the tower: in three.js's opaque list with the rest of the garden
+// (backdropCache.tsx), still added
 const pointMaterial = (opacity: number) =>
   new ShaderMaterial({
     depthWrite: false,
-    transparent: true,
     blending: AdditiveBlending,
     uniforms: { uDpr: { value: 1 }, uOpacity: { value: opacity }, ...shadeUniforms() },
     vertexShader: pointVertex,
@@ -384,7 +385,6 @@ export const Heavens = () => {
       starMaterial: pointMaterial(1),
       lineMaterial: new ShaderMaterial({
         depthWrite: false,
-        transparent: true,
         blending: AdditiveBlending,
         uniforms: {
           ...shadeUniforms(),
@@ -406,21 +406,21 @@ export const Heavens = () => {
       <points
         geometry={parts.field}
         material={parts.fieldMaterial}
-        renderOrder={-990}
+        renderOrder={-899}
         raycast={noRaycast}
         frustumCulled={false}
       />
       <lineSegments
         geometry={parts.figureLines}
         material={parts.lineMaterial}
-        renderOrder={-989}
+        renderOrder={-898}
         raycast={noRaycast}
         frustumCulled={false}
       />
       <points
         geometry={parts.figureStars}
         material={parts.starMaterial}
-        renderOrder={-988}
+        renderOrder={-897}
         raycast={noRaycast}
         frustumCulled={false}
       />

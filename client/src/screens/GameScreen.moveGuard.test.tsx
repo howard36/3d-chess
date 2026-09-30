@@ -15,6 +15,9 @@ vi.mock('@react-three/fiber', () => ({
 vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
 vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
 vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
+vi.mock('../three/scene/backdropCache', () => ({
+  BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
+}));
 vi.mock('../three/scene/warm', () => ({
   WarmPrograms: () => null,
 }));

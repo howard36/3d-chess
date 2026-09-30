@@ -566,6 +566,12 @@ const neonFragment = /* glsl */ `
 /** `uReveal` for tubes drawn whole: above everything. */
 export const NEON_WHOLE = 1e4;
 
+/** A blended material sorted with the opaque ones (it keeps its blending). */
+const opaque = (m: ShaderMaterial) => {
+  m.transparent = false;
+  return m;
+};
+
 /** Brightens the garden for a moment at mate (fx.tsx). */
 export const gardenBoost = { value: 0 };
 
@@ -625,26 +631,33 @@ const Sculptures = ({
   const parts = useMemo(
     () => ({
       geometry: neonGeometry(),
-      tubes: neonMaterial({
-        width: 0.26,
-        core: 0.12,
-        halo: 0.06,
-        intensity: 0.078,
-        mirror: false,
-        fade: 0,
-      }),
+      // In three.js's opaque list, which draws first, so the whole garden
+      // is drawn before the tower (backdropCache.tsx); still joined by the max
+      tubes: opaque(
+        neonMaterial({
+          width: 0.26,
+          core: 0.12,
+          halo: 0.06,
+          intensity: 0.078,
+          mirror: false,
+          fade: 0,
+        }),
+      ),
       // Softer and dimmer in the polished stone, fading with depth
-      reflection: neonMaterial({
-        width: 0.45,
-        core: 0.05,
-        halo: 0.14,
-        intensity: 0.025,
-        mirror: true,
-        fade: 3.2,
-      }),
+      reflection: opaque(
+        neonMaterial({
+          width: 0.45,
+          core: 0.05,
+          halo: 0.14,
+          intensity: 0.025,
+          mirror: true,
+          fade: 3.2,
+        }),
+      ),
     }),
     [],
   );
+
   useDisposeOnUnmount(parts);
   const { geometry, tubes, reflection } = parts;
   return (
@@ -702,7 +715,8 @@ const Mist = () => {
     () => ({
       geometry: mistGeometry(),
       material: new ShaderMaterial({
-        transparent: true,
+        // Added onto the ground; in the opaque list with the rest of the
+        // garden, drawn before the tower (backdropCache.tsx)
         depthWrite: false,
         blending: AdditiveBlending,
         uniforms: {

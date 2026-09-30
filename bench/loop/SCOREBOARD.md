@@ -1,0 +1,35 @@
+# Scoreboard
+
+Primary benchmarks (CLAUDE.md "Performance"), browser tier of `bench/run.mjs`, headless Chromium 141 + SwiftShader, 4 vCPU. Median over runs; spread = (max − min) / median.
+
+## Run 20260930-0240
+
+### Base 92ce041 — 5 browser runs (`--only browser --repeat 5`), 2026-09-30 02:48–03:10Z
+
+| Row | base median | base spread | base n |
+| --: | --: | --: | --: |
+| desktop · create button enabled | 69 ms | 13% | 5 |
+| phone, 4× CPU, Fast 4G · create button enabled | 657 ms | 2% | 5 |
+| join: navigation → Join button | 236 ms | 19% | 5 |
+| navigation → record shown (announcer = H) · H = 2000 | 227 ms | 16% | 5 |
+| join: click → joiner’s first frame | 5.69 s | 87% | 5 |
+| joiner’s first render() call | 838 ms | 137% | 5 |
+| Enter → mover’s first frame with the move | 525 ms | 75% | 5 |
+| Enter → opponent’s first frame with the move | 485 ms | 43% | 5 |
+| click → first frame with the piece held | 251 ms | 46% | 5 |
+
+Also on base (client tier, 5 rounds): S1 whole piece set build+bake cold 70.1 + 7.1 ms; E1 select middlegame queen 5.79 µs. Server tier: 5 repeats, unchanged by this run (no server code touched).
+Note: "join: click → joiner's first frame" is bimodal (≈2.7 s, or 8.7–12.2 s when the first setup run meets cold program links).
+
+### Commit 2 — backdrop cache: A/B vs base, 3 interleaved pairs (browser: setup, move-latency, select, render), 03:47–04:10Z
+
+| Row | Base | Head | Change | Pairs (head/base) |
+| :-- | --: | --: | --: | :-- |
+| Enter → mover's first frame with the move | 400 ms | 279 ms | −29% | 0.95 0.67 0.56 |
+| Enter → opponent's first frame with the move | 489 ms | 262 ms | −36% | 0.54 0.79 0.61 |
+| click → first frame with the piece held | 206 ms | 175 ms | −16% | 0.72 1.09 0.75 |
+| phone: orbit (fps, higher better) | 4.78 | 6.25 | +31% | 1.31 1.43 1.20 |
+| mover: longest render() call (main thread) | 1.70 ms | 1.95 ms | +23% (worse) | 1.26 1.09 1.34 |
+| join: click → joiner's first frame | 2.70 s | 6.07 s | bimodal (cold links), not called | 0.63 0.99 2.70 |
+
+Full report: `ab1-backdrop-cache.md`. Frame raster (e2e profile, 1280×720): plain 195–200 ms, cached 128–135 ms; 0 of 3.7 M bytes differ.

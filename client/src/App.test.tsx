@@ -32,6 +32,9 @@ vi.mock('./three/FitCameraToBoard', () => ({
 vi.mock('./three/scene/stage', () => ({
   Stage: () => null,
 }));
+vi.mock('./three/scene/backdropCache', () => ({
+  BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
+}));
 // No frames in jsdom: the game's entrance is over as soon as it mounts
 vi.mock('./three/scene/warm', () => ({
   WarmPrograms: () => null,
