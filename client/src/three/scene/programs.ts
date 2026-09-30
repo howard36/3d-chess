@@ -38,13 +38,21 @@ export const useRetireOnUnmount = (material: Material) => {
   useEffect(() => () => retireMaterial(gl, material), [gl, material]);
 };
 
-/** Keeps the programs these materials have drawn with alive (as retireMaterial keeps one). */
+/**
+ * Keeps the programs these materials have drawn with alive (as retireMaterial
+ * keeps one); returns the materials now keeping one.
+ */
 export const keepPrograms = (gl: WebGLRenderer, materials: Material[]) => {
+  const kept = new Set<Material>();
   for (const m of materials) {
     const state = gl.properties?.get(m) as { currentProgram?: object } | undefined;
     const program = state?.currentProgram;
-    if (program && !keepers.has(program)) keepers.set(program, m);
+    if (program && !keepers.has(program)) {
+      keepers.set(program, m);
+      kept.add(m);
+    }
   }
+  return kept;
 };
 
 /** The name of warmObjects' group. */

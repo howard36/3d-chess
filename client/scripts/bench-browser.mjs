@@ -1340,6 +1340,10 @@ async function selectSection(browser) {
       const { page } = await openSeat(browser, scope, 'desktop', game.gameId, 'white');
       await waitBoard(page);
       await settle(page);
+      // The board's frames from its first to rest (the entrance, and the
+      // frame that warms the marks' programs up): the longest one's render()
+      const rest = await snap(page);
+      const afterFirst = rest.renders.slice(1).map((r) => r[1]);
       const squares = ['Bb2', 'Bc2', 'Bd2', 'Ab1', 'Ad1', 'Ba2', 'Be2', 'Bb1'];
       const picks = [];
       for (let i = 0; i < CFG.selects; i++) {
@@ -1371,7 +1375,13 @@ async function selectSection(browser) {
       }
       raw.selects = picks;
       const col = (k) => picks.map((r) => r[k]);
+      raw.selectRest = afterFirst;
       sec.addAll([
+        stat(
+          'before any click: longest render() after the first frame',
+          [maxOf([0, ...afterFirst])],
+          'the entrance and the warm-up, to rest',
+        ),
         stat('click → first frame with the piece held', col('frame'), 'what the player sees'),
         stat('that frame’s render() call', col('render'), 'main thread'),
         stat('longest task, click → frame', col('longest')),

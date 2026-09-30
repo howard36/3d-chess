@@ -197,6 +197,23 @@ export const pulseSeconds = (x: number, z: number) =>
   // The front reaches the far corner at 95% of the pulse's life, as it fades
   (farthestCorner(x, z) + 0.15) / PULSE_SPEED / 0.95;
 
+/** The mate pulse's material (Celebration), from the king's foot at (x, z) on `level`. */
+export const pulseMaterial = (x = 0, z = 0, level = 0) =>
+  overlayMaterial({
+    side: DoubleSide,
+    blending: AdditiveBlending,
+    uniforms: {
+      uFront: { value: new Color(PALETTE.light) },
+      uTint: { value: new Color(LEVEL_COLORS[level]) },
+      uFrom: { value: [x, z] },
+      uRadius: { value: 0 },
+      uOpacity: { value: 0 },
+      uReach: { value: REACH },
+    },
+    vertexShader: pulseVertex,
+    fragmentShader: pulseFragment,
+  });
+
 /**
  * Mate: one pulse of light from the king's foot across his level as he
  * falls, and the garden's colossal pieces brighten for a breath.
@@ -204,24 +221,7 @@ export const pulseSeconds = (x: number, z: number) =>
 export const Celebration = ({ floor }: CelebrationProps) => {
   const [kx, ky, kz] = floor;
   const level = levelAt(ky);
-  const material = useMemo(
-    () =>
-      overlayMaterial({
-        side: DoubleSide,
-        blending: AdditiveBlending,
-        uniforms: {
-          uFront: { value: new Color(PALETTE.light) },
-          uTint: { value: new Color(LEVEL_COLORS[level]) },
-          uFrom: { value: [kx, kz] },
-          uRadius: { value: 0 },
-          uOpacity: { value: 0 },
-          uReach: { value: REACH },
-        },
-        vertexShader: pulseVertex,
-        fragmentShader: pulseFragment,
-      }),
-    [kx, kz, level],
-  );
+  const material = useMemo(() => pulseMaterial(kx, kz, level), [kx, kz, level]);
   useRetireOnUnmount(material);
   useEffect(
     () => () => {
