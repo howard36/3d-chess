@@ -33,3 +33,13 @@ Note: "join: click → joiner's first frame" is bimodal (≈2.7 s, or 8.7–12.2
 | join: click → joiner's first frame | 2.70 s | 6.07 s | bimodal (cold links), not called | 0.63 0.99 2.70 |
 
 Full report: `ab1-backdrop-cache.md`. Frame raster (e2e profile, 1280×720): plain 195–200 ms, cached 128–135 ms; 0 of 3.7 M bytes differ.
+
+### Commit 3 — no frame for a board render that changes nothing: A/B vs commit 2 (9917f49), 3 pairs (move-latency, select), 04:20–04:40Z
+
+| Row | Commit 2 | Head | Change | Pairs (head/base) |
+| :-- | --: | --: | --: | :-- |
+| Enter → mover's first frame with the move | 319 ms | 256 ms | −17% | 0.67 0.76 1.12 |
+| Enter → opponent's first frame with the move | 296 ms | 311 ms | −1.7% | 1.09 1.05 0.83 |
+| click → first frame with the piece held | 185 ms | 158 ms | −18% | 0.86 0.72 0.88 |
+
+Count: disabling the board asks for 0 frames (was 126; Board.test). Report: `ab2-board-frames.md`. Rule called nothing better or worse (noise).
