@@ -1,7 +1,8 @@
 /**
- * Draw order of the scene's see-through layers. Pieces are opaque and
- * drawn first; everything here is transparent, writes no depth, and is drawn
- * after them in this order, so:
+ * Draw order of the scene's see-through layers. The garden (Stage) draws
+ * first, below them all (backdropCache.tsx's BACKDROP_END), then the
+ * pieces, which are opaque; everything here is transparent, writes no
+ * depth, and is drawn after them in this order, so:
  *
  * - platforms never hide a piece, a marker or a label (they write no depth),
  *   they only tint what lies behind them, faintly;

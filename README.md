@@ -341,7 +341,9 @@ levels) divided by hairlines of the level's colour. Porcelain and charcoal Staun
 foot. Far out, a colossal chessboard drawn in faint light carries twelve giant pieces
 outlined in white neon, which sink into the tower's shade as they near it on screen, so
 nothing competes with the board; overhead are stars and chess constellations for a camera
-that looks up. Files and ranks label the two edges of the bottom platform nearest the
+that looks up. The garden changes only with the view, so while the camera rests it is drawn
+from a copy of itself taken on the first frame at rest (`scene/backdropCache.tsx`), and a
+move or a selection redraws the tower over it. Files and ranks label the two edges of the bottom platform nearest the
 camera (the top one's, seen from high above). The five level letters share one corner post
 (`letterCorner` in `three/scene/labelAnchors.ts`), each just outside its own platform's
 corner, out along the corner's diagonal, a little above its platform. From low and middling
