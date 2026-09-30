@@ -68,3 +68,23 @@ Page probe (e2e, both pages drawing): frame 343 → 294 ms; 1 byte of 4 M differ
 | create: click → share link shown | 2.05 s | 1.95 s | −0.3% | 0.78 0.60 1.14 1.85 |
 
 Not called by the rule (the cold path still showed in 1 of 4 head runs). Reading: both pages share one GPU process in the bench; the lobbies' idle frames now cost the tower only, so the joiner's context creation and links wait less. Report: `ab4-lobby-cache.md`.
+
+### Final: the branch (f71c92b) vs main (150303c), all tiers, 3 interleaved pairs, 05:20–05:57Z — 18 better, 2 worse
+
+| Primary row | main | Branch | Change | Pairs (head/base) | Verdict |
+| :-- | --: | --: | --: | :-- | :-- |
+| desktop · create button enabled | 73.5 ms | 67.9 ms | −3.9% | 0.90 0.92 1.07 | |
+| phone, 4× CPU, Fast 4G · create button enabled | 672 ms | 656 ms | −3.1% | 0.92 0.98 1.01 | |
+| join: navigation → Join button | 224 ms | 182 ms | −15% | 0.83 0.90 0.81 | better |
+| navigation → record shown · H = 2000 | 199 ms | 237 ms | +16% | 1.03 1.27 1.19 | (noise: 5-pair recheck −3.4%) |
+| join: click → joiner's first frame | 2.88 s | 2.49 s | −15% | 0.80 0.87 0.86 | better |
+| joiner's first render() call | 481 ms | 600 ms | +32% | 1.25 1.51 1.23 | worse (5-pair recheck: −27%, 0.23 0.65 0.97 0.57 2.56: noise) |
+| Enter → mover's first frame with the move | 397 ms | 368 ms | −10% | 0.83 0.93 0.94 | |
+| Enter → opponent's first frame with the move | 482 ms | 297 ms | −38% | 0.56 0.74 0.59 | better |
+| click → first frame with the piece held | 234 ms | 145 ms | −40% | 0.62 0.68 0.52 | better |
+
+Other rows called: phone orbit +30% fps, desktop orbit with selection +34% fps, S1 piece-set build −16% (untouched code: drift), next move on a reopened 2,000-ply game +19% worse (5-pair recheck: −8.5%, noise). Report: `final-AB-3pairs.md`.
+
+### Recheck: setup + reopen, 5 pairs vs main, 06:00–06:25Z — 0 better, 1 worse
+
+join click → joiner's first frame 7.84 s → 2.68 s (−50%), its long tasks 7.41 s → 2.17 s, first render() 1.30 s → 741 ms; reopen H = 2000: record shown −3.4%, next move −8.5%. **Worse, every pair: main-thread script to "loaded" on a reopened 2,000-ply game 1.05 s → 1.58 s (+55%)**: WarmPrograms links 3 more programs at idle after the entrance (the garden's copy, the glaze at rest, the burn's glaze), ~0.15 s each in software; that is the price of no program linking in a move's, selection's or capture's frame. Report: `recheck-setup-reopen-5pairs.md`.

@@ -52,7 +52,7 @@ New ideas, not tried (next run):
 
 | Idea | Where | Estimate | Risk |
 | :-- | :-- | :-- | :-- |
-| One mark program per kind (MARK_KIND define): every quiet/trace mark pays the check crown's and capture's code in software | scene/markers.tsx:117/129/149 | 7–13 ms of 12–21 ms marks per selection/move frame | 3 programs to warm; ≤1 LSB |
+| One mark program per kind (MARK_KIND define): every quiet/trace mark pays the check crown's and capture's code in software | scene/markers.tsx:117/129/149 | estimated 7–13 ms; **measured** (page probe, a selection with 18 marks): 143.8 → 140.1 ms (−2.6%), 0 bytes differ | **rejected**: +3 programs to warm at idle (~0.45 s main thread in software) for 2.6% |
 | Glass without its entrance code once built (GLASS_BUILD define) | scene/plates.tsx:125,150,372 | 3–6 ms of 11–19 ms glass | 1–2 programs; rim's customProgramCacheKey |
 | Glaze: light directions as uniforms; check block only in kings | scene/pieces.tsx:164–166,219 | 5–10 ms of ~45 ms piece fragment | ≤1 LSB; a king variant to warm |
 | Take the copy on the frame the camera comes to rest (not the second) | scene/backdropCache.tsx | the first click after an orbit gets a cached frame | one copy per moving frame (check orbit fps) |
