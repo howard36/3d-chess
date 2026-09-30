@@ -43,3 +43,21 @@ Ideas from 12 read-only reviewers (one lens each), checked against the code befo
 | Why a cold join is slow | bare context 6–9 ms + extensions 8–13 ms alone; 2.1–2.7 s in the join: contention in the shared GPU process (both pages, one browser) | finding |
 | Lazy-load GameScreen out of the entry | entry is 272 KB min: react-dom 64%, react-router 12%, GameScreen's tree ~40 KB min (~10 KB gz): ~2–3% of the throttled phone's 657 ms; adds a blank-game-page failure mode | rejected (bytes measured) |
 | Lobby's garden from the copy (commit 6) | join click → joiner's first frame −45% (4 pairs, not called) | **kept** |
+
+### Final review round (6 read-only reviewers on the diff, 05:20–05:40Z)
+
+Blockers found and fixed (commit 291b7f6): CaptureFx disposed the burn glaze's material (a relink per capture on the landing preview, and before warm-up in a game). Leaks found and fixed (commit e9cd8b6): labels' userData and marks' dep-less invalidate still drew frames for no-op Board renders; OrbitControls' damping tail moved the camera ~1e-5 u on every later frame, disabling the garden's copy after any orbit.
+
+New ideas, not tried (next run):
+
+| Idea | Where | Estimate | Risk |
+| :-- | :-- | :-- | :-- |
+| One mark program per kind (MARK_KIND define): every quiet/trace mark pays the check crown's and capture's code in software | scene/markers.tsx:117/129/149 | 7–13 ms of 12–21 ms marks per selection/move frame | 3 programs to warm; ≤1 LSB |
+| Glass without its entrance code once built (GLASS_BUILD define) | scene/plates.tsx:125,150,372 | 3–6 ms of 11–19 ms glass | 1–2 programs; rim's customProgramCacheKey |
+| Glaze: light directions as uniforms; check block only in kings | scene/pieces.tsx:164–166,219 | 5–10 ms of ~45 ms piece fragment | ≤1 LSB; a king variant to warm |
+| Take the copy on the frame the camera comes to rest (not the second) | scene/backdropCache.tsx | the first click after an orbit gets a cached frame | one copy per moving frame (check orbit fps) |
+| Cache the static pieces too (depth-only pre-pass) | backdropCache | −20–40% more per frame at rest | high: depth exactness, Board names dynamic pieces |
+| One WebGL context from lobby to game | LobbyCanvas / GameCanvas | no second context + most links on join | high: __r3fState, lazy chunks, handover |
+| Allocation-free signature | backdropCache.tsx | the +0.25 ms render() | low |
+| Bench count: garden frames per mode per ply (plain/capture/cached) | bench-browser.mjs | guards the cache against a future per-frame garden uniform | none |
+| `alpha: false` (#7) would break the copy (RGB canvas → RGBA texture copy is invalid) | — | — | note on #7 |
