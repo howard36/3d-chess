@@ -55,3 +55,16 @@ Count: disabling the board asks for 0 frames (was 126; Board.test). Report: `ab2
 | desktop: orbit, knight selected (fps) | 4.65 | 5.17 | +9.9% | 1.14 0.99 1.18 |
 
 Page probe (e2e, both pages drawing): frame 343 → 294 ms; 1 byte of 4 M differs, by 1. Report: `ab3-glaze-variants.md`.
+
+### Commit 6 — the lobby's garden from the copy too: A/B vs 40c0fa8, 4 pairs (setup), 04:58–05:12Z
+
+| Row | Before | Head | Change | Pairs (head/base) |
+| :-- | --: | --: | --: | :-- |
+| join: click → joiner's first frame | 5.82 s | 2.50 s | −45% | 1.30 0.43 0.38 0.43 |
+| join: click → game_start received | 571 ms | 58.9 ms | −77% | 1.67 0.10 0.08 0.20 |
+| joiner: long tasks total, click → frame | 5.46 s | 1.96 s | −52% | 1.33 0.37 0.32 0.35 |
+| joiner: shader programs linked, click → frame | 17 | 12 | −18% | 1.29 0.71 0.71 0.71 |
+| join: click → creator's first frame | 2.19 s | 2.20 s | −6.2% | 0.66 0.90 1.03 1.26 |
+| create: click → share link shown | 2.05 s | 1.95 s | −0.3% | 0.78 0.60 1.14 1.85 |
+
+Not called by the rule (the cold path still showed in 1 of 4 head runs). Reading: both pages share one GPU process in the bench; the lobbies' idle frames now cost the tower only, so the joiner's context creation and links wait less. Report: `ab4-lobby-cache.md`.
