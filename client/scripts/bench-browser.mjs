@@ -1076,6 +1076,16 @@ async function setupViaUI(browser, scope) {
   await pageB.getByRole('button', { name: /^Join game$/i }).click();
   await Promise.all([waitBoard(pageA), waitBoard(pageB)]);
   const [a, b] = await Promise.all([snap(pageA), snap(pageB)]);
+  // The programs the joiner's board has linked: each one's shaders, briefly
+  const programs = await pageB.evaluate(() => {
+    const { gl } = window.__r3fState.get();
+    const ctx = gl.getContext();
+    return gl.info.programs.map((p) => {
+      const src = ctx.getShaderSource(p.fragmentShader) ?? '';
+      const body = src.slice(src.lastIndexOf('void main')).replace(/\s+/g, ' ');
+      return [src.length, body.slice(0, 140)];
+    });
+  });
   const clickA = a.clicks.find((c) =>
     chose ? c[1].startsWith('White') : c[1] === 'Start a game',
   )?.[0];
@@ -1092,6 +1102,7 @@ async function setupViaUI(browser, scope) {
     firstRenderCpu: b.renders[0][1],
     joinerLongest: maxOf(tasksIn(b.lt, clickB, frameB).map((l) => l[1])),
     joinerLongTotal: sum(tasksIn(b.lt, clickB, frameB).map((l) => l[1])),
+    programs,
     joinerLinks: (b.links ?? []).filter((l) => l >= clickB && l <= frameB).length,
     firstRenderSyncs: (b.syncs ?? [])
       .filter(([t]) => t >= b.renders[0][0] && t <= b.renders[0][0] + b.renders[0][1])
