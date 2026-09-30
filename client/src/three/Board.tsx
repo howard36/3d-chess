@@ -204,6 +204,7 @@ const Board = (props: BoardProps) => {
   useLayoutEffect(() => {
     latestPieceTap.current = handlePieceTap;
     latestCanPick.current = canPick;
+    latestCubeClick.current = handleCubeClick;
   });
   const pieceHandlers = useMemo(
     () =>
@@ -231,6 +232,33 @@ const Board = (props: BoardProps) => {
                 if (latestCanPick.current(cell)) setHovered(key);
               },
               onPointerOut: () => setHovered((h) => (h === key ? null : h)),
+            },
+          ];
+        }),
+      ),
+    [],
+  );
+
+  // Each cell box's props, the same objects from one render to the next:
+  // r3f redraws the canvas for any prop it is handed anew, and the board
+  // renders for things no cell shows (the board disabled while a move goes
+  // to the server, a hover), which would each draw a frame identical to the
+  // last. Its click plays the move through the latest closure.
+  const latestCubeClick = useRef<(cell: Coord) => void>(() => {});
+  const cellProps = useMemo(
+    () =>
+      new Map(
+        CELLS.map((cell) => {
+          const zxy = toZXY(cell);
+          return [
+            zxy,
+            {
+              idle: { highlight: false, cube: true, zxy },
+              destination: { highlight: true, cube: true, zxy },
+              onClick: (e: ThreeEvent<MouseEvent>) => {
+                e.stopPropagation();
+                if (isTap(e) && take(e.nativeEvent)) latestCubeClick.current(cell);
+              },
             },
           ];
         }),
@@ -364,6 +392,24 @@ const Board = (props: BoardProps) => {
     [selectedLevel, hoveredLevel],
   );
 
+  // The same handlers from one render to the next (as the cells', above)
+  const emptyTaps = useMemo(
+    () => ({
+      onClick: (e: ThreeEvent<MouseEvent>) => {
+        if (!isTap(e)) return;
+        // After r3f has offered the click to everything behind this square
+        const event = e.nativeEvent;
+        queueMicrotask(() => {
+          if (take(event)) latestEmptyTap.current(event);
+        });
+      },
+      onPointerMissed: (event: MouseEvent) => {
+        if (take(event)) latestEmptyTap.current(event);
+      },
+    }),
+    [],
+  );
+
   return (
     <>
       <HoverProbe probe={latestProbe} onHover={setHoveredCell} />
@@ -374,23 +420,15 @@ const Board = (props: BoardProps) => {
         // that hits nothing on the board (the sky, the gap between levels);
         // r3f reports only taps as misses, never the end of a drag round the
         // board. A finger's tap goes first to anything actionable in reach.
-        onClick={(e: ThreeEvent<MouseEvent>) => {
-          if (!isTap(e)) return;
-          // After r3f has offered the click to everything behind this square
-          const event = e.nativeEvent;
-          queueMicrotask(() => {
-            if (take(event)) latestEmptyTap.current(event);
-          });
-        }}
-        onPointerMissed={(event: MouseEvent) => {
-          if (take(event)) latestEmptyTap.current(event);
-        }}
+        onClick={emptyTaps.onClick}
+        onPointerMissed={emptyTaps.onPointerMissed}
       >
         {/* Cell boxes: raycast targets for selecting a destination and for the
             empty-space click that clears the selection, never drawn. */}
         {CELLS.map((cell) => {
           const cellKey = toZXY(cell);
           const isDest = isHighlighted(cell);
+          const { idle, destination, onClick } = cellProps.get(cellKey)!;
           return (
             <mesh
               key={cellKey}
@@ -398,16 +436,9 @@ const Board = (props: BoardProps) => {
               geometry={cellGeometry}
               material={cellMaterial}
               visible={false}
-              userData={{ highlight: isDest, cube: true, zxy: cellKey }}
+              userData={isDest ? destination : idle}
               // Clicking a highlighted cube plays the move
-              onClick={
-                isDest
-                  ? (e: ThreeEvent<MouseEvent>) => {
-                      e.stopPropagation();
-                      if (isTap(e) && take(e.nativeEvent)) handleCubeClick(cell);
-                    }
-                  : undefined
-              }
+              onClick={isDest ? onClick : undefined}
             />
           );
         })}
