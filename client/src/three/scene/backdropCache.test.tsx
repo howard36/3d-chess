@@ -203,3 +203,48 @@ describe('the garden', () => {
     for (const d of drawn) if (d.order > ground) expect(d.material.blending, d.name).not.toBe(1);
   });
 });
+
+describe('the garden at rest', () => {
+  it('draws the same frame after frame, so the copy is used (no uniform moves by itself)', async () => {
+    const r = await ReactThreeTestRenderer.create(
+      <BackdropCache>
+        <Stage orientation="white" />
+      </BackdropCache>,
+    );
+    const scene = r.scene.instance as unknown as Scene;
+    const garden = scene.getObjectByName('backdrop')!;
+    const gl = fakeRenderer();
+    const cam = camera();
+    // Its own motion done (the shooting star waits for a look up: none here)
+    await r.advanceFrames(240, 1 / 30);
+    scene.updateMatrixWorld(true);
+    const a = backdropSignature(gl, cam, garden, []);
+    await r.advanceFrames(90, 1 / 30);
+    scene.updateMatrixWorld(true);
+    expect(backdropSignature(gl, cam, garden, [])).toEqual(a);
+  });
+
+  it('keeps every value it draws with where the signature sees it', async () => {
+    // A colour or a texture on a built-in material changes no uniform the
+    // signature reads: a frame at rest would show the copy stale
+    const r = await ReactThreeTestRenderer.create(
+      <BackdropCache>
+        <Stage orientation="white" />
+      </BackdropCache>,
+    );
+    const scene = r.scene.instance as unknown as Scene;
+    let materials = 0;
+    scene.getObjectByName('backdrop')!.traverse((o) => {
+      const m = (o as Mesh).material as Material | undefined;
+      if (!m) return;
+      materials++;
+      expect((m as ShaderMaterial).isShaderMaterial, o.name || o.type).toBe(true);
+      for (const [name, u] of Object.entries((m as ShaderMaterial).uniforms))
+        expect(
+          (u.value as { isTexture?: boolean } | null)?.isTexture,
+          `${o.name}.${name}`,
+        ).not.toBe(true);
+    });
+    expect(materials).toBeGreaterThanOrEqual(8);
+  });
+});

@@ -98,6 +98,7 @@ const CFG = QUICK
       setupRuns: 1,
       moves: 3,
       selects: 3,
+      selectsAfterTurn: 2,
       reopenPlies: [0, 100, 500],
       reopenRuns: 1,
       flaps: [50],
@@ -110,6 +111,7 @@ const CFG = QUICK
       setupRuns: 2,
       moves: 10,
       selects: 8,
+      selectsAfterTurn: 4,
       reopenPlies: [0, 100, 500, 2000],
       reopenRuns: 2,
       flaps: [0, 200],
@@ -471,12 +473,26 @@ const BENCH_INIT = () => {
       gl.__benchWrapped = true;
       b.r3fAt = now();
       const render = gl.render;
+      // How the frame drew the garden (scene/backdropCache.tsx): from its
+      // copy ('cached'), in full and then copied ('capture'), or in full
+      const parts = new WeakMap();
+      const gardenMode = (scene) => {
+        // (looked up until found: the cache adds them after the first frame)
+        if (!parts.get(scene)?.copy)
+          parts.set(scene, {
+            copy: scene.getObjectByName('backdrop-copy'),
+            take: scene.getObjectByName('backdrop-take'),
+          });
+        const { copy, take } = parts.get(scene);
+        if (!copy) return null;
+        return copy.visible ? 'cached' : take?.visible ? 'capture' : 'plain';
+      };
       gl.render = function (scene, camera) {
         const t0 = performance.now();
         try {
           return render.call(this, scene, camera);
         } finally {
-          b.renders.push([performance.timeOrigin + t0, performance.now() - t0]);
+          b.renders.push([performance.timeOrigin + t0, performance.now() - t0, gardenMode(scene)]);
         }
       };
     },
@@ -1369,6 +1385,7 @@ async function selectSection(browser) {
         picks.push({
           frame: drawn - t,
           render: frame[1],
+          mode: frame[2],
           links: s.links.filter((l) => l >= t && l <= drawn).length,
           syncs: (s.syncs ?? [])
             .filter(([u]) => u >= t && u <= drawn)
@@ -1382,7 +1399,31 @@ async function selectSection(browser) {
         await waitFrameAfter(page, t2);
         await quietMain(page);
       }
+      // After a turn of the view: the camera comes to rest, the page goes
+      // quiet, then a piece is picked up (the first click after an orbit)
+      const turned = [];
+      for (let i = 0; i < CFG.selectsAfterTurn; i++) {
+        await page.evaluate(ORBIT, { ms: 400, degPerSec: 40 });
+        await quietMain(page);
+        await page.waitForTimeout(500);
+        const zxy = squares[i % squares.length];
+        const at = await squarePixel(page, zxy);
+        if (!at) throw new Error(`no pixel reaches ${zxy}`);
+        const t = await page.evaluate(() => window.__benchNow());
+        await page.mouse.click(at.x, at.y);
+        await waitFrameAfter(page, t);
+        await quietMain(page);
+        const s = await snap(page);
+        const frame = s.renders.find((r) => r[0] >= t);
+        turned.push({ frame: frame[0] + frame[1] - t, mode: frame[2] });
+        const box = await page.locator('canvas').boundingBox();
+        const t2 = await page.evaluate(() => window.__benchNow());
+        await page.mouse.click(box.x + box.width * 0.04, box.y + box.height * 0.5);
+        await waitFrameAfter(page, t2);
+        await quietMain(page);
+      }
       raw.selects = picks;
+      raw.selectsAfterTurn = turned;
       const col = (k) => picks.map((r) => r[k]);
       raw.selectRest = afterFirst;
       raw.selectRestPrograms = await page.evaluate(() => {
@@ -1415,6 +1456,21 @@ async function selectSection(browser) {
         stat('that frame’s render() call', col('render'), 'main thread'),
         stat('longest task, click → frame', col('longest')),
         countStat('shader programs linked, click → frame', col('links'), 'count'),
+        countStat(
+          'first frames that drew the garden in full',
+          [picks.filter((p) => p.mode !== 'cached').length],
+          `count of ${picks.length}; the rest from its copy`,
+        ),
+        stat(
+          'after a turn of the view: click → first frame with the piece held',
+          turned.map((r) => r.frame),
+          'the first click once the camera rests',
+        ),
+        countStat(
+          'after a turn of the view: first frames that drew the garden in full',
+          [turned.filter((p) => p.mode !== 'cached').length],
+          `count of ${turned.length}`,
+        ),
       ]);
     },
   );
