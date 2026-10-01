@@ -288,7 +288,9 @@ const Mark = ({
   renderOrder = LAYER.marker,
 }: MarkProps) => {
   const invalidate = useThree((s) => s.invalidate);
-  const widest = Math.max(radius, softRadius ?? radius);
+  // The quad holds what the mark draws: the soft pool's reach only while it
+  // is soft (a fragment shaded outside it costs as much as one inside)
+  const widest = soft ? Math.max(radius, softRadius ?? radius) : radius;
   const quad =
     kind === 'check' ? 2.1 : kind === 'capture' ? widest * 3.3 + 0.08 : (widest * 1.25 + 0.1) * 2;
   const material = useMemo(
