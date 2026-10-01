@@ -101,6 +101,8 @@ const item = (it) => {
   let html = `<article class="item">`;
   if (it.title) html += `<h3>${it.title}</h3>`;
   if (it.body) html += `<div class="body">${it.body}</div>`;
+  // A picture that is not a benchmark row (a table, a small diagram), as HTML
+  if (it.figure) html += `<figure class="chart"><div class="scroll">${it.figure.html}</div><figcaption>${esc(it.figure.caption ?? '')}</figcaption></figure>`;
   for (const c of it.charts ?? []) html += chart(c.rows, c.caption ?? '');
   if (it.recommend) html += `<p class="rec"><span>Recommendation</span> ${it.recommend}</p>`;
   return `${html}</article>`;
