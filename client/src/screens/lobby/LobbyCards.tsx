@@ -19,7 +19,6 @@ const COPIED_MS = 1800;
 /** The creator's card while the opponent's seat is empty. */
 export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat }) => {
   const [copied, setCopied] = React.useState<boolean | null>(null);
-  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
   const canCopy = typeof navigator !== 'undefined' && !!navigator.clipboard;
   React.useEffect(() => {
     if (copied !== true) return;
@@ -32,11 +31,6 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
       () => setCopied(false),
     );
   };
-  const share = () => {
-    navigator.share({ title: '3D Chess', text: "Let's play 3D chess.", url: link }).catch(() => {
-      // Dismissed, or not allowed: the link is still there to copy
-    });
-  };
   const first = React.useRef<HTMLButtonElement>(null);
   // The choice is made; the next thing to do is send the link
   React.useEffect(() => first.current?.focus({ preventScroll: true }), []);
@@ -48,26 +42,17 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
       data-seat={seat}
     >
       <h2 id="invite-title">Invite a friend</h2>
-      {/* The link itself, to read or select; the buttons under it copy or share it */}
+      {/* The link itself, to read or select; the button under it copies it */}
       <p className="lobby-url" data-testid="share-link" data-link={link}>
         {shownLink(link)}
       </p>
-      <div className="lobby-actions">
-        {canShare && (
-          <button ref={first} className="landing-play lobby-go" onClick={share}>
-            Share link
-          </button>
-        )}
-        {canCopy && (
-          <button
-            ref={canShare ? undefined : first}
-            className={canShare ? 'lobby-secondary' : 'landing-play lobby-go'}
-            onClick={copy}
-          >
+      {canCopy && (
+        <div className="lobby-actions">
+          <button ref={first} className="landing-play lobby-go" onClick={copy}>
             {copied ? 'Copied ✓' : 'Copy link'}
           </button>
-        )}
-      </div>
+        </div>
+      )}
       {/* The button says "Copied"; only a failed copy needs words */}
       <p className={copied === false ? 'lobby-note' : 'sr-only'} role="status">
         {copied === false ? "Couldn't copy. Select the link." : copied ? 'Link copied' : ''}
