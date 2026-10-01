@@ -14,16 +14,29 @@ import { clickSquare, waitForBoard, waitForDestination } from './helpers/board';
 // Black mates in two, taking on Bb1 as it does (gameOver.spec.ts)
 const MATE = ['Ad1-Ac3', 'Ec4-Cc2', 'Ac2-Ad1', 'Cc2-Bb1'];
 
-/** The ids of the programs the page's renderer holds (three.js numbers each anew). */
-const programs = (page: Page) =>
+/**
+ * Counts, from now on, every program the page's WebGL context links, with
+ * the start of its fragment shader's main (a released program leaves three's
+ * list again, so the list alone could miss one linked and dropped)
+ */
+const countLinks = (page: Page) =>
   page.evaluate(() => {
-    const st = (
-      window as unknown as {
-        __r3fState: { get: () => { gl: { info: { programs: { id: number; name: string }[] } } } };
-      }
-    ).__r3fState.get();
-    return st.gl.info.programs.map((p) => `${p.id} ${p.name}`);
+    const w = window as unknown as {
+      __r3fState: { get: () => { gl: { getContext: () => WebGL2RenderingContext } } };
+      __links: string[];
+    };
+    const ctx = w.__r3fState.get().gl.getContext();
+    const link = ctx.linkProgram.bind(ctx);
+    w.__links = [];
+    ctx.linkProgram = (program: WebGLProgram) => {
+      const shaders = ctx.getAttachedShaders(program) ?? [];
+      const src = shaders.map((sh) => ctx.getShaderSource(sh) ?? '').join('\n');
+      w.__links.push(src.slice(src.lastIndexOf('void main')).replace(/\s+/g, ' ').slice(0, 80));
+      link(program);
+    };
   });
+const links = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __links: string[] }).__links);
 
 const warm = (page: Page) =>
   page.locator('canvas[data-warm="done"]').waitFor({ state: 'attached', timeout: 120_000 });
@@ -38,7 +51,7 @@ test('a whole game links no shader program once the board is warm', async ({ bro
     await waitForBoard(page);
     await warm(page);
   }
-  const before = await Promise.all([programs(game.white), programs(game.black)]);
+  for (const page of [game.white, game.black]) await countLinks(page);
   // White picks a knight up (Ab1: its destinations show)...
   await clickSquare(game.white, 'Ab1', 'white');
   await waitForDestination(game.white, 'Aa3');
@@ -70,7 +83,7 @@ test('a whole game links no shader program once the board is warm', async ({ bro
   );
   // The mated king's fall and the card
   await game.white.waitForTimeout(3000);
-  const after = await Promise.all([programs(game.white), programs(game.black)]);
-  for (const i of [0, 1]) expect(after[i].filter((p) => !before[i].includes(p))).toEqual([]);
+  expect(await links(game.white)).toEqual([]);
+  expect(await links(game.black)).toEqual([]);
   await game.close();
 });
