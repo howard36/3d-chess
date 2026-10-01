@@ -1,0 +1,116 @@
+{
+ "setup": [
+  {
+   "createShown": 1329.60009765625,
+   "createTrace": {
+    "created": 61.800048828125,
+    "stages": [
+     [
+      1330,
+      "/game/817VYC",
+      "wait",
+      "on"
+     ]
+    ],
+    "longTasks": [
+     [
+      319,
+      191
+     ],
+     [
+      531,
+      431
+     ]
+    ],
+    "links": [
+     321,
+     533,
+     732,
+     939
+    ],
+    "syncs": [
+     [
+      321,
+      "getProgramParameter",
+      186
+     ],
+     [
+      533,
+      "getProgramParameter",
+      197
+     ],
+     [
+      732,
+      "getProgramParameter",
+      205
+     ],
+     [
+      939,
+      "getProgramParameter",
+      20
+     ]
+    ],
+    "frames": 4,
+    "longestFrame": 800
+   }
+  },
+  {
+   "createShown": 1242.89990234375,
+   "createTrace": {
+    "created": 63,
+    "stages": [
+     [
+      1243,
+      "/game/LZ6RY4",
+      "wait",
+      "on"
+     ]
+    ],
+    "longTasks": [
+     [
+      380,
+      224
+     ],
+     [
+      605,
+      91
+     ],
+     [
+      697,
+      520
+     ]
+    ],
+    "links": [
+     383,
+     700,
+     865,
+     1047
+    ],
+    "syncs": [
+     [
+      383,
+      "getProgramParameter",
+      219
+     ],
+     [
+      700,
+      "getProgramParameter",
+      164
+     ],
+     [
+      865,
+      "getProgramParameter",
+      180
+     ],
+     [
+      1047,
+      "getProgramParameter",
+      166
+     ]
+    ],
+    "frames": 3,
+    "longestFrame": 633.300048828125
+   }
+  }
+ ]
+}

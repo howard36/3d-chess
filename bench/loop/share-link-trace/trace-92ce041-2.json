@@ -1,0 +1,64 @@
+{
+ "setup": [
+  {
+   "createShown": 1216.39990234375,
+   "createTrace": {
+    "created": 65.2998046875,
+    "stages": [
+     [
+      1216,
+      "/game/FT94MV",
+      "wait",
+      "late"
+     ]
+    ],
+    "longTasks": [
+     [
+      424,
+      189
+     ],
+     [
+      614,
+      186
+     ],
+     [
+      801,
+      400
+     ]
+    ],
+    "frames": 3,
+    "longestFrame": 583.300048828125
+   }
+  },
+  {
+   "createShown": 2554.10009765625,
+   "createTrace": {
+    "created": 58.699951171875,
+    "stages": [
+     [
+      2554,
+      "/game/LH1B3D",
+      "wait",
+      "on"
+     ]
+    ],
+    "longTasks": [
+     [
+      651,
+      189
+     ],
+     [
+      841,
+      417
+     ],
+     [
+      1611,
+      444
+     ]
+    ],
+    "frames": 4,
+    "longestFrame": 950
+   }
+  }
+ ]
+}

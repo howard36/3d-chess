@@ -21,24 +21,14 @@
         "recommend": "Merge. R2's case is correctness (a preload that silently never ran on iOS). The creator's +13% is untested as a cause; I believe it is the two pages sharing one VM, since before this change iOS paid the same work inside the first board frame."
       },
       {
-        "title": "Four rows are slower than the first recorded run, none from this run; the worst bisected to #55",
-        "body": "<p>Against 92ce041 (2 pairs): <b>create → share link shown +108%</b>, the reopened game's main-thread script +38% (the warm-up the last run added, named there as its price), and the desktop start page +6–10%. Against main, the same rows are within noise (share link +4.8% over 4 pairs), so this branch did not cause them. Bisected the share link: only two commits lie between 92ce041 and main, and <b>150303c</b> (#55, \"a scene chunk that fails to load leaves the page's other parts up\") moves it from 1.07 s to 1.92 s (+79%, both pairs; <code>bisect-share-link-150303c-vs-92ce041.md</code>). #55 changed how the lobby loads its scene and ends its moments (<code>lazyChunk</code>, <code>ChunkBoundary</code>, the <code>noScene</code> path in <code>LobbyLayout.tsx</code>); the share link waits on the lobby's choose beat. Not root-caused: the run's budget ended.</p>",
-        "charts": [
-          {
-            "rows": {
-              "change": "bisect: 150303c vs 92ce041"
-            },
-            "caption": "Setup section, 150303c vs its parent 92ce041, 2 pairs."
-          },
-          {
-            "rows": {
-              "change": "final vs first run",
-              "only": "share link shown|main-thread script, to loaded · H = 2000|desktop · (DOMContentLoaded|create button enabled)"
-            },
-            "caption": "Branch vs 92ce041, 2 pairs."
-          }
-        ],
-        "recommend": "Treat it as a regression from #55 and root-cause it first in the next run (or ask its author): the creator now waits about 0.85 s longer for the link to share."
+        "title": "The share link's slowness is shader links in the lobby, not #55",
+        "body": "<p>Against 92ce041 the share link read +108% (2 pairs), and a 2-pair bisect pinned +79% on #55. Traced (<code>share-link-trace/README.md</code>), neither holds. Between the White click and the link the creator's page draws only 3–4 frames. They are held up by the shader programs the lobby first draws after the pick, each linked in a frame and waiting 0.1–1.1 s on the GPU in software rendering:</p><ul><li>the held king's selection light (column, floor, motes)</li><li>the landing band</li><li>since #56, the garden's copy</li></ul><p>The page goes to the game once the king's glide settles, so the link waits for all of them. One build spans 0.8–2.9 s. Over 6 interleaved setups each, #55 and #56 have medians of 1680 and 1803 ms, and the slowest five setups are exactly the five with the most GPU waiting. The reopened game's +38% and the desktop start page's +6% are the last run's named warm-up cost and noise.</p>",
+        "charts": [],
+        "recommend": "Warm those programs while the side choice waits for a click, as WarmPrograms does for the game. That should take most of the 0.5–2 s of GPU waiting off the creator's wait in software rendering, and the links' cost on real GPUs too. I can do it next.",
+        "figure": {
+          "html": "<table><tr><th>Build</th><th>Share link, setups (ms)</th><th>Median</th><th>Links after pick</th><th>Median GPU wait</th></tr><tr><td>92ce041</td><td>1609 1420 1216 2554 1330 1243</td><td>1375</td><td>4</td><td>~670 ms</td></tr><tr><td>150303c (#55)</td><td>12 setups, 1011–2630</td><td>1520</td><td>4</td><td>783 ms</td></tr><tr><td>7f1e93c (#56)</td><td>2249 935 1357 824 2833 2925</td><td>1803</td><td>5</td><td>929 ms</td></tr></table>",
+          "caption": "Interleaved setup runs with the bench's creator trace; share-link-trace/*.json."
+        }
       },
       {
         "title": "Should the client refuse illegal moves from the opponent?",
@@ -208,6 +198,10 @@
       {
         "title": "Tailwind replaced by 25 lines of CSS (R6)",
         "body": "<p>Not tried: about 1–2 KB gzipped of CSS against a screen-by-screen visual check. Parked.</p>"
+      },
+      {
+        "title": "\"#55 slowed the share link\" (my own bisect)",
+        "body": "<p>A 2-pair A/B called it +79%. Traced over 12 setups it is not a regression: the row's spread on one build is 0.8–2.9 s.</p>"
       }
     ]
   },
@@ -221,6 +215,6 @@
     "intro": "<p>No other sessions were active, so nothing to hand over.</p>"
   },
   "next": {
-    "intro": "<ol><li>Root-cause the share-link regression from #55 (+79%, bisected).</li><li>The finite shimmer (needs your call): the largest lever left on move landing.</li><li>Open the WebSocket from <code>index.html</code> (R4): saves the socket handshake on game pages in production; the bench, on localhost, can barely see it.</li><li>r3f 9.7 with React 19.2 (R7): microtask commits for the click's selection; +3 KB gzipped on the entry, a trade-off to measure.</li><li>Reconnect at once on <code>online</code> or a tab coming back (P3).</li><li>Glass without its entrance code once built (R10): one more program to warm for 3–6 ms a frame.</li></ol>"
+    "intro": "<ol><li>Warm the lobby's post-pick programs (selection light, landing band, garden copy) before the pick: the root cause of the creator's slow share link.</li><li>The finite shimmer (needs your call): the largest lever left on move landing.</li><li>Open the WebSocket from <code>index.html</code> (R4): saves the socket handshake on game pages in production; the bench, on localhost, can barely see it.</li><li>r3f 9.7 with React 19.2 (R7): microtask commits for the click's selection; +3 KB gzipped on the entry, a trade-off to measure.</li><li>Reconnect at once on <code>online</code> or a tab coming back (P3).</li><li>Glass without its entrance code once built (R10): one more program to warm for 3–6 ms a frame.</li></ol>"
   }
 }

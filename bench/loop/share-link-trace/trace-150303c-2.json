@@ -1,0 +1,56 @@
+{
+ "setup": [
+  {
+   "createShown": 1516.300048828125,
+   "createTrace": {
+    "created": 55.5,
+    "stages": [
+     [
+      1516,
+      "/game/FYP4Y4",
+      "wait",
+      "on"
+     ]
+    ],
+    "longTasks": [
+     [
+      639,
+      302
+     ],
+     [
+      950,
+      539
+     ]
+    ],
+    "frames": 4,
+    "longestFrame": 566.60009765625
+   }
+  },
+  {
+   "createShown": 1165.89990234375,
+   "createTrace": {
+    "created": 65.89990234375,
+    "stages": [
+     [
+      1166,
+      "/game/M4WEZE",
+      "wait",
+      "on"
+     ]
+    ],
+    "longTasks": [
+     [
+      344,
+      311
+     ],
+     [
+      675,
+      459
+     ]
+    ],
+    "frames": 4,
+    "longestFrame": 483.2001953125
+   }
+  }
+ ]
+}

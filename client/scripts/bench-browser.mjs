@@ -334,6 +334,8 @@ const BENCH_INIT = () => {
     problems: [], // the move box's problem text: [time, text]
     links: [], // WebGL programs linked (compiled shaders): [time]
     syncs: [], // WebGL queries that held the main thread ≥ 2 ms: [time, name, duration]
+    stage: [], // the route and the lobby's beat and scene as they change: [time, path, beat, scene]
+    raf: [], // every animation frame's start (the page's frame pacing, canvases or not)
   };
   Object.defineProperty(window, '__bench', { value: b });
   Object.defineProperty(window, '__benchNow', { value: now });
@@ -352,6 +354,13 @@ const BENCH_INIT = () => {
     if (!link) continue;
     Ctx.prototype.linkProgram = function (program) {
       b.links.push(now());
+      // Which program: the start of its fragment shader's main
+      const shaders = this.getAttachedShaders(program) ?? [];
+      const src = shaders.map((sh) => this.getShaderSource(sh) ?? '').join('\n');
+      (b.linked ??= []).push([
+        now(),
+        src.slice(src.lastIndexOf('void main')).replace(/\s+/g, ' ').slice(0, 90),
+      ]);
       return link.call(this, program);
     };
   }
@@ -404,6 +413,11 @@ const BENCH_INIT = () => {
     },
     true,
   );
+  const frame = (ts) => {
+    b.raf.push(performance.timeOrigin + ts);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
   // The DOM hooks, stamped when React commits them
   let lastCount;
   let lastOnline;
@@ -414,9 +428,16 @@ const BENCH_INIT = () => {
     }
     return false;
   };
+  let lastStage;
   const check = () => {
     const t = now();
     const f = b.firsts;
+    const lobby = document.querySelector('[data-testid="lobby"]');
+    const stage = [location.pathname, lobby?.dataset.beat ?? null, lobby?.dataset.scene ?? null];
+    if (stage.join('|') !== lastStage) {
+      lastStage = stage.join('|');
+      b.stage.push([t, ...stage]);
+    }
     const inGame = location.pathname.startsWith('/game/');
     if (!f.createButton && !inGame && buttonNamed('Start a game', true)) f.createButton = t;
     if (
@@ -1120,6 +1141,29 @@ async function setupViaUI(browser, scope) {
   const t = {
     createRtt: rxOf(a, 'game_created') - clickA,
     createShown: a.firsts.shareScreen - clickA,
+    // Where the creator's wait goes: what happened from the pick to the link
+    createTrace: {
+      created: rxOf(a, 'game_created') - clickA,
+      stages: a.stage
+        .filter(([s]) => s >= clickA - 1 && s <= a.firsts.shareScreen + 1)
+        .map(([s, ...rest]) => [Math.round(s - clickA), ...rest]),
+      longTasks: tasksIn(a.lt, clickA, a.firsts.shareScreen).map(([s, d]) => [
+        Math.round(s - clickA),
+        Math.round(d),
+      ]),
+      links: (a.linked ?? [])
+        .filter(([l]) => l >= clickA && l <= a.firsts.shareScreen)
+        .map(([l, what]) => [Math.round(l - clickA), what]),
+      syncs: (a.syncs ?? [])
+        .filter(([u]) => u >= clickA && u <= a.firsts.shareScreen)
+        .map(([u, n, d]) => [Math.round(u - clickA), n, Math.round(d)]),
+      frames: a.raf.filter((s) => s >= clickA && s <= a.firsts.shareScreen).length,
+      longestFrame: maxOf(
+        a.raf
+          .filter((s) => s >= clickA && s <= a.firsts.shareScreen)
+          .map((s, i, all) => (i ? s - all[i - 1] : 0)),
+      ),
+    },
     joinButton: b.firsts.joinButton - b.timeOrigin,
     joinStart: rxOf(b, 'game_start') - clickB,
     joinerFrame: frameB - clickB,

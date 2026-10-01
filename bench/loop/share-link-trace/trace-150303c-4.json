@@ -1,0 +1,140 @@
+{
+ "setup": [
+  {
+   "createShown": 1011.199951171875,
+   "createTrace": {
+    "created": 66.699951171875,
+    "stages": [
+     [
+      1011,
+      "/game/DHJ7TR",
+      "wait",
+      "on"
+     ]
+    ],
+    "longTasks": [
+     [
+      297,
+      120
+     ],
+     [
+      450,
+      363
+     ]
+    ],
+    "links": [
+     [
+      299,
+      "void main() { float r = length(vP - uCentre); float band = exp(-pow((r - uRadius) / 0.05, "
+     ],
+     [
+      453,
+      "void main() { float r = length(vP); vec3 v = normalize(cameraPosition - vW); float above ="
+     ],
+     [
+      596,
+      "void main() { // Risen this far: soft at its rising top, so it grows up out of the // glas"
+     ],
+     [
+      788,
+      "void main() { vec4 diffuseColor = vec4( diffuse, opacity ); #if 0 > 0 vec4 plane; #ifdef A"
+     ]
+    ],
+    "syncs": [
+     [
+      299,
+      "getProgramParameter",
+      114
+     ],
+     [
+      455,
+      "getProgramParameter",
+      140
+     ],
+     [
+      596,
+      "getProgramParameter",
+      191
+     ],
+     [
+      788,
+      "getProgramParameter",
+      22
+     ]
+    ],
+    "frames": 3,
+    "longestFrame": 583.300048828125
+   }
+  },
+  {
+   "createShown": 1155.400146484375,
+   "createTrace": {
+    "created": 11.300048828125,
+    "stages": [
+     [
+      1155,
+      "/game/AVYI1T",
+      "wait",
+      "on"
+     ]
+    ],
+    "longTasks": [
+     [
+      218,
+      206
+     ],
+     [
+      424,
+      106
+     ],
+     [
+      530,
+      601
+     ]
+    ],
+    "links": [
+     [
+      220,
+      "void main() { float r = length(vP - uCentre); float band = exp(-pow((r - uRadius) / 0.05, "
+     ],
+     [
+      533,
+      "void main() { float r = length(vP); vec3 v = normalize(cameraPosition - vW); float above ="
+     ],
+     [
+      878,
+      "void main() { // Risen this far: soft at its rising top, so it grows up out of the // glas"
+     ],
+     [
+      1104,
+      "void main() { vec4 diffuseColor = vec4( diffuse, opacity ); #if 0 > 0 vec4 plane; #ifdef A"
+     ]
+    ],
+    "syncs": [
+     [
+      220,
+      "getProgramParameter",
+      203
+     ],
+     [
+      533,
+      "getProgramParameter",
+      344
+     ],
+     [
+      878,
+      "getProgramParameter",
+      225
+     ],
+     [
+      1104,
+      "getProgramParameter",
+      22
+     ]
+    ],
+    "frames": 5,
+    "longestFrame": 700
+   }
+  }
+ ]
+}

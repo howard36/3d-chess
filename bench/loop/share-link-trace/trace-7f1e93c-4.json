@@ -1,0 +1,154 @@
+{
+ "setup": [
+  {
+   "createShown": 2248.60009765625,
+   "createTrace": {
+    "created": 59.800048828125,
+    "stages": [
+     [
+      2249,
+      "/game/6XC2RM",
+      "wait",
+      "late"
+     ]
+    ],
+    "longTasks": [
+     [
+      857,
+      497
+     ],
+     [
+      1373,
+      673
+     ]
+    ],
+    "links": [
+     [
+      859,
+      "void main() { gl_FragColor = texelFetch(uCache, ivec2(gl_FragCoord.xy), 0); }"
+     ],
+     [
+      1132,
+      "void main() { float r = length(vP - uCentre); float band = exp(-pow((r - uRadius) / 0.05, "
+     ],
+     [
+      1375,
+      "void main() { float r = length(vP); vec3 v = normalize(cameraPosition - vW); float above ="
+     ],
+     [
+      1597,
+      "void main() { // Risen this far: soft at its rising top, so it grows up out of the // glas"
+     ],
+     [
+      1838,
+      "void main() { vec4 diffuseColor = vec4( diffuse, opacity ); #if 0 > 0 vec4 plane; #ifdef A"
+     ]
+    ],
+    "syncs": [
+     [
+      859,
+      "getProgramParameter",
+      270
+     ],
+     [
+      1133,
+      "getProgramParameter",
+      219
+     ],
+     [
+      1375,
+      "getProgramParameter",
+      221
+     ],
+     [
+      1597,
+      "getProgramParameter",
+      239
+     ],
+     [
+      1838,
+      "getProgramParameter",
+      205
+     ]
+    ],
+    "frames": 4,
+    "longestFrame": 883.300048828125
+   }
+  },
+  {
+   "createShown": 934.900146484375,
+   "createTrace": {
+    "created": 59,
+    "stages": [
+     [
+      935,
+      "/game/JLSUA5",
+      "wait",
+      "late"
+     ]
+    ],
+    "longTasks": [
+     [
+      183,
+      191
+     ],
+     [
+      388,
+      525
+     ]
+    ],
+    "links": [
+     [
+      185,
+      "void main() { gl_FragColor = texelFetch(uCache, ivec2(gl_FragCoord.xy), 0); }"
+     ],
+     [
+      367,
+      "void main() { float r = length(vP - uCentre); float band = exp(-pow((r - uRadius) / 0.05, "
+     ],
+     [
+      389,
+      "void main() { float r = length(vP); vec3 v = normalize(cameraPosition - vW); float above ="
+     ],
+     [
+      697,
+      "void main() { // Risen this far: soft at its rising top, so it grows up out of the // glas"
+     ],
+     [
+      730,
+      "void main() { vec4 diffuseColor = vec4( diffuse, opacity ); #if 0 > 0 vec4 plane; #ifdef A"
+     ]
+    ],
+    "syncs": [
+     [
+      185,
+      "getProgramParameter",
+      179
+     ],
+     [
+      367,
+      "getProgramParameter",
+      5
+     ],
+     [
+      389,
+      "getProgramParameter",
+      306
+     ],
+     [
+      697,
+      "getProgramParameter",
+      32
+     ],
+     [
+      730,
+      "getProgramParameter",
+      182
+     ]
+    ],
+    "frames": 4,
+    "longestFrame": 533.300048828125
+   }
+  }
+ ]
+}
