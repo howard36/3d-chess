@@ -86,9 +86,41 @@ const r3fCatalogue = (): Plugin => {
   };
 };
 
+/**
+ * The start page, a game's invitation and its HUD show before three.js has
+ * arrived: three.js, r3f and the scene load lazily (CLAUDE.md). One static
+ * import of a helper that imports three would pull it all into the entry
+ * without a word, so the build fails if the entry, or a chunk it imports
+ * statically, holds any of it.
+ */
+const SCENE_MODULE = /\/node_modules\/(three|@react-three)\//;
+const keepSceneOutOfEntry = (): Plugin => ({
+  name: 'keep-scene-out-of-entry',
+  apply: 'build',
+  generateBundle(_options, bundle) {
+    const chunks = new Map(
+      Object.values(bundle)
+        .filter((c) => c.type === 'chunk')
+        .map((c) => [c.fileName, c]),
+    );
+    const seen = new Set<string>();
+    const walk = (file: string) => {
+      const chunk = chunks.get(file);
+      if (!chunk || seen.has(file)) return;
+      seen.add(file);
+      const scene = chunk.moduleIds.filter((id) => SCENE_MODULE.test(id.replaceAll('\\', '/')));
+      if (scene.length)
+        this.error(`keep-scene-out-of-entry: ${file} loads with the entry and holds ${scene[0]}`);
+      chunk.imports.forEach(walk);
+    };
+    for (const c of chunks.values()) if (c.isEntry) walk(c.fileName);
+    if (!seen.size) this.error('keep-scene-out-of-entry: no entry chunk');
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), r3fCatalogue(), preloadSceneOnGamePages()],
+  plugins: [react(), r3fCatalogue(), preloadSceneOnGamePages(), keepSceneOutOfEntry()],
   css: {
     postcss: './postcss.config.js',
   },
