@@ -18,7 +18,8 @@
 // comparing runs, and raw.timings holds each step's wall time.
 //
 // Chromium comes from PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH when set, as for the
-// e2e suite. The board is drawn by SwiftShader (software WebGL), so a frame
+// e2e suite. BENCH_NO_IDLE_CALLBACK=1 takes requestIdleCallback away from every
+// page, as Safari and every iOS browser have it (none), to time their path. The board is drawn by SwiftShader (software WebGL), so a frame
 // costs CPU time, far more than on a real GPU; the report says so where it
 // matters and leans on measures that hold anyway (main-thread work, network
 // round trips, relative comparisons).
@@ -579,6 +580,11 @@ async function newBenchContext(browser, vp, role, extra = {}) {
   const ctx = await browser.newContext({ ...VIEWPORTS[vp].options, baseURL: BASE, ...extra });
   ctx.setDefaultTimeout(60000);
   await ctx.addInitScript(BENCH_INIT);
+  if (process.env.BENCH_NO_IDLE_CALLBACK === '1')
+    await ctx.addInitScript(() => {
+      for (const name of ['requestIdleCallback', 'cancelIdleCallback'])
+        Object.defineProperty(window, name, { value: undefined, configurable: true });
+    });
   if (role) {
     await ctx.addInitScript(
       ([id, color]) => {

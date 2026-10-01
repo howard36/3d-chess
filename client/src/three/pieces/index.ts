@@ -3,7 +3,7 @@
 // the README's "Piece set" section for the preview tool (client/pieces.html).
 
 export { PIECE_PARTS, partsGeometry, pieceTop } from './parts';
-export { FOOT_HEIGHT, PROFILES, pieceSet, preloadPieceSet } from './set';
+export { FOOT_HEIGHT, PROFILES, pieceSet } from './set';
 export type { PiecePart, PieceParts, PieceQuality, PieceSet } from './set';
 export { sampleProfile } from './profile';
 export type { Profile } from './profile';

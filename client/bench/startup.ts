@@ -1,8 +1,8 @@
 // One-time startup work, timed by hand: building the Staunton set's
 // geometry and baking its ambient occlusion (client/src/three/pieces,
 // three/scene/occlusion.ts). The game does each piece type as its own task
-// in an idle callback (preloadPieceSet, preloadBakedSet: build the king,
-// bake the king, build the queen, ...), so each is a main-thread task the
+// in an idle callback (preloadBakedSet: build and bake the king, then the
+// queen, ...), so each is a main-thread task the
 // player can feel if it lands while they act. A page load pays them once,
 // cold, so cold is measured in fresh processes; warm (JIT-compiled) numbers
 // come from fresh module instances in this one.

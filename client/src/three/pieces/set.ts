@@ -856,22 +856,3 @@ export const pieceSet = (quality: PieceQuality = 'medium'): PieceSet => {
   }
   return set;
 };
-
-/**
- * Builds the shared set's pieces while the browser is idle, one piece per
- * idle moment, so the first board does not wait for them. Does nothing where
- * there is no idle callback (tests, some browsers): each piece is then built
- * when it is first drawn.
- */
-export const preloadPieceSet = (quality: PieceQuality = 'medium') => {
-  if (typeof window === 'undefined' || typeof window.requestIdleCallback !== 'function') return;
-  const set = pieceSet(quality);
-  const pending = Object.values(PieceType);
-  const next = () => {
-    const type = pending.shift();
-    if (!type) return;
-    void set[type];
-    window.requestIdleCallback(next, { timeout: 4000 });
-  };
-  window.requestIdleCallback(next, { timeout: 4000 });
-};
