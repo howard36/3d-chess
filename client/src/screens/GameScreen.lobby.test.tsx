@@ -351,23 +351,15 @@ describe("the host's invitation to send", () => {
     }
   });
 
-  it('offers the system share sheet where there is one, first', async () => {
+  it('offers only the copy, even where there is a system share sheet', () => {
     setStoredRole('abc123', 'white');
-    const share = vi.fn(() => Promise.reject(new Error('dismissed')));
-    vi.stubGlobal('navigator', { ...navigator, share, clipboard: { writeText: vi.fn() } });
+    vi.stubGlobal('navigator', { ...navigator, share: vi.fn(), clipboard: { writeText: vi.fn() } });
     render(at(fakeSocket(hosting('white'))));
-    const button = screen.getByRole('button', { name: 'Share link' });
-    expect(button).toHaveFocus();
-    expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
-    await act(async () => fireEvent.click(button));
-    expect(share).toHaveBeenCalledWith(
-      expect.objectContaining({ url: `${window.location.origin}/game/abc123` }),
-    );
-    // A dismissed sheet changes nothing
-    expect(screen.getByText('Waiting for your friend…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy link' })).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Share link' })).not.toBeInTheDocument();
   });
 
-  it('shows the link alone where it can be neither shared nor copied', () => {
+  it('shows the link alone where it cannot be copied', () => {
     setStoredRole('abc123', 'white');
     vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
     render(at(fakeSocket(hosting('white'))));

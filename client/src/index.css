@@ -1264,23 +1264,6 @@
   padding: 0 26px;
   font-size: 16px;
 }
-.lobby-secondary {
-  height: 44px;
-  padding: 0 20px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--hud-fg);
-  font: inherit;
-  font-size: 14.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.lobby-secondary:hover,
-.lobby-secondary:focus-visible {
-  border-color: rgba(243, 246, 255, 0.8);
-  outline: none;
-}
 /* An action alone under the scene, where a card would stand */
 .lobby-dock {
   position: absolute;
@@ -1307,10 +1290,14 @@
   white-space: nowrap;
   animation: lobby-rise 600ms 200ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
-/* The link on one line; a long one is cut off at its end (Copy has it whole) */
+/* The link on one line, as wide as it is; a long one is cut off at its end
+   (Copy has it whole) */
 .lobby-url {
-  margin: 14px 0 0;
-  padding: 10px 14px;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  margin: 14px auto 0;
+  padding: 10px 18px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.03);

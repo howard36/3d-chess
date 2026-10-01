@@ -586,8 +586,8 @@ until the row fits the width).
   `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
   breathing dot and "Waiting for your friend…" under it. The card under the kings: "Invite
   a friend", the link (`lib/gameLink.ts`, plain, without its scheme, on one line and
-  cut off at its end when long), and "Share link" where `navigator.share` exists and "Copy
-  link"; nothing else. A copy turns the button to
+  cut off at its end when long, its box only as wide as the link), and one white "Copy
+  link" button; nothing else. A copy turns the button to
   "Copied ✓" (and is said, "Link copied"); only a failed one is written: "Couldn't copy.
   Select the link." "You" and "Opponent" stand under the kings, the neon seat breathes (for its
   first minute, calmer after half of it), and the camera holds still. In a short, wide
