@@ -1,20 +1,51 @@
 {
   "title": "Perf run 20261001-0352",
   "eyebrow": "3D chess · perf-iteration · run 20261001-0352",
-  "heading": "Five kept changes, five measured and turned down, the target not reached",
-  "meta": "Base <code>7f1e93c</code> (main) → branch <code>claude/optimistic-turing-ni8v5c</code>, PR <a href=\"https://github.com/howard36/3d-chess/pull/57\">howard36/3d-chess#57</a> · 2026-10-01 03:52–@@END@@Z · headless Chromium 141, SwiftShader, 4 vCPU · every timing is an interleaved A/B (bench/run.mjs --base), 3 pairs unless noted",
+  "heading": "Primary rows 1.28× the first recorded run, 1.17× without the bimodal join rows",
+  "meta": "Base <code>7f1e93c</code> (main) → branch <code>claude/optimistic-turing-ni8v5c</code>, PR <a href=\"https://github.com/howard36/3d-chess/pull/57\">howard36/3d-chess#57</a> · 2026-10-01 03:52–07:10Z · headless Chromium 141, SwiftShader, 4 vCPU · every timing is an interleaved A/B (bench/run.mjs --base), 3 pairs unless noted",
   "needs": {
     "items": [
       {
         "title": "Merge PR #57",
         "body": "<p>Five changes and four checks, each with its A/B in <code>bench/loop/</code>. CI is green on the pushed head; the e2e suite passed locally (24 passed, 1 skipped by design). One trade-off to accept: on Safari's path (no idle callback) the creator's first frame was called 13% slower while the joiner's was faster in every pair. Both pages run on one VM in the bench, so the creator's frame competes with the joiner's piece builds.</p>",
-        "charts": [{ "rows": { "change": "R2", "variant": "no requestIdleCallback (Safari path)", "only": "joiner’s first frame|creator’s first frame|long tasks total" }, "caption": "Safari's path, 3 pairs." }],
+        "charts": [
+          {
+            "rows": {
+              "change": "R2",
+              "variant": "no requestIdleCallback (Safari path)",
+              "only": "joiner’s first frame|creator’s first frame|long tasks total"
+            },
+            "caption": "Safari's path, 3 pairs."
+          }
+        ],
         "recommend": "Merge. The trade-off is a bench artefact of two pages on one machine; on a phone the work was in the first board frame before."
+      },
+      {
+        "title": "Four rows are slower than the first recorded run, none from this run",
+        "body": "<p>Against 92ce041 (2 pairs): <b>create → share link shown +108%</b>, the reopened game's main-thread script +38% (the warm-up the last run added, named there as its price), and the desktop start page +6–10%. Against main, the same rows are within noise (share link +4.8% over 4 pairs), so they came with the last run's merged work, most likely the lobby's garden copy and the warm-up. Not bisected: out of time.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "final vs first run",
+              "only": "share link shown|main-thread script, to loaded · H = 2000|desktop · (DOMContentLoaded|create button enabled)"
+            },
+            "caption": "Branch vs 92ce041, 2 pairs."
+          }
+        ],
+        "recommend": "Next run: bisect the share-link row between 92ce041 and 7f1e93c first; it is the creator's wait for the invitation."
       },
       {
         "title": "Should the client refuse illegal moves from the opponent?",
         "body": "<p>The replay applies any move the server relays, and the server checks only turn order, so an opponent with devtools can move your pieces or jump across the board. README's \"Non-goals\" says that is accepted (\"the threat model is 'my friends'\"), so I built the check, measured it and left it out. With a new allocation-free <code>Board.isLegalMove</code>, exhaustively cross-checked against the naive rules, a 3,000-ply replay was within noise (−3%). It adds +48 engine lines and an exhaustive test. The patch is in <code>bench/loop/patches/replay-legality.patch</code>.</p>",
-        "charts": [{ "rows": { "change": "R1 (isLegalMove, rejected: non-goal)", "only": "G1 .*(decisive|casual|marathon ⚠ \\(3,000)|G2 .*ply 50" }, "caption": "Replay cost with the check, client tier." }],
+        "charts": [
+          {
+            "rows": {
+              "change": "R1 (isLegalMove, rejected: non-goal)",
+              "only": "G1 .*(decisive|casual|marathon ⚠ \\(3,000)|G2 .*ply 50"
+            },
+            "caption": "Replay cost with the check, client tier."
+          }
+        ],
         "recommend": "Adopt it if the game will ever be shared beyond friends; it costs nothing a player would see. Otherwise leave it parked."
       },
       {
@@ -35,10 +66,44 @@
     ]
   },
   "scoreboard": {
-    "intro": "<p>The branch against main, then against the first recorded run (92ce041, run 20260930-0240's base). The target was the primary benchmarks 1.2× faster than the first recorded run.</p>",
+    "intro": "<p>Every primary row against main (the base), then against the first recorded run (92ce041, the base of run 20260930-0240). The target was the primary rows 1.2× faster than the first recorded run. Rows in grey were not called by the suite's rule (every pair the same way and beyond the pairs' spread).</p>",
     "items": [
-      { "title": "Branch vs main (7f1e93c)", "charts": [{ "rows": { "change": "final vs main", "only": "PRIMARY" }, "caption": "Primary rows, browser tier." }] },
-      { "title": "Branch vs the first recorded run (92ce041)", "charts": [{ "rows": { "change": "final vs first run", "only": "PRIMARY" }, "caption": "Primary rows, browser tier." }] }
+      {
+        "title": "Branch vs main (7f1e93c), client + browser, 3 pairs",
+        "body": "<p>Selection read +21% here and the join page +30%, both uncalled; the 4-pair recheck below put selection at −21% (faster in every pair) and the join page at +6% with mixed pairs.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "branch 01010cf vs main",
+              "only": "PRIMARY"
+            },
+            "caption": "Primary rows, branch 01010cf (code as merged, less the review fixes)."
+          }
+        ]
+      },
+      {
+        "title": "Recheck vs main, 4 pairs",
+        "charts": [
+          {
+            "rows": {
+              "change": "recheck vs main (4 pairs)"
+            },
+            "caption": "Setup and select sections."
+          }
+        ]
+      },
+      {
+        "title": "Branch vs the first recorded run (92ce041), 2 pairs",
+        "charts": [
+          {
+            "rows": {
+              "change": "final vs first run",
+              "only": "PRIMARY"
+            },
+            "caption": "Primary rows, final commit."
+          }
+        ]
+      }
     ]
   },
   "changed": {
@@ -46,17 +111,41 @@
       {
         "title": "The piece set preloads on Safari and iOS too (637677f)",
         "body": "<p>The idle preload returned early where <code>requestIdleCallback</code> is missing: every iOS browser and Safari without a flag (MDN browser-compat-data 8.1.3). There the whole set was built and baked inside the first frame that drew pieces. Now each piece is built and baked in its own task, on an idle callback or a 50 ms timer. <code>preloadPieceSet</code> is gone; the baked set's preload already did its work. The bench gained <code>BENCH_NO_IDLE_CALLBACK=1</code> to time Safari's path.</p>",
-        "charts": [{ "rows": { "change": "R2", "variant": "Chromium (idle callback)", "only": "create button enabled|Join button|joiner’s first frame|creator’s first frame" }, "caption": "Chromium's own path is unchanged." }]
+        "charts": [
+          {
+            "rows": {
+              "change": "R2",
+              "variant": "Chromium (idle callback)",
+              "only": "create button enabled|Join button|joiner’s first frame|creator’s first frame"
+            },
+            "caption": "Chromium's own path is unchanged."
+          }
+        ]
       },
       {
         "title": "Quiet marks shade fewer pixels (00db00a)",
         "body": "<p>Every destination of a held piece drew on a quad sized for the soft pool that only a mark straight above or below the piece becomes: 1.03 units square instead of 0.70, about 2.1× the fragments, each running the marks' whole shader in software. The quad is now the ring's size unless the mark is soft. What it draws is unchanged.</p>",
-        "charts": [{ "rows": { "change": "R9", "only": "click|orbit" }, "caption": "Higher is better for fps rows. The orbit with nothing held draws no quiet mark, so its \"worse\" call is drift." }]
+        "charts": [
+          {
+            "rows": {
+              "change": "R9",
+              "only": "click|orbit"
+            },
+            "caption": "Higher is better for fps rows. The orbit with nothing held draws no quiet mark, so its \"worse\" call is drift."
+          }
+        ]
       },
       {
         "title": "The game ships only its own piece set; one scheduler (d74b5c3, bb9840d)",
         "body": "<p>The knight sculptor (<code>knight.ts</code> on <code>sdf.ts</code> and <code>decimate.ts</code>) shipped in the scene chunk though the game only draws the medium set, whose knight ships precomputed. <code>pieceSet()</code> is now that set alone, and <code>pieces/sculpted.ts</code> serves the gallery, benches and tests. The build also carried two extra copies of <code>scheduler</code> under r3f; <code>resolve.dedupe</code> leaves one. Geometry is byte-identical (golden hashes unchanged).</p>",
-        "charts": [{ "rows": { "only": "Bundle · scene chunk" }, "caption": "Bytes of the chunk the start page's preview and every game page load." }]
+        "charts": [
+          {
+            "rows": {
+              "only": "Bundle · scene chunk"
+            },
+            "caption": "Bytes of the chunk the start page's preview and every game page load."
+          }
+        ]
       },
       {
         "title": "Rules that now run as checks (3c01202, 4a167f4, 7d59f20)",
@@ -69,10 +158,39 @@
   },
   "rejected": {
     "items": [
-      { "title": "Replay checks each move's legality (R1)", "body": "<p>Out of scope: README's non-goals. Measured within noise with <code>isLegalMove</code>; ×2–5 with <code>generateLegalMoves</code>. See Needs from me.</p>" },
-      { "title": "Take the garden's copy in a trailing frame after the camera rests (R3)", "body": "<p>A/B 0 better, 0 worse. The new garden-mode count showed the case it targets is rare: on base, 10 of 12 first clicks after a turn already drew from the copy. Not worth +20 lines and an extra frame after every camera stop.</p>", "charts": [{ "rows": { "change": "R3 (rejected)", "only": "after a turn|click → first frame" }, "caption": "Select section, 3 pairs." }] },
-      { "title": "Glaze light rig as per-draw uniforms (R8)", "body": "<p>No gain this bench can see. The mover's first frame was slower in all three pairs, though not called.</p>", "charts": [{ "rows": { "change": "R8 (rejected)" }, "caption": "Move latency, select and render, 3 pairs." }] },
-      { "title": "Tailwind replaced by 25 lines of CSS (R6)", "body": "<p>Not tried: about 1–2 KB gzipped of CSS against a screen-by-screen visual check. Parked.</p>" }
+      {
+        "title": "Replay checks each move's legality (R1)",
+        "body": "<p>Out of scope: README's non-goals. Measured within noise with <code>isLegalMove</code>; ×2–5 with <code>generateLegalMoves</code>. See Needs from me.</p>"
+      },
+      {
+        "title": "Take the garden's copy in a trailing frame after the camera rests (R3)",
+        "body": "<p>A/B 0 better, 0 worse. The new garden-mode count showed the case it targets is rare: on base, 10 of 12 first clicks after a turn already drew from the copy. Not worth +20 lines and an extra frame after every camera stop.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "R3 (rejected)",
+              "only": "after a turn|click → first frame"
+            },
+            "caption": "Select section, 3 pairs."
+          }
+        ]
+      },
+      {
+        "title": "Glaze light rig as per-draw uniforms (R8)",
+        "body": "<p>No gain this bench can see. The mover's first frame was slower in all three pairs, though not called.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "R8 (rejected)"
+            },
+            "caption": "Move latency, select and render, 3 pairs."
+          }
+        ]
+      },
+      {
+        "title": "Tailwind replaced by 25 lines of CSS (R6)",
+        "body": "<p>Not tried: about 1–2 KB gzipped of CSS against a screen-by-screen visual check. Parked.</p>"
+      }
     ]
   },
   "choices": {
@@ -81,7 +199,9 @@
   "notConfirmed": {
     "intro": "<ul><li>The iPhone gain itself: Chromium without an idle callback stands in for Safari; no real iOS device was available.</li><li>Cloudflare Pages' cache headers (the reviewer's <code>_headers</code> idea): the preview host is blocked by this environment's network policy.</li><li>The startup tier (S1/S2) in the final A/B: the new startup bench called an API the base lacks, so only the head side ran. The bench now handles both shapes.</li><li>Pixel identity of R9: argued from the shader (nothing drawn beyond 1.11× the ring plus its stroke), not diffed.</li></ul>"
   },
-  "merge": { "intro": "<p>No other sessions were active, so nothing to hand over.</p>" },
+  "merge": {
+    "intro": "<p>No other sessions were active, so nothing to hand over.</p>"
+  },
   "next": {
     "intro": "<ol><li>The finite shimmer (needs your call): the largest lever left on move landing.</li><li>Open the WebSocket from <code>index.html</code> (R4): saves the socket handshake on game pages in production; the bench, on localhost, can barely see it.</li><li>r3f 9.7 with React 19.2 (R7): microtask commits for the click's selection; +3 KB gzipped on the entry, a trade-off to measure.</li><li>Reconnect at once on <code>online</code> or a tab coming back (P3).</li><li>Glass without its entrance code once built (R10): one more program to warm for 3–6 ms a frame.</li></ol>"
   }
