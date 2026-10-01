@@ -16,6 +16,7 @@
 import { spawnSync } from 'node:child_process';
 import { PieceType } from '../src/engine';
 import { pieceSet } from '../src/three/pieces';
+import { buildKnight } from '../src/three/pieces/knight';
 import type { PieceQuality } from '../src/three/pieces';
 import { duration, emit, summarize } from './report';
 import type { Table } from './report';
@@ -44,7 +45,7 @@ const time = (fn: () => unknown) => {
 /** The app's cold sequence, first call of everything in this process: build, then bake, per type. */
 async function coldSequence() {
   const occlusion = await freshOcclusion();
-  const set = pieceSet('medium');
+  const set = pieceSet();
   const out: Record<string, { build: number; bake: number }> = {};
   for (const type of TYPES) {
     const build = time(() => set[type]);
@@ -96,7 +97,12 @@ const warmBuild: Record<PieceQuality, Record<string, number[]>> = {
 for (const quality of ['low', 'medium', 'high'] as const) {
   for (const t of TYPES) warmBuild[quality][t] = [];
   for (let rep = 0; rep < reps; rep++) {
-    const set = (await freshSet()).pieceSet(quality);
+    // Medium as the game builds it (its knight precomputed), the others sculpted
+    const module = await freshSet();
+    const set =
+      quality === 'medium'
+        ? module.pieceSet()
+        : module.buildPieceSet(quality, (d) => buildKnight(d.step, d.knight));
     for (const t of TYPES) {
       const ms = time(() => set[t]);
       if (rep > 0) warmBuild[quality][t].push(ms);
@@ -104,7 +110,7 @@ for (const quality of ['low', 'medium', 'high'] as const) {
   }
 }
 const warmBake: Record<string, number[]> = Object.fromEntries(TYPES.map((t) => [t, []]));
-for (const t of TYPES) void pieceSet('medium')[t]; // the shared source set, built once
+for (const t of TYPES) void pieceSet()[t]; // the shared source set, built once
 for (let rep = 0; rep < reps; rep++) {
   const baked = (await freshOcclusion()).bakedSet();
   for (const t of TYPES) {

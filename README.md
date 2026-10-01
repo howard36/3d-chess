@@ -488,14 +488,15 @@ separately:
 - `foot`: a thin band at the very bottom (`FOOT_HEIGHT`, 0.04), in the colour of the level
   the piece stands on.
 
-The geometry is built once per quality and shared by every piece: `pieceSet('low' |
-'medium' | 'high')` (medium, the default, keeps every piece within about 5k triangles; each
-piece is built the first time it is drawn, and the board builds and bakes the set while
-the browser is idle with `preloadBakedSet()`, one piece per idle callback, or per 50 ms
-timer where there is none: Safari and iOS). The medium knight is not sculpted in the browser: its
-head, mane and eyes (a few hundred milliseconds of sculpting and decimating) ship
-precomputed, byte for byte, in `pieces/knight.medium.ts` (the low and high knights are
-sculpted as before). The medium set's baked occlusion (below) ships the same way, in
+The game draws the medium set, `pieceSet()`, built once and shared by every piece (it keeps
+every piece within about 5k triangles; each piece is built the first time it is drawn, and
+the board builds and bakes the set while the browser is idle with `preloadBakedSet()`, one
+piece per idle callback, or per 50 ms timer where there is none: Safari and iOS). Its
+knight is not sculpted in the browser: its head, mane and eyes (a few hundred
+milliseconds of sculpting and decimating) ship precomputed, byte for byte, in
+`pieces/knight.medium.ts`. The gallery, the benches and the tests reach the other
+qualities through `sculptedPieceSet('low' | 'medium' | 'high')` (`pieces/sculpted.ts`),
+which sculpts their knights; the game's build holds none of that code. The medium set's baked occlusion (below) ships the same way, in
 `scene/occlusion.medium.ts`. After changing a piece's shape (anything in `three/pieces/`,
 or the bake in `scene/occlusion.ts`), run `npm run bake:pieces` in `client/`;
 `knightData.test.ts` and `occlusionData.test.ts` fail while either file is stale, and

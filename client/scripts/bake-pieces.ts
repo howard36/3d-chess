@@ -40,7 +40,7 @@ export const KNIGHT_MEDIUM: KnightData = {
 );
 
 // The set as built here sculpts its knight: the same bytes as the file above
-const set = pieceSet('medium');
+const set = pieceSet();
 const occlusion = {} as Record<PieceType, Float32Array[]>;
 for (const type of Object.values(PieceType)) occlusion[type] = occlusionOfPiece(set[type]);
 const o = encodeOcclusion(occlusion);

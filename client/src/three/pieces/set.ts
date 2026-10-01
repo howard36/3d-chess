@@ -1,7 +1,7 @@
 import { BufferGeometry, ExtrudeGeometry, Matrix4, Shape, SphereGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { cutSlot } from './cut';
-import { buildKnight } from './knight';
+import type { KnightGeometry } from './knight';
 import { decodeKnight } from './knightData';
 import { KNIGHT_MEDIUM } from './knight.medium';
 import { flatPolygon, gridSurface, mergeShells } from './mesh';
@@ -416,6 +416,8 @@ export const DETAIL: Record<PieceQuality, Detail> = {
 interface Ctx {
   quality: PieceQuality;
   d: Detail;
+  /** The knight's head, mane and eyes at this detail. */
+  knight: (d: Detail) => KnightGeometry;
   segments: number;
   profiles: PieceProfiles;
 }
@@ -500,9 +502,7 @@ const rook = (c: Ctx): PieceParts => {
 };
 
 const knight = (c: Ctx): PieceParts => {
-  // The medium knight ships precomputed, byte for byte (knight.medium.ts)
-  const k =
-    c.quality === 'medium' ? decodeKnight(KNIGHT_MEDIUM) : buildKnight(c.d.step, c.d.knight);
+  const k = c.knight(c.d);
   return {
     // The mane and the eyes are the accent
     body: mergeShells([turn(c, c.profiles.knight.body), k.head]),
@@ -825,10 +825,17 @@ const BUILDERS: Record<PieceType, (c: Ctx) => PieceParts> = {
   [PieceType.King]: king,
 };
 
-/** A whole set (every piece, every part), each piece built on first use. */
-const buildPieceSet = (quality: PieceQuality): PieceSet => {
+/**
+ * A whole set (every piece, every part), each piece built on first use, its
+ * knight's head from `knight` (sculpted.ts sculpts it; the game's ships
+ * precomputed, pieceSet).
+ */
+export const buildPieceSet = (
+  quality: PieceQuality,
+  knight: (d: Detail) => KnightGeometry,
+): PieceSet => {
   const d = DETAIL[quality];
-  const c: Ctx = { quality, d, segments: d.segments, profiles: PROFILES };
+  const c: Ctx = { quality, d, knight, segments: d.segments, profiles: PROFILES };
   // Each piece is built when it is first asked for, then kept: a test that
   // draws only pawns never pays for the sculpted knight
   const set = {} as PieceSet;
@@ -842,17 +849,13 @@ const buildPieceSet = (quality: PieceQuality): PieceSet => {
   return set;
 };
 
-const shared = new Map<PieceQuality, PieceSet>();
+let shared: PieceSet | null = null;
 
 /**
- * The set at a quality, built on first use and shared by every piece: never
- * dispose or edit these geometries (clone first).
+ * The set the game draws: medium, its knight from the meshes shipped
+ * precomputed, byte for byte (knight.medium.ts), built on first use and
+ * shared by every piece: never dispose or edit these geometries (clone
+ * first). The other qualities, and a knight sculpted afresh: sculpted.ts.
  */
-export const pieceSet = (quality: PieceQuality = 'medium'): PieceSet => {
-  let set = shared.get(quality);
-  if (!set) {
-    set = buildPieceSet(quality);
-    shared.set(quality, set);
-  }
-  return set;
-};
+export const pieceSet = (): PieceSet =>
+  (shared ??= buildPieceSet('medium', () => decodeKnight(KNIGHT_MEDIUM)));
