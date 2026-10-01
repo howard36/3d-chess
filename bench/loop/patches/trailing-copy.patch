@@ -1,0 +1,15 @@
+diff --git a/client/src/three/scene/backdropCache.tsx b/client/src/three/scene/backdropCache.tsx
+index 5c7badb..209551c 100644
+--- a/client/src/three/scene/backdropCache.tsx
++++ b/client/src/three/scene/backdropCache.tsx
+@@ -223,8 +223,8 @@ export const BackdropCache = ({ children }: { children: ReactNode }) => {
+       } else show(state.valid ? 'cached' : 'capture');
+     };
+     const after = scene.onAfterRender;
+-    scene.onAfterRender = (renderer: WebGLRenderer, s: Scene, camera: Camera) => {
+-      after.call(scene, renderer, s, camera);
++    scene.onAfterRender = (renderer: WebGLRenderer, s: Scene, camera: Camera, ...rest) => {
++      after.call(scene, renderer, s, camera, ...rest);
+       // A canvas frame that drew the garden in full asks for the frame that
+       // takes the copy, unless it was itself that frame (a garden that
+       // changes by itself frame to frame never rests; it must not keep the
