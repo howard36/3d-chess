@@ -302,20 +302,28 @@ export const bakedSet = (): PieceSet => {
 export const wholePiece = (type: PieceType): BufferGeometry =>
   partsGeometry(bakedSet(), type, PIECE_PARTS)!;
 
+/** The next idle moment: an idle callback, or a timer where there is none (Safari, iOS). */
+const whenIdle = (run: () => void) => {
+  if (typeof window.requestIdleCallback === 'function')
+    window.requestIdleCallback(run, { timeout: 4000 });
+  else window.setTimeout(run, 50);
+};
+
 /**
- * Bakes the set's pieces while the browser is idle, one piece per idle
- * moment, so the first board does not wait for them. Does nothing where
- * there is no idle callback (tests): each piece is then baked when first drawn.
+ * Builds and bakes the set's pieces while the browser is idle, one piece per
+ * idle moment, so the first board does not wait for them. Outside a browser
+ * it does nothing (the unit tests' setup also holds its idle callback back):
+ * each piece is then built when first drawn.
  */
 export const preloadBakedSet = () => {
-  if (typeof window === 'undefined' || typeof window.requestIdleCallback !== 'function') return;
+  if (typeof window === 'undefined') return;
   const built = bakedSet();
   const pending = Object.values(PieceType);
   const next = () => {
     const type = pending.shift();
     if (!type) return;
     void built[type];
-    window.requestIdleCallback(next, { timeout: 4000 });
+    whenIdle(next);
   };
-  window.requestIdleCallback(next, { timeout: 4000 });
+  whenIdle(next);
 };

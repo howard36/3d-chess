@@ -36,11 +36,8 @@ export function load(dir) {
       }
   return byKey;
 }
-const find = (byKey, key) => {
-  if (byKey.has(key)) return byKey.get(key);
-  for (const [k, v] of byKey) if (k.includes(key)) return v;
-  return null;
-};
+/** A row's values by its exact key (no near matches: a renamed row must show as missing). */
+export const find = (byKey, key) => byKey.get(key) ?? null;
 const fmt = (v) => (v >= 1000 ? `${(v / 1000).toFixed(2)} s` : `${v.toFixed(v < 10 ? 2 : 0)} ms`);
 if (process.argv[1].endsWith('primary.mjs')) {
   const sets = process.argv.slice(2).map((a) => a.split('='));
@@ -69,6 +66,13 @@ if (process.argv[1].endsWith('primary.mjs')) {
       logs.push(Math.log(meds[0] / meds[1]));
     }
     console.log(`| ${cells.join(' | ')} |`);
+  }
+  const missing = loaded.flatMap(([label, byKey]) =>
+    PRIMARY.filter(([, key]) => !byKey.has(key)).map(([, key]) => `${label}: ${key}`),
+  );
+  if (missing.length) {
+    console.error(`\nprimary rows missing (renamed, or a --quick run?):\n  ${missing.join('\n  ')}`);
+    process.exitCode = 1;
   }
   if (logs.length) console.log(`\ngeomean speedup: ${Math.exp(logs.reduce((a, b) => a + b, 0) / logs.length).toFixed(3)}×`);
 }

@@ -6,7 +6,7 @@ import { OCCLUSION_MEDIUM } from './occlusion.medium';
 import { decodeOcclusion, encodeOcclusion } from './occlusionData';
 
 describe('the precomputed medium occlusion', () => {
-  const set = pieceSet('medium');
+  const set = pieceSet();
   const fresh = {} as Record<PieceType, Float32Array[]>;
   for (const type of Object.values(PieceType)) fresh[type] = occlusionOfPiece(set[type]);
 

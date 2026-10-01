@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { AdditiveBlending, Color, PlaneGeometry, ShaderMaterial } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { prefersReducedMotion } from '../motion';
-import { pieceTop, preloadPieceSet } from '../pieces';
+import { pieceTop } from '../pieces';
 import { LAYER } from './layers';
 import { ON_FLOOR, useGlide } from '../pieceMotion';
 import { noRaycast } from '../noRaycast';
@@ -52,7 +52,6 @@ import { useRetireOnUnmount } from './programs';
 // cross and all, takes the red, and the red platform lights its base.
 
 // Built and baked while the browser is idle, before the first board needs them
-preloadPieceSet();
 preloadBakedSet();
 
 // --- The glaze ----------------------------------------------------------------------------

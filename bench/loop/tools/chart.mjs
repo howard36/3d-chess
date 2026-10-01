@@ -3,7 +3,7 @@
 // first label's median so rows of different scale share one axis.
 //   node chart.mjs out.svg base=<dir> head=<dir>
 import { writeFileSync } from 'node:fs';
-import { load, PRIMARY } from './primary.mjs';
+import { find, load, PRIMARY } from './primary.mjs';
 
 const [out, ...sets] = process.argv.slice(2);
 const loaded = sets.map((a) => a.split('=')).map(([l, d]) => [l, load(d)]);
@@ -11,11 +11,6 @@ const med = (a) => {
   const s = [...a].sort((x, y) => x - y);
   const m = s.length >> 1;
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
-const find = (byKey, key) => {
-  if (byKey.has(key)) return byKey.get(key);
-  for (const [k, v] of byKey) if (k.includes(key)) return v;
-  return null;
 };
 const fmt = (v) => (v >= 1000 ? `${(v / 1000).toFixed(2)} s` : `${v.toFixed(v < 10 ? 2 : 0)} ms`);
 const rows = PRIMARY.map(([, key]) => {

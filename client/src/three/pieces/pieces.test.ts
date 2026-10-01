@@ -9,14 +9,15 @@ import { PIECE_PARTS, partsGeometry, pieceTop } from './parts';
 import { corner, revolve, sampleProfile } from './profile';
 import { ellipsoid, surfaceNets } from './sdf';
 import { FOOT_HEIGHT, PROFILES, pieceSet } from './set';
+import { sculptedPieceSet } from './sculpted';
 import type { PieceSet } from './set';
 
 const TYPES = Object.values(PieceType);
-const medium = pieceSet('medium');
+const medium = pieceSet();
 // Pieces are built on first use: build them all now, while the file loads,
 // rather than inside the first test's time limit
 for (const type of Object.values(PieceType)) void medium[type];
-for (const type of Object.values(PieceType)) void pieceSet('low')[type];
+for (const type of Object.values(PieceType)) void sculptedPieceSet('low')[type];
 
 const boxOf = (set: PieceSet, type: PieceType) => {
   const box = new Box3();
@@ -239,13 +240,14 @@ describe('the shared piece set', () => {
   });
 
   it('scales its detail with the quality', () => {
-    const low = pieceSet('low');
+    const low = sculptedPieceSet('low');
     for (const type of TYPES) expect(total(low, type)).toBeLessThan(total(medium, type));
   });
 
-  it('shares one set per quality', () => {
-    expect(pieceSet('medium')).toBe(medium);
+  it('shares one set per quality, the game’s own at medium', () => {
     expect(pieceSet()).toBe(medium);
+    expect(sculptedPieceSet('medium')).toBe(medium);
+    expect(sculptedPieceSet('low')).toBe(sculptedPieceSet('low'));
   });
 
   it('draws the unicorn as a pointed horn with a spiral, unlike the bishop', () => {

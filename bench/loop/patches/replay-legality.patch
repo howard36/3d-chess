@@ -1,0 +1,381 @@
+diff --git a/client/src/engine/board.reference.test.ts b/client/src/engine/board.reference.test.ts
+index d8bd5c6..d9889de 100644
+--- a/client/src/engine/board.reference.test.ts
++++ b/client/src/engine/board.reference.test.ts
+@@ -162,9 +162,30 @@ const randomPosition = (random: () => number): Board => {
+   return b;
+ };
+ 
++/** isLegalMove against the naive list: every piece, every square, every promotion or none. */
++const expectSameMoveTest = (b: Board, color: Color, legal: Move[]) => {
++  const key = (m: Move) =>
++    `${m.from.x}${m.from.y}${m.from.z}-${m.to.x}${m.to.y}${m.to.z}=${m.promotion ?? ''}`;
++  const allowed = new Set(legal.map(key));
++  const wrong: string[] = [];
++  let tried = 0;
++  for (const from of squares) {
++    if (!b.getPiece(from)) continue;
++    for (const to of squares)
++      for (const promotion of [undefined, ...ALL_PROMOTION_TYPES, PieceType.King]) {
++        const move = { from, to, promotion };
++        tried++;
++        if (b.isLegalMove(move, color) !== allowed.has(key(move))) wrong.push(key(move));
++      }
++  }
++  expect(wrong).toEqual([]);
++  expect(tried).toBeGreaterThan(0);
++};
++
+ const expectSameRules = (b: Board) => {
+   for (const color of ['white', 'black'] as const) {
+     expect(b.generateAllLegalMoves(color)).toEqual(allLegal(b, color));
++    expectSameMoveTest(b, color, allLegal(b, color));
+     expect(b.inCheck(color)).toBe(inCheck(b, color));
+     const none = allLegal(b, color).length === 0;
+     expect(b.isCheckmate(color)).toBe(none && inCheck(b, color));
+diff --git a/client/src/engine/board.ts b/client/src/engine/board.ts
+index d1c2d06..2f19412 100644
+--- a/client/src/engine/board.ts
++++ b/client/src/engine/board.ts
+@@ -390,6 +390,54 @@ export class Board {
+     return allLegalMovesForColor;
+   }
+ 
++  /**
++   * Whether `move` is one of `color`'s legal moves (one of generateLegalMoves'
++   * for its piece, promotion included), tested on its own: the move list is
++   * never built, so a replay can check every move it plays.
++   */
++  isLegalMove(move: Move, color: Color): boolean {
++    const { from, to, promotion } = move;
++    if (!this.isInside(from) || !this.isInside(to)) return false;
++    const piece = this.getPiece(from);
++    if (!piece || piece.color !== color) return false;
++    const cells = this.cells;
++    const at = cellOf(from.x, from.y, from.z);
++    const dest = cellOf(to.x, to.y, to.z);
++    const target = cells[dest];
++    if (target && target.color === color) return false;
++    if (piece.type === PieceType.Pawn) {
++      const dir = color === 'white' ? 1 : -1;
++      const step =
++        (to.x === from.x && to.y === from.y + dir && to.z === from.z) ||
++        (to.x === from.x && to.y === from.y && to.z === from.z + dir);
++      if (target ? !PAWN_CAPTURES[color][at].includes(dest) : !step) return false;
++      const due = this.isPromotionSquare(to, color);
++      if (due !== (promotion !== undefined)) return false;
++      if (due && !ALL_PROMOTION_TYPES.includes(promotion!)) return false;
++    } else {
++      if (promotion !== undefined) return false;
++      if (piece.type === PieceType.Knight) {
++        if (!KNIGHT_JUMPS[at].includes(dest)) return false;
++      } else if (!this.reaches(piece.type, at, dest)) return false;
++    }
++    return this.isSafe(move, piece, this.kingCell(color));
++  }
++
++  /** Whether a ray piece of `type` on `at` reaches `dest` (stopping at the first piece). */
++  private reaches(type: PieceType, at: number, dest: number): boolean {
++    const { from: d0, to: d1, sliding } = DIRECTIONS[type];
++    const rays = RAYS[at];
++    for (let d = d0; d < d1; d++) {
++      const ray = rays[d];
++      const reach = sliding ? ray.length : Math.min(1, ray.length);
++      for (let n = 0; n < reach; n++) {
++        if (ray[n] === dest) return true;
++        if (this.cells[ray[n]]) break;
++      }
++    }
++    return false;
++  }
++
+   /** Whether the given color has any legal move (stops at the first). */
+   hasLegalMove(color: 'white' | 'black'): boolean {
+     let king = -1;
+diff --git a/client/src/game/history.test.ts b/client/src/game/history.test.ts
+index e1b9813..17aa9f9 100644
+--- a/client/src/game/history.test.ts
++++ b/client/src/game/history.test.ts
+@@ -18,6 +18,39 @@ const moveMade = (by: 'white' | 'black', from: string, to: string): WebSocketMes
+   to,
+ });
+ 
++/** The i-th record of a game written as "Ab1-Aa3" (and "=U" to promote). */
++const record = (move: string, i: number): MoveRecord => {
++  const [from, rest] = move.split('-');
++  const [to, promotion] = rest.split('=');
++  return {
++    by: i % 2 === 0 ? 'white' : 'black',
++    from,
++    to,
++    ...(promotion ? { promotion: promotion as MoveRecord['promotion'] } : {}),
++  };
++};
++
++/** Black mates in two (e2e's MATE). */
++const MATE = ['Ad1-Ac3', 'Ec4-Cc2', 'Ac2-Ad1', 'Cc2-Bb1'];
++/** A white pawn's walk to Ee5, where it takes the rook and becomes a unicorn. */
++const PROMOTION = [
++  'Bc2-Cc2',
++  'Ec4-Ec3',
++  'Be1-Ce1',
++  'Ed5-Dd3',
++  'Ce1-Ce2',
++  'Ec3-Ca3',
++  'Be2-Be3',
++  'Eb4-Ed2',
++  'Bd1-Cd1',
++  'Ca3-Ec1',
++  'Ce2-Ce3',
++  'De5-Ce5',
++  'Ce3-De4',
++  'Ec1-Ed1',
++  'De4-Ee5=U',
++];
++
+ describe('deriveHistory: the move record', () => {
+   it('starts from the initial position with no moves', () => {
+     const h = deriveHistory([]);
+@@ -72,22 +105,16 @@ describe('deriveHistory: the move record', () => {
+   });
+ 
+   it('reports the captured piece of the last move', () => {
+-    // A white knight jumps onto a black pawn (legality is not checked on replay).
+-    const h = deriveHistory([moveMade('white', 'Ab1', 'Dd4')]);
++    // White's unicorn takes the black pawn on De5 from across the board
++    const h = deriveHistory([moveMade('white', 'Ab2', 'De5')]);
+     expect(h.lastMove?.capturedPiece).toEqual({ type: PieceType.Pawn, color: 'black' });
+-    expect(h.board.getPiece(fromZXY('Dd4'))).toEqual({ type: PieceType.Knight, color: 'white' });
++    expect(h.board.getPiece(fromZXY('De5'))).toEqual({ type: PieceType.Unicorn, color: 'white' });
+   });
+ 
+   it('applies promotions from the record', () => {
+-    const h = deriveHistory([
+-      snapshot([
+-        { by: 'white', from: 'Ba1', to: 'Da4' },
+-        { by: 'black', from: 'De5', to: 'Ce5' },
+-        { by: 'white', from: 'Da4', to: 'Ea5', promotion: 'U' }, // forward-up capture of the rook
+-      ]),
+-    ]);
++    const h = deriveHistory([snapshot(PROMOTION.map(record))]);
+     expect(h.replayFailedAt).toBeNull();
+-    expect(h.board.getPiece(fromZXY('Ea5'))).toEqual({ type: PieceType.Unicorn, color: 'white' });
++    expect(h.board.getPiece(fromZXY('Ee5'))).toEqual({ type: PieceType.Unicorn, color: 'white' });
+     expect(h.lastMove?.capturedPiece).toEqual({ type: PieceType.Rook, color: 'black' });
+     expect(h.lastMove?.move.promotion).toBe(PieceType.Unicorn);
+   });
+@@ -190,20 +217,17 @@ describe('deriveHistory: identity', () => {
+ 
+ describe('deriveHistory: game over', () => {
+   it('detects checkmate and names the winner', () => {
+-    // The corner mate from board.test.ts, reached by teleporting: replay does
+-    // not check legality, so the record only has to be shape-valid. White's
+-    // queen lands on Ee4 defended by a rook on Ee3; Black's king walks onto
+-    // Ee5, where every neighbour is one of its own pieces.
+-    const h = deriveHistory([
+-      snapshot([
+-        { by: 'white', from: 'Ac2', to: 'Ee4' },
+-        { by: 'black', from: 'Ec5', to: 'Ee5' },
+-        { by: 'white', from: 'Aa1', to: 'Ee3' },
+-      ]),
+-    ]);
++    // The e2e suite's quick mate: Black's queen lands on Bb1, by White's king
++    const h = deriveHistory([snapshot(MATE.map(record))]);
+     expect(h.replayFailedAt).toBeNull();
+-    expect(h.currentTurn).toBe('black');
+-    expect(h.gameOver).toEqual({ result: 'checkmate', winner: 'white' });
++    expect(h.currentTurn).toBe('white');
++    expect(h.gameOver).toEqual({ result: 'checkmate', winner: 'black' });
++  });
++
++  it('plays no move after mate', () => {
++    const h = deriveHistory([snapshot([...MATE, 'Ab1-Aa3'].map(record))]);
++    expect(h.replayFailedAt).toBe(4);
++    expect(h.gameOver).toBeNull();
+   });
+ 
+   it('is null while the game is on', () => {
+@@ -230,14 +254,15 @@ describe('deriveHistory: unplayable records', () => {
+     expect(h.gameOver).toBeNull();
+   });
+ 
+-  it('freezes before a move that captures a king instead of throwing', () => {
+-    // Shape-valid and turn-correct, but a king capture leaves a position the
+-    // rules cannot evaluate (no king to find for check detection).
++  it('freezes at a move its piece cannot make', () => {
++    // Shape-valid and turn-correct: the server records it. The queen cannot
++    // cross the tower to "capture" the black king.
+     const h = deriveHistory([
+       snapshot([
+         { by: 'white', from: 'Ba1', to: 'Ca1' },
+         { by: 'black', from: 'Dd5', to: 'Cd5' },
+-        { by: 'white', from: 'Ac2', to: 'Ec5' }, // queen "captures" the black king
++        { by: 'white', from: 'Ac2', to: 'Ec5' },
++        { by: 'black', from: 'Cd5', to: 'Bd5' }, // nothing after it is played
+       ]),
+     ]);
+     expect(h.replayFailedAt).toBe(2);
+@@ -249,28 +274,24 @@ describe('deriveHistory: unplayable records', () => {
+     expect(h.gameOver).toBeNull();
+   });
+ 
+-  it('freezes at the capture even when the record continues past it', () => {
+-    // Nothing later in the record can be trusted once a king is gone, and
+-    // the side to move at the end may still have its king, so the check has
+-    // to happen at the capturing move itself.
+-    const h = deriveHistory([
+-      snapshot([
+-        { by: 'white', from: 'Ba1', to: 'Ca1' },
+-        { by: 'black', from: 'Dd5', to: 'Cd5' },
+-        { by: 'white', from: 'Ac2', to: 'Ec5' }, // captures the black king
+-        { by: 'black', from: 'Cd5', to: 'Bd5' },
+-      ]),
+-    ]);
+-    expect(h.replayFailedAt).toBe(2);
+-    expect(h.appliedMoveCount).toBe(2);
+-    expect(h.board.getPiece(fromZXY('Ec5'))).toEqual({ type: PieceType.King, color: 'black' });
+-  });
+-
+-  it('freezes at the start when the first record captures a king', () => {
+-    const h = deriveHistory([moveMade('white', 'Ac2', 'Ec5')]);
++  it("freezes at a move of the other side's piece", () => {
++    // White's record moves a black pawn, a move that piece could make
++    const h = deriveHistory([moveMade('white', 'Dd4', 'Cd4')]);
+     expect(h.replayFailedAt).toBe(0);
+     expect(h.appliedMoveCount).toBe(0);
+     expect(h.lastMove).toBeUndefined();
++    expect(h.board.getPiece(fromZXY('Dd4'))).toEqual({ type: PieceType.Pawn, color: 'black' });
++  });
++
++  it('freezes at a promotion the move does not allow', () => {
++    const moves = PROMOTION.map(record);
++    const last = moves.length - 1;
++    // The right square, no piece named; and a piece named off the last rank
++    expect(
++      deriveHistory([snapshot([...moves.slice(0, last), { ...moves[last], promotion: undefined }])])
++        .replayFailedAt,
++    ).toBe(last);
++    expect(deriveHistory([snapshot([{ ...moves[0], promotion: 'Q' }])]).replayFailedAt).toBe(0);
+   });
+ });
+ 
+@@ -284,8 +305,15 @@ describe('deriveHistory: the work a landing move costs', () => {
+     ];
+     const prev = deriveHistory(log);
+     const applied = vi.spyOn(Board.prototype, 'applyMove');
++    const checked = vi.spyOn(Board.prototype, 'isLegalMove');
++    const listed = vi.spyOn(Board.prototype, 'generateLegalMoves');
+     deriveHistory([...log, moveMade('black', 'Cd5', 'Bd5')], prev);
+     expect(applied).toHaveBeenCalledTimes(1);
++    // Its legality, once, and no move list built for it
++    expect(checked).toHaveBeenCalledTimes(1);
++    expect(listed).not.toHaveBeenCalled();
+     applied.mockRestore();
++    listed.mockRestore();
++    checked.mockRestore();
+   });
+ });
+diff --git a/client/src/game/history.ts b/client/src/game/history.ts
+index 231df33..0977a13 100644
+--- a/client/src/game/history.ts
++++ b/client/src/game/history.ts
+@@ -49,10 +49,10 @@ export interface GameHistory {
+   /**
+    * Index of the first record this client could not replay, or null. The
+    * server records any shape-valid, turn-correct move without checking
+-   * legality, so a buggy or version-skewed client can have written a move
+-   * this engine can't apply, or one that captures a king and so leaves a
+-   * position the rules can't evaluate. Stopping there keeps the game viewable
+-   * at the last good position instead of throwing mid-render.
++   * legality, so a buggy, version-skewed or tampered client can have written
++   * a move these rules don't allow: another side's piece, a square the piece
++   * can't reach, a move into check. Stopping there keeps the game viewable
++   * at the last good position, and the move unplayed.
+    */
+   replayFailedAt: number | null;
+   /** Null while the game is on, or when replay failed (the position shown is not final). */
+@@ -134,22 +134,22 @@ export function deriveHistory(
+   let replayFailedAt: number | null = null;
+   let appliedMoveCount = extending ? prev.appliedMoveCount : 0;
+   for (let i = appliedMoveCount; i < moveRecords.length; i++) {
++    let move: Move;
+     try {
+-      const move = moveFromMessage(moveRecords[i]);
+-      const next = board.applyMove(move);
+-      // The rules evaluate a position by finding each king (check detection),
+-      // so a record that captured one is unplayable from that move on.
+-      next.findKing('white');
+-      next.findKing('black');
+-      const taken = board.getPiece(move.to);
+-      if (taken) captured[turnAfter(i)].push(taken.type);
+-      before = board;
+-      board = next;
+-      appliedMoveCount = i + 1;
++      move = moveFromMessage(moveRecords[i]);
+     } catch {
+       replayFailedAt = i;
+       break;
+     }
++    if (!board.isLegalMove(move, turnAfter(i))) {
++      replayFailedAt = i;
++      break;
++    }
++    const taken = board.getPiece(move.to);
++    if (taken) captured[turnAfter(i)].push(taken.type);
++    before = board;
++    board = board.applyMove(move);
++    appliedMoveCount = i + 1;
+   }
+ 
+   const gameOver = replayFailedAt === null ? gameOverAt(board, turnAfter(appliedMoveCount)) : null;
+diff --git a/client/src/game/material.test.ts b/client/src/game/material.test.ts
+index 13d3ab0..e2a9c75 100644
+--- a/client/src/game/material.test.ts
++++ b/client/src/game/material.test.ts
+@@ -8,6 +8,25 @@ import { describeTaken, groupTaken, materialLead, materialOf } from './material'
+ 
+ const { Queen, Rook, Bishop, Unicorn, Knight, Pawn, King } = PieceType;
+ 
++/** A white pawn's walk to Ee5, where it takes the rook and becomes a unicorn. */
++const PROMOTION = [
++  'Bc2-Cc2',
++  'Ec4-Ec3',
++  'Be1-Ce1',
++  'Ed5-Dd3',
++  'Ce1-Ce2',
++  'Ec3-Ca3',
++  'Be2-Be3',
++  'Eb4-Ed2',
++  'Bd1-Cd1',
++  'Ca3-Ec1',
++  'Ce2-Ce3',
++  'De5-Ce5',
++  'Ce3-De4',
++  'Ec1-Ed1',
++  'De4-Ee5=U',
++];
++
+ /** The history after these moves (level-file-rank, "=Q" to promote). */
+ const replay = (...moves: string[]) =>
+   deriveHistory([
+@@ -65,14 +84,15 @@ describe('the pieces each side has taken', () => {
+   });
+ 
+   it('count a promoted piece as what it became, and the lead counts the promotion', () => {
+-    // A white pawn lands on Black's pawn on Da4, then takes the rook on Ea5 as
+-    // it promotes to a unicorn (legality is not checked on replay)
+-    const h = replay('Ba1-Da4', 'De5-Ce5', 'Da4-Ea5=U');
+-    expect(h.captured.white).toEqual([Pawn, Rook]);
++    // A white pawn walks to Ee5, taking the rook there as it becomes a unicorn
++    const h = replay(...PROMOTION);
++    expect(h.replayFailedAt).toBeNull();
++    expect(h.captured).toEqual({ white: [Pawn, Rook], black: [] });
+     // White: + the unicorn (3) - its pawn (1); Black: - a pawn and the rook
+     expect(materialLead(h.board, 'white')).toBe(3 - 1 + 1 + 5);
+     // Taken in turn, it is a unicorn that burns away
+-    const next = replay('Ba1-Da4', 'De5-Ce5', 'Da4-Ea5=U', 'Eb5-Ea5');
++    const next = replay(...PROMOTION, 'Dd4-Cd4', 'Ee5-Dd4', 'Dc5-Dd4');
++    expect(next.replayFailedAt).toBeNull();
+     expect(next.captured.black).toEqual([Unicorn]);
+   });
+ });

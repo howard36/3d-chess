@@ -18,7 +18,8 @@
 // comparing runs, and raw.timings holds each step's wall time.
 //
 // Chromium comes from PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH when set, as for the
-// e2e suite. The board is drawn by SwiftShader (software WebGL), so a frame
+// e2e suite. BENCH_NO_IDLE_CALLBACK=1 takes requestIdleCallback away from every
+// page, as Safari and every iOS browser have it (none), to time their path. The board is drawn by SwiftShader (software WebGL), so a frame
 // costs CPU time, far more than on a real GPU; the report says so where it
 // matters and leans on measures that hold anyway (main-thread work, network
 // round trips, relative comparisons).
@@ -97,6 +98,7 @@ const CFG = QUICK
       setupRuns: 1,
       moves: 3,
       selects: 3,
+      selectsAfterTurn: 2,
       reopenPlies: [0, 100, 500],
       reopenRuns: 1,
       flaps: [50],
@@ -109,6 +111,7 @@ const CFG = QUICK
       setupRuns: 2,
       moves: 10,
       selects: 8,
+      selectsAfterTurn: 4,
       reopenPlies: [0, 100, 500, 2000],
       reopenRuns: 2,
       flaps: [0, 200],
@@ -331,6 +334,8 @@ const BENCH_INIT = () => {
     problems: [], // the move box's problem text: [time, text]
     links: [], // WebGL programs linked (compiled shaders): [time]
     syncs: [], // WebGL queries that held the main thread ≥ 2 ms: [time, name, duration]
+    stage: [], // the route and the lobby's beat and scene as they change: [time, path, beat, scene]
+    raf: [], // every animation frame's start (the page's frame pacing, canvases or not)
   };
   Object.defineProperty(window, '__bench', { value: b });
   Object.defineProperty(window, '__benchNow', { value: now });
@@ -349,6 +354,13 @@ const BENCH_INIT = () => {
     if (!link) continue;
     Ctx.prototype.linkProgram = function (program) {
       b.links.push(now());
+      // Which program: the start of its fragment shader's main
+      const shaders = this.getAttachedShaders(program) ?? [];
+      const src = shaders.map((sh) => this.getShaderSource(sh) ?? '').join('\n');
+      (b.linked ??= []).push([
+        now(),
+        src.slice(src.lastIndexOf('void main')).replace(/\s+/g, ' ').slice(0, 90),
+      ]);
       return link.call(this, program);
     };
   }
@@ -401,6 +413,11 @@ const BENCH_INIT = () => {
     },
     true,
   );
+  const frame = (ts) => {
+    b.raf.push(performance.timeOrigin + ts);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
   // The DOM hooks, stamped when React commits them
   let lastCount;
   let lastOnline;
@@ -411,9 +428,16 @@ const BENCH_INIT = () => {
     }
     return false;
   };
+  let lastStage;
   const check = () => {
     const t = now();
     const f = b.firsts;
+    const lobby = document.querySelector('[data-testid="lobby"]');
+    const stage = [location.pathname, lobby?.dataset.beat ?? null, lobby?.dataset.scene ?? null];
+    if (stage.join('|') !== lastStage) {
+      lastStage = stage.join('|');
+      b.stage.push([t, ...stage]);
+    }
     const inGame = location.pathname.startsWith('/game/');
     if (!f.createButton && !inGame && buttonNamed('Start a game', true)) f.createButton = t;
     if (
@@ -470,12 +494,26 @@ const BENCH_INIT = () => {
       gl.__benchWrapped = true;
       b.r3fAt = now();
       const render = gl.render;
+      // How the frame drew the garden (scene/backdropCache.tsx): from its
+      // copy ('cached'), in full and then copied ('capture'), or in full
+      const parts = new WeakMap();
+      const gardenMode = (scene) => {
+        // (looked up until found: the cache adds them after the first frame)
+        if (!parts.get(scene)?.copy)
+          parts.set(scene, {
+            copy: scene.getObjectByName('backdrop-copy'),
+            take: scene.getObjectByName('backdrop-take'),
+          });
+        const { copy, take } = parts.get(scene);
+        if (!copy) return null;
+        return copy.visible ? 'cached' : take?.visible ? 'capture' : 'plain';
+      };
       gl.render = function (scene, camera) {
         const t0 = performance.now();
         try {
           return render.call(this, scene, camera);
         } finally {
-          b.renders.push([performance.timeOrigin + t0, performance.now() - t0]);
+          b.renders.push([performance.timeOrigin + t0, performance.now() - t0, gardenMode(scene)]);
         }
       };
     },
@@ -579,6 +617,11 @@ async function newBenchContext(browser, vp, role, extra = {}) {
   const ctx = await browser.newContext({ ...VIEWPORTS[vp].options, baseURL: BASE, ...extra });
   ctx.setDefaultTimeout(60000);
   await ctx.addInitScript(BENCH_INIT);
+  if (process.env.BENCH_NO_IDLE_CALLBACK === '1')
+    await ctx.addInitScript(() => {
+      for (const name of ['requestIdleCallback', 'cancelIdleCallback'])
+        Object.defineProperty(window, name, { value: undefined, configurable: true });
+    });
   if (role) {
     await ctx.addInitScript(
       ([id, color]) => {
@@ -1098,6 +1141,29 @@ async function setupViaUI(browser, scope) {
   const t = {
     createRtt: rxOf(a, 'game_created') - clickA,
     createShown: a.firsts.shareScreen - clickA,
+    // Where the creator's wait goes: what happened from the pick to the link
+    createTrace: {
+      created: rxOf(a, 'game_created') - clickA,
+      stages: a.stage
+        .filter(([s]) => s >= clickA - 1 && s <= a.firsts.shareScreen + 1)
+        .map(([s, ...rest]) => [Math.round(s - clickA), ...rest]),
+      longTasks: tasksIn(a.lt, clickA, a.firsts.shareScreen).map(([s, d]) => [
+        Math.round(s - clickA),
+        Math.round(d),
+      ]),
+      links: (a.linked ?? [])
+        .filter(([l]) => l >= clickA && l <= a.firsts.shareScreen)
+        .map(([l, what]) => [Math.round(l - clickA), what]),
+      syncs: (a.syncs ?? [])
+        .filter(([u]) => u >= clickA && u <= a.firsts.shareScreen)
+        .map(([u, n, d]) => [Math.round(u - clickA), n, Math.round(d)]),
+      frames: a.raf.filter((s) => s >= clickA && s <= a.firsts.shareScreen).length,
+      longestFrame: maxOf(
+        a.raf
+          .filter((s) => s >= clickA && s <= a.firsts.shareScreen)
+          .map((s, i, all) => (i ? s - all[i - 1] : 0)),
+      ),
+    },
     joinButton: b.firsts.joinButton - b.timeOrigin,
     joinStart: rxOf(b, 'game_start') - clickB,
     joinerFrame: frameB - clickB,
@@ -1363,6 +1429,7 @@ async function selectSection(browser) {
         picks.push({
           frame: drawn - t,
           render: frame[1],
+          mode: frame[2],
           links: s.links.filter((l) => l >= t && l <= drawn).length,
           syncs: (s.syncs ?? [])
             .filter(([u]) => u >= t && u <= drawn)
@@ -1376,7 +1443,31 @@ async function selectSection(browser) {
         await waitFrameAfter(page, t2);
         await quietMain(page);
       }
+      // After a turn of the view: the camera comes to rest, the page goes
+      // quiet, then a piece is picked up (the first click after an orbit)
+      const turned = [];
+      for (let i = 0; i < CFG.selectsAfterTurn; i++) {
+        await page.evaluate(ORBIT, { ms: 400, degPerSec: 40 });
+        await quietMain(page);
+        await page.waitForTimeout(500);
+        const zxy = squares[i % squares.length];
+        const at = await squarePixel(page, zxy);
+        if (!at) throw new Error(`no pixel reaches ${zxy}`);
+        const t = await page.evaluate(() => window.__benchNow());
+        await page.mouse.click(at.x, at.y);
+        await waitFrameAfter(page, t);
+        await quietMain(page);
+        const s = await snap(page);
+        const frame = s.renders.find((r) => r[0] >= t);
+        turned.push({ frame: frame[0] + frame[1] - t, mode: frame[2] });
+        const box = await page.locator('canvas').boundingBox();
+        const t2 = await page.evaluate(() => window.__benchNow());
+        await page.mouse.click(box.x + box.width * 0.04, box.y + box.height * 0.5);
+        await waitFrameAfter(page, t2);
+        await quietMain(page);
+      }
       raw.selects = picks;
+      raw.selectsAfterTurn = turned;
       const col = (k) => picks.map((r) => r[k]);
       raw.selectRest = afterFirst;
       raw.selectRestPrograms = await page.evaluate(() => {
@@ -1409,6 +1500,21 @@ async function selectSection(browser) {
         stat('that frame’s render() call', col('render'), 'main thread'),
         stat('longest task, click → frame', col('longest')),
         countStat('shader programs linked, click → frame', col('links'), 'count'),
+        countStat(
+          'first frames that drew the garden in full',
+          [picks.filter((p) => p.mode !== 'cached').length],
+          `count of ${picks.length}; the rest from its copy`,
+        ),
+        stat(
+          'after a turn of the view: click → first frame with the piece held',
+          turned.map((r) => r.frame),
+          'the first click once the camera rests',
+        ),
+        countStat(
+          'after a turn of the view: first frames that drew the garden in full',
+          [turned.filter((p) => p.mode !== 'cached').length],
+          `count of ${turned.length}`,
+        ),
       ]);
     },
   );

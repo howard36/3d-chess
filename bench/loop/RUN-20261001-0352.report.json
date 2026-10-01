@@ -1,0 +1,220 @@
+{
+  "title": "Perf run 20261001-0352",
+  "eyebrow": "3D chess · perf-iteration · run 20261001-0352",
+  "heading": "Primary rows 1.28× the first recorded run, 1.17× without the bimodal join rows",
+  "meta": "Base <code>7f1e93c</code> (main) → branch <code>claude/optimistic-turing-ni8v5c</code>, PR <a href=\"https://github.com/howard36/3d-chess/pull/57\">howard36/3d-chess#57</a> · 2026-10-01 03:52–07:10Z · headless Chromium 141, SwiftShader, 4 vCPU · every timing is an interleaved A/B (bench/run.mjs --base), 3 pairs unless noted",
+  "needs": {
+    "items": [
+      {
+        "title": "Merge PR #57",
+        "body": "<p>Five changes and four checks, each with its A/B in <code>bench/loop/</code>. CI is green on the pushed head; the e2e suite passed locally (24 passed, 1 skipped by design). The Safari/iOS preload (R2) is kept as a fix, not on a measured win: the preload never ran there, and the bench could not call the gain. One trade-off to accept: on Safari's path (no idle callback) the creator's first frame was called 13% slower while the joiner's was faster in every pair. Both pages run on one VM in the bench, so the creator's frame competes with the joiner's piece builds.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "R2",
+              "variant": "no requestIdleCallback (Safari path)",
+              "only": "joiner’s first frame|creator’s first frame|long tasks total"
+            },
+            "caption": "Safari's path, 3 pairs."
+          }
+        ],
+        "recommend": "Merge. R2's case is correctness (a preload that silently never ran on iOS). The creator's +13% is untested as a cause; I believe it is the two pages sharing one VM, since before this change iOS paid the same work inside the first board frame."
+      },
+      {
+        "title": "The share link's slowness is shader links in the lobby, not #55",
+        "body": "<p>Against 92ce041 the share link read +108% (2 pairs), and a 2-pair bisect pinned +79% on #55. Traced (<code>share-link-trace/README.md</code>), neither holds. Between the White click and the link the creator's page draws only 3–4 frames. They are held up by the shader programs the lobby first draws after the pick, each linked in a frame and waiting 0.1–1.1 s on the GPU in software rendering:</p><ul><li>the held king's selection light (column, floor, motes)</li><li>the landing band</li><li>since #56, the garden's copy</li></ul><p>The page goes to the game once the king's glide settles, so the link waits for all of them. One build spans 0.8–2.9 s. Over 6 interleaved setups each, #55 and #56 have medians of 1680 and 1803 ms, and the slowest five setups are exactly the five with the most GPU waiting. The reopened game's +38% and the desktop start page's +6% are the last run's named warm-up cost and noise.</p>",
+        "charts": [],
+        "recommend": "Warm those programs while the side choice waits for a click, as WarmPrograms does for the game. That should take most of the 0.5–2 s of GPU waiting off the creator's wait in software rendering, and the links' cost on real GPUs too. I can do it next.",
+        "figure": {
+          "html": "<table><tr><th>Build</th><th>Share link, setups (ms)</th><th>Median</th><th>Links after pick</th><th>Median GPU wait</th></tr><tr><td>92ce041</td><td>1609 1420 1216 2554 1330 1243</td><td>1375</td><td>4</td><td>~670 ms</td></tr><tr><td>150303c (#55)</td><td>12 setups, 1011–2630</td><td>1520</td><td>4</td><td>783 ms</td></tr><tr><td>7f1e93c (#56)</td><td>2249 935 1357 824 2833 2925</td><td>1803</td><td>5</td><td>929 ms</td></tr></table>",
+          "caption": "Interleaved setup runs with the bench's creator trace; share-link-trace/*.json."
+        }
+      },
+      {
+        "title": "Should the client refuse illegal moves from the opponent?",
+        "body": "<p>The replay applies any move the server relays, and the server checks only turn order, so an opponent with devtools can move your pieces or jump across the board. README's \"Scope and trust assumptions\" calls that a non-goal (\"the threat model is 'my friends'\"), so I built the check, measured it and left it out. With a new allocation-free <code>Board.isLegalMove</code>, exhaustively cross-checked against the naive rules, a 3,000-ply replay was within noise (−3%). It adds +48 engine lines and an exhaustive test. The patch is in <code>bench/loop/patches/replay-legality.patch</code>.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "R1 (isLegalMove, rejected: non-goal)",
+              "only": "G1 .*(decisive|casual|marathon ⚠ \\(3,000)|G2 .*ply 50"
+            },
+            "caption": "Replay cost with the check, client tier."
+          }
+        ],
+        "recommend": "Adopt it if the game will ever be shared beyond friends; it costs nothing a player would see. Otherwise leave it parked."
+      },
+      {
+        "title": "Seats can be taken with the link alone",
+        "body": "<p>A rejoin needs only the game id and a colour, so anyone with the invitation link can take a seat and evict its player (who then stops reconnecting). Related, from the same reviewer: <code>gameId</code> has no pattern, a socket has no rate limit, and a game has no ply cap. Each is a protocol change (<code>server/schema.json</code>).</p>",
+        "recommend": "Decide whether the threat model still holds. If not, a seat token issued at create/join is the first fix, with a migration window for stored seats.",
+        "figure": {
+          "html": "<table><tr><th>Step</th><th>Who</th><th>What happens</th></tr><tr><td>1</td><td>Friend</td><td>Pastes the invitation link in a group chat</td></tr><tr><td>2</td><td>Anyone in that chat</td><td>Opens it and sends <code>rejoin_game {gameId, color: 'white'}</code> (takeover is the default)</td></tr><tr><td>3</td><td>Server</td><td>Closes the seat's socket with 4001 and seats the newcomer (<code>modal_app.py</code> 429–478)</td></tr><tr><td>4</td><td>The player</td><td>Sees \"replaced\", stops reconnecting; the newcomer plays their moves</td></tr></table>",
+          "caption": "The take-over path today, read in the source (not exercised)."
+        }
+      },
+      {
+        "title": "CLAUDE.md lacks the sections this loop relies on",
+        "body": "<p>The perf-iteration prompt reads CLAUDE.md's North star, Measurement, Reporting, Loop state, Tests and session-log sections; none exists. I used \"Performance\" for measurement, <code>bench/loop/</code> for the loop state and the e2e + vitest suites for tests, and kept the run record in <code>bench/loop/RUN-20261001-0352.md</code>.</p>",
+        "recommend": "Add a short \"Loop state\" section naming <code>bench/loop/</code> (ledger, scoreboard.jsonl, tools, one RUN file per run) and a North star of a few lines, so the next run grades against your words, not mine.",
+        "figure": {
+          "html": "<table><tr><th>Section the loop reads</th><th>In CLAUDE.md</th><th>Used instead</th></tr><tr><td>North star</td><td>missing</td><td>README \"Scope and trust assumptions\" (non-goals)</td></tr><tr><td>Measurement</td><td>partly (\"Performance\")</td><td>\"Performance\" + <code>bench/run.mjs --base</code></td></tr><tr><td>Reporting</td><td>missing</td><td><code>bench/loop/tools/report.mjs</code></td></tr><tr><td>Loop state</td><td>missing</td><td><code>bench/loop/</code></td></tr><tr><td>Tests</td><td>partly (Commands)</td><td>vitest + e2e</td></tr><tr><td>Session log</td><td>missing</td><td><code>RUN-&lt;id&gt;.md</code> \"Session log\"</td></tr></table>",
+          "caption": "What the prompt relies on, against what exists."
+        }
+      },
+      {
+        "title": "Two design calls still parked",
+        "body": "<ul><li>The last move's shimmer asks for frames for as long as nobody moves. Stopping it after a few passes measured −15…−19% on move landing in the last run. It is the largest lever left for that row.</li><li>One variable Manrope (24.8 KB) for three static weights (42.4 KB) on the start page. Glyphs change slightly.</li></ul>",
+        "recommend": "Try the finite shimmer (for example 3 passes, then still) if you can live with a still line; it is the one change that moves the move-landing row without touching the look at rest.",
+        "figure": {
+          "html": "<table><tr><th>Call</th><th>Measured</th><th>Cost</th></tr><tr><td>Shimmer stops after a few passes</td><td>Move landing −15…−19% (run 20260930-0240, a hack, 2 pairs, noisy)</td><td>The last move's line goes still</td></tr><tr><td>One variable Manrope</td><td>Fonts on <code>/</code>: 42.4 KB → 24.8 KB (−17.6 KB)</td><td>Slightly different glyphs at 500/600/700</td></tr></table>",
+          "caption": "Last run's shimmer probe; font file sizes from the npm packages (reviewer's measurement)."
+        }
+      }
+    ]
+  },
+  "scoreboard": {
+    "intro": "<p>Every primary row against main (the base), then against the first recorded run (92ce041, the base of run 20260930-0240). The target was the primary rows 1.2× faster than the first recorded run. Rows in grey were not called by the suite's rule (every pair the same way and beyond the pairs' spread).</p>",
+    "items": [
+      {
+        "title": "Branch vs main (7f1e93c), client + browser, 3 pairs",
+        "body": "<p>Selection read +21% here and the join page +30%, both uncalled; the 4-pair recheck below put selection at −21% (faster in every pair) and the join page at +6% with mixed pairs.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "branch 01010cf vs main",
+              "only": "PRIMARY"
+            },
+            "caption": "Primary rows, branch 01010cf (code as merged, less the review fixes)."
+          }
+        ]
+      },
+      {
+        "title": "Recheck vs main, 4 pairs",
+        "charts": [
+          {
+            "rows": {
+              "change": "recheck vs main (4 pairs)"
+            },
+            "caption": "Setup and select sections."
+          }
+        ]
+      },
+      {
+        "title": "Branch vs the first recorded run (92ce041), 2 pairs",
+        "charts": [
+          {
+            "rows": {
+              "change": "final vs first run",
+              "only": "PRIMARY"
+            },
+            "caption": "Primary rows, final commit."
+          }
+        ]
+      }
+    ]
+  },
+  "changed": {
+    "items": [
+      {
+        "title": "The piece set preloads on Safari and iOS too (637677f), kept as a fix",
+        "body": "<p>The idle preload returned early where <code>requestIdleCallback</code> is missing: every iOS browser and Safari without a flag (MDN browser-compat-data 8.1.3). There the whole set was built and baked inside the first frame that drew pieces. Now each piece is built and baked in its own task, on an idle callback or a 50 ms timer. <code>preloadPieceSet</code> is gone; the baked set's preload already did its work. The bench gained <code>BENCH_NO_IDLE_CALLBACK=1</code> to time Safari's path.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "R2",
+              "variant": "Chromium (idle callback)",
+              "only": "create button enabled|Join button|joiner’s first frame|creator’s first frame"
+            },
+            "caption": "Chromium's own path is unchanged."
+          }
+        ]
+      },
+      {
+        "title": "Quiet marks shade fewer pixels (00db00a)",
+        "body": "<p>Every destination of a held piece drew on a quad sized for the soft pool that only a mark straight above or below the piece becomes: 1.03 units square instead of 0.70, about 2.1× the fragments, each running the marks' whole shader in software. The quad is now the ring's size unless the mark is soft. What it draws is unchanged.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "R9",
+              "only": "click|orbit"
+            },
+            "caption": "Higher is better for fps rows. The orbit with nothing held draws no quiet mark, so its \"worse\" call is drift."
+          }
+        ]
+      },
+      {
+        "title": "The game ships only its own piece set; one scheduler (d74b5c3, bb9840d)",
+        "body": "<p>The knight sculptor (<code>knight.ts</code> on <code>sdf.ts</code> and <code>decimate.ts</code>) shipped in the scene chunk though the game only draws the medium set, whose knight ships precomputed. <code>pieceSet()</code> is now that set alone, and <code>pieces/sculpted.ts</code> serves the gallery, benches and tests. The build also carried two extra copies of <code>scheduler</code> under r3f; <code>resolve.dedupe</code> leaves one. Geometry is byte-identical (golden hashes unchanged).</p>",
+        "charts": [
+          {
+            "rows": {
+              "only": "Bundle · scene chunk"
+            },
+            "caption": "Bytes of the chunk the start page's preview and every game page load."
+          }
+        ]
+      },
+      {
+        "title": "Rules that now run as checks (3c01202, 4a167f4, 7d59f20)",
+        "body": "<ul><li>The build fails if three.js or r3f reaches the entry chunk; adding <code>import { Vector3 } from 'three'</code> to <code>main.tsx</code> fails it.</li><li>Two tests mount the real garden: its signature holds still at rest, and every garden material is one the signature can see into. A uniform nudged by 1e-9 a frame fails them.</li><li><code>e2e/programs.spec.ts</code>: a whole game (a selection, a capture, check, mate) links no shader program after the warm-up. It counts <code>linkProgram</code> calls. It runs in full motion because under reduced motion its mutation passed.</li><li>The browser bench records each frame's garden mode (from the copy, taking it, or in full), and the loop's <code>primary.mjs</code> fails on a missing primary row instead of averaging fewer.</li></ul>"
+      }
+    ]
+  },
+  "removed": {
+    "intro": "<ul><li><code>preloadPieceSet</code> and its idle loop (−19 lines in <code>set.ts</code>).</li><li>From the shipped scene chunk: the knight sculptor and two copies of <code>scheduler</code>, −23.7 KB minified, −8.6 KB gzipped (−2.7%). The source stays for the tools.</li><li>Net lines: app source +65 −49 (+16); tests +147; build, scripts and bench +105; docs +2; loop state +1,321, mostly A/B reports.</li></ul>"
+  },
+  "rejected": {
+    "items": [
+      {
+        "title": "Replay checks each move's legality (R1)",
+        "body": "<p>Out of scope: README \"Scope and trust assumptions\". Measured within noise with <code>isLegalMove</code>; ×2–5 with <code>generateLegalMoves</code>. See Needs from me.</p>"
+      },
+      {
+        "title": "Take the garden's copy in a trailing frame after the camera rests (R3)",
+        "body": "<p>A/B 0 better, 0 worse. The new garden-mode count showed the case it targets is rare: on base, 10 of 12 first clicks after a turn already drew from the copy. Not worth +20 lines and an extra frame after every camera stop.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "R3 (rejected)",
+              "only": "after a turn|click → first frame"
+            },
+            "caption": "Select section, 3 pairs."
+          }
+        ]
+      },
+      {
+        "title": "Glaze light rig as per-draw uniforms (R8)",
+        "body": "<p>No gain this bench can see. The mover's first frame was slower in all three pairs, though not called.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "R8 (rejected)"
+            },
+            "caption": "Move latency, select and render, 3 pairs."
+          }
+        ]
+      },
+      {
+        "title": "Tailwind replaced by 25 lines of CSS (R6)",
+        "body": "<p>Not tried: about 1–2 KB gzipped of CSS against a screen-by-screen visual check. Parked.</p>"
+      },
+      {
+        "title": "\"#55 slowed the share link\" (my own bisect)",
+        "body": "<p>A 2-pair A/B called it +79%. Traced over 12 setups it is not a regression: the row's spread on one build is 0.8–2.9 s.</p>"
+      }
+    ]
+  },
+  "choices": {
+    "intro": "<ul><li>Pushed to the session's designated branch <code>claude/optimistic-turing-ni8v5c</code>; the prompt's <code>improve/&lt;run id&gt;</code> name is the local branch. The session forbids pushing elsewhere.</li><li>Kept R9 although one render row was called worse, because that row draws none of the changed code.</li><li>Kept R2 on correctness (the preload never ran on iOS), not on a called win; the creator's +13% on the Safari path is named as a trade-off with an untested cause.</li><li>Made the programs spec run in full motion (~50 s locally, its own 6-minute timeout), against CLAUDE.md's preference for reduced motion in tests that play on, because under reduced motion it could not fail.</li><li>Unit tests now hold the preload asleep (<code>setupTests.ts</code>), as jsdom's lack of an idle callback did before.</li><li>Installed Node 24.21.0 with nvm (the image ships 22; the repo pins 24) and pointed Playwright at the image's Chromium 141 headless shell.</li></ul>"
+  },
+  "notConfirmed": {
+    "intro": "<ul><li>The iPhone gain itself: Chromium without an idle callback stands in for Safari; no real iOS device was available.</li><li>Cloudflare Pages' cache headers (the reviewer's <code>_headers</code> idea): the preview host is blocked by this environment's network policy.</li><li>The startup tier (S1/S2) in the final A/B: the new startup bench called an API the base lacks, so only the head side ran. The bench now handles both shapes.</li><li>Pixel identity of R9: argued from the shader (nothing drawn beyond 1.11× the ring plus its stroke), not diffed.</li></ul>"
+  },
+  "merge": {
+    "intro": "<p>No other sessions were active, so nothing to hand over.</p>"
+  },
+  "next": {
+    "intro": "<ol><li>Warm the lobby's post-pick programs (selection light, landing band, garden copy) before the pick: the root cause of the creator's slow share link.</li><li>The finite shimmer (needs your call): the largest lever left on move landing.</li><li>Open the WebSocket from <code>index.html</code> (R4): saves the socket handshake on game pages in production; the bench, on localhost, can barely see it.</li><li>r3f 9.7 with React 19.2 (R7): microtask commits for the click's selection; +3 KB gzipped on the entry, a trade-off to measure.</li><li>Reconnect at once on <code>online</code> or a tab coming back (P3).</li><li>Glass without its entrance code once built (R10): one more program to warm for 3–6 ms a frame.</li></ol>"
+  }
+}

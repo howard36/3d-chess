@@ -4,7 +4,7 @@ import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { wholePiece } from '../scene/occlusion';
 import { PIECE_PARTS } from './parts';
-import { pieceSet } from './set';
+import { sculptedPieceSet } from './sculpted';
 import type { PieceQuality } from './set';
 
 // The set's geometry, byte for byte. Building it faster must not move a
@@ -27,7 +27,7 @@ const hashInto = (h: ReturnType<typeof createHash>, key: string, g: BufferGeomet
 
 const setHash = (quality: PieceQuality) => {
   const h = createHash('sha256');
-  const set = pieceSet(quality);
+  const set = sculptedPieceSet(quality);
   for (const type of Object.values(PieceType)) {
     for (const part of PIECE_PARTS) {
       const g = set[type][part];

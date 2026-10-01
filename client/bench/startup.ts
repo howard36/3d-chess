@@ -1,8 +1,8 @@
 // One-time startup work, timed by hand: building the Staunton set's
 // geometry and baking its ambient occlusion (client/src/three/pieces,
 // three/scene/occlusion.ts). The game does each piece type as its own task
-// in an idle callback (preloadPieceSet, preloadBakedSet: build the king,
-// bake the king, build the queen, ...), so each is a main-thread task the
+// in an idle callback (preloadBakedSet: build and bake the king, then the
+// queen, ...), so each is a main-thread task the
 // player can feel if it lands while they act. A page load pays them once,
 // cold, so cold is measured in fresh processes; warm (JIT-compiled) numbers
 // come from fresh module instances in this one.
@@ -16,7 +16,8 @@
 import { spawnSync } from 'node:child_process';
 import { PieceType } from '../src/engine';
 import { pieceSet } from '../src/three/pieces';
-import type { PieceQuality } from '../src/three/pieces';
+import { buildKnight } from '../src/three/pieces/knight';
+import type { PieceQuality, PieceSet } from '../src/three/pieces';
 import { duration, emit, summarize } from './report';
 import type { Table } from './report';
 
@@ -44,7 +45,7 @@ const time = (fn: () => unknown) => {
 /** The app's cold sequence, first call of everything in this process: build, then bake, per type. */
 async function coldSequence() {
   const occlusion = await freshOcclusion();
-  const set = pieceSet('medium');
+  const set = pieceSet();
   const out: Record<string, { build: number; bake: number }> = {};
   for (const type of TYPES) {
     const build = time(() => set[type]);
@@ -96,7 +97,16 @@ const warmBuild: Record<PieceQuality, Record<string, number[]>> = {
 for (const quality of ['low', 'medium', 'high'] as const) {
   for (const t of TYPES) warmBuild[quality][t] = [];
   for (let rep = 0; rep < reps; rep++) {
-    const set = (await freshSet()).pieceSet(quality);
+    // Medium as the game builds it (its knight precomputed), the others
+    // sculpted; against a base from before pieceSet() took no quality (an
+    // A/B runs this file on both), its own pieceSet(quality)
+    const module = await freshSet();
+    const set =
+      quality === 'medium'
+        ? module.pieceSet()
+        : 'buildPieceSet' in module
+          ? module.buildPieceSet(quality, (d) => buildKnight(d.step, d.knight))
+          : (module as unknown as { pieceSet: (q: PieceQuality) => PieceSet }).pieceSet(quality);
     for (const t of TYPES) {
       const ms = time(() => set[t]);
       if (rep > 0) warmBuild[quality][t].push(ms);
@@ -104,7 +114,7 @@ for (const quality of ['low', 'medium', 'high'] as const) {
   }
 }
 const warmBake: Record<string, number[]> = Object.fromEntries(TYPES.map((t) => [t, []]));
-for (const t of TYPES) void pieceSet('medium')[t]; // the shared source set, built once
+for (const t of TYPES) void pieceSet()[t]; // the shared source set, built once
 for (let rep = 0; rep < reps; rep++) {
   const baked = (await freshOcclusion()).bakedSet();
   for (const t of TYPES) {

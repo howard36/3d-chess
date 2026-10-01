@@ -3,7 +3,8 @@ import type React from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Euler, MeshBasicMaterial, MeshStandardMaterial } from 'three';
 import { PieceType } from '../engine/pieces';
-import { PIECE_PARTS, partsGeometry, pieceSet } from '../three/pieces';
+import { PIECE_PARTS, partsGeometry } from '../three/pieces';
+import { sculptedPieceSet } from '../three/pieces/sculpted';
 import type { PieceQuality, PieceSet } from '../three/pieces';
 import { PieceBody } from '../three/scene/pieces';
 import type { PieceColor } from '../three/types';
@@ -112,7 +113,7 @@ export const PieceGallery = ({ params }: { params: URLSearchParams }) => {
   const only = params.get('piece');
   const quality = QUALITIES.find((q) => q === params.get('quality')) ?? 'medium';
   const cellPx = Number(params.get('cell') ?? 200);
-  const set = useMemo(() => pieceSet(quality), [quality]);
+  const set = useMemo(() => sculptedPieceSet(quality), [quality]);
 
   const type = ORDER.find((t) => t.toLowerCase() === only?.toLowerCase());
   const silhouette = params.has('silhouette');

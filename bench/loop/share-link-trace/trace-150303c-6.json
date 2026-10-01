@@ -1,0 +1,144 @@
+{
+ "setup": [
+  {
+   "createShown": 2595.2001953125,
+   "createTrace": {
+    "created": 65.10009765625,
+    "stages": [
+     [
+      2595,
+      "/game/QEFBU8",
+      "wait",
+      "late"
+     ]
+    ],
+    "longTasks": [
+     [
+      642,
+      960
+     ],
+     [
+      1603,
+      152
+     ],
+     [
+      1756,
+      813
+     ]
+    ],
+    "links": [
+     [
+      645,
+      "void main() { float r = length(vP - uCentre); float band = exp(-pow((r - uRadius) / 0.05, "
+     ],
+     [
+      1761,
+      "void main() { float r = length(vP); vec3 v = normalize(cameraPosition - vW); float above ="
+     ],
+     [
+      2160,
+      "void main() { // Risen this far: soft at its rising top, so it grows up out of the // glas"
+     ],
+     [
+      2375,
+      "void main() { vec4 diffuseColor = vec4( diffuse, opacity ); #if 0 > 0 vec4 plane; #ifdef A"
+     ]
+    ],
+    "syncs": [
+     [
+      645,
+      "getProgramParameter",
+      948
+     ],
+     [
+      1761,
+      "getProgramParameter",
+      398
+     ],
+     [
+      2160,
+      "getProgramParameter",
+      214
+     ],
+     [
+      2375,
+      "getProgramParameter",
+      191
+     ]
+    ],
+    "frames": 4,
+    "longestFrame": 983.199951171875
+   }
+  },
+  {
+   "createShown": 2630.199951171875,
+   "createTrace": {
+    "created": 60,
+    "stages": [
+     [
+      2630,
+      "/game/ZENC6T",
+      "wait",
+      "on"
+     ]
+    ],
+    "longTasks": [
+     [
+      801,
+      998
+     ],
+     [
+      1800,
+      109
+     ],
+     [
+      1910,
+      688
+     ]
+    ],
+    "links": [
+     [
+      803,
+      "void main() { float r = length(vP - uCentre); float band = exp(-pow((r - uRadius) / 0.05, "
+     ],
+     [
+      1915,
+      "void main() { float r = length(vP); vec3 v = normalize(cameraPosition - vW); float above ="
+     ],
+     [
+      2229,
+      "void main() { // Risen this far: soft at its rising top, so it grows up out of the // glas"
+     ],
+     [
+      2330,
+      "void main() { vec4 diffuseColor = vec4( diffuse, opacity ); #if 0 > 0 vec4 plane; #ifdef A"
+     ]
+    ],
+    "syncs": [
+     [
+      803,
+      "getProgramParameter",
+      994
+     ],
+     [
+      1915,
+      "getProgramParameter",
+      314
+     ],
+     [
+      2229,
+      "getProgramParameter",
+      99
+     ],
+     [
+      2330,
+      "getProgramParameter",
+      263
+     ]
+    ],
+    "frames": 5,
+    "longestFrame": 1100
+   }
+  }
+ ]
+}

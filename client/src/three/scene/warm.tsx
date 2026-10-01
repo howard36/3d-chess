@@ -70,6 +70,8 @@ export const WarmPrograms = () => {
     // The pieces change to the glaze at rest in the next frame: ask for it
     // now, so that change is not made in a player's frame
     markGlazeWarm(gl);
+    // For e2e (programs.spec.ts): from here no move or selection links a program
+    gl.domElement.dataset.warm = 'done';
     invalidate();
     const kept = keepPrograms(gl, w.materials);
     // The ones that kept no program (another material already keeps it) go
