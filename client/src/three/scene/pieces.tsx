@@ -137,22 +137,26 @@ const glazeFragment = /* glsl */ `
     // A captured piece burns away from the crown down (uCut from 0 to 1;
     // below zero, whole)
     float burn = 1.0;
+    #ifdef GLAZE_CUT
     if (uCut > -0.005) {
       float e = 0.7 * (1.0 - h) + 0.3 * noise(vLocal * 20.0) - uCut;
       if (e < 0.0) discard;
       burn = smoothstep(0.0, 0.05, e);
     }
+    #endif
     // The game's entrance: the piece forms from the foot up (uForm from 0 to
     // 1; at 1, whole), the capture's burn run the other way: a thin line of
     // white light rises through it, and what it leaves behind glows with its
     // level's light for a moment before it cools to its glaze
     float formed = 0.0;
+    #ifdef GLAZE_FORM
     if (uForm < 1.0) {
       float e = uForm * 1.2 - 0.06 - (h + 0.09 * noise(vLocal * 16.0));
       if (e < 0.0) discard;
       burn = min(burn, smoothstep(0.0, 0.03, e));
       formed = exp(-e / 0.16) * (1.0 - uForm * uForm);
     }
+    #endif
     vec3 n = normalize(vN);
     if (!gl_FrontFacing) n = -n;
     vec3 v = normalize(cameraPosition - vW);
@@ -316,7 +320,37 @@ const colorAtLevel = (level: number, out: Color) => {
  * A piece's own material (its hover, hold, check and band ease on their
  * own). Its foot band shows the light of `level`.
  */
-const bodyMaterial = (color: PieceColor, type: PieceType, level: number) => {
+/**
+ * Which of the glaze's passing effects a material compiles in: the entrance's
+ * forming, or a capture's burn, or neither (a piece at rest). Shaders run
+ * both sides of a branch on some GPUs and in software (SwiftShader, where
+ * this is ~15% of a frame), so the effects are compiled out where they
+ * cannot happen rather than skipped by their uniforms.
+ */
+export type GlazeVariant = 'steady' | 'form' | 'cut';
+
+const GLAZE_DEFINES: Record<GlazeVariant, Record<string, string>> = {
+  steady: {},
+  form: { GLAZE_FORM: '' },
+  cut: { GLAZE_CUT: '' },
+};
+
+/** Switches a glaze material to another variant (a program change: warm it first). */
+export const setGlazeVariant = (material: ShaderMaterial, variant: GlazeVariant) => {
+  material.defines = { ...GLAZE_DEFINES[variant] };
+  material.needsUpdate = true;
+};
+
+/** The renderers whose steady glaze program is warm (WarmPrograms, warm.tsx). */
+const steadyWarm = new WeakSet<object>();
+export const markGlazeWarm = (gl: object) => steadyWarm.add(gl);
+
+export const bodyMaterial = (
+  color: PieceColor,
+  type: PieceType,
+  level: number,
+  variant: GlazeVariant = 'form',
+) => {
   const g = GLAZE[color];
   // The charcoal knight's accent is its whole carved mane, many small faces
   // turned to the key: a shade deeper and less glossy, so it stays pewter
@@ -353,6 +387,7 @@ const bodyMaterial = (color: PieceColor, type: PieceType, level: number) => {
       uCut: { value: -1 },
       uForm: { value: 1 },
     },
+    defines: { ...GLAZE_DEFINES[variant] },
     vertexShader: glazeVertex,
     fragmentShader: glazeFragment,
   });
@@ -363,8 +398,15 @@ const bodyMaterial = (color: PieceColor, type: PieceType, level: number) => {
  * what an effect that redraws a piece (a capture) should use so the piece
  * looks the same.
  */
-export const usePieceMaterial = (color: PieceColor, type: PieceType, level: number) => {
-  const material = useMemo(() => bodyMaterial(color, type, level), [color, type, level]);
+export const usePieceMaterial = (
+  color: PieceColor,
+  type: PieceType,
+  level: number,
+  variant: GlazeVariant = 'form',
+) => {
+  // (the variant as the material is made; setGlazeVariant changes it after)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const material = useMemo(() => bodyMaterial(color, type, level, variant), [color, type, level]);
   useEffect(() => () => material.dispose(), [material]);
   return material;
 };
@@ -480,8 +522,15 @@ export const PieceBody = (props: PieceBodyProps) => {
   const glide = useGlide();
   const still = useMemo(prefersReducedMotion, []);
 
-  // (its band's colour is set every frame: one material whatever the level)
-  const body = usePieceMaterial(color, type, 0);
+  // (its band's colour is set every frame: one material whatever the level).
+  // Forming until the entrance is over, then at rest, once that program is
+  // warm (so the change never links a program in a frame)
+  const gl = useThree((s) => s.gl);
+  const intro = useIntro();
+  const glaze = useRef<GlazeVariant>(
+    steadyWarm.has(gl) && introDone(intro.plan, intro.t) ? 'steady' : 'form',
+  );
+  const body = usePieceMaterial(color, type, 0, glaze.current);
   const floorMaterial = useMemo(() => poolMaterial(level), [level]);
   useEffect(() => () => floorMaterial.dispose(), [floorMaterial]);
   const top = pieceTop(bakedSet(), type);
@@ -494,7 +543,6 @@ export const PieceBody = (props: PieceBodyProps) => {
   const [lit, setLit] = useState(false);
   // The game's entrance: the piece forms at its arrival (intro/timeline.ts),
   // its ring on the glass mounted only until it has faded
-  const intro = useIntro();
   const arrival = props.arrival ?? 0;
   const [forming, setForming] = useState(() => !introDone(intro.plan, intro.t));
   const ring = useRef(0);
@@ -523,6 +571,11 @@ export const PieceBody = (props: PieceBodyProps) => {
       if (ring.current >= 1 && u.uForm.value >= 1) setForming(false);
     } else {
       u.uForm.value = 1;
+      // Formed: the same glaze without the forming (no redraw needed)
+      if (glaze.current !== 'steady' && steadyWarm.has(gl)) {
+        glaze.current = 'steady';
+        setGlazeVariant(body, 'steady');
+      }
     }
     const f = floorMaterial.uniforms;
     f.uPool.value = smooth(hover);

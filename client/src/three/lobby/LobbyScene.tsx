@@ -7,6 +7,7 @@ import { noRaycast } from '../noRaycast';
 import { platformStack } from '../scene/mask';
 import { PALETTE } from '../scene/palette';
 import { Stage } from '../scene/stage';
+import { BackdropCache } from '../scene/backdropCache';
 import { LAYER } from '../scene/layers';
 import { CoinKing, LobbyKing } from './LobbyKing';
 import type { KingPair } from './LobbyKing';
@@ -421,7 +422,11 @@ export const LobbyScene = ({
 
   return (
     <>
-      <Stage orientation="white" shade={gone ? undefined : shade} dim={() => dim.current} />
+      {/* The garden, drawn from a copy while the camera is at rest (waiting,
+          invited) */}
+      <BackdropCache>
+        <Stage orientation="white" shade={gone ? undefined : shade} dim={() => dim.current} />
+      </BackdropCache>
       <LobbyPlatform />
       {(['white', 'black'] as const).map((side) => (
         <LobbyKing

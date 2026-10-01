@@ -1,6 +1,7 @@
 import React from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import type { Spherical } from 'three';
 import { useTouchSafeControls } from './useTouchSafeControls';
 import type { OrbitPointerState } from './useTouchSafeControls';
 
@@ -53,7 +54,14 @@ export function CameraControls({
   }, [controls, minPolarAngle, maxPolarAngle, invalidate]);
 
   useFrame(() => {
-    if (controls.enabled) controls.update();
+    // Damped, a turn eases out; once a frame's step is too small to see
+    // (update reports no change), the ease ends there, so the camera holds
+    // exactly still between frames drawn for other reasons, rather than
+    // creeping on by a fraction of a pixel in each (the garden's copy,
+    // scene/backdropCache.tsx, needs it still)
+    if (controls.enabled && !controls.update()) {
+      (controls as unknown as { _sphericalDelta: Spherical })._sphericalDelta.set(0, 0, 0);
+    }
   }, -1);
 
   React.useEffect(() => {

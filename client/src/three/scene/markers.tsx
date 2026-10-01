@@ -333,8 +333,34 @@ const Mark = ({
   u.uQuad.value = quad;
   u.uSoft.value = soft ? 1 : 0;
   u.uSoftRadius.value = softRadius ?? radius;
-  // The pointer came or went: draw a frame for it
-  useEffect(() => invalidate());
+  // The pointer came or went, or the mark changed: draw a frame for it (and
+  // only then: a board render that changes nothing here draws nothing)
+  const [fx, fy, fz] = floor;
+  useEffect(
+    () => invalidate(),
+    [
+      invalidate,
+      hovered,
+      color,
+      fill,
+      deep,
+      radius,
+      width,
+      fillA,
+      washA,
+      opacity,
+      pulse,
+      quad,
+      soft,
+      softRadius,
+      settle,
+      dimAbove,
+      yieldHeld,
+      fx,
+      fy,
+      fz,
+    ],
+  );
 
   const age = useRef(0);
   const hover = useRef(0);

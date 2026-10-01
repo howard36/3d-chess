@@ -78,8 +78,8 @@ export const ShootingStar = () => {
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(new Float32Array(TRAIL * 3), 3));
     g.setAttribute('aAlong', new BufferAttribute(along, 1));
+    // Added onto the sky with the stars (heavens.tsx), in the opaque list
     const m = new ShaderMaterial({
-      transparent: true,
       depthWrite: false,
       blending: AdditiveBlending,
       uniforms: {
@@ -95,7 +95,7 @@ export const ShootingStar = () => {
     });
     const l = new Line(g, m);
     l.visible = false;
-    l.renderOrder = -986;
+    l.renderOrder = -896;
     l.frustumCulled = false;
     l.raycast = noRaycast;
     return { geometry: g, material: m, line: l };

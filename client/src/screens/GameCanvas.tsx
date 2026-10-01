@@ -15,6 +15,7 @@ import { introDone } from '../three/intro/timeline';
 import { INTRO_SCENE_VAR } from '../three/intro/vars';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
+import { BackdropCache } from '../three/scene/backdropCache';
 import { WarmPrograms } from '../three/scene/warm';
 import { setUpRenderer } from '../three/rendererSetup';
 import type { Board as EngineBoard, Move } from '../engine';
@@ -105,7 +106,10 @@ const GameCanvas = ({
         }}
       >
         <IntroContext.Provider value={clock}>
-          <Stage orientation={color ?? 'white'} />
+          {/* The garden, drawn from a copy while the camera is at rest */}
+          <BackdropCache>
+            <Stage orientation={color ?? 'white'} />
+          </BackdropCache>
           <Board
             board={board} // Pass the EngineBoard instance
             currentTurn={currentTurn}

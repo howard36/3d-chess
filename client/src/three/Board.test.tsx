@@ -411,6 +411,31 @@ describe('Board', () => {
     expect(drawn.grids).toHaveLength(1);
   });
 
+  it('draws no frame when only the board is disabled (a move on its way to the server)', async () => {
+    // The canvas redraws for any prop r3f is handed anew: every frame asked
+    // for goes through the store's invalidate
+    const invalidate = vi.fn();
+    const Probe = () => {
+      const get = useThree((s) => s.get);
+      React.useLayoutEffect(() => {
+        get().set({ invalidate });
+      }, [get]);
+      return null;
+    };
+    const board = createTestBoard();
+    const at = (disabled: boolean) => (
+      <>
+        <Probe />
+        <Board board={board} currentTurn="white" playerColor="white" disabled={disabled} />
+      </>
+    );
+    const renderer = await ReactThreeTestRenderer.create(at(false));
+    invalidate.mockClear();
+    // The mover's page: the move is sent, and the board waits for its echo
+    await renderer.update(at(true));
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
   it('does not unselect when clicking another piece (selection moves)', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" />,

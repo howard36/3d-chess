@@ -37,6 +37,9 @@ const intro = vi.hoisted(() => ({
   paused: null as boolean | null,
   firstFrame: null as (() => void) | null,
 }));
+vi.mock('../three/scene/backdropCache', () => ({
+  BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
+}));
 vi.mock('../three/scene/warm', () => ({
   WarmPrograms: () => null,
 }));

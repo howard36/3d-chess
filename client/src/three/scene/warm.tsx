@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Color } from 'three';
 import type { Group, Material, Object3D } from 'three';
+import { backdropMaterial } from './backdropCache';
 import { obsidianMaterial } from './blades';
 import { outlineMaterial, pulseMaterial } from './fx';
 import { lineMaterial } from './line';
 import { markMaterial, shimmerMaterial } from './markers';
 import { PALETTE } from './palette';
-import { poolMaterial } from './pieces';
+import { PieceType } from '../../engine/pieces';
+import { bodyMaterial, markGlazeWarm, poolMaterial } from './pieces';
 import { keepPrograms, warmObjects } from './programs';
 import { selectionMaterials } from './selection';
 
@@ -65,6 +67,10 @@ export const WarmPrograms = () => {
       return;
     }
     scene.remove(w.group);
+    // The pieces change to the glaze at rest in the next frame: ask for it
+    // now, so that change is not made in a player's frame
+    markGlazeWarm(gl);
+    invalidate();
     const kept = keepPrograms(gl, w.materials);
     // The ones that kept no program (another material already keeps it) go
     for (const m of w.materials) if (!kept.has(m)) m.dispose();
@@ -76,13 +82,19 @@ export const WarmPrograms = () => {
     const selection = selectionMaterials(new Color(PALETTE.select));
     // In the order they are likely needed
     const meshes = [
+      // The garden's copy, drawn from the first frame the camera rests
+      backdropMaterial(),
       selection.columnMaterial,
       selection.floorMaterial,
       poolMaterial(0),
       markMaterial(),
+      // A captured piece burning away (a capture can come with the first moves)
+      bodyMaterial('white', PieceType.Pawn, 0, 'cut'),
       lineMaterial(),
       shimmerMaterial(),
       outlineMaterial(),
+      // A piece at rest (the pieces change to it once it is warm)
+      bodyMaterial('white', PieceType.Pawn, 0, 'steady'),
       obsidianMaterial({}),
       pulseMaterial(),
     ];
@@ -91,7 +103,7 @@ export const WarmPrograms = () => {
     // The motes with the rest of a piece picked up, then the others
     const objects = [...group.children];
     const [mote] = objects.splice(meshes.length, 1);
-    objects.splice(2, 0, mote);
+    objects.splice(3, 0, mote);
     group.clear();
     warming.current = {
       group,

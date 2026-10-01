@@ -180,6 +180,10 @@ export const SmartLabels = ({
     [layout, orientation],
   );
 
+  // Each sprite's userData, the same object from one render to the next (r3f
+  // redraws for any prop handed anew)
+  const labelData = useMemo(() => new Map(ids.map((l) => [l.id, { labelId: l.id }])), [ids]);
+
   const group = useRef<Group>(null);
   const sprites = useRef(new Map<string, [Sprite | null, Sprite | null]>());
   const slots = useRef(new Map<string, Slot>());
@@ -279,7 +283,7 @@ export const SmartLabels = ({
               sprites.current.set(label.id, pair);
             }}
             visible={false}
-            userData={{ labelId: label.id }}
+            userData={labelData.get(label.id)}
             renderOrder={LAYER.label}
             raycast={noRaycast}
           >
