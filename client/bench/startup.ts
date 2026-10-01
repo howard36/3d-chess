@@ -17,7 +17,7 @@ import { spawnSync } from 'node:child_process';
 import { PieceType } from '../src/engine';
 import { pieceSet } from '../src/three/pieces';
 import { buildKnight } from '../src/three/pieces/knight';
-import type { PieceQuality } from '../src/three/pieces';
+import type { PieceQuality, PieceSet } from '../src/three/pieces';
 import { duration, emit, summarize } from './report';
 import type { Table } from './report';
 
@@ -97,12 +97,16 @@ const warmBuild: Record<PieceQuality, Record<string, number[]>> = {
 for (const quality of ['low', 'medium', 'high'] as const) {
   for (const t of TYPES) warmBuild[quality][t] = [];
   for (let rep = 0; rep < reps; rep++) {
-    // Medium as the game builds it (its knight precomputed), the others sculpted
+    // Medium as the game builds it (its knight precomputed), the others
+    // sculpted; against a base from before pieceSet() took no quality (an
+    // A/B runs this file on both), its own pieceSet(quality)
     const module = await freshSet();
     const set =
       quality === 'medium'
         ? module.pieceSet()
-        : module.buildPieceSet(quality, (d) => buildKnight(d.step, d.knight));
+        : 'buildPieceSet' in module
+          ? module.buildPieceSet(quality, (d) => buildKnight(d.step, d.knight))
+          : (module as unknown as { pieceSet: (q: PieceQuality) => PieceSet }).pieceSet(quality);
     for (const t of TYPES) {
       const ms = time(() => set[t]);
       if (rep > 0) warmBuild[quality][t].push(ms);

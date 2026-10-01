@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PRIMARY } from './primary.mjs';
 
 const [contentFile, out] = process.argv.slice(2);
 if (!contentFile || !out) {
@@ -24,8 +25,13 @@ const board = readFileSync(join(here, '..', 'scoreboard.jsonl'), 'utf8')
 const esc = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
+const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// "PRIMARY" picks the primary rows, as primary.mjs names them
+const PRIMARY_RE = new RegExp(
+  `^(${PRIMARY.map(([, key]) => `.* · ${escapeRe(key)}`).join('|')})$`,
+);
 const pick = (f) => {
-  const only = f.only ? new RegExp(f.only) : null;
+  const only = f.only === 'PRIMARY' ? PRIMARY_RE : f.only ? new RegExp(f.only) : null;
   const rows = board.filter(
     (r) =>
       (!f.run || r.run === f.run) &&
@@ -33,8 +39,10 @@ const pick = (f) => {
       (f.variant === undefined || r.variant === f.variant) &&
       (!only || only.test(`${r.where} · ${r.scenario}`)),
   );
-  if (!rows.length) throw new Error(`no scoreboard rows for ${JSON.stringify(f)}`);
-  return rows;
+  // (a row measured as 0 on both sides has no ratio to draw)
+  const drawn = rows.filter((r) => r.baseValue > 0 && r.headValue > 0);
+  if (!drawn.length) throw new Error(`no scoreboard rows for ${JSON.stringify(f)}`);
+  return drawn;
 };
 
 const fmt = (v, unit) => {
@@ -48,8 +56,9 @@ const fmt = (v, unit) => {
 };
 
 // A row per measure: its head/base ratio on a log axis from 0.5× to 2×, the
-// median as a bar from 1×, each pair as a dot. Shorter (left) is faster for
-// times; for throughputs (frames/s) the report says so in the row's label.
+// median as a bar from 1×, each pair as a dot. Left of 1× is faster for
+// times; for a throughput (fps, /s) right is better, and the colour (the A/B's
+// verdict) says which way it went.
 const chart = (f, caption) => {
   const rows = pick(f);
   const W = 640;
@@ -82,7 +91,10 @@ const chart = (f, caption) => {
   });
   svg += '</svg>';
   const sources = [...new Set(rows.map((r) => r.source))].join(', ');
-  return `<figure class="chart"><div class="scroll">${svg}</div><figcaption>${esc(caption)} Head ÷ base, log axis; bar = median of interleaved pairs, dots = each pair. Data: <code>bench/loop/scoreboard.jsonl</code> from <code>${esc(sources)}</code>.</figcaption></figure>`;
+  const how = rows.every((r) => r.tier === 'build')
+    ? 'Head ÷ base, log axis; one build each (bytes do not vary).'
+    : 'Head ÷ base, log axis; bar = median of interleaved pairs, dots = each pair.';
+  return `<figure class="chart"><div class="scroll">${svg}</div><figcaption>${esc(caption)} ${how} Data: <code>bench/loop/scoreboard.jsonl</code> from <code>${esc(sources)}</code>.</figcaption></figure>`;
 };
 
 const item = (it) => {

@@ -25,10 +25,11 @@ const text = readFileSync(file, 'utf8');
 const base = text.match(/^Base `([0-9a-f]+)`/m)?.[1] ?? null;
 const head = text.match(/against this checkout \(`([^`]+)`/m)?.[1] ?? null;
 
-/** A value as the report prints it ("1.2 ms", "830 µs", "4.1 frames/s") in its unit's base. */
+/** A value as the report prints it ("1.2 ms", "830 µs", "7.91 fps", "4.5/s") in its unit's base. */
 const SCALE = { ns: 1e-6, 'µs': 1e-3, ms: 1, s: 1000, B: 1, KiB: 1024, MiB: 1024 ** 2 };
 const parse = (cell) => {
-  const m = cell.match(/^([\d.,]+)\s*([kMG]?)\s*(\S*)/);
+  // (k, M and G only as a rate's multiplier: "4.5k/s", never the M of "MiB")
+  const m = cell.match(/^([\d.,]+)\s*([kMG](?=\/s))?\s*(\S*)/);
   if (!m) return null;
   let v = Number(m[1].replace(/,/g, '')) * ({ k: 1e3, M: 1e6, G: 1e9 }[m[2]] ?? 1);
   const unit = m[3] || '';
@@ -63,7 +64,7 @@ for (const line of text.split('\n')) {
     unit: pb.unit,
     baseValue: pb.value,
     headValue: ph.value,
-    pairs: pairs.split(/\s+/).map(Number),
+    pairs: pairs ? pairs.split(/\s+/).map(Number) : [],
     verdict: verdict.replace(/\*/g, '') || 'unchanged',
     source: basename(file),
   };

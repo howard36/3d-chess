@@ -19,10 +19,10 @@ Ideas from 12 read-only reviewers (one lens each), checked against the code befo
 | 7 | `alpha: false` on canvases | every frame (compositor) | vectorization | verify alpha is 1 everywhere | open |
 | 8 | `pow(x,2.0)` → `x*x` in shaders | raster | numerical | ulp-level output change | open |
 | 9 | Early WebSocket from index.html | start page, game page first screen | I/O, boundaries | socket opens in useEffect after React commit (read) | open |
-| 10 | Tree-shake fallback piece builders (sdf/decimate/knight) out of the lazy chunk | bytes (preview chunk) | memory | verify in built chunk | open |
+| 10 | Tree-shake fallback piece builders (sdf/decimate/knight) out of the lazy chunk | bytes (preview chunk) | memory | verify in built chunk |**kept in run 20261001-0352** (R5) |
 | 11 | Fuse build→bake→merge in the piece set (fewer copies) | first board frame | memory | ~46 ms total build, idle callbacks | open |
 | 12 | Lazy-load lobby/game screens out of the entry | start page | build config | App.tsx imports them directly (read) | open |
-| 13 | Dedupe `scheduler` | bytes | build config | package-lock has 0.25 ×2 + 0.26 | open |
+| 13 | Dedupe `scheduler` | bytes | build config | package-lock has 0.25 ×2 + 0.26 |**kept in run 20261001-0352** (R11) |
 | 14 | Incremental message-log fold | per message | complexity | µs-scale; not a target moment | parked (low value) |
 | 15 | MSAA off / lower pixel ratio | raster | numerical, vectorization | changes pixels: needs approval | parked (needs decision) |
 | 16 | Finite ambient animations (shimmer stops after N passes) | move landing, selection | removable | visible design change | parked (needs decision) |
