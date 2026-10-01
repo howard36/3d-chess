@@ -10,8 +10,8 @@ import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PieceType } from '../src/engine/pieces';
 import { buildKnight } from '../src/three/pieces/knight';
-import { encodeKnight } from '../src/three/pieces/knightData';
-import { DETAIL, pieceSet } from '../src/three/pieces/set';
+import { decodeKnight, encodeKnight } from '../src/three/pieces/knightData';
+import { DETAIL, buildPieceSet } from '../src/three/pieces/set';
 import { occlusionOfPiece } from '../src/three/scene/occlusion';
 import { encodeOcclusion } from '../src/three/scene/occlusionData';
 
@@ -39,8 +39,9 @@ export const KNIGHT_MEDIUM: KnightData = {
 `,
 );
 
-// The set as built here sculpts its knight: the same bytes as the file above
-const set = pieceSet();
+// The set with the knight just written (not the KNIGHT_MEDIUM this script
+// loaded, which a shape change has made stale): the set the game will draw
+const set = buildPieceSet('medium', () => decodeKnight(k));
 const occlusion = {} as Record<PieceType, Float32Array[]>;
 for (const type of Object.values(PieceType)) occlusion[type] = occlusionOfPiece(set[type]);
 const o = encodeOcclusion(occlusion);

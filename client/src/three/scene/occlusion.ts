@@ -311,8 +311,9 @@ const whenIdle = (run: () => void) => {
 
 /**
  * Builds and bakes the set's pieces while the browser is idle, one piece per
- * idle moment, so the first board does not wait for them. Does nothing
- * outside a browser (tests): each piece is then built when first drawn.
+ * idle moment, so the first board does not wait for them. Outside a browser
+ * it does nothing (the unit tests' setup also holds its idle callback back):
+ * each piece is then built when first drawn.
  */
 export const preloadBakedSet = () => {
   if (typeof window === 'undefined') return;
