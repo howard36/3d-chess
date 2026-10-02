@@ -36,27 +36,28 @@ describe('CapturedPieces', () => {
 
   it('hangs your haul under your half and theirs under theirs, in the taken army’s material', () => {
     seatedAs('white', OPENING);
-    // You (White) took a unicorn and two pawns: Black's pieces
+    // You (White) took a unicorn and two pawns: Black's pieces, with no lead
     expect(glyphs(haul('me'))).toEqual(['black Unicorn', 'black Pawn']);
-    expect(haul('me')).toHaveTextContent('You have taken a unicorn and 2 pawns; you are 1 ahead.');
-    // The count only where there is more than one, and the lead on your side
+    expect(haul('me')).toHaveTextContent('You have taken a unicorn and 2 pawns.');
+    // The count only where there is more than one
     expect([...haul('me').querySelectorAll('.hud-count')].map((c) => c.textContent)).toEqual(['2']);
-    expect(haul('me').querySelector('.hud-lead')).toHaveTextContent('+1');
-    // They took a bishop and a pawn: yours, in porcelain, with no lead
+    expect(haul('me').querySelector('.hud-lead')).toBeNull();
+    // They took a bishop and a pawn: yours, in porcelain, and the lead on their side
     expect(glyphs(haul('them'))).toEqual(['white Bishop', 'white Pawn']);
-    expect(haul('them')).toHaveTextContent('Your opponent has taken a bishop and a pawn.');
-    expect(haul('them').querySelector('.hud-lead')).toBeNull();
+    expect(haul('them')).toHaveTextContent(
+      'Your opponent has taken a bishop and a pawn; they are 0.5 ahead.',
+    );
+    expect(haul('them').querySelector('.hud-lead')).toHaveTextContent('+0.5');
   });
 
   it('is told from Black’s side the other way round', () => {
     seatedAs('black', OPENING);
     expect(glyphs(haul('me'))).toEqual(['white Bishop', 'white Pawn']);
-    expect(haul('me')).toHaveTextContent('You have taken a bishop and a pawn.');
+    expect(haul('me')).toHaveTextContent('You have taken a bishop and a pawn; you are 0.5 ahead.');
+    expect(haul('me').querySelector('.hud-lead')).toHaveTextContent('+0.5');
     expect(glyphs(haul('them'))).toEqual(['black Unicorn', 'black Pawn']);
-    expect(haul('them')).toHaveTextContent(
-      'Your opponent has taken a unicorn and 2 pawns; they are 1 ahead.',
-    );
-    expect(haul('them').querySelector('.hud-lead')).toHaveTextContent('+1');
+    expect(haul('them')).toHaveTextContent('Your opponent has taken a unicorn and 2 pawns.');
+    expect(haul('them').querySelector('.hud-lead')).toBeNull();
   });
 
   it('is said once in words, quietly: the pictures are hidden and nothing is live', () => {

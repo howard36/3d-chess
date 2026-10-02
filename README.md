@@ -190,8 +190,9 @@ Key decisions:
   win"). Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
   `GameHistory.captured` and `game/material.ts`): each side's haul under its own half, a
   silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in
-  the taken army's material with a count, and "+N" on the side ahead on material; one
-  above the other at the top left in a short window. The camera fit keeps their row clear
+  the taken army's material with a count, and "+N" on the side ahead on material (in pawns:
+  queen 10, knight and bishop 3, rook 2.5, unicorn 1.5, measured for this board by
+  self-play, not 2D chess's); one above the other at the top left in a short window. The camera fit keeps their row clear
   from the first move (`hudTop`), so a capture never moves the board, and a screen
   reader reads them as a sentence per side, never announced. Under them, only while they
   apply: "Reconnecting…" (the pill and the captures dim), the latest error and the
