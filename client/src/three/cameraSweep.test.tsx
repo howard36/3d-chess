@@ -73,8 +73,10 @@ async function mount(width: number, height: number, from: [number, number] = [16
     addEventListener: (_: 'change', l: () => void) => listeners.add(l),
     removeEventListener: (_: 'change', l: () => void) => listeners.delete(l),
   };
+  let setSize: ((width: number, height: number) => void) | undefined;
   const Controls = () => {
     const set = useThree((s) => s.set);
+    setSize = useThree((s) => s.setSize);
     React.useLayoutEffect(() => set({ controls: controls as never }), [set]);
     return null;
   };
@@ -104,7 +106,9 @@ async function mount(width: number, height: number, from: [number, number] = [16
     const [x, y] = lensShiftOf(camera);
     return [x * px, y * px];
   };
-  return { camera, controls, fitted, turn, top: hudTop(height), size: { width, height } };
+  /** Changes the canvas's size, as a window resize does. */
+  const resize = (w: number, h: number) => ReactThreeTestRenderer.act(async () => setSize?.(w, h));
+  return { camera, controls, fitted, turn, resize, top: hudTop(height), size: { width, height } };
 }
 
 /**
@@ -262,6 +266,34 @@ describe('the fitted view', SWEEP, () => {
       }
     });
   }
+
+  it('keeps the player’s zoom and turn when the window changes size, framed as a fresh load', async () => {
+    const view = await mount(1280, 720);
+    const { camera, controls } = view;
+    // Turned and zoomed in
+    view.turn(100, 40, view.fitted * 0.85);
+    const facing = camera.position.clone().normalize();
+    for (const [width, height, zoom] of [
+      [900, 900, 0.85],
+      [390, 844, 0.85],
+      [1440, 900, 0.85],
+    ] as const) {
+      await view.resize(width, height);
+      const fresh = await mount(width, height);
+      // The same multiple of the new fit, which is a fresh load's, with its
+      // centre and zoom limits
+      expect(camera.userData.fitDistance).toBeCloseTo(fresh.fitted, 9);
+      expect(camera.position.length() / fresh.fitted).toBeCloseTo(zoom, 9);
+      expect(camera.position.clone().normalize().distanceTo(facing)).toBeLessThan(1e-9);
+      expect(lensShiftOf(camera)).toEqual(lensShiftOf(fresh.camera));
+      expect(controls.minDistance).toBeCloseTo(fresh.controls.minDistance, 9);
+      expect(controls.maxDistance).toBeCloseTo(fresh.controls.maxDistance, 9);
+    }
+    // Zoomed all the way out, it stays all the way out
+    camera.position.setLength(controls.maxDistance);
+    await view.resize(1280, 720);
+    expect(camera.position.length()).toBeCloseTo(controls.maxDistance, 9);
+  });
 
   it('stands the tower’s centre a little above the middle of the room below the HUD band, from any azimuth', async () => {
     const view = await mount(1280, 720);

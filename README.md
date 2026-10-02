@@ -141,8 +141,10 @@ Key decisions:
   target never leaves the centre. The zoom runs from 0.7× to 1.5× the distance that fits
   the board in the window (`zoomRange` in `three/cameraFit.ts`); `FitCameraToBoard`
   recomputes the fit and the range whenever the window changes shape (a phone turned on
-  its side) and opens the camera inside it, so a phone zooms over the same share of its
-  view as a desktop. What the fit frames is the same from every side: circles about the
+  its side), so a phone zooms over the same share of its view as a desktop. The camera
+  opens at the fit, and a resize keeps the player's zoom and turn: it stands at the same
+  multiple of the new fit as it did of the old one (within the new range), so the tower
+  keeps its share of the window rather than snapping back to the fitted view. What the fit frames is the same from every side: circles about the
   tower's axis round its platforms, its tallest pieces and every label wherever it can
   stand (the layout's `frameRings`, `towerFrameRings` in `three/scene/labelAnchors.ts`; the
   letters' rings only where their post can stand: anywhere but the front from low down,
@@ -168,7 +170,8 @@ Key decisions:
   reaches (`sweep`, `orbitSweep`), so the tower and its labels never cross the HUD's band
   or the window's edges however far the view climbs or dips. It is always fitted from the
   opening, however far the view has climbed when the window changes shape, so a resized
-  window is framed exactly as a fresh load at that size. (Centring the rings as seen from
+  window is framed exactly as a fresh load at that size (and its centre stands where a
+  fresh load's does, whatever the zoom). (Centring the rings as seen from
   the opening put the centre 50 px higher in a 720 px window and ran the tower's top level
   under the pill as the view climbed; the middle of the room below the band left the views
   the game is played from 40–60 px low in a 900 px window; fitting from the elevation of the moment made

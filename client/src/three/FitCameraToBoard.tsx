@@ -13,9 +13,11 @@ interface OrbitControlsLike {
 }
 
 /**
- * Frames the whole board: on first render, and again whenever the canvas
- * changes size, the camera moves along its current line of sight (so a turned
- * view stays turned) to the distance that fits the board in the new window,
+ * Frames the whole board: on first render the camera stands at the distance
+ * that fits the board in the window, and whenever the canvas changes size it
+ * moves along its current line of sight (so a turned view stays turned) to
+ * the same multiple of the new fit as it stood at of the old one (so a
+ * zoomed view stays zoomed, the tower taking the same share of the window),
  * its centre a little above the middle of the room below the HUD's top band
  * (fitView), and the tower in that room from every elevation of `sweep`.
  * The zoom limits follow the fit (zoomRange), so they are recomputed with it:
@@ -92,21 +94,27 @@ export function FitCameraToBoard({
     const opening = elevationOf(new Vector3(...viewDirection), new Vector3());
     const fit = fitView(opening, frameRings, view).distance;
     const { min, max } = zoomRange(fit, minDistance);
-    // The fitted view, or as near it as the zoom limits allow: the camera
-    // never starts outside the range the player can zoom over.
-    const distance = MathUtils.clamp(fit, min, max);
+    const fitted = MathUtils.clamp(fit, min, max);
+    // The player's zoom, as a multiple of the fit it was made against: none
+    // on opening
+    const before = camera.userData.fitDistance as number | undefined;
+    const zoom = before ? camera.position.distanceTo(target) / before : 1;
+    // The fitted view so zoomed, or as near it as the zoom limits allow: the
+    // camera never stands outside the range the player can zoom over.
+    const distance = MathUtils.clamp(fitted * zoom, min, max);
     camera.position.copy(target).addScaledVector(direction, distance);
     camera.lookAt(target);
-    // Where the view lands, for the game's entrance (IntroDirector), which
-    // dollies in to it
-    camera.userData.fitDistance = distance;
+    // The fit, for the game's entrance (IntroDirector), which dollies in to
+    // it, and for the next resize
+    camera.userData.fitDistance = fitted;
     if (controls) {
       controls.minDistance = min;
       controls.maxDistance = max;
       controls.update();
     }
-    // The shift that centres the view as fitted, kept as the view moves
-    setLensShift(camera, fitShift(frameRings, opening, distance, view), width, height);
+    // The shift that centres the view as fitted (whatever the zoom), kept as
+    // the view moves
+    setLensShift(camera, fitShift(frameRings, opening, fitted, view), width, height);
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the layout's extents and limits are fixed
   }, [
