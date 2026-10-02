@@ -8,7 +8,10 @@ interface EndGameModalProps {
   winner?: Turn;
   /** This player's colour: the result is said to them. */
   seat: Turn;
-  /** At the foot of the screen with the board left in view, rather than over a veil. */
+  /**
+   * Docked in the bottom right corner, rather than over a veil: the final
+   * board stays in view and can still be turned and zoomed (not modal).
+   */
   docked?: boolean;
 }
 
@@ -25,7 +28,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat, docke
       <div
         className="hud-dialog"
         role="dialog"
-        aria-modal="true"
+        aria-modal={!docked}
         aria-labelledby="end-game-title"
         aria-describedby="end-game-how"
         data-testid="end-game"

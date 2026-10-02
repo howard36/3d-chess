@@ -108,6 +108,13 @@ describe('the result card after a mate', () => {
     expect(result()).toBeInTheDocument();
   });
 
+  it('leaves the final board in reach behind it, to turn and study', () => {
+    render(screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }]));
+    expect(result()).toBeInTheDocument();
+    expect(result()).not.toHaveAttribute('aria-modal', 'true');
+    expect(document.querySelector('[data-intro]')).not.toHaveAttribute('inert');
+  });
+
   it('shows at once when a finished game is reopened', () => {
     render(screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }]));
     expect(result()).toBeInTheDocument();

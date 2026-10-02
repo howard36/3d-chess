@@ -1327,7 +1327,9 @@
   pointer-events: auto;
 }
 
-/* The result docked in the bottom right corner, the final board left in view */
+/* The result docked in the bottom right corner, the final board left in view
+   and in reach (the veil lets the pointer through to it): lit with the
+   winner's light so it is unmistakable, its title larger */
 .hud-veil[data-docked] {
   align-items: flex-end;
   justify-content: flex-end;
@@ -1337,20 +1339,30 @@
 }
 .hud-veil[data-docked] .hud-dialog {
   pointer-events: auto;
-  animation: hud-rise 240ms ease both;
+  border-color: rgba(236, 241, 255, 0.5);
+  box-shadow:
+    var(--modal-shadow),
+    0 0 0 1px rgba(236, 241, 255, 0.12),
+    0 0 36px rgba(214, 226, 255, 0.22);
+  animation: hud-dock 420ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
 }
-
-/* The mate preview's Play button (/mate), over everything, the result card too */
-.mate-demo {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 6px 6px 12px;
-  color: var(--hud-fg);
-  font-family: var(--hud-font);
-  font-size: 13px;
+.hud-veil[data-docked] .hud-dialog h2 {
+  font-size: 30px;
+}
+@keyframes hud-dock {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+}
+@media (max-width: 520px) {
+  .hud-veil[data-docked] {
+    justify-content: center;
+    padding: 0 12px 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud-veil[data-docked] .hud-dialog {
+    animation: none;
+  }
 }

@@ -387,7 +387,8 @@ aside if straight away would take him off his platform (`three/mate.ts`). As he 
 level (`scene/fx.tsx`), the obsidian blades round him sink into the glass and are gone, and
 the winning army hops in a wave out from him. The result card follows `onToppled` after a
 hold on the final board (`lib/mateStyle.ts`, `screens/useEndCard.ts`), docked in the bottom
-right corner with the board in view. From history he simply falls. `/mate` is a preview
+right corner with the board in view and in reach: the card is not modal, so the final
+position can still be turned and zoomed to study it (it takes no moves). From history he simply falls. `/mate` is a preview
 page, a game one move from mate with a button that plays it.
 
 **The entrance.** Opening the game plays a short entrance, just under 4 seconds when the

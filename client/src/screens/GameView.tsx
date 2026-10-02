@@ -148,7 +148,11 @@ const GameView: React.FC<GameViewProps> = ({
   const inCheck = !gameOver && board.inCheck(currentTurn);
   // While a dialog is up, everything behind it is out of reach: not
   // clickable (the backdrop covers it) and not focusable or readable either.
-  const behindDialog = replaced || showEndModal || (!!promotionChoices && !boardDisabled);
+  // The result of a mate is docked in a corner instead, leaving the final
+  // board to turn and study (it takes no moves once the game is over).
+  const dockedResult = gameOver?.result === 'checkmate';
+  const behindDialog =
+    replaced || (showEndModal && !dockedResult) || (!!promotionChoices && !boardDisabled);
   return (
     // game-screen (index.css): no text selection, callout or double-tap
     // zoom on a touch screen, except in the move box and the move list
@@ -273,7 +277,7 @@ const GameView: React.FC<GameViewProps> = ({
             result={gameOver.result}
             winner={gameOver.winner}
             seat={color ?? 'white'}
-            docked={gameOver.result === 'checkmate'}
+            docked={dockedResult}
           />
         </div>
       )}
