@@ -12,7 +12,7 @@ import {
 import type { BufferGeometry, Group, Mesh, Object3D } from 'three';
 import { PieceType } from '../engine';
 import { noRaycast } from './noRaycast';
-import { Lift, PIECE_LIFT, Topple } from './pieceMotion';
+import { Jolt, Lift, PIECE_LIFT, Topple } from './pieceMotion';
 import { layout, PIECE_SCALE } from './scene/palette';
 import { PieceBody } from './scene/pieces';
 
@@ -26,6 +26,10 @@ export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   inCheck?: boolean;
   /** This king has been checkmated: he topples. */
   mated?: boolean;
+  /** The player has played this piece and it waits, held up, for the move to come back. */
+  carried?: boolean;
+  /** How many times the player has tapped this piece without being able to pick it up. */
+  refused?: number;
   /** Yaw of a knight's head: the board decides which way it faces. */
   facing?: number;
   /** The level (engine z) of the piece's cell, passed on to the piece's body. */
@@ -139,6 +143,8 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   hovered = false,
   inCheck = false,
   mated = false,
+  carried = false,
+  refused = 0,
   facing = 0,
   level = 0,
   arrival,
@@ -170,24 +176,28 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   // contract.
   const rotation: [number, number, number] = [0, type === PieceType.Knight ? facing : 0, 0];
 
-  // Picked up, a piece floats off its floor; under the pointer, it stirs. A
-  // mated king topples.
+  // Picked up (and while its move is on its way), a piece floats off its
+  // floor; under the pointer, it stirs. A king put in check flinches, and a
+  // piece tapped in vain shakes its head. A mated king topples.
+  const held = selected || carried;
   const body = (
     <Topple active={mated}>
-      <Lift
-        height={selected ? PIECE_LIFT.selected : hovered ? PIECE_LIFT.hover : 0}
-        seconds={selected ? PIECE_LIFT.selectSeconds : PIECE_LIFT.hoverSeconds}
-      >
-        <PieceBody
-          type={type}
-          color={color}
-          selected={selected}
-          hovered={hovered}
-          inCheck={inCheck}
-          level={level}
-          arrival={arrival}
-        />
-      </Lift>
+      <Jolt check={inCheck && !mated} refused={refused}>
+        <Lift
+          height={held ? PIECE_LIFT.selected : hovered ? PIECE_LIFT.hover : 0}
+          seconds={held ? PIECE_LIFT.selectSeconds : PIECE_LIFT.hoverSeconds}
+        >
+          <PieceBody
+            type={type}
+            color={color}
+            selected={selected}
+            hovered={hovered}
+            inCheck={inCheck}
+            level={level}
+            arrival={arrival}
+          />
+        </Lift>
+      </Jolt>
     </Topple>
   );
 

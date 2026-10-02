@@ -99,6 +99,8 @@ export interface LastMoveMarkerProps {
    * and never again on a reconnect.
    */
   fresh: boolean;
+  /** How long the moving piece takes to land (ms): a fresh mark's entrance follows it. */
+  glideMs?: number;
 }
 
 export interface CaptureFxProps {
@@ -109,7 +111,12 @@ export interface CaptureFxProps {
   /** Floor of the cell where the capture happened. */
   floor: Vec3;
   victim: { type: PieceType; color: PieceColor };
-  durationMs: number;
+  /** When the attacker reaches the victim (ms after the move arrived): the hit. */
+  hitMs: number;
+  /** When the attacker comes to rest. */
+  landMs: number;
+  /** Which way the attacker was going across the board (unit x, z), or null for straight up or down. */
+  heading?: [number, number] | null;
 }
 
 export interface CelebrationProps {

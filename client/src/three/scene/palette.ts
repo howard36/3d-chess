@@ -110,8 +110,6 @@ export const MARGIN = 0.05;
 /** The plain the tower floats over, well below level A. */
 export const GROUND_Y = FRAME.levelY[0] - 3.4;
 
-/** A calm, weighted glide. */
-export const MOTION = { durationMs: 460 };
 /** Knights turn this far off the rank line, to show their profile. */
 export const KNIGHT_YAW = 0.5;
 

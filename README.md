@@ -369,8 +369,15 @@ Play is marked in light on the glass: a thin gold circle round each square the s
 piece can reach (fuller under the pointer), red round a capture (four arcs turning slowly round the victim), a mint line from the last
 move's source to its destination, and a king in check turns red among four clusters of dark obsidian blades. A
 piece under the pointer lifts a little; the selected piece lifts higher and holds still in
-a column of cool light. A move glides in a straight line from square to square, a knight's
-too (`MoveGlide` in `three/moveAnimation.tsx`). A captured piece burns away; at mate the king
+a column of cool light. A move glides, the piece rigid, along the straight line
+between the squares, easing out of its square and into the next and taking longer the
+farther it goes (`three/glide.ts`, played by `MoveGlide` in `three/moveAnimation.tsx`); a
+piece the player held up stays up while its move goes to the server and settles onto its
+square on the way. As the attacker reaches its victim, the victim's outline flashes and a
+small ring of light spreads on the glass at its foot; it is knocked over away from the
+attacker, burning away as it falls (`CaptureFx` in `scene/fx.tsx`). A king put in check
+rocks on his foot as the check lands, and a piece the player taps but cannot pick up shakes
+its head (`Jolt` in `three/pieceMotion.tsx`); with reduced motion none of this plays. At mate the king
 topples and a pulse of light spreads across his own level at an even speed (`scene/fx.tsx`), and the result card appears as he
 strikes the floor (`onToppled` in `three/pieceMotion.tsx`) while his bounce and the pulse
 play on behind it.

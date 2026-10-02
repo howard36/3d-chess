@@ -2,10 +2,12 @@ import React from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import Board from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
-import { layout, MOTION, PIECE_SCALE } from './scene/palette';
+import { layout, PIECE_SCALE } from './scene/palette';
+import { contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
+import { PIECE_LIFT } from './pieceMotion';
 import { useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
-import type { BufferGeometry, Camera, PerspectiveCamera, Scene } from 'three';
+import type { BufferGeometry, Camera, Object3D, PerspectiveCamera, Scene } from 'three';
 import type {
   CaptureFxProps,
   GridProps,
@@ -540,6 +542,93 @@ describe('Board', () => {
     );
   });
 
+  // The Lift (pieceMotion.tsx) inside a rendered piece, and the Jolt round it
+  const liftOf = (piece: ReactThreeTestInstance) => {
+    let lift: Object3D | undefined;
+    (piece.instance as unknown as Object3D).traverse((o) => {
+      if (o.userData.lift && !lift) lift = o;
+    });
+    return lift!;
+  };
+
+  it('holds the played piece up until its move comes back, and carries it on from there', async () => {
+    const onMove = vi.fn<(move: Move) => void>();
+    const before = createTestBoard();
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board onMove={onMove} board={before} currentTurn="white" playerColor="white" />,
+    );
+    const pawn = findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN);
+    await press(pawn);
+    const up: Coord = { x: 0, y: 1, z: 2 };
+    await press(
+      highlightedCells(renderer).find((c) => sameVec(c.props.position, toWorld(up, 'white')))!,
+    );
+    expect(onMove).toHaveBeenCalledTimes(1);
+    // On its way to the server: still held up, though put down as a selection
+    await renderer.update(
+      <Board onMove={onMove} board={before} currentTurn="white" playerColor="white" disabled />,
+    );
+    await act(async () => renderer.advanceFrames(80, 0.01));
+    expect(selectionRings(renderer)).toHaveLength(0);
+    expect(liftOf(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN)).position.y).toBe(
+      PIECE_LIFT.selected,
+    );
+    // Back: it sets off from that height
+    const after = createTestBoard();
+    after.setPiece(up, after.getPiece(LEVEL_B_PAWN));
+    after.setPiece(LEVEL_B_PAWN, null);
+    await renderer.update(
+      <Board
+        onMove={onMove}
+        board={after}
+        currentTurn="black"
+        playerColor="white"
+        lastMove={{ move: { from: LEVEL_B_PAWN, to: up }, moveCount: 1, capturedPiece: null }}
+      />,
+    );
+    const glide = root(renderer).findAll((n) => n.props.userData?.moveGlide === true)[0]
+      .instance as unknown as Object3D;
+    const [, fy] = toWorld(LEVEL_B_PAWN, 'white');
+    const [, ty] = toWorld(up, 'white');
+    expect(glide.position.y).toBeCloseTo(fy - ty + PIECE_LIFT.selected * PIECE_SCALE);
+  });
+
+  it('puts a played piece down again if its move is refused', async () => {
+    const onMove = vi.fn<(move: Move) => void>();
+    const board = createTestBoard();
+    const at = (disabled: boolean) => (
+      <Board
+        onMove={onMove}
+        board={board}
+        currentTurn="white"
+        playerColor="white"
+        disabled={disabled}
+      />
+    );
+    const renderer = await ReactThreeTestRenderer.create(at(false));
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    await press(highlightedCells(renderer)[0]);
+    await renderer.update(at(true));
+    await renderer.update(at(false));
+    await act(async () => renderer.advanceFrames(80, 0.01));
+    expect(liftOf(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN)).position.y).toBe(0);
+  });
+
+  it('shakes a piece the player taps but cannot pick up', async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" playerColor="white" />,
+    );
+    const theirs = findPiece(renderer, PieceType.Pawn, 'black');
+    const jolt = () => liftOf(theirs).parent!;
+    await press(theirs);
+    await act(async () => renderer.advanceFrames(4, 0.01));
+    expect(jolt().position.length()).toBeGreaterThan(0);
+    // Nothing else happens: nothing is picked up
+    expect(selectionRings(renderer)).toHaveLength(0);
+    await act(async () => renderer.advanceFrames(60, 0.01));
+    expect(jolt().position.length()).toBe(0);
+  });
+
   // A drag that starts over the cube turns the view (OrbitControls sees the
   // same pointer); it must not select, move, or drop the selection.
   it('ignores clicks that ended a drag or came from another button', async () => {
@@ -787,7 +876,7 @@ describe('Board', () => {
       }
     });
 
-    it('glides a newly arrived move from its source cell in a straight line', async () => {
+    it('carries a newly arrived move from its source cell, along its glide', async () => {
       const renderer = await ReactThreeTestRenderer.create(
         <Board board={boardBeforeMove()} currentTurn="white" />,
       );
@@ -807,18 +896,20 @@ describe('Board', () => {
       expect(group.position.y).toBeCloseTo(fy - ty);
       expect(group.position.z).toBeCloseTo(fz - tz);
 
-      // Half-way through the glide: the eased midpoint of the straight line,
-      // not lifted. Frame deltas are clamped, so simulate several small frames.
+      // Part way: where its glide puts it then, over the line between the
+      // squares. Frame deltas are clamped, so simulate several small frames.
+      const plan = planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'));
       await act(async () => {
-        await renderer.advanceFrames(MOTION.durationMs / 20, 0.01);
+        await renderer.advanceFrames(20, 0.01);
       });
-      expect(group.position.x).toBeCloseTo((fx - tx) / 2);
-      expect(group.position.y).toBeCloseTo((fy - ty) / 2);
-      expect(group.position.z).toBeCloseTo((fz - tz) / 2);
+      const [px, py, pz] = glidePose(plan, 200).offset;
+      expect(group.position.x).toBeCloseTo(px);
+      expect(group.position.y).toBeCloseTo(py);
+      expect(group.position.z).toBeCloseTo(pz);
 
-      // Past the duration: snapped home, resting position untouched
+      // Once it has settled: home, resting position untouched
       await act(async () => {
-        await renderer.advanceFrames(MOTION.durationMs / 20 + 5, 0.01);
+        await renderer.advanceFrames(touchdownMs(plan) + 50 / 10, 0.01);
       });
       expect(group.position.x).toBe(0);
       expect(group.position.y).toBe(0);
@@ -850,9 +941,10 @@ describe('Board', () => {
       // Still gliding: no strike, no red king, no fall yet
       expect(drawn.checks).toHaveLength(0);
       expect(kingBody().inCheck).toBe(false);
-      // (frames of 10 ms: just short of the glide's end)
+      // (frames of 10 ms: just short of its touchdown)
+      const down = touchdownMs(planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white')));
       await act(async () => {
-        await renderer.advanceFrames(MOTION.durationMs / 10 - 2, 0.01);
+        await renderer.advanceFrames(Math.floor(down / 10) - 2, 0.01);
       });
       expect(drawn.checks).toHaveLength(0);
       expect(kingBody().inCheck).toBe(false);
@@ -862,6 +954,19 @@ describe('Board', () => {
       });
       expect(last(drawn.checks)?.mated).toBe(true);
       expect(kingBody().inCheck).toBe(true);
+    });
+
+    it('times the last move’s mark by the glide of that move', async () => {
+      const renderer = await ReactThreeTestRenderer.create(
+        <Board board={boardBeforeMove()} currentTurn="white" />,
+      );
+      await renderer.update(
+        <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} />,
+      );
+      expect(last(marked)).toMatchObject({
+        fresh: true,
+        glideMs: touchdownMs(planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'))),
+      });
     });
 
     it('shows a check from history at once', async () => {
@@ -885,9 +990,16 @@ describe('Board', () => {
       expect(last(captures)).toMatchObject({
         floor: floorOf(TO),
         victim,
-        durationMs: MOTION.durationMs,
         orientation: 'white',
       });
+      // The victim is hit when the rook reaches it, before it lands
+      const plan = planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'), { capture: true });
+      expect(last(captures)).toMatchObject({
+        hitMs: contactAtMs(plan),
+        landMs: touchdownMs(plan),
+        heading: plan.heading,
+      });
+      expect(last(captures)!.hitMs).toBeLessThan(last(captures)!.landMs);
       // A move without a capture has none
       captures.length = 0;
       await renderer.update(
