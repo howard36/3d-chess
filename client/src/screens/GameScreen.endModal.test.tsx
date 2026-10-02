@@ -1,5 +1,5 @@
 import { MATE_HOLD_MS } from '../lib/mateStyle';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocketMessage } from '../types/messages';
 import { Board } from '../engine';
@@ -108,11 +108,22 @@ describe('the result card after a mate', () => {
     expect(result()).toBeInTheDocument();
   });
 
-  it('leaves the final board in reach behind it, to turn and study', () => {
+  it('can be put away to study the final board, leaving Start new game below it', () => {
     render(screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }]));
     expect(result()).toBeInTheDocument();
-    expect(result()).not.toHaveAttribute('aria-modal', 'true');
+    expect(document.querySelector('[data-intro]')).toHaveAttribute('inert');
+    act(() => screen.getByRole('button', { name: 'Close' }).click());
+    expect(result()).not.toBeInTheDocument();
     expect(document.querySelector('[data-intro]')).not.toHaveAttribute('inert');
+    expect(screen.getByRole('button', { name: 'Start new game' })).toBeInTheDocument();
+  });
+
+  it('closes with Escape too', () => {
+    render(screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }]));
+    act(() => {
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Start new game' }), { key: 'Escape' });
+    });
+    expect(result()).not.toBeInTheDocument();
   });
 
   it('shows at once when a finished game is reopened', () => {

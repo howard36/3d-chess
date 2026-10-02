@@ -9,7 +9,7 @@ import { ChunkBoundary } from '../components/ChunkBoundary';
 import type { Move } from '../engine';
 import type { GameHistory } from '../game/history';
 import type { Color } from '../types/messages';
-import EndGameModal from './EndGameModal';
+import EndGameModal, { NewGameBar } from './EndGameModal';
 import PromotionPicker from './PromotionPicker';
 import TurnPill from './TurnPill';
 import CapturedPieces from './CapturedPieces';
@@ -146,13 +146,13 @@ const GameView: React.FC<GameViewProps> = ({
     : undefined;
 
   const inCheck = !gameOver && board.inCheck(currentTurn);
+  // The result card can be put away to study the final board (a new game
+  // end, as on the mate preview's replay, brings it back)
+  const [closedEnd, setClosedEnd] = React.useState<typeof gameOver>(null);
+  const resultUp = showEndModal && !!gameOver && closedEnd !== gameOver;
   // While a dialog is up, everything behind it is out of reach: not
   // clickable (the backdrop covers it) and not focusable or readable either.
-  // The result of a mate is docked in a corner instead, leaving the final
-  // board to turn and study (it takes no moves once the game is over).
-  const dockedResult = gameOver?.result === 'checkmate';
-  const behindDialog =
-    replaced || (showEndModal && !dockedResult) || (!!promotionChoices && !boardDisabled);
+  const behindDialog = replaced || resultUp || (!!promotionChoices && !boardDisabled);
   return (
     // game-screen (index.css): no text selection, callout or double-tap
     // zoom on a touch screen, except in the move box and the move list
@@ -271,14 +271,19 @@ const GameView: React.FC<GameViewProps> = ({
         />
       )}
       {/* End Game Modal */}
-      {gameOver && showEndModal && (
+      {gameOver && resultUp && (
         <div inert={replaced}>
           <EndGameModal
             result={gameOver.result}
             winner={gameOver.winner}
             seat={color ?? 'white'}
-            docked={dockedResult}
+            onClose={() => setClosedEnd(gameOver)}
           />
+        </div>
+      )}
+      {gameOver && showEndModal && !resultUp && (
+        <div inert={replaced}>
+          <NewGameBar />
         </div>
       )}
       {replacedNotice}

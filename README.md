@@ -386,9 +386,9 @@ rim, simulated; the knock gives barely enough to reach his tipping point). He is
 aside if straight away would take him off his platform (`three/mate.ts`). As he strikes the floor a pulse of light spreads across his
 level (`scene/fx.tsx`), the obsidian blades round him sink into the glass and are gone, and
 the winning army hops in a wave out from him. The result card follows `onToppled` after a
-hold on the final board (`lib/mateStyle.ts`, `screens/useEndCard.ts`), docked in the bottom
-right corner with the board in view and in reach: the card is not modal, so the final
-position can still be turned and zoomed to study it (it takes no moves). From history he simply falls. `/mate` is a preview
+hold on the final board (`lib/mateStyle.ts`, `screens/useEndCard.ts`), in the middle of
+the screen. It can be closed (its close button, Escape, a click outside it) to turn and
+zoom the final position, with Start new game left below the tower. From history he simply falls. `/mate` is a preview
 page: a game one move from mate, with buttons that play it and go back, and sliders for
 how early the knock lands (the glide's ease makes a piece look landed a moment before it
 is) and how fast the pulse spreads (`lib/mateTuning.ts`).

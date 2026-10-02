@@ -8,34 +8,52 @@ interface EndGameModalProps {
   winner?: Turn;
   /** This player's colour: the result is said to them. */
   seat: Turn;
-  /**
-   * Docked in the bottom right corner, rather than over a veil: the final
-   * board stays in view and can still be turned and zoomed (not modal).
-   */
-  docked?: boolean;
+  /** Puts the card away, leaving the final board to study (Escape and a click outside it too). */
+  onClose: () => void;
 }
 
 /**
  * The result, over the final position: "You win" or "You lose" by checkmate,
- * or a draw by stalemate, with the winner's stone lit. Its one button, which
- * has focus, starts another game: the side choice.
+ * or a draw by stalemate, with the winner's stone lit. Its button, which has
+ * focus, starts another game: the side choice. It can be closed (its close
+ * button, Escape, a click outside it) to study the final board, which keeps
+ * that button below the tower (NewGameBar).
  */
-const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat, docked = false }) => {
+const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat, onClose }) => {
   const navigate = useNavigate();
   const title = result === 'stalemate' ? 'Draw' : winner === seat ? 'You win' : 'You lose';
   return (
-    <div className="hud-veil" data-docked={docked || undefined} style={{ zIndex: 1000 }}>
+    <div
+      className="hud-veil"
+      style={{ zIndex: 1000 }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose();
+      }}
+    >
       <div
         className="hud-dialog"
         role="dialog"
-        aria-modal={!docked}
+        aria-modal="true"
         aria-labelledby="end-game-title"
         aria-describedby="end-game-how"
         data-testid="end-game"
         data-result={result}
         data-winner={winner}
-        style={{ padding: '22px 44px 20px' }}
+        style={{ position: 'relative', padding: '22px 44px 20px' }}
       >
+        <button className="hud-close" aria-label="Close" onClick={onClose}>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+            <path
+              d="M4 4l8 8M12 4l-8 8"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
         <div className="hud-pair" aria-hidden>
           <Stone color="white" lit={winner === 'white'} />
           <Stone color="black" lit={winner === 'black'} />
@@ -54,3 +72,15 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat, docke
 };
 
 export default EndGameModal;
+
+/** Start new game, below the tower, once the result card has been put away. */
+export const NewGameBar: React.FC = () => {
+  const navigate = useNavigate();
+  return (
+    <div className="hud-new-game">
+      <button className="hud-button" onClick={() => navigate('/new')}>
+        Start new game
+      </button>
+    </div>
+  );
+};
