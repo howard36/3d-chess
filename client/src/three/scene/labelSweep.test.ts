@@ -50,15 +50,23 @@ const WINDOWS = [
 ] as const;
 
 /** The fitted distance for a window, as FitCameraToBoard stands in the game: from the opening, the whole orbit in frame. */
-const fitted = (width: number, height: number) =>
-  fitView(18 * DEG, rings, {
-    width,
-    height,
-    fov: 36,
-    topInset: hudTop(height),
-    balanceInset: HUD_TOP_PX,
-    sweep: orbitSweep(layout.orbit),
-  }).distance;
+const fits = new Map<string, number>();
+const fitted = (width: number, height: number) => {
+  const key = `${width}x${height}`;
+  // (the same for every pose: worked out once, sweeping the orbit's elevations)
+  if (!fits.has(key)) {
+    const view = {
+      width,
+      height,
+      fov: 36,
+      topInset: hudTop(height),
+      balanceInset: HUD_TOP_PX,
+      sweep: orbitSweep(layout.orbit),
+    };
+    fits.set(key, fitView(18 * DEG, rings, view).distance);
+  }
+  return fits.get(key)!;
+};
 
 /**
  * Each glyph's ink as a share of its sprite, across and up: Manrope as the

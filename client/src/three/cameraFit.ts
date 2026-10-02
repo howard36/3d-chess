@@ -303,15 +303,16 @@ export function fitView(
   const band = bandShare(w) + bottomShare(w);
   // Half the room's height
   const half = tanV * (1 - band);
-  const sweep = w.sweep ? elevationsBetween(...w.sweep) : [];
-  // How much of the room the rings take at distance D (1: exactly the room)
-  const fill = (distance: number) => {
+  // How much of the room the rings take at distance D (1: exactly the room),
+  // from the fitted elevation (with the margin) and from any other
+  const measure = (distance: number) => {
     const b = ringBounds(rings, elevation, distance, FIT_SOFTNESS);
     if (w.centre === 'rings') {
-      return Math.max(
+      const fitted = Math.max(
         (b.right * FRAME_MARGIN) / tanH,
         ((b.top - b.bottom) * FRAME_MARGIN) / (2 * half),
       );
+      return { fitted, from: () => 0 };
     }
     // The room above the target, to the top band, and below it, to the
     // bottom band, as fitShift places it
@@ -319,19 +320,45 @@ export function fitView(
     const above = 2 * tanV * (row - bandShare(w));
     const below = 2 * tanV * (1 - bottomShare(w) - row);
     const take = (v: ViewBounds) => Math.max(v.right / tanH, v.top / above, -v.bottom / below);
-    return Math.max(
-      take(b) * FRAME_MARGIN,
-      ...sweep.map((e) => take(ringBounds(rings, e, distance, FIT_SOFTNESS))),
-    );
+    return {
+      fitted: take(b) * FRAME_MARGIN,
+      from: (e: number) => take(ringBounds(rings, e, distance, FIT_SOFTNESS)),
+    };
   };
-  const lowest = Math.max(...[elevation, ...sweep].map((e) => nearestOutside(rings, e)));
-  let near = lowest + 1e-3;
-  let far = Math.max(near * 2, 1);
-  while (fill(far) > 1 && far < 1e6) far *= 2;
-  for (let i = 0; i < 60; i++) {
-    const mid = (near + far) / 2;
-    if (fill(mid) > 1) near = mid;
-    else far = mid;
+  const fill = (distance: number, others: readonly number[]) => {
+    const m = measure(distance);
+    return Math.max(m.fitted, ...others.map(m.from));
+  };
+  // The nearest distance at which the rings fill no more than the room
+  const nearest = (others: readonly number[]) => {
+    let near = Math.max(...[elevation, ...others].map((e) => nearestOutside(rings, e))) + 1e-3;
+    let far = Math.max(near * 2, 1);
+    while (fill(far, others) > 1 && far < 1e6) far *= 2;
+    for (let i = 0; i < 60; i++) {
+      const mid = (near + far) / 2;
+      if (fill(mid, others) > 1) near = mid;
+      else far = mid;
+    }
+    return far;
+  };
+  // The sweep's elevations, a degree apart, all in the room: fitted to the
+  // few that bind (each pass adds the one that most overflows the fit so
+  // far), which stands exactly where fitting to them all would, at a sliver
+  // of the cost
+  const sweep = w.sweep && w.centre !== 'rings' ? elevationsBetween(...w.sweep) : [];
+  const binding: number[] = [];
+  let far = nearest(binding);
+  for (;;) {
+    const m = measure(far);
+    let worst = 1;
+    let over: number | undefined;
+    for (const e of sweep) {
+      const f = m.from(e);
+      if (f > worst && !binding.includes(e)) [worst, over] = [f, e];
+    }
+    if (over === undefined) break;
+    binding.push(over);
+    far = nearest(binding);
   }
   return { distance: far, shift: fitShift(rings, elevation, far, w) };
 }
