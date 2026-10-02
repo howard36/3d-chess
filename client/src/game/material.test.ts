@@ -37,15 +37,15 @@ describe('the pieces each side has taken', () => {
     const h = replay();
     expect(h.captured).toEqual({ white: [], black: [] });
     expect(materialLead(h.board, 'white')).toBe(0);
-    expect(materialOf(h.board, 'white')).toBe(9 + 2 * 5 + 2 * 3 + 2 * 3 + 2 * 3 + 10);
+    expect(materialOf(h.board, 'white')).toBe(10 + 2 * 3 + 2 * 3 + 2 * 2.5 + 2 * 1.5 + 10);
   });
 
   it('are what stood on each move’s destination, in the order taken', () => {
     const h = replay(...OPENING);
     expect(h.captured).toEqual({ white: [Pawn, Pawn, Unicorn], black: [Pawn, Bishop] });
     // White took a unicorn and two pawns, Black a bishop and a pawn
-    expect(materialLead(h.board, 'white')).toBe(3 + 1 + 1 - 3 - 1);
-    expect(materialLead(h.board, 'black')).toBe(-1);
+    expect(materialLead(h.board, 'white')).toBe(1.5 + 1 + 1 - 3 - 1);
+    expect(materialLead(h.board, 'black')).toBe(0.5);
   });
 
   it('keep their count through a frozen record, up to the move that could not be played', () => {
@@ -69,8 +69,8 @@ describe('the pieces each side has taken', () => {
     // it promotes to a unicorn (legality is not checked on replay)
     const h = replay('Ba1-Da4', 'De5-Ce5', 'Da4-Ea5=U');
     expect(h.captured.white).toEqual([Pawn, Rook]);
-    // White: + the unicorn (3) - its pawn (1); Black: - a pawn and the rook
-    expect(materialLead(h.board, 'white')).toBe(3 - 1 + 1 + 5);
+    // White: + the unicorn (1.5) - its pawn (1); Black: - a pawn and the rook
+    expect(materialLead(h.board, 'white')).toBe(1.5 - 1 + 1 + 2.5);
     // Taken in turn, it is a unicorn that burns away
     const next = replay('Ba1-Da4', 'De5-Ce5', 'Da4-Ea5=U', 'Eb5-Ea5');
     expect(next.captured.black).toEqual([Unicorn]);
@@ -81,10 +81,10 @@ describe('groupTaken', () => {
   it('groups by kind, most valuable first, counting each', () => {
     expect(groupTaken([Pawn, Knight, Pawn, Queen, Unicorn, Pawn, Bishop, Rook, Rook])).toEqual([
       { type: Queen, count: 1 },
-      { type: Rook, count: 2 },
-      { type: Bishop, count: 1 },
-      { type: Unicorn, count: 1 },
       { type: Knight, count: 1 },
+      { type: Bishop, count: 1 },
+      { type: Rook, count: 2 },
+      { type: Unicorn, count: 1 },
       { type: Pawn, count: 3 },
     ]);
   });
@@ -102,9 +102,9 @@ describe('materialOf', () => {
     board.setPiece(fromZXY('Cc3'), { type: Queen, color: 'white' });
     board.setPiece(fromZXY('Dc3'), { type: Queen, color: 'white' });
     board.setPiece(fromZXY('Bb2'), { type: Knight, color: 'black' });
-    expect(materialOf(board, 'white')).toBe(18);
+    expect(materialOf(board, 'white')).toBe(20);
     expect(materialOf(board, 'black')).toBe(3);
-    expect(materialLead(board, 'black')).toBe(-15);
+    expect(materialLead(board, 'black')).toBe(-17);
   });
 });
 
