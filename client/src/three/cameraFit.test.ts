@@ -7,6 +7,7 @@ import {
   ZOOM_IN,
   ZOOM_OUT,
   centringShift,
+  CENTRE_LIFT,
   elevationOf,
   FIT_SOFTNESS,
   fitView,
@@ -130,6 +131,8 @@ interface FitOptions {
   topInset?: number;
   bottomInset?: number;
   centre?: 'target' | 'rings';
+  sweep?: [number, number];
+  balanceInset?: number;
 }
 
 /**
@@ -172,7 +175,10 @@ function fitted(
   };
   const t = new Vector3().project(camera);
   const target = { x: ((t.x + 1) / 2) * width, y: ((1 - t.y) / 2) * height };
-  return { distance, shift, camera, rect, framed, target };
+  // How far the target stands above the middle of the room: CENTRE_LIFT of
+  // the rings' height as fitted
+  const lift = CENTRE_LIFT * (soft.top - soft.bottom) * k;
+  return { distance, shift, camera, rect, framed, target, lift };
 }
 
 const WINDOWS = [
@@ -185,28 +191,30 @@ const WINDOWS = [
 
 describe('fitView', () => {
   it.each(WINDOWS)(
-    "stands the tower's centre in the middle of the room below the HUD band in %s, and fits the rings in that room on one axis",
+    "stands the tower's centre a little above the middle of the room below the HUD band in %s, and fits the rings round it",
     (_, w, h) => {
       for (const elevation of [-14, 18, 55, 89.9]) {
         for (const azimuth of [0, 16, 45, 200]) {
-          const { rect, framed, shift, target } = fitted(elevation, azimuth, w, h);
-          // The target: in the middle across, and as far below the band as
-          // above the window's bottom
+          const { rect, framed, shift, target, lift } = fitted(elevation, azimuth, w, h);
+          // The target: in the middle across, and lifted a little above the
+          // middle of the room between the band and the window's bottom
           expect(Math.abs(target.x - w / 2)).toBeLessThan(0.5);
-          expect(Math.abs(target.y - (HUD_TOP_PX + h) / 2)).toBeLessThan(0.5);
+          expect(lift).toBeGreaterThan(0);
+          expect(Math.abs(target.y - ((HUD_TOP_PX + h) / 2 - lift))).toBeLessThan(0.5);
           // The rings: centred across, inside the room
           expect(Math.abs(rect.left - rect.right)).toBeLessThan(0.5);
           expect(rect.top).toBeGreaterThanOrEqual(framed.top - 0.5);
           expect(rect.bottom).toBeGreaterThanOrEqual(framed.bottom - 0.5);
           expect(framed.top).toBeGreaterThan(HUD_TOP_PX);
           expect(framed.bottom).toBeGreaterThan(0);
-          // Filling it on the tighter axis, with a little room to spare: their
-          // greater reach above or below the centre is half the room's height
+          // Filling it on the tighter side, with a little room to spare: their
+          // reach above the target in the room above it, or below in the room
+          // below
           const across = (w - rect.left - rect.right) / w;
-          const reach = Math.max(target.y - framed.top, h - framed.bottom - target.y);
-          const down = (2 * reach) / (h - HUD_TOP_PX);
-          expect(Math.max(across, down)).toBeGreaterThan(0.94);
-          expect(Math.max(across, down)).toBeLessThan(0.96);
+          const up = (target.y - framed.top) / (target.y - HUD_TOP_PX);
+          const down = (h - framed.bottom - target.y) / (h - target.y);
+          expect(Math.max(across, up, down)).toBeGreaterThan(0.94);
+          expect(Math.max(across, up, down)).toBeLessThan(0.96);
           // The lens only ever shifts up or down
           expect(shift[0]).toBe(0);
         }
@@ -214,30 +222,77 @@ describe('fitView', () => {
     },
   );
 
-  it("sets the shift by the bands alone, whatever the rings and the camera's elevation", () => {
+  it('balances the target below a line under the top band, keeping the band itself clear', () => {
+    for (const [, w, h] of WINDOWS) {
+      const { framed, target, lift } = fitted(18, 16, w, h, { topInset: 82, balanceInset: 56 });
+      // Above the middle of the room between the line and the bottom
+      expect(Math.abs(target.y - ((56 + h) / 2 - lift))).toBeLessThan(0.5);
+      // The rings below the band, filling the room above or below the target
+      expect(framed.top).toBeGreaterThan(82);
+      const up = (target.y - framed.top) / (target.y - 82);
+      const down = (h - framed.bottom - target.y) / (h - target.y);
+      const across = (w - framed.left - framed.right) / w;
+      expect(Math.max(up, down, across)).toBeGreaterThan(0.94);
+      expect(Math.max(up, down, across)).toBeLessThan(0.96);
+    }
+    // A line lower than the band counts as the band
     const view = { width: 1280, height: 720, fov: 36, topInset: 82 };
-    for (const elevation of [-14, 18, 55, 89.9]) {
-      expect(fitView(elevation * DEG, RINGS, view).shift).toEqual([0, (82 / 720) * tanV]);
-      expect(fitView(elevation * DEG, RINGS.slice(0, 2), view).shift).toEqual([
-        0,
-        (82 / 720) * tanV,
-      ]);
+    expect(fitView(18 * DEG, RINGS, { ...view, balanceInset: 200 })).toEqual(
+      fitView(18 * DEG, RINGS, view),
+    );
+  });
+
+  it('lifts the target by a share of the rings’ height, whatever the window', () => {
+    for (const [, w, h] of WINDOWS) {
+      const { framed, target, lift } = fitted(18, 16, w, h);
+      const height = h - framed.bottom - framed.top;
+      expect(lift / height).toBeCloseTo(CENTRE_LIFT, 2);
+      expect(target.y).toBeLessThan((HUD_TOP_PX + h) / 2);
     }
   });
+
+  it.each(WINDOWS)(
+    'keeps the rings in the room from every elevation of the sweep in %s, one of them filling it',
+    (_, w, h) => {
+      const sweep: [number, number] = [-14 * DEG, 89.9 * DEG];
+      const view = { width: w, height: h, fov: 36, topInset: 82, sweep };
+      const { distance, shift } = fitView(18 * DEG, RINGS, view);
+      const k = h / (2 * tanV);
+      const tanH = tanV * (w / h);
+      let tightest = Infinity;
+      for (let e = -14; e <= 89.9; e += 0.25) {
+        const b = ringBounds(RINGS, e * DEG, distance, FIT_SOFTNESS);
+        const top = h / 2 - (b.top - shift[1]) * k;
+        const bottom = h / 2 - (b.bottom - shift[1]) * k;
+        const side = (tanH - b.right) * k;
+        // (sampled a degree apart: between samples a ring may reach a hair further)
+        tightest = Math.min(tightest, top - 82, h - bottom, side);
+      }
+      expect(tightest).toBeGreaterThan(-0.5);
+      // As far in as that allows: some elevation binds, or the opening's margin
+      const opening = fitted(18, 0, w, h, { topInset: 82 });
+      expect(tightest < 1 || distance === opening.distance).toBe(true);
+      // Never nearer than the opening alone would stand, which is the fit without a sweep
+      expect(distance).toBeGreaterThanOrEqual(opening.distance);
+      expect(fitView(18 * DEG, RINGS, { ...view, sweep: undefined }).distance).toBe(
+        opening.distance,
+      );
+    },
+  );
 
   it.each([
     ['a desktop', 1280, 720, 120, 116],
     ['a tall window', 1440, 900, 140, 132],
     ['an upright phone', 390, 844, 120, 116],
   ])(
-    "stands the tower's centre in %s midway between a top and a bottom band",
+    "stands the tower's centre in %s a little above midway between a top and a bottom band",
     (_, w, h, top, bottom) => {
       for (const elevation of [18, 22, 45]) {
-        const { framed, target } = fitted(elevation, 28, w, h, {
+        const { framed, target, lift } = fitted(elevation, 28, w, h, {
           topInset: top,
           bottomInset: bottom,
         });
-        expect(Math.abs(target.y - (top + h - bottom) / 2)).toBeLessThan(0.5);
+        expect(Math.abs(target.y - ((top + h - bottom) / 2 - lift))).toBeLessThan(0.5);
         expect(framed.top).toBeGreaterThan(top);
         expect(framed.bottom).toBeGreaterThan(bottom);
       }

@@ -4,7 +4,7 @@ import ReactThreeTestRenderer from '@react-three/test-renderer';
 import { useThree } from '@react-three/fiber';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { FitCameraToBoard } from './FitCameraToBoard';
-import { hudTop } from './cameraFit';
+import { HUD_TOP_PX, hudTop, orbitSweep } from './cameraFit';
 import { towerFrame } from './layout';
 import { CORNERS, GLYPH_REACH, labelAnchors } from './scene/labelAnchors';
 import type { AnchorState } from './scene/labelAnchors';
@@ -26,8 +26,12 @@ import type { Vec3 } from './types';
 //   the tower's centre stands still on screen and the camera only turns
 //   about it;
 // - the whole tower and every label, where the grid puts it, stays inside the
-//   window clear of the HUD's top band, at the fitted distance and zoomed all the
-//   way out; zoomed all the way in (where it cannot fit) it stays centred.
+//   window clear of the HUD's top band from every elevation, at the fitted
+//   distance and zoomed all the way out; zoomed all the way in (where it
+//   cannot fit) it stays centred;
+// - no view of it stands far off the middle of the room between the pill and
+//   the window's bottom, and the views the game is played from are not left
+//   low: the tower's fixed centre is placed to balance the whole orbit.
 
 const DEG = Math.PI / 180;
 // Each sweep takes a few seconds on an idle machine and several times that on
@@ -37,6 +41,7 @@ const WINDOWS = [
   [1280, 720],
   [390, 844],
   [844, 390],
+  [856, 927],
 ] as const;
 const ELEVATIONS = [-14, 0, 18, 35, 55, 75, 89.9];
 const AZIMUTHS = Array.from({ length: 721 }, (_, i) => i / 2);
@@ -81,6 +86,8 @@ async function mount(width: number, height: number, from: [number, number] = [16
         minDistance={layout.orbit.minDistance}
         frameRings={layout.frameRings}
         hudTopBand={hudTop}
+        balanceInset={HUD_TOP_PX}
+        sweep={orbitSweep(layout.orbit)}
       />
     </>,
     { width, height, camera },
@@ -100,12 +107,19 @@ async function mount(width: number, height: number, from: [number, number] = [16
   return { camera, controls, fitted, turn, top: hudTop(height), size: { width, height } };
 }
 
-/** Every pose round the tower at this elevation and distance: the room left between the tower or its labels and the window's edges or the HUD band, in CSS px, and the poses where something stands outside. */
+/**
+ * Every pose round the tower at this elevation and distance: the room left
+ * between the tower or its labels and the window's edges or the HUD band, in
+ * CSS px, and the poses where something stands outside; and how far below the
+ * middle of the room between the pill and the window's bottom the tower
+ * stands on average (CSS px, negative above it).
+ */
 function sweepRoom(view: Awaited<ReturnType<typeof mount>>, elevation: number, distance: number) {
   const { camera, top } = view;
   const { width, height } = view.size;
   const bad: string[] = [];
   let tightest = Infinity;
+  let low = 0;
   let state: AnchorState | null = null;
   for (const azimuth of AZIMUTHS) {
     view.turn(azimuth, elevation, distance);
@@ -136,8 +150,10 @@ function sweepRoom(view: Awaited<ReturnType<typeof mount>>, elevation: number, d
     const room = Math.min(...points.map(([x, y]) => Math.min(x, width - x, y - top, height - y)));
     tightest = Math.min(tightest, room);
     if (room < 0) bad.push(`el ${elevation} az ${azimuth}: ${room.toFixed(1)} px out`);
+    const ys = points.map(([, y]) => y);
+    low += (Math.min(...ys) - HUD_TOP_PX - (height - Math.max(...ys))) / 2 / AZIMUTHS.length;
   }
-  return { bad, tightest };
+  return { bad, tightest, low };
 }
 
 describe('the fitted view', SWEEP, () => {
@@ -194,13 +210,10 @@ describe('the fitted view', SWEEP, () => {
     });
   }
 
-  // With the tower's centre fixed in the middle of the room, the fit at the
-  // opening leaves every elevation room: in a landscape window the tower and
-  // its labels stay clear of the HUD's band and the window's bottom however
-  // far the view climbs or dips. (An upright phone fits on its width, and
-  // straight down a corner of the top platform can come within a pixel or
-  // two of the window's sides.)
-  for (const [width, height] of WINDOWS.filter(([w, h]) => w > h)) {
+  // The fit at the opening keeps every elevation the view can reach in the
+  // room: the tower and its labels stay clear of the HUD's band and the
+  // window's edges however far the view climbs or dips.
+  for (const [width, height] of WINDOWS) {
     it(`keeps the tower in frame from every elevation, fitted at the opening, in ${width}x${height}`, async () => {
       const view = await mount(width, height);
       const bad: string[] = [];
@@ -212,6 +225,25 @@ describe('the fitted view', SWEEP, () => {
       }
       expect(bad.slice(0, 10)).toEqual([]);
       expect(tightest).toBeGreaterThan(0);
+    });
+
+    // No one point centres every view: from low down the tower sits low,
+    // from overhead or from under it high. Measured from the pill, the views
+    // the game is played from are left no more than 5% of the room low, and
+    // no view stands more than 6.5% off the middle. (In the middle of the
+    // room between the band and the bottom, the opening stood 7.5% low.)
+    it(`balances the tower in the room over the whole orbit, in ${width}x${height}`, async () => {
+      const view = await mount(width, height);
+      const room = height - HUD_TOP_PX;
+      const lows: string[] = [];
+      let worst = 0;
+      for (const elevation of [-14, 0, 10, 18, 25, 35, 45, 55, 65, 75, 89.9]) {
+        const { low } = sweepRoom(view, elevation, view.fitted);
+        lows.push(`${elevation}°: ${low.toFixed(0)}`);
+        worst = Math.max(worst, Math.abs(low) / room);
+        if (elevation === 18) expect(low / room, lows.join(', ')).toBeLessThan(0.05);
+      }
+      expect(worst, lows.join(', ')).toBeLessThan(0.065);
     });
   }
 
@@ -231,13 +263,13 @@ describe('the fitted view', SWEEP, () => {
     });
   }
 
-  it('stands the tower’s centre in the middle of the room below the HUD band, from any azimuth', async () => {
+  it('stands the tower’s centre a little above the middle of the room below the HUD band, from any azimuth', async () => {
     const view = await mount(1280, 720);
-    for (const azimuth of [0, 123, 250]) {
-      const [x, y] = view.turn(azimuth, 18);
-      expect(x).toBe(0);
-      // Half the band below the window's middle
-      expect(y).toBeCloseTo(hudTop(720) / 2, 9);
-    }
+    const [, y0] = view.turn(0, 18);
+    // Above the room's middle (half the band below the window's middle), by
+    // a few per cent of the room
+    expect(y0).toBeLessThan(hudTop(720) / 2);
+    expect(y0).toBeGreaterThan(hudTop(720) / 2 - 0.05 * (720 - hudTop(720)));
+    for (const azimuth of [123, 250]) expect(view.turn(azimuth, 18)).toEqual([0, y0]);
   });
 });

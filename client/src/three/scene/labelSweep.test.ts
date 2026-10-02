@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitView, hudTop } from '../cameraFit';
+import { fitView, HUD_TOP_PX, hudTop, orbitSweep } from '../cameraFit';
 import type { Orientation } from '../layout';
 import type { Vec3 } from '../types';
 import { DEG, eyeAt, viewer } from './testKit';
@@ -49,9 +49,16 @@ const WINDOWS = [
   [844, 390],
 ] as const;
 
-/** The fitted distance for a window at an elevation (degrees), as FitCameraToBoard stands. */
-const fitted = (width: number, height: number, elevation: number) =>
-  fitView(elevation * DEG, rings, { width, height, fov: 36, topInset: hudTop(height) }).distance;
+/** The fitted distance for a window, as FitCameraToBoard stands in the game: from the opening, the whole orbit in frame. */
+const fitted = (width: number, height: number) =>
+  fitView(18 * DEG, rings, {
+    width,
+    height,
+    fov: 36,
+    topInset: hudTop(height),
+    balanceInset: HUD_TOP_PX,
+    sweep: orbitSweep(layout.orbit),
+  }).distance;
 
 /**
  * Each glyph's ink as a share of its sprite, across and up: Manrope as the
@@ -183,7 +190,7 @@ function* sweep(
   { direction = 1, from, elevations = ELEVATIONS }: SweepOptions = {},
 ) {
   for (const elevation of elevations) {
-    const distance = fitted(width, height, elevation);
+    const distance = fitted(width, height);
     let state: AnchorState | null = null;
     if (from !== undefined) {
       const eye = eyeAt(-30 * direction, from, distance);
@@ -432,7 +439,7 @@ describe('the letters from low down', SWEEP, () => {
   for (const orientation of SEATS) {
     for (const [width, height] of WINDOWS) {
       it(`are as large as the files at the opening view, as ${orientation} in ${width}x${height}`, () => {
-        const eye = eyeAt(16, 18, fitted(width, height, 18));
+        const eye = eyeAt(16, 18, fitted(width, height));
         const { labels } = labelAnchors(layout, orientation, eye, [0, 0, 0], null);
         const px = height / (2 * Math.tan(18 * DEG));
         const see = viewer(eye);

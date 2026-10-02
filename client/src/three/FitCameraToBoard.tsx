@@ -16,7 +16,8 @@ interface OrbitControlsLike {
  * Frames the whole board: on first render, and again whenever the canvas
  * changes size, the camera moves along its current line of sight (so a turned
  * view stays turned) to the distance that fits the board in the new window,
- * its centre in the middle of the room below the HUD's top band (fitView).
+ * its centre a little above the middle of the room below the HUD's top band
+ * (fitView), and the tower in that room from every elevation of `sweep`.
  * The zoom limits follow the fit (zoomRange), so they are recomputed with it:
  * a phone turned on its side zooms over the same share of its view as before.
  *
@@ -45,6 +46,8 @@ export function FitCameraToBoard({
   hudTopBand,
   bottomBand,
   centre,
+  sweep,
+  balanceInset,
 }: {
   /** Where the camera looks from when it sits on the target. */
   viewDirection: readonly [number, number, number];
@@ -58,6 +61,10 @@ export function FitCameraToBoard({
   bottomBand?: (height: number) => number;
   /** What the shift centres (FitWindow.centre): the board's centre by default. */
   centre?: FitWindow['centre'];
+  /** The elevations the view can turn between, kept in frame (FitWindow.sweep; orbitSweep). */
+  sweep?: FitWindow['sweep'];
+  /** The line under the HUD the board's centre is balanced below (FitWindow.balanceInset). */
+  balanceInset?: number;
 }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as OrbitControlsLike | null;
@@ -75,6 +82,8 @@ export function FitCameraToBoard({
       topInset: hudTopBand(height),
       bottomInset: bottomBand?.(height),
       centre,
+      sweep,
+      balanceInset,
     };
     const direction = camera.position.clone().sub(target);
     if (direction.lengthSq() === 0) direction.copy(new Vector3(...viewDirection));
@@ -100,7 +109,18 @@ export function FitCameraToBoard({
     setLensShift(camera, fitShift(frameRings, opening, distance, view), width, height);
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the layout's extents and limits are fixed
-  }, [camera, controls, width, height, invalidate, hudTopBand, bottomBand, centre, frameRings]);
+  }, [
+    camera,
+    controls,
+    width,
+    height,
+    invalidate,
+    hudTopBand,
+    bottomBand,
+    centre,
+    sweep,
+    frameRings,
+  ]);
 
   return null;
 }

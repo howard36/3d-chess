@@ -146,34 +146,39 @@ Key decisions:
   tower's axis round its platforms, its tallest pieces and every label wherever it can
   stand (the layout's `frameRings`, `towerFrameRings` in `three/scene/labelAnchors.ts`; the
   letters' rings only where their post can stand: anywhere but the front from low down,
-  behind the tower from high up). The tower's centre (the orbit target, the middle of the
-  stack with the top level's pieces: about a quarter of a level's gap above level C) stands
-  in the middle of the room between the band kept for the HUD's top pill and the captured
-  pieces under it (82 px; 56 in a short window, where they stand beside the tower: `hudTop`)
-  and the bottom of the window, by a lens shift (a view offset, `three/viewOffset.ts`)
-  rather than a pan, and the distance fits the rings in that room about it. A circle about
-  the axis looks the same whichever way the camera has turned, so the shift is only ever
-  vertical. It is set with the fit (on opening and when the window changes shape) and then
-  left alone: turning, climbing and zooming never move the tower's centre on screen, so the
-  camera only turns about it and moves nearer or farther, and the view never slides under
-  the player's hand. Seen from low down the tower reaches further below its centre than
-  above it (the bottom platform's near edge is close to the camera), and from high up the
-  other way, so a centre in the middle of the room is what keeps the tower balanced in it
-  over the whole orbit, and fitted at the opening it leaves a landscape window's tower and
-  labels clear of the HUD and the window's bottom from every elevation
-  (`cameraSweep.test.tsx`). (Centring the rings as seen from the opening put the centre 50
-  px higher in a 720 px window, and the tower's top level ran under the pill as the view
-  climbed or dipped; centring the outline as seen, a diamond one moment and a square the
-  next, slid the view sideways as it turned; re-centring the rings at every elevation slid
-  it up and down, by over 100 px on a desktop, as it climbed.) The landing page's preview,
-  which only turns about the axis at one elevation, centres its rings as seen from there
-  instead, between a band at the top and one at the bottom (`centre: 'rings'`,
-  `bottomInset`: see Landing page). The distance is always fitted at the opening
-  elevation, however far the view has climbed when the window changes shape, so a resized
-  window is framed exactly as a fresh load at that size (fitting from the elevation of the
-  moment made the tower's size and place depend on the angle the player was at); from high
-  up on a diagonal an upright phone can cut the top platform's corner by a pixel or two,
-  and zooming out shows it all. The layout's `orbit.minDistance` only narrows the range, and its
+  behind the tower from high up). The tower's centre (the orbit target, a fixed point of
+  the tower: the middle of the stack with the top level's pieces, about a quarter of a
+  level's gap above level C) stands on screen by a lens shift (a view offset,
+  `three/viewOffset.ts`) rather than a pan, set from the window alone: 3% of the rings'
+  height (`CENTRE_LIFT`) above the middle of the room between the HUD's top pill (56 px)
+  and the bottom of the window. The band under the pill kept for the captured pieces (82 px
+  in all; 56 in a short window, where they stand beside the tower: `hudTop`) is kept clear
+  but, mostly empty, not balanced against. A circle about the axis looks the
+  same whichever way the camera has turned, so the shift is only ever vertical. It is set
+  with the fit (on opening and when the window changes shape) and then left alone: turning,
+  climbing and zooming never move the tower's centre on screen, so the camera only turns
+  about it and moves nearer or farther, and the view never slides under the player's hand.
+  No one point centres every view: seen from low down the tower reaches further below its
+  centre than above it (the bottom platform's near edge is close to the camera), so it sits
+  low, and from overhead or from under it, high. Most of a game is played from low down
+  (10–35° up), and a shape in the exact middle reads as low, so the lift leans the balance
+  their way: from them the tower stands 2–3% of the room below the middle, from overhead
+  and from under it at most about 6% above it (`cameraSweep.test.tsx` checks it as drawn). The distance fits the rings in the room about
+  the centre with 5% to spare at the opening, and inside it from every elevation the orbit
+  reaches (`sweep`, `orbitSweep`), so the tower and its labels never cross the HUD's band
+  or the window's edges however far the view climbs or dips. It is always fitted from the
+  opening, however far the view has climbed when the window changes shape, so a resized
+  window is framed exactly as a fresh load at that size. (Centring the rings as seen from
+  the opening put the centre 50 px higher in a 720 px window and ran the tower's top level
+  under the pill as the view climbed; the middle of the room below the band left the views
+  the game is played from 40–60 px low in a 900 px window; fitting from the elevation of the moment made
+  the tower's size and place depend on the angle the player was at when the window changed;
+  centring the outline as seen, a diamond one moment and a square the next, slid the view
+  sideways as it turned; re-centring the rings at every elevation slid it up and down, by
+  over 100 px on a desktop, as it climbed.) The landing page's preview, which only turns
+  about the axis at one elevation, centres its rings as seen from there instead, between a
+  band at the top and one at the bottom (`centre: 'rings'`, `bottomInset`: see Landing
+  page). The layout's `orbit.minDistance` only narrows the range, and its
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
   sky, to straight down). The controls (`three/CameraControls.tsx`) are three's own
   OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the
