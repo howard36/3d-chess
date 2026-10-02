@@ -2,8 +2,6 @@ import React from 'react';
 import { deriveHistory } from '../game/history';
 import type { GameHistory } from '../game/history';
 import type { MoveRecord, WebSocketMessage } from '../types/messages';
-import { MATE_STYLE_LABELS, MATE_STYLES, setMateStyle, useMateStyle } from '../lib/mateStyle';
-import type { MateStyle } from '../lib/mateStyle';
 import GameView from './GameView';
 import { useEndCard } from './useEndCard';
 
@@ -41,12 +39,11 @@ const messagesAt = (plies: number) => {
 
 /**
  * The mate preview (/mate): a game one move from mate, seen from White's
- * seat, with a button that plays the mating move (again) and the choice of
- * how the mate plays out (lib/mateStyle.ts), so the styles can be compared.
+ * seat, with a button that plays the mating move and the mate (again), to
+ * look at how a mate plays out (lib/mateStyle.ts).
  * Nothing goes to the server: the board takes no input.
  */
 const MateDemo: React.FC = () => {
-  const style = useMateStyle();
   const [plies, setPlies] = React.useState(BEFORE_MATE);
   const [played, setPlayed] = React.useState(false);
   const historyRef = React.useRef<GameHistory | null>(null);
@@ -77,18 +74,6 @@ const MateDemo: React.FC = () => {
         intro="short"
       />
       <div className="hud-glass mate-demo" data-testid="mate-demo">
-        <label htmlFor="mate-style">Mate</label>
-        <select
-          id="mate-style"
-          value={style}
-          onChange={(e) => setMateStyle(e.target.value as MateStyle)}
-        >
-          {MATE_STYLES.map((s) => (
-            <option key={s} value={s}>
-              {MATE_STYLE_LABELS[s]}
-            </option>
-          ))}
-        </select>
         <button type="button" className="hud-retry" onClick={play}>
           Play
         </button>

@@ -287,15 +287,66 @@ export const Jolt = ({
   return <group ref={group}>{children}</group>;
 };
 
-/** A mated king's teeter before he falls (Topple's `teeter`): its highest rock (radians), and how many. */
-export const TEETER = { angle: 0.2, rocks: 3 };
-
 /** How long a mated king takes to fall and settle. */
 export const TOPPLE_MS = 900;
 /** The share of that at which he strikes the floor (a settling bounce follows). */
 export const TOPPLE_STRIKE = 0.55;
 /** The most one frame advances the fall. */
 const TOPPLE_STEP_MS = 125;
+/** How far over a fallen king lies (radians). */
+const FALLEN = 1.42;
+
+/**
+ * A mated king's teeter before he goes over (Topple's `teeter`), slow and
+ * wide: he tips back onto the rim of his base (away from the piece that
+ * mated him), swings forward through upright onto the other rim, and back
+ * again, past the point of no return. Angles in radians, positive toward
+ * where he falls; times in ms.
+ */
+export const TEETER = {
+  back: 0.26,
+  backMs: 700,
+  forward: 0.2,
+  forwardMs: 800,
+  /** From the forward rock to the floor. */
+  fallMs: 900,
+};
+/** When a teetering king strikes the floor (ms after he starts). */
+export const TEETER_STRIKE_MS = TEETER.backMs + TEETER.forwardMs + TEETER.fallMs;
+// The settling bounce after the strike
+const BOUNCE_MS = TOPPLE_MS * (1 - TOPPLE_STRIKE);
+
+const easeInOut = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * t);
+const bounce = (t: number) =>
+  FALLEN * (1 - Math.sin(t * (1 - TOPPLE_STRIKE) * 14) * 0.06 * (1 - TOPPLE_STRIKE) * (1 - t));
+
+/**
+ * How far a mated king leans `ms` after he starts to go (radians, positive
+ * toward where he falls, negative the other way), and whether he has struck
+ * the floor and whether he has settled. Without a teeter he simply falls.
+ */
+export const toppleAngle = (ms: number, teeter: boolean) => {
+  const strikeMs = teeter ? TEETER_STRIKE_MS : TOPPLE_MS * TOPPLE_STRIKE;
+  if (ms >= strikeMs) {
+    const t = Math.min((ms - strikeMs) / BOUNCE_MS, 1);
+    return { angle: bounce(t), struck: true, settled: t >= 1 };
+  }
+  if (!teeter) {
+    const u = ms / strikeMs;
+    return { angle: FALLEN * u * u, struck: false, settled: false };
+  }
+  const { back, backMs, forward, forwardMs, fallMs } = TEETER;
+  let angle: number;
+  if (ms < backMs) angle = back * easeInOut(ms / backMs);
+  else if (ms < backMs + forwardMs)
+    angle = back - (back + forward) * easeInOut((ms - backMs) / forwardMs);
+  else {
+    // From rest on the forward rim, gathering speed all the way down
+    const u = (ms - backMs - forwardMs) / fallMs;
+    angle = -forward + (FALLEN + forward) * u * u;
+  }
+  return { angle, struck: false, settled: false };
+};
 
 // When a toppling king strikes the floor (on the scene's own clock, however
 // slowly the frames come), for the result card to follow (GameScreen.tsx)
@@ -313,17 +364,27 @@ export const Topple = ({
   active,
   delayMs = 0,
   teeter = false,
+  away,
   children,
 }: {
   active: boolean;
-  /** How long he stands before he falls (ms). */
+  /** How long he stands still before he starts to go (ms). */
   delayMs?: number;
-  /** Whether he rocks on the rim of his base meanwhile, each rock higher, before he goes. */
+  /** Whether he teeters before he goes over (TEETER). */
   teeter?: boolean;
+  /**
+   * Which way he falls, level, in the frame of the board (unit x, z): away
+   * from the piece that mated him. Without it, toward the camera's right.
+   */
+  away?: [number, number] | null;
   children: React.ReactNode;
 }) => {
   const heading = useRef<Group>(null);
+  // Tipping toward where he falls pivots on that rim of his base; tipping
+  // the other way, on the opposite rim
+  const rim = useRef<Group>(null);
   const pivot = useRef<Group>(null);
+  const back = useRef<Group>(null);
   const elapsed = useRef(0);
   const aimed = useRef(false);
   const struck = useRef(false);
@@ -340,7 +401,7 @@ export const Topple = ({
   useFrame(({ camera }, delta) => {
     const g = pivot.current;
     const h = heading.current;
-    if (!g || !h) return;
+    if (!g || !h || !rim.current || !back.current) return;
     if (!active) {
       g.rotation.x = 0;
       h.rotation.y = 0;
@@ -352,56 +413,50 @@ export const Topple = ({
     }
     if (!aimed.current) {
       aimed.current = true;
-      // The camera's right, level with the board, in the parent's frame: the
-      // pivot tips toward local -z, so turn -z onto that direction.
-      const at = h.getWorldPosition(new Vector3());
-      const view = at.sub(camera.position);
-      const right = new Vector3(-view.z, 0, view.x);
-      if (right.lengthSq() > 1e-9 && h.parent) {
-        const parentTurn = h.parent.getWorldQuaternion(new Quaternion()).invert();
-        right.applyQuaternion(parentTurn);
-        h.rotation.y = Math.atan2(-right.x, -right.z);
+      // The pivot tips toward local -z: turn -z onto the way he falls
+      if (away) h.rotation.y = Math.atan2(-away[0], -away[1]);
+      else {
+        // The camera's right, level with the board, in the parent's frame
+        const at = h.getWorldPosition(new Vector3());
+        const view = at.sub(camera.position);
+        const right = new Vector3(-view.z, 0, view.x);
+        if (right.lengthSq() > 1e-9 && h.parent) {
+          const parentTurn = h.parent.getWorldQuaternion(new Quaternion()).invert();
+          right.applyQuaternion(parentTurn);
+          h.rotation.y = Math.atan2(-right.x, -right.z);
+        }
       }
     }
-    // A slow frame advances the fall by up to TOPPLE_STEP_MS, so it spans at
-    // most eight frames however slowly they come (the result card waits for
-    // it), while the first frame after an idle spell still can't skip it
+    // A slow frame advances the fall by up to TOPPLE_STEP_MS, so it spans
+    // few frames however slowly they come (the result card waits for it),
+    // while the first frame after an idle spell still can't skip it
     elapsed.current += Math.min(delta * 1000, TOPPLE_STEP_MS);
-    if (elapsed.current < delayMs) {
-      // Standing a while: rocking up onto the rim of his base and back,
-      // each time higher, the way a piece about to go over does
-      const v = elapsed.current / delayMs;
-      g.rotation.x = teeter
-        ? -TEETER.angle * v * Math.abs(Math.sin(Math.PI * TEETER.rocks * v))
-        : 0;
-      invalidate();
-      return;
-    }
-    const t = Math.min((elapsed.current - delayMs) / TOPPLE_MS, 1);
-    // Accelerating fall, then a damped rebound off the floor
-    const fall =
-      t < TOPPLE_STRIKE
-        ? (t / TOPPLE_STRIKE) ** 2
-        : 1 - Math.sin((t - TOPPLE_STRIKE) * 14) * 0.06 * (1 - t);
-    g.rotation.x = -1.42 * fall;
+    const ms = elapsed.current - delayMs;
+    const { angle, struck: down, settled } = toppleAngle(Math.max(ms, 0), teeter);
+    const side = angle >= 0 ? 1 : -1;
+    rim.current.position.z = -PIVOT * side;
+    back.current.position.z = PIVOT * side;
+    g.rotation.x = -angle;
     // Once it tips, what lay flat at its base would stand up with it (every
     // frame, in case the body remounts a disc while the king is down)
-    if (fall > 0.05) {
+    if (angle > 0.3) {
       showFloorDecals(g, false);
       decalsHidden.current = true;
     }
-    if (t >= TOPPLE_STRIKE && !struck.current) {
+    if (down && !struck.current) {
       struck.current = true;
       toppled();
     }
-    if (t < 1) invalidate();
+    if (!settled) invalidate();
   });
 
   return (
     <group ref={heading}>
-      <group position={[0, 0, -PIVOT]}>
+      <group ref={rim} position={[0, 0, -PIVOT]}>
         <group ref={pivot}>
-          <group position={[0, 0, PIVOT]}>{children}</group>
+          <group ref={back} position={[0, 0, PIVOT]}>
+            {children}
+          </group>
         </group>
       </group>
     </group>

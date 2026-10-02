@@ -22,13 +22,12 @@ import type { AssistedTap } from './useTapAssist';
 import type { LevelFocus, MarkerProps, PieceColor, Vec3 } from './types';
 import { resolveHover } from './hover';
 import type { FloorSquare } from './hover';
-import { CaptureFx, Celebration, KingShatter } from './scene/fx';
-import { LastMoveLine } from './scene/line';
-import { MATE_TIMING, useMateStyle } from '../lib/mateStyle';
-import { TOPPLE_MS, TOPPLE_STRIKE } from './pieceMotion';
+import { CaptureFx, Celebration } from './scene/fx';
+import { TEETER, TEETER_STRIKE_MS } from './pieceMotion';
+import { fallAway } from './mate';
 import { Grid } from './scene/grid';
 import { Capture, Check, LastMove, Quiet } from './scene/markers';
-import { KNIGHT_YAW, layout, PALETTE, PIECE_SCALE } from './scene/palette';
+import { KNIGHT_YAW, layout, PIECE_SCALE } from './scene/palette';
 import { Selection } from './scene/selection';
 import { pieceArrival } from './intro/timeline';
 
@@ -54,9 +53,6 @@ const cellMaterial = new MeshBasicMaterial();
 // skewer the piece in its cell at the cell's centre. Pieces are modeled
 // base-at-y=0 and are shorter than their cell, so they stand on its floor
 // rather than centred in it.
-// The mate's lines of light: how long each takes to draw, one after another
-const MATE_LINE_MS = 420;
-const MATE_LINE_STAGGER_MS = 90;
 // The cheer's wave: how long it takes to travel one world unit from the king
 const WAVE_MS_PER_UNIT = 70;
 
@@ -359,40 +355,29 @@ const Board = (props: BoardProps) => {
     ({ type, color }) => type === PieceType.King && color === matedColor,
   );
 
-  // --- The mate, played in the chosen style (lib/mateStyle.ts). Its beats
-  // count from the mating move's landing, and play out only for a mate that
-  // arrived live: from history the board shows how it ended.
-  const mateStyleChoice = useMateStyle();
+  // --- The mate (lib/mateStyle.ts): the king teeters and falls away from
+  // the piece that mated him, and as he strikes, the winning army hops in a
+  // wave out from him. Its beats count from the mating move's landing, and
+  // play out only for a mate that arrived live: from history he just falls.
   const mate = useMemo(() => {
-    if (!matedKing || !props.gameOver?.winner) return null;
-    const style = mateStyleChoice;
+    if (!matedKing || !props.gameOver?.winner || !lastMove) return null;
     const live = animate;
-    const before = live ? MATE_TIMING[style].beforeMs : 0;
     const winner = props.gameOver.winner;
-    const king = matedKing.coord;
-    // The pieces giving check: lines of light from each to the king
-    const attackers =
-      style === 'lines'
-        ? pieces.filter(
-            ({ color, coord }) =>
-              color === winner &&
-              board.generateAttackedSquares(coord).some((c) => sameCoord(c, king)),
-          )
-        : [];
-    // The winning army's cheer: a wave of hops out from the king as he strikes
+    const king = worldOf(matedKing.coord);
+    const away = fallAway(king, worldOf(lastMove.move.to));
+    // The winning army's cheer
     const cheer = new Map<string, number>();
-    if (style === 'wave' && live) {
-      const strike = TOPPLE_MS * TOPPLE_STRIKE;
-      const [kx, ky, kz] = worldOf(king);
+    if (live) {
       for (const { color, coord } of pieces) {
         if (color !== winner) continue;
         const [x, y, z] = worldOf(coord);
-        cheer.set(toZXY(coord), strike + WAVE_MS_PER_UNIT * Math.hypot(x - kx, y - ky, z - kz));
+        const far = Math.hypot(x - king[0], y - king[1], z - king[2]);
+        cheer.set(toZXY(coord), TEETER_STRIKE_MS + WAVE_MS_PER_UNIT * far);
       }
     }
-    return { style, live, before, attackers, cheer };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fixed when the mate arrives (and the style)
-  }, [matedKing && toZXY(matedKing.coord), props.gameOver, mateStyleChoice, lastMove?.moveCount]);
+    return { live, away, cheer };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fixed when the mate arrives
+  }, [matedKing && toZXY(matedKing.coord), props.gameOver, lastMove?.moveCount, animate]);
 
   // --- Hover: the cell under the pointer, from the pointer's ray (see hover.ts)
   const grid = useRef<Group>(null);
@@ -527,8 +512,6 @@ const Board = (props: BoardProps) => {
           const key = toZXY(coord);
           const inCheck = type === PieceType.King && checked.includes(color);
           const isMated = type === PieceType.King && color === matedColor;
-          // A shattering king is drawn by KingShatter instead
-          if (isMated && mate?.style === 'shatter') return null;
           const mesh = (
             <PieceMesh
               key={`${type}-${color}-${key}`}
@@ -542,8 +525,8 @@ const Board = (props: BoardProps) => {
               inCheck={inCheck}
               level={coord.z}
               mated={isMated}
-              mateDelayMs={isMated ? mate?.before : undefined}
-              teeter={isMated && mate?.style === 'teeter'}
+              teeter={isMated && !!mate?.live}
+              fallAway={isMated ? mate?.away : undefined}
               cheerAt={mate?.cheer.get(key)}
               carried={!!carried && sameCoord(carried, coord)}
               refused={refused?.key === key ? refused.count : 0}
@@ -618,34 +601,10 @@ const Board = (props: BoardProps) => {
           />
         )}
         {matedKing && mate && (
-          <>
-            <Celebration
-              key={`celebration-${mate.style}`}
-              {...markerAt(matedKing.coord)}
-              delayMs={mate.before}
-            />
-            {mate.style === 'shatter' && (
-              <KingShatter
-                key={`shatter-${lastMove?.moveCount}`}
-                floor={markerAt(matedKing.coord).floor}
-                color={matedKing.color}
-                delayMs={mate.before}
-                live={mate.live}
-              />
-            )}
-            {mate.attackers.map(({ coord }, i) => (
-              <LastMoveLine
-                key={`mate-line-${toZXY(coord)}`}
-                from={markerAt(coord).floor}
-                to={markerAt(matedKing.coord).floor}
-                color={PALETTE.check}
-                opacity={0.9}
-                radius={0.014}
-                drawInMs={mate.live ? MATE_LINE_MS : 0}
-                drawInDelayMs={mate.live ? i * MATE_LINE_STAGGER_MS : 0}
-              />
-            ))}
-          </>
+          <Celebration
+            {...markerAt(matedKing.coord)}
+            delayMs={mate.live ? TEETER_STRIKE_MS - TEETER.fallMs : 0}
+          />
         )}
       </group>
     </>
