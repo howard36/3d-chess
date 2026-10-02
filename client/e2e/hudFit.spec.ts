@@ -14,7 +14,7 @@ import { openStandInGame } from './helpers/standIn';
 const CHECK = ['Ab2-De5', 'Ed4-Ba1', 'Ac2-Cc4', 'Dc4-Dc3', 'Ad2-Dd5']; // Black in check
 const MATE = ['Ad1-Ac3', 'Ec4-Cc2', 'Ac2-Ad1', 'Cc2-Bb1']; // Black mates
 // A long game down to the bare kings and one white rook: every kind of piece
-// taken from both sides, most of them twice and all ten pawns, with White 5
+// taken from both sides, most of them twice and all ten pawns, with White 2.5
 // ahead (the widest the captured pieces get). One move before the end, Black
 // is in check.
 const STRIPPED = `

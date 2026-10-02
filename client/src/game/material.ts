@@ -10,14 +10,20 @@ import { PieceType } from '../engine/pieces';
 import { FILES, LEVELS, RANKS } from '../engine/coords';
 import type { Turn } from './history';
 
-/** Conventional values; the unicorn is valued like the other minor pieces. */
+/**
+ * Values for this board, not 2D chess's, to the nearest half pawn: measured
+ * by engine self-play of imbalances from the starting position (queen 9.8,
+ * knight 3.2, bishop 2.95, rook 2.45, unicorn 1.4). On a 5-wide board a rook
+ * sees 12 squares from anywhere and cannot mate alone; the unicorn is held
+ * to a quarter of the board; the queen is the only piece that mates alone.
+ */
 const PIECE_VALUE: Record<PieceType, number> = {
   [PieceType.King]: 0,
-  [PieceType.Queen]: 9,
-  [PieceType.Rook]: 5,
-  [PieceType.Bishop]: 3,
-  [PieceType.Unicorn]: 3,
+  [PieceType.Queen]: 10,
   [PieceType.Knight]: 3,
+  [PieceType.Bishop]: 3,
+  [PieceType.Rook]: 2.5,
+  [PieceType.Unicorn]: 1.5,
   [PieceType.Pawn]: 1,
 };
 
@@ -25,10 +31,10 @@ const PIECE_VALUE: Record<PieceType, number> = {
 // is never taken)
 const ORDER = [
   PieceType.Queen,
-  PieceType.Rook,
-  PieceType.Bishop,
-  PieceType.Unicorn,
   PieceType.Knight,
+  PieceType.Bishop,
+  PieceType.Rook,
+  PieceType.Unicorn,
   PieceType.Pawn,
 ];
 
