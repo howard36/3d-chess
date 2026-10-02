@@ -545,6 +545,7 @@ const Board = (props: BoardProps) => {
             from={markerAt(lastMove.move.from)}
             to={markerAt(lastMove.move.to)}
             fresh={animate}
+            glideMs={plan ? touchdownMs(plan) : 0}
           />
         )}
         {checkedKings.map(({ color, coord }) => (

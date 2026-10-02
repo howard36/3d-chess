@@ -12,7 +12,7 @@ import { claimed, heldAt, useClaim, useHeld } from './claims';
 import type { ClaimKind } from './claims';
 import { clamp01, easeOutCubic, easeOutQuad, smooth, toward } from './ease';
 import { overlayMaterial } from './overlay';
-import { LEVEL_COLORS, levelAt, MOTION, PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
+import { LEVEL_COLORS, levelAt, PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
 import { Blades } from './blades';
 import { useRetireOnUnmount } from './programs';
 
@@ -525,7 +525,9 @@ export const Capture = ({ floor, hovered = false }: MarkerProps) => {
  * for a destination on that square; the one where it landed for a capture,
  * or for the held piece's own circle.
  */
-export const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => {
+export const LastMove = ({ from, to, fresh = false, glideMs = 0 }: LastMoveMarkerProps) => {
+  // The line draws on as the piece sets off; the destination's mark as it arrives
+  const lineDelay = glideMs * 0.3;
   useClaim('trace', to.floor);
   const radius = 0.005 + 0.0045 * LINE_STRENGTH;
   return (
@@ -551,7 +553,7 @@ export const LastMove = ({ from, to, fresh = false }: LastMoveMarkerProps) => {
         opacity={0.8}
         growMs={0}
         drawMs={fresh ? 320 : 0}
-        delayMs={fresh ? MOTION.durationMs * 0.8 : 0}
+        delayMs={fresh ? glideMs * 0.8 : 0}
         yieldTo={TO_YIELDS}
         yieldHeld
         renderOrder={LAYER.marker + 0.1}
@@ -585,7 +587,6 @@ const LINE_STRENGTH = 0.7;
 // while the line itself stays faint.
 const LINE_LIFT = 0.02;
 const LINE_DRAW_MS = 380;
-const lineDelay = MOTION.durationMs * 0.3;
 const SHIMMER = { speed: 0.45, spacing: 1.8, length: 0.32, peak: 0.75 };
 
 export const shimmerMaterial = () =>

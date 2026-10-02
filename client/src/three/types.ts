@@ -99,6 +99,8 @@ export interface LastMoveMarkerProps {
    * and never again on a reconnect.
    */
   fresh: boolean;
+  /** How long the moving piece takes to land (ms): a fresh mark's entrance follows it. */
+  glideMs?: number;
 }
 
 export interface CaptureFxProps {

@@ -110,11 +110,6 @@ export const MARGIN = 0.05;
 /** The plain the tower floats over, well below level A. */
 export const GROUND_Y = FRAME.levelY[0] - 3.4;
 
-/**
- * About how long a move takes to land (each move's own glide is timed by its
- * length, glide.ts): the last move's marks time their entrance from it.
- */
-export const MOTION = { durationMs: 460 };
 /** Knights turn this far off the rank line, to show their profile. */
 export const KNIGHT_YAW = 0.5;
 

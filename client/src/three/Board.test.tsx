@@ -956,6 +956,19 @@ describe('Board', () => {
       expect(kingBody().inCheck).toBe(true);
     });
 
+    it('times the last move’s mark by the glide of that move', async () => {
+      const renderer = await ReactThreeTestRenderer.create(
+        <Board board={boardBeforeMove()} currentTurn="white" />,
+      );
+      await renderer.update(
+        <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} />,
+      );
+      expect(last(marked)).toMatchObject({
+        fresh: true,
+        glideMs: touchdownMs(planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'))),
+      });
+    });
+
     it('shows a check from history at once', async () => {
       const board = boardAfterMove();
       board.setPiece({ x: 4, y: 4, z: 4 }, null);
