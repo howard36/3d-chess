@@ -26,8 +26,8 @@ export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   inCheck?: boolean;
   /** This king has been checkmated: he topples. */
   mated?: boolean;
-  /** Whether he teeters before he topples, and which way he falls (Topple). */
-  teeter?: boolean;
+  /** Whether he is knocked over (rather than simply falling), and which way he falls (Topple). */
+  knocked?: boolean;
   fallAway?: [number, number] | null;
   /** A cheer: the piece hops this many ms from now (a new value each time). */
   cheerAt?: number;
@@ -148,7 +148,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   hovered = false,
   inCheck = false,
   mated = false,
-  teeter = false,
+  knocked = false,
   fallAway,
   cheerAt,
   carried = false,
@@ -189,7 +189,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   // piece tapped in vain shakes its head. A mated king topples.
   const held = selected || carried;
   const body = (
-    <Topple active={mated} teeter={teeter} away={fallAway}>
+    <Topple active={mated} knocked={knocked} away={fallAway}>
       <Jolt check={inCheck && !mated} refused={refused} cheerAt={cheerAt}>
         <Lift
           height={held ? PIECE_LIFT.selected : hovered ? PIECE_LIFT.hover : 0}

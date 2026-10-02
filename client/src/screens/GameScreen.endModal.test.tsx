@@ -1,4 +1,4 @@
-import { MATE_HOLD_MS } from '../lib/mateStyle';
+import { MATE_HOLD_MS } from '../lib/mate';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocketMessage } from '../types/messages';

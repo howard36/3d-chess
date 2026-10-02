@@ -14,7 +14,7 @@ import { wholePiece } from './occlusion';
 import { overlayMaterial } from './overlay';
 import { bodyMaterial } from './pieces';
 import { gardenBoost } from './stage';
-import { MATE_TUNING } from '../../lib/mateTuning';
+import { MATE_TUNING } from '../../lib/mate';
 import { useRetireOnUnmount } from './programs';
 
 // Motion in light, kept brief. A captured piece is hit as the attacker

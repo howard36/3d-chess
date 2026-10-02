@@ -5,7 +5,7 @@ import type { BoardProps, LastMoveInfo } from './Board';
 import { layout, PIECE_SCALE } from './scene/palette';
 import { contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
 import { PIECE_LIFT } from './pieceMotion';
-import { MATE_TUNING } from '../lib/mateTuning';
+import { MATE_TUNING } from '../lib/mate';
 import { useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import type { BufferGeometry, Camera, Object3D, PerspectiveCamera, Scene } from 'three';

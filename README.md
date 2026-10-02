@@ -386,13 +386,13 @@ rim, simulated; the knock gives barely enough to reach his tipping point). He is
 aside if straight away would take him off his platform (`three/mate.ts`). As he strikes the floor a pulse of light spreads across his
 level (`scene/fx.tsx`), the obsidian blades round him sink into the glass and are gone, and
 the winning army hops in a wave out from him. The result card follows `onToppled` after a
-hold on the final board (`lib/mateStyle.ts`, `screens/useEndCard.ts`), in the middle of
+hold on the final board (`screens/useEndCard.ts`), in the middle of
 the screen. It can be closed (its close button, Escape, a click outside it) to turn and
-zoom the final position, with Start new game left below the tower. From history he simply falls. `/mate` is a preview
-page: a game one move from mate, with buttons that play it and go back. The knock lands
+zoom the final position, with Start new game left below the tower. From history he simply falls. The knock lands
 85 ms before the mating piece comes to rest (its glide eases in so slowly that it looks
-landed by then), the pulse spreads at 4.5 world units a second, and the wave sets off
-370 ms after the king strikes and travels at 15 (`lib/mateTuning.ts`).
+landed by then), the pulse spreads at 4.5 world units a second, the wave sets off 370 ms
+after the king strikes and travels at 15, and the card follows 1.3 s after the strike
+(`lib/mate.ts`).
 
 **The entrance.** Opening the game plays a short entrance, just under 4 seconds when the
 game starts while the page is open and 1.3 when the page opens on a game already under

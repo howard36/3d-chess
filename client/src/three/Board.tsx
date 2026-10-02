@@ -15,7 +15,7 @@ import type { GlidePlan } from './glide';
 import { MoveGlide } from './moveAnimation';
 import { PIECE_LIFT } from './pieceMotion';
 import { prefersReducedMotion } from './motion';
-import { MATE_TUNING } from '../lib/mateTuning';
+import { MATE_TUNING } from '../lib/mate';
 import { isTap } from './tap';
 import { useExactClicks } from './exactClicks';
 import { useTapAssist } from './useTapAssist';
@@ -24,7 +24,7 @@ import type { LevelFocus, MarkerProps, PieceColor, Vec3 } from './types';
 import { resolveHover } from './hover';
 import type { FloorSquare } from './hover';
 import { CaptureFx, Celebration } from './scene/fx';
-import { TEETER_STRIKE_MS } from './pieceMotion';
+import { KNOCK_STRIKE_MS } from './pieceMotion';
 import { fallAway } from './mate';
 import { Grid } from './scene/grid';
 import { Capture, Check, LastMove, Quiet } from './scene/markers';
@@ -354,8 +354,8 @@ const Board = (props: BoardProps) => {
     ({ type, color }) => type === PieceType.King && color === matedColor,
   );
 
-  // --- The mate (lib/mateStyle.ts): the mating piece's arrival knocks the
-  // king back, away from it, and he teeters at the edge of his balance and
+  // --- The mate (lib/mate.ts): the mating piece's arrival knocks the
+  // king back, away from it, and he hangs at the edge of his balance and
   // falls, and as he strikes, the winning army hops in a
   // wave out from him. Its beats count from the mating move's landing, and
   // play out only for a mate that arrived live: from history he just falls.
@@ -375,7 +375,7 @@ const Board = (props: BoardProps) => {
         const far = Math.hypot(x - king[0], y - king[1], z - king[2]);
         cheer.set(
           toZXY(coord),
-          TEETER_STRIKE_MS + MATE_TUNING.waveDelayMs + (1000 * far) / MATE_TUNING.waveSpeed,
+          KNOCK_STRIKE_MS + MATE_TUNING.waveDelayMs + (1000 * far) / MATE_TUNING.waveSpeed,
         );
       }
     }
@@ -529,7 +529,7 @@ const Board = (props: BoardProps) => {
               inCheck={inCheck}
               level={coord.z}
               mated={isMated}
-              teeter={isMated && !!mate?.live}
+              knocked={isMated && !!mate?.live}
               fallAway={isMated ? mate?.away : undefined}
               cheerAt={mate?.cheer.get(key)}
               carried={!!carried && sameCoord(carried, coord)}
@@ -611,7 +611,7 @@ const Board = (props: BoardProps) => {
             {...markerAt(matedKing.coord)}
             speed={MATE_TUNING.pulseSpeed}
             // The pulse leaves as he strikes the floor
-            delayMs={mate.live ? TEETER_STRIKE_MS - 60 : 0}
+            delayMs={mate.live ? KNOCK_STRIKE_MS - 60 : 0}
           />
         )}
       </group>

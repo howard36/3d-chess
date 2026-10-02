@@ -1,6 +1,6 @@
 import React from 'react';
 import type { GameOver } from '../game/history';
-import { MATE_HOLD_MS } from '../lib/mateStyle';
+import { MATE_HOLD_MS } from '../lib/mate';
 import { onToppled } from '../three/toppled';
 
 /** If the scene never says the king has fallen (frames stopped), the card shows anyway. */
@@ -15,7 +15,7 @@ const STALEMATE_WAIT_MS = 600;
  * Whether the result card is up. A game that ended while the page was open
  * (`endedLive`) plays its end first: at mate, until the scene says the king
  * has struck the floor (on its own clock, so a slow device never covers the
- * fall early) and then a hold on the final board (lib/mateStyle.ts), with a generous fallback in case frames stop; at
+ * fall early) and then a hold on the final board (lib/mate.ts), with a generous fallback in case frames stop; at
  * stalemate, a moment. A finished game reopened shows the card at once.
  * Timed on animation frames, the clock the scene runs on.
  */

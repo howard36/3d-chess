@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fallAway } from './mate';
 import {
   KNOCK_FALL,
-  TEETER_STRIKE_MS,
+  KNOCK_STRIKE_MS,
   TIPPING_MS,
   TOPPLE_MS,
   TOPPLE_STRIKE,
@@ -19,23 +19,23 @@ describe('a knocked king’s fall', () => {
     // Fast off the knock
     expect(speed(0)).toBeGreaterThan(5 * speed(TIPPING_MS - 20));
     // Hanging at the edge, a fraction of a second
-    const near = Array.from({ length: TEETER_STRIKE_MS }, (_, ms) => at(ms)).filter(
+    const near = Array.from({ length: KNOCK_STRIKE_MS }, (_, ms) => at(ms)).filter(
       (a) => Math.abs(a - KNOCK_FALL.tipAt) < 0.08,
     ).length;
     expect(near).toBeGreaterThan(300);
     expect(near).toBeLessThan(700);
     // Never back toward standing: the knock carries him over
-    for (let ms = 0; ms < TEETER_STRIKE_MS; ms += 5) expect(at(ms + 5)).toBeGreaterThan(at(ms));
+    for (let ms = 0; ms < KNOCK_STRIKE_MS; ms += 5) expect(at(ms + 5)).toBeGreaterThan(at(ms));
     // Gravity takes the rest, gathering speed to the floor
-    expect(speed(TEETER_STRIKE_MS - 20)).toBeGreaterThan(speed(TIPPING_MS + 50));
+    expect(speed(KNOCK_STRIKE_MS - 20)).toBeGreaterThan(speed(TIPPING_MS + 50));
   });
 
   it('strikes the floor at the end of the fall, then settles', () => {
-    expect(TEETER_STRIKE_MS).toBeGreaterThan(800);
-    expect(TEETER_STRIKE_MS).toBeLessThan(1500);
-    expect(toppleAngle(TEETER_STRIKE_MS - 1, true).struck).toBe(false);
-    expect(toppleAngle(TEETER_STRIKE_MS, true).struck).toBe(true);
-    expect(toppleAngle(TEETER_STRIKE_MS + 2000, true).settled).toBe(true);
+    expect(KNOCK_STRIKE_MS).toBeGreaterThan(800);
+    expect(KNOCK_STRIKE_MS).toBeLessThan(1500);
+    expect(toppleAngle(KNOCK_STRIKE_MS - 1, true).struck).toBe(false);
+    expect(toppleAngle(KNOCK_STRIKE_MS, true).struck).toBe(true);
+    expect(toppleAngle(KNOCK_STRIKE_MS + 2000, true).settled).toBe(true);
   });
 
   it('leaves a plain fall as before', () => {

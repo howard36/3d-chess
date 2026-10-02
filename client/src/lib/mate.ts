@@ -1,4 +1,10 @@
-// The mate's timings, shared by the scene (Board) and the pulse (scene/fx.tsx).
+// How a checkmate plays out, shared by the scene (Board, the mated king, the
+// pulse) and the screen (when the result card comes). Kept apart from the
+// scene, so the screen can read it without loading three.js.
+//
+// The mating piece knocks the king over (three/pieceMotion.tsx, KNOCK_FALL);
+// as he strikes the floor a pulse of light spreads across his level, and a
+// moment later the winning army hops in a wave out from him.
 
 export const MATE_TUNING: Readonly<{
   knockLeadMs: number;
@@ -19,3 +25,6 @@ export const MATE_TUNING: Readonly<{
   /** How long after the king strikes the floor the wave sets off (ms). */
   waveDelayMs: 370,
 };
+
+/** How long the final board is held after the king strikes the floor before the result card comes (ms). */
+export const MATE_HOLD_MS = 1300;
