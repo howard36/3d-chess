@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { act } from 'react';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
-import { Quaternion, Vector3 } from 'three';
+import { Vector3 } from 'three';
 import type { Group, Object3D } from 'three';
-import { contactAtMs, GLIDE, glideEndMs, glidePose, planGlide, touchdownMs } from './glide';
+import { contactAtMs, GLIDE, glidePose, planGlide, touchdownMs } from './glide';
 import { MoveGlide } from './moveAnimation';
 import {
   easeLift,
@@ -23,21 +23,18 @@ import {
 type Vec = { x: number; y: number; z: number };
 const FROM: [number, number, number] = [0, 0, 2];
 const TO: [number, number, number] = [0, 0, 0];
-const FOOT: [number, number, number] = [0, -0.4, 0];
 
 async function glide(plan = planGlide(FROM, TO), onLanded?: () => void) {
   const renderer = await ReactThreeTestRenderer.create(
-    <MoveGlide plan={plan} foot={FOOT} onLanded={onLanded}>
+    <MoveGlide plan={plan} onLanded={onLanded}>
       <mesh userData={{ body: true }} />
     </MoveGlide>,
   );
   const scene = renderer.scene as ReactThreeTestInstance;
   const outer = scene.findAll((n) => n.props.userData?.moveGlide === true)[0]
     .instance as unknown as Group;
-  const body = scene.findAll((n) => n.props.userData?.body === true)[0]
-    .instance as unknown as Object3D;
   const frames = (n: number) => act(async () => renderer.advanceFrames(n, 0.01));
-  return { outer, body, frames, pos: () => outer.position as Vec };
+  return { outer, frames, pos: () => outer.position as Vec };
 }
 
 describe('planGlide', () => {
@@ -49,114 +46,64 @@ describe('planGlide', () => {
     expect(planGlide([4, 5.4, 4], TO).travelMs).toBe(GLIDE.maxMs);
   });
 
-  it('crouches before a hop from the floor, not when the player already holds it up', () => {
-    expect(planGlide(FROM, TO).crouchMs).toBe(GLIDE.crouchMs);
-    expect(planGlide(FROM, TO, { lift: 0.11 }).crouchMs).toBe(0);
-  });
-
-  it('jumps a knight higher than it carries any other piece', () => {
-    expect(planGlide(FROM, TO, { knight: true }).hop).toBeGreaterThan(
-      planGlide([4, 5.4, 4], TO).hop,
-    );
-  });
-
   it('heads along the move across the board, and has no heading straight up', () => {
     expect(planGlide(FROM, TO).heading).toEqual([-0, -1]);
     expect(planGlide([0, 1.35, 0], TO).heading).toBeNull();
   });
 
-  it('meets a victim short of its square, holds the hit, and lands harder', () => {
+  it('meets a victim short of its square, without stopping', () => {
     const quiet = planGlide(FROM, TO);
     const capture = planGlide(FROM, TO, { capture: true });
-    expect(quiet.contactMs).toBeNull();
-    expect(capture.contactMs!).toBeGreaterThan(0);
-    expect(capture.contactMs!).toBeLessThan(capture.travelMs);
-    expect(touchdownMs(capture)).toBe(touchdownMs(quiet) + GLIDE.hitstopMs);
-    expect(contactAtMs(capture)).toBe(capture.crouchMs + capture.contactMs!);
-    expect(capture.squash).toBeGreaterThan(quiet.squash);
+    expect(contactAtMs(quiet)).toBeNull();
+    expect(contactAtMs(capture)!).toBeGreaterThan(0);
+    expect(contactAtMs(capture)!).toBeLessThan(capture.travelMs);
+    expect(touchdownMs(capture)).toBe(touchdownMs(quiet));
+    // GLIDE.contactReach short of the square
+    expect(glidePose(capture, contactAtMs(capture)!).offset[2]).toBeCloseTo(GLIDE.contactReach);
   });
 });
 
 describe('glidePose', () => {
   const plan = planGlide(FROM, TO);
-  const air = (u: number) => glidePose(plan, plan.crouchMs + u * plan.travelMs);
 
-  it('starts on the source square, crouching, and ends at rest on its own', () => {
+  it('slides along the straight line, without lifting, from the source to rest', () => {
     expect(glidePose(plan, 0).offset).toEqual(FROM);
-    expect(glidePose(plan, plan.crouchMs / 2).scaleY).toBeLessThan(1);
-    expect(glidePose(plan, glideEndMs(plan))).toEqual({
-      offset: [0, 0, 0],
-      scaleY: 1,
-      lean: 0,
-      progress: 1,
-    });
+    for (let ms = 0; ms <= plan.travelMs; ms += 20) {
+      const [x, y, z] = glidePose(plan, ms).offset;
+      expect(x).toBe(0);
+      expect(y).toBe(0);
+      expect(z).toBeGreaterThanOrEqual(0);
+    }
+    expect(glidePose(plan, plan.travelMs).offset).toEqual([0, 0, 0]);
   });
 
-  it('arcs over the straight line and comes down onto the square', () => {
-    const mid = air(0.5);
-    expect(mid.offset[1]).toBeCloseTo(plan.hop);
-    expect(mid.offset[2]).toBeCloseTo(1);
-    // Still falling as it lands
-    expect(air(0.95).offset[1]).toBeGreaterThan(0);
-    expect(air(1).offset).toEqual([0, 0, 0]);
+  it('eases out of its square and into the next, fastest midway', () => {
+    const step = (ms: number) => glidePose(plan, ms).offset[2] - glidePose(plan, ms + 10).offset[2];
+    const middle = step(plan.travelMs / 2 - 5);
+    expect(step(0)).toBeLessThan(middle / 5);
+    expect(step(plan.travelMs - 10)).toBeLessThan(middle / 5);
   });
 
-  it('stretches in the air, leans back setting off and forward arriving, then squashes', () => {
-    expect(air(0.5).scaleY).toBeGreaterThan(1);
-    expect(air(0.25).lean).toBeLessThan(0);
-    expect(air(0.75).lean).toBeGreaterThan(0);
-    const down = touchdownMs(plan);
-    const squash = Math.min(
-      ...[10, 20, 30, 40, 50, 60].map((ms) => glidePose(plan, down + ms).scaleY),
-    );
-    expect(squash).toBeCloseTo(1 - plan.squash, 1);
-    expect(squash).toBeLessThan(1 - plan.squash * 0.8);
-  });
-
-  it('sets off from where the player held it', () => {
+  it('sets off from where the player held it, and settles onto its square', () => {
     const held = planGlide(FROM, TO, { lift: 0.11 });
     expect(glidePose(held, 0).offset[1]).toBeCloseTo(0.11);
-  });
-
-  it('holds still while it hits its victim', () => {
-    const capture = planGlide(FROM, TO, { capture: true });
-    const at = contactAtMs(capture)!;
-    const hit = glidePose(capture, at).offset;
-    expect(glidePose(capture, at + capture.hitstopMs / 2).offset).toEqual(hit);
-    expect(glidePose(capture, at + capture.hitstopMs).offset).toEqual(hit);
-    expect(glidePose(capture, at + capture.hitstopMs + 20).offset[2]).toBeLessThan(hit[2]);
+    expect(glidePose(held, held.travelMs / 2).offset[1]).toBeCloseTo(0.055);
+    expect(glidePose(held, held.travelMs).offset[1]).toBe(0);
   });
 });
 
 describe('MoveGlide', () => {
-  it('carries the piece along the plan, and is at rest once it has settled', async () => {
+  it('carries the piece along the plan, and rests it on its square', async () => {
     const plan = planGlide(FROM, TO);
     const { frames, pos } = await glide(plan);
     expect(pos()).toMatchObject({ x: 0, y: 0, z: 2 });
     await frames(20);
     expect(pos().z).toBeCloseTo(glidePose(plan, 200).offset[2]);
-    expect(pos().y).toBeGreaterThan(0);
-    await frames(Math.ceil(glideEndMs(plan) / 10));
+    await frames(Math.ceil(plan.travelMs / 10));
     expect(pos()).toMatchObject({ x: 0, y: 0, z: 0 });
   });
 
-  it('shapes the piece about its foot, keeping its volume', async () => {
-    const plan = planGlide(FROM, TO);
-    const { body, frames } = await glide(plan);
-    // Just after touchdown: squashed
-    await frames(Math.ceil(touchdownMs(plan) / 10) + 3);
-    const foot = new Vector3(...FOOT);
-    const scale = new Vector3();
-    body.updateWorldMatrix(true, false);
-    body.matrixWorld.decompose(new Vector3(), new Quaternion(), scale);
-    expect(scale.y).toBeLessThan(1);
-    expect(scale.x * scale.x * scale.y).toBeCloseTo(1, 5);
-    // The foot stays put on the floor as it squashes
-    const local = foot.clone().applyMatrix4(body.matrixWorld);
-    expect(local.y).toBeCloseTo(FOOT[1], 5);
-  });
-
-  it('reports its landing once, at touchdown', async () => {
+  it('reports its landing once, as it comes to rest', async () => {
     const plan = planGlide(FROM, TO, { capture: true });
     let landings = 0;
     const { frames } = await glide(plan, () => landings++);
@@ -177,7 +124,7 @@ describe('useGlide', () => {
       return <mesh />;
     };
     const renderer = await ReactThreeTestRenderer.create(
-      <MoveGlide plan={planGlide(FROM, TO)} foot={FOOT} fromLevel={0} toLevel={2}>
+      <MoveGlide plan={planGlide(FROM, TO)} fromLevel={0} toLevel={2}>
         <Body />
       </MoveGlide>,
     );

@@ -369,15 +369,17 @@ Play is marked in light on the glass: a thin gold circle round each square the s
 piece can reach (fuller under the pointer), red round a capture (four arcs turning slowly round the victim), a mint line from the last
 move's source to its destination, and a king in check turns red among four clusters of dark obsidian blades. A
 piece under the pointer lifts a little; the selected piece lifts higher and holds still in
-a column of cool light. A move is a piece picked up, carried and set down
-(`three/glide.ts`, played by `MoveGlide` in `three/moveAnimation.tsx`): it crouches and hops
-off its square (or sets off from where the player held it up, which it stays at while its
-move goes to the server), travels the straight line between the squares in a low arc (a
-knight's higher), stretching a little and leaning back as it speeds up and forward as it
-slows, and lands with a squash and a small settle, taking longer the farther it goes. A
-capture holds still for a beat as the attacker reaches its victim, whose outline flashes;
-the victim is knocked over away from it, burning away as it falls, while a small ring of
-light spreads on the glass at its foot, and the attacker lands harder. A king put in check
+a column of cool light. A move glides, the piece rigid, along the straight line
+between the squares, easing out of its square and into the next and taking longer the
+farther it goes (`three/glide.ts`, played by `MoveGlide` in `three/moveAnimation.tsx`); a
+piece the player held up stays up while its move goes to the server and settles onto its
+square on the way. As the attacker reaches its victim a small ring of light spreads on the
+glass at its foot and the victim goes in the style chosen at the bottom right of the HUD
+(`CapturePicker`, remembered in `lib/captureStyle.ts`, with a button that plays the last
+move again): Topple (knocked over away from the attacker, its outline flashing, burning
+away as it falls), Burn (in place, from the crown down), Crumble and Shatter (broken into
+shards, `scene/fragments.ts`, that drop round its foot or fly on along the attacker's way,
+then burn away) or Sink (down through its square). A king put in check
 rocks on his foot as the check lands, and a piece the player taps but cannot pick up shakes
 its head (`Jolt` in `three/pieceMotion.tsx`); with reduced motion none of this plays. At mate the king
 topples and a pulse of light spreads across his own level at an even speed (`scene/fx.tsx`), and the result card appears as he

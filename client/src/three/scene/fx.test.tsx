@@ -8,6 +8,8 @@ import { CaptureFx, Celebration, PULSE_SPEED, pulseSeconds } from './fx';
 import { PieceType } from '../../engine/pieces';
 import type { ShaderMaterial } from 'three';
 import { FRAME } from './palette';
+import { fragmentsOf } from './fragments';
+import { wholePiece } from './occlusion';
 
 describe('the checkmate pulse', () => {
   it('spreads at one speed, so it takes longer from a corner than from the middle', () => {
@@ -52,7 +54,6 @@ describe('a capture', () => {
         floor={[0, 0, 0]}
         victim={{ type: PieceType.Rook, color: 'black' }}
         hitMs={300}
-        hitstopMs={80}
         landMs={500}
         orientation="white"
       />,
@@ -65,13 +66,12 @@ describe('a capture', () => {
     expect(glazes[0].defines).toEqual({ GLAZE_CUT: '' });
   });
 
-  it('stands until it is hit, then is knocked over away from the attacker, with a ring at its foot', async () => {
+  it('topples: stands until it is hit, then is knocked over away from the attacker, with a ring at its foot', async () => {
     const r = await ReactThreeTestRenderer.create(
       <CaptureFx
         floor={[0, FRAME.levelY[0], 0]}
         victim={{ type: PieceType.Pawn, color: 'black' }}
         hitMs={200}
-        hitstopMs={80}
         landMs={400}
         heading={[1, 0]}
         orientation="white"
@@ -98,9 +98,8 @@ describe('a capture', () => {
     // Not yet hit
     expect(top().x).toBeCloseTo(upright.x, 5);
     expect(ring().visible).toBe(false);
-    // In the hit: still standing, the ring spreading
+    // Hit: the ring spreads
     await act(async () => r.advanceFrames(8, 0.01));
-    expect(top().x).toBeCloseTo(upright.x, 5);
     expect(ring().visible).toBe(true);
     // Then knocked over, toward +x, the way the attacker was going
     await act(async () => r.advanceFrames(25, 0.01));
@@ -109,5 +108,81 @@ describe('a capture', () => {
     await act(async () => r.advanceFrames(25, 0.01));
     expect(top().x).toBeGreaterThan(upright.x + 0.3);
     expect(top().y).toBeLessThan(upright.y);
+  });
+
+  const meshesOf = (r: Awaited<ReturnType<typeof ReactThreeTestRenderer.create>>) =>
+    (r.scene as ReactThreeTestInstance)
+      .findAll((n) => n.type === 'Mesh')
+      .map((n) => n.instance as unknown as Mesh);
+
+  for (const style of ['crumble', 'shatter'] as const) {
+    it(`${style}s: breaks into shards as it is hit, which come down onto the glass and go`, async () => {
+      const r = await ReactThreeTestRenderer.create(
+        <CaptureFx
+          floor={[0, 0, 0]}
+          victim={{ type: PieceType.Rook, color: 'black' }}
+          hitMs={100}
+          landMs={300}
+          heading={[1, 0]}
+          style={style}
+          orientation="white"
+        />,
+      );
+      const shards = () => meshesOf(r).filter((m) => !m.matrixAutoUpdate);
+      expect(shards().length).toBeGreaterThan(8);
+      const group = shards()[0].parent!;
+      expect(group.visible).toBe(false);
+      await act(async () => r.advanceFrames(40, 0.01));
+      expect(group.visible).toBe(true);
+      // Every shard has moved, and none has gone through the glass
+      for (const m of shards()) {
+        const centre = new Vector3();
+        m.geometry.boundingBox!.getCenter(centre);
+        const moved = centre.clone().applyMatrix4(m.matrix);
+        expect(moved.distanceTo(centre)).toBeGreaterThan(1e-4);
+        m.geometry.computeBoundingBox();
+        const low = m.geometry.boundingBox!.min.clone().applyMatrix4(m.matrix);
+        expect(low.y).toBeGreaterThan(-0.25);
+      }
+      await act(async () => r.advanceFrames(150, 0.01));
+      expect(meshesOf(r)).toHaveLength(0);
+    });
+  }
+
+  it('sinks: goes down through its square as it burns', async () => {
+    const r = await ReactThreeTestRenderer.create(
+      <CaptureFx
+        floor={[0, 0, 0]}
+        victim={{ type: PieceType.Pawn, color: 'black' }}
+        hitMs={100}
+        landMs={300}
+        style="sink"
+        orientation="white"
+      />,
+    );
+    const body = () =>
+      meshesOf(r).find((m) => (m.material as ShaderMaterial).fragmentShader.includes('uCut'))!;
+    const y = () => {
+      const m = body();
+      m.updateWorldMatrix(true, false);
+      return new Vector3().applyMatrix4(m.matrixWorld).y;
+    };
+    const standing = y();
+    await act(async () => r.advanceFrames(50, 0.01));
+    expect(y()).toBeLessThan(standing - 0.1);
+    expect((body().material as ShaderMaterial).uniforms.uCut.value).toBeGreaterThan(0);
+  });
+});
+
+describe('the shards of a piece', () => {
+  it('cover the whole piece, each piece cut once and shared', () => {
+    const shards = fragmentsOf(PieceType.Queen);
+    const whole = wholePiece(PieceType.Queen);
+    const count = (whole.index ? whole.index.count : whole.getAttribute('position').count) / 3;
+    expect(shards.reduce((n, f) => n + f.geometry.getAttribute('position').count / 3, 0)).toBe(
+      count,
+    );
+    expect(fragmentsOf(PieceType.Queen)).toBe(shards);
+    for (const f of shards) expect(f.below).toBeGreaterThanOrEqual(0);
   });
 });

@@ -1326,3 +1326,53 @@
   width: min(440px, calc(100vw - 32px));
   pointer-events: auto;
 }
+
+/* How captures play, at the bottom right (CapturePicker) */
+.hud-capture {
+  position: absolute;
+  right: 12px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 10px;
+  font-size: 12px;
+  color: var(--hud-muted);
+  pointer-events: auto;
+  opacity: var(--intro-hud, 1);
+}
+.hud-capture select {
+  height: 26px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--hud-fg);
+  font: inherit;
+  cursor: pointer;
+}
+.hud-capture select option {
+  background: #0b0d12;
+}
+.hud-replay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--hud-fg);
+  cursor: pointer;
+}
+.hud-replay:disabled {
+  color: var(--hud-muted);
+  opacity: 0.5;
+  cursor: default;
+}
+.hud-capture select:focus-visible,
+.hud-replay:focus-visible {
+  outline: 1px solid var(--hud-accent);
+}

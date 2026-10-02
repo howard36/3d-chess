@@ -3,8 +3,9 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import Board from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
 import { layout, PIECE_SCALE } from './scene/palette';
-import { contactAtMs, glideEndMs, glidePose, planGlide, touchdownMs } from './glide';
+import { contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
 import { PIECE_LIFT } from './pieceMotion';
+import { replayLastMove, setCaptureStyle } from '../lib/captureStyle';
 import { useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import type { BufferGeometry, Camera, Object3D, PerspectiveCamera, Scene } from 'three';
@@ -906,11 +907,10 @@ describe('Board', () => {
       expect(group.position.x).toBeCloseTo(px);
       expect(group.position.y).toBeCloseTo(py);
       expect(group.position.z).toBeCloseTo(pz);
-      expect(group.position.y).toBeGreaterThan(0);
 
       // Once it has settled: home, resting position untouched
       await act(async () => {
-        await renderer.advanceFrames(glideEndMs(plan) / 10, 0.01);
+        await renderer.advanceFrames(touchdownMs(plan) + 50 / 10, 0.01);
       });
       expect(group.position.x).toBe(0);
       expect(group.position.y).toBe(0);
@@ -957,6 +957,23 @@ describe('Board', () => {
       expect(kingBody().inCheck).toBe(true);
     });
 
+    it('plays the last move again, its capture in the chosen style, when asked', async () => {
+      const victim = { type: PieceType.Pawn, color: 'black' as const };
+      const renderer = await ReactThreeTestRenderer.create(
+        <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1, victim)} />,
+      );
+      // History: nothing plays
+      expect(glideGroups(renderer)).toHaveLength(0);
+      captures.length = 0;
+      await act(async () => {
+        setCaptureStyle('crumble');
+        replayLastMove();
+      });
+      expect(glideGroups(renderer)).toHaveLength(1);
+      expect(last(captures)).toMatchObject({ victim, style: 'crumble' });
+      setCaptureStyle('topple');
+    });
+
     it('shows a check from history at once', async () => {
       const board = boardAfterMove();
       board.setPiece({ x: 4, y: 4, z: 4 }, null);
@@ -984,7 +1001,6 @@ describe('Board', () => {
       const plan = planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'), { capture: true });
       expect(last(captures)).toMatchObject({
         hitMs: contactAtMs(plan),
-        hitstopMs: plan.hitstopMs,
         landMs: touchdownMs(plan),
         heading: plan.heading,
       });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { AdditiveBlending, Color, DoubleSide, PlaneGeometry } from 'three';
-import { Vector3 } from 'three';
+import { Matrix4, Quaternion, Vector3 } from 'three';
 import type { Group, Mesh } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { MOVE_ANIMATION, prefersReducedMotion } from '../motion';
@@ -11,6 +11,8 @@ import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
 import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
 import { easeOutCubic, easeOutQuad } from './ease';
 import { wholePiece } from './occlusion';
+import { fragmentsOf, shardRandom } from './fragments';
+import type { Fragment } from './fragments';
 import { overlayMaterial } from './overlay';
 import { bodyMaterial } from './pieces';
 import { gardenBoost } from './stage';
@@ -88,31 +90,74 @@ export const outlineMaterial = () =>
 
 const CAPTURE_MS = 820;
 
-/** The hit: the victim knocked over away from the attacker, and a ring on the glass. */
+/** The capture's tunings, by style. */
 export const KNOCK = {
-  /** How long it takes to fall as far as it goes, and how far (radians). */
+  /** Topple: how long the victim takes to fall as far as it goes, and how far (radians). */
   ms: 460,
   angle: 1.2,
   /** How far it slides away meanwhile (piece units). */
   slide: 0.16,
-  /** Its outline's flash in the hit. */
+  /** Its outline's flash as it is hit. */
   flash: 0.9,
   /** The ring of light on the glass at its foot: how far it spreads, and for how long. */
   ringReach: 0.85,
   ringMs: 420,
+  /** Crumble and shatter: the pull on the shards (piece units a second, squared). */
+  gravity: 9,
+  /** When the shards start to burn away after the hit, and how long it takes. */
+  shardsBurnAt: 520,
+  shardsBurnMs: 480,
+  /** Sink: how deep it sinks (piece units) and how long it takes. */
+  sinkDepth: 1.1,
+  sinkMs: 700,
 };
 // The rim of the base the victim tips over on (piece units), as a king's in Topple
 const PIVOT = 0.22;
+
+/** A shard's flight: where it sets off to, how it spins, and when it lands. */
+interface Flight {
+  velocity: Vector3;
+  axis: Vector3;
+  spin: number;
+  landsAt: number;
+}
+
+/**
+ * How each shard leaves the hit (seconds, piece units, in the piece's own
+ * frame; `forward` is the attacker's way in it): a crumble drops them where they stand,
+ * spreading a little; a shatter flings them out from the middle and on
+ * along the attacker's way.
+ */
+const flights = (shards: Fragment[], shatter: boolean, forward: Vector3): Flight[] =>
+  shards.map(({ centre, below }, i) => {
+    const r = (k: number) => shardRandom(i, k);
+    const out = new Vector3(centre.x, 0, centre.z);
+    if (out.lengthSq() < 1e-6) out.set(r(1) - 0.5, 0, r(2) - 0.5);
+    out.normalize();
+    const velocity = shatter
+      ? out
+          .multiplyScalar(0.7 + 0.9 * r(3))
+          .add(forward.clone().multiplyScalar(0.9 + 0.8 * r(6)))
+          .add(new Vector3(0.4 * (r(4) - 0.5), 0.9 + 1.2 * r(5), 0))
+      : out.multiplyScalar(0.35 + 0.45 * r(3)).add(new Vector3(0, 0.25 * r(5), 0));
+    const axis = new Vector3(r(7) - 0.5, r(8) - 0.5, r(9) - 0.5).normalize();
+    const spin = (shatter ? 6 : 2.5) * (0.5 + r(10)) * (r(11) < 0.5 ? -1 : 1);
+    // It lands when its lowest point reaches the glass: centre.y + vy t - g t^2 / 2 = below
+    const h = centre.y - below;
+    const g = KNOCK.gravity;
+    const landsAt = (velocity.y + Math.sqrt(velocity.y ** 2 + 2 * g * Math.max(h, 0))) / g;
+    return { velocity, axis, spin, landsAt };
+  });
 
 export const CaptureFx = ({
   floor,
   victim,
   hitMs,
-  hitstopMs,
   landMs,
   heading,
   victimFacing,
   orientation,
+  style = 'topple',
 }: CaptureFxProps) => {
   const geometry = wholePiece(victim.type);
   const level = levelAt(floor[1]);
@@ -130,10 +175,14 @@ export const CaptureFx = ({
   const [fx, , fz] = floor;
   const ring = useMemo(() => pulseMaterial(fx, fz, level), [fx, fz, level]);
   useRetireOnUnmount(ring);
+  const breaks = style === 'crumble' || style === 'shatter';
+  const shards = useMemo(() => (breaks ? fragmentsOf(victim.type) : []), [breaks, victim.type]);
+  const shardMeshes = useRef<(Mesh | null)[]>([]);
   const whole = useRef<Group>(null);
   const ghost = useRef<Group>(null);
   const aim = useRef<Group>(null);
   const tip = useRef<Group>(null);
+  const pieces = useRef<Group>(null);
   const ringMesh = useRef<Mesh>(null);
   const camera = useThree((s) => s.camera);
   // Which way it goes: on along the attacker's way, or (for a blow from
@@ -145,41 +194,99 @@ export const CaptureFx = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fixed when the capture arrives
   }, []);
   const yaw = Math.atan2(-away[0], -away[1]);
-  // The attacker is on its way: the victim stands until it is hit, holds
-  // through the hit, its outline flashing, then is knocked over and burns
-  const start = hitMs + hitstopMs;
-  const alive = useLife(
-    Math.max(start + CAPTURE_MS, hitMs + KNOCK.ringMs),
-    (ms) => {
-      const k = Math.max(ms - start, 0) / CAPTURE_MS;
-      const burn = Math.min(k / 0.65, 1);
-      body.uniforms.uCut.value = k > 0 ? burn * 1.05 : -1;
-      if (whole.current) whole.current.visible = burn < 1;
-      // Knocked over: falling faster as it goes, sliding away
-      const kk = Math.min(Math.max(ms - start, 0) / KNOCK.ms, 1);
-      if (tip.current) tip.current.rotation.x = -KNOCK.angle * (0.3 * kk + 0.7 * kk * kk);
-      if (aim.current) aim.current.position.z = -KNOCK.slide * easeOutQuad(kk);
-      // Its outline in light flashes in the hit, then rises a little from it and fades
-      const hit = ms >= hitMs;
-      const glow = k > 0 ? 0.45 * Math.sin(Math.PI * Math.min(k, 1)) : 0;
-      const flash = hit ? KNOCK.flash * Math.max(0, 1 - k / 0.25) : 0;
-      outline.uniforms.uOpacity.value = Math.max(glow, flash);
-      if (ghost.current) ghost.current.position.y = 0.16 * easeOutQuad(k);
-      // The ring spreads from its foot from the moment it is hit
-      const r = hit ? Math.min((ms - hitMs) / KNOCK.ringMs, 1) : 0;
-      ring.uniforms.uRadius.value = KNOCK.ringReach * easeOutCubic(r);
-      ring.uniforms.uOpacity.value = hit && r < 1 ? Math.min(r * 20, 1) * (1 - r) ** 1.5 : 0;
-      if (ringMesh.current) ringMesh.current.visible = hit && r < 1;
-    },
-    landMs,
-  );
-  if (!alive) return null;
   const turn =
     victim.type === PieceType.Knight
       ? (victimFacing ?? knightYaw(victim.type, victim.color, orientation as PieceColor))
       : 0;
-  // (the piece keeps its own facing however it is aimed to fall)
-  const facing: [number, number, number] = [0, turn - yaw, 0];
+  // The piece keeps its own facing however it is aimed to fall
+  const facingYaw = turn - yaw;
+  const flight = useMemo(
+    () =>
+      flights(
+        shards,
+        style === 'shatter',
+        new Vector3(Math.sin(facingYaw), 0, -Math.cos(facingYaw)),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fixed when the capture arrives
+    [shards, style],
+  );
+  const scratch = useMemo(
+    () => ({ q: new Quaternion(), m: new Matrix4(), v: new Vector3(), p: new Vector3() }),
+    [],
+  );
+  const lifeMs =
+    style === 'topple' || style === 'burn'
+      ? hitMs + CAPTURE_MS
+      : style === 'sink'
+        ? hitMs + KNOCK.sinkMs
+        : hitMs + KNOCK.shardsBurnAt + KNOCK.shardsBurnMs;
+
+  // The attacker is on its way: the victim stands until it is hit, and goes
+  // as it is hit, in the chosen style; a ring of light spreads on the glass
+  // at its foot
+  const alive = useLife(
+    Math.max(lifeMs, hitMs + KNOCK.ringMs),
+    (ms) => {
+      const since = ms - hitMs;
+      const hit = since >= 0;
+      const k = Math.max(since, 0) / CAPTURE_MS;
+      const r = hit ? Math.min(since / KNOCK.ringMs, 1) : 0;
+      ring.uniforms.uRadius.value = KNOCK.ringReach * easeOutCubic(r);
+      ring.uniforms.uOpacity.value = hit && r < 1 ? Math.min(r * 20, 1) * (1 - r) ** 1.5 : 0;
+      if (ringMesh.current) ringMesh.current.visible = hit && r < 1;
+      let outlineOpacity = 0;
+
+      if (style === 'topple' || style === 'burn') {
+        // Burns away from the crown down; toppled, it is knocked over away
+        // from the attacker as it burns, its outline flashing as it is hit
+        const burn = Math.min(k / 0.65, 1);
+        body.uniforms.uCut.value = hit ? burn * 1.05 : -1;
+        if (whole.current) whole.current.visible = burn < 1;
+        const glow = hit ? 0.45 * Math.sin(Math.PI * Math.min(k, 1)) : 0;
+        outlineOpacity = glow;
+        if (style === 'topple') {
+          const kk = Math.min(Math.max(since, 0) / KNOCK.ms, 1);
+          if (tip.current) tip.current.rotation.x = -KNOCK.angle * (0.3 * kk + 0.7 * kk * kk);
+          if (aim.current) aim.current.position.z = -KNOCK.slide * easeOutQuad(kk);
+          outlineOpacity = Math.max(glow, hit ? KNOCK.flash * Math.max(0, 1 - k / 0.25) : 0);
+        }
+        if (ghost.current) ghost.current.position.y = 0.16 * easeOutQuad(k);
+      } else if (style === 'sink') {
+        // Down through its square, burning from the crown as it goes
+        const s = Math.min(Math.max(since, 0) / KNOCK.sinkMs, 1);
+        if (aim.current) aim.current.position.y = -KNOCK.sinkDepth * s * s;
+        body.uniforms.uCut.value = hit ? s * 1.05 : -1;
+        if (whole.current) whole.current.visible = s < 1;
+        outlineOpacity = hit ? 0.5 * (1 - s) : 0;
+      } else {
+        // Broken: the shards fall (or fly) and lie on the glass, then burn away
+        if (whole.current) whole.current.visible = !hit;
+        if (pieces.current) pieces.current.visible = hit;
+        const burn = Math.min(Math.max(since - KNOCK.shardsBurnAt, 0) / KNOCK.shardsBurnMs, 1);
+        body.uniforms.uCut.value = burn > 0 ? burn * 1.05 : -1;
+        const t = Math.max(since, 0) / 1000;
+        const { q, m, v, p } = scratch;
+        shards.forEach(({ centre }, i) => {
+          const mesh = shardMeshes.current[i];
+          if (!mesh) return;
+          const f = flight[i];
+          const air = Math.min(t, f.landsAt);
+          // Where its middle has gone, and how far it has turned
+          p.copy(f.velocity).multiplyScalar(air);
+          p.y -= 0.5 * KNOCK.gravity * air * air;
+          q.setFromAxisAngle(f.axis, f.spin * air);
+          v.copy(centre).applyQuaternion(q);
+          m.makeRotationFromQuaternion(q);
+          m.setPosition(centre.x + p.x - v.x, centre.y + p.y - v.y, centre.z + p.z - v.z);
+          mesh.matrix.copy(m);
+        });
+      }
+      outline.uniforms.uOpacity.value = outlineOpacity;
+    },
+    landMs,
+  );
+  if (!alive) return null;
+  const facing: [number, number, number] = [0, facingYaw, 0];
   return (
     <>
       <group position={floor} scale={PIECE_SCALE}>
@@ -196,18 +303,36 @@ export const CaptureFx = ({
                       raycast={noRaycast}
                     />
                   </group>
-                  <group ref={ghost} rotation={facing}>
-                    <mesh
-                      geometry={geometry}
-                      material={outline}
-                      renderOrder={LAYER.trace}
-                      raycast={noRaycast}
-                    />
-                  </group>
+                  {!breaks && (
+                    <group ref={ghost} rotation={facing}>
+                      <mesh
+                        geometry={geometry}
+                        material={outline}
+                        renderOrder={LAYER.trace}
+                        raycast={noRaycast}
+                      />
+                    </group>
+                  )}
                 </group>
               </group>
             </group>
           </group>
+          {breaks && (
+            <group ref={pieces} rotation={facing} visible={false}>
+              {shards.map((shard, i) => (
+                <mesh
+                  key={i}
+                  ref={(mesh) => {
+                    shardMeshes.current[i] = mesh;
+                  }}
+                  geometry={shard.geometry}
+                  material={body}
+                  matrixAutoUpdate={false}
+                  raycast={noRaycast}
+                />
+              ))}
+            </group>
+          )}
         </group>
       </group>
       <mesh

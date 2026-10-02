@@ -101,6 +101,8 @@ export interface LastMoveMarkerProps {
   fresh: boolean;
 }
 
+import type { CaptureStyle } from '../lib/captureStyle';
+
 export interface CaptureFxProps {
   /** The seat the board is drawn for (Black's view walks round the board). */
   orientation: Orientation;
@@ -111,10 +113,10 @@ export interface CaptureFxProps {
   victim: { type: PieceType; color: PieceColor };
   /** When the attacker reaches the victim (ms after the move arrived): the hit. */
   hitMs: number;
-  /** How long the hit holds still before the victim goes. */
-  hitstopMs: number;
-  /** When the attacker touches down. */
+  /** When the attacker comes to rest. */
   landMs: number;
+  /** How the victim leaves (the player's choice, lib/captureStyle.ts); topple by default. */
+  style?: CaptureStyle;
   /** Which way the attacker was going across the board (unit x, z), or null for straight up or down. */
   heading?: [number, number] | null;
 }
