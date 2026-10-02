@@ -136,6 +136,9 @@ export function LandingPreview({ still }: { still: boolean }) {
           frameRings={landingFrameRings}
           hudTopBand={landingBand}
           bottomBand={landingBand}
+          // It only turns about the axis, at one elevation: the tower as seen
+          // from there is centred
+          centre="rings"
         />
         {!still && <AutoOrbit period={LANDING_VIEW.period} />}
         {!still && <DemoDirector key={motion.epoch} veil={veil} onFrame={setPlayed} />}

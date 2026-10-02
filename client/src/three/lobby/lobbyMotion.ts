@@ -1,5 +1,5 @@
 import { FRAME, layout, PIECE_SCALE } from '../scene/palette';
-import { centringShift, FIT_SOFTNESS, fitView, hudTop, ringBounds, zoomRange } from '../cameraFit';
+import { fitShift, fitView, hudTop, zoomRange } from '../cameraFit';
 import type { FitWindow } from '../cameraFit';
 import { introPlan } from '../intro/timeline';
 import { clamp01, easeOutCubic, smooth } from '../scene/ease';
@@ -333,10 +333,7 @@ export const gameOpening = (seat: Side, width: number, height: number, reduced =
   const fit = fitView(pose.elevation, layout.frameRings, view).distance;
   const { min, max } = zoomRange(fit, layout.orbit.minDistance);
   const distance = Math.min(Math.max(fit, min), max);
-  const shift = centringShift(
-    ringBounds(layout.frameRings, pose.elevation, distance, FIT_SOFTNESS),
-    view,
-  );
+  const shift = fitShift(layout.frameRings, pose.elevation, distance, view);
   return {
     // (the entrance the game will play: under reduced motion it has no dolly)
     pose: { ...pose, distance: distance * introPlan('lobby', reduced).dolly.from },

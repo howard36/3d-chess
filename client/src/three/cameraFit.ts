@@ -22,22 +22,30 @@ export function zoomRange(fit: number, minDistance = 0): { min: number; max: num
 
 // --- The centred fit -------------------------------------------------------------
 //
-// Under perspective a box's near corners project further from the middle than
-// its far ones, so a board fitted symmetrically about the orbit target sat low
-// in a landscape window. The fit shifts the lens (a view offset: the camera
-// still stands and turns about the board's centre, nothing pans) so the board
-// sits in the middle of the window between the HUD's bands, and fits the
-// distance to it.
+// The camera stands and turns about the tower's centre (the orbit target), and
+// a lens shift (a view offset: nothing pans) sets where that centre stands on
+// screen: in the middle of the room the HUD's bands leave, so the HUD's pill
+// above and the window's edge below are as far from it. It is the one point
+// on screen that never moves, whichever way the view turns, so the tower is
+// balanced in the room on average over the whole orbit. (Centring the tower's
+// outline as seen from the opening view instead put that point above the
+// middle, by 50 px in a 720 px window: under perspective the bottom platform's
+// near edge, close to the camera, reaches further below the centre from low
+// down than the top reaches above it, and from higher up, or looking up from
+// under the tower, the tower then sat high, its top level under the pill.)
 //
-// What it frames is the same from every side: circles about the tower's
-// vertical axis (FrameRing), wide enough for the tower and its labels at any
-// azimuth. A circle about the axis looks the same however far the camera has
-// turned round it, so the fit and the shift depend on the camera's elevation
-// alone, and the shift is only ever vertical: the tower's axis stays in the
-// middle of the window across while the view turns. (Centring the outline as
-// seen, a diamond one moment and a square the next, with its labels wherever
-// they stood, slid the view sideways as it turned, with kinks where the
-// outline's extreme corner changed and jumps where a label changed side.)
+// What the fit keeps in frame is the same from every side: circles about the
+// tower's vertical axis (FrameRing), wide enough for the tower and its labels
+// at any azimuth. A circle about the axis looks the same however far the
+// camera has turned round it, so the fitted distance depends on the camera's
+// elevation alone, and the shift is only ever vertical: the tower's axis stays
+// in the middle of the window across while the view turns. (Centring the
+// outline as seen, a diamond one moment and a square the next, with its labels
+// wherever they stood, slid the view sideways as it turned, with kinks where
+// the outline's extreme corner changed and jumps where a label changed side.)
+//
+// The landing page's preview, which only ever turns about the axis at one
+// elevation, centres the rings as seen from there instead (centre: 'rings').
 
 /** Rows of CSS pixels at the top of the window kept for the HUD (its pill), which the fitted board stays below. */
 export const HUD_TOP_PX = 56;
@@ -167,6 +175,13 @@ export interface FitWindow {
   topInset?: number;
   /** CSS px kept clear at the bottom (none by default). */
   bottomInset?: number;
+  /**
+   * What the lens shift puts in the middle of the room between the bands:
+   * the orbit target, the tower's centre ('target', the default: the game,
+   * whose view climbs and dips), or the rings' top and bottom as seen from
+   * the fitted elevation ('rings': a view that only turns about the axis).
+   */
+  centre?: 'target' | 'rings';
 }
 
 /** The top band as a share of the window's height, at most half of it. */
@@ -190,12 +205,30 @@ export function centringShift(bounds: ViewBounds, w: FitWindow): [number, number
 }
 
 /**
+ * The lens shift of a view fitted to `rings` from `elevation` (radians),
+ * `distance` from the orbit target: the target in the middle of the room
+ * between the window's bands, or the rings there (FitWindow.centre). Set with
+ * the fit and kept as the view moves (FitCameraToBoard).
+ */
+export function fitShift(
+  rings: readonly FrameRing[],
+  elevation: number,
+  distance: number,
+  w: FitWindow,
+): [number, number] {
+  return w.centre === 'rings'
+    ? centringShift(ringBounds(rings, elevation, distance, FIT_SOFTNESS), w)
+    : centringShift({ left: 0, right: 0, bottom: 0, top: 0 }, w);
+}
+
+/**
  * The distance from the orbit target at which `rings`, seen from `elevation`
- * (radians) and centred by a lens shift, fill the window between its bands
- * with FRAME_MARGIN to spare on the tighter axis; and that shift (both with
- * the top and bottom eased from ring to ring, FIT_SOFTNESS). Neither depends
- * on the camera's azimuth. Zooming is relative to this distance
- * (zoomRange).
+ * (radians) and centred by a lens shift (fitShift), fill the window between
+ * its bands with FRAME_MARGIN to spare on the tighter axis; and that shift
+ * (both with the top and bottom eased from ring to ring, FIT_SOFTNESS).
+ * Neither depends on the camera's azimuth. With the target centred, the
+ * rings' greater reach above or below it decides the height they take.
+ * Zooming is relative to this distance (zoomRange).
  */
 export function fitView(
   elevation: number,
@@ -208,9 +241,10 @@ export function fitView(
   // How much of the room the rings take at distance D (1: exactly the room)
   const fill = (distance: number) => {
     const b = ringBounds(rings, elevation, distance, FIT_SOFTNESS);
+    const tall = w.centre === 'rings' ? b.top - b.bottom : 2 * Math.max(b.top, -b.bottom);
     return Math.max(
       ((b.right - b.left) * FRAME_MARGIN) / (2 * tanH),
-      ((b.top - b.bottom) * FRAME_MARGIN) / (2 * tanV * (1 - band)),
+      (tall * FRAME_MARGIN) / (2 * tanV * (1 - band)),
     );
   };
   let near = nearestOutside(rings, elevation) + 1e-3;
@@ -221,10 +255,7 @@ export function fitView(
     if (fill(mid) > 1) near = mid;
     else far = mid;
   }
-  return {
-    distance: far,
-    shift: centringShift(ringBounds(rings, elevation, far, FIT_SOFTNESS), w),
-  };
+  return { distance: far, shift: fitShift(rings, elevation, far, w) };
 }
 
 /** A camera's elevation above the horizon about `target` (radians), from its position. */
