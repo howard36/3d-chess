@@ -8,6 +8,8 @@ interface EndGameModalProps {
   winner?: Turn;
   /** This player's colour: the result is said to them. */
   seat: Turn;
+  /** At the foot of the screen with the board left in view, rather than over a veil. */
+  docked?: boolean;
 }
 
 /**
@@ -15,11 +17,11 @@ interface EndGameModalProps {
  * or a draw by stalemate, with the winner's stone lit. Its one button, which
  * has focus, starts another game: the side choice.
  */
-const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat }) => {
+const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat, docked = false }) => {
   const navigate = useNavigate();
   const title = result === 'stalemate' ? 'Draw' : winner === seat ? 'You win' : 'You lose';
   return (
-    <div className="hud-veil" style={{ zIndex: 1000 }}>
+    <div className="hud-veil" data-docked={docked || undefined} style={{ zIndex: 1000 }}>
       <div
         className="hud-dialog"
         role="dialog"

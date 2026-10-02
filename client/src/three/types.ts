@@ -122,6 +122,8 @@ export interface CaptureFxProps {
 export interface CelebrationProps {
   /** Floor of the mated king's cell. */
   floor: Vec3;
+  /** Wait this long before the pulse leaves (ms): the king strikes the floor then. */
+  delayMs?: number;
 }
 
 /**

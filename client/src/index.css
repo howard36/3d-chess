@@ -1326,3 +1326,42 @@
   width: min(440px, calc(100vw - 32px));
   pointer-events: auto;
 }
+
+/* The result docked in the bottom right corner, the final board left in view */
+.hud-veil[data-docked] {
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 14px 14px 0;
+  background: transparent;
+  pointer-events: none;
+}
+.hud-veil[data-docked] .hud-dialog {
+  pointer-events: auto;
+  animation: hud-rise 240ms ease both;
+}
+
+/* The mate preview's controls (/mate), over everything, the result card too */
+.mate-demo {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  color: var(--hud-fg);
+  font-family: var(--hud-font);
+  font-size: 13px;
+}
+.mate-demo select {
+  height: 28px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--hud-fg);
+  font: inherit;
+}
+.mate-demo select option {
+  background: #0b0d12;
+}

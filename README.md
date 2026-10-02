@@ -378,9 +378,15 @@ small ring of light spreads on the glass at its foot; it is knocked over away fr
 attacker, burning away as it falls (`CaptureFx` in `scene/fx.tsx`). A king put in check
 rocks on his foot as the check lands, and a piece the player taps but cannot pick up shakes
 its head (`Jolt` in `three/pieceMotion.tsx`); with reduced motion none of this plays. At mate the king
-topples and a pulse of light spreads across his own level at an even speed (`scene/fx.tsx`), and the result card appears as he
-strikes the floor (`onToppled` in `three/pieceMotion.tsx`) while his bounce and the pulse
-play on behind it.
+falls in the style chosen on the mate preview page (`/mate`, a game one move from mate
+with a button that plays it; remembered in `lib/mateStyle.ts`): Classic (he topples at once
+and the result card covers the board as he strikes), Teeter (he rocks on his foot, each
+rock higher, then goes over), Lines (lines of red light draw from every piece giving check
+to him, then he falls), Shatter (he rocks, flashes and bursts into shards that stay on the
+glass) or Wave (he topples and the winning army hops in a wave out from him). A pulse of
+light spreads across his level as he strikes (`scene/fx.tsx`), and the result card follows
+`onToppled` (`three/pieceMotion.tsx`) after the style's hold on the final board, docked in
+the bottom right corner with the board in view (`screens/useEndCard.ts`).
 
 **The entrance.** Opening the game plays a short entrance, just under 4 seconds when the
 game starts while the page is open and 1.3 when the page opens on a game already under

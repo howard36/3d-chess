@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { AdditiveBlending, Color, DoubleSide, PlaneGeometry } from 'three';
-import { Vector3 } from 'three';
+import { Matrix4, Quaternion, Vector3 } from 'three';
 import type { Group, Mesh } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { MOVE_ANIMATION, prefersReducedMotion } from '../motion';
 import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
-import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
+import type { CaptureFxProps, CelebrationProps, PieceColor, Vec3 } from '../types';
 import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
 import { easeOutCubic, easeOutQuad } from './ease';
 import { wholePiece } from './occlusion';
+import { fragmentsOf, shardRandom } from './fragments';
+import type { Fragment } from './fragments';
+import { toppled } from '../toppled';
 import { overlayMaterial } from './overlay';
 import { bodyMaterial } from './pieces';
 import { gardenBoost } from './stage';
@@ -302,7 +305,7 @@ export const pulseMaterial = (x = 0, z = 0, level = 0) =>
  * Mate: one pulse of light from the king's foot across his level as he
  * falls, and the garden's colossal pieces brighten for a breath.
  */
-export const Celebration = ({ floor }: CelebrationProps) => {
+export const Celebration = ({ floor, delayMs = 0 }: CelebrationProps) => {
   const [kx, ky, kz] = floor;
   const level = levelAt(ky);
   const material = useMemo(() => pulseMaterial(kx, kz, level), [kx, kz, level]);
@@ -317,9 +320,10 @@ export const Celebration = ({ floor }: CelebrationProps) => {
   const lifeMs = pulseSeconds(kx, kz) * 1000;
   const still = prefersReducedMotion();
   // (With reduced motion nothing crosses the board, so it is over at once)
-  const alive = useLife(PULSE_DELAY_MS + (still ? 0 : lifeMs), (ms) => {
+  const wait = PULSE_DELAY_MS + delayMs;
+  const alive = useLife(wait + (still ? 0 : lifeMs), (ms) => {
     if (still) return;
-    const x = Math.min(Math.max(ms - PULSE_DELAY_MS, 0) / lifeMs, 1);
+    const x = Math.min(Math.max(ms - wait, 0) / lifeMs, 1);
     // An even pace, reaching the farthest corner just before it has faded
     material.uniforms.uRadius.value = reach * Math.min(x / 0.95, 1);
     material.uniforms.uOpacity.value = x > 0 ? Math.min(x * 14, 1) * (1 - x) ** 0.5 : 0;
@@ -334,5 +338,139 @@ export const Celebration = ({ floor }: CelebrationProps) => {
       renderOrder={LAYER.marker - 0.2}
       raycast={noRaycast}
     />
+  );
+};
+
+// --- A shattering king ----------------------------------------------------------------------
+
+/** The shattered king: his teeter before he breaks, and the pull on his shards. */
+export const SHATTER = {
+  /** The teeter's highest rock (radians) and how many rocks. */
+  rock: 0.12,
+  rocks: 3,
+  gravity: 9,
+  /** His outline's flash as he breaks. */
+  flash: 1,
+  flashMs: 260,
+};
+
+/** How each shard leaves the break (piece units, seconds): out from the middle, up, and down onto the glass. */
+const burst = (shards: Fragment[]) =>
+  shards.map(({ centre, below }, i) => {
+    const r = (k: number) => shardRandom(i, k);
+    const out = new Vector3(centre.x, 0, centre.z);
+    if (out.lengthSq() < 1e-6) out.set(r(1) - 0.5, 0, r(2) - 0.5);
+    out.normalize().multiplyScalar(0.6 + 1.1 * r(3));
+    const velocity = out.add(new Vector3(0, 0.6 + 1.4 * r(5), 0));
+    const axis = new Vector3(r(7) - 0.5, r(8) - 0.5, r(9) - 0.5).normalize();
+    const spin = 5 * (0.5 + r(10)) * (r(11) < 0.5 ? -1 : 1);
+    const h = Math.max(centre.y - below, 0);
+    const g = SHATTER.gravity;
+    const landsAt = (velocity.y + Math.sqrt(velocity.y ** 2 + 2 * g * h)) / g;
+    return { velocity, axis, spin, landsAt };
+  });
+
+/**
+ * A mated king who breaks rather than falls: he rocks on his foot, each
+ * rock wider, for `delayMs`, then flashes and bursts into shards that come
+ * down round him on the glass, where they stay. From history (`live`
+ * false), or with reduced motion, the shards are simply lying there.
+ */
+export const KingShatter = ({
+  floor,
+  color,
+  delayMs,
+  live,
+}: {
+  floor: Vec3;
+  color: PieceColor;
+  delayMs: number;
+  live: boolean;
+}) => {
+  const level = levelAt(floor[1]);
+  const body = useMemo(() => bodyMaterial(color, PieceType.King, level, 'cut'), [color, level]);
+  useRetireOnUnmount(body);
+  const outline = useMemo(outlineMaterial, []);
+  useRetireOnUnmount(outline);
+  const shards = useMemo(() => fragmentsOf(PieceType.King), []);
+  const flight = useMemo(() => burst(shards), [shards]);
+  const whole = useRef<Group>(null);
+  const rock = useRef<Group>(null);
+  const pieces = useRef<Group>(null);
+  const shardMeshes = useRef<(Mesh | null)[]>([]);
+  const broke = useRef(false);
+  const scratch = useMemo(
+    () => ({ q: new Quaternion(), m: new Matrix4(), v: new Vector3(), p: new Vector3() }),
+    [],
+  );
+  const settled = !live || prefersReducedMotion();
+  const restMs = delayMs + 1000 * Math.max(...flight.map((f) => f.landsAt)) + 50;
+  const place = (ms: number) => {
+    const since = ms - delayMs;
+    if (since < 0) {
+      // Rocking on his foot, each time wider
+      const v = ms / delayMs;
+      if (rock.current)
+        rock.current.rotation.z = SHATTER.rock * v * Math.sin(Math.PI * SHATTER.rocks * v);
+      return;
+    }
+    if (!broke.current) {
+      broke.current = true;
+      if (whole.current) whole.current.visible = false;
+      if (pieces.current) pieces.current.visible = true;
+      // His fall is over (the result card waits for it)
+      if (live) toppled();
+    }
+    outline.uniforms.uOpacity.value = SHATTER.flash * Math.max(0, 1 - since / SHATTER.flashMs);
+    const t = since / 1000;
+    const { q, m, v, p } = scratch;
+    shards.forEach(({ centre }, i) => {
+      const mesh = shardMeshes.current[i];
+      if (!mesh) return;
+      const f = flight[i];
+      const air = Math.min(t, f.landsAt);
+      p.copy(f.velocity).multiplyScalar(air);
+      p.y -= 0.5 * SHATTER.gravity * air * air;
+      q.setFromAxisAngle(f.axis, f.spin * air);
+      v.copy(centre).applyQuaternion(q);
+      m.makeRotationFromQuaternion(q);
+      m.setPosition(centre.x + p.x - v.x, centre.y + p.y - v.y, centre.z + p.z - v.z);
+      mesh.matrix.copy(m);
+    });
+  };
+  // Runs its course, then leaves the shards where they lie (no more frames)
+  useLife(settled ? 0 : restMs, (ms) => place(settled ? restMs : ms), restMs);
+  useLayoutEffect(() => {
+    if (settled) place(restMs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, []);
+  return (
+    <group position={floor} scale={PIECE_SCALE}>
+      <group ref={rock}>
+        <group ref={whole}>
+          <mesh geometry={wholePiece(PieceType.King)} material={body} raycast={noRaycast} />
+          <mesh
+            geometry={wholePiece(PieceType.King)}
+            material={outline}
+            renderOrder={LAYER.trace}
+            raycast={noRaycast}
+          />
+        </group>
+      </group>
+      <group ref={pieces} visible={false}>
+        {shards.map((shard, i) => (
+          <mesh
+            key={i}
+            ref={(mesh) => {
+              shardMeshes.current[i] = mesh;
+            }}
+            geometry={shard.geometry}
+            material={body}
+            matrixAutoUpdate={false}
+            raycast={noRaycast}
+          />
+        ))}
+      </group>
+    </group>
   );
 };

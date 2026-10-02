@@ -8,6 +8,9 @@ import { useGameSocket } from './hooks/useGameSocket';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
 
+// The mate preview, for comparing how a mate plays out (loaded only there)
+const MateDemo = React.lazy(() => import('./screens/MateDemo'));
+
 // One GameScreen per game: moving between two game pages (browser history can
 // jump straight from one to another) mounts a fresh screen, so nothing the
 // previous game's screen held (a join in flight, dismissed errors, a move
@@ -57,6 +60,14 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<StartScreen />} />
+      <Route
+        path="/mate"
+        element={
+          <React.Suspense fallback={null}>
+            <MateDemo />
+          </React.Suspense>
+        }
+      />
       {/* The lobby's stage stays up from choosing a side to the game's
           first frame, across the move from /new to the game's page */}
       <Route element={<LobbyLayout />}>

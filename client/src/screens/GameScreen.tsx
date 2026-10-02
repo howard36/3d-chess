@@ -16,7 +16,7 @@ import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole
 import { getClientId } from '../lib/clientId';
 import { gameLink } from '../lib/gameLink';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
-import { onToppled } from '../three/toppled';
+import { useEndCard } from './useEndCard';
 import GameView from './GameView';
 import { selectInvitation } from '../game/invitation';
 import type { Color } from '../types/messages';
@@ -31,13 +31,6 @@ interface GameScreenProps {
 
 type Phase = 'waiting' | 'joined' | 'started';
 
-/** If the scene never says the king has fallen (frames stopped), the card shows anyway. */
-const MATE_FALLBACK_MS = 12000;
-/**
- * At stalemate nothing plays out: the card follows the last move as soon as
- * it has landed (its glide takes 460 ms) and a moment more.
- */
-const STALEMATE_WAIT_MS = 600;
 /** The longest the lobby holds its arrival for the game's first frame. */
 const FIRST_FRAME_WAIT_MS = 4000;
 
@@ -115,38 +108,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   const endedLive =
     [...messages].reverse().find((m) => m.type === 'move_made' || m.type === 'game_state')?.type ===
     'move_made';
-  // The game end whose wait is over (the replay keeps the same object while
-  // the record is unchanged).
-  const [endShown, setEndShown] = React.useState<typeof gameOver>(null);
-  React.useEffect(() => {
-    if (!gameOver || !endedLive) return;
-    // A mate: as soon as the scene says the king has struck the floor (on its
-    // own clock, so a slow device never covers the fall early), while his
-    // bounce and the pulse play on behind the card; with a generous fallback
-    // in case frames stop. A stalemate: a moment. Timed on
-    // animation frames, the clock the scene runs on.
-    const mate = gameOver.result === 'checkmate';
-    const start = performance.now();
-    let fellAt: number | null = null;
-    const unsubscribe = mate
-      ? onToppled(() => {
-          fellAt ??= performance.now();
-        })
-      : () => {};
-    let frame = requestAnimationFrame(function tick() {
-      const now = performance.now();
-      const waited = mate
-        ? fellAt !== null || now - start >= MATE_FALLBACK_MS
-        : now - start >= STALEMATE_WAIT_MS;
-      if (waited) setEndShown(gameOver);
-      else frame = requestAnimationFrame(tick);
-    });
-    return () => {
-      unsubscribe();
-      cancelAnimationFrame(frame);
-    };
-  }, [gameOver, endedLive]);
-  const showEndModal = !!gameOver && (!endedLive || endShown === gameOver);
+  const showEndModal = useEndCard(gameOver, endedLive);
 
   const awaitingMove =
     moveSent !== null &&

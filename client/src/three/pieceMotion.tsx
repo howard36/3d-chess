@@ -181,6 +181,9 @@ export const JOLT = {
   refusedMs: 340,
   refusedShift: 0.05,
   refusedCycles: 2.5,
+  /** The winners' cheer at mate: one hop (piece units) over this long. */
+  cheerMs: 380,
+  cheerHeight: 0.14,
 };
 
 // A decaying wobble, 0 at both ends
@@ -215,17 +218,22 @@ const viewRight = (group: Group, camera: { position: Vector3 }) => {
 export const Jolt = ({
   check,
   refused,
+  cheerAt,
   children,
 }: {
   check: boolean;
   refused: number;
+  /** The winning army's cheer at mate: the piece hops once, this many ms from now. */
+  cheerAt?: number;
   children: React.ReactNode;
 }) => {
   const group = useRef<Group>(null);
   const invalidate = useThree((s) => s.invalidate);
-  const play = useRef<{ kind: 'check' | 'refused'; ms: number; right: Vector3 | null } | null>(
-    null,
-  );
+  const play = useRef<{
+    kind: 'check' | 'refused' | 'cheer';
+    ms: number;
+    right: Vector3 | null;
+  } | null>(null);
   const was = useRef({ check, refused });
   const still = useMemo(prefersReducedMotion, []);
 
@@ -238,6 +246,11 @@ export const Jolt = ({
     else return;
     invalidate();
   }, [check, refused, still, invalidate]);
+  useEffect(() => {
+    if (cheerAt === undefined || still) return;
+    play.current = { kind: 'cheer', ms: -cheerAt, right: null };
+    invalidate();
+  }, [cheerAt, still, invalidate]);
 
   useFrame(({ camera }, delta) => {
     const g = group.current;
@@ -246,7 +259,12 @@ export const Jolt = ({
     p.right ??= viewRight(g, camera);
     p.ms += Math.min(delta * 1000, MOVE_ANIMATION.maxFrameMs);
     const right = p.right;
-    if (p.kind === 'check') {
+    if (p.kind === 'cheer') {
+      // Waiting its turn in the wave, then one hop
+      const v = Math.max(p.ms, 0) / JOLT.cheerMs;
+      g.position.set(0, v >= 1 ? 0 : JOLT.cheerHeight * Math.sin(Math.PI * v), 0);
+      if (v >= 1) play.current = null;
+    } else if (p.kind === 'check') {
       const v = p.ms / JOLT.checkMs;
       // Rocking about the line of sight tips him left and right on screen
       const angle = JOLT.checkAngle * wobble(v, JOLT.checkCycles);
@@ -269,6 +287,9 @@ export const Jolt = ({
   return <group ref={group}>{children}</group>;
 };
 
+/** A mated king's teeter before he falls (Topple's `teeter`): its highest rock (radians), and how many. */
+export const TEETER = { angle: 0.2, rocks: 3 };
+
 /** How long a mated king takes to fall and settle. */
 export const TOPPLE_MS = 900;
 /** The share of that at which he strikes the floor (a settling bounce follows). */
@@ -288,7 +309,19 @@ const PIVOT = 0.22;
  * across the view (toward the camera's right, as seen when the mate lands),
  * so the fallen king shows its profile rather than its base.
  */
-export const Topple = ({ active, children }: { active: boolean; children: React.ReactNode }) => {
+export const Topple = ({
+  active,
+  delayMs = 0,
+  teeter = false,
+  children,
+}: {
+  active: boolean;
+  /** How long he stands before he falls (ms). */
+  delayMs?: number;
+  /** Whether he rocks on the rim of his base meanwhile, each rock higher, before he goes. */
+  teeter?: boolean;
+  children: React.ReactNode;
+}) => {
   const heading = useRef<Group>(null);
   const pivot = useRef<Group>(null);
   const elapsed = useRef(0);
@@ -334,7 +367,17 @@ export const Topple = ({ active, children }: { active: boolean; children: React.
     // most eight frames however slowly they come (the result card waits for
     // it), while the first frame after an idle spell still can't skip it
     elapsed.current += Math.min(delta * 1000, TOPPLE_STEP_MS);
-    const t = Math.min(elapsed.current / TOPPLE_MS, 1);
+    if (elapsed.current < delayMs) {
+      // Standing a while: rocking up onto the rim of his base and back,
+      // each time higher, the way a piece about to go over does
+      const v = elapsed.current / delayMs;
+      g.rotation.x = teeter
+        ? -TEETER.angle * v * Math.abs(Math.sin(Math.PI * TEETER.rocks * v))
+        : 0;
+      invalidate();
+      return;
+    }
+    const t = Math.min((elapsed.current - delayMs) / TOPPLE_MS, 1);
     // Accelerating fall, then a damped rebound off the floor
     const fall =
       t < TOPPLE_STRIKE

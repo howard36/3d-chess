@@ -10,6 +10,7 @@ import type { Move } from '../engine';
 import type { GameHistory } from '../game/history';
 import type { Color } from '../types/messages';
 import EndGameModal from './EndGameModal';
+import { MATE_TIMING, useMateStyle } from '../lib/mateStyle';
 import PromotionPicker from './PromotionPicker';
 import TurnPill from './TurnPill';
 import CapturedPieces from './CapturedPieces';
@@ -103,6 +104,7 @@ const GameView: React.FC<GameViewProps> = ({
   onFirstFrame,
 }) => {
   const { board, moveRecords, currentTurn, lastMove, captured, gameOver } = history;
+  const mateStyleChoice = useMateStyle();
 
   // The entrance's plan and clock, fixed when the view mounts
   const [clock] = React.useState<IntroClock>(() => {
@@ -269,7 +271,12 @@ const GameView: React.FC<GameViewProps> = ({
       {/* End Game Modal */}
       {gameOver && showEndModal && (
         <div inert={replaced}>
-          <EndGameModal result={gameOver.result} winner={gameOver.winner} seat={color ?? 'white'} />
+          <EndGameModal
+            result={gameOver.result}
+            winner={gameOver.winner}
+            seat={color ?? 'white'}
+            docked={gameOver.result === 'checkmate' && MATE_TIMING[mateStyleChoice].docked}
+          />
         </div>
       )}
       {replacedNotice}

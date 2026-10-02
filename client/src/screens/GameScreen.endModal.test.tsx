@@ -1,3 +1,4 @@
+import { MATE_TIMING, mateStyle, setMateStyle } from '../lib/mateStyle';
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocketMessage } from '../types/messages';
@@ -90,10 +91,28 @@ describe('the result card after a mate', () => {
     // However long the board takes to topple the king (a slow device)...
     act(() => vi.advanceTimersByTime(8000));
     expect(result()).not.toBeInTheDocument();
-    // ...the card follows its signal, on the next frame
+    // ...the card follows its signal, after the chosen style's hold on the
+    // final board
     act(() => kingFell());
-    act(() => vi.advanceTimersByTime(20));
+    const hold = MATE_TIMING[mateStyle()].holdMs;
+    act(() => vi.advanceTimersByTime(hold - 50));
+    expect(result()).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(100));
     expect(result()).toBeInTheDocument();
+  });
+
+  it('comes at once as the king strikes in the classic style, over the board', () => {
+    setMateStyle('classic');
+    try {
+      const { rerender } = render(screenFor(beforeMate));
+      rerender(screenFor(mated));
+      act(() => kingFell());
+      act(() => vi.advanceTimersByTime(20));
+      expect(result()).toBeInTheDocument();
+      expect(document.querySelector('.hud-veil')).not.toHaveAttribute('data-docked');
+    } finally {
+      setMateStyle('teeter');
+    }
   });
 
   it('shows the card anyway if the board never says (its frames stopped)', () => {
