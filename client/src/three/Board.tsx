@@ -15,6 +15,7 @@ import type { GlidePlan } from './glide';
 import { MoveGlide } from './moveAnimation';
 import { PIECE_LIFT } from './pieceMotion';
 import { prefersReducedMotion } from './motion';
+import { useMateTuning } from '../lib/mateTuning';
 import { isTap } from './tap';
 import { useExactClicks } from './exactClicks';
 import { useTapAssist } from './useTapAssist';
@@ -107,6 +108,7 @@ const Board = (props: BoardProps) => {
   // Moves already played when this board mounted are history (a rejoin
   // replay): they keep their highlight but must not animate.
   const mountMoveCount = useRef(lastMove?.moveCount ?? 0);
+  const tuning = useMateTuning();
   const animate =
     !!lastMove && lastMove.moveCount > mountMoveCount.current && !prefersReducedMotion();
   // What a live move brings about for the kings (a check's strike, a mate's
@@ -547,6 +549,8 @@ const Board = (props: BoardProps) => {
                 fromLevel={lastMove.move.from.z}
                 toLevel={coord.z}
                 onLanded={() => setLandedMove((n) => Math.max(n, lastMove.moveCount))}
+                // The mate's knock (and a check's strike) as it looks landed
+                landsEarlyMs={tuning.knockLeadMs}
               >
                 {mesh}
               </MoveGlide>
@@ -604,6 +608,7 @@ const Board = (props: BoardProps) => {
         {matedKing && mate && (
           <Celebration
             {...markerAt(matedKing.coord)}
+            speed={tuning.pulseSpeed}
             // The pulse leaves as he strikes the floor
             delayMs={mate.live ? TEETER_STRIKE_MS - 60 : 0}
           />

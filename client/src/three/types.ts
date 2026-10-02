@@ -124,6 +124,8 @@ export interface CelebrationProps {
   floor: Vec3;
   /** Wait this long before the pulse leaves (ms): the king strikes the floor then. */
   delayMs?: number;
+  /** How fast the pulse spreads (world units a second). */
+  speed?: number;
 }
 
 /**

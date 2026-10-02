@@ -1,0 +1,34 @@
+// Two timings of the mate, tunable on the mate preview page (/mate). Kept
+// apart from the scene, so the page can set them without loading three.js.
+import { useSyncExternalStore } from 'react';
+
+export interface MateTuning {
+  /**
+   * How long before the mating piece comes to rest its arrival counts (ms):
+   * the glide eases in so slowly at its end that the piece looks landed a
+   * moment before it is, and the knock lands then.
+   */
+  knockLeadMs: number;
+  /** How fast the pulse of light spreads across the mated king's level (world units a second). */
+  pulseSpeed: number;
+}
+
+export const MATE_TUNING_DEFAULTS: MateTuning = { knockLeadMs: 50, pulseSpeed: 4.6 };
+
+let tuning = MATE_TUNING_DEFAULTS;
+const listeners = new Set<() => void>();
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+
+/** Changes some of the mate's timings (for this page). */
+export const setMateTuning = (change: Partial<MateTuning>) => {
+  tuning = { ...tuning, ...change };
+  listeners.forEach((listener) => listener());
+};
+
+/** The mate's timings. */
+export const useMateTuning = () => useSyncExternalStore(subscribe, () => tuning);

@@ -3,6 +3,7 @@ import { deriveHistory } from '../game/history';
 import type { GameHistory } from '../game/history';
 import type { MoveRecord, WebSocketMessage } from '../types/messages';
 import GameView from './GameView';
+import { setMateTuning, useMateTuning } from '../lib/mateTuning';
 import { useEndCard } from './useEndCard';
 
 // A short game that ends in mate by White (scripts/showcase.mjs plays it too)
@@ -39,8 +40,9 @@ const messagesAt = (plies: number) => {
 
 /**
  * The mate preview (/mate): a game one move from mate, seen from White's
- * seat, with a button that plays the mating move and the mate (again), to
- * look at how a mate plays out (lib/mateStyle.ts).
+ * seat, with buttons that play the mating move and the mate (again) and
+ * go back to the move before it, and sliders for two of its timings
+ * (lib/mateTuning.ts), to look at how a mate plays out and tune it.
  * Nothing goes to the server: the board takes no input.
  */
 const MateDemo: React.FC = () => {
@@ -51,6 +53,12 @@ const MateDemo: React.FC = () => {
   historyRef.current = history;
   const showEndModal = useEndCard(history.gameOver, played);
 
+  const tuning = useMateTuning();
+  // Back to the move before mate
+  const reset = () => {
+    setPlies(BEFORE_MATE);
+    setPlayed(false);
+  };
   // Back to the move before mate for a frame, then the mate again
   const play = () => {
     setPlies(BEFORE_MATE);
@@ -77,6 +85,31 @@ const MateDemo: React.FC = () => {
         <button type="button" className="hud-retry" onClick={play}>
           Play
         </button>
+        <button type="button" className="hud-retry" onClick={reset}>
+          Reset
+        </button>
+        <label>
+          Knock lead <output>{tuning.knockLeadMs} ms</output>
+          <input
+            type="range"
+            min={0}
+            max={250}
+            step={5}
+            value={tuning.knockLeadMs}
+            onChange={(e) => setMateTuning({ knockLeadMs: Number(e.target.value) })}
+          />
+        </label>
+        <label>
+          Pulse speed <output>{tuning.pulseSpeed.toFixed(1)}</output>
+          <input
+            type="range"
+            min={2}
+            max={8}
+            step={0.1}
+            value={tuning.pulseSpeed}
+            onChange={(e) => setMateTuning({ pulseSpeed: Number(e.target.value) })}
+          />
+        </label>
       </div>
     </>
   );

@@ -28,6 +28,7 @@ export const MoveGlide = ({
   fromLevel,
   toLevel,
   onLanded,
+  landsEarlyMs = 0,
 }: {
   plan: GlidePlan;
   children: React.ReactNode;
@@ -43,6 +44,8 @@ export const MoveGlide = ({
    * own landing.)
    */
   onLanded?: () => void;
+  /** Report the landing this much before the piece comes to rest (ms). */
+  landsEarlyMs?: number;
 }) => {
   const group = useRef<Group>(null);
   const progress = useRef(0);
@@ -53,6 +56,7 @@ export const MoveGlide = ({
   );
   const elapsedMs = useRef(0);
   const done = useRef(false);
+  const reported = useRef(false);
   const invalidate = useThree((s) => s.invalidate);
 
   const apply = (ms: number) => {
@@ -75,9 +79,12 @@ export const MoveGlide = ({
     if (done.current || !group.current) return;
     elapsedMs.current += Math.min(delta * 1000, MOVE_ANIMATION.maxFrameMs);
     apply(elapsedMs.current);
+    if (!reported.current && elapsedMs.current >= touchdownMs(plan) - landsEarlyMs) {
+      reported.current = true;
+      landed.current?.();
+    }
     if (elapsedMs.current >= touchdownMs(plan)) {
       done.current = true;
-      landed.current?.();
       return;
     }
     invalidate();

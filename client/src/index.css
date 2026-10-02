@@ -1366,3 +1366,36 @@
     animation: none;
   }
 }
+
+/* The mate preview's controls (/mate), over everything, the result card too */
+.mate-demo {
+  position: fixed;
+  bottom: 14px;
+  left: 12px;
+  z-index: 1100;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+  padding: 6px 10px;
+  color: var(--hud-fg);
+  font-family: var(--hud-font);
+  font-size: 13px;
+}
+.mate-demo label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--hud-muted);
+  font-size: 12px;
+}
+.mate-demo output {
+  min-width: 44px;
+  color: var(--hud-fg);
+  font-variant-numeric: tabular-nums;
+}
+.mate-demo input[type='range'] {
+  width: 110px;
+  accent-color: var(--hud-accent);
+}

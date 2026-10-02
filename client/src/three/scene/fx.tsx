@@ -14,6 +14,7 @@ import { wholePiece } from './occlusion';
 import { overlayMaterial } from './overlay';
 import { bodyMaterial } from './pieces';
 import { gardenBoost } from './stage';
+import { MATE_TUNING_DEFAULTS } from '../../lib/mateTuning';
 import { useRetireOnUnmount } from './programs';
 
 // Motion in light, kept brief. A captured piece is hit as the attacker
@@ -268,7 +269,7 @@ const levelPlane = new PlaneGeometry(REACH * 2, REACH * 2).rotateX(-Math.PI / 2)
 /** The pulse leaves this soon after the king starts to fall. */
 const PULSE_DELAY_MS = 60;
 /** How fast the pulse's front spreads (world units, one per square, a second). */
-export const PULSE_SPEED = 4.2;
+export const PULSE_SPEED = MATE_TUNING_DEFAULTS.pulseSpeed;
 
 /** How far the pulse must spread from `(x, z)`: to the farthest corner of the level's glass. */
 const farthestCorner = (x: number, z: number) =>
@@ -277,9 +278,9 @@ const farthestCorner = (x: number, z: number) =>
   );
 
 /** How long the pulse from `(x, z)` lasts (seconds). */
-export const pulseSeconds = (x: number, z: number) =>
+export const pulseSeconds = (x: number, z: number, speed = PULSE_SPEED) =>
   // The front reaches the far corner at 95% of the pulse's life, as it fades
-  (farthestCorner(x, z) + 0.15) / PULSE_SPEED / 0.95;
+  (farthestCorner(x, z) + 0.15) / speed / 0.95;
 
 /** The mate pulse's material (Celebration), from the king's foot at (x, z) on `level`. */
 export const pulseMaterial = (x = 0, z = 0, level = 0) =>
@@ -302,7 +303,7 @@ export const pulseMaterial = (x = 0, z = 0, level = 0) =>
  * Mate: one pulse of light from the king's foot across his level as he
  * falls, and the garden's colossal pieces brighten for a breath.
  */
-export const Celebration = ({ floor, delayMs = 0 }: CelebrationProps) => {
+export const Celebration = ({ floor, delayMs = 0, speed = PULSE_SPEED }: CelebrationProps) => {
   const [kx, ky, kz] = floor;
   const level = levelAt(ky);
   const material = useMemo(() => pulseMaterial(kx, kz, level), [kx, kz, level]);
@@ -314,7 +315,7 @@ export const Celebration = ({ floor, delayMs = 0 }: CelebrationProps) => {
     [],
   );
   const reach = farthestCorner(kx, kz) + 0.15;
-  const lifeMs = pulseSeconds(kx, kz) * 1000;
+  const lifeMs = pulseSeconds(kx, kz, speed) * 1000;
   const still = prefersReducedMotion();
   // (With reduced motion nothing crosses the board, so it is over at once)
   const wait = PULSE_DELAY_MS + delayMs;

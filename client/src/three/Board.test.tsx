@@ -5,6 +5,7 @@ import type { BoardProps, LastMoveInfo } from './Board';
 import { layout, PIECE_SCALE } from './scene/palette';
 import { contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
 import { PIECE_LIFT } from './pieceMotion';
+import { MATE_TUNING_DEFAULTS } from '../lib/mateTuning';
 import { useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import type { BufferGeometry, Camera, Object3D, PerspectiveCamera, Scene } from 'three';
@@ -941,8 +942,11 @@ describe('Board', () => {
       // Still gliding: no strike, no red king, no fall yet
       expect(drawn.checks).toHaveLength(0);
       expect(kingBody().inCheck).toBe(false);
-      // (frames of 10 ms: just short of its touchdown)
-      const down = touchdownMs(planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white')));
+      // (frames of 10 ms: just short of the moment it counts as landed, a
+      // little before it comes to rest)
+      const down =
+        touchdownMs(planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'))) -
+        MATE_TUNING_DEFAULTS.knockLeadMs;
       await act(async () => {
         await renderer.advanceFrames(Math.floor(down / 10) - 2, 0.01);
       });

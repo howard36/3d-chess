@@ -389,7 +389,9 @@ the winning army hops in a wave out from him. The result card follows `onToppled
 hold on the final board (`lib/mateStyle.ts`, `screens/useEndCard.ts`), docked in the bottom
 right corner with the board in view and in reach: the card is not modal, so the final
 position can still be turned and zoomed to study it (it takes no moves). From history he simply falls. `/mate` is a preview
-page, a game one move from mate with a button that plays it.
+page: a game one move from mate, with buttons that play it and go back, and sliders for
+how early the knock lands (the glide's ease makes a piece look landed a moment before it
+is) and how fast the pulse spreads (`lib/mateTuning.ts`).
 
 **The entrance.** Opening the game plays a short entrance, just under 4 seconds when the
 game starts while the page is open and 1.3 when the page opens on a game already under
