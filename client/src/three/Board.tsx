@@ -15,7 +15,6 @@ import type { GlidePlan } from './glide';
 import { MoveGlide } from './moveAnimation';
 import { PIECE_LIFT } from './pieceMotion';
 import { prefersReducedMotion } from './motion';
-import { useCaptureStyle } from '../lib/captureStyle';
 import { isTap } from './tap';
 import { useExactClicks } from './exactClicks';
 import { useTapAssist } from './useTapAssist';
@@ -103,15 +102,8 @@ const Board = (props: BoardProps) => {
   // Moves already played when this board mounted are history (a rejoin
   // replay): they keep their highlight but must not animate.
   const mountMoveCount = useRef(lastMove?.moveCount ?? 0);
-  // How a capture plays, and a count the player bumps to play the last move
-  // again (lib/captureStyle.ts): a replay animates even a move from history
-  const { style: captureStyle, replay } = useCaptureStyle();
-  const mountReplay = useRef(replay);
-  const replaying = replay > mountReplay.current;
   const animate =
-    !!lastMove &&
-    (lastMove.moveCount > mountMoveCount.current || replaying) &&
-    !prefersReducedMotion();
+    !!lastMove && lastMove.moveCount > mountMoveCount.current && !prefersReducedMotion();
   // What a live move brings about for the kings (a check's strike, a mate's
   // topple and pulse) waits for the moving piece to land (MoveGlide's
   // onLanded); a move from history shows it at once.
@@ -174,17 +166,12 @@ const Board = (props: BoardProps) => {
   }, [props.disabled]);
 
   // How the latest move glides, fixed when it arrives
-  const glidePlan = useRef<{ count: number; replay: number; plan: GlidePlan } | null>(null);
-  if (
-    animate &&
-    lastMove &&
-    (glidePlan.current?.count !== lastMove.moveCount || glidePlan.current.replay !== replay)
-  ) {
+  const glidePlan = useRef<{ count: number; plan: GlidePlan } | null>(null);
+  if (animate && lastMove && glidePlan.current?.count !== lastMove.moveCount) {
     const { from, to } = lastMove.move;
     const lift = carried && sameCoord(carried, from) ? PIECE_LIFT.selected * PIECE_SCALE : 0;
     glidePlan.current = {
       count: lastMove.moveCount,
-      replay,
       plan: planGlide(worldOf(from), worldOf(to), {
         lift,
         capture: !!lastMove.capturedPiece,
@@ -521,7 +508,7 @@ const Board = (props: BoardProps) => {
           if (plan && lastMove && key === lastToKey) {
             return (
               <MoveGlide
-                key={`anim-${lastMove.moveCount}-${replay}`}
+                key={`anim-${lastMove.moveCount}`}
                 plan={plan}
                 fromLevel={lastMove.move.from.z}
                 toLevel={coord.z}
@@ -569,12 +556,11 @@ const Board = (props: BoardProps) => {
         ))}
         {plan && lastMove?.capturedPiece && (
           <CaptureFx
-            key={`capturefx-${lastMove.moveCount}-${replay}`}
+            key={`capturefx-${lastMove.moveCount}`}
             {...markerAt(lastMove.move.to)}
             victim={lastMove.capturedPiece}
             victimFacing={knightFacing(lastMove.capturedPiece.color)}
             hitMs={contactAtMs(plan) ?? touchdownMs(plan)}
-            style={captureStyle}
             landMs={touchdownMs(plan)}
             heading={plan.heading}
             orientation={orientation}

@@ -373,13 +373,9 @@ a column of cool light. A move glides, the piece rigid, along the straight line
 between the squares, easing out of its square and into the next and taking longer the
 farther it goes (`three/glide.ts`, played by `MoveGlide` in `three/moveAnimation.tsx`); a
 piece the player held up stays up while its move goes to the server and settles onto its
-square on the way. As the attacker reaches its victim a small ring of light spreads on the
-glass at its foot and the victim goes in the style chosen at the bottom right of the HUD
-(`CapturePicker`, remembered in `lib/captureStyle.ts`, with a button that plays the last
-move again): Topple (knocked over away from the attacker, its outline flashing, burning
-away as it falls), Burn (in place, from the crown down), Crumble and Shatter (broken into
-shards, `scene/fragments.ts`, that drop round its foot or fly on along the attacker's way,
-then burn away) or Sink (down through its square). A king put in check
+square on the way. As the attacker reaches its victim, the victim's outline flashes and a
+small ring of light spreads on the glass at its foot; it is knocked over away from the
+attacker, burning away as it falls (`CaptureFx` in `scene/fx.tsx`). A king put in check
 rocks on his foot as the check lands, and a piece the player taps but cannot pick up shakes
 its head (`Jolt` in `three/pieceMotion.tsx`); with reduced motion none of this plays. At mate the king
 topples and a pulse of light spreads across his own level at an even speed (`scene/fx.tsx`), and the result card appears as he

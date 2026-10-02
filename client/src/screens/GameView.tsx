@@ -14,7 +14,6 @@ import PromotionPicker from './PromotionPicker';
 import TurnPill from './TurnPill';
 import CapturedPieces from './CapturedPieces';
 import MoveCard from './MoveCard';
-import CapturePicker from './CapturePicker';
 import MoveAnnouncer from './MoveAnnouncer';
 
 export type { IntroVariant };
@@ -230,7 +229,6 @@ const GameView: React.FC<GameViewProps> = ({
             onMove={onMove}
           />
           {/* After the move box, which stays the first Tab stop */}
-          {color && <CapturePicker canReplay={!!lastMove} />}
           {boardLoad.failed && (
             <div className="hud-center">
               <div role="alert" className="hud-notice hud-glass" data-testid="board-failed">
