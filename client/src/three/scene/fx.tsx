@@ -14,7 +14,7 @@ import { wholePiece } from './occlusion';
 import { overlayMaterial } from './overlay';
 import { bodyMaterial } from './pieces';
 import { gardenBoost } from './stage';
-import { MATE_TUNING_DEFAULTS } from '../../lib/mateTuning';
+import { MATE_TUNING } from '../../lib/mateTuning';
 import { useRetireOnUnmount } from './programs';
 
 // Motion in light, kept brief. A captured piece is hit as the attacker
@@ -269,7 +269,7 @@ const levelPlane = new PlaneGeometry(REACH * 2, REACH * 2).rotateX(-Math.PI / 2)
 /** The pulse leaves this soon after the king starts to fall. */
 const PULSE_DELAY_MS = 60;
 /** How fast the pulse's front spreads (world units, one per square, a second). */
-export const PULSE_SPEED = MATE_TUNING_DEFAULTS.pulseSpeed;
+export const PULSE_SPEED = MATE_TUNING.pulseSpeed;
 
 /** How far the pulse must spread from `(x, z)`: to the farthest corner of the level's glass. */
 const farthestCorner = (x: number, z: number) =>

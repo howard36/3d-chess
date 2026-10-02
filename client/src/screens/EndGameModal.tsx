@@ -63,7 +63,11 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat, onClo
           {result === 'stalemate' ? 'by stalemate' : 'by checkmate'}
         </p>
         {/* The dialog takes focus: a keyboard player lands on its only action */}
-        <button autoFocus className="hud-button" onClick={() => navigate('/new')}>
+        <button
+          autoFocus
+          className="landing-play lobby-go hud-result-go"
+          onClick={() => navigate('/new')}
+        >
           Start new game
         </button>
       </div>
@@ -78,7 +82,7 @@ export const NewGameBar: React.FC = () => {
   const navigate = useNavigate();
   return (
     <div className="hud-new-game">
-      <button className="hud-button" onClick={() => navigate('/new')}>
+      <button className="landing-play lobby-go" onClick={() => navigate('/new')}>
         Start new game
       </button>
     </div>

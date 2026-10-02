@@ -5,7 +5,7 @@ import type { BoardProps, LastMoveInfo } from './Board';
 import { layout, PIECE_SCALE } from './scene/palette';
 import { contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
 import { PIECE_LIFT } from './pieceMotion';
-import { MATE_TUNING_DEFAULTS } from '../lib/mateTuning';
+import { MATE_TUNING } from '../lib/mateTuning';
 import { useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import type { BufferGeometry, Camera, Object3D, PerspectiveCamera, Scene } from 'three';
@@ -946,7 +946,7 @@ describe('Board', () => {
       // little before it comes to rest)
       const down =
         touchdownMs(planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'))) -
-        MATE_TUNING_DEFAULTS.knockLeadMs;
+        MATE_TUNING.knockLeadMs;
       await act(async () => {
         await renderer.advanceFrames(Math.floor(down / 10) - 2, 0.01);
       });

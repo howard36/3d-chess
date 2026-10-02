@@ -236,7 +236,7 @@
   align-items: center;
   gap: 10px;
   box-sizing: border-box;
-  max-width: min(440px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
   padding: 8px 8px 8px 14px;
   border-left: 2px solid var(--hud-check);
   font-size: 13.5px;
@@ -1357,10 +1357,8 @@
   z-index: 1000;
   transform: translateX(-50%);
 }
-.hud-new-game .hud-button {
-  margin: 0;
-  background: var(--modal-bg);
-  box-shadow: var(--modal-shadow);
+.hud-result-go {
+  margin-top: 18px;
 }
 
 /* The mate preview's controls (/mate), over everything, the result card too */
@@ -1373,25 +1371,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 10px;
-  max-width: min(440px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
   padding: 6px 10px;
   color: var(--hud-fg);
   font-family: var(--hud-font);
   font-size: 13px;
-}
-.mate-demo label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--hud-muted);
-  font-size: 12px;
-}
-.mate-demo output {
-  min-width: 36px;
-  color: var(--hud-fg);
-  font-variant-numeric: tabular-nums;
-}
-.mate-demo input[type='range'] {
-  width: 72px;
-  accent-color: var(--hud-accent);
 }
