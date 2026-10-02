@@ -1,26 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { AdditiveBlending, Color, DoubleSide, PlaneGeometry } from 'three';
-import type { Group } from 'three';
+import { Vector3 } from 'three';
+import type { Group, Mesh } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { MOVE_ANIMATION, prefersReducedMotion } from '../motion';
 import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
 import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
 import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
-import { easeOutQuad } from './ease';
+import { easeOutCubic, easeOutQuad } from './ease';
 import { wholePiece } from './occlusion';
 import { overlayMaterial } from './overlay';
 import { bodyMaterial } from './pieces';
 import { gardenBoost } from './stage';
 import { useRetireOnUnmount } from './programs';
 
-// Motion in light, kept brief. A captured piece burns away from the crown
-// down behind a thin edge of white light, and its outline, drawn in light
-// as the garden's sculptures are, rises a little from it and fades. At mate,
-// as the king starts to fall, one pulse of light spreads from his foot
-// across his own level, and the colossal pieces in the garden brighten for a
-// breath and settle back.
+// Motion in light, kept brief. A captured piece is hit as the attacker
+// reaches it: its outline, drawn in light as the garden's sculptures are,
+// flashes, and a small ring of light spreads on the glass at its foot. Then
+// it is knocked over, away from the attacker, burning away from the crown
+// down behind a thin edge of white light as it falls, while its outline
+// rises a little from it and fades. At mate, as the king starts to fall, one
+// pulse of light spreads from his foot across his own level, and the
+// colossal pieces in the garden brighten for a breath and settle back.
 
 /** A frame's step of loose time: once a glide is over, a slow frame may take up to this much. */
 const LOOSE_MS = 125;
@@ -85,10 +88,29 @@ export const outlineMaterial = () =>
 
 const CAPTURE_MS = 820;
 
+/** The hit: the victim knocked over away from the attacker, and a ring on the glass. */
+export const KNOCK = {
+  /** How long it takes to fall as far as it goes, and how far (radians). */
+  ms: 460,
+  angle: 1.2,
+  /** How far it slides away meanwhile (piece units). */
+  slide: 0.16,
+  /** Its outline's flash in the hit. */
+  flash: 0.9,
+  /** The ring of light on the glass at its foot: how far it spreads, and for how long. */
+  ringReach: 0.85,
+  ringMs: 420,
+};
+// The rim of the base the victim tips over on (piece units), as a king's in Topple
+const PIVOT = 0.22;
+
 export const CaptureFx = ({
   floor,
   victim,
-  durationMs,
+  hitMs,
+  hitstopMs,
+  landMs,
+  heading,
   victimFacing,
   orientation,
 }: CaptureFxProps) => {
@@ -104,44 +126,100 @@ export const CaptureFx = ({
   useRetireOnUnmount(body);
   const outline = useMemo(outlineMaterial, []);
   useRetireOnUnmount(outline);
+  // The ring is mate's pulse, small (its program is warm already)
+  const [fx, , fz] = floor;
+  const ring = useMemo(() => pulseMaterial(fx, fz, level), [fx, fz, level]);
+  useRetireOnUnmount(ring);
   const whole = useRef<Group>(null);
   const ghost = useRef<Group>(null);
-  // The attacker is on its way: the victim holds, then burns away as it arrives
-  const start = durationMs * 0.5;
+  const aim = useRef<Group>(null);
+  const tip = useRef<Group>(null);
+  const ringMesh = useRef<Mesh>(null);
+  const camera = useThree((s) => s.camera);
+  // Which way it goes: on along the attacker's way, or (for a blow from
+  // straight above or below) to the right as seen from the camera
+  const away = useMemo(() => {
+    if (heading) return heading;
+    const right = new Vector3(-(floor[2] - camera.position.z), 0, floor[0] - camera.position.x);
+    return right.lengthSq() > 1e-9 ? ([right.x, right.z] as const) : ([1, 0] as const);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fixed when the capture arrives
+  }, []);
+  const yaw = Math.atan2(-away[0], -away[1]);
+  // The attacker is on its way: the victim stands until it is hit, holds
+  // through the hit, its outline flashing, then is knocked over and burns
+  const start = hitMs + hitstopMs;
   const alive = useLife(
-    start + CAPTURE_MS,
+    Math.max(start + CAPTURE_MS, hitMs + KNOCK.ringMs),
     (ms) => {
       const k = Math.max(ms - start, 0) / CAPTURE_MS;
       const burn = Math.min(k / 0.65, 1);
       body.uniforms.uCut.value = k > 0 ? burn * 1.05 : -1;
       if (whole.current) whole.current.visible = burn < 1;
-      // Its outline in light rises a little from it and fades
-      outline.uniforms.uOpacity.value = k > 0 ? 0.45 * Math.sin(Math.PI * Math.min(k, 1)) : 0;
+      // Knocked over: falling faster as it goes, sliding away
+      const kk = Math.min(Math.max(ms - start, 0) / KNOCK.ms, 1);
+      if (tip.current) tip.current.rotation.x = -KNOCK.angle * (0.3 * kk + 0.7 * kk * kk);
+      if (aim.current) aim.current.position.z = -KNOCK.slide * easeOutQuad(kk);
+      // Its outline in light flashes in the hit, then rises a little from it and fades
+      const hit = ms >= hitMs;
+      const glow = k > 0 ? 0.45 * Math.sin(Math.PI * Math.min(k, 1)) : 0;
+      const flash = hit ? KNOCK.flash * Math.max(0, 1 - k / 0.25) : 0;
+      outline.uniforms.uOpacity.value = Math.max(glow, flash);
       if (ghost.current) ghost.current.position.y = 0.16 * easeOutQuad(k);
+      // The ring spreads from its foot from the moment it is hit
+      const r = hit ? Math.min((ms - hitMs) / KNOCK.ringMs, 1) : 0;
+      ring.uniforms.uRadius.value = KNOCK.ringReach * easeOutCubic(r);
+      ring.uniforms.uOpacity.value = hit && r < 1 ? Math.min(r * 20, 1) * (1 - r) ** 1.5 : 0;
+      if (ringMesh.current) ringMesh.current.visible = hit && r < 1;
     },
-    durationMs,
+    landMs,
   );
   if (!alive) return null;
-  const yaw = victimFacing ?? knightYaw(victim.type, victim.color, orientation as PieceColor);
+  const turn =
+    victim.type === PieceType.Knight
+      ? (victimFacing ?? knightYaw(victim.type, victim.color, orientation as PieceColor))
+      : 0;
+  // (the piece keeps its own facing however it is aimed to fall)
+  const facing: [number, number, number] = [0, turn - yaw, 0];
   return (
-    <group position={floor} scale={PIECE_SCALE}>
-      <group ref={whole}>
-        <mesh
-          geometry={geometry}
-          material={body}
-          rotation={[0, victim.type === PieceType.Knight ? yaw : 0, 0]}
-          raycast={noRaycast}
-        />
+    <>
+      <group position={floor} scale={PIECE_SCALE}>
+        <group rotation={[0, yaw, 0]}>
+          <group ref={aim}>
+            <group position={[0, 0, -PIVOT]}>
+              <group ref={tip}>
+                <group position={[0, 0, PIVOT]}>
+                  <group ref={whole}>
+                    <mesh
+                      geometry={geometry}
+                      material={body}
+                      rotation={facing}
+                      raycast={noRaycast}
+                    />
+                  </group>
+                  <group ref={ghost} rotation={facing}>
+                    <mesh
+                      geometry={geometry}
+                      material={outline}
+                      renderOrder={LAYER.trace}
+                      raycast={noRaycast}
+                    />
+                  </group>
+                </group>
+              </group>
+            </group>
+          </group>
+        </group>
       </group>
-      <group ref={ghost} rotation={[0, victim.type === PieceType.Knight ? yaw : 0, 0]}>
-        <mesh
-          geometry={geometry}
-          material={outline}
-          renderOrder={LAYER.trace}
-          raycast={noRaycast}
-        />
-      </group>
-    </group>
+      <mesh
+        ref={ringMesh}
+        visible={false}
+        geometry={levelPlane}
+        material={ring}
+        position={[0, FRAME.levelY[level] + 0.014, 0]}
+        renderOrder={LAYER.marker - 0.2}
+        raycast={noRaycast}
+      />
+    </>
   );
 };
 

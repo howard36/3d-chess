@@ -10,7 +10,10 @@ import { PieceMesh } from './PieceMesh';
 import { PieceType } from '../engine/pieces';
 import { Coord, fromZXY, sameCoord, toZXY } from '../engine/coords';
 import { CELLS } from './layout';
+import { contactAtMs, planGlide, touchdownMs } from './glide';
+import type { GlidePlan } from './glide';
 import { MoveGlide } from './moveAnimation';
+import { PIECE_LIFT } from './pieceMotion';
 import { prefersReducedMotion } from './motion';
 import { isTap } from './tap';
 import { useExactClicks } from './exactClicks';
@@ -22,7 +25,7 @@ import type { FloorSquare } from './hover';
 import { CaptureFx, Celebration } from './scene/fx';
 import { Grid } from './scene/grid';
 import { Capture, Check, LastMove, Quiet } from './scene/markers';
-import { KNIGHT_YAW, layout, MOTION } from './scene/palette';
+import { KNIGHT_YAW, layout, PIECE_SCALE } from './scene/palette';
 import { Selection } from './scene/selection';
 import { pieceArrival } from './intro/timeline';
 
@@ -138,6 +141,11 @@ const Board = (props: BoardProps) => {
   // The cell (or the piece on it) under the pointer: its destination marker
   // brightens, its level stands out, and the HUD reads it out.
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
+  // The piece the player has just played, held up until its move comes back
+  // (so its glide sets off from where the player's hand left it), and the
+  // piece last tapped in vain, with a count so each tap answers
+  const [carried, setCarried] = useState<Coord | null>(null);
+  const [refused, setRefused] = useState<{ key: string; count: number } | null>(null);
 
   // A selection made against an earlier position is stale once the board or
   // turn changes (e.g. the opponent's move arrives) — clear it so a stale
@@ -150,6 +158,28 @@ const Board = (props: BoardProps) => {
     // piece picked up renders the board once, not twice)
     setLegalMoves((moves) => (moves.length === 0 ? moves : []));
   }, [props.board, props.currentTurn, props.disabled]);
+  // The played piece goes down once its move is back (a new board), or once
+  // the board takes input again without it (the move refused)
+  useEffect(() => setCarried(null), [props.board]);
+  useEffect(() => {
+    if (!props.disabled) setCarried(null);
+  }, [props.disabled]);
+
+  // How the latest move glides, fixed when it arrives
+  const glidePlan = useRef<{ count: number; plan: GlidePlan } | null>(null);
+  if (animate && lastMove && glidePlan.current?.count !== lastMove.moveCount) {
+    const { from, to } = lastMove.move;
+    const lift = carried && sameCoord(carried, from) ? PIECE_LIFT.selected * PIECE_SCALE : 0;
+    glidePlan.current = {
+      count: lastMove.moveCount,
+      plan: planGlide(worldOf(from), worldOf(to), {
+        lift,
+        capture: !!lastMove.capturedPiece,
+        knight: board.getPiece(to)?.type === PieceType.Knight,
+      }),
+    };
+  }
+  const plan = animate ? glidePlan.current?.plan : undefined;
 
   // Collect all pieces with their coordinates from the provided board
   const pieces = CELLS.flatMap((coord) => {
@@ -182,7 +212,14 @@ const Board = (props: BoardProps) => {
       choose(null);
       return;
     }
-    if (!canPick(coord)) return;
+    if (!canPick(coord)) {
+      // Not this player's to pick up (yet): it shakes its head
+      if (!props.disabled) {
+        const key = toZXY(coord);
+        setRefused((r) => ({ key, count: (r?.count ?? 0) + 1 }));
+      }
+      return;
+    }
     // generateLegalMoves already filters out moves into check
     choose(coord, board.generateLegalMoves(coord));
   };
@@ -279,6 +316,7 @@ const Board = (props: BoardProps) => {
     if (choices.length > 1 && props.onChoosePromotion) {
       props.onChoosePromotion(choices);
     } else if (props.onMove) {
+      setCarried(selected);
       props.onMove(choices.find((m) => m.promotion === PieceType.Queen) ?? choices[0]);
     }
   };
@@ -458,6 +496,8 @@ const Board = (props: BoardProps) => {
               inCheck={inCheck}
               level={coord.z}
               mated={type === PieceType.King && color === matedColor}
+              carried={!!carried && sameCoord(carried, coord)}
+              refused={refused?.key === key ? refused.count : 0}
               facing={knightFacing(color)}
               arrival={pieceArrival({ type, color, ...coord })}
             />
@@ -466,13 +506,12 @@ const Board = (props: BoardProps) => {
           // position-derived and can recur across moves, so the wrapper is keyed
           // by moveCount: every new move mounts a fresh tween, superseding one
           // still in flight.
-          if (animate && lastMove && key === lastToKey) {
+          if (plan && lastMove && key === lastToKey) {
             return (
               <MoveGlide
                 key={`anim-${lastMove.moveCount}`}
-                from={worldOf(lastMove.move.from)}
-                to={worldOf(coord)}
-                durationMs={MOTION.durationMs}
+                plan={plan}
+                foot={atCellFloor(worldOf(coord))}
                 fromLevel={lastMove.move.from.z}
                 toLevel={coord.z}
                 onLanded={() => setLandedMove((n) => Math.max(n, lastMove.moveCount))}
@@ -517,13 +556,16 @@ const Board = (props: BoardProps) => {
             {...(color === matedColor ? { mated: true } : {})}
           />
         ))}
-        {animate && lastMove?.capturedPiece && (
+        {plan && lastMove?.capturedPiece && (
           <CaptureFx
             key={`capturefx-${lastMove.moveCount}`}
             {...markerAt(lastMove.move.to)}
             victim={lastMove.capturedPiece}
             victimFacing={knightFacing(lastMove.capturedPiece.color)}
-            durationMs={MOTION.durationMs}
+            hitMs={contactAtMs(plan) ?? touchdownMs(plan)}
+            hitstopMs={plan.hitstopMs}
+            landMs={touchdownMs(plan)}
+            heading={plan.heading}
             orientation={orientation}
           />
         )}

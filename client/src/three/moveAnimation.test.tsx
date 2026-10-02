@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { act } from 'react';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
-import { Vector3 } from 'three';
+import { Quaternion, Vector3 } from 'three';
 import type { Group, Object3D } from 'three';
+import { contactAtMs, GLIDE, glideEndMs, glidePose, planGlide, touchdownMs } from './glide';
 import { MoveGlide } from './moveAnimation';
 import {
   easeLift,
+  Jolt,
+  JOLT,
   Lift,
   liftEntry,
   ON_FLOOR,
@@ -20,43 +23,149 @@ import {
 type Vec = { x: number; y: number; z: number };
 const FROM: [number, number, number] = [0, 0, 2];
 const TO: [number, number, number] = [0, 0, 0];
+const FOOT: [number, number, number] = [0, -0.4, 0];
 
-async function glide(from = FROM) {
+async function glide(plan = planGlide(FROM, TO), onLanded?: () => void) {
   const renderer = await ReactThreeTestRenderer.create(
-    <MoveGlide from={from} to={TO} durationMs={300}>
+    <MoveGlide plan={plan} foot={FOOT} onLanded={onLanded}>
       <mesh userData={{ body: true }} />
     </MoveGlide>,
   );
   const scene = renderer.scene as ReactThreeTestInstance;
   const outer = scene.findAll((n) => n.props.userData?.moveGlide === true)[0]
     .instance as unknown as Group;
-  const frames = (n: number) => act(async () => renderer.advanceFrames(n, 0.03));
-  return { outer, frames, pos: () => outer.position as Vec };
+  const body = scene.findAll((n) => n.props.userData?.body === true)[0]
+    .instance as unknown as Object3D;
+  const frames = (n: number) => act(async () => renderer.advanceFrames(n, 0.01));
+  return { outer, body, frames, pos: () => outer.position as Vec };
 }
 
+describe('planGlide', () => {
+  it('takes longer the farther the piece goes, within bounds', () => {
+    const near = planGlide([0, 0, 1], TO).travelMs;
+    const far = planGlide([2, 2.7, 2], TO).travelMs;
+    expect(far).toBeGreaterThan(near);
+    expect(near).toBeGreaterThanOrEqual(GLIDE.minMs);
+    expect(planGlide([4, 5.4, 4], TO).travelMs).toBe(GLIDE.maxMs);
+  });
+
+  it('crouches before a hop from the floor, not when the player already holds it up', () => {
+    expect(planGlide(FROM, TO).crouchMs).toBe(GLIDE.crouchMs);
+    expect(planGlide(FROM, TO, { lift: 0.11 }).crouchMs).toBe(0);
+  });
+
+  it('jumps a knight higher than it carries any other piece', () => {
+    expect(planGlide(FROM, TO, { knight: true }).hop).toBeGreaterThan(
+      planGlide([4, 5.4, 4], TO).hop,
+    );
+  });
+
+  it('heads along the move across the board, and has no heading straight up', () => {
+    expect(planGlide(FROM, TO).heading).toEqual([-0, -1]);
+    expect(planGlide([0, 1.35, 0], TO).heading).toBeNull();
+  });
+
+  it('meets a victim short of its square, holds the hit, and lands harder', () => {
+    const quiet = planGlide(FROM, TO);
+    const capture = planGlide(FROM, TO, { capture: true });
+    expect(quiet.contactMs).toBeNull();
+    expect(capture.contactMs!).toBeGreaterThan(0);
+    expect(capture.contactMs!).toBeLessThan(capture.travelMs);
+    expect(touchdownMs(capture)).toBe(touchdownMs(quiet) + GLIDE.hitstopMs);
+    expect(contactAtMs(capture)).toBe(capture.crouchMs + capture.contactMs!);
+    expect(capture.squash).toBeGreaterThan(quiet.squash);
+  });
+});
+
+describe('glidePose', () => {
+  const plan = planGlide(FROM, TO);
+  const air = (u: number) => glidePose(plan, plan.crouchMs + u * plan.travelMs);
+
+  it('starts on the source square, crouching, and ends at rest on its own', () => {
+    expect(glidePose(plan, 0).offset).toEqual(FROM);
+    expect(glidePose(plan, plan.crouchMs / 2).scaleY).toBeLessThan(1);
+    expect(glidePose(plan, glideEndMs(plan))).toEqual({
+      offset: [0, 0, 0],
+      scaleY: 1,
+      lean: 0,
+      progress: 1,
+    });
+  });
+
+  it('arcs over the straight line and comes down onto the square', () => {
+    const mid = air(0.5);
+    expect(mid.offset[1]).toBeCloseTo(plan.hop);
+    expect(mid.offset[2]).toBeCloseTo(1);
+    // Still falling as it lands
+    expect(air(0.95).offset[1]).toBeGreaterThan(0);
+    expect(air(1).offset).toEqual([0, 0, 0]);
+  });
+
+  it('stretches in the air, leans back setting off and forward arriving, then squashes', () => {
+    expect(air(0.5).scaleY).toBeGreaterThan(1);
+    expect(air(0.25).lean).toBeLessThan(0);
+    expect(air(0.75).lean).toBeGreaterThan(0);
+    const down = touchdownMs(plan);
+    const squash = Math.min(
+      ...[10, 20, 30, 40, 50, 60].map((ms) => glidePose(plan, down + ms).scaleY),
+    );
+    expect(squash).toBeCloseTo(1 - plan.squash, 1);
+    expect(squash).toBeLessThan(1 - plan.squash * 0.8);
+  });
+
+  it('sets off from where the player held it', () => {
+    const held = planGlide(FROM, TO, { lift: 0.11 });
+    expect(glidePose(held, 0).offset[1]).toBeCloseTo(0.11);
+  });
+
+  it('holds still while it hits its victim', () => {
+    const capture = planGlide(FROM, TO, { capture: true });
+    const at = contactAtMs(capture)!;
+    const hit = glidePose(capture, at).offset;
+    expect(glidePose(capture, at + capture.hitstopMs / 2).offset).toEqual(hit);
+    expect(glidePose(capture, at + capture.hitstopMs).offset).toEqual(hit);
+    expect(glidePose(capture, at + capture.hitstopMs + 20).offset[2]).toBeLessThan(hit[2]);
+  });
+});
+
 describe('MoveGlide', () => {
-  it('slides in a straight line, without lifting', async () => {
-    const { frames, pos } = await glide();
-    expect(pos().z).toBeCloseTo(2);
-    await frames(5);
-    expect(pos().y).toBe(0);
-    expect(pos().z).toBeGreaterThan(0);
-    expect(pos().z).toBeLessThan(2);
-    await frames(6);
+  it('carries the piece along the plan, and is at rest once it has settled', async () => {
+    const plan = planGlide(FROM, TO);
+    const { frames, pos } = await glide(plan);
+    expect(pos()).toMatchObject({ x: 0, y: 0, z: 2 });
+    await frames(20);
+    expect(pos().z).toBeCloseTo(glidePose(plan, 200).offset[2]);
+    expect(pos().y).toBeGreaterThan(0);
+    await frames(Math.ceil(glideEndMs(plan) / 10));
     expect(pos()).toMatchObject({ x: 0, y: 0, z: 0 });
   });
 
-  it('glides in a straight line even between levels', async () => {
-    // Two levels up and two ranks back: the offset shrinks along one line
-    const { frames, pos } = await glide([0, 2, 2]);
-    for (let i = 0; i < 9; i++) {
-      await frames(1);
-      const { x, y, z } = pos();
-      expect(x).toBe(0);
-      expect(y).toBeCloseTo(z, 6);
-      expect(z).toBeGreaterThanOrEqual(0);
-      expect(z).toBeLessThanOrEqual(2);
-    }
+  it('shapes the piece about its foot, keeping its volume', async () => {
+    const plan = planGlide(FROM, TO);
+    const { body, frames } = await glide(plan);
+    // Just after touchdown: squashed
+    await frames(Math.ceil(touchdownMs(plan) / 10) + 3);
+    const foot = new Vector3(...FOOT);
+    const scale = new Vector3();
+    body.updateWorldMatrix(true, false);
+    body.matrixWorld.decompose(new Vector3(), new Quaternion(), scale);
+    expect(scale.y).toBeLessThan(1);
+    expect(scale.x * scale.x * scale.y).toBeCloseTo(1, 5);
+    // The foot stays put on the floor as it squashes
+    const local = foot.clone().applyMatrix4(body.matrixWorld);
+    expect(local.y).toBeCloseTo(FOOT[1], 5);
+  });
+
+  it('reports its landing once, at touchdown', async () => {
+    const plan = planGlide(FROM, TO, { capture: true });
+    let landings = 0;
+    const { frames } = await glide(plan, () => landings++);
+    await frames(Math.floor(touchdownMs(plan) / 10) - 1);
+    expect(landings).toBe(0);
+    await frames(2);
+    expect(landings).toBe(1);
+    await frames(40);
+    expect(landings).toBe(1);
   });
 });
 
@@ -68,19 +177,19 @@ describe('useGlide', () => {
       return <mesh />;
     };
     const renderer = await ReactThreeTestRenderer.create(
-      <MoveGlide from={FROM} to={TO} durationMs={300} fromLevel={0} toLevel={2}>
+      <MoveGlide plan={planGlide(FROM, TO)} foot={FOOT} fromLevel={0} toLevel={2}>
         <Body />
       </MoveGlide>,
     );
     expect(glide).toMatchObject({ fromLevel: 0, toLevel: 2 });
     const at: number[] = [glide!.progress.current];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 16; i++) {
       await act(async () => renderer.advanceFrames(1, 0.03));
       at.push(glide!.progress.current);
     }
     expect(at[0]).toBe(0);
-    expect(at[5]).toBeGreaterThan(0);
-    expect(at[5]).toBeLessThan(1);
+    expect(at[6]).toBeGreaterThan(0);
+    expect(at[6]).toBeLessThan(1);
     expect(at[at.length - 1]).toBe(1);
     for (let i = 1; i < at.length; i++) expect(at[i]).toBeGreaterThanOrEqual(at[i - 1]);
   });
@@ -297,5 +406,54 @@ describe('Lift and Topple', () => {
     await act(async () => renderer.update(<King down={false} />));
     await act(async () => renderer.advanceFrames(2, 0.03));
     expect(find('ring').visible).toBe(true);
+  });
+});
+
+describe('Jolt', () => {
+  async function jolt(check: boolean, refused: number) {
+    const tree = (c: boolean, r: number) => (
+      <Jolt check={c} refused={r}>
+        <mesh />
+      </Jolt>
+    );
+    const renderer = await ReactThreeTestRenderer.create(tree(check, refused));
+    const group = () =>
+      (renderer.scene as ReactThreeTestInstance).children[0].instance as unknown as Group;
+    const frames = (n: number) => act(async () => renderer.advanceFrames(n, 0.01));
+    return {
+      renderer,
+      group,
+      frames,
+      update: (c: boolean, r: number) => renderer.update(tree(c, r)),
+    };
+  }
+
+  it('rocks a king when he is put in check, then stands him still', async () => {
+    const { group, frames, update } = await jolt(false, 0);
+    await update(true, 0);
+    await frames(6);
+    const tilt = 2 * Math.acos(Math.min(1, Math.abs(group().quaternion.w)));
+    expect(tilt).toBeGreaterThan(0.02);
+    expect(tilt).toBeLessThanOrEqual(JOLT.checkAngle);
+    await frames(Math.ceil(JOLT.checkMs / 10));
+    expect(group().quaternion.w).toBe(1);
+  });
+
+  it('does not rock a king already in check when he appears (a reload)', async () => {
+    const { group, frames } = await jolt(true, 0);
+    await frames(10);
+    expect(group().quaternion.w).toBe(1);
+  });
+
+  it('shakes a piece tapped in vain, each time, and comes back to its square', async () => {
+    const { group, frames, update } = await jolt(false, 0);
+    for (const count of [1, 2]) {
+      await update(false, count);
+      await frames(4);
+      expect(group().position.length()).toBeGreaterThan(0.005);
+      expect(group().position.y).toBe(0);
+      await frames(Math.ceil(JOLT.refusedMs / 10));
+      expect(group().position.length()).toBe(0);
+    }
   });
 });

@@ -109,7 +109,14 @@ export interface CaptureFxProps {
   /** Floor of the cell where the capture happened. */
   floor: Vec3;
   victim: { type: PieceType; color: PieceColor };
-  durationMs: number;
+  /** When the attacker reaches the victim (ms after the move arrived): the hit. */
+  hitMs: number;
+  /** How long the hit holds still before the victim goes. */
+  hitstopMs: number;
+  /** When the attacker touches down. */
+  landMs: number;
+  /** Which way the attacker was going across the board (unit x, z), or null for straight up or down. */
+  heading?: [number, number] | null;
 }
 
 export interface CelebrationProps {

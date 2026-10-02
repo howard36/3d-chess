@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Quaternion, Vector3 } from 'three';
+import { MOVE_ANIMATION, prefersReducedMotion } from './motion';
 import { toppled } from './toppled';
 import type { Group, Object3D } from 'three';
 
@@ -168,6 +169,104 @@ export const PIECE_LIFT = {
   selected: 0.09 + 0.05,
   hoverSeconds: 0.24,
   selectSeconds: 0.6,
+};
+
+/** A check's flinch and a refused tap's shake (see Jolt). */
+export const JOLT = {
+  /** The king rocks side to side on his foot, as seen from the camera. */
+  checkMs: 560,
+  checkAngle: 0.13,
+  checkCycles: 2,
+  /** A piece that can't be picked up shakes its head: side to side across the view. */
+  refusedMs: 340,
+  refusedShift: 0.05,
+  refusedCycles: 2.5,
+};
+
+// A decaying wobble, 0 at both ends
+const wobble = (v: number, cycles: number) =>
+  v >= 1 ? 0 : Math.exp(-4 * v) * Math.sin(2 * Math.PI * cycles * v) * (1 - v);
+
+/**
+ * The camera's right, level with the board, in `group`'s parent's frame (the
+ * direction a piece moves to move right on screen), or null when the camera
+ * looks straight down at it.
+ */
+const viewRight = (group: Group, camera: { position: Vector3 }) => {
+  const at = group.getWorldPosition(new Vector3());
+  const view = at.sub(camera.position);
+  const right = new Vector3(-view.z, 0, view.x);
+  if (right.lengthSq() < 1e-9) return null;
+  right.normalize();
+  if (group.parent) {
+    right.applyQuaternion(group.parent.getWorldQuaternion(new Quaternion()).invert());
+  }
+  return right;
+};
+
+/**
+ * A piece's short answers on its own square. A king put in check (`check`
+ * turning on) flinches, rocking on his foot from side to side; a piece the
+ * player taps but can't pick up (each new `refused` count) shakes its head,
+ * side to side across the view, so no tap goes unanswered. Neither plays for
+ * a player who asked for less motion, nor for a check the piece mounted in
+ * (a reload).
+ */
+export const Jolt = ({
+  check,
+  refused,
+  children,
+}: {
+  check: boolean;
+  refused: number;
+  children: React.ReactNode;
+}) => {
+  const group = useRef<Group>(null);
+  const invalidate = useThree((s) => s.invalidate);
+  const play = useRef<{ kind: 'check' | 'refused'; ms: number; right: Vector3 | null } | null>(
+    null,
+  );
+  const was = useRef({ check, refused });
+  const still = useMemo(prefersReducedMotion, []);
+
+  useEffect(() => {
+    const before = was.current;
+    was.current = { check, refused };
+    if (still) return;
+    if (check && !before.check) play.current = { kind: 'check', ms: 0, right: null };
+    else if (refused > before.refused) play.current = { kind: 'refused', ms: 0, right: null };
+    else return;
+    invalidate();
+  }, [check, refused, still, invalidate]);
+
+  useFrame(({ camera }, delta) => {
+    const g = group.current;
+    const p = play.current;
+    if (!g || !p) return;
+    p.right ??= viewRight(g, camera);
+    p.ms += Math.min(delta * 1000, MOVE_ANIMATION.maxFrameMs);
+    const right = p.right;
+    if (p.kind === 'check') {
+      const v = p.ms / JOLT.checkMs;
+      // Rocking about the line of sight tips him left and right on screen
+      const angle = JOLT.checkAngle * wobble(v, JOLT.checkCycles);
+      if (right) g.quaternion.setFromAxisAngle(new Vector3(right.z, 0, -right.x), angle);
+      if (v >= 1) play.current = null;
+    } else {
+      const v = p.ms / JOLT.refusedMs;
+      const shift = JOLT.refusedShift * wobble(v, JOLT.refusedCycles);
+      if (right) g.position.set(right.x * shift, 0, right.z * shift);
+      if (v >= 1) play.current = null;
+    }
+    if (!play.current) {
+      g.position.set(0, 0, 0);
+      g.quaternion.identity();
+      return;
+    }
+    invalidate();
+  });
+
+  return <group ref={group}>{children}</group>;
 };
 
 /** How long a mated king takes to fall and settle. */
