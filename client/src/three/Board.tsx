@@ -23,7 +23,7 @@ import type { LevelFocus, MarkerProps, PieceColor, Vec3 } from './types';
 import { resolveHover } from './hover';
 import type { FloorSquare } from './hover';
 import { CaptureFx, Celebration } from './scene/fx';
-import { TEETER, TEETER_STRIKE_MS } from './pieceMotion';
+import { TEETER_STRIKE_MS } from './pieceMotion';
 import { fallAway } from './mate';
 import { Grid } from './scene/grid';
 import { Capture, Check, LastMove, Quiet } from './scene/markers';
@@ -355,8 +355,9 @@ const Board = (props: BoardProps) => {
     ({ type, color }) => type === PieceType.King && color === matedColor,
   );
 
-  // --- The mate (lib/mateStyle.ts): the king teeters and falls away from
-  // the piece that mated him, and as he strikes, the winning army hops in a
+  // --- The mate (lib/mateStyle.ts): the mating piece's arrival knocks the
+  // king back, away from it, and he teeters at the edge of his balance and
+  // falls, and as he strikes, the winning army hops in a
   // wave out from him. Its beats count from the mating move's landing, and
   // play out only for a mate that arrived live: from history he just falls.
   const mate = useMemo(() => {
@@ -603,7 +604,8 @@ const Board = (props: BoardProps) => {
         {matedKing && mate && (
           <Celebration
             {...markerAt(matedKing.coord)}
-            delayMs={mate.live ? TEETER_STRIKE_MS - TEETER.fallMs : 0}
+            // The pulse leaves as he strikes the floor
+            delayMs={mate.live ? TEETER_STRIKE_MS - 60 : 0}
           />
         )}
       </group>

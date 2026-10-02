@@ -3,7 +3,7 @@
 // scene, so the screen can read it without loading three.js.
 
 /**
- * The mated king teeters and goes over (three/pieceMotion.tsx, TEETER), and
+ * The mating piece knocks the king over (three/pieceMotion.tsx, KNOCK_FALL), and
  * as he strikes the floor the winning army hops in a wave out from him. The
  * final board is held this long after he strikes (ms), the wave included,
  * before the result card comes, docked in the bottom right corner with the

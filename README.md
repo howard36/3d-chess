@@ -378,10 +378,12 @@ small ring of light spreads on the glass at its foot; it is knocked over away fr
 attacker, burning away as it falls (`CaptureFx` in `scene/fx.tsx`). A king put in check
 rocks on his foot as the check lands, and a piece the player taps but cannot pick up shakes
 its head (`Jolt` in `three/pieceMotion.tsx`); with reduced motion none of this plays. At mate the king
-teeters and goes over (`Topple` in `three/pieceMotion.tsx`): slowly, he tips back onto the
-rim of his base, away from the piece that mated him, swings forward through upright onto
-the other rim, then goes over backwards (turned aside if straight away would take him off
-his platform, `three/mate.ts`). As he strikes the floor a pulse of light spreads across his
+is knocked over by the mating piece's arrival (`Topple` and `KNOCK_FALL` in
+`three/pieceMotion.tsx`): the knock tips him back onto the rim of his base, away from the
+piece that mated him, fast at first, then slowing almost to a stop at the edge of his
+balance, where he hangs for a moment before gravity takes him over (a rigid body on its
+rim, simulated; the knock gives barely enough to reach his tipping point). He is turned
+aside if straight away would take him off his platform (`three/mate.ts`). As he strikes the floor a pulse of light spreads across his
 level (`scene/fx.tsx`), the obsidian blades round him sink into the glass and are gone, and
 the winning army hops in a wave out from him. The result card follows `onToppled` after a
 hold on the final board (`lib/mateStyle.ts`, `screens/useEndCard.ts`), docked in the bottom

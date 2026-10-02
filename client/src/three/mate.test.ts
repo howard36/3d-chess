@@ -1,32 +1,45 @@
 import { describe, expect, it } from 'vitest';
 import { fallAway } from './mate';
-import { TEETER, TEETER_STRIKE_MS, TOPPLE_MS, TOPPLE_STRIKE, toppleAngle } from './pieceMotion';
+import {
+  KNOCK_FALL,
+  TEETER_STRIKE_MS,
+  TIPPING_MS,
+  TOPPLE_MS,
+  TOPPLE_STRIKE,
+  toppleAngle,
+} from './pieceMotion';
 import { FRAME, MARGIN } from './scene/palette';
 
-describe('a mated king’s teeter', () => {
+describe('a knocked king’s fall', () => {
   const at = (ms: number) => toppleAngle(ms, true).angle;
+  const speed = (ms: number) => at(ms + 10) - at(ms);
 
-  it('tips back, swings forward through upright, then goes over backwards', () => {
+  it('tips back fast, slows to a near stop at the edge of his balance, then goes over', () => {
     expect(at(0)).toBe(0);
-    expect(at(TEETER.backMs)).toBeCloseTo(TEETER.back);
-    expect(at(TEETER.backMs + TEETER.forwardMs)).toBeCloseTo(-TEETER.forward);
-    expect(at(TEETER_STRIKE_MS - 1)).toBeGreaterThan(1.3);
-    // Each beat is a smooth swing, never a jump
-    for (let ms = 0; ms < TEETER_STRIKE_MS; ms += 10) {
-      expect(Math.abs(at(ms + 10) - at(ms))).toBeLessThan(0.08);
-    }
+    // Fast off the knock
+    expect(speed(0)).toBeGreaterThan(5 * speed(TIPPING_MS - 20));
+    // Hanging at the edge, a fraction of a second
+    const near = Array.from({ length: TEETER_STRIKE_MS }, (_, ms) => at(ms)).filter(
+      (a) => Math.abs(a - KNOCK_FALL.tipAt) < 0.08,
+    ).length;
+    expect(near).toBeGreaterThan(300);
+    expect(near).toBeLessThan(700);
+    // Never back toward standing: the knock carries him over
+    for (let ms = 0; ms < TEETER_STRIKE_MS; ms += 5) expect(at(ms + 5)).toBeGreaterThan(at(ms));
+    // Gravity takes the rest, gathering speed to the floor
+    expect(speed(TEETER_STRIKE_MS - 20)).toBeGreaterThan(speed(TIPPING_MS + 50));
   });
 
   it('strikes the floor at the end of the fall, then settles', () => {
+    expect(TEETER_STRIKE_MS).toBeGreaterThan(800);
+    expect(TEETER_STRIKE_MS).toBeLessThan(1500);
     expect(toppleAngle(TEETER_STRIKE_MS - 1, true).struck).toBe(false);
     expect(toppleAngle(TEETER_STRIKE_MS, true).struck).toBe(true);
     expect(toppleAngle(TEETER_STRIKE_MS + 2000, true).settled).toBe(true);
   });
 
-  it('is slower and wider than a plain fall, which strikes as before', () => {
-    expect(TEETER_STRIKE_MS).toBeGreaterThan(2 * TOPPLE_MS);
+  it('leaves a plain fall as before', () => {
     expect(toppleAngle(TOPPLE_MS * TOPPLE_STRIKE, false).struck).toBe(true);
-    expect(Math.min(...[0, 100, 200, 300, 400].map((ms) => toppleAngle(ms, false).angle))).toBe(0);
   });
 });
 

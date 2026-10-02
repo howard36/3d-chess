@@ -297,33 +297,53 @@ const TOPPLE_STEP_MS = 125;
 const FALLEN = 1.42;
 
 /**
- * A mated king's teeter before he goes over (Topple's `teeter`), slow and
- * wide: he tips back onto the rim of his base (away from the piece that
- * mated him), swings forward through upright onto the other rim, and back
- * again, past the point of no return. Angles in radians, positive toward
- * where he falls; times in ms.
+ * A mated king's fall after a knock (Topple's `teeter`): the mating piece's
+ * arrival knocks him back onto the rim of his base, and from there it is a
+ * rigid body on a pivot. Gravity pulls him back toward standing until his
+ * centre of mass passes over the rim (his tipping point), then pulls him
+ * over. The knock is barely enough to get him there: he tips back fast,
+ * slows almost to a stop at the edge of his balance, hangs there a moment,
+ * and goes. Angles in radians, toward where he falls.
  */
-export const TEETER = {
-  back: 0.26,
-  backMs: 700,
-  forward: 0.2,
-  forwardMs: 800,
-  /** From the forward rock to the floor. */
-  fallMs: 900,
+export const KNOCK_FALL = {
+  /** Where he balances on his rim: his foot's radius over the height of his centre of mass. */
+  tipAt: Math.atan(0.22 / 0.32),
+  /** Gravity's pull about the rim for his build (per second squared): sets the pace. */
+  pull: 40,
+  /** How much more the knock gives than just reaching the tipping point (a share of it). */
+  surplus: 0.006,
 };
-/** When a teetering king strikes the floor (ms after he starts). */
-export const TEETER_STRIKE_MS = TEETER.backMs + TEETER.forwardMs + TEETER.fallMs;
+
+// His angle each ms from the knock until he strikes the floor, simulated
+// once: angular speed changes by pull * sin(angle - tipAt) every instant
+const knockFall = (() => {
+  const { tipAt, pull, surplus } = KNOCK_FALL;
+  const dt = 1e-4;
+  let w = Math.sqrt(2 * pull * (1 - Math.cos(tipAt)) * (1 + surplus));
+  let angle = 0;
+  const perMs: number[] = [0];
+  for (let step = 1; angle < FALLEN; step++) {
+    w += pull * Math.sin(angle - tipAt) * dt;
+    angle += w * dt;
+    if (step % 10 === 0) perMs.push(Math.min(angle, FALLEN));
+  }
+  return perMs;
+})();
+
+/** When a knocked king strikes the floor (ms after the knock). */
+export const TEETER_STRIKE_MS = knockFall.length - 1;
+/** When he passes his tipping point (ms after the knock). */
+export const TIPPING_MS = knockFall.findIndex((a) => a >= KNOCK_FALL.tipAt);
 // The settling bounce after the strike
 const BOUNCE_MS = TOPPLE_MS * (1 - TOPPLE_STRIKE);
 
-const easeInOut = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * t);
 const bounce = (t: number) =>
   FALLEN * (1 - Math.sin(t * (1 - TOPPLE_STRIKE) * 14) * 0.06 * (1 - TOPPLE_STRIKE) * (1 - t));
 
 /**
- * How far a mated king leans `ms` after he starts to go (radians, positive
- * toward where he falls, negative the other way), and whether he has struck
- * the floor and whether he has settled. Without a teeter he simply falls.
+ * How far a mated king leans `ms` after he starts to go (radians, toward
+ * where he falls), and whether he has struck the floor and settled. Knocked
+ * (`teeter`), he follows KNOCK_FALL; otherwise he simply falls.
  */
 export const toppleAngle = (ms: number, teeter: boolean) => {
   const strikeMs = teeter ? TEETER_STRIKE_MS : TOPPLE_MS * TOPPLE_STRIKE;
@@ -335,16 +355,9 @@ export const toppleAngle = (ms: number, teeter: boolean) => {
     const u = ms / strikeMs;
     return { angle: FALLEN * u * u, struck: false, settled: false };
   }
-  const { back, backMs, forward, forwardMs, fallMs } = TEETER;
-  let angle: number;
-  if (ms < backMs) angle = back * easeInOut(ms / backMs);
-  else if (ms < backMs + forwardMs)
-    angle = back - (back + forward) * easeInOut((ms - backMs) / forwardMs);
-  else {
-    // From rest on the forward rim, gathering speed all the way down
-    const u = (ms - backMs - forwardMs) / fallMs;
-    angle = -forward + (FALLEN + forward) * u * u;
-  }
+  // Between the simulated ms
+  const at = Math.floor(ms);
+  const angle = knockFall[at] + (knockFall[at + 1] - knockFall[at]) * (ms - at);
   return { angle, struck: false, settled: false };
 };
 
@@ -370,7 +383,7 @@ export const Topple = ({
   active: boolean;
   /** How long he stands still before he starts to go (ms). */
   delayMs?: number;
-  /** Whether he teeters before he goes over (TEETER). */
+  /** Whether he is knocked over, teetering at the edge of his balance first (KNOCK_FALL). */
   teeter?: boolean;
   /**
    * Which way he falls, level, in the frame of the board (unit x, z): away
