@@ -391,7 +391,8 @@ the screen. It can be closed (its close button, Escape, a click outside it) to t
 zoom the final position, with Start new game left below the tower. From history he simply falls. `/mate` is a preview
 page: a game one move from mate, with buttons that play it and go back, and sliders for
 how early the knock lands (the glide's ease makes a piece look landed a moment before it
-is) and how fast the pulse spreads (`lib/mateTuning.ts`).
+is), how fast the pulse spreads, and how fast and how late the winners' wave goes
+(`lib/mateTuning.ts`).
 
 **The entrance.** Opening the game plays a short entrance, just under 4 seconds when the
 game starts while the page is open and 1.3 when the page opens on a game already under

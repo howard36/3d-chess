@@ -41,7 +41,7 @@ const messagesAt = (plies: number) => {
 /**
  * The mate preview (/mate): a game one move from mate, seen from White's
  * seat, with buttons that play the mating move and the mate (again) and
- * go back to the move before it, and sliders for two of its timings
+ * go back to the move before it, and sliders for its timings
  * (lib/mateTuning.ts), to look at how a mate plays out and tune it.
  * Nothing goes to the server: the board takes no input.
  */
@@ -108,6 +108,28 @@ const MateDemo: React.FC = () => {
             step={0.1}
             value={tuning.pulseSpeed}
             onChange={(e) => setMateTuning({ pulseSpeed: Number(e.target.value) })}
+          />
+        </label>
+        <label>
+          Wave speed <output>{tuning.waveSpeed}</output>
+          <input
+            type="range"
+            min={4}
+            max={30}
+            step={1}
+            value={tuning.waveSpeed}
+            onChange={(e) => setMateTuning({ waveSpeed: Number(e.target.value) })}
+          />
+        </label>
+        <label>
+          Wave delay <output>{tuning.waveDelayMs} ms</output>
+          <input
+            type="range"
+            min={0}
+            max={600}
+            step={10}
+            value={tuning.waveDelayMs}
+            onChange={(e) => setMateTuning({ waveDelayMs: Number(e.target.value) })}
           />
         </label>
       </div>

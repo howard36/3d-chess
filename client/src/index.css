@@ -1372,8 +1372,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  max-width: calc(100vw - 24px);
+  gap: 6px 10px;
+  max-width: min(440px, calc(100vw - 24px));
   padding: 6px 10px;
   color: var(--hud-fg);
   font-family: var(--hud-font);

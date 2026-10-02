@@ -54,8 +54,6 @@ const cellMaterial = new MeshBasicMaterial();
 // skewer the piece in its cell at the cell's centre. Pieces are modeled
 // base-at-y=0 and are shorter than their cell, so they stand on its floor
 // rather than centred in it.
-// The cheer's wave: how long it takes to travel one world unit from the king
-const WAVE_MS_PER_UNIT = 70;
 
 const atCellFloor = ([x, y, z]: Vec3): Vec3 => [x, y + layout.floorY, z];
 
@@ -362,6 +360,7 @@ const Board = (props: BoardProps) => {
   // falls, and as he strikes, the winning army hops in a
   // wave out from him. Its beats count from the mating move's landing, and
   // play out only for a mate that arrived live: from history he just falls.
+  const matedSquare = matedKing && toZXY(matedKing.coord);
   const mate = useMemo(() => {
     if (!matedKing || !props.gameOver?.winner || !lastMove) return null;
     const live = animate;
@@ -375,12 +374,22 @@ const Board = (props: BoardProps) => {
         if (color !== winner) continue;
         const [x, y, z] = worldOf(coord);
         const far = Math.hypot(x - king[0], y - king[1], z - king[2]);
-        cheer.set(toZXY(coord), TEETER_STRIKE_MS + WAVE_MS_PER_UNIT * far);
+        cheer.set(
+          toZXY(coord),
+          TEETER_STRIKE_MS + tuning.waveDelayMs + (1000 * far) / tuning.waveSpeed,
+        );
       }
     }
     return { live, away, cheer };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fixed when the mate arrives
-  }, [matedKing && toZXY(matedKing.coord), props.gameOver, lastMove?.moveCount, animate]);
+  }, [
+    matedSquare,
+    props.gameOver,
+    lastMove?.moveCount,
+    animate,
+    tuning.waveSpeed,
+    tuning.waveDelayMs,
+  ]);
 
   // --- Hover: the cell under the pointer, from the pointer's ray (see hover.ts)
   const grid = useRef<Group>(null);
