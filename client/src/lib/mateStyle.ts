@@ -8,4 +8,4 @@
  * final board is held this long after he strikes (ms), the wave included,
  * before the result card comes.
  */
-export const MATE_HOLD_MS = 1400;
+export const MATE_HOLD_MS = 1300;
