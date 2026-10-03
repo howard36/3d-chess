@@ -9,6 +9,15 @@ import type { Choice } from '../../three/lobby/LobbyScene';
 import type { Side } from '../../three/lobby/lobbyMotion';
 import { useLobbyView } from './lobbyContext';
 import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
+import { DIFFICULTIES, DIFFICULTY_NAME } from '../../ai/levels';
+import type { Difficulty } from '../../ai/levels';
+import {
+  getStoredDifficulty,
+  newComputerGameId,
+  saveComputerGame,
+  setStoredDifficulty,
+} from '../../lib/computerGames';
+import { computerGame } from '../computerGameChunk';
 
 // The first page of a new game: the player picks a side. The three kings
 // stand on the glass (LobbyScene): porcelain, the split king for Random, and
@@ -17,6 +26,9 @@ import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 // (the coin toss for Random is decided here, before it is thrown, so it can
 // land on the side the server will give), and the page moves on to the game's
 // own page, the invitation, once both the answer and the moment are over.
+//
+// Against the computer (/computer) the page also picks its level, and the
+// game is made on the spot, in the browser: no server is asked.
 
 const CHOICES: { choice: Choice; name: string }[] = [
   { choice: 'white', name: 'White' },
@@ -29,8 +41,18 @@ const FALLBACK_X = { white: '25%', coin: '50%', black: '75%' };
 
 const other = (side: Side): Side => (side === 'white' ? 'black' : 'white');
 
-const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
+const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
+  gameSocket,
+  computer = false,
+}) => {
   const navigate = useNavigate();
+  const [difficulty, setDifficulty] = React.useState<Difficulty>(getStoredDifficulty);
+  // The game made against the computer, once a side is picked
+  const [computerGameId, setComputerGameId] = React.useState<string | null>(null);
+  // Its page's code, while the player chooses
+  React.useEffect(() => {
+    if (computer) computerGame.preload();
+  }, [computer]);
   const { messages, status } = gameSocket;
   const [hover, setHover] = React.useState<Choice | null>(null);
   const [picked, setPicked] = React.useState<{ choice: Choice; side: Side } | null>(null);
@@ -59,15 +81,29 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
     if (created) setStoredRole(created.gameId, created.color);
     if (created && settled) navigate(`/game/${created.gameId}`, { replace: true });
   }, [created, settled, navigate]);
+  React.useEffect(() => {
+    if (computerGameId && settled) navigate(`/computer/${computerGameId}`, { replace: true });
+  }, [computerGameId, settled, navigate]);
 
   // Asked again on the next connection if this one drops before the answer
-  const requestGame = useResendOnReconnect(gameSocket, !picked || !!created || !!failed);
+  const requestGame = useResendOnReconnect(
+    gameSocket,
+    computer || !picked || !!created || !!failed,
+  );
 
   const pick = (choice: Choice) => {
     if (picked) return;
     const side: Side = choice === 'random' ? (Math.random() < 0.5 ? 'white' : 'black') : choice;
     setPicked({ choice, side });
     setHover(null);
+    if (computer) {
+      const id = newComputerGameId();
+      saveComputerGame({ id, color: side, difficulty, started: false, moves: [] });
+      setStoredRole(id, side);
+      setStoredDifficulty(difficulty);
+      setComputerGameId(id);
+      return;
+    }
     setRequestIndex(messages.length);
     requestGame({ type: 'create_game', clientId: getClientId(), color: side });
   };
@@ -94,7 +130,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
   const waiting = settled && !created && !failed;
   // A connection is usually open in a moment: it is only mentioned once it
   // has kept the player waiting (or would, were they to pick)
-  const stalled = useDelayed(status !== 'connected' || waiting, SLOW_SERVER_MS);
+  const stalled = useDelayed(!computer && (status !== 'connected' || waiting), SLOW_SERVER_MS);
   const heading = !picked
     ? 'Choose your side'
     : picked.choice === 'random'
@@ -112,6 +148,23 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket }> = ({ gameSocket }) => {
       {/* The heading answers the pick at once; keyed, so each line fades in */}
       <div className="lobby-heading" key={heading}>
         <h1>{heading}</h1>
+        {computer && !picked && (
+          <fieldset className="lobby-levels">
+            <legend className="sr-only">Difficulty</legend>
+            {DIFFICULTIES.map((d) => (
+              <label key={d} className="lobby-level" data-checked={d === difficulty || undefined}>
+                <input
+                  type="radio"
+                  name="difficulty"
+                  value={d}
+                  checked={d === difficulty}
+                  onChange={() => setDifficulty(d)}
+                />
+                {DIFFICULTY_NAME[d]}
+              </label>
+            ))}
+          </fieldset>
+        )}
       </div>
       <div className="lobby-choices" role="group" aria-label="Choose your side">
         {CHOICES.map(({ choice, name }) => {

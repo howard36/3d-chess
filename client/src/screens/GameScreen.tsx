@@ -24,9 +24,21 @@ import { InvitationCard, InviteCard, SeatLabels } from './lobby/LobbyCards';
 import { Stone } from './TurnPill';
 import { useLobbyView } from './lobby/lobbyContext';
 import type { LobbyStage } from './lobby/lobbyContext';
+import { DIFFICULTY_NAME } from '../ai/levels';
+import type { Difficulty } from '../ai/levels';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
+  /**
+   * A game against the computer (gameSocket is then useComputerGame's): the
+   * player's side and the computer's level. The page holds that seat from the
+   * start; there is no one to invite, and the computer takes the other seat.
+   */
+  computer?: { color: Color; difficulty: Difficulty };
+  /** Where "Start new game" leads: the side choice (/new) by default. */
+  newGamePath?: string;
+  /** Called once the game's entrance is over and the board is in play. */
+  onPlaying?: () => void;
 }
 
 type Phase = 'waiting' | 'joined' | 'started';
@@ -34,7 +46,12 @@ type Phase = 'waiting' | 'joined' | 'started';
 /** The longest the lobby holds its arrival for the game's first frame. */
 const FIRST_FRAME_WAIT_MS = 4000;
 
-const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
+const GameScreen: React.FC<GameScreenProps> = ({
+  gameSocket,
+  computer,
+  newGamePath = '/new',
+  onPlaying,
+}) => {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
   // Whether this client has sent join_game (players with a stored role never do)
@@ -42,8 +59,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // Errors the user has already dismissed (by count, since the log is append-only)
   const [dismissedErrorCount, setDismissedErrorCount] = React.useState(0);
   // Render mirror of the persisted role; localStorage is the source of truth
-  const [storedRole, setStoredRoleState] = React.useState(() =>
-    gameId ? getStoredRole(gameId) : null,
+  const computerColor = computer?.color ?? null;
+  const [storedRole, setStoredRoleState] = React.useState(
+    () => computerColor ?? (gameId ? getStoredRole(gameId) : null),
   );
   // The socket session a rejoin_game was last sent on, so each fresh socket
   // (page load or mid-game reconnect) rejoins at most once.
@@ -63,9 +81,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
 
   React.useEffect(() => {
     // Re-sync when the route's gameId changes (a different game's page)
-    setStoredRoleState(gameId ? getStoredRole(gameId) : null);
+    setStoredRoleState(computerColor ?? (gameId ? getStoredRole(gameId) : null));
     rejoinSessionRef.current = 0;
-  }, [gameId]);
+  }, [gameId, computerColor]);
 
   const { messages, sessionId, sessionStartIndex, status } = gameSocket;
 
@@ -361,7 +379,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // title says so, and the arrival waits for them (the scene draws no
   // frames in a hidden tab)
   React.useEffect(() => {
-    if (handover !== 'arrive' || !wasHost.current || !document.hidden) return;
+    if (handover !== 'arrive' || !wasHost.current || computer || !document.hidden) return;
     const title = document.title;
     document.title = '● Opponent joined · 3D Chess';
     const back = () => {
@@ -372,7 +390,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       document.removeEventListener('visibilitychange', back);
       document.title = title;
     };
-  }, [handover]);
+  }, [handover, computer]);
 
   let lobbyView: LobbyStage | null = null;
   if (phase === 'started') {
@@ -387,7 +405,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         seat: color,
         // The seat that has just filled: the guest's own, or the host's opponent's
         arriving: host ? other(color) : color,
-        caption: host ? 'Opponent joined' : `You play ${color === 'white' ? 'White' : 'Black'}`,
+        caption: computer
+          ? `Computer · ${DIFFICULTY_NAME[computer.difficulty]}`
+          : host
+            ? 'Opponent joined'
+            : `You play ${color === 'white' ? 'White' : 'Black'}`,
         onArrived: () => setArrived(true),
         onReveal: () => setRevealed(true),
         onLeft: () => setHandover('done'),
@@ -398,7 +420,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       beat: 'wait',
       taken: { [storedRole]: true, [other(storedRole)]: false } as Record<Color, boolean>,
       mine: storedRole,
-      card: true,
+      // Framed over the invitation's card; the computer needs no invitation
+      card: !computer,
       hover: null,
       toss: null,
       seat: storedRole,
@@ -441,6 +464,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         color={color}
         opponentOnline={opponentOnline}
         reconnecting={status === 'reconnecting'}
+        opponentName={computer ? 'Computer' : undefined}
+        newGamePath={newGamePath}
         boardDisabled={boardDisabled}
         onMove={handleMove}
         promotionChoices={promotionChoices}
@@ -461,6 +486,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         // Held on its first frame while the lobby plays out over it
         introPaused={handover === 'arrive' || (handover === 'leave' && !revealed)}
         onFirstFrame={() => setGameDrawn(true)}
+        onIntroDone={onPlaying}
       />
     );
   }
@@ -479,7 +505,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         </button>
       </header>
       {hosting && storedRole && (
-        <SeatLabels labels={{ [storedRole]: 'You', [other(storedRole)]: 'Opponent' }} />
+        <SeatLabels
+          labels={{ [storedRole]: 'You', [other(storedRole)]: computer ? 'Computer' : 'Opponent' }}
+        />
       )}
       {guest && (invitation.state === 'open' || invitation.state === 'joining') && (
         <SeatLabels
@@ -494,10 +522,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         // Continues the side choice's last heading, so it does not rise again
         <div className="lobby-heading" data-still="">
           <h1>You play {storedRole === 'white' ? 'White' : 'Black'}</h1>
-          <p className="lobby-heading-wait">
-            <span className="hud-dot" aria-hidden />
-            Waiting for your friend…
-          </p>
+          {!computer && (
+            <p className="lobby-heading-wait">
+              <span className="hud-dot" aria-hidden />
+              Waiting for your friend…
+            </p>
+          )}
         </div>
       )}
       {guest && (invitation.state === 'open' || invitation.state === 'joining') && (
@@ -509,9 +539,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         </div>
       )}
       {hosting && storedRole ? (
-        <InviteCard link={shareLink} seat={storedRole} />
+        // The computer sits down in a moment: nothing to do meanwhile
+        !computer && <InviteCard link={shareLink} seat={storedRole} />
       ) : guest ? (
-        <InvitationCard invitation={invitation} connection={status} onAccept={acceptInvitation} />
+        <InvitationCard
+          invitation={invitation}
+          connection={status}
+          onAccept={acceptInvitation}
+          newGamePath={newGamePath}
+        />
       ) : (
         // A stored seat, rejoining: a moment
         <p className="lobby-foot" role="status">

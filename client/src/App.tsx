@@ -4,6 +4,9 @@ import StartScreen from './screens/StartScreen';
 import GameScreen from './screens/GameScreen';
 import LobbyLayout from './screens/lobby/LobbyLayout';
 import ChooseSide from './screens/lobby/ChooseSide';
+import { computerGame } from './screens/computerGameChunk';
+import { ChunkBoundary } from './components/ChunkBoundary';
+import { reloadPage } from './lib/cachedImport';
 import { useGameSocket } from './hooks/useGameSocket';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
@@ -25,6 +28,32 @@ function GameRoute({
   const { gameId } = useParams<{ gameId: string }>();
   if (gameId !== readyGameId) return null;
   return <GameScreen key={gameId} gameSocket={gameSocket} />;
+}
+
+// A game against the computer (/computer/:gameId), from its own chunk; should
+// that fail to load, the lobby's page says so with a way to try again
+function ComputerGameRoute() {
+  const [failed, setFailed] = React.useState(false);
+  if (failed) {
+    return (
+      <div className="lobby-page">
+        <p className="lobby-foot" role="alert">
+          Couldn't load the game{' '}
+          <button className="hud-retry" onClick={reloadPage}>
+            Retry
+          </button>
+        </p>
+      </div>
+    );
+  }
+  const Screen = computerGame.Component;
+  return (
+    <ChunkBoundary onFail={() => setFailed(true)}>
+      <React.Suspense fallback={null}>
+        <Screen />
+      </React.Suspense>
+    </ChunkBoundary>
+  );
 }
 
 function App() {
@@ -65,6 +94,9 @@ function App() {
           path="/game/:gameId"
           element={<GameRoute gameSocket={gameSocket} readyGameId={readyGameId} />}
         />
+        {/* Against the computer: no server, the game kept in the browser */}
+        <Route path="/computer" element={<ChooseSide gameSocket={gameSocket} computer />} />
+        <Route path="/computer/:gameId" element={<ComputerGameRoute />} />
       </Route>
     </Routes>
   );

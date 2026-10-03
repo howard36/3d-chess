@@ -10,6 +10,8 @@ interface EndGameModalProps {
   seat: Turn;
   /** Puts the card away, leaving the final board to study (Escape and a click outside it too). */
   onClose: () => void;
+  /** Where "Start new game" leads: the side choice (/new) by default. */
+  newGamePath?: string;
 }
 
 /**
@@ -19,7 +21,13 @@ interface EndGameModalProps {
  * button, Escape, a click outside it) to study the final board, which keeps
  * that button below the tower (NewGameBar).
  */
-const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat, onClose }) => {
+const EndGameModal: React.FC<EndGameModalProps> = ({
+  result,
+  winner,
+  seat,
+  onClose,
+  newGamePath = '/new',
+}) => {
   const navigate = useNavigate();
   const title = result === 'stalemate' ? 'Draw' : winner === seat ? 'You win' : 'You lose';
   return (
@@ -66,7 +74,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat, onClo
         <button
           autoFocus
           className="landing-play lobby-go hud-result-go"
-          onClick={() => navigate('/new')}
+          onClick={() => navigate(newGamePath)}
         >
           Start new game
         </button>
@@ -78,11 +86,11 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat, onClo
 export default EndGameModal;
 
 /** Start new game, below the tower, once the result card has been put away. */
-export const NewGameBar: React.FC = () => {
+export const NewGameBar: React.FC<{ newGamePath?: string }> = ({ newGamePath = '/new' }) => {
   const navigate = useNavigate();
   return (
     <div className="hud-new-game">
-      <button className="landing-play lobby-go" onClick={() => navigate('/new')}>
+      <button className="landing-play lobby-go" onClick={() => navigate(newGamePath)}>
         Start new game
       </button>
     </div>

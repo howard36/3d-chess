@@ -1,8 +1,9 @@
 # 3D Chess Online Multiplayer
 
 A web app for playing 3D chess on a 5×5×5 board (the standard pieces plus the Unicorn,
-which moves along space diagonals) with a friend over a shareable link. React + Three.js
-frontend, small Python WebSocket relay on Modal.
+which moves along space diagonals) with a friend over a shareable link, or against the
+computer at three levels. React + Three.js frontend, small Python WebSocket relay on Modal;
+the computer player runs in the browser.
 
 This README is the current, authoritative documentation.
 
@@ -252,9 +253,11 @@ Key decisions:
   at the band's edge nearest the tower, 16 px from it (`--landing-hug`), so the two
   mirror each other about the tower; a window 480 px tall or less
   sets the text in a column at the left instead (band 12). The button creates nothing: it
-  opens the side choice at `/new` (see The lobby), and nothing is written under it. The
+  opens the side choice at `/new` (see The lobby). Under it, a quieter glass pill, "Play the
+  computer", opens the side choice against the computer at `/computer` (see Playing the
+  computer); nothing is written under them. The
   canvas is `aria-hidden` and takes no pointer, and a visually hidden sentence says what it
-  shows. The start button is the page's only control: the preview always plays (it has no
+  shows. The two buttons are the page's only controls: the preview always plays (it has no
   pause), except under `prefers-reduced-motion`, where it is a still of the final
   position, the king left standing, with a still rim. In development `?t=<seconds>` starts
   the demo that far in.
@@ -690,11 +693,84 @@ before any seat was stored, is told "This game is taken": the look sees both sea
 although a join from that tab would get its own seat back through its client id. (Without
 the reload the join is re-sent on the next socket and recovers the seat.)
 
+## Playing the computer
+
+"Play the computer" on the landing page opens `/computer`: the side choice of The lobby
+(`ChooseSide` with `computer`), with Easy, Medium and Hard under the heading (native radio
+buttons styled as one segmented pill, `.lobby-levels`; Medium the first time, then the
+level last played, `lib/computerGames.ts`). A pick makes the game on the spot, in the
+browser, under a fresh lower-case id (a server game's id is upper case), and moves on to
+`/computer/<id>` like the side choice's move to a game's page. No server is asked, so it
+plays offline.
+
+**The game page** (`screens/ComputerGameScreen.tsx`, a chunk of its own,
+`screens/computerGameChunk.ts`, asked for as the side choice shows) is the ordinary
+`GameScreen` with a `computer` prop, over a stand-in for the socket: `useComputerGame`
+(`hooks/useComputerGame.ts`) implements `GameSocket` and answers the screen's messages as
+the server would (`game/computerGame.ts`: `rejoin_game` with a `game_state`, `move` with a
+`move_made` after checking the move against the rules engine, the refusals the server
+gives), so the board is event-sourced from the log exactly as in a game between two people.
+The game (side, level, whether the computer has sat down, the move record) is kept in
+`localStorage` after every move (`3dchess:computer:<id>`, and in memory where storage is
+refused), so a reload comes back to it. The lobby plays its host's wait with no invitation
+(the view's `card` off, "You" and "Computer" under the kings, no "Waiting for your
+friend…"), the computer sits down 0.7 s later (`COMPUTER_JOINS_MS`: a `game_start`) and the
+arrival is captioned "Computer · Hard"; then the game's entrance as usual. The pill calls
+the opponent "Computer", and "Start new game" leads back to `/computer`. A page for a game
+this browser does not hold says "No game here".
+
+**The computer's move.** Whenever the record leaves the computer to move, the hook asks
+`ai/computer.ts`, which runs the search in a module worker (`ai/worker.ts`), so the board
+keeps turning and animating while it thinks; where a worker cannot be had the search is
+imported and run on the page. Its move arrives as a `move_made` after a human pause
+(`thinkTime` in `ai/levels.ts`, counted from the question, the search's own time
+included): about half a second for a forced move, under a second for an obvious one (a
+recapture, or one far better than anything else), brisker in the first eight plies, and
+otherwise 0.65–1.35 times 1, 1.4 or 1.7 s by level. Should the search fail, the computer
+plays a legal move all the same.
+
+**The engine** (`client/src/ai/`) is separate from the rules engine, built for speed:
+`position.ts` keeps the board as 125 bytes, cells numbered as `engine/board.ts` numbers
+them, with occupancy bitsets per side, moves packed into integers, make/unmake in place and
+Zobrist hashing (`position.test.ts` checks every move list against the rules engine over
+thousands of positions of random games). `search.ts` is iterative-deepening alpha-beta
+(principal variation search) with a transposition table, quiescence search, null-move
+pruning, late-move reductions, check extensions, futility pruning, and killer and history
+ordering; a repeated position scores as a draw. `evaluate.ts` scores material at this
+board's values (those of the captured pieces' "+N", `game/material.ts`), development and
+centralisation in the cube, pawns' progress towards their last square (worth more as the
+board empties), king safety (home behind its pawns, enemy pieces near it) giving way to an
+active king in the endgame, mobility (left out of the quiescence search where it cannot
+matter), the bishop pair, and, a side ahead, trading down and driving the bare king to a
+corner, which mates with king and queen. In the browser it searches some 400,000 positions
+a second.
+
+**The levels** (`LEVELS` in `ai/levels.ts`, the choice in `ai/choose.ts`). Unlike a pure
+engine, the search gives an exact score to every root move within a margin of the best, and
+the level chooses among those the way a player would: each move's score off by the level's
+noise, a little less for moving a piece straight back to where it came from, then a softmax
+at the level's temperature over the moves within its margin. A mate is always taken and a
+move into a mate never chosen while there is another. Every level plays the first eight
+plies more freely, so no two games open alike. A level can also overlook moves that are
+hard to see on five levels (`hardToSee`): a knight's jump to another level, or a long move
+(two squares or more) that changes level. An overlooked move is hidden from the whole of
+that turn's search, whoever would play it, so the computer walks into a long unicorn line
+or a knight from the next level up, and misses its own, the way a person does.
+
+| Level  | Looks ahead                     | Misjudges by | Plays near-best within  | Overlooks hard moves |
+| ------ | ------------------------------- | ------------ | ----------------------- | -------------------- |
+| Easy   | 2 plies, short captures         | ±45 cp       | 260 cp (temperature 70) | half of them         |
+| Medium | 3 plies                         | ±18 cp       | 90 cp (temperature 22)  | about 1 in 5         |
+| Hard   | up to 1.8 s, as deep as it gets | —            | 16 cp (temperature 6)   | none                 |
+
+Measured by self-play (`chooseMove`, alternating colours): Easy beat a random mover 6–0,
+Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking time.
+
 ## Repository layout
 
 ```
 client/          React app (Vite). Engine in src/engine, log-derived game state in src/game,
-                 UI in src/screens + src/three.
+                 the computer player in src/ai, UI in src/screens + src/three.
 client/e2e/      Playwright tests; boots the real server and Vite (see playwright.config.ts).
 client/bench/    Client benchmarks (vitest bench) and their seeded fixtures.
 server/          FastAPI app + Modal deployment (modal_app.py), schema, generated models, pytest suite.
@@ -821,5 +897,9 @@ rules stops the client tier instead of timing different work.
   client replays history defensively — a record it cannot apply, or one that leaves a
   position it cannot evaluate (a captured king), freezes the board at the last good
   position with an explanation instead of crashing — but it cannot repair the record.
-- No resign or draw offer: games end only by checkmate or stalemate.
+- No resign or draw offer: games end only by checkmate or stalemate. There is no draw by
+  repetition or by a move count either, so a game against the computer in which neither
+  side can mate goes on until the player leaves it.
+- A game against the computer lives in the browser that played it: it cannot be opened in
+  another browser or device, and clearing site data ends it.
 - No spectators: a game has exactly two seats.

@@ -1,9 +1,9 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import GameScreen from './GameScreen';
-import EndGameModal from './EndGameModal';
+import EndGameModal, { NewGameBar } from './EndGameModal';
 import { LobbyContext } from './lobby/lobbyContext';
 import type { LobbyApi, LobbyStage } from './lobby/lobbyContext';
 import type { GameSocket } from '../hooks/useGameSocket';
@@ -469,5 +469,39 @@ describe('the end of a game', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Start new game' }));
     expect(screen.getByText('choose a side')).toBeInTheDocument();
+  });
+
+  it("against the computer, at the computer's side choice, from the card and from below the tower", async () => {
+    render(
+      <MemoryRouter initialEntries={['/computer/g1']}>
+        <Routes>
+          <Route path="/computer" element={<p>play the computer</p>} />
+          <Route
+            path="/computer/:gameId"
+            element={
+              <EndGameModal
+                result="stalemate"
+                seat="white"
+                newGamePath="/computer"
+                onClose={() => {}}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Start new game' }));
+    expect(screen.getByText('play the computer')).toBeInTheDocument();
+    cleanup();
+    render(
+      <MemoryRouter initialEntries={['/computer/g1']}>
+        <Routes>
+          <Route path="/computer" element={<p>play the computer</p>} />
+          <Route path="/computer/:gameId" element={<NewGameBar newGamePath="/computer" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Start new game' }));
+    expect(screen.getByText('play the computer')).toBeInTheDocument();
   });
 });
