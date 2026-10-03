@@ -116,6 +116,30 @@ describe('MoveGlide', () => {
   });
 });
 
+describe('MoveGlide’s early landing', () => {
+  it('reports the landing the time asked before it comes to rest, and rests on time', async () => {
+    const plan = planGlide(FROM, TO);
+    let landings = 0;
+    const renderer = await ReactThreeTestRenderer.create(
+      <MoveGlide plan={plan} onLanded={() => landings++} landsEarlyMs={100}>
+        <mesh />
+      </MoveGlide>,
+    );
+    const outer = (renderer.scene as ReactThreeTestInstance).findAll(
+      (n) => n.props.userData?.moveGlide === true,
+    )[0].instance as unknown as Group;
+    await act(async () => renderer.advanceFrames(Math.floor((plan.travelMs - 100) / 10) - 1, 0.01));
+    expect(landings).toBe(0);
+    await act(async () => renderer.advanceFrames(2, 0.01));
+    expect(landings).toBe(1);
+    // Still on its way
+    expect(outer.position.z).toBeGreaterThan(0);
+    await act(async () => renderer.advanceFrames(20, 0.01));
+    expect(outer.position.z).toBe(0);
+    expect(landings).toBe(1);
+  });
+});
+
 describe('useGlide', () => {
   it('tells the gliding body the levels it leaves and lands on, and how far along it is', async () => {
     let glide: ReturnType<typeof useGlide> = null;

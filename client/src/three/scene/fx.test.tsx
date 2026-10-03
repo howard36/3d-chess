@@ -37,10 +37,11 @@ describe('the checkmate pulse', () => {
         .map((n) => n.instance as unknown as Mesh);
     expect(meshes()).toHaveLength(1);
     expect(meshes()[0].position.y).toBeCloseTo(top, 1);
-    // From the middle it lasts about a second
-    await act(async () => r.advanceFrames(10, 0.1));
+    // From the middle it lasts under a second
+    const frames = Math.floor(pulseSeconds(0, 0) * 10);
+    await act(async () => r.advanceFrames(frames - 1, 0.1));
     expect(meshes()).toHaveLength(1);
-    await act(async () => r.advanceFrames(6, 0.1));
+    await act(async () => r.advanceFrames(3, 0.1));
     expect(meshes()).toHaveLength(0);
   });
 });

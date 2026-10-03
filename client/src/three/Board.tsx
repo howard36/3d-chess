@@ -15,6 +15,7 @@ import type { GlidePlan } from './glide';
 import { MoveGlide } from './moveAnimation';
 import { PIECE_LIFT } from './pieceMotion';
 import { prefersReducedMotion } from './motion';
+import { MATE_TUNING } from '../lib/mate';
 import { isTap } from './tap';
 import { useExactClicks } from './exactClicks';
 import { useTapAssist } from './useTapAssist';
@@ -23,6 +24,8 @@ import type { LevelFocus, MarkerProps, PieceColor, Vec3 } from './types';
 import { resolveHover } from './hover';
 import type { FloorSquare } from './hover';
 import { CaptureFx, Celebration } from './scene/fx';
+import { KNOCK_STRIKE_MS } from './pieceMotion';
+import { fallAway } from './mate';
 import { Grid } from './scene/grid';
 import { Capture, Check, LastMove, Quiet } from './scene/markers';
 import { KNIGHT_YAW, layout, PIECE_SCALE } from './scene/palette';
@@ -51,6 +54,7 @@ const cellMaterial = new MeshBasicMaterial();
 // skewer the piece in its cell at the cell's centre. Pieces are modeled
 // base-at-y=0 and are shorter than their cell, so they stand on its floor
 // rather than centred in it.
+
 const atCellFloor = ([x, y, z]: Vec3): Vec3 => [x, y + layout.floorY, z];
 
 export interface LastMoveInfo {
@@ -350,6 +354,35 @@ const Board = (props: BoardProps) => {
     ({ type, color }) => type === PieceType.King && color === matedColor,
   );
 
+  // --- The mate (lib/mate.ts): the mating piece's arrival knocks the
+  // king back, away from it, and he hangs at the edge of his balance and
+  // falls, and as he strikes, the winning army hops in a
+  // wave out from him. Its beats count from the mating move's landing, and
+  // play out only for a mate that arrived live: from history he just falls.
+  const matedSquare = matedKing && toZXY(matedKing.coord);
+  const mate = useMemo(() => {
+    if (!matedKing || !props.gameOver?.winner || !lastMove) return null;
+    const live = animate;
+    const winner = props.gameOver.winner;
+    const king = worldOf(matedKing.coord);
+    const away = fallAway(king, worldOf(lastMove.move.to));
+    // The winning army's cheer
+    const cheer = new Map<string, number>();
+    if (live) {
+      for (const { color, coord } of pieces) {
+        if (color !== winner) continue;
+        const [x, y, z] = worldOf(coord);
+        const far = Math.hypot(x - king[0], y - king[1], z - king[2]);
+        cheer.set(
+          toZXY(coord),
+          KNOCK_STRIKE_MS + MATE_TUNING.waveDelayMs + (1000 * far) / MATE_TUNING.waveSpeed,
+        );
+      }
+    }
+    return { live, away, cheer };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fixed when the mate arrives
+  }, [matedSquare, props.gameOver, lastMove?.moveCount, animate]);
+
   // --- Hover: the cell under the pointer, from the pointer's ray (see hover.ts)
   const grid = useRef<Group>(null);
   const floors = useMemo<FloorSquare[]>(
@@ -482,6 +515,7 @@ const Board = (props: BoardProps) => {
         {pieces.map(({ type, color, coord }) => {
           const key = toZXY(coord);
           const inCheck = type === PieceType.King && checked.includes(color);
+          const isMated = type === PieceType.King && color === matedColor;
           const mesh = (
             <PieceMesh
               key={`${type}-${color}-${key}`}
@@ -494,7 +528,10 @@ const Board = (props: BoardProps) => {
               hovered={hovered === key && canPick(coord)}
               inCheck={inCheck}
               level={coord.z}
-              mated={type === PieceType.King && color === matedColor}
+              mated={isMated}
+              knocked={isMated && !!mate?.live}
+              fallAway={isMated ? mate?.away : undefined}
+              cheerAt={mate?.cheer.get(key)}
               carried={!!carried && sameCoord(carried, coord)}
               refused={refused?.key === key ? refused.count : 0}
               facing={knightFacing(color)}
@@ -513,6 +550,8 @@ const Board = (props: BoardProps) => {
                 fromLevel={lastMove.move.from.z}
                 toLevel={coord.z}
                 onLanded={() => setLandedMove((n) => Math.max(n, lastMove.moveCount))}
+                // The mate's knock (and a check's strike) as it looks landed
+                landsEarlyMs={MATE_TUNING.knockLeadMs}
               >
                 {mesh}
               </MoveGlide>
@@ -567,7 +606,14 @@ const Board = (props: BoardProps) => {
             orientation={orientation}
           />
         )}
-        {matedKing && <Celebration {...markerAt(matedKing.coord)} />}
+        {matedKing && mate && (
+          <Celebration
+            {...markerAt(matedKing.coord)}
+            speed={MATE_TUNING.pulseSpeed}
+            // The pulse leaves as he strikes the floor
+            delayMs={mate.live ? KNOCK_STRIKE_MS - 60 : 0}
+          />
+        )}
       </group>
     </>
   );

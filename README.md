@@ -401,9 +401,21 @@ small ring of light spreads on the glass at its foot; it is knocked over away fr
 attacker, burning away as it falls (`CaptureFx` in `scene/fx.tsx`). A king put in check
 rocks on his foot as the check lands, and a piece the player taps but cannot pick up shakes
 its head (`Jolt` in `three/pieceMotion.tsx`); with reduced motion none of this plays. At mate the king
-topples and a pulse of light spreads across his own level at an even speed (`scene/fx.tsx`), and the result card appears as he
-strikes the floor (`onToppled` in `three/pieceMotion.tsx`) while his bounce and the pulse
-play on behind it.
+is knocked over by the mating piece's arrival (`Topple` and `KNOCK_FALL` in
+`three/pieceMotion.tsx`): the knock tips him back onto the rim of his base, away from the
+piece that mated him, fast at first, then slowing almost to a stop at the edge of his
+balance, where he hangs for a moment before gravity takes him over (a rigid body on its
+rim, simulated; the knock gives barely enough to reach his tipping point). He is turned
+aside if straight away would take him off his platform (`three/mate.ts`). As he strikes the floor a pulse of light spreads across his
+level (`scene/fx.tsx`), the obsidian blades round him sink into the glass and are gone, and
+the winning army hops in a wave out from him. The result card follows `onToppled` after a
+hold on the final board (`screens/useEndCard.ts`), in the middle of
+the screen. It can be closed (its close button, Escape, a click outside it) to turn and
+zoom the final position, with Start new game left below the tower. From history he simply falls. The knock lands
+85 ms before the mating piece comes to rest (its glide eases in so slowly that it looks
+landed by then), the pulse spreads at 4.5 world units a second, the wave sets off 370 ms
+after the king strikes and travels at 15, and the card follows 1.3 s after the strike
+(`lib/mate.ts`).
 
 **The entrance.** Opening the game plays a short entrance, just under 4 seconds when the
 game starts while the page is open and 1.3 when the page opens on a game already under
