@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { BufferAttribute, BufferGeometry, Color, ShaderMaterial } from 'three';
+import type { Mesh } from 'three';
 import type { IUniform } from 'three';
 import { prefersReducedMotion } from '../motion';
 import { noRaycast } from '../noRaycast';
@@ -258,8 +259,15 @@ export const Blades = ({
   const material = useMemo(() => obsidianMaterial(life), [life]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   useRetireOnUnmount(material);
+  // Once they have sunk into the glass at mate they are gone (squashed
+  // flat, they would still show from above)
+  const mesh = useRef<Mesh>(null);
+  useFrame(() => {
+    if (mesh.current) mesh.current.visible = life.uSettle.value < 1;
+  });
   return (
     <mesh
+      ref={mesh}
       geometry={geometry}
       material={material}
       position={[floor[0], floor[1], floor[2]]}

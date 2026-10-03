@@ -460,7 +460,9 @@ describe('the end of a game', () => {
           <Route path="/new" element={<p>choose a side</p>} />
           <Route
             path="/game/:gameId"
-            element={<EndGameModal result="checkmate" winner="white" seat="white" />}
+            element={
+              <EndGameModal result="checkmate" winner="white" seat="white" onClose={() => {}} />
+            }
           />
         </Routes>
       </MemoryRouter>,
