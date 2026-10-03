@@ -1,5 +1,5 @@
 import { FRAME, layout, PIECE_SCALE } from '../scene/palette';
-import { centringShift, FIT_SOFTNESS, fitView, hudTop, ringBounds, zoomRange } from '../cameraFit';
+import { fitShift, fitView, HUD_TOP_PX, hudTop, orbitSweep, zoomRange } from '../cameraFit';
 import type { FitWindow } from '../cameraFit';
 import { introPlan } from '../intro/timeline';
 import { clamp01, easeOutCubic, smooth } from '../scene/ease';
@@ -326,20 +326,34 @@ export const leaveDirection = (seat: Side): Vec3 => {
  * centre) and the fit's lens shift. The lobby ends its leaving exactly
  * there, so its last picture is the game's first.
  */
+/** The last opening worked out, which the leaving asks for every frame (the fit sweeps the orbit's elevations). */
+let lastOpening: {
+  key: string;
+  opening: { pose: ReturnType<typeof poseFromDirection>; shift: [number, number] };
+} | null = null;
+
 export const gameOpening = (seat: Side, width: number, height: number, reduced = false) => {
+  const key = `${seat} ${width} ${height} ${reduced}`;
+  if (lastOpening?.key === key) return lastOpening.opening;
   const direction = leaveDirection(seat);
   const pose = poseFromDirection([0, 0, 0], direction, 1);
-  const view: FitWindow = { width, height, fov: LOBBY_FOV, topInset: hudTop(height) };
+  const view: FitWindow = {
+    width,
+    height,
+    fov: LOBBY_FOV,
+    topInset: hudTop(height),
+    balanceInset: HUD_TOP_PX,
+    sweep: orbitSweep(layout.orbit),
+  };
   const fit = fitView(pose.elevation, layout.frameRings, view).distance;
   const { min, max } = zoomRange(fit, layout.orbit.minDistance);
   const distance = Math.min(Math.max(fit, min), max);
-  const shift = centringShift(
-    ringBounds(layout.frameRings, pose.elevation, distance, FIT_SOFTNESS),
-    view,
-  );
-  return {
+  const shift = fitShift(layout.frameRings, pose.elevation, distance, view);
+  const opening = {
     // (the entrance the game will play: under reduced motion it has no dolly)
     pose: { ...pose, distance: distance * introPlan('lobby', reduced).dolly.from },
     shift,
   };
+  lastOpening = { key, opening };
+  return opening;
 };

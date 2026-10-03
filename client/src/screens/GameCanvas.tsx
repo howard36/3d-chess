@@ -5,7 +5,7 @@ import type { RootState } from '@react-three/fiber';
 import { NeutralToneMapping } from 'three';
 import Board from '../three/Board';
 import { FitCameraToBoard } from '../three/FitCameraToBoard';
-import { hudTop } from '../three/cameraFit';
+import { HUD_TOP_PX, hudTop, orbitSweep } from '../three/cameraFit';
 import { usePixelBudget } from '../three/pixelBudget';
 import { CameraControls } from '../three/CameraControls';
 import { IntroContext } from '../three/intro/clock';
@@ -26,6 +26,9 @@ import type { Color } from '../types/messages';
 // in the chunk the lobby's canvas and the landing page's preview share.
 // GameView loads it lazily, so a game's page shows its HUD and move record
 // before three.js has arrived.
+
+/** The elevations the game's view can turn between, all kept in frame. */
+const GAME_SWEEP = orbitSweep(layout.orbit);
 
 export interface GameCanvasProps {
   color: Color | null;
@@ -136,6 +139,9 @@ const GameCanvas = ({
             minDistance={layout.orbit.minDistance}
             frameRings={layout.frameRings}
             hudTopBand={hudTop}
+            // Balanced below the pill, the row of pieces taken under it kept clear
+            balanceInset={HUD_TOP_PX}
+            sweep={GAME_SWEEP}
           />
           <IntroDirector
             clock={clock}
