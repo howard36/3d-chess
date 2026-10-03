@@ -1,0 +1,421 @@
+/*
+ * The tutorial (screens/learn/), in its own chunk with LearnScreen: the
+ * tower fills the window, the lessons' menu across the top and the lesson's
+ * card across the bottom, in the HUD's black glass (index.css). The camera's
+ * fit keeps the tower clear of both (learnLayout.ts: the menu's 64 px, the
+ * card's height and its gutter). In a window wide enough, or 480 px tall or
+ * less, the card stands at the left instead (data-card='beside').
+ */
+.learn {
+  --learn-card: 184px;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #010205;
+  color: var(--hud-fg);
+  font-family: var(--hud-font);
+  letter-spacing: var(--hud-tracking);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+.learn-stage {
+  position: absolute;
+  inset: 0;
+}
+.learn-top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.learn-top > * {
+  pointer-events: auto;
+}
+.learn-home {
+  position: absolute;
+  left: 0;
+}
+.learn-menu {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 22px;
+}
+.learn-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px 0 8px;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  background: none;
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 150ms,
+    background 150ms,
+    border-color 150ms;
+}
+.learn-tab svg {
+  flex: none;
+  opacity: 0.7;
+  transition: opacity 150ms;
+}
+.learn-tab:hover,
+.learn-tab:focus-visible {
+  color: var(--hud-fg);
+  outline: none;
+}
+.learn-tab:hover svg,
+.learn-tab:focus-visible svg,
+.learn-tab[aria-current] svg {
+  opacity: 1;
+}
+.learn-tab:focus-visible {
+  box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.35);
+}
+.learn-tab[aria-current] {
+  border-color: rgba(236, 241, 255, 0.28);
+  background: rgba(236, 241, 255, 0.1);
+  color: var(--hud-fg);
+}
+/* The new piece: a spark of the five level colours */
+.learn-tab-dot {
+  position: absolute;
+  top: 5px;
+  left: 24px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: conic-gradient(#00d7e0, #58c1ff, #96a7ff, #c48be5, #de77ab, #00d7e0);
+  box-shadow: 0 0 6px rgba(150, 167, 255, 0.8);
+}
+
+.learn-card {
+  position: absolute;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(580px, calc(100vw - 24px));
+  height: var(--learn-card);
+  padding: 12px 16px 12px;
+  border-radius: 8px;
+}
+.learn-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+}
+.learn-head h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.learn-new {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #00d7e0, #58c1ff, #96a7ff, #c48be5, #de77ab);
+  color: #07080c;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.learn-steps {
+  display: flex;
+  margin-left: auto;
+  padding: 2px;
+  border: var(--hud-border);
+  border-radius: 15px;
+}
+.learn-step {
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 13px;
+  background: none;
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.learn-step:hover,
+.learn-step:focus-visible {
+  color: var(--hud-fg);
+  outline: none;
+}
+.learn-step:focus-visible {
+  box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.35);
+}
+.learn-step[aria-pressed='true'] {
+  background: var(--hud-accent);
+  color: var(--hud-accent-fg);
+}
+.learn-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 0;
+  margin-top: 6px;
+}
+.learn-figure {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+}
+.learn-figure svg {
+  width: 82px;
+  height: 74px;
+}
+.learn-figure figcaption {
+  margin-top: 1px;
+  color: var(--hud-muted);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.learn-words {
+  min-width: 0;
+}
+.learn-line {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.learn-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.learn-facts li {
+  padding: 3px 9px;
+  border: 1px solid rgba(236, 241, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(236, 241, 255, 0.04);
+  color: rgba(226, 232, 244, 0.8);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.learn-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+.learn-count {
+  margin: 0 auto 0 0;
+  color: var(--hud-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.learn-count b {
+  color: #f8c970;
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.learn-again {
+  padding: 4px 6px;
+  white-space: nowrap;
+  border: 0;
+  background: none;
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.learn-again:hover,
+.learn-again:focus-visible {
+  color: var(--hud-fg);
+  outline: none;
+}
+.learn-next {
+  display: inline-flex;
+  white-space: nowrap;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  margin-left: auto;
+  padding: 0 14px;
+  border: var(--button-border);
+  border-radius: 16px;
+  background: none;
+  color: var(--button-fg);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.learn-count + .learn-next,
+.learn-again + .learn-next {
+  margin-left: 0;
+}
+.learn-next:hover,
+.learn-next:focus-visible {
+  border-color: #f3f6ff;
+  box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.25);
+  outline: none;
+}
+
+/* Narrower: the menu shows its pieces only (each named for assistive
+   technology), and Home its arrow */
+@media (max-width: 860px) {
+  .learn-tab {
+    padding: 0;
+    width: 36px;
+    justify-content: center;
+  }
+  .learn-tab-name {
+    display: none;
+  }
+  .learn-tab-dot {
+    left: auto;
+    right: 3px;
+    top: 3px;
+  }
+}
+@media (max-width: 520px) {
+  .learn-top {
+    justify-content: flex-end;
+  }
+  .learn-home {
+    position: static;
+    margin-right: auto;
+    padding: 6px 8px;
+  }
+  .learn-home-word {
+    display: none;
+  }
+  .learn-menu {
+    gap: 0;
+    padding: 2px;
+  }
+  .learn-tab {
+    width: 35px;
+  }
+  .learn {
+    --learn-card: 184px;
+  }
+  .learn-card {
+    padding: 10px 12px;
+  }
+  .learn-body {
+    gap: 8px;
+  }
+  .learn-figure svg {
+    width: 66px;
+    height: 60px;
+  }
+  .learn-line {
+    font-size: 14px;
+  }
+  .learn-facts li {
+    font-size: 11.5px;
+    padding: 2px 8px;
+  }
+}
+/* A wide window: the card stands at the left of the tower, which takes the
+   whole height under the menu (learnLayout.ts, cardBeside), at one height
+   for every lesson, in the middle of the room under the menu */
+.learn[data-card='beside'] {
+  --learn-card: 330px;
+}
+.learn[data-card='beside'] .learn-card {
+  left: max(20px, env(safe-area-inset-left));
+  top: calc(32px + 50%);
+  bottom: auto;
+  transform: translateY(-50%);
+  width: 300px;
+  height: auto;
+  min-height: var(--learn-card);
+  padding: 16px 18px 14px;
+}
+.learn[data-card='beside'] .learn-head {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+.learn[data-card='beside'] .learn-head h1 {
+  font-size: 24px;
+}
+.learn[data-card='beside'] .learn-steps {
+  order: 1;
+  margin-left: 0;
+}
+.learn[data-card='beside'] .learn-body {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 14px;
+}
+.learn[data-card='beside'] .learn-figure svg {
+  width: 104px;
+  height: 94px;
+}
+.learn[data-card='beside'] .learn-figure figcaption {
+  font-size: 12px;
+}
+/* A phone on its side: the card stands at the left, beside the tower */
+@media (max-height: 480px) {
+  .learn[data-card='beside'] .learn-card {
+    left: max(12px, env(safe-area-inset-left));
+    top: 64px;
+    bottom: 12px;
+    transform: none;
+    width: 228px;
+    height: auto;
+  }
+  .learn[data-card='beside'] .learn-head {
+    flex-wrap: wrap;
+  }
+  .learn[data-card='beside'] .learn-steps {
+    margin-left: 0;
+  }
+  .learn[data-card='beside'] .learn-head h1 {
+    font-size: 20px;
+  }
+  .learn[data-card='beside'] .learn-body {
+    margin-top: 8px;
+  }
+  .learn[data-card='beside'] .learn-foot {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .learn-hint {
+    display: none;
+  }
+  .learn[data-card='beside'] .learn-figure {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .learn * {
+    transition: none !important;
+  }
+}

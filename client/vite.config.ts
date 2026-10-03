@@ -5,14 +5,21 @@ import react from '@vitejs/plugin-react';
 /**
  * three.js, the scene and the set's precomputed parts load in a chunk of
  * their own, the one the lobby's canvas (LobbyCanvas.tsx), the game's board
- * (GameCanvas.tsx) and the landing page's preview share. On the side choice
- * (/new) and a game's address (/game/:id) the page needs it at once, so the
+ * (GameCanvas.tsx), the tutorial's board (LearnCanvas.tsx) and the landing
+ * page's preview share. On the side choice (/new), a game's address
+ * (/game/:id) and the tutorial (/learn, whose own page is a chunk too,
+ * LearnScreen.tsx) the page needs it at once, so the
  * built page starts fetching it (and the chunks it imports) alongside the
  * entry, instead of after the entry has loaded and run; the start page leaves
  * it for later. The build fails if a chunk is not found, rather than quietly
  * shipping a page without the preload.
  */
-const PRELOADED = ['/src/screens/lobby/LobbyCanvas.tsx', '/src/screens/GameCanvas.tsx'];
+const PRELOADED = [
+  '/src/screens/lobby/LobbyCanvas.tsx',
+  '/src/screens/GameCanvas.tsx',
+  '/src/screens/learn/LearnScreen.tsx',
+  '/src/screens/learn/LearnCanvas.tsx',
+];
 const preloadSceneOnGamePages = (): Plugin => ({
   name: 'preload-scene-on-game-pages',
   apply: 'build',
@@ -40,7 +47,7 @@ const preloadSceneOnGamePages = (): Plugin => ({
         {
           tag: 'script',
           injectTo: 'head',
-          children: `if(/^\\/(game\\/|new$)/.test(location.pathname)){${files.map(preload).join('')}}`,
+          children: `if(/^\\/(game\\/|new$|learn(\\/|$))/.test(location.pathname)){${files.map(preload).join('')}}`,
         },
       ];
     },

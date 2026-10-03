@@ -5,6 +5,7 @@ import { lazyChunk } from '../lib/cachedImport';
 import { ChunkBoundary } from '../components/ChunkBoundary';
 import { PieceGlyph } from './PieceGlyph';
 import { PieceType } from '../engine/pieces';
+import { learnScreen } from './learn/learnChunk';
 
 // The preview (three.js, the scene, a demo game) is a chunk of its own,
 // asked for when the page first draws, so its title and button show without
@@ -44,6 +45,15 @@ const StartScreen: React.FC = () => {
             <PieceGlyph type={PieceType.Knight} color="black" size={24} />
           </span>
           Start a game
+        </button>
+        <button
+          className="landing-learn"
+          onClick={() => navigate('/learn')}
+          // The tutorial's page is a chunk of its own: asked for on the way to the button
+          onPointerEnter={learnScreen.preload}
+          onFocus={learnScreen.preload}
+        >
+          How the pieces move
         </button>
       </div>
     </main>

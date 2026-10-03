@@ -1360,3 +1360,23 @@
 .hud-result-go {
   margin-top: 18px;
 }
+
+/* The way to the tutorial, under the start button */
+.landing-learn {
+  margin-top: 10px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--button-radius);
+  background: none;
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.landing-learn:hover,
+.landing-learn:focus-visible {
+  color: var(--hud-fg);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.25);
+}
