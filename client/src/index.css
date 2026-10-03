@@ -884,6 +884,36 @@
   /* The label and the fill change together, never white on white */
   transition: none;
 }
+/* The other way in, under the call to action: playing the computer. Quieter,
+   a glass pill the HUD's black */
+.landing-foot {
+  gap: 10px;
+}
+.landing-alt {
+  height: 40px;
+  min-width: 200px;
+  padding: 0 22px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(10, 12, 18, 0.62);
+  backdrop-filter: blur(10px);
+  color: var(--hud-fg);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 160ms,
+    background-color 160ms;
+}
+.landing-alt:hover {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(16, 19, 28, 0.8);
+}
+.landing-alt:focus-visible {
+  outline: 2px solid var(--hud-accent);
+  outline-offset: 3px;
+}
 /* A phone held upright: the button spans the column */
 @media (max-width: 480px) {
   .landing h1 {
@@ -897,6 +927,10 @@
     width: 100%;
     max-width: 360px;
     min-width: 0;
+  }
+  .landing-alt {
+    width: 100%;
+    max-width: 360px;
   }
 }
 /* A tall window: wider bands, and on a wide one the type a step up */
@@ -955,6 +989,16 @@
     height: 48px;
     padding: 0 16px;
     font-size: 16px;
+  }
+  .landing-foot {
+    gap: 8px;
+  }
+  .landing-alt {
+    width: 100%;
+    min-width: 0;
+    height: 36px;
+    padding: 0 12px;
+    font-size: 14px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1044,6 +1088,61 @@
   margin: 10px 0 0;
   color: var(--hud-muted);
   font-size: 15px;
+}
+/* Against the computer: its level, three segments under the heading */
+.lobby-levels {
+  display: inline-flex;
+  gap: 2px;
+  margin: 16px 0 0;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(10, 12, 18, 0.7);
+  backdrop-filter: blur(12px);
+}
+.lobby-level {
+  position: relative;
+  padding: 6px 16px;
+  border-radius: 999px;
+  color: var(--hud-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background-color 160ms,
+    color 160ms;
+}
+.lobby-level:hover {
+  color: var(--hud-fg);
+}
+.lobby-level[data-checked] {
+  background: var(--hud-accent);
+  color: var(--hud-accent-fg);
+}
+.lobby-level input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.lobby-level:has(input:focus-visible) {
+  outline: 2px solid var(--hud-accent);
+  outline-offset: 2px;
+}
+/* A short window (a phone on its side): the heading and the levels go up
+   and close together, clear of the kings' crowns */
+@media (max-height: 500px) {
+  .lobby-heading:has(.lobby-levels) {
+    top: 10px;
+  }
+  .lobby-heading:has(.lobby-levels) h1 {
+    font-size: 28px;
+  }
+  .lobby-levels {
+    margin-top: 8px;
+  }
 }
 /* The side buttons are sized with the kings as they stand on screen
    (--king-height): a large pill under a large king, a small one, with a

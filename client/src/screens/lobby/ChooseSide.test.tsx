@@ -305,3 +305,52 @@ describe('choosing a side', () => {
     expect(screen.getByText('home')).toBeInTheDocument();
   });
 });
+
+describe('against the computer', () => {
+  const computerAt = (socket: GameSocket) => (
+    <LobbyContext.Provider value={lobby}>
+      <MemoryRouter initialEntries={['/', '/computer']} initialIndex={1}>
+        <Routes>
+          <Route path="/computer" element={<ChooseSide gameSocket={socket} computer />} />
+          <Route path="/computer/:gameId" element={<GamePage />} />
+        </Routes>
+      </MemoryRouter>
+    </LobbyContext.Provider>
+  );
+
+  it('offers the three levels, Medium first time, the last one played after', async () => {
+    const { unmount } = render(computerAt(fakeSocket()));
+    expect(screen.getByRole('group', { name: 'Difficulty' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Medium' })).toBeChecked();
+    await userEvent.click(screen.getByRole('radio', { name: 'Hard' }));
+    expect(screen.getByRole('radio', { name: 'Hard' })).toBeChecked();
+    await userEvent.click(black());
+    // The levels go once a side is picked
+    expect(screen.queryByRole('group', { name: 'Difficulty' })).toBeNull();
+    unmount();
+    render(computerAt(fakeSocket()));
+    expect(screen.getByRole('radio', { name: 'Hard' })).toBeChecked();
+  });
+
+  it('makes the game in the browser, asks no server, and moves on to its page', async () => {
+    const send = vi.fn<GameSocket['send']>(() => true);
+    // Even with no connection to the server, nothing is said about it
+    render(computerAt(fakeSocket([], send, { status: 'connecting' })));
+    await new Promise((r) => setTimeout(r, 1700));
+    expect(screen.queryByText(/server/)).toBeNull();
+    await userEvent.click(screen.getByRole('radio', { name: 'Easy' }));
+    await userEvent.click(white());
+    expect(send).not.toHaveBeenCalled();
+    expect(view).toMatchObject({ beat: 'choose', mine: 'white' });
+    settle();
+    const page = await screen.findByText(/^game page [a-z0-9]+ by REPLACE$/);
+    const id = page.textContent!.split(' ')[2];
+    expect(getStoredRole(id)).toBe('white');
+    expect(JSON.parse(localStorage.getItem(`3dchess:computer:${id}`)!)).toMatchObject({
+      color: 'white',
+      difficulty: 'easy',
+      started: false,
+      moves: [],
+    });
+  });
+});

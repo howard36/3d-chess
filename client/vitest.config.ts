@@ -13,12 +13,26 @@ export default defineConfig({
       '**/test-results/**',
     ],
     coverage: {
-      // The rules engine and the log-derived game state are gated; hooks and
-      // lib are reported for visibility only (no threshold), so a dip there
-      // shows up in the table but does not fail the run.
-      include: ['src/engine/**/*.ts', 'src/game/**/*.ts', 'src/hooks/**/*.ts', 'src/lib/**/*.ts'],
+      // The rules engine, the computer player and the log-derived game state
+      // are gated; hooks and lib are reported for visibility only (no
+      // threshold), so a dip there shows up in the table but does not fail
+      // the run. The computer's worker script only runs in a browser.
+      include: [
+        'src/engine/**/*.ts',
+        'src/ai/**/*.ts',
+        'src/game/**/*.ts',
+        'src/hooks/**/*.ts',
+        'src/lib/**/*.ts',
+      ],
+      exclude: ['src/ai/worker.ts', '**/*.test.ts'],
       thresholds: {
         'src/engine/**/*.ts': {
+          statements: 90,
+          branches: 90,
+          functions: 90,
+          lines: 90,
+        },
+        'src/ai/**/*.ts': {
           statements: 90,
           branches: 90,
           functions: 90,

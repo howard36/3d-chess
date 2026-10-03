@@ -14,8 +14,9 @@ const { Component: LandingPreview } = lazyChunk(() =>
   import('./LandingPreview').then((m) => ({ default: m.LandingPreview })),
 );
 
-// The home page: the tower playing a game by itself, and the way in. A new
-// game starts by choosing a side (/new), which asks the server for it.
+// The home page: the tower playing a game by itself, and the ways in. A new
+// game starts by choosing a side (/new), which asks the server for it; a
+// game against the computer by choosing a side and a level (/computer).
 const StartScreen: React.FC = () => {
   const navigate = useNavigate();
   const still = useReducedMotion();
@@ -44,6 +45,9 @@ const StartScreen: React.FC = () => {
             <PieceGlyph type={PieceType.Knight} color="black" size={24} />
           </span>
           Start a game
+        </button>
+        <button className="landing-alt" onClick={() => navigate('/computer')}>
+          Play the computer
         </button>
       </div>
     </main>
