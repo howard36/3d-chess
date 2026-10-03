@@ -32,6 +32,7 @@ const renderStart = () =>
       <Routes>
         <Route path="/" element={<StartScreen />} />
         <Route path="/new" element={<p>choose a side</p>} />
+        <Route path="/learn" element={<p>the tutorial</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -41,8 +42,11 @@ test('the start button is the first thing Tab reaches, and the preview has no co
   renderStart();
   await userEvent.tab();
   expect(screen.getByRole('button', { name: 'Start a game' })).toHaveFocus();
-  // It always plays: the start button is the page's only control
-  expect(screen.getAllByRole('button')).toHaveLength(1);
+  // It always plays: the page's controls are the start button and the way to the tutorial
+  expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
+    'Start a game',
+    'How the pieces move',
+  ]);
 });
 
 test('for a player who asked for less motion the preview holds still', async () => {
@@ -51,11 +55,18 @@ test('for a player who asked for less motion the preview holds still', async () 
   expect(await screen.findByTestId('preview')).toHaveAttribute('data-still', 'true');
 });
 
-test('nothing is written under the button', () => {
+test('nothing is written under the button, but the way to the tutorial', () => {
   reduceMotion(false);
   renderStart();
   const foot = screen.getByRole('button', { name: 'Start a game' }).parentElement!;
-  expect(foot.children).toHaveLength(1);
+  expect([...foot.children].map((c) => c.tagName)).toEqual(['BUTTON', 'BUTTON']);
+});
+
+test('the tutorial is a click away', async () => {
+  reduceMotion(false);
+  renderStart();
+  await userEvent.click(screen.getByRole('button', { name: 'How the pieces move' }));
+  expect(screen.getByText('the tutorial')).toBeInTheDocument();
 });
 
 test('the start button opens the side choice, which creates the game', async () => {

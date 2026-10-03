@@ -89,3 +89,12 @@ test('without the lobby’s scene, a new game goes from the side choice through 
   expect(document.querySelector('[data-intro]')).toHaveAttribute('data-intro', 'done');
   expect(screen.queryByText('Something went wrong')).toBeNull();
 });
+
+test('the tutorial that fails to load says so, never the app’s crash screen', async () => {
+  renderApp('/learn/unicorn');
+  await settle();
+  expect(screen.getByTestId('learn-failed')).toHaveTextContent("Couldn't load the tutorial.");
+  expect(screen.queryByText('Something went wrong')).toBeNull();
+  await userEvent.click(screen.getByRole('button', { name: /Home/ }));
+  expect(screen.getByRole('heading', { name: '3D Chess' })).toBeInTheDocument();
+});

@@ -83,6 +83,12 @@ export interface BoardProps {
   gameOver?: { result: 'checkmate' | 'stalemate'; winner?: PieceColor } | null;
   /** Whether to draw the coordinate labels (on by default; the landing preview has none). */
   labels?: boolean;
+  /**
+   * A square whose piece is picked up for the player (the tutorial's): on
+   * mount and again whenever the position changes, once a live move has
+   * landed, its moves ringed. It can still be put down and picked up by hand.
+   */
+  showMovesOf?: Coord | null;
 }
 
 const Board = (props: BoardProps) => {
@@ -162,6 +168,15 @@ const Board = (props: BoardProps) => {
     // piece picked up renders the board once, not twice)
     setLegalMoves((moves) => (moves.length === 0 ? moves : []));
   }, [props.board, props.currentTurn, props.disabled]);
+  // The piece kept picked up (showMovesOf) is picked up again, after the
+  // clearing above, in each new position once its move has landed
+  const shown = props.showMovesOf ?? null;
+  const shownKey = shown && toZXY(shown);
+  useEffect(() => {
+    if (!shown || landing || !canPick(shown)) return;
+    choose(shown, board.generateLegalMoves(shown));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- as the clearing above, and the landing
+  }, [props.board, props.currentTurn, props.disabled, shownKey, landing]);
   // The played piece goes down once its move is back (a new board), or once
   // the board takes input again without it (the move refused)
   useEffect(() => setCarried(null), [props.board]);

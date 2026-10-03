@@ -252,9 +252,10 @@ Key decisions:
   at the band's edge nearest the tower, 16 px from it (`--landing-hug`), so the two
   mirror each other about the tower; a window 480 px tall or less
   sets the text in a column at the left instead (band 12). The button creates nothing: it
-  opens the side choice at `/new` (see The lobby), and nothing is written under it. The
+  opens the side choice at `/new` (see The lobby), and nothing is written under it but
+  "How the pieces move", a quiet link to the tutorial (see The tutorial). The
   canvas is `aria-hidden` and takes no pointer, and a visually hidden sentence says what it
-  shows. The start button is the page's only control: the preview always plays (it has no
+  shows. The two buttons are the page's only controls: the preview always plays (it has no
   pause), except under `prefers-reduced-motion`, where it is a still of the final
   position, the king left standing, with a still rim. In development `?t=<seconds>` starts
   the demo that far in.
@@ -689,6 +690,38 @@ seat). And a guest whose join was recorded but whose answer was lost, who then r
 before any seat was stored, is told "This game is taken": the look sees both seats taken,
 although a join from that tab would get its own seat back through its client id. (Without
 the reload the join is re-sent on the next socket and recovers the seat.)
+
+## The tutorial
+
+`/learn` (and `/learn/<lesson>`: `rook`, `bishop`, `unicorn`, `queen`, `king`, `knight`,
+`pawn`) teaches how the pieces move, to a player who already knows chess: the real tower and
+rules, a lesson per piece, words only for what the board can't show
+(`screens/learn/LearnScreen.tsx`, the lessons in `game/lessons.ts`). A menu of the pieces
+runs across the top (Board first: the starting position, the levels and the squares'
+names), the unicorn marked as the new piece. Each piece's lesson stands it alone on Cc3,
+the middle of the board, picked up, every square it can reach ringed in gold, and a card
+gives its name, one line, a few short facts, a little cube with its directions drawn from
+the middle (a rook's to the faces, a bishop's to the edges, a unicorn's to the corners)
+and how many moves it has from where it stands. A tapped ring plays the move (the glide,
+the last move's line): the piece is picked up again where it lands and the count follows
+it; Reset puts it back. The pawn's lesson has three steps (Move, Capture with a piece on
+each of its five capture squares, Promote from Cc5, already on the far rank but two levels
+short, through the real promotion dialog), and Next runs through every lesson and step to
+"Play a game" (`/new`).
+
+The board is the game's `Board` with `showMovesOf`, a square whose piece it keeps picked
+up (on mount and in each new position, once a live move has landed). The lessons have no
+kings, which the engine needs to tell a legal move; `LessonBoard` (a `Board` of the
+engine's) lets a piece without its king make every move it has, and keeps the rules of
+check where one stands. The page is a chunk of its own (`LearnRoute.tsx`, which says so
+should it fail to load), so the start page carries none of it; the start page's link asks
+for it as the pointer or focus reaches it, and `/learn` preloads it. The canvas
+(`screens/learn/LearnCanvas.tsx`, in the chunk the game's board shares, preloaded on
+`/learn` like `/new`) frames the tower under the menu
+(64 px) and over the card (196 px), or, where the window is wide enough for the tower to
+clear a card at its left from every side the view turns to, or short, beside the card
+(`learnLayout.ts`, `cardBeside`, which also sets the page's `data-card`). It never
+publishes `__r3fState`.
 
 ## Repository layout
 

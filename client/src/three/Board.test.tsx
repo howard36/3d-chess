@@ -404,6 +404,61 @@ describe('Board', () => {
     expect(selectionRings(renderer)).toHaveLength(0);
   });
 
+  it('keeps the piece it is shown picked up, its moves ringed, again in each new position', async () => {
+    const at: Coord = { x: 2, y: 2, z: 2 };
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={rookBoard(at)} currentTurn="white" playerColor="white" showMovesOf={at} />,
+    );
+    // Picked up on mount: the rook's 12 squares, less its own king's
+    expect(highlightedCells(renderer)).toHaveLength(12);
+    expect(selectionRings(renderer)).toHaveLength(1);
+
+    // Put down by hand, it stays down
+    await press(findPiece(renderer, PieceType.Rook, 'white', at));
+    expect(highlightedCells(renderer)).toHaveLength(0);
+
+    // A new position (from history: nothing to land) picks it up again where it now stands
+    const to: Coord = { x: 2, y: 2, z: 3 };
+    await renderer.update(
+      <Board board={rookBoard(to)} currentTurn="white" playerColor="white" showMovesOf={to} />,
+    );
+    expect(highlightedCells(renderer)).toHaveLength(12);
+    expect(selectionRings(renderer).map((r) => r.props.position[1])).toEqual([
+      toWorld(to, 'white')[1] + FLOOR_Y,
+    ]);
+  });
+
+  it('picks the shown piece up after its live move has landed, not while it glides', async () => {
+    const from: Coord = { x: 2, y: 2, z: 2 };
+    const to: Coord = { x: 2, y: 2, z: 3 };
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={rookBoard(from)} currentTurn="white" playerColor="white" showMovesOf={from} />,
+    );
+    await renderer.update(
+      <Board
+        board={rookBoard(to)}
+        currentTurn="white"
+        playerColor="white"
+        showMovesOf={to}
+        lastMove={{ move: { from, to }, moveCount: 1, capturedPiece: null }}
+      />,
+    );
+    expect(highlightedCells(renderer)).toHaveLength(0);
+    const plan = planGlide(toWorld(from, 'white'), toWorld(to, 'white'));
+    await act(async () => renderer.advanceFrames(Math.ceil(touchdownMs(plan) / 10) + 10, 0.01));
+    expect(highlightedCells(renderer)).toHaveLength(12);
+  });
+
+  it('leaves a shown piece down while the board takes no input', async () => {
+    const at: Coord = { x: 2, y: 2, z: 2 };
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={rookBoard(at)} currentTurn="white" showMovesOf={at} disabled />,
+    );
+    expect(highlightedCells(renderer)).toHaveLength(0);
+    await renderer.update(<Board board={rookBoard(at)} currentTurn="white" showMovesOf={at} />);
+    expect(highlightedCells(renderer)).toHaveLength(12);
+  });
+
   it('renders once for a new board when nothing is held (the work a landing move costs)', async () => {
     const renderer = await ReactThreeTestRenderer.create(
       <Board board={createTestBoard()} currentTurn="white" />,

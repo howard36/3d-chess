@@ -4,6 +4,8 @@ import StartScreen from './screens/StartScreen';
 import GameScreen from './screens/GameScreen';
 import LobbyLayout from './screens/lobby/LobbyLayout';
 import ChooseSide from './screens/lobby/ChooseSide';
+// The tutorial is a chunk of its own
+import LearnRoute from './screens/learn/LearnRoute';
 import { useGameSocket } from './hooks/useGameSocket';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
@@ -57,6 +59,7 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<StartScreen />} />
+      <Route path="/learn/:lesson?" element={<LearnRoute />} />
       {/* The lobby's stage stays up from choosing a side to the game's
           first frame, across the move from /new to the game's page */}
       <Route element={<LobbyLayout />}>
