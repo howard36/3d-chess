@@ -112,6 +112,17 @@ export const LOBBY_TIMING = {
  */
 export const LOBBY_MAX_STEP = 0.25;
 
+/**
+ * One frame's step for a lobby motion (seconds). The canvas draws on demand,
+ * so the first frame after it has rested reports the whole rest as its delta:
+ * a motion setting off from rest (a hover, a pick, the card coming in) takes
+ * an ordinary frame's step there, rather than a quarter of a second's worth
+ * of its ease at once, a jump; under way, the frame's own time, up to
+ * `LOBBY_MAX_STEP`.
+ */
+export const lobbyStep = (delta: number, settingOff: boolean) =>
+  Math.min(delta, settingOff ? 1 / 60 : LOBBY_MAX_STEP);
+
 // --- The entrance -----------------------------------------------------------------------------
 
 /**

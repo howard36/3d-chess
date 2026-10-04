@@ -33,6 +33,7 @@ import {
   LOBBY_ENTRANCE,
   settlePose,
   LOBBY_MAX_STEP,
+  lobbyStep,
 } from './lobbyMotion';
 import { smooth } from '../scene/ease';
 import type { CameraPose, Side } from './lobbyMotion';
@@ -148,7 +149,7 @@ const SeatRing = ({
   }, [playing, invalidate]);
   useFrame((_, delta) => {
     if (t.current < 0) return;
-    t.current += Math.min(delta, LOBBY_MAX_STEP);
+    t.current += lobbyStep(delta, t.current === 0);
     const { radius, strength } = ring(t.current);
     material.uniforms.uRadius.value = radius;
     material.uniforms.uStrength.value = strength;
@@ -202,6 +203,8 @@ const LobbyRig = ({
   const current = useRef<CameraPose | null>(null);
   const left = useRef(false);
   const shifted = useRef(false);
+  // It asked for no frame last time: this frame's delta may be a rest
+  const rested = useRef(true);
   const last = useRef('');
   // The entrance: seconds since the lobby's first frame (done at once under
   // reduced motion)
@@ -230,7 +233,7 @@ const LobbyRig = ({
       pose = settlePose(entranceFrom(rest), rest, entered.current / LOBBY_ENTRANCE.camera);
       moving = true;
     } else if (prev && beat !== 'leave' && !still) {
-      const k = 1 - Math.exp(-Math.min(delta, LOBBY_MAX_STEP) * 3.2);
+      const k = 1 - Math.exp(-lobbyStep(delta, rested.current) * 3.2);
       const ease = (a: number, b: number) => a + (b - a) * k;
       const eased: CameraPose = {
         target: [
@@ -328,6 +331,7 @@ const LobbyRig = ({
         }
       }
     }
+    rested.current = !moving;
     if (moving) invalidate();
   });
   return null;

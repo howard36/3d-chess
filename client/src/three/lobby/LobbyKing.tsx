@@ -27,7 +27,7 @@ import {
   kingEntrance,
   tossHop,
   tossLanded,
-  LOBBY_MAX_STEP,
+  lobbyStep,
 } from './lobbyMotion';
 import type { Side } from './lobbyMotion';
 
@@ -200,6 +200,8 @@ export const LobbyKing = ({
     [neon],
   );
   const motion = useKingMotion();
+  // It asked for no frame last time: this frame's delta may be a rest
+  const rested = useRef(true);
   const pointer = useRef<Pointer>({ over: false, told: false });
   // Start as the seat stands, with no entrance on the first frame
   const first = useRef(true);
@@ -219,7 +221,7 @@ export const LobbyKing = ({
   useEffect(() => invalidate(), [present, gone, hovered, lit, breathing, snap, veiled, invalidate]);
 
   useFrame((_, delta) => {
-    const dt = Math.min(delta, LOBBY_MAX_STEP);
+    const dt = lobbyStep(delta, rested.current);
     const m = motion.current;
     const fillGoal = present ? 1 : 0;
     // Entering, its outline comes up, then it forms from the foot
@@ -336,7 +338,8 @@ export const LobbyKing = ({
     // A pointer resting on it while it formed hovers it once it can be picked
     if (!(pick && present && !gone)) Object.assign(pointer.current, { over: false, told: false });
     else tellResting(pick, m.fill >= 0.999, pointer.current);
-    if (moving || inLight || inBreath || waiting || entering || opening) invalidate();
+    rested.current = !(moving || inLight || inBreath || waiting || entering || opening);
+    if (!rested.current) invalidate();
   });
 
   const top = KING_TOP;
@@ -464,6 +467,7 @@ export const CoinKing = ({
   // without it never shows it
   const entering = enter !== undefined && !still;
   const pointer = useRef<Pointer>({ over: false, told: false });
+  const rested = useRef(true);
   const state = useRef({
     fill: shown && !entering ? 1 : 0,
     wait: entering ? enter : 0,
@@ -486,7 +490,7 @@ export const CoinKing = ({
   useEffect(() => invalidate(), [shown, hovered, invalidate]);
 
   useFrame((_, delta) => {
-    const dt = Math.min(delta, LOBBY_MAX_STEP);
+    const dt = lobbyStep(delta, rested.current);
     const s = state.current;
     const before = { fill: s.fill, hover: s.hover };
     let angle = 0;
@@ -545,7 +549,8 @@ export const CoinKing = ({
     }
     if (!(pick && shown && !toss)) Object.assign(pointer.current, { over: false, told: false });
     else tellResting(pick, s.fill >= 0.999 && s.wait <= 0, pointer.current);
-    if (moving || s.fill !== before.fill || s.hover !== before.hover) invalidate();
+    rested.current = !(moving || s.fill !== before.fill || s.hover !== before.hover);
+    if (!rested.current) invalidate();
   });
 
   const canPick = !!pick && shown && !toss;
