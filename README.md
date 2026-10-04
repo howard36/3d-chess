@@ -698,17 +698,22 @@ the reload the join is re-sent on the next socket and recovers the seat.)
 (`screens/learn/LearnScreen.tsx`, the lessons in `game/lessons.ts`), through staged positions
 rather than text: a sentence or two a step, said plainly as a teacher would ("Rooks move in a
 straight line, in any of 6 directions: left, right, forwards, backwards, up or down."), and a
-quieter note only for a rule the board can't show, such as no castling. One card holds the whole lesson: the pieces along
+quieter note only for a rule the board can't show, such as no castling. A direction is only
+ever one of the six (left, right, forwards, backwards, up, down): a bishop goes two at once, a
+unicorn three, and the ways out of a square are counted as lines ("12 lines"). One card holds the whole lesson: the pieces along
 its top, the lesson (the unicorn's badged as the new piece), and Next. Each lesson stands the piece alone on Cc3, the middle of the board,
-picked up, every square it can reach ringed in gold, beside a little cube with its directions
+picked up, every square it can reach ringed in gold, beside a little cube with its lines
 drawn from the middle (a rook's to the faces, a bishop's to the edges, a unicorn's to the
 corners) and how many moves it has from where it stands. A tapped ring plays the move (the
 glide, the last move's line): the piece is picked up again where it lands and the count follows
 it; Reset puts it back. A piece captures as it moves, as in chess, so only the pawn has more
 steps: Move, Capture (a piece on each of its five capture squares) and Promote (from Cc5,
 already on the far rank but two levels short, through the real promotion dialog; the figure
-lights White's row and Black's, on White's side, and the note says so). Next runs through
-every step and lesson to "Play a game" (`/new`).
+shows White's row and Black's, on White's side). Each is shown for White, then for Black
+(a switch of two pawns beside the heading, and Next goes through both): Black's is White's
+position mirrored in rank and level, its pawn going backwards and down, and the board stays
+White's way round (`playerColor={null}`) so it comes towards you. Next runs through every
+step and lesson to "Play a game" (`/new`).
 
 The board is the game's `Board` with `showMovesOf`, a square whose piece it keeps picked
 up (on mount and in each new position, once a live move has landed). The lessons have no

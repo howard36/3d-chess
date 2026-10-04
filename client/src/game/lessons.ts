@@ -8,13 +8,19 @@ import type { LastMove } from './history';
 // The tutorial (/learn): a lesson per piece on the real tower and rules,
 // each piece alone in the middle of the board, picked up, every square it
 // can reach ringed. A piece captures as it moves, as in chess, so only the
-// pawn has more to show: its captures and where it promotes. The words are
-// a sentence or two a step, said plainly; the board shows the rest.
+// pawn has more to show: its captures and where it promotes, each for White
+// and for Black, whose pawns go the other way. The words are a sentence or
+// two a step, said plainly; the board shows the rest. A direction is always
+// one of the six (left, right, forwards, backwards, up, down): a diagonal
+// goes two or three of them at once, and the ways a piece goes from its
+// square are its lines.
 
 export type LessonId = 'rook' | 'bishop' | 'unicorn' | 'queen' | 'king' | 'knight' | 'pawn';
 
-/** A direction a piece moves in, as [file, rank, level] steps. */
+/** A line a piece moves along, as [file, rank, level] steps. */
 export type Step = readonly [number, number, number];
+
+export type Side = 'white' | 'black';
 
 export interface LessonStep {
   /** The step's name in the lesson's switcher (lessons of more than one step). */
@@ -27,10 +33,10 @@ export interface LessonStep {
   pieces: readonly { at: string; type: PieceType; color: 'white' | 'black' }[];
   /** The piece kept picked up, its moves ringed. */
   focus: string;
-  /** The directions it moves in, for the little cube beside the words. */
+  /** The lines it moves along, for the little cube beside the words. */
   directions?: {
     moves: readonly Step[];
-    /** Directions it only captures in (a pawn's). */
+    /** Lines it only captures along (a pawn's). */
     captures?: readonly Step[];
     /** One step, as far as the line runs, or a jump. */
     reach: 'step' | 'line' | 'jump';
@@ -39,6 +45,11 @@ export interface LessonStep {
   };
   /** A picture of where a pawn promotes, in place of the cube. */
   promotionRow?: boolean;
+  /**
+   * The step for Black, in a lesson with a side for each colour: its words,
+   * and its caption where it differs. The position is White's, mirrored.
+   */
+  black?: Pick<LessonStep, 'line' | 'note'> & { caption?: string };
 }
 
 export interface Lesson {
@@ -49,6 +60,8 @@ export interface Lesson {
   piece: PieceType;
   /** A piece 2D chess does not have. */
   isNew?: boolean;
+  /** Each step shown for White, then for Black (its steps' `black`). */
+  bothSides?: boolean;
   steps: readonly LessonStep[];
 }
 
@@ -81,7 +94,7 @@ export const LESSONS: readonly Lesson[] = [
     piece: PieceType.Rook,
     steps: lesson(PieceType.Rook, {
       line: 'Rooks move in a straight line, in any of 6 directions: left, right, forwards, backwards, up or down.',
-      directions: { moves: FACES, reach: 'line', caption: '6 directions' },
+      directions: { moves: FACES, reach: 'line', caption: '6 lines' },
     }),
   },
   {
@@ -89,8 +102,8 @@ export const LESSONS: readonly Lesson[] = [
     name: 'Bishop',
     piece: PieceType.Bishop,
     steps: lesson(PieceType.Bishop, {
-      line: 'Bishops move diagonally, in two directions at once, like forwards and left, or up and right.',
-      directions: { moves: EDGES, reach: 'line', caption: '12 directions' },
+      line: 'Bishops move diagonally, two directions at once, like forwards and left, or up and right.',
+      directions: { moves: EDGES, reach: 'line', caption: '12 lines' },
     }),
   },
   {
@@ -99,8 +112,8 @@ export const LESSONS: readonly Lesson[] = [
     piece: PieceType.Unicorn,
     isNew: true,
     steps: lesson(PieceType.Unicorn, {
-      line: 'Unicorns move diagonally in all three directions at once, like forwards, right and up.',
-      directions: { moves: CORNERS, reach: 'line', caption: '8 directions' },
+      line: 'Unicorns move diagonally, three directions at once, like forwards, right and up.',
+      directions: { moves: CORNERS, reach: 'line', caption: '8 lines' },
     }),
   },
   {
@@ -108,8 +121,8 @@ export const LESSONS: readonly Lesson[] = [
     name: 'Queen',
     piece: PieceType.Queen,
     steps: lesson(PieceType.Queen, {
-      line: 'Queens move like a rook, a bishop or a unicorn: in a straight line, in any of 26 directions.',
-      directions: { moves: all, reach: 'line', caption: '26 directions' },
+      line: 'Queens move like a rook, a bishop or a unicorn, along any of their 26 lines.',
+      directions: { moves: all, reach: 'line', caption: '26 lines' },
     }),
   },
   {
@@ -117,9 +130,9 @@ export const LESSONS: readonly Lesson[] = [
     name: 'King',
     piece: PieceType.King,
     steps: lesson(PieceType.King, {
-      line: 'Kings move one square, in any of the 26 directions.',
+      line: 'Kings move like a queen, but only one square: 26 squares in all.',
       note: 'There\u2019s no castling.',
-      directions: { moves: all, reach: 'step', caption: '26 directions' },
+      directions: { moves: all, reach: 'step', caption: '26 squares' },
     }),
   },
   {
@@ -127,7 +140,7 @@ export const LESSONS: readonly Lesson[] = [
     name: 'Knight',
     piece: PieceType.Knight,
     steps: lesson(PieceType.Knight, {
-      line: 'Knights jump two squares in one direction, then one square in another, and can jump between levels.',
+      line: 'Knights jump in an L: two squares in one direction, then one square at a right angle.',
       directions: { moves: JUMPS, reach: 'jump', caption: '24 jumps' },
     }),
   },
@@ -135,11 +148,11 @@ export const LESSONS: readonly Lesson[] = [
     id: 'pawn',
     name: 'Pawn',
     piece: PieceType.Pawn,
+    bothSides: true,
     steps: [
       {
         label: 'Move',
-        line: 'Pawns move one square forwards or one square up, never two.',
-        note: 'Black\u2019s pawns move backwards or down.',
+        line: 'White\u2019s pawns move one square forwards or one square up, never two.',
         pieces: [{ at: 'Cc3', type: PieceType.Pawn, color: 'white' }],
         focus: 'Cc3',
         directions: {
@@ -148,12 +161,16 @@ export const LESSONS: readonly Lesson[] = [
             [0, 0, 1],
           ],
           reach: 'step',
-          caption: 'Forward or up',
+          caption: 'Forwards or up',
+        },
+        black: {
+          line: 'Black\u2019s pawns go the other way: one square backwards or one square down.',
+          caption: 'Backwards or down',
         },
       },
       {
         label: 'Capture',
-        line: 'Pawns capture diagonally: forwards or up with a step to the side, or forwards and up at once.',
+        line: 'White\u2019s pawns capture one square diagonally, like a bishop, but never backwards or down.',
         pieces: [
           { at: 'Cc3', type: PieceType.Pawn, color: 'white' },
           { at: 'Cb4', type: PieceType.Pawn, color: 'black' },
@@ -178,15 +195,20 @@ export const LESSONS: readonly Lesson[] = [
           reach: 'step',
           caption: '5 captures',
         },
+        black: {
+          line: 'Black\u2019s pawns capture one square diagonally, like a bishop, but never forwards or up.',
+        },
       },
       {
         label: 'Promote',
-        line: 'A pawn promotes when it reaches the far rank of the top level.',
-        note: 'Black\u2019s pawns promote on White\u2019s side: level A, rank 1.',
+        line: 'White\u2019s pawns promote when they reach the far rank of the top level.',
         // On the far rank already, but two levels short
         pieces: [{ at: 'Cc5', type: PieceType.Pawn, color: 'white' }],
         focus: 'Cc5',
         promotionRow: true,
+        black: {
+          line: 'Black\u2019s pawns promote on White\u2019s side: the near rank of the bottom level.',
+        },
       },
     ],
   },
@@ -194,6 +216,37 @@ export const LESSONS: readonly Lesson[] = [
 
 export const lessonById = (id: string | undefined): Lesson | undefined =>
   LESSONS.find((l) => l.id === id);
+
+/** A square seen from the other side: the same file, the rank and level turned round. */
+const mirror = (at: string) => {
+  const { x, y, z } = fromZXY(at);
+  return toZXY({ x, y: 4 - y, z: 4 - z });
+};
+const mirrorStep = ([file, rank, level]: Step): Step => [file, 0 - rank, 0 - level];
+const other = (color: Side): Side => (color === 'white' ? 'black' : 'white');
+
+/**
+ * A step as `side` sees it. Black's is White's position turned round (each
+ * piece's rank and level mirrored and its colour swapped) with Black's own
+ * words: its pawns go backwards and down where White's go forwards and up.
+ */
+export const stepFor = (step: LessonStep, side: Side): LessonStep => {
+  if (side === 'white' || !step.black) return step;
+  const { black, directions, ...rest } = step;
+  return {
+    ...rest,
+    line: black.line,
+    note: black.note,
+    pieces: step.pieces.map((p) => ({ ...p, at: mirror(p.at), color: other(p.color) })),
+    focus: mirror(step.focus),
+    directions: directions && {
+      ...directions,
+      moves: directions.moves.map(mirrorStep),
+      captures: directions.captures?.map(mirrorStep),
+      caption: black.caption ?? directions.caption,
+    },
+  };
+};
 
 /**
  * The tutorial's board: the real rules on a board without kings. With no
@@ -233,16 +286,20 @@ export interface Practice {
   board: LessonBoard;
   /** Where the lesson's piece stands now. */
   focus: Coord;
+  /** The lesson's piece's colour, the side that moves. */
+  side: Side;
   lastMove?: LastMove;
 }
 
-export const startPractice = (step: LessonStep): Practice => ({
-  board: LessonBoard.from(step.pieces),
-  focus: fromZXY(step.focus),
-});
+export const startPractice = (step: LessonStep): Practice => {
+  const focus = fromZXY(step.focus);
+  const board = LessonBoard.from(step.pieces);
+  return { board, focus, side: board.getPiece(focus)?.color ?? 'white' };
+};
 
 /** The position after `move`: the piece it moved stays picked up. */
 export const practise = (practice: Practice, move: Move): Practice => ({
+  ...practice,
   board: practice.board.applyMove(move) as LessonBoard,
   focus: move.to,
   lastMove: {

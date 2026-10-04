@@ -1,6 +1,6 @@
-import type { LessonStep, Step } from '../../game/lessons';
+import type { LessonStep, Side, Step } from '../../game/lessons';
 
-// The ways a piece moves, drawn as lines from the middle of a little cube:
+// The lines a piece moves along, drawn from the middle of a little cube:
 // a rook's to the middles of its faces, a bishop's to the middles of its
 // edges, a unicorn's to its corners. In the board's own colours: the gold of
 // a destination, the red of a capture.
@@ -126,13 +126,16 @@ const LEVEL_EDGES = ['#00d7e0', '#58c1ff', '#96a7ff', '#c48be5', '#de77ab'];
 
 /** Black's promotion squares: the charcoal army's pewter. */
 const BLACK_ROW = '#7c8391';
+/** The other side's promotion row, there to compare. */
+const FADED = 0.35;
 
 /**
  * Where a pawn promotes: the five levels stacked, White's row (the far rank
  * of the top level) in a destination's gold and Black's (the near rank of the
- * bottom level, on White's side) in the charcoal army's pewter.
+ * bottom level, on White's side) in the charcoal army's pewter, the other
+ * side's row faded.
  */
-export function PromotionRow() {
+export function PromotionRow({ side }: { side: Side }) {
   // A square's width and depth, and the rise from one level to the next, in squares of the cube
   const cell = 0.4;
   const deep = 2;
@@ -173,6 +176,7 @@ export function PromotionRow() {
             key={`black-${x}`}
             points={quad(x + 0.12, 0.12, x + 0.88, 0.88, 0)}
             fill={BLACK_ROW}
+            opacity={side === 'black' ? 1 : FADED}
             data-square={`A${'abcde'[x]}1`}
           />
         ))}
@@ -181,6 +185,7 @@ export function PromotionRow() {
             key={`white-${x}`}
             points={quad(x + 0.12, 4.12, x + 0.88, 4.88, 4)}
             fill={MOVE}
+            opacity={side === 'white' ? 1 : FADED}
             data-square={`E${'abcde'[x]}5`}
           />
         ))}

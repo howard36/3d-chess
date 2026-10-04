@@ -2,8 +2,15 @@ import React from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { lazyChunk } from '../../lib/cachedImport';
 import { ChunkBoundary } from '../../components/ChunkBoundary';
-import { LESSONS, lessonById, practise, reachable, startPractice } from '../../game/lessons';
-import type { Lesson } from '../../game/lessons';
+import {
+  LESSONS,
+  lessonById,
+  practise,
+  reachable,
+  startPractice,
+  stepFor,
+} from '../../game/lessons';
+import type { Lesson, Side } from '../../game/lessons';
 import type { Move } from '../../engine';
 import { PieceGlyph } from '../PieceGlyph';
 import PromotionPicker from '../PromotionPicker';
@@ -25,7 +32,9 @@ const lessonPath = (lesson: Lesson) =>
  * for a player who knows chess. A menu of the pieces across the top, the
  * tower in the middle with the lesson's piece picked up and its moves ringed
  * (a ring tapped plays the move, and the piece is picked up again where it
- * lands), and the lesson's few words in a card at the bottom.
+ * lands), and the lesson's few words in a card at the bottom. The pawn's
+ * steps are each shown for White, then for Black, whose pawns go the other
+ * way.
  */
 const LearnScreen = () => {
   const { lesson: id } = useParams<{ lesson?: string }>();
@@ -36,40 +45,50 @@ const LearnScreen = () => {
 
 const LessonView = ({ lesson }: { lesson: Lesson }) => {
   const navigate = useNavigate();
-  // The lesson's step and the position the player is trying moves in, set
-  // afresh for each lesson, each step and each start over (a fresh board,
+  // The lesson's step, the side it is shown for and the position the player
+  // is trying moves in, set afresh for each lesson, each step, each side and
+  // each start over (a fresh board,
   // epoch: it plays only the moves made after it mounts). Reset while
   // rendering, so no frame shows the last lesson's position under this one's
   // words.
-  const begin = (stepIndex: number, epoch: number) => ({
+  const begin = (stepIndex: number, epoch: number, side: Side = 'white') => ({
     lesson: lesson.id,
     stepIndex,
+    side,
     epoch,
-    practice: startPractice(lesson.steps[stepIndex]),
+    practice: startPractice(stepFor(lesson.steps[stepIndex], side)),
   });
   const [run, setRun] = React.useState(() => begin(0, 0));
   if (run.lesson !== lesson.id) setRun(begin(0, run.epoch + 1));
-  const stepIndex = run.lesson === lesson.id ? run.stepIndex : 0;
-  const step = lesson.steps[stepIndex];
-  const practice = run.lesson === lesson.id ? run.practice : startPractice(step);
+  const current = run.lesson === lesson.id;
+  const stepIndex = current ? run.stepIndex : 0;
+  const side = current ? run.side : 'white';
+  const step = stepFor(lesson.steps[stepIndex], side);
+  const practice = current ? run.practice : startPractice(step);
   const setStepIndex = (i: number) => setRun(begin(i, run.epoch + 1));
-  const startOver = () => setRun(begin(stepIndex, run.epoch + 1));
+  const setSide = (s: Side) => setRun(begin(stepIndex, run.epoch + 1, s));
+  const startOver = () => setRun(begin(stepIndex, run.epoch + 1, side));
   const play = (move: Move) => setRun((r) => ({ ...r, practice: practise(r.practice, move) }));
   const [promotion, setPromotion] = React.useState<Move[] | null>(null);
 
   const index = LESSONS.indexOf(lesson);
   const nextLesson = LESSONS[index + 1];
   const lastStep = stepIndex >= lesson.steps.length - 1;
+  // Each of the pawn's steps for White, then for Black
+  const blackNext = lesson.bothSides && side === 'white';
   const goNext = () => {
-    if (!lastStep) setStepIndex(stepIndex + 1);
+    if (blackNext) setSide('black');
+    else if (!lastStep) setStepIndex(stepIndex + 1);
     else if (nextLesson) navigate(lessonPath(nextLesson));
     else navigate('/new');
   };
-  const nextLabel = !lastStep
-    ? lesson.steps[stepIndex + 1].label
-    : nextLesson
-      ? nextLesson.name
-      : 'Play a game';
+  const nextLabel = blackNext
+    ? 'Black'
+    : !lastStep
+      ? lesson.steps[stepIndex + 1].label
+      : nextLesson
+        ? nextLesson.name
+        : 'Play a game';
 
   const [noBoard, setNoBoard] = React.useState(false);
   const beside = useCardBeside();
@@ -119,6 +138,22 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
         <div className="learn-head">
           <h1 id="learn-title">{lesson.name}</h1>
           {lesson.isNew && <span className="learn-new">New</span>}
+          {lesson.bothSides && (
+            <div className="learn-sides" role="group" aria-label="Side">
+              {(['white', 'black'] as const).map((s) => (
+                <button
+                  key={s}
+                  className="learn-side"
+                  aria-pressed={s === side}
+                  aria-label={s === 'white' ? 'White' : 'Black'}
+                  title={s === 'white' ? 'White' : 'Black'}
+                  onClick={() => setSide(s)}
+                >
+                  <PieceGlyph type={lesson.piece} color={s} size={18} />
+                </button>
+              ))}
+            </div>
+          )}
           {lesson.steps.length > 1 && (
             <div className="learn-steps" role="group" aria-label={`${lesson.name} lessons`}>
               {lesson.steps.map((s, i) => (
@@ -136,7 +171,7 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
         </div>
         <div className="learn-body">
           {step.directions && <Directions directions={step.directions} />}
-          {step.promotionRow && <PromotionRow />}
+          {step.promotionRow && <PromotionRow side={side} />}
           <div className="learn-words">
             <p className="learn-line">{step.line}</p>
             {step.note && <p className="learn-note">{step.note}</p>}
@@ -167,7 +202,7 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
       {promotion && (
         <PromotionPicker
           choices={promotion}
-          color="white"
+          color={practice.side}
           onPick={(move) => {
             setPromotion(null);
             play(move);

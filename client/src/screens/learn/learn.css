@@ -141,6 +141,37 @@
   background: var(--hud-accent);
   color: var(--hud-accent-fg);
 }
+/* White's pawn and Black's: the glyphs say which, on a quiet fill either reads on */
+.learn-sides {
+  display: flex;
+  padding: 2px;
+  border: var(--hud-border);
+  border-radius: 15px;
+}
+.learn-side {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 13px;
+  background: none;
+  opacity: 0.55;
+  cursor: pointer;
+}
+.learn-side:hover,
+.learn-side:focus-visible {
+  opacity: 1;
+  outline: none;
+}
+.learn-side:focus-visible {
+  box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.35);
+}
+.learn-side[aria-pressed='true'] {
+  background: rgba(236, 241, 255, 0.16);
+  opacity: 1;
+}
 .learn-body {
   display: flex;
   align-items: center;

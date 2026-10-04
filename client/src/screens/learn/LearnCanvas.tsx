@@ -16,8 +16,9 @@ import type { Move } from '../../engine';
 import type { Practice } from '../../game/lessons';
 import { LEARN_CARD_PX, LEARN_TOP_PX, cardBeside, learnTop } from './learnLayout';
 
-// The tutorial's board: the real tower and its rules, White's side nearest,
-// the lesson's piece picked up and its moves ringed. In the chunk the game's
+// The tutorial's board: the real tower and its rules, White's side nearest
+// (Black's lessons too: its pawns come towards you), the lesson's piece
+// picked up and its moves ringed. In the chunk the game's
 // board shares. It never publishes __r3fState: e2e projects clicks through
 // the game's canvas only.
 
@@ -96,8 +97,10 @@ const LearnCanvas = ({
       <Board
         key={boardKey}
         board={practice.board}
-        currentTurn="white"
-        playerColor="white"
+        currentTurn={practice.side}
+        // Seated as no one: the board stays White's way round for Black's
+        // lessons too, and the side on turn is the lesson's piece's
+        playerColor={null}
         onMove={onMove}
         onChoosePromotion={onChoosePromotion}
         lastMove={practice.lastMove}
