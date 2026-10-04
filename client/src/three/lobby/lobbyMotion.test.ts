@@ -19,6 +19,8 @@ import {
   LOBBY_FOV,
   LOBBY_ENTRANCE,
   LOBBY_TIMING,
+  LOBBY_MAX_STEP,
+  lobbyStep,
   leaveDirection,
   lobbyPose,
   outlineForFill,
@@ -473,5 +475,18 @@ describe('the entrance', () => {
     expect(early.forming).toBe(false);
     expect(kingEntrance(white, white)).toEqual({ outline: 1, forming: true });
     expect(kingEntrance(10, white)).toEqual({ outline: 1, forming: true });
+  });
+});
+
+describe('lobbyStep', () => {
+  it('takes one ordinary frame where a motion sets off from rest, however long the rest', () => {
+    expect(lobbyStep(11.7, true)).toBeCloseTo(1 / 60);
+    expect(lobbyStep(0.25, true)).toBeCloseTo(1 / 60);
+    expect(lobbyStep(0.01, true)).toBe(0.01);
+  });
+
+  it('takes the frame its own time under way, up to the longest step', () => {
+    expect(lobbyStep(0.2, false)).toBe(0.2);
+    expect(lobbyStep(7, false)).toBe(LOBBY_MAX_STEP);
   });
 });
