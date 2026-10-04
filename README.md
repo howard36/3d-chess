@@ -696,9 +696,10 @@ the reload the join is re-sent on the next socket and recovers the seat.)
 `/learn` (and `/learn/<lesson>`: `rook`, `bishop`, `unicorn`, `queen`, `king`, `knight`,
 `pawn`) teaches how the pieces move on the real tower and rules, a lesson per piece
 (`screens/learn/LearnScreen.tsx`, the lessons in `game/lessons.ts`), through staged positions
-rather than text: a line a step (a quieter note only for a rule the board can't show, such as
-no castling), at most about eight words. One card holds the whole lesson: the pieces along
-its top (the unicorn marked as the new piece), the lesson, and Next. Each lesson stands the piece alone on Cc3, the middle of the board,
+rather than text: a sentence or two a step, said plainly as a teacher would ("Rooks move in a
+straight line, in any of 6 directions: left, right, forwards, backwards, up or down."), and a
+quieter note only for a rule the board can't show, such as no castling. One card holds the whole lesson: the pieces along
+its top, the lesson (the unicorn's badged as the new piece), and Next. Each lesson stands the piece alone on Cc3, the middle of the board,
 picked up, every square it can reach ringed in gold, beside a little cube with its directions
 drawn from the middle (a rook's to the faces, a bishop's to the edges, a unicorn's to the
 corners) and how many moves it has from where it stands. A tapped ring plays the move (the

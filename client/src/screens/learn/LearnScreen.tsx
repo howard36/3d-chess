@@ -113,7 +113,6 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
               onClick={() => navigate(lessonPath(l), { replace: true })}
             >
               <PieceGlyph type={l.piece} color="white" size={22} />
-              {l.isNew && <span className="learn-tab-dot" aria-hidden />}
             </button>
           ))}
         </nav>

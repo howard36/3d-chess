@@ -74,8 +74,10 @@ test('gives a piece other than the pawn one step: no switcher, Next goes to the 
 
 test('says only what the board cannot show: a line, and a quieter note for a rule', async () => {
   await renderAt('/learn/king');
-  expect(screen.getByText('One step in any direction.')).toBeInTheDocument();
-  expect(screen.getByText('No castling.')).toHaveClass('learn-note');
+  expect(
+    screen.getByText('Kings move one square, in any of the 26 directions.'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('There’s no castling.')).toHaveClass('learn-note');
   expect(document.querySelectorAll('.learn-card li')).toHaveLength(0);
 });
 
@@ -145,7 +147,7 @@ test("walks through the pawn's steps, then on to a game", async () => {
   await userEvent.click(within(steps).getByRole('button', { name: 'Promote' }));
   expect(count()).toBe('1');
   // White's promotion row, and Black's on White's side
-  expect(screen.getByText(/Black promotes on White/)).toHaveClass('learn-note');
+  expect(screen.getByText(/Black’s pawns promote on White/)).toHaveClass('learn-note');
   expect(document.querySelectorAll('[data-square^="E"]')).toHaveLength(5);
   expect(document.querySelectorAll('[data-square^="A"]')).toHaveLength(5);
   await userEvent.click(screen.getByRole('button', { name: 'Next: Play a game' }));

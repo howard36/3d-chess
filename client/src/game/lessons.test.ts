@@ -55,10 +55,10 @@ describe('the lessons', () => {
     expect(lesson('pawn').steps.map((s) => s.label)).toEqual(['Move', 'Capture', 'Promote']);
   });
 
-  it('keep to a line a step, and a short note', () => {
+  it('say each step in a sentence or two, and a note in a short one', () => {
     for (const step of LESSONS.flatMap((l) => l.steps)) {
-      expect(step.line.split(' ').length).toBeLessThanOrEqual(9);
-      if (step.note) expect(step.note.split(' ').length).toBeLessThanOrEqual(9);
+      expect(step.line.split(' ').length).toBeLessThanOrEqual(20);
+      if (step.note) expect(step.note.split(' ').length).toBeLessThanOrEqual(10);
     }
   });
 

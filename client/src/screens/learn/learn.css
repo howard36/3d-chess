@@ -74,17 +74,6 @@
   border-color: rgba(236, 241, 255, 0.28);
   background: rgba(236, 241, 255, 0.1);
 }
-/* The new piece: a spark of the five level colours */
-.learn-tab-dot {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: conic-gradient(#00d7e0, #58c1ff, #96a7ff, #c48be5, #de77ab, #00d7e0);
-  box-shadow: 0 0 6px rgba(150, 167, 255, 0.8);
-}
 
 .learn-card {
   position: absolute;
@@ -201,10 +190,11 @@
   font-size: 13px;
   line-height: 1.35;
 }
+/* One line of type: the count, the hint and both buttons' words share a baseline */
 .learn-foot {
   display: flex;
   justify-content: flex-end;
-  align-items: center;
+  align-items: baseline;
   gap: 12px;
   margin-top: auto;
   padding-top: 8px;

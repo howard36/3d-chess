@@ -9,7 +9,7 @@ import type { LastMove } from './history';
 // each piece alone in the middle of the board, picked up, every square it
 // can reach ringed. A piece captures as it moves, as in chess, so only the
 // pawn has more to show: its captures and where it promotes. The words are
-// a line a step; the board shows the rest.
+// a sentence or two a step, said plainly; the board shows the rest.
 
 export type LessonId = 'rook' | 'bishop' | 'unicorn' | 'queen' | 'king' | 'knight' | 'pawn';
 
@@ -19,7 +19,7 @@ export type Step = readonly [number, number, number];
 export interface LessonStep {
   /** The step's name in the lesson's switcher (lessons of more than one step). */
   label?: string;
-  /** The one line under the lesson's name. */
+  /** What the lesson says, a sentence or two, as a teacher would put it. */
   line: string;
   /** A second, quieter line, for a rule the board can't show. */
   note?: string;
@@ -80,7 +80,7 @@ export const LESSONS: readonly Lesson[] = [
     name: 'Rook',
     piece: PieceType.Rook,
     steps: lesson(PieceType.Rook, {
-      line: 'Straight lines: sideways, forward and back, up and down.',
+      line: 'Rooks move in a straight line, in any of 6 directions: left, right, forwards, backwards, up or down.',
       directions: { moves: FACES, reach: 'line', caption: '6 directions' },
     }),
   },
@@ -89,7 +89,7 @@ export const LESSONS: readonly Lesson[] = [
     name: 'Bishop',
     piece: PieceType.Bishop,
     steps: lesson(PieceType.Bishop, {
-      line: 'Diagonals, across a level or climbing between levels.',
+      line: 'Bishops move diagonally, in two directions at once, like forwards and left, or up and right.',
       directions: { moves: EDGES, reach: 'line', caption: '12 directions' },
     }),
   },
@@ -99,7 +99,7 @@ export const LESSONS: readonly Lesson[] = [
     piece: PieceType.Unicorn,
     isNew: true,
     steps: lesson(PieceType.Unicorn, {
-      line: 'Level, file and rank all change, every step.',
+      line: 'Unicorns move diagonally in all three directions at once, like forwards, right and up.',
       directions: { moves: CORNERS, reach: 'line', caption: '8 directions' },
     }),
   },
@@ -108,7 +108,7 @@ export const LESSONS: readonly Lesson[] = [
     name: 'Queen',
     piece: PieceType.Queen,
     steps: lesson(PieceType.Queen, {
-      line: 'Rook, bishop and unicorn combined.',
+      line: 'Queens move like a rook, a bishop or a unicorn: in a straight line, in any of 26 directions.',
       directions: { moves: all, reach: 'line', caption: '26 directions' },
     }),
   },
@@ -117,8 +117,8 @@ export const LESSONS: readonly Lesson[] = [
     name: 'King',
     piece: PieceType.King,
     steps: lesson(PieceType.King, {
-      line: 'One step in any direction.',
-      note: 'No castling.',
+      line: 'Kings move one square, in any of the 26 directions.',
+      note: 'There\u2019s no castling.',
       directions: { moves: all, reach: 'step', caption: '26 directions' },
     }),
   },
@@ -127,7 +127,7 @@ export const LESSONS: readonly Lesson[] = [
     name: 'Knight',
     piece: PieceType.Knight,
     steps: lesson(PieceType.Knight, {
-      line: 'Two squares one way, then one square another.',
+      line: 'Knights jump two squares in one direction, then one square in another, and can jump between levels.',
       directions: { moves: JUMPS, reach: 'jump', caption: '24 jumps' },
     }),
   },
@@ -138,8 +138,8 @@ export const LESSONS: readonly Lesson[] = [
     steps: [
       {
         label: 'Move',
-        line: 'One step forward or one step up, never two.',
-        note: "Black's pawns move back and down.",
+        line: 'Pawns move one square forwards or one square up, never two.',
+        note: 'Black\u2019s pawns move backwards or down.',
         pieces: [{ at: 'Cc3', type: PieceType.Pawn, color: 'white' }],
         focus: 'Cc3',
         directions: {
@@ -153,7 +153,7 @@ export const LESSONS: readonly Lesson[] = [
       },
       {
         label: 'Capture',
-        line: 'Captures one diagonal step, forward or up.',
+        line: 'Pawns capture diagonally: forwards or up with a step to the side, or forwards and up at once.',
         pieces: [
           { at: 'Cc3', type: PieceType.Pawn, color: 'white' },
           { at: 'Cb4', type: PieceType.Pawn, color: 'black' },
@@ -181,8 +181,8 @@ export const LESSONS: readonly Lesson[] = [
       },
       {
         label: 'Promote',
-        line: 'Promotes on the top level\u2019s far rank.',
-        note: 'Black promotes on White\u2019s side: level A, rank 1.',
+        line: 'A pawn promotes when it reaches the far rank of the top level.',
+        note: 'Black\u2019s pawns promote on White\u2019s side: level A, rank 1.',
         // On the far rank already, but two levels short
         pieces: [{ at: 'Cc5', type: PieceType.Pawn, color: 'white' }],
         focus: 'Cc5',
