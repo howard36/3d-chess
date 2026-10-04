@@ -724,7 +724,7 @@ should it fail to load), so the start page carries none of it; the start page's 
 for it as the pointer or focus reaches it, and `/learn` preloads it. The canvas
 (`screens/learn/LearnCanvas.tsx`, in the chunk the game's board shares, preloaded on
 `/learn` like `/new`) frames the tower under Home
-(52 px) and over the card (248 px), or, where the window is wide enough for the tower to
+(56 px, where the lobby has it) and over the card (248 px), or, where the window is wide enough for the tower to
 clear a card at its left from every side the view turns to, or short, beside the card
 (`learnLayout.ts`, `cardBeside`, which also sets the page's `data-card`). It never
 publishes `__r3fState`.

@@ -5,7 +5,7 @@
  * lesson, and Next. The card spans the bottom; in a window wide enough, or
  * 480 px tall or less, it stands at the left instead (data-card='beside').
  * The camera's fit keeps the tower clear of it and of Home at the top
- * (learnLayout.ts: Home's 52 px, the card's height and its gutter).
+ * (learnLayout.ts: Home's 56 px, the card's height and its gutter).
  */
 .learn {
   --learn-card: 236px;
@@ -24,11 +24,6 @@
 .learn-stage {
   position: absolute;
   inset: 0;
-}
-.learn-top {
-  position: absolute;
-  top: 10px;
-  left: 10px;
 }
 /* The pieces, a row of tabs along the card's top, the lesson's lit */
 .learn-menu {
@@ -281,11 +276,8 @@
   outline: none;
 }
 
-/* A phone held upright: Home its arrow, the card tighter */
+/* A phone held upright: the card tighter */
 @media (max-width: 520px) {
-  .learn-home-word {
-    display: none;
-  }
   .learn-menu {
     margin: -2px -4px 8px;
   }
@@ -347,11 +339,13 @@
 @media (max-height: 480px) {
   .learn[data-card='beside'] .learn-card {
     left: max(12px, env(safe-area-inset-left));
-    top: 52px;
+    top: 56px;
     bottom: 12px;
     transform: none;
     width: 252px;
     height: auto;
+    /* Between Home and the window's foot, whatever the wide card's least */
+    min-height: 0;
   }
   .learn[data-card='beside'] .learn-head {
     flex-wrap: wrap;

@@ -4,8 +4,8 @@
 // wide window the card stands at the left of the tower, and in a short one
 // (a phone on its side) too, so the tower takes the whole height under Home.
 
-/** CSS px at the top kept for Home (learn.css, .learn-top: 10 px, the 32 px link, 10 px). */
-export const LEARN_TOP_PX = 52;
+/** CSS px at the top kept for Home (index.css, .lobby-top, where the lobby has it: 14 px, the 32 px link, 10 px). */
+export const LEARN_TOP_PX = 56;
 
 /** CSS px at the bottom kept for the card across it (learn.css, --learn-card, and its 12 px gutter). */
 export const LEARN_CARD_PX = 248;
