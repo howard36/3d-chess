@@ -28,7 +28,13 @@ pieces):
   rank 1 on level A), to Q/R/B/N/U (the player picks from a prompt).
 
 No castling. Check, checkmate, and stalemate work as in standard chess and are detected
-by the client engine. The starting position is defined in `Board.setupStartingPosition()`
+by the client engine, and so do chess's other two automatic draws: the same position (the
+same pieces on the same squares, the same side to move) standing for the third time, and
+fifty moves by each side (a hundred plies) with no capture and no pawn move
+(`engine/draws.ts`). A mate stands even on the move that would also complete either. The
+replay (`game/history.ts`) keeps the positions since the last capture or pawn move
+(`GameHistory.sinceIrreversible`, each `Board.positionKey()` and the side to move), the only
+stretch in which one can stand again, and its length is the fifty-move count. The starting position is defined in `Board.setupStartingPosition()`
 (`client/src/engine/board.ts`); each army's pawns stand on a level of their own:
 
 | Level | Rank 1    | Rank 2    | Rank 4    | Rank 5    |
@@ -210,7 +216,9 @@ Key decisions:
   light ("Your move" / "Their move"); check is shown on the board, not here. An opponent with no
   live connection shows as an outlined stone and "Offline"; a connected one is not marked.
   Once the game is over the pill gives the result from the player's side ("Checkmate · you
-  win"). Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
+  win", "Repetition · draw", "50-move rule · draw"), and the result card says "Draw" with how
+  ("by stalemate", "by repetition", "by the 50-move rule"); `data-result` is `checkmate`,
+  `stalemate`, `repetition` or `fifty-moves`. Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
   `GameHistory.captured` and `game/material.ts`): each side's haul under its own half, a
   silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in
   the taken army's material with a count, and "+N" on the side ahead on material (in pawns:
@@ -736,7 +744,12 @@ Zobrist hashing (`position.test.ts` checks every move list against the rules eng
 thousands of positions of random games). `search.ts` is iterative-deepening alpha-beta
 (principal variation search) with a transposition table, quiescence search, null-move
 pruning, late-move reductions, check extensions, futility pruning, and killer and history
-ordering; a repeated position scores as a draw. `evaluate.ts` scores material at this
+ordering. It plays by the draws too: a position standing for the third time scores as a
+draw, and so does one repeated inside the line searched (it can always be repeated once
+more), only positions since the last capture or pawn move being compared; and a hundred plies
+without either draw unless the position is mate. A lead counts for up to a quarter less as
+those plies run out, so a side ahead makes progress rather than drift into the draw, and a
+side behind takes a repetition when it is offered. `evaluate.ts` scores material at this
 board's values (those of the captured pieces' "+N", `game/material.ts`), development and
 centralisation in the cube, pawns' progress towards their last square (worth more as the
 board empties), king safety (home behind its pawns, enemy pieces near it) giving way to an
@@ -882,8 +895,8 @@ rules stops the client tier instead of timing different work.
 
 ## Known limitations (accepted for this project's scope)
 
-- The server doesn't detect checkmate/stalemate; game-over is decided independently by
-  each client.
+- The server doesn't detect checkmate, stalemate or the draws; game-over is decided
+  independently by each client.
 - A WebSocket session is bounded by the Modal function timeout (1 hour). The client
   auto-reconnects and rejoins when that (or any drop) severs the socket, so the
   interruption is a brief "Reconnecting…" rather than a frozen game.
@@ -897,9 +910,9 @@ rules stops the client tier instead of timing different work.
   client replays history defensively — a record it cannot apply, or one that leaves a
   position it cannot evaluate (a captured king), freezes the board at the last good
   position with an explanation instead of crashing — but it cannot repair the record.
-- No resign or draw offer: games end only by checkmate or stalemate. There is no draw by
-  repetition or by a move count either, so a game against the computer in which neither
-  side can mate goes on until the player leaves it.
+- No resign or draw offer: games end only by checkmate or one of the automatic draws
+  (stalemate, repetition, the fifty-move rule). Nor is a game drawn for want of the material
+  to mate (a bare king against king and rook, say): it goes on until the fifty moves run out.
 - A game against the computer lives in the browser that played it: it cannot be opened in
   another browser or device, and clearing site data ends it.
 - No spectators: a game has exactly two seats.

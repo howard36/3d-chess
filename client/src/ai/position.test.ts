@@ -122,17 +122,78 @@ it('takes back every move exactly, hash included', () => {
   expect([pos.hashLo, pos.side]).toEqual([before.lo, WHITE_SIDE]);
 });
 
-it('hashes a position the same however it was reached, and spots a repetition', () => {
-  const a = Position.fromRecords([
-    { from: 'Ab1', to: 'Cc1' },
-    { from: 'Ed5', to: 'Cc5' },
-    { from: 'Cc1', to: 'Ab1' },
-    { from: 'Cc5', to: 'Ed5' },
-  ]);
+const shuffle: WireMove[] = [
+  { from: 'Ab1', to: 'Cc1' },
+  { from: 'Ed5', to: 'Cc5' },
+  { from: 'Cc1', to: 'Ab1' },
+  { from: 'Cc5', to: 'Ed5' },
+];
+
+it('hashes a position the same however it was reached', () => {
+  const a = Position.fromRecords(shuffle);
   const start = Position.start();
   expect([a.hashLo, a.hashHi]).toEqual([start.hashLo, start.hashHi]);
-  expect(a.repeated()).toBe(true);
-  expect(start.repeated()).toBe(false);
+});
+
+it('calls a position drawn the third time it stands, or the second inside a search', () => {
+  // The position after the first move, standing for the second time
+  const twice = Position.fromRecords([...shuffle, shuffle[0]]);
+  // In the game: not yet a draw...
+  expect(twice.repeated()).toBe(false);
+  // ...but it is for a search from before its first time (it can be repeated
+  // once more); from that first time on, it is only the game's second
+  expect(twice.repeated(0)).toBe(true);
+  expect(twice.repeated(1)).toBe(false);
+  const thrice = Position.fromRecords([...shuffle, ...shuffle]);
+  expect(thrice.repeated()).toBe(true);
+  expect(Position.start().repeated()).toBe(false);
+});
+
+it('counts the plies since a capture or a pawn move, and forgets the positions before', () => {
+  const pos = Position.fromRecords(shuffle.slice(0, 3));
+  expect(pos.halfmoves).toBe(3);
+  // A pawn move starts the count again: the start can never stand again
+  pos.make(pos.findMove({ from: 'Dd4', to: 'Cd4' }));
+  expect(pos.halfmoves).toBe(0);
+  for (const m of [
+    { from: 'Ab1', to: 'Cc1' },
+    { from: 'Cc5', to: 'Ed5' },
+    { from: 'Cc1', to: 'Ab1' },
+    { from: 'Ed5', to: 'Cc5' },
+  ]) {
+    const move = pos.findMove(m);
+    expect(move).not.toBe(0);
+    pos.make(move);
+  }
+  expect(pos.halfmoves).toBe(4);
+  // Back where the pawn move left it: a repeat for a search from before then
+  expect(pos.repeated(3)).toBe(true);
+  expect(pos.repeated(4)).toBe(false);
+  pos.makeNull();
+  expect(pos.halfmoves).toBe(0);
+  pos.unmakeNull();
+  expect(pos.halfmoves).toBe(4);
+  // Set up directly, part way to the fifty moves
+  const set = Position.start();
+  set.reset(WHITE_SIDE, 99);
+  expect(set.halfmoves).toBe(99);
+  set.make(set.findMove({ from: 'Ab1', to: 'Cc1' }));
+  expect(set.halfmoves).toBe(100);
+});
+
+it('keeps the record of a game of any length', () => {
+  // Far more plies than the record holds at first
+  const pos = Position.start();
+  const played: number[] = [];
+  for (let i = 0; i < 300; i++) {
+    played.push(pos.findMove(shuffle[i % 4]));
+    pos.make(played[i]);
+  }
+  expect(pos.ply).toBe(300);
+  expect(pos.halfmoves).toBe(300);
+  expect(pos.repeated()).toBe(true);
+  for (let i = 299; i >= 0; i--) pos.unmake(played[i]);
+  expect([pos.ply, pos.hashLo, pos.halfmoves]).toEqual([0, Position.start().hashLo, 0]);
 });
 
 it('promotes to every piece, the queen first, and names promotions on the wire', () => {

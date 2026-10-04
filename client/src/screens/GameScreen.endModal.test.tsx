@@ -159,3 +159,19 @@ describe('the result card after a stalemate', () => {
     stalemate.mockRestore();
   });
 });
+
+describe('the result card after a repetition', () => {
+  it('says the game is drawn, and how', () => {
+    // The knights out and back twice: the start stands for the third time
+    const shuffle = ['Ab1-Cc1', 'Ed5-Cc5', 'Cc1-Ab1', 'Cc5-Ed5'];
+    const moves = [...shuffle, ...shuffle].map((m, i) => {
+      const [from, to] = m.split('-');
+      return { by: i % 2 ? ('black' as const) : ('white' as const), from, to };
+    });
+    render(screenFor([{ type: 'game_state', color: 'white', started: true, moves }]));
+    expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-result', 'repetition');
+    expect(screen.getByRole('dialog', { name: 'Draw' })).toHaveAccessibleDescription(
+      'by repetition',
+    );
+  });
+});

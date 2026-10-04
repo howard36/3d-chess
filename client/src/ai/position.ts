@@ -7,6 +7,7 @@
 
 import { fromZXY, toZXY } from '../engine/coords';
 import { BISHOP_VECTORS, KNIGHT_VECTORS, QUEEN_VECTORS, ROOK_VECTORS } from '../engine/pieces';
+import { REPETITIONS } from '../engine/draws';
 import type { MoveRecord, Promotion } from '../types/messages';
 
 /** A move as the wire writes it, without its side. */
@@ -179,7 +180,8 @@ for (let i = 0; i < 16 * CELLS; i++) {
 const SIDE_LO = nextZ();
 const SIDE_HI = nextZ();
 
-const MAX_PLY = 1024;
+/** Plies of history kept at first; the record grows as a game goes on. */
+const HISTORY_PLIES = 256;
 
 export class Position {
   /** The piece code on each cell (0 for empty). */
@@ -196,9 +198,15 @@ export class Position {
   readonly occ = new Int32Array(8);
   hashLo = 0;
   hashHi = 0;
-  /** The hashes of the positions played through, for spotting a repetition. */
-  private readonly history = new Int32Array(MAX_PLY * 2);
-  /** How many positions `history` holds (moves played since the start, plus one). */
+  /** The hashes of the positions played through, two halves a ply, for spotting a repetition. */
+  private history = new Int32Array(HISTORY_PLIES * 2);
+  /**
+   * clocks[ply]: the plies since the last capture or pawn move at each
+   * position played through (the fifty-move count, engine/draws.ts). No
+   * position before the last of those can stand again.
+   */
+  private clocks = new Int16Array(HISTORY_PLIES);
+  /** The index of the current position in `history` (moves played since reset). */
   ply = 0;
 
   /** The starting position (engine/board.ts setupStartingPosition). */
@@ -231,8 +239,11 @@ export class Position {
     return pos;
   }
 
-  /** Recomputes the kings and the hash after the board was set up directly. */
-  reset(side: number): void {
+  /**
+   * Recomputes the kings and the hash after the board was set up directly,
+   * with `halfmoves` already played towards the fifty-move draw.
+   */
+  reset(side: number, halfmoves = 0): void {
     this.side = side;
     this.king[0] = -1;
     this.king[1] = -1;
@@ -253,6 +264,28 @@ export class Position {
     this.ply = 0;
     this.history[0] = lo;
     this.history[1] = hi;
+    this.clocks[0] = halfmoves;
+  }
+
+  /** The plies played since the last capture or pawn move (a hundred draw). */
+  get halfmoves(): number {
+    return this.clocks[this.ply];
+  }
+
+  /** Records the position just reached, at the next ply, with its fifty-move count. */
+  private push(clock: number): void {
+    const ply = ++this.ply;
+    if (ply >= this.clocks.length) {
+      const history = new Int32Array(this.history.length * 2);
+      history.set(this.history);
+      this.history = history;
+      const clocks = new Int16Array(this.clocks.length * 2);
+      clocks.set(this.clocks);
+      this.clocks = clocks;
+    }
+    this.history[ply * 2] = this.hashLo;
+    this.history[ply * 2 + 1] = this.hashHi;
+    this.clocks[ply] = clock;
   }
 
   /** The legal move matching a wire move, or 0. */
@@ -410,9 +443,7 @@ export class Position {
     this.side = side ^ 1;
     this.hashLo = lo ^ SIDE_LO;
     this.hashHi = hi ^ SIDE_HI;
-    const ply = ++this.ply;
-    this.history[ply * 2] = this.hashLo;
-    this.history[ply * 2 + 1] = this.hashHi;
+    this.push(captured || (piece & 7) === PAWN ? 0 : this.clocks[this.ply] + 1);
     const k = this.king[side];
     return k < 0 || !this.attacked(k, side ^ 1);
   }
@@ -438,14 +469,16 @@ export class Position {
     this.hashHi = this.history[this.ply * 2 + 1];
   }
 
-  /** Passes the move (null-move pruning): the other side moves next. */
+  /**
+   * Passes the move (null-move pruning): the other side moves next. No line
+   * through a pass is a real game, so it counts as a capture would: nothing
+   * before it repeats, and the fifty moves start again.
+   */
   makeNull(): void {
     this.side ^= 1;
     this.hashLo ^= SIDE_LO;
     this.hashHi ^= SIDE_HI;
-    const ply = ++this.ply;
-    this.history[ply * 2] = this.hashLo;
-    this.history[ply * 2 + 1] = this.hashHi;
+    this.push(0);
   }
 
   unmakeNull(): void {
@@ -455,12 +488,21 @@ export class Position {
     this.hashHi = this.history[this.ply * 2 + 1];
   }
 
-  /** Whether this position stood earlier in the game or the line searched, with the same side to move. */
-  repeated(): boolean {
+  /**
+   * Whether this position is a draw by repetition for a search from the
+   * position at ply `root`: standing for the third time (twice before, with
+   * the same side to move), or for the second time inside the line searched,
+   * which can always be repeated once more. Only positions since the last
+   * capture or pawn move can match.
+   */
+  repeated(root: number = this.ply): boolean {
     const lo = this.hashLo;
     const hi = this.hashHi;
-    for (let p = this.ply - 2; p >= 0; p -= 2) {
-      if (this.history[p * 2] === lo && this.history[p * 2 + 1] === hi) return true;
+    const oldest = Math.max(0, this.ply - this.clocks[this.ply]);
+    let before = 0;
+    for (let p = this.ply - 2; p >= oldest; p -= 2) {
+      if (this.history[p * 2] !== lo || this.history[p * 2 + 1] !== hi) continue;
+      if (p > root || ++before >= REPETITIONS - 1) return true;
     }
     return false;
   }

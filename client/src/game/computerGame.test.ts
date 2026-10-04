@@ -138,3 +138,11 @@ it('sees a game over: mate, or a record it cannot play', () => {
     code: 'wrong_turn',
   });
 });
+
+it('stops at a draw: the computer plays no further', () => {
+  const shuffle = ['Ab1-Cc1', 'Ed5-Cc5', 'Cc1-Ab1', 'Cc5-Ed5'];
+  const drawn = game({ color: 'black', moves: records([...shuffle, ...shuffle]) });
+  expect(isOver(drawn)).toBe(true);
+  expect(computerToMove(drawn)).toBe(false);
+  expect(computerMove(drawn, { from: 'Ab1', to: 'Cc1' }).replies).toEqual([]);
+});

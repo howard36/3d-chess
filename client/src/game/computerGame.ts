@@ -6,6 +6,7 @@
 
 import { Board } from '../engine';
 import { moveFromMessage, moveToMessage } from '../engine/protocol';
+import { deriveHistory } from './history';
 import type { Difficulty } from '../ai/levels';
 import type { Color, Error as ServerError, MoveRecord, WebSocketMessage } from '../types/messages';
 
@@ -64,10 +65,14 @@ const isLegal = (board: Board, record: MoveRecord): boolean => {
     );
 };
 
-/** Whether the game has ended (the side to move has no legal move), or cannot go on. */
+/** Whether the game has ended (mated, or drawn), or cannot go on. */
 export function isOver(game: ComputerGame): boolean {
-  const board = replay(game.moves);
-  return !board || !board.hasLegalMove(turnAfter(game.moves));
+  // By the game's own rules (history.ts): mate, stalemate, a repetition or
+  // the fifty moves, or a record that cannot be played on
+  const history = deriveHistory([
+    { type: 'game_state', color: game.color, started: true, moves: game.moves },
+  ]);
+  return history.gameOver !== null || history.replayFailedAt !== null;
 }
 
 /** Whether it is the computer's move in a game under way. */

@@ -153,3 +153,79 @@ it('judges the start as even, and a piece up as winning', () => {
   up.reset(BLACK_SIDE);
   expect(evaluate(up)).toBeLessThan(-800);
 });
+
+describe('the draws', () => {
+  // White's king and queen against the bare king: the kings shuffle, White's
+  // between Aa1 and Ab1, Black's between Ee5 and Ed5
+  const kq = () =>
+    setUp([
+      [0, 0, 0, KING],
+      [2, 4, 0, QUEEN],
+      [4, 4, 4, KING | BLACK],
+    ]);
+  const play = (pos: Position, moves: string[]) => {
+    for (const m of moves) {
+      const [from, to] = m.split('-');
+      const move = pos.findMove({ from, to });
+      expect(move).not.toBe(0);
+      pos.make(move);
+    }
+  };
+  const cycle = ['Aa1-Ab1', 'Ee5-Ed5', 'Ab1-Aa1', 'Ed5-Ee5'];
+
+  it('the side losing takes a third repetition, and scores it as a draw', () => {
+    const pos = kq();
+    // The start has stood twice; Black's king back to Ee5 makes the third time
+    play(pos, [...cycle, ...cycle.slice(0, 3)]);
+    const result = new Searcher(pos).search({ maxDepth: 3, timeMs: 1e9, margin: INF });
+    expect(Position.record(result.move)).toEqual({ from: 'Ed5', to: 'Ee5' });
+    expect(result.score).toBe(0);
+    // Any other move leaves Black a queen down
+    for (const s of result.scores.filter((s) => s.move !== result.move))
+      expect(s.score).toBeLessThan(-500);
+  });
+
+  it('the side ahead avoids a third repetition', () => {
+    // The same shuffle with Black a queen up: now Black's king back to Ee5
+    // would throw the win away
+    const pos = setUp([
+      [0, 0, 0, KING],
+      [2, 0, 4, QUEEN | BLACK],
+      [4, 4, 4, KING | BLACK],
+    ]);
+    play(pos, [...cycle, ...cycle.slice(0, 3)]);
+    const result = new Searcher(pos).search({ maxDepth: 3, timeMs: 1e9, margin: INF });
+    const back = result.scores.find((s) => Position.record(s.move).to === 'Ee5')!;
+    expect(back.score).toBe(0);
+    expect(result.move).not.toBe(back.move);
+    expect(result.score).toBeGreaterThan(500);
+  });
+
+  it('draws at fifty moves each with no capture or pawn move, but a mate stands', () => {
+    const pos = kq();
+    pos.reset(WHITE_SIDE, 99);
+    // Every move is the hundredth: nothing White does can win now
+    const late = new Searcher(pos).search({ maxDepth: 3, timeMs: 1e9, margin: INF });
+    expect(late.score).toBe(0);
+    // ...while with time left, the queen's lead tells
+    pos.reset(WHITE_SIDE, 0);
+    expect(new Searcher(pos).search({ maxDepth: 3, timeMs: 1e9, margin: 0 }).score).toBeGreaterThan(
+      500,
+    );
+    // The demo's mating move, played as the hundredth ply, still mates
+    const mate = Position.fromRecords(demo.slice(0, -1));
+    mate.reset(WHITE_SIDE, 99);
+    const result = new Searcher(mate).search({ ...deep, maxDepth: 2 });
+    expect(Position.record(result.move)).toEqual(demo[demo.length - 1]);
+    expect(result.score).toBe(MATE - 1);
+  });
+
+  it('values a lead a little less as the fifty moves run out', () => {
+    const pos = kq();
+    const fresh = evaluate(pos);
+    pos.reset(WHITE_SIDE, 80);
+    const late = evaluate(pos);
+    expect(late).toBeLessThan(fresh);
+    expect(late).toBeGreaterThan(fresh * 0.7);
+  });
+});

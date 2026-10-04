@@ -1,5 +1,6 @@
 import React from 'react';
 import type { GameOver, Turn } from '../game/history';
+import { RESULT_NAME } from '../game/announce';
 
 interface TurnPillProps {
   /** This player's colour. */
@@ -46,7 +47,7 @@ const describe = ({ seat, turn, inCheck, gameOver, opponentOnline }: TurnPillPro
   if (gameOver?.result === 'checkmate') {
     return `${you} Checkmate, ${gameOver.winner === seat ? 'you win' : 'you lose'}.`;
   }
-  if (gameOver) return `${you} Stalemate, a draw.`;
+  if (gameOver) return `${you} ${RESULT_NAME[gameOver.result]}, a draw.`;
   const move = turn === seat ? 'Your move' : `${named(turn)} to move`;
   const away = opponentOnline === false ? ' Your opponent is offline.' : '';
   return `${you} ${move}${inCheck ? ', in check' : ''}.${away}`;
@@ -78,14 +79,13 @@ const TurnPill: React.FC<TurnPillProps> = (props) => {
   };
   if (gameOver) {
     const verdict =
-      gameOver.result === 'stalemate' ? 'draw' : gameOver.winner === seat ? 'you win' : 'you lose';
+      gameOver.result !== 'checkmate' ? 'draw' : gameOver.winner === seat ? 'you win' : 'you lose';
     return (
       <div className="hud-pill hud-glass hud-result" {...common}>
         {label}
         <Stone color={gameOver.winner ?? seat} lit aria-hidden />
         <span aria-hidden>
-          {gameOver.result === 'stalemate' ? 'Stalemate' : 'Checkmate'}{' '}
-          <span className="hud-sub">· {verdict}</span>
+          {RESULT_NAME[gameOver.result]} <span className="hud-sub">· {verdict}</span>
         </span>
       </div>
     );

@@ -162,8 +162,17 @@ export function evaluate(pos: Position, full = true): number {
   }
 
   const relative = pos.side === WHITE_SIDE ? score : -score;
-  return full ? relative + mobilityScore(pos) : relative;
+  const scaled = toward50(relative, pos.halfmoves);
+  return full ? scaled + mobilityScore(pos) : scaled;
 }
+
+/**
+ * A lead counts for less as the fifty moves run out (a quarter less at the
+ * last ply), so a side ahead makes progress, a capture or a pawn move, rather
+ * than drift towards the draw.
+ */
+const toward50 = (score: number, halfmoves: number) =>
+  halfmoves <= 0 ? score : Math.round((score * (400 - Math.min(halfmoves, 100))) / 400);
 
 /**
  * What the pieces' room to move adds to evaluate(pos, false), for the side
@@ -172,7 +181,7 @@ export function evaluate(pos: Position, full = true): number {
  */
 export const mobilityScore = (pos: Position) => {
   const m = pos.mobility(MOBILITY_WEIGHT);
-  return pos.side === WHITE_SIDE ? m : -m;
+  return toward50(pos.side === WHITE_SIDE ? m : -m, pos.halfmoves);
 };
 
 /** The most mobility is taken to swing a position by. */

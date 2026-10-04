@@ -1,10 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Turn } from '../game/history';
+import type { GameOver, Turn } from '../game/history';
+import { DRAW_BY } from '../game/announce';
 import { Stone } from './TurnPill';
 
 interface EndGameModalProps {
-  result: 'checkmate' | 'stalemate';
+  result: GameOver['result'];
   winner?: Turn;
   /** This player's colour: the result is said to them. */
   seat: Turn;
@@ -16,7 +17,7 @@ interface EndGameModalProps {
 
 /**
  * The result, over the final position: "You win" or "You lose" by checkmate,
- * or a draw by stalemate, with the winner's stone lit. Its button, which has
+ * or a draw (by stalemate, repetition or the 50-move rule), with the winner's stone lit. Its button, which has
  * focus, starts another game: the side choice. It can be closed (its close
  * button, Escape, a click outside it) to study the final board, which keeps
  * that button below the tower (NewGameBar).
@@ -29,7 +30,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
   newGamePath = '/new',
 }) => {
   const navigate = useNavigate();
-  const title = result === 'stalemate' ? 'Draw' : winner === seat ? 'You win' : 'You lose';
+  const title = result !== 'checkmate' ? 'Draw' : winner === seat ? 'You win' : 'You lose';
   return (
     <div
       className="hud-veil"
@@ -68,7 +69,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
         </div>
         <h2 id="end-game-title">{title}</h2>
         <p id="end-game-how" style={{ marginTop: 4 }}>
-          {result === 'stalemate' ? 'by stalemate' : 'by checkmate'}
+          {result === 'checkmate' ? 'by checkmate' : DRAW_BY[result]}
         </p>
         {/* The dialog takes focus: a keyboard player lands on its only action */}
         <button

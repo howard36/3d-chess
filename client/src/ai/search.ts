@@ -10,6 +10,7 @@
 // not notice, the opponent's long lines across levels.
 
 import { LAZY, VALUE, evaluate, mobilityScore } from './evaluate';
+import { FIFTY_MOVE_PLIES } from '../engine/draws';
 import { KING, PAWN, QUEEN, moveCaptured, movePiece, movePromotion, moveTo } from './position';
 import type { Position } from './position';
 
@@ -91,6 +92,8 @@ export class Searcher {
   private hidden: ((move: number) => boolean) | undefined;
   private now: () => number = () => performance.now();
   private canStop = false;
+  /** The ply (Position.ply) of the position searched from. */
+  private rootPly = 0;
 
   constructor(private readonly pos: Position) {}
 
@@ -99,6 +102,7 @@ export class Searcher {
     this.nodes = 0;
     this.stopped = false;
     this.canStop = false;
+    this.rootPly = pos.ply;
     this.now = limits.now ?? (() => performance.now());
     this.deadline = this.now() + limits.timeMs;
     this.maxNodes = limits.maxNodes ?? Infinity;
@@ -155,6 +159,7 @@ export class Searcher {
         }
         pos.unmake(m);
         if (this.stopped) break;
+        if (s === 0) s = 0; // a draw negated is -0: a draw all the same
         scores.set(m, s);
         if (s > best) {
           best = s;
@@ -210,8 +215,13 @@ export class Searcher {
     allowNull: boolean,
   ): number {
     const pos = this.pos;
-    if (ply > 0 && pos.repeated()) return 0;
+    if (ply > 0 && pos.repeated(this.rootPly)) return 0;
     const inCheck = pos.inCheck();
+    // Fifty moves each with no capture or pawn move: drawn, unless this
+    // position is mate (a mate stands, as in chess)
+    if (ply > 0 && pos.halfmoves >= FIFTY_MOVE_PLIES) {
+      return inCheck && !this.hasLegalMove(ply) ? -(MATE - ply) : 0;
+    }
     if (inCheck && ply < MAX_PLY - 8) depth++;
     if (depth <= 0) return this.quiesce(alpha, beta, ply, 0);
     this.nodes++;
@@ -380,6 +390,19 @@ export class Searcher {
       }
     }
     return best;
+  }
+
+  /** Whether the side to move has a legal move (generated into ply's slice of the move list). */
+  private hasLegalMove(ply: number): boolean {
+    const pos = this.pos;
+    const base = ply * MOVES_PER_PLY;
+    const end = pos.generate(this.moves, base);
+    for (let i = base; i < end; i++) {
+      const legal = pos.make(this.moves[i]);
+      pos.unmake(this.moves[i]);
+      if (legal) return true;
+    }
+    return false;
   }
 
   /** Whether the side to move has a piece besides pawns and its king. */
