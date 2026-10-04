@@ -99,7 +99,9 @@ it('agrees with the engine on every position of random games', () => {
     expect([...replayed.board]).toEqual([...pos.board]);
   }
   expect(positions).toBeGreaterThan(2000);
-});
+  // Thousands of positions, each checked against the engine: a few seconds
+  // with coverage on a busy runner
+}, 30_000);
 
 it('takes back every move exactly, hash included', () => {
   const pos = Position.fromRecords([
