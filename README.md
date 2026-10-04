@@ -694,20 +694,23 @@ the reload the join is re-sent on the next socket and recovers the seat.)
 ## The tutorial
 
 `/learn` (and `/learn/<lesson>`: `rook`, `bishop`, `unicorn`, `queen`, `king`, `knight`,
-`pawn`) teaches how the pieces move, to a player who already knows chess: the real tower and
-rules, a lesson per piece, words only for what the board can't show
-(`screens/learn/LearnScreen.tsx`, the lessons in `game/lessons.ts`). A menu of the pieces
-runs across the top (Board first: the starting position, the levels and the squares'
-names), the unicorn marked as the new piece. Each piece's lesson stands it alone on Cc3,
-the middle of the board, picked up, every square it can reach ringed in gold, and a card
-gives its name, one line, a few short facts, a little cube with its directions drawn from
-the middle (a rook's to the faces, a bishop's to the edges, a unicorn's to the corners)
-and how many moves it has from where it stands. A tapped ring plays the move (the glide,
-the last move's line): the piece is picked up again where it lands and the count follows
-it; Reset puts it back. The pawn's lesson has three steps (Move, Capture with a piece on
-each of its five capture squares, Promote from Cc5, already on the far rank but two levels
-short, through the real promotion dialog), and Next runs through every lesson and step to
-"Play a game" (`/new`).
+`pawn`) teaches how the pieces move on the real tower and rules, a lesson per piece
+(`screens/learn/LearnScreen.tsx`, the lessons in `game/lessons.ts`), taught through staged
+positions rather than text: a line a step (a quieter note only for a rule the board can't
+show, such as no castling), at most about eight words. A menu of the pieces runs across the
+top, the unicorn marked as the new piece. Each lesson's **Move** step stands the piece alone
+on Cc3, the middle of the board, picked up, every square it can reach ringed in gold, beside
+a little cube with its directions drawn from the middle (a rook's to the faces, a bishop's
+to the edges, a unicorn's to the corners) and how many moves it has from where it stands. A
+tapped ring plays the move (the glide, the last move's line): the piece is picked up again
+where it lands and the count follows it; Reset puts it back. Its **Capture** step ("Take the
+pawn.") puts a black pawn where only a move off the piece's own level takes it (straight up
+for the rook, through a corner for the unicorn and the queen, two levels up for the knight);
+a miss says a hint ("Look straight up.") and makes Reset the button to press, the take says
+"✓ Taken" and makes Next the one. The pawn's lesson has Move, Capture (a piece on each of its
+five capture squares) and Promote (from Cc5, already on the far rank but two levels short,
+through the real promotion dialog). Next runs through every step and lesson to "Play a game"
+(`/new`).
 
 The board is the game's `Board` with `showMovesOf`, a square whose piece it keeps picked
 up (on mount and in each new position, once a live move has landed). The lessons have no

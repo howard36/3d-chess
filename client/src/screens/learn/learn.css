@@ -199,30 +199,37 @@
 }
 .learn-line {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
   line-height: 1.35;
 }
-.learn-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
+/* A rule the board can't show, quieter than the line */
+.learn-note {
+  margin: 6px 0 0;
+  color: var(--hud-muted);
+  font-size: 13px;
+  line-height: 1.35;
 }
-.learn-facts li {
-  padding: 3px 9px;
-  border: 1px solid rgba(236, 241, 255, 0.14);
-  border-radius: 999px;
-  background: rgba(236, 241, 255, 0.04);
-  color: rgba(226, 232, 244, 0.8);
-  font-size: 12px;
+/* A capture step's outcome: taken in the gold of the rings, a miss's hint
+   in plain light */
+.learn-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--hud-fg);
+  font-size: 14px;
   font-weight: 600;
-  white-space: nowrap;
+  line-height: 1.3;
+}
+.learn-status[data-state='done'] {
+  color: #f8c970;
+}
+.learn-status:empty {
+  display: none;
 }
 .learn-foot {
   display: flex;
+  justify-content: flex-end;
   align-items: center;
   gap: 12px;
   margin-top: auto;
@@ -262,7 +269,6 @@
   align-items: center;
   gap: 6px;
   height: 32px;
-  margin-left: auto;
   padding: 0 14px;
   border: var(--button-border);
   border-radius: 16px;
@@ -273,9 +279,17 @@
   font-weight: 600;
   cursor: pointer;
 }
-.learn-count + .learn-next,
-.learn-again + .learn-next {
-  margin-left: 0;
+/* The button to press now: Next once the pawn is taken, Reset after a miss */
+.learn-next[data-primary],
+.learn-again[data-primary] {
+  border: 0;
+  border-radius: 16px;
+  background: var(--hud-accent);
+  color: var(--hud-accent-fg);
+}
+.learn-again[data-primary] {
+  height: 32px;
+  padding: 0 14px;
 }
 .learn-next:hover,
 .learn-next:focus-visible {
@@ -336,16 +350,12 @@
   .learn-line {
     font-size: 14px;
   }
-  .learn-facts li {
-    font-size: 11.5px;
-    padding: 2px 8px;
-  }
 }
 /* A wide window: the card stands at the left of the tower, which takes the
    whole height under the menu (learnLayout.ts, cardBeside), at one height
    for every lesson, in the middle of the room under the menu */
 .learn[data-card='beside'] {
-  --learn-card: 330px;
+  --learn-card: 300px;
 }
 .learn[data-card='beside'] .learn-card {
   left: max(20px, env(safe-area-inset-left));

@@ -13,18 +13,22 @@ test('the start page leads to the tutorial, which draws its board and walks the 
   await page.goto('/');
   await page.getByRole('button', { name: 'How the pieces move' }).click();
   await expect(page).toHaveURL(/\/learn$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Board' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Rook' })).toBeVisible();
   await expect(page.getByTestId('learn-canvas')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Unicorn' }).click();
+  await page.getByRole('button', { name: 'Unicorn', exact: true }).click();
   await expect(page).toHaveURL(/\/learn\/unicorn$/);
   await expect(page.getByText('New', { exact: true })).toBeVisible();
   await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '16');
 
-  await page.getByRole('button', { name: 'Next: Queen' }).click();
+  await page.getByRole('button', { name: 'Next: Capture' }).click();
+  await expect(page.getByText('Take the pawn.')).toBeVisible();
+  await expect(page.getByTestId('learn-status')).toHaveAttribute('data-state', 'trying');
+
+  await page.getByRole('button', { name: 'Queen', exact: true }).click();
   await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '52');
 
-  await page.getByRole('button', { name: 'Pawn' }).click();
+  await page.getByRole('button', { name: 'Pawn', exact: true }).click();
   await page.getByRole('button', { name: 'Capture', exact: true }).click();
   await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '7');
 

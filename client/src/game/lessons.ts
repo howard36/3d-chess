@@ -5,40 +5,38 @@ import type { Coord } from '../engine/coords';
 import { KNIGHT_VECTORS, PieceType } from '../engine/pieces';
 import type { LastMove } from './history';
 
-// The tutorial (/learn): one lesson per piece, each a position on the real
-// tower with the piece picked up and its moves ringed, for a player who
-// knows chess. The words say only what the board cannot show.
+// The tutorial (/learn): a lesson per piece on the real tower and rules.
+// Each has a step to see how the piece moves (alone in the middle of the
+// board, picked up, every square it can reach ringed) and most a capture to
+// make, staged so it takes the piece's moves off its own level. The words
+// are a line a step; the board shows the rest.
 
-export type LessonId =
-  | 'board'
-  | 'rook'
-  | 'bishop'
-  | 'unicorn'
-  | 'queen'
-  | 'king'
-  | 'knight'
-  | 'pawn';
+export type LessonId = 'rook' | 'bishop' | 'unicorn' | 'queen' | 'king' | 'knight' | 'pawn';
 
 /** A direction a piece moves in, as [file, rank, level] steps. */
 export type Step = readonly [number, number, number];
 
 export interface LessonStep {
-  /** The step's name in the lesson's own switcher (lessons of more than one step). */
-  label?: string;
+  /** The step's name in the lesson's switcher. */
+  label: string;
   /** The one line under the lesson's name. */
   line: string;
-  /** A few short facts, a phrase each. */
-  facts: readonly string[];
+  /** A second, quieter line, for a rule the board can't show. */
+  note?: string;
   /** Where the pieces stand, as ZXY squares. */
   pieces: readonly { at: string; type: PieceType; color: 'white' | 'black' }[];
-  /** The piece kept picked up, its moves ringed; none on a board to look at. */
-  focus: string | null;
+  /** The piece kept picked up, its moves ringed. */
+  focus: string;
+  /** A square whose piece is to be taken: the step is a capture to make. */
+  target?: string;
+  /** Said once a move has missed the target. */
+  hint?: string;
   /** The directions it moves in, for the little cube beside the words. */
   directions?: {
     moves: readonly Step[];
     /** Directions it only captures in (a pawn's). */
     captures?: readonly Step[];
-    /** One step, or as far as the line runs. */
+    /** One step, as far as the line runs, or a jump. */
     reach: 'step' | 'line' | 'jump';
     /** Under the cube. */
     caption: string;
@@ -51,8 +49,8 @@ export interface Lesson {
   id: LessonId;
   /** Its name in the menu and its heading. */
   name: string;
-  /** The piece its menu entry shows (none for the board). */
-  piece: PieceType | null;
+  /** The piece its menu entry shows. */
+  piece: PieceType;
   /** A piece 2D chess does not have. */
   isNew?: boolean;
   steps: readonly LessonStep[];
@@ -75,117 +73,107 @@ const SQUARES: Coord[] = [];
 for (let z = 0; z < 5; z++)
   for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) SQUARES.push({ x, y, z });
 
-/** The pieces on a board, as a lesson places them. */
-const placed = (board: Board): LessonStep['pieces'] =>
-  SQUARES.flatMap((at) => {
-    const piece = board.getPiece(at);
-    return piece ? [{ at: toZXY(at), ...piece }] : [];
-  });
-
-const lone = (type: PieceType) => [{ at: 'Cc3', type, color: 'white' as const }];
+/** A piece's two steps: its moves from the middle of the board, then a pawn to take at `target`. */
+const lesson = (
+  type: PieceType,
+  move: Omit<LessonStep, 'label' | 'pieces' | 'focus'>,
+  capture: { target: string; hint: string },
+): LessonStep[] => {
+  const piece = { at: 'Cc3', type, color: 'white' as const };
+  return [
+    { label: 'Move', pieces: [piece], focus: 'Cc3', ...move },
+    {
+      label: 'Capture',
+      line: 'Take the pawn.',
+      pieces: [piece, { at: capture.target, type: PieceType.Pawn, color: 'black' }],
+      focus: 'Cc3',
+      // Its directions again, beside the task
+      directions: move.directions,
+      ...capture,
+    },
+  ];
+};
 
 export const LESSONS: readonly Lesson[] = [
-  {
-    id: 'board',
-    name: 'Board',
-    piece: null,
-    steps: [
-      {
-        line: 'Five boards, stacked. Every piece now moves up and down too.',
-        facts: [
-          'Levels A–E, bottom to top',
-          'Cc3 is level C, file c, rank 3',
-          'No castling, en passant or double step',
-        ],
-        pieces: placed(Board.setupStartingPosition()),
-        focus: null,
-      },
-    ],
-  },
   {
     id: 'rook',
     name: 'Rook',
     piece: PieceType.Rook,
-    steps: [
+    steps: lesson(
+      PieceType.Rook,
       {
-        line: 'Straight lines, now straight up and down as well.',
-        facts: ['Changes one of level, file, rank'],
-        pieces: lone(PieceType.Rook),
-        focus: 'Cc3',
+        line: 'Straight lines: sideways, forward and back, up and down.',
         directions: { moves: FACES, reach: 'line', caption: '6 directions' },
       },
-    ],
+      { target: 'Ec3', hint: 'Look straight up.' },
+    ),
   },
   {
     id: 'bishop',
     name: 'Bishop',
     piece: PieceType.Bishop,
-    steps: [
+    steps: lesson(
+      PieceType.Bishop,
       {
-        line: 'Diagonals across a level, and up or down through the levels.',
-        facts: ['Changes two of level, file, rank', 'Keeps its colour'],
-        pieces: lone(PieceType.Bishop),
-        focus: 'Cc3',
+        line: 'Diagonals, across a level or climbing between levels.',
         directions: { moves: EDGES, reach: 'line', caption: '12 directions' },
       },
-    ],
+      { target: 'Ea3', hint: 'Diagonals climb too.' },
+    ),
   },
   {
     id: 'unicorn',
     name: 'Unicorn',
     piece: PieceType.Unicorn,
     isNew: true,
-    steps: [
+    steps: lesson(
+      PieceType.Unicorn,
       {
-        line: 'The new piece. It slices through the corners of the cube.',
-        facts: ['Changes all three, every step', 'Switches colour every step', 'Two a side'],
-        pieces: lone(PieceType.Unicorn),
-        focus: 'Cc3',
+        line: 'Level, file and rank all change, every step.',
         directions: { moves: CORNERS, reach: 'line', caption: '8 directions' },
       },
-    ],
+      { target: 'Ee5', hint: 'Out through a corner.' },
+    ),
   },
   {
     id: 'queen',
     name: 'Queen',
     piece: PieceType.Queen,
-    steps: [
+    steps: lesson(
+      PieceType.Queen,
       {
-        line: 'Rook, bishop and unicorn in one.',
-        facts: ['The most powerful piece by far'],
-        pieces: lone(PieceType.Queen),
-        focus: 'Cc3',
+        line: 'Rook, bishop and unicorn combined.',
         directions: { moves: all, reach: 'line', caption: '26 directions' },
       },
-    ],
+      { target: 'Ea5', hint: 'Move like a unicorn.' },
+    ),
   },
   {
     id: 'king',
     name: 'King',
     piece: PieceType.King,
-    steps: [
+    steps: lesson(
+      PieceType.King,
       {
-        line: 'One step any way, to any of 26 neighbours.',
-        facts: ['No castling'],
-        pieces: lone(PieceType.King),
-        focus: 'Cc3',
+        line: 'One step in any direction.',
+        note: 'No castling.',
         directions: { moves: all, reach: 'step', caption: '26 directions' },
       },
-    ],
+      { target: 'Bb2', hint: 'Corners count.' },
+    ),
   },
   {
     id: 'knight',
     name: 'Knight',
     piece: PieceType.Knight,
-    steps: [
+    steps: lesson(
+      PieceType.Knight,
       {
-        line: 'Still an L: two squares one way, one square another.',
-        facts: ['Any two of level, file, rank', 'Jumps over pieces'],
-        pieces: lone(PieceType.Knight),
-        focus: 'Cc3',
+        line: 'Two squares one way, then one square another.',
         directions: { moves: JUMPS, reach: 'jump', caption: '24 jumps' },
       },
-    ],
+      { target: 'Ec4', hint: 'Jump two levels up.' },
+    ),
   },
   {
     id: 'pawn',
@@ -194,9 +182,9 @@ export const LESSONS: readonly Lesson[] = [
     steps: [
       {
         label: 'Move',
-        line: 'One step forward, or one step up.',
-        facts: ['No double step', "Black's go back or down"],
-        pieces: lone(PieceType.Pawn),
+        line: 'One step forward or one step up, never two.',
+        note: "Black's pawns move back and down.",
+        pieces: [{ at: 'Cc3', type: PieceType.Pawn, color: 'white' }],
         focus: 'Cc3',
         directions: {
           moves: [
@@ -209,8 +197,7 @@ export const LESSONS: readonly Lesson[] = [
       },
       {
         label: 'Capture',
-        line: 'One step diagonally, always forward or up.',
-        facts: ['Forward and to the side', 'Up and to the side', 'Forward and up'],
+        line: 'Captures one diagonal step, forward or up.',
         pieces: [
           { at: 'Cc3', type: PieceType.Pawn, color: 'white' },
           { at: 'Cb4', type: PieceType.Pawn, color: 'black' },
@@ -233,13 +220,12 @@ export const LESSONS: readonly Lesson[] = [
             [0, 1, 1],
           ],
           reach: 'step',
-          caption: '5 ways to capture',
+          caption: '5 captures',
         },
       },
       {
         label: 'Promote',
-        line: 'Promotes only on the top level’s far rank.',
-        facts: ['Rank 5 of level E', 'Unicorn included'],
+        line: 'Promotes on the top level\u2019s far rank.',
         // On the far rank already, but two levels short
         pieces: [{ at: 'Cc5', type: PieceType.Pawn, color: 'white' }],
         focus: 'Cc5',
@@ -288,14 +274,14 @@ export class LessonBoard extends Board {
 /** A lesson's position as it stands: the board, the picked-up piece and the last move. */
 export interface Practice {
   board: LessonBoard;
-  /** Where the lesson's piece stands now (null on a board only to look at). */
-  focus: Coord | null;
+  /** Where the lesson's piece stands now. */
+  focus: Coord;
   lastMove?: LastMove;
 }
 
 export const startPractice = (step: LessonStep): Practice => ({
   board: LessonBoard.from(step.pieces),
-  focus: step.focus ? fromZXY(step.focus) : null,
+  focus: fromZXY(step.focus),
 });
 
 /** The position after `move`: the piece it moved stays picked up. */
@@ -311,6 +297,20 @@ export const practise = (practice: Practice, move: Move): Practice => ({
 
 /** The squares the lesson's piece can reach from where it stands. */
 export const reachable = (practice: Practice): number => {
-  if (!practice.focus || !practice.board.getPiece(practice.focus)) return 0;
+  if (!practice.board.getPiece(practice.focus)) return 0;
   return new Set(practice.board.generateLegalMoves(practice.focus).map((m) => toZXY(m.to))).size;
+};
+
+/**
+ * Where a capture step stands: the target still there before any move
+ * (`trying`), taken (`done`), or still there after a move (`missed`). Null
+ * for a step with nothing to take.
+ */
+export const captureState = (
+  step: LessonStep,
+  practice: Practice,
+): 'trying' | 'done' | 'missed' | null => {
+  if (!step.target) return null;
+  if (practice.board.getPiece(fromZXY(step.target))?.color !== 'black') return 'done';
+  return practice.lastMove ? 'missed' : 'trying';
 };

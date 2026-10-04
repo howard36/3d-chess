@@ -2,7 +2,14 @@ import React from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { lazyChunk } from '../../lib/cachedImport';
 import { ChunkBoundary } from '../../components/ChunkBoundary';
-import { LESSONS, lessonById, practise, reachable, startPractice } from '../../game/lessons';
+import {
+  LESSONS,
+  captureState,
+  lessonById,
+  practise,
+  reachable,
+  startPractice,
+} from '../../game/lessons';
 import type { Lesson } from '../../game/lessons';
 import type { Move } from '../../engine';
 import { PieceGlyph } from '../PieceGlyph';
@@ -75,6 +82,7 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
   const beside = useCardBeside();
   const LearnCanvas = learnCanvas.Component;
   const count = reachable(practice);
+  const capture = captureState(step, practice);
 
   return (
     <main className="learn" data-testid="learn" data-card={beside ? 'beside' : 'below'}>
@@ -104,7 +112,7 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
               aria-label={l.name}
               onClick={() => navigate(lessonPath(l), { replace: true })}
             >
-              {l.piece ? <PieceGlyph type={l.piece} color="white" size={22} /> : <TowerGlyph />}
+              <PieceGlyph type={l.piece} color="white" size={22} />
               <span className="learn-tab-name" aria-hidden>
                 {l.name}
               </span>
@@ -141,15 +149,11 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
           {step.promotionRow && <PromotionRow />}
           <div className="learn-words">
             <p className="learn-line">{step.line}</p>
-            <ul className="learn-facts">
-              {step.facts.map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
+            {step.note && <p className="learn-note">{step.note}</p>}
           </div>
         </div>
         <div className="learn-foot">
-          {practice.focus && !noBoard && (
+          {!noBoard && capture === null && (
             <p
               className="learn-count"
               data-testid="learn-count"
@@ -160,12 +164,36 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
               {!practice.lastMove && <span className="learn-hint"> · tap a ring</span>}
             </p>
           )}
-          {practice.lastMove && (
-            <button className="learn-again" onClick={startOver}>
+          {capture !== null && (
+            <p
+              className="learn-status"
+              data-testid="learn-status"
+              data-state={capture}
+              aria-live="polite"
+            >
+              {capture === 'done' && (
+                <>
+                  <span aria-hidden>✓</span> Taken
+                </>
+              )}
+              {capture === 'missed' && step.hint}
+            </p>
+          )}
+          {practice.lastMove && capture !== 'done' && (
+            <button
+              className="learn-again"
+              data-primary={capture === 'missed' ? '' : undefined}
+              onClick={startOver}
+            >
               Reset
             </button>
           )}
-          <button className="learn-next" onClick={goNext} aria-label={`Next: ${nextLabel}`}>
+          <button
+            className="learn-next"
+            data-primary={capture === 'done' ? '' : undefined}
+            onClick={goNext}
+            aria-label={`Next: ${nextLabel}`}
+          >
             {nextLabel} <span aria-hidden>→</span>
           </button>
         </div>
@@ -196,21 +224,5 @@ function useCardBeside(): boolean {
   }, []);
   return beside;
 }
-
-/** The board's menu entry: five levels, stacked. */
-const TowerGlyph = () => (
-  <svg viewBox="0 0 24 24" width={22} height={22} aria-hidden>
-    {[0, 1, 2, 3, 4].map((i) => (
-      <path
-        key={i}
-        d={`M4 ${19 - i * 3.6}l8-2.4 8 2.4-8 2.4z`}
-        fill="none"
-        stroke={['#00d7e0', '#58c1ff', '#96a7ff', '#c48be5', '#de77ab'][i]}
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
-    ))}
-  </svg>
-);
 
 export default LearnScreen;
