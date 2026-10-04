@@ -18,6 +18,7 @@ import type { DemoFrame } from '../game/demo';
 import { deriveHistory } from '../game/history';
 import type { GameHistory } from '../game/history';
 import { setUpRenderer } from '../three/rendererSetup';
+import { pointerEvents } from '../three/pointerEvents';
 
 /** The longest step one frame may advance the demo: a background tab resumes it, never skips it. */
 const MAX_STEP_S = 0.1;
@@ -114,6 +115,8 @@ export function LandingPreview({ still }: { still: boolean }) {
         // draws only when something changes
         frameloop="demand"
         onCreated={setUpRenderer}
+        // The page may be left before the first commit: never connect to a gone container
+        events={pointerEvents}
       >
         <Stage orientation="white" />
         {/* A fresh board for each pass (the next game opens under the veil),
