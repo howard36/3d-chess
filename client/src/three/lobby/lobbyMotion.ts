@@ -75,17 +75,11 @@ export const LOBBY_TIMING = {
   tossGlide: 0.55,
   /**
    * From the pick (or the coin coming to rest) to the page moving on to the
-   * invitation: once the chosen king is set down, while the others are still
-   * fading, so the pick, the camera's move and the card are one motion.
+   * invitation (or, against the computer, its level): once the chosen king is
+   * set down, while the others are still fading, so the pick, the camera's
+   * move and the card are one motion.
    */
   settle: 0.3,
-  /**
-   * From the pick (or the coin coming to rest) to the pick having played out
-   * in full: the kings not chosen gone, and a breath after. Against the
-   * computer its king takes the other seat then (the arrival), since there
-   * is no one to invite.
-   */
-  quiet: 1.2,
   /**
    * A named pick's free seat opening with the invitation: its outline is
    * drawn up from the foot as the seat's label comes in under it

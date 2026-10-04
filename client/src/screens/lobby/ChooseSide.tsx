@@ -8,6 +8,8 @@ import { setStoredRole } from '../../lib/playerRole';
 import type { Choice } from '../../three/lobby/LobbyScene';
 import type { Side } from '../../three/lobby/lobbyMotion';
 import { useLobbyView } from './lobbyContext';
+import type { LobbyStage } from './lobbyContext';
+import { SeatLabels } from './LobbyCards';
 import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 import { DIFFICULTIES, DIFFICULTY_NAME } from '../../ai/levels';
 import type { Difficulty } from '../../ai/levels';
@@ -29,8 +31,12 @@ import { prefersReducedMotion } from '../../three/motion';
 // land on the side the server will give), and the page moves on to the game's
 // own page, the invitation, once both the answer and the moment are over.
 //
-// Against the computer (/computer) the page also picks its level, and the
-// game is made on the spot, in the browser: no server is asked.
+// Against the computer (/computer) the side is the first of two steps: once
+// the pick has played out, the other seat's outline comes up for the
+// computer and its level is chosen under the kings, framed as an invitation
+// is. Choosing it fills the computer's king, the game is made on the spot,
+// in the browser (no server is asked), and its page opens on the computer's
+// arrival as the page's words go.
 
 const CHOICES: { choice: Choice; name: string }[] = [
   { choice: 'white', name: 'White' },
@@ -48,18 +54,12 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
   computer = false,
 }) => {
   const navigate = useNavigate();
-  const [difficulty, setDifficulty] = React.useState<Difficulty>(getStoredDifficulty);
-  // The game made against the computer, once a side is picked, and the pick
-  // having played out in full: the computer takes the other seat then, on
-  // the game's own page
+  // The computer's level, once chosen, and the game made with it...
+  const [level, setLevel] = React.useState<Difficulty | null>(null);
   const [computerGameId, setComputerGameId] = React.useState<string | null>(null);
-  const [quiet, setQuiet] = React.useState(false);
-  // ...then the page's words make way (the heading and Home fade out), and
-  // the game's page opens on the computer's arrival as they go
+  // ...then the page's words make way, and the game's page opens on the
+  // computer's arrival as they go
   const [gone, setGone] = React.useState(false);
-  React.useEffect(() => {
-    if (quiet && prefersReducedMotion()) setGone(true);
-  }, [quiet]);
   // Its page's code, while the player chooses
   React.useEffect(() => {
     if (computer) computerGame.preload();
@@ -109,84 +109,87 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
     const side: Side = choice === 'random' ? (Math.random() < 0.5 ? 'white' : 'black') : choice;
     setPicked({ choice, side });
     setHover(null);
-    if (computer) {
-      const id = newComputerGameId();
-      saveComputerGame({ id, color: side, difficulty, started: false, moves: [] });
-      setStoredRole(id, side);
-      setStoredDifficulty(difficulty);
-      setComputerGameId(id);
-      return;
-    }
+    if (computer) return;
     setRequestIndex(messages.length);
     requestGame({ type: 'create_game', clientId: getClientId(), color: side });
   };
 
+  // Against the computer, once the side's pick has played out: its level
+  const leveling = computer && settled && !!picked;
+  const pickLevel = (difficulty: Difficulty) => {
+    if (!picked || level) return;
+    const id = newComputerGameId();
+    saveComputerGame({ id, color: picked.side, difficulty, started: false, moves: [] });
+    setStoredRole(id, picked.side);
+    setStoredDifficulty(difficulty);
+    setLevel(difficulty);
+    setComputerGameId(id);
+    if (prefersReducedMotion()) setGone(true);
+  };
+
   const side = picked?.side ?? null;
-  useLobbyView({
-    beat: 'choose',
-    taken: side
-      ? ({ [side]: true, [other(side)]: false } as Record<Side, boolean>)
-      : {
-          white: true,
-          black: true,
-        },
-    mine: side,
-    hover: picked ? null : hover,
-    toss: picked?.choice === 'random' ? picked.side : null,
-    seat: side ?? 'white',
-    onHover: (c) => !picked && setHover(c),
-    onPick: pick,
-    onGlide: () => setCoinGone(true),
-    onSettled: () => setSettled(true),
-    onQuiet: () => setQuiet(true),
-  });
+  const levelView: LobbyStage | null =
+    leveling && side
+      ? {
+          // Framed as an invitation is, the choice docked under the kings;
+          // the computer's seat open, then filling as its level is chosen
+          // (the arrival on the game's page answers it)
+          beat: 'invited',
+          taken: { [side]: true, [other(side)]: !!level } as Record<Side, boolean>,
+          mine: side,
+          card: !level,
+          hover: null,
+          toss: null,
+          seat: side,
+        }
+      : null;
+  useLobbyView(
+    levelView ?? {
+      beat: 'choose',
+      taken: side
+        ? ({ [side]: true, [other(side)]: false } as Record<Side, boolean>)
+        : {
+            white: true,
+            black: true,
+          },
+      mine: side,
+      hover: picked ? null : hover,
+      toss: picked?.choice === 'random' ? picked.side : null,
+      seat: side ?? 'white',
+      onHover: (c) => !picked && setHover(c),
+      onPick: pick,
+      onGlide: () => setCoinGone(true),
+      onSettled: () => setSettled(true),
+    },
+  );
 
   const waiting = settled && !created && !failed;
   // A connection is usually open in a moment: it is only mentioned once it
   // has kept the player waiting (or would, were they to pick)
   const stalled = useDelayed(!computer && (status !== 'connected' || waiting), SLOW_SERVER_MS);
-  const heading = !picked
-    ? 'Choose your side'
-    : picked.choice === 'random' && !settled
+  const heading =
+    picked?.choice === 'random' && !settled
       ? 'Leaving it to chance…'
-      : // (once the coin has come to rest, what it gave)
-        `You play ${picked.side === 'white' ? 'White' : 'Black'}`;
+      : leveling
+        ? 'Choose difficulty'
+        : // (against the computer the pick's seat says it: "You", with the next step)
+          !picked || computer
+          ? 'Choose your side'
+          : // (once the coin has come to rest, what it gave)
+            `You play ${picked.side === 'white' ? 'White' : 'Black'}`;
+  const out = level ? '' : undefined;
   return (
     // Entering (until a pick): the page's words come in with the scene's
     // entrance, the buttons once the kings have formed
     <div className="lobby-page" data-testid="choose-side" data-enter={picked ? undefined : ''}>
-      <header className="lobby-top" data-out={quiet ? '' : undefined}>
+      <header className="lobby-top" data-out={out}>
         <button className="lobby-link" onClick={() => navigate('/')}>
           <span aria-hidden>←</span> Home
         </button>
       </header>
       {/* The heading answers the pick at once; keyed, so each line fades in */}
-      <div
-        className="lobby-heading"
-        key={heading}
-        data-out={quiet ? '' : undefined}
-        onAnimationEnd={(e) => {
-          if (e.animationName === 'lobby-out') setGone(true);
-        }}
-      >
+      <div className="lobby-heading" key={heading} data-out={out}>
         <h1>{heading}</h1>
-        {computer && !picked && (
-          <fieldset className="lobby-levels">
-            <legend className="sr-only">Difficulty</legend>
-            {DIFFICULTIES.map((d) => (
-              <label key={d} className="lobby-level" data-checked={d === difficulty || undefined}>
-                <input
-                  type="radio"
-                  name="difficulty"
-                  value={d}
-                  checked={d === difficulty}
-                  onChange={() => setDifficulty(d)}
-                />
-                {DIFFICULTY_NAME[d]}
-              </label>
-            ))}
-          </fieldset>
-        )}
       </div>
       <div className="lobby-choices" role="group" aria-label="Choose your side">
         {CHOICES.map(({ choice, name }) => {
@@ -224,6 +227,40 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
           );
         })}
       </div>
+      {leveling && side && (
+        <>
+          <div className="lobby-labels" data-out={out}>
+            <SeatLabels labels={{ [side]: 'You', [other(side)]: 'Computer' }} />
+          </div>
+          {/* The chosen level holds a moment as the others go, then all of
+              it; the page moves on as it goes */}
+          <div
+            className="lobby-dock lobby-levels"
+            role="group"
+            aria-label="Difficulty"
+            data-out={out}
+            onAnimationEnd={(e) => {
+              if (e.target === e.currentTarget && e.animationName === 'lobby-out') setGone(true);
+            }}
+          >
+            {DIFFICULTIES.map((d) => (
+              <button
+                key={d}
+                className="lobby-choice lobby-level"
+                data-level={d}
+                data-chosen={level === d ? '' : undefined}
+                data-faded={level && level !== d ? '' : undefined}
+                disabled={!!level}
+                aria-pressed={level === d}
+                autoFocus={d === getStoredDifficulty()}
+                onClick={() => pickLevel(d)}
+              >
+                <span className="lobby-choice-name">{DIFFICULTY_NAME[d]}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <div className="lobby-foot" role="status">
         {failed && !created ? (
           <span className="lobby-error">Couldn't start a game: {failed.message}</span>

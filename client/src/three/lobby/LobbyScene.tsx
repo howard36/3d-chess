@@ -70,8 +70,6 @@ export interface LobbyView {
   onGlide?: () => void;
   /** Choosing: the pick has played out (the coin landed, the light has risen). */
   onSettled?: () => void;
-  /** Choosing: the pick has played out in full (the others gone, a breath taken). */
-  onQuiet?: () => void;
   /** Arriving: the free seat has filled and the moment has been held. */
   onArrived?: () => void;
   /** Leaving: the lobby's picture has faded over the game's first frame (the game's entrance may begin). */
@@ -360,11 +358,10 @@ export const LobbyScene = ({
   // The picture shown: while the coin is in the air both seats stand open
   const taken = tossing ? { white: false, black: false } : view.taken;
   const mine = tossing ? null : view.mine;
-  const settled = useRef<{ mine: Side | null; since: number; told: boolean; quiet: boolean }>({
+  const settled = useRef<{ mine: Side | null; since: number; told: boolean }>({
     mine: null,
     since: 0,
     told: false,
-    quiet: false,
   });
   const arrived = useRef(false);
   const callbacks = useRef(view);
@@ -387,20 +384,12 @@ export const LobbyScene = ({
       s.mine = mine;
       s.since = 0;
       s.told = false;
-      s.quiet = false;
     } else s.since += dt;
     if (view.beat === 'choose' && mine && !s.told) {
       const wait = still ? 0.2 : LOBBY_TIMING.settle;
       if (s.since >= wait) {
         s.told = true;
         callbacks.current.onSettled?.();
-      } else invalidate();
-    }
-    if (view.beat === 'choose' && mine && !s.quiet) {
-      const wait = still ? 0.3 : LOBBY_TIMING.quiet;
-      if (s.since >= wait) {
-        s.quiet = true;
-        callbacks.current.onQuiet?.();
       } else invalidate();
     }
     if (view.beat === 'arrive' && !arrived.current) {

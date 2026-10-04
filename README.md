@@ -33,8 +33,10 @@ same pieces on the same squares, the same side to move) standing for the third t
 fifty moves by each side (a hundred plies) with no capture and no pawn move
 (`engine/draws.ts`). A mate stands even on the move that would also complete either. The
 replay (`game/history.ts`) keeps the positions since the last capture or pawn move
-(`GameHistory.sinceIrreversible`, each `Board.positionKey()` and the side to move), the only
-stretch in which one can stand again, and its length is the fifty-move count. The starting position is defined in `Board.setupStartingPosition()`
+(`GameHistory.sinceIrreversible`, each a Zobrist hash of the pieces and the side to move,
+`positionHash`, updated move by move with `hashAfter`), the only stretch in which one can
+stand again, and its length is the fifty-move count. The starting position is defined in
+`Board.setupStartingPosition()`
 (`client/src/engine/board.ts`); each army's pawns stand on a level of their own:
 
 | Level | Rank 1    | Rank 2    | Rank 4    | Rank 5    |
@@ -510,7 +512,7 @@ phone). `--intro` records the game's entrance from its first frame (`--seat blac
 `--rejoin` for the short one, `--reduced`), to `intro-<seat>.mp4`, stills at `--at
 "s,s,…"` seconds and a contact sheet. `--lobby` records the way into a game against the
 computer on one page, from the side choice's first frame through the pick
-(`--side white|black|random`, `--level`), the computer's arrival and the handover to the end
+(`--side white|black|random`), the level (`--level`), the computer's arrival and the handover to the end
 of the game's entrance, to `lobby-<side>.mp4` and a contact sheet of a still every `--every`
 seconds, each with its time, the page and the lobby's beat: look at it for a black or
 repeated frame, or a beat that starts before the last has finished (it needs only Vite).
@@ -710,28 +712,34 @@ the reload the join is re-sent on the next socket and recovers the seat.)
 ## Playing the computer
 
 "Play the computer" on the landing page opens `/computer`: the side choice of The lobby
-(`ChooseSide` with `computer`), with Easy, Medium and Hard under the heading (native radio
-buttons styled as one segmented pill, `.lobby-levels`; Medium the first time, then the
-level last played, `lib/computerGames.ts`). A pick makes the game on the spot, in the
-browser, under a fresh lower-case id (a server game's id is upper case). No server is
-asked, so it plays offline.
+(`ChooseSide` with `computer`), the first of two steps. The second is the computer's
+level, Easy, Medium or Hard; choosing it makes the game on the spot, in the browser,
+under a fresh lower-case id (a server game's id is upper case). No server is asked, so it
+plays offline.
 
 **The way in** tells one story, each beat starting once the last has visibly finished:
-the pick plays out as against a friend (the chosen king set down in its ring and its
-column of light, the others fading, or the coin thrown and landed, "Leaving it to
-chance…" then turning to what it gave, "You play Black"); the chosen button goes once the
-light has risen (`onSettled`). When the pick has played out in full, the kings not chosen
-gone and a breath taken (`onQuiet`, `LOBBY_TIMING.quiet`, 1.2 s after the pick or the
-coin's rest, on the scene's clock), the heading and "← Home" fade out (`[data-out]`), and
-as they go (their `animationend`; at once under reduced motion) the page moves on to
-`/computer/<id>`, which opens straight on the arrival: there is no one to wait for, so no
-waiting picture. The computer's king takes the other seat (forming from the foot up, or
-filling the outline a coin toss left), the ring spreads across the glass and "Computer ·
-Hard" takes the heading's place; then, as for a friend, both columns of light, the lift,
-and the game's entrance. The lobby's stage is never taken down on the way (the side
-choice's picture stays until the game's page shows the arrival over it), so nothing goes
-black and nothing plays its entrance twice. `node client/scripts/showcase.mjs --lobby`
-records all of it, frame by frame (see Recording the board).
+1. *Choose your side.* The pick plays out as against a friend: the chosen king set down
+   in its ring and its column of light, the others fading (or the coin thrown and landed,
+   "Leaving it to chance…").
+2. *Choose difficulty.* Once the chosen king is set down (`onSettled`, as a friend's game
+   moves on to its invitation), the page is framed as an invitation is (the `invited`
+   beat with a card): the computer's seat across from the player's opens, its outline
+   drawn up from the foot and breathing, "You" and "Computer" under the kings, and Easy,
+   Medium and Hard docked under them where the guest's "Join game" stands
+   (`.lobby-levels`, rising in turn; the level last played has the focus, Medium the
+   first time, `lib/computerGames.ts`).
+3. *The computer arrives.* A level fills the computer's king at once (its seat taken, the
+   card gone, so the camera eases back down) while the level chosen holds a moment, the
+   others fade and the page's words go (`[data-out]`); as the levels' fade ends (their
+   `animationend`; at once under reduced motion) the page moves on to `/computer/<id>`,
+   which opens straight on the arrival: the ring spreads across the glass and "Computer ·
+   Hard" takes the heading's place; then, as for a friend, both columns of light, the
+   lift, and the game's entrance.
+
+The lobby's stage is never taken down on the way (each page's picture stays until the
+next shows its own over it), so nothing goes black and nothing plays its entrance twice.
+`node client/scripts/showcase.mjs --lobby` records all of it, frame by frame (see
+Recording the board).
 
 **The game page** (`screens/ComputerGameScreen.tsx`, a chunk of its own,
 `screens/computerGameChunk.ts`, asked for as the side choice shows) is the ordinary

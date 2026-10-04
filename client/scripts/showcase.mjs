@@ -126,10 +126,11 @@
 //   node scripts/showcase.mjs --lobby --out /tmp/lobby [--side white|black|random] [--level hard] [--reduced]
 //
 // The page opens /computer on the virtual clock; at --pick-at seconds (2.6
-// by default: the kings have formed and the buttons are in) the level and
-// the side are picked, and the page is stepped frame by frame through the
-// pick, the computer taking its seat, the handover and the game's entrance,
-// to a second after it. It writes lobby-<side>.mp4, a still every --every
+// by default: the kings have formed and the buttons are in) the side is
+// picked, and --level-after seconds after the level's buttons appear (1.6:
+// the computer's outline is up and they have risen) the level, and the page
+// is stepped frame by frame through the pick, the level, the computer taking
+// its seat, the handover and the game's entrance, to a second after it. It writes lobby-<side>.mp4, a still every --every
 // seconds (0.2), lobby-<side>-<seconds>.png, and a contact sheet of them with
 // each one's time, lobby-<side>-sheet.png: look at the sheet for a black or
 // repeated frame, a jump, a beat that starts before the last has finished.
@@ -1675,6 +1676,7 @@ async function lobbyReview(browser) {
   const side = opt('side', 'white');
   const level = opt('level', 'hard');
   const pickAt = Number(opt('pick-at', 2.6));
+  const levelAfter = Number(opt('level-after', 1.6));
   const every = Number(opt('every', 0.2));
   const context = await browser.newContext({
     viewport: { width: WIDTH, height: HEIGHT },
@@ -1696,6 +1698,8 @@ async function lobbyReview(browser) {
   const ffmpeg = STILLS ? null : startEncoder(VIDEO, 'slow', 18);
   const shots = [];
   let picked = false;
+  let offered = null;
+  let chosen = false;
   let after = 0;
   for (let f = 0; after < FPS; f++) {
     const t = f / FPS;
@@ -1704,11 +1708,18 @@ async function lobbyReview(browser) {
       // As a click would, without Playwright's wait for the page to hold
       // still (its check runs on animation frames, which the clock holds)
       await page.evaluate(
-        ({ level, side }) => {
-          document.querySelector(`input[name="difficulty"][value="${level}"]`)?.click();
-          document.querySelector(`.lobby-choice[data-choice="${side}"]`)?.click();
-        },
-        { level, side },
+        (side) => document.querySelector(`.lobby-choice[data-choice="${side}"]`)?.click(),
+        side,
+      );
+    }
+    if (picked && offered === null) {
+      if (await page.evaluate(() => !!document.querySelector('.lobby-level'))) offered = t;
+    }
+    if (offered !== null && !chosen && t >= offered + levelAfter) {
+      chosen = true;
+      await page.evaluate(
+        (level) => document.querySelector(`.lobby-level[data-level="${level}"]`)?.click(),
+        level,
       );
     }
     const shoot = Math.abs(t / every - Math.round(t / every)) < 0.5 / (FPS * every);

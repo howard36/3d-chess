@@ -129,7 +129,8 @@ noise, not failures.
   (`data-testid="invite-card"`, `data-seat`) or the guest's invitation.
   Screenshot those if the task is about the lobby; there is no board yet.
 - **Games against the computer** need one page: landing page "Play the
-  computer" → `/computer` (radio buttons Easy/Medium/Hard, then a side) →
+  computer" → `/computer` (a side, then the level's buttons Easy/Medium/Hard in the
+  `Difficulty` group) →
   `/computer/<id>`. Play with `clickSquare`/`waitForDestination` and wait
   for the reply on `move-announcer`'s `data-move-count`; see
   `e2e/computer.spec.ts`. No server is involved.

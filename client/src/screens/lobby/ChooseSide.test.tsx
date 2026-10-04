@@ -319,47 +319,75 @@ describe('against the computer', () => {
     </LobbyContext.Provider>
   );
 
-  it('offers the three levels, Medium first time, the last one played after', async () => {
-    const { unmount } = render(computerAt(fakeSocket()));
-    expect(screen.getByRole('group', { name: 'Difficulty' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Medium' })).toBeChecked();
-    await userEvent.click(screen.getByRole('radio', { name: 'Hard' }));
-    expect(screen.getByRole('radio', { name: 'Hard' })).toBeChecked();
-    await userEvent.click(black());
-    // The levels go once a side is picked
-    expect(screen.queryByRole('group', { name: 'Difficulty' })).toBeNull();
-    unmount();
+  const level = (name: string) => screen.getByRole('button', { name });
+  const levels = () => screen.queryByRole('group', { name: 'Difficulty' });
+
+  it('asks for the side first, then the computer’s level under its open seat', async () => {
     render(computerAt(fakeSocket()));
-    expect(screen.getByRole('radio', { name: 'Hard' })).toBeChecked();
+    expect(screen.getByRole('heading', { name: 'Choose your side' })).toBeInTheDocument();
+    expect(levels()).toBeNull();
+    await userEvent.click(black());
+    // The pick plays out first: the chosen king set down, the others going
+    expect(view).toMatchObject({ beat: 'choose', mine: 'black' });
+    expect(levels()).toBeNull();
+    // ...then the computer's seat opens across from it, framed with the
+    // choice docked under the kings
+    settle();
+    expect(view).toMatchObject({
+      beat: 'invited',
+      taken: { black: true, white: false },
+      mine: 'black',
+      card: true,
+      seat: 'black',
+    });
+    expect(screen.getByRole('heading', { name: 'Choose difficulty' })).toBeInTheDocument();
+    expect(screen.getByText('You')).toBeInTheDocument();
+    expect(screen.getByText('Computer')).toBeInTheDocument();
+    expect(levels()).toBeInTheDocument();
+    expect(['Easy', 'Medium', 'Hard'].map((n) => level(n).textContent)).toEqual([
+      'Easy',
+      'Medium',
+      'Hard',
+    ]);
+    expect(black()).toHaveAttribute('data-faded');
   });
 
-  it('makes the game in the browser, asks no server, and moves on once the pick has played out', async () => {
+  it('makes the game in the browser with the level chosen, and moves on as the page’s words go', async () => {
     const send = vi.fn<GameSocket['send']>(() => true);
     // Even with no connection to the server, nothing is said about it
     render(computerAt(fakeSocket([], send, { status: 'connecting' })));
     await new Promise((r) => setTimeout(r, 1700));
     expect(screen.queryByText(/server/)).toBeNull();
-    await userEvent.click(screen.getByRole('radio', { name: 'Easy' }));
     await userEvent.click(white());
-    expect(send).not.toHaveBeenCalled();
-    expect(view).toMatchObject({ beat: 'choose', mine: 'white' });
-    // The light has risen: the chosen button has done its work and goes too,
-    // but the page stays for the rest of the pick
     settle();
-    expect(white()).toHaveAttribute('data-faded');
-    expect(screen.queryByText(/^game page/)).toBeNull();
-    // The others gone and a breath taken: the page's words make way...
-    act(() => view!.onQuiet!());
-    const heading = screen.getByRole('heading', { name: 'You play White' }).parentElement!;
-    expect(heading).toHaveAttribute('data-out');
+    expect(send).not.toHaveBeenCalled();
+    await userEvent.click(level('Easy'));
+    expect(send).not.toHaveBeenCalled();
+    // The computer's king fills at once, the camera easing back down...
+    expect(view).toMatchObject({
+      beat: 'invited',
+      taken: { white: true, black: true },
+      card: false,
+    });
+    // ...the level chosen stays lit as the others go, and the page's words
+    // make way
+    expect(level('Easy')).toHaveAttribute('data-chosen');
+    expect(level('Medium')).toHaveAttribute('data-faded');
+    expect(level('Hard')).toBeDisabled();
+    expect(
+      screen.getByRole('heading', { name: 'Choose difficulty' }).parentElement,
+    ).toHaveAttribute('data-out');
     expect(screen.getByRole('button', { name: /Home/ }).parentElement).toHaveAttribute('data-out');
     expect(screen.queryByText(/^game page/)).toBeNull();
-    // ...and as they go, the game's page opens on the computer's arrival
-    // (jsdom has no AnimationEvent to carry the animation's name)
-    fireEvent(
-      heading,
-      Object.assign(new Event('animationend', { bubbles: true }), { animationName: 'lobby-out' }),
-    );
+    // A button's own animation ending is not the page going
+    const dock = levels()!;
+    const ended = () =>
+      Object.assign(new Event('animationend', { bubbles: true }), { animationName: 'lobby-out' });
+    fireEvent(level('Easy'), ended());
+    expect(screen.queryByText(/^game page/)).toBeNull();
+    // As they go, the game's page opens on the computer's arrival (jsdom has
+    // no AnimationEvent to carry the animation's name)
+    fireEvent(dock, ended());
     const page = await screen.findByText(/^game page [a-z0-9]+ by REPLACE$/);
     const id = page.textContent!.split(' ')[2];
     expect(isArriving(id)).toBe(true);
@@ -372,16 +400,30 @@ describe('against the computer', () => {
     });
   });
 
-  it('says what the coin gave once it has come to rest', async () => {
+  it('offers the last level played first (Medium the first time)', async () => {
+    const { unmount } = render(computerAt(fakeSocket()));
+    await userEvent.click(white());
+    settle();
+    expect(level('Medium')).toHaveFocus();
+    await userEvent.click(level('Hard'));
+    unmount();
+    render(computerAt(fakeSocket()));
+    await userEvent.click(white());
+    settle();
+    expect(level('Hard')).toHaveFocus();
+  });
+
+  it('leaves the side to the coin, then asks for the level', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.9);
     render(computerAt(fakeSocket()));
     await userEvent.click(random());
     expect(screen.getByRole('heading', { name: 'Leaving it to chance…' })).toBeInTheDocument();
     settle();
-    expect(screen.getByRole('heading', { name: 'You play Black' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Choose difficulty' })).toBeInTheDocument();
+    expect(view).toMatchObject({ beat: 'invited', mine: 'black', toss: null });
   });
 
-  it('moves on as soon as the pick has played out, for a player who asked for less motion', async () => {
+  it('moves on at once, for a player who asked for less motion', async () => {
     vi.stubGlobal(
       'matchMedia',
       vi.fn((query: string) => ({
@@ -394,7 +436,7 @@ describe('against the computer', () => {
       render(computerAt(fakeSocket()));
       await userEvent.click(black());
       settle();
-      act(() => view!.onQuiet!());
+      await userEvent.click(level('Hard'));
       expect(await screen.findByText(/^game page [a-z0-9]+ by REPLACE$/)).toBeInTheDocument();
     } finally {
       vi.unstubAllGlobals();

@@ -21,7 +21,7 @@ lobbyCanvas.preload();
 
 type Handlers = Pick<
   LobbyStage,
-  'onHover' | 'onPick' | 'onGlide' | 'onSettled' | 'onQuiet' | 'onArrived' | 'onReveal' | 'onLeft'
+  'onHover' | 'onPick' | 'onGlide' | 'onSettled' | 'onArrived' | 'onReveal' | 'onLeft'
 >;
 
 /** Whether two views show the same picture (their handlers aside). */
@@ -64,7 +64,6 @@ const LobbyLayout = () => {
     if (view.beat === 'choose' && view.mine) {
       if (view.toss) view.onGlide?.();
       view.onSettled?.();
-      view.onQuiet?.();
     }
     if (view.beat === 'arrive') view.onArrived?.();
     if (view.beat === 'leave') {
@@ -88,7 +87,6 @@ const LobbyLayout = () => {
                 onPick: (c) => handlers.current.onPick?.(c),
                 onGlide: () => handlers.current.onGlide?.(),
                 onSettled: () => handlers.current.onSettled?.(),
-                onQuiet: () => handlers.current.onQuiet?.(),
                 onArrived: () => handlers.current.onArrived?.(),
                 onReveal: () => handlers.current.onReveal?.(),
                 onLeft: () => handlers.current.onLeft?.(),

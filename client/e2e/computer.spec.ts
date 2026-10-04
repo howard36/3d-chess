@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { clickSquare, waitForBoard, waitForDestination } from './helpers/board';
 
-// A game against the computer: the landing page's second button, the side
-// and level, then a move by clicking the board, answered by the computer's
+// A game against the computer: the landing page's second button, the side,
+// then the computer's level, then a move by clicking the board, answered by the computer's
 // own move (its search runs in a worker; nothing goes through the server).
 
 const moveCount = (page: Page) => page.getByTestId('move-announcer');
@@ -14,11 +14,13 @@ test('a player plays the computer: a move, and its reply', async ({ browser }) =
   await page.goto('/');
   await page.getByRole('button', { name: 'Play the computer' }).click();
   await expect(page).toHaveURL(/\/computer$/);
-  // The level is a choice of three; Medium unless picked before
-  const easy = page.getByRole('radio', { name: 'Easy' });
-  await expect(page.getByRole('radio', { name: 'Medium' })).toBeChecked();
-  await easy.check();
+  // The side first; then the level, a choice of three, Medium unless
+  // played before
   await page.getByRole('button', { name: /^White/ }).click();
+  const levels = page.getByRole('group', { name: 'Difficulty' });
+  await expect(page.getByRole('heading', { name: 'Choose difficulty' })).toBeVisible();
+  await expect(levels.getByRole('button', { name: 'Medium' })).toBeFocused();
+  await levels.getByRole('button', { name: 'Easy' }).click();
   await page.waitForURL(/\/computer\/[a-z0-9]+$/);
   await waitForBoard(page);
 
@@ -48,8 +50,11 @@ test('playing Black, the computer opens the game', async ({ browser }) => {
   const context = await browser.newContext({ reducedMotion: 'reduce' });
   const page = await context.newPage();
   await page.goto('/computer');
-  await page.getByRole('radio', { name: 'Hard' }).check();
   await page.getByRole('button', { name: /^Black/ }).click();
+  await page
+    .getByRole('group', { name: 'Difficulty' })
+    .getByRole('button', { name: 'Hard' })
+    .click();
   await page.waitForURL(/\/computer\/[a-z0-9]+$/);
   await waitForBoard(page);
   await expect(page.getByTestId('seat')).toHaveAttribute('data-seat', 'black');
