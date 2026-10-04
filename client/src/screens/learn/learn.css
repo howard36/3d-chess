@@ -1,13 +1,14 @@
 /*
  * The tutorial (screens/learn/), in its own chunk with LearnScreen: the
- * tower fills the window, the lessons' menu across the top and the lesson's
- * card across the bottom, in the HUD's black glass (index.css). The camera's
- * fit keeps the tower clear of both (learnLayout.ts: the menu's 64 px, the
- * card's height and its gutter). In a window wide enough, or 480 px tall or
- * less, the card stands at the left instead (data-card='beside').
+ * tower fills the window and one card holds the whole lesson, in the HUD's
+ * black glass (index.css): the pieces to choose from along its top, the
+ * lesson, and Next. The card spans the bottom; in a window wide enough, or
+ * 480 px tall or less, it stands at the left instead (data-card='beside').
+ * The camera's fit keeps the tower clear of it and of Home at the top
+ * (learnLayout.ts: Home's 52 px, the card's height and its gutter).
  */
 .learn {
-  --learn-card: 184px;
+  --learn-card: 236px;
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -26,76 +27,58 @@
 }
 .learn-top {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
+  top: 10px;
+  left: 10px;
 }
-.learn-top > * {
-  pointer-events: auto;
-}
-.learn-home {
-  position: absolute;
-  left: 0;
-}
+/* The pieces, a row of tabs along the card's top, the lesson's lit */
 .learn-menu {
   display: flex;
+  justify-content: space-between;
   gap: 2px;
-  padding: 3px;
-  border-radius: 22px;
+  margin: -4px -6px 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(236, 241, 255, 0.1);
 }
 .learn-tab {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  place-items: center;
+  width: 36px;
   height: 36px;
-  padding: 0 12px 0 8px;
+  padding: 0;
   border: 1px solid transparent;
-  border-radius: 18px;
+  border-radius: 8px;
   background: none;
-  color: var(--hud-muted);
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
   cursor: pointer;
   transition:
-    color 150ms,
     background 150ms,
     border-color 150ms;
 }
 .learn-tab svg {
-  flex: none;
-  opacity: 0.7;
+  opacity: 0.55;
   transition: opacity 150ms;
-}
-.learn-tab:hover,
-.learn-tab:focus-visible {
-  color: var(--hud-fg);
-  outline: none;
 }
 .learn-tab:hover svg,
 .learn-tab:focus-visible svg,
 .learn-tab[aria-current] svg {
   opacity: 1;
 }
+.learn-tab:hover {
+  background: rgba(236, 241, 255, 0.05);
+}
 .learn-tab:focus-visible {
+  outline: none;
   box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.35);
 }
 .learn-tab[aria-current] {
   border-color: rgba(236, 241, 255, 0.28);
   background: rgba(236, 241, 255, 0.1);
-  color: var(--hud-fg);
 }
 /* The new piece: a spark of the five level colours */
 .learn-tab-dot {
   position: absolute;
-  top: 5px;
-  left: 24px;
+  top: 3px;
+  right: 3px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -194,6 +177,14 @@
   font-weight: 700;
   white-space: nowrap;
 }
+.learn-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 2px 0 4px;
+  border-radius: 1px;
+  vertical-align: 0;
+}
 .learn-words {
   min-width: 0;
 }
@@ -209,23 +200,6 @@
   color: var(--hud-muted);
   font-size: 13px;
   line-height: 1.35;
-}
-/* A capture step's outcome: taken in the gold of the rings, a miss's hint
-   in plain light */
-.learn-status {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  color: var(--hud-fg);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-.learn-status[data-state='done'] {
-  color: #f8c970;
-}
-.learn-status:empty {
-  display: none;
 }
 .learn-foot {
   display: flex;
@@ -279,18 +253,6 @@
   font-weight: 600;
   cursor: pointer;
 }
-/* The button to press now: Next once the pawn is taken, Reset after a miss */
-.learn-next[data-primary],
-.learn-again[data-primary] {
-  border: 0;
-  border-radius: 16px;
-  background: var(--hud-accent);
-  color: var(--hud-accent-fg);
-}
-.learn-again[data-primary] {
-  height: 32px;
-  padding: 0 14px;
-}
 .learn-next:hover,
 .learn-next:focus-visible {
   border-color: #f3f6ff;
@@ -298,44 +260,13 @@
   outline: none;
 }
 
-/* Narrower: the menu shows its pieces only (each named for assistive
-   technology), and Home its arrow */
-@media (max-width: 860px) {
-  .learn-tab {
-    padding: 0;
-    width: 36px;
-    justify-content: center;
-  }
-  .learn-tab-name {
-    display: none;
-  }
-  .learn-tab-dot {
-    left: auto;
-    right: 3px;
-    top: 3px;
-  }
-}
+/* A phone held upright: Home its arrow, the card tighter */
 @media (max-width: 520px) {
-  .learn-top {
-    justify-content: flex-end;
-  }
-  .learn-home {
-    position: static;
-    margin-right: auto;
-    padding: 6px 8px;
-  }
   .learn-home-word {
     display: none;
   }
   .learn-menu {
-    gap: 0;
-    padding: 2px;
-  }
-  .learn-tab {
-    width: 35px;
-  }
-  .learn {
-    --learn-card: 184px;
+    margin: -2px -4px 8px;
   }
   .learn-card {
     padding: 10px 12px;
@@ -352,14 +283,14 @@
   }
 }
 /* A wide window: the card stands at the left of the tower, which takes the
-   whole height under the menu (learnLayout.ts, cardBeside), at one height
-   for every lesson, in the middle of the room under the menu */
+   whole height under Home (learnLayout.ts, cardBeside), at one height
+   for every lesson, in the middle of the room under Home */
 .learn[data-card='beside'] {
-  --learn-card: 300px;
+  --learn-card: 356px;
 }
 .learn[data-card='beside'] .learn-card {
   left: max(20px, env(safe-area-inset-left));
-  top: calc(32px + 50%);
+  top: calc(26px + 50%);
   bottom: auto;
   transform: translateY(-50%);
   width: 300px;
@@ -395,10 +326,10 @@
 @media (max-height: 480px) {
   .learn[data-card='beside'] .learn-card {
     left: max(12px, env(safe-area-inset-left));
-    top: 64px;
+    top: 52px;
     bottom: 12px;
     transform: none;
-    width: 228px;
+    width: 252px;
     height: auto;
   }
   .learn[data-card='beside'] .learn-head {

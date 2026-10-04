@@ -65,29 +65,11 @@ test('opens on the first lesson, the rook', async () => {
   expect(board()).toHaveAttribute('data-focus', 'Cc3');
 });
 
-test('makes a capture step of each piece: a miss gives a hint, the take moves on', async () => {
+test('gives a piece other than the pawn one step: no switcher, Next goes to the next piece', async () => {
   await renderAt('/learn/rook');
-  await userEvent.click(screen.getByRole('button', { name: 'Next: Capture' }));
-  expect(screen.getByText('Take the pawn.')).toBeInTheDocument();
-  expect(screen.queryByTestId('learn-count')).toBeNull();
-  const status = screen.getByTestId('learn-status');
-  expect(status).toHaveAttribute('data-state', 'trying');
-  expect(status).toBeEmptyDOMElement();
-
-  // A miss: the hint, and Reset is the button to press
-  await userEvent.click(screen.getByRole('button', { name: 'ring Dc3' }));
-  expect(status).toHaveAttribute('data-state', 'missed');
-  expect(status).toHaveTextContent('Look straight up.');
-  expect(screen.getByRole('button', { name: 'Reset' })).toHaveAttribute('data-primary');
-  await userEvent.click(screen.getByRole('button', { name: 'Reset' }));
-  expect(status).toHaveAttribute('data-state', 'trying');
-
-  // The take: Next is the button to press, and there is nothing to reset
-  await userEvent.click(screen.getByRole('button', { name: 'ring Ec3' }));
-  expect(status).toHaveAttribute('data-state', 'done');
-  expect(status).toHaveTextContent('Taken');
-  expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull();
-  expect(screen.getByRole('button', { name: 'Next: Bishop' })).toHaveAttribute('data-primary');
+  expect(screen.queryByRole('group', { name: 'Rook lessons' })).toBeNull();
+  await userEvent.click(screen.getByRole('button', { name: 'Next: Bishop' }));
+  expect(screen.getByTestId('where')).toHaveTextContent('/learn/bishop');
 });
 
 test('says only what the board cannot show: a line, and a quieter note for a rule', async () => {
@@ -121,7 +103,6 @@ test('moves between lessons from the menu and from the card, keeping one canvas'
   await userEvent.click(screen.getByRole('button', { name: 'Knight' }));
   expect(screen.getByTestId('where')).toHaveTextContent('/learn/knight');
   expect(count()).toBe('24');
-  await userEvent.click(screen.getByRole('button', { name: 'Capture' }));
   await userEvent.click(screen.getByRole('button', { name: 'Next: Pawn' }));
   expect(screen.getByTestId('where')).toHaveTextContent('/learn/pawn');
   expect(screen.getByRole('heading', { level: 1, name: 'Pawn' })).toBeInTheDocument();
@@ -161,11 +142,12 @@ test("walks through the pawn's steps, then on to a game", async () => {
   );
   expect(count()).toBe('7');
   expect(screen.getByText('5 captures')).toBeInTheDocument();
-  // Not a task: the pawn's captures are there to try
-  expect(screen.queryByTestId('learn-status')).toBeNull();
   await userEvent.click(within(steps).getByRole('button', { name: 'Promote' }));
   expect(count()).toBe('1');
-  expect(screen.getByText('5 squares')).toBeInTheDocument();
+  // White's promotion row, and Black's on White's side
+  expect(screen.getByText(/Black promotes on White/)).toHaveClass('learn-note');
+  expect(document.querySelectorAll('[data-square^="E"]')).toHaveLength(5);
+  expect(document.querySelectorAll('[data-square^="A"]')).toHaveLength(5);
   await userEvent.click(screen.getByRole('button', { name: 'Next: Play a game' }));
   expect(screen.getByText('choose a side')).toBeInTheDocument();
 });

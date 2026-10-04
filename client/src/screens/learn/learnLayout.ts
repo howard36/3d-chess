@@ -1,14 +1,14 @@
-// The tutorial's page round its canvas (index.css, .learn): the menu across
-// the top and the lesson's card across the bottom, which the camera's fit
-// keeps the tower clear of. In a wide window the card stands at the left of
-// the tower, and in a short one (a phone on its side) too, so the tower
-// takes the whole height under the menu.
+// The tutorial's page round its canvas (learn.css, .learn): Home at the top
+// left and the lesson's card (the pieces to choose from, the lesson, Next)
+// across the bottom, which the camera's fit keeps the tower clear of. In a
+// wide window the card stands at the left of the tower, and in a short one
+// (a phone on its side) too, so the tower takes the whole height under Home.
 
-/** CSS px at the top kept for the menu (index.css, .learn-top: 12 px, the 44 px row, 8 px). */
-export const LEARN_TOP_PX = 64;
+/** CSS px at the top kept for Home (learn.css, .learn-top: 10 px, the 32 px link, 10 px). */
+export const LEARN_TOP_PX = 52;
 
-/** CSS px at the bottom kept for the card across it (index.css, --learn-card, and its 12 px gutter). */
-export const LEARN_CARD_PX = 196;
+/** CSS px at the bottom kept for the card across it (learn.css, --learn-card, and its 12 px gutter). */
+export const LEARN_CARD_PX = 248;
 
 /** A window this tall or less is short: the card stands beside the tower, compact. */
 export const LEARN_SHORT_PX = 480;

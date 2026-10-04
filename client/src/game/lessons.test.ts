@@ -11,7 +11,6 @@ import {
 } from '../engine/pieces';
 import {
   CORNERS,
-  captureState,
   EDGES,
   FACES,
   JUMPS,
@@ -46,46 +45,29 @@ describe('the lessons', () => {
     expect(lessonById('nonsense')).toBeUndefined();
   });
 
-  it('show every piece but the pawn moving from the middle of an empty board, then a capture', () => {
+  it('show every piece but the pawn alone in the middle of an empty board, in one step', () => {
     for (const id of ['rook', 'bishop', 'unicorn', 'queen', 'king', 'knight']) {
-      const [move, capture] = lesson(id).steps;
-      expect(lesson(id).steps.map((s) => s.label)).toEqual(['Move', 'Capture']);
+      expect(lesson(id).steps).toHaveLength(1);
+      const [move] = lesson(id).steps;
       expect(move.pieces).toEqual([{ at: 'Cc3', type: lesson(id).piece, color: 'white' }]);
       expect(move.focus).toBe('Cc3');
-      expect(move.target).toBeUndefined();
-      expect(capture.pieces).toEqual([
-        ...move.pieces,
-        { at: capture.target, type: PieceType.Pawn, color: 'black' },
-      ]);
-      expect(capture.hint).toBeTruthy();
     }
     expect(lesson('pawn').steps.map((s) => s.label)).toEqual(['Move', 'Capture', 'Promote']);
   });
 
-  it('keep to a line a step', () => {
+  it('keep to a line a step, and a short note', () => {
     for (const step of LESSONS.flatMap((l) => l.steps)) {
       expect(step.line.split(' ').length).toBeLessThanOrEqual(9);
-      if (step.note) expect(step.note.split(' ').length).toBeLessThanOrEqual(6);
-      if (step.hint) expect(step.hint.split(' ').length).toBeLessThanOrEqual(5);
+      if (step.note) expect(step.note.split(' ').length).toBeLessThanOrEqual(9);
     }
   });
 
-  it('stage each capture so only a move off the piece’s own level takes the pawn', () => {
-    for (const id of ['rook', 'bishop', 'unicorn', 'queen', 'king', 'knight']) {
-      const step = lesson(id).steps[1];
-      const practice = startPractice(step);
-      const takes = practice.board
-        .generateLegalMoves(practice.focus)
-        .filter((m) => practice.board.getPiece(m.to));
-      expect(takes.map((m) => toZXY(m.to))).toEqual([step.target]);
-      expect(takes[0].to.z).not.toBe(practice.focus.z);
-    }
-    // The queen's goes through a corner of the cube: a unicorn's line
-    const q = lesson('queen').steps[1];
-    const [dx, dy, dz] = (['x', 'y', 'z'] as const).map(
-      (k) => fromZXY(q.target!)[k] - fromZXY(q.focus)[k],
-    );
-    expect([dx, dy, dz].every((d) => d !== 0)).toBe(true);
+  it("say where Black's pawns promote: on White's side", () => {
+    const promote = lesson('pawn').steps[2];
+    expect(promote.note).toMatch(/Black.*White.*level A, rank 1/);
+    const black = new Board();
+    expect(black.isPromotionSquare(fromZXY('Ac1'), 'black')).toBe(true);
+    expect(black.isPromotionSquare(fromZXY('Ec5'), 'black')).toBe(false);
   });
 
   it("draw each piece's directions as the engine moves it", () => {
@@ -108,17 +90,11 @@ describe('the lessons', () => {
     );
     expect(counts).toEqual({
       'rook.0': 12,
-      'rook.1': 12,
       'bishop.0': 24,
-      'bishop.1': 24,
       'unicorn.0': 16,
-      'unicorn.1': 16,
       'queen.0': 52,
-      'queen.1': 52,
       'king.0': 26,
-      'king.1': 26,
       'knight.0': 24,
-      'knight.1': 24,
       'pawn.0': 2,
       // Its two steps and the five pieces it can take
       'pawn.1': 7,
@@ -221,27 +197,5 @@ describe('practice', () => {
   it('counts nothing once the picked-up square is empty', () => {
     const start = startPractice(lesson('rook').steps[0]);
     expect(reachable({ ...start, board: LessonBoard.from([]) })).toBe(0);
-  });
-});
-
-describe('captureState', () => {
-  it('follows a capture step from trying, through a miss, to the pawn taken', () => {
-    const step = lesson('rook').steps[1];
-    const start = startPractice(step);
-    expect(captureState(step, start)).toBe('trying');
-    const missed = practise(start, { from: fromZXY('Cc3'), to: fromZXY('Dc3') });
-    expect(captureState(step, missed)).toBe('missed');
-    // A second try still counts
-    expect(captureState(step, practise(missed, { from: fromZXY('Dc3'), to: fromZXY('Ec3') }))).toBe(
-      'done',
-    );
-    expect(captureState(step, practise(start, { from: fromZXY('Cc3'), to: fromZXY('Ec3') }))).toBe(
-      'done',
-    );
-  });
-
-  it('has nothing to say where there is no pawn to take', () => {
-    const step = lesson('rook').steps[0];
-    expect(captureState(step, startPractice(step))).toBeNull();
   });
 });

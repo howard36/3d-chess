@@ -124,10 +124,13 @@ export function Directions({ directions }: { directions: NonNullable<LessonStep[
 
 const LEVEL_EDGES = ['#00d7e0', '#58c1ff', '#96a7ff', '#c48be5', '#de77ab'];
 
+/** Black's promotion squares: the charcoal army's pewter. */
+const BLACK_ROW = '#7c8391';
+
 /**
- * Where a pawn promotes: the five levels stacked, the far rank of the top
- * one lit in a destination's gold (White's; Black's is the near rank of the
- * bottom one).
+ * Where a pawn promotes: the five levels stacked, White's row (the far rank
+ * of the top level) in a destination's gold and Black's (the near rank of the
+ * bottom level, on White's side) in the charcoal army's pewter.
  */
 export function PromotionRow() {
   // A square's width and depth, and the rise from one level to the next, in squares of the cube
@@ -167,14 +170,25 @@ export function PromotionRow() {
         ))}
         {[0, 1, 2, 3, 4].map((x) => (
           <polygon
-            key={x}
+            key={`black-${x}`}
+            points={quad(x + 0.12, 0.12, x + 0.88, 0.88, 0)}
+            fill={BLACK_ROW}
+            data-square={`A${'abcde'[x]}1`}
+          />
+        ))}
+        {[0, 1, 2, 3, 4].map((x) => (
+          <polygon
+            key={`white-${x}`}
             points={quad(x + 0.12, 4.12, x + 0.88, 4.88, 4)}
             fill={MOVE}
             data-square={`E${'abcde'[x]}5`}
           />
         ))}
       </svg>
-      <figcaption>5 squares</figcaption>
+      <figcaption>
+        <span className="learn-swatch" style={{ background: MOVE }} aria-hidden /> White{' '}
+        <span className="learn-swatch" style={{ background: BLACK_ROW }} aria-hidden /> Black
+      </figcaption>
     </figure>
   );
 }

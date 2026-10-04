@@ -2,14 +2,7 @@ import React from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { lazyChunk } from '../../lib/cachedImport';
 import { ChunkBoundary } from '../../components/ChunkBoundary';
-import {
-  LESSONS,
-  captureState,
-  lessonById,
-  practise,
-  reachable,
-  startPractice,
-} from '../../game/lessons';
+import { LESSONS, lessonById, practise, reachable, startPractice } from '../../game/lessons';
 import type { Lesson } from '../../game/lessons';
 import type { Move } from '../../engine';
 import { PieceGlyph } from '../PieceGlyph';
@@ -82,7 +75,6 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
   const beside = useCardBeside();
   const LearnCanvas = learnCanvas.Component;
   const count = reachable(practice);
-  const capture = captureState(step, practice);
 
   return (
     <main className="learn" data-testid="learn" data-card={beside ? 'beside' : 'below'}>
@@ -103,29 +95,28 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
         <button className="lobby-link learn-home" onClick={() => navigate('/')}>
           <span aria-hidden>←</span> <span className="learn-home-word">Home</span>
         </button>
-        <nav className="learn-menu hud-glass" aria-label="Lessons">
-          {LESSONS.map((l) => (
-            <button
-              key={l.id}
-              className="learn-tab"
-              aria-current={l === lesson ? 'page' : undefined}
-              aria-label={l.name}
-              onClick={() => navigate(lessonPath(l), { replace: true })}
-            >
-              <PieceGlyph type={l.piece} color="white" size={22} />
-              <span className="learn-tab-name" aria-hidden>
-                {l.name}
-              </span>
-              {l.isNew && <span className="learn-tab-dot" aria-hidden />}
-            </button>
-          ))}
-        </nav>
       </header>
       <section
         className="learn-card hud-glass"
         aria-labelledby="learn-title"
         data-lesson={lesson.id}
       >
+        {/* The lessons, one per piece, where the lesson itself and its Next are */}
+        <nav className="learn-menu" aria-label="Lessons">
+          {LESSONS.map((l) => (
+            <button
+              key={l.id}
+              className="learn-tab"
+              aria-current={l === lesson ? 'page' : undefined}
+              aria-label={l.name}
+              title={l.name}
+              onClick={() => navigate(lessonPath(l), { replace: true })}
+            >
+              <PieceGlyph type={l.piece} color="white" size={22} />
+              {l.isNew && <span className="learn-tab-dot" aria-hidden />}
+            </button>
+          ))}
+        </nav>
         <div className="learn-head">
           <h1 id="learn-title">{lesson.name}</h1>
           {lesson.isNew && <span className="learn-new">New</span>}
@@ -153,7 +144,7 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
           </div>
         </div>
         <div className="learn-foot">
-          {!noBoard && capture === null && (
+          {!noBoard && (
             <p
               className="learn-count"
               data-testid="learn-count"
@@ -164,36 +155,12 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
               {!practice.lastMove && <span className="learn-hint"> · tap a ring</span>}
             </p>
           )}
-          {capture !== null && (
-            <p
-              className="learn-status"
-              data-testid="learn-status"
-              data-state={capture}
-              aria-live="polite"
-            >
-              {capture === 'done' && (
-                <>
-                  <span aria-hidden>✓</span> Taken
-                </>
-              )}
-              {capture === 'missed' && step.hint}
-            </p>
-          )}
-          {practice.lastMove && capture !== 'done' && (
-            <button
-              className="learn-again"
-              data-primary={capture === 'missed' ? '' : undefined}
-              onClick={startOver}
-            >
+          {practice.lastMove && (
+            <button className="learn-again" onClick={startOver}>
               Reset
             </button>
           )}
-          <button
-            className="learn-next"
-            data-primary={capture === 'done' ? '' : undefined}
-            onClick={goNext}
-            aria-label={`Next: ${nextLabel}`}
-          >
+          <button className="learn-next" onClick={goNext} aria-label={`Next: ${nextLabel}`}>
             {nextLabel} <span aria-hidden>→</span>
           </button>
         </div>

@@ -21,11 +21,7 @@ test('the start page leads to the tutorial, which draws its board and walks the 
   await expect(page.getByText('New', { exact: true })).toBeVisible();
   await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '16');
 
-  await page.getByRole('button', { name: 'Next: Capture' }).click();
-  await expect(page.getByText('Take the pawn.')).toBeVisible();
-  await expect(page.getByTestId('learn-status')).toHaveAttribute('data-state', 'trying');
-
-  await page.getByRole('button', { name: 'Queen', exact: true }).click();
+  await page.getByRole('button', { name: 'Next: Queen' }).click();
   await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '52');
 
   await page.getByRole('button', { name: 'Pawn', exact: true }).click();
