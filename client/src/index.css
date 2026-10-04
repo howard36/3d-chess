@@ -1234,6 +1234,11 @@
   justify-content: center;
   gap: 10px;
 }
+/* Against the computer, the side choice's words make way for its arrival
+   (ChooseSide: the page moves on as the heading's fade ends) */
+.lobby-page :is(.lobby-heading, .lobby-top)[data-out] {
+  animation: lobby-out 350ms ease both;
+}
 .lobby[data-beat='leave'] .lobby-caption {
   animation: lobby-out 500ms ease both;
 }

@@ -45,6 +45,17 @@ export function saveComputerGame(game: ComputerGame): void {
   }
 }
 
+/**
+ * The games whose side choice is on screen as their page opens: the page
+ * plays the computer's arrival over it (GameScreen's `computer.arriving`).
+ * Held in memory, so a reload, or a visit from history, opens on the game
+ * itself instead.
+ */
+const arriving = new Set<string>();
+export const markArriving = (gameId: string) => void arriving.add(gameId);
+export const isArriving = (gameId: string) => arriving.has(gameId);
+export const doneArriving = (gameId: string) => void arriving.delete(gameId);
+
 /** A new game's id: short, and never one a server game could have (they are upper case). */
 export function newComputerGameId(): string {
   const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789';

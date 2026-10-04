@@ -31,10 +31,12 @@ interface GameScreenProps {
   gameSocket: GameSocket;
   /**
    * A game against the computer (gameSocket is then useComputerGame's): the
-   * player's side and the computer's level. The page holds that seat from the
-   * start; there is no one to invite, and the computer takes the other seat.
+   * player's side and the computer's level. The game is under way from the
+   * page's first render (there is no one to invite); `arriving`, the side
+   * choice is still on the lobby's stage, and the computer's king takes its
+   * seat there before the game's entrance (the arrival, as a friend's would).
    */
-  computer?: { color: Color; difficulty: Difficulty };
+  computer?: { color: Color; difficulty: Difficulty; arriving?: boolean };
   /** Where "Start new game" leads: the side choice (/new) by default. */
   newGamePath?: string;
   /** Called once the game's entrance is over and the board is in play. */
@@ -362,7 +364,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   // The lobby has begun to fade off the game: its entrance plays under it
   const [revealed, setRevealed] = React.useState(false);
   const [gameDrawn, setGameDrawn] = React.useState(false);
-  const lobbyShown = React.useRef(false);
+  const lobbyShown = React.useRef(!!computer?.arriving);
   if (phase === 'started' && lobbyShown.current && handover === 'none') setHandover('arrive');
   React.useEffect(() => {
     if (handover === 'arrive' && arrived && gameDrawn) setHandover('leave');
@@ -379,7 +381,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   // title says so, and the arrival waits for them (the scene draws no
   // frames in a hidden tab)
   React.useEffect(() => {
-    if (handover !== 'arrive' || !wasHost.current || computer || !document.hidden) return;
+    if (handover !== 'arrive' || !wasHost.current || !document.hidden) return;
     const title = document.title;
     document.title = '● Opponent joined · 3D Chess';
     const back = () => {
@@ -390,12 +392,13 @@ const GameScreen: React.FC<GameScreenProps> = ({
       document.removeEventListener('visibilitychange', back);
       document.title = title;
     };
-  }, [handover, computer]);
+  }, [handover]);
 
   let lobbyView: LobbyStage | null = null;
   if (phase === 'started') {
     if ((handover === 'arrive' || handover === 'leave') && color) {
-      const host = wasHost.current;
+      // (the computer, like a friend, takes the seat the player left)
+      const host = wasHost.current || !!computer;
       lobbyView = {
         beat: handover,
         taken: { white: true, black: true },
@@ -420,8 +423,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       beat: 'wait',
       taken: { [storedRole]: true, [other(storedRole)]: false } as Record<Color, boolean>,
       mine: storedRole,
-      // Framed over the invitation's card; the computer needs no invitation
-      card: !computer,
+      card: true,
       hover: null,
       toss: null,
       seat: storedRole,
@@ -505,9 +507,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         </button>
       </header>
       {hosting && storedRole && (
-        <SeatLabels
-          labels={{ [storedRole]: 'You', [other(storedRole)]: computer ? 'Computer' : 'Opponent' }}
-        />
+        <SeatLabels labels={{ [storedRole]: 'You', [other(storedRole)]: 'Opponent' }} />
       )}
       {guest && (invitation.state === 'open' || invitation.state === 'joining') && (
         <SeatLabels
@@ -522,12 +522,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
         // Continues the side choice's last heading, so it does not rise again
         <div className="lobby-heading" data-still="">
           <h1>You play {storedRole === 'white' ? 'White' : 'Black'}</h1>
-          {!computer && (
-            <p className="lobby-heading-wait">
-              <span className="hud-dot" aria-hidden />
-              Waiting for your friend…
-            </p>
-          )}
+          <p className="lobby-heading-wait">
+            <span className="hud-dot" aria-hidden />
+            Waiting for your friend…
+          </p>
         </div>
       )}
       {guest && (invitation.state === 'open' || invitation.state === 'joining') && (
@@ -539,8 +537,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         </div>
       )}
       {hosting && storedRole ? (
-        // The computer sits down in a moment: nothing to do meanwhile
-        !computer && <InviteCard link={shareLink} seat={storedRole} />
+        <InviteCard link={shareLink} seat={storedRole} />
       ) : guest ? (
         <InvitationCard
           invitation={invitation}

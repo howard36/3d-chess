@@ -80,6 +80,13 @@ export const LOBBY_TIMING = {
    */
   settle: 0.3,
   /**
+   * From the pick (or the coin coming to rest) to the pick having played out
+   * in full: the kings not chosen gone, and a breath after. Against the
+   * computer its king takes the other seat then (the arrival), since there
+   * is no one to invite.
+   */
+  quiet: 1.2,
+  /**
    * A named pick's free seat opening with the invitation: its outline is
    * drawn up from the foot as the seat's label comes in under it
    * (index.css `.lobby-seat`: 600 ms, 200 ms in).

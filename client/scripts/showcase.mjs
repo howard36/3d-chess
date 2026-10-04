@@ -120,6 +120,22 @@
 // --reduced records it for a player who asked for less motion. --stills
 // skips the video and draws only the stills.
 
+// --lobby records the way into a game against the computer instead, from the
+// side choice's first frame to the end of the game's entrance, on one page:
+//
+//   node scripts/showcase.mjs --lobby --out /tmp/lobby [--side white|black|random] [--level hard] [--reduced]
+//
+// The page opens /computer on the virtual clock; at --pick-at seconds (2.6
+// by default: the kings have formed and the buttons are in) the level and
+// the side are picked, and the page is stepped frame by frame through the
+// pick, the computer taking its seat, the handover and the game's entrance,
+// to a second after it. It writes lobby-<side>.mp4, a still every --every
+// seconds (0.2), lobby-<side>-<seconds>.png, and a contact sheet of them with
+// each one's time, lobby-<side>-sheet.png: look at the sheet for a black or
+// repeated frame, a jump, a beat that starts before the last has finished.
+// --stills draws only the stills. No backend needed (a computer game asks
+// no server), only Vite.
+
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -142,6 +158,7 @@ const QUICK = flag('quick');
 const INTERACT = flag('interact');
 const ORBIT = flag('orbit');
 const INTRO = flag('intro');
+const LOBBY = flag('lobby');
 const FPS = 30;
 const WIDTH = Number(opt('width', 1280));
 const HEIGHT = Number(opt('height', 720));
@@ -1652,6 +1669,93 @@ async function introReview(browser, rec, seat) {
   console.log(`intro recorded in ${elapsed()}`);
 }
 
+/** --lobby: the way into a game against the computer, frame by frame (see the header). */
+async function lobbyReview(browser) {
+  const elapsed = stopwatch();
+  const side = opt('side', 'white');
+  const level = opt('level', 'hard');
+  const pickAt = Number(opt('pick-at', 2.6));
+  const every = Number(opt('every', 0.2));
+  const context = await browser.newContext({
+    viewport: { width: WIDTH, height: HEIGHT },
+    reducedMotion: flag('reduced') ? 'reduce' : 'no-preference',
+  });
+  await context.addInitScript(NO_HOT_RELOAD);
+  await context.addInitScript(VIRTUAL_CLOCK);
+  await context.addInitScript(SHOW_HELPERS);
+  // The clock stands still from the first script on: nothing moves unless stepped
+  await context.addInitScript(() => window.__vclock.enable());
+  const page = await context.newPage();
+  page.on('pageerror', (e) => console.error(`[page] ${e.message}`));
+  await page.goto(`${BASE}/computer`);
+  await page.waitForSelector('[data-testid="lobby-canvas"]', { timeout: 120000 });
+  await page.evaluate(() => document.fonts.ready);
+  const cdp = await context.newCDPSession(page);
+  const name = `lobby-${side}${flag('reduced') ? '-reduced' : ''}`;
+  const VIDEO = path.join(OUT, `${name}.mp4`);
+  const ffmpeg = STILLS ? null : startEncoder(VIDEO, 'slow', 18);
+  const shots = [];
+  let picked = false;
+  let after = 0;
+  for (let f = 0; after < FPS; f++) {
+    const t = f / FPS;
+    if (!picked && t >= pickAt) {
+      picked = true;
+      // As a click would, without Playwright's wait for the page to hold
+      // still (its check runs on animation frames, which the clock holds)
+      await page.evaluate(
+        ({ level, side }) => {
+          document.querySelector(`input[name="difficulty"][value="${level}"]`)?.click();
+          document.querySelector(`.lobby-choice[data-choice="${side}"]`)?.click();
+        },
+        { level, side },
+      );
+    }
+    const shoot = Math.abs(t / every - Math.round(t / every)) < 0.5 / (FPS * every);
+    const draw = !STILLS || shoot;
+    await page.evaluate(
+      ({ ms, draw }) => {
+        const st = window.__r3fState?.get();
+        if (!draw && st) window.__show.settle(1, ms, false);
+        else window.__vclock.step(ms);
+      },
+      { ms: 1000 / FPS, draw },
+    );
+    if (ffmpeg) await writeFrame(ffmpeg, cdp, 92);
+    if (shoot) {
+      const file = path.join(OUT, `${name}-${t.toFixed(2)}.png`);
+      await savePng(cdp, file);
+      const state = await page.evaluate(() => {
+        const lobby = document.querySelector('[data-testid="lobby"]');
+        const heading = document.querySelector('.lobby-heading h1')?.textContent ?? '';
+        return `${location.pathname.split('/').slice(0, 2).join('/')} ${lobby?.dataset.beat ?? '-'} ${heading}`;
+      });
+      shots.push({ file, caption: `${t.toFixed(2)} s · ${state}` });
+    }
+    if (await page.evaluate(() => !!document.querySelector('[data-intro="done"]'))) after++;
+    if (t > 30) throw new Error('the way in never ended');
+  }
+  if (ffmpeg) {
+    await endEncoder(ffmpeg);
+    console.log(VIDEO);
+  }
+  const sheetPage = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+  const cells = shots
+    .map(
+      (s) =>
+        `<figure><img src="data:image/png;base64,${fs.readFileSync(s.file).toString('base64')}"><figcaption>${s.caption}</figcaption></figure>`,
+    )
+    .join('');
+  await sheetPage.setContent(
+    `<style>body{margin:0;background:#111;color:#ddd;font:13px system-ui;display:grid;grid-template-columns:repeat(${WIDTH > HEIGHT ? 5 : 8},1fr);gap:6px;padding:6px}img{width:100%;display:block}figure{margin:0}figcaption{padding:3px 0}</style>${cells}`,
+  );
+  await sheetPage.waitForFunction(() => [...document.images].every((i) => i.complete));
+  const sheet = path.join(OUT, `${name}-sheet.png`);
+  await sheetPage.screenshot({ path: sheet, fullPage: true });
+  console.log(sheet);
+  console.log(`way in recorded in ${elapsed()}`);
+}
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: EXECUTABLE,
@@ -1662,6 +1766,11 @@ async function main() {
       '--no-sandbox',
     ],
   });
+  if (LOBBY) {
+    await lobbyReview(browser);
+    await browser.close();
+    return;
+  }
   const contexts = await Promise.all(
     [0, 1].map(() =>
       browser.newContext({

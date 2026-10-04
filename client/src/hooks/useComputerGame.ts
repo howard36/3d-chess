@@ -14,16 +14,11 @@ import { createComputer } from '../ai/computer';
 import type { Computer, ComputerMove } from '../ai/computer';
 import { thinkTime } from '../ai/levels';
 
-/** How long after the page first shows a new game the computer takes its seat. */
-export const COMPUTER_JOINS_MS = 700;
-
 export interface ComputerGameOptions {
   /** The computer player (a worker by default). */
   computer?: () => Computer;
   /** How long the computer takes over a move, start to finish (levels.ts thinkTime by default). */
   pace?: (game: ComputerGame, move: ComputerMove) => number;
-  /** How long after a new game is shown the computer sits down. */
-  joinMs?: number;
   /** While set, the computer does not start on its move (the page is not ready for it). */
   hold?: boolean;
 }
@@ -35,8 +30,12 @@ const defaultPace = (game: ComputerGame, move: ComputerMove) =>
  * A game against the computer, as a GameSocket: the game screen sends its
  * messages here and reads the replies from `messages` exactly as it would a
  * server's (game/computerGame.ts answers them). The connection is always up
- * and never drops. When it is the computer's move, the computer thinks (in a
- * worker) and its move arrives as a move_made after a human pause.
+ * and never drops, and the game's seat is held from the first render: the
+ * log opens with the game as it stands, as a rejoin's answer would (so the
+ * page never draws a moment without its lobby or its board), the computer
+ * sitting down at once in a game not yet begun. When it is the computer's
+ * move, the computer thinks (in a worker) and its move arrives as a
+ * move_made after a human pause.
  */
 export function useComputerGame(gameId: string, options: ComputerGameOptions = {}): GameSocket {
   const gameRef = useRef<ComputerGame | null>(null);
@@ -45,7 +44,21 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
     loadedFor.current = gameId;
     gameRef.current = loadComputerGame(gameId);
   }
-  const [messages, setMessages] = useState<WebSocketMessage[]>([]);
+  const [messages, setMessages] = useState<WebSocketMessage[]>(() => {
+    const game = gameRef.current;
+    if (!game) return [];
+    const state: WebSocketMessage = {
+      type: 'game_state',
+      color: game.color,
+      started: game.started,
+      moves: game.moves,
+    };
+    if (game.started) return [state];
+    const begun = startGame(game);
+    gameRef.current = begun.game;
+    saveComputerGame(begun.game!);
+    return [state, ...begun.replies];
+  });
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -63,18 +76,7 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
     [apply, gameId],
   );
 
-  // A new game: the computer sits down a beat after the page shows it (the
-  // lobby's wait, then its arrival)
   const answered = messages.some((m) => m.type === 'game_state');
-  useEffect(() => {
-    const game = gameRef.current;
-    if (!answered || !game || game.started) return;
-    const timer = window.setTimeout(
-      () => gameRef.current && apply(startGame(gameRef.current)),
-      optionsRef.current.joinMs ?? COMPUTER_JOINS_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [answered, apply]);
 
   // One computer for the page's life
   const computerRef = useRef<Computer | null>(null);

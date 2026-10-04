@@ -13,11 +13,13 @@ import { DIFFICULTIES, DIFFICULTY_NAME } from '../../ai/levels';
 import type { Difficulty } from '../../ai/levels';
 import {
   getStoredDifficulty,
+  markArriving,
   newComputerGameId,
   saveComputerGame,
   setStoredDifficulty,
 } from '../../lib/computerGames';
 import { computerGame } from '../computerGameChunk';
+import { prefersReducedMotion } from '../../three/motion';
 
 // The first page of a new game: the player picks a side. The three kings
 // stand on the glass (LobbyScene): porcelain, the split king for Random, and
@@ -47,8 +49,17 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
 }) => {
   const navigate = useNavigate();
   const [difficulty, setDifficulty] = React.useState<Difficulty>(getStoredDifficulty);
-  // The game made against the computer, once a side is picked
+  // The game made against the computer, once a side is picked, and the pick
+  // having played out in full: the computer takes the other seat then, on
+  // the game's own page
   const [computerGameId, setComputerGameId] = React.useState<string | null>(null);
+  const [quiet, setQuiet] = React.useState(false);
+  // ...then the page's words make way (the heading and Home fade out), and
+  // the game's page opens on the computer's arrival as they go
+  const [gone, setGone] = React.useState(false);
+  React.useEffect(() => {
+    if (quiet && prefersReducedMotion()) setGone(true);
+  }, [quiet]);
   // Its page's code, while the player chooses
   React.useEffect(() => {
     if (computer) computerGame.preload();
@@ -82,8 +93,10 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
     if (created && settled) navigate(`/game/${created.gameId}`, { replace: true });
   }, [created, settled, navigate]);
   React.useEffect(() => {
-    if (computerGameId && settled) navigate(`/computer/${computerGameId}`, { replace: true });
-  }, [computerGameId, settled, navigate]);
+    if (!computerGameId || !gone) return;
+    markArriving(computerGameId);
+    navigate(`/computer/${computerGameId}`, { replace: true });
+  }, [computerGameId, gone, navigate]);
 
   // Asked again on the next connection if this one drops before the answer
   const requestGame = useResendOnReconnect(
@@ -125,6 +138,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
     onPick: pick,
     onGlide: () => setCoinGone(true),
     onSettled: () => setSettled(true),
+    onQuiet: () => setQuiet(true),
   });
 
   const waiting = settled && !created && !failed;
@@ -133,20 +147,28 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
   const stalled = useDelayed(!computer && (status !== 'connected' || waiting), SLOW_SERVER_MS);
   const heading = !picked
     ? 'Choose your side'
-    : picked.choice === 'random'
+    : picked.choice === 'random' && !settled
       ? 'Leaving it to chance…'
-      : `You play ${picked.side === 'white' ? 'White' : 'Black'}`;
+      : // (once the coin has come to rest, what it gave)
+        `You play ${picked.side === 'white' ? 'White' : 'Black'}`;
   return (
     // Entering (until a pick): the page's words come in with the scene's
     // entrance, the buttons once the kings have formed
     <div className="lobby-page" data-testid="choose-side" data-enter={picked ? undefined : ''}>
-      <header className="lobby-top">
+      <header className="lobby-top" data-out={quiet ? '' : undefined}>
         <button className="lobby-link" onClick={() => navigate('/')}>
           <span aria-hidden>←</span> Home
         </button>
       </header>
       {/* The heading answers the pick at once; keyed, so each line fades in */}
-      <div className="lobby-heading" key={heading}>
+      <div
+        className="lobby-heading"
+        key={heading}
+        data-out={quiet ? '' : undefined}
+        onAnimationEnd={(e) => {
+          if (e.animationName === 'lobby-out') setGone(true);
+        }}
+      >
         <h1>{heading}</h1>
         {computer && !picked && (
           <fieldset className="lobby-levels">
@@ -176,7 +198,11 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
               className="lobby-choice"
               data-choice={choice}
               data-chosen={chosen ? '' : undefined}
-              data-faded={picked && (!chosen || (choice === 'random' && coinGone)) ? '' : undefined}
+              data-faded={
+                picked && (!chosen || (choice === 'random' && coinGone) || (computer && settled))
+                  ? ''
+                  : undefined
+              }
               data-hover={!picked && hover === choice ? '' : undefined}
               disabled={!!picked}
               aria-pressed={chosen}

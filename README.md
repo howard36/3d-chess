@@ -508,7 +508,13 @@ changed post, and a flag for every discontinuity, letter out of line, overlap or
 reading as one axis with the files or ranks (`--seat black`, `--width`/`--height` for a
 phone). `--intro` records the game's entrance from its first frame (`--seat black`,
 `--rejoin` for the short one, `--reduced`), to `intro-<seat>.mp4`, stills at `--at
-"s,s,…"` seconds and a contact sheet. Usage is at the top of the script.
+"s,s,…"` seconds and a contact sheet. `--lobby` records the way into a game against the
+computer on one page, from the side choice's first frame through the pick
+(`--side white|black|random`, `--level`), the computer's arrival and the handover to the end
+of the game's entrance, to `lobby-<side>.mp4` and a contact sheet of a still every `--every`
+seconds, each with its time, the page and the lobby's beat: look at it for a black or
+repeated frame, or a beat that starts before the last has finished (it needs only Vite).
+Usage is at the top of the script.
 
 ### Piece set
 
@@ -707,9 +713,25 @@ the reload the join is re-sent on the next socket and recovers the seat.)
 (`ChooseSide` with `computer`), with Easy, Medium and Hard under the heading (native radio
 buttons styled as one segmented pill, `.lobby-levels`; Medium the first time, then the
 level last played, `lib/computerGames.ts`). A pick makes the game on the spot, in the
-browser, under a fresh lower-case id (a server game's id is upper case), and moves on to
-`/computer/<id>` like the side choice's move to a game's page. No server is asked, so it
-plays offline.
+browser, under a fresh lower-case id (a server game's id is upper case). No server is
+asked, so it plays offline.
+
+**The way in** tells one story, each beat starting once the last has visibly finished:
+the pick plays out as against a friend (the chosen king set down in its ring and its
+column of light, the others fading, or the coin thrown and landed, "Leaving it to
+chance…" then turning to what it gave, "You play Black"); the chosen button goes once the
+light has risen (`onSettled`). When the pick has played out in full, the kings not chosen
+gone and a breath taken (`onQuiet`, `LOBBY_TIMING.quiet`, 1.2 s after the pick or the
+coin's rest, on the scene's clock), the heading and "← Home" fade out (`[data-out]`), and
+as they go (their `animationend`; at once under reduced motion) the page moves on to
+`/computer/<id>`, which opens straight on the arrival: there is no one to wait for, so no
+waiting picture. The computer's king takes the other seat (forming from the foot up, or
+filling the outline a coin toss left), the ring spreads across the glass and "Computer ·
+Hard" takes the heading's place; then, as for a friend, both columns of light, the lift,
+and the game's entrance. The lobby's stage is never taken down on the way (the side
+choice's picture stays until the game's page shows the arrival over it), so nothing goes
+black and nothing plays its entrance twice. `node client/scripts/showcase.mjs --lobby`
+records all of it, frame by frame (see Recording the board).
 
 **The game page** (`screens/ComputerGameScreen.tsx`, a chunk of its own,
 `screens/computerGameChunk.ts`, asked for as the side choice shows) is the ordinary
@@ -720,10 +742,11 @@ the server would (`game/computerGame.ts`: `rejoin_game` with a `game_state`, `mo
 gives), so the board is event-sourced from the log exactly as in a game between two people.
 The game (side, level, whether the computer has sat down, the move record) is kept in
 `localStorage` after every move (`3dchess:computer:<id>`, and in memory where storage is
-refused), so a reload comes back to it. The lobby plays its host's wait with no invitation
-(the view's `card` off, "You" and "Computer" under the kings, no "Waiting for your
-friend…"), the computer sits down 0.7 s later (`COMPUTER_JOINS_MS`: a `game_start`) and the
-arrival is captioned "Computer · Hard"; then the game's entrance as usual. The pill calls
+refused), so a reload comes back to it. The stand-in's log opens with the game as it
+stands, as a rejoin's answer would (and a game not yet begun has the computer sit down at
+once), so the page holds its seat from its first render. It plays the arrival only when it
+was opened from its side choice (`markArriving`, in memory: a reload or a visit from
+history opens on the game itself, with its own entrance). The pill calls
 the opponent "Computer", and "Start new game" leads back to `/computer`. A page for a game
 this browser does not hold says "No game here".
 

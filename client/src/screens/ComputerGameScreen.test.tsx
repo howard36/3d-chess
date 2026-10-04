@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ComputerGameScreen from './ComputerGameScreen';
 import { LobbyContext } from './lobby/lobbyContext';
 import type { LobbyApi, LobbyStage } from './lobby/lobbyContext';
-import { saveComputerGame } from '../lib/computerGames';
+import { isArriving, markArriving, saveComputerGame } from '../lib/computerGames';
 import { setStoredRole } from '../lib/playerRole';
 import { loadBoardChunk } from './testSupport';
 
@@ -85,27 +85,31 @@ const at = (gameId: string) => (
   </LobbyContext.Provider>
 );
 
-it('seats the computer opposite the player, then hands over to the game', async () => {
+it('from its side choice, the computer takes its seat on the lobby’s stage, then the game begins', async () => {
   saveComputerGame({ id: 'g1', color: 'white', difficulty: 'hard', started: false, moves: [] });
   setStoredRole('g1', 'white');
+  markArriving('g1');
   render(at('g1'));
-  // The wait: no invitation, no "waiting for your friend"
-  await waitFor(() => expect(view).toMatchObject({ beat: 'wait', mine: 'white', card: false }));
-  expect(screen.getByRole('heading', { name: 'You play White' })).toBeInTheDocument();
-  expect(screen.getByText('Computer')).toBeInTheDocument();
-  expect(screen.queryByTestId('invite-card')).toBeNull();
-  expect(screen.queryByText(/Waiting for your friend/)).toBeNull();
-  // The computer sits down: its arrival, captioned with its level
-  await waitFor(() => expect(view).toMatchObject({ beat: 'arrive', arriving: 'black' }), {
-    timeout: 3000,
-  });
+  // At once, the arrival: no moment with the stage taken away (a blackout),
+  // and no waiting picture
+  expect(view).toMatchObject({ beat: 'arrive', arriving: 'black', mine: 'white' });
   expect(view!.caption).toBe('Computer · Hard');
+  expect(screen.queryByTestId('invite-card')).toBeNull();
   act(() => view!.onArrived!());
   const pill = await screen.findByTestId('turn-indicator');
   expect(pill).toHaveTextContent('Computer');
   expect(pill).toHaveAttribute('data-turn', 'white');
   // White to move: the computer waits for the player
   expect(thinking.asked).toBe(0);
+  // Once only: a reload opens on the game itself
+  expect(isArriving('g1')).toBe(false);
+});
+
+it('opened any other way (a reload, history), it opens on the game, no lobby over it', async () => {
+  saveComputerGame({ id: 'g3', color: 'white', difficulty: 'easy', started: false, moves: [] });
+  render(at('g3'));
+  expect(await screen.findByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
+  expect(view ?? null).toBeNull();
 });
 
 it('the computer moves first when it plays White, once the entrance is over', async () => {

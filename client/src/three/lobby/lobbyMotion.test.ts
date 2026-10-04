@@ -475,3 +475,10 @@ describe('the entrance', () => {
     expect(kingEntrance(10, white)).toEqual({ outline: 1, forming: true });
   });
 });
+
+describe('the pick playing out, against the computer', () => {
+  it('waits for the kings not chosen to be gone, and a breath, before the computer takes its seat', () => {
+    expect(LOBBY_TIMING.quiet).toBeGreaterThan(LOBBY_TIMING.fade + 0.3);
+    expect(LOBBY_TIMING.quiet).toBeGreaterThan(LOBBY_TIMING.settle);
+  });
+});

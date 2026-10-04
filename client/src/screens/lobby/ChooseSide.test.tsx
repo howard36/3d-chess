@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useNavigationType, useParams } from 'react-router-dom';
@@ -8,6 +8,7 @@ import type { LobbyApi, LobbyStage } from './lobbyContext';
 import type { GameSocket } from '../../hooks/useGameSocket';
 import type { WebSocketMessage } from '../../types/messages';
 import { getStoredRole } from '../../lib/playerRole';
+import { isArriving } from '../../lib/computerGames';
 import { fakeSocket } from '../testSupport';
 
 // The lobby's stage (a WebGL canvas) is LobbyLayout's; here the page runs
@@ -332,7 +333,7 @@ describe('against the computer', () => {
     expect(screen.getByRole('radio', { name: 'Hard' })).toBeChecked();
   });
 
-  it('makes the game in the browser, asks no server, and moves on to its page', async () => {
+  it('makes the game in the browser, asks no server, and moves on once the pick has played out', async () => {
     const send = vi.fn<GameSocket['send']>(() => true);
     // Even with no connection to the server, nothing is said about it
     render(computerAt(fakeSocket([], send, { status: 'connecting' })));
@@ -342,9 +343,26 @@ describe('against the computer', () => {
     await userEvent.click(white());
     expect(send).not.toHaveBeenCalled();
     expect(view).toMatchObject({ beat: 'choose', mine: 'white' });
+    // The light has risen: the chosen button has done its work and goes too,
+    // but the page stays for the rest of the pick
     settle();
+    expect(white()).toHaveAttribute('data-faded');
+    expect(screen.queryByText(/^game page/)).toBeNull();
+    // The others gone and a breath taken: the page's words make way...
+    act(() => view!.onQuiet!());
+    const heading = screen.getByRole('heading', { name: 'You play White' }).parentElement!;
+    expect(heading).toHaveAttribute('data-out');
+    expect(screen.getByRole('button', { name: /Home/ }).parentElement).toHaveAttribute('data-out');
+    expect(screen.queryByText(/^game page/)).toBeNull();
+    // ...and as they go, the game's page opens on the computer's arrival
+    // (jsdom has no AnimationEvent to carry the animation's name)
+    fireEvent(
+      heading,
+      Object.assign(new Event('animationend', { bubbles: true }), { animationName: 'lobby-out' }),
+    );
     const page = await screen.findByText(/^game page [a-z0-9]+ by REPLACE$/);
     const id = page.textContent!.split(' ')[2];
+    expect(isArriving(id)).toBe(true);
     expect(getStoredRole(id)).toBe('white');
     expect(JSON.parse(localStorage.getItem(`3dchess:computer:${id}`)!)).toMatchObject({
       color: 'white',
@@ -352,5 +370,34 @@ describe('against the computer', () => {
       started: false,
       moves: [],
     });
+  });
+
+  it('says what the coin gave once it has come to rest', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.9);
+    render(computerAt(fakeSocket()));
+    await userEvent.click(random());
+    expect(screen.getByRole('heading', { name: 'Leaving it to chance…' })).toBeInTheDocument();
+    settle();
+    expect(screen.getByRole('heading', { name: 'You play Black' })).toBeInTheDocument();
+  });
+
+  it('moves on as soon as the pick has played out, for a player who asked for less motion', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query.includes('reduce'),
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    );
+    try {
+      render(computerAt(fakeSocket()));
+      await userEvent.click(black());
+      settle();
+      act(() => view!.onQuiet!());
+      expect(await screen.findByText(/^game page [a-z0-9]+ by REPLACE$/)).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
