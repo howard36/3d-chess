@@ -105,36 +105,57 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+.learn-step-name {
+  color: var(--hud-muted);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.learn-step-name::before {
+  content: '·';
+  margin-right: 8px;
+}
+/* The steps, a dot each and the current one a longer bar, in a row at the
+   head's right: each a 24 px target round its mark */
 .learn-steps {
   display: flex;
-  margin-left: auto;
-  padding: 2px;
-  border: var(--hud-border);
-  border-radius: 15px;
+  margin: -6px -6px -6px auto;
 }
 .learn-step {
-  height: 26px;
-  padding: 0 11px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 28px;
+  padding: 0;
   border: 0;
-  border-radius: 13px;
+  border-radius: 6px;
   background: none;
-  color: var(--hud-muted);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
   cursor: pointer;
+  transition: width 200ms;
 }
-.learn-step:hover,
+.learn-step::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(236, 241, 255, 0.28);
+  transition:
+    width 200ms,
+    background 150ms;
+}
+.learn-step:hover::after {
+  background: rgba(236, 241, 255, 0.6);
+}
 .learn-step:focus-visible {
-  color: var(--hud-fg);
   outline: none;
+  box-shadow: inset 0 0 0 2px rgba(230, 238, 255, 0.35);
 }
-.learn-step:focus-visible {
-  box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.35);
+.learn-step[aria-current] {
+  width: 32px;
 }
-.learn-step[aria-pressed='true'] {
+.learn-step[aria-current]::after {
+  width: 20px;
   background: var(--hud-accent);
-  color: var(--hud-accent-fg);
 }
 /* Never into the foot: should a window be too short for a lesson, the
    lesson scrolls above the foot instead (the cards are sized so none does
@@ -281,34 +302,50 @@
 
 /* A phone held upright: the card tighter */
 @media (max-width: 520px) {
+  .learn {
+    --learn-card: 272px;
+  }
   .learn-menu {
     margin: -2px -4px 8px;
   }
   .learn-card {
-    padding: 10px 12px;
+    padding: 12px 14px;
   }
   .learn-body {
-    gap: 8px;
+    gap: 12px;
   }
   .learn-figure svg {
     width: 66px;
     height: 60px;
   }
   .learn-line {
-    font-size: 14px;
+    font-size: 15px;
+    line-height: 1.4;
   }
 }
-/* The narrowest phones: the pawn's heading and steps still on one row */
+/* The narrowest phones: the words take the card's whole width, the board
+   above showing what the figure would */
 @media (max-width: 380px) {
+  .learn {
+    --learn-card: 284px;
+  }
+  .learn-tab {
+    height: 32px;
+  }
+  .learn-line {
+    line-height: 1.35;
+  }
   .learn-head {
     gap: 8px;
   }
   .learn-head h1 {
-    font-size: 19px;
+    font-size: 20px;
   }
-  .learn-step {
-    padding: 0 5px;
-    font-size: 12px;
+  .learn-step-name::before {
+    margin-right: 6px;
+  }
+  .learn-figure:not(.learn-army) {
+    display: none;
   }
 }
 /* A wide window: the card stands at the left of the tower, which takes the
@@ -316,12 +353,12 @@
    for every lesson, in the middle of the room under Home */
 .learn[data-card='beside'] {
   /* Two heights only: one fits every lesson of a single step (the king's
-     the tallest), the other the pawn's steps (its switcher, Move's note), so
+     the tallest), the other the pawn's steps (Move's and Promote's notes), so
      no step changes the card's height and only the pawn's lesson its own */
   --learn-card: 376px;
 }
 .learn[data-card='beside'] .learn-card[data-steps] {
-  --learn-card: 440px;
+  --learn-card: 396px;
 }
 .learn[data-card='beside'] .learn-card {
   left: max(20px, env(safe-area-inset-left));
@@ -333,16 +370,8 @@
   max-height: calc(100% - 68px);
   padding: 16px 18px 14px;
 }
-.learn[data-card='beside'] .learn-head {
-  flex-wrap: wrap;
-  row-gap: 10px;
-}
 .learn[data-card='beside'] .learn-head h1 {
   font-size: 24px;
-}
-.learn[data-card='beside'] .learn-steps {
-  order: 1;
-  margin-left: 0;
 }
 .learn[data-card='beside'] .learn-body {
   flex-direction: column;
@@ -369,20 +398,6 @@
     /* Between Home and the window's foot, whatever the wide card's least */
     min-height: 0;
   }
-  .learn[data-card='beside'] .learn-head {
-    flex-wrap: wrap;
-  }
-  /* The pawn's steps share the card's width, so they never run past it */
-  .learn[data-card='beside'] .learn-steps {
-    box-sizing: border-box;
-    width: 100%;
-    margin-left: 0;
-  }
-  .learn[data-card='beside'] .learn-step {
-    flex: 1 1 auto;
-    padding: 0 4px;
-    font-size: 12px;
-  }
   .learn[data-card='beside'] .learn-card {
     padding: 10px 12px;
   }
@@ -390,10 +405,16 @@
     margin: -2px -4px 6px;
   }
   .learn[data-card='beside'] .learn-head {
-    row-gap: 6px;
+    gap: 8px;
   }
   .learn[data-card='beside'] .learn-head h1 {
     font-size: 19px;
+  }
+  .learn[data-card='beside'] .learn-step-name {
+    font-size: 13px;
+  }
+  .learn[data-card='beside'] .learn-step-name::before {
+    margin-right: 6px;
   }
   .learn[data-card='beside'] .learn-body {
     margin-top: 6px;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { MathUtils, PerspectiveCamera, Vector3 } from 'three';
 import { useThree } from '@react-three/fiber';
-import { elevationOf, fitShift, fitView, zoomRange } from './cameraFit';
+import { elevationOf, fitShift, fitView, settleLeftInset, zoomRange } from './cameraFit';
 import type { FitWindow, FrameRing } from './cameraFit';
 import { setLensShift } from './viewOffset';
 
@@ -30,7 +30,8 @@ interface OrbitControlsLike {
  * and where it stood, depend on the angle the player happened to be at.)
  *
  * The centring is a lens shift (a view offset), never a pan: the camera
- * stands and turns about the board's centre, and the shift is vertical only.
+ * stands and turns about the board's centre, and the shift is vertical only
+ * (but in the tutorial, beside a card at the left: `leftBand`).
  * What it fits is the layout's rings (BoardLayout.frameRings), circles about
  * the tower's axis that look the same from every side. The shift is set with
  * the fit and then left alone: turning, climbing and zooming the view never
@@ -47,6 +48,7 @@ export function FitCameraToBoard({
   frameRings,
   hudTopBand,
   bottomBand,
+  leftBand,
   centre,
   sweep,
   balanceInset,
@@ -60,7 +62,9 @@ export function FitCameraToBoard({
   /** The HUD's band at the top for a window this size (hudTop). */
   hudTopBand: (height: number) => number;
   /** The band kept clear at the bottom for a window this size, if any. */
-  bottomBand?: (height: number) => number;
+  bottomBand?: (height: number, width: number) => number;
+  /** The band at the left the tower is kept clear of, should it run under it (FitWindow.leftInset). */
+  leftBand?: (width: number, height: number) => number;
   /** What the shift centres (FitWindow.centre): the board's centre by default. */
   centre?: FitWindow['centre'];
   /** The elevations the view can turn between, kept in frame (FitWindow.sweep; orbitSweep). */
@@ -77,21 +81,22 @@ export function FitCameraToBoard({
   React.useLayoutEffect(() => {
     if (!(camera instanceof PerspectiveCamera) || width === 0 || height === 0) return;
     const target = controls?.target ?? new Vector3();
-    const view: FitWindow = {
+    // Fitted from the opening elevation, wherever the view stands now
+    const opening = elevationOf(new Vector3(...viewDirection), new Vector3());
+    const view = settleLeftInset(opening, frameRings, {
       width,
       height,
       fov: camera.fov,
       topInset: hudTopBand(height),
-      bottomInset: bottomBand?.(height),
+      bottomInset: bottomBand?.(height, width),
+      leftInset: leftBand?.(width, height),
       centre,
       sweep,
       balanceInset,
-    };
+    });
     const direction = camera.position.clone().sub(target);
     if (direction.lengthSq() === 0) direction.copy(new Vector3(...viewDirection));
     direction.normalize();
-    // Fitted from the opening elevation, wherever the view stands now
-    const opening = elevationOf(new Vector3(...viewDirection), new Vector3());
     const fit = fitView(opening, frameRings, view).distance;
     const { min, max } = zoomRange(fit, minDistance);
     const fitted = MathUtils.clamp(fit, min, max);
@@ -125,6 +130,7 @@ export function FitCameraToBoard({
     invalidate,
     hudTopBand,
     bottomBand,
+    leftBand,
     centre,
     sweep,
     frameRings,

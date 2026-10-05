@@ -150,8 +150,8 @@ test('plays a tapped ring, keeps the piece picked up there, and starts over', as
 const pressed = (group: HTMLElement) =>
   within(group)
     .getAllByRole('button')
-    .filter((b) => b.getAttribute('aria-pressed') === 'true')
-    .map((b) => b.textContent);
+    .filter((b) => b.getAttribute('aria-current') === 'step')
+    .map((b) => b.getAttribute('aria-label'));
 
 test("walks through the pawn's steps, Black's mirroring White's second, then on to a game", async () => {
   await renderAt('/learn/pawn');

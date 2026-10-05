@@ -1,10 +1,10 @@
 import React from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { NeutralToneMapping } from 'three';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { NeutralToneMapping, Vector3 } from 'three';
 import Board from '../../three/Board';
 import { CameraControls } from '../../three/CameraControls';
 import { FitCameraToBoard } from '../../three/FitCameraToBoard';
-import { orbitSweep } from '../../three/cameraFit';
+import { elevationOf, orbitSweep } from '../../three/cameraFit';
 import { usePixelBudget } from '../../three/pixelBudget';
 import { setUpRenderer } from '../../three/rendererSetup';
 import { pointerEvents } from '../../three/pointerEvents';
@@ -14,7 +14,7 @@ import { Stage } from '../../three/scene/stage';
 import { WarmPrograms } from '../../three/scene/warm';
 import type { Move } from '../../engine';
 import type { Practice } from '../../game/lessons';
-import { LEARN_CARD_PX, LEARN_TOP_PX, cardBeside, learnTop } from './learnLayout';
+import { LEARN_TOP_PX, learnBottom, learnLeft, learnTop } from './learnLayout';
 
 // The tutorial's board: the real tower and its rules, White's side nearest
 // (Black's pawn too, mirroring White's), the lesson's piece picked up and its
@@ -22,7 +22,13 @@ import { LEARN_CARD_PX, LEARN_TOP_PX, cardBeside, learnTop } from './learnLayout
 // board shares. It never publishes __r3fState: e2e projects clicks through
 // the game's canvas only.
 
-const SWEEP = orbitSweep(layout.orbit);
+// Kept clear of Home and the card from the opening and from below it: the
+// view climbed higher, looking down, may pass under them, where a small
+// window would otherwise frame the tower far smaller for every view
+const SWEEP: [number, number] = [
+  orbitSweep(layout.orbit)[0],
+  elevationOf(new Vector3(...layout.viewDirection), new Vector3()),
+];
 
 export interface LearnCanvasProps {
   practice: Practice;
@@ -45,23 +51,24 @@ function FirstFrame({ onDrawn }: { onDrawn: () => void }) {
   return null;
 }
 
-/** The camera's fit, clear of the menu and, where it spans the bottom, the card. */
-function Fit() {
-  const beside = useThree((s) => cardBeside(s.size.width, s.size.height));
-  // The same band from one render to the next while the card stays put
-  const bottomBand = React.useMemo(() => (beside ? () => 0 : () => LEARN_CARD_PX), [beside]);
-  return (
-    <FitCameraToBoard
-      viewDirection={layout.viewDirection}
-      minDistance={layout.orbit.minDistance}
-      frameRings={layout.frameRings}
-      hudTopBand={learnTop}
-      bottomBand={bottomBand}
-      balanceInset={LEARN_TOP_PX}
-      sweep={SWEEP}
-    />
-  );
-}
+/**
+ * The camera's fit, clear of Home and of the card: where it spans the
+ * bottom, the tower in the middle of the room above it; where it stands at
+ * the left, right of it should the tower, centred, run under it.
+ */
+const Fit = () => (
+  <FitCameraToBoard
+    viewDirection={layout.viewDirection}
+    minDistance={layout.orbit.minDistance}
+    frameRings={layout.frameRings}
+    hudTopBand={learnTop}
+    bottomBand={learnBottom}
+    leftBand={learnLeft}
+    centre="opening"
+    balanceInset={LEARN_TOP_PX}
+    sweep={SWEEP}
+  />
+);
 
 const LearnCanvas = ({
   practice,

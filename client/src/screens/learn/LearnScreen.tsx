@@ -133,18 +133,22 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
           <h1 id="learn-title">{lesson.name}</h1>
           {lesson.isNew && <span className="learn-new">New</span>}
           {lesson.steps.length > 1 && (
-            <div className="learn-steps" role="group" aria-label={`${lesson.name} lessons`}>
-              {lesson.steps.map((s, i) => (
-                <button
-                  key={s.label}
-                  className="learn-step"
-                  aria-pressed={i === stepIndex}
-                  onClick={() => setStepIndex(i)}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
+            <>
+              <span className="learn-step-name">{step.label}</span>
+              {/* The lesson's steps, a dot each, the current one long */}
+              <div className="learn-steps" role="group" aria-label={`${lesson.name} lessons`}>
+                {lesson.steps.map((s, i) => (
+                  <button
+                    key={s.label}
+                    className="learn-step"
+                    aria-label={s.label}
+                    title={s.label}
+                    aria-current={i === stepIndex ? 'step' : undefined}
+                    onClick={() => setStepIndex(i)}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
         <div className="learn-body">

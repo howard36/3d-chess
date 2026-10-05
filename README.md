@@ -190,7 +190,9 @@ Key decisions:
   over 100 px on a desktop, as it climbed.) The landing page's preview, which only turns
   about the axis at one elevation, centres its rings as seen from there instead, between a
   band at the top and one at the bottom (`centre: 'rings'`, `bottomInset`: see Landing
-  page). The layout's `orbit.minDistance` only narrows the range, and its
+  page); the tutorial centres them as seen from the opening in the room its card leaves,
+  kept in it from there and from below (`centre: 'opening'`, `leftInset`: see The
+  tutorial). The two bands never take more than three quarters of the window. The layout's `orbit.minDistance` only narrows the range, and its
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
   sky, to straight down). The controls (`three/CameraControls.tsx`) are three's own
   OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the
@@ -825,7 +827,9 @@ straight line, in any of 6 directions: left, right, forwards, backwards, up or d
 quieter note only for a rule the board can't show, such as no castling. A direction is only
 ever one of the six (left, right, forwards, backwards, up, down): a bishop goes two at once, a
 unicorn three, and the ways out of a square are counted as lines ("12 lines"). One card holds the whole lesson: the pieces along
-its top, the lesson (the unicorn's badged as the new piece), and Next. Each lesson stands the piece alone on Cc3, the middle of the board,
+its top, the lesson (the unicorn's badged as the new piece; the pawn's step named beside its
+name, with a dot for each step at the right, the current one a longer bar, a tap on one going
+to it), and Next. Each lesson stands the piece alone on Cc3, the middle of the board,
 picked up, every square it can reach ringed in gold, beside a little cube with its lines
 drawn from the middle (a rook's to the faces, a bishop's to the edges, a unicorn's to the
 corners) and how many moves it has from where it stands. A tapped ring plays the move (the
@@ -845,9 +849,18 @@ the rest of the HUD and of the tower). Opened from there, the tutorial is handed
 address in the router's state (`learnBack.ts`, a game page only) and carries it from lesson
 to lesson: "← Home" becomes "← Game" and the last Next "Back to game", both back to that
 game, which rejoins as on a reload. The card keeps one height per layout (beside the tower, 376 px, or
-440 px for the pawn's steps; 260 px along the bottom; the window's height under Home on a
-phone on its side), sized so every lesson fits with room above its foot; should a window be
-too short, the lesson scrolls above the foot rather than run into it.
+396 px for the pawn's steps; along the bottom 260 px, 272 px on a phone held upright, whose
+words are larger, and 284 px on one 380 px wide or less, where the words take the card's
+whole width without the figure; the window's height under Home on a phone on its side),
+sized so every lesson fits with room above its foot; should a window be too short, the
+lesson scrolls above the foot rather than run into it. The tower is framed in the room the
+card and Home leave (`learnLayout.ts`), with the rings as seen from the opening in its middle
+(`centre: 'opening'`) and kept in it from there and from below (looking down from higher up
+they may pass under the card: framed for every elevation, a small phone's tower would stand
+a fifth smaller). Where the card stands at the left of a short window and the tower, centred,
+would run under it, the fit centres the tower in the room right of the card instead
+(`settleLeftInset`, the lens shift's one sideways part); in a wide window the card stands
+beside the tower only once the tower, centred, clears it (`cardBeside`).
 `e2e/learn.spec.ts` walks every lesson and step at six sizes, one for each layout down to
 a 320 px phone either way up, and fails on a lesson within 10 px of the foot, one that has
 to scroll, anything past the card's sides, or a card out of the window.
