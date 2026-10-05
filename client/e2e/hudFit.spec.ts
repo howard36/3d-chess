@@ -109,7 +109,7 @@ for (const seat of ['white', 'black'] as const) {
   });
 }
 
-/** The HUD's rects over the board: the pill, and each side's captured pieces. */
+/** The HUD's rects over the board: the pill, each side's captured pieces, and the way to the tutorial. */
 const hudRects = (page: Page) =>
   page.evaluate(() => {
     const rect = (what: string, el: Element | null) => {
@@ -128,6 +128,7 @@ const hudRects = (page: Page) =>
         'their captures',
         document.querySelector('[data-testid="captured-pieces"] [data-side="them"]'),
       ),
+      rect('how to play', document.querySelector('.hud-learn')),
     ].filter((r) => r !== null);
   });
 
@@ -137,9 +138,10 @@ const meet = (a: ScreenRect, b: ScreenRect, gap = 0) =>
 
 /**
  * What is wrong at this size, in words (nothing when all is well): a HUD rect
- * over a piece or label of the tower, and the captured pieces out of the
- * window, outside the pill's width where they hang under it, or too close to
- * each other.
+ * over a piece or label of the tower, the captured pieces out of the window,
+ * outside the pill's width where they hang under it, or too close to each
+ * other, and the way to the tutorial missing, out of the window or meeting
+ * the rest of the HUD.
  */
 async function problemsAt(page: Page, width: number, height: number) {
   await page.setViewportSize({ width, height });
@@ -183,6 +185,14 @@ async function problemsAt(page: Page, width: number, height: number) {
     }
   }
   if (hauls.length === 2 && meet(hauls[0], hauls[1], 3)) problems.push('the captures meet');
+  // The way to the tutorial stands clear of the rest of the HUD, and in the window
+  const learn = hud.find((r) => r.what === 'how to play');
+  if (!learn) problems.push('no way to the tutorial');
+  else {
+    if (learn.left < 0 || learn.right > width) problems.push('how to play runs out of the window');
+    for (const h of hud)
+      if (h !== learn && meet(learn, h, 4)) problems.push(`how to play meets the ${h.what}`);
+  }
   return problems.map((p) => `${width}x${height}: ${p}`);
 }
 

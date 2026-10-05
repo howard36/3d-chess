@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { prefersReducedMotion } from '../three/motion';
 import type { IntroClock } from '../three/intro/clock';
 import { INTRO_HUD_VAR, INTRO_SCENE_VAR } from '../three/intro/vars';
@@ -15,6 +16,8 @@ import TurnPill from './TurnPill';
 import CapturedPieces from './CapturedPieces';
 import MoveCard from './MoveCard';
 import MoveAnnouncer from './MoveAnnouncer';
+import { learnScreen } from './learn/learnChunk';
+import type { LearnState } from './learn/learnBack';
 
 export type { IntroVariant };
 
@@ -248,6 +251,7 @@ const GameView: React.FC<GameViewProps> = ({
             onMove={onMove}
           />
           {/* After the move box, which stays the first Tab stop */}
+          <HowToPlay />
           {boardLoad.failed && (
             <div className="hud-center">
               <div role="alert" className="hud-notice hud-glass" data-testid="board-failed">
@@ -308,3 +312,33 @@ const GameView: React.FC<GameViewProps> = ({
 };
 
 export default GameView;
+
+/**
+ * The way to the tutorial from a game, at the top right, across from where
+ * the pill's band leaves room (index.css, .hud-learn): its words where the
+ * window has room, a "?" where it has not. The tutorial's way back (Home, and
+ * its last Next) then leads to this game.
+ */
+function HowToPlay() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const state: LearnState = { back: pathname };
+  return (
+    <button
+      className="lobby-link hud-learn"
+      aria-label="How to play"
+      title="How to play"
+      onClick={() => navigate('/learn', { state })}
+      // The tutorial's page is a chunk of its own: asked for on the way to the button
+      onPointerEnter={learnScreen.preload}
+      onFocus={learnScreen.preload}
+    >
+      <span className="hud-learn-word" aria-hidden>
+        How to play
+      </span>
+      <span className="hud-learn-mark" aria-hidden>
+        ?
+      </span>
+    </button>
+  );
+}

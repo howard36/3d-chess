@@ -838,7 +838,13 @@ with Black on turn), Capture (a piece on each of its five capture squares) and P
 Dc5, already on the far rank and a level short, so its one move up onto E5 opens the real
 promotion dialog; the figure shows White's row and Black's, on White's side, and the note
 says so). Next runs
-through every step and lesson to "Play a game" (`/new`).
+through every step and lesson to "Play a game" (`/new`). A game's page has its own way in:
+"How to play" at the top right of the HUD (a "?" in a window under 720 px wide, where the
+pill's row ends short to make room for it on a phone; `e2e/hudFit.spec.ts` keeps it clear of
+the rest of the HUD and of the tower). Opened from there, the tutorial is handed the game's
+address in the router's state (`learnBack.ts`, a game page only) and carries it from lesson
+to lesson: "← Home" becomes "← Game" and the last Next "Back to game", both back to that
+game, which rejoins as on a reload.
 
 The board is the game's `Board` with `showMovesOf`, a square whose piece it keeps picked
 up (on mount and in each new position, once a live move has landed). The lessons have no

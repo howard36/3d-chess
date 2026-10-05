@@ -42,13 +42,14 @@ vi.mock('./LearnCanvas', () => ({
 
 const Where = () => <output data-testid="where">{useLocation().pathname}</output>;
 
-const renderAt = async (at: string) => {
+const renderAt = async (at: string, state?: unknown) => {
   render(
-    <MemoryRouter initialEntries={[at]}>
+    <MemoryRouter initialEntries={[{ pathname: at, state }]}>
       <Routes>
         <Route path="/learn/:lesson?" element={<LearnScreen />} />
         <Route path="/" element={<p>home</p>} />
         <Route path="/new" element={<p>choose a side</p>} />
+        <Route path="/game/:id" element={<p>the game</p>} />
       </Routes>
       <Where />
     </MemoryRouter>,
@@ -201,6 +202,33 @@ test('leaves the pawn unpromoted when the choice is cancelled', async () => {
 test('sends an unknown lesson to the first', async () => {
   await renderAt('/learn/dragon');
   expect(screen.getByTestId('where')).toHaveTextContent(/^\/learn$/);
+});
+
+test('opened from a game, leads back to it: from Home, and from the last Next', async () => {
+  await renderAt('/learn', { back: '/game/ABCD' });
+  expect(screen.getByRole('button', { name: /Game/ })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Home/ })).toBeNull();
+  // The game goes along from lesson to lesson: the menu, Next, and an unknown lesson
+  await userEvent.click(screen.getByRole('button', { name: 'Knight' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Next: Pawn' }));
+  for (const step of ['Black', 'Capture', 'Promote'])
+    await userEvent.click(screen.getByRole('button', { name: `Next: ${step}` }));
+  await userEvent.click(screen.getByRole('button', { name: 'Next: Back to game' }));
+  expect(screen.getByText('the game')).toBeInTheDocument();
+  expect(screen.getByTestId('where')).toHaveTextContent('/game/ABCD');
+});
+
+test('opened from a game, its Home button is the way back to the game', async () => {
+  await renderAt('/learn/king', { back: '/game/ABCD' });
+  await userEvent.click(screen.getByRole('button', { name: /Game/ }));
+  expect(screen.getByText('the game')).toBeInTheDocument();
+});
+
+test('takes only a game page as the way back', async () => {
+  await renderAt('/learn/pawn', { back: 'https://elsewhere.example/' });
+  expect(screen.getByRole('button', { name: /Home/ })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Promote' }));
+  expect(screen.getByRole('button', { name: 'Next: Play a game' })).toBeInTheDocument();
 });
 
 test('goes home', async () => {

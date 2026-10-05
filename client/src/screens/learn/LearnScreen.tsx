@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { lazyChunk } from '../../lib/cachedImport';
 import { ChunkBoundary } from '../../components/ChunkBoundary';
 import { LESSONS, lessonById, practise, reachable, startPractice } from '../../game/lessons';
@@ -9,6 +9,7 @@ import { PieceGlyph } from '../PieceGlyph';
 import PromotionPicker from '../PromotionPicker';
 import { Army, Directions, LevelsIcon, PromotionRow } from './Directions';
 import { cardBeside } from './learnLayout';
+import { backToGame } from './learnBack';
 import './learn.css';
 
 // The board (three.js, the scene) is a chunk of its own, the one the game's
@@ -26,17 +27,23 @@ const lessonPath = (lesson: Lesson) =>
  * the lessons in the card, the
  * tower in the middle with the lesson's piece picked up and its moves ringed
  * (a ring tapped plays the move, and the piece is picked up again where it
- * lands), and the lesson's few words in a card at the bottom.
+ * lands), and the lesson's few words in a card at the bottom. Opened from a
+ * game, its way out (Home, and the last Next) leads back to that game.
  */
 const LearnScreen = () => {
   const { lesson: id } = useParams<{ lesson?: string }>();
+  const { state } = useLocation();
   const lesson = id === undefined ? LESSONS[0] : lessonById(id);
-  if (!lesson) return <Navigate to="/learn" replace />;
-  return <LessonView lesson={lesson} />;
+  if (!lesson) return <Navigate to="/learn" replace state={state} />;
+  return <LessonView lesson={lesson} back={backToGame(state)} />;
 };
 
-const LessonView = ({ lesson }: { lesson: Lesson }) => {
-  const navigate = useNavigate();
+const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) => {
+  const routerNavigate = useNavigate();
+  // From lesson to lesson the game to go back to goes along
+  const navigate = (to: string, options: { replace?: boolean } = {}) =>
+    routerNavigate(to, back ? { ...options, state: { back } } : options);
+  const leave = () => routerNavigate(back ?? '/');
   // The lesson's step and the position the player is trying moves in, set
   // afresh for each lesson, each step and each start over (a fresh board,
   // epoch: it plays only the moves made after it mounts). Reset while
@@ -65,13 +72,15 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
   const goNext = () => {
     if (!lastStep) setStepIndex(stepIndex + 1);
     else if (nextLesson) navigate(lessonPath(nextLesson));
-    else navigate('/new');
+    else routerNavigate(back ?? '/new');
   };
   const nextLabel = !lastStep
     ? lesson.steps[stepIndex + 1].label
     : nextLesson
       ? nextLesson.name
-      : 'Play a game';
+      : back
+        ? 'Back to game'
+        : 'Play a game';
 
   const [noBoard, setNoBoard] = React.useState(false);
   const beside = useCardBeside();
@@ -95,8 +104,8 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
       </div>
       {/* Home where the lobby has it */}
       <header className="lobby-top">
-        <button className="lobby-link" onClick={() => navigate('/')}>
-          <span aria-hidden>←</span> Home
+        <button className="lobby-link" onClick={leave}>
+          <span aria-hidden>←</span> {back ? 'Game' : 'Home'}
         </button>
       </header>
       <section
