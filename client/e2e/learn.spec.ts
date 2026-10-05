@@ -11,7 +11,7 @@ test('the start page leads to the tutorial, which draws its board and walks the 
   page.on('pageerror', (e) => errors.push(e.message));
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'How the pieces move' }).click();
+  await page.getByRole('button', { name: 'How to play' }).click();
   await expect(page).toHaveURL(/\/learn$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Setup' })).toBeVisible();
   await expect(page.getByTestId('learn-canvas')).toBeVisible();

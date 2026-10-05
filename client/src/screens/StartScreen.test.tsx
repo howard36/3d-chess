@@ -47,7 +47,7 @@ test('the start button is the first thing Tab reaches, and the preview has no co
   expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
     'Start a game',
     'Play the computer',
-    'How the pieces move',
+    'How to play',
   ]);
 });
 
@@ -74,7 +74,7 @@ test('the second button opens the side choice against the computer', async () =>
 test('the tutorial is a click away', async () => {
   reduceMotion(false);
   renderStart();
-  await userEvent.click(screen.getByRole('button', { name: 'How the pieces move' }));
+  await userEvent.click(screen.getByRole('button', { name: 'How to play' }));
   expect(screen.getByText('the tutorial')).toBeInTheDocument();
 });
 

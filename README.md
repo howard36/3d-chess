@@ -265,7 +265,7 @@ Key decisions:
   sets the text in a column at the left instead (band 12). The button creates nothing: it
   opens the side choice at `/new` (see The lobby). Under it, a quieter glass pill, "Play the
   computer", opens the side choice against the computer at `/computer` (see Playing the
-  computer); nothing is written under them. "How the pieces move", a quiet link in the top
+  computer); nothing is written under them. "How to play", a quiet link in the top
   right corner (across from where the other pages keep "← Home"), opens the tutorial (see The
   tutorial). The
   canvas is `aria-hidden` and takes no pointer, and a visually hidden sentence says what it

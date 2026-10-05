@@ -32,7 +32,7 @@ stateDiagram-v2
     [*] --> choose : open /new
     [*] --> game : open /game/{id}
     start --> choose : "Start a game"
-    start --> learn : "How the pieces move"
+    start --> learn : "How to play"
     learn --> start : "← Home"
     learn --> choose : "Play a game"
     choose --> start : "← Home"
@@ -49,7 +49,7 @@ stateDiagram-v2
 
 ## The start screen
 
-The page at `/`, a landing page: the [preview](../glossary.md#the-product-and-its-screens) (the glass tower turning slowly in its garden while a sample game plays itself on it) fills the window, with the title "3D Chess" above the tower, the "Start a game" button below it and "Play the computer" under that, and in the top right corner the quiet "How the pieces move", which opens the tutorial. These are the page's only controls, and none sends anything: "Start a game" opens the side choice. The preview is only a picture, always playing: it takes no input and is not a game. Both are described in [creating a game](../start/creating-a-game.md).
+The page at `/`, a landing page: the [preview](../glossary.md#the-product-and-its-screens) (the glass tower turning slowly in its garden while a sample game plays itself on it) fills the window, with the title "3D Chess" above the tower, the "Start a game" button below it and "Play the computer" under that, and in the top right corner the quiet "How to play", which opens the tutorial. These are the page's only controls, and none sends anything: "Start a game" opens the side choice. The preview is only a picture, always playing: it takes no input and is not a game. Both are described in [creating a game](../start/creating-a-game.md).
 
 ## The side choice
 
@@ -95,7 +95,7 @@ The app changes pages in three ways of its own, and the browser adds its usual c
 | Action | From | To | What happens to the game on this page |
 | --- | --- | --- | --- |
 | "Start a game" | start screen | side choice | Nothing is sent. A new history entry is added. |
-| "How the pieces move" | start screen | tutorial | Nothing is sent. A new history entry is added. |
+| "How to play" | start screen | tutorial | Nothing is sent. A new history entry is added. |
 | The new game's id arrives, and the pick has played out | side choice | the new game page | The page arrives already holding the creator's seat; no rejoin. The side choice's history entry is replaced, so Back skips it. The lobby's scene carries on across the move. |
 | "Start new game" in the end-game dialog | board screen | side choice | The connection is reset: the opponent sees the player "Offline" on their turn pill. A new history entry is added, so Back returns to the finished game. |
 | "Start a new game" on an invitation that is taken or leads nowhere | game page | side choice | The connection is reset. A new history entry is added. |
