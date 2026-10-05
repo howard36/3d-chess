@@ -65,9 +65,17 @@ test('opens on the armies as a game starts: what each side has, nothing picked u
   expect(screen.getByRole('heading', { level: 1, name: 'Setup' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Setup' })).toHaveAttribute('aria-current', 'page');
   expect(screen.getByText(/Each side has 20 pieces/)).toBeInTheDocument();
-  // The unicorns and the pawns are what chess doesn't have
   const army = screen.getByRole('figure', { name: "Each side's pieces" });
-  expect([...army.querySelectorAll('[data-new]')].map((e) => e.textContent)).toEqual(['2', '10']);
+  // In one row, the kinds and their counts: K Q R B N U P
+  expect([...army.querySelectorAll('li')].map((e) => e.textContent)).toEqual([
+    '1',
+    '1',
+    '2',
+    '2',
+    '2',
+    '2',
+    '10',
+  ]);
   expect(board()).toHaveAttribute('data-focus', '');
   expect(screen.queryByTestId('learn-count')).toBeNull();
   await userEvent.click(screen.getByRole('button', { name: 'Next: Rook' }));

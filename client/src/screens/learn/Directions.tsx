@@ -195,13 +195,13 @@ export function PromotionRow() {
   );
 }
 
-/** What each side has as a game starts, the two counts chess doesn't have lit. */
+/** What each side has as a game starts, one row of the kinds and their counts. */
 export function Army() {
   return (
     <figure className="learn-figure learn-army" aria-label="Each side's pieces">
       <ul>
-        {ARMY.map(({ type, count, new: isNew }) => (
-          <li key={type} data-piece={type} data-new={isNew || undefined}>
+        {ARMY.map(({ type, count }) => (
+          <li key={type} data-piece={type}>
             <PieceGlyph type={type} color="white" size={20} />
             <span>{count}</span>
           </li>

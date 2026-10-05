@@ -95,14 +95,14 @@ const START: LessonStep['pieces'] = (() => {
 })();
 
 /** What each side has, as a game starts, in the order the card shows it. */
-export const ARMY: readonly { type: PieceType; count: number; new?: boolean }[] = [
+export const ARMY: readonly { type: PieceType; count: number }[] = [
   { type: PieceType.King, count: 1 },
   { type: PieceType.Queen, count: 1 },
   { type: PieceType.Rook, count: 2 },
   { type: PieceType.Bishop, count: 2 },
   { type: PieceType.Knight, count: 2 },
-  { type: PieceType.Unicorn, count: 2, new: true },
-  { type: PieceType.Pawn, count: 10, new: true },
+  { type: PieceType.Unicorn, count: 2 },
+  { type: PieceType.Pawn, count: 10 },
 ];
 
 /** A piece's one step: its moves from the middle of the board. */
@@ -116,7 +116,7 @@ export const LESSONS: readonly Lesson[] = [
     name: 'Setup',
     steps: [
       {
-        line: 'Each side has 20 pieces, including two unicorns and ten pawns. White starts at the bottom, Black at the top.',
+        line: 'Each side has 20 pieces, including two unicorns (a new piece in 3D chess) and ten pawns instead of eight. White starts at the bottom, Black at the top.',
         pieces: START,
         army: true,
       },

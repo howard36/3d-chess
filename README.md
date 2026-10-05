@@ -817,8 +817,8 @@ Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking t
 
 `/learn` (and `/learn/<lesson>`: `rook`, `bishop`, `unicorn`, `queen`, `king`, `knight`,
 `pawn`) opens on Setup, the armies as a game starts (nothing picked up, the board only to
-look at, and in the card each side's pieces counted, the two unicorns and ten pawns lit as
-what chess doesn't have), then teaches how the pieces move on the real tower and rules, a
+look at, and in the card each side's pieces counted in one row, the words saying what chess
+doesn't have: two unicorns, and ten pawns instead of eight), then teaches how the pieces move on the real tower and rules, a
 lesson per piece (`screens/learn/LearnScreen.tsx`, the lessons in `game/lessons.ts`), through staged positions
 rather than text: a sentence or two a step, said plainly as a teacher would ("Rooks move in a
 straight line, in any of 6 directions: left, right, forwards, backwards, up or down."), and a

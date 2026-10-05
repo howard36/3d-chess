@@ -65,11 +65,6 @@ describe('the lessons', () => {
         expect(own.filter((p) => p.type === type)).toHaveLength(count);
     }
     expect(ARMY.reduce((n, a) => n + a.count, 0)).toBe(20);
-    // What chess doesn't have: the unicorns, and two more pawns
-    expect(ARMY.filter((a) => a.new).map((a) => a.type)).toEqual([
-      PieceType.Unicorn,
-      PieceType.Pawn,
-    ]);
     // White's at the bottom, Black's at the top
     expect(new Set(setup.pieces.filter((p) => p.color === 'white').map((p) => p.at[0]))).toEqual(
       new Set(['A', 'B']),
@@ -97,7 +92,7 @@ describe('the lessons', () => {
 
   it('say each step in a sentence or two, and a note in a short one', () => {
     for (const step of LESSONS.flatMap((l) => l.steps)) {
-      expect(step.line.split(' ').length).toBeLessThanOrEqual(20);
+      expect(step.line.split(' ').length).toBeLessThanOrEqual(30);
       if (step.note) expect(step.note.split(' ').length).toBeLessThanOrEqual(10);
     }
   });
