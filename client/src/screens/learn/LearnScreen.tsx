@@ -103,6 +103,7 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
         className="learn-card hud-glass"
         aria-labelledby="learn-title"
         data-lesson={lesson.id}
+        data-steps={lesson.steps.length > 1 || undefined}
       >
         {/* The lessons, one per piece, where the lesson itself and its Next are */}
         <nav className="learn-menu" aria-label="Lessons">

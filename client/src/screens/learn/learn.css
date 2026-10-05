@@ -293,8 +293,12 @@
    whole height under Home (learnLayout.ts, cardBeside), at one height
    for every lesson, in the middle of the room under Home */
 .learn[data-card='beside'] {
-  /* Fits the tallest lesson (the pawn's Move: its steps, its note), so no
-     tab or step changes the card's height */
+  /* Two heights only: one fits every lesson of a single step (the king's
+     the tallest), the other the pawn's steps (its switcher, Move's note), so
+     no step changes the card's height and only the pawn's lesson its own */
+  --learn-card: 368px;
+}
+.learn[data-card='beside'] .learn-card[data-steps] {
   --learn-card: 432px;
 }
 .learn[data-card='beside'] .learn-card {
