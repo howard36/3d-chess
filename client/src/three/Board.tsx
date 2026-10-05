@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { GameOver } from '../game/history';
 import type { RefObject } from 'react';
 import { useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
@@ -80,7 +81,7 @@ export interface BoardProps {
   /** Freezes interaction (selection and moves) while still rendering the position. */
   disabled?: boolean;
   /** Set once the game has ended: the mated king topples. */
-  gameOver?: { result: 'checkmate' | 'stalemate'; winner?: PieceColor } | null;
+  gameOver?: { result: GameOver['result']; winner?: PieceColor } | null;
   /** Whether to draw the coordinate labels (on by default; the landing preview has none). */
   labels?: boolean;
   /**

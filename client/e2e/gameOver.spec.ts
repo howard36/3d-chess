@@ -49,3 +49,19 @@ test('a finished game shows the result and lets both players start over', async 
 
   await game.close();
 });
+
+// The same position for the third time draws: the knights hop out and back
+// twice, and the start stands again with White to move.
+test('a position repeated three times draws the game for both players', async ({ browser }) => {
+  const game = await startGame(browser);
+  const shuffle = ['Ab1-Cc1', 'Ed5-Cc5', 'Cc1-Ab1', 'Cc5-Ed5'];
+  await game.playAll([...shuffle, ...shuffle]);
+  for (const page of [game.white, game.black]) {
+    await expect(page.getByRole('dialog', { name: 'Draw' })).toBeVisible();
+    const pill = page.getByTestId('turn-indicator');
+    await expect(pill).toHaveAttribute('data-result', 'repetition');
+    await expect(pill).toContainText('Repetition · draw');
+    await expect(page.getByTestId('end-game')).toContainText('by repetition');
+  }
+  await game.close();
+});

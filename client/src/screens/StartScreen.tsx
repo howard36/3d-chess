@@ -15,8 +15,9 @@ const { Component: LandingPreview } = lazyChunk(() =>
   import('./LandingPreview').then((m) => ({ default: m.LandingPreview })),
 );
 
-// The home page: the tower playing a game by itself, and the way in. A new
-// game starts by choosing a side (/new), which asks the server for it.
+// The home page: the tower playing a game by itself, and the ways in. A new
+// game starts by choosing a side (/new), which asks the server for it; a
+// game against the computer by choosing a side and a level (/computer).
 const StartScreen: React.FC = () => {
   const navigate = useNavigate();
   const still = useReducedMotion();
@@ -46,16 +47,20 @@ const StartScreen: React.FC = () => {
           </span>
           Start a game
         </button>
-        <button
-          className="landing-learn"
-          onClick={() => navigate('/learn')}
-          // The tutorial's page is a chunk of its own: asked for on the way to the button
-          onPointerEnter={learnScreen.preload}
-          onFocus={learnScreen.preload}
-        >
-          How the pieces move
+        <button className="landing-alt" onClick={() => navigate('/computer')}>
+          Play the computer
         </button>
       </div>
+      {/* The way to the tutorial, in the corner across from where the other pages keep Home */}
+      <button
+        className="lobby-link landing-learn"
+        onClick={() => navigate('/learn')}
+        // The tutorial's page is a chunk of its own: asked for on the way to the button
+        onPointerEnter={learnScreen.preload}
+        onFocus={learnScreen.preload}
+      >
+        How the pieces move
+      </button>
     </main>
   );
 };

@@ -75,8 +75,9 @@ export const LOBBY_TIMING = {
   tossGlide: 0.55,
   /**
    * From the pick (or the coin coming to rest) to the page moving on to the
-   * invitation: once the chosen king is set down, while the others are still
-   * fading, so the pick, the camera's move and the card are one motion.
+   * invitation (or, against the computer, its level): once the chosen king is
+   * set down, while the others are still fading, so the pick, the camera's
+   * move and the card are one motion.
    */
   settle: 0.3,
   /**

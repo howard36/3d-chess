@@ -34,6 +34,10 @@ export interface GameViewProps {
   opponentOnline: boolean | null;
   /** The connection is being re-established: the pill and the captured pieces dim. */
   reconnecting: boolean;
+  /** What the pill calls the opponent ("Opponent" by default; "Computer"). */
+  opponentName?: string;
+  /** Where "Start new game" leads: the side choice (/new) by default. */
+  newGamePath?: string;
   /** The board takes no input (disconnected, a stale snapshot, a move awaiting its echo). */
   boardDisabled: boolean;
   /** Sends a move (a click on the board, the move box, the promotion dialog). */
@@ -70,6 +74,8 @@ export interface GameViewProps {
    * compiled), or once the board has failed to load: nothing more is coming.
    */
   onFirstFrame?: () => void;
+  /** Called once the entrance is over (at once without one): the board is in play. */
+  onIntroDone?: () => void;
 }
 
 /**
@@ -89,6 +95,8 @@ const GameView: React.FC<GameViewProps> = ({
   color,
   opponentOnline,
   reconnecting,
+  opponentName,
+  newGamePath = '/new',
   boardDisabled,
   onMove,
   promotionChoices,
@@ -101,6 +109,7 @@ const GameView: React.FC<GameViewProps> = ({
   intro = 'full',
   introPaused = false,
   onFirstFrame,
+  onIntroDone,
 }) => {
   const { board, moveRecords, currentTurn, lastMove, captured, gameOver } = history;
 
@@ -110,6 +119,11 @@ const GameView: React.FC<GameViewProps> = ({
     return { plan, t: introDone(plan, 0) ? Infinity : 0 };
   });
   const [introPlaying, setIntroPlaying] = React.useState(() => !introDone(clock.plan, clock.t));
+  const introDoneRef = React.useRef(onIntroDone);
+  introDoneRef.current = onIntroDone;
+  React.useEffect(() => {
+    if (!introPlaying) introDoneRef.current?.();
+  }, [introPlaying]);
   const screen = React.useRef<HTMLDivElement>(null);
   // The board's chunk failed to load (`failed`); each retry mounts a fresh try
   const [boardLoad, setBoardLoad] = React.useState({ attempt: 0, failed: false });
@@ -213,6 +227,7 @@ const GameView: React.FC<GameViewProps> = ({
                   inCheck={inCheck}
                   gameOver={gameOver}
                   opponentOnline={opponentOnline}
+                  opponentName={opponentName}
                   stale={reconnecting}
                 />
                 <CapturedPieces seat={color} captured={captured} board={board} />
@@ -277,13 +292,14 @@ const GameView: React.FC<GameViewProps> = ({
             result={gameOver.result}
             winner={gameOver.winner}
             seat={color ?? 'white'}
+            newGamePath={newGamePath}
             onClose={() => setClosedEnd(gameOver)}
           />
         </div>
       )}
       {gameOver && showEndModal && !resultUp && (
         <div inert={replaced}>
-          <NewGameBar />
+          <NewGameBar newGamePath={newGamePath} />
         </div>
       )}
       {replacedNotice}

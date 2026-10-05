@@ -289,3 +289,99 @@ describe('deriveHistory: the work a landing move costs', () => {
     applied.mockRestore();
   });
 });
+
+describe('deriveHistory: the draws', () => {
+  const recordsOf = (moves: string[]): MoveRecord[] =>
+    moves.map((m, i) => {
+      const [from, to] = m.split('-');
+      return { by: i % 2 ? 'black' : 'white', from, to };
+    });
+  // The knights out and back: the start stands again every four plies
+  const shuffle = ['Ab1-Cc1', 'Ed5-Cc5', 'Cc1-Ab1', 'Cc5-Ed5'];
+
+  it('draws the third time the same position stands, the same side to move', () => {
+    const twice = deriveHistory([snapshot(recordsOf(shuffle))]);
+    expect(twice.gameOver).toBeNull();
+    expect(twice.sinceIrreversible).toHaveLength(5);
+    const almost = deriveHistory([snapshot(recordsOf([...shuffle, ...shuffle.slice(0, 3)]))]);
+    expect(almost.gameOver).toBeNull();
+    const thrice = deriveHistory([snapshot(recordsOf([...shuffle, ...shuffle]))]);
+    expect(thrice.gameOver).toEqual({ result: 'repetition' });
+    expect(thrice.currentTurn).toBe('white');
+  });
+
+  it('reaches the same verdict move by move as replayed whole', () => {
+    const records = recordsOf([...shuffle, ...shuffle]);
+    let h = deriveHistory([snapshot([])]);
+    const log: WebSocketMessage[] = [snapshot([])];
+    for (const r of records) {
+      log.push(moveMade(r.by, r.from, r.to));
+      h = deriveHistory([...log], h);
+    }
+    expect(h.gameOver).toEqual({ result: 'repetition' });
+    expect(h.sinceIrreversible).toEqual(deriveHistory([snapshot(records)]).sinceIrreversible);
+  });
+
+  it('forgets the positions before a capture or a pawn move', () => {
+    // The pawn move in the middle: the start can never stand again
+    const h = deriveHistory([
+      snapshot(recordsOf([...shuffle, 'Ba1-Ca1', 'Ed5-Cc5', 'Ab1-Cc1', 'Cc5-Ed5', 'Cc1-Ab1'])),
+    ]);
+    expect(h.replayFailedAt).toBeNull();
+    expect(h.gameOver).toBeNull();
+    expect(h.sinceIrreversible).toHaveLength(5);
+  });
+
+  /**
+   * A hundred plies with no capture and no pawn move, no position three
+   * times: each side moves its pieces about, the first move in the engine's
+   * order that is neither and does not bring back a position seen twice.
+   */
+  const quietGame = async (plies: number, pawnAt?: number) => {
+    const { Board } = await import('../engine');
+    const { toZXY } = await import('../engine/coords');
+    const { positionHash } = await import('../engine/draws');
+    let board = Board.setupStartingPosition();
+    const seen = new Map<number, number>();
+    const moves: string[] = [];
+    for (let ply = 0; ply < plies; ply++) {
+      const color: Turn = ply % 2 ? 'black' : 'white';
+      const next: Turn = color === 'white' ? 'black' : 'white';
+      const legal = board.generateAllLegalMoves(color);
+      const pick = legal.find((m) => {
+        const pawn = board.getPiece(m.from)!.type === PieceType.Pawn;
+        if (board.getPiece(m.to) || pawn !== (ply === pawnAt)) return false;
+        const after = board.applyMove(m);
+        return (seen.get(positionHash(after, next)) ?? 0) < 2 && after.hasLegalMove(next);
+      })!;
+      board = board.applyMove(pick);
+      const key = positionHash(board, next);
+      seen.set(key, (seen.get(key) ?? 0) + 1);
+      moves.push(`${toZXY(pick.from)}-${toZXY(pick.to)}`);
+    }
+    return recordsOf(moves);
+  };
+
+  it('draws after fifty moves each with no capture and no pawn move', async () => {
+    const game = await quietGame(100);
+    expect(deriveHistory([snapshot(game.slice(0, 99))]).gameOver).toBeNull();
+    const h = deriveHistory([snapshot(game)]);
+    expect(h.sinceIrreversible).toHaveLength(101);
+    expect(h.gameOver).toEqual({ result: 'fifty-moves' });
+  });
+
+  it('counts the fifty moves again from a pawn move', async () => {
+    const game = await quietGame(100, 40);
+    expect(deriveHistory([snapshot(game)]).gameOver).toBeNull();
+    expect(deriveHistory([snapshot(game)]).sinceIrreversible).toHaveLength(60);
+  });
+
+  it('a mate stands, even on the move that would draw', async () => {
+    const { Board } = await import('../engine');
+    // The engine sees mate: the hundredth ply mates instead of drawing
+    const mated = vi.spyOn(Board.prototype, 'isCheckmate').mockReturnValue(true);
+    const h = deriveHistory([snapshot(await quietGame(100))]);
+    expect(h.gameOver).toEqual({ result: 'checkmate', winner: 'black' });
+    mated.mockRestore();
+  });
+});

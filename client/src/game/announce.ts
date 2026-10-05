@@ -6,7 +6,22 @@
 
 import { toZXY } from '../engine/coords';
 import type { Piece } from '../engine';
-import type { GameHistory, Turn } from './history';
+import type { GameHistory, GameOver, Turn } from './history';
+
+/** How a game ended, in a word or two: the turn pill's and the screen reader's. */
+export const RESULT_NAME: Record<GameOver['result'], string> = {
+  checkmate: 'Checkmate',
+  stalemate: 'Stalemate',
+  repetition: 'Repetition',
+  'fifty-moves': '50-move rule',
+};
+
+/** How a draw came about, under the result card's "Draw". */
+export const DRAW_BY: Record<Exclude<GameOver['result'], 'checkmate'>, string> = {
+  stalemate: 'by stalemate',
+  repetition: 'by repetition',
+  'fifty-moves': 'by the 50-move rule',
+};
 
 const named = (side: Turn) => (side === 'white' ? 'White' : 'Black');
 const lower = (piece: Piece) => piece.type.toLowerCase();
@@ -34,7 +49,7 @@ export function describeTurn(history: GameHistory, seat: Turn | null): string {
     const verdict = seat ? (winner === seat ? 'You win.' : 'You lose.') : `${named(winner)} wins.`;
     return `Checkmate. ${verdict}`;
   }
-  if (gameOver?.result === 'stalemate') return 'Stalemate. Draw.';
+  if (gameOver) return `${RESULT_NAME[gameOver.result]}. Draw.`;
   const check = replayFailedAt === null && board.inCheck(currentTurn) ? 'Check. ' : '';
   return `${check}${currentTurn === seat ? 'Your move.' : `${named(currentTurn)} to move.`}`;
 }

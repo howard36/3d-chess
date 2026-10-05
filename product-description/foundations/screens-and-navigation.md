@@ -49,7 +49,7 @@ stateDiagram-v2
 
 ## The start screen
 
-The page at `/`, a landing page: the [preview](../glossary.md#the-product-and-its-screens) (the glass tower turning slowly in its garden while a sample game plays itself on it) fills the window, with the title "3D Chess" above the tower, the "Start a game" button below it, and under the button only the quiet "How the pieces move", which opens the tutorial. These are the page's only controls, and neither sends anything: the button opens the side choice. The preview is only a picture, always playing: it takes no input and is not a game. Both are described in [creating a game](../start/creating-a-game.md).
+The page at `/`, a landing page: the [preview](../glossary.md#the-product-and-its-screens) (the glass tower turning slowly in its garden while a sample game plays itself on it) fills the window, with the title "3D Chess" above the tower, the "Start a game" button below it and "Play the computer" under that, and in the top right corner the quiet "How the pieces move", which opens the tutorial. These are the page's only controls, and none sends anything: "Start a game" opens the side choice. The preview is only a picture, always playing: it takes no input and is not a game. Both are described in [creating a game](../start/creating-a-game.md).
 
 ## The side choice
 

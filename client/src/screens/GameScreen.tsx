@@ -24,9 +24,23 @@ import { InvitationCard, InviteCard, SeatLabels } from './lobby/LobbyCards';
 import { Stone } from './TurnPill';
 import { useLobbyView } from './lobby/lobbyContext';
 import type { LobbyStage } from './lobby/lobbyContext';
+import { DIFFICULTY_NAME } from '../ai/levels';
+import type { Difficulty } from '../ai/levels';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
+  /**
+   * A game against the computer (gameSocket is then useComputerGame's): the
+   * player's side and the computer's level. The game is under way from the
+   * page's first render (there is no one to invite); `arriving`, the side
+   * choice is still on the lobby's stage, and the computer's king takes its
+   * seat there before the game's entrance (the arrival, as a friend's would).
+   */
+  computer?: { color: Color; difficulty: Difficulty; arriving?: boolean };
+  /** Where "Start new game" leads: the side choice (/new) by default. */
+  newGamePath?: string;
+  /** Called once the game's entrance is over and the board is in play. */
+  onPlaying?: () => void;
 }
 
 type Phase = 'waiting' | 'joined' | 'started';
@@ -34,7 +48,12 @@ type Phase = 'waiting' | 'joined' | 'started';
 /** The longest the lobby holds its arrival for the game's first frame. */
 const FIRST_FRAME_WAIT_MS = 4000;
 
-const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
+const GameScreen: React.FC<GameScreenProps> = ({
+  gameSocket,
+  computer,
+  newGamePath = '/new',
+  onPlaying,
+}) => {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
   // Whether this client has sent join_game (players with a stored role never do)
@@ -42,8 +61,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // Errors the user has already dismissed (by count, since the log is append-only)
   const [dismissedErrorCount, setDismissedErrorCount] = React.useState(0);
   // Render mirror of the persisted role; localStorage is the source of truth
-  const [storedRole, setStoredRoleState] = React.useState(() =>
-    gameId ? getStoredRole(gameId) : null,
+  const computerColor = computer?.color ?? null;
+  const [storedRole, setStoredRoleState] = React.useState(
+    () => computerColor ?? (gameId ? getStoredRole(gameId) : null),
   );
   // The socket session a rejoin_game was last sent on, so each fresh socket
   // (page load or mid-game reconnect) rejoins at most once.
@@ -63,9 +83,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
 
   React.useEffect(() => {
     // Re-sync when the route's gameId changes (a different game's page)
-    setStoredRoleState(gameId ? getStoredRole(gameId) : null);
+    setStoredRoleState(computerColor ?? (gameId ? getStoredRole(gameId) : null));
     rejoinSessionRef.current = 0;
-  }, [gameId]);
+  }, [gameId, computerColor]);
 
   const { messages, sessionId, sessionStartIndex, status } = gameSocket;
 
@@ -344,7 +364,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   // The lobby has begun to fade off the game: its entrance plays under it
   const [revealed, setRevealed] = React.useState(false);
   const [gameDrawn, setGameDrawn] = React.useState(false);
-  const lobbyShown = React.useRef(false);
+  const lobbyShown = React.useRef(!!computer?.arriving);
   if (phase === 'started' && lobbyShown.current && handover === 'none') setHandover('arrive');
   React.useEffect(() => {
     if (handover === 'arrive' && arrived && gameDrawn) setHandover('leave');
@@ -377,7 +397,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
   let lobbyView: LobbyStage | null = null;
   if (phase === 'started') {
     if ((handover === 'arrive' || handover === 'leave') && color) {
-      const host = wasHost.current;
+      // (the computer, like a friend, takes the seat the player left)
+      const host = wasHost.current || !!computer;
       lobbyView = {
         beat: handover,
         taken: { white: true, black: true },
@@ -387,7 +408,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         seat: color,
         // The seat that has just filled: the guest's own, or the host's opponent's
         arriving: host ? other(color) : color,
-        caption: host ? 'Opponent joined' : `You play ${color === 'white' ? 'White' : 'Black'}`,
+        caption: computer
+          ? `Computer · ${DIFFICULTY_NAME[computer.difficulty]}`
+          : host
+            ? 'Opponent joined'
+            : `You play ${color === 'white' ? 'White' : 'Black'}`,
         onArrived: () => setArrived(true),
         onReveal: () => setRevealed(true),
         onLeft: () => setHandover('done'),
@@ -441,6 +466,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         color={color}
         opponentOnline={opponentOnline}
         reconnecting={status === 'reconnecting'}
+        opponentName={computer ? 'Computer' : undefined}
+        newGamePath={newGamePath}
         boardDisabled={boardDisabled}
         onMove={handleMove}
         promotionChoices={promotionChoices}
@@ -461,6 +488,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
         // Held on its first frame while the lobby plays out over it
         introPaused={handover === 'arrive' || (handover === 'leave' && !revealed)}
         onFirstFrame={() => setGameDrawn(true)}
+        onIntroDone={onPlaying}
       />
     );
   }
@@ -511,7 +539,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameSocket }) => {
       {hosting && storedRole ? (
         <InviteCard link={shareLink} seat={storedRole} />
       ) : guest ? (
-        <InvitationCard invitation={invitation} connection={status} onAccept={acceptInvitation} />
+        <InvitationCard
+          invitation={invitation}
+          connection={status}
+          onAccept={acceptInvitation}
+          newGamePath={newGamePath}
+        />
       ) : (
         // A stored seat, rejoining: a moment
         <p className="lobby-foot" role="status">

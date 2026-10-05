@@ -87,6 +87,13 @@ describe('describeTurn', () => {
     expect(describeTurn(history, 'white')).toBe('Stalemate. Draw.');
   });
 
+  it('names the other draws', () => {
+    const repetition = { ...replay([]), gameOver: { result: 'repetition' as const } };
+    expect(describeTurn(repetition, 'white')).toBe('Repetition. Draw.');
+    const fifty = { ...replay([]), gameOver: { result: 'fifty-moves' as const } };
+    expect(describeTurn(fifty, null)).toBe('50-move rule. Draw.');
+  });
+
   it('works for a player whose seat is not yet known', () => {
     expect(describeTurn(replay([]), null)).toBe('White to move.');
   });
