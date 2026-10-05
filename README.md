@@ -816,8 +816,10 @@ Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking t
 ## The tutorial
 
 `/learn` (and `/learn/<lesson>`: `rook`, `bishop`, `unicorn`, `queen`, `king`, `knight`,
-`pawn`) teaches how the pieces move on the real tower and rules, a lesson per piece
-(`screens/learn/LearnScreen.tsx`, the lessons in `game/lessons.ts`), through staged positions
+`pawn`) opens on Setup, the armies as a game starts (nothing picked up, the board only to
+look at, and in the card each side's pieces counted, the two unicorns and ten pawns lit as
+what chess doesn't have), then teaches how the pieces move on the real tower and rules, a
+lesson per piece (`screens/learn/LearnScreen.tsx`, the lessons in `game/lessons.ts`), through staged positions
 rather than text: a sentence or two a step, said plainly as a teacher would ("Rooks move in a
 straight line, in any of 6 directions: left, right, forwards, backwards, up or down."), and a
 quieter note only for a rule the board can't show, such as no castling. A direction is only
@@ -833,8 +835,9 @@ steps: Move, Capture (a piece on each of its five capture squares) and Promote (
 already on the far rank but two levels short, through the real promotion dialog; the figure
 shows White's row and Black's, on White's side). Each is shown for White, then for Black
 (a switch of two pawns beside the heading, and Next goes through both): Black's is White's
-position mirrored in rank and level, its pawn going backwards and down, and the board stays
-White's way round (`playerColor={null}`) so it comes towards you. Next runs through every
+position mirrored in rank and level, seen from Black's side (the board seated as Black, as in
+a game, and the card's figures turned with it), so its words are Black's own: its pawns move
+forwards or down, never backwards or up, and promote on the far rank of the bottom level. Next runs through every
 step and lesson to "Play a game" (`/new`).
 
 The board is the game's `Board` with `showMovesOf`, a square whose piece it keeps picked

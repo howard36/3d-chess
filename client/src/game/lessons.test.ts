@@ -10,6 +10,7 @@ import {
   UNICORN_VECTORS,
 } from '../engine/pieces';
 import {
+  ARMY,
   CORNERS,
   EDGES,
   FACES,
@@ -31,8 +32,9 @@ const asSteps = (vectors: ReadonlyArray<readonly [number, number, number]>) =>
 const sorted = (steps: readonly Step[]) => steps.map((s) => s.join()).sort();
 
 describe('the lessons', () => {
-  it('teach every piece, the unicorn as the new one', () => {
+  it('set the armies out first, then teach every piece, the unicorn as the new one', () => {
     expect(LESSONS.map((l) => l.id)).toEqual([
+      'setup',
       'rook',
       'bishop',
       'unicorn',
@@ -42,8 +44,41 @@ describe('the lessons', () => {
       'pawn',
     ]);
     expect(LESSONS.filter((l) => l.isNew).map((l) => l.id)).toEqual(['unicorn']);
-    expect(new Set(LESSONS.map((l) => l.piece))).toEqual(new Set(Object.values(PieceType)));
+    expect(new Set(LESSONS.flatMap((l) => l.piece ?? []))).toEqual(
+      new Set(Object.values(PieceType)),
+    );
     expect(lessonById('nonsense')).toBeUndefined();
+  });
+
+  it('show the armies as a game starts, nothing picked up, and count what each side has', () => {
+    const [setup] = lesson('setup').steps;
+    expect(setup.focus).toBeUndefined();
+    expect(setup.army).toBe(true);
+    const start = Board.setupStartingPosition();
+    const board = startPractice(setup).board;
+    for (const { at } of setup.pieces)
+      expect(board.getPiece(fromZXY(at))).toEqual(start.getPiece(fromZXY(at)));
+    for (const color of ['white', 'black'] as const) {
+      const own = setup.pieces.filter((p) => p.color === color);
+      expect(own).toHaveLength(20);
+      // The card's count of each kind is the board's
+      for (const { type, count } of ARMY)
+        expect(own.filter((p) => p.type === type)).toHaveLength(count);
+    }
+    expect(ARMY.reduce((n, a) => n + a.count, 0)).toBe(20);
+    // What chess doesn't have: the unicorns, and two more pawns
+    expect(ARMY.filter((a) => a.new).map((a) => a.type)).toEqual([
+      PieceType.Unicorn,
+      PieceType.Pawn,
+    ]);
+    // White's at the bottom, Black's at the top
+    expect(new Set(setup.pieces.filter((p) => p.color === 'white').map((p) => p.at[0]))).toEqual(
+      new Set(['A', 'B']),
+    );
+    expect(new Set(setup.pieces.filter((p) => p.color === 'black').map((p) => p.at[0]))).toEqual(
+      new Set(['D', 'E']),
+    );
+    expect(reachable(startPractice(setup))).toBe(0);
   });
 
   it('show every piece but the pawn alone in the middle of an empty board, in one step', () => {
@@ -72,7 +107,7 @@ describe('the lessons', () => {
     }
   });
 
-  it("teach the pawn for each side, Black's going the other way", () => {
+  it("teach the pawn for each side, Black's said from Black's side: forwards and down", () => {
     const pawn = lesson('pawn');
     expect(pawn.bothSides).toBe(true);
     for (const step of pawn.steps) {
@@ -80,6 +115,11 @@ describe('the lessons', () => {
       expect(stepFor(step, 'black').line).toMatch(/^Black’s pawns/);
     }
     expect(LESSONS.filter((l) => l.bothSides).map((l) => l.id)).toEqual(['pawn']);
+    const black = pawn.steps.map((s) => stepFor(s, 'black').line);
+    expect(black[0]).toMatch(/forwards or one square down/);
+    expect(black[1]).toMatch(/never backwards or up/);
+    // Black's pawns go forwards, never "backwards", as they see it
+    for (const line of black) expect(line).not.toMatch(/backwards or down|forwards or up/);
     // Only a step with words for Black has a Black side
     expect(stepFor(lesson('rook').steps[0], 'black')).toBe(lesson('rook').steps[0]);
   });
@@ -100,14 +140,14 @@ describe('the lessons', () => {
         [0, -1, 0],
         [0, 0, -1],
       ],
-      caption: 'Backwards or down',
+      caption: 'Forwards or down',
     });
     expect(startPractice(capture).side).toBe('black');
   });
 
   it("say where Black's pawns promote: on White's side", () => {
     const promote = stepFor(lesson('pawn').steps[2], 'black');
-    expect(promote.line).toMatch(/Black.*White’s side.*near rank of the bottom level/);
+    expect(promote.line).toMatch(/Black.*far rank of the bottom level, on White’s side/);
     expect(promote.focus).toBe('Cc1');
     const black = new Board();
     expect(black.isPromotionSquare(fromZXY('Ac1'), 'black')).toBe(true);
@@ -136,6 +176,8 @@ describe('the lessons', () => {
     // Black's pawn, the other way, has as many
     expect(black).toEqual([2, 7, 1]);
     expect(counts).toEqual({
+      // Nothing picked up: the armies are only to look at
+      'setup.0': 0,
       'rook.0': 12,
       'bishop.0': 24,
       'unicorn.0': 16,
@@ -155,7 +197,7 @@ describe('the lessons', () => {
     (side) => {
       const step = stepFor(lesson('pawn').steps[1], side);
       const practice = startPractice(step);
-      const from = fromZXY(step.focus);
+      const from = fromZXY(step.focus!);
       const delta = (to: { x: number; y: number; z: number }) =>
         [to.x - from.x, to.y - from.y, to.z - from.z].join();
       const moves = practice.board.generateLegalMoves(from);
@@ -168,11 +210,11 @@ describe('the lessons', () => {
 
   it("promote Black's pawn on level A, rank 1", () => {
     const start = startPractice(stepFor(lesson('pawn').steps[2], 'black'));
-    const [down] = start.board.generateLegalMoves(start.focus);
+    const [down] = start.board.generateLegalMoves(start.focus!);
     expect(toZXY(down.to)).toBe('Bc1');
     const climbed = practise(start, down);
     expect(climbed.side).toBe('black');
-    const promotions = climbed.board.generateLegalMoves(climbed.focus);
+    const promotions = climbed.board.generateLegalMoves(climbed.focus!);
     expect(new Set(promotions.map((m) => toZXY(m.to)))).toEqual(new Set(['Ac1']));
     expect(promotions.every((m) => m.promotion)).toBe(true);
   });
@@ -242,10 +284,10 @@ describe('practice', () => {
 
   it('promotes only on the top level’s far rank', () => {
     const start = startPractice(lesson('pawn').steps[2]);
-    const up = start.board.generateLegalMoves(start.focus);
+    const up = start.board.generateLegalMoves(start.focus!);
     expect(up.map((m) => [toZXY(m.to), m.promotion])).toEqual([['Dc5', undefined]]);
     const climbed = practise(start, up[0]);
-    const promotions = climbed.board.generateLegalMoves(climbed.focus);
+    const promotions = climbed.board.generateLegalMoves(climbed.focus!);
     expect(new Set(promotions.map((m) => toZXY(m.to)))).toEqual(new Set(['Ec5']));
     expect(promotions.map((m) => m.promotion)).toContain(PieceType.Unicorn);
     const promoted = practise(climbed, promotions.find((m) => m.promotion === PieceType.Unicorn)!);

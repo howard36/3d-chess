@@ -1,4 +1,6 @@
+import { ARMY } from '../../game/lessons';
 import type { LessonStep, Side, Step } from '../../game/lessons';
+import { PieceGlyph } from '../PieceGlyph';
 
 // The lines a piece moves along, drawn from the middle of a little cube:
 // a rook's to the middles of its faces, a bishop's to the middles of its
@@ -34,11 +36,22 @@ const cubeEdges = (h: number): [Step, Step][] => {
 
 const fmt = (n: number) => Math.round(n * 10) / 10;
 
-export function Directions({ directions }: { directions: NonNullable<LessonStep['directions']> }) {
+/** A step as seen from `side`'s end of the board: from Black's, files and ranks run the other way. */
+const seenFrom = (side: Side, [x, y, z]: Step): Step =>
+  side === 'black' ? [-x, -y, z] : [x, y, z];
+
+export function Directions({
+  directions,
+  side = 'white',
+}: {
+  directions: NonNullable<LessonStep['directions']>;
+  /** The side the board is seen from, which the drawing is too. */
+  side?: Side;
+}) {
   const { moves, captures = [], reach, caption } = directions;
   const all = [
-    ...moves.map((s) => ({ s, colour: MOVE })),
-    ...captures.map((s) => ({ s, colour: CAPTURE })),
+    ...moves.map((s) => ({ s: seenFrom(side, s), colour: MOVE })),
+    ...captures.map((s) => ({ s: seenFrom(side, s), colour: CAPTURE })),
   ];
   // The cube reaches as far as the farthest step; a slider's lines run on past it
   const h = Math.max(1, ...all.flatMap(({ s }) => s.map(Math.abs)));
@@ -133,15 +146,17 @@ const FADED = 0.35;
  * Where a pawn promotes: the five levels stacked, White's row (the far rank
  * of the top level) in a destination's gold and Black's (the near rank of the
  * bottom level, on White's side) in the charcoal army's pewter, the other
- * side's row faded.
+ * side's row faded, seen from `side`'s end as the board is.
  */
 export function PromotionRow({ side }: { side: Side }) {
   // A square's width and depth, and the rise from one level to the next, in squares of the cube
   const cell = 0.4;
   const deep = 2;
   const rise = 0.75;
+  // From Black's end, files and ranks run the other way
+  const turn = side === 'black' ? -1 : 1;
   const at = (x: number, y: number, z: number) =>
-    project([(x - 2.5) * cell, (y - 2.5) * cell * deep, (z - 2) * rise]);
+    project([turn * (x - 2.5) * cell, turn * (y - 2.5) * cell * deep, (z - 2) * rise]);
   const quad = (x0: number, y0: number, x1: number, y1: number, z: number) =>
     [at(x0, y0, z), at(x1, y0, z), at(x1, y1, z), at(x0, y1, z)]
       .map(([x, y]) => `${fmt(x)},${fmt(y)}`)
@@ -195,5 +210,39 @@ export function PromotionRow({ side }: { side: Side }) {
         <span className="learn-swatch" style={{ background: BLACK_ROW }} aria-hidden /> Black
       </figcaption>
     </figure>
+  );
+}
+
+/** What each side has as a game starts, the two counts chess doesn't have lit. */
+export function Army() {
+  return (
+    <figure className="learn-figure learn-army" aria-label="Each side's pieces">
+      <ul>
+        {ARMY.map(({ type, count, new: isNew }) => (
+          <li key={type} data-piece={type} data-new={isNew || undefined}>
+            <PieceGlyph type={type} color="white" size={20} />
+            <span>{count}</span>
+          </li>
+        ))}
+      </ul>
+    </figure>
+  );
+}
+
+/** The Setup lesson's tab: the tower's levels, stacked. */
+export function LevelsIcon() {
+  return (
+    <svg viewBox="0 0 22 22" width="22" height="22" aria-hidden>
+      {[5, 11, 17].map((y) => (
+        <path
+          key={y}
+          d={`M3 ${y + 2} L8 ${y - 2} H19 L14 ${y + 2} Z`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+      ))}
+    </svg>
   );
 }

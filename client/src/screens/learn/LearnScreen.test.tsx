@@ -59,10 +59,18 @@ const renderAt = async (at: string) => {
 const count = () => screen.getByTestId('learn-count').getAttribute('data-count');
 const board = () => screen.getByTestId('board');
 
-test('opens on the first lesson, the rook', async () => {
+test('opens on the armies as a game starts: what each side has, nothing picked up', async () => {
   await renderAt('/learn');
-  expect(screen.getByRole('heading', { level: 1, name: 'Rook' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Rook' })).toHaveAttribute('aria-current', 'page');
+  expect(screen.getByRole('heading', { level: 1, name: 'Setup' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Setup' })).toHaveAttribute('aria-current', 'page');
+  expect(screen.getByText(/Each side has 20 pieces/)).toBeInTheDocument();
+  // The unicorns and the pawns are what chess doesn't have
+  const army = screen.getByRole('figure', { name: "Each side's pieces" });
+  expect([...army.querySelectorAll('[data-new]')].map((e) => e.textContent)).toEqual(['2', '10']);
+  expect(board()).toHaveAttribute('data-focus', '');
+  expect(screen.queryByTestId('learn-count')).toBeNull();
+  await userEvent.click(screen.getByRole('button', { name: 'Next: Rook' }));
+  expect(screen.getByTestId('where')).toHaveTextContent('/learn/rook');
   expect(board()).toHaveAttribute('data-focus', 'Cc3');
 });
 
@@ -111,6 +119,8 @@ test('moves between lessons from the menu and from the card, keeping one canvas'
   expect(screen.getByRole('heading', { level: 1, name: 'Pawn' })).toBeInTheDocument();
   expect(board()).toBe(canvas);
   await userEvent.click(screen.getByRole('button', { name: 'Rook' }));
+  expect(screen.getByTestId('where')).toHaveTextContent('/learn/rook');
+  await userEvent.click(screen.getByRole('button', { name: 'Setup' }));
   expect(screen.getByTestId('where')).toHaveTextContent(/^\/learn$/);
 });
 
@@ -144,12 +154,14 @@ test("walks through the pawn's steps, each for White then Black, then on to a ga
   expect(pressed(side())).toEqual(['White']);
   expect(screen.getByText(/^White’s pawns move/)).toBeInTheDocument();
   expect(count()).toBe('2');
-  // Black's side of the same step: its pawn, going the other way
+  // Black's side of the same step, seen from Black's side: forwards and down
   await userEvent.click(screen.getByRole('button', { name: 'Next: Black' }));
   expect(pressed(steps)).toEqual(['Move']);
   expect(pressed(side())).toEqual(['Black']);
-  expect(screen.getByText(/^Black’s pawns go the other way/)).toBeInTheDocument();
-  expect(screen.getByText('Backwards or down')).toBeInTheDocument();
+  expect(
+    screen.getByText(/^Black’s pawns move one square forwards or one square down/),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Forwards or down')).toBeInTheDocument();
   expect(board()).toHaveAttribute('data-side', 'black');
   await userEvent.click(screen.getByRole('button', { name: 'ring Bc3' }));
   expect(board()).toHaveAttribute('data-focus', 'Bc3');
@@ -167,7 +179,9 @@ test("walks through the pawn's steps, each for White then Black, then on to a ga
   expect(document.querySelectorAll('[data-square^="E"][opacity="1"]')).toHaveLength(5);
   expect(document.querySelectorAll('[data-square^="A"]:not([opacity="1"])')).toHaveLength(5);
   await userEvent.click(within(side()).getByRole('button', { name: 'Black' }));
-  expect(screen.getByText(/^Black’s pawns promote on White’s side/)).toBeInTheDocument();
+  expect(
+    screen.getByText(/^Black’s pawns promote on the far rank of the bottom level/),
+  ).toBeInTheDocument();
   expect(board()).toHaveAttribute('data-focus', 'Cc1');
   expect(document.querySelectorAll('[data-square^="A"][opacity="1"]')).toHaveLength(5);
   await userEvent.click(screen.getByRole('button', { name: 'Next: Play a game' }));

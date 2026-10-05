@@ -192,6 +192,31 @@
   font-weight: 700;
   white-space: nowrap;
 }
+/* Each side's pieces: a glyph over its count, the counts chess doesn't have lit */
+.learn-army ul {
+  display: grid;
+  grid-template-columns: repeat(4, 24px);
+  gap: 4px 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.learn-army li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--hud-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.learn-army li[data-new] {
+  color: #f8c970;
+}
+.learn .learn-figure.learn-army li svg {
+  width: 20px;
+  height: 20px;
+}
 .learn-swatch {
   display: inline-block;
   width: 8px;

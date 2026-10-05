@@ -5,17 +5,25 @@ import type { Coord } from '../engine/coords';
 import { KNIGHT_VECTORS, PieceType } from '../engine/pieces';
 import type { LastMove } from './history';
 
-// The tutorial (/learn): a lesson per piece on the real tower and rules,
-// each piece alone in the middle of the board, picked up, every square it
-// can reach ringed. A piece captures as it moves, as in chess, so only the
+// The tutorial (/learn): first the armies as a game starts, then a lesson
+// per piece on the real tower and rules, each piece alone in the middle of
+// the board, picked up, every square it can reach ringed. A piece captures as it moves, as in chess, so only the
 // pawn has more to show: its captures and where it promotes, each for White
-// and for Black, whose pawns go the other way. The words are a sentence or
+// and for Black, seen from Black's side: its pawns go forwards and down. The words are a sentence or
 // two a step, said plainly; the board shows the rest. A direction is always
 // one of the six (left, right, forwards, backwards, up, down): a diagonal
 // goes two or three of them at once, and the ways a piece goes from its
 // square are its lines.
 
-export type LessonId = 'rook' | 'bishop' | 'unicorn' | 'queen' | 'king' | 'knight' | 'pawn';
+export type LessonId =
+  | 'setup'
+  | 'rook'
+  | 'bishop'
+  | 'unicorn'
+  | 'queen'
+  | 'king'
+  | 'knight'
+  | 'pawn';
 
 /** A line a piece moves along, as [file, rank, level] steps. */
 export type Step = readonly [number, number, number];
@@ -31,8 +39,8 @@ export interface LessonStep {
   note?: string;
   /** Where the pieces stand, as ZXY squares. */
   pieces: readonly { at: string; type: PieceType; color: 'white' | 'black' }[];
-  /** The piece kept picked up, its moves ringed. */
-  focus: string;
+  /** The piece kept picked up, its moves ringed; none, the board only to look at. */
+  focus?: string;
   /** The lines it moves along, for the little cube beside the words. */
   directions?: {
     moves: readonly Step[];
@@ -45,6 +53,8 @@ export interface LessonStep {
   };
   /** A picture of where a pawn promotes, in place of the cube. */
   promotionRow?: boolean;
+  /** A picture of the pieces each side has, in place of the cube. */
+  army?: boolean;
   /**
    * The step for Black, in a lesson with a side for each colour: its words,
    * and its caption where it differs. The position is White's, mirrored.
@@ -56,8 +66,8 @@ export interface Lesson {
   id: LessonId;
   /** Its name in the menu and its heading. */
   name: string;
-  /** The piece its menu entry shows. */
-  piece: PieceType;
+  /** The piece its menu entry shows; none, the tower's levels. */
+  piece?: PieceType;
   /** A piece 2D chess does not have. */
   isNew?: boolean;
   /** Each step shown for White, then for Black (its steps' `black`). */
@@ -82,12 +92,43 @@ const SQUARES: Coord[] = [];
 for (let z = 0; z < 5; z++)
   for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) SQUARES.push({ x, y, z });
 
+/** The armies as a game starts: White on the bottom two levels, Black on the top two. */
+const START: LessonStep['pieces'] = (() => {
+  const board = Board.setupStartingPosition();
+  return SQUARES.flatMap((at) => {
+    const piece = board.getPiece(at);
+    return piece ? [{ at: toZXY(at), type: piece.type, color: piece.color }] : [];
+  });
+})();
+
+/** What each side has, as a game starts, in the order the card shows it. */
+export const ARMY: readonly { type: PieceType; count: number; new?: boolean }[] = [
+  { type: PieceType.King, count: 1 },
+  { type: PieceType.Queen, count: 1 },
+  { type: PieceType.Rook, count: 2 },
+  { type: PieceType.Bishop, count: 2 },
+  { type: PieceType.Knight, count: 2 },
+  { type: PieceType.Unicorn, count: 2, new: true },
+  { type: PieceType.Pawn, count: 10, new: true },
+];
+
 /** A piece's one step: its moves from the middle of the board. */
 const lesson = (type: PieceType, move: Pick<LessonStep, 'line' | 'note' | 'directions'>) => [
   { pieces: [{ at: 'Cc3', type, color: 'white' as const }], focus: 'Cc3', ...move },
 ];
 
 export const LESSONS: readonly Lesson[] = [
+  {
+    id: 'setup',
+    name: 'Setup',
+    steps: [
+      {
+        line: 'Each side has 20 pieces, including two unicorns and ten pawns. White starts at the bottom, Black at the top.',
+        pieces: START,
+        army: true,
+      },
+    ],
+  },
   {
     id: 'rook',
     name: 'Rook',
@@ -164,8 +205,8 @@ export const LESSONS: readonly Lesson[] = [
           caption: 'Forwards or up',
         },
         black: {
-          line: 'Black\u2019s pawns go the other way: one square backwards or one square down.',
-          caption: 'Backwards or down',
+          line: 'Black\u2019s pawns move one square forwards or one square down, never two.',
+          caption: 'Forwards or down',
         },
       },
       {
@@ -196,7 +237,7 @@ export const LESSONS: readonly Lesson[] = [
           caption: '5 captures',
         },
         black: {
-          line: 'Black\u2019s pawns capture one square diagonally, like a bishop, but never forwards or up.',
+          line: 'Black\u2019s pawns capture one square diagonally, like a bishop, but never backwards or up.',
         },
       },
       {
@@ -207,7 +248,7 @@ export const LESSONS: readonly Lesson[] = [
         focus: 'Cc5',
         promotionRow: true,
         black: {
-          line: 'Black\u2019s pawns promote on White\u2019s side: the near rank of the bottom level.',
+          line: 'Black\u2019s pawns promote on the far rank of the bottom level, on White\u2019s side.',
         },
       },
     ],
@@ -226,9 +267,9 @@ const mirrorStep = ([file, rank, level]: Step): Step => [file, 0 - rank, 0 - lev
 const other = (color: Side): Side => (color === 'white' ? 'black' : 'white');
 
 /**
- * A step as `side` sees it. Black's is White's position turned round (each
- * piece's rank and level mirrored and its colour swapped) with Black's own
- * words: its pawns go backwards and down where White's go forwards and up.
+ * A step for `side`. Black's is White's position turned round (each piece's
+ * rank and level mirrored and its colour swapped) with Black's own words,
+ * said from Black's side: its pawns go forwards and down.
  */
 export const stepFor = (step: LessonStep, side: Side): LessonStep => {
   if (side === 'white' || !step.black) return step;
@@ -238,7 +279,7 @@ export const stepFor = (step: LessonStep, side: Side): LessonStep => {
     line: black.line,
     note: black.note,
     pieces: step.pieces.map((p) => ({ ...p, at: mirror(p.at), color: other(p.color) })),
-    focus: mirror(step.focus),
+    focus: step.focus && mirror(step.focus),
     directions: directions && {
       ...directions,
       moves: directions.moves.map(mirrorStep),
@@ -284,17 +325,17 @@ export class LessonBoard extends Board {
 /** A lesson's position as it stands: the board, the picked-up piece and the last move. */
 export interface Practice {
   board: LessonBoard;
-  /** Where the lesson's piece stands now. */
-  focus: Coord;
+  /** Where the lesson's piece stands now; null where none is picked up. */
+  focus: Coord | null;
   /** The lesson's piece's colour, the side that moves. */
   side: Side;
   lastMove?: LastMove;
 }
 
 export const startPractice = (step: LessonStep): Practice => {
-  const focus = fromZXY(step.focus);
+  const focus = step.focus ? fromZXY(step.focus) : null;
   const board = LessonBoard.from(step.pieces);
-  return { board, focus, side: board.getPiece(focus)?.color ?? 'white' };
+  return { board, focus, side: (focus && board.getPiece(focus)?.color) || 'white' };
 };
 
 /** The position after `move`: the piece it moved stays picked up. */
@@ -311,6 +352,7 @@ export const practise = (practice: Practice, move: Move): Practice => ({
 
 /** The squares the lesson's piece can reach from where it stands. */
 export const reachable = (practice: Practice): number => {
-  if (!practice.board.getPiece(practice.focus)) return 0;
-  return new Set(practice.board.generateLegalMoves(practice.focus).map((m) => toZXY(m.to))).size;
+  const { board, focus } = practice;
+  if (!focus || !board.getPiece(focus)) return 0;
+  return new Set(board.generateLegalMoves(focus).map((m) => toZXY(m.to))).size;
 };

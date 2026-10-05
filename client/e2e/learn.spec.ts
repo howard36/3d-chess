@@ -13,8 +13,12 @@ test('the start page leads to the tutorial, which draws its board and walks the 
   await page.goto('/');
   await page.getByRole('button', { name: 'How the pieces move' }).click();
   await expect(page).toHaveURL(/\/learn$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Rook' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Setup' })).toBeVisible();
   await expect(page.getByTestId('learn-canvas')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Next: Rook' }).click();
+  await expect(page).toHaveURL(/\/learn\/rook$/);
+  await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '12');
 
   await page.getByRole('button', { name: 'Unicorn', exact: true }).click();
   await expect(page).toHaveURL(/\/learn\/unicorn$/);
@@ -26,6 +30,9 @@ test('the start page leads to the tutorial, which draws its board and walks the 
 
   await page.getByRole('button', { name: 'Pawn', exact: true }).click();
   await page.getByRole('button', { name: 'Capture', exact: true }).click();
+  await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '7');
+  // Black's side of it, the board turned round
+  await page.getByRole('button', { name: 'Next: Black' }).click();
   await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '7');
 
   // A drag turns the view: the board takes it, the page does not move

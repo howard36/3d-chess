@@ -14,7 +14,7 @@ import type { Lesson, Side } from '../../game/lessons';
 import type { Move } from '../../engine';
 import { PieceGlyph } from '../PieceGlyph';
 import PromotionPicker from '../PromotionPicker';
-import { Directions, PromotionRow } from './Directions';
+import { Army, Directions, LevelsIcon, PromotionRow } from './Directions';
 import { cardBeside } from './learnLayout';
 import './learn.css';
 
@@ -28,8 +28,9 @@ const lessonPath = (lesson: Lesson) =>
   lesson.id === LESSONS[0].id ? '/learn' : `/learn/${lesson.id}`;
 
 /**
- * The tutorial (/learn, /learn/:lesson): how each piece moves on the tower,
- * for a player who knows chess. A menu of the pieces across the top, the
+ * The tutorial (/learn, /learn/:lesson): the armies as a game starts, then
+ * how each piece moves on the tower, for a player who knows chess. A menu of
+ * the lessons in the card, the
  * tower in the middle with the lesson's piece picked up and its moves ringed
  * (a ring tapped plays the move, and the piece is picked up again where it
  * lands), and the lesson's few words in a card at the bottom. The pawn's
@@ -132,7 +133,7 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
               title={l.name}
               onClick={() => navigate(lessonPath(l), { replace: true })}
             >
-              <PieceGlyph type={l.piece} color="white" size={22} />
+              {l.piece ? <PieceGlyph type={l.piece} color="white" size={22} /> : <LevelsIcon />}
             </button>
           ))}
         </nav>
@@ -150,7 +151,7 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
                   title={s === 'white' ? 'White' : 'Black'}
                   onClick={() => setSide(s)}
                 >
-                  <PieceGlyph type={lesson.piece} color={s} size={18} />
+                  <PieceGlyph type={lesson.piece!} color={s} size={18} />
                 </button>
               ))}
             </div>
@@ -171,7 +172,8 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
           )}
         </div>
         <div className="learn-body">
-          {step.directions && <Directions directions={step.directions} />}
+          {step.army && <Army />}
+          {step.directions && <Directions directions={step.directions} side={side} />}
           {step.promotionRow && <PromotionRow side={side} />}
           <div className="learn-words">
             <p className="learn-line">{step.line}</p>
@@ -179,7 +181,7 @@ const LessonView = ({ lesson }: { lesson: Lesson }) => {
           </div>
         </div>
         <div className="learn-foot">
-          {!noBoard && (
+          {!noBoard && practice.focus && (
             <p
               className="learn-count"
               data-testid="learn-count"

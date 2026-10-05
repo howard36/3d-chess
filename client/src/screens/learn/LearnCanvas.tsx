@@ -16,9 +16,9 @@ import type { Move } from '../../engine';
 import type { Practice } from '../../game/lessons';
 import { LEARN_CARD_PX, LEARN_TOP_PX, cardBeside, learnTop } from './learnLayout';
 
-// The tutorial's board: the real tower and its rules, White's side nearest
-// (Black's lessons too: its pawns come towards you), the lesson's piece
-// picked up and its moves ringed. In the chunk the game's
+// The tutorial's board: the real tower and its rules, the side the lesson is
+// for nearest (Black's pawns are seen from Black's side, going forwards and
+// down), the lesson's piece picked up and its moves ringed. In the chunk the game's
 // board shares. It never publishes __r3fState: e2e projects clicks through
 // the game's canvas only.
 
@@ -76,7 +76,7 @@ const LearnCanvas = ({
     <Canvas
       data-testid="learn-canvas"
       role="img"
-      aria-label="The 3D board, White's side nearest, with the lesson's piece and the squares it can reach."
+      aria-label={`The 3D board, ${practice.side === 'white' ? 'White' : 'Black'}'s side nearest, with the lesson's pieces.`}
       style={{
         height: '100%',
         width: '100%',
@@ -92,19 +92,19 @@ const LearnCanvas = ({
       events={pointerEvents}
     >
       <BackdropCache>
-        <Stage orientation="white" />
+        <Stage orientation={practice.side} />
       </BackdropCache>
       <Board
         key={boardKey}
         board={practice.board}
         currentTurn={practice.side}
-        // Seated as no one: the board stays White's way round for Black's
-        // lessons too, and the side on turn is the lesson's piece's
-        playerColor={null}
+        // Seated as the lesson's piece's side, the board turned its way
+        playerColor={practice.side}
         onMove={onMove}
         onChoosePromotion={onChoosePromotion}
         lastMove={practice.lastMove}
-        disabled={disabled}
+        // A board with nothing picked up is only to look at
+        disabled={disabled || !practice.focus}
         showMovesOf={practice.focus}
       />
       <CameraControls
