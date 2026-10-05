@@ -1,5 +1,5 @@
 import { ARMY } from '../../game/lessons';
-import type { LessonStep, Side, Step } from '../../game/lessons';
+import type { LessonStep, Step } from '../../game/lessons';
 import { PieceGlyph } from '../PieceGlyph';
 
 // The lines a piece moves along, drawn from the middle of a little cube:
@@ -36,22 +36,11 @@ const cubeEdges = (h: number): [Step, Step][] => {
 
 const fmt = (n: number) => Math.round(n * 10) / 10;
 
-/** A step as seen from `side`'s end of the board: from Black's, files and ranks run the other way. */
-const seenFrom = (side: Side, [x, y, z]: Step): Step =>
-  side === 'black' ? [-x, -y, z] : [x, y, z];
-
-export function Directions({
-  directions,
-  side = 'white',
-}: {
-  directions: NonNullable<LessonStep['directions']>;
-  /** The side the board is seen from, which the drawing is too. */
-  side?: Side;
-}) {
+export function Directions({ directions }: { directions: NonNullable<LessonStep['directions']> }) {
   const { moves, captures = [], reach, caption } = directions;
   const all = [
-    ...moves.map((s) => ({ s: seenFrom(side, s), colour: MOVE })),
-    ...captures.map((s) => ({ s: seenFrom(side, s), colour: CAPTURE })),
+    ...moves.map((s) => ({ s, colour: MOVE })),
+    ...captures.map((s) => ({ s, colour: CAPTURE })),
   ];
   // The cube reaches as far as the farthest step; a slider's lines run on past it
   const h = Math.max(1, ...all.flatMap(({ s }) => s.map(Math.abs)));
@@ -139,24 +128,19 @@ const LEVEL_EDGES = ['#00d7e0', '#58c1ff', '#96a7ff', '#c48be5', '#de77ab'];
 
 /** Black's promotion squares: the charcoal army's pewter. */
 const BLACK_ROW = '#7c8391';
-/** The other side's promotion row, there to compare. */
-const FADED = 0.35;
 
 /**
  * Where a pawn promotes: the five levels stacked, White's row (the far rank
  * of the top level) in a destination's gold and Black's (the near rank of the
- * bottom level, on White's side) in the charcoal army's pewter, the other
- * side's row faded, seen from `side`'s end as the board is.
+ * bottom level, on White's side) in the charcoal army's pewter.
  */
-export function PromotionRow({ side }: { side: Side }) {
+export function PromotionRow() {
   // A square's width and depth, and the rise from one level to the next, in squares of the cube
   const cell = 0.4;
   const deep = 2;
   const rise = 0.75;
-  // From Black's end, files and ranks run the other way
-  const turn = side === 'black' ? -1 : 1;
   const at = (x: number, y: number, z: number) =>
-    project([turn * (x - 2.5) * cell, turn * (y - 2.5) * cell * deep, (z - 2) * rise]);
+    project([(x - 2.5) * cell, (y - 2.5) * cell * deep, (z - 2) * rise]);
   const quad = (x0: number, y0: number, x1: number, y1: number, z: number) =>
     [at(x0, y0, z), at(x1, y0, z), at(x1, y1, z), at(x0, y1, z)]
       .map(([x, y]) => `${fmt(x)},${fmt(y)}`)
@@ -191,7 +175,6 @@ export function PromotionRow({ side }: { side: Side }) {
             key={`black-${x}`}
             points={quad(x + 0.12, 0.12, x + 0.88, 0.88, 0)}
             fill={BLACK_ROW}
-            opacity={side === 'black' ? 1 : FADED}
             data-square={`A${'abcde'[x]}1`}
           />
         ))}
@@ -200,7 +183,6 @@ export function PromotionRow({ side }: { side: Side }) {
             key={`white-${x}`}
             points={quad(x + 0.12, 4.12, x + 0.88, 4.88, 4)}
             fill={MOVE}
-            opacity={side === 'white' ? 1 : FADED}
             data-square={`E${'abcde'[x]}5`}
           />
         ))}

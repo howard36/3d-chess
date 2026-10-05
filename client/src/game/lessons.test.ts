@@ -21,7 +21,6 @@ import {
   practise,
   reachable,
   startPractice,
-  stepFor,
 } from './lessons';
 import type { Step } from './lessons';
 
@@ -88,12 +87,16 @@ describe('the lessons', () => {
       expect(move.pieces).toEqual([{ at: 'Cc3', type: lesson(id).piece, color: 'white' }]);
       expect(move.focus).toBe('Cc3');
     }
-    expect(lesson('pawn').steps.map((s) => s.label)).toEqual(['Move', 'Capture', 'Promote']);
+    expect(lesson('pawn').steps.map((s) => s.label)).toEqual([
+      'Move',
+      'Black',
+      'Capture',
+      'Promote',
+    ]);
   });
 
   it('say each step in a sentence or two, and a note in a short one', () => {
-    const sides = LESSONS.flatMap((l) => l.steps).flatMap((s) => [s, stepFor(s, 'black')]);
-    for (const step of sides) {
+    for (const step of LESSONS.flatMap((l) => l.steps)) {
       expect(step.line.split(' ').length).toBeLessThanOrEqual(20);
       if (step.note) expect(step.note.split(' ').length).toBeLessThanOrEqual(10);
     }
@@ -107,51 +110,29 @@ describe('the lessons', () => {
     }
   });
 
-  it("teach the pawn for each side, Black's said from Black's side: forwards and down", () => {
-    const pawn = lesson('pawn');
-    expect(pawn.bothSides).toBe(true);
-    for (const step of pawn.steps) {
-      expect(step.line).toMatch(/^White’s pawns/);
-      expect(stepFor(step, 'black').line).toMatch(/^Black’s pawns/);
-    }
-    expect(LESSONS.filter((l) => l.bothSides).map((l) => l.id)).toEqual(['pawn']);
-    const black = pawn.steps.map((s) => stepFor(s, 'black').line);
-    expect(black[0]).toMatch(/forwards or one square down/);
-    expect(black[1]).toMatch(/never backwards or up/);
-    // Black's pawns go forwards, never "backwards", as they see it
-    for (const line of black) expect(line).not.toMatch(/backwards or down|forwards or up/);
-    // Only a step with words for Black has a Black side
-    expect(stepFor(lesson('rook').steps[0], 'black')).toBe(lesson('rook').steps[0]);
-  });
-
-  it("mirror White's position for Black: the rank and level turned round, the colours swapped", () => {
-    const capture = stepFor(lesson('pawn').steps[1], 'black');
-    expect(capture.focus).toBe('Cc3');
-    expect(capture.pieces).toEqual([
-      { at: 'Cc3', type: PieceType.Pawn, color: 'black' },
-      { at: 'Cb2', type: PieceType.Pawn, color: 'white' },
-      { at: 'Cd2', type: PieceType.Knight, color: 'white' },
-      { at: 'Bb3', type: PieceType.Bishop, color: 'white' },
-      { at: 'Bd3', type: PieceType.Pawn, color: 'white' },
-      { at: 'Bc2', type: PieceType.Unicorn, color: 'white' },
-    ]);
-    expect(stepFor(lesson('pawn').steps[0], 'black').directions).toMatchObject({
-      moves: [
-        [0, -1, 0],
-        [0, 0, -1],
-      ],
-      caption: 'Forwards or down',
-    });
-    expect(startPractice(capture).side).toBe('black');
+  it("show Black's pawn as White's in a mirror, without forwards or backwards", () => {
+    const [white, black] = lesson('pawn').steps;
+    expect(black.label).toBe('Black');
+    expect(black.pieces).toEqual([{ at: 'Cc3', type: PieceType.Pawn, color: 'black' }]);
+    expect(black.focus).toBe('Cc3');
+    // The opposite way: rank and level turned round
+    expect(sorted(black.directions!.moves)).toEqual(
+      sorted(white.directions!.moves.map(([f, r, l]) => [f, 0 - r, 0 - l])),
+    );
+    expect(black.line).toMatch(/^Black’s pawns mirror White’s/);
+    expect(black.line).not.toMatch(/forward|backward/);
+    expect(startPractice(black).side).toBe('black');
+    // The engine agrees: Black's pawn steps down a level and a rank towards White
+    const moves = startPractice(black).board.generateLegalMoves(fromZXY('Cc3'));
+    expect(new Set(moves.map((m) => toZXY(m.to)))).toEqual(new Set(['Cc2', 'Bc3']));
   });
 
   it("say where Black's pawns promote: on White's side", () => {
-    const promote = stepFor(lesson('pawn').steps[2], 'black');
-    expect(promote.line).toMatch(/Black.*far rank of the bottom level, on White’s side/);
-    expect(promote.focus).toBe('Cc1');
-    const black = new Board();
-    expect(black.isPromotionSquare(fromZXY('Ac1'), 'black')).toBe(true);
-    expect(black.isPromotionSquare(fromZXY('Ec5'), 'black')).toBe(false);
+    const promote = lesson('pawn').steps[3];
+    expect(promote.note).toMatch(/Black.*White’s side.*level A, rank 1/);
+    const board = new Board();
+    expect(board.isPromotionSquare(fromZXY('Ac1'), 'black')).toBe(true);
+    expect(board.isPromotionSquare(fromZXY('Ec5'), 'black')).toBe(false);
   });
 
   it("draw each piece's directions as the engine moves it", () => {
@@ -172,9 +153,6 @@ describe('the lessons', () => {
     const counts = Object.fromEntries(
       LESSONS.flatMap((l) => l.steps.map((s, i) => [`${l.id}.${i}`, reachable(startPractice(s))])),
     );
-    const black = lesson('pawn').steps.map((s) => reachable(startPractice(stepFor(s, 'black'))));
-    // Black's pawn, the other way, has as many
-    expect(black).toEqual([2, 7, 1]);
     expect(counts).toEqual({
       // Nothing picked up: the armies are only to look at
       'setup.0': 0,
@@ -185,38 +163,26 @@ describe('the lessons', () => {
       'king.0': 26,
       'knight.0': 24,
       'pawn.0': 2,
+      // Black's, the other way, as many
+      'pawn.1': 2,
       // Its two steps and the five pieces it can take
-      'pawn.1': 7,
+      'pawn.2': 7,
       // Only up: it is on the far rank already
-      'pawn.2': 1,
+      'pawn.3': 1,
     });
   });
 
-  it.each(['white', 'black'] as const)(
-    "put a capture on every one of %s's pawn's capture squares, and draw them",
-    (side) => {
-      const step = stepFor(lesson('pawn').steps[1], side);
-      const practice = startPractice(step);
-      const from = fromZXY(step.focus!);
-      const delta = (to: { x: number; y: number; z: number }) =>
-        [to.x - from.x, to.y - from.y, to.z - from.z].join();
-      const moves = practice.board.generateLegalMoves(from);
-      const takes = moves.filter((m) => practice.board.getPiece(m.to)).map((m) => delta(m.to));
-      const steps = moves.filter((m) => !practice.board.getPiece(m.to)).map((m) => delta(m.to));
-      expect(takes.sort()).toEqual(sorted(step.directions!.captures!));
-      expect(steps.sort()).toEqual(sorted(step.directions!.moves));
-    },
-  );
-
-  it("promote Black's pawn on level A, rank 1", () => {
-    const start = startPractice(stepFor(lesson('pawn').steps[2], 'black'));
-    const [down] = start.board.generateLegalMoves(start.focus!);
-    expect(toZXY(down.to)).toBe('Bc1');
-    const climbed = practise(start, down);
-    expect(climbed.side).toBe('black');
-    const promotions = climbed.board.generateLegalMoves(climbed.focus!);
-    expect(new Set(promotions.map((m) => toZXY(m.to)))).toEqual(new Set(['Ac1']));
-    expect(promotions.every((m) => m.promotion)).toBe(true);
+  it("put a capture on every one of the pawn's capture squares, and draw them", () => {
+    const step = lesson('pawn').steps[2];
+    const practice = startPractice(step);
+    const from = fromZXY(step.focus!);
+    const delta = (to: { x: number; y: number; z: number }) =>
+      [to.x - from.x, to.y - from.y, to.z - from.z].join();
+    const moves = practice.board.generateLegalMoves(from);
+    const takes = moves.filter((m) => practice.board.getPiece(m.to)).map((m) => delta(m.to));
+    const steps = moves.filter((m) => !practice.board.getPiece(m.to)).map((m) => delta(m.to));
+    expect(takes.sort()).toEqual(sorted(step.directions!.captures!));
+    expect(steps.sort()).toEqual(sorted(step.directions!.moves));
   });
 });
 
@@ -276,14 +242,14 @@ describe('practice', () => {
   });
 
   it('records what a capture took', () => {
-    const start = startPractice(lesson('pawn').steps[1]);
+    const start = startPractice(lesson('pawn').steps[2]);
     const took = practise(start, { from: fromZXY('Cc3'), to: fromZXY('Dc4') });
     expect(took.lastMove?.capturedPiece).toEqual({ type: PieceType.Unicorn, color: 'black' });
     expect(took.board.getPiece(fromZXY('Dc4'))).toEqual({ type: PieceType.Pawn, color: 'white' });
   });
 
   it('promotes only on the top level’s far rank', () => {
-    const start = startPractice(lesson('pawn').steps[2]);
+    const start = startPractice(lesson('pawn').steps[3]);
     const up = start.board.generateLegalMoves(start.focus!);
     expect(up.map((m) => [toZXY(m.to), m.promotion])).toEqual([['Dc5', undefined]]);
     const climbed = practise(start, up[0]);

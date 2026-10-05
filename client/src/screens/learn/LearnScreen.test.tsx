@@ -140,50 +140,38 @@ test('plays a tapped ring, keeps the piece picked up there, and starts over', as
   expect(board().getAttribute('data-key')).not.toBe(key);
 });
 
-const side = () => screen.getByRole('group', { name: 'Side' });
 const pressed = (group: HTMLElement) =>
   within(group)
     .getAllByRole('button')
     .filter((b) => b.getAttribute('aria-pressed') === 'true')
-    .map((b) => b.getAttribute('aria-label') ?? b.textContent);
+    .map((b) => b.textContent);
 
-test("walks through the pawn's steps, each for White then Black, then on to a game", async () => {
+test("walks through the pawn's steps, Black's mirroring White's second, then on to a game", async () => {
   await renderAt('/learn/pawn');
   const steps = screen.getByRole('group', { name: 'Pawn lessons' });
   expect(pressed(steps)).toEqual(['Move']);
-  expect(pressed(side())).toEqual(['White']);
   expect(screen.getByText(/^White’s pawns move/)).toBeInTheDocument();
   expect(count()).toBe('2');
-  // Black's side of the same step, seen from Black's side: forwards and down
+  // No board turned round, no switch of sides: one step for Black
+  expect(screen.queryByRole('group', { name: 'Side' })).toBeNull();
   await userEvent.click(screen.getByRole('button', { name: 'Next: Black' }));
-  expect(pressed(steps)).toEqual(['Move']);
-  expect(pressed(side())).toEqual(['Black']);
-  expect(
-    screen.getByText(/^Black’s pawns move one square forwards or one square down/),
-  ).toBeInTheDocument();
-  expect(screen.getByText('Forwards or down')).toBeInTheDocument();
+  expect(pressed(steps)).toEqual(['Black']);
+  expect(screen.getByText(/^Black’s pawns mirror White’s/)).toBeInTheDocument();
+  expect(screen.getByText('Mirrored')).toBeInTheDocument();
   expect(board()).toHaveAttribute('data-side', 'black');
   await userEvent.click(screen.getByRole('button', { name: 'ring Bc3' }));
   expect(board()).toHaveAttribute('data-focus', 'Bc3');
   await userEvent.click(screen.getByRole('button', { name: 'Next: Capture' }));
-  expect(pressed(side())).toEqual(['White']);
-  expect(within(steps).getByRole('button', { name: 'Capture' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  expect(pressed(steps)).toEqual(['Capture']);
+  expect(board()).toHaveAttribute('data-side', 'white');
   expect(count()).toBe('7');
   expect(screen.getByText('5 captures')).toBeInTheDocument();
-  await userEvent.click(within(steps).getByRole('button', { name: 'Promote' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Next: Promote' }));
   expect(count()).toBe('1');
-  // White's promotion row lit, and Black's, on White's side, faded beside it
-  expect(document.querySelectorAll('[data-square^="E"][opacity="1"]')).toHaveLength(5);
-  expect(document.querySelectorAll('[data-square^="A"]:not([opacity="1"])')).toHaveLength(5);
-  await userEvent.click(within(side()).getByRole('button', { name: 'Black' }));
-  expect(
-    screen.getByText(/^Black’s pawns promote on the far rank of the bottom level/),
-  ).toBeInTheDocument();
-  expect(board()).toHaveAttribute('data-focus', 'Cc1');
-  expect(document.querySelectorAll('[data-square^="A"][opacity="1"]')).toHaveLength(5);
+  // White's promotion row, and Black's on White's side
+  expect(screen.getByText(/Black’s promote on White’s side/)).toHaveClass('learn-note');
+  expect(document.querySelectorAll('[data-square^="E"]')).toHaveLength(5);
+  expect(document.querySelectorAll('[data-square^="A"]')).toHaveLength(5);
   await userEvent.click(screen.getByRole('button', { name: 'Next: Play a game' }));
   expect(screen.getByText('choose a side')).toBeInTheDocument();
 });
@@ -201,21 +189,6 @@ test('asks which piece a pawn becomes, and plays the pick', async () => {
   expect(board()).toHaveAttribute('data-disabled', 'false');
   // A unicorn on the top level's far rank: only down and back, to either side
   expect(count()).toBe('4');
-});
-
-test("asks which piece Black's pawn becomes, in Black's pieces", async () => {
-  await renderAt('/learn/pawn');
-  await userEvent.click(screen.getByRole('button', { name: 'Promote' }));
-  await userEvent.click(within(side()).getByRole('button', { name: 'Black' }));
-  await userEvent.click(screen.getByRole('button', { name: 'ring Bc1' }));
-  await userEvent.click(screen.getByRole('button', { name: 'ring Ac1' }));
-  const dialog = screen.getByRole('dialog', { name: 'Promote to' });
-  await userEvent.click(within(dialog).getByRole('button', { name: /Queen/ }));
-  expect(board()).toHaveAttribute('data-focus', 'Ac1');
-  expect(board()).toHaveAttribute('data-side', 'black');
-  // Reset keeps the side
-  await userEvent.click(screen.getByRole('button', { name: 'Reset' }));
-  expect(board()).toHaveAttribute('data-focus', 'Cc1');
 });
 
 test('leaves the pawn unpromoted when the choice is cancelled', async () => {

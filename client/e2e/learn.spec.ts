@@ -29,10 +29,10 @@ test('the start page leads to the tutorial, which draws its board and walks the 
   await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '52');
 
   await page.getByRole('button', { name: 'Pawn', exact: true }).click();
-  await page.getByRole('button', { name: 'Capture', exact: true }).click();
-  await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '7');
-  // Black's side of it, the board turned round
+  // Black's pawn, mirroring White's, on the board as it stands
   await page.getByRole('button', { name: 'Next: Black' }).click();
+  await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '2');
+  await page.getByRole('button', { name: 'Next: Capture' }).click();
   await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '7');
 
   // A drag turns the view: the board takes it, the page does not move
