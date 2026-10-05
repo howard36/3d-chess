@@ -6,16 +6,22 @@
 // reconnect replays the full history in a fresh snapshot that supersedes the
 // earlier ones, so counting older messages again would duplicate moves.
 
-import { Board } from '../engine';
-import type { Move, Piece, PieceType } from '../engine';
+import { Board, PieceType } from '../engine';
+import type { Move, Piece } from '../engine';
+import { FIFTY_MOVE_PLIES, REPETITIONS, hashAfter, positionHash } from '../engine/draws';
 import { moveFromMessage } from '../engine/protocol';
 import type { GameState, MoveMade, MoveRecord, WebSocketMessage } from '../types/messages';
 
 export type Turn = 'white' | 'black';
 
 export interface GameOver {
-  result: 'checkmate' | 'stalemate';
-  /** The side that delivered mate; absent for a stalemate. */
+  /**
+   * Mate, or one of the draws: no legal move without being in check, the
+   * same position for the third time, or fifty moves each with no capture
+   * and no pawn move (engine/draws.ts).
+   */
+  result: 'checkmate' | 'stalemate' | 'repetition' | 'fifty-moves';
+  /** The side that delivered mate; absent for a draw. */
   winner?: Turn;
 }
 
@@ -55,6 +61,13 @@ export interface GameHistory {
    * at the last good position instead of throwing mid-render.
    */
   replayFailedAt: number | null;
+  /**
+   * The positions since the last capture or pawn move, oldest first, the
+   * current one last (each a hash of the pieces and the side to move): the only
+   * stretch in which a position can stand again, since neither can be taken
+   * back. Its length less one is the plies played towards the fifty-move draw.
+   */
+  sinceIrreversible: readonly number[];
   /** Null while the game is on, or when replay failed (the position shown is not final). */
   gameOver: GameOver | null;
 }
@@ -92,11 +105,18 @@ const sameRecord = (
 
 const turnAfter = (moveCount: number): Turn => (moveCount % 2 === 0 ? 'white' : 'black');
 
-const gameOverAt = (board: Board, turn: Turn): GameOver | null => {
+/**
+ * How the game stands after the last move. A mate ends it even on the move
+ * that would also complete a repetition or the fifty moves, as in chess.
+ */
+const gameOverAt = (board: Board, turn: Turn, positions: readonly number[]): GameOver | null => {
   if (board.isCheckmate(turn)) {
     return { result: 'checkmate', winner: turn === 'white' ? 'black' : 'white' };
   }
   if (board.isStalemate(turn)) return { result: 'stalemate' };
+  const now = positions[positions.length - 1];
+  if (positions.filter((p) => p === now).length >= REPETITIONS) return { result: 'repetition' };
+  if (positions.length - 1 >= FIFTY_MOVE_PLIES) return { result: 'fifty-moves' };
   return null;
 };
 
@@ -133,6 +153,9 @@ export function deriveHistory(
     : { white: [], black: [] };
   let replayFailedAt: number | null = null;
   let appliedMoveCount = extending ? prev.appliedMoveCount : 0;
+  const positions = extending
+    ? [...prev.sinceIrreversible]
+    : [positionHash(board, turnAfter(appliedMoveCount))];
   for (let i = appliedMoveCount; i < moveRecords.length; i++) {
     try {
       const move = moveFromMessage(moveRecords[i]);
@@ -143,6 +166,10 @@ export function deriveHistory(
       next.findKing('black');
       const taken = board.getPiece(move.to);
       if (taken) captured[turnAfter(i)].push(taken.type);
+      // A capture or a pawn move can't be undone: no earlier position can stand again
+      const hash = hashAfter(positions[positions.length - 1], board, next, move);
+      if (taken || board.getPiece(move.from)?.type === PieceType.Pawn) positions.length = 0;
+      positions.push(hash);
       before = board;
       board = next;
       appliedMoveCount = i + 1;
@@ -152,7 +179,8 @@ export function deriveHistory(
     }
   }
 
-  const gameOver = replayFailedAt === null ? gameOverAt(board, turnAfter(appliedMoveCount)) : null;
+  const gameOver =
+    replayFailedAt === null ? gameOverAt(board, turnAfter(appliedMoveCount), positions) : null;
   let lastMove: LastMove | undefined;
   if (appliedMoveCount > 0) {
     // This record was applied successfully above, so converting it again can't throw.
@@ -174,6 +202,7 @@ export function deriveHistory(
     lastMove,
     captured,
     replayFailedAt,
+    sinceIrreversible: positions,
     gameOver,
   };
 }

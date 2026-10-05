@@ -835,6 +835,12 @@ describe('the turn pill', () => {
     rerender(pill({ gameOver: { result: 'stalemate' } }));
     expect(indicator).toHaveTextContent('Stalemate · draw');
     expect(indicator).not.toHaveAttribute('data-winner');
+    rerender(pill({ gameOver: { result: 'repetition' } }));
+    expect(indicator).toHaveTextContent('Repetition · draw');
+    expect(indicator).toHaveAttribute('data-result', 'repetition');
+    rerender(pill({ gameOver: { result: 'fifty-moves' } }));
+    expect(indicator).toHaveTextContent('50-move rule · draw');
+    expect(screen.getByTestId('seat')).toHaveTextContent('50-move rule, a draw.');
   });
 });
 

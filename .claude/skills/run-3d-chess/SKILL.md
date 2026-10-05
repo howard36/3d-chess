@@ -128,6 +128,12 @@ noise, not failures.
   the side choice at `/new`, the host's invite card
   (`data-testid="invite-card"`, `data-seat`) or the guest's invitation.
   Screenshot those if the task is about the lobby; there is no board yet.
+- **Games against the computer** need one page: landing page "Play the
+  computer" → `/computer` (a side, then the level's buttons Easy/Medium/Hard in the
+  `Difficulty` group) →
+  `/computer/<id>`. Play with `clickSquare`/`waitForDestination` and wait
+  for the reply on `move-announcer`'s `data-move-count`; see
+  `e2e/computer.spec.ts`. No server is involved.
 - **The way in takes a few seconds.** The pick plays out before the page
   moves to the game, and the arrival and the game's entrance play before
   `waitForBoard` returns; `startGame` already waits for all of it.

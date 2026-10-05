@@ -6,7 +6,7 @@ import react from '@vitejs/plugin-react';
  * three.js, the scene and the set's precomputed parts load in a chunk of
  * their own, the one the lobby's canvas (LobbyCanvas.tsx), the game's board
  * (GameCanvas.tsx) and the landing page's preview share. On the side choice
- * (/new) and a game's address (/game/:id) the page needs it at once, so the
+ * (/new, /computer) and a game's address (/game/:id, /computer/:id) the page needs it at once, so the
  * built page starts fetching it (and the chunks it imports) alongside the
  * entry, instead of after the entry has loaded and run; the start page leaves
  * it for later. The build fails if a chunk is not found, rather than quietly
@@ -40,7 +40,7 @@ const preloadSceneOnGamePages = (): Plugin => ({
         {
           tag: 'script',
           injectTo: 'head',
-          children: `if(/^\\/(game\\/|new$)/.test(location.pathname)){${files.map(preload).join('')}}`,
+          children: `if(/^\\/(game\\/|new$|computer(\\/|$))/.test(location.pathname)){${files.map(preload).join('')}}`,
         },
       ];
     },

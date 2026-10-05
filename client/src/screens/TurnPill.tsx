@@ -1,5 +1,6 @@
 import React from 'react';
 import type { GameOver, Turn } from '../game/history';
+import { RESULT_NAME } from '../game/announce';
 
 interface TurnPillProps {
   /** This player's colour. */
@@ -13,6 +14,8 @@ interface TurnPillProps {
   opponentOnline: boolean | null;
   /** This page's connection is down: what the pill says may be out of date. */
   stale: boolean;
+  /** What the opponent's half calls them while it is the player's move ("Opponent"). */
+  opponentName?: string;
 }
 
 const named = (side: Turn) => (side === 'white' ? 'White' : 'Black');
@@ -44,7 +47,7 @@ const describe = ({ seat, turn, inCheck, gameOver, opponentOnline }: TurnPillPro
   if (gameOver?.result === 'checkmate') {
     return `${you} Checkmate, ${gameOver.winner === seat ? 'you win' : 'you lose'}.`;
   }
-  if (gameOver) return `${you} Stalemate, a draw.`;
+  if (gameOver) return `${you} ${RESULT_NAME[gameOver.result]}, a draw.`;
   const move = turn === seat ? 'Your move' : `${named(turn)} to move`;
   const away = opponentOnline === false ? ' Your opponent is offline.' : '';
   return `${you} ${move}${inCheck ? ', in check' : ''}.${away}`;
@@ -58,7 +61,7 @@ const describe = ({ seat, turn, inCheck, gameOver, opponentOnline }: TurnPillPro
  * tools.
  */
 const TurnPill: React.FC<TurnPillProps> = (props) => {
-  const { seat, turn, inCheck, gameOver, opponentOnline, stale } = props;
+  const { seat, turn, inCheck, gameOver, opponentOnline, stale, opponentName = 'Opponent' } = props;
   const them = other(seat);
   // The seat, for screen readers (and for tests: data-seat)
   const label = (
@@ -76,14 +79,13 @@ const TurnPill: React.FC<TurnPillProps> = (props) => {
   };
   if (gameOver) {
     const verdict =
-      gameOver.result === 'stalemate' ? 'draw' : gameOver.winner === seat ? 'you win' : 'you lose';
+      gameOver.result !== 'checkmate' ? 'draw' : gameOver.winner === seat ? 'you win' : 'you lose';
     return (
       <div className="hud-pill hud-glass hud-result" {...common}>
         {label}
         <Stone color={gameOver.winner ?? seat} lit aria-hidden />
         <span aria-hidden>
-          {gameOver.result === 'stalemate' ? 'Stalemate' : 'Checkmate'}{' '}
-          <span className="hud-sub">· {verdict}</span>
+          {RESULT_NAME[gameOver.result]} <span className="hud-sub">· {verdict}</span>
         </span>
       </div>
     );
@@ -99,7 +101,7 @@ const TurnPill: React.FC<TurnPillProps> = (props) => {
       </span>
       <span className="hud-rule" aria-hidden />
       <span className="hud-half" data-side="them" data-on={!mine || undefined} aria-hidden>
-        <span>{away ? 'Offline' : mine ? 'Opponent' : 'Their move'}</span>
+        <span>{away ? 'Offline' : mine ? opponentName : 'Their move'}</span>
         <Stone color={them} lit={!mine} absent={away} />
       </span>
     </div>

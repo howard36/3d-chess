@@ -66,7 +66,9 @@ export const InvitationCard: React.FC<{
   invitation: Invitation;
   connection: GameSocket['status'];
   onAccept: () => void;
-}> = ({ invitation, connection, onAccept }) => {
+  /** Where "Start a new game" leads. */
+  newGamePath?: string;
+}> = ({ invitation, connection, onAccept, newGamePath = '/new' }) => {
   const navigate = useNavigate();
   // Asking which side is free takes a moment; it is only worth a word when
   // the server is slow to answer (a cold start, a dropped connection)
@@ -78,7 +80,7 @@ export const InvitationCard: React.FC<{
           {invitation.state === 'full' ? 'This game is taken' : 'No game here'}
         </h2>
         <div className="lobby-actions">
-          <button autoFocus className="landing-play lobby-go" onClick={() => navigate('/new')}>
+          <button autoFocus className="landing-play lobby-go" onClick={() => navigate(newGamePath)}>
             Start a new game
           </button>
         </div>

@@ -884,6 +884,36 @@
   /* The label and the fill change together, never white on white */
   transition: none;
 }
+/* The other way in, under the call to action: playing the computer. Quieter,
+   a glass pill the HUD's black */
+.landing-foot {
+  gap: 10px;
+}
+.landing-alt {
+  height: 40px;
+  min-width: 200px;
+  padding: 0 22px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(10, 12, 18, 0.62);
+  backdrop-filter: blur(10px);
+  color: var(--hud-fg);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 160ms,
+    background-color 160ms;
+}
+.landing-alt:hover {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(16, 19, 28, 0.8);
+}
+.landing-alt:focus-visible {
+  outline: 2px solid var(--hud-accent);
+  outline-offset: 3px;
+}
 /* A phone held upright: the button spans the column */
 @media (max-width: 480px) {
   .landing h1 {
@@ -897,6 +927,10 @@
     width: 100%;
     max-width: 360px;
     min-width: 0;
+  }
+  .landing-alt {
+    width: 100%;
+    max-width: 360px;
   }
 }
 /* A tall window: wider bands, and on a wide one the type a step up */
@@ -955,6 +989,16 @@
     height: 48px;
     padding: 0 16px;
     font-size: 16px;
+  }
+  .landing-foot {
+    gap: 8px;
+  }
+  .landing-alt {
+    width: 100%;
+    min-width: 0;
+    height: 36px;
+    padding: 0 12px;
+    font-size: 14px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1134,6 +1178,45 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
+}
+/* Against the computer, its level: three of the side buttons in a row,
+   docked under the kings as the guest's "Join game" is, rising in turn with
+   the computer's outline */
+.lobby-dock.lobby-levels {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  animation: none;
+}
+.lobby-level {
+  position: static;
+  transform: none;
+  min-width: 96px;
+  font-size: 16px;
+  animation: lobby-rise 600ms 250ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+.lobby-level:nth-child(2) {
+  animation-delay: 350ms;
+}
+.lobby-level:nth-child(3) {
+  animation-delay: 450ms;
+}
+@media (hover: hover) {
+  .lobby-level:not(:disabled):hover {
+    border-color: transparent;
+    background:
+      linear-gradient(rgba(10, 12, 18, 0.86), rgba(10, 12, 18, 0.86)) padding-box,
+      linear-gradient(100deg, #00d7e0, #96a7ff, #de77ab) border-box;
+  }
+}
+/* Against the computer, the page's words make way for its arrival: the
+   level chosen holds a moment as the others fade, and the page moves on as
+   it goes (ChooseSide) */
+.lobby-page :is(.lobby-heading, .lobby-top, .lobby-labels)[data-out] {
+  animation: lobby-out 350ms ease both;
+}
+.lobby-page .lobby-levels[data-out] {
+  animation: lobby-out 350ms 250ms ease both;
 }
 .lobby[data-beat='leave'] .lobby-caption {
   animation: lobby-out 500ms ease both;
