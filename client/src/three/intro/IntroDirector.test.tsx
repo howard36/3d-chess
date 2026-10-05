@@ -131,6 +131,19 @@ describe('the entrance’s camera', () => {
     expect(view.clock.t).toBeGreaterThan(0.25);
   });
 
+  it('takes up after a hold where it was held, not the hold’s time into it', async () => {
+    const view = await mount('full', true);
+    await view.frames(1);
+    await view.unpause();
+    // The first frame after a hold is handed the whole hold as its delta (the
+    // canvas draws on demand): it still shows the held frame, the lobby's last
+    await view.frames(1, 4);
+    expect(view.clock.t).toBe(0);
+    expect(view.camera.position.length()).toBeCloseTo(view.fitted * 2.4, 5);
+    await view.frames(1);
+    expect(view.clock.t).toBeCloseTo(1 / 30, 9);
+  });
+
   it('never skips ahead on a stalled frame', async () => {
     const view = await mount('full');
     await view.frames(2, 5);

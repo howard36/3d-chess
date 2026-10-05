@@ -65,7 +65,8 @@ export function IntroDirector({
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as OrbitLike | null;
   const invalidate = useThree((s) => s.invalidate);
-  const started = useRef(false);
+  // Whether the last frame drawn was a running one (neither the first nor held)
+  const running = useRef(false);
   const finished = useRef(introDone(clock.plan, clock.t));
   const drawn = useRef(false);
   const latest = useRef({ onFirstFrame, onDone });
@@ -115,10 +116,14 @@ export function IntroDirector({
     drawn.current = true;
     if (finished.current) return;
     const { plan } = clock;
-    // The first frame shows the very start; after it the clock runs
-    if (started.current && !paused)
+    // The first frame shows the very start, and the first after a hold the
+    // moment held; after either the clock runs. (The canvas draws on demand
+    // and a hold asks for no frames, so the first after it is handed the whole
+    // hold as its delta: taken, it threw the lobby's handover a quarter of a
+    // second into the dolly in one frame.)
+    if (running.current && !paused)
       clock.t = Math.min(clock.t + Math.min(delta, MAX_STEP), plan.total);
-    started.current = true;
+    running.current = !paused;
     if (introDone(plan, clock.t)) {
       finished.current = true;
       place(1);
