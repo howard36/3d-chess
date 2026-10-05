@@ -8,7 +8,7 @@
 export const LEARN_TOP_PX = 56;
 
 /** CSS px at the bottom kept for the card across it (learn.css, --learn-card, and its 12 px gutter). */
-export const LEARN_CARD_PX = 248;
+export const LEARN_CARD_PX = 272;
 
 /** A window this tall or less is short: the card stands beside the tower, compact. */
 export const LEARN_SHORT_PX = 480;

@@ -8,7 +8,7 @@
  * (learnLayout.ts: Home's 56 px, the card's height and its gutter).
  */
 .learn {
-  --learn-card: 236px;
+  --learn-card: 260px;
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -136,11 +136,16 @@
   background: var(--hud-accent);
   color: var(--hud-accent-fg);
 }
+/* Never into the foot: should a window be too short for a lesson, the
+   lesson scrolls above the foot instead (the cards are sized so none does
+   at the sizes measured, README "The tutorial") */
 .learn-body {
+  flex: 0 1 auto;
   display: flex;
   align-items: center;
   gap: 14px;
   min-height: 0;
+  overflow-y: auto;
   margin-top: 6px;
 }
 .learn-figure {
@@ -161,32 +166,33 @@
   font-weight: 700;
   white-space: nowrap;
 }
-/* Each side's pieces: one row, a glyph over its count. In Setup the row
-   stands over the words, not beside them */
+/* Each side's pieces: one line, each glyph followed by its count. In Setup
+   the line stands over the words, not beside them */
 .learn-body:has(.learn-army) {
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
 }
 .learn-army ul {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .learn-army li {
   display: flex;
-  flex-direction: column;
   align-items: center;
+  gap: 2px;
   color: var(--hud-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1;
 }
 .learn .learn-figure.learn-army li svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 .learn-swatch {
   display: inline-block;
@@ -219,7 +225,8 @@
   align-items: baseline;
   gap: 12px;
   margin-top: auto;
-  padding-top: 8px;
+  /* The least room between the lesson and the foot */
+  padding-top: 12px;
 }
 .learn-count {
   margin: 0 auto 0 0;
@@ -291,6 +298,19 @@
     font-size: 14px;
   }
 }
+/* The narrowest phones: the pawn's heading and steps still on one row */
+@media (max-width: 380px) {
+  .learn-head {
+    gap: 8px;
+  }
+  .learn-head h1 {
+    font-size: 19px;
+  }
+  .learn-step {
+    padding: 0 5px;
+    font-size: 12px;
+  }
+}
 /* A wide window: the card stands at the left of the tower, which takes the
    whole height under Home (learnLayout.ts, cardBeside), at one height
    for every lesson, in the middle of the room under Home */
@@ -298,10 +318,10 @@
   /* Two heights only: one fits every lesson of a single step (the king's
      the tallest), the other the pawn's steps (its switcher, Move's note), so
      no step changes the card's height and only the pawn's lesson its own */
-  --learn-card: 368px;
+  --learn-card: 376px;
 }
 .learn[data-card='beside'] .learn-card[data-steps] {
-  --learn-card: 432px;
+  --learn-card: 440px;
 }
 .learn[data-card='beside'] .learn-card {
   left: max(20px, env(safe-area-inset-left));
@@ -352,14 +372,38 @@
   .learn[data-card='beside'] .learn-head {
     flex-wrap: wrap;
   }
+  /* The pawn's steps share the card's width, so they never run past it */
   .learn[data-card='beside'] .learn-steps {
+    box-sizing: border-box;
+    width: 100%;
     margin-left: 0;
   }
+  .learn[data-card='beside'] .learn-step {
+    flex: 1 1 auto;
+    padding: 0 4px;
+    font-size: 12px;
+  }
+  .learn[data-card='beside'] .learn-card {
+    padding: 10px 12px;
+  }
+  .learn[data-card='beside'] .learn-menu {
+    margin: -2px -4px 6px;
+  }
+  .learn[data-card='beside'] .learn-head {
+    row-gap: 6px;
+  }
   .learn[data-card='beside'] .learn-head h1 {
-    font-size: 20px;
+    font-size: 19px;
   }
   .learn[data-card='beside'] .learn-body {
-    margin-top: 8px;
+    margin-top: 6px;
+  }
+  .learn[data-card='beside'] .learn-line {
+    font-size: 14px;
+  }
+  .learn[data-card='beside'] .learn-note {
+    margin-top: 4px;
+    font-size: 12.5px;
   }
   .learn[data-card='beside'] .learn-foot {
     flex-wrap: wrap;
@@ -370,6 +414,20 @@
   }
   .learn[data-card='beside'] .learn-figure {
     display: none;
+  }
+}
+/* The shortest phones on their side: tighter still */
+@media (max-height: 340px) {
+  .learn[data-card='beside'] .learn-head h1 {
+    font-size: 17px;
+  }
+  .learn[data-card='beside'] .learn-line,
+  .learn[data-card='beside'] .learn-note {
+    line-height: 1.28;
+  }
+  .learn[data-card='beside'] .learn-tab {
+    width: 30px;
+    height: 30px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

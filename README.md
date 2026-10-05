@@ -844,7 +844,13 @@ pill's row ends short to make room for it on a phone; `e2e/hudFit.spec.ts` keeps
 the rest of the HUD and of the tower). Opened from there, the tutorial is handed the game's
 address in the router's state (`learnBack.ts`, a game page only) and carries it from lesson
 to lesson: "← Home" becomes "← Game" and the last Next "Back to game", both back to that
-game, which rejoins as on a reload.
+game, which rejoins as on a reload. The card keeps one height per layout (beside the tower, 376 px, or
+440 px for the pawn's steps; 260 px along the bottom; the window's height under Home on a
+phone on its side), sized so every lesson fits with room above its foot; should a window be
+too short, the lesson scrolls above the foot rather than run into it.
+`e2e/learn.spec.ts` walks every lesson and step at six sizes, one for each layout down to
+a 320 px phone either way up, and fails on a lesson within 10 px of the foot, one that has
+to scroll, anything past the card's sides, or a card out of the window.
 
 The board is the game's `Board` with `showMovesOf`, a square whose piece it keeps picked
 up (on mount and in each new position, once a live move has landed). The lessons have no
@@ -855,7 +861,7 @@ should it fail to load), so the start page carries none of it; the start page's 
 for it as the pointer or focus reaches it, and `/learn` preloads it. The canvas
 (`screens/learn/LearnCanvas.tsx`, in the chunk the game's board shares, preloaded on
 `/learn` like `/new`) frames the tower under Home
-(56 px, where the lobby has it) and over the card (248 px), or, where the window is wide enough for the tower to
+(56 px, where the lobby has it) and over the card (272 px), or, where the window is wide enough for the tower to
 clear a card at its left from every side the view turns to, or short, beside the card
 (`learnLayout.ts`, `cardBeside`, which also sets the page's `data-card`). It never
 publishes `__r3fState`.
