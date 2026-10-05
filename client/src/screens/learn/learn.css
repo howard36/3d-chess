@@ -293,7 +293,9 @@
    whole height under Home (learnLayout.ts, cardBeside), at one height
    for every lesson, in the middle of the room under Home */
 .learn[data-card='beside'] {
-  --learn-card: 356px;
+  /* Fits the tallest lesson (the pawn's Move: its steps, its note), so no
+     tab or step changes the card's height */
+  --learn-card: 432px;
 }
 .learn[data-card='beside'] .learn-card {
   left: max(20px, env(safe-area-inset-left));
@@ -301,8 +303,8 @@
   bottom: auto;
   transform: translateY(-50%);
   width: 300px;
-  height: auto;
-  min-height: var(--learn-card);
+  height: var(--learn-card);
+  max-height: calc(100% - 68px);
   padding: 16px 18px 14px;
 }
 .learn[data-card='beside'] .learn-head {

@@ -831,12 +831,13 @@ drawn from the middle (a rook's to the faces, a bishop's to the edges, a unicorn
 corners) and how many moves it has from where it stands. A tapped ring plays the move (the
 glide, the last move's line): the piece is picked up again where it lands and the count follows
 it; Reset puts it back. A piece captures as it moves, as in chess, so only the pawn has more
-steps: Move (White's), Black (Black's pawn alone in the middle, "Black's pawns mirror
-White's: they move the opposite way, down instead of up", said without forwards or
+steps: Move (White's), Black (Black's pawn alone in the middle, "Black pawns mirror
+White's. They move the opposite way, down instead of up", said without forwards or
 backwards, which depend on the side; the board stays White's way round, seated as no one
 with Black on turn), Capture (a piece on each of its five capture squares) and Promote (from
-Cc5, already on the far rank but two levels short, through the real promotion dialog; the
-figure shows White's row and Black's, on White's side, and the note says so). Next runs
+Dc5, already on the far rank and a level short, so its one move up onto E5 opens the real
+promotion dialog; the figure shows White's row and Black's, on White's side, and the note
+says so). Next runs
 through every step and lesson to "Play a game" (`/new`).
 
 The board is the game's `Board` with `showMovesOf`, a square whose piece it keeps picked

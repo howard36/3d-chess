@@ -83,9 +83,7 @@ test('gives a piece other than the pawn one step: no switcher, Next goes to the 
 
 test('says only what the board cannot show: a line, and a quieter note for a rule', async () => {
   await renderAt('/learn/king');
-  expect(
-    screen.getByText('Kings move like a queen, but only one square: 26 squares in all.'),
-  ).toBeInTheDocument();
+  expect(screen.getByText('Kings move like a queen, but only by one square.')).toBeInTheDocument();
   expect(screen.getByText('There’s no castling.')).toHaveClass('learn-note');
   expect(document.querySelectorAll('.learn-card li')).toHaveLength(0);
 });
@@ -150,13 +148,14 @@ test("walks through the pawn's steps, Black's mirroring White's second, then on 
   await renderAt('/learn/pawn');
   const steps = screen.getByRole('group', { name: 'Pawn lessons' });
   expect(pressed(steps)).toEqual(['Move']);
-  expect(screen.getByText(/^White’s pawns move/)).toBeInTheDocument();
+  expect(screen.getByText(/^White pawns move/)).toBeInTheDocument();
+  expect(screen.getByText(/even on the starting move/)).toHaveClass('learn-note');
   expect(count()).toBe('2');
   // No board turned round, no switch of sides: one step for Black
   expect(screen.queryByRole('group', { name: 'Side' })).toBeNull();
   await userEvent.click(screen.getByRole('button', { name: 'Next: Black' }));
   expect(pressed(steps)).toEqual(['Black']);
-  expect(screen.getByText(/^Black’s pawns mirror White’s/)).toBeInTheDocument();
+  expect(screen.getByText(/^Black pawns mirror White’s/)).toBeInTheDocument();
   expect(screen.getByText('Mirrored')).toBeInTheDocument();
   expect(board()).toHaveAttribute('data-side', 'black');
   await userEvent.click(screen.getByRole('button', { name: 'ring Bc3' }));
@@ -169,7 +168,7 @@ test("walks through the pawn's steps, Black's mirroring White's second, then on 
   await userEvent.click(screen.getByRole('button', { name: 'Next: Promote' }));
   expect(count()).toBe('1');
   // White's promotion row, and Black's on White's side
-  expect(screen.getByText(/Black’s promote on White’s side/)).toHaveClass('learn-note');
+  expect(screen.getByText(/Black pawns promote at A1, on White’s side/)).toHaveClass('learn-note');
   expect(document.querySelectorAll('[data-square^="E"]')).toHaveLength(5);
   expect(document.querySelectorAll('[data-square^="A"]')).toHaveLength(5);
   await userEvent.click(screen.getByRole('button', { name: 'Next: Play a game' }));
@@ -179,7 +178,6 @@ test("walks through the pawn's steps, Black's mirroring White's second, then on 
 test('asks which piece a pawn becomes, and plays the pick', async () => {
   await renderAt('/learn/pawn');
   await userEvent.click(screen.getByRole('button', { name: 'Promote' }));
-  await userEvent.click(screen.getByRole('button', { name: 'ring Dc5' }));
   await userEvent.click(screen.getByRole('button', { name: 'ring Ec5' }));
   const dialog = screen.getByRole('dialog', { name: 'Promote to' });
   expect(board()).toHaveAttribute('data-disabled', 'true');
@@ -194,7 +192,6 @@ test('asks which piece a pawn becomes, and plays the pick', async () => {
 test('leaves the pawn unpromoted when the choice is cancelled', async () => {
   await renderAt('/learn/pawn');
   await userEvent.click(screen.getByRole('button', { name: 'Promote' }));
-  await userEvent.click(screen.getByRole('button', { name: 'ring Dc5' }));
   await userEvent.click(screen.getByRole('button', { name: 'ring Ec5' }));
   await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(board()).toHaveAttribute('data-focus', 'Dc5');

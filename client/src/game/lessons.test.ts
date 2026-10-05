@@ -119,7 +119,7 @@ describe('the lessons', () => {
     expect(sorted(black.directions!.moves)).toEqual(
       sorted(white.directions!.moves.map(([f, r, l]) => [f, 0 - r, 0 - l])),
     );
-    expect(black.line).toMatch(/^Black’s pawns mirror White’s/);
+    expect(black.line).toMatch(/^Black pawns mirror White’s/);
     expect(black.line).not.toMatch(/forward|backward/);
     expect(startPractice(black).side).toBe('black');
     // The engine agrees: Black's pawn steps down a level and a rank towards White
@@ -129,7 +129,8 @@ describe('the lessons', () => {
 
   it("say where Black's pawns promote: on White's side", () => {
     const promote = lesson('pawn').steps[3];
-    expect(promote.note).toMatch(/Black.*White’s side.*level A, rank 1/);
+    expect(promote.line).toMatch(/E5, on Black’s side/);
+    expect(promote.note).toMatch(/Black pawns promote at A1, on White’s side/);
     const board = new Board();
     expect(board.isPromotionSquare(fromZXY('Ac1'), 'black')).toBe(true);
     expect(board.isPromotionSquare(fromZXY('Ec5'), 'black')).toBe(false);
@@ -167,7 +168,7 @@ describe('the lessons', () => {
       'pawn.1': 2,
       // Its two steps and the five pieces it can take
       'pawn.2': 7,
-      // Only up: it is on the far rank already
+      // Only up, onto E5: it is on the far rank already
       'pawn.3': 1,
     });
   });
@@ -250,13 +251,13 @@ describe('practice', () => {
 
   it('promotes only on the top level’s far rank', () => {
     const start = startPractice(lesson('pawn').steps[3]);
-    const up = start.board.generateLegalMoves(start.focus!);
-    expect(up.map((m) => [toZXY(m.to), m.promotion])).toEqual([['Dc5', undefined]]);
-    const climbed = practise(start, up[0]);
-    const promotions = climbed.board.generateLegalMoves(climbed.focus!);
+    expect(start.focus).toEqual(fromZXY('Dc5'));
+    // Its one move, up onto E5, promotes
+    const promotions = start.board.generateLegalMoves(start.focus!);
     expect(new Set(promotions.map((m) => toZXY(m.to)))).toEqual(new Set(['Ec5']));
+    expect(promotions.every((m) => m.promotion)).toBe(true);
     expect(promotions.map((m) => m.promotion)).toContain(PieceType.Unicorn);
-    const promoted = practise(climbed, promotions.find((m) => m.promotion === PieceType.Unicorn)!);
+    const promoted = practise(start, promotions.find((m) => m.promotion === PieceType.Unicorn)!);
     expect(promoted.board.getPiece(fromZXY('Ec5'))).toEqual({
       type: PieceType.Unicorn,
       color: 'white',

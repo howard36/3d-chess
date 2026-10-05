@@ -164,7 +164,7 @@ export const LESSONS: readonly Lesson[] = [
     name: 'King',
     piece: PieceType.King,
     steps: lesson(PieceType.King, {
-      line: 'Kings move like a queen, but only one square: 26 squares in all.',
+      line: 'Kings move like a queen, but only by one square.',
       note: 'There\u2019s no castling.',
       directions: { moves: all, reach: 'step', caption: '26 squares' },
     }),
@@ -185,7 +185,8 @@ export const LESSONS: readonly Lesson[] = [
     steps: [
       {
         label: 'Move',
-        line: 'White\u2019s pawns move one square forwards or one square up, never two.',
+        line: 'White pawns move one square forwards or up.',
+        note: 'They cannot move two squares, even on the starting move.',
         pieces: [{ at: 'Cc3', type: PieceType.Pawn, color: 'white' }],
         focus: 'Cc3',
         directions: {
@@ -200,7 +201,7 @@ export const LESSONS: readonly Lesson[] = [
       {
         label: 'Black',
         // White's pawn in a mirror: the opposite way, and down
-        line: 'Black\u2019s pawns mirror White\u2019s: they move the opposite way, down instead of up.',
+        line: 'Black pawns mirror White\u2019s. They move the opposite way, down instead of up.',
         pieces: [{ at: 'Cc3', type: PieceType.Pawn, color: 'black' }],
         focus: 'Cc3',
         directions: {
@@ -214,7 +215,7 @@ export const LESSONS: readonly Lesson[] = [
       },
       {
         label: 'Capture',
-        line: 'White\u2019s pawns capture one square diagonally, like a bishop, but never backwards or down.',
+        line: 'White pawns capture one square diagonally, like a bishop, but never backwards or down.',
         pieces: [
           { at: 'Cc3', type: PieceType.Pawn, color: 'white' },
           { at: 'Cb4', type: PieceType.Pawn, color: 'black' },
@@ -242,11 +243,11 @@ export const LESSONS: readonly Lesson[] = [
       },
       {
         label: 'Promote',
-        line: 'White\u2019s pawns promote when they reach the far rank of the top level.',
-        // On the far rank already, but two levels short
-        pieces: [{ at: 'Cc5', type: PieceType.Pawn, color: 'white' }],
-        focus: 'Cc5',
-        note: 'Black\u2019s promote on White\u2019s side: level A, rank 1.',
+        line: 'White pawns promote when they reach E5, on Black\u2019s side.',
+        // On the far rank already, a level short: its one move promotes
+        pieces: [{ at: 'Dc5', type: PieceType.Pawn, color: 'white' }],
+        focus: 'Dc5',
+        note: 'Black pawns promote at A1, on White\u2019s side.',
         promotionRow: true,
       },
     ],
