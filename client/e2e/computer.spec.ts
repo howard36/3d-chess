@@ -43,6 +43,17 @@ test('a player plays the computer: a move, and its reply', async ({ browser }) =
   await waitForBoard(page);
   await expect(moveCount(page)).toHaveAttribute('data-move-count', '2');
   await expect(page.getByTestId('seat')).toHaveAttribute('data-seat', 'white');
+
+  // How to play, from the game, and back to it from the tutorial
+  const game = page.url();
+  await page.getByRole('button', { name: 'How to play' }).click();
+  await expect(page).toHaveURL(/\/learn$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Setup' })).toBeVisible();
+  await page.getByRole('button', { name: 'Knight', exact: true }).click();
+  await page.getByRole('button', { name: /Game/ }).click();
+  await expect(page).toHaveURL(game);
+  await waitForBoard(page);
+  await expect(moveCount(page)).toHaveAttribute('data-move-count', '2');
   await context.close();
 });
 

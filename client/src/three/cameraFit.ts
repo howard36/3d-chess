@@ -60,6 +60,11 @@ export function zoomRange(fit: number, minDistance = 0): { min: number; max: num
 //
 // The landing page's preview, which only ever turns about the axis at one
 // elevation, centres the rings as seen from there instead (centre: 'rings').
+// The tutorial, whose card takes a large part of a small window, centres them
+// as seen from the opening in the room the card leaves ('opening'), the sweep
+// still kept in it, and only there shifts the view sideways too: where the
+// card stands at the left and the tower, centred in the window, would run
+// under it (FitWindow.leftInset, settleLeftInset).
 
 /** Rows of CSS pixels at the top of the window kept for the HUD (its pill), which the fitted board stays below. */
 export const HUD_TOP_PX = 56;
@@ -205,12 +210,21 @@ export interface FitWindow {
    */
   balanceInset?: number;
   /**
+   * CSS px kept clear at the left (none by default): the room is to its
+   * right, and the tower centred in it across, the lens shift's one sideways
+   * part. Only where the view centred in the window would cross it
+   * (settleLeftInset).
+   */
+  leftInset?: number;
+  /**
    * What the lens shift puts in the middle of the room between the bands:
    * the orbit target, the tower's centre ('target', the default: the game,
    * whose view climbs and dips), or the rings' top and bottom as seen from
-   * the fitted elevation ('rings': a view that only turns about the axis).
+   * the fitted elevation ('rings': a view that only turns about the axis;
+   * 'opening': the same, with the rings kept in the room from every
+   * elevation of the sweep, the tutorial's).
    */
-  centre?: 'target' | 'rings';
+  centre?: 'target' | 'rings' | 'opening';
   /**
    * The lowest and highest elevations (radians) the view can turn to: with
    * the target centred, the rings stay in the room from all of them. Only
@@ -234,21 +248,36 @@ const elevationsBetween = (lo: number, hi: number): number[] => {
 /** The top band as a share of the window's height, at most half of it. */
 const bandShare = (w: FitWindow): number => Math.min((w.topInset ?? HUD_TOP_PX) / w.height, 0.5);
 
-/** The bottom band as a share of the window's height, at most what the top band leaves of half of it. */
+/**
+ * The most of the window's height the two bands may take together: the room
+ * between them is never less than a quarter of it (a phone held upright, the
+ * tutorial's card along its bottom, keeps less than half).
+ */
+const MOST_BANDS = 0.75;
+
+/** The bottom band as a share of the window's height, at most what the top band leaves of MOST_BANDS. */
 const bottomShare = (w: FitWindow): number =>
-  Math.min((w.bottomInset ?? 0) / w.height, Math.max(0, 0.5 - bandShare(w)));
+  Math.min((w.bottomInset ?? 0) / w.height, Math.max(0, MOST_BANDS - bandShare(w)));
+
+/** The left band as a share of the window's width, at most half of it. */
+const leftShare = (w: FitWindow): number => Math.min((w.leftInset ?? 0) / w.width, 0.5);
 
 /**
- * Where the target stands with the target centred, as a share of the
- * window's height from its top: CENTRE_LIFT of the rings' height (`tall`, in
- * tangents) above the middle of the room between the balance line and the
- * bottom band.
+ * Where the target stands, as a share of the window's height from its top,
+ * for the rings at `b` about it: CENTRE_LIFT of the rings' height above the
+ * middle of the room between the balance line and the bottom band, or with
+ * centre 'opening' where the rings stand in the middle of it.
  */
-const targetRow = (w: FitWindow, tall: number): number => {
+const targetRow = (w: FitWindow, b: ViewBounds): number => {
   const tanV = Math.tan(MathUtils.degToRad(w.fov) / 2);
   const top = Math.min((w.balanceInset ?? Infinity) / w.height, bandShare(w));
-  return (top + 1 - bottomShare(w)) / 2 - (CENTRE_LIFT * tall) / (2 * tanV);
+  const middle = (top + 1 - bottomShare(w)) / 2;
+  if (w.centre === 'opening') return middle + (b.top + b.bottom) / (4 * tanV);
+  return middle - (CENTRE_LIFT * (b.top - b.bottom)) / (2 * tanV);
 };
+
+/** Where the target stands across, as a share of the window's width from its left: the middle of the room right of the left band. */
+const targetColumn = (w: FitWindow): number => (leftShare(w) + 1) / 2;
 
 /**
  * The lens shift that centres `bounds` in the window between its top and
@@ -278,9 +307,11 @@ export function fitShift(
 ): [number, number] {
   const b = ringBounds(rings, elevation, distance, FIT_SOFTNESS);
   if (w.centre === 'rings') return centringShift(b, w);
-  // (the view's centre moves up as far as the target is to stand below it)
+  // (the view's centre moves up as far as the target is to stand below it,
+  // and left as far as it is to stand right of it)
   const tanV = Math.tan(MathUtils.degToRad(w.fov) / 2);
-  return [0, tanV * (2 * targetRow(w, b.top - b.bottom) - 1)];
+  const tanH = tanV * (w.width / w.height);
+  return [tanH * (1 - 2 * targetColumn(w)), tanV * (2 * targetRow(w, b) - 1)];
 }
 
 /**
@@ -316,10 +347,12 @@ export function fitView(
     }
     // The room above the target, to the top band, and below it, to the
     // bottom band, as fitShift places it
-    const row = targetRow(w, b.top - b.bottom);
+    const row = targetRow(w, b);
     const above = 2 * tanV * (row - bandShare(w));
     const below = 2 * tanV * (1 - bottomShare(w) - row);
-    const take = (v: ViewBounds) => Math.max(v.right / tanH, v.top / above, -v.bottom / below);
+    // and either side of it, to the left band and to the window's edge
+    const across = tanH * (1 - leftShare(w));
+    const take = (v: ViewBounds) => Math.max(v.right / across, v.top / above, -v.bottom / below);
     return {
       fitted: take(b) * FRAME_MARGIN,
       from: (e: number) => take(ringBounds(rings, e, distance, FIT_SOFTNESS)),
@@ -361,6 +394,30 @@ export function fitView(
     far = nearest(binding);
   }
   return { distance: far, shift: fitShift(rings, elevation, far, w) };
+}
+
+/**
+ * The window `w` as a fit should take it: without its left band where the
+ * view fitted centred across the window (from `elevation` and every elevation
+ * of the sweep) already clears it, so a card small beside the tower leaves it
+ * in the middle, and with it where the tower would run under the card, which
+ * the fit then centres it to the right of.
+ */
+export function settleLeftInset(
+  elevation: number,
+  rings: readonly FrameRing[],
+  w: FitWindow,
+): FitWindow {
+  if (!w.leftInset) return w;
+  const centred = { ...w, leftInset: undefined };
+  const { distance } = fitView(elevation, rings, centred);
+  const sweep = w.sweep ? elevationsBetween(...w.sweep) : [];
+  const reach = Math.max(
+    ...[elevation, ...sweep].map((e) => ringBounds(rings, e, distance, FIT_SOFTNESS).right),
+  );
+  const tanH = Math.tan(MathUtils.degToRad(w.fov) / 2) * (w.width / w.height);
+  // The rings' left edge, in CSS px from the window's
+  return (w.width / 2) * (1 - reach / tanH) >= w.leftInset ? centred : w;
 }
 
 /** A camera's elevation above the horizon about `target` (radians), from its position. */

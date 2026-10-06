@@ -7,6 +7,8 @@ import ChooseSide from './screens/lobby/ChooseSide';
 import { computerGame } from './screens/computerGameChunk';
 import { ChunkBoundary } from './components/ChunkBoundary';
 import { reloadPage } from './lib/cachedImport';
+// The tutorial is a chunk of its own
+import LearnRoute from './screens/learn/LearnRoute';
 import { useGameSocket } from './hooks/useGameSocket';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
@@ -86,6 +88,7 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<StartScreen />} />
+      <Route path="/learn/:lesson?" element={<LearnRoute />} />
       {/* The lobby's stage stays up from choosing a side to the game's
           first frame, across the move from /new to the game's page */}
       <Route element={<LobbyLayout />}>

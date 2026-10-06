@@ -2,7 +2,7 @@
 
 ## Summary
 
-3D Chess has three addresses: the [start screen](../glossary.md#the-product-and-its-screens) at `/`, the [side choice](../glossary.md#the-product-and-its-screens) at `/new`, and the [game page](../glossary.md#the-product-and-its-screens) at `/game/{id}`. The side choice and the game page before its game starts share one scene, the [lobby](../glossary.md#the-product-and-its-screens), which stays up without reloading as the page moves from one to the other. The game page shows one of several screens depending on its [phase](../glossary.md#the-product-and-its-screens) and whether the browser holds a seat, and a crash screen can replace either page. This document owns that map: what each address shows, how the game page decides which screen to show, how the player moves between pages (buttons, browser Back and Forward, typed addresses), what survives each move, and the crash screen. It is a foundation; the features on each screen have their own documents.
+3D Chess has four addresses: the [start screen](../glossary.md#the-product-and-its-screens) at `/`, the [side choice](../glossary.md#the-product-and-its-screens) at `/new`, the [game page](../glossary.md#the-product-and-its-screens) at `/game/{id}`, and the tutorial at `/learn`. The side choice and the game page before its game starts share one scene, the [lobby](../glossary.md#the-product-and-its-screens), which stays up without reloading as the page moves from one to the other. The game page shows one of several screens depending on its [phase](../glossary.md#the-product-and-its-screens) and whether the browser holds a seat, and a crash screen can replace either page. This document owns that map: what each address shows, how the game page decides which screen to show, how the player moves between pages (buttons, browser Back and Forward, typed addresses), what survives each move, and the crash screen. It is a foundation; the features on each screen have their own documents.
 
 ## The map
 
@@ -26,11 +26,15 @@ stateDiagram-v2
         taking --> board : game starts (arrival, then entrance)
         invite --> board : game starts (arrival, then entrance)
     }
+    state "Tutorial" as learn
     state "Crash screen" as crash
     [*] --> start : open /
     [*] --> choose : open /new
     [*] --> game : open /game/{id}
     start --> choose : "Start a game"
+    start --> learn : "How to play"
+    learn --> start : "← Home"
+    learn --> choose : "Play a game"
     choose --> start : "← Home"
     choose --> game : game created (history entry replaced)
     board --> choose : "Start new game" (end-game dialog, reset)
@@ -45,13 +49,17 @@ stateDiagram-v2
 
 ## The start screen
 
-The page at `/`, a landing page: the [preview](../glossary.md#the-product-and-its-screens) (the glass tower turning slowly in its garden while a sample game plays itself on it) fills the window, with the title "3D Chess" above the tower, the "Start a game" button below it, and nothing under the button. The button is the page's only control, and it sends nothing: it opens the side choice. The preview is only a picture, always playing: it takes no input and is not a game. Both are described in [creating a game](../start/creating-a-game.md).
+The page at `/`, a landing page: the [preview](../glossary.md#the-product-and-its-screens) (the glass tower turning slowly in its garden while a sample game plays itself on it) fills the window, with the title "3D Chess" above the tower, the "Start a game" button below it and "Play the computer" under that, and in the top right corner the quiet "How to play", which opens the tutorial. These are the page's only controls, and none sends anything: "Start a game" opens the side choice. The preview is only a picture, always playing: it takes no input and is not a game. Both are described in [creating a game](../start/creating-a-game.md).
 
 ## The side choice
 
 The page at `/new`: "Choose your side" over three kings on the lobby's glass, with "White", "Random", and "Black" under them, and "← Home" at the top left. A pick creates the game and, once it has played out, replaces `/new` in the browser's history with the new game's page. It is where "Start new game" (end-game dialog) and "Start a new game" (an invitation that leads nowhere) lead. See [creating a game](../start/creating-a-game.md#the-side-choice).
 
 Arriving at the start screen or the side choice from a game by any route [resets the connection](connection-and-seat.md#returning-to-the-start-screen).
+
+## The tutorial
+
+The page at `/learn`, and `/learn/{piece}` for one piece's lesson (`rook`, `bishop`, `unicorn`, `queen`, `king`, `knight`, `pawn`; `/learn` is the first lesson, Setup, and any other name goes to `/learn`): the tower, "← Home" at the top left, and the lesson's card, with the lessons to choose from along its top and Next at its foot (the unicorn's lesson badged "New"). Setup shows the starting position, only to look at, with each side's pieces counted in one row in the card ("Each side has 20 pieces, including two unicorns (a new piece in 3D chess) and ten pawns instead of eight. White starts at the bottom, Black at the top."). Each piece's lesson stands the piece alone in the middle of the board, picked up, every square it can reach ringed; a tapped ring plays the move there, and it is picked up again where it lands, the card counting its moves from there. The pawn's lesson has four steps: Move, Black (Black's pawn, which mirrors White's: the opposite way, down instead of up), Capture and Promote, which shows White's promotion row and Black's; the card names the step beside the lesson's name, with a dot for each step that goes to it. The tower stands in the middle of the room the card leaves, and on a phone on its side, to the card's right. The board is always seen from White's side. Nothing is sent to the server. Choosing a piece from the card's row replaces the history entry; the card's next button runs through the lessons (and the pawn's steps) to "Play a game", which opens the side choice. A game's page (against a friend or the computer) has "How to play" at the top right of its HUD (a "?" on a narrow window); opened from there, the tutorial's "← Game" and its last button, "Back to game", lead back to that game, which rejoins as a reload would.
 
 ## The game page and its phases
 
@@ -87,6 +95,7 @@ The app changes pages in three ways of its own, and the browser adds its usual c
 | Action | From | To | What happens to the game on this page |
 | --- | --- | --- | --- |
 | "Start a game" | start screen | side choice | Nothing is sent. A new history entry is added. |
+| "How to play" | start screen | tutorial | Nothing is sent. A new history entry is added. |
 | The new game's id arrives, and the pick has played out | side choice | the new game page | The page arrives already holding the creator's seat; no rejoin. The side choice's history entry is replaced, so Back skips it. The lobby's scene carries on across the move. |
 | "Start new game" in the end-game dialog | board screen | side choice | The connection is reset: the opponent sees the player "Offline" on their turn pill. A new history entry is added, so Back returns to the finished game. |
 | "Start a new game" on an invitation that is taken or leads nowhere | game page | side choice | The connection is reset. A new history entry is added. |
@@ -104,7 +113,7 @@ The page title is "3D Chess — Online Multiplayer" on every page. The one excep
 
 ## Addresses the app does not know
 
-Only `/`, `/new`, and `/game/{id}` are pages. Any other address inside the app (for example `/game/` with no id, or `/games`) shows an empty dark page: no title, no message, no link home. The connection is still opened in the background. This looks like an omission; see open questions.
+Only `/`, `/new`, `/game/{id}` and `/learn` (with or without a lesson) are pages. Any other address inside the app (for example `/game/` with no id, or `/games`) shows an empty dark page: no title, no message, no link home. The connection is still opened in the background. This looks like an omission; see open questions.
 
 A game id that does not exist, or has expired, opens a normal game page, which says "No game here" as soon as the server answers: at once for a visitor, or after the refused rejoin for a stale stored seat. See [joining a game](../start/joining-a-game.md) and [reloading and returning](../session/reload-and-return.md).
 

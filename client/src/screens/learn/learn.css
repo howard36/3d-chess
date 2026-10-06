@@ -1,0 +1,458 @@
+/*
+ * The tutorial (screens/learn/), in its own chunk with LearnScreen: the
+ * tower fills the window and one card holds the whole lesson, in the HUD's
+ * black glass (index.css): the pieces to choose from along its top, the
+ * lesson, and Next. The card spans the bottom; in a window wide enough, or
+ * 480 px tall or less, it stands at the left instead (data-card='beside').
+ * The camera's fit keeps the tower clear of it and of Home at the top
+ * (learnLayout.ts: Home's 56 px, the card's height and its gutter).
+ */
+.learn {
+  --learn-card: 260px;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #010205;
+  color: var(--hud-fg);
+  font-family: var(--hud-font);
+  letter-spacing: var(--hud-tracking);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+.learn-stage {
+  position: absolute;
+  inset: 0;
+}
+/* The pieces, a row of tabs along the card's top, the lesson's lit */
+.learn-menu {
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+  margin: -4px -6px 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(236, 241, 255, 0.1);
+}
+.learn-tab {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  transition:
+    background 150ms,
+    border-color 150ms;
+}
+.learn-tab svg {
+  opacity: 0.55;
+  transition: opacity 150ms;
+}
+.learn-tab:hover svg,
+.learn-tab:focus-visible svg,
+.learn-tab[aria-current] svg {
+  opacity: 1;
+}
+.learn-tab:hover {
+  background: rgba(236, 241, 255, 0.05);
+}
+.learn-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.35);
+}
+.learn-tab[aria-current] {
+  border-color: rgba(236, 241, 255, 0.28);
+  background: rgba(236, 241, 255, 0.1);
+}
+
+.learn-card {
+  position: absolute;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(580px, calc(100vw - 24px));
+  height: var(--learn-card);
+  padding: 12px 16px 12px;
+  border-radius: 8px;
+}
+.learn-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+}
+.learn-head h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.learn-new {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #00d7e0, #58c1ff, #96a7ff, #c48be5, #de77ab);
+  color: #07080c;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.learn-step-name {
+  color: var(--hud-muted);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.learn-step-name::before {
+  content: '·';
+  margin-right: 8px;
+}
+/* The steps, a dot each and the current one a longer bar, in a row at the
+   head's right: each a 24 px target round its mark */
+.learn-steps {
+  display: flex;
+  margin: -6px -6px -6px auto;
+}
+.learn-step {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  transition: width 200ms;
+}
+.learn-step::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(236, 241, 255, 0.28);
+  transition:
+    width 200ms,
+    background 150ms;
+}
+.learn-step:hover::after {
+  background: rgba(236, 241, 255, 0.6);
+}
+.learn-step:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(230, 238, 255, 0.35);
+}
+.learn-step[aria-current] {
+  width: 32px;
+}
+.learn-step[aria-current]::after {
+  width: 20px;
+  background: var(--hud-accent);
+}
+/* Never into the foot: should a window be too short for a lesson, the
+   lesson scrolls above the foot instead (the cards are sized so none does
+   at the sizes measured, README "The tutorial") */
+.learn-body {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+.learn-figure {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+}
+.learn-figure svg {
+  width: 82px;
+  height: 74px;
+}
+.learn-figure figcaption {
+  margin-top: 1px;
+  color: var(--hud-muted);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* Each side's pieces: one line, each glyph followed by its count. In Setup
+   the line stands over the words, not beside them */
+.learn-body:has(.learn-army) {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.learn-army ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.learn-army li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--hud-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.learn .learn-figure.learn-army li svg {
+  width: 18px;
+  height: 18px;
+}
+.learn-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 2px 0 4px;
+  border-radius: 1px;
+  vertical-align: 0;
+}
+.learn-words {
+  min-width: 0;
+}
+.learn-line {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+/* A rule the board can't show, quieter than the line */
+.learn-note {
+  margin: 6px 0 0;
+  color: var(--hud-muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+/* One line of type: the count, the hint and both buttons' words share a baseline */
+.learn-foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: auto;
+  /* The least room between the lesson and the foot */
+  padding-top: 12px;
+}
+.learn-count {
+  margin: 0 auto 0 0;
+  color: var(--hud-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.learn-count b {
+  color: #f8c970;
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.learn-again {
+  padding: 4px 6px;
+  white-space: nowrap;
+  border: 0;
+  background: none;
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.learn-again:hover,
+.learn-again:focus-visible {
+  color: var(--hud-fg);
+  outline: none;
+}
+.learn-next {
+  display: inline-flex;
+  white-space: nowrap;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: var(--button-border);
+  border-radius: 16px;
+  background: none;
+  color: var(--button-fg);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.learn-next:hover,
+.learn-next:focus-visible {
+  border-color: #f3f6ff;
+  box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.25);
+  outline: none;
+}
+
+/* A phone held upright: the card tighter */
+@media (max-width: 520px) {
+  .learn {
+    --learn-card: 272px;
+  }
+  .learn-menu {
+    margin: -2px -4px 8px;
+  }
+  .learn-card {
+    padding: 12px 14px;
+  }
+  .learn-body {
+    gap: 12px;
+  }
+  .learn-figure svg {
+    width: 66px;
+    height: 60px;
+  }
+  .learn-line {
+    font-size: 15px;
+    line-height: 1.4;
+  }
+}
+/* The narrowest phones: the words take the card's whole width, the board
+   above showing what the figure would */
+@media (max-width: 380px) {
+  .learn {
+    --learn-card: 284px;
+  }
+  .learn-tab {
+    height: 32px;
+  }
+  .learn-line {
+    line-height: 1.35;
+  }
+  .learn-head {
+    gap: 8px;
+  }
+  .learn-head h1 {
+    font-size: 20px;
+  }
+  .learn-step-name::before {
+    margin-right: 6px;
+  }
+  .learn-figure:not(.learn-army) {
+    display: none;
+  }
+}
+/* A wide window: the card stands at the left of the tower, which takes the
+   whole height under Home (learnLayout.ts, cardBeside), at one height
+   for every lesson, in the middle of the room under Home */
+.learn[data-card='beside'] {
+  /* Two heights only: one fits every lesson of a single step (the king's
+     the tallest), the other the pawn's steps (Move's and Promote's notes), so
+     no step changes the card's height and only the pawn's lesson its own */
+  --learn-card: 376px;
+}
+.learn[data-card='beside'] .learn-card[data-steps] {
+  --learn-card: 396px;
+}
+.learn[data-card='beside'] .learn-card {
+  left: max(20px, env(safe-area-inset-left));
+  top: calc(26px + 50%);
+  bottom: auto;
+  transform: translateY(-50%);
+  width: 300px;
+  height: var(--learn-card);
+  max-height: calc(100% - 68px);
+  padding: 16px 18px 14px;
+}
+.learn[data-card='beside'] .learn-head h1 {
+  font-size: 24px;
+}
+.learn[data-card='beside'] .learn-body {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 14px;
+}
+.learn[data-card='beside'] .learn-figure svg {
+  width: 104px;
+  height: 94px;
+}
+.learn[data-card='beside'] .learn-figure figcaption {
+  font-size: 12px;
+}
+/* A phone on its side: the card stands at the left, beside the tower */
+@media (max-height: 480px) {
+  .learn[data-card='beside'] .learn-card {
+    left: max(12px, env(safe-area-inset-left));
+    top: 56px;
+    bottom: 12px;
+    transform: none;
+    width: 252px;
+    height: auto;
+    /* Between Home and the window's foot, whatever the wide card's least */
+    min-height: 0;
+  }
+  .learn[data-card='beside'] .learn-card {
+    padding: 10px 12px;
+  }
+  .learn[data-card='beside'] .learn-menu {
+    margin: -2px -4px 6px;
+  }
+  .learn[data-card='beside'] .learn-head {
+    gap: 8px;
+  }
+  .learn[data-card='beside'] .learn-head h1 {
+    font-size: 19px;
+  }
+  .learn[data-card='beside'] .learn-step-name {
+    font-size: 13px;
+  }
+  .learn[data-card='beside'] .learn-step-name::before {
+    margin-right: 6px;
+  }
+  .learn[data-card='beside'] .learn-body {
+    margin-top: 6px;
+  }
+  .learn[data-card='beside'] .learn-line {
+    font-size: 14px;
+  }
+  .learn[data-card='beside'] .learn-note {
+    margin-top: 4px;
+    font-size: 12.5px;
+  }
+  .learn[data-card='beside'] .learn-foot {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .learn-hint {
+    display: none;
+  }
+  .learn[data-card='beside'] .learn-figure {
+    display: none;
+  }
+}
+/* The shortest phones on their side: tighter still */
+@media (max-height: 340px) {
+  .learn[data-card='beside'] .learn-head h1 {
+    font-size: 17px;
+  }
+  .learn[data-card='beside'] .learn-line,
+  .learn[data-card='beside'] .learn-note {
+    line-height: 1.28;
+  }
+  .learn[data-card='beside'] .learn-tab {
+    width: 30px;
+    height: 30px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .learn * {
+    transition: none !important;
+  }
+}

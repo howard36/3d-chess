@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import ComputerGameScreen from './ComputerGameScreen';
 import { LobbyContext } from './lobby/lobbyContext';
 import type { LobbyApi, LobbyStage } from './lobby/lobbyContext';
@@ -74,12 +74,19 @@ beforeEach(() => {
   entrance.auto = true;
 });
 
+/** The tutorial's page, as far as this test needs: the way back it was handed. */
+const Learn = () => {
+  const { state } = useLocation();
+  return <p data-testid="learn-back">{(state as { back?: string } | null)?.back}</p>;
+};
+
 const at = (gameId: string) => (
   <LobbyContext.Provider value={lobby}>
     <MemoryRouter initialEntries={[`/computer/${gameId}`]}>
       <Routes>
         <Route path="/computer" element={<p>choose a side and level</p>} />
         <Route path="/computer/:gameId" element={<ComputerGameScreen />} />
+        <Route path="/learn" element={<Learn />} />
       </Routes>
     </MemoryRouter>
   </LobbyContext.Provider>
@@ -110,6 +117,20 @@ it('opened any other way (a reload, history), it opens on the game, no lobby ove
   render(at('g3'));
   expect(await screen.findByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
   expect(view ?? null).toBeNull();
+});
+
+it('leads to the tutorial, which is told the way back to this game', async () => {
+  saveComputerGame({ id: 'g5', color: 'white', difficulty: 'easy', started: true, moves: [] });
+  render(at('g5'));
+  await screen.findByTestId('turn-indicator');
+  // After the move box, which stays the first Tab stop
+  const learn = screen.getByRole('button', { name: 'How to play' });
+  expect(
+    screen.getByTestId('move-card').compareDocumentPosition(learn) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  await userEvent.click(learn);
+  expect(screen.getByTestId('learn-back')).toHaveTextContent('/computer/g5');
 });
 
 it('the computer moves first when it plays White, once the entrance is over', async () => {

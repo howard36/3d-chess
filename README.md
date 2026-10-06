@@ -190,7 +190,9 @@ Key decisions:
   over 100 px on a desktop, as it climbed.) The landing page's preview, which only turns
   about the axis at one elevation, centres its rings as seen from there instead, between a
   band at the top and one at the bottom (`centre: 'rings'`, `bottomInset`: see Landing
-  page). The layout's `orbit.minDistance` only narrows the range, and its
+  page); the tutorial centres them as seen from the opening in the room its card leaves,
+  kept in it from there and from below (`centre: 'opening'`, `leftInset`: see The
+  tutorial). The two bands never take more than three quarters of the window. The layout's `orbit.minDistance` only narrows the range, and its
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
   sky, to straight down). The controls (`three/CameraControls.tsx`) are three's own
   OrbitControls, registered as r3f's default controls, which `FitCameraToBoard`, the
@@ -265,9 +267,11 @@ Key decisions:
   sets the text in a column at the left instead (band 12). The button creates nothing: it
   opens the side choice at `/new` (see The lobby). Under it, a quieter glass pill, "Play the
   computer", opens the side choice against the computer at `/computer` (see Playing the
-  computer); nothing is written under them. The
+  computer); nothing is written under them. "How to play", a quiet link in the top
+  right corner (across from where the other pages keep "← Home"), opens the tutorial (see The
+  tutorial). The
   canvas is `aria-hidden` and takes no pointer, and a visually hidden sentence says what it
-  shows. The two buttons are the page's only controls: the preview always plays (it has no
+  shows. The three buttons are the page's only controls: the preview always plays (it has no
   pause), except under `prefers-reduced-motion`, where it is a still of the final
   position, the king left standing, with a still rim. In development `?t=<seconds>` starts
   the demo that far in.
@@ -718,17 +722,18 @@ under a fresh lower-case id (a server game's id is upper case). No server is ask
 plays offline.
 
 **The way in** tells one story, each beat starting once the last has visibly finished:
-1. *Choose your side.* The pick plays out as against a friend: the chosen king set down
+
+1. _Choose your side._ The pick plays out as against a friend: the chosen king set down
    in its ring and its column of light, the others fading (or the coin thrown and landed,
    "Leaving it to chance…").
-2. *Choose difficulty.* Once the chosen king is set down (`onSettled`, as a friend's game
+2. _Choose difficulty._ Once the chosen king is set down (`onSettled`, as a friend's game
    moves on to its invitation), the page is framed as an invitation is (the `invited`
    beat with a card): the computer's seat across from the player's opens, its outline
    drawn up from the foot and breathing, "You" and "Computer" under the kings, and Easy,
    Medium and Hard docked under them where the guest's "Join game" stands
    (`.lobby-levels`, rising in turn; the level last played has the focus, Medium the
    first time, `lib/computerGames.ts`).
-3. *The computer arrives.* A level fills the computer's king at once (its seat taken, the
+3. _The computer arrives._ A level fills the computer's king at once (its seat taken, the
    card gone, so the camera eases back down) while the level chosen holds a moment, the
    others fade and the page's words go (`[data-out]`); as the levels' fade ends (their
    `animationend`; at once under reduced motion) the page moves on to `/computer/<id>`,
@@ -809,6 +814,70 @@ or a knight from the next level up, and misses its own, the way a person does.
 
 Measured by self-play (`chooseMove`, alternating colours): Easy beat a random mover 6–0,
 Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking time.
+
+## The tutorial
+
+`/learn` (and `/learn/<lesson>`: `rook`, `bishop`, `unicorn`, `queen`, `king`, `knight`,
+`pawn`) opens on Setup, the armies as a game starts (nothing picked up, the board only to
+look at, and in the card each side's pieces counted in one row, the words saying what chess
+doesn't have: two unicorns, and ten pawns instead of eight), then teaches how the pieces move on the real tower and rules, a
+lesson per piece (`screens/learn/LearnScreen.tsx`, the lessons in `game/lessons.ts`), through staged positions
+rather than text: a sentence or two a step, said plainly as a teacher would ("Rooks move in a
+straight line, in any of 6 directions: left, right, forwards, backwards, up or down."), and a
+quieter note only for a rule the board can't show, such as no castling. A direction is only
+ever one of the six (left, right, forwards, backwards, up, down): a bishop goes two at once, a
+unicorn three, and the ways out of a square are counted as lines ("12 lines"). One card holds the whole lesson: the pieces along
+its top, the lesson (the unicorn's badged as the new piece; the pawn's step named beside its
+name, with a dot for each step at the right, the current one a longer bar, a tap on one going
+to it), and Next. Each lesson stands the piece alone on Cc3, the middle of the board,
+picked up, every square it can reach ringed in gold, beside a little cube with its lines
+drawn from the middle (a rook's to the faces, a bishop's to the edges, a unicorn's to the
+corners) and how many moves it has from where it stands. A tapped ring plays the move (the
+glide, the last move's line): the piece is picked up again where it lands and the count follows
+it; Reset puts it back. A piece captures as it moves, as in chess, so only the pawn has more
+steps: Move (White's), Black (Black's pawn alone in the middle, "Black pawns mirror
+White's. They move the opposite way, down instead of up", said without forwards or
+backwards, which depend on the side; the board stays White's way round, seated as no one
+with Black on turn), Capture (a piece on each of its five capture squares) and Promote (from
+Dc5, already on the far rank and a level short, so its one move up onto E5 opens the real
+promotion dialog; the figure shows White's row and Black's, on White's side, and the note
+says so). Next runs
+through every step and lesson to "Play a game" (`/new`). A game's page has its own way in:
+"How to play" at the top right of the HUD (a "?" in a window under 720 px wide, where the
+pill's row ends short to make room for it on a phone; `e2e/hudFit.spec.ts` keeps it clear of
+the rest of the HUD and of the tower). Opened from there, the tutorial is handed the game's
+address in the router's state (`learnBack.ts`, a game page only) and carries it from lesson
+to lesson: "← Home" becomes "← Game" and the last Next "Back to game", both back to that
+game, which rejoins as on a reload. The card keeps one height per layout (beside the tower, 376 px, or
+396 px for the pawn's steps; along the bottom 260 px, 272 px on a phone held upright, whose
+words are larger, and 284 px on one 380 px wide or less, where the words take the card's
+whole width without the figure; the window's height under Home on a phone on its side),
+sized so every lesson fits with room above its foot; should a window be too short, the
+lesson scrolls above the foot rather than run into it. The tower is framed in the room the
+card and Home leave (`learnLayout.ts`), with the rings as seen from the opening in its middle
+(`centre: 'opening'`) and kept in it from there and from below (looking down from higher up
+they may pass under the card: framed for every elevation, a small phone's tower would stand
+a fifth smaller). Where the card stands at the left of a short window and the tower, centred,
+would run under it, the fit centres the tower in the room right of the card instead
+(`settleLeftInset`, the lens shift's one sideways part); in a wide window the card stands
+beside the tower only once the tower, centred, clears it (`cardBeside`).
+`e2e/learn.spec.ts` walks every lesson and step at six sizes, one for each layout down to
+a 320 px phone either way up, and fails on a lesson within 10 px of the foot, one that has
+to scroll, anything past the card's sides, or a card out of the window.
+
+The board is the game's `Board` with `showMovesOf`, a square whose piece it keeps picked
+up (on mount and in each new position, once a live move has landed). The lessons have no
+kings, which the engine needs to tell a legal move; `LessonBoard` (a `Board` of the
+engine's) lets a piece without its king make every move it has, and keeps the rules of
+check where one stands. The page is a chunk of its own (`LearnRoute.tsx`, which says so
+should it fail to load), so the start page carries none of it; the start page's link asks
+for it as the pointer or focus reaches it, and `/learn` preloads it. The canvas
+(`screens/learn/LearnCanvas.tsx`, in the chunk the game's board shares, preloaded on
+`/learn` like `/new`) frames the tower under Home
+(56 px, where the lobby has it) and over the card (272 px), or, where the window is wide enough for the tower to
+clear a card at its left from every side the view turns to, or short, beside the card
+(`learnLayout.ts`, `cardBeside`, which also sets the page's `data-card`). It never
+publishes `__r3fState`.
 
 ## Repository layout
 

@@ -12,6 +12,7 @@ import {
   FIT_SOFTNESS,
   fitView,
   ringBounds,
+  settleLeftInset,
   zoomRange,
 } from './cameraFit';
 import type { FrameRing } from './cameraFit';
@@ -130,7 +131,8 @@ interface FitOptions {
   rings?: FrameRing[];
   topInset?: number;
   bottomInset?: number;
-  centre?: 'target' | 'rings';
+  leftInset?: number;
+  centre?: 'target' | 'rings' | 'opening';
   sweep?: [number, number];
   balanceInset?: number;
 }
@@ -365,6 +367,69 @@ describe('fitView', () => {
     });
   });
 
+  describe("the tutorial's fit (centre: 'opening', a left band)", () => {
+    const SWEEP: [number, number] = [-14 * DEG, 18 * DEG];
+    /** The rings' margins in CSS px, seen from `elevation` (degrees) at the fit's distance and shift. */
+    const marginsFrom = (
+      elevation: number,
+      w: number,
+      h: number,
+      distance: number,
+      shift: [number, number],
+    ) => {
+      const b = ringBounds(RINGS, elevation * DEG, distance);
+      const k = h / (2 * tanV);
+      return {
+        left: w / 2 + (b.left - shift[0]) * k,
+        right: w / 2 - (b.right - shift[0]) * k,
+        top: h / 2 - (b.top - shift[1]) * k,
+        bottom: h / 2 + (b.bottom - shift[1]) * k,
+      };
+    };
+
+    it.each([
+      ['a small upright phone, the card along the bottom', 320, 568, 56, 296, 0],
+      ['an upright phone, the card along the bottom', 390, 844, 56, 284, 0],
+      ['a small phone on its side, the card at the left', 568, 320, 56, 0, 276],
+      ['a desktop', 1280, 800, 56, 0, 0],
+    ])(
+      'centres the rings as seen from the opening in the room the bands leave, in %s, and keeps them in it from below',
+      (_, w, h, top, bottom, left) => {
+        const options = { topInset: top, bottomInset: bottom, leftInset: left, sweep: SWEEP };
+        const { framed, rect, distance, shift } = fitted(18, 0, w, h, {
+          ...options,
+          centre: 'opening',
+        });
+        expect(Math.abs(framed.top - top - (framed.bottom - bottom))).toBeLessThan(0.5);
+        expect(Math.abs(rect.left - left - rect.right)).toBeLessThan(0.5);
+        for (let e = -14; e <= 18; e += 1) {
+          const m = marginsFrom(e, w, h, distance, shift);
+          expect(m.top).toBeGreaterThan(top - 0.5);
+          expect(m.bottom).toBeGreaterThan(bottom - 0.5);
+          expect(m.left).toBeGreaterThan(left - 0.5);
+          expect(m.right).toBeGreaterThan(-0.5);
+        }
+        // Higher than centring the target leaves them: from the opening the
+        // rings reach further below the target than above it
+        const target = fitted(18, 0, w, h, { ...options, balanceInset: top });
+        expect(framed.top).toBeLessThan(target.framed.top + 0.5);
+      },
+    );
+
+    it('keeps the view centred across where it clears the left band, and only then', () => {
+      const view = { fov: 36, topInset: 56, centre: 'opening' as const, sweep: SWEEP };
+      // A wide short window: the tower, centred, stands clear of the card
+      const wide = { ...view, width: 1100, height: 460, leftInset: 276 };
+      expect(settleLeftInset(18 * DEG, RINGS, wide).leftInset).toBeUndefined();
+      // A phone on its side: it would run under the card, so stands right of it
+      const phone = { ...view, width: 568, height: 320, leftInset: 276 };
+      expect(settleLeftInset(18 * DEG, RINGS, phone)).toBe(phone);
+      // and with no band there is nothing to settle
+      const none = { ...view, width: 568, height: 320 };
+      expect(settleLeftInset(18 * DEG, RINGS, none)).toBe(none);
+    });
+  });
+
   it('fits exactly as before without a bottom band', () => {
     const view = { width: 1280, height: 720, fov: 36, topInset: 82 };
     for (const centre of ['target', 'rings'] as const) {
@@ -374,18 +439,18 @@ describe('fitView', () => {
     }
   });
 
-  it('never lets the two bands together take more than half the window', () => {
+  it('never lets the two bands together take more than three quarters of the window', () => {
     const view = { width: 800, height: 800, fov: 36 };
     const [, y] = centringShift(
       { left: 0, right: 0, bottom: 0, top: 0 },
       {
         ...view,
-        topInset: 300,
-        bottomInset: 300,
+        topInset: 200,
+        bottomInset: 500,
       },
     );
-    // The top band takes 300 of 800 rows; the bottom only the 100 left of half
-    expect(y).toBeCloseTo(((300 - 100) / 800) * tanV);
+    // The top band takes 200 of 800 rows; the bottom only the 400 left of 600
+    expect(y).toBeCloseTo(((200 - 400) / 800) * tanV);
   });
 
   it('stands further back for wider rings', () => {

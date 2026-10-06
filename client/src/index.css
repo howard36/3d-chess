@@ -366,11 +366,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* A phone upright: the pill fills the row */
+/* A phone upright: the pill fills the row, but for the way to the tutorial
+   at its right (.hud-learn) */
 @media (max-width: 520px) {
   .hud-top {
     left: 12px;
-    right: 12px;
+    right: 58px;
   }
   .hud-bar {
     width: 100%;
@@ -1442,4 +1443,50 @@
 }
 .hud-result-go {
   margin-top: 18px;
+}
+
+/* The way to the tutorial in a game: the top right corner, beside the
+   pill's band (.hud-top keeps 60 px each side), its words where the window
+   has room for them and the pill, a "?" where it has not */
+.hud-learn {
+  position: absolute;
+  top: 16px;
+  right: max(12px, env(safe-area-inset-right));
+  pointer-events: auto;
+}
+.hud-learn-mark {
+  display: none;
+}
+@media (max-width: 719px) {
+  .hud-learn {
+    top: 14px;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid rgba(236, 241, 255, 0.22);
+    border-radius: 50%;
+  }
+  .hud-learn-word {
+    display: none;
+  }
+  .hud-learn-mark {
+    display: inline;
+  }
+}
+/* A touch screen: a fingertip's circle, centred on the taller pill */
+@media (max-width: 719px) and (pointer: coarse) {
+  .hud-learn {
+    top: 14px;
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* The way to the tutorial: the top right corner, across from where the
+   other pages keep Home (.lobby-top), clear of the bands round the tower */
+.landing-learn {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
 }
