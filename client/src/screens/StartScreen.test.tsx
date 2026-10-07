@@ -38,14 +38,14 @@ const renderStart = () =>
     </MemoryRouter>,
   );
 
-test('the start button is the first thing Tab reaches, and the preview has no controls', async () => {
+test('playing a friend is the first thing Tab reaches, and the preview has no controls', async () => {
   reduceMotion(false);
   renderStart();
   await userEvent.tab();
-  expect(screen.getByRole('button', { name: 'Start a game' })).toHaveFocus();
-  // It always plays: the two ways in, and the way to the tutorial, are the page's only controls
+  expect(screen.getByRole('button', { name: 'Play a friend' })).toHaveFocus();
+  // It always plays: the two ways to play, and the way to the tutorial, are the page's only controls
   expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
-    'Start a game',
+    'Play a friend',
     'Play the computer',
     'How to play',
   ]);
@@ -60,7 +60,7 @@ test('for a player who asked for less motion the preview holds still', async () 
 test('nothing is written under the buttons', () => {
   reduceMotion(false);
   renderStart();
-  const foot = screen.getByRole('button', { name: 'Start a game' }).parentElement!;
+  const foot = screen.getByRole('button', { name: 'Play a friend' }).parentElement!;
   expect([...foot.children].map((c) => c.tagName)).toEqual(['BUTTON', 'BUTTON']);
 });
 
@@ -78,10 +78,10 @@ test('the tutorial is a click away', async () => {
   expect(screen.getByText('the tutorial')).toBeInTheDocument();
 });
 
-test('the start button opens the side choice, which creates the game', async () => {
+test('playing a friend opens the side choice, which creates the game', async () => {
   reduceMotion(false);
   renderStart();
-  await userEvent.click(screen.getByRole('button', { name: 'Start a game' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Play a friend' }));
   expect(screen.getByText('choose a side')).toBeInTheDocument();
 });
 

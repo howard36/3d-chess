@@ -439,7 +439,12 @@ const BENCH_INIT = () => {
       b.stage.push([t, ...stage]);
     }
     const inGame = location.pathname.startsWith('/game/');
-    if (!f.createButton && !inGame && buttonNamed('Start a game', true)) f.createButton = t;
+    if (
+      !f.createButton &&
+      !inGame &&
+      (buttonNamed('Play a friend', true) || buttonNamed('Start a game', true))
+    )
+      f.createButton = t;
     if (
       inGame &&
       !f.joinButton &&
@@ -995,7 +1000,7 @@ async function coldSection(browser) {
     'cold-load',
     {
       title: 'Cold load of the start screen',
-      intro: `A first visit: a fresh browser context (empty cache) opens \`/\` until the “Start a game” button is enabled and the socket to the server is open, ${CFG.coldRuns} runs per case. Desktop is ${VIEWPORTS.desktop.label}, phone ${VIEWPORTS.phone.label}; the third case models a mid-range phone on a mobile network: DevTools’ 4× CPU throttling and its “Fast 4G” preset (165 ms RTT, 8.1 Mbit/s down). Served from localhost by \`vite preview\` (gzip); nothing here draws WebGL.`,
+      intro: `A first visit: a fresh browser context (empty cache) opens \`/\` until the “Play a friend” button is enabled and the socket to the server is open, ${CFG.coldRuns} runs per case. Desktop is ${VIEWPORTS.desktop.label}, phone ${VIEWPORTS.phone.label}; the third case models a mid-range phone on a mobile network: DevTools’ 4× CPU throttling and its “Fast 4G” preset (165 ms RTT, 8.1 Mbit/s down). Served from localhost by \`vite preview\` (gzip); nothing here draws WebGL.`,
       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
       align: ['l', 'l', 'r', 'r', 'r', 'r'],
       timeoutMs: QUICK ? 120000 : 300000,
@@ -1111,9 +1116,11 @@ async function setupViaUI(browser, scope) {
     null,
     { polling: 50 },
   );
-  await pageA.getByRole('button', { name: 'Start a game' }).click();
+  // (named "Start a game" before the home page had two ways to play, as a base
+  // commit may still have it)
+  await pageA.getByRole('button', { name: /^(Play a friend|Start a game)$/ }).click();
   // The side choice (/new), where a pick asks the server for the game; a
-  // build without one asks on "Start a game" and goes straight to the game
+  // build without one asks on "Play a friend" and goes straight to the game
   await pageA.waitForURL(/\/(new|game\/)/);
   const chose = new URL(pageA.url()).pathname === '/new';
   if (chose) await pageA.getByRole('button', { name: /^White/ }).click();
@@ -1133,7 +1140,7 @@ async function setupViaUI(browser, scope) {
     });
   });
   const clickA = a.clicks.find((c) =>
-    chose ? c[1].startsWith('White') : c[1] === 'Start a game',
+    chose ? c[1].startsWith('White') : /^(Play a friend|Start a game)$/.test(c[1]),
   )?.[0];
   const clickB = b.clicks.find((c) => /^Join game$/i.test(c[1]))?.[0];
   const rxOf = (s, type) => s.rx.find((r) => r[1] === type)?.[0];
@@ -1190,7 +1197,7 @@ async function setupSection(browser, shared) {
     'setup',
     {
       title: 'Game setup',
-      intro: `Two players meet: the creator clicks “Start a game”, picks White and gets the share link (“create: click” is the pick, which asks the server for the game); the joiner (a second fresh context) opens it and clicks “Join game”; done when both pages have the board mounted, its first frame drawn and the game’s entrance over. ${CFG.setupRuns} run(s), desktop viewport, both pages on the same VM. The first frame includes building the scene and its shader programs, which SwiftShader does on the CPU (the browser drew a board before this section, so the GPU process’s shader cache is warm, as for a returning player). ${SW_NOTE}`,
+      intro: `Two players meet: the creator clicks “Play a friend”, picks White and gets the share link (“create: click” is the pick, which asks the server for the game); the joiner (a second fresh context) opens it and clicks “Join game”; done when both pages have the board mounted, its first frame drawn and the game’s entrance over. ${CFG.setupRuns} run(s), desktop viewport, both pages on the same VM. The first frame includes building the scene and its shader programs, which SwiftShader does on the CPU (the browser drew a board before this section, so the GPU process’s shader cache is warm, as for a returning player). ${SW_NOTE}`,
       columns: ['Step', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,

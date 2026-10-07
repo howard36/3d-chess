@@ -57,7 +57,7 @@ test('the start page goes without its preview', async () => {
   renderApp('/');
   await settle();
   expect(screen.getByRole('heading', { name: '3D Chess' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Start a game' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Play a friend' })).toBeInTheDocument();
   // Nor is a preview described that is not there
   expect(screen.queryByText(/Preview:/)).toBeNull();
   expect(screen.queryByText('Something went wrong')).toBeNull();
