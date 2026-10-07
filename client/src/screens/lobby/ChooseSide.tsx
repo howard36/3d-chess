@@ -10,6 +10,7 @@ import type { Side } from '../../three/lobby/lobbyMotion';
 import { useLobbyView } from './lobbyContext';
 import type { LobbyStage } from './lobbyContext';
 import { SeatLabels } from './LobbyCards';
+import { BotGlyph } from '../BotGlyph';
 import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 import { DIFFICULTIES, DIFFICULTY_NAME } from '../../ai/levels';
 import type { Difficulty } from '../../ai/levels';
@@ -34,7 +35,8 @@ import { prefersReducedMotion } from '../../three/motion';
 // Against the computer (/computer) the side is the first of two steps: once
 // the pick has played out, the other seat's outline comes up for the
 // computer and its level is chosen under the kings, where the side was, the
-// kings framed as they were for it. Choosing it fills the computer's king,
+// kings framed as they were for it: three tiles like the home page's, each
+// the computer's robot with its strength and the level's name. Choosing it fills the computer's king,
 // the game is made on the spot, in the browser (no server is asked), and its
 // page opens on the computer's arrival as the page's words go.
 
@@ -198,7 +200,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
           return (
             <button
               key={choice}
-              className="lobby-choice"
+              className="lobby-choice lobby-glass"
               data-choice={choice}
               data-chosen={chosen ? '' : undefined}
               data-faded={
@@ -222,7 +224,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
               onBlur={() => setHover((h) => (h === choice ? null : h))}
               onClick={() => pick(choice)}
             >
-              <span className="lobby-choice-name">{name}</span>
+              {name}
             </button>
           );
         })}
@@ -244,10 +246,10 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
               if (e.target === e.currentTarget && e.animationName === 'lobby-out') setGone(true);
             }}
           >
-            {DIFFICULTIES.map((d) => (
+            {DIFFICULTIES.map((d, i) => (
               <button
                 key={d}
-                className="lobby-choice lobby-level"
+                className="lobby-glass lobby-level"
                 data-level={d}
                 data-chosen={level === d ? '' : undefined}
                 data-faded={level && level !== d ? '' : undefined}
@@ -256,7 +258,16 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
                 autoFocus={d === getStoredDifficulty()}
                 onClick={() => pickLevel(d)}
               >
-                <span className="lobby-choice-name">{DIFFICULTY_NAME[d]}</span>
+                {/* The computer and its strength, one bar to three */}
+                <span className="lobby-level-icon" aria-hidden>
+                  <BotGlyph />
+                  <span className="lobby-strength" data-strength={i + 1}>
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                </span>
+                <span className="lobby-level-name">{DIFFICULTY_NAME[d]}</span>
               </button>
             ))}
           </div>

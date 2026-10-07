@@ -5,8 +5,9 @@ import type { Invitation } from '../../game/invitation';
 import type { GameSocket } from '../../hooks/useGameSocket';
 import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 
-// The cards over the lobby's scene on a game's page before it starts: the
-// creator's invitation to send, and the invitation as its guest opens it.
+// The cards over the lobby's scene on a game's page before it starts, of the
+// home page's tile glass (.lobby-glass): the creator's invitation to send,
+// and the invitation as its guest opens it.
 // Their one action is a pill of starlight in a rim of the level colours
 // (.landing-play, the result card's too), so the way in looks the same at
 // every step.
@@ -37,7 +38,7 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
   React.useEffect(() => first.current?.focus({ preventScroll: true }), []);
   return (
     <section
-      className="lobby-card lobby-invite"
+      className="lobby-card lobby-glass lobby-invite"
       aria-labelledby="invite-title"
       data-testid="invite-card"
       data-seat={seat}
@@ -76,7 +77,7 @@ export const InvitationCard: React.FC<{
   const slow = useDelayed(invitation.state === 'opening', SLOW_SERVER_MS);
   if (invitation.state === 'full' || invitation.state === 'gone') {
     return (
-      <section className="lobby-card" aria-labelledby="invitation-title" role="alert">
+      <section className="lobby-card lobby-glass" aria-labelledby="invitation-title" role="alert">
         <h2 id="invitation-title">
           {invitation.state === 'full' ? 'This game is taken' : 'No game here'}
         </h2>
@@ -99,9 +100,13 @@ export const InvitationCard: React.FC<{
   }
   const joining = invitation.state === 'joining';
   // Its heading is the page's (GameScreen): "You're invited to play …"; the
-  // scene shows the rest, so all it holds is the one thing to do
+  // scene shows the rest, so all the card holds is the one thing to do
   return (
-    <section className="lobby-dock" aria-labelledby="invitation-title" data-testid="invitation">
+    <section
+      className="lobby-card lobby-glass lobby-invitation"
+      aria-labelledby="invitation-title"
+      data-testid="invitation"
+    >
       <div className="lobby-actions">
         <button
           autoFocus
