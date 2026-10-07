@@ -426,15 +426,15 @@ describe('handing over to the game', () => {
       expect(black.distance).toBeCloseTo(white.distance, 9);
       white.target.forEach((v, i) => expect(black.target[i]).toBeCloseTo(v, 9));
     }
-    // Black's camera turn round the tower (-164°) and a quarter turn more:
-    // a hard spin, the same way for both
+    // Black's camera turn round the tower (-164°), which White's glass makes
+    // up with half a turn of its own: the same spin for both
     const turn = onGlass('white', 1).azimuth - from.azimuth;
     const [x, , z] = layout.viewDirection;
-    expect(turn).toBeCloseTo(Math.atan2(x, z) - Math.PI - Math.PI / 2, 9);
-    expect(turn * (180 / Math.PI)).toBeLessThan(-250);
-    // Whole quarter turns: the square glass looks just as it did
-    expect(leaveGlassTurn('white')).toBeCloseTo((3 * Math.PI) / 2, 12);
-    expect(leaveGlassTurn('black')).toBeCloseTo(Math.PI / 2, 12);
+    expect(turn).toBeCloseTo(Math.atan2(x, z) - Math.PI, 9);
+    expect(turn * (180 / Math.PI)).toBeLessThan(-150);
+    // Half a turn: the square glass looks just as it did
+    expect(leaveGlassTurn('white')).toBeCloseTo(Math.PI, 12);
+    expect(leaveGlassTurn('black')).toBe(0);
   });
 
   it("ends the leaving at rest on the game's first frame", () => {
@@ -454,7 +454,7 @@ describe('handing over to the game', () => {
     }
   });
 
-  it('draws back at an even pace while the glass gathers itself and then spins hard', () => {
+  it('eases off and draws back while the glass gathers itself and then spins hard', () => {
     for (const [w, h] of [
       [1280, 720],
       [390, 844],
@@ -482,17 +482,21 @@ describe('handing over to the game', () => {
         expect(parts(1)[part]).toBeCloseTo(1, 9);
         for (const t of samples(0, 1 - dt, 100)) expect(pace(t, part)).toBeGreaterThanOrEqual(0);
       }
-      // The camera at an even pace through its middle
-      for (const t of samples(0.2, 0.8, 20)) expect(pace(t, 'back')).toBeCloseTo(1 / 0.8, 6);
-      // The glass slow to start, a third of its spin by halfway, and fastest
-      // in the second half, two-thirds of the way
-      expect(parts(0.5).spin).toBeLessThan(0.35);
-      expect(pace(2 / 3, 'spin')).toBeGreaterThan(pace(0.5, 'spin'));
-      expect(pace(2 / 3, 'spin')).toBeGreaterThan(pace(0.85, 'spin'));
-      expect(pace(2 / 3, 'spin')).toBeGreaterThan(1.7);
+      // The camera easing gently off over its first two-fifths, then at an
+      // even pace through the middle
+      expect(pace(0.1, 'back')).toBeLessThan(0.3);
+      for (const t of samples(0.4, 0.7, 20)) expect(pace(t, 'back')).toBeCloseTo(1 / 0.65, 6);
+      // The glass barely turning at first (under 2% by a quarter of the way,
+      // under a fifth by halfway), and fastest late, three-quarters of the way
+      expect(parts(0.25).spin).toBeLessThan(0.02);
+      expect(parts(0.5).spin).toBeLessThan(0.2);
+      expect(pace(0.75, 'spin')).toBeGreaterThan(pace(0.6, 'spin'));
+      expect(pace(0.75, 'spin')).toBeGreaterThan(pace(0.9, 'spin'));
+      expect(pace(0.75, 'spin')).toBeGreaterThan(2);
     }
-    expect(leavePull(0.5)).toBeCloseTo(0.5, 12);
-    expect(leaveSpin(0.5)).toBeCloseTo(0.3125, 12);
+    expect(leavePull(0)).toBe(0);
+    expect(leavePull(1)).toBeCloseTo(1, 12);
+    expect(leaveSpin(0.5)).toBeCloseTo(0.1875, 12);
   });
 
   it('brings the glass down the picture to its place without scraping the bottom', () => {
