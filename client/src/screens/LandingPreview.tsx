@@ -6,11 +6,12 @@ import { AutoOrbit } from '../three/AutoOrbit';
 import { FitCameraToBoard } from '../three/FitCameraToBoard';
 import { usePixelBudget } from '../three/pixelBudget';
 import {
+  LANDING_BANDS,
   LANDING_VIEW,
-  landingBand,
   landingFrameRings,
   landingViewDirection,
 } from '../three/landingView';
+import type { LandingDesign } from '../three/landingView';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import { DEMO_GAME, demoFrame, demoLog } from '../game/demo';
@@ -77,7 +78,15 @@ function DemoDirector({
  * camera holds where it is on the game's final position, the mating move's
  * line and the check showing, the king still standing.
  */
-export function LandingPreview({ still }: { still: boolean }) {
+export function LandingPreview({
+  still,
+  design = 'column',
+}: {
+  still: boolean;
+  /** The page's layout, whose bands the tower is kept clear of. */
+  design?: LandingDesign;
+}) {
+  const bands = LANDING_BANDS[design];
   const pixelRatio = usePixelBudget();
   const veil = React.useRef<HTMLDivElement>(null);
   // Where the moving demo stands (DemoDirector reports each new ply and pass)
@@ -137,8 +146,9 @@ export function LandingPreview({ still }: { still: boolean }) {
           viewDirection={landingViewDirection}
           minDistance={layout.orbit.minDistance}
           frameRings={landingFrameRings}
-          hudTopBand={landingBand}
-          bottomBand={landingBand}
+          hudTopBand={bands.top}
+          bottomBand={bands.bottom}
+          leftBand={bands.left}
           // It only turns about the axis, at one elevation: the tower as seen
           // from there is centred
           centre="rings"

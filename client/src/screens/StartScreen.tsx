@@ -1,11 +1,13 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { prefersReducedMotion } from '../three/motion';
 import { lazyChunk } from '../lib/cachedImport';
 import { ChunkBoundary } from '../components/ChunkBoundary';
 import { PieceGlyph } from './PieceGlyph';
 import { PieceType } from '../engine/pieces';
 import { learnScreen } from './learn/learnChunk';
+import { LANDING_DESIGNS } from '../three/landingView';
+import type { LandingDesign } from '../three/landingView';
 
 // The preview (three.js, the scene, a demo game) is a chunk of its own,
 // asked for when the page first draws, so its title and button show without
@@ -22,12 +24,13 @@ const StartScreen: React.FC = () => {
   const navigate = useNavigate();
   const still = useReducedMotion();
   const [noPreview, setNoPreview] = React.useState(false);
+  const design = useDesign();
 
   return (
-    <main className="landing" data-testid="landing">
+    <main className="landing" data-testid="landing" data-design={design}>
       <ChunkBoundary onFail={() => setNoPreview(true)}>
         <React.Suspense fallback={null}>
-          <LandingPreview still={still} />
+          <LandingPreview still={still} design={design} />
         </React.Suspense>
       </ChunkBoundary>
       {!noPreview && (
@@ -37,33 +40,45 @@ const StartScreen: React.FC = () => {
         </p>
       )}
       <div className="landing-scrim" aria-hidden="true" />
-      <header className="landing-head">
-        <h1>3D Chess</h1>
-      </header>
-      <div className="landing-foot">
-        <button className="landing-play" onClick={() => navigate('/new')}>
-          <span className="landing-play-piece" aria-hidden>
-            <PieceGlyph type={PieceType.Knight} color="black" size={24} />
-          </span>
-          Start a game
-        </button>
-        <button className="landing-alt" onClick={() => navigate('/computer')}>
-          Play the computer
+      <div className="landing-menu">
+        <header className="landing-head">
+          <h1>
+            <span>3D</span> <span>Chess</span>
+          </h1>
+        </header>
+        <div className="landing-foot">
+          <button className="landing-play" onClick={() => navigate('/new')}>
+            <span className="landing-play-piece" aria-hidden>
+              <PieceGlyph type={PieceType.Knight} color="black" size={24} />
+            </span>
+            <span className="landing-label">Start a game</span>
+          </button>
+          <button className="landing-alt" onClick={() => navigate('/computer')}>
+            <span className="landing-label">Play the computer</span>
+          </button>
+        </div>
+        {/* The way to the tutorial: with the others, or (classic) in the
+            corner across from where the other pages keep Home */}
+        <button
+          className="lobby-link landing-learn"
+          onClick={() => navigate('/learn')}
+          // The tutorial's page is a chunk of its own: asked for on the way to the button
+          onPointerEnter={learnScreen.preload}
+          onFocus={learnScreen.preload}
+        >
+          <span className="landing-label">How to play</span>
         </button>
       </div>
-      {/* The way to the tutorial, in the corner across from where the other pages keep Home */}
-      <button
-        className="lobby-link landing-learn"
-        onClick={() => navigate('/learn')}
-        // The tutorial's page is a chunk of its own: asked for on the way to the button
-        onPointerEnter={learnScreen.preload}
-        onFocus={learnScreen.preload}
-      >
-        How to play
-      </button>
     </main>
   );
 };
+
+/** The layout the address asks for (`?design=`), or the default. */
+function useDesign(): LandingDesign {
+  const [params] = useSearchParams();
+  const asked = params.get('design');
+  return LANDING_DESIGNS.find((d) => d === asked) ?? LANDING_DESIGNS[0];
+}
 
 /** Whether the player asked their system for less motion, following a change while the page is open. */
 function useReducedMotion(): boolean {

@@ -92,3 +92,17 @@ test('a keyboard player reaches the side choice with the first Tab and Enter', a
   await userEvent.keyboard('{Enter}');
   expect(screen.getByText('choose a side')).toBeInTheDocument();
 });
+
+test.each([
+  ['/', 'column'],
+  ['/?design=split', 'split'],
+  ['/?design=nonsense', 'column'],
+])('at %s the page is laid out as %s', (path, design) => {
+  reduceMotion(false);
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <StartScreen />
+    </MemoryRouter>,
+  );
+  expect(screen.getByTestId('landing')).toHaveAttribute('data-design', design);
+});

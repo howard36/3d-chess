@@ -60,7 +60,7 @@ export function FitCameraToBoard({
   /** What the view keeps in frame (BoardLayout.frameRings). */
   frameRings: readonly FrameRing[];
   /** The HUD's band at the top for a window this size (hudTop). */
-  hudTopBand: (height: number) => number;
+  hudTopBand: (height: number, width: number) => number;
   /** The band kept clear at the bottom for a window this size, if any. */
   bottomBand?: (height: number, width: number) => number;
   /** The band at the left the tower is kept clear of, should it run under it (FitWindow.leftInset). */
@@ -87,7 +87,7 @@ export function FitCameraToBoard({
       width,
       height,
       fov: camera.fov,
-      topInset: hudTopBand(height),
+      topInset: hudTopBand(height, width),
       bottomInset: bottomBand?.(height, width),
       leftInset: leftBand?.(width, height),
       centre,

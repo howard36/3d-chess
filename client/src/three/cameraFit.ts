@@ -286,8 +286,10 @@ const targetColumn = (w: FitWindow): number => (leftShare(w) + 1) / 2;
  */
 export function centringShift(bounds: ViewBounds, w: FitWindow): [number, number] {
   const tanV = Math.tan(MathUtils.degToRad(w.fov) / 2);
+  const tanH = tanV * (w.width / w.height);
   return [
-    (bounds.left + bounds.right) / 2,
+    // (left as far as the room right of the left band stands right of the window's middle)
+    (bounds.left + bounds.right) / 2 - tanH * leftShare(w),
     (bounds.bottom + bounds.top) / 2 + tanV * (bandShare(w) - bottomShare(w)),
   ];
 }
@@ -340,7 +342,7 @@ export function fitView(
     const b = ringBounds(rings, elevation, distance, FIT_SOFTNESS);
     if (w.centre === 'rings') {
       const fitted = Math.max(
-        (b.right * FRAME_MARGIN) / tanH,
+        (b.right * FRAME_MARGIN) / (tanH * (1 - leftShare(w))),
         ((b.top - b.bottom) * FRAME_MARGIN) / (2 * half),
       );
       return { fitted, from: () => 0 };
@@ -408,7 +410,9 @@ export function settleLeftInset(
   rings: readonly FrameRing[],
   w: FitWindow,
 ): FitWindow {
-  if (!w.leftInset) return w;
+  // A view that only turns about the axis keeps its left band: the page
+  // beside it (the landing's) is laid out round the tower standing right of it
+  if (!w.leftInset || w.centre === 'rings') return w;
   const centred = { ...w, leftInset: undefined };
   const { distance } = fitView(elevation, rings, centred);
   const sweep = w.sweep ? elevationsBetween(...w.sweep) : [];
