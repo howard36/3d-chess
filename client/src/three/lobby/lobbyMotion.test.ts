@@ -424,16 +424,22 @@ describe('handing over to the game', () => {
     expect(LEAVE_GLASS_TURN).toBe(Math.PI);
   });
 
-  it("darkens the lobby's garden, holds it black, then brings the game's up", () => {
-    expect(leaveVeil(0)).toBe(0);
+  it("darkens the lobby's garden from the start, holds it black, then brings the game's up", () => {
+    // From the moment the lobby starts leaving, before the camera sets off,
+    // easing in (no cut to black), black by LEAVE_GARDEN_DARK
+    const leaving = -LOBBY_TIMING.leaveSetOff / LOBBY_TIMING.leaveMove;
+    expect(leaveVeil(leaving)).toBe(0);
+    expect(leaveVeil(leaving + 0.05)).toBeLessThan(0.05);
     expect(leaveVeil(LEAVE_GARDEN_DARK)).toBe(1);
+    // ...over most of a second
+    expect((LEAVE_GARDEN_DARK - leaving) * LOBBY_TIMING.leaveMove).toBeGreaterThanOrEqual(0.75);
     // Black for at least a quarter of the move
-    for (const t of samples(LEAVE_GARDEN_DARK, 0.5, 20)) expect(leaveVeil(t)).toBe(1);
-    expect(leaveVeil(0.95)).toBe(0);
+    for (const t of samples(LEAVE_GARDEN_DARK, 0.55, 20)) expect(leaveVeil(t)).toBe(1);
+    expect(leaveVeil(0.97)).toBe(0);
     expect(leaveVeil(1)).toBe(0);
     // Down, then up, never back
     let last = 0;
-    for (const t of samples(0, LEAVE_GARDEN_DARK, 20)) {
+    for (const t of samples(leaving, LEAVE_GARDEN_DARK, 20)) {
       expect(leaveVeil(t)).toBeGreaterThanOrEqual(last);
       last = leaveVeil(t);
     }

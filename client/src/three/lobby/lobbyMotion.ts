@@ -415,30 +415,31 @@ export const leavePose = (from: CameraPose, to: CameraPose, t: number) => {
 };
 
 /**
- * How dark the garden is as the lobby leaves, `t` 0–1 of the move (0 seen,
- * 1 black): the lobby's garden fades to black over the first fifth, it stays
- * black until halfway (long enough that the lobby's garden and the game's
- * never read as one place seen from two sides), and the game's garden fades
- * up, already where the game has it, as the glass spins into place, whole a
- * little before it lands.
+ * How dark the garden is as the lobby leaves, `t` of the move (0 seen, 1
+ * black). It starts before the move does, from the moment the lobby starts
+ * leaving (`t` −0.1: leaveSetOff before the camera sets off), so the lobby's
+ * garden and its caption ease off together over the first 0.8 s rather than
+ * cut to black; it stays black past halfway (long enough that the lobby's
+ * garden and the game's never read as one place seen from two sides), and
+ * the game's garden fades up, already where the game has it, as the glass
+ * spins into place, whole a little before it lands.
  */
 export const leaveVeil = (t: number) => {
-  const k = clamp01(t);
-  if (k < 0.5) return smooth(clamp01(k / 0.2));
-  return 1 - smooth(clamp01((k - 0.5) / 0.45));
+  if (t < 0.5) return smooth(clamp01((t + 0.1) / 0.4));
+  return 1 - smooth(clamp01((t - 0.55) / 0.42));
 };
 
 /**
  * From this far into the move the garden is black, and becomes the game's:
- * laid out for the player's seat, in the game's light (until halfway).
+ * laid out for the player's seat, in the game's light (until past halfway).
  */
-export const LEAVE_GARDEN_DARK = 0.2;
+export const LEAVE_GARDEN_DARK = 0.3;
 
 /**
  * How far the camera has turned round the tower, `t` 0–1 of the move: all
  * of it while the garden is black, so the garden never turns on screen.
  */
-const leaveTurn = (t: number) => smooth(clamp01((t - 0.25) / 0.2));
+const leaveTurn = (t: number) => smooth(clamp01((t - 0.32) / 0.21));
 
 /**
  * Where the game's camera stands on its first frame in a window this size

@@ -314,15 +314,20 @@ const LobbyRig = ({
         size.height,
       );
       shifted.current = true;
-      // The lobby's garden fades to black; in the dark it becomes the game's
-      // (laid out for the seat, in the game's light) and fades up as the
-      // glass spins into place
-      veil.current = leaveVeil(k);
+      // The lobby's garden fades to black from the moment it starts leaving,
+      // its caption with it; in the dark it becomes the game's (laid out for
+      // the seat, in the game's light) and fades up as the glass spins into
+      // place
+      const moved = (since - start) / span;
+      veil.current = leaveVeil(moved);
       dim.current = darkened.current ? 1 : LOBBY_DIM;
-      if (k >= LEAVE_GARDEN_DARK && !darkened.current) {
+      if (moved >= LEAVE_GARDEN_DARK && !darkened.current) {
         darkened.current = true;
         onGardenDark();
       }
+      const ink = darkened.current ? '0' : (1 - veil.current).toFixed(3);
+      if (anchors.current && anchors.current.style.getPropertyValue('--leave-ink') !== ink)
+        anchors.current.style.setProperty('--leave-ink', ink);
       const opacity = Math.min(Math.max((reveal + fade - since) / fade, 0), 1);
       if (canvasHost.current) canvasHost.current.style.opacity = String(opacity);
       if (after >= 0 && !revealed.current) {
@@ -344,6 +349,7 @@ const LobbyRig = ({
       if (glass.current) glass.current.rotation.y = 0;
       dim.current = LOBBY_DIM;
       veil.current = 0;
+      anchors.current?.style.removeProperty('--leave-ink');
       if (shifted.current) {
         shifted.current = false;
         setLensShift(camera, [0, 0], size.width, size.height);
@@ -540,7 +546,11 @@ export const LobbyScene = ({
       {/* The garden, drawn from a copy while the camera is at rest (waiting,
           invited) */}
       <BackdropCache>
-        <Stage orientation={garden} shade={gone ? undefined : shade} dim={() => dim.current} />
+        <Stage
+          orientation={garden}
+          shade={gardenDark ? undefined : shade}
+          dim={() => dim.current}
+        />
       </BackdropCache>
       <GardenVeil veil={veil} />
       {/* The glass and all that stands on it, turned as the lobby leaves (leavePose) */}

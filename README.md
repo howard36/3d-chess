@@ -695,8 +695,10 @@ until the row fits the width).
   brought to rest), sliding down the picture to its place as the camera's look rises from it
   to the tower's centre on the same curve. The camera turns round the tower only a little
   (+16°, the same for either seat), and only while the garden is black: the lobby's garden
-  fades to black over the first fifth of the move (`leaveVeil`, a black veil drawn over the
-  garden and under the glass and the kings), stays black until halfway, long enough that
+  and its caption ease off to black together from the moment the lobby starts leaving, over
+  about 0.8 s (`leaveVeil`, a black veil drawn over the garden and under the glass and the
+  kings; the caption follows it through `--leave-ink`, and the garden keeps the kings' shade
+  until it is dark), stays black past halfway, long enough that
   the lobby's garden and the game's never read as one place seen from two sides, and in the
   dark becomes the game's (laid out for the player's seat, in the game's light), which fades
   up already in place as the glass spins into place. So the garden never turns on screen;
