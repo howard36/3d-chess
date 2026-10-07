@@ -1,13 +1,11 @@
 import React from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { prefersReducedMotion } from '../three/motion';
 import { lazyChunk } from '../lib/cachedImport';
 import { ChunkBoundary } from '../components/ChunkBoundary';
 import { PieceGlyph } from './PieceGlyph';
 import { PieceType } from '../engine/pieces';
 import { learnScreen } from './learn/learnChunk';
-import { LANDING_DESIGNS } from './landingLayout';
-import type { LandingDesign } from './landingLayout';
 
 // The preview (three.js, the scene, a demo game) is a chunk of its own,
 // asked for when the page first draws, so its title and button show without
@@ -24,13 +22,12 @@ const StartScreen: React.FC = () => {
   const navigate = useNavigate();
   const still = useReducedMotion();
   const [noPreview, setNoPreview] = React.useState(false);
-  const design = useDesign();
 
   return (
-    <main className="landing" data-testid="landing" data-design={design}>
+    <main className="landing" data-testid="landing">
       <ChunkBoundary onFail={() => setNoPreview(true)}>
         <React.Suspense fallback={null}>
-          <LandingPreview still={still} design={design} />
+          <LandingPreview still={still} />
         </React.Suspense>
       </ChunkBoundary>
       {!noPreview && (
@@ -92,13 +89,6 @@ const Chip = () => (
     />
   </svg>
 );
-
-/** The layout the address asks for (`?design=`), or the default. */
-function useDesign(): LandingDesign {
-  const [params] = useSearchParams();
-  const asked = params.get('design');
-  return LANDING_DESIGNS.find((d) => d === asked) ?? LANDING_DESIGNS[0];
-}
 
 /** Whether the player asked their system for less motion, following a change while the page is open. */
 function useReducedMotion(): boolean {

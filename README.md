@@ -188,9 +188,8 @@ Key decisions:
   centring the outline as seen, a diamond one moment and a square the next, slid the view
   sideways as it turned; re-centring the rings at every elevation slid it up and down, by
   over 100 px on a desktop, as it climbed.) The landing page's preview, which only turns
-  about the axis at one elevation, centres its rings as seen from there instead, between a
-  band at the top and one at the bottom (`centre: 'rings'`, `bottomInset`: see Landing
-  page); the tutorial centres them as seen from the opening in the room its card leaves,
+  about the axis at one elevation, centres its rings as seen from there instead, in the
+  room its menu leaves (`centre: 'rings'`, `leftInset` and the bands: see Landing page); the tutorial centres them as seen from the opening in the room its card leaves,
   kept in it from there and from below (`centre: 'opening'`, `leftInset`: see The
   tutorial). The two bands never take more than three quarters of the window. The layout's `orbit.minDistance` only narrows the range, and its
   polar-angle limits bound the elevation (from 14° below the horizon, to look up at the
@@ -257,24 +256,31 @@ Key decisions:
   records) as a log of `move_made` messages through `deriveHistory`, like a live game,
   then fades under a veil and plays it again, while `three/AutoOrbit.tsx` turns the camera
   round the tower at a fixed elevation, a full turn every two passes
-  (`three/landingView.ts`). The demo's clock is r3f's. The title stands above the
-  tower and "Start a game" (a pill with a knight glyph and a slowly turning rim in the
-  five level colours) below it, each in a band of the same height that the fit keeps
-  clear above and below the tower (`hudTopBand` and `bottomBand`, both `landingBand`:
-  124 px, 140 in a window 860 px tall or more, `LANDING_BAND_PX` and `--landing-band`),
-  at the band's edge nearest the tower, 16 px from it (`--landing-hug`), so the two
-  mirror each other about the tower; a window 480 px tall or less
-  sets the text in a column at the left instead (band 12). The button creates nothing: it
-  opens the side choice at `/new` (see The lobby). Under it, a quieter glass pill, "Play the
-  computer", opens the side choice against the computer at `/computer` (see Playing the
-  computer); nothing is written under them. "How to play", a quiet link in the top
-  right corner (across from where the other pages keep "← Home"), opens the tutorial (see The
-  tutorial). The
-  canvas is `aria-hidden` and takes no pointer, and a visually hidden sentence says what it
-  shows. The three buttons are the page's only controls: the preview always plays (it has no
-  pause), except under `prefers-reduced-motion`, where it is a still of the final
-  position, the king left standing, with a still rim. In development `?t=<seconds>` starts
-  the demo that far in.
+  (`three/landingView.ts`). The demo's clock is r3f's. The menu stands in a column at
+  the left, set in from the window's edge by a gutter (6% of the width, 24–112 px), over a
+  dark fade that clears just past the tower's edge: the title on two lines ("3D" in the
+  level colours, then a short rule in them), the two ways to play as tiles side by side,
+  and "How to play" under them. The fit keeps the tower in the room right of the column
+  (`leftBand`: with `centre: 'rings'` the rings are centred and fitted in the room right of
+  the band, which is kept even where the tower centred in the window would clear it). The
+  bands come from the window alone (`screens/landingLayout.ts`, `LANDING_BANDS`, which
+  mirrors index.css's sizes and imports nothing from three.js, the start page being the
+  entry). A window as tall as it is wide or taller sets the title above the tower and the
+  tiles under it (`hudTopBand`, `bottomBand`); an upright one 600 px wide or more, a
+  tablet, sets the title and the tiles side by side in a band along the bottom. The two
+  tiles are alike in weight: dark glass in a rim of the five level colours (a ring of its
+  own, masked to the border, which turns while the pointer is on it), two pieces facing
+  each other (two knights, or a knight and the computer's chip) and the name, whose size
+  follows the tile's width (container units, 13–17 px) so "Play the computer" keeps to
+  one line in all but the narrowest phones. "Play a friend" creates nothing: it opens the
+  side choice at `/new` (see The lobby). "Play the computer" opens the side choice
+  against the computer at `/computer` (see Playing the computer). "How to play", a quieter
+  outlined button, opens the tutorial (see The tutorial); nothing else is written on the
+  page. The canvas is `aria-hidden` and takes no pointer, and a visually hidden sentence
+  says what it shows. The three buttons are the page's only controls: the preview always
+  plays (it has no pause), except under `prefers-reduced-motion`, where it is a still of
+  the final position, the king left standing, with still rims. In development
+  `?t=<seconds>` starts the demo that far in.
 
 ## Protocol
 

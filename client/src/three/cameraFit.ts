@@ -59,12 +59,13 @@ export function zoomRange(fit: number, minDistance = 0): { min: number; max: num
 // dips, with FRAME_MARGIN to spare at the opening.
 //
 // The landing page's preview, which only ever turns about the axis at one
-// elevation, centres the rings as seen from there instead (centre: 'rings').
+// elevation, centres the rings as seen from there instead (centre: 'rings'),
+// in the room right of its menu (FitWindow.leftInset, kept whatever the size).
 // The tutorial, whose card takes a large part of a small window, centres them
 // as seen from the opening in the room the card leaves ('opening'), the sweep
-// still kept in it, and only there shifts the view sideways too: where the
-// card stands at the left and the tower, centred in the window, would run
-// under it (FitWindow.leftInset, settleLeftInset).
+// still kept in it, and shifts the view sideways only where the card stands
+// at the left and the tower, centred in the window, would run under it
+// (settleLeftInset).
 
 /** Rows of CSS pixels at the top of the window kept for the HUD (its pill), which the fitted board stays below. */
 export const HUD_TOP_PX = 56;
