@@ -14,7 +14,8 @@ import type { KingPair } from './LobbyKing';
 import { Levels } from '../scene/plates';
 import { IntroContext, lobbyHandover } from '../intro/clock';
 import type { IntroClock } from '../intro/clock';
-import { dollyFactor, dollyPace, introPlan } from '../intro/timeline';
+import { introPlan } from '../intro/timeline';
+
 import { setLensShift } from '../viewOffset';
 import {
   arrivalRing,
@@ -267,23 +268,24 @@ const LobbyRig = ({
     }
     if (beat === 'leave') {
       // Out to where the game's camera stands on its first frame, taking
-      // on its lens shift as it goes: the lobby's picture is the game's
-      // first, level A's glass in the same place. The glass turns as it
-      // goes, so it turns the same on screen for either seat. It gets
-      // there still drawing back, at the pace the game's dolly sets off
-      // at, and draws on back with it while the canvases change hands
-      // (the game's entrance running under the fade): one motion, out
+      // on its lens shift as it goes: the lobby's last picture is the
+      // game's first, level A's glass in the same place. One motion: it
+      // draws back, turns and lifts its look on one ease, the glass turning
+      // with it so it spins the same on screen for either seat, and the
+      // game's entrance builds the tower on up from it under the fade
       from.current ??= current.current ?? rest;
       const opening = gameOpening(view.seat, size.width, size.height, still);
-      const plan = introPlan('lobby', still);
       const start = still ? 0 : LOBBY_TIMING.leaveSetOff;
       const span = still ? 0.15 : LOBBY_TIMING.leaveMove;
       const k = Math.min(Math.max((since - start) / span, 0), 1);
-      const leaving = leavePose(from.current, opening.pose, view.seat, k, dollyPace(plan) * span);
+      const leaving = leavePose(from.current, opening.pose, view.seat, k);
       pose = leaving.pose;
-      const after = since - start - span;
-      if (after > 0) pose = { ...pose, distance: opening.fit * dollyFactor(plan, after) };
-      // (the game's entrance keeps to this moment while the lobby fades off it)
+      // The game's entrance starts under the lobby's picture as the camera
+      // settles its last hair's breadth, and keeps to this moment while the
+      // lobby fades off it: the tower starts up as the camera comes to rest
+      const fade = still ? 0.1 : LOBBY_TIMING.leaveFade;
+      const reveal = start + span - (still ? 0 : LOBBY_TIMING.leaveReveal);
+      const after = since - reveal;
       lobbyHandover.t = after >= 0 && !left.current ? after : null;
       if (glass.current) glass.current.rotation.y = leaving.glass;
       const eased = leaving.settled;
@@ -296,8 +298,7 @@ const LobbyRig = ({
       shifted.current = true;
       // The garden comes back up to the game's brightness on the way
       dim.current = LOBBY_DIM + (1 - LOBBY_DIM) * eased;
-      const fade = still ? 0.1 : LOBBY_TIMING.leaveFade;
-      const opacity = Math.min(Math.max((start + span + fade - since) / fade, 0), 1);
+      const opacity = Math.min(Math.max((reveal + fade - since) / fade, 0), 1);
       if (canvasHost.current) canvasHost.current.style.opacity = String(opacity);
       if (after >= 0 && !revealed.current) {
         revealed.current = true;

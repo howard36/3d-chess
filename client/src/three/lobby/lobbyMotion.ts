@@ -1,4 +1,4 @@
-import { FRAME, layout, MARGIN, PIECE_SCALE } from '../scene/palette';
+import { FRAME, layout, PIECE_SCALE } from '../scene/palette';
 import { fitShift, fitView, HUD_TOP_PX, hudTop, orbitSweep, zoomRange } from '../cameraFit';
 import type { FitWindow } from '../cameraFit';
 import { introPlan } from '../intro/timeline';
@@ -101,9 +101,13 @@ export const LOBBY_TIMING = {
   /** The camera sets off this far into the kings' going up. */
   leaveSetOff: 0.2,
   /** From the lobby's close view to the game's first frame (leavePose). */
-  leaveMove: 2.2,
-  /** The lobby's picture fading over the game's, at the end of the move. */
-  leaveFade: 0.3,
+  leaveMove: 1.8,
+  /**
+   * The lobby's picture fading over the game's, from this long before the
+   * move comes to rest (by then it is within a hair of the game's first frame).
+   */
+  leaveReveal: 0.05,
+  leaveFade: 0.2,
 };
 
 /**
@@ -341,15 +345,15 @@ export const leaveDirection = (seat: Side): Vec3 => {
 
 /**
  * How far the glass itself turns about the tower's axis as the lobby leaves
- * (radians): a quarter turn, one way for White and the other for Black.
- * The camera goes round to the near side for White and to the far side for
- * Black (leaveDirection), half a turn apart, so on its own the glass would
- * turn on screen by +16° for one seat and -164° for the other. Turned a
- * quarter turn in step with the camera, it turns by their average, -74°,
- * for either seat, and a square turned a quarter turn looks just as it did,
- * so the lobby's last picture is still the game's first.
+ * (radians): half a turn for White, none for Black. The camera goes round to
+ * the near side for White and to the far side for Black (leaveDirection),
+ * half a turn apart, so on its own the glass would turn on screen by +16°
+ * for one seat and -164° for the other. Turned half a turn in step with
+ * White's camera, it turns -164° on screen for either seat, a good spin into
+ * the game, and a square turned half a turn looks just as it did, so the
+ * lobby's last picture is still the game's first.
  */
-export const leaveGlassTurn = (seat: Side) => (seat === 'black' ? -1 : 1) * (Math.PI / 2);
+export const leaveGlassTurn = (seat: Side) => (seat === 'black' ? 0 : Math.PI);
 
 /** A pose turned about the vertical through the origin (radians, as azimuth). */
 export const turnPose = (pose: CameraPose, turn: number): CameraPose => {
@@ -358,121 +362,44 @@ export const turnPose = (pose: CameraPose, turn: number): CameraPose => {
   return { ...pose, target: [x * c + z * s, y, z * c - x * s], azimuth: pose.azimuth + turn };
 };
 
-/** The glass's half-side out to its edge's light. */
-const GLASS_REACH = FRAME.half + MARGIN + 0.03;
-
-/**
- * How far below the middle of the picture the glass reaches from a pose (the
- * tangent of the angle off the camera's axis, down; Infinity when part of it
- * is behind the camera).
- */
-const glassDrop = ({ target, azimuth, elevation, distance }: CameraPose) => {
-  const [ce, se] = [Math.cos(elevation), Math.sin(elevation)];
-  const [sa, ca] = [Math.sin(azimuth), Math.cos(azimuth)];
-  // The camera's position, and its axis (forward) and up, looking at the target
-  const c = [
-    target[0] + sa * ce * distance,
-    target[1] + se * distance,
-    target[2] + ca * ce * distance,
-  ];
-  const forward = [-sa * ce, -se, -ca * ce];
-  const up = [-sa * se, ce, -ca * se];
-  let drop = -Infinity;
-  for (const [x, z] of [
-    [1, 1],
-    [1, -1],
-    [-1, 1],
-    [-1, -1],
-  ]) {
-    const v = [x * GLASS_REACH - c[0], FLOOR_Y - c[1], z * GLASS_REACH - c[2]];
-    const ahead = v[0] * forward[0] + v[1] * forward[1] + v[2] * forward[2];
-    if (ahead <= 0.01) return Infinity;
-    drop = Math.max(drop, -(v[0] * up[0] + v[1] * up[1] + v[2] * up[2]) / ahead);
-  }
-  return drop;
-};
+/** The leaving's one ease, `t` 0–1. */
+export const leaveEase = (t: number) => smooth(clamp01(t));
 
 /**
  * The leaving `t` (0–1) of the way from `from` to the game's opening `to`
  * for a seat: the camera, the glass's turn (`glass`, radians about the
- * vertical), and how far the rest of the picture has come (`settled`, 0–1:
- * the lens shift, the garden's light). Seen from the glass the camera takes
- * the same way for either seat (to the opening less the glass's turn); the
- * glass and that way turn together, so the kings' garden turns past as it
- * always has.
+ * vertical), and how far it has come (`settled`, 0–1: the lens shift, the
+ * garden's light follow it). Seen from the glass the camera takes the same
+ * way for either seat (to the opening less the glass's turn); the glass and
+ * that way turn together, so the kings' garden turns past as it always has.
  *
- * It draws back from rest and reaches the opening still drawing back, at
- * `pace` (the log of the distance per unit of `t`: the game's dolly sets
- * off at that pace, so the two are one motion), never first drawing in.
- * It turns as it draws back, not by the clock: little while it is near the
- * glass, where a little sweeps the whole picture, more as it gets farther
- * off, all of it eased out by the time it is there, a spiral out. Its look
- * rises from the glass to the tower's centre likewise, but never so far that
- * the glass, once all in view, reaches lower down the picture than in the
- * game's first frame (glassDrop): it comes to rest there, never scraping
- * the bottom edge.
+ * One motion: the camera draws back (evenly in the log of the distance),
+ * turns, and lifts its look from the glass to the tower's centre all on the
+ * one ease (leaveEase), so they set off, speed up and settle as one, and it
+ * comes to rest exactly on the game's first frame.
  */
-export const leavePose = (from: CameraPose, to: CameraPose, seat: Side, t: number, pace = 0) => {
+export const leavePose = (from: CameraPose, to: CameraPose, seat: Side, t: number) => {
   const end = leaveGlassTurn(seat);
-  // In the log of the distance, from rest to `pace` (a cubic Hermite curve)
-  const k = clamp01(t);
-  const out = Math.log(to.distance / from.distance);
-  const exit = out > 0 ? Math.min(Math.max(pace, 0), 3 * out) : 0;
-  const away = (3 * k ** 2 - 2 * k ** 3) * out + (k ** 3 - k ** 2) * exit;
-  // The rest follows how far back it has drawn (by the clock, if it has not)
-  const drawn = out > 0 ? clamp01(away / out) : easeInOutCubic(k);
-  const settled = smooth(drawn);
-  // (the turn later still, where it sweeps the picture least)
-  const turned = smooth(drawn ** 1.5);
-  const distance = from.distance * Math.exp(away);
+  const settled = leaveEase(t);
   const onGlass = mixPose(from, { ...to, azimuth: to.azimuth - end }, settled);
-  let turn = to.azimuth - end - from.azimuth;
-  turn = Math.atan2(Math.sin(turn), Math.cos(turn));
-  onGlass.azimuth = from.azimuth + turn * turned;
-  onGlass.distance = distance;
-  // The look rises from the glass to the tower's centre as it draws back, but
-  // only as far as keeps
-  // the glass from reaching lower down the picture than it does in the game's
-  // first frame: near it, where it spills past the frame, the look stays on
-  // it; once it is all in view it comes to rest at the place the game takes
-  // it up, and stays there as the camera draws back on
-  if (out > 0) {
-    const [low, high] = [from.target, to.target];
-    const at = (lift: number): CameraPose => ({
-      ...onGlass,
-      target: [
-        low[0] + (high[0] - low[0]) * lift,
-        low[1] + (high[1] - low[1]) * lift,
-        low[2] + (high[2] - low[2]) * lift,
-      ],
-    });
-    const floor = glassDrop({ ...to, azimuth: to.azimuth - end });
-    let lifted = 0;
-    if (glassDrop(at(1)) <= floor) lifted = 1;
-    else if (glassDrop(at(0)) < floor) {
-      let [a, b] = [0, 1];
-      for (let i = 0; i < 24; i++) {
-        const m = (a + b) / 2;
-        if (glassDrop(at(m)) <= floor) a = m;
-        else b = m;
-      }
-      lifted = a;
-    }
-    onGlass.target = at(k >= 1 ? 1 : Math.min(lifted, settled)).target;
-  }
-  const glass = end * turned;
-  const pose = { ...onGlass, distance };
-  return { pose: turnPose(pose, glass), glass, settled };
+  // (its look rises a little behind, so the glass glides steadily down the
+  // picture to its place in the game's, never first sinking past it)
+  const lift = settled ** 1.5;
+  onGlass.target = [
+    from.target[0] + (to.target[0] - from.target[0]) * lift,
+    from.target[1] + (to.target[1] - from.target[1]) * lift,
+    from.target[2] + (to.target[2] - from.target[2]) * lift,
+  ];
+  const glass = end * settled;
+  return { pose: turnPose(onGlass, glass), glass, settled };
 };
 
 /**
  * Where the game's camera stands on its first frame in a window this size
  * (IntroDirector's `lobby` entrance: `dolly.from` times the distance
  * FitCameraToBoard fits, on the opening line of sight, about the board's
- * centre), the fit's lens shift, and that fitted distance (`fit`). The
- * lobby's leaving reaches it exactly, so its picture is the game's first,
- * and draws on back with the game's dolly (`fit` times dollyFactor) as the
- * two change hands.
+ * centre) and the fit's lens shift. The lobby's leaving comes to rest on it
+ * exactly, so its last picture is the game's first.
  */
 /** The last opening worked out, which the leaving asks for every frame (the fit sweeps the orbit's elevations). */
 let lastOpening: {
@@ -480,7 +407,6 @@ let lastOpening: {
   opening: {
     pose: ReturnType<typeof poseFromDirection>;
     shift: [number, number];
-    fit: number;
   };
 } | null = null;
 
@@ -505,8 +431,6 @@ export const gameOpening = (seat: Side, width: number, height: number, reduced =
     // (the entrance the game will play: under reduced motion it has no dolly)
     pose: { ...pose, distance: distance * introPlan('lobby', reduced).dolly.from },
     shift,
-    // The distance the game's dolly ends on (its first frame's is a share of it)
-    fit: distance,
   };
   lastOpening = { key, opening };
   return opening;

@@ -4,7 +4,6 @@ import { PieceType } from '../../engine/pieces';
 import { CELLS } from '../layout';
 import {
   dollyFactor,
-  dollyPace,
   hudFade,
   introDone,
   introPlan,
@@ -96,27 +95,9 @@ describe('the dolly', () => {
     }
   });
 
-  it('after the lobby, draws on out to the fitted distance, never passing it', () => {
+  it('after the lobby, stands at the fit from the first frame: the lobby brought it there', () => {
     const lobby = introPlan('lobby');
-    expect(dollyFactor(lobby, 0)).toBeCloseTo(lobby.dolly.from);
-    expect(lobby.dolly.from).toBeLessThan(1);
-    const factors = samples(lobby).map((t) => dollyFactor(lobby, t));
-    factors.slice(1).forEach((f, i) => {
-      expect(f).toBeGreaterThanOrEqual(factors[i]);
-      expect(f).toBeLessThanOrEqual(1);
-    });
-    expect(dollyFactor(lobby, lobby.dolly.duration)).toBe(1);
-  });
-
-  it('sets off at its pace (the log of the distance per second)', () => {
-    for (const plan of [full, short, introPlan('lobby')]) {
-      const dt = 1e-6;
-      const slope = (Math.log(dollyFactor(plan, dt)) - Math.log(dollyFactor(plan, 0))) / dt;
-      expect(dollyPace(plan)).toBeCloseTo(slope, 4);
-    }
-    expect(dollyPace(introPlan('lobby'))).toBeGreaterThan(0);
-    expect(dollyPace(full)).toBeLessThan(0);
-    expect(dollyPace(introPlan('lobby', true))).toBe(0);
+    for (const t of samples(lobby)) expect(dollyFactor(lobby, t)).toBe(1);
   });
 
   it('eases out: the tower grows fastest at first and settles', () => {

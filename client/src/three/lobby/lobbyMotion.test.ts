@@ -22,6 +22,7 @@ import {
   LOBBY_MAX_STEP,
   lobbyStep,
   leaveDirection,
+  leaveEase,
   leaveGlassTurn,
   leavePose,
   lobbyPose,
@@ -40,7 +41,7 @@ import {
   turnPose,
 } from './lobbyMotion';
 import type { CameraPose, Side } from './lobbyMotion';
-import { dollyPace, introPlan } from '../intro/timeline';
+import { introPlan } from '../intro/timeline';
 
 // Behaviour, not tuning: the timings, heights and framing shares are the
 // design's to change; what the scene relies on is tested here.
@@ -408,7 +409,7 @@ describe('handing over to the game', () => {
     expect(bz).toBeCloseTo(-z, 12);
   });
 
-  it('turns the glass on screen the same way for either seat as it leaves', () => {
+  it('spins the glass on screen the same way for either seat as it leaves', () => {
     const from = lobbyPose(1280 / 800);
     const opening = (seat: Side) => gameOpening(seat, 1280, 800).pose;
     // The camera seen from the glass: its pose turned back by the glass's turn
@@ -424,25 +425,27 @@ describe('handing over to the game', () => {
       expect(black.distance).toBeCloseTo(white.distance, 9);
       white.target.forEach((v, i) => expect(black.target[i]).toBeCloseTo(v, 9));
     }
-    // By the average of the camera's two turns round the tower (+16°, -164°)
+    // Black's camera turn round the tower (-164°), which White's glass makes
+    // up with half a turn of its own: a good spin, the same way for both
     const turn = onGlass('white', 1).azimuth - from.azimuth;
     const [x, , z] = layout.viewDirection;
-    const white = Math.atan2(x, z);
-    expect(turn).toBeCloseTo((white + (white - Math.PI)) / 2, 9);
-    // A quarter turn either way: the square glass looks just as it did
-    expect(leaveGlassTurn('white')).toBeCloseTo(Math.PI / 2, 12);
-    expect(leaveGlassTurn('black')).toBeCloseTo(-Math.PI / 2, 12);
+    expect(turn).toBeCloseTo(Math.atan2(x, z) - Math.PI, 9);
+    expect(turn * (180 / Math.PI)).toBeLessThan(-150);
+    // Half a turn: the square glass looks just as it did
+    expect(leaveGlassTurn('white')).toBeCloseTo(Math.PI, 12);
+    expect(leaveGlassTurn('black')).toBe(0);
   });
 
-  it("ends the leaving on the game's first frame, the glass a quarter turn round", () => {
+  it("ends the leaving at rest on the game's first frame", () => {
     const from = lobbyPose(1280 / 800);
     for (const seat of ['white', 'black'] as const) {
       const to = gameOpening(seat, 1280, 800).pose;
       const start = leavePose(from, to, seat, 0);
       expect(start.pose).toEqual(from);
       expect(start.glass).toBeCloseTo(0, 12);
-      const { pose, glass } = leavePose(from, to, seat, 1);
+      const { pose, glass, settled } = leavePose(from, to, seat, 1);
       expect(glass).toBe(leaveGlassTurn(seat));
+      expect(settled).toBe(1);
       expect(Math.cos(pose.azimuth - to.azimuth)).toBeCloseTo(1, 12);
       expect(pose.elevation).toBeCloseTo(to.elevation, 12);
       expect(pose.distance).toBeCloseTo(to.distance, 12);
@@ -450,70 +453,90 @@ describe('handing over to the game', () => {
     }
   });
 
-  it('draws back all the way, arriving at the pace the game draws on back at', () => {
+  it('is one motion: it draws back, turns and looks up together, from rest to rest', () => {
     for (const [w, h] of [
-      [1280, 800],
+      [1280, 720],
       [390, 844],
     ]) {
       const from = lobbyPose(w / h);
       const to = gameOpening('white', w, h).pose;
-      expect(from.distance).toBeLessThan(to.distance);
-      const pace = dollyPace(introPlan('lobby')) * LOBBY_TIMING.leaveMove;
-      const distance = (t: number) => leavePose(from, to, 'white', t, pace).pose.distance;
-      let last = 0;
-      for (const t of samples(0, 1, 100)) {
-        expect(distance(t)).toBeGreaterThanOrEqual(last - 1e-9);
-        last = distance(t);
+      // How far along each part is (0 to 1): the distance (in its log), the
+      // camera's turn about the glass, and its look up to the tower's centre
+      const parts = (t: number) => {
+        const { pose, glass } = leavePose(from, to, 'white', t);
+        const seen = turnPose(pose, -glass);
+        return [
+          Math.log(pose.distance / from.distance) / Math.log(to.distance / from.distance),
+          (seen.azimuth - from.azimuth) / (onGlassEnd(to) - from.azimuth),
+          (pose.target[1] - from.target[1]) / (to.target[1] - from.target[1]),
+        ];
+      };
+      const onGlassEnd = (pose: CameraPose) =>
+        from.azimuth +
+        Math.atan2(
+          Math.sin(pose.azimuth - leaveGlassTurn('white') - from.azimuth),
+          Math.cos(pose.azimuth - leaveGlassTurn('white') - from.azimuth),
+        );
+      const dt = 1e-4;
+      // Every part sets off from rest and comes to rest at the end
+      for (const [a, b] of [
+        [0, dt],
+        [1 - dt, 1],
+      ]) {
+        parts(b).forEach((v, i) => expect(Math.abs(v - parts(a)[i]) / dt).toBeLessThan(0.01));
       }
-      expect(distance(0)).toBeCloseTo(from.distance, 12);
-      expect(distance(1)).toBeCloseTo(to.distance, 9);
-      // From rest, and at the end on at the game's pace, not stopping
-      const dt = 1e-6;
-      expect(Math.log(distance(dt) / distance(0)) / dt).toBeCloseTo(0, 3);
-      expect(Math.log(distance(1) / distance(1 - dt)) / dt).toBeCloseTo(pace, 3);
-      expect(pace).toBeGreaterThan(0);
+      parts(1).forEach((v) => expect(v).toBeCloseTo(1, 9));
+      // ...and every part is on the move all the way between: no stage where
+      // one stands still while another goes on, and none ever turns back
+      for (const t of samples(0.1, 0.9, 60)) {
+        const [p, q] = [parts(t), parts(t + dt)];
+        q.forEach((v, i) => expect((v - p[i]) / dt).toBeGreaterThan(0.05));
+      }
+      // Its pace peaks once, halfway
+      const pace = (t: number) => (parts(t + dt)[0] - parts(t)[0]) / dt;
+      expect(pace(0.5)).toBeGreaterThan(pace(0.3));
+      expect(pace(0.5)).toBeGreaterThan(pace(0.7));
     }
+    expect(leaveEase(0.5)).toBeCloseTo(0.5, 12);
   });
 
-  it('keeps the glass up off the bottom of the picture once it is all in view', () => {
-    // The glass's lowest corner on screen (0 the middle, 1 the bottom edge),
-    // seen from a pose, as three.js projects it (without the lens shift)
+  it('brings the glass down the picture to its place without scraping the bottom', () => {
+    // Where the glass is on screen (0 the middle, 1 the bottom edge), seen
+    // from a pose as three.js projects it (without the lens shift): its
+    // middle, and its lowest corner
     const reach = FRAME.half + 0.05;
-    const lowest = (pose: CameraPose, aspect: number) => {
+    const seen = (pose: CameraPose, aspect: number) => {
       const camera = new PerspectiveCamera(LOBBY_FOV, aspect, 0.1, 1000);
       camera.position.set(...posePosition(pose));
       camera.lookAt(...pose.target);
       camera.updateMatrixWorld();
-      return Math.max(
-        ...[
-          [1, 1],
-          [1, -1],
-          [-1, 1],
-          [-1, -1],
-        ].map(([x, z]) => -new Vector3(x * reach, FLOOR_Y, z * reach).project(camera).y),
-      );
+      const down = (x: number, z: number) =>
+        -new Vector3(x * reach, FLOOR_Y, z * reach).project(camera).y;
+      return {
+        middle: down(0, 0),
+        lowest: Math.max(down(1, 1), down(1, -1), down(-1, 1), down(-1, -1)),
+      };
     };
     for (const [w, h] of [
       [1280, 720],
       [844, 390],
       [390, 844],
+      [1920, 1080],
     ]) {
       const from = lobbyPose(w / h);
       const to = gameOpening('white', w, h).pose;
-      const pace = dollyPace(introPlan('lobby')) * LOBBY_TIMING.leaveMove;
-      const end = lowest(to, w / h);
-      expect(end).toBeLessThan(0.95);
+      const end = seen(to, w / h);
+      expect(end.lowest).toBeLessThan(0.9);
       let inView = false;
-      let lift = -Infinity;
       for (const t of samples(0, 1, 200)) {
-        const { pose, glass } = leavePose(from, to, 'white', t, pace);
-        // (seen from the glass, which turns with the camera)
-        const seen = lowest(turnPose(pose, -glass), w / h);
-        inView ||= seen <= end;
-        if (inView) expect(seen).toBeLessThanOrEqual(end + 1e-3);
-        // The look only ever rises, from the glass to the tower's centre
-        expect(pose.target[1]).toBeGreaterThanOrEqual(lift - 1e-9);
-        lift = pose.target[1];
+        const { pose, glass } = leavePose(from, to, 'white', t);
+        const now = seen(turnPose(pose, -glass), w / h);
+        // Its middle glides down to its place, never sinking far past it
+        expect(now.middle).toBeLessThan(end.middle + 0.04);
+        // Once it is well in view it stays clear of the bottom edge (a
+        // corner swings a little nearer as the square turns)
+        inView ||= now.lowest < 0.95;
+        if (inView) expect(now.lowest).toBeLessThan(0.98);
       }
       expect(inView).toBe(true);
     }
@@ -540,7 +563,7 @@ describe('handing over to the game', () => {
     expect(arrivalRing(10)).toEqual(end);
   });
 
-  it("ends on the game's first frame: its fitted distance times the entrance's dolly", () => {
+  it("ends on the game's first frame: its fitted distance", () => {
     const white = gameOpening('white', 1280, 800);
     const black = gameOpening('black', 1280, 800);
     const opening = poseFromDirection([0, 0, 0], leaveDirection('white'), 1);
@@ -549,14 +572,11 @@ describe('handing over to the game', () => {
     // The same framing from either side, round the tower
     expect(black.pose.distance).toBeCloseTo(white.pose.distance, 9);
     expect(black.shift).toEqual(white.shift);
-    expect(white.pose.distance).toBeCloseTo(white.fit * introPlan('lobby').dolly.from, 9);
-    // Under reduced motion the game has no dolly, so the lobby stops where it fits
-    const reduced = gameOpening('white', 1280, 800, true);
-    expect(reduced.fit).toBeCloseTo(white.fit, 9);
-    expect(reduced.pose.distance).toBeCloseTo(reduced.fit, 9);
-    expect(reduced.pose.distance).toBeGreaterThan(white.pose.distance);
+    // The game's entrance after the lobby has no dolly: the lobby brings
+    // the camera all the way, and the game takes it up at rest
+    expect(introPlan('lobby').dolly.from).toBe(1);
+    expect(gameOpening('white', 1280, 800, true).pose.distance).toBeCloseTo(white.pose.distance, 9);
   });
-
   it('answers a king set on its seat with a ring that is gone by the time it has formed', () => {
     expect(placeRing(0).strength).toBeGreaterThan(0);
     expect(placeRing(0.4).radius).toBeGreaterThan(placeRing(0).radius);
