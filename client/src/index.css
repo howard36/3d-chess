@@ -709,19 +709,24 @@
 }
 
 /*
- * The landing page: the live preview fills the window, the tower turning in
- * the middle, with the page's text like a gallery's wall label above and
- * below it. The title and the button each stand in a band of the same
- * height, the ones the preview's camera keeps clear (three/landingView.ts,
- * LANDING_BAND_PX: --landing-band), at the band's edge nearest the tower
- * (--landing-hug from it): mirrored about the tower, and close to it, not
- * the window's edges. In a window 480 px tall or less, a phone on its side,
- * the text stands in a column at the left instead. White on black, but for
- * the call to action's rim, the five level colours.
+ * The landing page: the live preview fills the window, the tower turning
+ * right of the page's menu: a large two-line title ("3D" in the level
+ * colours), the two ways to play (a friend, the computer) as tiles side by
+ * side, alike in weight, and the way to the tutorial, a quieter button under
+ * them. The menu stands in a column at the left, set in from the window's
+ * edge by the page's gutter, and the preview's camera keeps the tower in the
+ * room right of it (screens/landingLayout.ts, LANDING_BANDS, mirrors the
+ * sizes here). In a window as tall as it is wide or taller the title stands
+ * above the tower and the tiles under it; in an upright tablet the title and
+ * the tiles share a band along the bottom. White on black, but for the
+ * title's "3D" and the tiles' rims, the five level colours.
  */
 .landing {
-  --landing-band: 124px;
-  --landing-hug: 16px;
+  --landing-gutter: clamp(24px, 6vw, 112px);
+  --landing-inset: max(var(--landing-gutter), calc(env(safe-area-inset-left) + 16px));
+  --landing-under: max(var(--landing-gutter), calc(env(safe-area-inset-bottom) + 24px));
+  --landing-column: clamp(340px, 30vw, 440px);
+  --landing-levels: linear-gradient(90deg, #00d7e0, #58c1ff, #96a7ff, #c48be5, #de77ab);
   position: relative;
   height: 100dvh;
   width: 100vw;
@@ -742,55 +747,71 @@
   background: #010205;
   pointer-events: none;
 }
-/*
- * Scrims behind the text, clear well before the tower: darker at the top and
- * bottom edges, and a soft vignette that calms the neon sculptures as they
- * pass behind the words.
- */
+/* A fade behind the menu, clear just past the tower's edge */
 .landing-scrim {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(1, 2, 5, 0.72) 0, rgba(1, 2, 5, 0) 168px),
-    linear-gradient(0deg, rgba(1, 2, 5, 0.82) 0, rgba(1, 2, 5, 0) 172px),
-    radial-gradient(ellipse at 50% 50%, rgba(1, 2, 5, 0) 55%, rgba(1, 2, 5, 0.45) 100%);
+    linear-gradient(
+      90deg,
+      rgba(1, 2, 5, 0.94) 0,
+      rgba(1, 2, 5, 0.7) calc(var(--landing-gutter) + var(--landing-column) * 0.7),
+      rgba(1, 2, 5, 0) calc(var(--landing-gutter) + var(--landing-column) + 160px)
+    ),
+    radial-gradient(ellipse at 60% 50%, rgba(1, 2, 5, 0) 55%, rgba(1, 2, 5, 0.45) 100%);
 }
-.landing-head,
-.landing-foot {
+.landing-menu {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  height: var(--landing-band);
+  top: 0;
+  bottom: 0;
+  left: var(--landing-inset);
+  width: var(--landing-column);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-.landing-head {
-  top: env(safe-area-inset-top);
-  justify-content: flex-end;
-  padding-bottom: var(--landing-hug);
-}
-.landing-foot {
-  bottom: env(safe-area-inset-bottom);
-  justify-content: flex-start;
-  padding-top: var(--landing-hug);
+  justify-content: center;
 }
 .landing h1 {
   margin: 0;
-  font-size: 42px;
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  font-size: clamp(64px, 7.2vw, 128px);
+  font-weight: 700;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
   text-shadow: 0 1px 14px rgba(0, 0, 0, 0.6);
 }
+.landing h1 span {
+  display: block;
+}
+.landing h1 span:first-child {
+  background: var(--landing-levels);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+.landing-head {
+  margin-bottom: 44px;
+}
+/* The level colours, a short rule under the title */
+.landing-head::after {
+  content: '';
+  display: block;
+  width: 56px;
+  height: 2px;
+  margin-top: 28px;
+  background: var(--landing-levels);
+}
+.landing-foot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
 /*
- * The call to action: a pill of starlight with a charcoal knight, ringed by a
- * rim of the five level colours that turns slowly, glowing cyan on its left
- * and rose on its right like the tower's lowest and highest levels. On hover
- * it lifts and the knight hops; while a game is being created the rim turns
- * fast round a dark pill.
+ * The call to action of the lobby's cards and the result card (.lobby-go):
+ * a pill of starlight ringed by a rim of the five level colours that turns
+ * slowly, glowing cyan on its left and rose on its right like the tower's
+ * lowest and highest levels. On hover it lifts; while a game is being
+ * created the rim turns fast round a dark pill.
  */
 @property --landing-turn {
   syntax: '<angle>';
@@ -837,12 +858,6 @@
     box-shadow 200ms,
     transform 200ms;
 }
-.landing-play-piece {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-}
 @keyframes landing-rim {
   to {
     --landing-turn: 360deg;
@@ -854,17 +869,6 @@
     -16px 0 38px -10px rgba(0, 215, 224, 0.8),
     16px 0 38px -10px rgba(222, 119, 171, 0.8),
     0 0 40px rgba(150, 167, 255, 0.3);
-}
-.landing-play:not([aria-disabled='true']):hover .landing-play-piece {
-  animation: landing-hop 560ms cubic-bezier(0.3, 0.7, 0.4, 1);
-}
-@keyframes landing-hop {
-  40% {
-    transform: translateY(-5px) rotate(-14deg);
-  }
-  70% {
-    transform: translateY(0) rotate(5deg);
-  }
 }
 .landing-play:not([aria-disabled='true']):active {
   transform: scale(0.98);
@@ -885,105 +889,23 @@
   /* The label and the fill change together, never white on white */
   transition: none;
 }
-/* The other way in, under the call to action: playing the computer. Quieter,
-   a glass pill the HUD's black */
-.landing-foot {
-  gap: 10px;
-}
-.landing-alt {
-  height: 40px;
-  min-width: 200px;
-  padding: 0 22px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  background: rgba(10, 12, 18, 0.62);
-  backdrop-filter: blur(10px);
-  color: var(--hud-fg);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    border-color 160ms,
-    background-color 160ms;
-}
-.landing-alt:hover {
-  border-color: rgba(255, 255, 255, 0.34);
-  background: rgba(16, 19, 28, 0.8);
-}
-.landing-alt:focus-visible {
-  outline: 2px solid var(--hud-accent);
-  outline-offset: 3px;
-}
-/* A phone held upright: the button spans the column */
+/* The pill in the lobby's cards (.lobby-go): spanning a phone's column, a
+   step up in a tall wide window, a step down in a short one */
 @media (max-width: 480px) {
-  .landing h1 {
-    font-size: 34px;
-  }
-  .landing-foot {
-    left: 20px;
-    right: 20px;
-  }
   .landing-play {
     width: 100%;
     max-width: 360px;
     min-width: 0;
   }
-  .landing-alt {
-    width: 100%;
-    max-width: 360px;
-  }
-}
-/* A tall window: wider bands, and on a wide one the type a step up */
-@media (min-height: 860px) {
-  .landing {
-    --landing-band: 140px;
-  }
 }
 @media (min-height: 860px) and (min-width: 700px) {
-  .landing h1 {
-    font-size: 52px;
-  }
   .landing-play {
     height: 58px;
     min-width: 270px;
     font-size: 18px;
   }
 }
-/* A phone on its side: the text in a column at the left of the tower */
 @media (max-height: 480px) {
-  .landing-scrim {
-    background:
-      linear-gradient(
-        90deg,
-        rgba(1, 2, 5, 0.82) 0,
-        rgba(1, 2, 5, 0.82) 200px,
-        rgba(1, 2, 5, 0) 300px
-      ),
-      radial-gradient(ellipse at 50% 50%, rgba(1, 2, 5, 0) 55%, rgba(1, 2, 5, 0.45) 100%);
-  }
-  .landing-head,
-  .landing-foot {
-    left: max(16px, calc(env(safe-area-inset-left) + 8px));
-    right: auto;
-    width: 188px;
-    height: auto;
-    align-items: flex-start;
-    text-align: left;
-  }
-  .landing-head {
-    top: auto;
-    bottom: 50%;
-    padding-bottom: 14px;
-  }
-  .landing-foot {
-    top: 50%;
-    bottom: auto;
-    padding-top: 0;
-  }
-  .landing h1 {
-    font-size: 30px;
-  }
   .landing-play {
     width: 100%;
     min-width: 0;
@@ -991,20 +913,11 @@
     padding: 0 16px;
     font-size: 16px;
   }
-  .landing-foot {
-    gap: 8px;
-  }
-  .landing-alt {
-    width: 100%;
-    min-width: 0;
-    height: 36px;
-    padding: 0 12px;
-    font-size: 14px;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .landing-play,
-  .landing-play .landing-play-piece {
+  .landing-mode,
+  .landing-mode::before {
     animation: none !important;
     transition: none;
   }
@@ -1486,10 +1399,297 @@
   }
 }
 
-/* The way to the tutorial: the top right corner, across from where the
-   other pages keep Home (.lobby-top), clear of the bands round the tower */
-.landing-learn {
+/*
+ * The two ways to play, alike: tiles of dark glass in a rim of the five
+ * level colours, which turns while the pointer is on it; two pieces facing
+ * each other at the top (a friend's knight, or the computer's robot), the
+ * name at the bottom, and an arrow at the top right that steps on. The rim
+ * is a ring of its own (::before, masked to the border) and the glass is
+ * washed in the same colours, both straight gradients, cyan at the top
+ * through to rose at the bottom: a colour wheel about the tile's middle
+ * (conic) turned back on itself at the top and bottom, a seam down the glass
+ * and a pixel of another colour at the middle of each edge. The name keeps to one
+ * line: its size follows the tile's width (container units), between 13 and
+ * 17 px, and only a tile too narrow even at 13 px lets it wrap.
+ */
+.landing-mode {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-width: 0;
+  height: 116px;
+  padding: 12px 14px 14px;
+  border: 0;
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 215, 224, 0.15),
+      rgba(88, 193, 255, 0.11) 25%,
+      rgba(150, 167, 255, 0.09) 50%,
+      rgba(196, 139, 229, 0.11) 75%,
+      rgba(222, 119, 171, 0.15)
+    ),
+    rgba(12, 14, 22, 0.84);
+  color: var(--hud-fg);
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.005em;
+  text-align: left;
+  box-shadow: 0 0 24px rgba(150, 167, 255, 0.1);
+  cursor: pointer;
+  container-type: inline-size;
+  transition:
+    box-shadow 200ms,
+    transform 200ms;
+}
+.landing-mode::before {
+  --landing-rim: linear-gradient(
+    calc(180deg + var(--landing-turn)),
+    #00d7e0,
+    #58c1ff,
+    #96a7ff,
+    #c48be5,
+    #de77ab
+  );
+  content: '';
   position: absolute;
-  top: max(14px, env(safe-area-inset-top));
-  right: max(14px, env(safe-area-inset-right));
+  inset: 0;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: var(--landing-rim);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+.landing-mode:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    -12px 0 30px -12px rgba(0, 215, 224, 0.6),
+    12px 0 30px -12px rgba(222, 119, 171, 0.6),
+    0 0 30px rgba(150, 167, 255, 0.2);
+}
+.landing-mode:hover::before {
+  animation: landing-rim 4s linear infinite;
+}
+.landing-mode:active {
+  transform: scale(0.98);
+}
+.landing-mode:focus-visible {
+  outline: 2px solid var(--hud-accent);
+  outline-offset: 3px;
+}
+.landing-mode .landing-label {
+  font-size: clamp(13px, calc(10.5cqi - 3.5px), 17px);
+}
+.landing-mode::after {
+  content: '→';
+  position: absolute;
+  top: 18px;
+  right: 14px;
+  opacity: 0.5;
+  transition:
+    transform 200ms,
+    opacity 200ms;
+}
+.landing-mode:is(:hover, :focus-visible)::after {
+  opacity: 1;
+  transform: translateX(4px);
+}
+.landing-mode-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(236, 241, 255, 0.06);
+}
+.landing-mode-icon svg {
+  width: 28px;
+  height: 28px;
+}
+.landing-mode-icon > * + * {
+  margin-left: -3px;
+}
+/* (the knight's glyph faces left: the one on the left turned to face the other) */
+.landing-face {
+  display: grid;
+  transform: scaleX(-1);
+}
+
+/* The way to the tutorial: a button under the tiles, quieter than they are */
+.landing-learn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  margin-top: 14px;
+  padding: 0 20px;
+  border: 1px solid rgba(236, 241, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(10, 12, 18, 0.45);
+  color: var(--hud-fg);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 160ms,
+    background-color 160ms;
+}
+.landing-learn:hover {
+  border-color: rgba(236, 241, 255, 0.4);
+  background: rgba(16, 19, 28, 0.8);
+}
+.landing-learn:focus-visible {
+  outline: 2px solid var(--hud-accent);
+  outline-offset: 3px;
+}
+
+/* A phone on its side: everything a size down, the column a little narrower */
+@media (max-height: 480px) {
+  .landing {
+    --landing-column: clamp(300px, 38vw, 340px);
+  }
+  .landing h1 {
+    font-size: 50px;
+  }
+  .landing-head {
+    margin-bottom: 20px;
+  }
+  .landing-head::after {
+    margin-top: 14px;
+  }
+  .landing-mode {
+    height: 96px;
+    padding: 8px 12px 10px;
+  }
+  .landing-mode::after {
+    top: 14px;
+  }
+  .landing-mode-icon {
+    width: 48px;
+    height: 34px;
+  }
+  .landing-mode-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+  .landing-learn {
+    height: 38px;
+    margin-top: 10px;
+    font-size: 14px;
+  }
+}
+
+/* A window as tall as it is wide or taller: the title above the tower, the
+   tiles under it */
+@media (orientation: portrait) {
+  .landing-scrim {
+    background:
+      linear-gradient(
+        0deg,
+        rgba(1, 2, 5, 0.92) 0,
+        rgba(1, 2, 5, 0.66) 220px,
+        rgba(1, 2, 5, 0) 380px
+      ),
+      linear-gradient(180deg, rgba(1, 2, 5, 0.6) 0, rgba(1, 2, 5, 0) 120px);
+  }
+  .landing-menu {
+    top: max(24px, var(--landing-gutter));
+    right: var(--landing-gutter);
+    bottom: var(--landing-under);
+    width: auto;
+    justify-content: space-between;
+  }
+  .landing h1 {
+    font-size: 64px;
+  }
+  .landing-head {
+    margin: 0;
+  }
+  .landing-head::after {
+    display: none;
+  }
+  .landing-foot,
+  .landing-learn {
+    max-width: 480px;
+  }
+  .landing-foot {
+    margin-top: auto;
+  }
+}
+
+/*
+ * An upright tablet (600 px wide or more): a band along the bottom, the
+ * title at its left and the larger tiles at its right, the tower above.
+ */
+@media (orientation: portrait) and (min-width: 600px) {
+  .landing-scrim {
+    background:
+      linear-gradient(
+        0deg,
+        rgba(1, 2, 5, 0.94) 0,
+        rgba(1, 2, 5, 0.7) 260px,
+        rgba(1, 2, 5, 0) 440px
+      ),
+      linear-gradient(180deg, rgba(1, 2, 5, 0.5) 0, rgba(1, 2, 5, 0) 100px);
+  }
+  .landing-menu {
+    top: auto;
+    display: grid;
+    grid-template-columns: auto minmax(0, 520px);
+    grid-template-rows: auto auto;
+    justify-content: space-between;
+    align-items: end;
+    column-gap: clamp(32px, 6vw, 72px);
+  }
+  .landing-head {
+    grid-row: 1 / 3;
+  }
+  .landing-head::after {
+    display: block;
+    margin-top: 20px;
+  }
+  .landing h1 {
+    font-size: clamp(64px, 11vw, 112px);
+  }
+  .landing-foot,
+  .landing-learn {
+    grid-column: 2;
+    max-width: none;
+    margin-top: 0;
+  }
+  .landing-learn {
+    margin-top: 14px;
+  }
+  .landing-mode {
+    height: 132px;
+    padding: 14px 16px 16px;
+  }
+  .landing-mode .landing-label {
+    font-size: clamp(13px, calc(10.5cqi - 3.5px), 18px);
+  }
+  .landing-mode-icon {
+    width: 68px;
+    height: 50px;
+  }
+  .landing-mode-icon svg {
+    width: 32px;
+    height: 32px;
+  }
+  .landing-mode::after {
+    top: 20px;
+    right: 18px;
+  }
 }

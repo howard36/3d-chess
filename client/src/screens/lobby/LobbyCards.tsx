@@ -7,8 +7,9 @@ import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 
 // The cards over the lobby's scene on a game's page before it starts: the
 // creator's invitation to send, and the invitation as its guest opens it.
-// Their one action is the landing page's pill (.landing-play), so the way
-// in looks the same at every step.
+// Their one action is a pill of starlight in a rim of the level colours
+// (.landing-play, the result card's too), so the way in looks the same at
+// every step.
 
 /** The link as it is set on the card: without its scheme. */
 const shownLink = (link: string) => link.replace(/^[a-z]+:\/\//, '');

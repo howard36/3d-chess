@@ -15,11 +15,26 @@ const GLYPHS: Record<PieceType, string> = {
     'M12 2.6a1.4 1.4 0 1 1 0 2.8a1.4 1.4 0 1 1 0-2.8zM12 5.9c3.4 2.4 4.4 5.1 2.8 7.8H9.2C7.6 11 8.6 8.3 12 5.9zM9 14.6h6l1.6 4H7.4zM6 19h12v2H6z',
   [PieceType.Knight]:
     'M7.5 21H19v-2.3l-1.1-1.2c.4-4.2-.6-9-5.6-11.8l-1-2.2-1.4 2.4C7.5 7.4 6 9.9 6.1 12.5l1.8 1.3 3-1.5c.3 1.7-.8 3.1-2.2 4.3l-1.2 2.1z',
+  // The 3D piece's spiralled horn on a collar, not a horse: the knight's
+  // silhouette with a horn is the knight at the size the HUD draws it.
   [PieceType.Unicorn]:
-    'M7.5 21H19v-2.3l-1.1-1.2c.4-4.2-.6-9-5.6-11.8l-.4-.9L6.6 1.6l3.3 4.6C7.3 7.7 6 10 6.1 12.5l1.8 1.3 3-1.5c.3 1.7-.8 3.1-2.2 4.3l-1.2 2.1z',
+    'M11.75 2.55L12 2.2L12.25 2.55L12.6 4.38L11.2 5.08zM10.99 5.82L12.76 4.94L13.21 6.57L10.39 7.98zM10.19 8.73L13.37 7.13L13.82 8.77L9.59 10.89zM9.38 11.63L13.98 9.33L14.75 12.1L9.25 12.1zM8.9 12.6h6.2a.7.7 0 0 1 0 1.4H8.9a.7.7 0 0 1 0-1.4zM9 14.6h6l1.6 4H7.4zM6 19h12v2H6z',
   [PieceType.Pawn]:
     'M12 3.6a3.3 3.3 0 1 1 0 6.6a3.3 3.3 0 1 1 0-6.6zM9 11.4h6l1.6 7.1H7.4zM6 18.9h12V21H6z',
 };
+
+/**
+ * Charcoal, Black's material: a grey lit softly from the top left, its far
+ * side a darker grey rather than black (offset, colour), which the start
+ * page's computer (StartScreen, Bot) is drawn in too.
+ */
+export const CHARCOAL = [
+  ['0', '#7b8392'],
+  ['0.45', '#5a606c'],
+  ['1', '#3b3f48'],
+] as const;
+/** The pale edge round a charcoal glyph. */
+export const CHARCOAL_EDGE = 'rgba(150,162,184,0.85)';
 
 /**
  * A piece's silhouette in its army's material: porcelain or charcoal, lit
@@ -58,18 +73,16 @@ export const PieceGlyph = ({
               <stop offset="1" stopColor="#bfb8ac" />
             </>
           ) : (
-            <>
-              <stop offset="0" stopColor="#8a92a1" />
-              <stop offset="0.45" stopColor="#555a66" />
-              <stop offset="1" stopColor="#25272d" />
-            </>
+            CHARCOAL.map(([offset, stopColor]) => (
+              <stop key={offset} offset={offset} stopColor={stopColor} />
+            ))
           )}
         </radialGradient>
       </defs>
       <path
         d={GLYPHS[type]}
         fill={`url(#${id})`}
-        stroke={color === 'white' ? 'rgba(20,18,14,0.55)' : 'rgba(150,162,184,0.85)'}
+        stroke={color === 'white' ? 'rgba(20,18,14,0.55)' : CHARCOAL_EDGE}
         strokeWidth={0.8}
         strokeLinejoin="round"
       />
