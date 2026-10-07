@@ -639,12 +639,16 @@ until the row fits the width).
   or 1.5 s).
 - **Choosing a side** (`/new`, `screens/lobby/ChooseSide.tsx`). "Choose your side" over
   three kings, porcelain, one split porcelain and charcoal for Random, and charcoal, with a
-  a button under each named only "White", "Random" or "Black" (sized with the kings as
-  they stand on screen, `--king-height`: word, padding and width all scale, from 12 px text
-  just round its word under a phone's small kings to 180 px pills with 18 px text under a
-  large screen's, at least 44 px tall on a touch screen, each hanging a little under its
-  king's foot, `--seat-<seat>-front`), and
-  nothing under the heading. A king lifts under a mouse (on it or its button) or its
+  button under each named only "White", "Random" or "Black" (sized with the kings as
+  they stand on screen, `--king-height`: word, height and width all scale, from 15 px text
+  in a 92 by 46 px button under a phone's small kings to 200 by 60 px with 20 px text under
+  a large screen's, never under 44 px tall, each hanging a little under its king's foot,
+  `--seat-<seat>-front`), and nothing under the heading. The page is in the home page's
+  language: the headings in its display type (heavy and tight, over the short rule of the
+  level colours that stands under its title), and the buttons and cards of its tiles'
+  glass (`.lobby-glass`, shared with `.landing-mode`). A side button shows a trace of the
+  tiles' rim at rest and all of it, with the tiles' glow and sheen, when pointed at (on it
+  or on its king), focused or chosen. A king lifts under a mouse (on it or its button) or its
   button's focus, as if picked up, and clicking either picks; a tap leaves no hover behind.
   A pick is final: `create_game {color}` goes out at once (and again on the next socket if
   its answer is lost), and the heading turns to "You play Black" (or "Leaving it to
@@ -667,7 +671,8 @@ until the row fits the width).
   "Play again" and the invitation's "Play a friend" lead here.
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
   `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
-  breathing dot and "Waiting for your friend…" under it. The card under the kings: "Invite
+  breathing dot and "Waiting for your friend…" under it. The card under the kings, of
+  the tiles' glass in their rim: "Invite
   a friend", the link (`lib/gameLink.ts`, plain, without its scheme, on one line and
   cut off at its end when long, its box only as wide as the link), and one white "Copy
   link" button; nothing else. A copy turns the button to
@@ -679,7 +684,8 @@ until the row fits the width).
 - **The guest** (the `invited` beat and `InvitationCard`). A page with no stored seat asks
   `look_game` once per socket until answered, and `game/invitation.ts` reads the answer.
   With a seat free the heading reads "You're invited to play" with the side's stone and
-  name, and under the scene there is only "Join game" ("Joining…" once pressed). Until the
+  name, and under the scene, in a card of the same glass as the host's, there is only "Join
+  game" ("Joining…" once pressed). Until the
   look is answered nothing is said; a wait on the server is only mentioned once it has
   lasted 1.5 s (`useDelayed`, `SLOW_SERVER_MS`): "Connecting to server…" or "Reconnecting to
   server…", the same words and delay as the side choice's bottom line;
@@ -768,7 +774,10 @@ plays offline.
    player's opens, its outline drawn up from the foot and breathing, "You" and "Computer"
    under the kings, and Easy, Medium and Hard in a row under those, near where the side's
    buttons were (`.lobby-levels`, rising in turn; the level last played has the focus,
-   Medium the first time, `lib/computerGames.ts`).
+   Medium the first time, `lib/computerGames.ts`): three tiles like the home page's, each
+   the computer's robot (`screens/BotGlyph.tsx`, the home page's) beside its strength, one
+   bar to three in the colours of the tower's levels from the lowest up, and the level's
+   name (a phone on its side sets them shorter, the robot beside the name).
 3. _The computer arrives._ A level fills the computer's king at once (its seat taken)
    while the level chosen holds a moment, the others fade and the page's words go
    (`[data-out]`); as the levels' fade ends (their

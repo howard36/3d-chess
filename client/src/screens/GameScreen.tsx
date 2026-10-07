@@ -531,8 +531,11 @@ const GameScreen: React.FC<GameScreenProps> = ({
       {guest && (invitation.state === 'open' || invitation.state === 'joining') && (
         <div className="lobby-heading">
           <h1 id="invitation-title">
-            You're invited to play <Stone color={invitation.seat} />
-            {invitation.seat === 'white' ? 'White' : 'Black'}
+            You're invited to play {/* The stone and its side's name kept together on one line */}
+            <span className="lobby-nowrap">
+              <Stone color={invitation.seat} />
+              {invitation.seat === 'white' ? 'White' : 'Black'}
+            </span>
           </h1>
         </div>
       )}
