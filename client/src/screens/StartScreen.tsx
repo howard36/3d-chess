@@ -88,7 +88,7 @@ const Bot = () => {
   const fill = `url(#${id})`;
   const edge = { stroke: CHARCOAL_EDGE, strokeWidth: 0.8, strokeLinejoin: 'round' as const };
   return (
-    <svg viewBox="0 0 24 24" width={24} height={24} aria-hidden>
+    <svg className="landing-bot" viewBox="0 0 24 24" width={24} height={24} aria-hidden>
       <defs>
         <radialGradient id={id} gradientUnits="userSpaceOnUse" cx="8.2" cy="6.7" r="21.6">
           {CHARCOAL.map(([offset, stopColor]) => (
@@ -107,7 +107,7 @@ const Bot = () => {
         width="11.8"
         height="8.4"
         rx="2.2"
-        fill="#0d0f15"
+        fill="#1c2029"
         stroke="rgba(150,162,184,0.45)"
         strokeWidth={0.5}
       />
