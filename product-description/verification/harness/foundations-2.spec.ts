@@ -28,7 +28,7 @@ const BG = { x: 20, y: 400 };
  * so before a click, so read the tapped socket where there is one.
  */
 const startScreenReady = async (p: Page) => {
-  await expect(p.getByRole('button', { name: 'Start a game' })).toBeVisible();
+  await expect(p.getByRole('button', { name: 'Play a friend' })).toBeVisible();
   await p.waitForTimeout(500);
   await p.waitForFunction(() => {
     const s = (window as any).__sockets as WebSocket[] | undefined;
@@ -103,7 +103,7 @@ test('conn', async ({ browser }) => {
   const ctxB = await browser.newContext(); await ctxB.addInitScript(socketTap);
   const a = await ctxA.newPage(); const b = await ctxB.newPage();
   await a.goto('/');
-  await a.getByRole('button', { name: 'Start a game' }).click();
+  await a.getByRole('button', { name: 'Play a friend' }).click();
   await a.waitForURL(/\/game\/[A-Z0-9]+/);
   const id = a.url().split('/game/')[1];
   let creatorColor = '';
@@ -137,11 +137,11 @@ test('conn', async ({ browser }) => {
     // The joiner opened the link directly, so Back would leave the app; give Black's tab
     // the start screen as its previous entry, as a player who came from it has.
     const url = black.url();
-    await black.goto('/'); await expect(black.getByRole('button', { name: 'Start a game' })).toBeVisible();
+    await black.goto('/'); await expect(black.getByRole('button', { name: 'Play a friend' })).toBeVisible();
     await black.goto(url); await waitForBoard(black);
     await expect(presence(white)).toHaveText('Opponent: online');
     await black.goBack();
-    await expect(black.getByRole('button', { name: 'Start a game' })).toBeVisible();
+    await expect(black.getByRole('button', { name: 'Play a friend' })).toBeVisible();
     await expect(presence(white)).toHaveText('Opponent: offline');
     await black.goForward();
     await waitForBoard(black);
@@ -290,7 +290,7 @@ test('lost answers', async ({ browser }) => {
   await item('CONN-16', async () => {
     const x = await newTappedPage(browser);
     await x.goto('/'); await startScreenReady(x);
-    await x.getByRole('button', { name: 'Start a game' }).click();
+    await x.getByRole('button', { name: 'Play a friend' }).click();
     await x.waitForURL(/\/game\/[A-Z0-9]+/);
     const id = x.url().split('/game/')[1];
     const creator = (await storageKeys(x))[`3dchess:role:${id}`];
@@ -317,7 +317,7 @@ test('lost answers', async ({ browser }) => {
   await item('CONN-17', async () => {
     const p = await newTappedPage(browser);
     await p.goto('/'); await startScreenReady(p);
-    await clickThenCut(p, 'Start a game');
+    await clickThenCut(p, 'Play a friend');
     // The lost answer shows in the button's own label
     const btn = p.getByRole('button', { name: 'Reconnecting…' });
     await expect(btn).toBeDisabled();
@@ -378,7 +378,7 @@ test('nav', async ({ browser }) => {
   const titles: string[] = [];
   await item('NAV-01', async () => {
     await a.goto('/'); titles.push(`start: ${await a.title()}`);
-    await a.getByRole('button', { name: 'Start a game' }).click();
+    await a.getByRole('button', { name: 'Play a friend' }).click();
     await expect(a.getByText('Game created! Share this link with a friend:')).toBeVisible();
     titles.push(`share-link: ${await a.title()}`);
     await b.goto(a.url());
@@ -443,7 +443,7 @@ test('nav', async ({ browser }) => {
     let g2 = await focusDesc(w);
     for (let i = 0; i < 4 && g2 !== 'BUTTON:Start new game'; i++) { await w.keyboard.press('Tab'); g2 = await focusDesc(w); }
     await w.keyboard.press('Enter');
-    await expect(w.getByRole('button', { name: 'Start a game', exact: true })).toBeVisible();
+    await expect(w.getByRole('button', { name: 'Play a friend', exact: true })).toBeVisible();
     expect(f).toBe('BUTTON:Start new game');
     expect(seen.filter((s) => s.startsWith('OUTSIDE'))).toEqual([]);
     await w.goBack();
@@ -453,7 +453,7 @@ test('nav', async ({ browser }) => {
   await item('NAV-04', async () => {
     const w = g.white;
     await w.getByRole('button', { name: 'Start new game', exact: true }).click();
-    await expect(w.getByRole('button', { name: 'Start a game', exact: true })).toBeVisible();
+    await expect(w.getByRole('button', { name: 'Play a friend', exact: true })).toBeVisible();
     await w.goBack();
     await waitForBoard(w);
     await expect(w.getByText('Black wins by checkmate!')).toBeVisible();
@@ -463,7 +463,7 @@ test('nav', async ({ browser }) => {
     const urlA = w.url();
     await w.getByRole('button', { name: 'Start new game', exact: true }).click();
     await startScreenReady(w);
-    await w.getByRole('button', { name: 'Start a game', exact: true }).click();
+    await w.getByRole('button', { name: 'Play a friend', exact: true }).click();
     await w.waitForURL((u) => /\/game\/[A-Z0-9]+/.test(u.toString()) && u.toString() !== urlA);
     await expect(w.getByText('Game created! Share this link with a friend:')).toBeVisible();
     const urlB = w.url();
@@ -482,13 +482,13 @@ test('nav', async ({ browser }) => {
   await item('NAV-10', async () => {
     const q = await newTappedPage(browser);
     await q.goto('/'); await startScreenReady(q);
-    await q.getByRole('button', { name: 'Start a game' }).click();
+    await q.getByRole('button', { name: 'Play a friend' }).click();
     await expect(q.getByText('Game created! Share this link with a friend:')).toBeVisible();
     const u = q.url();
     await dropConnection(q, { block: true });
     await expect(q.getByText('Reconnecting…')).toBeVisible();
     await q.goBack();
-    await expect(q.getByRole('button', { name: 'Start a game' })).toBeVisible();
+    await expect(q.getByRole('button', { name: 'Play a friend' })).toBeVisible();
     await q.goForward();
     await q.waitForURL(u);
     await expect(q.getByText('Game created! Share this link with a friend:')).toBeVisible();

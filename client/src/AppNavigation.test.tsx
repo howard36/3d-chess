@@ -68,7 +68,7 @@ test('the default route is the start screen', async () => {
       <App />
     </MemoryRouter>,
   );
-  expect(await screen.findByRole('button', { name: 'Start a game' })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Play a friend' })).toBeInTheDocument();
 });
 
 test('jumping from one game page to another keeps each game its own seat', async () => {
@@ -124,7 +124,7 @@ test('a new game goes from the start screen through the side choice to its invit
       <App />
     </MemoryRouter>,
   );
-  await userEvent.click(await screen.findByRole('button', { name: 'Start a game' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Play a friend' }));
   // The side choice, over the lobby's stage
   expect(await screen.findByTestId('choose-side')).toBeInTheDocument();
   expect(screen.getByTestId('lobby')).toHaveAttribute('data-beat', 'choose');

@@ -365,6 +365,31 @@ describe('fitView', () => {
         fitted(18, 0, 1280, 720).distance,
       );
     });
+
+    it.each([
+      ['a desktop', 1440, 900, 474],
+      ['a phone on its side', 844, 390, 287],
+    ])('centres the rings in %s right of a left band, kept however small', (_, w, h, left) => {
+      for (const azimuth of [0, 28, 200]) {
+        const options = {
+          topInset: 24,
+          bottomInset: 24,
+          leftInset: left,
+          centre: 'rings' as const,
+        };
+        const { rect, framed } = fitted(22, azimuth, w, h, options);
+        expect(Math.abs(rect.left - left - rect.right)).toBeLessThan(0.5);
+        expect(rect.left).toBeGreaterThan(left);
+        // Fills what the bands leave on its tighter axis
+        const across = (w - rect.left - rect.right) / (w - left);
+        const down = (h - framed.top - framed.bottom) / (h - 48);
+        expect(Math.max(across, down)).toBeGreaterThan(0.94);
+        expect(Math.max(across, down)).toBeLessThan(0.96);
+        // A view that only turns keeps its band, even where it would clear it centred
+        const view = { width: w, height: h, fov: 36, ...options };
+        expect(settleLeftInset(22 * DEG, RINGS, view)).toBe(view);
+      }
+    });
   });
 
   describe("the tutorial's fit (centre: 'opening', a left band)", () => {

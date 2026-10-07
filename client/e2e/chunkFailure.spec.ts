@@ -10,7 +10,7 @@ test('the start page goes without its preview', async ({ page }) => {
   await page.route(/\/src\/screens\/LandingPreview\.tsx/, (route) => route.abort('failed'));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '3D Chess' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Start a game' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play a friend' })).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
 });
 

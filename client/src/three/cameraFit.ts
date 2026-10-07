@@ -59,12 +59,13 @@ export function zoomRange(fit: number, minDistance = 0): { min: number; max: num
 // dips, with FRAME_MARGIN to spare at the opening.
 //
 // The landing page's preview, which only ever turns about the axis at one
-// elevation, centres the rings as seen from there instead (centre: 'rings').
+// elevation, centres the rings as seen from there instead (centre: 'rings'),
+// in the room right of its menu (FitWindow.leftInset, kept whatever the size).
 // The tutorial, whose card takes a large part of a small window, centres them
 // as seen from the opening in the room the card leaves ('opening'), the sweep
-// still kept in it, and only there shifts the view sideways too: where the
-// card stands at the left and the tower, centred in the window, would run
-// under it (FitWindow.leftInset, settleLeftInset).
+// still kept in it, and shifts the view sideways only where the card stands
+// at the left and the tower, centred in the window, would run under it
+// (settleLeftInset).
 
 /** Rows of CSS pixels at the top of the window kept for the HUD (its pill), which the fitted board stays below. */
 export const HUD_TOP_PX = 56;
@@ -286,8 +287,10 @@ const targetColumn = (w: FitWindow): number => (leftShare(w) + 1) / 2;
  */
 export function centringShift(bounds: ViewBounds, w: FitWindow): [number, number] {
   const tanV = Math.tan(MathUtils.degToRad(w.fov) / 2);
+  const tanH = tanV * (w.width / w.height);
   return [
-    (bounds.left + bounds.right) / 2,
+    // (left as far as the room right of the left band stands right of the window's middle)
+    (bounds.left + bounds.right) / 2 - tanH * leftShare(w),
     (bounds.bottom + bounds.top) / 2 + tanV * (bandShare(w) - bottomShare(w)),
   ];
 }
@@ -340,7 +343,7 @@ export function fitView(
     const b = ringBounds(rings, elevation, distance, FIT_SOFTNESS);
     if (w.centre === 'rings') {
       const fitted = Math.max(
-        (b.right * FRAME_MARGIN) / tanH,
+        (b.right * FRAME_MARGIN) / (tanH * (1 - leftShare(w))),
         ((b.top - b.bottom) * FRAME_MARGIN) / (2 * half),
       );
       return { fitted, from: () => 0 };
@@ -408,7 +411,9 @@ export function settleLeftInset(
   rings: readonly FrameRing[],
   w: FitWindow,
 ): FitWindow {
-  if (!w.leftInset) return w;
+  // A view that only turns about the axis keeps its left band: the page
+  // beside it (the landing's) is laid out round the tower standing right of it
+  if (!w.leftInset || w.centre === 'rings') return w;
   const centred = { ...w, leftInset: undefined };
   const { distance } = fitView(elevation, rings, centred);
   const sweep = w.sweep ? elevationsBetween(...w.sweep) : [];

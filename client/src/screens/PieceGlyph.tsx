@@ -24,6 +24,19 @@ const GLYPHS: Record<PieceType, string> = {
 };
 
 /**
+ * Charcoal, Black's material: a grey lit softly from the top left, its far
+ * side a darker grey rather than black (offset, colour), which the start
+ * page's computer (StartScreen, Bot) is drawn in too.
+ */
+export const CHARCOAL = [
+  ['0', '#7b8392'],
+  ['0.45', '#5a606c'],
+  ['1', '#3b3f48'],
+] as const;
+/** The pale edge round a charcoal glyph. */
+export const CHARCOAL_EDGE = 'rgba(150,162,184,0.85)';
+
+/**
  * A piece's silhouette in its army's material: porcelain or charcoal, lit
  * from the top left like the HUD's stones. Decorative (aria-hidden): what it
  * shows is said in words beside it.
@@ -60,18 +73,16 @@ export const PieceGlyph = ({
               <stop offset="1" stopColor="#bfb8ac" />
             </>
           ) : (
-            <>
-              <stop offset="0" stopColor="#8a92a1" />
-              <stop offset="0.45" stopColor="#555a66" />
-              <stop offset="1" stopColor="#25272d" />
-            </>
+            CHARCOAL.map(([offset, stopColor]) => (
+              <stop key={offset} offset={offset} stopColor={stopColor} />
+            ))
           )}
         </radialGradient>
       </defs>
       <path
         d={GLYPHS[type]}
         fill={`url(#${id})`}
-        stroke={color === 'white' ? 'rgba(20,18,14,0.55)' : 'rgba(150,162,184,0.85)'}
+        stroke={color === 'white' ? 'rgba(20,18,14,0.55)' : CHARCOAL_EDGE}
         strokeWidth={0.8}
         strokeLinejoin="round"
       />
