@@ -724,7 +724,7 @@
   --landing-gutter: clamp(24px, 6vw, 112px);
   --landing-inset: max(var(--landing-gutter), calc(env(safe-area-inset-left) + 16px));
   --landing-under: max(var(--landing-gutter), calc(env(safe-area-inset-bottom) + 24px));
-  --landing-column: clamp(240px, 24vw, 360px);
+  --landing-column: clamp(280px, 24vw, 360px);
   --landing-levels: linear-gradient(90deg, #00d7e0, #58c1ff, #96a7ff, #c48be5, #de77ab);
   position: relative;
   height: 100dvh;

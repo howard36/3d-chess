@@ -72,7 +72,7 @@ export const LANDING_BANDS: Record<LandingDesign, LandingBands> = {
   column: {
     top: () => EDGE,
     bottom: below(TITLE + 20 + MODE + 10 + MODE + 14 + LEARN),
-    left: beside((w) => clamp(240, 0.24 * w, 360)),
+    left: beside((w) => clamp(280, 0.24 * w, 360)),
   },
   // A large set title over the ways in, each menu-* another way of setting
   // them out (rows, buttons, tiles, cards, a pair of pills, large type)
