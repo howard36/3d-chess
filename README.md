@@ -687,7 +687,10 @@ until the row fits the width).
   exactly the game's first-frame pose
   (`gameOpening`: the fitted distance times the `lobby` entrance's `dolly.from`, on the
   opening line of sight from the player's seat, with the fit's lens shift) while the
-  sculptures come back up to the game's brightness. The lobby's canvas then fades over an
+  sculptures come back up to the game's brightness. The glass and the kings turn a quarter
+  turn under it as it goes (`leavePose`), one way for White and the other for Black, so the
+  glass turns the same on screen for either seat (-74°, the average of the camera's +16°
+  and -164° round the tower) and, being square, ends just as the game's level A stands. The lobby's canvas then fades over an
   identical first frame of the game's (`leaveFade`), and only then (`onReveal`, `onLeft`)
   does the game's entrance run its `lobby` variant (`three/intro/timeline.ts`): level A
   stands from the start (`levels.built`), nothing fades up, and B to E build on up from A
