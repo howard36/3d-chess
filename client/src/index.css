@@ -1406,11 +1406,11 @@
  * run on a diagonal, cyan at the top left through to rose at the bottom
  * right, steeper than the tile's own corner to corner: the glass is a wash
  * of the five colours with cyan blooming behind the pieces, just in from the
- * top left, and a warmer rose, nearer red, pooling past the bottom right. Under the pointer the
- * blooms brighten (--landing-glow) and a sheen sweeps across once, along the
- * same diagonal. The name keeps to one line: its size follows the tile's
- * width (container units), between 13 and 17 px, and only a tile too narrow
- * even at 13 px lets it wrap.
+ * top left, and a warmer rose, nearer red, pooling past the bottom right.
+ * Under the pointer the blooms brighten (--landing-glow) and a sheen sweeps
+ * across once, along the same diagonal. The name keeps to one line: its size
+ * follows the tile's width (container units), between 13 and 17 px, and only
+ * a tile too narrow even at 13 px lets it wrap.
  */
 @property --landing-glow {
   syntax: '<number>';

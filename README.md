@@ -269,9 +269,12 @@ Key decisions:
   tiles under it (`hudTopBand`, `bottomBand`); an upright one 600 px wide or more, a
   tablet, sets the title and the tiles side by side in a band along the bottom. The two
   tiles are alike in weight: dark glass in a rim of the five level colours (a ring of its
-  own, masked to the border, which turns while the pointer is on it), two pieces facing
-  each other (two knights, or a knight and the computer's robot, both in Black's
-  charcoal) and the name, whose size follows the tile's width (container units, 13–17 px) so "Play the computer" keeps to
+  own, masked to the border, which turns while the pointer is on it), both on a diagonal
+  from cyan, glowing at the top left, to a warmer rose at the bottom right (under the
+  pointer the glows brighten and a sheen sweeps across once), two pieces facing each
+  other in a box of dark teal glass fitted to them (two knights, or a knight and the
+  computer's robot, both in Black's charcoal; the robot's box is a little wider, so both
+  pairs have the same room round them) and the name, whose size follows the tile's width (container units, 13–17 px) so "Play the computer" keeps to
   one line in all but the narrowest phones. "Play a friend" creates nothing: it opens the
   side choice at `/new` (see The lobby). "Play the computer" opens the side choice
   against the computer at `/computer` (see Playing the computer). "How to play", a quieter
