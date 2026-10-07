@@ -46,7 +46,16 @@ export const landingFrameRings = towerBodyRings(layout);
  * index.css's `.landing[data-design]` rules: the left band is where the menu
  * stands beside the tower, which the camera centres in the room to its right.
  */
-export const LANDING_DESIGNS = ['column', 'menu', 'panel'] as const;
+export const LANDING_DESIGNS = [
+  'column',
+  'menu',
+  'menu-buttons',
+  'menu-tiles',
+  'menu-cards',
+  'menu-pair',
+  'menu-type',
+  'panel',
+] as const;
 export type LandingDesign = (typeof LANDING_DESIGNS)[number];
 
 export interface LandingBands {
@@ -81,6 +90,19 @@ const TITLE = 46;
 const MODE = 60;
 const LEARN = 44;
 
+/**
+ * The menu's title above the tower in an upright window (two lines of 64 px
+ * at 0.92), the ways in, `choices` tall, under it; beside it, a column.
+ */
+const menuBands = (
+  choices: number,
+  column = (w: number) => clamp(240, 0.26 * w, 400),
+): LandingBands => ({
+  top: (h, w) => (upright(w, h) ? under(w) + 2 * 0.92 * 64 + GAP : EDGE),
+  bottom: below(choices),
+  left: beside(column),
+});
+
 export const LANDING_BANDS: Record<LandingDesign, LandingBands> = {
   // The title over the menu in a column at the left, the tower right of it
   column: {
@@ -88,13 +110,14 @@ export const LANDING_BANDS: Record<LandingDesign, LandingBands> = {
     bottom: below(TITLE + 20 + MODE + 10 + MODE + 14 + LEARN),
     left: beside((w) => clamp(240, 0.24 * w, 360)),
   },
-  // A large set title over a list of the ways in, the tower right of them;
-  // upright, the title above the tower and the list under it
-  menu: {
-    top: (h, w) => (upright(w, h) ? Math.max(24, gutter(w)) + 2 * 0.92 * 64 + GAP : EDGE),
-    bottom: below(3 * 60),
-    left: beside((w) => clamp(240, 0.26 * w, 400)),
-  },
+  // A large set title over the ways in, each menu-* another way of setting
+  // them out (rows, buttons, tiles, cards, a pair of pills, large type)
+  menu: menuBands(3 * 60),
+  'menu-buttons': menuBands(MODE + 10 + MODE + 14 + LEARN),
+  'menu-tiles': menuBands(116 + 14 + LEARN),
+  'menu-cards': menuBands(150 + 14 + LEARN),
+  'menu-pair': menuBands(56 + 12 + 40, (w) => clamp(300, 0.3 * w, 440)),
+  'menu-type': menuBands(2 * 57 + 6 + 22 + LEARN),
   // A glass card at the left holding the title and the menu; upright, docked
   // along the bottom, 16 px from the window's edges
   panel: {
