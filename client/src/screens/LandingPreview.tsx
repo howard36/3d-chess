@@ -5,12 +5,8 @@ import Board from '../three/Board';
 import { AutoOrbit } from '../three/AutoOrbit';
 import { FitCameraToBoard } from '../three/FitCameraToBoard';
 import { usePixelBudget } from '../three/pixelBudget';
-import {
-  LANDING_VIEW,
-  landingBand,
-  landingFrameRings,
-  landingViewDirection,
-} from '../three/landingView';
+import { LANDING_VIEW, landingFrameRings, landingViewDirection } from '../three/landingView';
+import { LANDING_BANDS } from './landingLayout';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import { DEMO_GAME, demoFrame, demoLog } from '../game/demo';
@@ -137,8 +133,9 @@ export function LandingPreview({ still }: { still: boolean }) {
           viewDirection={landingViewDirection}
           minDistance={layout.orbit.minDistance}
           frameRings={landingFrameRings}
-          hudTopBand={landingBand}
-          bottomBand={landingBand}
+          hudTopBand={LANDING_BANDS.top}
+          bottomBand={LANDING_BANDS.bottom}
+          leftBand={LANDING_BANDS.left}
           // It only turns about the axis, at one elevation: the tower as seen
           // from there is centred
           centre="rings"

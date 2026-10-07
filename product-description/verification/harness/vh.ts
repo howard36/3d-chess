@@ -160,7 +160,7 @@ export async function startTappedGame(browser: Browser, opts: Parameters<Browser
   for (const c of contexts) await c.addInitScript(socketTap);
   const [a, b] = await Promise.all(contexts.map((c) => c.newPage()));
   await a.goto('/');
-  await a.getByRole('button', { name: 'Start a game' }).click();
+  await a.getByRole('button', { name: 'Play a friend' }).click();
   await a.waitForURL(/\/game\/[A-Z0-9]+/);
   await b.goto(a.url());
   await b.getByRole('button', { name: 'Join Game' }).click();

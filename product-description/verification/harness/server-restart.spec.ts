@@ -22,7 +22,7 @@ test('server stop and restart', async ({ browser }) => {
     await p.waitForTimeout(1000);
     // Nothing about the connection until a create waits for it (the status region is always there, empty)
     await expect(p.getByRole('status')).toHaveText('');
-    await p.getByRole('button', { name: 'Start a game' }).click();
+    await p.getByRole('button', { name: 'Play a friend' }).click();
     // The button's label says it; the hidden status says it to a screen reader
     await expect(p.getByRole('button', { name: 'Reconnecting…' })).toBeVisible();
     await expect(p.getByRole('status')).toHaveText('Reconnecting to server…');
@@ -31,7 +31,7 @@ test('server stop and restart', async ({ browser }) => {
     await p.context().close();
   });
   await item('NAV-07', async () => {
-    const p = await newTappedPage(browser); await p.goto('/'); await p.getByRole('button', { name: 'Start a game' }).click(); await p.waitForURL(/\/game\//);
+    const p = await newTappedPage(browser); await p.goto('/'); await p.getByRole('button', { name: 'Play a friend' }).click(); await p.waitForURL(/\/game\//);
     stopServer();
     await expect(p.getByText('Reconnecting…')).toBeVisible();
     const box = await p.getByText('Reconnecting…').boundingBox();

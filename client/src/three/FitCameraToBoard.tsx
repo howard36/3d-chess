@@ -31,7 +31,8 @@ interface OrbitControlsLike {
  *
  * The centring is a lens shift (a view offset), never a pan: the camera
  * stands and turns about the board's centre, and the shift is vertical only
- * (but in the tutorial, beside a card at the left: `leftBand`).
+ * (but beside a menu or a card at the left, `leftBand`: the landing page's
+ * and the tutorial's).
  * What it fits is the layout's rings (BoardLayout.frameRings), circles about
  * the tower's axis that look the same from every side. The shift is set with
  * the fit and then left alone: turning, climbing and zooming the view never
@@ -60,7 +61,7 @@ export function FitCameraToBoard({
   /** What the view keeps in frame (BoardLayout.frameRings). */
   frameRings: readonly FrameRing[];
   /** The HUD's band at the top for a window this size (hudTop). */
-  hudTopBand: (height: number) => number;
+  hudTopBand: (height: number, width: number) => number;
   /** The band kept clear at the bottom for a window this size, if any. */
   bottomBand?: (height: number, width: number) => number;
   /** The band at the left the tower is kept clear of, should it run under it (FitWindow.leftInset). */
@@ -87,7 +88,7 @@ export function FitCameraToBoard({
       width,
       height,
       fov: camera.fov,
-      topInset: hudTopBand(height),
+      topInset: hudTopBand(height, width),
       bottomInset: bottomBand?.(height, width),
       leftInset: leftBand?.(width, height),
       centre,
