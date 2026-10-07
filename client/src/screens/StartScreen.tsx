@@ -6,8 +6,8 @@ import { ChunkBoundary } from '../components/ChunkBoundary';
 import { PieceGlyph } from './PieceGlyph';
 import { PieceType } from '../engine/pieces';
 import { learnScreen } from './learn/learnChunk';
-import { LANDING_DESIGNS } from '../three/landingView';
-import type { LandingDesign } from '../three/landingView';
+import { LANDING_DESIGNS } from './landingLayout';
+import type { LandingDesign } from './landingLayout';
 
 // The preview (three.js, the scene, a demo game) is a chunk of its own,
 // asked for when the page first draws, so its title and button show without

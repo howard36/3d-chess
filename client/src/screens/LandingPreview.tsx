@@ -5,13 +5,9 @@ import Board from '../three/Board';
 import { AutoOrbit } from '../three/AutoOrbit';
 import { FitCameraToBoard } from '../three/FitCameraToBoard';
 import { usePixelBudget } from '../three/pixelBudget';
-import {
-  LANDING_BANDS,
-  LANDING_VIEW,
-  landingFrameRings,
-  landingViewDirection,
-} from '../three/landingView';
-import type { LandingDesign } from '../three/landingView';
+import { LANDING_VIEW, landingFrameRings, landingViewDirection } from '../three/landingView';
+import { LANDING_BANDS } from './landingLayout';
+import type { LandingDesign } from './landingLayout';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import { DEMO_GAME, demoFrame, demoLog } from '../game/demo';
