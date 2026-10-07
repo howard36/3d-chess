@@ -18,6 +18,7 @@ import MoveCard from './MoveCard';
 import MoveAnnouncer from './MoveAnnouncer';
 import { learnScreen } from './learn/learnChunk';
 import type { LearnState } from './learn/learnBack';
+import { StepBackTuner } from './StepBackTuner';
 
 export type { IntroVariant };
 
@@ -252,6 +253,7 @@ const GameView: React.FC<GameViewProps> = ({
           />
           {/* After the move box, which stays the first Tab stop */}
           <HowToPlay />
+          <StepBackTuner />
           {boardLoad.failed && (
             <div className="hud-center">
               <div role="alert" className="hud-notice hud-glass" data-testid="board-failed">

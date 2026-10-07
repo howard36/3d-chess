@@ -478,7 +478,8 @@ const Board = (props: BoardProps) => {
     () => ({ selected: selectedLevel, hovered: hoveredLevel }),
     [selectedLevel, hoveredLevel],
   );
-  // Destinations on a level the player isn't attending to step back with its glass
+  // While the pointer is on a level, the others step back: their glass, their
+  // destinations, their pieces (a haze)
   const focusLevel = focusLevelOf(focus);
 
   // The same handlers from one render to the next (as the cells', above)
@@ -547,6 +548,7 @@ const Board = (props: BoardProps) => {
               hovered={hovered === key && canPick(coord)}
               inCheck={inCheck}
               level={coord.z}
+              focus={focusLevel === null || isSelected(coord) ? 0 : coord.z === focusLevel ? 1 : -1}
               mated={isMated}
               knocked={isMated && !!mate?.live}
               fallAway={isMated ? mate?.away : undefined}

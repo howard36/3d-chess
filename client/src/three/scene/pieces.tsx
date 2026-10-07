@@ -12,6 +12,7 @@ import type { PieceBodyProps, PieceColor } from '../types';
 import { bakedSet, preloadBakedSet, wholePiece } from './occlusion';
 import { LEVEL_COLORS, PALETTE } from './palette';
 import { smooth, toward } from './ease';
+import { LEVEL_FOCUS_MS } from './focus';
 import { overlayMaterial } from './overlay';
 import { SelectionLight, selectState, stepSelection } from './selection';
 import { useIntro } from '../intro/clock';
@@ -44,6 +45,11 @@ import { useRetireOnUnmount } from './programs';
 // part), passing through the colours of the levels crossed while the piece
 // glides.
 //
+// While the pointer is on a level, the pieces on it stand forward a little,
+// their edges brighter, and those on the other levels step back into a light
+// haze: less contrast, a little less colour (the glass steps back further,
+// plates.tsx). Gently either way: every piece stays solid and plain to read.
+//
 // Under the pointer a piece lifts a little, the key turns up on it, its band
 // brightens, and a small soft light gathers on the glass under its base (it
 // stays on the glass when the piece lifts: ON_FLOOR).
@@ -74,6 +80,18 @@ const glazeVertex = /* glsl */ `
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
+/** How much brighter the edges of the pieces on the level pointed at are. */
+const FOCUS_EDGE = 0.45;
+/** How far the haze draws the pieces on the other levels toward its slate. */
+const HAZE_DEPTH = 0.22;
+/** The haze's slate, between the two armies, a little cool. */
+const HAZE_COLOR = '#5a6272';
+
+const glazeFocus = /* glsl */ `
+  #define FOCUS_EDGE ${FOCUS_EDGE.toFixed(3)}
+  #define HAZE_DEPTH ${HAZE_DEPTH.toFixed(3)}
+`;
+
 const glazeFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform vec3 uBase;
@@ -101,6 +119,9 @@ const glazeFragment = /* glsl */ `
   uniform float uHover;
   uniform float uHold;
   uniform float uCheck;
+  uniform float uFocus;
+  uniform float uHaze;
+  uniform vec3 uHazeColor;
   uniform float uTop;
   uniform float uCut;
   uniform float uForm;
@@ -203,20 +224,28 @@ const glazeFragment = /* glsl */ `
     float facing = abs(dot(n, v));
     // Seen from above, a piece is almost all edge: the edges give way there
     float fromAbove = mix(1.0, 0.3, smoothstep(0.55, 0.95, abs(v.y)));
+    // On the level pointed at, its edges a little brighter
+    float edge = uEdge * (1.0 + FOCUS_EDGE * uFocus);
     // The kicker: a cool edge on the side away from the key
     float kk = max(dot(n, kick), 0.0) * pow(1.0 - facing, 1.4);
-    col += uRim * kk * uKick * uEdge * ao * fromAbove;
+    col += uRim * kk * uKick * edge * ao * fromAbove;
     // The army's own rim, all round
     float rim = pow(1.0 - facing, uRimPower) * fromAbove;
-    col = mix(col, uRim, clamp(uRimMix * uEdge * rim * ao, 0.0, 1.0));
+    col = mix(col, uRim, clamp(uRimMix * edge * rim * ao, 0.0, 1.0));
     // The band at the foot: a strip of its level's light, lit a little
     if (band) {
       col = uBand * (0.62 + 0.3 * lit + 0.28 * uHover + 0.2 * uHold) * mix(1.0, ao, 0.35);
     }
+    // On another level than the one pointed at: a light haze, a little less
+    // colour and less contrast, drawn toward one slate for both armies so
+    // each recedes alike (the king in check keeps his red, below)
+    float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    vec3 hazed = mix(mix(col, vec3(lum), 0.4), uHazeColor, HAZE_DEPTH);
+    col = mix(col, hazed, uHaze);
     // In check the whole king takes the red, keeping its army's value, its
     // edge burns red, and the red platform under it lights its base
     if (uCheck > 0.0) {
-      float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+      lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
       // Lit from below: reddest at the base, the cross still clearly red
       float up = (1.0 - smoothstep(0.0, 0.45, h)) * (0.45 + 0.55 * clamp(0.4 - n.y, 0.0, 1.0));
       col = mix(col, uCheckColor * (lum * 1.45 + 0.012), uCheck * (0.5 + 0.3 * up));
@@ -382,13 +411,16 @@ export const bodyMaterial = (
       uHover: { value: 0 },
       uHold: { value: 0 },
       uCheck: { value: 0 },
+      uFocus: { value: 0 },
+      uHaze: { value: 0 },
+      uHazeColor: { value: new Color(HAZE_COLOR) },
       uTop: { value: pieceTop(bakedSet(), type) },
       uCut: { value: -1 },
       uForm: { value: 1 },
     },
     defines: { ...GLAZE_DEFINES[variant] },
     vertexShader: glazeVertex,
-    fragmentShader: glazeFragment,
+    fragmentShader: glazeFocus + glazeFragment,
   });
 };
 
@@ -516,6 +548,7 @@ const CHECK_RATE = 1 / 0.25;
  */
 export const PieceBody = (props: PieceBodyProps) => {
   const { type, color, selected, hovered, inCheck } = props;
+  const focus = props.focus ?? 0;
   const level = props.level ?? 0;
   const invalidate = useThree((s) => s.invalidate);
   const glide = useGlide();
@@ -536,7 +569,7 @@ export const PieceBody = (props: PieceBodyProps) => {
 
   // Eased weights; the floor light and the held light are mounted only while
   // they show
-  const weights = useRef({ hover: 0, hold: 0, check: 0 });
+  const weights = useRef({ hover: 0, hold: 0, check: 0, focus: 0 });
   const held = useRef(selectState());
   const [awake, setAwake] = useState(false);
   const [lit, setLit] = useState(false);
@@ -547,7 +580,7 @@ export const PieceBody = (props: PieceBodyProps) => {
   const ring = useRef(0);
   if ((hovered || selected) && !awake) setAwake(true);
   if (selected && !lit) setLit(true);
-  useEffect(() => invalidate(), [hovered, selected, inCheck, invalidate]);
+  useEffect(() => invalidate(), [hovered, selected, inCheck, focus, invalidate]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20);
@@ -555,15 +588,20 @@ export const PieceBody = (props: PieceBodyProps) => {
     const hover = toward(w.hover, hovered && !selected ? 1 : 0, dt * HOVER_RATE);
     const hold = toward(w.hold, selected ? 1 : 0, dt * HOLD_RATE);
     const c = toward(w.check, inCheck ? 1 : 0, dt * CHECK_RATE);
-    let moving = hover !== w.hover || hold !== w.hold || c !== w.check;
+    // At the glass's pace (plates.tsx)
+    const fo = toward(w.focus, focus, (dt * 1000) / LEVEL_FOCUS_MS);
+    let moving = hover !== w.hover || hold !== w.hold || c !== w.check || fo !== w.focus;
     w.hover = hover;
     w.hold = hold;
     w.check = c;
+    w.focus = fo;
     const showing = stepSelection(held.current, selected, dt * 1000, still);
     const u = body.uniforms;
     u.uHover.value = smooth(hover);
     u.uHold.value = smooth(hold) * held.current.strength;
     u.uCheck.value = smooth(c);
+    u.uFocus.value = Math.max(fo, 0);
+    u.uHaze.value = Math.max(-fo, 0);
     if (forming) {
       u.uForm.value = pieceForm(intro.plan, arrival, intro.t);
       ring.current = pieceRing(intro.plan, arrival, intro.t);

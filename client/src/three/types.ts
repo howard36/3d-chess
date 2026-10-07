@@ -67,6 +67,11 @@ export interface PieceBodyProps {
   /** The level (engine z, 0 = A) of the cell the piece stands on. */
   level: number;
   /**
+   * Its level and the pointer (`focusLevelOf`): 1 on the level pointed at
+   * (a brighter edge), -1 on another (a light haze), 0 when none is.
+   */
+  focus?: number;
+  /**
    * When the piece arrives in the game's entrance, in seconds after the
    * first (intro/timeline.ts, pieceArrival); 0 when unset. Outside the
    * entrance the piece is simply there.
@@ -83,8 +88,8 @@ export interface MarkerProps {
    */
   hovered?: boolean;
   /**
-   * The player is attending to another level (`focusLevelOf`): step back
-   * with this one's glass. Set for destinations only.
+   * The pointer is on another level (`focusLevelOf`): step back with this
+   * one's glass. Set for destinations only.
    */
   dim?: boolean;
   /**
@@ -134,9 +139,9 @@ export interface CelebrationProps {
 }
 
 /**
- * Levels (engine z, 0 = A) the player is attending to. `selected` is the
- * selected piece's level; `hovered` is the level of the cell or piece under
- * the pointer. Hover wins over selection: see `focusLevelOf` in scene/focus.ts.
+ * Levels (engine z, 0 = A) of play. `selected` is the selected piece's level;
+ * `hovered` is the level of the cell or piece under the pointer, the only one
+ * that is emphasised: see `focusLevelOf` in scene/focus.ts.
  */
 export interface LevelFocus {
   selected: number | null;

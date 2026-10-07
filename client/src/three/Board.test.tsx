@@ -1152,7 +1152,7 @@ describe('Board and what it hands the scene', () => {
     expect(quietMarkers(pointer.renderer).some((m) => m.props.userData.hovered)).toBe(false);
   });
 
-  it('steps back the destinations on levels the player is not attending to', async () => {
+  it('steps back the destinations on levels the pointer is not on', async () => {
     const pointer = await pointerOn();
     await press(findPiece(pointer.renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
     const [fx, fy, fz] = toWorld({ x: 0, y: 2, z: 1 }, 'white');
@@ -1162,18 +1162,15 @@ describe('Board and what it hands the scene', () => {
         onLevel: JSON.stringify(m.props.position) === JSON.stringify(forward),
         dim: m.props.userData.dim,
       }));
-    // Holding the pawn: its own level's destination leads, the one above steps back
-    expect(dims()).toEqual(
-      expect.arrayContaining([
-        { onLevel: true, dim: false },
-        { onLevel: false, dim: true },
-      ]),
-    );
+    // Holding the pawn steps no level back: its move up is as much in play
+    expect(dims().map(({ dim }) => dim)).toEqual([false, false]);
+    expect(drawn.bodies.every((b) => !b.focus)).toBe(true);
 
-    // Pointing at the destination above: its level leads instead
+    // Pointing at the destination above: its level leads
     const above = quietMarkers(pointer.renderer).find(
       (m) => JSON.stringify(m.props.position) !== JSON.stringify(forward),
     )!;
+    drawn.bodies.length = 0;
     await pointer.moveTo(above.props.position as [number, number, number]);
     expect(dims()).toEqual(
       expect.arrayContaining([
@@ -1181,6 +1178,13 @@ describe('Board and what it hands the scene', () => {
         { onLevel: false, dim: false },
       ]),
     );
+    // No piece stands on that level: every piece hazes but the one held
+    const bodies = drawn.bodies.splice(0);
+    // (the held pawn's props are unchanged at 0, so it is not even drawn again)
+    expect(bodies.some((b) => b.selected && b.focus !== 0)).toBe(false);
+    const others = bodies.filter((b) => !b.selected);
+    expect(others.length).toBeGreaterThan(0);
+    expect(others.every((b) => b.focus === -1)).toBe(true);
   });
 
   it('scales every piece about its base, seated on its floor', async () => {

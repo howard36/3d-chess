@@ -5,22 +5,15 @@ import { toward } from './ease';
 
 /**
  * The level to emphasise, from GridProps.focus: the level under the pointer
- * while the pointer is on the board, else the selected piece's level, else
- * none. Hover wins because it is what the player is asking about right now;
- * with the pointer off the board, the selection still says where play is.
+ * (a square on it, a piece or a destination), else none. Never the selected
+ * piece's own level: its moves to other levels are as much in play as those
+ * on its own, so holding a piece steps no level back.
  */
 export const focusLevelOf = (focus: LevelFocus | null | undefined): number | null =>
-  focus?.hovered ?? focus?.selected ?? null;
+  focus?.hovered ?? null;
 
 /** How long a change of focus takes to ease in, ms. */
 export const LEVEL_FOCUS_MS = 160;
-
-/**
- * The share of its light a level gives up while the player attends to
- * another (its glass, its lines, its edge and the marks lying on it), so the
- * level in play reads clearly through the rest.
- */
-export const STEP_BACK = 0.6;
 
 /**
  * One eased weight per level, 1 for `focusLevel` and 0 for the others,

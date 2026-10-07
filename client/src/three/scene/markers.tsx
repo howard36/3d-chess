@@ -11,7 +11,8 @@ import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { claimed, heldAt, useClaim } from './claims';
 import type { ClaimKind } from './claims';
 import { clamp01, easeOutCubic, easeOutQuad, smooth, toward } from './ease';
-import { LEVEL_FOCUS_MS, STEP_BACK } from './focus';
+import { LEVEL_FOCUS_MS } from './focus';
+import { getStepBack } from '../../tuning';
 import { overlayMaterial } from './overlay';
 import { LEVEL_COLORS, levelAt, PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
 import { Blades } from './blades';
@@ -24,8 +25,8 @@ import { useRetireOnUnmount } from './programs';
 //   its level's colour. Under the pointer the fill deepens (fuller, a deeper
 //   colour at its heart) and the circle grows a little, eased over 200 ms;
 //   the outline itself does not brighten. It looks the same from every
-//   angle; on a level the player isn't attending to it steps back with that
-//   level's glass (STEP_BACK).
+//   angle; while the pointer is on another level it steps back with its own
+//   level's glass (getStepBack, tuning.ts).
 // - a capture: the same circle in red, drawn in place of the victim's own
 //   level ring (which steps aside, claims.ts), so two circles never stack;
 //   its one idea is four arcs of one radius and length turning slowly and
@@ -387,7 +388,7 @@ const Mark = ({
       u.uTime.value += dt;
       moving = true;
     }
-    let amount = 1 - STEP_BACK * back.current;
+    let amount = 1 - getStepBack() * back.current;
     if (yieldTo) {
       probe.x = floor[0];
       probe.y = floor[1];
