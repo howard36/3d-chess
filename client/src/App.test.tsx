@@ -393,7 +393,7 @@ test.each([
     expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent(heading);
     expect(screen.queryByText(message)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Start a new game' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Play a friend' })).toBeInTheDocument();
     expect(getStoredRole('abc123')).toBeNull();
   },
 );

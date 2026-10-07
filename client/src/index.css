@@ -1350,7 +1350,7 @@
   color: var(--hud-fg);
   outline: 1px solid rgba(236, 241, 255, 0.4);
 }
-/* Start new game, below the tower, once the result card is put away */
+/* Play again, below the tower, once the result card is put away */
 .hud-new-game {
   position: fixed;
   left: 50%;

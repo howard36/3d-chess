@@ -67,7 +67,7 @@ export const InvitationCard: React.FC<{
   invitation: Invitation;
   connection: GameSocket['status'];
   onAccept: () => void;
-  /** Where "Start a new game" leads. */
+  /** Where its button leads: a friend's side choice (/new) or the computer's (/computer). */
   newGamePath?: string;
 }> = ({ invitation, connection, onAccept, newGamePath = '/new' }) => {
   const navigate = useNavigate();
@@ -81,8 +81,9 @@ export const InvitationCard: React.FC<{
           {invitation.state === 'full' ? 'This game is taken' : 'No game here'}
         </h2>
         <div className="lobby-actions">
+          {/* In the home page's words for where it leads */}
           <button autoFocus className="landing-play lobby-go" onClick={() => navigate(newGamePath)}>
-            Start a new game
+            {newGamePath === '/computer' ? 'Play the computer' : 'Play a friend'}
           </button>
         </div>
       </section>

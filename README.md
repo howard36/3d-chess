@@ -444,7 +444,7 @@ level (`scene/fx.tsx`), the obsidian blades round him sink into the glass and ar
 the winning army hops in a wave out from him. The result card follows `onToppled` after a
 hold on the final board (`screens/useEndCard.ts`), in the middle of
 the screen. It can be closed (its close button, Escape, a click outside it) to turn and
-zoom the final position, with Start new game left below the tower. From history he simply falls. The knock lands
+zoom the final position, with "Play again" left below the tower. From history he simply falls. The knock lands
 85 ms before the mating piece comes to rest (its glide eases in so slowly that it looks
 landed by then), the pulse spreads at 4.5 world units a second, the wave sets off 370 ms
 after the king strikes and travels at 15, and the card follows 1.3 s after the strike
@@ -663,7 +663,7 @@ until the row fits the width).
   the pick or the coin's rest, while the others still fade, so the pick, the camera's
   move and the card run as one). A
   refusal puts the kings back with "Couldn't start a game: …". The end-game dialog's
-  "Start new game" and the invitation's "Start a new game" lead here.
+  "Play again" and the invitation's "Play a friend" lead here.
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
   `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
   breathing dot and "Waiting for your friend…" under it. The card under the kings: "Invite
@@ -686,7 +686,7 @@ until the row fits the width).
   before the server answers, on the glass and not yet in its light. The scene is framed as
   the host's wait, the kings a little higher over "Join game" (the view's `card`), and the
   click eases it down to the arrival's framing, as the game's start does on the host's page. A game with both seats taken, or
-  none, gets a card "This game is taken" or "No game here" with "Start a new game". A page
+  none, gets a card "This game is taken" or "No game here" with "Play a friend". A page
   with a stored seat shows no lobby, only "Returning to your game…", until its rejoin is
   answered.
 - **The handover.** When the game starts on a page that showed the lobby, `arrive`: the
@@ -795,8 +795,8 @@ stands, as a rejoin's answer would (and a game not yet begun has the computer si
 once), so the page holds its seat from its first render. It plays the arrival only when it
 was opened from its side choice (`markArriving`, in memory: a reload or a visit from
 history opens on the game itself, with its own entrance). The pill calls
-the opponent "Computer", and "Start new game" leads back to `/computer`. A page for a game
-this browser does not hold says "No game here".
+the opponent "Computer", and "Play again" leads back to `/computer`. A page for a game
+this browser does not hold says "No game here", with "Play the computer".
 
 **The computer's move.** Whenever the record leaves the computer to move, the hook asks
 `ai/computer.ts`, which runs the search in a module worker (`ai/worker.ts`), so the board

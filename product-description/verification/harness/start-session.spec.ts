@@ -264,7 +264,7 @@ test('create', async ({ browser }) => {
     await playLine(g, MATE_LINE.slice(0, 3));
     await playOn(g.black, 'black', 'Bc3', 'Ab2');
     await expect(g.white.getByText('Black wins by checkmate!')).toBeVisible();
-    await g.white.getByRole('button', { name: 'Start new game', exact: true }).click();
+    await g.white.getByRole('button', { name: 'Play again', exact: true }).click();
     await g.white.waitForTimeout(2000);
     await expect(g.white.getByRole('button', { name: 'Play a friend', exact: true })).toBeEnabled();
     expect(new URL(g.white.url()).pathname).toBe('/');
@@ -741,7 +741,7 @@ test('reload', async ({ browser }) => {
     await playOn(n.black, 'black', 'Bc3', 'Ab2');
     await expect(n.white.getByText('Black wins by checkmate!')).toBeVisible();
     const finalMap = await pieceMap(n.white, 'white');
-    await n.white.getByRole('button', { name: 'Start new game', exact: true }).click();
+    await n.white.getByRole('button', { name: 'Play again', exact: true }).click();
     await n.white.getByRole('button', { name: 'Play a friend', exact: true }).click();
     await n.white.waitForURL(/\/game\/[A-Z0-9]{6}$/);
     const bUrl = n.white.url(), bId = gid(n.white);

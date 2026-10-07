@@ -79,7 +79,7 @@ test('a computer game that is not stored here says so', async ({ browser }) => {
   const page = await context.newPage();
   await page.goto('/computer/nosuchgame');
   await expect(page.getByRole('heading', { name: 'No game here' })).toBeVisible();
-  await page.getByRole('button', { name: 'Start a new game' }).click();
+  await page.getByRole('button', { name: 'Play the computer' }).click();
   await expect(page).toHaveURL(/\/computer$/);
   await context.close();
 });

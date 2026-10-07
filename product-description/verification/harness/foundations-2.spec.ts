@@ -441,18 +441,18 @@ test('nav', async ({ browser }) => {
     }
     // Back on the dialog's button, press Enter
     let g2 = await focusDesc(w);
-    for (let i = 0; i < 4 && g2 !== 'BUTTON:Start new game'; i++) { await w.keyboard.press('Tab'); g2 = await focusDesc(w); }
+    for (let i = 0; i < 4 && g2 !== 'BUTTON:Play again'; i++) { await w.keyboard.press('Tab'); g2 = await focusDesc(w); }
     await w.keyboard.press('Enter');
     await expect(w.getByRole('button', { name: 'Play a friend', exact: true })).toBeVisible();
-    expect(f).toBe('BUTTON:Start new game');
+    expect(f).toBe('BUTTON:Play again');
     expect(seen.filter((s) => s.startsWith('OUTSIDE'))).toEqual([]);
     await w.goBack();
     await expect(w.getByText('Black wins by checkmate!')).toBeVisible();
-    return `focus on open: "Start new game"; Tab cycle: ${[...new Set(seen)].join(', ')}; Enter -> start screen`;
+    return `focus on open: "Play again"; Tab cycle: ${[...new Set(seen)].join(', ')}; Enter -> start screen`;
   });
   await item('NAV-04', async () => {
     const w = g.white;
-    await w.getByRole('button', { name: 'Start new game', exact: true }).click();
+    await w.getByRole('button', { name: 'Play again', exact: true }).click();
     await expect(w.getByRole('button', { name: 'Play a friend', exact: true })).toBeVisible();
     await w.goBack();
     await waitForBoard(w);
@@ -461,7 +461,7 @@ test('nav', async ({ browser }) => {
   await item('NAV-08', async () => {
     const w = g.white;
     const urlA = w.url();
-    await w.getByRole('button', { name: 'Start new game', exact: true }).click();
+    await w.getByRole('button', { name: 'Play again', exact: true }).click();
     await startScreenReady(w);
     await w.getByRole('button', { name: 'Play a friend', exact: true }).click();
     await w.waitForURL((u) => /\/game\/[A-Z0-9]+/.test(u.toString()) && u.toString() !== urlA);

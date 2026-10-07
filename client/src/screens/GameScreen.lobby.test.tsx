@@ -214,7 +214,7 @@ describe("a guest's invitation", () => {
     render(at(fakeSocket([info(['white', 'black'])])));
     expect(screen.getByRole('alert')).toHaveTextContent('This game is taken');
     expect(screen.queryByRole('button', { name: 'Join game' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Start a new game' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Play a friend' }));
     expect(screen.getByText('choose a side')).toBeInTheDocument();
   });
 
@@ -228,7 +228,7 @@ describe("a guest's invitation", () => {
     expect(screen.queryByTestId('error-banner')).not.toBeInTheDocument();
     // The refusal answers the look
     expect(send).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole('button', { name: 'Start a new game' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Play a friend' }));
     expect(screen.getByText('choose a side')).toBeInTheDocument();
   });
 
@@ -467,7 +467,7 @@ describe('the end of a game', () => {
         </Routes>
       </MemoryRouter>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Start new game' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Play again' }));
     expect(screen.getByText('choose a side')).toBeInTheDocument();
   });
 
@@ -490,7 +490,7 @@ describe('the end of a game', () => {
         </Routes>
       </MemoryRouter>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Start new game' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Play again' }));
     expect(screen.getByText('play the computer')).toBeInTheDocument();
     cleanup();
     render(
@@ -501,7 +501,7 @@ describe('the end of a game', () => {
         </Routes>
       </MemoryRouter>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Start new game' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Play again' }));
     expect(screen.getByText('play the computer')).toBeInTheDocument();
   });
 });

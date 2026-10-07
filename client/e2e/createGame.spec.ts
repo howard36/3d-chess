@@ -68,7 +68,7 @@ test('an invitation to a game that is full or gone says so', async ({ browser })
   const gone = await page();
   await gone.goto('/game/NOPE99');
   await expect(gone.getByRole('heading', { name: 'No game here' })).toBeVisible();
-  await gone.getByRole('button', { name: 'Start a new game' }).click();
+  await gone.getByRole('button', { name: 'Play a friend' }).click();
   await expect(gone).toHaveURL(/\/new$/);
   await gone.context().close();
 
