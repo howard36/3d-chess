@@ -1555,11 +1555,12 @@
   transform: translateX(4px);
 }
 .landing-mode-icon {
+  --landing-icon-width: 62px;
   display: flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 68px;
+  width: var(--landing-icon-width);
   height: 44px;
   border-radius: 10px;
   /* Dark teal glass, a deeper part of the cyan glow, so the pieces read against it */
@@ -1579,8 +1580,12 @@
  * The robot spans more of its square than a knight, out to its ears: it
  * stands a little further off the knight than the black knight does (its
  * thin ears nearer, its head about as far), and the pair shifts back left
- * to sit in the middle of the box by eye.
+ * to sit in the middle of the box by eye. Its box is wider by as much, so
+ * both pairs sit in their boxes with the same room round them.
  */
+.landing-mode-icon.landing-mode-icon-wide {
+  width: calc(var(--landing-icon-width) + 6px);
+}
 .landing-mode-icon > .landing-bot {
   margin-left: 0;
   margin-right: 3px;
@@ -1642,7 +1647,7 @@
     top: 14px;
   }
   .landing-mode-icon {
-    width: 58px;
+    --landing-icon-width: 52px;
     height: 34px;
   }
   .landing-mode-icon svg {
@@ -1745,7 +1750,7 @@
     font-size: clamp(13px, calc(10.5cqi - 3.5px), 18px);
   }
   .landing-mode-icon {
-    width: 78px;
+    --landing-icon-width: 72px;
     height: 50px;
   }
   .landing-mode-icon svg {

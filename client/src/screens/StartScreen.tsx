@@ -54,7 +54,7 @@ const StartScreen: React.FC = () => {
             <span className="landing-label">Play a friend</span>
           </button>
           <button className="landing-mode" onClick={() => navigate('/computer')}>
-            <span className="landing-mode-icon" aria-hidden>
+            <span className="landing-mode-icon landing-mode-icon-wide" aria-hidden>
               <span className="landing-face">
                 <PieceGlyph type={PieceType.Knight} color="white" size={24} />
               </span>
