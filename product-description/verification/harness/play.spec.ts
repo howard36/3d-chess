@@ -820,13 +820,13 @@ test('end of game', async ({ browser }) => {
     for (const p of [w, b]) {
       const d = p.getByRole('dialog', { name: 'Black wins by checkmate!' });
       await expect(d).toBeVisible();
-      expect(await d.getByRole('button').allTextContents()).toEqual(['Start new game']);
+      expect(await d.getByRole('button').allTextContents()).toEqual(['Play again']);
     }
     await w.screenshot({ path: 'test-results/end-dialog.png' });
   });
   await item('END-08', async () => {
     const f = [await focusDesc(w), await focusDesc(b)];
-    expect(f).toEqual(['BUTTON:Start new game', 'BUTTON:Start new game']);
+    expect(f).toEqual(['BUTTON:Play again', 'BUTTON:Play again']);
   });
   await item('END-03', async () => {
     await w.keyboard.press('Escape'); await w.waitForTimeout(300);
@@ -880,7 +880,7 @@ test('end of game', async ({ browser }) => {
   const oldUrl = w.url();
   const listB = await listText(b);
   await item('END-06', async () => {
-    await w.getByRole('button', { name: 'Start new game', exact: true }).click();
+    await w.getByRole('button', { name: 'Play again', exact: true }).click();
     await expect(w.getByRole('button', { name: 'Play a friend', exact: true })).toBeEnabled();
     expect(new URL(w.url()).pathname).toBe('/');
     await expect(b.getByTestId('opponent-presence')).toHaveText('Opponent: offline');
@@ -896,13 +896,13 @@ test('end of game', async ({ browser }) => {
     return `new id ${w.url().split('/').pop()} (old ${oldUrl.split('/').pop()}); Black's page of the old game unchanged`;
   });
   await item('END-10', async () => {
-    await b.getByRole('button', { name: 'Start new game', exact: true }).focus();
+    await b.getByRole('button', { name: 'Play again', exact: true }).focus();
     const seq: string[] = [];
     for (let i = 0; i < 6; i++) { await b.keyboard.press('Tab'); seq.push(await focusDesc(b)); }
-    const bad = seq.filter((s) => s !== 'BODY' && s !== 'BUTTON:Start new game');
+    const bad = seq.filter((s) => s !== 'BODY' && s !== 'BUTTON:Play again');
     expect(bad, seq.join(' > ')).toEqual([]);
-    expect(seq).toContain('BUTTON:Start new game');
-    await b.getByRole('button', { name: 'Start new game', exact: true }).focus();
+    expect(seq).toContain('BUTTON:Play again');
+    await b.getByRole('button', { name: 'Play again', exact: true }).focus();
     await b.keyboard.press('Enter');
     await expect(b.getByRole('button', { name: 'Play a friend', exact: true })).toBeVisible();
     return `Tab sequence: ${seq.join(' > ')} (BODY = the browser's own UI); Enter went to the start screen`;

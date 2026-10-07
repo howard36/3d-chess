@@ -37,7 +37,7 @@ interface GameScreenProps {
    * seat there before the game's entrance (the arrival, as a friend's would).
    */
   computer?: { color: Color; difficulty: Difficulty; arriving?: boolean };
-  /** Where "Start new game" leads: the side choice (/new) by default. */
+  /** Where "Play again" (and "No game here") leads: the side choice (/new) by default. */
   newGamePath?: string;
   /** Called once the game's entrance is over and the board is in play. */
   onPlaying?: () => void;

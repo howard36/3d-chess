@@ -214,7 +214,7 @@ describe('choosing a side', () => {
   });
 
   it('ignores a game_created left in the log by a previous game', () => {
-    // "Start new game" from a finished game lands here with that game's
+    // "Play again" from a finished game lands here with that game's
     // game_created still in the log for the first render (App resets the
     // session in a layout effect, after this screen's first render). Reacting
     // to it would store a role and go straight back into the finished game.

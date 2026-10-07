@@ -39,7 +39,7 @@ export interface GameViewProps {
   reconnecting: boolean;
   /** What the pill calls the opponent ("Opponent" by default; "Computer"). */
   opponentName?: string;
-  /** Where "Start new game" leads: the side choice (/new) by default. */
+  /** Where "Play again" leads: the side choice (/new) by default. */
   newGamePath?: string;
   /** The board takes no input (disconnected, a stale snapshot, a move awaiting its echo). */
   boardDisabled: boolean;
