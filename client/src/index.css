@@ -1417,7 +1417,7 @@
 /*
  * The two ways to play, alike: tiles of dark glass in a rim of the five
  * level colours, which turns while the pointer is on it; two pieces facing
- * each other at the top (a friend's knight, or the computer's chip), the
+ * each other at the top (a friend's knight, or the computer's robot), the
  * name at the bottom, and an arrow at the top right that steps on. The rim
  * is a ring of its own (::before, masked to the border) and the glass is
  * washed in the same colours, both straight gradients, cyan at the top
@@ -1528,7 +1528,6 @@
   height: 44px;
   border-radius: 10px;
   background: rgba(236, 241, 255, 0.06);
-  color: rgba(214, 222, 236, 0.8);
 }
 .landing-mode-icon svg {
   width: 28px;

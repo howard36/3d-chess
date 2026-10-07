@@ -270,8 +270,8 @@ Key decisions:
   tablet, sets the title and the tiles side by side in a band along the bottom. The two
   tiles are alike in weight: dark glass in a rim of the five level colours (a ring of its
   own, masked to the border, which turns while the pointer is on it), two pieces facing
-  each other (two knights, or a knight and the computer's chip) and the name, whose size
-  follows the tile's width (container units, 13–17 px) so "Play the computer" keeps to
+  each other (two knights, or a knight and the computer's robot, both in Black's
+  charcoal) and the name, whose size follows the tile's width (container units, 13–17 px) so "Play the computer" keeps to
   one line in all but the narrowest phones. "Play a friend" creates nothing: it opens the
   side choice at `/new` (see The lobby). "Play the computer" opens the side choice
   against the computer at `/computer` (see Playing the computer). "How to play", a quieter
