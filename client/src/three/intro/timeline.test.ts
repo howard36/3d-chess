@@ -95,6 +95,11 @@ describe('the dolly', () => {
     }
   });
 
+  it('after the lobby, stands at the fit from the first frame: the lobby brought it there', () => {
+    const lobby = introPlan('lobby');
+    for (const t of samples(lobby)) expect(dollyFactor(lobby, t)).toBe(1);
+  });
+
   it('eases out: the tower grows fastest at first and settles', () => {
     const [a, b, c] = [0, 0.5, 1].map((t) => Math.log(dollyFactor(full, t)));
     const [d, e] = [1.8, 2.3].map((t) => Math.log(dollyFactor(full, t)));

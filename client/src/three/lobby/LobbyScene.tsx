@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { AdditiveBlending, Color, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
+import {
+  AdditiveBlending,
+  BackSide,
+  Color,
+  MeshBasicMaterial,
+  PlaneGeometry,
+  ShaderMaterial,
+  SphereGeometry,
+  Vector3,
+} from 'three';
 import type { Group, Mesh, PerspectiveCamera } from 'three';
 import { prefersReducedMotion } from '../motion';
 import { noRaycast } from '../noRaycast';
@@ -12,9 +21,10 @@ import { LAYER } from '../scene/layers';
 import { CoinKing, LobbyKing } from './LobbyKing';
 import type { KingPair } from './LobbyKing';
 import { Levels } from '../scene/plates';
-import { IntroContext } from '../intro/clock';
+import { IntroContext, lobbyHandover } from '../intro/clock';
 import type { IntroClock } from '../intro/clock';
 import { introPlan } from '../intro/timeline';
+
 import { setLensShift } from '../viewOffset';
 import {
   arrivalRing,
@@ -26,6 +36,8 @@ import {
   lobbyPose,
   cardBeside,
   gameOpening,
+  leaveVeil,
+  LEAVE_GARDEN_DARK,
   leavePose,
   posePosition,
   seatX,
@@ -184,19 +196,25 @@ const LobbyRig = ({
   anchors,
   canvasHost,
   dim,
+  veil,
   glass,
   onReveal,
   onLeft,
+  onGardenDark,
 }: {
   view: LobbyView;
   clock: React.RefObject<{ beat: LobbyBeat; since: number }>;
   anchors: React.RefObject<HTMLElement | null>;
   canvasHost: React.RefObject<HTMLElement | null>;
   dim: React.RefObject<number>;
+  /** How dark the garden is (0 to 1): a veil drawn over it, under the glass. */
+  veil: React.RefObject<number>;
   /** The glass, which turns under the camera as it leaves (leavePose). */
   glass: React.RefObject<Group | null>;
   onReveal: () => void;
   onLeft: () => void;
+  /** Leaving: the sculptures have gone dark. */
+  onGardenDark: () => void;
 }) => {
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const size = useThree((s) => s.size);
@@ -205,6 +223,8 @@ const LobbyRig = ({
   const from = useRef<CameraPose | null>(null);
   const current = useRef<CameraPose | null>(null);
   const left = useRef(false);
+  const revealed = useRef(false);
+  const darkened = useRef(false);
   const shifted = useRef(false);
   // It asked for no frame last time: this frame's delta may be a rest
   const rested = useRef(true);
@@ -213,6 +233,13 @@ const LobbyRig = ({
   // reduced motion)
   const entered = useRef(still ? Infinity : 0);
   useEffect(() => invalidate(), [size, view.beat, view.card, invalidate]);
+  // Taken down mid-way, it leaves the game's entrance to run on its own
+  useEffect(
+    () => () => {
+      lobbyHandover.t = null;
+    },
+    [],
+  );
 
   useFrame((_, delta) => {
     const aspect = size.width / Math.max(size.height, 1);
@@ -260,18 +287,26 @@ const LobbyRig = ({
     if (beat === 'leave') {
       // Out to where the game's camera stands on its first frame, taking
       // on its lens shift as it goes: the lobby's last picture is the
-      // game's first, level A's glass in the same place, and the canvases
-      // change hands under it unseen. The glass turns as it goes, so it
-      // turns the same on screen for either seat
+      // game's first, level A's glass in the same place. One motion: it
+      // draws back, turns and lifts its look on one ease, the glass turning
+      // with it so it spins the same on screen for either seat, and the
+      // game's entrance builds the tower on up from it under the fade
       from.current ??= current.current ?? rest;
-      const opening = gameOpening(view.seat, size.width, size.height, still);
-      const start = still ? 0 : LOBBY_TIMING.leaveBurn * 0.4;
+      const opening = gameOpening(size.width, size.height, still);
+      const start = still ? 0 : LOBBY_TIMING.leaveSetOff;
       const span = still ? 0.15 : LOBBY_TIMING.leaveMove;
       const k = Math.min(Math.max((since - start) / span, 0), 1);
-      const leaving = leavePose(from.current, opening.pose, view.seat, k);
+      const leaving = leavePose(from.current, opening.pose, k);
       pose = leaving.pose;
+      // The game's entrance starts under the lobby's picture as the camera
+      // settles its last hair's breadth, and keeps to this moment while the
+      // lobby fades off it: the tower starts up as the camera comes to rest
+      const fade = still ? 0.1 : LOBBY_TIMING.leaveFade;
+      const reveal = start + span - (still ? 0 : LOBBY_TIMING.leaveReveal);
+      const after = since - reveal;
+      lobbyHandover.t = after >= 0 && !left.current ? after : null;
       if (glass.current) glass.current.rotation.y = leaving.glass;
-      const eased = k * k * (3 - 2 * k);
+      const eased = leaving.settled;
       setLensShift(
         camera,
         [opening.shift[0] * eased, opening.shift[1] * eased],
@@ -279,22 +314,42 @@ const LobbyRig = ({
         size.height,
       );
       shifted.current = true;
-      // The garden comes back up to the game's brightness on the way
-      dim.current = LOBBY_DIM + (1 - LOBBY_DIM) * eased;
-      const fade = still ? 0.1 : LOBBY_TIMING.leaveFade;
-      const opacity = Math.min(Math.max((start + span + fade - since) / fade, 0), 1);
+      // The lobby's garden fades to black from the moment it starts leaving,
+      // its caption with it; in the dark it becomes the game's (laid out for
+      // the seat, in the game's light) and fades up as the glass spins into
+      // place
+      const moved = (since - start) / span;
+      veil.current = leaveVeil(moved);
+      dim.current = darkened.current ? 1 : LOBBY_DIM;
+      if (moved >= LEAVE_GARDEN_DARK && !darkened.current) {
+        darkened.current = true;
+        onGardenDark();
+      }
+      const ink = darkened.current ? '0' : (1 - veil.current).toFixed(3);
+      if (anchors.current && anchors.current.style.getPropertyValue('--leave-ink') !== ink)
+        anchors.current.style.setProperty('--leave-ink', ink);
+      const opacity = Math.min(Math.max((reveal + fade - since) / fade, 0), 1);
       if (canvasHost.current) canvasHost.current.style.opacity = String(opacity);
+      if (after >= 0 && !revealed.current) {
+        revealed.current = true;
+        onReveal();
+      }
       if (opacity <= 0 && !left.current) {
         left.current = true;
-        onReveal();
+        lobbyHandover.t = null;
         onLeft();
       }
       moving = !left.current;
     } else {
       from.current = null;
       left.current = false;
+      darkened.current = false;
+      revealed.current = false;
+      lobbyHandover.t = null;
       if (glass.current) glass.current.rotation.y = 0;
       dim.current = LOBBY_DIM;
+      veil.current = 0;
+      anchors.current?.style.removeProperty('--leave-ink');
       if (shifted.current) {
         shifted.current = false;
         setLensShift(camera, [0, 0], size.width, size.height);
@@ -344,6 +399,54 @@ const LobbyRig = ({
   return null;
 };
 
+// --- The veil over the garden as the lobby leaves --------------------------------------------
+
+const veilGeometry = new SphereGeometry(300, 16, 8);
+
+/**
+ * Black over the whole garden, as dark as `veil`, and under everything else:
+ * a sphere round the camera, beyond the glass and the kings, drawn first of
+ * the see-through things and depth-tested, so the kings (which write depth)
+ * stand in front of it while the garden (which writes none) is covered.
+ * Drawn once as the lobby opens, unseen, so its program is linked before
+ * the leaving needs it.
+ */
+const GardenVeil = ({ veil }: { veil: React.RefObject<number> }) => {
+  const mesh = useRef<Mesh>(null);
+  const warm = useRef(true);
+  const material = useMemo(
+    () =>
+      new MeshBasicMaterial({
+        color: '#000000',
+        side: BackSide,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        fog: false,
+      }),
+    [],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+  useFrame(({ camera }) => {
+    const m = mesh.current;
+    if (!m) return;
+    m.position.copy(camera.position);
+    material.opacity = veil.current;
+    m.visible = warm.current || veil.current > 0.001;
+    warm.current = false;
+  });
+  return (
+    <mesh
+      ref={mesh}
+      geometry={veilGeometry}
+      material={material}
+      renderOrder={-1}
+      frustumCulled={false}
+      raycast={noRaycast}
+    />
+  );
+};
+
 // --- The scene ---------------------------------------------------------------------------------
 
 export const LobbyScene = ({
@@ -361,6 +464,12 @@ export const LobbyScene = ({
   // The garden's sculptures, quiet behind the kings (LobbyRig raises them as it leaves)
   const dim = useRef(LOBBY_DIM);
   const glass = useRef<Group>(null);
+  // The lobby's garden, laid out for White, until in the dark of leaving it
+  // becomes the game's, laid out for the player's seat
+  const [gardenDark, setGardenDark] = useState(false);
+  if (view.beat !== 'leave' && gardenDark) setGardenDark(false);
+  const garden = gardenDark ? view.seat : 'white';
+  const veil = useRef(0);
   // Seconds into the current beat, on r3f's clock
   const clock = useRef({ beat: view.beat, since: 0 });
   // The coin's result once it has landed (until then the seats wait)
@@ -437,8 +546,13 @@ export const LobbyScene = ({
       {/* The garden, drawn from a copy while the camera is at rest (waiting,
           invited) */}
       <BackdropCache>
-        <Stage orientation="white" shade={gone ? undefined : shade} dim={() => dim.current} />
+        <Stage
+          orientation={garden}
+          shade={gardenDark ? undefined : shade}
+          dim={() => dim.current}
+        />
       </BackdropCache>
+      <GardenVeil veil={veil} />
       {/* The glass and all that stands on it, turned as the lobby leaves (leavePose) */}
       <group ref={glass}>
         <LobbyPlatform />
@@ -482,9 +596,11 @@ export const LobbyScene = ({
         anchors={anchors}
         canvasHost={canvasHost}
         dim={dim}
+        veil={veil}
         glass={glass}
         onReveal={() => callbacks.current.onReveal?.()}
         onLeft={() => callbacks.current.onLeft?.()}
+        onGardenDark={() => setGardenDark(true)}
       />
     </>
   );

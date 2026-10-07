@@ -1132,8 +1132,11 @@
 .lobby-page .lobby-levels[data-out] {
   animation: lobby-out 350ms 250ms ease both;
 }
+/* ...and leaves with the lobby's garden, on the scene's clock (LobbyScene's
+   --leave-ink) */
 .lobby[data-beat='leave'] .lobby-caption {
-  animation: lobby-out 500ms ease both;
+  animation: none;
+  opacity: var(--leave-ink, 1);
 }
 /* The side choice's entrance, with the scene's (lobbyMotion's LOBBY_ENTRANCE):
    the heading rises as the glass draws, Home and the buttons once the kings
