@@ -286,9 +286,11 @@ export const poseFromDirection = (target: Vec3, direction: Vec3, distance: numbe
   };
 };
 
+const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+
 /** Between two poses, `t` 0–1: turning the short way round, easing in and out. */
 export const blendPose = (a: CameraPose, b: CameraPose, t: number): CameraPose => {
-  const k = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+  const k = easeInOutCubic(t);
   let turn = b.azimuth - a.azimuth;
   turn = Math.atan2(Math.sin(turn), Math.cos(turn));
   const mix = (p: number, q: number) => p + (q - p) * k;
@@ -329,6 +331,39 @@ export const placeRing = (t: number) => {
 export const leaveDirection = (seat: Side): Vec3 => {
   const [x, y, z] = layout.viewDirection;
   return seat === 'black' ? [-x, y, -z] : [x, y, z];
+};
+
+/**
+ * How far the glass itself turns about the tower's axis as the lobby leaves
+ * (radians): a quarter turn, one way for White and the other for Black.
+ * The camera goes round to the near side for White and to the far side for
+ * Black (leaveDirection), half a turn apart, so on its own the glass would
+ * turn on screen by +16° for one seat and -164° for the other. Turned a
+ * quarter turn in step with the camera, it turns by their average, -74°,
+ * for either seat, and a square turned a quarter turn looks just as it did,
+ * so the lobby's last picture is still the game's first.
+ */
+export const leaveGlassTurn = (seat: Side) => (seat === 'black' ? -1 : 1) * (Math.PI / 2);
+
+/** A pose turned about the vertical through the origin (radians, as azimuth). */
+export const turnPose = (pose: CameraPose, turn: number): CameraPose => {
+  const [x, y, z] = pose.target;
+  const [c, s] = [Math.cos(turn), Math.sin(turn)];
+  return { ...pose, target: [x * c + z * s, y, z * c - x * s], azimuth: pose.azimuth + turn };
+};
+
+/**
+ * The leaving `t` (0–1) of the way from `from` to the game's opening `to`
+ * for a seat: the camera, and the glass's turn (`glass`, radians about the
+ * vertical). Seen from the glass the camera takes the same way for either
+ * seat (blendPose, to the opening less the glass's turn); the glass and
+ * that way turn together, so the kings' garden turns past as it always has.
+ */
+export const leavePose = (from: CameraPose, to: CameraPose, seat: Side, t: number) => {
+  const end = leaveGlassTurn(seat);
+  const onGlass = blendPose(from, { ...to, azimuth: to.azimuth - end }, t);
+  const glass = end * easeInOutCubic(t);
+  return { pose: turnPose(onGlass, glass), glass };
 };
 
 /**
