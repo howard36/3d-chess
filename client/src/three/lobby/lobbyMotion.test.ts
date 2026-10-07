@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
-import { layout } from '../scene/palette';
+import { FRAME, layout } from '../scene/palette';
 import { PROFILES } from '../pieces';
 import { PieceType } from '../../engine/pieces';
 import {
@@ -472,6 +472,50 @@ describe('handing over to the game', () => {
       expect(Math.log(distance(dt) / distance(0)) / dt).toBeCloseTo(0, 3);
       expect(Math.log(distance(1) / distance(1 - dt)) / dt).toBeCloseTo(pace, 3);
       expect(pace).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps the glass up off the bottom of the picture once it is all in view', () => {
+    // The glass's lowest corner on screen (0 the middle, 1 the bottom edge),
+    // seen from a pose, as three.js projects it (without the lens shift)
+    const reach = FRAME.half + 0.05;
+    const lowest = (pose: CameraPose, aspect: number) => {
+      const camera = new PerspectiveCamera(LOBBY_FOV, aspect, 0.1, 1000);
+      camera.position.set(...posePosition(pose));
+      camera.lookAt(...pose.target);
+      camera.updateMatrixWorld();
+      return Math.max(
+        ...[
+          [1, 1],
+          [1, -1],
+          [-1, 1],
+          [-1, -1],
+        ].map(([x, z]) => -new Vector3(x * reach, FLOOR_Y, z * reach).project(camera).y),
+      );
+    };
+    for (const [w, h] of [
+      [1280, 720],
+      [844, 390],
+      [390, 844],
+    ]) {
+      const from = lobbyPose(w / h);
+      const to = gameOpening('white', w, h).pose;
+      const pace = dollyPace(introPlan('lobby')) * LOBBY_TIMING.leaveMove;
+      const end = lowest(to, w / h);
+      expect(end).toBeLessThan(0.95);
+      let inView = false;
+      let lift = -Infinity;
+      for (const t of samples(0, 1, 200)) {
+        const { pose, glass } = leavePose(from, to, 'white', t, pace);
+        // (seen from the glass, which turns with the camera)
+        const seen = lowest(turnPose(pose, -glass), w / h);
+        inView ||= seen <= end;
+        if (inView) expect(seen).toBeLessThanOrEqual(end + 1e-3);
+        // The look only ever rises, from the glass to the tower's centre
+        expect(pose.target[1]).toBeGreaterThanOrEqual(lift - 1e-9);
+        lift = pose.target[1];
+      }
+      expect(inView).toBe(true);
     }
   });
 

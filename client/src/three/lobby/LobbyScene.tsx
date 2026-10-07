@@ -276,7 +276,7 @@ const LobbyRig = ({
       from.current ??= current.current ?? rest;
       const opening = gameOpening(view.seat, size.width, size.height, still);
       const plan = introPlan('lobby', still);
-      const start = still ? 0 : LOBBY_TIMING.leaveBurn * 0.4;
+      const start = still ? 0 : LOBBY_TIMING.leaveSetOff;
       const span = still ? 0.15 : LOBBY_TIMING.leaveMove;
       const k = Math.min(Math.max((since - start) / span, 0), 1);
       const leaving = leavePose(from.current, opening.pose, view.seat, k, dollyPace(plan) * span);
@@ -286,7 +286,7 @@ const LobbyRig = ({
       // (the game's entrance keeps to this moment while the lobby fades off it)
       lobbyHandover.t = after >= 0 && !left.current ? after : null;
       if (glass.current) glass.current.rotation.y = leaving.glass;
-      const eased = k * k * (3 - 2 * k);
+      const eased = leaving.settled;
       setLensShift(
         camera,
         [opening.shift[0] * eased, opening.shift[1] * eased],

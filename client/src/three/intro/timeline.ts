@@ -122,16 +122,19 @@ export function introPlan(variant: IntroVariant, reduced = false): IntroPlan {
     // Handed over from the lobby, whose glass is level A and whose last
     // picture is this one's first: nothing fades up, and the tower builds on
     // up from A as the camera, under way from the lobby's close view, draws
-    // on back out to the fit (lobbyMotion's leavePose meets its pace)
+    // on back out to the fit (lobbyMotion's leavePose meets its pace). Not
+    // from much nearer than the fit: the camera looks at the tower's centre,
+    // and A would sink off the bottom of the picture (below 0.8 on a 16:9
+    // window)
     return finish({
       variant,
       reduced: false,
       scene: span(0, 0),
-      dolly: { ...span(0, 2.3), from: 0.75 },
-      levels: { ...span(0.1, 1), step: 0.32, built: 1 },
-      labels: { ...span(1.9, 0.5), stagger: 0.35 },
-      pieces: { ...span(1.8, 0.55), spread: 1 },
-      hud: span(2.8, 0.5),
+      dolly: { ...span(0, 1.4), from: 0.9 },
+      levels: { ...span(0.1, 0.9), step: 0.28, built: 1 },
+      labels: { ...span(1.5, 0.5), stagger: 0.35 },
+      pieces: { ...span(1.35, 0.55), spread: 1 },
+      hud: span(2.3, 0.5),
     });
   }
   return finish({

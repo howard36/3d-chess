@@ -1,4 +1,4 @@
-import { FRAME, layout, PIECE_SCALE } from '../scene/palette';
+import { FRAME, layout, MARGIN, PIECE_SCALE } from '../scene/palette';
 import { fitShift, fitView, HUD_TOP_PX, hudTop, orbitSweep, zoomRange } from '../cameraFit';
 import type { FitWindow } from '../cameraFit';
 import { introPlan } from '../intro/timeline';
@@ -98,7 +98,10 @@ export const LOBBY_TIMING = {
   arriveLift: 0.65,
   /** Leaving for the game: the kings go up in light, then the camera draws back. */
   leaveBurn: 0.7,
-  leaveMove: 1.6,
+  /** The camera sets off this far into the kings' going up. */
+  leaveSetOff: 0.2,
+  /** From the lobby's close view to the game's first frame (leavePose). */
+  leaveMove: 2.2,
   /** The lobby's picture fading over the game's, at the end of the move. */
   leaveFade: 0.3,
 };
@@ -289,8 +292,11 @@ export const poseFromDirection = (target: Vec3, direction: Vec3, distance: numbe
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
 /** Between two poses, `t` 0–1: turning the short way round, easing in and out. */
-export const blendPose = (a: CameraPose, b: CameraPose, t: number): CameraPose => {
-  const k = easeInOutCubic(t);
+export const blendPose = (a: CameraPose, b: CameraPose, t: number): CameraPose =>
+  mixPose(a, b, easeInOutCubic(t));
+
+/** The pose `k` (0–1) of the way between two, turning the short way round. */
+const mixPose = (a: CameraPose, b: CameraPose, k: number): CameraPose => {
   let turn = b.azimuth - a.azimuth;
   turn = Math.atan2(Math.sin(turn), Math.cos(turn));
   const mix = (p: number, q: number) => p + (q - p) * k;
@@ -352,28 +358,111 @@ export const turnPose = (pose: CameraPose, turn: number): CameraPose => {
   return { ...pose, target: [x * c + z * s, y, z * c - x * s], azimuth: pose.azimuth + turn };
 };
 
+/** The glass's half-side out to its edge's light. */
+const GLASS_REACH = FRAME.half + MARGIN + 0.03;
+
+/**
+ * How far below the middle of the picture the glass reaches from a pose (the
+ * tangent of the angle off the camera's axis, down; Infinity when part of it
+ * is behind the camera).
+ */
+const glassDrop = ({ target, azimuth, elevation, distance }: CameraPose) => {
+  const [ce, se] = [Math.cos(elevation), Math.sin(elevation)];
+  const [sa, ca] = [Math.sin(azimuth), Math.cos(azimuth)];
+  // The camera's position, and its axis (forward) and up, looking at the target
+  const c = [
+    target[0] + sa * ce * distance,
+    target[1] + se * distance,
+    target[2] + ca * ce * distance,
+  ];
+  const forward = [-sa * ce, -se, -ca * ce];
+  const up = [-sa * se, ce, -ca * se];
+  let drop = -Infinity;
+  for (const [x, z] of [
+    [1, 1],
+    [1, -1],
+    [-1, 1],
+    [-1, -1],
+  ]) {
+    const v = [x * GLASS_REACH - c[0], FLOOR_Y - c[1], z * GLASS_REACH - c[2]];
+    const ahead = v[0] * forward[0] + v[1] * forward[1] + v[2] * forward[2];
+    if (ahead <= 0.01) return Infinity;
+    drop = Math.max(drop, -(v[0] * up[0] + v[1] * up[1] + v[2] * up[2]) / ahead);
+  }
+  return drop;
+};
+
 /**
  * The leaving `t` (0–1) of the way from `from` to the game's opening `to`
- * for a seat: the camera, and the glass's turn (`glass`, radians about the
- * vertical). Seen from the glass the camera takes the same way for either
- * seat (blendPose, to the opening less the glass's turn); the glass and
- * that way turn together, so the kings' garden turns past as it always has.
+ * for a seat: the camera, the glass's turn (`glass`, radians about the
+ * vertical), and how far the rest of the picture has come (`settled`, 0–1:
+ * the lens shift, the garden's light). Seen from the glass the camera takes
+ * the same way for either seat (to the opening less the glass's turn); the
+ * glass and that way turn together, so the kings' garden turns past as it
+ * always has.
  *
  * It draws back from rest and reaches the opening still drawing back, at
  * `pace` (the log of the distance per unit of `t`: the game's dolly sets
  * off at that pace, so the two are one motion), never first drawing in.
+ * It turns as it draws back, not by the clock: little while it is near the
+ * glass, where a little sweeps the whole picture, more as it gets farther
+ * off, all of it eased out by the time it is there, a spiral out. Its look
+ * rises from the glass to the tower's centre likewise, but never so far that
+ * the glass, once all in view, reaches lower down the picture than in the
+ * game's first frame (glassDrop): it comes to rest there, never scraping
+ * the bottom edge.
  */
 export const leavePose = (from: CameraPose, to: CameraPose, seat: Side, t: number, pace = 0) => {
   const end = leaveGlassTurn(seat);
-  const onGlass = blendPose(from, { ...to, azimuth: to.azimuth - end }, t);
-  const glass = end * easeInOutCubic(t);
   // In the log of the distance, from rest to `pace` (a cubic Hermite curve)
   const k = clamp01(t);
   const out = Math.log(to.distance / from.distance);
   const exit = out > 0 ? Math.min(Math.max(pace, 0), 3 * out) : 0;
-  const distance =
-    from.distance * Math.exp((3 * k ** 2 - 2 * k ** 3) * out + (k ** 3 - k ** 2) * exit);
-  return { pose: turnPose({ ...onGlass, distance }, glass), glass };
+  const away = (3 * k ** 2 - 2 * k ** 3) * out + (k ** 3 - k ** 2) * exit;
+  // The rest follows how far back it has drawn (by the clock, if it has not)
+  const drawn = out > 0 ? clamp01(away / out) : easeInOutCubic(k);
+  const settled = smooth(drawn);
+  // (the turn later still, where it sweeps the picture least)
+  const turned = smooth(drawn ** 1.5);
+  const distance = from.distance * Math.exp(away);
+  const onGlass = mixPose(from, { ...to, azimuth: to.azimuth - end }, settled);
+  let turn = to.azimuth - end - from.azimuth;
+  turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+  onGlass.azimuth = from.azimuth + turn * turned;
+  onGlass.distance = distance;
+  // The look rises from the glass to the tower's centre as it draws back, but
+  // only as far as keeps
+  // the glass from reaching lower down the picture than it does in the game's
+  // first frame: near it, where it spills past the frame, the look stays on
+  // it; once it is all in view it comes to rest at the place the game takes
+  // it up, and stays there as the camera draws back on
+  if (out > 0) {
+    const [low, high] = [from.target, to.target];
+    const at = (lift: number): CameraPose => ({
+      ...onGlass,
+      target: [
+        low[0] + (high[0] - low[0]) * lift,
+        low[1] + (high[1] - low[1]) * lift,
+        low[2] + (high[2] - low[2]) * lift,
+      ],
+    });
+    const floor = glassDrop({ ...to, azimuth: to.azimuth - end });
+    let lifted = 0;
+    if (glassDrop(at(1)) <= floor) lifted = 1;
+    else if (glassDrop(at(0)) < floor) {
+      let [a, b] = [0, 1];
+      for (let i = 0; i < 24; i++) {
+        const m = (a + b) / 2;
+        if (glassDrop(at(m)) <= floor) a = m;
+        else b = m;
+      }
+      lifted = a;
+    }
+    onGlass.target = at(k >= 1 ? 1 : Math.min(lifted, settled)).target;
+  }
+  const glass = end * turned;
+  const pose = { ...onGlass, distance };
+  return { pose: turnPose(pose, glass), glass, settled };
 };
 
 /**
