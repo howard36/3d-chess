@@ -22,6 +22,8 @@ import {
   LOBBY_MAX_STEP,
   lobbyStep,
   leaveDirection,
+  leaveGlassTurn,
+  leavePose,
   lobbyPose,
   outlineForFill,
   placeRing,
@@ -35,6 +37,7 @@ import {
   tossGlide,
   tossHop,
   tossLanded,
+  turnPose,
 } from './lobbyMotion';
 import type { CameraPose, Side } from './lobbyMotion';
 import { introPlan } from '../intro/timeline';
@@ -403,6 +406,58 @@ describe('handing over to the game', () => {
     expect(bx).toBeCloseTo(-x, 12);
     expect(by).toBe(y);
     expect(bz).toBeCloseTo(-z, 12);
+  });
+
+  it('turns the glass on screen the same way for either seat as it leaves', () => {
+    const from = lobbyPose(1280 / 800);
+    const opening = (seat: Side) => gameOpening(seat, 1280, 800).pose;
+    // The camera seen from the glass: its pose turned back by the glass's turn
+    const onGlass = (seat: Side, t: number) => {
+      const { pose, glass } = leavePose(from, opening(seat), seat, t);
+      return turnPose(pose, -glass);
+    };
+    for (const t of samples(0, 1, 40)) {
+      const white = onGlass('white', t);
+      const black = onGlass('black', t);
+      expect(Math.cos(black.azimuth - white.azimuth)).toBeCloseTo(1, 9);
+      expect(black.elevation).toBeCloseTo(white.elevation, 9);
+      expect(black.distance).toBeCloseTo(white.distance, 9);
+      white.target.forEach((v, i) => expect(black.target[i]).toBeCloseTo(v, 9));
+    }
+    // By the average of the camera's two turns round the tower (+16°, -164°)
+    const turn = onGlass('white', 1).azimuth - from.azimuth;
+    const [x, , z] = layout.viewDirection;
+    const white = Math.atan2(x, z);
+    expect(turn).toBeCloseTo((white + (white - Math.PI)) / 2, 9);
+    // A quarter turn either way: the square glass looks just as it did
+    expect(leaveGlassTurn('white')).toBeCloseTo(Math.PI / 2, 12);
+    expect(leaveGlassTurn('black')).toBeCloseTo(-Math.PI / 2, 12);
+  });
+
+  it("ends the leaving on the game's first frame, the glass a quarter turn round", () => {
+    const from = lobbyPose(1280 / 800);
+    for (const seat of ['white', 'black'] as const) {
+      const to = gameOpening(seat, 1280, 800).pose;
+      const start = leavePose(from, to, seat, 0);
+      expect(start.pose).toEqual(from);
+      expect(start.glass).toBeCloseTo(0, 12);
+      const { pose, glass } = leavePose(from, to, seat, 1);
+      expect(glass).toBe(leaveGlassTurn(seat));
+      expect(Math.cos(pose.azimuth - to.azimuth)).toBeCloseTo(1, 12);
+      expect(pose.elevation).toBeCloseTo(to.elevation, 12);
+      expect(pose.distance).toBeCloseTo(to.distance, 12);
+      pose.target.forEach((v) => expect(v).toBeCloseTo(0, 12));
+    }
+  });
+
+  it('turns a pose about the vertical as three.js turns an object', () => {
+    const pose: CameraPose = { target: [1, 2, 0.5], azimuth: 0.3, elevation: 0.4, distance: 7 };
+    const turned = turnPose(pose, 0.9);
+    const position = new Vector3(...posePosition(pose)).applyAxisAngle(new Vector3(0, 1, 0), 0.9);
+    new Vector3(...posePosition(turned))
+      .toArray()
+      .forEach((v, i) => expect(v).toBeCloseTo(position.toArray()[i], 12));
+    expect(turned.target[1]).toBe(2);
   });
 
   it('answers a seat being taken with a ring that spreads and fades', () => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { AdditiveBlending, Color, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
-import type { Mesh, PerspectiveCamera } from 'three';
+import type { Group, Mesh, PerspectiveCamera } from 'three';
 import { prefersReducedMotion } from '../motion';
 import { noRaycast } from '../noRaycast';
 import { platformStack } from '../scene/mask';
@@ -19,7 +19,6 @@ import { setLensShift } from '../viewOffset';
 import {
   arrivalRing,
   placeRing,
-  blendPose,
   FLOOR_Y,
   KING_SCALE,
   KING_TOP,
@@ -27,6 +26,7 @@ import {
   lobbyPose,
   cardBeside,
   gameOpening,
+  leavePose,
   posePosition,
   seatX,
   entranceFrom,
@@ -184,6 +184,7 @@ const LobbyRig = ({
   anchors,
   canvasHost,
   dim,
+  glass,
   onReveal,
   onLeft,
 }: {
@@ -192,6 +193,8 @@ const LobbyRig = ({
   anchors: React.RefObject<HTMLElement | null>;
   canvasHost: React.RefObject<HTMLElement | null>;
   dim: React.RefObject<number>;
+  /** The glass, which turns under the camera as it leaves (leavePose). */
+  glass: React.RefObject<Group | null>;
   onReveal: () => void;
   onLeft: () => void;
 }) => {
@@ -258,13 +261,16 @@ const LobbyRig = ({
       // Out to where the game's camera stands on its first frame, taking
       // on its lens shift as it goes: the lobby's last picture is the
       // game's first, level A's glass in the same place, and the canvases
-      // change hands under it unseen
+      // change hands under it unseen. The glass turns as it goes, so it
+      // turns the same on screen for either seat
       from.current ??= current.current ?? rest;
       const opening = gameOpening(view.seat, size.width, size.height, still);
       const start = still ? 0 : LOBBY_TIMING.leaveBurn * 0.4;
       const span = still ? 0.15 : LOBBY_TIMING.leaveMove;
       const k = Math.min(Math.max((since - start) / span, 0), 1);
-      pose = blendPose(from.current, opening.pose, k);
+      const leaving = leavePose(from.current, opening.pose, view.seat, k);
+      pose = leaving.pose;
+      if (glass.current) glass.current.rotation.y = leaving.glass;
       const eased = k * k * (3 - 2 * k);
       setLensShift(
         camera,
@@ -287,6 +293,7 @@ const LobbyRig = ({
     } else {
       from.current = null;
       left.current = false;
+      if (glass.current) glass.current.rotation.y = 0;
       dim.current = LOBBY_DIM;
       if (shifted.current) {
         shifted.current = false;
@@ -353,6 +360,7 @@ export const LobbyScene = ({
   const shade = useMemo(() => platformStack(0, 0), []);
   // The garden's sculptures, quiet behind the kings (LobbyRig raises them as it leaves)
   const dim = useRef(LOBBY_DIM);
+  const glass = useRef<Group>(null);
   // Seconds into the current beat, on r3f's clock
   const clock = useRef({ beat: view.beat, since: 0 });
   // The coin's result once it has landed (until then the seats wait)
@@ -431,46 +439,50 @@ export const LobbyScene = ({
       <BackdropCache>
         <Stage orientation="white" shade={gone ? undefined : shade} dim={() => dim.current} />
       </BackdropCache>
-      <LobbyPlatform />
-      {(['white', 'black'] as const).map((side) => (
-        <LobbyKing
-          key={side}
-          color={side}
-          enter={LOBBY_ENTRANCE.king[side]}
-          x={seatX(side)}
-          present={taken[side]}
-          gone={gone}
-          hovered={view.hover === side}
-          lit={mine === side || filling}
-          fills={fills}
-          together={filling}
-          breathing={!taken[side] && (view.beat === 'wait' || view.beat === 'invited')}
-          snap={landed === side}
-          veiled={veiled(side)}
-          pick={choosing ? pick(side) : undefined}
+      {/* The glass and all that stands on it, turned as the lobby leaves (leavePose) */}
+      <group ref={glass}>
+        <LobbyPlatform />
+        {(['white', 'black'] as const).map((side) => (
+          <LobbyKing
+            key={side}
+            color={side}
+            enter={LOBBY_ENTRANCE.king[side]}
+            x={seatX(side)}
+            present={taken[side]}
+            gone={gone}
+            hovered={view.hover === side}
+            lit={mine === side || filling}
+            fills={fills}
+            together={filling}
+            breathing={!taken[side] && (view.beat === 'wait' || view.beat === 'invited')}
+            snap={landed === side}
+            veiled={veiled(side)}
+            pick={choosing ? pick(side) : undefined}
+          />
+        ))}
+        <CoinKing
+          enter={LOBBY_ENTRANCE.king.coin}
+          shown={view.beat === 'choose' && (!view.mine || view.toss !== null)}
+          hovered={view.hover === 'random'}
+          toss={view.toss}
+          landX={view.toss ? seatX(view.toss) : 0}
+          pick={choosing ? pick('random') : undefined}
+          onGlide={() => callbacks.current.onGlide?.()}
+          onLanded={setLanded}
         />
-      ))}
-      <CoinKing
-        enter={LOBBY_ENTRANCE.king.coin}
-        shown={view.beat === 'choose' && (!view.mine || view.toss !== null)}
-        hovered={view.hover === 'random'}
-        toss={view.toss}
-        landX={view.toss ? seatX(view.toss) : 0}
-        pick={choosing ? pick('random') : undefined}
-        onGlide={() => callbacks.current.onGlide?.()}
-        onLanded={setLanded}
-      />
-      {filling && newcomer && <SeatRing x={seatX(newcomer)} playing={filling} />}
-      {/* The chosen king set down on its square (or the coin come to rest there) */}
-      {view.beat === 'choose' && mine && (
-        <SeatRing key={mine} x={seatX(mine)} playing ring={placeRing} />
-      )}
+        {filling && newcomer && <SeatRing x={seatX(newcomer)} playing={filling} />}
+        {/* The chosen king set down on its square (or the coin come to rest there) */}
+        {view.beat === 'choose' && mine && (
+          <SeatRing key={mine} x={seatX(mine)} playing ring={placeRing} />
+        )}
+      </group>
       <LobbyRig
         view={view}
         clock={clock}
         anchors={anchors}
         canvasHost={canvasHost}
         dim={dim}
+        glass={glass}
         onReveal={() => callbacks.current.onReveal?.()}
         onLeft={() => callbacks.current.onLeft?.()}
       />
