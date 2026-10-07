@@ -1419,10 +1419,11 @@
  * level colours, which turns while the pointer is on it; two pieces facing
  * each other at the top (a friend's knight, or the computer's chip), the
  * name at the bottom, and an arrow at the top right that steps on. The rim
- * is a ring of its own (::before, masked to the border); the glass is
- * washed in the same colours, cyan at the top through to rose at the bottom,
- * blended evenly from edge to edge (the rim's wheel showing through the glass
- * met in a hard seam at the middle). The name keeps to one
+ * is a ring of its own (::before, masked to the border) and the glass is
+ * washed in the same colours, both straight gradients, cyan at the top
+ * through to rose at the bottom: a colour wheel about the tile's middle
+ * (conic) turned back on itself at the top and bottom, a seam down the glass
+ * and a pixel of another colour at the middle of each edge. The name keeps to one
  * line: its size follows the tile's width (container units), between 13 and
  * 17 px, and only a tile too narrow even at 13 px lets it wrap.
  */
@@ -1461,17 +1462,13 @@
     transform 200ms;
 }
 .landing-mode::before {
-  --landing-rim: conic-gradient(
-    from var(--landing-turn),
+  --landing-rim: linear-gradient(
+    calc(180deg + var(--landing-turn)),
     #00d7e0,
     #58c1ff,
     #96a7ff,
     #c48be5,
-    #de77ab,
-    #c48be5,
-    #96a7ff,
-    #58c1ff,
-    #00d7e0
+    #de77ab
   );
   content: '';
   position: absolute;
