@@ -4,7 +4,7 @@
 // (in the entry) and the scene both read it.
 
 /** How much of its light a level gives up while the pointer is on another. */
-export const STEP_BACK_DEFAULT = 0.6;
+export const STEP_BACK_DEFAULT = 0.55;
 
 const TUNE_KEY = 'tune';
 const STEP_BACK_KEY = 'tune.stepBack';

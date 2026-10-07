@@ -2,7 +2,7 @@ import React from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import Board from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
-import { layout, PIECE_SCALE } from './scene/palette';
+import { layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
 import { contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
 import { PIECE_LIFT } from './pieceMotion';
 import { MATE_TUNING } from '../lib/mate';
@@ -310,6 +310,21 @@ describe('Board', () => {
     expect(highlighted.some((c) => sameVec(c.props.position, forward))).toBe(true);
     expect(highlighted.some((c) => sameVec(c.props.position, up))).toBe(true);
     expect(selectionRings(renderer)).toHaveLength(1);
+  });
+
+  it("takes a destination's click on its mark alone, a disc on its floor, not its whole square", async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    for (const cell of highlightedCells(renderer)) {
+      const geometry = cell.props.geometry as BufferGeometry;
+      geometry.computeBoundingBox();
+      const { min, max } = geometry.boundingBox!;
+      // Flat, and the mark's size (a move's circle grown under the pointer)
+      expect(max.y - min.y).toBeCloseTo(0, 5);
+      expect((max.x - min.x) / 2).toBeCloseTo(MARK_RADIUS.quiet * MARK_HOVER_GROW, 2);
+    }
   });
 
   it('unselects a piece when clicking empty space after selecting', async () => {

@@ -414,10 +414,12 @@ seats, and that at the side post no letter stands on the tower on screen.
 Play is marked in light on the glass: a thin gold circle round each square the selected
 piece can reach (fuller under the pointer), red round a capture (four arcs turning slowly round the victim), a mint line from the last
 move's source to its destination, and a king in check turns red among four clusters of dark obsidian blades. The
-marks look the same from every angle. While the pointer is on a level (a square of it, a piece
+marks look the same from every angle, and a destination takes the pointer and the click on its
+circle alone (`MARK_RADIUS`), so a square's empty corners reach a circle beneath. While the pointer is on a level (a square of it, a piece
 or a destination), the other levels step back: their glass, edges and marks give up a share of
-their light (60%; `?tune` on any page shows a slider for it, `client/src/tuning.ts`), and their
-pieces take a light haze while the level's own pieces' edges brighten a little. Holding a piece
+their light (55%; `?tune` on any page shows a slider for it, `client/src/tuning.ts`), and their
+pieces take a light haze (both armies lose the same share of their contrast against the night)
+while the level's own pieces stand forward a little. Holding a piece
 steps nothing back: its moves to other levels count as much as those on its own. A
 piece under the pointer lifts a little; the selected piece lifts higher and holds still in
 a column of cool light. A move glides, the piece rigid, along the straight line

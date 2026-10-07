@@ -1,9 +1,16 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { GameOver } from '../game/history';
 import type { RefObject } from 'react';
 import { useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
-import { BoxGeometry, MeshBasicMaterial, Raycaster, Vector2 } from 'three';
+import {
+  BoxGeometry,
+  CircleGeometry,
+  DoubleSide,
+  MeshBasicMaterial,
+  Raycaster,
+  Vector2,
+} from 'three';
 import type { Group, Object3D } from 'three';
 import { Board as EngineBoard } from '../engine';
 import type { Move, Piece } from '../engine';
@@ -23,6 +30,7 @@ import { useTapAssist } from './useTapAssist';
 import type { AssistedTap } from './useTapAssist';
 import type { LevelFocus, MarkerProps, PieceColor, Vec3 } from './types';
 import { resolveHover } from './hover';
+import type { HoverHit } from './hover';
 import type { FloorSquare } from './hover';
 import { CaptureFx, Celebration } from './scene/fx';
 import { KNOCK_STRIKE_MS } from './pieceMotion';
@@ -30,7 +38,7 @@ import { fallAway } from './mate';
 import { focusLevelOf } from './scene/focus';
 import { Grid } from './scene/grid';
 import { Capture, Check, LastMove, Quiet } from './scene/markers';
-import { KNIGHT_YAW, layout, PIECE_SCALE } from './scene/palette';
+import { KNIGHT_YAW, layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
 import { Selection } from './scene/selection';
 import { pieceArrival } from './intro/timeline';
 
@@ -50,6 +58,19 @@ const cellGeometry = new BoxGeometry(
   layout.cellSize[2],
 ).translate(0, layout.floorY + layout.hitHeight / 2, 0);
 const cellMaterial = new MeshBasicMaterial();
+
+// A destination takes the click on its mark alone, a disc on its floor the
+// size of the mark grown under the pointer (MARK_RADIUS), not on its whole
+// square: a click in a square's empty corners goes on to a mark beneath.
+const markReach = {
+  quiet: MARK_RADIUS.quiet * MARK_HOVER_GROW,
+  capture: MARK_RADIUS.capture * MARK_HOVER_GROW,
+};
+const markDisc = (radius: number) =>
+  new CircleGeometry(radius, 40).rotateX(-Math.PI / 2).translate(0, layout.floorY, 0);
+const markGeometry = { quiet: markDisc(markReach.quiet), capture: markDisc(markReach.capture) };
+// Seen from under the horizon too
+const markMaterial = new MeshBasicMaterial({ side: DoubleSide });
 
 // Drops a cell-centre position to the cell floor, the plane a piece's base
 // stands on and every marker lies on: a mark read as lying on the ground would
@@ -150,9 +171,15 @@ const Board = (props: BoardProps) => {
   };
   // The piece under the pointer, which lifts.
   const [hovered, setHovered] = useState<string | null>(null);
-  // The cell (or the piece on it) under the pointer: its destination marker
-  // brightens, its level stands out, and the HUD reads it out.
+  // The cell (or the piece on it) under the pointer: its level stands out,
+  // and, when the pointer is on its mark or its piece (not just its floor),
+  // its destination marker brightens.
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
+  const [hoverOnFloor, setHoverOnFloor] = useState(false);
+  const onHover = useCallback((hit: HoverHit | null) => {
+    setHoveredCell(hit?.key ?? null);
+    setHoverOnFloor(hit?.on === 'floor');
+  }, []);
   // The piece the player has just played, held up until its move comes back
   // (so its glide sets off from where the player's hand left it), and the
   // piece last tapped in vain, with a count so each tap answers
@@ -412,6 +439,12 @@ const Board = (props: BoardProps) => {
     [worldPositions],
   );
   const destinationKeys = new Set(destinations.map(({ to }) => toZXY(to)));
+  const destinationReach = new Map(
+    destinations.map(({ to, capture }) => [
+      toZXY(to),
+      capture ? markReach.capture : markReach.quiet,
+    ]),
+  );
   const probe = (raycaster: Raycaster | null) => {
     if (!raycaster || !grid.current) return null;
     // The pieces (a gliding piece sits in a MoveGlide wrapper)
@@ -440,7 +473,7 @@ const Board = (props: BoardProps) => {
       floors,
       [layout.cellSize[0] / 2 + 0.011, layout.cellSize[2] / 2 + 0.011],
       pieceHit,
-      destinationKeys,
+      destinationReach,
     );
   };
   const latestProbe = useRef(probe);
@@ -502,7 +535,7 @@ const Board = (props: BoardProps) => {
 
   return (
     <>
-      <HoverProbe probe={latestProbe} onHover={setHoveredCell} />
+      <HoverProbe probe={latestProbe} onHover={onHover} />
       <group
         ref={grid}
         name="board-grid"
@@ -513,18 +546,26 @@ const Board = (props: BoardProps) => {
         onClick={emptyTaps.onClick}
         onPointerMissed={emptyTaps.onPointerMissed}
       >
-        {/* Cell boxes: raycast targets for selecting a destination and for the
-            empty-space click that clears the selection, never drawn. */}
+        {/* Cell boxes: raycast targets for the empty-space click that clears
+            the selection; a destination's is a disc the size of its mark
+            instead, which plays the move. Never drawn. */}
         {CELLS.map((cell) => {
           const cellKey = toZXY(cell);
-          const isDest = isHighlighted(cell);
+          const reach = destinationReach.get(cellKey);
+          const isDest = reach !== undefined;
           const { idle, destination, onClick } = cellProps.get(cellKey)!;
           return (
             <mesh
               key={cellKey}
               position={worldOf(cell)}
-              geometry={cellGeometry}
-              material={cellMaterial}
+              geometry={
+                !isDest
+                  ? cellGeometry
+                  : reach === markReach.capture
+                    ? markGeometry.capture
+                    : markGeometry.quiet
+              }
+              material={isDest ? markMaterial : cellMaterial}
               visible={false}
               userData={isDest ? destination : idle}
               // Clicking a highlighted cube plays the move
@@ -588,7 +629,7 @@ const Board = (props: BoardProps) => {
         <Grid layout={layout} orientation={orientation} focus={focus} labels={props.labels} />
         {destinations.map(({ to, capture }) => {
           const key = toZXY(to);
-          const hovered = hoveredCell === key;
+          const hovered = hoveredCell === key && !hoverOnFloor;
           const dim = focusLevel !== null && to.z !== focusLevel;
           return capture ? (
             <Capture key={`capture-${key}`} {...markerAt(to)} hovered={hovered} dim={dim} />
@@ -651,8 +692,8 @@ const HoverProbe = ({
   probe,
   onHover,
 }: {
-  probe: RefObject<(raycaster: Raycaster | null) => string | null>;
-  onHover: (key: string | null) => void;
+  probe: RefObject<(raycaster: Raycaster | null) => HoverHit | null>;
+  onHover: (hit: HoverHit | null) => void;
 }) => {
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);

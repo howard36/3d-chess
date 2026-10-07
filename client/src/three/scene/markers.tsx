@@ -14,7 +14,15 @@ import { clamp01, easeOutCubic, easeOutQuad, smooth, toward } from './ease';
 import { LEVEL_FOCUS_MS } from './focus';
 import { getStepBack } from '../../tuning';
 import { overlayMaterial } from './overlay';
-import { LEVEL_COLORS, levelAt, PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
+import {
+  LEVEL_COLORS,
+  levelAt,
+  MARK_HOVER_GROW,
+  MARK_RADIUS,
+  PALETTE,
+  PIECE_SCALE,
+  RING_RADIUS,
+} from './palette';
 import { Blades } from './blades';
 import { useRetireOnUnmount } from './programs';
 
@@ -60,6 +68,7 @@ const vertexShader = /* glsl */ `
   }`;
 
 const fragmentShader = /* glsl */ `
+  #define MARK_HOVER_GROW ${MARK_HOVER_GROW.toFixed(3)}
   uniform int uKind;
   uniform vec3 uColor;
   uniform vec3 uFill;
@@ -112,7 +121,7 @@ const fragmentShader = /* glsl */ `
     vec4 c = vec4(0.0);
     if (uKind == 0 || uKind == 1) {
       // Grows in on arrival, and a little under the pointer
-      float s = mix(0.86, 1.0, uGrow) * (1.0 + 0.11 * uHover);
+      float s = mix(0.86, 1.0, uGrow) * (1.0 + (MARK_HOVER_GROW - 1.0) * uHover);
       vec2 p = vP / s;
       float r = length(p);
       float R = uRadius;
@@ -420,8 +429,8 @@ const probe = { x: 0, y: 0, z: 0 };
 
 /** Radius of the level ring at a piece's foot (world units). */
 const FOOT_RING = RING_RADIUS * PIECE_SCALE;
-const QUIET_RADIUS = 0.2;
-const CAPTURE_RADIUS = FOOT_RING + 0.035;
+const QUIET_RADIUS = MARK_RADIUS.quiet;
+const CAPTURE_RADIUS = MARK_RADIUS.capture;
 const TRACE_TO = FOOT_RING;
 /** The last move's circle where it started: the same circle, smaller. */
 const TRACE_FROM_SCALE = 0.64;

@@ -114,7 +114,7 @@ const floors: FloorSquare[] = CELLS.map((cell) => ({
 const half: [number, number] = [layout.cellSize[0] / 2 + 0.011, layout.cellSize[2] / 2 + 0.011];
 
 /** Board.tsx's hover probe: the nearest piece the ray hits, then resolveHover. */
-const probe = (scene: Scene, raycaster: Raycaster, destinations: ReadonlySet<string>) => {
+const probe = (scene: Scene, raycaster: Raycaster, destinations: ReadonlyMap<string, number>) => {
   const bodies: Object3D[] = scene.grid.children.filter((c) => c.userData.piece);
   let pieceHit: { key: string; distance: number } | null = null;
   const hits = raycaster.intersectObjects(bodies, true);
@@ -208,12 +208,19 @@ inRounds(({ normal }) => {
       for (let j = 0; j < 20; j++)
         points.push(new Vector2(-1 + (2 * i + 1) / 20, -1 + (2 * j + 1) / 20));
     const cases = [
-      { label: 'opening, 40 pieces', scene: sceneOf(opening), destinations: new Set<string>() },
+      {
+        label: 'opening, 40 pieces',
+        scene: sceneOf(opening),
+        destinations: new Map<string, number>(),
+      },
       {
         label: 'queen storm ⚠, a queen held (37 destinations)',
         scene: sceneOf(storm),
-        destinations: new Set(
-          storm.generateLegalMoves(busiestPiece(storm, 'white').at).map((m) => toZXY(m.to)),
+        // Each mark's reach (Board.tsx): a move's circle grown under the pointer
+        destinations: new Map(
+          storm
+            .generateLegalMoves(busiestPiece(storm, 'white').at)
+            .map((m) => [toZXY(m.to), 0.222]),
         ),
       },
     ];
@@ -235,14 +242,14 @@ inRounds(({ normal }) => {
     bench(
       'ray parallel to the platforms ⚠',
       () => {
-        sink = probe(scene, flat, new Set());
+        sink = probe(scene, flat, new Map());
       },
       normal,
     );
     bench(
       'ray up the tower’s axis from below ⚠',
       () => {
-        sink = probe(scene, below, new Set());
+        sink = probe(scene, below, new Map());
       },
       normal,
     );

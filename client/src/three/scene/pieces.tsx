@@ -80,16 +80,30 @@ const glazeVertex = /* glsl */ `
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
-/** How much brighter the edges of the pieces on the level pointed at are. */
-const FOCUS_EDGE = 0.45;
-/** How far the haze draws the pieces on the other levels toward its slate. */
-const HAZE_DEPTH = 0.22;
-/** The haze's slate, between the two armies, a little cool. */
-const HAZE_COLOR = '#5a6272';
+/**
+ * The pieces on the level pointed at: the share of contrast against the night
+ * they gain (the haze's mirror, the same for both armies), and how much
+ * brighter their edges are (Glaze.focusEdge).
+ */
+const FOCUS_LIFT = 0.05;
+/**
+ * The haze on the pieces of the other levels: the share of their contrast
+ * against the night behind them that it takes, and how much of their colour
+ * (never the foot band's). Both armies lose the same share, so they recede
+ * alike: the porcelain dims a little, the charcoal keeps its dark body and
+ * its lit edges and highlights soften. (Drawn toward a mid tone instead, the
+ * charcoal lifted toward grey and stood out more against the dark, not less.)
+ */
+const HAZE_DEPTH = 0.18;
+const HAZE_GREY = 0.15;
+/** The night behind the tower, as seen (gamma-encoded): what the haze draws toward. */
+const HAZE_TONE = [0.05, 0.055, 0.07];
 
 const glazeFocus = /* glsl */ `
-  #define FOCUS_EDGE ${FOCUS_EDGE.toFixed(3)}
+  #define FOCUS_LIFT ${FOCUS_LIFT.toFixed(3)}
   #define HAZE_DEPTH ${HAZE_DEPTH.toFixed(3)}
+  #define HAZE_GREY ${HAZE_GREY.toFixed(3)}
+  #define HAZE_TONE vec3(${HAZE_TONE.map((v) => v.toFixed(3)).join(', ')})
 `;
 
 const glazeFragment = /* glsl */ `
@@ -120,8 +134,8 @@ const glazeFragment = /* glsl */ `
   uniform float uHold;
   uniform float uCheck;
   uniform float uFocus;
+  uniform float uFocusEdge;
   uniform float uHaze;
-  uniform vec3 uHazeColor;
   uniform float uTop;
   uniform float uCut;
   uniform float uForm;
@@ -225,7 +239,7 @@ const glazeFragment = /* glsl */ `
     // Seen from above, a piece is almost all edge: the edges give way there
     float fromAbove = mix(1.0, 0.3, smoothstep(0.55, 0.95, abs(v.y)));
     // On the level pointed at, its edges a little brighter
-    float edge = uEdge * (1.0 + FOCUS_EDGE * uFocus);
+    float edge = uEdge * (1.0 + uFocusEdge * uFocus);
     // The kicker: a cool edge on the side away from the key
     float kk = max(dot(n, kick), 0.0) * pow(1.0 - facing, 1.4);
     col += uRim * kk * uKick * edge * ao * fromAbove;
@@ -236,12 +250,20 @@ const glazeFragment = /* glsl */ `
     if (band) {
       col = uBand * (0.62 + 0.3 * lit + 0.28 * uHover + 0.2 * uHold) * mix(1.0, ao, 0.35);
     }
-    // On another level than the one pointed at: a light haze, a little less
-    // colour and less contrast, drawn toward one slate for both armies so
-    // each recedes alike (the king in check keeps his red, below)
-    float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-    vec3 hazed = mix(mix(col, vec3(lum), 0.4), uHazeColor, HAZE_DEPTH);
-    col = mix(col, hazed, uHaze);
+    // On another level than the one pointed at: a light haze, a share of its
+    // contrast against the night taken and a little of its colour, alike for
+    // both armies. Worked as seen (gamma-encoded), not in linear light, so a
+    // share of the charcoal's edges goes as visibly as one of the porcelain's
+    // body (the king in check keeps his red, below)
+    // On the level pointed at, the same in reverse, a little
+    float lum;
+    if (uHaze > 0.0 || uFocus > 0.0) {
+      vec3 seen = pow(max(col, vec3(0.0)), vec3(1.0 / 2.2));
+      float grey = dot(seen, vec3(0.2126, 0.7152, 0.0722));
+      seen = mix(seen, vec3(grey), band ? 0.0 : HAZE_GREY * uHaze);
+      seen = HAZE_TONE + (seen - HAZE_TONE) * (1.0 - HAZE_DEPTH * uHaze + FOCUS_LIFT * uFocus);
+      col = pow(max(seen, vec3(0.0)), vec3(2.2));
+    }
     // In check the whole king takes the red, keeping its army's value, its
     // edge burns red, and the red platform under it lights its base
     if (uCheck > 0.0) {
@@ -285,6 +307,11 @@ interface Glaze {
   accentShine: number;
   /** How much of the baked occlusion shows. */
   occlusion: number;
+  /**
+   * How much brighter its edges are on the level pointed at: the porcelain's
+   * edge light is nearly its body's colour, so it takes more to show alike.
+   */
+  focusEdge: number;
   /** How much the surface's curvature lightens edges and darkens coves. */
   relief: number;
 }
@@ -309,6 +336,7 @@ const GLAZE: Record<PieceColor, Glaze> = {
     accentSpec: 0.24,
     accentShine: 24,
     occlusion: 0.55,
+    focusEdge: 0.55,
     relief: 0.15,
   },
   black: {
@@ -330,6 +358,7 @@ const GLAZE: Record<PieceColor, Glaze> = {
     accentSpec: 0.3,
     accentShine: 22,
     occlusion: 0.85,
+    focusEdge: 0.1,
     relief: 0.35,
   },
 };
@@ -412,8 +441,8 @@ export const bodyMaterial = (
       uHold: { value: 0 },
       uCheck: { value: 0 },
       uFocus: { value: 0 },
+      uFocusEdge: { value: g.focusEdge },
       uHaze: { value: 0 },
-      uHazeColor: { value: new Color(HAZE_COLOR) },
       uTop: { value: pieceTop(bakedSet(), type) },
       uCut: { value: -1 },
       uForm: { value: 1 },
