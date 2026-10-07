@@ -234,9 +234,11 @@ const SCALE = 6.5;
  * 20² + 20²), at most 37° apart round it, so one or two stand clear of the
  * tower from every side (see garden.test.ts). The opening view looks from
  * 16° toward 196°: White sees Black's king and a bishop flank the tower,
- * the queen behind it; Black sees White's queen and a bishop.
+ * the queen behind it; Black sees White's queen and a bishop. A drawing
+ * looks in toward the board's centre, but the knights, side by side, look at
+ * each other (`faces`), so they face each other from every side.
  */
-const PLACES: { type: PieceType; square: string }[] = [
+const PLACES: { type: PieceType; square: string; faces?: string }[] = [
   { type: PieceType.King, square: 'e1' },
   { type: PieceType.King, square: 'e8' },
   { type: PieceType.Queen, square: 'd1' },
@@ -245,8 +247,8 @@ const PLACES: { type: PieceType; square: string }[] = [
   { type: PieceType.Bishop, square: 'b7' },
   { type: PieceType.Unicorn, square: 'b2' },
   { type: PieceType.Unicorn, square: 'g7' },
-  { type: PieceType.Knight, square: 'a4' },
-  { type: PieceType.Knight, square: 'a5' },
+  { type: PieceType.Knight, square: 'a4', faces: 'a5' },
+  { type: PieceType.Knight, square: 'a5', faces: 'a4' },
   { type: PieceType.Rook, square: 'h4' },
   { type: PieceType.Rook, square: 'h5' },
 ];
@@ -263,22 +265,33 @@ const anchorOf = (square: string): [number, number, number] => {
   return [x, GROUND_Y, z];
 };
 
-/** Every sculpture's square and where it stands. */
-export const GARDEN = PLACES.map(({ type, square }) => ({ type, square, at: anchorOf(square) }));
+/** Every sculpture's square, where it stands and the point (x, z) it looks toward. */
+export const GARDEN = PLACES.map(({ type, square, faces }) => ({
+  type,
+  square,
+  at: anchorOf(square),
+  toward: faces ? squareCentre(faces) : ([0, 0] as [number, number]),
+}));
 
 /**
  * Every sculpture's tubes as one ribbon mesh. Each vertex carries its
- * sculpture's anchor, its point and tangent (in the drawing plane for an
- * outline, in 3D for a ring) and its side of the ribbon; the vertex shader
- * turns an outline to face the camera and widens every tube across the view,
- * so the whole garden is one draw call. (The lobby draws its empty seats with
- * the same tubes: a king at piece scale.)
+ * sculpture's anchor, the point it looks toward (the board's centre unless
+ * given), its point and tangent (in the drawing plane for an outline, in 3D
+ * for a ring) and its side of the ribbon; the vertex shader turns an outline
+ * to face the camera, its front toward that point, and widens every tube
+ * across the view, so the whole garden is one draw call. (The lobby draws
+ * its empty seats with the same tubes: a king at piece scale.)
  */
 export const neonGeometry = (
-  places: readonly { type: PieceType; at: readonly [number, number, number] }[] = GARDEN,
+  places: readonly {
+    type: PieceType;
+    at: readonly [number, number, number];
+    toward?: readonly [number, number];
+  }[] = GARDEN,
   scale = SCALE,
 ): BufferGeometry => {
   const anchor: number[] = [];
+  const toward: number[] = [];
   const local: number[] = [];
   const tangent: number[] = [];
   const side: number[] = [];
@@ -286,6 +299,7 @@ export const neonGeometry = (
   const index: number[] = [];
   const addCurve = (
     at: readonly [number, number, number],
+    looks: readonly [number, number],
     pts: [number, number, number][],
     closed: boolean,
     fixed: boolean,
@@ -299,6 +313,7 @@ export const neonGeometry = (
       const l = Math.hypot(t[0], t[1], t[2]) || 1;
       for (const s of [-1, 1]) {
         anchor.push(...at);
+        toward.push(...looks);
         local.push(...pts[k]);
         tangent.push(t[0] / l, t[1] / l, t[2] / l);
         side.push(s);
@@ -312,11 +327,12 @@ export const neonGeometry = (
       index.push(a, a + 1, b, b, a + 1, b + 1);
     }
   };
-  places.forEach(({ type, at }) => {
+  places.forEach(({ type, at, toward: looks = [0, 0] }) => {
     const drawing = sculptureOf(type);
     for (const o of drawing.outlines) {
       addCurve(
         at,
+        looks,
         o.points.map(([x, y]) => [x * scale, y * scale, 0]),
         o.closed,
         false,
@@ -331,12 +347,13 @@ export const neonGeometry = (
           Math.sin(a) * ring.radius * scale,
         ];
       });
-      addCurve(at, pts, true, true);
+      addCurve(at, looks, pts, true, true);
     }
   });
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(local), 3));
   g.setAttribute('aAnchor', new BufferAttribute(new Float32Array(anchor), 3));
+  g.setAttribute('aToward', new BufferAttribute(new Float32Array(toward), 2));
   g.setAttribute('aTangent', new BufferAttribute(new Float32Array(tangent), 3));
   g.setAttribute('aSide', new BufferAttribute(new Float32Array(side), 1));
   g.setAttribute('aMode', new BufferAttribute(new Float32Array(mode), 1));
@@ -485,6 +502,7 @@ const neonVertex = /* glsl */ `
   uniform float uGround;
   uniform float uTurn;
   attribute vec3 aAnchor;
+  attribute vec2 aToward;
   attribute vec3 aTangent;
   attribute float aSide;
   attribute float aMode;
@@ -494,12 +512,14 @@ const neonVertex = /* glsl */ `
   void main() {
     // Turned about for Black, as the board is (gardenTurn)
     vec3 anchor = vec3(aAnchor.x * uTurn, aAnchor.y, aAnchor.z * uTurn);
+    vec2 toward = aToward * uTurn;
     vec3 toCam = cameraPosition - anchor;
     vec2 h = normalize(toCam.xz + vec2(1e-5, 0.0));
     // The drawing's plane faces the camera, turned about the vertical
     vec3 right = vec3(h.y, 0.0, -h.x);
-    // A knight looks in toward the board, whichever side of it it stands
-    float face = dot(right.xz, -anchor.xz) >= 0.0 ? 1.0 : -1.0;
+    // A knight looks toward its point (its twin, or the board's centre),
+    // whichever side of it the camera stands
+    float face = dot(right.xz, toward - anchor.xz) >= 0.0 ? 1.0 : -1.0;
     vec3 p;
     vec3 t;
     if (aMode < 0.5) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PerspectiveCamera } from 'three';
+import { PerspectiveCamera, Vector3 } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { GARDEN, gardenView, SQUARE, squareCentre } from './stage';
 import { placeStar, SKY_PLAN } from './heavens';
@@ -61,6 +61,50 @@ describe('the garden', () => {
       const view = gardenView(cameraAt(az, -14), ASPECT);
       const whole = view.filter((v) => v.inFrame >= 0.9 && v.cover < CLEAR);
       expect(whole.length, `az ${az}°`).toBeGreaterThan(0);
+    }
+  });
+
+  it('turns the knights to face each other from every side', () => {
+    const knights = GARDEN.filter((g) => g.type === PieceType.Knight);
+    expect(knights).toHaveLength(2);
+    expect(knights[0].toward).toEqual([knights[1].at[0], knights[1].at[2]]);
+    expect(knights[1].toward).toEqual([knights[0].at[0], knights[0].at[2]]);
+    const onScreen = (cam: PerspectiveCamera, x: number, z: number) =>
+      new Vector3(x, knights[0].at[1], z).project(cam);
+    for (const turn of [1, -1]) {
+      for (const el of [-14, 18, 60]) {
+        for (const zoom of [0.5, 1, 1.6]) {
+          for (let az = 0; az < 360; az += 5) {
+            const cam = cameraAt(az, el, zoom);
+            knights.forEach(({ at, toward }, i) => {
+              const twin = knights[1 - i].at;
+              const [ax, az2] = [at[0] * turn, at[2] * turn];
+              // The vertex shader's turn: the drawing faces the camera, its
+              // front (+x) toward the point the sculpture looks at
+              const h = [cam.position.x - ax, cam.position.z - az2];
+              const right = [h[1], -h[0]];
+              const look = [toward[0] * turn - ax, toward[1] * turn - az2];
+              const face = right[0] * look[0] + right[1] * look[1] >= 0 ? 1 : -1;
+              const from = onScreen(cam, ax, az2);
+              const front = onScreen(
+                cam,
+                ax + right[0] * face * 1e-3,
+                az2 + right[1] * face * 1e-3,
+              );
+              const other = onScreen(cam, twin[0] * turn, twin[2] * turn);
+              // Behind the camera, out of sight
+              const behind = (x: number, z: number) =>
+                new Vector3(x, at[1], z).applyMatrix4(cam.matrixWorldInverse).z > 0;
+              if (behind(ax, az2) || behind(twin[0] * turn, twin[2] * turn)) return;
+              if (Math.abs(from.x) > 1 || Math.abs(other.x) > 1) return;
+              expect(
+                Math.sign(front.x - from.x),
+                `knight ${i}, el ${el}°, az ${az}°, zoom ${zoom}, turn ${turn}`,
+              ).toBe(Math.sign(other.x - from.x));
+            });
+          }
+        }
+      }
     }
   });
 
