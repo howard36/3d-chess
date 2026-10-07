@@ -83,6 +83,10 @@ jobs:
         group: [games, session, rest]
     name: e2e (${{ matrix.group }})
     runs-on: ubuntu-latest
+    # A group takes about 10 minutes, and three stalled tries at the OS
+    # packages below add at most 16; a hung step fails the job long before
+    # GitHub's 6-hour default
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js
@@ -121,9 +125,17 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
         working-directory: client
+      # apt can stall on a runner (a mirror or the package lock) and never
+      # return: each try is cut off at 5 minutes, and a stalled one is retried
       - name: Install Playwright OS dependencies
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+        run: |
+          for attempt in 1 2 3; do
+            timeout -k 15 300 npx playwright install-deps chromium && exit 0
+            echo "install-deps attempt $attempt failed or stalled; retrying"
+            sleep 10
+          done
+          exit 1
         working-directory: client
       - name: Run Playwright E2E tests
         run: npm run e2e
