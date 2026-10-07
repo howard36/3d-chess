@@ -13,10 +13,10 @@ export const LEARN_SHORT_PX = 480;
 /**
  * Whether the card stands beside the tower (.learn[data-card='beside']): in
  * a short window, or in one wide enough that the tower, framed in the whole
- * height under Home, stands clear of the card (20 px in, 300 wide) from
- * every side the view turns to. Its half-width is at most 42% of that
- * height (its labels included, from the opening and below), as the fit
- * frames it.
+ * height under Home and centred, leaves room for the card (300 wide, 20 px
+ * more) at its left from every side the view turns to. Its half-width is at
+ * most 42% of that height (its labels included, from the opening and
+ * below), as the fit frames it.
  */
 export const cardBeside = (width: number, height: number): boolean =>
   height <= LEARN_SHORT_PX || width / 2 - 0.42 * (height - LEARN_TOP_PX) >= 320;
@@ -33,11 +33,22 @@ export const learnBottom = (height: number, width: number): number =>
   cardBeside(width, height) ? 0 : (width <= 380 ? 284 : width <= 520 ? 272 : 260) + 12;
 
 /**
- * CSS px at the left the card takes beside the tower in a short window, with
- * its gutters (learn.css: 12 px in, 252 wide), which the fit keeps the tower
- * right of should the tower, centred, run under it; none in a wide window,
- * where the card stands beside the tower only once it clears it
- * (cardBeside), nor where the card spans the bottom.
+ * The card's margin at the left where it stands beside the tower in a wide
+ * window (learn.css, --learn-gutter): the home page's (index.css,
+ * --landing-gutter).
  */
-export const learnLeft = (_width: number, height: number): number =>
-  height <= LEARN_SHORT_PX ? 12 + 252 + 12 : 0;
+export const learnGutter = (width: number): number => Math.min(Math.max(0.06 * width, 24), 112);
+
+/**
+ * CSS px at the left the card takes where it stands beside the tower, with
+ * its gutters, which the fit keeps the tower right of should the tower,
+ * centred, run under it (settleLeftInset): in a short window 12 px in, 252
+ * wide and 12 px; in a wide one the page's gutter in, 300 wide and 12 px.
+ * None where the card spans the bottom.
+ */
+export const learnLeft = (width: number, height: number): number =>
+  height <= LEARN_SHORT_PX
+    ? 12 + 252 + 12
+    : cardBeside(width, height)
+      ? learnGutter(width) + 300 + 12
+      : 0;

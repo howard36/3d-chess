@@ -9,6 +9,9 @@
  */
 .learn {
   --learn-card: 260px;
+  /* The card's margin beside the tower in a wide window: the home page's
+     (index.css, --landing-gutter; learnLayout.ts, learnGutter) */
+  --learn-gutter: clamp(24px, 6vw, 112px);
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -299,6 +302,25 @@
   box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.25);
   outline: none;
 }
+/* A touch screen: Next, and Reset beside it, take a fingertip's 44 px tall,
+   reaching into the foot's room above and the card's padding below; as they
+   look, they keep the card's height, which every lesson is fitted to */
+@media (pointer: coarse) {
+  .learn-next,
+  .learn-again {
+    position: relative;
+  }
+  .learn-next::before,
+  .learn-again::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+}
 
 /* A phone held upright: the card tighter */
 @media (max-width: 520px) {
@@ -350,7 +372,9 @@
 }
 /* A wide window: the card stands at the left of the tower, which takes the
    whole height under Home (learnLayout.ts, cardBeside), at one height
-   for every lesson, in the middle of the room under Home */
+   for every lesson, in the middle of the room under Home, set in by the
+   page's gutter (the tower right of it, should it run under it centred:
+   learnLeft) */
 .learn[data-card='beside'] {
   /* Two heights only: one fits every lesson of a single step (the king's
      the tallest), the other the pawn's steps (Move's and Promote's notes), so
@@ -361,7 +385,7 @@
   --learn-card: 396px;
 }
 .learn[data-card='beside'] .learn-card {
-  left: max(20px, env(safe-area-inset-left));
+  left: max(var(--learn-gutter), env(safe-area-inset-left));
   top: calc(26px + 50%);
   bottom: auto;
   transform: translateY(-50%);

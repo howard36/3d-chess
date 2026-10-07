@@ -330,16 +330,17 @@ describe('against the computer', () => {
     // The pick plays out first: the chosen king set down, the others going
     expect(view).toMatchObject({ beat: 'choose', mine: 'black' });
     expect(levels()).toBeNull();
-    // ...then the computer's seat opens across from it, framed with the
-    // choice docked under the kings
+    // ...then the computer's seat opens across from it, the kings framed as
+    // they were for the side (nothing docked under them: the levels hang
+    // where the side's buttons were)
     settle();
     expect(view).toMatchObject({
       beat: 'invited',
       taken: { black: true, white: false },
       mine: 'black',
-      card: true,
       seat: 'black',
     });
+    expect(view?.card).toBeFalsy();
     expect(screen.getByRole('heading', { name: 'Choose difficulty' })).toBeInTheDocument();
     expect(screen.getByText('You')).toBeInTheDocument();
     expect(screen.getByText('Computer')).toBeInTheDocument();
@@ -363,12 +364,12 @@ describe('against the computer', () => {
     expect(send).not.toHaveBeenCalled();
     await userEvent.click(level('Easy'));
     expect(send).not.toHaveBeenCalled();
-    // The computer's king fills at once, the camera easing back down...
+    // The computer's king fills at once, the camera holding still...
     expect(view).toMatchObject({
       beat: 'invited',
       taken: { white: true, black: true },
-      card: false,
     });
+    expect(view?.card).toBeFalsy();
     // ...the level chosen stays lit as the others go, and the page's words
     // make way
     expect(level('Easy')).toHaveAttribute('data-chosen');

@@ -33,10 +33,10 @@ import { prefersReducedMotion } from '../../three/motion';
 //
 // Against the computer (/computer) the side is the first of two steps: once
 // the pick has played out, the other seat's outline comes up for the
-// computer and its level is chosen under the kings, framed as an invitation
-// is. Choosing it fills the computer's king, the game is made on the spot,
-// in the browser (no server is asked), and its page opens on the computer's
-// arrival as the page's words go.
+// computer and its level is chosen under the kings, where the side was, the
+// kings framed as they were for it. Choosing it fills the computer's king,
+// the game is made on the spot, in the browser (no server is asked), and its
+// page opens on the computer's arrival as the page's words go.
 
 const CHOICES: { choice: Choice; name: string }[] = [
   { choice: 'white', name: 'White' },
@@ -131,13 +131,13 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
   const levelView: LobbyStage | null =
     leveling && side
       ? {
-          // Framed as an invitation is, the choice docked under the kings;
-          // the computer's seat open, then filling as its level is chosen
-          // (the arrival on the game's page answers it)
+          // The kings framed as for the side, the levels hanging under them
+          // where the side's buttons were; the computer's seat open, then
+          // filling as its level is chosen (the arrival on the game's page
+          // answers it)
           beat: 'invited',
           taken: { [side]: true, [other(side)]: !!level } as Record<Side, boolean>,
           mine: side,
-          card: !level,
           hover: null,
           toss: null,
           seat: side,
@@ -232,10 +232,11 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
           <div className="lobby-labels" data-out={out}>
             <SeatLabels labels={{ [side]: 'You', [other(side)]: 'Computer' }} />
           </div>
-          {/* The chosen level holds a moment as the others go, then all of
-              it; the page moves on as it goes */}
+          {/* Under the kings and their words, where the side's buttons
+              were. The chosen level holds a moment as the others go, then
+              all of it; the page moves on as it goes */}
           <div
-            className="lobby-dock lobby-levels"
+            className="lobby-levels"
             role="group"
             aria-label="Difficulty"
             data-out={out}
