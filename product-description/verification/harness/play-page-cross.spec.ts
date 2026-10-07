@@ -522,7 +522,7 @@ test('dialogs and the banner behind them', async ({ browser }) => {
     const x = await bbox(w.locator('[aria-label="Dismiss error"]'));
     await w.mouse.click(x.x + x.width / 2, x.y + x.height / 2); await w.waitForTimeout(400);
     const note = `focus on open: ${f0}; point over the banner covered by the dialog: ${covered}; Tab: ${seq.join(' > ')}`;
-    expect(f0, note).toBe('BUTTON:Start new game');
+    expect(f0, note).toBe('BUTTON:Play again');
     expect(covered, note).toBe(true);
     expect(seq.includes('BUTTON:✕'), note).toBe(false);
     await expect(banner).toBeVisible();
@@ -533,10 +533,10 @@ test('dialogs and the banner behind them', async ({ browser }) => {
     expect([await turnText(w), await turnText(b)]).toEqual(['White to move', 'White to move']);
   });
   try {
-    await w.getByRole('button', { name: 'Start new game' }).focus();
+    await w.getByRole('button', { name: 'Play again' }).focus();
     const seq = [...(await tabSeq(w, 5)), ...(await tabSeq(w, 5, true))];
     a11y06.push(`end-game dialog (error showing): Tab/Shift+Tab ${seq.join(' > ')}`);
-    const bad = seq.filter((s) => s !== 'BODY' && s !== 'BUTTON:Start new game');
+    const bad = seq.filter((s) => s !== 'BODY' && s !== 'BUTTON:Play again');
     if (bad.length) a11y06err = `end-game: focus reached ${bad.join(', ')}`;
   } catch (e) { a11y06err = String(e); }
   try {
@@ -544,7 +544,7 @@ test('dialogs and the banner behind them', async ({ browser }) => {
     const modal = await d.getAttribute('aria-modal');
     const f = await focusDesc(b);
     a11y02.push(`end-game: role dialog, aria-modal ${modal}, named "Black wins by checkmate!", focus ${f}`);
-    if (modal !== 'true' || f !== 'BUTTON:Start new game') a11y02err = a11y02[a11y02.length - 1];
+    if (modal !== 'true' || f !== 'BUTTON:Play again') a11y02err = a11y02[a11y02.length - 1];
     const t2 = await w.context().newPage(); await t2.goto(w.url()); await board(t2);
     await w.bringToFront();
     const r = w.getByRole('alertdialog', { name: 'This game is open in another tab' });

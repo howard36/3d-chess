@@ -11,14 +11,14 @@ interface EndGameModalProps {
   seat: Turn;
   /** Puts the card away, leaving the final board to study (Escape and a click outside it too). */
   onClose: () => void;
-  /** Where "Start new game" leads: the side choice (/new) by default. */
+  /** Where "Play again" leads: the same kind of game's side choice (/new by default). */
   newGamePath?: string;
 }
 
 /**
  * The result, over the final position: "You win" or "You lose" by checkmate,
  * or a draw (by stalemate, repetition or the 50-move rule), with the winner's stone lit. Its button, which has
- * focus, starts another game: the side choice. It can be closed (its close
+ * focus, starts another game of the same kind: its side choice. It can be closed (its close
  * button, Escape, a click outside it) to study the final board, which keeps
  * that button below the tower (NewGameBar).
  */
@@ -77,7 +77,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
           className="landing-play lobby-go hud-result-go"
           onClick={() => navigate(newGamePath)}
         >
-          Start new game
+          Play again
         </button>
       </div>
     </div>
@@ -86,13 +86,13 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
 
 export default EndGameModal;
 
-/** Start new game, below the tower, once the result card has been put away. */
+/** Play again, below the tower, once the result card has been put away. */
 export const NewGameBar: React.FC<{ newGamePath?: string }> = ({ newGamePath = '/new' }) => {
   const navigate = useNavigate();
   return (
     <div className="hud-new-game">
       <button className="landing-play lobby-go" onClick={() => navigate(newGamePath)}>
-        Start new game
+        Play again
       </button>
     </div>
   );

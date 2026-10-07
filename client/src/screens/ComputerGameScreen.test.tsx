@@ -151,6 +151,6 @@ it('the computer moves first when it plays White, once the entrance is over', as
 it('a game not kept here: "No game here", and a new game against the computer', async () => {
   render(at('missing'));
   expect(await screen.findByRole('heading', { name: 'No game here' })).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Start a new game' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Play the computer' }));
   expect(screen.getByText('choose a side and level')).toBeInTheDocument();
 });

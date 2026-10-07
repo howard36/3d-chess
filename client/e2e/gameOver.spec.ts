@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { startGame } from './helpers/game';
 
-// The end of a game: both players see the result, and "Start new game" takes
+// The end of a game: both players see the result, and "Play again" takes
 // each of them to a fresh side choice that stays put. The creator used to be
 // bounced straight back into the finished game, because the start screen saw
 // that game's game_created still in the log and treated it as the reply to a
@@ -32,7 +32,7 @@ test('a finished game shows the result and lets both players start over', async 
 
   const oldUrl = game.white.url();
   for (const page of [game.white, game.black]) {
-    await page.getByRole('button', { name: 'Start new game' }).click();
+    await page.getByRole('button', { name: 'Play again' }).click();
     await expect(page.getByRole('heading', { name: 'Choose your side' })).toBeVisible();
     // The bounce happened within the first render of the next page; hold a
     // moment and make sure the page is still there and the old game is gone.
