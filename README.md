@@ -693,9 +693,16 @@ until the row fits the width).
   three-tenths), while the glass barely turns at first, gathers speed gradually, and spins
   hard into place in the second half (`leaveSpin`: fastest three-quarters of the way, then
   brought to rest), sliding down the picture to its place as the camera's look rises from it
-  to the tower's centre on the same curve. The glass and the kings turn half a turn under it
-  for White and not at all for Black (`leaveGlassTurn`), so the glass spins the same on
-  screen for either seat, -164°, and, being square, ends just as the game's level A stands. As the camera settles its last
+  to the tower's centre on the same curve. The camera turns round the tower only a little
+  (+16°, the same for either seat), and only while the garden is black: the lobby's garden
+  fades to black over the first fifth of the move (`leaveVeil`, a black veil drawn over the
+  garden and under the glass and the kings), stays black until halfway, long enough that
+  the lobby's garden and the game's never read as one place seen from two sides, and in the
+  dark becomes the game's (laid out for the player's seat, in the game's light), which fades
+  up already in place as the glass spins into place. So the garden never turns on screen;
+  the glass and the kings turn half a turn under the camera (`LEAVE_GLASS_TURN`), so the
+  glass spins -164° on screen for either seat and, being square, ends just as the game's
+  level A stands. As the camera settles its last
   hair's breadth (`leaveReveal`), the game's entrance starts its `lobby` variant
   (`onReveal`; `three/intro/timeline.ts`) under the lobby's canvas, which fades off it
   (`leaveFade`, then `onLeft`): the entrance keeps to the moment the lobby shows

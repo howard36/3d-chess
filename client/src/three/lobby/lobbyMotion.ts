@@ -332,27 +332,13 @@ export const placeRing = (t: number) => {
 // --- Handing over to the game ------------------------------------------------------------
 
 /**
- * The game's opening direction for a seat, in the lobby's garden. The lobby
- * never turns its garden about (it has no board to orient), so for Black the
- * camera goes round to the far side instead, which shows the same picture as
- * the game's garden turned about for Black with its camera on the near side
- * (and level A's glass, all the lobby keeps, is the same turned about).
- */
-export const leaveDirection = (seat: Side): Vec3 => {
-  const [x, y, z] = layout.viewDirection;
-  return seat === 'black' ? [-x, y, -z] : [x, y, z];
-};
-
-/**
  * How far the glass itself turns about the tower's axis as the lobby leaves
- * (radians). The camera goes round to the near side for White and to the far
- * side for Black (leaveDirection), half a turn apart, so on its own the glass
- * would turn on screen by +16° for one seat and -164° for the other. Turned
- * half a turn for White and not at all for Black, it spins -164° on screen
- * for either. A square turned half a turn looks just as it did, so the
+ * (radians): half a turn, while the camera turns +16° round the tower to the
+ * game's opening line of sight (the same for either seat), so the glass spins
+ * -164° on screen. A square turned half a turn looks just as it did, so the
  * lobby's last picture is still the game's first.
  */
-export const leaveGlassTurn = (seat: Side) => (seat === 'black' ? 0 : Math.PI);
+export const LEAVE_GLASS_TURN = Math.PI;
 
 /** A pose turned about the vertical through the origin (radians, as azimuth). */
 export const turnPose = (pose: CameraPose, turn: number): CameraPose => {
@@ -390,13 +376,12 @@ export const leaveSpin = (t: number) => {
 };
 
 /**
- * The leaving `t` (0–1) of the way from `from` to the game's opening `to`
- * for a seat: the camera, the glass's turn (`glass`, radians about the
- * vertical), and how far the camera has drawn back (`settled`, 0–1: the lens
- * shift and the garden's light follow it). Seen from the glass the camera
- * takes the same way for either seat (to the opening less the glass's turn);
- * the glass and that way turn together, so the kings' garden turns past as it
- * always has.
+ * The leaving `t` (0–1) of the way from `from` to the game's opening `to`:
+ * the camera, the glass's turn (`glass`, radians about the vertical), and how
+ * far the camera has drawn back (`settled`, 0–1: the lens shift follows it).
+ * The camera itself turns only a little round the tower (+16°), and only
+ * while the garden is black (leaveVeil), so the garden never turns on
+ * screen; the glass turns under it.
  *
  * Two motions, one under the other: the camera eases off and draws back
  * (leavePull, in the log of the distance), while the glass gathers itself
@@ -404,8 +389,8 @@ export const leaveSpin = (t: number) => {
  * where the game has it as the camera's look rises from it to the tower's
  * centre (leaveSpin). Both come to rest exactly on the game's first frame.
  */
-export const leavePose = (from: CameraPose, to: CameraPose, seat: Side, t: number) => {
-  const end = leaveGlassTurn(seat);
+export const leavePose = (from: CameraPose, to: CameraPose, t: number) => {
+  const end = LEAVE_GLASS_TURN;
   const pull = leavePull(t);
   const spin = leaveSpin(t);
   // The camera's own turn round the tower, the short way, less the glass's
@@ -418,13 +403,42 @@ export const leavePose = (from: CameraPose, to: CameraPose, seat: Side, t: numbe
       mix(from.target[1], to.target[1], spin),
       mix(from.target[2], to.target[2], spin),
     ],
+    // Seen from the glass the camera turns on the glass's spin...
     azimuth: from.azimuth + (round - end) * spin,
     elevation: mix(from.elevation, to.elevation, pull),
     distance: from.distance * (to.distance / from.distance) ** pull,
   };
-  const glass = end * spin;
+  // ...while round the tower it turns only in the dark: the glass turns
+  // under it by the difference
+  const glass = round * leaveTurn(t) - (round - end) * spin;
   return { pose: turnPose(onGlass, glass), glass, settled: pull };
 };
+
+/**
+ * How dark the garden is as the lobby leaves, `t` 0–1 of the move (0 seen,
+ * 1 black): the lobby's garden fades to black over the first fifth, it stays
+ * black until halfway (long enough that the lobby's garden and the game's
+ * never read as one place seen from two sides), and the game's garden fades
+ * up, already where the game has it, as the glass spins into place, whole a
+ * little before it lands.
+ */
+export const leaveVeil = (t: number) => {
+  const k = clamp01(t);
+  if (k < 0.5) return smooth(clamp01(k / 0.2));
+  return 1 - smooth(clamp01((k - 0.5) / 0.45));
+};
+
+/**
+ * From this far into the move the garden is black, and becomes the game's:
+ * laid out for the player's seat, in the game's light (until halfway).
+ */
+export const LEAVE_GARDEN_DARK = 0.2;
+
+/**
+ * How far the camera has turned round the tower, `t` 0–1 of the move: all
+ * of it while the garden is black, so the garden never turns on screen.
+ */
+const leaveTurn = (t: number) => smooth(clamp01((t - 0.25) / 0.2));
 
 /**
  * Where the game's camera stands on its first frame in a window this size
@@ -442,11 +456,10 @@ let lastOpening: {
   };
 } | null = null;
 
-export const gameOpening = (seat: Side, width: number, height: number, reduced = false) => {
-  const key = `${seat} ${width} ${height} ${reduced}`;
+export const gameOpening = (width: number, height: number, reduced = false) => {
+  const key = `${width} ${height} ${reduced}`;
   if (lastOpening?.key === key) return lastOpening.opening;
-  const direction = leaveDirection(seat);
-  const pose = poseFromDirection([0, 0, 0], direction, 1);
+  const pose = poseFromDirection([0, 0, 0], layout.viewDirection, 1);
   const view: FitWindow = {
     width,
     height,
