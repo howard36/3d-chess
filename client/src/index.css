@@ -811,7 +811,11 @@
  * a pill of starlight ringed by a rim of the five level colours that turns
  * slowly, glowing cyan on its left and rose on its right like the tower's
  * lowest and highest levels. On hover it lifts; while a game is being
- * created the rim turns fast round a dark pill.
+ * created the rim turns fast round a dark pill. The rim is a straight
+ * gradient, cyan at the left through to rose at the right, whose angle
+ * turns: a colour wheel about the pill's middle (conic) running cyan to
+ * rose and back turned back on itself, a pixel of another colour at the
+ * middle of each edge and a seam through the dark pill.
  */
 @property --landing-turn {
   syntax: '<angle>';
@@ -819,17 +823,13 @@
   initial-value: 0deg;
 }
 .landing-play {
-  --landing-rim: conic-gradient(
-    from var(--landing-turn),
-    #00d7e0,
+  --landing-rim: linear-gradient(
+    calc(90deg + var(--landing-turn)),
+    #00d7e0 8%,
     #58c1ff,
     #96a7ff,
     #c48be5,
-    #de77ab,
-    #c48be5,
-    #96a7ff,
-    #58c1ff,
-    #00d7e0
+    #de77ab 92%
   );
   display: inline-flex;
   align-items: center;
