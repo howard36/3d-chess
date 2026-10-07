@@ -22,7 +22,8 @@ import {
   LOBBY_MAX_STEP,
   lobbyStep,
   leaveDirection,
-  leaveEase,
+  leavePull,
+  leaveSpin,
   leaveGlassTurn,
   leavePose,
   lobbyPose,
@@ -425,15 +426,15 @@ describe('handing over to the game', () => {
       expect(black.distance).toBeCloseTo(white.distance, 9);
       white.target.forEach((v, i) => expect(black.target[i]).toBeCloseTo(v, 9));
     }
-    // Black's camera turn round the tower (-164°), which White's glass makes
-    // up with half a turn of its own: a good spin, the same way for both
+    // Black's camera turn round the tower (-164°) and a quarter turn more:
+    // a hard spin, the same way for both
     const turn = onGlass('white', 1).azimuth - from.azimuth;
     const [x, , z] = layout.viewDirection;
-    expect(turn).toBeCloseTo(Math.atan2(x, z) - Math.PI, 9);
-    expect(turn * (180 / Math.PI)).toBeLessThan(-150);
-    // Half a turn: the square glass looks just as it did
-    expect(leaveGlassTurn('white')).toBeCloseTo(Math.PI, 12);
-    expect(leaveGlassTurn('black')).toBe(0);
+    expect(turn).toBeCloseTo(Math.atan2(x, z) - Math.PI - Math.PI / 2, 9);
+    expect(turn * (180 / Math.PI)).toBeLessThan(-250);
+    // Whole quarter turns: the square glass looks just as it did
+    expect(leaveGlassTurn('white')).toBeCloseTo((3 * Math.PI) / 2, 12);
+    expect(leaveGlassTurn('black')).toBeCloseTo(Math.PI / 2, 12);
   });
 
   it("ends the leaving at rest on the game's first frame", () => {
@@ -453,51 +454,45 @@ describe('handing over to the game', () => {
     }
   });
 
-  it('is one motion: it draws back, turns and looks up together, from rest to rest', () => {
+  it('draws back at an even pace while the glass gathers itself and then spins hard', () => {
     for (const [w, h] of [
       [1280, 720],
       [390, 844],
     ]) {
       const from = lobbyPose(w / h);
       const to = gameOpening('white', w, h).pose;
-      // How far along each part is (0 to 1): the distance (in its log), the
-      // camera's turn about the glass, and its look up to the tower's centre
+      const end = leaveGlassTurn('white');
+      // How far along each is (0 to 1): the camera's draw back (in the log
+      // of the distance), the glass's spin, and the look up to the centre
       const parts = (t: number) => {
         const { pose, glass } = leavePose(from, to, 'white', t);
-        const seen = turnPose(pose, -glass);
-        return [
-          Math.log(pose.distance / from.distance) / Math.log(to.distance / from.distance),
-          (seen.azimuth - from.azimuth) / (onGlassEnd(to) - from.azimuth),
-          (pose.target[1] - from.target[1]) / (to.target[1] - from.target[1]),
-        ];
+        return {
+          back: Math.log(pose.distance / from.distance) / Math.log(to.distance / from.distance),
+          spin: glass / end,
+          look: (pose.target[1] - from.target[1]) / (to.target[1] - from.target[1]),
+        };
       };
-      const onGlassEnd = (pose: CameraPose) =>
-        from.azimuth +
-        Math.atan2(
-          Math.sin(pose.azimuth - leaveGlassTurn('white') - from.azimuth),
-          Math.cos(pose.azimuth - leaveGlassTurn('white') - from.azimuth),
-        );
       const dt = 1e-4;
-      // Every part sets off from rest and comes to rest at the end
-      for (const [a, b] of [
-        [0, dt],
-        [1 - dt, 1],
-      ]) {
-        parts(b).forEach((v, i) => expect(Math.abs(v - parts(a)[i]) / dt).toBeLessThan(0.01));
+      const pace = (t: number, part: 'back' | 'spin' | 'look') =>
+        (parts(t + dt)[part] - parts(t)[part]) / dt;
+      // All from rest to rest, never turning back
+      for (const part of ['back', 'spin', 'look'] as const) {
+        expect(pace(0, part)).toBeLessThan(0.01);
+        expect(pace(1 - dt, part)).toBeLessThan(0.05);
+        expect(parts(1)[part]).toBeCloseTo(1, 9);
+        for (const t of samples(0, 1 - dt, 100)) expect(pace(t, part)).toBeGreaterThanOrEqual(0);
       }
-      parts(1).forEach((v) => expect(v).toBeCloseTo(1, 9));
-      // ...and every part is on the move all the way between: no stage where
-      // one stands still while another goes on, and none ever turns back
-      for (const t of samples(0.1, 0.9, 60)) {
-        const [p, q] = [parts(t), parts(t + dt)];
-        q.forEach((v, i) => expect((v - p[i]) / dt).toBeGreaterThan(0.05));
-      }
-      // Its pace peaks once, halfway
-      const pace = (t: number) => (parts(t + dt)[0] - parts(t)[0]) / dt;
-      expect(pace(0.5)).toBeGreaterThan(pace(0.3));
-      expect(pace(0.5)).toBeGreaterThan(pace(0.7));
+      // The camera at an even pace through its middle
+      for (const t of samples(0.2, 0.8, 20)) expect(pace(t, 'back')).toBeCloseTo(1 / 0.8, 6);
+      // The glass slow to start, a third of its spin by halfway, and fastest
+      // in the second half, two-thirds of the way
+      expect(parts(0.5).spin).toBeLessThan(0.35);
+      expect(pace(2 / 3, 'spin')).toBeGreaterThan(pace(0.5, 'spin'));
+      expect(pace(2 / 3, 'spin')).toBeGreaterThan(pace(0.85, 'spin'));
+      expect(pace(2 / 3, 'spin')).toBeGreaterThan(1.7);
     }
-    expect(leaveEase(0.5)).toBeCloseTo(0.5, 12);
+    expect(leavePull(0.5)).toBeCloseTo(0.5, 12);
+    expect(leaveSpin(0.5)).toBeCloseTo(0.3125, 12);
   });
 
   it('brings the glass down the picture to its place without scraping the bottom', () => {

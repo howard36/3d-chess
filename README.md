@@ -687,14 +687,15 @@ until the row fits the width).
   into them from the foot (`uGone`), level A's glass stays, and the camera comes to rest on
   exactly the game's first-frame pose (`gameOpening`: the fitted distance on the opening
   line of sight from the player's seat, with the fit's lens shift) while the sculptures
-  come back up to the game's brightness. It is one motion (`leavePose`, 1.8 s): the camera
-  draws back, turns, and lifts its look from the glass to the tower's centre all on one
-  ease (`leaveEase`), so they set off, peak and settle together, and the glass glides
-  steadily down the picture to its place (its look rises a little behind, as the ease to
-  the power 1.5, so the glass never first sinks past it). The glass and the kings turn
-  half a turn under it for White and not at all for Black (`leaveGlassTurn`), so the glass
-  spins the same on screen for either seat, -164° (Black's camera turn round the tower),
-  and, being square, ends just as the game's level A stands. As the camera settles its last
+  come back up to the game's brightness. It is two motions, one under the other (`leavePose`, 2 s): the camera draws back at an
+  even pace (`leavePull`: in the log of the distance, easing in and out over its first and
+  last fifths), while the glass gathers itself and spins hard into place in the second half
+  (`leaveSpin`, slow to start, fastest two-thirds of the way, then brought to rest), sliding
+  down the picture to its place as the camera's look rises from it to the tower's centre
+  (a little behind the spin, so the glass keeps clear of the bottom edge while it spins
+  hardest). The glass and the kings turn under it, three quarters of a turn for White and
+  a quarter for Black (`leaveGlassTurn`), so the glass spins the same on screen for either
+  seat, -254°, and, being square, ends just as the game's level A stands. As the camera settles its last
   hair's breadth (`leaveReveal`), the game's entrance starts its `lobby` variant
   (`onReveal`; `three/intro/timeline.ts`) under the lobby's canvas, which fades off it
   (`leaveFade`, then `onLeft`): the entrance keeps to the moment the lobby shows

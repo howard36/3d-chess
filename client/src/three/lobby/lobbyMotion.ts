@@ -101,7 +101,7 @@ export const LOBBY_TIMING = {
   /** The camera sets off this far into the kings' going up. */
   leaveSetOff: 0.2,
   /** From the lobby's close view to the game's first frame (leavePose). */
-  leaveMove: 1.8,
+  leaveMove: 2,
   /**
    * The lobby's picture fading over the game's, from this long before the
    * move comes to rest (by then it is within a hair of the game's first frame).
@@ -343,17 +343,20 @@ export const leaveDirection = (seat: Side): Vec3 => {
   return seat === 'black' ? [-x, y, -z] : [x, y, z];
 };
 
+/** The extra spin the glass gives on its way into the game, past -164° (radians). */
+const LEAVE_EXTRA_SPIN = Math.PI / 2;
+
 /**
  * How far the glass itself turns about the tower's axis as the lobby leaves
- * (radians): half a turn for White, none for Black. The camera goes round to
- * the near side for White and to the far side for Black (leaveDirection),
- * half a turn apart, so on its own the glass would turn on screen by +16°
- * for one seat and -164° for the other. Turned half a turn in step with
- * White's camera, it turns -164° on screen for either seat, a good spin into
- * the game, and a square turned half a turn looks just as it did, so the
- * lobby's last picture is still the game's first.
+ * (radians). The camera goes round to the near side for White and to the far
+ * side for Black (leaveDirection), half a turn apart, so on its own the glass
+ * would turn on screen by +16° for one seat and -164° for the other. Turned
+ * half a turn more for White than for Black, it turns the same on screen for
+ * either; a quarter turn more for both, it spins -254°. A square turned whole
+ * quarter turns looks just as it did, so the lobby's last picture is still the
+ * game's first.
  */
-export const leaveGlassTurn = (seat: Side) => (seat === 'black' ? 0 : Math.PI);
+export const leaveGlassTurn = (seat: Side) => (seat === 'black' ? 0 : Math.PI) + LEAVE_EXTRA_SPIN;
 
 /** A pose turned about the vertical through the origin (radians, as azimuth). */
 export const turnPose = (pose: CameraPose, turn: number): CameraPose => {
@@ -362,36 +365,68 @@ export const turnPose = (pose: CameraPose, turn: number): CameraPose => {
   return { ...pose, target: [x * c + z * s, y, z * c - x * s], azimuth: pose.azimuth + turn };
 };
 
-/** The leaving's one ease, `t` 0–1. */
-export const leaveEase = (t: number) => smooth(clamp01(t));
+/**
+ * The camera's draw back, `t` 0–1: easing in and out over its first and last
+ * fifths, and at an even pace between (its speed's ramps are smoothsteps).
+ */
+export const leavePull = (t: number) => {
+  const k = clamp01(t);
+  const r = 0.2;
+  const ramp = (x: number) => r * (x ** 3 - x ** 4 / 2); // ∫ smooth over a ramp
+  const whole = 1 - r;
+  if (k < r) return ramp(k / r) / whole;
+  if (k > 1 - r) return 1 - ramp((1 - k) / r) / whole;
+  return (r / 2 + (k - r)) / whole;
+};
+
+/**
+ * The glass's spin and its way down the picture, `t` 0–1: slow to start,
+ * fastest two-thirds of the way, then brought to rest (the distribution
+ * function of Beta(3, 2)).
+ */
+export const leaveSpin = (t: number) => {
+  const k = clamp01(t);
+  return k ** 3 * (4 - 3 * k);
+};
 
 /**
  * The leaving `t` (0–1) of the way from `from` to the game's opening `to`
  * for a seat: the camera, the glass's turn (`glass`, radians about the
- * vertical), and how far it has come (`settled`, 0–1: the lens shift, the
- * garden's light follow it). Seen from the glass the camera takes the same
- * way for either seat (to the opening less the glass's turn); the glass and
- * that way turn together, so the kings' garden turns past as it always has.
+ * vertical), and how far the camera has drawn back (`settled`, 0–1: the lens
+ * shift and the garden's light follow it). Seen from the glass the camera
+ * takes the same way for either seat (to the opening less the glass's turn);
+ * the glass and that way turn together, so the kings' garden turns past as it
+ * always has.
  *
- * One motion: the camera draws back (evenly in the log of the distance),
- * turns, and lifts its look from the glass to the tower's centre all on the
- * one ease (leaveEase), so they set off, speed up and settle as one, and it
- * comes to rest exactly on the game's first frame.
+ * Two motions, one under the other: the camera draws back at an even pace
+ * (leavePull, in the log of the distance), while the glass gathers itself and
+ * spins hard into place in the second half, sliding down the picture to where
+ * the game has it as the camera's look rises from it to the tower's centre
+ * (leaveSpin). Both come to rest exactly on the game's first frame.
  */
 export const leavePose = (from: CameraPose, to: CameraPose, seat: Side, t: number) => {
   const end = leaveGlassTurn(seat);
-  const settled = leaveEase(t);
-  const onGlass = mixPose(from, { ...to, azimuth: to.azimuth - end }, settled);
-  // (its look rises a little behind, so the glass glides steadily down the
-  // picture to its place in the game's, never first sinking past it)
-  const lift = settled ** 1.5;
-  onGlass.target = [
-    from.target[0] + (to.target[0] - from.target[0]) * lift,
-    from.target[1] + (to.target[1] - from.target[1]) * lift,
-    from.target[2] + (to.target[2] - from.target[2]) * lift,
-  ];
-  const glass = end * settled;
-  return { pose: turnPose(onGlass, glass), glass, settled };
+  const pull = leavePull(t);
+  const spin = leaveSpin(t);
+  // The camera's own turn round the tower, the short way, less the glass's
+  let round = to.azimuth - from.azimuth;
+  round = Math.atan2(Math.sin(round), Math.cos(round));
+  const mix = (p: number, q: number, k: number) => p + (q - p) * k;
+  // (the look rises a little behind the spin, so the glass keeps up off
+  // the bottom of the picture while it spins hardest)
+  const lift = spin ** 1.3;
+  const onGlass: CameraPose = {
+    target: [
+      mix(from.target[0], to.target[0], lift),
+      mix(from.target[1], to.target[1], lift),
+      mix(from.target[2], to.target[2], lift),
+    ],
+    azimuth: from.azimuth + (round - end) * spin,
+    elevation: mix(from.elevation, to.elevation, pull),
+    distance: from.distance * (to.distance / from.distance) ** pull,
+  };
+  const glass = end * spin;
+  return { pose: turnPose(onGlass, glass), glass, settled: pull };
 };
 
 /**
