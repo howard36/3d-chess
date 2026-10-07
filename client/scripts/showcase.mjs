@@ -1805,7 +1805,7 @@ async function main() {
   }
 
   await pageA.goto(`${BASE}/`);
-  await pageA.getByRole('button', { name: 'Start a game' }).click();
+  await pageA.getByRole('button', { name: 'Play a friend' }).click();
   await pageA.getByRole('button', { name: /^White/ }).click();
   // --intro: the pick plays out on the stepped clock before the page moves on
   if (INTRO) await stepUntil([pageA], pageA, () => location.pathname.startsWith('/game/'));

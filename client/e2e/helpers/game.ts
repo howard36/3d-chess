@@ -57,7 +57,7 @@ export async function startGame(
   // The creator picks a side (White by default: the fastest pick to play out)
   // and lands on the invitation; the guest opens its link and takes the seat
   await pageA.goto('/');
-  await pageA.getByRole('button', { name: 'Start a game' }).click();
+  await pageA.getByRole('button', { name: 'Play a friend' }).click();
   await pageA.getByRole('button', { name: new RegExp(`^${side}`) }).click();
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
   await pageB.goto(pageA.url());

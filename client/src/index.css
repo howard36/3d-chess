@@ -709,19 +709,23 @@
 }
 
 /*
- * The landing page: the live preview fills the window, the tower turning in
- * the middle, with the page's text like a gallery's wall label above and
- * below it. The title and the button each stand in a band of the same
- * height, the ones the preview's camera keeps clear (three/landingView.ts,
- * LANDING_BAND_PX: --landing-band), at the band's edge nearest the tower
- * (--landing-hug from it): mirrored about the tower, and close to it, not
- * the window's edges. In a window 480 px tall or less, a phone on its side,
- * the text stands in a column at the left instead. White on black, but for
- * the call to action's rim, the five level colours.
+ * The landing page: the live preview fills the window, the tower turning
+ * beside the page's menu: the title, the two ways to play (a friend, the
+ * computer), alike in weight, and the way to the tutorial, a quieter button
+ * under them. Three layouts to choose between (StartScreen: `?design=`), each
+ * with its own bands the preview's camera keeps the tower clear of
+ * (three/landingView.ts, LANDING_BANDS): the menu stands in a column at the
+ * left, set in from the window's edge by the page's gutter, and the tower is
+ * centred in the room right of it; in a window as tall as it is wide or
+ * taller the menu stands under the tower. White on black, but for the rims
+ * of the ways to play, the five level colours.
  */
 .landing {
-  --landing-band: 124px;
-  --landing-hug: 16px;
+  --landing-gutter: clamp(24px, 6vw, 112px);
+  --landing-inset: max(var(--landing-gutter), calc(env(safe-area-inset-left) + 16px));
+  --landing-under: max(var(--landing-gutter), calc(env(safe-area-inset-bottom) + 24px));
+  --landing-column: clamp(240px, 24vw, 360px);
+  --landing-levels: linear-gradient(90deg, #00d7e0, #58c1ff, #96a7ff, #c48be5, #de77ab);
   position: relative;
   height: 100dvh;
   width: 100vw;
@@ -742,51 +746,32 @@
   background: #010205;
   pointer-events: none;
 }
-/*
- * Scrims behind the text, clear well before the tower: darker at the top and
- * bottom edges, and a soft vignette that calms the neon sculptures as they
- * pass behind the words.
- */
+/* The fade behind the menu, each layout's own */
 .landing-scrim {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(1, 2, 5, 0.72) 0, rgba(1, 2, 5, 0) 168px),
-    linear-gradient(0deg, rgba(1, 2, 5, 0.82) 0, rgba(1, 2, 5, 0) 172px),
-    radial-gradient(ellipse at 50% 50%, rgba(1, 2, 5, 0) 55%, rgba(1, 2, 5, 0.45) 100%);
 }
-.landing-head,
-.landing-foot {
+.landing-menu {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  height: var(--landing-band);
+  left: var(--landing-inset);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-.landing-head {
-  top: env(safe-area-inset-top);
-  justify-content: flex-end;
-  padding-bottom: var(--landing-hug);
-}
-.landing-foot {
-  bottom: env(safe-area-inset-bottom);
-  justify-content: flex-start;
-  padding-top: var(--landing-hug);
 }
 .landing h1 {
   margin: 0;
-  font-size: 42px;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.05;
   letter-spacing: -0.02em;
   text-shadow: 0 1px 14px rgba(0, 0, 0, 0.6);
 }
+.landing-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 /*
- * The call to action: a pill of starlight with a charcoal knight, ringed by a
+ * The lobby cards' call to action (.lobby-go): a pill of starlight with a charcoal knight, ringed by a
  * rim of the five level colours that turns slowly, glowing cyan on its left
  * and rose on its right like the tower's lowest and highest levels. On hover
  * it lifts and the knight hops; while a game is being created the rim turns
@@ -885,105 +870,23 @@
   /* The label and the fill change together, never white on white */
   transition: none;
 }
-/* The other way in, under the call to action: playing the computer. Quieter,
-   a glass pill the HUD's black */
-.landing-foot {
-  gap: 10px;
-}
-.landing-alt {
-  height: 40px;
-  min-width: 200px;
-  padding: 0 22px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  background: rgba(10, 12, 18, 0.62);
-  backdrop-filter: blur(10px);
-  color: var(--hud-fg);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    border-color 160ms,
-    background-color 160ms;
-}
-.landing-alt:hover {
-  border-color: rgba(255, 255, 255, 0.34);
-  background: rgba(16, 19, 28, 0.8);
-}
-.landing-alt:focus-visible {
-  outline: 2px solid var(--hud-accent);
-  outline-offset: 3px;
-}
-/* A phone held upright: the button spans the column */
+/* The pill in the lobby's cards (.lobby-go): spanning a phone's column, a
+   step up in a tall wide window, a step down in a short one */
 @media (max-width: 480px) {
-  .landing h1 {
-    font-size: 34px;
-  }
-  .landing-foot {
-    left: 20px;
-    right: 20px;
-  }
   .landing-play {
     width: 100%;
     max-width: 360px;
     min-width: 0;
   }
-  .landing-alt {
-    width: 100%;
-    max-width: 360px;
-  }
-}
-/* A tall window: wider bands, and on a wide one the type a step up */
-@media (min-height: 860px) {
-  .landing {
-    --landing-band: 140px;
-  }
 }
 @media (min-height: 860px) and (min-width: 700px) {
-  .landing h1 {
-    font-size: 52px;
-  }
   .landing-play {
     height: 58px;
     min-width: 270px;
     font-size: 18px;
   }
 }
-/* A phone on its side: the text in a column at the left of the tower */
 @media (max-height: 480px) {
-  .landing-scrim {
-    background:
-      linear-gradient(
-        90deg,
-        rgba(1, 2, 5, 0.82) 0,
-        rgba(1, 2, 5, 0.82) 200px,
-        rgba(1, 2, 5, 0) 300px
-      ),
-      radial-gradient(ellipse at 50% 50%, rgba(1, 2, 5, 0) 55%, rgba(1, 2, 5, 0.45) 100%);
-  }
-  .landing-head,
-  .landing-foot {
-    left: max(16px, calc(env(safe-area-inset-left) + 8px));
-    right: auto;
-    width: 188px;
-    height: auto;
-    align-items: flex-start;
-    text-align: left;
-  }
-  .landing-head {
-    top: auto;
-    bottom: 50%;
-    padding-bottom: 14px;
-  }
-  .landing-foot {
-    top: 50%;
-    bottom: auto;
-    padding-top: 0;
-  }
-  .landing h1 {
-    font-size: 30px;
-  }
   .landing-play {
     width: 100%;
     min-width: 0;
@@ -991,20 +894,11 @@
     padding: 0 16px;
     font-size: 16px;
   }
-  .landing-foot {
-    gap: 8px;
-  }
-  .landing-alt {
-    width: 100%;
-    min-width: 0;
-    height: 36px;
-    padding: 0 12px;
-    font-size: 14px;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .landing-play,
-  .landing-play .landing-play-piece {
+  .landing-play .landing-play-piece,
+  .landing-mode {
     animation: none !important;
     transition: none;
   }
@@ -1483,57 +1377,129 @@
   }
 }
 
-/* The way to the tutorial: the top right corner, across from where the
-   other pages keep Home (.lobby-top), clear of the bands round the tower */
-.landing-learn {
-  position: absolute;
-  top: max(14px, env(safe-area-inset-top));
-  right: max(14px, env(safe-area-inset-right));
-}
-
 /*
- * The home page's layouts, for choosing one (StartScreen: `?design=`;
- * three/landingView.ts, LANDING_BANDS, keeps the tower clear of each). The
- * rules above are 'classic'; every other layout gathers the title and the
- * ways in into one block (.landing-menu), set in from the window's edges by
- * the page's gutter, and in a window as tall as it is wide or taller stacks
- * it under the tower.
+ * The two ways to play, alike: dark glass in a rim of the five level
+ * colours, which turns while the pointer is on it, two pieces facing each
+ * other at the left (a friend's knight, or the computer's chip), and an arrow
+ * that steps on.
  */
-.landing:not([data-design='classic']) {
-  --landing-gutter: clamp(24px, 6vw, 112px);
-  --landing-inset: max(var(--landing-gutter), calc(env(safe-area-inset-left) + 16px));
-  --landing-column: clamp(220px, 24vw, 360px);
-  --landing-levels: linear-gradient(90deg, #00d7e0, #58c1ff, #96a7ff, #c48be5, #de77ab);
-}
-.landing-menu {
-  display: contents;
-}
-.landing:not([data-design='classic']) .landing-menu {
-  position: absolute;
+.landing-mode {
+  --landing-rim: conic-gradient(
+    from var(--landing-turn),
+    #00d7e0,
+    #58c1ff,
+    #96a7ff,
+    #c48be5,
+    #de77ab,
+    #c48be5,
+    #96a7ff,
+    #58c1ff,
+    #00d7e0
+  );
+  position: relative;
   display: flex;
-  flex-direction: column;
-}
-.landing:not([data-design='classic']) :is(.landing-head, .landing-foot) {
-  position: static;
-  width: auto;
-  height: auto;
-  padding: 0;
-  align-items: flex-start;
-  text-align: left;
-}
-.landing:not([data-design='classic']) .landing-learn {
-  position: static;
-}
-.landing:not([data-design='classic']) .landing-play {
-  height: 52px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  height: 60px;
+  padding: 0 18px 0 10px;
+  border: 1.5px solid transparent;
+  border-radius: 14px;
+  background:
+    linear-gradient(rgba(12, 14, 22, 0.84), rgba(12, 14, 22, 0.84)) padding-box,
+    var(--landing-rim) border-box;
+  color: var(--hud-fg);
+  font: inherit;
   font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  text-align: left;
+  box-shadow: 0 0 24px rgba(150, 167, 255, 0.1);
+  cursor: pointer;
+  transition:
+    box-shadow 200ms,
+    transform 200ms;
 }
-.landing:not([data-design='classic']) .landing-alt {
-  height: 44px;
+.landing-mode:hover {
+  animation: landing-rim 4s linear infinite;
+  transform: translateY(-1px);
+  box-shadow:
+    -12px 0 30px -12px rgba(0, 215, 224, 0.6),
+    12px 0 30px -12px rgba(222, 119, 171, 0.6),
+    0 0 30px rgba(150, 167, 255, 0.2);
+}
+.landing-mode:active {
+  transform: scale(0.98);
+}
+.landing-mode:focus-visible {
+  outline: 2px solid var(--hud-accent);
+  outline-offset: 3px;
+}
+.landing-mode .landing-label {
+  flex: 1;
+  white-space: nowrap;
+}
+.landing-mode::after {
+  content: '→';
+  opacity: 0.5;
+  transition:
+    transform 200ms,
+    opacity 200ms;
+}
+.landing-mode:is(:hover, :focus-visible)::after {
+  opacity: 1;
+  transform: translateX(4px);
+}
+.landing-mode-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(236, 241, 255, 0.06);
+  color: rgba(214, 222, 236, 0.8);
+}
+.landing-mode-icon > * + * {
+  margin-left: -3px;
+}
+/* (the knight's glyph faces left: the one on the left turned to face the other) */
+.landing-face {
+  display: grid;
+  transform: scaleX(-1);
 }
 
-/* column: the title over the buttons in a column at the left, a fade behind
-   them that is clear before the tower, which stands right of them */
+/* The way to the tutorial: a button, quieter than the ways to play */
+.landing-learn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 20px;
+  border: 1px solid rgba(236, 241, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(10, 12, 18, 0.45);
+  color: var(--hud-fg);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 160ms,
+    background-color 160ms;
+}
+.landing-learn:hover {
+  border-color: rgba(236, 241, 255, 0.4);
+  background: rgba(16, 19, 28, 0.8);
+}
+.landing-learn:focus-visible {
+  outline: 2px solid var(--hud-accent);
+  outline-offset: 3px;
+}
+
+/* column: the title over the menu in a column at the left, a fade behind
+   them that clears before the tower, which stands right of them */
 .landing[data-design='column'] .landing-scrim {
   background:
     linear-gradient(
@@ -1545,7 +1511,6 @@
     radial-gradient(ellipse at 60% 50%, rgba(1, 2, 5, 0) 55%, rgba(1, 2, 5, 0.45) 100%);
 }
 .landing[data-design='column'] .landing-menu {
-  left: var(--landing-inset);
   top: 0;
   bottom: 0;
   width: var(--landing-column);
@@ -1554,25 +1519,17 @@
 }
 .landing[data-design='column'] h1 {
   font-size: clamp(36px, 3.6vw, 60px);
-  line-height: 1.05;
-}
-.landing[data-design='column'] .landing-foot {
-  align-items: stretch;
-  align-self: stretch;
-  gap: 10px;
-}
-.landing[data-design='column'] :is(.landing-play, .landing-alt) {
-  width: 100%;
-  min-width: 0;
 }
 .landing[data-design='column'] .landing-learn {
   align-self: flex-start;
-  margin: -18px 0 0 -10px;
-  height: 36px;
+  margin-top: -10px;
 }
 
 /* menu: a large set title, the level colours under it, and the ways in as a
    list of rows, the tower right of them */
+.landing[data-design='menu'] {
+  --landing-column: clamp(240px, 26vw, 400px);
+}
 .landing[data-design='menu'] .landing-scrim {
   background:
     linear-gradient(
@@ -1583,11 +1540,7 @@
     ),
     radial-gradient(ellipse at 60% 50%, rgba(1, 2, 5, 0) 55%, rgba(1, 2, 5, 0.45) 100%);
 }
-.landing[data-design='menu'] {
-  --landing-column: clamp(240px, 26vw, 400px);
-}
 .landing[data-design='menu'] .landing-menu {
-  left: var(--landing-inset);
   top: 0;
   bottom: 0;
   width: var(--landing-column);
@@ -1621,26 +1574,23 @@
   background: var(--landing-levels);
 }
 .landing[data-design='menu'] .landing-foot {
-  align-self: stretch;
   gap: 0;
 }
-.landing[data-design='menu'] :is(.landing-play, .landing-alt, .landing-learn) {
+.landing[data-design='menu'] :is(.landing-mode, .landing-learn) {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-width: 0;
-  height: 56px;
+  height: 60px;
   padding: 0;
   border: 0;
   border-top: 1px solid rgba(236, 241, 255, 0.12);
   border-radius: 0;
   background: none;
-  backdrop-filter: none;
   box-shadow: none;
   animation: none;
-  color: var(--hud-muted);
-  font-size: 20px;
+  color: var(--hud-fg);
+  font-size: 21px;
   font-weight: 600;
   letter-spacing: -0.005em;
   text-align: left;
@@ -1649,98 +1599,53 @@
 }
 .landing[data-design='menu'] .landing-learn {
   border-bottom: 1px solid rgba(236, 241, 255, 0.12);
+  color: var(--hud-muted);
+  font-size: 17px;
 }
-.landing[data-design='menu'] .landing-play {
-  color: var(--hud-fg);
-}
-.landing[data-design='menu'] .landing-play-piece {
+.landing[data-design='menu'] .landing-mode-icon {
   display: none;
 }
 .landing[data-design='menu'] .landing-label {
   flex: 1;
 }
-.landing[data-design='menu'] :is(.landing-play, .landing-alt, .landing-learn)::after {
+.landing[data-design='menu'] .landing-learn::after {
   content: '→';
-  opacity: 0.4;
+  opacity: 0.5;
   transition:
     transform 200ms,
     opacity 200ms;
 }
-.landing[data-design='menu'] :is(.landing-play, .landing-alt, .landing-learn):hover,
-.landing[data-design='menu'] :is(.landing-play, .landing-alt, .landing-learn):focus-visible {
+.landing[data-design='menu'] :is(.landing-mode, .landing-learn):is(:hover, :focus-visible) {
   color: var(--hud-fg);
   outline: none;
   box-shadow: none;
 }
-.landing[data-design='menu'] :is(.landing-play, .landing-alt, .landing-learn):hover::after,
-.landing[data-design='menu'] :is(.landing-play, .landing-alt, .landing-learn):focus-visible::after {
+.landing[data-design='menu'] :is(.landing-mode, .landing-learn):is(:hover, :focus-visible)::after {
   opacity: 1;
   transform: translateX(6px);
 }
-.landing[data-design='menu'] :is(.landing-play, .landing-alt, .landing-learn):focus-visible {
+.landing[data-design='menu'] :is(.landing-mode, .landing-learn):focus-visible {
   text-decoration: underline;
   text-underline-offset: 6px;
 }
 
-/* cinematic: the tower large and the title along the bottom left, like a
-   film's title card, the buttons in a row under it */
-.landing[data-design='cinematic'] .landing-scrim {
-  background:
-    linear-gradient(0deg, rgba(1, 2, 5, 0.94) 0, rgba(1, 2, 5, 0.55) 200px, rgba(1, 2, 5, 0) 400px),
-    linear-gradient(90deg, rgba(1, 2, 5, 0.7) 0, rgba(1, 2, 5, 0) 46%);
+/* panel: a glass card at the left holding the title, the ways to play as two
+   tiles side by side, and the tutorial under them */
+.landing[data-design='panel'] {
+  --landing-card: clamp(300px, 26vw, 380px);
 }
-.landing[data-design='cinematic'] .landing-menu {
-  left: var(--landing-inset);
-  bottom: max(var(--landing-gutter), calc(env(safe-area-inset-bottom) + 24px));
-  display: grid;
-  grid-template-columns: auto auto auto;
-  justify-content: start;
-  align-items: center;
-  column-gap: 12px;
-  row-gap: 20px;
-}
-.landing[data-design='cinematic'] .landing-head {
-  grid-column: 1 / -1;
-}
-.landing[data-design='cinematic'] .landing-foot {
-  display: contents;
-}
-.landing[data-design='cinematic'] h1 {
-  font-size: clamp(56px, 8.4vw, 150px);
-  font-weight: 700;
-  line-height: 0.9;
-  letter-spacing: -0.045em;
-  white-space: nowrap;
-}
-.landing[data-design='cinematic'] .landing-play {
-  min-width: 0;
-  padding: 0 28px 0 22px;
-}
-.landing[data-design='cinematic'] .landing-alt {
-  height: 52px;
-  min-width: 0;
-  padding: 0 24px;
-}
-.landing[data-design='cinematic'] .landing-learn {
-  height: 52px;
-  padding: 0 14px;
-  font-size: 15px;
-}
-
-/* panel: a glass card at the left holding the title and the ways in */
 .landing[data-design='panel'] .landing-scrim {
   background: radial-gradient(ellipse at 60% 50%, rgba(1, 2, 5, 0) 50%, rgba(1, 2, 5, 0.5) 100%);
 }
 .landing[data-design='panel'] .landing-menu {
-  left: var(--landing-inset);
   top: 50%;
   transform: translateY(-50%);
-  width: clamp(260px, 24vw, 340px);
+  width: var(--landing-card);
   box-sizing: border-box;
-  padding: 32px 28px 20px;
+  padding: 28px 24px 24px;
   gap: 20px;
   border: 1px solid rgba(236, 241, 255, 0.12);
-  border-radius: 20px;
+  border-radius: 22px;
   background: linear-gradient(180deg, rgba(18, 21, 31, 0.6), rgba(7, 9, 14, 0.72));
   backdrop-filter: blur(18px) saturate(1.2);
   box-shadow:
@@ -1749,172 +1654,68 @@
 }
 .landing[data-design='panel'] h1 {
   font-size: clamp(34px, 2.8vw, 44px);
-  line-height: 1.1;
+  line-height: 40px;
 }
 .landing[data-design='panel'] .landing-foot {
-  align-self: stretch;
-  align-items: stretch;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
 }
-.landing[data-design='panel'] :is(.landing-play, .landing-alt) {
-  width: 100%;
-  min-width: 0;
+.landing[data-design='panel'] .landing-mode {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  height: 116px;
+  padding: 12px 14px 14px;
+  font-size: 16px;
+  line-height: 1.2;
+}
+.landing[data-design='panel'] .landing-mode .landing-label {
+  flex: none;
+  white-space: normal;
+}
+.landing[data-design='panel'] .landing-mode-icon {
+  width: 60px;
+  height: 44px;
+}
+.landing[data-design='panel'] .landing-mode-icon svg {
+  width: 28px;
+  height: 28px;
+}
+.landing[data-design='panel'] .landing-mode::after {
+  position: absolute;
+  top: 18px;
+  right: 14px;
 }
 .landing[data-design='panel'] .landing-learn {
-  justify-content: center;
-  height: 36px;
-  margin-top: -4px;
-  border-top: 1px solid rgba(236, 241, 255, 0.1);
-  border-radius: 0;
-  padding-top: 16px;
-  box-sizing: content-box;
-}
-
-/* split: a dark panel down the left, ruled off from the tower by the five
-   level colours */
-.landing[data-design='split'] {
-  --landing-panel: clamp(280px, 36vw, 560px);
-}
-.landing[data-design='split'] .landing-scrim {
-  background: linear-gradient(
-    90deg,
-    rgba(1, 2, 5, 0.7) var(--landing-panel),
-    rgba(1, 2, 5, 0) calc(var(--landing-panel) + 120px)
-  );
-}
-.landing[data-design='split'] .landing-menu {
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: var(--landing-panel);
-  box-sizing: border-box;
-  padding: 0 var(--landing-gutter) 0 var(--landing-inset);
-  justify-content: center;
-  gap: 32px;
-  background: radial-gradient(ellipse at 0% 50%, #0a0d16 0, #030409 70%);
-}
-.landing[data-design='split'] .landing-menu::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 2px;
-  background: linear-gradient(0deg, #00d7e0, #58c1ff, #96a7ff, #c48be5, #de77ab);
-  box-shadow: 0 0 18px rgba(150, 167, 255, 0.45);
-}
-.landing[data-design='split'] h1 {
-  font-size: clamp(44px, 5vw, 88px);
-  font-weight: 700;
-  line-height: 0.95;
-  letter-spacing: -0.04em;
-}
-.landing[data-design='split'] h1 span {
-  display: block;
-}
-.landing[data-design='split'] .landing-foot {
-  align-self: stretch;
-  align-items: stretch;
-  gap: 10px;
-  max-width: 340px;
-}
-.landing[data-design='split'] :is(.landing-play, .landing-alt) {
   width: 100%;
-  min-width: 0;
-}
-.landing[data-design='split'] .landing-learn {
-  margin: -22px 0 0 -10px;
-  height: 36px;
-}
-
-/* topbar: a bar across the top with the title and the quieter ways in, the
-   call to action under the tower, which stands in the middle */
-.landing[data-design='topbar'] .landing-scrim {
-  background:
-    linear-gradient(0deg, rgba(1, 2, 5, 0.8) 0, rgba(1, 2, 5, 0) 180px),
-    radial-gradient(ellipse at 50% 50%, rgba(1, 2, 5, 0) 55%, rgba(1, 2, 5, 0.45) 100%);
-}
-.landing[data-design='topbar'] .landing-menu {
-  inset: 0;
-  display: grid;
-  grid-template-columns: var(--landing-inset) 1fr auto auto var(--landing-gutter);
-  grid-template-rows: 64px 1fr auto max(
-      var(--landing-gutter),
-      calc(env(safe-area-inset-bottom) + 24px)
-    );
-  align-items: center;
-  column-gap: 0;
-  pointer-events: none;
-  isolation: isolate;
-}
-.landing[data-design='topbar'] .landing-menu::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 64px;
-  z-index: -1;
-  border-bottom: 1px solid rgba(236, 241, 255, 0.08);
-  background: rgba(4, 5, 9, 0.6);
-  backdrop-filter: blur(12px);
-}
-.landing[data-design='topbar'] :is(.landing-head, .landing-foot) {
-  display: contents;
-}
-.landing[data-design='topbar'] .landing-menu button {
-  pointer-events: auto;
-}
-.landing[data-design='topbar'] h1 {
-  grid-area: 1 / 2;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  text-shadow: none;
-}
-.landing[data-design='topbar'] .landing-alt {
-  grid-area: 1 / 3;
-  height: 40px;
-  min-width: 0;
-  padding: 0 14px;
-  border: 0;
-  background: none;
-  backdrop-filter: none;
-  color: var(--hud-muted);
-  font-size: 14px;
-}
-.landing[data-design='topbar'] .landing-alt:hover {
-  color: var(--hud-fg);
-  background: none;
-}
-.landing[data-design='topbar'] .landing-learn {
-  grid-area: 1 / 4;
-  height: 40px;
-  padding: 0 14px;
-  font-size: 14px;
-}
-.landing[data-design='topbar'] .landing-play {
-  grid-area: 3 / 2 / 4 / 5;
-  justify-self: center;
 }
 
 /* A phone on its side: the type and the buttons a size down */
 @media (max-height: 480px) {
-  .landing:not([data-design='classic']) .landing-play {
-    height: 46px;
+  .landing-mode {
+    height: 48px;
     font-size: 16px;
   }
-  .landing:not([data-design='classic']) .landing-alt {
+  .landing-mode {
+    gap: 10px;
+    padding: 0 14px 0 8px;
+  }
+  .landing-mode-icon {
+    width: 40px;
+    height: 32px;
+  }
+  .landing-learn {
     height: 38px;
     font-size: 14px;
   }
   .landing[data-design='column'] .landing-menu {
-    gap: 18px;
+    gap: 16px;
   }
   .landing[data-design='column'] h1 {
     font-size: 30px;
   }
   .landing[data-design='column'] .landing-learn {
-    margin-top: -10px;
-    height: 30px;
+    margin-top: -6px;
   }
   .landing[data-design='menu'] h1 {
     font-size: 50px;
@@ -1925,70 +1726,49 @@
   .landing[data-design='menu'] .landing-head::after {
     margin-top: 14px;
   }
-  .landing[data-design='menu'] :is(.landing-play, .landing-alt, .landing-learn) {
+  .landing[data-design='menu'] :is(.landing-mode, .landing-learn) {
     height: 44px;
     font-size: 17px;
   }
-  .landing[data-design='cinematic'] h1 {
-    font-size: 48px;
-  }
-  .landing[data-design='cinematic'] .landing-menu {
-    bottom: 20px;
-    row-gap: 14px;
-  }
-  .landing[data-design='cinematic'] :is(.landing-alt, .landing-learn) {
-    height: 46px;
+  .landing[data-design='menu'] .landing-learn {
+    font-size: 15px;
   }
   .landing[data-design='panel'] .landing-menu {
-    padding: 20px 20px 10px;
-    gap: 14px;
+    padding: 18px 18px 18px;
+    gap: 12px;
   }
   .landing[data-design='panel'] h1 {
     font-size: 28px;
+    line-height: 32px;
   }
-  .landing[data-design='panel'] .landing-learn {
-    padding-top: 8px;
-    height: 30px;
+  .landing[data-design='panel'] .landing-mode {
+    height: 96px;
+    padding: 8px 12px 10px;
+    font-size: 15px;
   }
-  .landing[data-design='split'] .landing-menu {
-    gap: 18px;
+  .landing[data-design='panel'] .landing-mode-icon {
+    width: 48px;
+    height: 34px;
   }
-  .landing[data-design='split'] h1 {
-    font-size: 36px;
+  .landing[data-design='panel'] .landing-mode-icon svg {
+    width: 24px;
+    height: 24px;
   }
-  .landing[data-design='split'] .landing-learn {
-    margin-top: -12px;
-    height: 30px;
-  }
-  .landing[data-design='topbar'] .landing-menu {
-    grid-template-rows: 52px 1fr auto 16px;
-  }
-  .landing[data-design='topbar'] .landing-menu::before {
-    height: 52px;
-  }
-  .landing[data-design='topbar'] .landing-play {
-    width: auto;
-    min-width: 240px;
-    padding: 0 28px 0 22px;
-  }
-  .landing[data-design='topbar'] .landing-alt {
-    width: auto;
+  .landing[data-design='panel'] .landing-mode::after {
+    top: 14px;
   }
 }
 
-/* A window as tall as it is wide or taller: the block under the tower */
+/* A window as tall as it is wide or taller: the menu under the tower */
 @media (orientation: portrait) {
-  .landing:not([data-design='classic']) .landing-menu {
-    --landing-under: max(var(--landing-gutter), calc(env(safe-area-inset-bottom) + 24px));
-  }
   .landing[data-design='column'] .landing-scrim,
   .landing[data-design='menu'] .landing-scrim {
     background:
       linear-gradient(
         0deg,
         rgba(1, 2, 5, 0.92) 0,
-        rgba(1, 2, 5, 0.66) 200px,
-        rgba(1, 2, 5, 0) 360px
+        rgba(1, 2, 5, 0.66) 220px,
+        rgba(1, 2, 5, 0) 380px
       ),
       linear-gradient(180deg, rgba(1, 2, 5, 0.6) 0, rgba(1, 2, 5, 0) 120px);
   }
@@ -2005,7 +1785,7 @@
     line-height: 46px;
   }
   .landing[data-design='column'] .landing-learn {
-    margin-top: -14px;
+    margin-top: -6px;
   }
   .landing[data-design='menu'] .landing-menu {
     top: max(24px, var(--landing-gutter));
@@ -2023,37 +1803,11 @@
   .landing[data-design='menu'] .landing-head::after {
     display: none;
   }
-  .landing[data-design='menu'] .landing-foot,
-  .landing[data-design='menu'] .landing-learn {
+  .landing[data-design='menu'] :is(.landing-foot, .landing-learn) {
     max-width: 480px;
   }
   .landing[data-design='menu'] .landing-foot {
     margin-top: auto;
-  }
-  .landing[data-design='cinematic'] .landing-menu {
-    right: var(--landing-gutter);
-    bottom: var(--landing-under);
-    grid-template-columns: 1fr auto;
-    max-width: 480px;
-    column-gap: 8px;
-    row-gap: 10px;
-  }
-  .landing[data-design='cinematic'] .landing-head {
-    margin-bottom: 10px;
-  }
-  .landing[data-design='cinematic'] h1 {
-    font-size: 56px;
-  }
-  .landing[data-design='cinematic'] .landing-play {
-    grid-column: 1 / -1;
-    width: 100%;
-    max-width: none;
-  }
-  .landing[data-design='cinematic'] :is(.landing-alt, .landing-learn) {
-    height: 44px;
-  }
-  .landing[data-design='cinematic'] .landing-alt {
-    width: 100%;
   }
   .landing[data-design='panel'] .landing-menu {
     top: auto;
@@ -2062,56 +1816,11 @@
     bottom: max(16px, env(safe-area-inset-bottom));
     transform: none;
     width: auto;
-    padding: 24px 24px 16px;
+    max-width: 480px;
+    padding: 24px 20px 20px;
   }
   .landing[data-design='panel'] h1 {
     font-size: 34px;
     line-height: 40px;
-  }
-  .landing[data-design='split'] .landing-scrim {
-    background: none;
-  }
-  .landing[data-design='split'] .landing-menu {
-    top: auto;
-    right: 0;
-    width: auto;
-    height: clamp(300px, 38vh, 380px);
-    padding: 0 var(--landing-gutter) env(safe-area-inset-bottom);
-    gap: 24px;
-    background: radial-gradient(ellipse at 50% 100%, #0a0d16 0, #030409 70%);
-  }
-  .landing[data-design='split'] .landing-menu::after {
-    inset: 0 0 auto;
-    width: auto;
-    height: 2px;
-    background: var(--landing-levels);
-  }
-  .landing[data-design='split'] h1 {
-    font-size: 48px;
-  }
-  .landing[data-design='split'] h1 span {
-    display: inline;
-  }
-  .landing[data-design='topbar'] .landing-menu {
-    grid-template-rows: 64px 1fr auto 10px auto var(--landing-under);
-  }
-  .landing[data-design='topbar'] .landing-alt {
-    grid-area: 5 / 2 / 6 / 5;
-    justify-self: center;
-    width: 100%;
-    max-width: 360px;
-    height: 44px;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    background: rgba(10, 12, 18, 0.62);
-    color: var(--hud-fg);
-    font-size: 15px;
-  }
-  .landing[data-design='topbar'] .landing-learn {
-    grid-area: 1 / 3 / 2 / 5;
-    justify-self: end;
-  }
-  .landing[data-design='topbar'] .landing-play {
-    width: 100%;
-    max-width: 360px;
   }
 }

@@ -17,9 +17,9 @@ const { Component: LandingPreview } = lazyChunk(() =>
   import('./LandingPreview').then((m) => ({ default: m.LandingPreview })),
 );
 
-// The home page: the tower playing a game by itself, and the ways in. A new
-// game starts by choosing a side (/new), which asks the server for it; a
-// game against the computer by choosing a side and a level (/computer).
+// The home page: the tower playing a game by itself, and the ways in. A game
+// with a friend starts by choosing a side (/new), which asks the server for
+// it; a game against the computer by choosing a side and a level (/computer).
 const StartScreen: React.FC = () => {
   const navigate = useNavigate();
   const still = useReducedMotion();
@@ -47,20 +47,27 @@ const StartScreen: React.FC = () => {
           </h1>
         </header>
         <div className="landing-foot">
-          <button className="landing-play" onClick={() => navigate('/new')}>
-            <span className="landing-play-piece" aria-hidden>
+          <button className="landing-mode" onClick={() => navigate('/new')}>
+            <span className="landing-mode-icon" aria-hidden>
+              <span className="landing-face">
+                <PieceGlyph type={PieceType.Knight} color="white" size={24} />
+              </span>
               <PieceGlyph type={PieceType.Knight} color="black" size={24} />
             </span>
-            <span className="landing-label">Start a game</span>
+            <span className="landing-label">Play a friend</span>
           </button>
-          <button className="landing-alt" onClick={() => navigate('/computer')}>
+          <button className="landing-mode" onClick={() => navigate('/computer')}>
+            <span className="landing-mode-icon" aria-hidden>
+              <span className="landing-face">
+                <PieceGlyph type={PieceType.Knight} color="white" size={24} />
+              </span>
+              <Chip />
+            </span>
             <span className="landing-label">Play the computer</span>
           </button>
         </div>
-        {/* The way to the tutorial: with the others, or (classic) in the
-            corner across from where the other pages keep Home */}
         <button
-          className="lobby-link landing-learn"
+          className="landing-learn"
           onClick={() => navigate('/learn')}
           // The tutorial's page is a chunk of its own: asked for on the way to the button
           onPointerEnter={learnScreen.preload}
@@ -72,6 +79,19 @@ const StartScreen: React.FC = () => {
     </main>
   );
 };
+
+/** The computer, across the board from the player's knight: a chip, in line with the glyphs. */
+const Chip = () => (
+  <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="currentColor" aria-hidden>
+    <rect x="6" y="6" width="12" height="12" rx="2" strokeWidth={1.6} />
+    <rect x="9.5" y="9.5" width="5" height="5" rx="0.8" strokeWidth={1.2} />
+    <path
+      d="M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3"
+      strokeWidth={1.4}
+      strokeLinecap="round"
+    />
+  </svg>
+);
 
 /** The layout the address asks for (`?design=`), or the default. */
 function useDesign(): LandingDesign {

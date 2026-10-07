@@ -7,7 +7,7 @@ import { getPlayerColor, waitForBoard } from './helpers/board';
 
 const choose = async (page: Page, side: 'White' | 'Black' | 'Random') => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Start a game' }).click();
+  await page.getByRole('button', { name: 'Play a friend' }).click();
   await expect(page).toHaveURL(/\/new$/);
   await expect(page.getByRole('heading', { name: 'Choose your side' })).toBeVisible();
   await page.getByRole('button', { name: new RegExp(`^${side}`) }).click();

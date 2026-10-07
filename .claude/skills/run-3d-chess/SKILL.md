@@ -76,7 +76,7 @@ test('inspect', async ({ browser }) => {
 ```
 
 `helpers/game.ts` — `startGame(browser, { side })` walks the real way in
-(landing page "Start a game" → `/new` "Choose your side" → the side's
+(landing page "Play a friend" → `/new` "Choose your side" → the side's
 button, White by default → the guest opens the link and clicks "Take
 your seat"), waits for both boards (`waitForBoard`: the entrance is over
 and the lobby gone), and returns a `Game`:
