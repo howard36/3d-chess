@@ -358,25 +358,41 @@ export const turnPose = (pose: CameraPose, turn: number): CameraPose => {
  * vertical). Seen from the glass the camera takes the same way for either
  * seat (blendPose, to the opening less the glass's turn); the glass and
  * that way turn together, so the kings' garden turns past as it always has.
+ *
+ * It draws back from rest and reaches the opening still drawing back, at
+ * `pace` (the log of the distance per unit of `t`: the game's dolly sets
+ * off at that pace, so the two are one motion), never first drawing in.
  */
-export const leavePose = (from: CameraPose, to: CameraPose, seat: Side, t: number) => {
+export const leavePose = (from: CameraPose, to: CameraPose, seat: Side, t: number, pace = 0) => {
   const end = leaveGlassTurn(seat);
   const onGlass = blendPose(from, { ...to, azimuth: to.azimuth - end }, t);
   const glass = end * easeInOutCubic(t);
-  return { pose: turnPose(onGlass, glass), glass };
+  // In the log of the distance, from rest to `pace` (a cubic Hermite curve)
+  const k = clamp01(t);
+  const out = Math.log(to.distance / from.distance);
+  const exit = out > 0 ? Math.min(Math.max(pace, 0), 3 * out) : 0;
+  const distance =
+    from.distance * Math.exp((3 * k ** 2 - 2 * k ** 3) * out + (k ** 3 - k ** 2) * exit);
+  return { pose: turnPose({ ...onGlass, distance }, glass), glass };
 };
 
 /**
  * Where the game's camera stands on its first frame in a window this size
  * (IntroDirector's `lobby` entrance: `dolly.from` times the distance
  * FitCameraToBoard fits, on the opening line of sight, about the board's
- * centre) and the fit's lens shift. The lobby ends its leaving exactly
- * there, so its last picture is the game's first.
+ * centre), the fit's lens shift, and that fitted distance (`fit`). The
+ * lobby's leaving reaches it exactly, so its picture is the game's first,
+ * and draws on back with the game's dolly (`fit` times dollyFactor) as the
+ * two change hands.
  */
 /** The last opening worked out, which the leaving asks for every frame (the fit sweeps the orbit's elevations). */
 let lastOpening: {
   key: string;
-  opening: { pose: ReturnType<typeof poseFromDirection>; shift: [number, number] };
+  opening: {
+    pose: ReturnType<typeof poseFromDirection>;
+    shift: [number, number];
+    fit: number;
+  };
 } | null = null;
 
 export const gameOpening = (seat: Side, width: number, height: number, reduced = false) => {
@@ -400,6 +416,8 @@ export const gameOpening = (seat: Side, width: number, height: number, reduced =
     // (the entrance the game will play: under reduced motion it has no dolly)
     pose: { ...pose, distance: distance * introPlan('lobby', reduced).dolly.from },
     shift,
+    // The distance the game's dolly ends on (its first frame's is a share of it)
+    fit: distance,
   };
   lastOpening = { key, opening };
   return opening;

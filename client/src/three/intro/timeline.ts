@@ -42,7 +42,10 @@ export interface IntroPlan {
   total: number;
   /** The whole scene fading up from black. */
   scene: Span;
-  /** The camera closing in, from `from` times the fitted distance. */
+  /**
+   * The camera closing in, from `from` times the fitted distance (or, after
+   * the lobby, below 1, drawing on back out to it).
+   */
   dolly: Span & { from: number };
   /**
    * Level z builds over [start + (z - built) * step, + duration]; the levels
@@ -117,13 +120,14 @@ export function introPlan(variant: IntroVariant, reduced = false): IntroPlan {
   }
   if (variant === 'lobby') {
     // Handed over from the lobby, whose glass is level A and whose last
-    // picture is this one's first: nothing fades up, the tower builds on up
-    // from A while the camera closes in
+    // picture is this one's first: nothing fades up, and the tower builds on
+    // up from A as the camera, under way from the lobby's close view, draws
+    // on back out to the fit (lobbyMotion's leavePose meets its pace)
     return finish({
       variant,
       reduced: false,
       scene: span(0, 0),
-      dolly: { ...span(0, 2.3), from: 2.4 },
+      dolly: { ...span(0, 2.3), from: 0.75 },
       levels: { ...span(0.1, 1), step: 0.32, built: 1 },
       labels: { ...span(1.9, 0.5), stagger: 0.35 },
       pieces: { ...span(1.8, 0.55), spread: 1 },
@@ -154,7 +158,7 @@ export const sceneFade = (plan: IntroPlan, t: number) => through(plan.scene, t);
 
 /**
  * The camera's distance at `t`, as a multiple of the fitted distance: from
- * `dolly.from` down to exactly 1, easing out. Eased in proportion rather than
+ * `dolly.from` to exactly 1, easing out. Eased in proportion rather than
  * in length (each frame closes the same share of what is left), so the
  * tower grows on screen at an even pace instead of rushing in at the end.
  */
@@ -162,6 +166,14 @@ export const dollyFactor = (plan: IntroPlan, t: number) => {
   const k = easeOutCubic(through(plan.dolly, t));
   return k >= 1 ? 1 : plan.dolly.from ** (1 - k);
 };
+
+/**
+ * How fast the dolly sets off (the log of the distance, per second; positive
+ * drawing out), so a camera already under way can hand over to it at its
+ * own pace: the lobby's.
+ */
+export const dollyPace = (plan: IntroPlan) =>
+  plan.dolly.duration > 0 ? (-3 * Math.log(plan.dolly.from)) / plan.dolly.duration : 0;
 
 /** How far level `z` (0 = A) has built at `t`, 0 to 1 (the shaders ease their own parts). */
 export const levelBuild = (plan: IntroPlan, z: number, t: number) =>

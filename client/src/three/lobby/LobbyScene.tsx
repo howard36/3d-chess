@@ -12,9 +12,9 @@ import { LAYER } from '../scene/layers';
 import { CoinKing, LobbyKing } from './LobbyKing';
 import type { KingPair } from './LobbyKing';
 import { Levels } from '../scene/plates';
-import { IntroContext } from '../intro/clock';
+import { IntroContext, lobbyHandover } from '../intro/clock';
 import type { IntroClock } from '../intro/clock';
-import { introPlan } from '../intro/timeline';
+import { dollyFactor, dollyPace, introPlan } from '../intro/timeline';
 import { setLensShift } from '../viewOffset';
 import {
   arrivalRing,
@@ -205,6 +205,7 @@ const LobbyRig = ({
   const from = useRef<CameraPose | null>(null);
   const current = useRef<CameraPose | null>(null);
   const left = useRef(false);
+  const revealed = useRef(false);
   const shifted = useRef(false);
   // It asked for no frame last time: this frame's delta may be a rest
   const rested = useRef(true);
@@ -213,6 +214,13 @@ const LobbyRig = ({
   // reduced motion)
   const entered = useRef(still ? Infinity : 0);
   useEffect(() => invalidate(), [size, view.beat, view.card, invalidate]);
+  // Taken down mid-way, it leaves the game's entrance to run on its own
+  useEffect(
+    () => () => {
+      lobbyHandover.t = null;
+    },
+    [],
+  );
 
   useFrame((_, delta) => {
     const aspect = size.width / Math.max(size.height, 1);
@@ -259,17 +267,24 @@ const LobbyRig = ({
     }
     if (beat === 'leave') {
       // Out to where the game's camera stands on its first frame, taking
-      // on its lens shift as it goes: the lobby's last picture is the
-      // game's first, level A's glass in the same place, and the canvases
-      // change hands under it unseen. The glass turns as it goes, so it
-      // turns the same on screen for either seat
+      // on its lens shift as it goes: the lobby's picture is the game's
+      // first, level A's glass in the same place. The glass turns as it
+      // goes, so it turns the same on screen for either seat. It gets
+      // there still drawing back, at the pace the game's dolly sets off
+      // at, and draws on back with it while the canvases change hands
+      // (the game's entrance running under the fade): one motion, out
       from.current ??= current.current ?? rest;
       const opening = gameOpening(view.seat, size.width, size.height, still);
+      const plan = introPlan('lobby', still);
       const start = still ? 0 : LOBBY_TIMING.leaveBurn * 0.4;
       const span = still ? 0.15 : LOBBY_TIMING.leaveMove;
       const k = Math.min(Math.max((since - start) / span, 0), 1);
-      const leaving = leavePose(from.current, opening.pose, view.seat, k);
+      const leaving = leavePose(from.current, opening.pose, view.seat, k, dollyPace(plan) * span);
       pose = leaving.pose;
+      const after = since - start - span;
+      if (after > 0) pose = { ...pose, distance: opening.fit * dollyFactor(plan, after) };
+      // (the game's entrance keeps to this moment while the lobby fades off it)
+      lobbyHandover.t = after >= 0 && !left.current ? after : null;
       if (glass.current) glass.current.rotation.y = leaving.glass;
       const eased = k * k * (3 - 2 * k);
       setLensShift(
@@ -284,15 +299,21 @@ const LobbyRig = ({
       const fade = still ? 0.1 : LOBBY_TIMING.leaveFade;
       const opacity = Math.min(Math.max((start + span + fade - since) / fade, 0), 1);
       if (canvasHost.current) canvasHost.current.style.opacity = String(opacity);
+      if (after >= 0 && !revealed.current) {
+        revealed.current = true;
+        onReveal();
+      }
       if (opacity <= 0 && !left.current) {
         left.current = true;
-        onReveal();
+        lobbyHandover.t = null;
         onLeft();
       }
       moving = !left.current;
     } else {
       from.current = null;
       left.current = false;
+      revealed.current = false;
+      lobbyHandover.t = null;
       if (glass.current) glass.current.rotation.y = 0;
       dim.current = LOBBY_DIM;
       if (shifted.current) {

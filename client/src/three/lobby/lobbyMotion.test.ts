@@ -40,7 +40,7 @@ import {
   turnPose,
 } from './lobbyMotion';
 import type { CameraPose, Side } from './lobbyMotion';
-import { introPlan } from '../intro/timeline';
+import { dollyPace, introPlan } from '../intro/timeline';
 
 // Behaviour, not tuning: the timings, heights and framing shares are the
 // design's to change; what the scene relies on is tested here.
@@ -450,6 +450,31 @@ describe('handing over to the game', () => {
     }
   });
 
+  it('draws back all the way, arriving at the pace the game draws on back at', () => {
+    for (const [w, h] of [
+      [1280, 800],
+      [390, 844],
+    ]) {
+      const from = lobbyPose(w / h);
+      const to = gameOpening('white', w, h).pose;
+      expect(from.distance).toBeLessThan(to.distance);
+      const pace = dollyPace(introPlan('lobby')) * LOBBY_TIMING.leaveMove;
+      const distance = (t: number) => leavePose(from, to, 'white', t, pace).pose.distance;
+      let last = 0;
+      for (const t of samples(0, 1, 100)) {
+        expect(distance(t)).toBeGreaterThanOrEqual(last - 1e-9);
+        last = distance(t);
+      }
+      expect(distance(0)).toBeCloseTo(from.distance, 12);
+      expect(distance(1)).toBeCloseTo(to.distance, 9);
+      // From rest, and at the end on at the game's pace, not stopping
+      const dt = 1e-6;
+      expect(Math.log(distance(dt) / distance(0)) / dt).toBeCloseTo(0, 3);
+      expect(Math.log(distance(1) / distance(1 - dt)) / dt).toBeCloseTo(pace, 3);
+      expect(pace).toBeGreaterThan(0);
+    }
+  });
+
   it('turns a pose about the vertical as three.js turns an object', () => {
     const pose: CameraPose = { target: [1, 2, 0.5], azimuth: 0.3, elevation: 0.4, distance: 7 };
     const turned = turnPose(pose, 0.9);
@@ -480,13 +505,12 @@ describe('handing over to the game', () => {
     // The same framing from either side, round the tower
     expect(black.pose.distance).toBeCloseTo(white.pose.distance, 9);
     expect(black.shift).toEqual(white.shift);
+    expect(white.pose.distance).toBeCloseTo(white.fit * introPlan('lobby').dolly.from, 9);
     // Under reduced motion the game has no dolly, so the lobby stops where it fits
     const reduced = gameOpening('white', 1280, 800, true);
-    expect(reduced.pose.distance / introPlan('lobby', true).dolly.from).toBeCloseTo(
-      white.pose.distance / introPlan('lobby').dolly.from,
-      9,
-    );
-    expect(reduced.pose.distance).toBeLessThan(white.pose.distance);
+    expect(reduced.fit).toBeCloseTo(white.fit, 9);
+    expect(reduced.pose.distance).toBeCloseTo(reduced.fit, 9);
+    expect(reduced.pose.distance).toBeGreaterThan(white.pose.distance);
   });
 
   it('answers a king set on its seat with a ring that is gone by the time it has formed', () => {

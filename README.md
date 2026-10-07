@@ -438,7 +438,8 @@ after the king strikes and travels at 15, and the card follows 1.3 s after the s
 game starts while the page is open and 1.3 when the page opens on a game already under
 way (a reload, a rejoin), and about 3.6 after the lobby (the `lobby` variant: see The
 lobby). The night fades up (except after the lobby, whose last picture is the entrance's
-first, level A already standing) and the camera closes in (see Camera) while the tower
+first, level A already standing) and the camera closes in (see Camera; after the lobby
+it draws on back out instead, under way from the lobby's close view) while the tower
 draws itself in light, level by level from A up, each overlapping the next.
 A level's edge grows out of its four corners along its sides to meet in their middles,
 a white-hot tip at each front; its hairlines run in across it from both ends, the outer
@@ -683,18 +684,22 @@ until the row fits the width).
   column `arriveLight` (0.4 s) later, so it follows the new king going solid and the ring
   rather than competing with them (on the guest's page both columns come on at once), and
   at `arriveLift` (0.65 s) both lift together on both pages. Then `leave`: both rise on up in their columns of light and are taken up
-  into them from the foot (`uGone`), level A's glass stays, and the camera draws out to
+  into them from the foot (`uGone`), level A's glass stays, and the camera draws back to
   exactly the game's first-frame pose
-  (`gameOpening`: the fitted distance times the `lobby` entrance's `dolly.from`, on the
-  opening line of sight from the player's seat, with the fit's lens shift) while the
-  sculptures come back up to the game's brightness. The glass and the kings turn a quarter
+  (`gameOpening`: the fitted distance times the `lobby` entrance's `dolly.from`, 0.75, on
+  the opening line of sight from the player's seat, with the fit's lens shift) while the
+  sculptures come back up to the game's brightness. It gets there still drawing back, at
+  the pace the game's dolly sets off at (`dollyPace`), so the lobby's move and the game's
+  are one motion out, never a stop and never a turn back in. The glass and the kings turn a quarter
   turn under it as it goes (`leavePose`), one way for White and the other for Black, so the
   glass turns the same on screen for either seat (-74°, the average of the camera's +16°
-  and -164° round the tower) and, being square, ends just as the game's level A stands. The lobby's canvas then fades over an
-  identical first frame of the game's (`leaveFade`), and only then (`onReveal`, `onLeft`)
-  does the game's entrance run its `lobby` variant (`three/intro/timeline.ts`): level A
-  stands from the start (`levels.built`), nothing fades up, and B to E build on up from A
-  while the camera closes in and the armies form, in about 3.6 s. A host whose tab is
+  and -164° round the tower) and, being square, ends just as the game's level A stands. There
+  the game's entrance starts its `lobby` variant (`onReveal`; `three/intro/timeline.ts`)
+  under the lobby's canvas, which fades off it (`leaveFade`, then `onLeft`) as both draw
+  on back along the game's dolly: the entrance keeps to the moment the lobby shows
+  (`lobbyHandover`) until the lobby has gone, so the two pictures are one. Level A stands
+  from the start (`levels.built`), nothing fades up, and B to E build on up from A as the
+  camera draws on back to the fit and the armies form, in about 3.6 s. A host whose tab is
   hidden when the guest arrives gets the title "● Opponent joined · 3D Chess", and the
   arrival waits for them (a hidden tab draws no frames). A page that opens on a game
   already under way skips the lobby and plays the short entrance.

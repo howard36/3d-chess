@@ -88,7 +88,8 @@ export interface GameViewProps {
  * when the board takes input; this view adds only the game's entrance.
  *
  * The entrance (IntroDirector) plays on the canvas's clock: the camera
- * closes in as the tower builds itself level by level, the pieces form, and
+ * closes in (after the lobby, draws on back out) as the tower builds itself
+ * level by level, the pieces form, and
  * the pill fades in last. The board takes no input until it is over; the
  * canvas's wrapper carries `data-intro` ("playing", then "done") for tests
  * and tools.

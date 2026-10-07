@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { addAfterEffect, useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
+import { lobbyHandover } from './clock';
 import type { IntroClock } from './clock';
 import { dollyFactor, hudFade, introDone, sceneFade } from './timeline';
 import { INTRO_HUD_VAR, INTRO_SCENE_VAR } from './vars';
@@ -121,7 +122,10 @@ export function IntroDirector({
     // and a hold asks for no frames, so the first after it is handed the whole
     // hold as its delta: taken, it threw the lobby's handover a quarter of a
     // second into the dolly in one frame.)
-    if (running.current && !paused)
+    // (while the lobby's picture fades off this one, the moment it shows)
+    if (plan.variant === 'lobby' && lobbyHandover.t !== null)
+      clock.t = Math.min(lobbyHandover.t, plan.total);
+    else if (running.current && !paused)
       clock.t = Math.min(clock.t + Math.min(delta, MAX_STEP), plan.total);
     running.current = !paused;
     if (introDone(plan, clock.t)) {
