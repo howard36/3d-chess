@@ -14,6 +14,14 @@ export interface IntroClock {
   t: number;
 }
 
+/**
+ * The moment of the game's `lobby` entrance that the lobby's picture shows
+ * while it fades off the game's (seconds; null at any other time). The
+ * entrance keeps to it until the lobby has gone and then runs on from it,
+ * so the two canvases show one picture, in motion, as they change hands.
+ */
+export const lobbyHandover: { t: number | null } = { t: null };
+
 /** No entrance: everything is already in its final state. */
 export const FINISHED: IntroClock = Object.freeze({ plan: introPlan('none'), t: Infinity });
 
