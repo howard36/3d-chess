@@ -15,6 +15,8 @@ export const LANDING_DESIGNS = [
   'menu',
   'menu-buttons',
   'menu-tiles',
+  'menu-tiles-centred',
+  'menu-tiles-stacked',
   'menu-cards',
   'menu-pair',
   'menu-type',
@@ -67,6 +69,33 @@ const menuBands = (
   left: beside(column),
 });
 
+/** An upright window this wide or wider is a tablet (index.css: min-width: 600px). */
+const TABLET_PX = 600;
+const tablet = (width: number, height: number) => upright(width, height) && width >= TABLET_PX;
+/** The menu's two-line title in a tablet: its size `vw` of the width, between `lo` and `hi` px, lines of 0.92. */
+const tabletTitle = (width: number, vw: number, lo: number, hi: number) =>
+  2 * 0.92 * clamp(lo, vw * width, hi);
+/** The rule under the title (index.css: .landing-head::after, 20 px under it). */
+const RULE = 22;
+/** A tablet's tiles (132 px) and the tutorial's button under them. */
+const TABLET_TILES = 132 + 14 + LEARN;
+/**
+ * The tiles' bands: everywhere as the other menu-* layouts', but in a
+ * tablet what the menu takes above the tower (`top`, past the gutter; only
+ * the edge without) and under it (`bottom`, over the gutter), in px.
+ */
+const tilesBands = (room: {
+  top?: (width: number) => number;
+  bottom: (width: number) => number;
+}): LandingBands => {
+  const rest = menuBands(116 + 14 + LEARN);
+  return {
+    top: (h, w) => (tablet(w, h) ? (room.top ? room.top(w) + GAP : EDGE) : rest.top(h, w)),
+    bottom: (h, w) => (tablet(w, h) ? room.bottom(w) + under(w) + GAP : rest.bottom(h, w)),
+    left: rest.left,
+  };
+};
+
 export const LANDING_BANDS: Record<LandingDesign, LandingBands> = {
   // The title over the menu in a column at the left, the tower right of it
   column: {
@@ -78,7 +107,17 @@ export const LANDING_BANDS: Record<LandingDesign, LandingBands> = {
   // them out (rows, buttons, tiles, cards, a pair of pills, large type)
   menu: menuBands(3 * 60),
   'menu-buttons': menuBands(MODE + 10 + MODE + 14 + LEARN),
-  'menu-tiles': menuBands(116 + 14 + LEARN),
+  // The tiles: in an upright tablet, three ways round the tower
+  'menu-tiles': tilesBands({
+    bottom: (w) => Math.max(tabletTitle(w, 0.11, 72, 112) + RULE, TABLET_TILES),
+  }),
+  'menu-tiles-centred': tilesBands({
+    top: (w) => under(w) + tabletTitle(w, 0.11, 72, 112) + RULE,
+    bottom: () => TABLET_TILES,
+  }),
+  'menu-tiles-stacked': tilesBands({
+    bottom: (w) => tabletTitle(w, 0.095, 64, 96) + RULE + 28 + TABLET_TILES,
+  }),
   'menu-cards': menuBands(150 + 14 + LEARN),
   'menu-pair': menuBands(56 + 12 + 40, (w) => clamp(300, 0.3 * w, 440)),
   'menu-type': menuBands(2 * 57 + 6 + 22 + LEARN),
