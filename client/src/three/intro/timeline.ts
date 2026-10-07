@@ -117,17 +117,18 @@ export function introPlan(variant: IntroVariant, reduced = false): IntroPlan {
   }
   if (variant === 'lobby') {
     // Handed over from the lobby, whose glass is level A and whose last
-    // picture is this one's first: nothing fades up, the tower builds on up
-    // from A while the camera closes in
+    // picture is this one's first: nothing fades up, and the camera stands
+    // where the lobby brought it to rest (lobbyMotion's leavePose) as the
+    // tower builds on up from A
     return finish({
       variant,
       reduced: false,
       scene: span(0, 0),
-      dolly: { ...span(0, 2.3), from: 2.4 },
-      levels: { ...span(0.1, 1), step: 0.32, built: 1 },
-      labels: { ...span(1.9, 0.5), stagger: 0.35 },
-      pieces: { ...span(1.8, 0.55), spread: 1 },
-      hud: span(2.8, 0.5),
+      dolly: { ...span(0, 0), from: 1 },
+      levels: { ...span(0.1, 0.9), step: 0.28, built: 1 },
+      labels: { ...span(1.5, 0.5), stagger: 0.35 },
+      pieces: { ...span(1.35, 0.55), spread: 1 },
+      hud: span(2.3, 0.5),
     });
   }
   return finish({
@@ -154,7 +155,7 @@ export const sceneFade = (plan: IntroPlan, t: number) => through(plan.scene, t);
 
 /**
  * The camera's distance at `t`, as a multiple of the fitted distance: from
- * `dolly.from` down to exactly 1, easing out. Eased in proportion rather than
+ * `dolly.from` to exactly 1, easing out. Eased in proportion rather than
  * in length (each frame closes the same share of what is left), so the
  * tower grows on screen at an even pace instead of rushing in at the end.
  */

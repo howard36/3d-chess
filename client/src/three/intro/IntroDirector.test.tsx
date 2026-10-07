@@ -8,6 +8,7 @@ import { hudTop } from '../cameraFit';
 import { layout } from '../scene/palette';
 import { lensShiftOf } from '../viewOffset';
 import { IntroDirector, INTRO_HUD_VAR, INTRO_SCENE_VAR } from './IntroDirector';
+import { lobbyHandover } from './clock';
 import type { IntroClock } from './clock';
 import { dollyFactor, introPlan } from './timeline';
 
@@ -17,7 +18,7 @@ const { act } = ReactThreeTestRenderer;
  * The game's camera (FitCameraToBoard, as GameView mounts it) with the
  * entrance's director, and stand-in orbit controls.
  */
-async function mount(variant: 'full' | 'short', paused = false) {
+async function mount(variant: 'full' | 'short' | 'lobby', paused = false) {
   const camera = new PerspectiveCamera(36, 1280 / 720, 0.1, 1000);
   camera.position.set(...layout.viewDirection);
   const controls = {
@@ -142,6 +143,32 @@ describe('the entrance’s camera', () => {
     expect(view.camera.position.length()).toBeCloseTo(view.fitted * 2.4, 5);
     await view.frames(1);
     expect(view.clock.t).toBeCloseTo(1 / 30, 9);
+  });
+
+  it('keeps to the moment the lobby shows as it fades off, then runs on from there', async () => {
+    const view = await mount('lobby', true);
+    await view.frames(1);
+    try {
+      // The lobby under way over it: the entrance shows its moment, even
+      // before it is let go (and whatever its frames' deltas)
+      lobbyHandover.t = 0.05;
+      await view.frames(1, 4);
+      expect(view.clock.t).toBe(0.05);
+      await view.unpause();
+      lobbyHandover.t = 0.2;
+      await view.frames(1);
+      expect(view.clock.t).toBe(0.2);
+      expect(view.camera.position.length()).toBeCloseTo(
+        view.fitted * dollyFactor(view.clock.plan, 0.2),
+        5,
+      );
+      // Gone: on from there, at its own pace
+      lobbyHandover.t = null;
+      await view.frames(1);
+      expect(view.clock.t).toBeCloseTo(0.2 + 1 / 30, 9);
+    } finally {
+      lobbyHandover.t = null;
+    }
   });
 
   it('never skips ahead on a stalled frame', async () => {

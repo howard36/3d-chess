@@ -20,38 +20,73 @@ const ray = (from: [number, number, number], to: [number, number, number]): Hove
 };
 const camera: [number, number, number] = [0, 4, 6];
 
+const none = new Map<string, number>();
+/** Destinations whose marks fill their squares. */
+const whole = (...keys: string[]) => new Map(keys.map((k) => [k, 1]));
+const keyOf = (hit: ReturnType<typeof resolveHover>) => hit?.key ?? null;
+
 describe('resolveHover', () => {
   it('finds the square whose floor is under the pointer, not the one in front of it', () => {
     // Aimed at the middle of A2: a tall box on A1 would catch this ray first
-    expect(resolveHover(ray(camera, [0, 0, -1]), floors, half, null, new Set())).toBe('A2');
-    expect(resolveHover(ray(camera, [0, 0, -2]), floors, half, null, new Set())).toBe('A3');
+    expect(resolveHover(ray(camera, [0, 0, -1]), floors, half, null, none)).toEqual({
+      key: 'A2',
+      on: 'floor',
+    });
+    expect(keyOf(resolveHover(ray(camera, [0, 0, -2]), floors, half, null, none))).toBe('A3');
   });
 
   it('takes the first platform the ray crosses when two levels overlap on screen', () => {
     // Toward A3 through B's platform: B's square is nearer
     const r = ray([0, 8, 6], [0, 0, -2]);
-    expect(resolveHover(r, floors, half, null, new Set())).toMatch(/^B/);
+    expect(keyOf(resolveHover(r, floors, half, null, none))).toMatch(/^B/);
   });
 
   it('prefers a piece under the pointer to the floor, even a nearer floor', () => {
     const r = ray([0, 8, 6], [0, 0, -2]);
-    expect(resolveHover(r, floors, half, { key: 'A3', distance: 12 }, new Set())).toBe('A3');
+    expect(resolveHover(r, floors, half, { key: 'A3', distance: 12 }, none)).toEqual({
+      key: 'A3',
+      on: 'piece',
+    });
   });
 
   it('but lets a nearer legal destination win over a piece, as a click would', () => {
     const r = ray([0, 8, 6], [0, 0, -2]);
-    const onB = resolveHover(r, floors, half, null, new Set())!;
-    expect(resolveHover(r, floors, half, { key: 'A3', distance: 12 }, new Set([onB]))).toBe(onB);
+    const onB = keyOf(resolveHover(r, floors, half, null, none))!;
+    expect(resolveHover(r, floors, half, { key: 'A3', distance: 12 }, whole(onB))).toEqual({
+      key: onB,
+      on: 'mark',
+    });
     // A destination behind the piece does not
-    expect(resolveHover(r, floors, half, { key: 'B2', distance: 1 }, new Set(['A3']))).toBe('B2');
+    expect(keyOf(resolveHover(r, floors, half, { key: 'B2', distance: 1 }, whole('A3')))).toBe(
+      'B2',
+    );
+  });
+
+  it("takes a destination only on its mark: its square's corners reach a mark beneath", () => {
+    // Straight down through B1's corner onto A1's middle
+    const down: [number, number, number] = [0.4, 5, -0.4];
+    const r = { origin: down, direction: [0, -1, 0] as [number, number, number] };
+    const marks = new Map([
+      ['B1', 0.22],
+      ['A1', 0.6],
+    ]);
+    expect(resolveHover(r, floors, half, null, marks)).toEqual({ key: 'A1', on: 'mark' });
+    // With no mark beneath, the pointer is on B1's floor, not its mark
+    expect(resolveHover(r, floors, half, null, new Map([['B1', 0.22]]))).toEqual({
+      key: 'B1',
+      on: 'floor',
+    });
+    // Through B1's mark itself, B1's mark
+    const mid = { origin: [0, 5, 0] as [number, number, number], direction: r.direction };
+    expect(resolveHover(mid, floors, half, null, marks)).toEqual({ key: 'B1', on: 'mark' });
   });
 
   it('is nothing off the board, or for a ray running level', () => {
-    expect(resolveHover(ray(camera, [5, 0, 0]), floors, half, null, new Set())).toBeNull();
+    expect(resolveHover(ray(camera, [5, 0, 0]), floors, half, null, none)).toBeNull();
     expect(
-      resolveHover({ origin: [0, 0.5, 5], direction: [0, 0, -1] }, floors, half, null, new Set()),
+      resolveHover({ origin: [0, 0.5, 5], direction: [0, 0, -1] }, floors, half, null, none),
     ).toBeNull();
     // Looking up and away from every floor
-    expect(resolveHover(ray(camera, [0, 9, 0]), floors, half, null, new Set())).toBeNull();
+    expect(resolveHover(ray(camera, [0, 9, 0]), floors, half, null, none)).toBeNull();
   });
 });
