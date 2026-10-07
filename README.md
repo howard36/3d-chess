@@ -417,7 +417,7 @@ move's source to its destination, and a king in check turns red among four clust
 marks look the same from every angle, and a destination takes the pointer and the click on its
 circle alone (`MARK_RADIUS`), so a square's empty corners reach a circle beneath. While the pointer is on a level (a square of it, a piece
 or a destination), the other levels step back: their glass, edges and marks give up a share of
-their light (55%; `?tune` on any page shows a slider for it, `client/src/tuning.ts`), and their
+their light (60%, `STEP_BACK` in `three/scene/focus.ts`), and their
 pieces take a light haze (both armies lose the same share of their contrast against the night)
 while the level's own pieces stand forward a little. Holding a piece
 steps nothing back: its moves to other levels count as much as those on its own. A

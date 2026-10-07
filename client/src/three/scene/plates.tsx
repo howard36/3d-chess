@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   BufferAttribute,
@@ -10,8 +10,7 @@ import {
   ShaderMaterial,
 } from 'three';
 import { GRID_SIZE } from '../layout';
-import { LEVEL_FOCUS_MS, useLevelFocus } from './focus';
-import { getStepBack, subscribeStepBack } from '../../tuning';
+import { LEVEL_FOCUS_MS, STEP_BACK, useLevelFocus } from './focus';
 import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
 import { GRID_LINES } from './gridLines';
@@ -32,7 +31,7 @@ import { levelBuild } from '../intro/timeline';
 // the others ease back part of the way, still clearly there, their inner
 // hairlines thinner; each level's frost leans toward its own hue, so the
 // nested checkers part by colour. The level the pointer is on brightens its
-// lines and edge; the others step back well behind it (the share of their light in getStepBack, tuning.ts), glass,
+// lines and edge; the others step back well behind it (STEP_BACK), glass,
 // lines and edge.
 
 // How a level builds itself in the game's entrance (intro/timeline.ts: its
@@ -84,11 +83,11 @@ const fragmentShader = /* glsl */ `
   uniform float uWidth;
   uniform float uFocus;
   uniform float uDim;
-  uniform float uStepBack;
   uniform float uLead;
   uniform float uBuild;
   varying vec2 vCell;
   varying vec3 vWorld;
+  #define STEP_BACK ${STEP_BACK.toFixed(3)}
   ${GRID_LINES}
   ${BUILD_GLSL}
 
@@ -119,7 +118,7 @@ const fragmentShader = /* glsl */ `
     float back = above * (1.0 - uLead);
     float keep = (1.0 - mix(0.15, 0.3, back) * above) * mix(1.0, 0.5, back) * (1.0 + 0.35 * grazing);
     // The level pointed at a little more; the others well back
-    float attended = 1.0 - uStepBack * uDim;
+    float attended = 1.0 - STEP_BACK * uDim;
     float focus = (1.0 + 0.25 * uFocus) * attended;
     vec3 frost = mix(uFrost, uColor, 0.5 * above);
     // Built (the game's entrance): the glass floods in from its edge to its
@@ -421,11 +420,6 @@ export const Levels = ({
   const edge = useMemo(() => rimGeometry(REACH, EDGE_WIDTH, EDGE_HEIGHT), []);
   useEffect(() => () => plane.dispose(), [plane]);
   useEffect(() => () => edge.dispose(), [edge]);
-  // How far the levels the pointer is not on step back (tuning.ts), shared by
-  // every level's glass; a change applies the focus again (focusKey)
-  const stepBack = useSyncExternalStore(subscribeStepBack, getStepBack);
-  const stepBackUniform = useMemo(() => ({ value: getStepBack() }), []);
-  stepBackUniform.value = stepBack;
   const materials = useMemo(
     () =>
       LEVEL_COLORS.map((hex, z) => {
@@ -456,7 +450,6 @@ export const Levels = ({
               uWidth: { value: 0.011 },
               uFocus: { value: 0 },
               uDim: { value: 0 },
-              uStepBack: stepBackUniform,
               uLead: { value: z === LEVEL_COLORS.length - 1 ? 1 : 0 },
               uHalf: { value: FRAME.half },
               uPitch: { value: FRAME.pitch },
@@ -484,7 +477,7 @@ export const Levels = ({
           build,
         };
       }),
-    [stepBackUniform],
+    [],
   );
   useEffect(
     () => () =>
@@ -512,7 +505,6 @@ export const Levels = ({
     sides.opacity = caps.opacity;
     sides.color.copy(caps.color);
   };
-  const focusKey = useMemo(() => ({ materials, stepBack }), [materials, stepBack]);
   useLevelFocus(
     focusLevel,
     (weights, any) => {
@@ -525,11 +517,11 @@ export const Levels = ({
         // The lead from above: the level attended to, else the top one
         const top = z === weights.length - 1 ? 1 : 0;
         m.glass.uniforms.uLead.value = Math.min(1, w + (1 - any) * top);
-        edgeLight.current[z] = EDGE * (1 - stepBack * dim) + (1 - EDGE) * w;
+        edgeLight.current[z] = EDGE * (1 - STEP_BACK * dim) + (1 - EDGE) * w;
         applyEdge(z);
       });
     },
-    { ms: LEVEL_FOCUS_MS, key: focusKey },
+    { ms: LEVEL_FOCUS_MS, key: materials },
   );
 
   // The entrance: each level's build, read from the intro clock every frame

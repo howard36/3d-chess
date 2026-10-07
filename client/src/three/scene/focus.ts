@@ -16,6 +16,13 @@ export const focusLevelOf = (focus: LevelFocus | null | undefined): number | nul
 export const LEVEL_FOCUS_MS = 160;
 
 /**
+ * The share of its light a level gives up while the pointer is on another
+ * (its glass, its lines, its edge and the marks lying on it), so the level
+ * pointed at reads clearly through the rest.
+ */
+export const STEP_BACK = 0.6;
+
+/**
  * One eased weight per level, 1 for `focusLevel` and 0 for the others,
  * moving at a steady rate so a change of focus takes `ms` (a calm ease, never
  * a pulse). `onChange` gets the weights each frame they move, and once when
