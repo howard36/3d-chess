@@ -64,7 +64,8 @@ const vertexShader = /* glsl */ `
     vec4 w = modelMatrix * vec4(position, 1.0);
     vWorld = w.xyz;
     // Squares from the board's corner: lines fall on whole numbers, 0 to 5
-    vCell = (w.xz * vec2(1.0, -1.0) + uHalf) / uPitch;
+    // (in the glass's own frame, so they turn with it: the lobby's leaving)
+    vCell = (position.xz * vec2(1.0, -1.0) + uHalf) / uPitch;
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
@@ -304,7 +305,8 @@ const rimGeometry = (inner: number, width: number, height: number) => {
  * its top and bottom), its top or its underside (crossing their planes within
  * the band). Those are the only faces that can lie over an inner side on
  * screen. `top` is the level's height: the ring's measures in world space are
- * its inner and outer half-sides and its top and bottom.
+ * its inner and outer half-sides and its top and bottom, taken in the ring's
+ * own frame (turned with it about the tower's axis: the lobby's leaving).
  */
 const rimShader = (m: MeshBasicMaterial, top: number, inner: boolean, build: { value: number }) => {
   const shape = {
@@ -318,16 +320,22 @@ const rimShader = (m: MeshBasicMaterial, top: number, inner: boolean, build: { v
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shape);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vRimWorld;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vRim;\nvarying vec3 vRimCam;')
       .replace(
         '#include <project_vertex>',
-        '#include <project_vertex>\nvRimWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+        // The point and the camera in the ring's frame: world space turned
+        // back by the ring's turn about the vertical (it is only ever moved
+        // up the axis, so that is all its matrix holds besides)
+        `#include <project_vertex>
+        vRim = transformed + modelMatrix[3].xyz;
+        vRimCam = transpose(mat3(modelMatrix)) * cameraPosition;`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
         `#include <common>
-        varying vec3 vRimWorld;
+        varying vec3 vRim;
+        varying vec3 vRimCam;
         uniform float uRimInner;
         uniform float uRimOuter;
         uniform float uRimTop;
@@ -350,8 +358,8 @@ const rimShader = (m: MeshBasicMaterial, top: number, inner: boolean, build: { v
         inner
           ? `void main() {
         {
-          vec3 c = cameraPosition;
-          vec3 d = vRimWorld - c;
+          vec3 c = vRimCam;
+          vec3 d = vRim - c;
           // Entering the outer square's column: through the near outer side?
           vec2 sd = vec2(abs(d.x) < 1e-6 ? 1e-6 : d.x, abs(d.z) < 1e-6 ? 1e-6 : d.z);
           vec2 ta = (vec2(-uRimOuter) - c.xz) / sd;
@@ -373,7 +381,7 @@ const rimShader = (m: MeshBasicMaterial, top: number, inner: boolean, build: { v
           float k = buildPhase(uBuild, 0.0, EDGE_TO);
           k = 1.0 - (1.0 - k) * (1.0 - k);
           // How far along its side from the nearer corner, 0 there to 1 in the middle
-          vec2 q = abs(vRimWorld.xz) / uRimInner;
+          vec2 q = abs(vRim.xz) / uRimInner;
           float s = clamp(1.0 - min(q.x, q.y), 0.0, 1.0);
           float front = k * 1.03;
           float fw = max(fwidth(s), 1e-4);
