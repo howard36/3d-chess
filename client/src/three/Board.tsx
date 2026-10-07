@@ -27,6 +27,7 @@ import type { FloorSquare } from './hover';
 import { CaptureFx, Celebration } from './scene/fx';
 import { KNOCK_STRIKE_MS } from './pieceMotion';
 import { fallAway } from './mate';
+import { focusLevelOf } from './scene/focus';
 import { Grid } from './scene/grid';
 import { Capture, Check, LastMove, Quiet } from './scene/markers';
 import { KNIGHT_YAW, layout, PIECE_SCALE } from './scene/palette';
@@ -477,6 +478,8 @@ const Board = (props: BoardProps) => {
     () => ({ selected: selectedLevel, hovered: hoveredLevel }),
     [selectedLevel, hoveredLevel],
   );
+  // Destinations on a level the player isn't attending to step back with its glass
+  const focusLevel = focusLevelOf(focus);
 
   // The same handlers from one render to the next (as the cells', above)
   const emptyTaps = useMemo(
@@ -584,10 +587,11 @@ const Board = (props: BoardProps) => {
         {destinations.map(({ to, capture }) => {
           const key = toZXY(to);
           const hovered = hoveredCell === key;
+          const dim = focusLevel !== null && to.z !== focusLevel;
           return capture ? (
-            <Capture key={`capture-${key}`} {...markerAt(to)} hovered={hovered} />
+            <Capture key={`capture-${key}`} {...markerAt(to)} hovered={hovered} dim={dim} />
           ) : (
-            <Quiet key={`quiet-${key}`} {...markerAt(to)} hovered={hovered} />
+            <Quiet key={`quiet-${key}`} {...markerAt(to)} hovered={hovered} dim={dim} />
           );
         })}
         {/* Keyed by square, so selecting another piece plays its entrance again */}

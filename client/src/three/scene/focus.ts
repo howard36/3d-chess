@@ -12,6 +12,16 @@ import { toward } from './ease';
 export const focusLevelOf = (focus: LevelFocus | null | undefined): number | null =>
   focus?.hovered ?? focus?.selected ?? null;
 
+/** How long a change of focus takes to ease in, ms. */
+export const LEVEL_FOCUS_MS = 160;
+
+/**
+ * The share of its light a level gives up while the player attends to
+ * another (its glass, its lines, its edge and the marks lying on it), so the
+ * level in play reads clearly through the rest.
+ */
+export const STEP_BACK = 0.6;
+
 /**
  * One eased weight per level, 1 for `focusLevel` and 0 for the others,
  * moving at a steady rate so a change of focus takes `ms` (a calm ease, never

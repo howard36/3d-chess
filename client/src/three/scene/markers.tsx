@@ -11,6 +11,7 @@ import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
 import { claimed, heldAt, useClaim } from './claims';
 import type { ClaimKind } from './claims';
 import { clamp01, easeOutCubic, easeOutQuad, smooth, toward } from './ease';
+import { LEVEL_FOCUS_MS, STEP_BACK } from './focus';
 import { overlayMaterial } from './overlay';
 import { LEVEL_COLORS, levelAt, PALETTE, PIECE_SCALE, RING_RADIUS } from './palette';
 import { Blades } from './blades';
@@ -23,7 +24,8 @@ import { useRetireOnUnmount } from './programs';
 //   its level's colour. Under the pointer the fill deepens (fuller, a deeper
 //   colour at its heart) and the circle grows a little, eased over 200 ms;
 //   the outline itself does not brighten. It looks the same from every
-//   angle.
+//   angle; on a level the player isn't attending to it steps back with that
+//   level's glass (STEP_BACK).
 // - a capture: the same circle in red, drawn in place of the victim's own
 //   level ring (which steps aside, claims.ts), so two circles never stack;
 //   its one idea is four arcs of one radius and length turning slowly and
@@ -222,6 +224,8 @@ interface MarkProps {
   yieldHeld?: boolean;
   /** Settle (check at mate): dim a little and hold still. */
   settle?: boolean;
+  /** Step back with its level's glass (the player is attending to another level). */
+  dim?: boolean;
   renderOrder?: number;
 }
 
@@ -264,6 +268,7 @@ const Mark = ({
   yieldTo,
   yieldHeld = false,
   settle = false,
+  dim = false,
   renderOrder = LAYER.marker,
 }: MarkProps) => {
   const invalidate = useThree((s) => s.invalidate);
@@ -328,6 +333,7 @@ const Mark = ({
       pulse,
       quad,
       settle,
+      dim,
       yieldHeld,
       fx,
       fy,
@@ -337,6 +343,7 @@ const Mark = ({
 
   const age = useRef(0);
   const hover = useRef(0);
+  const back = useRef(dim ? 1 : 0);
   const still = prefersReducedMotion();
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 8);
@@ -352,6 +359,16 @@ const Mark = ({
     if (hover.current !== goal) {
       hover.current = toward(hover.current, goal, (Math.min(delta, 1 / 20) * 1000) / HOVER_MS);
       u.uHover.value = smooth(hover.current);
+      moving = true;
+    }
+    // Steps back with its level's glass, at the glass's pace (plates.tsx)
+    const backGoal = dim ? 1 : 0;
+    if (back.current !== backGoal) {
+      back.current = toward(
+        back.current,
+        backGoal,
+        (Math.min(delta, 1 / 20) * 1000) / LEVEL_FOCUS_MS,
+      );
       moving = true;
     }
     if (u.uPulse.value > 0) {
@@ -370,7 +387,7 @@ const Mark = ({
       u.uTime.value += dt;
       moving = true;
     }
-    let amount = 1;
+    let amount = 1 - STEP_BACK * back.current;
     if (yieldTo) {
       probe.x = floor[0];
       probe.y = floor[1];
@@ -421,7 +438,7 @@ const isStacked = (a: Vec3, b: Vec3) =>
 
 const levelDeep = LEVEL_COLORS.map((c) => `#${new Color(c).multiplyScalar(0.62).getHexString()}`);
 
-export const Quiet = ({ floor, hovered }: MarkerProps) => {
+export const Quiet = ({ floor, hovered, dim }: MarkerProps) => {
   // The small circle where the last move started steps aside for it
   useClaim('quiet', floor);
   const level = levelAt(floor[1]);
@@ -438,11 +455,12 @@ export const Quiet = ({ floor, hovered }: MarkerProps) => {
       width={0.0095}
       opacity={0.85}
       hovered={hovered}
+      dim={dim}
     />
   );
 };
 
-export const Capture = ({ floor, hovered = false }: MarkerProps) => {
+export const Capture = ({ floor, hovered = false, dim }: MarkerProps) => {
   useClaim('capture', floor);
   return (
     <Mark
@@ -456,6 +474,7 @@ export const Capture = ({ floor, hovered = false }: MarkerProps) => {
       width={0.008}
       opacity={0.92}
       hovered={hovered}
+      dim={dim}
       animate
     />
   );

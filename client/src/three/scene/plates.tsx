@@ -10,7 +10,7 @@ import {
   ShaderMaterial,
 } from 'three';
 import { GRID_SIZE } from '../layout';
-import { useLevelFocus } from './focus';
+import { LEVEL_FOCUS_MS, STEP_BACK, useLevelFocus } from './focus';
 import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
 import { GRID_LINES } from './gridLines';
@@ -32,7 +32,7 @@ import { levelBuild } from '../intro/timeline';
 // hairlines thinner; each level's frost leans toward its own hue, so the
 // nested checkers part by colour. The level the player is attending to
 // (pointed at, or holding the selected piece) brightens its lines and edge;
-// the others step back a little.
+// the others step back well behind it (STEP_BACK), glass, lines and edge.
 
 // How a level builds itself in the game's entrance (intro/timeline.ts: its
 // uBuild runs from 0 to 1): its edge first, growing out of its four corners
@@ -87,6 +87,7 @@ const fragmentShader = /* glsl */ `
   uniform float uBuild;
   varying vec2 vCell;
   varying vec3 vWorld;
+  #define STEP_BACK ${STEP_BACK.toFixed(3)}
   ${GRID_LINES}
   ${BUILD_GLSL}
 
@@ -116,8 +117,10 @@ const fragmentShader = /* glsl */ `
     float light = mod(sq.x + sq.y + uLevel, 2.0);
     float back = above * (1.0 - uLead);
     float keep = (1.0 - mix(0.15, 0.3, back) * above) * mix(1.0, 0.5, back) * (1.0 + 0.35 * grazing);
-    // The level attended to (pointed at, or holding the selection) a little more
-    float focus = (1.0 + 0.25 * uFocus) * (1.0 - 0.15 * uDim);
+    // The level attended to (pointed at, or holding the selection) a little
+    // more; the others well back
+    float attended = 1.0 - STEP_BACK * uDim;
+    float focus = (1.0 + 0.25 * uFocus) * attended;
     vec3 frost = mix(uFrost, uColor, 0.5 * above);
     // Built (the game's entrance): the glass floods in from its edge to its
     // middle behind a faint bright front, once the edge has drawn itself
@@ -130,7 +133,7 @@ const fragmentShader = /* glsl */ `
       floodFront = exp(-pow((k - 0.06) / 0.05, 2.0)) * (1.0 - buildPhase(uBuild, 0.85, 1.0));
     }
     vec4 c = vec4(0.0);
-    c = over(c, uSmoke, (1.0 - light) * uSmokeA * inside * keep * flood);
+    c = over(c, uSmoke, (1.0 - light) * uSmokeA * inside * keep * attended * flood);
     c = over(c, frost, light * uFrostA * inside * keep * focus * flood);
     c = over(c, mix(frost, vec3(1.0), 0.4), 0.09 * floodFront * inside);
 
@@ -166,7 +169,7 @@ const fragmentShader = /* glsl */ `
     }
     // The brighter of the two where they cross: an even line, never a dot
     float line = max(lines.x, lines.y) * uLine * (1.0 - 0.15 * above) * (1.0 - 0.5 * back);
-    line *= (1.0 + 0.4 * uFocus) * (1.0 - 0.2 * uDim) * glow;
+    line *= (1.0 + 0.4 * uFocus) * attended * glow;
     c = over(c, uColor, min(line, 1.0));
     c = over(c, vec3(1.0), min(hot, 1.0) * 0.85);
 
@@ -515,11 +518,11 @@ export const Levels = ({
         // The lead from above: the level attended to, else the top one
         const top = z === weights.length - 1 ? 1 : 0;
         m.glass.uniforms.uLead.value = Math.min(1, w + (1 - any) * top);
-        edgeLight.current[z] = EDGE * (1 - 0.35 * dim) + (1 - EDGE) * w;
+        edgeLight.current[z] = EDGE * (1 - STEP_BACK * dim) + (1 - EDGE) * w;
         applyEdge(z);
       });
     },
-    { ms: 160, key: materials },
+    { ms: LEVEL_FOCUS_MS, key: materials },
   );
 
   // The entrance: each level's build, read from the intro clock every frame

@@ -83,6 +83,11 @@ export interface MarkerProps {
    */
   hovered?: boolean;
   /**
+   * The player is attending to another level (`focusLevelOf`): step back
+   * with this one's glass. Set for destinations only.
+   */
+  dim?: boolean;
+  /**
    * Check only: the check is mate (the game is over and this king has lost),
    * so the check marker can settle while the king topples.
    */

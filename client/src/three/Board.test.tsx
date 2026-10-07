@@ -55,8 +55,11 @@ vi.mock('./scene/pieces', () => ({
   },
 }));
 vi.mock('./scene/markers', () => ({
-  Quiet: ({ floor, hovered }: MarkerProps) => (
-    <group userData={{ quiet: true, hovered: hovered === true }} position={floor} />
+  Quiet: ({ floor, hovered, dim }: MarkerProps) => (
+    <group
+      userData={{ quiet: true, hovered: hovered === true, dim: dim === true }}
+      position={floor}
+    />
   ),
   Capture: ({ floor }: MarkerProps) => <group userData={{ captureRing: true }} position={floor} />,
   LastMove: (props: LastMoveMarkerProps) => {
@@ -1147,6 +1150,37 @@ describe('Board and what it hands the scene', () => {
 
     await pointer.leave();
     expect(quietMarkers(pointer.renderer).some((m) => m.props.userData.hovered)).toBe(false);
+  });
+
+  it('steps back the destinations on levels the player is not attending to', async () => {
+    const pointer = await pointerOn();
+    await press(findPiece(pointer.renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    const [fx, fy, fz] = toWorld({ x: 0, y: 2, z: 1 }, 'white');
+    const forward = [fx, fy + FLOOR_Y, fz];
+    const dims = () =>
+      quietMarkers(pointer.renderer).map((m) => ({
+        onLevel: JSON.stringify(m.props.position) === JSON.stringify(forward),
+        dim: m.props.userData.dim,
+      }));
+    // Holding the pawn: its own level's destination leads, the one above steps back
+    expect(dims()).toEqual(
+      expect.arrayContaining([
+        { onLevel: true, dim: false },
+        { onLevel: false, dim: true },
+      ]),
+    );
+
+    // Pointing at the destination above: its level leads instead
+    const above = quietMarkers(pointer.renderer).find(
+      (m) => JSON.stringify(m.props.position) !== JSON.stringify(forward),
+    )!;
+    await pointer.moveTo(above.props.position as [number, number, number]);
+    expect(dims()).toEqual(
+      expect.arrayContaining([
+        { onLevel: true, dim: true },
+        { onLevel: false, dim: false },
+      ]),
+    );
   });
 
   it('scales every piece about its base, seated on its floor', async () => {
