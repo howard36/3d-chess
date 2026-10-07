@@ -70,7 +70,7 @@ const StartScreen: React.FC = () => {
           onPointerEnter={learnScreen.preload}
           onFocus={learnScreen.preload}
         >
-          <span className="landing-label">How to play</span>
+          How to play
         </button>
       </div>
     </main>

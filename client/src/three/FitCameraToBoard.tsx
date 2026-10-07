@@ -31,7 +31,8 @@ interface OrbitControlsLike {
  *
  * The centring is a lens shift (a view offset), never a pan: the camera
  * stands and turns about the board's centre, and the shift is vertical only
- * (but beside a menu or a card at the left: `leftBand`, the landing page's and the tutorial's).
+ * (but beside a menu or a card at the left, `leftBand`: the landing page's
+ * and the tutorial's).
  * What it fits is the layout's rings (BoardLayout.frameRings), circles about
  * the tower's axis that look the same from every side. The shift is set with
  * the fit and then left alone: turning, climbing and zooming the view never

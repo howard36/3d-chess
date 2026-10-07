@@ -807,11 +807,11 @@
   gap: 10px;
 }
 /*
- * The lobby cards' call to action (.lobby-go): a pill of starlight with a charcoal knight, ringed by a
- * rim of the five level colours that turns slowly, glowing cyan on its left
- * and rose on its right like the tower's lowest and highest levels. On hover
- * it lifts and the knight hops; while a game is being created the rim turns
- * fast round a dark pill.
+ * The call to action of the lobby's cards and the result card (.lobby-go):
+ * a pill of starlight ringed by a rim of the five level colours that turns
+ * slowly, glowing cyan on its left and rose on its right like the tower's
+ * lowest and highest levels. On hover it lifts; while a game is being
+ * created the rim turns fast round a dark pill.
  */
 @property --landing-turn {
   syntax: '<angle>';
@@ -858,12 +858,6 @@
     box-shadow 200ms,
     transform 200ms;
 }
-.landing-play-piece {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-}
 @keyframes landing-rim {
   to {
     --landing-turn: 360deg;
@@ -875,17 +869,6 @@
     -16px 0 38px -10px rgba(0, 215, 224, 0.8),
     16px 0 38px -10px rgba(222, 119, 171, 0.8),
     0 0 40px rgba(150, 167, 255, 0.3);
-}
-.landing-play:not([aria-disabled='true']):hover .landing-play-piece {
-  animation: landing-hop 560ms cubic-bezier(0.3, 0.7, 0.4, 1);
-}
-@keyframes landing-hop {
-  40% {
-    transform: translateY(-5px) rotate(-14deg);
-  }
-  70% {
-    transform: translateY(0) rotate(5deg);
-  }
 }
 .landing-play:not([aria-disabled='true']):active {
   transform: scale(0.98);
@@ -933,7 +916,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .landing-play,
-  .landing-play .landing-play-piece,
   .landing-mode,
   .landing-mode::before {
     animation: none !important;
