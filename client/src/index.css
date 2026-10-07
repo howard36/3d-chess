@@ -1419,8 +1419,10 @@
  * level colours, which turns while the pointer is on it; two pieces facing
  * each other at the top (a friend's knight, or the computer's chip), the
  * name at the bottom, and an arrow at the top right that steps on. The rim
- * is a ring of its own (::before, masked to the border), so only the tower
- * shows through the glass, never the rim's colours. The name keeps to one
+ * is a ring of its own (::before, masked to the border); the glass is
+ * washed in the same colours, cyan at the top through to rose at the bottom,
+ * blended evenly from edge to edge (the rim's wheel showing through the glass
+ * met in a hard seam at the middle). The name keeps to one
  * line: its size follows the tile's width (container units), between 13 and
  * 17 px, and only a tile too narrow even at 13 px lets it wrap.
  */
@@ -1435,7 +1437,16 @@
   padding: 12px 14px 14px;
   border: 0;
   border-radius: 14px;
-  background: rgba(12, 14, 22, 0.84);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 215, 224, 0.15),
+      rgba(88, 193, 255, 0.11) 25%,
+      rgba(150, 167, 255, 0.09) 50%,
+      rgba(196, 139, 229, 0.11) 75%,
+      rgba(222, 119, 171, 0.15)
+    ),
+    rgba(12, 14, 22, 0.84);
   color: var(--hud-fg);
   font: inherit;
   font-weight: 700;
