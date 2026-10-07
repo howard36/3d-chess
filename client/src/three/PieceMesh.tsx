@@ -39,6 +39,8 @@ export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   facing?: number;
   /** The level (engine z) of the piece's cell, passed on to the piece's body. */
   level?: number;
+  /** Its level and the pointer (PieceBodyProps.focus). */
+  focus?: number;
   /** When the piece arrives in the game's entrance (PieceBodyProps.arrival). */
   arrival?: number;
 };
@@ -155,6 +157,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   refused = 0,
   facing = 0,
   level = 0,
+  focus = 0,
   arrival,
   ...rest
 }) {
@@ -202,6 +205,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
             hovered={hovered}
             inCheck={inCheck}
             level={level}
+            focus={focus}
             arrival={arrival}
           />
         </Lift>

@@ -2,7 +2,7 @@ import React from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import Board from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
-import { layout, PIECE_SCALE } from './scene/palette';
+import { layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
 import { contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
 import { PIECE_LIFT } from './pieceMotion';
 import { MATE_TUNING } from '../lib/mate';
@@ -55,8 +55,11 @@ vi.mock('./scene/pieces', () => ({
   },
 }));
 vi.mock('./scene/markers', () => ({
-  Quiet: ({ floor, hovered }: MarkerProps) => (
-    <group userData={{ quiet: true, hovered: hovered === true }} position={floor} />
+  Quiet: ({ floor, hovered, dim }: MarkerProps) => (
+    <group
+      userData={{ quiet: true, hovered: hovered === true, dim: dim === true }}
+      position={floor}
+    />
   ),
   Capture: ({ floor }: MarkerProps) => <group userData={{ captureRing: true }} position={floor} />,
   LastMove: (props: LastMoveMarkerProps) => {
@@ -307,6 +310,21 @@ describe('Board', () => {
     expect(highlighted.some((c) => sameVec(c.props.position, forward))).toBe(true);
     expect(highlighted.some((c) => sameVec(c.props.position, up))).toBe(true);
     expect(selectionRings(renderer)).toHaveLength(1);
+  });
+
+  it("takes a destination's click on its mark alone, a disc on its floor, not its whole square", async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Board board={createTestBoard()} currentTurn="white" />,
+    );
+    await press(findPiece(renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    for (const cell of highlightedCells(renderer)) {
+      const geometry = cell.props.geometry as BufferGeometry;
+      geometry.computeBoundingBox();
+      const { min, max } = geometry.boundingBox!;
+      // Flat, and the mark's size (a move's circle grown under the pointer)
+      expect(max.y - min.y).toBeCloseTo(0, 5);
+      expect((max.x - min.x) / 2).toBeCloseTo(MARK_RADIUS.quiet * MARK_HOVER_GROW, 2);
+    }
   });
 
   it('unselects a piece when clicking empty space after selecting', async () => {
@@ -1147,6 +1165,41 @@ describe('Board and what it hands the scene', () => {
 
     await pointer.leave();
     expect(quietMarkers(pointer.renderer).some((m) => m.props.userData.hovered)).toBe(false);
+  });
+
+  it('steps back the destinations on levels the pointer is not on', async () => {
+    const pointer = await pointerOn();
+    await press(findPiece(pointer.renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
+    const [fx, fy, fz] = toWorld({ x: 0, y: 2, z: 1 }, 'white');
+    const forward = [fx, fy + FLOOR_Y, fz];
+    const dims = () =>
+      quietMarkers(pointer.renderer).map((m) => ({
+        onLevel: JSON.stringify(m.props.position) === JSON.stringify(forward),
+        dim: m.props.userData.dim,
+      }));
+    // Holding the pawn steps no level back: its move up is as much in play
+    expect(dims().map(({ dim }) => dim)).toEqual([false, false]);
+    expect(drawn.bodies.every((b) => !b.focus)).toBe(true);
+
+    // Pointing at the destination above: its level leads
+    const above = quietMarkers(pointer.renderer).find(
+      (m) => JSON.stringify(m.props.position) !== JSON.stringify(forward),
+    )!;
+    drawn.bodies.length = 0;
+    await pointer.moveTo(above.props.position as [number, number, number]);
+    expect(dims()).toEqual(
+      expect.arrayContaining([
+        { onLevel: true, dim: true },
+        { onLevel: false, dim: false },
+      ]),
+    );
+    // No piece stands on that level: every piece hazes but the one held
+    const bodies = drawn.bodies.splice(0);
+    // (the held pawn's props are unchanged at 0, so it is not even drawn again)
+    expect(bodies.some((b) => b.selected && b.focus !== 0)).toBe(false);
+    const others = bodies.filter((b) => !b.selected);
+    expect(others.length).toBeGreaterThan(0);
+    expect(others.every((b) => b.focus === -1)).toBe(true);
   });
 
   it('scales every piece about its base, seated on its floor', async () => {

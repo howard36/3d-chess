@@ -122,6 +122,17 @@ export const KNIGHT_YAW = 0.5;
  */
 export const RING_RADIUS = 0.335;
 
+/**
+ * The marks of play on the glass (markers.tsx): the radius of a move's circle
+ * and of a capture's arcs. Each is also what takes the pointer and the click
+ * for its square (Board.tsx, hover.ts), grown as the mark grows under the
+ * pointer (MARK_HOVER_GROW), so a square's empty corners let them through to
+ * a mark beneath.
+ */
+export const MARK_RADIUS = { quiet: 0.2, capture: RING_RADIUS * PIECE_SCALE + 0.035 };
+/** How much a mark grows under the pointer. */
+export const MARK_HOVER_GROW = 1.11;
+
 /** The level (engine z) of the platform nearest a floor height. */
 export const levelAt = (y: number) =>
   FRAME.levelY.reduce(
