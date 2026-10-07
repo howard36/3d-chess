@@ -1060,6 +1060,13 @@
 .lobby-choice[data-faded] {
   opacity: 0;
 }
+/* A touch screen: each at least a fingertip's 44 px tall, its word in the middle */
+@media (pointer: coarse) {
+  .lobby-choice {
+    justify-content: center;
+    min-height: 44px;
+  }
+}
 .lobby-foot {
   position: absolute;
   left: 16px;
@@ -1094,20 +1101,28 @@
   justify-content: center;
   gap: 10px;
 }
-/* Against the computer, its level: three of the side buttons in a row,
-   docked under the kings as the guest's "Join game" is, rising in turn with
-   the computer's outline */
-.lobby-dock.lobby-levels {
+/* Against the computer, its level: three of the side buttons in a row under
+   the kings, the kings framed as for the side, hanging under their words
+   ("You", "Computer": .lobby-seat, 26 px tall) as the side's buttons hung
+   under the kings, rising in turn with the computer's outline */
+.lobby-levels {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: calc(
+    var(--seat-coin-front, 62%) + clamp(6px, calc(var(--king-height, 200px) * 0.05), 12px) + 26px +
+      12px
+  );
   display: flex;
   justify-content: center;
   gap: 10px;
-  animation: none;
 }
 .lobby-level {
   position: static;
   transform: none;
-  min-width: 96px;
-  font-size: 16px;
+  /* A step up with the kings, as the side's are, from a phone's 16 px */
+  min-width: clamp(96px, calc((var(--king) - 90px) * 0.75), 120px);
+  font-size: clamp(16px, calc(10px + var(--king) * 0.03), 18px);
   animation: lobby-rise 600ms 250ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
 }
 .lobby-level:nth-child(2) {

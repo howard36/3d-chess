@@ -642,7 +642,8 @@ until the row fits the width).
   a button under each named only "White", "Random" or "Black" (sized with the kings as
   they stand on screen, `--king-height`: word, padding and width all scale, from 12 px text
   just round its word under a phone's small kings to 180 px pills with 18 px text under a
-  large screen's, each hanging a little under its king's foot, `--seat-<seat>-front`), and
+  large screen's, at least 44 px tall on a touch screen, each hanging a little under its
+  king's foot, `--seat-<seat>-front`), and
   nothing under the heading. A king lifts under a mouse (on it or its button) or its
   button's focus, as if picked up, and clicking either picks; a tap leaves no hover behind.
   A pick is final: `create_game {color}` goes out at once (and again on the next socket if
@@ -762,15 +763,15 @@ plays offline.
    in its ring and its column of light, the others fading (or the coin thrown and landed,
    "Leaving it to chance…").
 2. _Choose difficulty._ Once the chosen king is set down (`onSettled`, as a friend's game
-   moves on to its invitation), the page is framed as an invitation is (the `invited`
-   beat with a card): the computer's seat across from the player's opens, its outline
-   drawn up from the foot and breathing, "You" and "Computer" under the kings, and Easy,
-   Medium and Hard docked under them where the guest's "Join game" stands
-   (`.lobby-levels`, rising in turn; the level last played has the focus, Medium the
-   first time, `lib/computerGames.ts`).
-3. _The computer arrives._ A level fills the computer's king at once (its seat taken, the
-   card gone, so the camera eases back down) while the level chosen holds a moment, the
-   others fade and the page's words go (`[data-out]`); as the levels' fade ends (their
+   moves on to its invitation), the page is an invitation (the `invited` beat, with no
+   card: the camera holds the side choice's framing): the computer's seat across from the
+   player's opens, its outline drawn up from the foot and breathing, "You" and "Computer"
+   under the kings, and Easy, Medium and Hard in a row under those, near where the side's
+   buttons were (`.lobby-levels`, rising in turn; the level last played has the focus,
+   Medium the first time, `lib/computerGames.ts`).
+3. _The computer arrives._ A level fills the computer's king at once (its seat taken)
+   while the level chosen holds a moment, the others fade and the page's words go
+   (`[data-out]`); as the levels' fade ends (their
    `animationend`; at once under reduced motion) the page moves on to `/computer/<id>`,
    which opens straight on the arrival: the ring spreads across the glass and "Computer ·
    Hard" takes the heading's place; then, as for a friend, both columns of light, the
@@ -892,10 +893,13 @@ lesson scrolls above the foot rather than run into it. The tower is framed in th
 card and Home leave (`learnLayout.ts`), with the rings as seen from the opening in its middle
 (`centre: 'opening'`) and kept in it from there and from below (looking down from higher up
 they may pass under the card: framed for every elevation, a small phone's tower would stand
-a fifth smaller). Where the card stands at the left of a short window and the tower, centred,
-would run under it, the fit centres the tower in the room right of the card instead
-(`settleLeftInset`, the lens shift's one sideways part); in a wide window the card stands
-beside the tower only once the tower, centred, clears it (`cardBeside`).
+a fifth smaller). Where the card stands at the left (12 px in, in a short window; in a wide
+one set in by the home page's gutter, `--learn-gutter`, as `--landing-gutter`) and the
+tower, centred, would run under it, the fit centres the tower in the room right of the card
+instead (`settleLeftInset`, the lens shift's one sideways part); in a wide window the card
+stands beside the tower only once the tower, centred, leaves the card's 300 px and 20 px
+more (`cardBeside`). On a touch screen Next and Reset take a fingertip's 44 px as they
+stand (a hit area reaching into the foot's room), so the card keeps its height.
 `e2e/learn.spec.ts` walks every lesson and step at six sizes, one for each layout down to
 a 320 px phone either way up, and fails on a lesson within 10 px of the foot, one that has
 to scroll, anything past the card's sides, or a card out of the window.
