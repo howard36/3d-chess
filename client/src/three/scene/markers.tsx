@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { AdditiveBlending, Color, DoubleSide, PlaneGeometry, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, PlaneGeometry } from 'three';
 import type { IUniform } from 'three';
 import { prefersReducedMotion } from '../motion';
 import { LAYER } from './layers';
@@ -8,7 +8,7 @@ import { LastMoveLine, tubeGeometry, tubeVertex } from './line';
 import { tracePath } from './markerGeometry';
 import { noRaycast } from '../noRaycast';
 import type { LastMoveMarkerProps, MarkerProps, Vec3 } from '../types';
-import { claimed, heldAt, useClaim, useHeld } from './claims';
+import { claimed, heldAt, useClaim } from './claims';
 import type { ClaimKind } from './claims';
 import { clamp01, easeOutCubic, easeOutQuad, smooth, toward } from './ease';
 import { overlayMaterial } from './overlay';
@@ -22,9 +22,8 @@ import { useRetireOnUnmount } from './programs';
 //   uses, so it never reads as a level ring) round a slight fill tinted with
 //   its level's colour. Under the pointer the fill deepens (fuller, a deeper
 //   colour at its heart) and the circle grows a little, eased over 200 ms;
-//   the outline itself does not brighten. Straight above or below the held
-//   piece, as the view comes round to top-down, it widens and gives up its
-//   rim for a soft pool, so it never rings the piece.
+//   the outline itself does not brighten. It looks the same from every
+//   angle.
 // - a capture: the same circle in red, drawn in place of the victim's own
 //   level ring (which steps aside, claims.ts), so two circles never stack;
 //   its one idea is four arcs of one radius and length turning slowly and
@@ -52,12 +51,9 @@ type Kind = keyof typeof KIND;
 const vertexShader = /* glsl */ `
   uniform float uQuad;
   varying vec2 vP;
-  varying vec3 vWorld;
   void main() {
     vP = (uv - 0.5) * uQuad;
-    vec4 w = modelMatrix * vec4(position, 1.0);
-    vWorld = w.xyz;
-    gl_Position = projectionMatrix * viewMatrix * w;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }`;
 
 const fragmentShader = /* glsl */ `
@@ -78,10 +74,7 @@ const fragmentShader = /* glsl */ `
   uniform float uAmount;
   uniform float uOpacity;
   uniform float uSettle;
-  uniform float uSoft;
-  uniform float uSoftRadius;
   varying vec2 vP;
-  varying vec3 vWorld;
 
   const float TAU = 6.2831853;
 
@@ -119,24 +112,19 @@ const fragmentShader = /* glsl */ `
       float s = mix(0.86, 1.0, uGrow) * (1.0 + 0.11 * uHover);
       vec2 p = vP / s;
       float r = length(p);
-      // Straight above or below the held piece (uSoft), as the view comes
-      // round to top-down it widens and gives up its rim for a soft-edged
-      // pool, so it never rings the piece's own circle; from the side it is
-      // a circle like the rest
-      float soft = uSoft * smoothstep(0.75, 0.95, abs(normalize(cameraPosition - vWorld).y));
-      float R = mix(uRadius, uSoftRadius, soft);
+      float R = uRadius;
       float k = r / R;
       bool capture = uKind == 1;
-      float inside = mix(fillOf(r - R), 1.0 - smoothstep(0.55 * R, R, r), soft);
+      float inside = fillOf(r - R);
       // The fill: slight at rest; under the pointer fuller and deeper at the
       // heart, like light pooling in glass
-      float rest = uFillA * (0.75 + 0.25 * k) * (1.0 + 0.9 * soft);
+      float rest = uFillA * (0.75 + 0.25 * k);
       float held = uHover * (0.2 + 0.1 * (1.0 - k));
       vec3 fc = mix(uFill, uDeep, uHover * (1.0 - k * k));
       c = over(c, fc, inside * (rest + held));
       // A move: a faint wash of its own colour just inside the rim, so it
       // reads as a gold circle from afar, whatever the tint of its fill
-      c = over(c, uColor, exp(-max(R - r, 0.0) / (0.2 * R)) * fillOf(r - R) * uWashA * (1.0 - soft));
+      c = over(c, uColor, exp(-max(R - r, 0.0) / (0.2 * R)) * fillOf(r - R) * uWashA);
       float line;
       if (capture) {
         // Turning arcs: four arcs of one radius and one length, turning
@@ -145,7 +133,7 @@ const fragmentShader = /* glsl */ `
       } else {
         line = stroke(r - R, uWidth);
       }
-      c = over(c, uColor, line * uOpacity * (1.0 - soft));
+      c = over(c, uColor, line * uOpacity);
     } else if (uKind == 2) {
       // The last move: a thin circle with a faint fill, drawn in round from
       // its far side
@@ -234,12 +222,6 @@ interface MarkProps {
   yieldHeld?: boolean;
   /** Settle (check at mate): dim a little and hold still. */
   settle?: boolean;
-  /** From high above, a soft-edged fill with no rim (a destination stacked on the held piece). */
-  soft?: boolean;
-  /** With `soft`, the radius it widens to as the view comes round to top-down. */
-  softRadius?: number;
-  /** Step back a little seen from high above (a destination off the held piece's level). */
-  dimAbove?: boolean;
   renderOrder?: number;
 }
 
@@ -282,17 +264,13 @@ const Mark = ({
   yieldTo,
   yieldHeld = false,
   settle = false,
-  soft = false,
-  softRadius,
-  dimAbove = false,
   renderOrder = LAYER.marker,
 }: MarkProps) => {
   const invalidate = useThree((s) => s.invalidate);
-  // The quad holds what the mark draws: the soft pool's reach only while it
-  // is soft (a fragment shaded outside it costs as much as one inside)
-  const widest = soft ? Math.max(radius, softRadius ?? radius) : radius;
+  // The quad holds what the mark draws (a fragment shaded outside it costs
+  // as much as one inside)
   const quad =
-    kind === 'check' ? 2.1 : kind === 'capture' ? widest * 3.3 + 0.08 : (widest * 1.25 + 0.1) * 2;
+    kind === 'check' ? 2.1 : kind === 'capture' ? radius * 3.3 + 0.08 : (radius * 1.25 + 0.1) * 2;
   const material = useMemo(
     () =>
       markMaterial({
@@ -313,8 +291,6 @@ const Mark = ({
         uAmount: { value: 1 },
         uOpacity: { value: opacity },
         uSettle: { value: 0 },
-        uSoft: { value: soft ? 1 : 0 },
-        uSoftRadius: { value: softRadius ?? radius },
         uQuad: { value: quad },
       }),
     // Made once; the uniforms follow the props below
@@ -333,8 +309,6 @@ const Mark = ({
   u.uOpacity.value = opacity;
   u.uStrength.value = pulse;
   u.uQuad.value = quad;
-  u.uSoft.value = soft ? 1 : 0;
-  u.uSoftRadius.value = softRadius ?? radius;
   // The pointer came or went, or the mark changed: draw a frame for it (and
   // only then: a board render that changes nothing here draws nothing)
   const [fx, fy, fz] = floor;
@@ -353,10 +327,7 @@ const Mark = ({
       opacity,
       pulse,
       quad,
-      soft,
-      softRadius,
       settle,
-      dimAbove,
       yieldHeld,
       fx,
       fy,
@@ -367,7 +338,7 @@ const Mark = ({
   const age = useRef(0);
   const hover = useRef(0);
   const still = prefersReducedMotion();
-  useFrame(({ camera }, delta) => {
+  useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 8);
     age.current += dt * 1000;
     let moving = false;
@@ -410,12 +381,6 @@ const Mark = ({
       const held = heldAt();
       if (held && isStacked(held, floor) && Math.abs(held[1] - floor[1]) < 0.3) amount = 0;
     }
-    if (dimAbove) {
-      // From high above, the held piece's own level leads
-      camera.getWorldDirection(look);
-      const k = clamp01((-look.y - 0.8) / 0.17);
-      amount *= 1 - 0.4 * k * k * (3 - 2 * k);
-    }
     u.uAmount.value = amount;
     if (moving) invalidate();
   });
@@ -432,20 +397,12 @@ const Mark = ({
 };
 
 const probe = { x: 0, y: 0, z: 0 };
-const look = new Vector3();
 
 // --- The marker set -----------------------------------------------------------------------
 
 /** Radius of the level ring at a piece's foot (world units). */
 const FOOT_RING = RING_RADIUS * PIECE_SCALE;
 const QUIET_RADIUS = 0.2;
-/**
- * Straight below or above the held piece, seen from high above, a move widens
- * to this, wide enough to show round the piece, and becomes a soft pool with
- * no rim (so it never rings the piece's own circle); from the side it is a
- * circle like the rest.
- */
-const QUIET_STACKED = 0.33;
 const CAPTURE_RADIUS = FOOT_RING + 0.035;
 const TRACE_TO = FOOT_RING;
 /** The last move's circle where it started: the same circle, smaller. */
@@ -468,9 +425,6 @@ export const Quiet = ({ floor, hovered }: MarkerProps) => {
   // The small circle where the last move started steps aside for it
   useClaim('quiet', floor);
   const level = levelAt(floor[1]);
-  const held = useHeld();
-  const offLevel = !!held && levelAt(held[1]) !== level;
-  const stacked = !!held && isStacked(held, floor);
   return (
     <Mark
       floor={floor}
@@ -481,22 +435,15 @@ export const Quiet = ({ floor, hovered }: MarkerProps) => {
       fillA={0.16}
       washA={0.1}
       radius={QUIET_RADIUS}
-      softRadius={QUIET_STACKED}
       width={0.0095}
       opacity={0.85}
-      soft={stacked}
       hovered={hovered}
-      dimAbove={offLevel}
     />
   );
 };
 
 export const Capture = ({ floor, hovered = false }: MarkerProps) => {
   useClaim('capture', floor);
-  // Straight above or below the held piece: from high above, a soft red pool
-  // with no rim, so it never rings the held piece's own circle
-  const held = useHeld();
-  const stacked = !!held && isStacked(held, floor);
   return (
     <Mark
       floor={floor}
@@ -509,7 +456,6 @@ export const Capture = ({ floor, hovered = false }: MarkerProps) => {
       width={0.008}
       opacity={0.92}
       hovered={hovered}
-      soft={stacked}
       animate
     />
   );
