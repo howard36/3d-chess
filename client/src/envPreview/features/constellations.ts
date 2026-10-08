@@ -1,8 +1,6 @@
 // ENV PREVIEW (temporary): the chess constellations. `crafted` draws today's
 // eight as a star chart does (lines whole from star to star, one
-// brighter star each, quieter toward the base); `expanded` adds smaller,
-// dimmer figures between them: castling, a pawn chain and
-// a toppled king low over the horizon.
+// brighter star each, quieter toward the base).
 import { defineEnvFeature } from '../registry';
 
 export const constellations = defineEnvFeature({
@@ -13,7 +11,6 @@ export const constellations = defineEnvFeature({
   options: [
     { id: 'off', label: "Today's eight" },
     { id: 'crafted', label: 'Crafted' },
-    { id: 'expanded', label: 'Expanded' },
   ],
-  default: 'expanded',
+  default: 'crafted',
 });

@@ -5,18 +5,11 @@ import type { Constellation, P2, Placement } from './skyPlace';
 import { placeStar } from './skyPlace';
 
 // The constellations drawn as a star chart draws them (the richer sky,
-// envPreview `constellations: crafted | expanded`): each line runs whole from
+// envPreview `constellations: crafted`): each line runs whole from
 // star to star (a hairline under each star's glow, so the joints stay clean),
 // each figure has one brighter star, and its lines fade a little toward its
-// base. Between today's eight (heavens.tsx) the expanded
-// sky adds three smaller, dimmer figures, and anyone looking closely finds
-// three asterisms with no figure drawn in lines (`skyEggs`):
-// - castling: a small king and rook joined by the arc of their move, low
-//   just past the tower from the opening's look up (turn a little right);
-// - a pawn chain: five stars climbing a diagonal, each with a collar, low
-//   between the pawn and the western knight;
-// - the toppled king, lying on its side low over the horizon between the two
-//   knights, the king that lost;
+// base. Anyone looking closely also finds three asterisms with no figure
+// drawn in lines (`skyEggs`):
 // - a knight's tour: 25 dim stars in a loose 5x5 lattice low behind White's seat
 //   (look up the way the opening camera came from), whose path only a
 //   tracing event lights (skyEvents.tsx);
@@ -26,116 +19,6 @@ import { placeStar } from './skyPlace';
 // - the eight queens: eight stars set as a solution of the puzzle in the
 //   faintest lattice of an 8x8 board, low between the bishop and the rook.
 // The low ones also stand above the horizon from the camera's 6° view.
-
-const loop = (n: number, from = 0): [number, number][] =>
-  Array.from({ length: n }, (_, i) => [from + i, from + ((i + 1) % n)]);
-
-/** A small king and rook, the arc of castling over them. */
-const CASTLING: Constellation = {
-  stars: [
-    // The king: its foot, shoulders, crown and cross
-    [0.07, 0.0],
-    [0.27, 0.0],
-    [0.23, 0.4],
-    [0.17, 0.5],
-    [0.11, 0.4],
-    [0.17, 0.74],
-    // The rook
-    [0.74, 0.0],
-    [0.96, 0.0],
-    [0.96, 0.46],
-    [0.74, 0.46],
-    // The arc of the move
-    [0.33, 0.88],
-    [0.5, 0.96],
-    [0.66, 0.83],
-  ],
-  marks: [
-    // The cross's arm, the rook's crenel
-    [0.12, 0.64],
-    [0.22, 0.64],
-    [0.81, 0.46],
-    [0.81, 0.37],
-    [0.89, 0.37],
-    [0.89, 0.46],
-  ],
-  lines: [
-    ...loop(5),
-    [3, 5],
-    [13, 14],
-    [6, 7],
-    [7, 8],
-    [9, 6],
-    [9, 15],
-    [15, 16],
-    [16, 17],
-    [17, 18],
-    [18, 8],
-    [5, 10],
-    [10, 11],
-    [11, 12],
-    [12, 9],
-  ],
-  alpha: 5,
-};
-
-/**
- * Five pawns defending each other up a diagonal, each with its collar: a
- * short bar a little under its star, crossing the chain's line (never
- * standing off it on its own), the chain running on to the lowest pawn's.
- */
-const PAWN_CHAIN: Constellation = (() => {
-  const stars: P2[] = [0, 1, 2, 3, 4].map((i) => [0.1 + i * 0.2, 0.08 + i * 0.21]);
-  // Where the chain's line passes a little under each star
-  const neck = ([u, v]: P2): P2 => [u - 0.04 * (0.2 / 0.21), v - 0.04];
-  const marks: P2[] = stars.flatMap((s): P2[] => {
-    const [u, v] = neck(s);
-    return [
-      [u - 0.05, v],
-      [u + 0.05, v],
-    ];
-  });
-  marks.push(neck(stars[0]));
-  return {
-    stars,
-    marks,
-    lines: [
-      ...[0, 1, 2, 3].map((i): [number, number] => [i, i + 1]),
-      ...[0, 1, 2, 3, 4].map((i): [number, number] => [5 + 2 * i, 6 + 2 * i]),
-      [0, 15],
-    ],
-    alpha: 4,
-  };
-})();
-
-/** The king's outline, for the toppled king (heavens.tsx keeps the standing one). */
-export const KING_SHAPE: Constellation = {
-  stars: [
-    [0.5, 1.0],
-    [0.5, 0.78],
-    [0.39, 0.9],
-    [0.61, 0.9],
-    [0.3, 0.7],
-    [0.7, 0.7],
-    [0.63, 0.32],
-    [0.76, 0.06],
-    [0.24, 0.06],
-    [0.37, 0.32],
-  ],
-  lines: [[0, 1], [2, 3], [1, 4], [1, 5], ...loop(6, 4).slice(1), [9, 4]],
-  alpha: 0,
-};
-
-/**
- * The smaller figures, in the gaps between the eight, each lower or higher
- * than its neighbours so no row of figures lines up round the sky; the low
- * ones (9°–15°) also stand above the horizon from the camera's 6° view.
- */
-export const SKY_MINOR: Placement[] = [
-  { c: KING_SHAPE, azimuth: 150, elevation: 10.5, size: 5, tilt: 1.5 },
-  { c: CASTLING, azimuth: 204, elevation: 12.5, size: 6, tilt: 0.03 },
-  { c: PAWN_CHAIN, azimuth: 105, elevation: 12, size: 5, tilt: 0 },
-];
 
 /** A 5x5 knight's tour, the squares in the order the knight visits them (row by row, 1–25). */
 export const TOUR_5X5 = [
@@ -312,10 +195,10 @@ export const chartGeometry = (entries: ChartEntry[], seed = 71) => {
   return { stars: starBuffers(s.pos, s.size, s.bright, s.color), lines };
 };
 
-/** The figures' numbers: the eight from 0, the smaller from 10, the tour 20. */
-export const FIGURE_ID = { minor: 10, tour: 20 } as const;
+/** The figures' numbers: the eight from 0, the tour 20. */
+export const FIGURE_ID = { tour: 20 } as const;
 
-/** How the eight, the smaller figures and the asterisms are drawn. */
+/** How the eight and the asterisms are drawn. */
 export const majorEntries = (plans: Placement[]): ChartEntry[] =>
   plans.map((plan, i) => ({
     plan,
@@ -324,16 +207,6 @@ export const majorEntries = (plans: Placement[]): ChartEntry[] =>
     size: [2, 2.7],
     line: 1,
     alpha: [0.66, 3.4],
-  }));
-
-export const minorEntries = (): ChartEntry[] =>
-  SKY_MINOR.map((plan, i) => ({
-    plan,
-    id: FIGURE_ID.minor + i,
-    bright: [0.22, 0.32],
-    size: [1.7, 2.2],
-    line: 0.62,
-    alpha: [0.44, 2.6],
   }));
 
 export const eggEntries = (): ChartEntry[] => {

@@ -8,14 +8,7 @@ import { shadeUniforms, TOWER_SHADE } from './mask';
 import { PALETTE } from './palette';
 import type { Constellation, Placement } from './skyPlace';
 import { placeStar } from './skyPlace';
-import {
-  chartGeometry,
-  EGG_PLAN,
-  majorEntries,
-  minorEntries,
-  SKY_MINOR,
-  starBuffers,
-} from './skyChart';
+import { chartGeometry, EGG_PLAN, majorEntries, starBuffers } from './skyChart';
 import { richFieldGeometry, todayField } from './skyStars';
 import { skyLineMaterial, skyPointMaterial } from './skyShaders';
 // ENV PREVIEW (temporary): the richer sky's settings
@@ -35,10 +28,9 @@ export { placeStar, skyDirection } from './skyPlace';
 // Nothing moves, and whatever lies behind the tower is held down to nothing
 // (mask.ts).
 //
-// The richer sky (ENV PREVIEW: `stars: rich`, `constellations: crafted |
-// expanded`) spends the field where a camera can see it (skyStars.ts) and
-// draws the figures as a star chart does, with smaller ones between them
-// (skyChart.ts); the Milky Way, the hidden asterisms and the stars in the
+// The richer sky (ENV PREVIEW: `stars: rich`, `constellations: crafted`)
+// spends the field where a camera can see it (skyStars.ts) and draws the
+// figures as a star chart does (skyChart.ts); the Milky Way, the hidden asterisms and the stars in the
 // stone are skyDetail.tsx's.
 
 const loop = (n: number, from = 0): [number, number][] =>
@@ -316,7 +308,7 @@ export const FIGURE_LINE = 0.065;
 
 /** Every constellation star, the asterisms' too: no bright field star stands near one. */
 export const figureDirections = () =>
-  [...SKY_PLAN, ...SKY_MINOR, ...Object.values(EGG_PLAN)].flatMap((plan) =>
+  [...SKY_PLAN, ...Object.values(EGG_PLAN)].flatMap((plan) =>
     plan.c.stars.map((s) => placeStar(s, plan)),
   );
 
@@ -399,23 +391,20 @@ const TodayFigures = ({ dpr }: { dpr: number }) => {
   );
 };
 
-/** The figures to chart: the eight, and with `expanded` the smaller ones between them. */
-export const chartedFigures = (expanded: boolean) => [
-  ...majorEntries(SKY_PLAN),
-  ...(expanded ? minorEntries() : []),
-];
+/** The figures to chart: the eight. */
+export const chartedFigures = () => majorEntries(SKY_PLAN);
 
-/** The eight drawn as a star chart does, and the smaller figures (skyChart.ts). */
-const ChartFigures = ({ dpr, expanded }: { dpr: number; expanded: boolean }) => {
+/** The eight drawn as a star chart does (skyChart.ts). */
+const ChartFigures = ({ dpr }: { dpr: number }) => {
   const parts = useMemo(() => {
-    const { stars, lines } = chartGeometry(chartedFigures(expanded));
+    const { stars, lines } = chartGeometry(chartedFigures());
     return {
       stars,
       lines,
       starMaterial: skyPointMaterial({}),
       lineMaterial: skyLineMaterial({ opacity: FIGURE_LINE }),
     };
-  }, [expanded]);
+  }, []);
   useDisposeOnUnmount(parts);
   parts.starMaterial.uniforms.uDpr.value = dpr;
   return (
@@ -446,11 +435,7 @@ export const Heavens = () => {
   return (
     <group name="heavens">
       {field === 'off' ? <TodayField dpr={dpr} /> : <RichField dpr={dpr} />}
-      {figures === 'off' ? (
-        <TodayFigures dpr={dpr} />
-      ) : (
-        <ChartFigures dpr={dpr} expanded={figures === 'expanded'} />
-      )}
+      {figures === 'off' ? <TodayFigures dpr={dpr} /> : <ChartFigures dpr={dpr} />}
     </group>
   );
 };

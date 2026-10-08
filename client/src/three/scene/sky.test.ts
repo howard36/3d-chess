@@ -7,8 +7,6 @@ import {
   eggEntries,
   EIGHT_QUEENS,
   majorEntries,
-  minorEntries,
-  SKY_MINOR,
   TOUR_5X5,
 } from './skyChart';
 import { brightestOf, RICH_FIELD, richField, todayField } from './skyStars';
@@ -21,24 +19,12 @@ import { LEVEL_COLORS, PALETTE, SKY_DETAIL } from './palette';
 // skyEvents): where its figures stand, that its hidden puzzles are right,
 // and that its stars are spent where a camera can see them.
 
-const figureStars = (plans = [...SKY_PLAN, ...SKY_MINOR]) =>
+const figureStars = (plans = SKY_PLAN) =>
   plans.flatMap((plan) => plan.c.stars.map((s) => placeStar(s, plan)));
 
-describe('the smaller figures', () => {
-  it('stand low or high in the sky a camera sees, clear of the HUD band', () => {
-    for (const plan of SKY_MINOR) {
-      for (const s of plan.c.stars) {
-        const el = elevationOf(placeStar(s, plan));
-        // From 9° (above the horizon from the camera's 6° view) to under the
-        // top edge beside the tower from the lowest view (about 28°)
-        expect(el).toBeGreaterThan(8);
-        expect(el).toBeLessThan(27.5);
-      }
-    }
-  });
-
+describe('the figures and asterisms', () => {
   it('keep clear of the eight and of each other', () => {
-    const groups = [...SKY_PLAN, ...SKY_MINOR, ...Object.values(EGG_PLAN)].map((plan) =>
+    const groups = [...SKY_PLAN, ...Object.values(EGG_PLAN)].map((plan) =>
       plan.c.stars.map((s) => placeStar(s, plan)),
     );
     // The eight queens and their board are one asterism
@@ -96,7 +82,7 @@ describe('the hidden asterisms', () => {
 
 describe('the charted figures', () => {
   it('run each line whole from star to star and number it along the figure', () => {
-    const entries = [...majorEntries(SKY_PLAN), ...minorEntries()];
+    const entries = majorEntries(SKY_PLAN);
     const { stars, lines } = chartGeometry(entries);
     const pos = lines.getAttribute('position');
     const along = lines.getAttribute('aAlong');

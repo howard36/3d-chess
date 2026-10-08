@@ -95,17 +95,9 @@ const STONE = { lines: 0.5, stars: 0.45, field: 0.4, fieldCount: 260 };
  * the floor carries the knight and the king upside down, faintly, before the
  * player has ever looked up.
  */
-const StarsInStone = ({
-  dpr,
-  figures,
-  field,
-}: {
-  dpr: number;
-  figures: 'off' | 'crafted' | 'expanded';
-  field: 'off' | 'rich';
-}) => {
+const StarsInStone = ({ dpr, field }: { dpr: number; field: 'off' | 'rich' }) => {
   const parts = useMemo(() => {
-    const chart = chartGeometry(chartedFigures(figures === 'expanded'));
+    const chart = chartGeometry(chartedFigures());
     const f = field === 'off' ? todayField() : richField(figureDirections());
     return {
       lines: chart.lines,
@@ -131,7 +123,7 @@ const StarsInStone = ({
         dim: stoneDim,
       }),
     };
-  }, [figures, field]);
+  }, [field]);
   useDisposeOnUnmount(parts);
   parts.starMaterial.uniforms.uDpr.value = dpr;
   parts.fieldMaterial.uniforms.uDpr.value = dpr;
@@ -173,7 +165,7 @@ export const SkyDetail = ({ dim }: GardenDetailProps) => {
   const figures = useEnvSetting(constellations);
   const traceable = useMemo(
     () => [
-      ...(figures === 'off' ? [] : traceables(chartedFigures(figures === 'expanded'))),
+      ...(figures === 'off' ? [] : traceables(chartedFigures())),
       ...(eggs ? traceables(eggEntries()) : []),
     ],
     [figures, eggs],
@@ -183,7 +175,7 @@ export const SkyDetail = ({ dim }: GardenDetailProps) => {
       <StoneDim dim={dim} />
       {band !== 'off' && <MilkyWay look={band} />}
       {eggs && <Asterisms dpr={dpr} />}
-      {stone && <StarsInStone dpr={dpr} figures={figures} field={field} />}
+      {stone && <StarsInStone dpr={dpr} field={field} />}
       {events !== 'off' && <SkyEvents often={events === 'often'} traceable={traceable} />}
     </group>
   );
