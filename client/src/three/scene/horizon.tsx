@@ -25,6 +25,8 @@ import type { Range } from './horizonSkyline';
 import { gardenBoost } from './stage';
 import { rng } from './textures';
 import { Lighthouse } from './horizonEvents';
+import { skyColorChunk } from './skyColor';
+import { skyAirUniforms, useSkyAir } from './skyDetail';
 // ENV PREVIEW (temporary): each part follows its setting
 import { useEnvSetting } from '../../envPreview';
 import {
@@ -130,34 +132,15 @@ const veilVertex = /* glsl */ `
   }`;
 
 /**
- * The sky's colour where a ray from the camera meets its sphere: the Sky
- * shader's own sum (stage.tsx), so far off the plain becomes exactly what
- * the sky shows there and no edge can be seen. (Keep it in step with Sky.)
+ * The veil: the sky's own colour where a ray from the camera meets the sky's
+ * sphere (skyColor.ts, the very chunk the Sky draws with, either sky), mixed
+ * over the plain more and more with distance, so far off the plain becomes
+ * exactly what the sky shows there and no edge can be seen.
  */
-const SKY_AT = /* glsl */ `
-  uniform vec3 uTop;
-  uniform vec3 uHorizon;
-  uniform vec3 uBottom;
-  uniform vec3 uMist;
-  vec3 skyAt(vec3 d) {
-    float h = d.y;
-    vec3 c = h > 0.0
-      ? mix(uHorizon, uTop, pow(h, 0.45))
-      : mix(uHorizon, uBottom, pow(-h, 0.5));
-    c += uMist * exp(-pow(h / 0.05, 2.0)) * 0.045;
-    c += uMist * exp(-pow(h / 0.16, 2.0)) * 0.008;
-    float az = atan(d.x, d.z);
-    float low = 0.012 + 0.006 * sin(az * 3.0 + 0.7) + 0.004 * sin(az * 7.0 + 2.1);
-    float high = 0.034 + 0.009 * sin(az * 2.0 + 4.0) + 0.005 * sin(az * 5.0 + 0.3);
-    float bank = smoothstep(low + 0.014, low - 0.004, h) * smoothstep(-0.05, -0.005, h);
-    float stratum = exp(-pow((h - high) / 0.007, 2.0));
-    return c + uMist * (bank * 0.014 + stratum * 0.008);
-  }`;
-
-const veilFragment = /* glsl */ `
+const veilFragment = (air: boolean) => /* glsl */ `
   uniform vec2 uVeil;
   varying vec3 vWorld;
-  ${SKY_AT}
+  ${skyColorChunk(air)}
   void main() {
     vec3 ray = vWorld - cameraPosition;
     float across = length(ray.xz);
@@ -168,11 +151,13 @@ const veilFragment = /* glsl */ `
     float b = dot(cameraPosition, d);
     float c = dot(cameraPosition, cameraPosition) - ${(SKY_RADIUS * SKY_RADIUS).toFixed(1)};
     float s = -b + sqrt(max(b * b - c, 0.0));
-    gl_FragColor = vec4(skyAt(normalize(cameraPosition + d * s)), a);
+    gl_FragColor = vec4(skyColor(normalize(cameraPosition + d * s)), a);
     #include <colorspace_fragment>
   }`;
 
 const HorizonVeil = () => {
+  // ENV PREVIEW (temporary): the sky with its air (skyGlow) or today's
+  const air = useSkyAir();
   const parts = useMemo(
     () => ({
       geometry: annulus([Math.max(VEIL[0] - 55, 1), 120, 200, 300, GROUND_RADIUS], 128),
@@ -190,13 +175,14 @@ const HorizonVeil = () => {
           uHorizon: { value: new Color(PALETTE.skyHorizon) },
           uBottom: { value: new Color(PALETTE.skyBottom) },
           uMist: { value: new Color(PALETTE.mist) },
+          ...(air ? skyAirUniforms() : {}),
           uVeil: { value: [...VEIL] },
         },
         vertexShader: veilVertex,
-        fragmentShader: veilFragment,
+        fragmentShader: veilFragment(air),
       }),
     }),
-    [],
+    [air],
   );
   useDisposeOnUnmount(parts);
   return (
