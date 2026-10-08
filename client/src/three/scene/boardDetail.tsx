@@ -2,18 +2,30 @@ import { useMemo } from 'react';
 import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { PROFILES } from '../pieces';
-import { noRaycast } from '../noRaycast';
 import type { GardenDetailProps } from './gardenDetail';
 import { GROUND_Y } from './palette';
 import { useDisposeOnUnmount } from './dispose';
-import { ALWAYS_WHOLE, FALLEN_SLOT, GARDEN, gardenNeon, SCALE, squareCentre } from './stage';
+import {
+  ALWAYS_WHOLE,
+  FALLEN_SLOT,
+  GARDEN,
+  gardenNeon,
+  GardenTubes,
+  SCALE,
+  squareCentre,
+  useKnightTubes,
+} from './stage';
 import { innerOutlinesOf, knightEyeOf, moreRingsOf, sculptureOf } from './sculptures';
 import { neonCurves, ringPoints } from './boardNeon';
 import type { NeonCurve, V3 } from './boardNeon';
-import { fallenCurves } from './boardFallen';
+import { neonStrokes } from './neonStrokes';
+import type { NeonStroke } from './neonStrokes';
+import { knightEyes } from './knightSilhouette';
+import { facingOf, RING_LIGHT, toWorld } from './sculptureStrokes';
+import { fallenCurves, fallenKnightLines, fallenStrokes } from './boardFallen';
 // ENV PREVIEW (temporary): the preview's settings
 import { useEnvSetting } from '../../envPreview';
-import { fallenPieces, sculptureDetail } from '../../envPreview/features/board';
+import { fallenPieces, sculptureDetail, sculptureLines } from '../../envPreview/features/board';
 
 // Area B, the colossal board and its sculptures: detail added to the twelve
 // neon pieces and round them, all drawn with the sculptures' own tubes (one
@@ -30,6 +42,13 @@ import { fallenPieces, sculptureDetail } from '../../envPreview/features/board';
 //          twins winks), and a pawn no taller than a hand at the white
 //          king's foot
 //   fallen captured giants lying past the board's edge (boardFallen.ts)
+//
+// Drawn clean (sculptureLines), every tube is whole: no inner tube (it could
+// only run in pieces, stopping where a piece narrows or a detail begins),
+// the footprint one closed square (its corner brackets read as a dashed
+// line), the knights' eyes fixed on the sides of their heads (seen from
+// that side only; the a5 knight winks on one side), and the fallen pieces'
+// tubes unbroken (boardFallen.ts).
 
 /** The inner tube's light, as a share of the outline's. */
 const INNER = 0.38;
@@ -152,41 +171,131 @@ const detailCurves = (level: 'off' | 'inner' | 'full'): NeonCurve[] => {
   return curves;
 };
 
-export const BoardDetail = (props: GardenDetailProps) => {
-  void props;
+/** The same detail drawn clean: every stroke whole (see the top of this file). */
+export const detailStrokes = (level: 'off' | 'inner' | 'full'): NeonStroke[] => {
+  if (level === 'off') return [];
+  const strokes: NeonStroke[] = [];
+  GARDEN.forEach((place, sculpt) => {
+    const { type, at } = place;
+    for (const ring of moreRingsOf(type, true)) {
+      strokes.push({
+        at,
+        points: ringPoints(ring.radius * SCALE, ring.y * SCALE, 36),
+        closed: true,
+        mode: 1,
+        sculpt,
+        light: RINGS * RING_LIGHT,
+      });
+    }
+    if (level !== 'full') return;
+    // Its footprint: a square round its foot
+    const h = PROFILES.radius[type] * SCALE + 1.0;
+    const y = 0.02;
+    strokes.push({
+      at,
+      points: [
+        [-h, y, -h],
+        [h, y, -h],
+        [h, y, h],
+        [-h, y, h],
+      ],
+      closed: true,
+      mode: 1,
+      sculpt,
+      light: FOOTPRINT,
+    });
+    // The knights' eyes: the one on a5 winks at its twin
+    if (type === PieceType.Knight) {
+      const facing = facingOf(place);
+      for (const eye of knightEyes(place.square === 'a5')) {
+        strokes.push({
+          at,
+          points: eye.points.map((p) => toWorld(facing, p, SCALE)),
+          normals: eye.normals.map((n) => toWorld(facing, n)),
+          closed: eye.closed,
+          mode: 1,
+          sculpt,
+          light: 0.8,
+        });
+      }
+    }
+  });
+  if (level !== 'full') return strokes;
+  // The pawns' rings, left on their squares
+  for (const square of PAWN_SQUARES) {
+    const [x, z] = squareCentre(square);
+    strokes.push({
+      at: [x, GROUND_Y, z],
+      points: ringPoints(PROFILES.radius[PieceType.Pawn] * SCALE, 0.002 * SCALE, 36),
+      closed: true,
+      mode: 1,
+      sculpt: ALWAYS_WHOLE,
+      light: PAWN_RINGS * RING_LIGHT,
+    });
+  }
+  // A pawn no taller than a hand at the white king's foot
+  const king = GARDEN.findIndex((g) => g.square === 'e1');
+  const [kx, , kz] = GARDEN[king].at;
+  const tiny = 0.8;
+  const pawnAt: V3 = [kx + 2.9, GROUND_Y, kz - 1.4];
+  const pawn = sculptureOf(PieceType.Pawn);
+  for (const o of pawn.outlines) {
+    strokes.push({
+      at: pawnAt,
+      points: o.points.map(([x, y]): V3 => [x * tiny, y * tiny, 0]),
+      closed: o.closed,
+      sculpt: king,
+      light: 0.75,
+    });
+  }
+  strokes.push({
+    at: pawnAt,
+    points: ringPoints(pawn.rings[0].radius * tiny, pawn.rings[0].y * tiny, 24),
+    closed: true,
+    mode: 1,
+    sculpt: king,
+    light: 0.75 * RING_LIGHT,
+  });
+  return strokes;
+};
+
+export const BoardDetail = ({ turn }: GardenDetailProps) => {
   const level = useEnvSetting(sculptureDetail);
   const fallen = useEnvSetting(fallenPieces) === 'on';
+  // ENV PREVIEW (temporary): clean strokes, or today's ribbons
+  const clean = useEnvSetting(sculptureLines) === 'clean';
   const parts = useMemo(() => {
+    if (clean) {
+      const strokes = [
+        ...detailStrokes(level),
+        ...(fallen ? fallenStrokes(SCALE, GROUND_Y, FALLEN_SLOT) : []),
+      ];
+      return strokes.length ? { geometry: neonStrokes(strokes), ...gardenNeon(true) } : null;
+    }
     const curves = [
       ...detailCurves(level),
       ...(fallen ? fallenCurves(SCALE, GROUND_Y, FALLEN_SLOT) : []),
     ];
     return curves.length ? { geometry: neonCurves(curves), ...gardenNeon() } : null;
-  }, [level, fallen]);
+  }, [level, fallen, clean]);
+  const knight = useMemo(
+    () => (clean && fallen ? fallenKnightLines(SCALE, GROUND_Y, FALLEN_SLOT) : null),
+    [clean, fallen],
+  );
+  const knightGeometry = useKnightTubes(knight, turn);
   if (!parts) return null;
-  return <Tubes parts={parts} />;
+  return <Tubes parts={parts} knight={knightGeometry} />;
 };
 
 type TubeParts = { geometry: BufferGeometry } & ReturnType<typeof gardenNeon>;
 
-const Tubes = ({ parts }: { parts: TubeParts }) => {
+const Tubes = ({ parts, knight }: { parts: TubeParts; knight: BufferGeometry | null }) => {
   useDisposeOnUnmount(parts);
+  const { geometry, tubes, reflection } = parts;
   return (
     <group name="garden-detail">
-      <mesh
-        geometry={parts.geometry}
-        material={parts.reflection}
-        renderOrder={-879}
-        frustumCulled={false}
-        raycast={noRaycast}
-      />
-      <mesh
-        geometry={parts.geometry}
-        material={parts.tubes}
-        renderOrder={-869}
-        frustumCulled={false}
-        raycast={noRaycast}
-      />
+      <GardenTubes geometry={geometry} materials={{ tubes, reflection }} order={1} />
+      {knight && <GardenTubes geometry={knight} materials={{ tubes, reflection }} order={1} />}
     </group>
   );
 };

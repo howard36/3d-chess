@@ -36,6 +36,9 @@ import { useDisposeOnUnmount } from './dispose';
 import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
 import { neonCurves, ringPoints } from './boardNeon';
+import { neonStrokes, STROKE_TUBE, STROKE_VERTEX, updateStrokes } from './neonStrokes';
+import { KNIGHT_SEGMENTS, KnightLines, sculptureStrokes } from './sculptureStrokes';
+import type { Place } from './sculptureStrokes';
 import { boardGroundGlsl } from './boardGround';
 import { FALLEN, fallenBodies } from './boardFallen';
 import type { BoardGroundOptions } from './boardGround';
@@ -54,6 +57,7 @@ import {
   boardSquares,
   sculptureDetail,
   sculptureFix,
+  sculptureLines,
 } from '../../envPreview/features/board';
 import { EnvRedraw } from '../../envPreview/EnvRedraw';
 
@@ -268,7 +272,10 @@ export const SCALE = 6.5;
  * 16° toward 196°: White sees Black's king and a bishop flank the tower,
  * the queen behind it; Black sees White's queen and a bishop. A drawing
  * looks in toward the board's centre, but the knights, side by side, look at
- * each other (`faces`), so they face each other from every side.
+ * each other (`faces`): drawn clean (sculptureLines), they stand facing each
+ * other in the world, outlined by their silhouette from wherever the camera
+ * is (knightSilhouette.ts); otherwise their drawings turn to face each other
+ * from every side.
  */
 const PLACES: { type: PieceType; square: string; faces?: string }[] = [
   { type: PieceType.King, square: 'e1' },
@@ -326,33 +333,37 @@ export const neonGeometry = (
     toward?: readonly [number, number];
   }[] = GARDEN,
   scale = SCALE,
+  /** sculptureLines: clean strokes (neonStrokes.ts; the knights' outlines apart, KnightTubes). */
+  clean = false,
 ): BufferGeometry =>
-  neonCurves(
-    places.flatMap(({ type, at, toward = [0, 0] }, sculpt) => {
-      const drawing = sculptureOf(type);
-      return [
-        ...drawing.outlines.map(
-          (o): NeonCurve => ({
-            at,
-            toward,
-            points: o.points.map(([x, y]): V3 => [x * scale, y * scale, 0]),
-            closed: o.closed,
-            sculpt,
-          }),
-        ),
-        ...drawing.rings.map(
-          (ring): NeonCurve => ({
-            at,
-            toward,
-            points: ringPoints(ring.radius * scale, ring.y * scale),
-            closed: true,
-            mode: 1,
-            sculpt,
-          }),
-        ),
-      ];
-    }),
-  );
+  clean
+    ? neonStrokes(sculptureStrokes(places as readonly Place[], scale))
+    : neonCurves(
+        places.flatMap(({ type, at, toward = [0, 0] }, sculpt) => {
+          const drawing = sculptureOf(type);
+          return [
+            ...drawing.outlines.map(
+              (o): NeonCurve => ({
+                at,
+                toward,
+                points: o.points.map(([x, y]): V3 => [x * scale, y * scale, 0]),
+                closed: o.closed,
+                sculpt,
+              }),
+            ),
+            ...drawing.rings.map(
+              (ring): NeonCurve => ({
+                at,
+                toward,
+                points: ringPoints(ring.radius * scale, ring.y * scale),
+                closed: true,
+                mode: 1,
+                sculpt,
+              }),
+            ),
+          ];
+        }),
+      );
 
 // --- Behind the tower ------------------------------------------------------------------
 
@@ -647,6 +658,33 @@ const neonFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
+/** The clean strokes' light (neonStrokes.ts's tube, shaded as neonFragment shades a ribbon). */
+const strokeFragment = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uCore;
+  uniform float uHalo;
+  uniform float uIntensity;
+  uniform float uFade;
+  uniform float uBoost;
+  uniform float uShaded;
+  uniform float uDim;
+  uniform float uGround;
+  uniform float uReveal;
+  ${STROKE_TUBE}
+  ${TOWER_SHADE}
+  void main() {
+    float t;
+    float light = strokeTube(uCore, uHalo, t);
+    light *= uIntensity * ${BRIGHT.toFixed(1)} * (1.0 + uBoost);
+    float depth = mix(vLit.z, vLit.w, t);
+    light *= uFade > 0.0 ? exp(-depth / uFade) : 1.0;
+    light *= (1.0 - uShaded * towerShade()) * uDim;
+    light *= 1.0 - smoothstep(uReveal - ${REVEAL_SOFT.toFixed(2)}, uReveal, depth + uGround);
+    if (light < 0.001) discard;
+    gl_FragColor = vec4(uColor * light, 1.0);
+    #include <colorspace_fragment>
+  }`;
+
 /** `uReveal` for tubes drawn whole: above everything. */
 export const NEON_WHOLE = 1e4;
 
@@ -676,6 +714,8 @@ export const neonMaterial = (o: {
   shaded?: boolean;
   dim?: { value: number };
   whole?: { value: Float32Array };
+  /** sculptureLines: the clean strokes' shaders (neonStrokes.ts), for their geometry. */
+  clean?: boolean;
 }) =>
   new ShaderMaterial({
     transparent: true,
@@ -703,8 +743,8 @@ export const neonMaterial = (o: {
       uBoost: gardenBoost,
       uWhole: o.whole ?? { value: new Float32Array(WHOLE_SLOTS).fill(1) },
     },
-    vertexShader: neonVertex,
-    fragmentShader: neonFragment,
+    vertexShader: o.clean ? STROKE_VERTEX(WHOLE_SLOTS) : neonVertex,
+    fragmentShader: o.clean ? strokeFragment : neonFragment,
   });
 
 /** The sculptures' tubes. */
@@ -725,12 +765,60 @@ const REFLECTION = {
  * first, so the whole garden is drawn before the tower (backdropCache.tsx);
  * still joined by the max.
  */
-export const gardenNeon = () => ({
-  tubes: opaque(neonMaterial({ ...TUBES, whole: gardenWhole })),
-  reflection: opaque(neonMaterial({ ...REFLECTION, whole: gardenWhole })),
+export const gardenNeon = (clean = false) => ({
+  tubes: opaque(neonMaterial({ ...TUBES, whole: gardenWhole, clean })),
+  reflection: opaque(neonMaterial({ ...REFLECTION, whole: gardenWhole, clean })),
 });
 
-const Sculptures = ({
+/**
+ * Knights drawn by their silhouette (sculptureLines: clean): their strokes
+ * rewritten as the camera moves round them (KnightLines), before the frame
+ * is drawn; at rest nothing changes, and nothing is redone.
+ */
+export const useKnightTubes = (knights: KnightLines | null, turn: number) => {
+  const geometry = useMemo(
+    () => (knights?.count ? neonStrokes([], knights.count * KNIGHT_SEGMENTS) : null),
+    [knights],
+  );
+  useEffect(() => () => geometry?.dispose(), [geometry]);
+  useFrame(({ camera }) => {
+    if (!knights || !geometry) return;
+    const p = camera.position;
+    if (knights.update([p.x, p.y, p.z], turn)) updateStrokes(geometry, knights.strokes);
+  });
+  return geometry;
+};
+
+/** A tube geometry drawn with the garden's tube materials (and their reflection). */
+export const GardenTubes = ({
+  geometry,
+  materials,
+  order = 0,
+}: {
+  geometry: BufferGeometry;
+  materials: ReturnType<typeof gardenNeon>;
+  /** Added to the sculptures' renderOrder (still below the tower: BACKDROP_END). */
+  order?: number;
+}) => (
+  <>
+    <mesh
+      geometry={geometry}
+      material={materials.reflection}
+      renderOrder={-880 + order}
+      frustumCulled={false}
+      raycast={noRaycast}
+    />
+    <mesh
+      geometry={geometry}
+      material={materials.tubes}
+      renderOrder={-870 + order}
+      frustumCulled={false}
+      raycast={noRaycast}
+    />
+  </>
+);
+
+export const Sculptures = ({
   turn,
   shade,
   dim,
@@ -741,27 +829,24 @@ const Sculptures = ({
   dim?: number | (() => number);
   whole: boolean;
 }) => {
-  const parts = useMemo(() => ({ geometry: neonGeometry(), ...gardenNeon() }), []);
+  // ENV PREVIEW (temporary): clean strokes, or today's ribbons
+  const clean = useEnvSetting(sculptureLines) === 'clean';
+  const parts = useMemo(
+    () => ({ geometry: neonGeometry(GARDEN, SCALE, clean), ...gardenNeon(clean) }),
+    [clean],
+  );
+  const knights = useMemo(() => (clean ? new KnightLines(GARDEN, SCALE) : null), [clean]);
+  const knightGeometry = useKnightTubes(knights, turn);
 
   useDisposeOnUnmount(parts);
   const { geometry, tubes, reflection } = parts;
   return (
     <group name="garden">
       <GardenUniforms turn={turn} shade={shade} dim={dim} whole={whole} />
-      <mesh
-        geometry={geometry}
-        material={reflection}
-        renderOrder={-880}
-        frustumCulled={false}
-        raycast={noRaycast}
-      />
-      <mesh
-        geometry={geometry}
-        material={tubes}
-        renderOrder={-870}
-        frustumCulled={false}
-        raycast={noRaycast}
-      />
+      <GardenTubes geometry={geometry} materials={{ tubes, reflection }} />
+      {knightGeometry && (
+        <GardenTubes geometry={knightGeometry} materials={{ tubes, reflection }} />
+      )}
     </group>
   );
 };
