@@ -80,7 +80,18 @@ export const PALETTE = {
 
 /** Area A: the sky and constellations (skyDetail.tsx, heavens.tsx). */
 export const SKY_DETAIL = {
-  // (area A's colours)
+  /** Today's warm field stars (a fifth of them; the rest are `neon`). */
+  starWarm: '#ffe6c4',
+  // The rich field's temperatures, all pale: blue-white, white, pale gold
+  // and a rare pale orange (never red)
+  starBlue: '#d2ddff',
+  starWhite: '#f1f3fb',
+  starGold: '#ffecd0',
+  starOrange: '#ffd9b6',
+  /** The Milky Way's glow and its dust of stars: a cool grey, a breath bluer than the mist. */
+  milkyWay: '#8c9abb',
+  /** The airglow low in the sky: a teal-grey, quieter than the mist. */
+  airglow: '#6f8c96',
 } as const;
 
 // ---

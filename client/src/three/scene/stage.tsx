@@ -35,7 +35,7 @@ import { ShootingStar } from './shootingStar';
 import { useDisposeOnUnmount } from './dispose';
 import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
-import { SkyDetail } from './skyDetail';
+import { SkyDetail, skyAirUniforms, useSkyAir } from './skyDetail';
 import { BoardDetail } from './boardDetail';
 import { Court } from './court';
 import { Horizon } from './horizon';
@@ -65,7 +65,77 @@ import { EnvRedraw } from '../../envPreview/EnvRedraw';
 
 // --- The night sky ------------------------------------------------------------------
 
+/** The sky's gradient and the breath of mist along its horizon (both skies). */
+const SKY_BASE = /* glsl */ `
+  uniform vec3 uTop;
+  uniform vec3 uHorizon;
+  uniform vec3 uBottom;
+  uniform vec3 uMist;
+  varying vec3 vDir;
+  vec3 skyBase(vec3 d) {
+    float h = d.y;
+    vec3 c = h > 0.0
+      ? mix(uHorizon, uTop, pow(h, 0.45))
+      : mix(uHorizon, uBottom, pow(-h, 0.5));
+    // A breath of mist lying along the horizon, in a soft wider glow
+    c += uMist * exp(-pow(h / 0.05, 2.0)) * 0.045;
+    c += uMist * exp(-pow(h / 0.16, 2.0)) * 0.008;
+    return c;
+  }`;
+
+/** Today's sky: its two banks of mist (envPreview `skyGlow: off`). */
+const SKY_TODAY = /* glsl */ `
+  ${SKY_BASE}
+  void main() {
+    vec3 d = normalize(vDir);
+    float h = d.y;
+    vec3 c = skyBase(d);
+    // Far off, two banks of mist, their tops rolling slowly round
+    // the horizon (whole waves round it, so they close up behind)
+    float az = atan(d.x, d.z);
+    float low = 0.012 + 0.006 * sin(az * 3.0 + 0.7) + 0.004 * sin(az * 7.0 + 2.1);
+    float high = 0.034 + 0.009 * sin(az * 2.0 + 4.0) + 0.005 * sin(az * 5.0 + 0.3);
+    float bank = smoothstep(low + 0.014, low - 0.004, h) * smoothstep(-0.05, -0.005, h);
+    float stratum = exp(-pow((h - high) / 0.007, 2.0));
+    c += uMist * (bank * 0.014 + stratum * 0.008);
+    gl_FragColor = vec4(c, 1.0);
+    #include <colorspace_fragment>
+  }`;
+
+/**
+ * The sky with more air in it (envPreview `skyGlow: on`): a faint teal-grey
+ * airglow a few degrees up, in slow broad waves, and far off two banks of
+ * mist that can be seen: a low one whose rolling top stands a degree or two
+ * over the horizon, and above it a thin, broken stratum. All of it added
+ * light, so all of it sinks into the tower's shade.
+ */
+const SKY_AIR = /* glsl */ `
+  ${SKY_BASE}
+  uniform vec3 uAir;
+  ${TOWER_SHADE}
+  void main() {
+    vec3 d = normalize(vDir);
+    float h = d.y;
+    vec3 c = skyBase(d);
+    // Whole waves round the horizon, so everything closes up behind
+    float az = atan(d.x, d.z);
+    float waves = 1.0 + 0.3 * sin(az * 3.0 + h * 26.0 + 0.4) + 0.2 * sin(az * 5.0 - h * 40.0 + 2.2);
+    vec3 add = uAir * exp(-pow((h - 0.11) / 0.075, 2.0)) * 0.0065 * waves;
+    float low = 0.02 + 0.009 * sin(az * 3.0 + 0.7) + 0.005 * sin(az * 7.0 + 2.1)
+      + 0.0025 * sin(az * 13.0 + 1.1);
+    float bank = smoothstep(low + 0.016, low - 0.005, h) * smoothstep(-0.07, -0.004, h);
+    float high = 0.05 + 0.011 * sin(az * 2.0 + 4.0) + 0.005 * sin(az * 5.0 + 0.3);
+    float broken = smoothstep(-0.3, 0.7, sin(az * 4.0 + 1.3) + 0.5 * sin(az * 9.0 + 0.2));
+    float stratum = exp(-pow((h - high) / 0.009, 2.0)) * broken;
+    add += uMist * (bank * 0.028 + stratum * 0.013);
+    if (add.b > 2e-5) add *= 1.0 - towerShade();
+    gl_FragColor = vec4(c + add, 1.0);
+    #include <colorspace_fragment>
+  }`;
+
 const Sky = () => {
+  // ENV PREVIEW (temporary): the air (skyGlow) or today's banks
+  const air = useSkyAir();
   const parts = useMemo(
     () => ({
       geometry: new SphereGeometry(400, 32, 16),
@@ -78,6 +148,7 @@ const Sky = () => {
           uHorizon: { value: new Color(PALETTE.skyHorizon) },
           uBottom: { value: new Color(PALETTE.skyBottom) },
           uMist: { value: new Color(PALETTE.mist) },
+          ...(air ? skyAirUniforms() : {}),
         },
         vertexShader: /* glsl */ `
           varying vec3 vDir;
@@ -85,35 +156,10 @@ const Sky = () => {
             vDir = normalize(position);
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
           }`,
-        fragmentShader: /* glsl */ `
-          uniform vec3 uTop;
-          uniform vec3 uHorizon;
-          uniform vec3 uBottom;
-          uniform vec3 uMist;
-          varying vec3 vDir;
-          void main() {
-            vec3 d = normalize(vDir);
-            float h = d.y;
-            vec3 c = h > 0.0
-              ? mix(uHorizon, uTop, pow(h, 0.45))
-              : mix(uHorizon, uBottom, pow(-h, 0.5));
-            // A breath of mist lying along the horizon, in a soft wider glow
-            c += uMist * exp(-pow(h / 0.05, 2.0)) * 0.045;
-            c += uMist * exp(-pow(h / 0.16, 2.0)) * 0.008;
-            // Far off, two banks of mist, their tops rolling slowly round
-            // the horizon (whole waves round it, so they close up behind)
-            float az = atan(d.x, d.z);
-            float low = 0.012 + 0.006 * sin(az * 3.0 + 0.7) + 0.004 * sin(az * 7.0 + 2.1);
-            float high = 0.034 + 0.009 * sin(az * 2.0 + 4.0) + 0.005 * sin(az * 5.0 + 0.3);
-            float bank = smoothstep(low + 0.014, low - 0.004, h) * smoothstep(-0.05, -0.005, h);
-            float stratum = exp(-pow((h - high) / 0.007, 2.0));
-            c += uMist * (bank * 0.014 + stratum * 0.008);
-            gl_FragColor = vec4(c, 1.0);
-            #include <colorspace_fragment>
-          }`,
+        fragmentShader: air ? SKY_AIR : SKY_TODAY,
       }),
     }),
-    [],
+    [air],
   );
   useDisposeOnUnmount(parts);
   const { geometry, material } = parts;
