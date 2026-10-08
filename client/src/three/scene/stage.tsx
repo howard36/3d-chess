@@ -35,6 +35,10 @@ import { ShootingStar } from './shootingStar';
 import { useDisposeOnUnmount } from './dispose';
 import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
+// ENV PREVIEW (temporary): the preview's settings, and a redraw when one changes
+import { useEnvSetting } from '../../envPreview';
+import { shootingStar } from '../../envPreview/features/shootingStar';
+import { EnvRedraw } from '../../envPreview/EnvRedraw';
 
 // The garden at night. The tower floats over an endless dark plain of
 // glossy stone; under it, nothing, so from straight above there is only
@@ -836,14 +840,18 @@ export const Stage = ({
   orientation,
   shade,
   dim,
-}: StageProps & { shade?: ShadeStack; dim?: number | (() => number) }) => (
-  <>
-    <CameraFloor />
-    <Heavens />
-    <Sky />
-    <Ground />
-    <Sculptures turn={orientation === 'black' ? -1 : 1} shade={shade} dim={dim} />
-    <Mist />
-    <ShootingStar />
-  </>
-);
+}: StageProps & { shade?: ShadeStack; dim?: number | (() => number) }) => {
+  const meteor = useEnvSetting(shootingStar);
+  return (
+    <>
+      <EnvRedraw />
+      <CameraFloor />
+      <Heavens />
+      <Sky />
+      <Ground />
+      <Sculptures turn={orientation === 'black' ? -1 : 1} shade={shade} dim={dim} />
+      <Mist />
+      {meteor !== 'off' && <ShootingStar often={meteor === 'often'} />}
+    </>
+  );
+};

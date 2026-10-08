@@ -22,6 +22,9 @@
 // busy machine). Anything that renders to a texture once, when it mounts
 // mid-game, may need plain --stills.
 // --plies N stops after N moves, for a quick look.
+// --query '<query string>' is added to every address the pages open, in
+// every mode (e.g. --query 'env=baseline' or --query 'env=sky:soft'), for
+// the env preview's settings (src/envPreview/README.md).
 // --profile times 20 frames of the opening position and reports what the
 // renderer draws (a slow recording is almost always a heavy scene).
 // --tour swings the camera about ±40° around the board during the game, to
@@ -164,6 +167,24 @@ const FPS = 30;
 const WIDTH = Number(opt('width', 1280));
 const HEIGHT = Number(opt('height', 720));
 const BASE = process.env.SHOWCASE_URL ?? 'http://127.0.0.1:5173';
+// --query 'env=sky:soft,mist:on' is added to every address a page opens
+// (see src/envPreview/README.md); the env preview's menu is kept out of the
+// pictures (envpanel=0) unless the query names envpanel itself
+const QUERY = (() => {
+  const q = (opt('query', '') ?? '').replace(/^[?&]/, '');
+  if (!q) return '';
+  return /(^|&)env(=|&|$)/.test(q) && !/(^|&)envpanel(=|&|$)/.test(q) ? `${q}&envpanel=0` : q;
+})();
+/** An address with --query added. */
+const withQuery = (url) => {
+  if (!QUERY) return url;
+  const u = new URL(url);
+  for (const [k, v] of new URLSearchParams(QUERY)) u.searchParams.set(k, v);
+  // URLSearchParams would encode the list's : and ,
+  return u
+    .toString()
+    .replace(/([?&])env=([^&]*)/, (_, at, v) => `${at}env=${decodeURIComponent(v)}`);
+};
 const FFMPEG = process.env.FFMPEG ?? 'ffmpeg';
 const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
@@ -1598,7 +1619,7 @@ async function stepUntil(pages, page, done) {
 async function introReview(browser, rec, seat) {
   const elapsed = stopwatch();
   if (flag('rejoin')) {
-    await rec.reload();
+    await rec.goto(withQuery(rec.url()));
     await rec.waitForFunction(() => window.__show?.ready(), null, { ...POLL, timeout: 120000 });
   }
   // The fonts reach the label textures before the first frame is drawn
@@ -1689,7 +1710,7 @@ async function lobbyReview(browser) {
   await context.addInitScript(() => window.__vclock.enable());
   const page = await context.newPage();
   page.on('pageerror', (e) => console.error(`[page] ${e.message}`));
-  await page.goto(`${BASE}/computer`);
+  await page.goto(withQuery(`${BASE}/computer`));
   await page.waitForSelector('[data-testid="lobby-canvas"]', { timeout: 120000 });
   await page.evaluate(() => document.fonts.ready);
   const cdp = await context.newCDPSession(page);
@@ -1804,13 +1825,13 @@ async function main() {
     p.setDefaultTimeout(120000);
   }
 
-  await pageA.goto(`${BASE}/`);
+  await pageA.goto(withQuery(`${BASE}/`));
   await pageA.getByRole('button', { name: 'Play a friend' }).click();
   await pageA.getByRole('button', { name: /^White/ }).click();
   // --intro: the pick plays out on the stepped clock before the page moves on
   if (INTRO) await stepUntil([pageA], pageA, () => location.pathname.startsWith('/game/'));
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
-  await pageB.goto(pageA.url());
+  await pageB.goto(withQuery(pageA.url()));
   await pageB.getByRole('button', { name: 'Join game' }).click();
   if (INTRO) {
     // The arrival and the handover, up to the game's first frame on the

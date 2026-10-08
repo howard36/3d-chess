@@ -7,6 +7,8 @@ import '@fontsource/manrope/latin-500.css';
 import '@fontsource/manrope/latin-600.css';
 import '@fontsource/manrope/latin-700.css';
 import './index.css';
+// ENV PREVIEW (temporary): the settings menu, on preview deploys and with ?env / ?envpanel
+import { envPanelOn } from './envPreview/gate';
 
 // Apply base styles to body using TailwindCSS
 document.body.className =
@@ -21,3 +23,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </React.StrictMode>,
 );
+
+// ENV PREVIEW (temporary): loaded only when the gate says so; nothing otherwise
+if (envPanelOn())
+  import('./envPreview/mount').then(
+    (m) => m.mountEnvPanel(),
+    () => {},
+  );
