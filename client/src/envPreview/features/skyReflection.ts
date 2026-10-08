@@ -12,5 +12,5 @@ export const skyReflection = defineEnvFeature({
     { id: 'off', label: 'Off' },
     { id: 'on', label: 'On' },
   ],
-  default: 'on',
+  default: 'off',
 });
