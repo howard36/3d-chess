@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { hexToOklch, levelRamp, okhsvToOklch, oklchToHex, oklchToOkhsv } from './colors';
+import {
+  hexToOklch,
+  levelRamp,
+  mixWithWhite,
+  okhsvToOklch,
+  oklchToHex,
+  oklchToOkhsv,
+} from './colors';
 
 const hueGap = (a: number, b: number) => {
   const d = ((((b - a) % 360) + 540) % 360) - 180;
@@ -79,5 +86,18 @@ describe('levelRamp', () => {
     for (const hex of ['#4cc9f0', '#ffd166', '#e8b0d0', '#2352b0']) {
       expect(oklchToHex(hexToOklch(hex))).toBe(hex);
     }
+  });
+});
+
+describe('mixWithWhite', () => {
+  it('lightens evenly and fades the colour in proportion, holding the hue', () => {
+    const blue = '#4180f3';
+    const a = hexToOklch(blue);
+    const b = hexToOklch(mixWithWhite(blue, 0.2));
+    expect(b.l).toBeCloseTo(a.l + (1 - a.l) * 0.2, 2);
+    expect(b.c).toBeCloseTo(a.c * 0.8, 2);
+    expect(Math.abs(hueGap(a.h, b.h))).toBeLessThan(1);
+    expect(mixWithWhite(blue, 0)).toBe(blue);
+    expect(mixWithWhite(blue, 1)).toBe('#ffffff');
   });
 });

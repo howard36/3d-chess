@@ -79,6 +79,17 @@ export const hexToOklch = (hex: string): Oklch => {
   return { l, c: Math.hypot(a, bb), h };
 };
 
+/**
+ * A colour mixed `t` of the way to white in OKLab: its lightness rises
+ * evenly, its colour fades in proportion and its hue holds. Mixing in
+ * linear light instead (adding white light) lifts a colour's weak channels
+ * most, so it pales faster than it lightens and its hue drifts.
+ */
+export const mixWithWhite = (hex: string, t: number): string => {
+  const { l, c, h } = hexToOklch(hex);
+  return oklchToHex({ l: l + (1 - l) * t, c: c * (1 - t), h });
+};
+
 // Okhsv (Björn Ottosson's), on a cusp found by search: for a hue, the
 // lightness and chroma of its strongest colour sRGB can show.
 
