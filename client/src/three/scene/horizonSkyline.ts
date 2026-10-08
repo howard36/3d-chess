@@ -70,10 +70,12 @@ export const BLACK_LOOK = 16;
 /**
  * The two ranges. The nearer is low and dark, the farther taller and paler
  * with distance. Each seat finds a piece or two on its own side of the
- * world, beside the tower rather than behind it (the opening view's frame
- * spans about 27° either side of its line on a desktop, the tower about 9°),
- * and the two knights stand at the sides of the world, each the other
- * turned half about.
+ * world, out toward the edges of the opening view (its frame spans about 27°
+ * either side of its line on a desktop): the neon sculptures flanking the
+ * tower sweep the bands beside it as the camera sinks and climbs, and a
+ * secret piece never stands in line with one (horizonPlacement.test.ts).
+ * The two knights stand at the sides of the world, each the other turned
+ * half about.
  */
 export const RANGES: readonly Range[] = [
   {
@@ -82,9 +84,9 @@ export const RANGES: readonly Range[] = [
     roll: 6,
     seed: 3,
     summits: [
-      // Behind black's side of the world (white's view): the royal pair
-      { type: PieceType.King, azimuth: WHITE_LOOK + 20, scale: 58, top: 27, hill: 0.62 },
-      { type: PieceType.Queen, azimuth: WHITE_LOOK + 25, scale: 58, top: 25.5, hill: 0.62 },
+      // Behind black's side of the world, at the left edge of white's view: the royal pair
+      { type: PieceType.King, azimuth: WHITE_LOOK + 28, scale: 58, top: 27, hill: 0.62 },
+      { type: PieceType.Queen, azimuth: WHITE_LOOK + 33, scale: 58, top: 25.5, hill: 0.62 },
     ],
   },
   {
@@ -93,11 +95,11 @@ export const RANGES: readonly Range[] = [
     roll: 3.2,
     seed: 11,
     summits: [
-      // White's view, right of the tower: a rook's mesa
-      { type: PieceType.Rook, azimuth: WHITE_LOOK - 18, scale: 46, top: 12.5, hill: 0.4 },
-      // Black's view: the bishop left of the tower, a pawn's knoll right
-      { type: PieceType.Bishop, azimuth: BLACK_LOOK + 19, scale: 52, top: 19 },
-      { type: PieceType.Pawn, azimuth: BLACK_LOOK - 18, scale: 46, top: 13 },
+      // At the right edge of white's view: a rook's mesa
+      { type: PieceType.Rook, azimuth: WHITE_LOOK - 26, scale: 46, top: 12.5, hill: 0.4 },
+      // At the edges of black's view: the bishop at the left, a pawn's knoll at the right
+      { type: PieceType.Bishop, azimuth: BLACK_LOOK + 28, scale: 52, top: 19 },
+      { type: PieceType.Pawn, azimuth: BLACK_LOOK - 25, scale: 46, top: 13 },
       // The knights, at the sides of the world, each the other turned half
       // about (as the board is for Black)
       { type: PieceType.Knight, azimuth: BLACK_LOOK + 90, scale: 50, top: 25, hill: 0.3 },
