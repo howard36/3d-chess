@@ -14,8 +14,7 @@ import { LEVEL_FOCUS_MS, STEP_BACK, useLevelFocus } from './focus';
 import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
 import { GRID_LINES } from './gridLines';
-import { mixWithWhite } from './colors';
-import { FRAME, LEVEL_COLORS, MARGIN } from './palette';
+import { FRAME, LEVEL_COLORS, LEVEL_EDGE_COLORS, MARGIN } from './palette';
 import { useIntro } from '../intro/clock';
 import { levelBuild } from '../intro/timeline';
 
@@ -183,8 +182,6 @@ const FROST = 0.108;
 const SMOKE = 0.054;
 const LINE = 0.5;
 const EDGE = 0.8;
-/** How far each edge's colour is mixed toward white, in OKLab (colors.ts, mixWithWhite). */
-const EDGE_LIFT = 0.06;
 /** The edge's brightness: the level attended to reaches past full opacity. */
 const EDGE_BRIGHT = 1.1;
 /**
@@ -431,7 +428,7 @@ export const Levels = ({
         const build = { value: 1 };
         // The edge: one thin square of the level's light, lifted only a breath
         // toward white (in OKLab), so it keeps the level's colour and hue
-        const edgeColor = new Color(mixWithWhite(hex, EDGE_LIFT));
+        const edgeColor = new Color(LEVEL_EDGE_COLORS[z]);
         return {
           glass: new ShaderMaterial({
             transparent: true,

@@ -1,3 +1,4 @@
+import { mixWithWhite } from './colors';
 import { towerFrameRings } from './labelAnchors';
 import { towerFrame, towerLayout } from '../layout';
 
@@ -82,9 +83,9 @@ export const PALETTE = {
  * saturation (0.78) and value (0.93), so all five look equally vivid; the
  * blue and violet, strong only when dark, are held at lightness 0.62 so
  * they read on the night. No white or grey, and the rose sits well away
- * from the coral of a capture and the red of check. The level hairlines and
- * edges, the level letters, the ring at each piece's foot and the fill of
- * every destination use it. Worked out by `levelRamp` (colors.ts) with
+ * from the coral of a capture and the red of check. The level hairlines, the
+ * ring at each piece's foot and the fill of every destination use it; the
+ * edges and the level letters a little lighter (LEVEL_EDGE_COLORS). Worked out by `levelRamp` (colors.ts) with
  * LEVEL_RAMP, and written out here so nothing computes it at load;
  * palette.test.ts fails while the two differ.
  */
@@ -96,6 +97,14 @@ export const LEVEL_RAMP = {
   minLightness: 0.62,
 };
 export const LEVEL_COLORS = ['#ec539b', '#de5cec', '#8f61fc', '#4180f3', '#47bbec'];
+
+/**
+ * Each level's edge and letter: its colour mixed this far toward white in
+ * OKLab (mixWithWhite, colors.ts), lightened a little and paled in
+ * proportion, its hue held.
+ */
+export const LEVEL_EDGE_LIFT = 0.09;
+export const LEVEL_EDGE_COLORS = LEVEL_COLORS.map((c) => mixWithWhite(c, LEVEL_EDGE_LIFT));
 
 // A compact tower: the Staunton set at 0.8 leaves the king clear air
 // under the level above.

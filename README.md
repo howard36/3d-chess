@@ -395,7 +395,7 @@ nothing competes with the board; overhead are stars and chess constellations for
 that looks up. The garden changes only with the view, so while the camera rests it is drawn
 from a copy of itself taken on the first frame at rest (`scene/backdropCache.tsx`), and a
 move or a selection redraws the tower over it. Files and ranks label the two edges of the bottom platform nearest the
-camera (the top one's, seen from high above). The five level letters share one corner post
+camera (the top one's, seen from high above). The five level letters, each in its platform's edge colour, share one corner post
 (`letterCorner` in `three/scene/labelAnchors.ts`), each just outside its own platform's
 corner, out along the corner's diagonal, a little above its platform. From low and middling
 heights the post is a side of the tower's outline that carries no labels: the far end of
