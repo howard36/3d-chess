@@ -162,7 +162,7 @@ Key decisions:
   level's gap above level C) stands on screen by a lens shift (a view offset,
   `three/viewOffset.ts`) rather than a pan, set from the window alone: 3% of the rings'
   height (`CENTRE_LIFT`) above the middle of the room between the HUD's top pill (56 px)
-  and the bottom of the window. The band under the pill kept for the captured pieces (82 px
+  and the bottom of the window. The band under the pill kept for the captured pieces (84 px
   in all; 56 in a short window, where they stand beside the tower: `hudTop`) is kept clear
   but, mostly empty, not balanced against. A circle about the axis looks the
   same whichever way the camera has turned, so the shift is only ever vertical. It is set

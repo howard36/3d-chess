@@ -317,7 +317,7 @@
   /* As wide as the pill, and no wider; each haul starts under its stone */
   width: 0;
   min-width: 100%;
-  height: 18px;
+  height: 20px;
   padding: 0 14px;
   transition: opacity 200ms ease;
 }
@@ -328,7 +328,7 @@
 .hud-haul {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 1.5px;
   margin: 0;
 }
 /* The opponent's haul hangs from their stone, at the right: mirrored */
@@ -339,17 +339,20 @@
   display: flex;
   align-items: flex-end;
 }
+/* A glyph's ink is about half its box: overlapped, the pieces stand a pixel
+   or more apart, so every kind taken from both sides fits under the pill */
 .hud-taken svg {
   flex: none;
-  width: 16px;
-  height: 16px;
-  margin: 0 -3px;
+  width: 20px;
+  height: 20px;
+  margin: 0 -4.5px;
   filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.7));
 }
-/* Charcoal against the night sky: a brighter rim than on the promotion tile */
+/* Charcoal against the night sky: a brighter rim than on the promotion tile
+   (twice its width, as the glyph's own edge, half clipped away) */
 .hud-taken svg[data-color='black'] path {
   stroke: rgba(178, 190, 212, 0.95);
-  stroke-width: 1.3px;
+  stroke-width: 2.2px;
 }
 .hud-count {
   margin-left: 1px;
@@ -360,7 +363,7 @@
   font-variant-numeric: tabular-nums;
 }
 .hud-lead {
-  margin: 0 3px;
+  margin: 0 2px;
   color: var(--hud-fg);
   font-size: 11px;
   font-weight: 700;
