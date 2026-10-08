@@ -68,7 +68,7 @@ describe('the court', () => {
   });
 
   it('turns with the colossal board for Black, and quiets for the lobby', async () => {
-    const env = 'recommended';
+    const env = 'recommended,courtFloor:sheen,courtInlay:ring,courtLife:on,courtEggs:on';
     const white = await mountWith(env, 'white');
     for (const o of white.court)
       expect((o.material as ShaderMaterial).uniforms.uTurn.value, o.name).toBe(1);
