@@ -999,12 +999,12 @@ repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
 
-The client's entry (about 88 KB gzip) holds the start screen, the side choice and the game
+The client's entry (about 90 KB gzip) holds the start screen, the side choice and the game
 screen (the invitation, the HUD, the move record). Everything 3D is a chunk the entry loads
 lazily, shared by the start page's preview (`screens/LandingPreview.tsx`), the lobby's
 canvas (`screens/lobby/LobbyCanvas.tsx`), the game's board (`screens/GameCanvas.tsx`) and
 the tutorial's (`screens/learn/LearnCanvas.tsx`):
-three.js, the scene and the set's precomputed parts, about 350 KB. The start page asks for
+three.js, the scene and the set's precomputed parts, about 330 KB (gzip; `bench/RESULTS.md`, "Bundle"). The start page asks for
 it at once and shows its title and button without waiting for it; on the side choice
 (`/new`, `/computer`), a game's address (`/game/:id`, `/computer/:id`) and the tutorial
 (`/learn`) the built page preloads it from the start (a
