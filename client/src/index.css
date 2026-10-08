@@ -1260,9 +1260,8 @@
   gap: 10px;
 }
 /* Against the computer, its level: three tiles of the home page's glass in
-   a row under the kings, the kings framed as for the side, hanging under
-   their words ("You", "Computer": .lobby-seat, 26 px tall) as the side's
-   buttons hung under the kings, rising in turn with the computer's outline.
+   a row under the kings, the kings framed as for the side, hanging where
+   the side's buttons hung, rising in turn with the computer's outline.
    Each is the home page's tile at the kings' scale: the computer's robot
    and its strength in a box of dark blue glass, one bar to three, in the
    level colours from sky to rose, left to right, and the level's name,
@@ -1272,7 +1271,7 @@
   position: absolute;
   left: 16px;
   right: 16px;
-  top: calc(var(--seat-coin-front, 62%) + clamp(6px, calc(var(--king) * 0.05), 12px) + 26px + 14px);
+  top: calc(var(--seat-coin-front, 62%) + clamp(8px, calc(var(--king) * 0.055), 16px));
   display: flex;
   justify-content: center;
   gap: clamp(8px, calc(var(--king) * 0.045), 14px);
@@ -1372,9 +1371,6 @@
   .lobby-heading h1 {
     font-size: 30px;
   }
-  .lobby-levels {
-    top: calc(var(--seat-coin-front, 62%) + 6px + 26px + 10px);
-  }
   .lobby-level {
     flex-basis: 172px;
     flex-direction: row;
@@ -1394,7 +1390,7 @@
 /* Against the computer, the page's words make way for its arrival: the
    level chosen holds a moment as the others fade, and the page moves on as
    it goes (ChooseSide) */
-.lobby-page :is(.lobby-heading, .lobby-top, .lobby-labels)[data-out] {
+.lobby-page :is(.lobby-heading, .lobby-top)[data-out] {
   animation: lobby-out 350ms ease both;
 }
 .lobby-page .lobby-levels[data-out] {
@@ -1538,9 +1534,16 @@
   padding: 0 26px;
   font-size: 16px;
 }
-/* The guest's card: the host's card, holding only its action */
+/* The guest's card: only its action, the button alone where the host's
+   card stands, with no glass round it */
 .lobby-invitation {
   padding: 20px 24px;
+  backdrop-filter: none;
+  box-shadow: none;
+  pointer-events: none;
+}
+.lobby-invitation .lobby-go {
+  pointer-events: auto;
 }
 .lobby-invitation .lobby-actions {
   margin-top: 0;
@@ -1551,23 +1554,6 @@
     width: min(400px, calc(100vw - 32px));
     padding: 14px 18px;
   }
-}
-/* Who stands where: a word under each king */
-.lobby-seat {
-  position: absolute;
-  left: var(--x);
-  top: calc(var(--y) + clamp(6px, calc(var(--king-height, 200px) * 0.05), 12px));
-  transform: translateX(-50%);
-  padding: 3px 11px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  background: rgba(10, 12, 18, 0.7);
-  color: var(--hud-muted);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  animation: lobby-rise 600ms 200ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 /* The link on one line, as wide as it is; a long one is cut off at its end
    (Copy has it whole) */
