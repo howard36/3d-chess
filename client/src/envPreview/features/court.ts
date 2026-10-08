@@ -29,7 +29,7 @@ export const courtInlay = defineEnvFeature({
     { id: 'double', label: 'Two rings' },
     { id: 'star', label: 'Knight star' },
   ],
-  default: 'ring',
+  default: 'double',
 });
 
 /** Glow-moss in the slabs' joints: still points of cool light, in clusters. */
