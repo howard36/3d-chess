@@ -20,7 +20,7 @@ import { useEndCard } from './useEndCard';
 import GameView from './GameView';
 import { selectInvitation } from '../game/invitation';
 import type { Color } from '../types/messages';
-import { InvitationCard, InviteCard, SeatLabels } from './lobby/LobbyCards';
+import { InvitationCard, InviteCard } from './lobby/LobbyCards';
 import { Stone } from './TurnPill';
 import { useLobbyView } from './lobby/lobbyContext';
 import type { LobbyStage } from './lobby/lobbyContext';
@@ -506,17 +506,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
           <span aria-hidden>←</span> Home
         </button>
       </header>
-      {hosting && storedRole && (
-        <SeatLabels labels={{ [storedRole]: 'You', [other(storedRole)]: 'Opponent' }} />
-      )}
-      {guest && (invitation.state === 'open' || invitation.state === 'joining') && (
-        <SeatLabels
-          labels={{
-            [other(invitation.seat)]: 'Opponent',
-            [invitation.seat]: 'You',
-          }}
-        />
-      )}
       {/* The story's line: the side this page plays, or the invitation */}
       {hosting && storedRole && (
         // Continues the side choice's last heading, so it does not rise again
