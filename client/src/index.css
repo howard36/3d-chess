@@ -348,11 +348,10 @@
   margin: 0 -4.5px;
   filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.7));
 }
-/* Charcoal against the night sky: a brighter rim than on the promotion tile
+/* Charcoal against the night sky: a wider edge than on the promotion tile
    (twice its width, as the glyph's own edge, half clipped away) */
 .hud-taken svg[data-color='black'] path {
-  stroke: rgba(178, 190, 212, 0.95);
-  stroke-width: 2.2px;
+  stroke-width: 1.6px;
 }
 .hud-count {
   margin-left: 1px;
