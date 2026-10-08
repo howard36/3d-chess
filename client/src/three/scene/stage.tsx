@@ -9,7 +9,6 @@ import {
   CustomBlending,
   MaxEquation,
   OneFactor,
-  PlaneGeometry,
   ShaderMaterial,
   SphereGeometry,
   Vector2,
@@ -39,6 +38,7 @@ import { SkyDetail, skyAirUniforms, useSkyAir } from './skyDetail';
 import { BoardDetail } from './boardDetail';
 import { Court } from './court';
 import { Horizon } from './horizon';
+import { groundGeometry } from './horizonGround';
 // ENV PREVIEW (temporary): the preview's settings, and a redraw when one changes
 import { useEnvSetting } from '../../envPreview';
 import { shootingStar } from '../../envPreview/features/shootingStar';
@@ -242,7 +242,7 @@ const groundFragment = /* glsl */ `
 const Ground = () => {
   const parts = useMemo(
     () => ({
-      geometry: new PlaneGeometry(260, 260, 4, 4).rotateX(-Math.PI / 2),
+      geometry: groundGeometry(),
       material: new ShaderMaterial({
         // Drawn first and writing no depth: the reflections go under it
         depthWrite: false,

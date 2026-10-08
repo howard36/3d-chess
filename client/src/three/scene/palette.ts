@@ -112,7 +112,23 @@ export const COURT = {
 
 /** Area D: the horizon and far ground, and rare events (horizon.tsx). */
 export const HORIZON = {
-  // (area D's colours)
+  /**
+   * The far hills' shadow: what a silhouette multiplies the night behind it
+   * by, near range and far (the far one paler, with the air between).
+   */
+  hillNear: '#646975',
+  hillFar: '#7b818d',
+  /** The far tower's stone, darker than the hills in front of which it stands. */
+  tower: '#60656f',
+  /** Its one lit window: a minute pale amber, the only warm light in the world. */
+  window: '#ffd8a3',
+  /** The far plain's mist banks. */
+  mist: '#7d8aa6',
+  /** Far lights at the hills' feet: most a cool starlight, a few warmer. */
+  lightCool: '#dfe6ff',
+  lightWarm: '#ffe6c4',
+  /** The lighthouse's beam in the haze. */
+  beam: '#e6ecff',
 } as const;
 
 /**
