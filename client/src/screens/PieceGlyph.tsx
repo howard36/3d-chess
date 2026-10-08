@@ -6,7 +6,7 @@ import type { Turn } from '../game/history';
 // glyph in any font. The promotion tiles, the captured pieces and the
 // tutorial share them. Every piece stands on y = 21, as tall as its 3D piece
 // with the differences softened (king 19.2 > queen > unicorn > bishop >
-// knight > rook > pawn 14.6), so a row of them reads like the set; what tells
+// knight > rook > pawn 14.4), so a row of them reads like the set; what tells
 // them apart at 20 px is the outline of each one's head.
 const GLYPHS: Record<PieceType, string> = {
   [PieceType.King]:
@@ -22,15 +22,15 @@ const GLYPHS: Record<PieceType, string> = {
     'M12 3.5a1.4 1.4 0 1 1 0 2.8a1.4 1.4 0 1 1 0-2.8zM8.65 10.55L8.73 9.95L8.95 9.34L9.3 8.73L9.53 8.43L10.11 7.82L10.87 7.21L11.34 6.9L12 6.6L12.66 6.9L13.13 7.21L13.89 7.82L14.5 8.46L11.15 11.15L11.7 11.75L15.09 9.44L15.27 9.95L15.32 10.25L15.34 10.86L15.25 11.47L15.16 11.77L14.92 12.38L14.59 12.99L13.97 13.9L10.03 13.9L9.41 12.99L8.95 12.07L8.75 11.47L8.69 11.16zM9.15 14.3H14.85a.55 .55 0 0 1 0 1.1H9.15a.55 .55 0 0 1 0-1.1zM9.6 15.9L14.4 15.9L16.2 18.7L7.8 18.7zM6.4 19.1h11.2V21H6.4z',
   [PieceType.Knight]:
     'M7.5 21H19v-2.3l-1.1-1.2c.4-4.2-.6-9-5.6-11.8l-.9-1.9-1.5 2.1C7.5 7.4 6 9.9 6.1 12.5l1.8 1.3 3-1.5c.3 1.7-.8 3.1-2.2 4.3l-1.2 2.1z',
-  // The 3D piece's spiralled horn, not a horse: a slim spire whose twist is
-  // three slanted grooves, on a ring and a flared stem. Thin at the head where
-  // the bishop is round, with more ink than the pawn below it, as it is worth
-  // more. (The knight's silhouette with a horn is the knight at the size the
-  // HUD draws it.)
+  // The 3D piece's spiralled horn, not a horse: a spire whose twist is two
+  // slanted grooves, on a ring, a flared stem and a broad plinth. Thin at the
+  // tip where the bishop is round, and a third heavier than the pawn, as it is
+  // worth more. (The knight's silhouette with a horn is the knight at the size
+  // the HUD draws it.)
   [PieceType.Unicorn]:
-    'M9.6 12.3L10.07 10.84L13.42 9.17L14.4 12.3zM10.28 10.19L10.85 8.25L12.88 7.24L13.28 8.69zM11.02 7.61L11.5 5.73L12.4 5.27L12.75 6.75zM11.63 5.11L11.91 3.68L11.98 2.9L12.02 2.9L12.09 3.68L12.3 4.78zM9.85 12.7H14.15a.55 .55 0 0 1 0 1.1H9.85a.55 .55 0 0 1 0-1.1zM14 14.1L14.14 14.55L14.33 15L14.82 15.9L15.7 17.25L16.7 18.6L7.3 18.6L8.3 17.25L9.18 15.9L9.67 15L9.86 14.55L10 14.1zM6.6 19h10.8v2H6.6z',
-  [PieceType.Pawn]:
-    'M12 6.4a2.2 2.2 0 1 1 0 4.4a2.2 2.2 0 1 1 0-4.4zM10.2 11.7h3.6L15.2 18.8H8.8zM7.6 19.2h8.8V21H7.6z',
+    'M9.6 12.3L10.59 9.13L13.06 7.9L13.65 9.95L14.4 12.3zM10.75 8.6L11.4 6.12L12.47 5.59L12.95 7.5zM11.52 5.61L11.84 4.08L11.96 3.29L11.98 2.9L12.02 2.9L12.09 3.68L12.38 5.18zM9.8 12.7H14.2a.7 .7 0 0 1 0 1.4H9.8a.7 .7 0 0 1 0-1.4zM14.4 14.1L17 18.6L7 18.6L9.6 14.1zM6.4 19h11.2v2H6.4z',
+  // A small ball on a slim body: the lightest piece in the set
+  [PieceType.Pawn]: 'M12 6.6a2 2 0 1 1 0 4a2 2 0 1 1 0-4zM10.4 11.5h3.2L15 18.8H9zM8 19.2h8V21H8z',
 };
 
 /**
