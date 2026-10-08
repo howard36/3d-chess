@@ -215,8 +215,8 @@
   line-height: 1;
 }
 .learn .learn-figure.learn-army li svg {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
 }
 .learn-swatch {
   display: inline-block;
@@ -368,6 +368,14 @@
   }
   .learn-figure:not(.learn-army) {
     display: none;
+  }
+  /* Each side's pieces still on one line */
+  .learn-army ul {
+    column-gap: 7px;
+  }
+  .learn .learn-figure.learn-army li svg {
+    width: 20px;
+    height: 20px;
   }
 }
 /* A wide window: the card stands at the left of the tower, which takes the
