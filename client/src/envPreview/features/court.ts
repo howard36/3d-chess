@@ -14,7 +14,7 @@ export const courtFloor = defineEnvFeature({
     { id: 'sheen', label: 'Sheen' },
     { id: 'veined', label: 'Veined' },
   ],
-  default: 'veined',
+  default: 'sheen',
 });
 
 /** A light inlay round the tower: its spokes point the eight ways a knight jumps. */
