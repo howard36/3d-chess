@@ -18,7 +18,7 @@ export const sculptureFix = defineEnvFeature({
     { id: 'off', label: 'Off' },
     { id: 'on', label: 'On' },
   ],
-  default: 'on',
+  default: 'off',
 });
 
 /**

@@ -23,9 +23,8 @@ import { placeStar } from './skyPlace';
 // - the tower's echo: five stars climbing one above another, tinted in the
 //   five level colours, A's at the foot to E's at the top, between the
 //   unicorn and the pawn;
-// - the eight queens: eight stars set as a solution of the puzzle, each in
-//   its square of the faintest 8x8 board drawn in whole hairlines round them,
-//   low between the bishop and the rook.
+// - the eight queens: eight stars set as a solution of the puzzle in the
+//   faintest lattice of an 8x8 board, low between the bishop and the rook.
 // The low ones also stand above the horizon from the camera's 6° view.
 
 const loop = (n: number, from = 0): [number, number][] =>
@@ -193,32 +192,13 @@ const QUEENS: Constellation = {
   lines: [],
 };
 
-/**
- * The queens' board: its nine lines each way, whole hairlines (not a
- * lattice of points, which reads as dotted rules), each queen at the middle
- * of her square (the queens stand at k/7, the lines halfway between).
- */
-const QUEENS_BOARD: Constellation = (() => {
-  const at = (k: number) => (k - 0.5) / 7;
-  const marks: P2[] = [];
-  const lines: [number, number][] = [];
-  for (let k = 0; k <= 8; k++) {
-    for (const [a, b] of [
-      [
-        [at(k), at(0)],
-        [at(k), at(8)],
-      ],
-      [
-        [at(0), at(k)],
-        [at(8), at(k)],
-      ],
-    ] as [P2, P2][]) {
-      lines.push([marks.length, marks.length + 1]);
-      marks.push(a, b);
-    }
-  }
-  return { stars: [], marks, lines };
-})();
+/** The queens' board: the faintest lattice of points on its empty squares. */
+const QUEENS_BOARD: Constellation = {
+  stars: Array.from({ length: 64 }, (_, i): P2 => [(i % 8) / 7, Math.floor(i / 8) / 7]).filter(
+    ([u, v]) => EIGHT_QUEENS[Math.round(u * 7)] !== Math.round(v * 7),
+  ),
+  lines: [],
+};
 
 export const EGG_PLAN = {
   tour: { c: TOUR, azimuth: 16, elevation: 14.5, size: 3.6, tilt: 0.02 } as Placement,
@@ -376,7 +356,6 @@ export const eggEntries = (): ChartEntry[] => {
       colors: LEVEL_COLORS.map((c) => new Color(c).lerp(neon, 0.25)),
     },
     { plan: EGG_PLAN.queens, id: -10, bright: [0.24, 0.28], size: [1.8, 2], line: 0 },
-    // The queens' board: hairlines alone, fainter than any figure's
-    { plan: EGG_PLAN.queensBoard, id: -10, bright: [0, 0], size: [1, 1], line: 0.13 },
+    { plan: EGG_PLAN.queensBoard, id: -10, bright: [0.05, 0.06], size: [1.1, 1.1], line: 0 },
   ];
 };
