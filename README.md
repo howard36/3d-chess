@@ -270,9 +270,9 @@ Key decisions:
   tablet, sets the title and the tiles side by side in a band along the bottom. The two
   tiles are alike in weight: dark glass in a rim of the five level colours (a ring of its
   own, masked to the border, which turns while the pointer is on it), both on a diagonal
-  from cyan, glowing at the top left, to a warmer rose at the bottom right (under the
+  from sky blue, glowing at the top left, to a warmer rose at the bottom right (under the
   pointer the glows brighten and a sheen sweeps across once), two pieces facing each
-  other in a box of dark teal glass fitted to them (two knights, or a knight and the
+  other in a box of dark blue glass fitted to them (two knights, or a knight and the
   computer's robot, both in Black's charcoal; the robot's box is a little wider, so both
   pairs have the same room round them) and the name, whose size follows the tile's width (container units, 13–17 px) so "Play the computer" keeps to
   one line in all but the narrowest phones. "Play a friend" creates nothing: it opens the
@@ -383,7 +383,9 @@ independent of rendering, and the e2e click helpers project through the live cam
 ## The board
 
 The tower of five glass levels floats in a garden at night. Each level is a sheet of clear
-glass edged in its own colour (cyan, azure, periwinkle, orchid and rose, A to E), with the
+glass edged in its own colour (rose, orchid, violet, blue and sky, A to E: the red end at
+the base, the sky at the top, as every gradient of them in the interface runs sky to rose,
+left to right and top to bottom; one Okhsv saturation, so all five look equally vivid), with the
 3D checker on it (dark where x + y + z is even, so a bishop keeps its colour through the
 levels) divided by hairlines of the level's colour. Porcelain and charcoal Staunton pieces
 (see Piece set) stand on the glass, each with a thin band of its level's colour round its
@@ -393,7 +395,7 @@ nothing competes with the board; overhead are stars and chess constellations for
 that looks up. The garden changes only with the view, so while the camera rests it is drawn
 from a copy of itself taken on the first frame at rest (`scene/backdropCache.tsx`), and a
 move or a selection redraws the tower over it. Files and ranks label the two edges of the bottom platform nearest the
-camera (the top one's, seen from high above). The five level letters share one corner post
+camera (the top one's, seen from high above). The five level letters, each in its platform's edge colour, share one corner post
 (`letterCorner` in `three/scene/labelAnchors.ts`), each just outside its own platform's
 corner, out along the corner's diagonal, a little above its platform. From low and middling
 heights the post is a side of the tower's outline that carries no labels: the far end of

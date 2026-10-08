@@ -8,7 +8,7 @@ import { LAYER } from './layers';
 import { LABEL_SIZE, labelAnchors } from './labelAnchors';
 import type { AnchorState, LabelAnchor } from './labelAnchors';
 import { noRaycast } from '../noRaycast';
-import { LEVEL_COLORS, PALETTE } from './palette';
+import { LEVEL_EDGE_COLORS, PALETTE } from './palette';
 import type { BoardLayout, Vec3 } from '../types';
 import { useIntro } from '../intro/clock';
 import { labelFade } from '../intro/timeline';
@@ -19,9 +19,6 @@ import { smooth } from './ease';
 const FONT = '"Manrope", system-ui, sans-serif';
 const AXIS_WEIGHT = 600;
 const LEVEL_WEIGHT = 700;
-const OUTLINE = 'rgba(2, 3, 7, 0.9)';
-const OUTLINE_WIDTH = 0.08;
-const SHADOW = 'rgba(200, 215, 255, 0.25)';
 const OPACITY = 0.9;
 /** How much the labels of the levels other than the one in play dim (to this share of their opacity). */
 const FOCUS_DIM = 0.55;
@@ -47,13 +44,6 @@ const drawGlyph = (text: string, weight: number, color: string): Texture => {
   ctx.textBaseline = 'middle';
   const x = size / 2;
   const y = size / 2 + size * 0.04;
-  ctx.shadowColor = SHADOW;
-  ctx.shadowBlur = size * 0.1;
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = OUTLINE;
-  ctx.lineWidth = size * OUTLINE_WIDTH * 2;
-  ctx.strokeText(text, x, y);
-  ctx.shadowColor = 'transparent';
   ctx.fillStyle = color;
   ctx.fillText(text, x, y);
   const t = new CanvasTexture(c);
@@ -169,7 +159,9 @@ export const SmartLabels = ({
     const map = new Map<string, Texture>();
     if (!fontReady) return map;
     for (const t of [...FILES, ...RANKS]) map.set(t, drawGlyph(t, AXIS_WEIGHT, PALETTE.ink));
-    LEVELS.forEach((t, z) => map.set(`level-${t}`, drawGlyph(t, LEVEL_WEIGHT, LEVEL_COLORS[z])));
+    LEVELS.forEach((t, z) =>
+      map.set(`level-${t}`, drawGlyph(t, LEVEL_WEIGHT, LEVEL_EDGE_COLORS[z])),
+    );
     return map;
   }, [fontReady]);
   useEffect(() => () => textures.forEach((t) => t.dispose()), [textures]);
