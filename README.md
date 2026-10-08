@@ -1,14 +1,13 @@
 # 3D Chess
 
-Chess on a 5×5×5 tower of glass.
+Chess on a 5×5×5 board.
 
 [![A game of 3D chess against the computer: White's queen picked up in the middle of a five-level glass tower, her moves ringed in gold](docs/preview.jpg)](https://3d-chess.pages.dev)
 
 **[Play at 3d-chess.pages.dev →](https://3d-chess.pages.dev)**
 
-- Play a friend by sharing a link, or play the computer (Easy, Medium, Hard)
-- No account, nothing to install, works on a phone
-- New to it? [Learn how the pieces move](https://3d-chess.pages.dev/learn)
+- Modes: two players over a shared link, or one against the computer (three levels)
+- [Tutorial](https://3d-chess.pages.dev/learn)
 
 ## Rules
 
