@@ -1,0 +1,210 @@
+import { describe, expect, it } from 'vitest';
+import { Color, PerspectiveCamera, Vector3 } from 'three';
+import { SKY_PLAN } from './heavens';
+import {
+  chartGeometry,
+  EGG_PLAN,
+  eggEntries,
+  EIGHT_QUEENS,
+  majorEntries,
+  minorEntries,
+  SKY_MINOR,
+  TOUR_5X5,
+} from './skyChart';
+import { brightestOf, RICH_FIELD, richField, todayField } from './skyStars';
+import { bandFrame, bandLight } from './skyMilkyWay';
+import { figureInView, traceables } from './skyEvents';
+import { angleBetween, DEG, elevationOf, placeStar } from './skyPlace';
+import { LEVEL_COLORS, PALETTE, SKY_DETAIL } from './palette';
+
+// The richer sky (ENV PREVIEW: stars, constellations, skyEggs, milkyWay,
+// skyEvents): where its figures stand, that its hidden puzzles are right,
+// and that its stars are spent where a camera can see them.
+
+const figureStars = (plans = [...SKY_PLAN, ...SKY_MINOR]) =>
+  plans.flatMap((plan) => plan.c.stars.map((s) => placeStar(s, plan)));
+
+describe('the smaller figures', () => {
+  it('stand low or high in the sky a camera sees, clear of the HUD band', () => {
+    for (const plan of SKY_MINOR) {
+      for (const s of plan.c.stars) {
+        const el = elevationOf(placeStar(s, plan));
+        // From 9° (above the horizon from the camera's 6° view) to under the
+        // top edge beside the tower from the lowest view (about 28°)
+        expect(el).toBeGreaterThan(8);
+        expect(el).toBeLessThan(27.5);
+      }
+    }
+  });
+
+  it('keep clear of the eight and of each other', () => {
+    const groups = [...SKY_PLAN, ...SKY_MINOR, ...Object.values(EGG_PLAN)].map((plan) =>
+      plan.c.stars.map((s) => placeStar(s, plan)),
+    );
+    // The eight queens and their board are one asterism
+    const queens = groups.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      for (let j = i + 1; j < groups.length; j++) {
+        if (i === queens - 1 && j === queens) continue;
+        for (const a of groups[i])
+          for (const b of groups[j]) expect(angleBetween(a, b)).toBeGreaterThan(3);
+      }
+    }
+  });
+});
+
+describe('the hidden asterisms', () => {
+  it('hide a real knight’s tour of a 5x5 board', () => {
+    const at = new Map<number, [number, number]>();
+    TOUR_5X5.forEach((row, r) => row.forEach((n, c) => at.set(n, [r, c])));
+    expect([...at.keys()].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: 25 }, (_, i) => i + 1),
+    );
+    for (let n = 1; n < 25; n++) {
+      const [r0, c0] = at.get(n)!;
+      const [r1, c1] = at.get(n + 1)!;
+      const d = [Math.abs(r1 - r0), Math.abs(c1 - c0)].sort();
+      expect(d).toEqual([1, 2]);
+    }
+    // Its path is drawn only by a trace's light
+    const tour = eggEntries().find((e) => e.plan === EGG_PLAN.tour)!;
+    expect(tour.line).toBe(0);
+    expect(tour.plan.c.lines).toHaveLength(24);
+  });
+
+  it('set eight queens none of which attacks another', () => {
+    const q = EIGHT_QUEENS;
+    expect(new Set(q).size).toBe(8);
+    for (let a = 0; a < 8; a++)
+      for (let b = a + 1; b < 8; b++) expect(Math.abs(q[a] - q[b])).not.toBe(b - a);
+  });
+
+  it('stack five stars in the five level colours, A at the foot', () => {
+    const echo = eggEntries().find((e) => e.plan === EGG_PLAN.echo)!;
+    const els = echo.plan.c.stars.map((s) => elevationOf(placeStar(s, echo.plan)));
+    for (let i = 1; i < 5; i++) expect(els[i]).toBeGreaterThan(els[i - 1]);
+    const neon = new Color(PALETTE.neon);
+    echo.colors!.forEach((c, i) => {
+      // Tinted toward its level's colour, not white
+      const level = new Color(LEVEL_COLORS[i]);
+      const toLevel = Math.hypot(c.r - level.r, c.g - level.g, c.b - level.b);
+      const toNeon = Math.hypot(c.r - neon.r, c.g - neon.g, c.b - neon.b);
+      expect(toLevel).toBeLessThan(toNeon * 1.6);
+    });
+  });
+});
+
+describe('the charted figures', () => {
+  it('stop each line short of its stars and number it along the figure', () => {
+    const entries = [...majorEntries(SKY_PLAN), ...minorEntries()];
+    const { stars, lines } = chartGeometry(entries);
+    const pos = lines.getAttribute('position');
+    const along = lines.getAttribute('aAlong');
+    const figure = lines.getAttribute('aFigure');
+    const starPos = stars.getAttribute('position');
+    const starsAt = Array.from({ length: starPos.count }, (_, i) =>
+      new Vector3().fromBufferAttribute(starPos, i),
+    );
+    for (let v = 0; v < pos.count; v++) {
+      const p = new Vector3().fromBufferAttribute(pos, v);
+      // No line touches a star: at least 0.1° off every one
+      const nearest = Math.min(...starsAt.map((s) => angleBetween(s.toArray(), p.toArray())));
+      if (figure.getX(v) < 10) expect(nearest).toBeGreaterThan(0.1);
+      expect(along.getX(v)).toBeGreaterThanOrEqual(0);
+      expect(along.getX(v)).toBeLessThanOrEqual(1);
+    }
+    // Each figure has its number and one star brighter than the rest
+    expect(new Set(Array.from({ length: figure.count }, (_, i) => figure.getX(i))).size).toBe(
+      entries.length,
+    );
+    const bright = Array.from(stars.getAttribute('aBright').array);
+    expect(bright.filter((b) => b > 0.6)).toHaveLength(SKY_PLAN.length);
+  });
+
+  it('lets a trace light only a figure wholly in frame and clear of the tower', () => {
+    const camera = new PerspectiveCamera(36, 1.6, 0.1, 1000);
+    camera.position.set(0, 0, 0);
+    const [knight] = traceables(majorEntries(SKY_PLAN));
+    const at = knight.points[0].clone().normalize();
+    camera.lookAt(at.multiplyScalar(10));
+    camera.updateMatrixWorld();
+    expect(figureInView(camera, 1.6, knight.points)).toBe(true);
+    camera.lookAt(new Vector3(-at.x, at.y, -at.z));
+    camera.updateMatrixWorld();
+    expect(figureInView(camera, 1.6, knight.points)).toBe(false);
+  });
+});
+
+describe('the rich field', () => {
+  const avoid = figureStars();
+  const f = richField(avoid);
+  const count = f.bright.length;
+  const dirs = Array.from({ length: count }, (_, i) => f.pos.slice(i * 3, i * 3 + 3));
+
+  it('spends every star where a camera can see it', () => {
+    expect(count).toBeGreaterThanOrEqual(RICH_FIELD);
+    for (const d of dirs) {
+      const el = elevationOf(d);
+      expect(el).toBeGreaterThan(0.9);
+      expect(el).toBeLessThan(36.5);
+    }
+    // Today's spends almost half above anything ever on screen
+    const today = todayField();
+    const high = today.bright.filter((_, i) => elevationOf(today.pos.slice(i * 3, i * 3 + 3)) > 36);
+    expect(high.length / today.bright.length).toBeGreaterThan(0.4);
+  });
+
+  it('is mostly faint dust, with a few hundred plain stars and a dozen or so bright ones', () => {
+    const dust = f.bright.filter((b) => b < 0.08).length;
+    const bright = f.bright.filter((b) => b > 0.4).length;
+    expect(dust / count).toBeGreaterThan(0.5);
+    expect(bright).toBeGreaterThanOrEqual(6);
+    expect(bright).toBeLessThanOrEqual(40);
+  });
+
+  it('keeps its bright stars off the constellations', () => {
+    dirs.forEach((d, i) => {
+      if (f.bright[i] < 0.11) return;
+      for (const a of avoid) expect(angleBetween(d, a)).toBeGreaterThan(2.2);
+    });
+  });
+
+  it('colours its stars in the palette’s pale temperatures only', () => {
+    const tints = [
+      SKY_DETAIL.starWhite,
+      SKY_DETAIL.starBlue,
+      SKY_DETAIL.starGold,
+      SKY_DETAIL.starOrange,
+    ]
+      .map((h) => new Color(h))
+      .map((c) => [c.r, c.g, c.b].map((v) => v.toFixed(4)).join());
+    for (let i = 0; i < count; i++)
+      expect(tints).toContain(
+        f.color
+          .slice(i * 3, i * 3 + 3)
+          .map((v) => v.toFixed(4))
+          .join(),
+      );
+  });
+
+  it('gives the stone its brightest stars', () => {
+    const g = brightestOf(f, 50);
+    const b = Array.from(g.getAttribute('aBright').array);
+    expect(b).toHaveLength(50);
+    expect(Math.min(...b)).toBeCloseTo([...f.bright].sort((x, y) => y - x)[49], 5);
+  });
+});
+
+describe('the Milky Way', () => {
+  it('rises out of the horizon, dark below it, brightest along its middle', () => {
+    const { at } = bandFrame();
+    expect(at(0).y).toBeCloseTo(0, 5);
+    expect(at(Math.PI / 2).y).toBeGreaterThan(0.9);
+    const el = (phi: number, beta: number) => elevationOf(at(phi, beta).toArray());
+    const phi = 25 * DEG;
+    expect(bandLight(phi, 0, el(phi, 0))).toBeGreaterThan(
+      bandLight(phi, 12 * DEG, el(phi, 12 * DEG)),
+    );
+    expect(bandLight(-3 * DEG, 0, -2)).toBe(0);
+  });
+});

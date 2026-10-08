@@ -1,18 +1,29 @@
 import { useMemo } from 'react';
 import { useThree } from '@react-three/fiber';
-import {
-  AdditiveBlending,
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  ShaderMaterial,
-  Vector3,
-} from 'three';
+import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, ShaderMaterial } from 'three';
 import { noRaycast } from '../noRaycast';
 import { useDisposeOnUnmount } from './dispose';
 import { rng } from './textures';
 import { shadeUniforms, TOWER_SHADE } from './mask';
 import { PALETTE } from './palette';
+import type { Constellation, Placement } from './skyPlace';
+import { placeStar } from './skyPlace';
+import {
+  chartGeometry,
+  EGG_PLAN,
+  majorEntries,
+  minorEntries,
+  SKY_MINOR,
+  starBuffers,
+} from './skyChart';
+import { richFieldGeometry, todayField } from './skyStars';
+import { skyLineMaterial, skyPointMaterial } from './skyShaders';
+// ENV PREVIEW (temporary): the richer sky's settings
+import { useEnvSetting } from '../../envPreview';
+import { stars as starsSetting } from '../../envPreview/features/stars';
+import { constellations as constellationsSetting } from '../../envPreview/features/constellations';
+
+export { placeStar, skyDirection } from './skyPlace';
 
 // The night overhead. A sparse field of faint stars thins out toward the
 // horizon's mist, and high above the garden, where only a camera sunk below
@@ -23,20 +34,12 @@ import { PALETTE } from './palette';
 // top of the frame in every ordinary view: an easter egg, not a backdrop.
 // Nothing moves, and whatever lies behind the tower is held down to nothing
 // (mask.ts).
-
-/** Radius of the dome the stars are set on (inside the sky sphere). */
-const DOME = 300;
-
-type P2 = [number, number];
-
-interface Constellation {
-  /** Points in a unit box (x right, y up). */
-  stars: P2[];
-  /** Pairs of star indices joined by a line. */
-  lines: [number, number][];
-  /** Stars left unjoined (the knight's eye): drawn dimmer, no line. */
-  loose?: P2[];
-}
+//
+// The richer sky (ENV PREVIEW: `stars: rich`, `constellations: crafted |
+// expanded`) spends the field where a camera can see it (skyStars.ts) and
+// draws the figures as a star chart does, with smaller ones between them
+// (skyChart.ts); the Milky Way, the hidden asterisms and the stars in the
+// stone are skyDetail.tsx's.
 
 const loop = (n: number, from = 0): [number, number][] =>
   Array.from({ length: n }, (_, i) => [from + i, from + ((i + 1) % n)]);
@@ -58,6 +61,7 @@ const KNIGHT: Constellation = {
   ],
   lines: loop(11),
   loose: [[0.34, 0.7]],
+  alpha: 0,
 };
 const ROOK: Constellation = {
   stars: [
@@ -77,6 +81,7 @@ const ROOK: Constellation = {
     [0.28, 0.16],
   ],
   lines: loop(14),
+  alpha: 5,
 };
 const KING: Constellation = {
   stars: [
@@ -94,6 +99,7 @@ const KING: Constellation = {
     [0.37, 0.32],
   ],
   lines: [[0, 1], [2, 3], [1, 4], [1, 5], ...loop(6, 4).slice(1), [9, 4]],
+  alpha: 0,
 };
 const BISHOP: Constellation = {
   stars: [
@@ -111,6 +117,7 @@ const BISHOP: Constellation = {
     [0.44, 0.63],
   ],
   lines: [...loop(10), [5, 10]],
+  alpha: 4,
 };
 const QUEEN: Constellation = {
   stars: [
@@ -126,6 +133,7 @@ const QUEEN: Constellation = {
     [0.75, 0.04],
   ],
   lines: loop(9),
+  alpha: 4,
 };
 const PAWN: Constellation = {
   stars: [
@@ -142,6 +150,7 @@ const PAWN: Constellation = {
   ],
   // The collar drawn across
   lines: [...loop(9), [1, 7]],
+  alpha: 4,
 };
 const UNICORN: Constellation = {
   stars: [
@@ -163,6 +172,7 @@ const UNICORN: Constellation = {
     [0.74, 0.04],
   ],
   lines: [...loop(13), [4, 8], [5, 7]],
+  alpha: 6,
 };
 /** The knight turned the other way, for the far side of the sky. */
 const KNIGHT_WEST: Constellation = {
@@ -170,18 +180,6 @@ const KNIGHT_WEST: Constellation = {
   stars: KNIGHT.stars.map(([u, v]) => [1 - u, v]),
   loose: KNIGHT.loose?.map(([u, v]) => [1 - u, v]),
 };
-
-interface Placement {
-  c: Constellation;
-  /** Degrees round from +z toward +x. */
-  azimuth: number;
-  /** Degrees above the horizon, of the figure's centre. */
-  elevation: number;
-  /** Height of the figure, degrees of sky. */
-  size: number;
-  /** A slight turn off upright, radians. */
-  tilt: number;
-}
 
 /**
  * Round the whole sky about one every 45°, each centred at its own height
@@ -203,36 +201,6 @@ export const SKY_PLAN: Placement[] = [
   { c: PAWN, azimuth: 84, elevation: 18, size: 7, tilt: -0.08 },
   { c: KNIGHT_WEST, azimuth: 128, elevation: 21, size: 9.5, tilt: 0.05 },
 ];
-
-const DEG = Math.PI / 180;
-const UP = new Vector3(0, 1, 0);
-
-/** A direction in the sky at this azimuth (from +z toward +x) and elevation (radians). */
-export const skyDirection = (azimuth: number, elevation: number) =>
-  new Vector3(
-    Math.sin(azimuth) * Math.cos(elevation),
-    Math.sin(elevation),
-    Math.cos(azimuth) * Math.cos(elevation),
-  );
-
-/** A point on the dome from a constellation's unit box. */
-export const placeStar = ([u, v]: P2, plan: Placement): [number, number, number] => {
-  const centre = skyDirection(plan.azimuth * DEG, plan.elevation * DEG);
-  const inward = centre.clone().negate();
-  const right = UP.clone().cross(inward).normalize();
-  const up = inward.clone().cross(right).normalize();
-  // The figure's size as an angle, laid out in the tangent plane
-  const span = Math.tan(plan.size * DEG);
-  const x = (u - 0.5) * span;
-  const y = (v - 0.5) * span;
-  const c = Math.cos(plan.tilt);
-  const s = Math.sin(plan.tilt);
-  const p = centre
-    .clone()
-    .addScaledVector(right, x * c - y * s)
-    .addScaledVector(up, x * s + y * c);
-  return p.normalize().multiplyScalar(DOME).toArray() as [number, number, number];
-};
 
 const pointVertex = /* glsl */ `
   uniform float uDpr;
@@ -286,40 +254,10 @@ const lineFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-const FIELD = 900;
-
-/** Points with a size, a brightness and a colour each, for the star shader. */
-const starGeometry = (pos: number[], size: number[], bright: number[], color: number[]) => {
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setAttribute('aSize', new BufferAttribute(new Float32Array(size), 1));
-  g.setAttribute('aBright', new BufferAttribute(new Float32Array(bright), 1));
-  g.setAttribute('aColor', new BufferAttribute(new Float32Array(color), 3));
-  return g;
-};
-
-/** The background field: sparse and dim, thinning into the horizon's mist. */
+/** Today's background field: sparse and dim, thinning into the horizon's mist. */
 const fieldGeometry = () => {
-  const random = rng(53);
-  const pos: number[] = [];
-  const size: number[] = [];
-  const bright: number[] = [];
-  const color: number[] = [];
-  const cool = new Color(PALETTE.neon);
-  const warm = new Color('#ffe6c4');
-  for (let i = 0; i < FIELD; i++) {
-    // Even over the dome above 3°
-    const y = 0.05 + random() * 0.95;
-    const a = random() * Math.PI * 2;
-    const r = Math.sqrt(1 - y * y);
-    const low = Math.min((y - 0.05) / 0.2, 1);
-    pos.push(Math.sin(a) * r * DOME, y * DOME, Math.cos(a) * r * DOME);
-    size.push(1.2 + random() ** 3 * 1.4);
-    bright.push((0.1 + random() ** 2.6 * 0.42) * (0.3 + 0.7 * low));
-    const c = random() < 0.2 ? warm : cool;
-    color.push(c.r, c.g, c.b);
-  }
-  return starGeometry(pos, size, bright, color);
+  const f = todayField();
+  return starBuffers(f.pos, f.size, f.bright, f.color);
 };
 
 /** The constellations' stars: a little brighter and larger than the field's. */
@@ -346,7 +284,7 @@ const figureStarGeometry = () => {
       color.push(cool.r, cool.g, cool.b);
     }
   }
-  return starGeometry(pos, size, bright, color);
+  return starBuffers(pos, size, bright, color);
 };
 
 const figureLineGeometry = () => {
@@ -373,15 +311,57 @@ const pointMaterial = (opacity: number) =>
     fragmentShader: pointFragment,
   });
 
-/** The sky's stars and its chess constellations. */
-export const Heavens = () => {
-  const dpr = useThree((s) => s.viewport.dpr);
+/** The constellations' line strength. */
+export const FIGURE_LINE = 0.065;
+
+/** Every constellation star, the asterisms' too: no bright field star stands near one. */
+export const figureDirections = () =>
+  [...SKY_PLAN, ...SKY_MINOR, ...Object.values(EGG_PLAN)].flatMap((plan) =>
+    plan.c.stars.map((s) => placeStar(s, plan)),
+  );
+
+/** Today's field (`stars: off`). */
+const TodayField = ({ dpr }: { dpr: number }) => {
+  const parts = useMemo(() => ({ geometry: fieldGeometry(), material: pointMaterial(1) }), []);
+  useDisposeOnUnmount(parts);
+  // Point sizes are in CSS pixels; the shader draws in device pixels
+  parts.material.uniforms.uDpr.value = dpr;
+  return (
+    <points
+      geometry={parts.geometry}
+      material={parts.material}
+      renderOrder={-899}
+      raycast={noRaycast}
+      frustumCulled={false}
+    />
+  );
+};
+
+/** The richer field (`stars: rich`, skyStars.ts). */
+const RichField = ({ dpr }: { dpr: number }) => {
+  const parts = useMemo(
+    () => ({ geometry: richFieldGeometry(figureDirections()), material: skyPointMaterial({}) }),
+    [],
+  );
+  useDisposeOnUnmount(parts);
+  parts.material.uniforms.uDpr.value = dpr;
+  return (
+    <points
+      geometry={parts.geometry}
+      material={parts.material}
+      renderOrder={-899}
+      raycast={noRaycast}
+      frustumCulled={false}
+    />
+  );
+};
+
+/** Today's eight constellations (`constellations: off`). */
+const TodayFigures = ({ dpr }: { dpr: number }) => {
   const parts = useMemo(
     () => ({
-      field: fieldGeometry(),
       figureStars: figureStarGeometry(),
       figureLines: figureLineGeometry(),
-      fieldMaterial: pointMaterial(1),
       starMaterial: pointMaterial(1),
       lineMaterial: new ShaderMaterial({
         depthWrite: false,
@@ -389,7 +369,7 @@ export const Heavens = () => {
         uniforms: {
           ...shadeUniforms(),
           uColor: { value: new Color(PALETTE.neon) },
-          uOpacity: { value: 0.065 },
+          uOpacity: { value: FIGURE_LINE },
         },
         vertexShader: lineVertex,
         fragmentShader: lineFragment,
@@ -398,18 +378,9 @@ export const Heavens = () => {
     [],
   );
   useDisposeOnUnmount(parts);
-  // Point sizes are in CSS pixels; the shader draws in device pixels
-  parts.fieldMaterial.uniforms.uDpr.value = dpr;
   parts.starMaterial.uniforms.uDpr.value = dpr;
   return (
-    <group name="heavens">
-      <points
-        geometry={parts.field}
-        material={parts.fieldMaterial}
-        renderOrder={-899}
-        raycast={noRaycast}
-        frustumCulled={false}
-      />
+    <>
       <lineSegments
         geometry={parts.figureLines}
         material={parts.lineMaterial}
@@ -424,6 +395,62 @@ export const Heavens = () => {
         raycast={noRaycast}
         frustumCulled={false}
       />
+    </>
+  );
+};
+
+/** The figures to chart: the eight, and with `expanded` the smaller ones between them. */
+export const chartedFigures = (expanded: boolean) => [
+  ...majorEntries(SKY_PLAN),
+  ...(expanded ? minorEntries() : []),
+];
+
+/** The eight drawn as a star chart does, and the smaller figures (skyChart.ts). */
+const ChartFigures = ({ dpr, expanded }: { dpr: number; expanded: boolean }) => {
+  const parts = useMemo(() => {
+    const { stars, lines } = chartGeometry(chartedFigures(expanded));
+    return {
+      stars,
+      lines,
+      starMaterial: skyPointMaterial({}),
+      lineMaterial: skyLineMaterial({ opacity: FIGURE_LINE }),
+    };
+  }, [expanded]);
+  useDisposeOnUnmount(parts);
+  parts.starMaterial.uniforms.uDpr.value = dpr;
+  return (
+    <>
+      <lineSegments
+        geometry={parts.lines}
+        material={parts.lineMaterial}
+        renderOrder={-898}
+        raycast={noRaycast}
+        frustumCulled={false}
+      />
+      <points
+        geometry={parts.stars}
+        material={parts.starMaterial}
+        renderOrder={-897}
+        raycast={noRaycast}
+        frustumCulled={false}
+      />
+    </>
+  );
+};
+
+/** The sky's stars and its chess constellations. */
+export const Heavens = () => {
+  const dpr = useThree((s) => s.viewport.dpr);
+  const field = useEnvSetting(starsSetting);
+  const figures = useEnvSetting(constellationsSetting);
+  return (
+    <group name="heavens">
+      {field === 'off' ? <TodayField dpr={dpr} /> : <RichField dpr={dpr} />}
+      {figures === 'off' ? (
+        <TodayFigures dpr={dpr} />
+      ) : (
+        <ChartFigures dpr={dpr} expanded={figures === 'expanded'} />
+      )}
     </group>
   );
 };
