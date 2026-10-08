@@ -14,7 +14,7 @@
 //   server   the WebSocket relay, in process and over real sockets
 //            (server/bench/bench_server.py)
 //   browser  the production build in headless Chromium, end to end
-//            (client/scripts/bench-browser.mjs; needs Chromium, see the README)
+//            (client/scripts/bench-browser.mjs; needs Chromium, see ARCHITECTURE.md)
 //
 // Needs client/node_modules (npm ci) and the server's test extra
 // (uv sync --extra test in server/). Raw JSON goes to bench/out/ (ignored by

@@ -2,7 +2,7 @@
 
 Everything about the protocol is covered in-process by test_local_ws.py;
 this file exists only to prove the `uvicorn modal_app:create_web_app
---factory` entry point that Playwright's webServer (and the README's local
+--factory` entry point that Playwright's webServer (and ARCHITECTURE.md's local
 backend instructions) rely on actually serves HTTP and WebSocket traffic.
 """
 

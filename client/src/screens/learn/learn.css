@@ -162,7 +162,7 @@
 }
 /* Never into the foot: should a window be too short for a lesson, the
    lesson scrolls above the foot instead (the cards are sized so none does
-   at the sizes measured, README "The tutorial") */
+   at the sizes measured, ARCHITECTURE.md "The tutorial") */
 .learn-body {
   flex: 0 1 auto;
   display: flex;

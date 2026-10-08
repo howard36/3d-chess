@@ -1,7 +1,7 @@
 // A game against the computer, played without the server: this stands in
 // for it, answering the messages the game screen sends as the server would,
 // so the screen derives everything from its log exactly as for a game
-// between two people (README, "Event-sourced client state"). The game is
+// between two people (ARCHITECTURE.md, "Event-sourced client state"). The game is
 // kept in the browser (lib/computerGames.ts) and comes back on a reload.
 
 import { Board } from '../engine';

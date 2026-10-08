@@ -14,7 +14,7 @@ Cases marked ⚠ are adversarial or unusual: built to find the worst case the ru
 - Selecting a piece stays interactive even when adversarial: the slowest click (a queen among six queens a side) is 1.87 ms.
 - **First visit: ~839 ms of main-thread geometry work**, in idle-callback tasks one piece type at a time; the sculpted knight alone is 492 ms cold, a long task (the high-quality knight: 1.41 s even warm).
 - A rejected message costs more than a valid one: a bad-coordinate `move` takes 20.8 µs median to decode+validate vs 15 µs for a valid `move`, consistent with the non-discriminated 11-member union trying every member first.
-- Under copy-on-access (the modal.Dict model), `record_move` grows with history: 2.72 µs at 0 moves vs 1.5 ms at 5,000 moves, because each move re-(un)pickles the whole record — the per-game O(n²) the README calls out.
+- Under copy-on-access (the modal.Dict model), `record_move` grows with history: 2.72 µs at 0 moves vs 1.5 ms at 5,000 moves, because each move re-(un)pickles the whole record — the per-game O(n²) ARCHITECTURE.md calls out.
 - With a plain dict the same op stays flat: 417 ns at 0 moves, 833 ns at 5,000 (the record is shared by reference, never copied).
 - With a simulated 2 ms blocking store RPC, 50 concurrent games together reach only 206 moves/s, against a modelled ceiling of 1/(2×2 ms) = 250 moves/s: every game serializes behind the blocking get+set on the single event loop.
 - The same 50-game load on the dict store reaches 5.01k moves/s, so under the latent:2 model the store calls, not the relay, set the ceiling.
@@ -415,7 +415,7 @@ The synchronous store ops the handler calls per request. In production the store
 | claim_seat | pickle · 10,000 games | 3.02 µs | 3.24 µs | 6.9 µs | 78 µs | 5000 | get+set |
 | create_game | pickle · 10,000 games | 3.27 µs | 6.64 µs | 13.6 µs | 461 µs | 5000 | membership + set |
 
-- `record_move` cost is flat under `dict` (a shared reference) but grows with history length under `pickle` (unpickle N moves, repickle N+1) — the source of the per-game O(n²) the README warns about.
+- `record_move` cost is flat under `dict` (a shared reference) but grows with history length under `pickle` (unpickle N moves, repickle N+1) — the source of the per-game O(n²) ARCHITECTURE.md warns about.
 - `find_seat`/`claim_seat`/`create_game` are O(1) in game count under both models; modal.Dict's real cost is network round trips, not store size, and is not modelled here.
 
 ### Rejoin payload build (in-process)

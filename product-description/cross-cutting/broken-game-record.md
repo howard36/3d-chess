@@ -14,7 +14,7 @@ White reloads the page. The board comes back at the same position with the same 
 
 ## What the server takes on trust
 
-The server is built for games among friends who all run the app; the repository's top-level README states it under "Scope and trust assumptions": the server validates message shape and turn order, not move legality, and a seat can be claimed with only the game id and a color. Three things follow for the player.
+The server is built for games among friends who all run the app; the repository's top-level ARCHITECTURE.md states it under "Scope and trust assumptions": the server validates message shape and turn order, not move legality, and a seat can be claimed with only the game id and a color. Three things follow for the player.
 
 ### Moves
 
@@ -50,7 +50,7 @@ Each browser decides whether the game is over from the last position in the reco
 A player running the app meets a frozen board in one of three ways.
 
 - **A modified client.** Any program that speaks the server's protocol can send any well-formed move on its own turn. It can be the opponent's, or one that has taken a seat as described above.
-- **A different version of the app.** The app and the server are deployed separately (the top-level README, "Development": the server from CI, the app through Cloudflare Pages), and a tab keeps running the version it loaded until it is reloaded; reconnecting does not reload the app. Nothing compares versions, between the two players or with the server. If one version changes a rule, a move it allows may be one the other cannot replay. This is what the banner's "(likely an app version mismatch)" refers to. Two players who loaded the same version agree on every move either of them can offer, with the rare exception below.
+- **A different version of the app.** The app and the server are deployed separately (the top-level ARCHITECTURE.md, "Development": the server from CI, the app through Cloudflare Pages), and a tab keeps running the version it loaded until it is reloaded; reconnecting does not reload the app. Nothing compares versions, between the two players or with the server. If one version changes a rule, a move it allows may be one the other cannot replay. This is what the banner's "(likely an app version mismatch)" refers to. Two players who loaded the same version agree on every move either of them can offer, with the rare exception below.
 - **The app itself, rarely.** One path, read from code and not reproduced: *a King left in check.* After an illegal but replayable move leaves the mover's King attacked, the app offers the other player the capture of that King as a [legal destination](../glossary.md#moves-and-the-rules), with a red capture ring on the King, and the move box accepts the same capture typed in. Playing it records a King capture, and the board freezes at that move: the banner names the honest player's own move as the one that "is not a legal move".
 
   The board cannot be played against a position that is out of date: after every reconnect, reload, or "Play here" it takes no input until the rejoin's [snapshot](../glossary.md#requests) has brought the whole record, so a move made from this browser is always chosen on the position the server holds.
