@@ -50,8 +50,9 @@ export const SKY_TODAY_COLOR = /* glsl */ `
  * The sky with more air in it (envPreview `skyGlow: on`): a faint teal-grey
  * airglow a few degrees up, in slow broad waves, and far off two banks of
  * mist that can be seen: a low one whose rolling top stands a degree or two
- * over the horizon, and above it a thin, broken stratum. All of it added
- * light, so all of it sinks into the tower's shade.
+ * over the horizon, and above it a thin stratum, whole round the horizon
+ * but thinning and thickening. All of it added light, so all of it sinks
+ * into the tower's shade.
  */
 const SKY_AIR_BODY = /* glsl */ `
   ${SKY_BASE}
@@ -67,8 +68,9 @@ const SKY_AIR_BODY = /* glsl */ `
       + 0.0025 * sin(az * 13.0 + 1.1);
     float bank = smoothstep(low + 0.016, low - 0.005, h) * smoothstep(-0.07, -0.004, h);
     float high = 0.05 + 0.011 * sin(az * 2.0 + 4.0) + 0.005 * sin(az * 5.0 + 0.3);
-    float broken = smoothstep(-0.3, 0.7, sin(az * 4.0 + 1.3) + 0.5 * sin(az * 9.0 + 0.2));
-    float stratum = exp(-pow((h - high) / 0.009, 2.0)) * broken;
+    // Thickening and thinning round the horizon, never gone: one whole band
+    float swell = 0.4 + 0.6 * smoothstep(-0.3, 0.7, sin(az * 4.0 + 1.3) + 0.5 * sin(az * 9.0 + 0.2));
+    float stratum = exp(-pow((h - high) / 0.009, 2.0)) * swell;
     add += uMist * (bank * 0.028 + stratum * 0.013);
     if (add.b > 2e-5) add *= 1.0 - shade;
     return c + add;

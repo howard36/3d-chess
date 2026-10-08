@@ -28,7 +28,8 @@ describe("the board's ground detail", () => {
     expect(subtle.lines).not.toContain('Kintsugi');
     const rich = boardGroundGlsl({ ...BOARD_GROUND_OFF, squares: 'rich' }, ANCHORS)!;
     expect(rich.lines).toContain('Kintsugi');
-    expect(rich.lines).toContain('Worn');
+    // Every board line whole: no worn stretches
+    expect(rich.lines).not.toContain('Worn');
     expect(rich.vertex).toBe('');
     const pools = boardGroundGlsl({ ...BOARD_GROUND_OFF, pools: true }, ANCHORS)!;
     // Worked out per vertex, read per pixel

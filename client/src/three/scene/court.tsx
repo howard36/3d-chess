@@ -32,8 +32,7 @@ import { courtEggs, courtLife } from '../../envPreview/features/court';
 //   little more or less), never as a seam line; `veined` adds faint veins,
 //   each slab cut from its own block.
 // - The inlay (courtInlay): two rings of light in the stone round the
-//   tower, the outer broken where the colossal board's centre lines would
-//   run on, and spokes between them pointing not to the compass but the
+//   tower, each whole, and spokes running from ring to ring pointing not to the compass but the
 //   eight ways a knight jumps (`star`: the spokes alone, fading both ways).
 // - The moss (courtLife): still points of cool light in the slabs' joints,
 //   in short clusters toward the court's rim, a few lifted a hand above the
@@ -183,18 +182,20 @@ export const courtGroundGlsl = (floor: string, inlay: string) => {
       float across = o.x * ${f(wayZ)} - o.y * ${f(wayX)};
       float inlay = 0.0;
       #if defined(INLAY_RING) || defined(INLAY_DOUBLE)
-      // The outer ring broken where the colossal board's centre lines (the
-      // axes) would run on
-      float arcs = smoothstep(${f(INLAY.gap)}, ${f(INLAY.gap + 0.5)}, o.y);
-      inlay = max(inlay, courtHair(r - ${f(INLAY.outer)}, 0.03) * arcs);
+      // The outer ring whole, all the way round
+      inlay = max(inlay, courtHair(r - ${f(INLAY.outer)}, 0.03));
+      // Each spoke ends at its ring's line, cleanly (no fade short of it)
+      float fwT = max(fwidth(t), 1e-5);
+      float toOuter = clamp((${f(INLAY.outer)} - t) / fwT + 0.5, 0.0, 1.0);
       #ifdef INLAY_DOUBLE
       inlay = max(inlay, courtHair(r - ${f(INLAY.inner)}, 0.03) * 0.5);
-      float along = smoothstep(${f(INLAY.inner)}, ${f(INLAY.inner + 0.4)}, t);
+      // From ring to ring, whole
+      float along = clamp((t - ${f(INLAY.inner)}) / fwT + 0.5, 0.0, 1.0);
       #else
       // The spokes run in from the ring, fading toward the tower
       float along = smoothstep(${f(INLAY.inner - 2.0)}, ${f(INLAY.outer - 1.0)}, t);
       #endif
-      along *= 1.0 - smoothstep(${f(INLAY.outer - 0.4)}, ${f(INLAY.outer)}, t);
+      along *= toOuter;
       inlay = max(inlay, courtHair(across, 0.025) * along * 0.85);
       #else
       float along = smoothstep(${f(INLAY.star[0])}, ${f(INLAY.star[0] + 3.5)}, t)

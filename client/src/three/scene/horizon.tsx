@@ -44,8 +44,8 @@ import {
 // white's side a far tower, a rook's, keeps one tiny window lit, the only
 // warm light in the world, and it goes dark when a game is won. Banks of
 // mist lie on the far plain between the board and the hills, and at the
-// hills' feet a few far lights burn, one cluster of them five tiny lights
-// stacked in the level colours: another tower, far away. Once in a long
+// hills' feet a few far lights burn, and one faint sliver banded in the
+// five level colours: another tower, far away. Once in a long
 // while a lighthouse's beam sweeps through the haze (horizonEvents.tsx).
 //
 // All of it is the garden's (backdropCache.tsx): ShaderMaterials in the
@@ -460,10 +460,13 @@ const FarTower = ({ dim }: { dim: { value: number } }) => {
 /** Where the other tower burns: on black's side of the world, left of the tower in Black's view. */
 export const OTHER_TOWER_AT = { azimuth: BLACK_LOOK + 23, radius: 215 } as const;
 
+/** The other tower's sliver: its foot above the ground, each level's band, points per band, their brightness. */
+export const OTHER_TOWER = { foot: 0.15, band: 0.75, perBand: 6, bright: 0.1 } as const;
+
 /**
  * The far lights: a few small clusters at the hills' feet, most a cool
- * starlight and a few warmer, and on black's side five stacked in the level
- * colours, faded: another glass tower, far away.
+ * starlight and a few warmer, and on black's side a sliver banded in the
+ * level colours, faded: another glass tower, far away.
  */
 const farLights = (): Light[] => {
   const random = rng(4417);
@@ -481,9 +484,12 @@ const farLights = (): Light[] => {
   ];
   for (const { azimuth, radius, count } of clusters)
     for (let i = 0; i < count; i++) {
+      // Spread across the cluster's 3°, each light in its own column, so no
+      // two (and their twins in the stone) stack into a dotted upright
+      const slot = 3 / count;
       out.push({
         at: onPlain(
-          azimuth + (random() - 0.5) * 3,
+          azimuth + ((i + 0.5) / count - 0.5) * 3 + (random() - 0.5) * slot * 0.4,
           radius + (random() - 0.5) * 18,
           0.3 + random() * 1.4,
         ),
@@ -492,15 +498,24 @@ const farLights = (): Light[] => {
         color: random() < 0.3 ? HORIZON.lightWarm : HORIZON.lightCool,
       });
     }
+  // The other tower: one faint upright sliver of light from the ground up,
+  // in five bands of the level colours, each band a run of points close
+  // enough (under a pixel apart at that distance) to merge into one
+  // continuous stroke, never a column of dots
   const grey = new Color(PALETTE.neon);
   LEVEL_COLORS.forEach((hex, i) => {
     const c = new Color(hex).lerp(grey, 0.35);
-    out.push({
-      at: onPlain(OTHER_TOWER_AT.azimuth, OTHER_TOWER_AT.radius, 1.4 + i * 0.75),
-      size: 1.7,
-      bright: 0.42,
-      color: `#${c.getHexString()}`,
-    });
+    for (let k = 0; k < OTHER_TOWER.perBand; k++)
+      out.push({
+        at: onPlain(
+          OTHER_TOWER_AT.azimuth,
+          OTHER_TOWER_AT.radius,
+          OTHER_TOWER.foot + (i + (k + 0.5) / OTHER_TOWER.perBand) * OTHER_TOWER.band,
+        ),
+        size: 1.7,
+        bright: OTHER_TOWER.bright,
+        color: `#${c.getHexString()}`,
+      });
   });
   return out;
 };

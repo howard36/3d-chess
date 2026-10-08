@@ -95,7 +95,7 @@ describe('the hidden asterisms', () => {
 });
 
 describe('the charted figures', () => {
-  it('stop each line short of its stars and number it along the figure', () => {
+  it('run each line whole from star to star and number it along the figure', () => {
     const entries = [...majorEntries(SKY_PLAN), ...minorEntries()];
     const { stars, lines } = chartGeometry(entries);
     const pos = lines.getAttribute('position');
@@ -105,14 +105,20 @@ describe('the charted figures', () => {
     const starsAt = Array.from({ length: starPos.count }, (_, i) =>
       new Vector3().fromBufferAttribute(starPos, i),
     );
+    let onStar = 0;
     for (let v = 0; v < pos.count; v++) {
       const p = new Vector3().fromBufferAttribute(pos, v);
-      // No line touches a star: at least 0.1° off every one
+      // A line's end on a star meets it (no gap short of it)
       const nearest = Math.min(...starsAt.map((s) => angleBetween(s.toArray(), p.toArray())));
-      if (figure.getX(v) < 10) expect(nearest).toBeGreaterThan(0.1);
+      if (nearest < 1e-3) onStar++;
       expect(along.getX(v)).toBeGreaterThanOrEqual(0);
       expect(along.getX(v)).toBeLessThanOrEqual(1);
     }
+    // Every end that is a star's (not a mark's, such as the castling arc's)
+    const starEnds = entries.flatMap((e) =>
+      e.plan.c.lines.flat().filter((i) => i < e.plan.c.stars.length),
+    );
+    expect(onStar).toBe(starEnds.length);
     // Each figure has its number and one star brighter than the rest
     expect(new Set(Array.from({ length: figure.count }, (_, i) => figure.getX(i))).size).toBe(
       entries.length,

@@ -2,14 +2,15 @@ import { BufferAttribute, BufferGeometry, Color, Vector3 } from 'three';
 import { rng } from './textures';
 import { LEVEL_COLORS, PALETTE } from './palette';
 import type { Constellation, P2, Placement } from './skyPlace';
-import { DEG, DOME, placeStar } from './skyPlace';
+import { placeStar } from './skyPlace';
 
 // The constellations drawn as a star chart draws them (the richer sky,
-// envPreview `constellations: crafted | expanded`): each line stops a little
-// short of its stars, each figure has one brighter star, and its lines fade a
-// little toward its base. Between today's eight (heavens.tsx) the expanded
+// envPreview `constellations: crafted | expanded`): each line runs whole from
+// star to star (a hairline under each star's glow, so the joints stay clean),
+// each figure has one brighter star, and its lines fade a little toward its
+// base. Between today's eight (heavens.tsx) the expanded
 // sky adds four smaller, dimmer figures, and anyone looking closely finds
-// three asterisms with no lines at all (`skyEggs`):
+// three asterisms with no figure drawn in lines (`skyEggs`):
 // - castling: a small king and rook joined by the arc of their move, low
 //   just past the tower from the opening's look up (turn a little right);
 // - the fork: a small knight with two lines out to two bright stars, high
@@ -18,14 +19,15 @@ import { DEG, DOME, placeStar } from './skyPlace';
 //   between the pawn and the western knight;
 // - the toppled king, lying on its side low over the horizon between the two
 //   knights, the king that lost;
-// - a knight's tour: 25 dim stars in a 5x5 lattice low behind White's seat
+// - a knight's tour: 25 dim stars in a loose 5x5 lattice low behind White's seat
 //   (look up the way the opening camera came from), whose path only a
 //   tracing event lights (skyEvents.tsx);
 // - the tower's echo: five stars stacked one above another, tinted in the
 //   five level colours, cyan at the foot to rose at the top, between the
 //   unicorn and the pawn;
-// - the eight queens: eight stars set as a solution of the puzzle in the
-//   faintest lattice of an 8x8 board, low between the bishop and the rook.
+// - the eight queens: eight stars set as a solution of the puzzle, each in
+//   its square of the faintest 8x8 board drawn in whole hairlines round them,
+//   low between the bishop and the rook.
 // The low ones also stand above the horizon from the camera's 6° view.
 
 const loop = (n: number, from = 0): [number, number][] =>
@@ -106,19 +108,30 @@ const FORK: Constellation = {
   alpha: 11,
 };
 
-/** Five pawns defending each other up a diagonal, each with its collar. */
+/**
+ * Five pawns defending each other up a diagonal, each with its collar: a
+ * short bar a little under its star, crossing the chain's line (never
+ * standing off it on its own), the chain running on to the lowest pawn's.
+ */
 const PAWN_CHAIN: Constellation = (() => {
   const stars: P2[] = [0, 1, 2, 3, 4].map((i) => [0.1 + i * 0.2, 0.08 + i * 0.21]);
-  const marks: P2[] = stars.flatMap(([u, v]): P2[] => [
-    [u - 0.05, v - 0.075],
-    [u + 0.05, v - 0.075],
-  ]);
+  // Where the chain's line passes a little under each star
+  const neck = ([u, v]: P2): P2 => [u - 0.04 * (0.2 / 0.21), v - 0.04];
+  const marks: P2[] = stars.flatMap((s): P2[] => {
+    const [u, v] = neck(s);
+    return [
+      [u - 0.05, v],
+      [u + 0.05, v],
+    ];
+  });
+  marks.push(neck(stars[0]));
   return {
     stars,
     marks,
     lines: [
       ...[0, 1, 2, 3].map((i): [number, number] => [i, i + 1]),
       ...[0, 1, 2, 3, 4].map((i): [number, number] => [5 + 2 * i, 6 + 2 * i]),
+      [0, 15],
     ],
     alpha: 4,
   };
@@ -163,13 +176,22 @@ export const TOUR_5X5 = [
   [7, 12, 17, 22, 5],
 ];
 
+/** How far a tour star stands off its square's middle (of the lattice's side). */
+const TOUR_NUDGE = 0.045;
+
 const TOUR: Constellation = (() => {
   const stars: P2[] = [];
   const order: number[] = [];
   TOUR_5X5.forEach((row, r) =>
     row.forEach((n, c) => {
       order[n - 1] = stars.length;
-      stars.push([c / 4, 1 - r / 4]);
+      // Each a little off its square's middle, as real stars stand, so the
+      // lattice's rows and columns never read as dotted rules
+      const i = stars.length;
+      stars.push([
+        c / 4 + TOUR_NUDGE * Math.sin(i * 2.39 + 0.7),
+        1 - r / 4 + TOUR_NUDGE * Math.sin(i * 3.77 + 2.1),
+      ]);
     }),
   );
   return {
@@ -181,9 +203,6 @@ const TOUR: Constellation = (() => {
 /** Eight queens, none attacking another: the queen's row in each file. */
 export const EIGHT_QUEENS = [0, 4, 7, 5, 2, 6, 1, 3];
 
-const lattice = (n: number): P2[] =>
-  Array.from({ length: n * n }, (_, i): P2 => [(i % n) / (n - 1), Math.floor(i / n) / (n - 1)]);
-
 /** The tower's echo: five stars stacked, A at the foot. */
 const ECHO: Constellation = {
   stars: [0, 1, 2, 3, 4].map((i): P2 => [0.5, i / 4]),
@@ -194,10 +213,33 @@ const QUEENS: Constellation = {
   stars: EIGHT_QUEENS.map((row, file): P2 => [file / 7, row / 7]),
   lines: [],
 };
-const QUEENS_BOARD: Constellation = {
-  stars: lattice(8).filter(([u, v]) => EIGHT_QUEENS[Math.round(u * 7)] !== Math.round(v * 7)),
-  lines: [],
-};
+
+/**
+ * The queens' board: its nine lines each way, whole hairlines (not a
+ * lattice of points, which reads as dotted rules), each queen at the middle
+ * of her square (the queens stand at k/7, the lines halfway between).
+ */
+const QUEENS_BOARD: Constellation = (() => {
+  const at = (k: number) => (k - 0.5) / 7;
+  const marks: P2[] = [];
+  const lines: [number, number][] = [];
+  for (let k = 0; k <= 8; k++) {
+    for (const [a, b] of [
+      [
+        [at(k), at(0)],
+        [at(k), at(8)],
+      ],
+      [
+        [at(0), at(k)],
+        [at(8), at(k)],
+      ],
+    ] as [P2, P2][]) {
+      lines.push([marks.length, marks.length + 1]);
+      marks.push(a, b);
+    }
+  }
+  return { stars: [], marks, lines };
+})();
 
 export const EGG_PLAN = {
   tour: { c: TOUR, azimuth: 16, elevation: 14.5, size: 3.6, tilt: 0.02 } as Placement,
@@ -225,8 +267,6 @@ export interface ChartEntry {
   line: number;
   /** Each star's colour, if not the neon. */
   colors?: Color[];
-  /** How far each line stops short of a star (degrees). */
-  gap?: number;
   /** The brightest star's brightness and size. */
   alpha?: [number, number];
 }
@@ -269,8 +309,7 @@ const drawEntry = (
     s.bright.push(0.2);
     s.color.push(neon.r, neon.g, neon.b);
   }
-  // The lines, each cut short at a star's end, numbered along the figure
-  const gap = DOME * Math.tan((e.gap ?? 0.35) * DEG);
+  // The lines, whole from star to star, numbered along the figure
   const lengths = plan.c.lines.map(([i, j]) =>
     a3.fromArray(points[i]).distanceTo(b3.fromArray(points[j])),
   );
@@ -279,14 +318,9 @@ const drawEntry = (
   plan.c.lines.forEach(([i, j], k) => {
     a3.fromArray(points[i]);
     b3.fromArray(points[j]);
-    const len = lengths[k];
-    const cut = (end: number) => (end < plan.c.stars.length ? Math.min(gap, len * 0.3) : 0);
-    const dir = b3.clone().sub(a3).normalize();
-    const from = a3.clone().addScaledVector(dir, cut(i));
-    const to = b3.clone().addScaledVector(dir, -cut(j));
-    l.pos.push(from.x, from.y, from.z, to.x, to.y, to.z);
-    l.along.push((run + cut(i)) / total, (run + len - cut(j)) / total);
-    run += len;
+    l.pos.push(a3.x, a3.y, a3.z, b3.x, b3.y, b3.z);
+    l.along.push(run / total, (run + lengths[k]) / total);
+    run += lengths[k];
     l.figure.push(e.id, e.id);
     // A little quieter toward the figure's base
     const v = (all[i][1] + all[j][1]) / 2;
@@ -340,7 +374,6 @@ export const minorEntries = (): ChartEntry[] =>
     bright: [0.22, 0.32],
     size: [1.7, 2.2],
     line: 0.62,
-    gap: 0.28,
     alpha: [0.44, 2.6],
   }));
 
@@ -350,10 +383,9 @@ export const eggEntries = (): ChartEntry[] => {
     {
       plan: EGG_PLAN.tour,
       id: FIGURE_ID.tour,
-      bright: [0.16, 0.2],
+      bright: [0.12, 0.22],
       size: [1.6, 1.8],
       line: 0,
-      gap: 0.12,
     },
     {
       plan: EGG_PLAN.echo,
@@ -365,6 +397,7 @@ export const eggEntries = (): ChartEntry[] => {
       colors: LEVEL_COLORS.map((c) => new Color(c).lerp(neon, 0.25)),
     },
     { plan: EGG_PLAN.queens, id: -10, bright: [0.24, 0.28], size: [1.8, 2], line: 0 },
-    { plan: EGG_PLAN.queensBoard, id: -10, bright: [0.05, 0.06], size: [1.1, 1.1], line: 0 },
+    // The queens' board: hairlines alone, fainter than any figure's
+    { plan: EGG_PLAN.queensBoard, id: -10, bright: [0, 0], size: [1, 1], line: 0.13 },
   ];
 };

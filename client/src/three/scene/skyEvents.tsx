@@ -43,7 +43,8 @@ interface Traceable {
 /** The figures a trace may light, with their stars' places. */
 export const traceables = (entries: ChartEntry[]): Traceable[] =>
   entries
-    .filter((e) => e.plan.c.lines.length > 0)
+    // A figure (numbered from 0) with lines; not the queens' board
+    .filter((e) => e.id >= 0 && e.plan.c.lines.length > 0)
     .map((e) => ({
       id: e.id,
       points: e.plan.c.stars.map((s) => new Vector3(...placeStar(s, e.plan))),

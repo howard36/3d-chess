@@ -44,9 +44,8 @@ export const COURT_SLABS = /* glsl */ `
 /** The inlay: its rings' radii, and the spokes between them. */
 export const INLAY = {
   inner: 10,
-  outer: 14.5,
-  /** The outer ring is broken where the colossal board's centre lines would run on (half a gap, world units). */
-  gap: 1.9,
+  /** Whole, midway between two stepping stones where the path crosses it (STONES). */
+  outer: 15.5,
   /** The star (spokes alone) reaches from here to there, fading at both ends. */
   star: [7.5, 19] as const,
 } as const;
@@ -68,9 +67,9 @@ export const STONE_HALF = 0.72;
 /**
  * The stepping stones: from near the tower's foot out to the colossal
  * board's edge along -x, each a knight's jump from the last (two along, one
- * across), through the inlay ring's gate (the gap where the board's centre
- * line would run) and on along that line between the two knights (a4, a5),
- * which face each other across the path.
+ * across), clear of the inlay's outer ring, and on along the board's centre
+ * line between the two knights (a4, a5), which face each other across the
+ * path.
  */
 export const STONES: [number, number][] = Array.from({ length: 7 }, (_, i) => [
   -9.5 - 4 * i,

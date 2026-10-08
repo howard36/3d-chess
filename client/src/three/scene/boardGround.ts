@@ -11,7 +11,7 @@
 export interface BoardGroundOptions {
   /** A real board's frame: a double rule, a lozenge inlay, rosettes, electrodes. */
   frame: boolean;
-  /** The squares: off, subtle (polish and inlays), rich (wear, cracks, a mark). */
+  /** The squares: off, subtle (polish and inlays), rich (cracks and a mark too). */
   squares: 'off' | 'subtle' | 'rich';
   /** Light pooling on the board round each sculpture. */
   pools: boolean;
@@ -56,18 +56,13 @@ const INLAID = ['a1', 'c1', 'h2', 'a6', 'h7', 'c8', 'f8', 'b3', 'g5', 'f1'];
 const DOUBLE = ['c1', 'f8', 'g5'];
 
 /**
- * Worn stretches of the board's lines, where the light has thinned between
- * two crossings: [along x (a line of constant uv.y) or z, the line, the
- * square it runs past].
+ * The frame's lozenge chain: each lozenge's length, sixteen to a side from
+ * one corner block's inner side to the next (the band's corners start 0.55
+ * past the board's edge), and the slope of its sides (0.42 across its
+ * middle each way, so their tips meet on the band's centre line).
  */
-const WORN: readonly [axis: 0 | 1, line: number, seg: number][] = [
-  [0, 1, 5],
-  [1, 7, 3],
-  [0, 7, 1],
-  [1, 2, 0],
-  [0, 6, 6],
-  [1, 6, 7],
-];
+const LOZENGE = (8 * S + 2 * 0.55) / 16;
+const LOZENGE_SLOPE = 0.42 / (LOZENGE / 2);
 
 /** A small seeded random number generator (mulberry32). */
 const random = (seed: number) => () => {
@@ -150,13 +145,6 @@ const MARK: readonly Segment[] = (() => {
 })();
 const MARK_DOT: P2 = [0.7 + 0.33, 0.7 + 0.28];
 
-/** The worn stretches along one axis (0: lines along x) as rows of bits: bit s of row l. */
-const wornRows = (axis: 0 | 1) => {
-  const out = Array.from({ length: 9 }, () => 0);
-  for (const [a, l, s] of WORN) if (a === axis) out[l] |= 1 << s;
-  return out;
-};
-
 /**
  * The GLSL the ground's shader takes: declarations (after its uniforms and
  * helpers), lines (given `line`, `lines`, `edge`, `uv`, `bp`, `sq`,
@@ -226,32 +214,11 @@ export const boardGroundGlsl = (o: BoardGroundOptions, anchors: readonly P2[]) =
   ];
   const polish: string[] = [];
 
-  if (o.squares === 'rich') {
-    lines.push(/* glsl */ `
-    {
-      // Worn stretches of line, thinned between two crossings: a line
-      // along x (its row, the nearest whole uv.y) past square sq.x, or
-      // along z
-      vec2 nearest = floor(uv + 0.5);
-      ivec2 l = ivec2(clamp(nearest, 0.0, 8.0));
-      ivec2 s = ivec2(clamp(sq, 0.0, 7.0));
-      bool inX = nearest.y >= 0.0 && nearest.y <= 8.0 && sq.x >= 0.0 && sq.x <= 7.0;
-      bool inZ = nearest.x >= 0.0 && nearest.x <= 8.0 && sq.y >= 0.0 && sq.y <= 7.0;
-      bool alongX = inX && ((${pick(wornRows(0), 'l.y')} >> s.x) & 1) == 1;
-      bool alongZ = inZ && ((${pick(wornRows(1), 'l.x')} >> s.y) & 1) == 1;
-      vec2 t = fract(uv);
-      vec2 worn = 1.0 - 0.75 * smoothstep(0.12, 0.42, t) * smoothstep(0.92, 0.6, t);
-      lines.y *= alongX ? worn.x : 1.0;
-      lines.x *= alongZ ? worn.y : 1.0;
-      line = max(lines.x * mix(1.0, 1.7, edge.x), lines.y * mix(1.0, 1.7, edge.y));
-    }`);
-  }
-
   if (o.frame) {
     lines.push(/* glsl */ `
     {
-      // The frame: outside the board's edge, a hairline rule, a lozenge
-      // inlay every half square, and a stronger outer rule; square corner
+      // The frame: outside the board's edge, a hairline rule, a chain of
+      // lozenges inlaid, and a stronger outer rule; square corner
       // blocks with their diagonals and a ring (rosettes); and where each
       // of the board's lines meets its edge, a bead of light, like the
       // electrodes of a neon sign. Only in its band round the board.
@@ -267,13 +234,17 @@ export const boardGroundGlsl = (o: BoardGroundOptions, anchors: readonly P2[]) =
         float frame = max(hairFw(outside - 0.55, 0.026, fwOut) * 0.8, hairFw(outside - 2.2, 0.032, fwOut) * 1.3);
         float corner = step(0.55, min(q.x, q.y)) * step(outside, 2.2);
         float band = step(0.55, outside) * step(outside, 2.2) * (1.0 - corner);
-        // Along the side, a lozenge every half square
+        // Along the side, a chain of long lozenges tip to tip, from one
+        // corner block to the next (sixteen a side): one unbroken band,
+        // never a row of separate marks
         float alongSide = sideX ? bp.y : bp.x;
         vec2 gAlong = sideX ? vec2(0.0, 1.0) : vec2(1.0, 0.0);
-        float u = (fract(alongSide / ${f1(S / 2)} + 0.5) - 0.5) * ${f1(S / 2)};
+        float u = (fract(alongSide / ${f1(LOZENGE)}) - 0.5) * ${f1(LOZENGE)};
         float oz = outside - 1.375;
-        vec2 gLoz = 0.8 * sign(u) * gAlong + sign(oz) * gOut;
-        frame = max(frame, hairFw(abs(u) * 0.8 + abs(oz) - 0.42, 0.022, FW(gLoz)) * 0.6 * band);
+        // The distance to the lozenge's sides, made true (its slope's norm)
+        vec2 gLoz = (${f1(LOZENGE_SLOPE)} * sign(u) * gAlong + sign(oz) * gOut) * ${f1(1 / Math.hypot(1, LOZENGE_SLOPE))};
+        float loz = (abs(u) * ${f1(LOZENGE_SLOPE)} + abs(oz) - 0.42) * ${f1(1 / Math.hypot(1, LOZENGE_SLOPE))};
+        frame = max(frame, hairFw(loz, 0.02, FW(gLoz)) * 0.6 * band);
         // The corner blocks: their inner sides, diagonals and ring
         vec2 c = q - 1.375;
         float rosette = max(

@@ -57,7 +57,7 @@ export const boardFrame = defineEnvFeature({
 
 /**
  * The squares: subtle gives the dark squares a deeper polish and inlays a
- * few; rich adds worn lines, kintsugi cracks and a maker's mark.
+ * few; rich adds kintsugi cracks and a maker's mark (every line whole).
  */
 export const boardSquares = defineEnvFeature({
   id: 'boardSquares',
