@@ -48,7 +48,7 @@ export const boardSquares = defineEnvFeature({
     { id: 'subtle', label: 'Subtle' },
     { id: 'rich', label: 'Rich' },
   ],
-  default: 'rich',
+  default: 'subtle',
 });
 
 /**
