@@ -5,7 +5,9 @@ import { FALLEN, fallenCurves, fallenPose } from './boardFallen';
 import { neonCurves, ringPoints } from './boardNeon';
 import { innerOutlinesOf, knightEyeOf, moreRingsOf, sculptureOf } from './sculptures';
 import { GROUND_Y } from './palette';
-import { FALLEN_SLOT, SCALE, SQUARE, WHOLE_SLOTS } from './stage';
+import { FALLEN_SLOT, GARDEN, SCALE, SQUARE, WHOLE_SLOTS } from './stage';
+import { detailStrokes } from './boardDetail';
+import { isLightSquare, lightOn, ON_DARK, sculptureStrokes } from './sculptureStrokes';
 
 // The colossal board's added detail: what it draws stays where it belongs
 // (in its square, inside its outline, off the board, on the ground), and
@@ -125,6 +127,49 @@ describe('the fallen giants', () => {
       expect(Math.min(...lights)).toBeLessThan(0.05);
       expect(Math.max(...lights)).toBeGreaterThan(0.3);
     }
+  });
+});
+
+describe('lines on light and dark squares (sculptureEven)', () => {
+  it('knows the squares as any board does: a1 dark, h1 light', () => {
+    expect(isLightSquare('a1')).toBe(false);
+    expect(isLightSquare('h1')).toBe(true);
+    expect(isLightSquare('d1')).toBe(true);
+    expect(isLightSquare('e1')).toBe(false);
+    expect(isLightSquare('e8')).toBe(true);
+  });
+
+  it('dims a line on a dark square only, the base rings less, and nothing when off', () => {
+    expect(lightOn('d1', true)).toBe(1);
+    expect(lightOn('e1', true)).toBe(ON_DARK.line);
+    expect(lightOn('e1', true, 'ring')).toBe(ON_DARK.ring);
+    expect(ON_DARK.line).toBeLessThan(ON_DARK.ring);
+    expect(ON_DARK.ring).toBeLessThan(1);
+    expect(lightOn('e1', false)).toBe(1);
+  });
+
+  it('dims the footprints and pawn rings on dark squares, and only the base rings of the sculptures', () => {
+    const footprints = (even: boolean) =>
+      detailStrokes('full', even).filter((s) => s.points.length === 4 && s.closed);
+    const before = footprints(false);
+    const after = footprints(true);
+    expect(after).toHaveLength(GARDEN.length);
+    after.forEach((s, i) => {
+      const dark = !isLightSquare(GARDEN[i].square);
+      expect(s.light).toBeCloseTo((before[i].light as number) * (dark ? ON_DARK.line : 1), 9);
+    });
+    const rings = (even: boolean) =>
+      sculptureStrokes(GARDEN, SCALE, even).filter((s) => s.mode === 1 && s.points.length === 36);
+    const [plain, evened] = [rings(false), rings(true)];
+    plain.forEach((s, k) => {
+      const i = s.sculpt!;
+      const base = s.points[0][1] < 0.1;
+      const dark = !isLightSquare(GARDEN[i].square);
+      expect(evened[k].light).toBeCloseTo(
+        (s.light as number) * (base && dark ? ON_DARK.ring : 1),
+        9,
+      );
+    });
   });
 });
 

@@ -21,11 +21,16 @@ import type { NeonCurve, V3 } from './boardNeon';
 import { neonStrokes } from './neonStrokes';
 import type { NeonStroke } from './neonStrokes';
 import { knightEyes } from './knightSilhouette';
-import { facingOf, RING_LIGHT, toWorld } from './sculptureStrokes';
+import { facingOf, lightOn, RING_LIGHT, toWorld } from './sculptureStrokes';
 import { fallenCurves, fallenKnightLines, fallenStrokes } from './boardFallen';
 // ENV PREVIEW (temporary): the preview's settings
 import { useEnvSetting } from '../../envPreview';
-import { fallenPieces, sculptureDetail, sculptureLines } from '../../envPreview/features/board';
+import {
+  fallenPieces,
+  sculptureDetail,
+  sculptureEven,
+  sculptureLines,
+} from '../../envPreview/features/board';
 
 // Area B, the colossal board and its sculptures: detail added to the twelve
 // neon pieces and round them, all drawn with the sculptures' own tubes (one
@@ -61,7 +66,7 @@ const PAWN_RINGS = 0.3;
 /** The squares the pawns left (but for the e-pawns, which went to e4 and e5). */
 const PAWN_SQUARES = ['a', 'c', 'd', 'f', 'h'].flatMap((f) => [`${f}2`, `${f}7`]);
 
-const detailCurves = (level: 'off' | 'inner' | 'full'): NeonCurve[] => {
+const detailCurves = (level: 'off' | 'inner' | 'full', even = false): NeonCurve[] => {
   if (level === 'off') return [];
   const curves: NeonCurve[] = [];
   GARDEN.forEach(({ type, at, toward }, sculpt) => {
@@ -97,7 +102,14 @@ const detailCurves = (level: 'off' | 'inner' | 'full'): NeonCurve[] => {
       [h, y, h],
       [-h, y, h],
     ];
-    curves.push({ at, points: square, closed: true, mode: 1, sculpt, light: FOOTPRINT });
+    curves.push({
+      at,
+      points: square,
+      closed: true,
+      mode: 1,
+      sculpt,
+      light: FOOTPRINT * lightOn(GARDEN[sculpt].square, even),
+    });
     const g = h + 0.5;
     const arm = 0.75;
     for (const [sx, sz] of [
@@ -116,7 +128,7 @@ const detailCurves = (level: 'off' | 'inner' | 'full'): NeonCurve[] => {
         closed: false,
         mode: 1,
         sculpt,
-        light: FOOTPRINT * 0.75,
+        light: FOOTPRINT * 0.75 * lightOn(GARDEN[sculpt].square, even),
       });
     }
     // The knights' eyes: the one on a5 winks at its twin
@@ -142,7 +154,7 @@ const detailCurves = (level: 'off' | 'inner' | 'full'): NeonCurve[] => {
       closed: true,
       mode: 1,
       sculpt: ALWAYS_WHOLE,
-      light: PAWN_RINGS,
+      light: PAWN_RINGS * lightOn(square, even),
     });
   }
   // A pawn no taller than a hand at the white king's foot
@@ -172,7 +184,7 @@ const detailCurves = (level: 'off' | 'inner' | 'full'): NeonCurve[] => {
 };
 
 /** The same detail drawn clean: every stroke whole (see the top of this file). */
-export const detailStrokes = (level: 'off' | 'inner' | 'full'): NeonStroke[] => {
+export const detailStrokes = (level: 'off' | 'inner' | 'full', even = false): NeonStroke[] => {
   if (level === 'off') return [];
   const strokes: NeonStroke[] = [];
   GARDEN.forEach((place, sculpt) => {
@@ -202,7 +214,7 @@ export const detailStrokes = (level: 'off' | 'inner' | 'full'): NeonStroke[] => 
       closed: true,
       mode: 1,
       sculpt,
-      light: FOOTPRINT,
+      light: FOOTPRINT * lightOn(place.square, even),
     });
     // The knights' eyes: the one on a5 winks at its twin
     if (type === PieceType.Knight) {
@@ -230,7 +242,7 @@ export const detailStrokes = (level: 'off' | 'inner' | 'full'): NeonStroke[] => 
       closed: true,
       mode: 1,
       sculpt: ALWAYS_WHOLE,
-      light: PAWN_RINGS * RING_LIGHT,
+      light: PAWN_RINGS * RING_LIGHT * lightOn(square, even),
     });
   }
   // A pawn no taller than a hand at the white king's foot
@@ -262,22 +274,23 @@ export const detailStrokes = (level: 'off' | 'inner' | 'full'): NeonStroke[] => 
 export const BoardDetail = ({ turn }: GardenDetailProps) => {
   const level = useEnvSetting(sculptureDetail);
   const fallen = useEnvSetting(fallenPieces) === 'on';
+  const even = useEnvSetting(sculptureEven) === 'on';
   // ENV PREVIEW (temporary): clean strokes, or today's ribbons
   const clean = useEnvSetting(sculptureLines) === 'clean';
   const parts = useMemo(() => {
     if (clean) {
       const strokes = [
-        ...detailStrokes(level),
+        ...detailStrokes(level, even),
         ...(fallen ? fallenStrokes(SCALE, GROUND_Y, FALLEN_SLOT) : []),
       ];
       return strokes.length ? { geometry: neonStrokes(strokes), ...gardenNeon(true) } : null;
     }
     const curves = [
-      ...detailCurves(level),
+      ...detailCurves(level, even),
       ...(fallen ? fallenCurves(SCALE, GROUND_Y, FALLEN_SLOT) : []),
     ];
     return curves.length ? { geometry: neonCurves(curves), ...gardenNeon() } : null;
-  }, [level, fallen, clean]);
+  }, [level, fallen, clean, even]);
   const knight = useMemo(
     () => (clean && fallen ? fallenKnightLines(SCALE, GROUND_Y, FALLEN_SLOT) : null),
     [clean, fallen],

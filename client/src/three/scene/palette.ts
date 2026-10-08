@@ -99,6 +99,8 @@ export const SKY_DETAIL = {
 /** Area B: the colossal board and its sculptures (boardDetail.tsx). */
 export const BOARD_DETAIL = {
   // (area B's colours)
+  /** The light each sculpture throws on the stone round its foot: the tubes' cool white, a breath greyer. */
+  glow: '#e1e8fa',
 } as const;
 
 // ---

@@ -19,10 +19,36 @@ export interface Place {
   at: V3;
   /** The point (x, z) it faces: its twin for a knight, else the board's centre. */
   toward?: readonly [number, number];
+  /** The square of the colossal board it stands on, if it stands on one. */
+  square?: string;
 }
+
+/** A ring this low (piece units) lies on the ground: the base ring. */
+const ON_GROUND = 0.01;
 
 /** Rings are a little quieter than the outlines they stand the pieces on. */
 export const RING_LIGHT = 0.7;
+
+/** Whether a square of the colossal board is a light one (a1 is dark, as on any board). */
+export const isLightSquare = (square: string) =>
+  (square.charCodeAt(0) - 97 + Number(square.slice(1)) - 1) % 2 === 1;
+
+/**
+ * ENV PREVIEW (temporary; sculptureEven): the light of a line lying on a
+ * square of the board, so it stands out as much from a dark square as from
+ * a light one. A tube joins the ground by the brighter of the two, so the
+ * same tube stands far further above dark stone than above light (the
+ * footprints about twice as far as the ground's own light goes, to the eye;
+ * a base ring, brighter, about a third further). Worked out from each
+ * line's light against its square's, measured in captures with the glow
+ * under the sculptures on (sculptureGlow): `line` for the footprints and
+ * the pawns' rings, `ring` for the base rings the sculptures stand on.
+ */
+export const ON_DARK = { line: 0.55, ring: 0.72 } as const;
+
+/** A line's light on a square (ON_DARK's on a dark one), or 1 with `even` off. */
+export const lightOn = (square: string, even: boolean, kind: keyof typeof ON_DARK = 'line') =>
+  even && !isLightSquare(square) ? ON_DARK[kind] : 1;
 
 /**
  * Which way a sculpture faces in the world (unit x, z), for what is not the
@@ -46,7 +72,12 @@ export const toWorld = ([fx, fz]: readonly [number, number], [x, y, z]: V3, scal
 ];
 
 /** Every sculpture's strokes but the knights' outlines (KnightLines draws those). */
-export const sculptureStrokes = (places: readonly Place[], scale: number): NeonStroke[] =>
+export const sculptureStrokes = (
+  places: readonly Place[],
+  scale: number,
+  /** Base rings as clear on a dark square as on a light one (lightOn). */
+  even = false,
+): NeonStroke[] =>
   places.flatMap((place, sculpt) => {
     const d = cleanSculptureOf(place.type);
     const facing = facingOf(place);
@@ -77,7 +108,9 @@ export const sculptureStrokes = (places: readonly Place[], scale: number): NeonS
           closed: true,
           mode: 1,
           sculpt,
-          light: RING_LIGHT,
+          light:
+            RING_LIGHT *
+            (place.square && ring.y < ON_GROUND ? lightOn(place.square, even, 'ring') : 1),
         }),
       ),
     ];
