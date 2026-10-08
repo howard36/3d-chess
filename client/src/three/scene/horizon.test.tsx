@@ -118,30 +118,30 @@ describe('the horizon', () => {
     expect(windowLight()).toBe(0);
   });
 
-  it('stands the other tower as the game’s: five plates in a cube, square from the side', () => {
-    const [frame, ...plates] = otherTowerStrokes();
+  it('stands the other tower as the game’s: five floating plates, square from the side', () => {
+    const plates = otherTowerStrokes();
     expect(plates).toHaveLength(LEVEL_COLORS.length);
     const { side, foot } = OTHER_TOWER;
-    // Every stroke fixed in the world (never turned to face the camera)
-    for (const s of [frame, ...plates].flat()) expect(s.mode).toBe(1);
-    // Each plate a level square, from A at the foot up, inside the cube,
-    // with its reflection below the ground
+    // Every stroke fixed in the world (never turned to face the camera), and
+    // nothing but the plates: no frame holding them
+    for (const s of plates.flat()) expect(s.mode).toBe(1);
+    expect(plates.every((p) => p.length === 2)).toBe(true);
+    // Each plate a level square, from A at the foot up, with its reflection
+    // below the ground
     let last = -Infinity;
     plates.forEach(([plate, mirrored]) => {
       const ys = new Set(plate.points.map((p) => p[1]));
       expect(ys.size).toBe(1);
       const [y] = ys;
-      expect(y).toBeGreaterThan(Math.max(last, foot));
-      expect(y).toBeLessThan(foot + side);
+      expect(y).toBeGreaterThan(last);
       last = y;
       expect(mirrored.points.every((p) => p[1] === -y)).toBe(true);
     });
-    // The cube as wide as it is tall, seen from its front: its corners
-    // across the view span the side, as its edges do upward
-    const above = frame.filter((s) => s.points.every((p) => p[1] >= 0));
-    const ys = above.flatMap((s) => s.points.map((p) => p[1]));
-    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(side, 6);
-    const corners = above[0].points;
+    // As tall as it is wide, seen from its front: the stack spans the side
+    // upward, as each plate's front edge does across the view
+    expect(plates[0][0].points[0][1]).toBeCloseTo(foot, 6);
+    expect(last - foot).toBeCloseTo(side, 6);
+    const corners = plates[0][0].points;
     const across = Math.hypot(corners[1][0] - corners[0][0], corners[1][2] - corners[0][2]);
     expect(across).toBeCloseTo(side, 6);
   });

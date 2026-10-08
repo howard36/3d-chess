@@ -136,8 +136,6 @@ export const HORIZON = {
   /** Far lights at the hills' feet: most a cool starlight, a few warmer. */
   lightCool: '#dfe6ff',
   lightWarm: '#ffe6c4',
-  /** The other tower's frame, round its five level-coloured plates: a faint glass edge. */
-  otherTowerFrame: '#c9d3e6',
   /** The lighthouse's beam in the haze. */
   beam: '#e6ecff',
 } as const;

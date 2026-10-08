@@ -469,36 +469,32 @@ const FarTower = ({ dim }: { dim: { value: number } }) => {
 export const OTHER_TOWER_AT = { azimuth: BLACK_LOOK + 23, radius: 215 } as const;
 
 /**
- * Its shape (world units): a cube `side` across standing `foot` above the
- * ground, and five square plates inside it, each `plate` of the side across;
- * the distance out from the plain's centre of the opening's camera, behind
- * the board (on White's side for White's seat, the horizon turned for
- * Black's) that it faces;
- * the tubes' radius and light, the frame's share of the plates' light, and
- * the reflection's.
+ * Its shape (world units): five square plates `side` across, floating in a
+ * stack as tall as they are wide, the lowest `foot` above the ground; the
+ * distance out from the plain's centre of the opening's camera, behind the
+ * board (on White's side for White's seat, the horizon turned for Black's)
+ * that it faces; the tubes' radius and light, and the reflection's.
  */
 export const OTHER_TOWER = {
   side: 4.2,
   foot: 0.35,
-  plate: 0.84,
   faces: 22,
   width: 0.07,
   intensity: 0.38,
-  frame: 0.35,
   reflection: 0.2,
 } as const;
 
 /**
- * The other tower's tubes, one set per colour: the frame's (index 0, a
- * cube's twelve edges) and each level's plate (1-5, from A at the foot up),
- * each square fixed in the world, facing the opening's camera, so from the
- * side, as it is always seen from so far and so low, it reads as the game's
- * tower does: a square with five level-coloured lines across it. Each comes
+ * The other tower's tubes, one set per level (0-4, from A at the foot up):
+ * five square plates floating with nothing holding them, as the game's own
+ * levels do, each fixed in the world, facing the opening's camera, so from
+ * the side, as it is always seen from so far and so low, it reads as the
+ * game's tower does: five level-coloured lines stacked into a square. Each comes
  * again below the ground, upside down and fainter, as the polished stone
  * gives it back (fading with its depth).
  */
 export const otherTowerStrokes = (): NeonStroke[][] => {
-  const { side, foot, plate, frame, reflection } = OTHER_TOWER;
+  const { side, foot, reflection } = OTHER_TOWER;
   const at = onPlain(OTHER_TOWER_AT.azimuth, OTHER_TOWER_AT.radius, 0);
   // Its own axes: across the view (r), and toward where the seats look
   // out from at the opening (f), so it shows them its front square-on
@@ -516,7 +512,6 @@ export const otherTowerStrokes = (): NeonStroke[][] => {
       [-1, 1],
     ].map(([x, z]) => point(x * half, y, z * half));
   const h = side / 2;
-  const top = foot + side;
   // Its light given back: fainter, and fading with the depth under the stone
   const below = (y: number) => reflection * Math.exp(-y / (side * 0.8));
   const twice = (points: V3[], closed: boolean, light: number): NeonStroke[] => [
@@ -529,37 +524,21 @@ export const otherTowerStrokes = (): NeonStroke[][] => {
       light: points.map(([, y]) => light * below(y)),
     },
   ];
-  // An upright edge in a few steps, so its reflection fades smoothly
-  const upright = (x: number, z: number) =>
-    Array.from({ length: 5 }, (_, k) => point(x, foot + (side * k) / 4, z));
-  const frameStrokes = [
-    ...twice(square(h, foot), true, frame),
-    ...twice(square(h, top), true, frame),
-    ...[
-      [-1, -1],
-      [1, -1],
-      [1, 1],
-      [-1, 1],
-    ].flatMap(([x, z]) => twice(upright(x * h, z * h), false, frame)),
-  ];
-  const plates = LEVEL_COLORS.map((_, i) =>
-    twice(square(h * plate, foot + ((i + 0.5) / LEVEL_COLORS.length) * side), true, 1),
+  // Evenly up a height equal to their width, A's at the foot, E's at the top
+  return LEVEL_COLORS.map((_, i) =>
+    twice(square(h, foot + (i / (LEVEL_COLORS.length - 1)) * side), true, 1),
   );
-  return [frameStrokes, ...plates];
 };
 
-/** The other tower's colours, as its strokes come (the frame's, then each level's from A). */
+/** The other tower's colours, as its strokes come (each level's, from A). */
 const otherTowerColors = () => {
   const grey = new Color(PALETTE.neon);
-  return [
-    new Color(HORIZON.otherTowerFrame),
-    ...LEVEL_COLORS.map((hex) => new Color(hex).lerp(grey, 0.3)),
-  ];
+  return LEVEL_COLORS.map((hex) => new Color(hex).lerp(grey, 0.3));
 };
 
 /**
  * The other tower: another game's glass tower far off on black's side of
- * the plain, five plates in a faint cube drawn in the sculptures' clean tubes
+ * the plain, five floating plates drawn in the sculptures' clean tubes
  * (their program; each colour its own draw), joined by the brighter where
  * they meet, never summed, so its corners and its near and far edges, one
  * over the other from so far, are no brighter than a line.
