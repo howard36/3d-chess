@@ -7,6 +7,7 @@ import {
   BufferGeometry,
   Color,
   CustomBlending,
+  MathUtils,
   MaxEquation,
   OneFactor,
   ShaderMaterial,
@@ -34,6 +35,11 @@ import { ShootingStar } from './shootingStar';
 import { useDisposeOnUnmount } from './dispose';
 import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
+import { neonCurves, ringPoints } from './boardNeon';
+import { boardGroundGlsl } from './boardGround';
+import { FALLEN, fallenBodies } from './boardFallen';
+import type { BoardGroundOptions } from './boardGround';
+import type { NeonCurve, V3 } from './boardNeon';
 import { SkyDetail, skyAirUniforms, useSkyAir } from './skyDetail';
 import { BoardDetail } from './boardDetail';
 import { Court } from './court';
@@ -42,6 +48,12 @@ import { groundGeometry } from './horizonGround';
 // ENV PREVIEW (temporary): the preview's settings, and a redraw when one changes
 import { useEnvSetting } from '../../envPreview';
 import { shootingStar } from '../../envPreview/features/shootingStar';
+import {
+  boardFrame,
+  boardSquares,
+  sculptureDetail,
+  sculptureFix,
+} from '../../envPreview/features/board';
 import { EnvRedraw } from '../../envPreview/EnvRedraw';
 
 // The garden at night. The tower floats over an endless dark plain of
@@ -197,23 +209,37 @@ const groundVertex = /* glsl */ `
 /** The brightness of the colossal board: its lines and its light squares together. */
 const BOARD = 1.1;
 
-const groundFragment = /* glsl */ `
+/** The ground's shader, with the colossal board's detail that is on (boardGround.ts). */
+const groundFragment = (board: BoardGroundOptions) => {
+  const detail = boardGroundGlsl(
+    board,
+    GARDEN.map(({ at }): [number, number] => [at[0], at[2]]),
+  );
+  return /* glsl */ `
   uniform vec3 uGround;
   uniform vec3 uLine;
   uniform vec3 uHorizon;
   uniform float uSquare;
   uniform vec2 uClear;
+  uniform float uTurn;
+  uniform float uDim;
+  uniform float uBoost;
+  uniform float uWhole[${WHOLE_SLOTS}];
   varying vec2 vP;
   varying vec3 vWorld;
   ${TOWER_SHADE}
   ${GRID_LINES}
+  ${detail?.decl ?? ''}
   void main() {
     vec3 view = normalize(vWorld - cameraPosition);
     float r = length(vP);
     float dist = distance(vWorld, cameraPosition);
+    // The board in its own coordinates, turned half about for Black (its
+    // lines and checker look the same either way; its detail does not)
+    vec2 bp = vP * uTurn;
     // The colossal board's lines, joined by taking the brighter (never
     // summed), so crossings stay even
-    vec2 uv = vP / uSquare + 4.0;
+    vec2 uv = bp / uSquare + 4.0;
     vec2 lines = gridLines(uv, 0.006);
     float onBoard = step(-0.02, uv.x) * step(uv.x, 8.02) * step(-0.02, uv.y) * step(uv.y, 8.02);
     vec2 span = vec2(step(-0.01, uv.y) * step(uv.y, 8.01), step(-0.01, uv.x) * step(uv.x, 8.01));
@@ -231,15 +257,21 @@ const groundFragment = /* glsl */ `
     float far = 1.0 - smoothstep(40.0, 110.0, dist);
     // Into the tower's shade (mask.ts)
     float hidden = 1.0 - towerShade();
+    float glow = 0.0;
+    ${detail?.lines ?? ''}
     float lit = (line * 0.04 + lightSq * 0.004) * ${BOARD.toFixed(1)} * clear * far * hidden;
+    lit += glow * far * hidden;
     // Polished: toward the horizon it gives back the mist
     float fresnel = pow(1.0 - abs(view.y), 5.0);
     vec3 col = uGround + uLine * lit + uHorizon * fresnel * 0.9;
+    ${detail?.polish ?? ''}
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }`;
+};
 
-const Ground = () => {
+const Ground = ({ board }: { board: BoardGroundOptions }) => {
+  const { frame, squares, pools } = board;
   const parts = useMemo(
     () => ({
       geometry: groundGeometry(),
@@ -253,12 +285,16 @@ const Ground = () => {
           uHorizon: { value: new Color(PALETTE.skyHorizon) },
           uSquare: { value: SQUARE },
           uClear: { value: [...CLEAR] },
+          uTurn: gardenTurn,
+          uDim: gardenDim,
+          uBoost: gardenBoost,
+          uWhole: gardenWhole,
         },
         vertexShader: groundVertex,
-        fragmentShader: groundFragment,
+        fragmentShader: groundFragment({ frame, squares, pools }),
       }),
     }),
-    [],
+    [frame, squares, pools],
   );
   useDisposeOnUnmount(parts);
   const { geometry, material } = parts;
@@ -276,7 +312,7 @@ const Ground = () => {
 // --- The sculptures ---------------------------------------------------------------------
 
 /** Their scale: a colossal king stands about 5.6 units tall. */
-const SCALE = 6.5;
+export const SCALE = 6.5;
 
 /**
  * Where each stands: on the centre of a square of the colossal board, set
@@ -327,6 +363,11 @@ export const GARDEN = PLACES.map(({ type, square, faces }) => ({
   toward: faces ? squareCentre(faces) : ([0, 0] as [number, number]),
 }));
 
+/** gardenWhole's slots: the sculptures', then the fallen pieces', then one always whole. */
+export const FALLEN_SLOT = PLACES.length;
+export const WHOLE_SLOTS = FALLEN_SLOT + FALLEN.length + 1;
+export const ALWAYS_WHOLE = WHOLE_SLOTS - 1;
+
 /**
  * Every sculpture's tubes as one ribbon mesh. Each vertex carries its
  * sculpture's anchor, the point it looks toward (the board's centre unless
@@ -343,77 +384,33 @@ export const neonGeometry = (
     toward?: readonly [number, number];
   }[] = GARDEN,
   scale = SCALE,
-): BufferGeometry => {
-  const anchor: number[] = [];
-  const toward: number[] = [];
-  const local: number[] = [];
-  const tangent: number[] = [];
-  const side: number[] = [];
-  const mode: number[] = [];
-  const index: number[] = [];
-  const addCurve = (
-    at: readonly [number, number, number],
-    looks: readonly [number, number],
-    pts: [number, number, number][],
-    closed: boolean,
-    fixed: boolean,
-  ) => {
-    const n = pts.length;
-    const base = side.length;
-    for (let k = 0; k < n; k++) {
-      const prev = pts[closed ? (k - 1 + n) % n : Math.max(k - 1, 0)];
-      const next = pts[closed ? (k + 1) % n : Math.min(k + 1, n - 1)];
-      const t = [next[0] - prev[0], next[1] - prev[1], next[2] - prev[2]];
-      const l = Math.hypot(t[0], t[1], t[2]) || 1;
-      for (const s of [-1, 1]) {
-        anchor.push(...at);
-        toward.push(...looks);
-        local.push(...pts[k]);
-        tangent.push(t[0] / l, t[1] / l, t[2] / l);
-        side.push(s);
-        mode.push(fixed ? 1 : 0);
-      }
-    }
-    const segments = closed ? n : n - 1;
-    for (let k = 0; k < segments; k++) {
-      const a = base + 2 * k;
-      const b = base + 2 * ((k + 1) % n);
-      index.push(a, a + 1, b, b, a + 1, b + 1);
-    }
-  };
-  places.forEach(({ type, at, toward: looks = [0, 0] }) => {
-    const drawing = sculptureOf(type);
-    for (const o of drawing.outlines) {
-      addCurve(
-        at,
-        looks,
-        o.points.map(([x, y]) => [x * scale, y * scale, 0]),
-        o.closed,
-        false,
-      );
-    }
-    for (const ring of drawing.rings) {
-      const pts = Array.from({ length: 24 }, (_, k): [number, number, number] => {
-        const a = (k / 24) * Math.PI * 2;
-        return [
-          Math.cos(a) * ring.radius * scale,
-          ring.y * scale,
-          Math.sin(a) * ring.radius * scale,
-        ];
-      });
-      addCurve(at, looks, pts, true, true);
-    }
-  });
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(local), 3));
-  g.setAttribute('aAnchor', new BufferAttribute(new Float32Array(anchor), 3));
-  g.setAttribute('aToward', new BufferAttribute(new Float32Array(toward), 2));
-  g.setAttribute('aTangent', new BufferAttribute(new Float32Array(tangent), 3));
-  g.setAttribute('aSide', new BufferAttribute(new Float32Array(side), 1));
-  g.setAttribute('aMode', new BufferAttribute(new Float32Array(mode), 1));
-  g.setIndex(index);
-  return g;
-};
+): BufferGeometry =>
+  neonCurves(
+    places.flatMap(({ type, at, toward = [0, 0] }, sculpt) => {
+      const drawing = sculptureOf(type);
+      return [
+        ...drawing.outlines.map(
+          (o): NeonCurve => ({
+            at,
+            toward,
+            points: o.points.map(([x, y]): V3 => [x * scale, y * scale, 0]),
+            closed: o.closed,
+            sculpt,
+          }),
+        ),
+        ...drawing.rings.map(
+          (ring): NeonCurve => ({
+            at,
+            toward,
+            points: ringPoints(ring.radius * scale, ring.y * scale),
+            closed: true,
+            mode: 1,
+            sculpt,
+          }),
+        ),
+      ];
+    }),
+  );
 
 // --- Behind the tower ------------------------------------------------------------------
 
@@ -436,6 +433,14 @@ const BRIGHT = 0.7;
 const gardenTurn = { value: 1 };
 /** The sculptures' and their mist's brightness: 1 in the game, less behind the lobby's kings. */
 const gardenDim = { value: 1 };
+/**
+ * How much of its light each figure of the garden keeps as the tower's shade
+ * takes it as a whole (wholeOf): the twelve sculptures, then the fallen
+ * pieces, and a last slot always whole (for what the shade takes per pixel
+ * only). Their tubes, reflections, mist and pools all take it.
+ */
+export const gardenWhole = { value: new Float32Array(WHOLE_SLOTS).fill(1) };
+const drawingBuffer = new Vector2();
 type ShadeStack = ReturnType<typeof platformStack>;
 
 const corner = new Vector3();
@@ -479,12 +484,33 @@ interface SculptureView {
   inFrame: number;
 }
 
+/** The tower's shade over a screen rectangle, on average (5 x 5 samples). */
+const shadeOver = (hull: ReturnType<typeof towerOutlineOnScreen>, body: Rect) => {
+  let shade = 0;
+  const n = 5;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      shade += shadeAt(hull, [
+        body.x0 + ((i + 0.5) / n) * (body.x1 - body.x0),
+        body.y0 + ((j + 0.5) / n) * (body.y1 - body.y0),
+      ]);
+    }
+  }
+  return shade / (n * n);
+};
+
 /**
  * Every sculpture's shade and framing for a camera (pure, for tests).
- * `turn` is -1 when the garden is turned about for Black (gardenTurn).
+ * `turn` is -1 when the garden is turned about for Black (gardenTurn), and
+ * `stack` what casts the shade when it is not the whole tower (the lobby's).
  */
-export const gardenView = (camera: Camera, aspect: number, turn = 1): SculptureView[] => {
-  const hull = towerOutlineOnScreen(camera, aspect);
+export const gardenView = (
+  camera: Camera,
+  aspect: number,
+  turn = 1,
+  stack?: ShadeStack,
+): SculptureView[] => {
+  const hull = towerOutlineOnScreen(camera, aspect, stack);
   right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
   return SIZES.map(({ at: home, radius, height }) => {
     const at = [home[0] * turn, home[1], home[2] * turn];
@@ -501,41 +527,50 @@ export const gardenView = (camera: Camera, aspect: number, turn = 1): SculptureV
       aspect,
     );
     if (!body.seen) return { cover: 0, inFrame: 0 };
-    // The shade, sampled over the sculpture
-    let shade = 0;
-    const n = 5;
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
-        shade += shadeAt(hull, [
-          body.x0 + ((i + 0.5) / n) * (body.x1 - body.x0),
-          body.y0 + ((j + 0.5) / n) * (body.y1 - body.y0),
-        ]);
-      }
-    }
     const w = Math.max(body.x1 - body.x0, 1e-6);
     const h = Math.max(body.y1 - body.y0, 1e-6);
     const ix = Math.max(0, Math.min(body.x1, aspect) - Math.max(body.x0, -aspect));
     const iy = Math.max(0, Math.min(body.y1, 1) - Math.max(body.y0, -1));
-    return { cover: shade / (n * n), inFrame: (ix * iy) / (w * h) };
+    return { cover: shadeOver(hull, body), inFrame: (ix * iy) / (w * h) };
   });
 };
 
-const drawingBuffer = new Vector2();
 /**
- * Every frame, the tower's outline on screen for the shade (mask.ts), and
- * which way the garden is turned into its uniforms.
+ * The tower's shade covers so much of a sculpture (on average) before it
+ * starts to fade as a whole, and so much when it has gone. A sculpture
+ * beside the tower keeps its light (its side nearest the tower still sinks
+ * into the shade per pixel); one standing right behind it goes altogether,
+ * crown and all, rather than leaving its top standing over level E among
+ * the far rank's pieces.
+ */
+export const WHOLE_FADE = [0.62, 0.86] as const;
+
+/** How much of its light a sculpture keeps for how much of it the shade covers. */
+export const wholeOf = (cover: number) =>
+  1 - MathUtils.smoothstep(cover, WHOLE_FADE[0], WHOLE_FADE[1]);
+
+/** The fallen pieces' outlines on the ground, as points round them (boardFallen.ts). */
+const FALLEN_BODIES = fallenBodies(SCALE, GROUND_Y);
+
+/**
+ * Every frame, the tower's outline on screen for the shade (mask.ts), which
+ * way the garden is turned, and how much of each figure's light the tower's
+ * shade leaves it (gardenWhole), into their uniforms.
  */
 const GardenUniforms = ({
   turn,
   shade,
   dim = 1,
+  whole,
 }: {
   turn: number;
   shade?: ShadeStack;
   dim?: number | (() => number);
+  /** Fade a figure the tower's shade mostly covers as a whole (sculptureFix). */
+  whole: boolean;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
-  useEffect(() => invalidate(), [turn, shade, dim, invalidate]);
+  useEffect(() => invalidate(), [turn, shade, dim, whole, invalidate]);
   // Written as each frame is drawn, like the outline: the uniforms are
   // shared, and two canvases (the lobby's, fading, over the game's) each set
   // their own just before they render
@@ -546,6 +581,23 @@ const GardenUniforms = ({
     updateTowerOutline(camera, aspect, shade);
     gl.getDrawingBufferSize(drawingBuffer);
     shadeViewport.value.set(drawingBuffer.x, drawingBuffer.y, aspect);
+    const w = gardenWhole.value;
+    if (!whole) {
+      w.fill(1);
+      return;
+    }
+    gardenView(camera, aspect, turn, shade).forEach((v, i) => {
+      w[i] = wholeOf(v.cover);
+    });
+    const hull = towerOutlineOnScreen(camera, aspect, shade);
+    FALLEN_BODIES.forEach((points, i) => {
+      const body = rectOf(
+        camera,
+        points.map(([x, y, z]): [number, number, number] => [x * turn, y, z * turn]),
+        aspect,
+      );
+      w[FALLEN_SLOT + i] = body.seen ? wholeOf(shadeOver(hull, body)) : 1;
+    });
   });
   return null;
 };
@@ -555,33 +607,46 @@ const neonVertex = /* glsl */ `
   uniform float uMirror;
   uniform float uGround;
   uniform float uTurn;
+  uniform float uWhole[${WHOLE_SLOTS}];
   attribute vec3 aAnchor;
   attribute vec2 aToward;
   attribute vec3 aTangent;
   attribute float aSide;
   attribute float aMode;
+  attribute vec3 aAxis;
+  attribute float aSculpt;
+  attribute float aLight;
   varying float vAcross;
   varying float vDepth;
   varying float vRing;
+  varying float vLight;
   void main() {
     // Turned about for Black, as the board is (gardenTurn)
     vec3 anchor = vec3(aAnchor.x * uTurn, aAnchor.y, aAnchor.z * uTurn);
     vec2 toward = aToward * uTurn;
     vec3 toCam = cameraPosition - anchor;
-    vec2 h = normalize(toCam.xz + vec2(1e-5, 0.0));
-    // The drawing's plane faces the camera, turned about the vertical
-    vec3 right = vec3(h.y, 0.0, -h.x);
-    // A knight looks toward its point (its twin, or the board's centre),
-    // whichever side of it the camera stands
-    float face = dot(right.xz, toward - anchor.xz) >= 0.0 ? 1.0 : -1.0;
     vec3 p;
     vec3 t;
     if (aMode < 0.5) {
+      vec2 h = normalize(toCam.xz + vec2(1e-5, 0.0));
+      // The drawing's plane faces the camera, turned about the vertical
+      vec3 right = vec3(h.y, 0.0, -h.x);
+      // A knight looks toward its point (its twin, or the board's centre),
+      // whichever side of it the camera stands
+      float face = dot(right.xz, toward - anchor.xz) >= 0.0 ? 1.0 : -1.0;
       p = anchor + right * position.x * face + vec3(0.0, position.y, 0.0);
       t = right * aTangent.x * face + vec3(0.0, aTangent.y, 0.0);
+    } else if (aMode < 1.5) {
+      p = anchor + vec3(position.x * uTurn, position.y, position.z * uTurn);
+      t = vec3(aTangent.x * uTurn, aTangent.y, aTangent.z * uTurn);
     } else {
-      p = anchor + position;
-      t = aTangent;
+      // Lying on its side: the drawing turns about its own axis
+      vec3 axis = vec3(aAxis.x * uTurn, aAxis.y, aAxis.z * uTurn);
+      vec3 across = cross(axis, toCam);
+      float al = length(across);
+      across = al > 1e-5 ? across / al : vec3(0.0, 1.0, 0.0);
+      p = anchor + across * position.x + axis * position.y;
+      t = across * aTangent.x + axis * aTangent.y;
     }
     vDepth = p.y - uGround;
     if (uMirror > 0.5) {
@@ -595,7 +660,9 @@ const neonVertex = /* glsl */ `
     s = sl > 1e-5 ? s / sl : vec3(0.0, 1.0, 0.0);
     p += s * aSide * uWidth;
     vAcross = aSide;
-    vRing = aMode;
+    vRing = aMode > 0.5 && aMode < 1.5 ? 1.0 : 0.0;
+    // Its own light, and its sculpture's as the tower's shade takes it whole
+    vLight = aLight * uWhole[int(aSculpt + 0.5)];
     gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
   }`;
 
@@ -616,6 +683,7 @@ const neonFragment = /* glsl */ `
   varying float vAcross;
   varying float vDepth;
   varying float vRing;
+  varying float vLight;
   ${TOWER_SHADE}
   void main() {
     float a = abs(vAcross);
@@ -625,7 +693,7 @@ const neonFragment = /* glsl */ `
     float core = (1.0 - smoothstep(w - fw, w + fw, a)) * min(uCore / w, 1.0);
     float halo = exp(-a * a * 7.0) * (1.0 - a) * uHalo;
     // The rings a little quieter than the outlines they stand the pieces on
-    float light = (core + halo) * uIntensity * ${BRIGHT.toFixed(1)} * (1.0 + uBoost) * (1.0 - 0.3 * vRing);
+    float light = (core + halo) * uIntensity * ${BRIGHT.toFixed(1)} * (1.0 + uBoost) * (1.0 - 0.3 * vRing) * vLight;
     // A reflection fades with its depth under the polished ground
     light *= uFade > 0.0 ? exp(-vDepth / uFade) : 1.0;
     // Into the tower's shade, steadily, nearest the tower darkest
@@ -650,8 +718,10 @@ const opaque = (m: ShaderMaterial) => {
 export const gardenBoost = { value: 0 };
 
 /**
- * The tubes' light. `turn` is the garden's (gardenTurn) unless given, and
- * `shaded: false` keeps them out of the tower's shade (the lobby's seats).
+ * The tubes' light. `turn` is the garden's (gardenTurn) unless given,
+ * `shaded: false` keeps them out of the tower's shade (the lobby's seats),
+ * and `whole` is each figure's share of its light (gardenWhole for the
+ * garden's; all whole unless given).
  */
 export const neonMaterial = (o: {
   width: number;
@@ -663,6 +733,7 @@ export const neonMaterial = (o: {
   turn?: { value: number };
   shaded?: boolean;
   dim?: { value: number };
+  whole?: { value: Float32Array };
 }) =>
   new ShaderMaterial({
     transparent: true,
@@ -688,55 +759,53 @@ export const neonMaterial = (o: {
       uFade: { value: o.fade },
       uReveal: { value: NEON_WHOLE },
       uBoost: gardenBoost,
+      uWhole: o.whole ?? { value: new Float32Array(WHOLE_SLOTS).fill(1) },
     },
     vertexShader: neonVertex,
     fragmentShader: neonFragment,
   });
 
+/** The sculptures' tubes. */
+const TUBES = { width: 0.26, core: 0.12, halo: 0.06, intensity: 0.078, mirror: false, fade: 0 };
+/** Their reflections: softer and dimmer in the polished stone, fading with depth. */
+const REFLECTION = {
+  width: 0.45,
+  core: 0.05,
+  halo: 0.14,
+  intensity: 0.025,
+  mirror: true,
+  fade: 3.2,
+};
+
+/**
+ * The garden's tube materials, as the sculptures' (anything drawn with
+ * their light: boardDetail.tsx), in three.js's opaque list, which draws
+ * first, so the whole garden is drawn before the tower (backdropCache.tsx);
+ * still joined by the max.
+ */
+export const gardenNeon = () => ({
+  tubes: opaque(neonMaterial({ ...TUBES, whole: gardenWhole })),
+  reflection: opaque(neonMaterial({ ...REFLECTION, whole: gardenWhole })),
+});
+
 const Sculptures = ({
   turn,
   shade,
   dim,
+  whole,
 }: {
   turn: number;
   shade?: ShadeStack;
   dim?: number | (() => number);
+  whole: boolean;
 }) => {
-  const parts = useMemo(
-    () => ({
-      geometry: neonGeometry(),
-      // In three.js's opaque list, which draws first, so the whole garden
-      // is drawn before the tower (backdropCache.tsx); still joined by the max
-      tubes: opaque(
-        neonMaterial({
-          width: 0.26,
-          core: 0.12,
-          halo: 0.06,
-          intensity: 0.078,
-          mirror: false,
-          fade: 0,
-        }),
-      ),
-      // Softer and dimmer in the polished stone, fading with depth
-      reflection: opaque(
-        neonMaterial({
-          width: 0.45,
-          core: 0.05,
-          halo: 0.14,
-          intensity: 0.025,
-          mirror: true,
-          fade: 3.2,
-        }),
-      ),
-    }),
-    [],
-  );
+  const parts = useMemo(() => ({ geometry: neonGeometry(), ...gardenNeon() }), []);
 
   useDisposeOnUnmount(parts);
   const { geometry, tubes, reflection } = parts;
   return (
     <group name="garden">
-      <GardenUniforms turn={turn} shade={shade} dim={dim} />
+      <GardenUniforms turn={turn} shade={shade} dim={dim} whole={whole} />
       <mesh
         geometry={geometry}
         material={reflection}
@@ -761,6 +830,7 @@ const mistGeometry = (): BufferGeometry => {
   const anchor: number[] = [];
   const corner: number[] = [];
   const size: number[] = [];
+  const sculpt: number[] = [];
   const index: number[] = [];
   GARDEN.forEach(({ at }, i) => {
     for (const [cx, cy] of [
@@ -772,6 +842,7 @@ const mistGeometry = (): BufferGeometry => {
       anchor.push(...at);
       corner.push(cx, cy, 0);
       size.push(SCALE * 0.62, SCALE * 0.16);
+      sculpt.push(i);
     }
     const b = i * 4;
     index.push(b, b + 1, b + 2, b, b + 2, b + 3);
@@ -780,6 +851,7 @@ const mistGeometry = (): BufferGeometry => {
   g.setAttribute('position', new BufferAttribute(new Float32Array(corner), 3));
   g.setAttribute('aAnchor', new BufferAttribute(new Float32Array(anchor), 3));
   g.setAttribute('aSize', new BufferAttribute(new Float32Array(size), 2));
+  g.setAttribute('aSculpt', new BufferAttribute(new Float32Array(sculpt), 1));
   g.setIndex(index);
   return g;
 };
@@ -799,13 +871,18 @@ const Mist = () => {
           uDim: gardenDim,
           ...shadeUniforms(),
           uTurn: gardenTurn,
+          uWhole: gardenWhole,
         },
         vertexShader: /* glsl */ `
           uniform float uTurn;
+          uniform float uWhole[${WHOLE_SLOTS}];
           attribute vec3 aAnchor;
           attribute vec2 aSize;
+          attribute float aSculpt;
           varying vec2 vC;
+          varying float vWhole;
           void main() {
+            vWhole = uWhole[int(aSculpt + 0.5)];
             vec3 anchor = vec3(aAnchor.x * uTurn, aAnchor.y, aAnchor.z * uTurn);
             vec2 h = normalize((cameraPosition - anchor).xz + vec2(1e-5, 0.0));
             vec3 right = vec3(h.y, 0.0, -h.x);
@@ -818,11 +895,12 @@ const Mist = () => {
           uniform float uBoost;
           uniform float uDim;
           varying vec2 vC;
+          varying float vWhole;
           ${TOWER_SHADE}
           void main() {
             float m = exp(-dot(vC * vec2(2.0, 2.6), vC * vec2(2.0, 2.6)));
             float a = m * 0.075 * (1.0 + 0.6 * uBoost) * ${BRIGHT.toFixed(1)};
-            a *= (1.0 - towerShade()) * uDim;
+            a *= (1.0 - towerShade()) * uDim * vWhole;
             if (a < 0.001) discard;
             gl_FragColor = vec4(uColor * a, 1.0);
             #include <colorspace_fragment>
@@ -892,6 +970,11 @@ export const Stage = ({
   dim,
 }: StageProps & { shade?: ShadeStack; dim?: number | (() => number) }) => {
   const meteor = useEnvSetting(shootingStar);
+  const fix = useEnvSetting(sculptureFix) === 'on';
+  const frame = useEnvSetting(boardFrame) === 'on';
+  const squares = useEnvSetting(boardSquares);
+  const pools = useEnvSetting(sculptureDetail) === 'full';
+  const board = useMemo(() => ({ frame, squares, pools }), [frame, squares, pools]);
   const turn = orientation === 'black' ? -1 : 1;
   return (
     <>
@@ -899,8 +982,8 @@ export const Stage = ({
       <CameraFloor />
       <Heavens />
       <Sky />
-      <Ground />
-      <Sculptures turn={turn} shade={shade} dim={dim} />
+      <Ground board={board} />
+      <Sculptures turn={turn} shade={shade} dim={dim} whole={fix} />
       <Mist />
       <SkyDetail turn={turn} shade={shade} dim={dim} />
       <BoardDetail turn={turn} shade={shade} dim={dim} />

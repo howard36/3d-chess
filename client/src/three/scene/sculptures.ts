@@ -403,3 +403,150 @@ export const sculptureOf = (type: PieceType): SculptureDrawing => {
   }
   return d;
 };
+
+// --- Detail: the inner tube, more rings, a twin that differs -----------------------
+
+/** The main silhouette as one curve: up the left side, over the top, down the right. */
+const silhouetteOf = (type: PieceType): P2[] => {
+  const { outlines } = sculptureOf(type);
+  if (type === PieceType.Queen) {
+    // Drawn as the left side (down), the coronet, and the right side (up)
+    return [
+      ...outlines[0].points.slice().reverse(),
+      ...outlines[1].points,
+      ...outlines[2].points.slice().reverse(),
+    ];
+  }
+  return outlines[0].points;
+};
+
+/** Distance from a point to a polyline. */
+const distanceTo = (pts: readonly P2[], [px, py]: P2) => {
+  let d = Infinity;
+  for (let k = 1; k < pts.length; k++) {
+    const [ax, ay] = pts[k - 1];
+    const ex = pts[k][0] - ax;
+    const ey = pts[k][1] - ay;
+    const t = Math.min(
+      Math.max(((px - ax) * ex + (py - ay) * ey) / (ex * ex + ey * ey || 1), 0),
+      1,
+    );
+    d = Math.min(d, Math.hypot(px - ax - ex * t, py - ay - ey * t));
+  }
+  return d;
+};
+
+/** Whether a point lies inside a closed polygon (even-odd). */
+const inside = (poly: readonly P2[], [px, py]: P2) => {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi || 1e-12) + xi) c = !c;
+  }
+  return c;
+};
+
+/**
+ * The second, quieter tube a light artist bends just inside a sculpture's
+ * outline (piece units, `offset` inside it): the silhouette's form without
+ * its small beads and fillets, drawn in by `offset`, and left out wherever
+ * the piece is too narrow for two tubes side by side (it breaks into runs
+ * there, so it never crosses itself or the outline). Starts a little above
+ * the base, so the foot keeps its single line.
+ */
+/** Where the inner tube stops, below a detail it would only clutter (the mitre's cut, the horn). */
+const INNER_TOP: Partial<Record<PieceType, number>> = {
+  [PieceType.Bishop]: 0.5,
+  [PieceType.Unicorn]: 0.48,
+  [PieceType.Rook]: 0.53,
+};
+
+export const innerOutlinesOf = (type: PieceType, offset = 0.036): P2[][] => {
+  const outline = silhouetteOf(type);
+  // Its broad form: the details smoothed away
+  const form = simplify(bend(simplify(outline, 0.009), 3), 0.0006);
+  // Closed through the base, to tell inside from out
+  const poly = [...outline, [outline[0][0], 0] as P2];
+  const n = form.length;
+  const runs: P2[][] = [];
+  let run: P2[] = [];
+  for (let k = 0; k < n; k++) {
+    const prev = form[Math.max(k - 1, 0)];
+    const next = form[Math.min(k + 1, n - 1)];
+    const tx = next[0] - prev[0];
+    const ty = next[1] - prev[1];
+    const l = Math.hypot(tx, ty) || 1;
+    // Clockwise (up the left, down the right): inside is to the right
+    const p: P2 = [form[k][0] + (ty / l) * offset, form[k][1] - (tx / l) * offset];
+    const ok =
+      p[1] > offset * 1.6 &&
+      p[1] < (INNER_TOP[type] ?? 1) &&
+      inside(poly, p) &&
+      distanceTo(outline, p) > offset * 0.82;
+    if (ok) run.push(p);
+    else if (run.length) {
+      runs.push(run);
+      run = [];
+    }
+  }
+  if (run.length) runs.push(run);
+  const length = (r: P2[]) =>
+    r.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - r[i][0], q[1] - r[i][1]), 0);
+  return runs.filter((r) => r.length >= 3 && length(r) > 0.06).map((r) => bend(r, 1));
+};
+
+/** The silhouette's half-width at a height (piece units). */
+const widthAt = (type: PieceType, y: number) => {
+  const pts = silhouetteOf(type);
+  let w = 0;
+  for (let k = 1; k < pts.length; k++) {
+    const [a, b] = [pts[k - 1], pts[k]];
+    if ((a[1] - y) * (b[1] - y) > 0 || a[1] === b[1]) continue;
+    const t = (y - a[1]) / (b[1] - a[1]);
+    w = Math.max(w, Math.abs(a[0] + (b[0] - a[0]) * t));
+  }
+  return w;
+};
+
+/**
+ * Rings beyond the base and collar, where the turning has them: a second
+ * ring at the top of the foot for every piece, and one round the crown's
+ * rim, the battlement's foot, the bead under the mitre, the horn's socket
+ * or the pawn's head.
+ */
+export const moreRingsOf = (type: PieceType): { radius: number; y: number }[] => {
+  const heights: Partial<Record<PieceType, number[]>> = {
+    [PieceType.King]: [0.667],
+    [PieceType.Queen]: [0.684],
+    [PieceType.Rook]: [0.548],
+    [PieceType.Bishop]: [0.437],
+    [PieceType.Unicorn]: [0.497],
+    [PieceType.Pawn]: [0.42],
+  };
+  return [0.075, ...(heights[type] ?? [])].map((y) => ({ radius: widthAt(type, y), y }));
+};
+
+/**
+ * The knights' eyes, in the head's drawing (piece units): a small ring, or,
+ * for the one twin that differs from its pair, a wink (a short lid).
+ */
+export const knightEyeOf = (winks: boolean): Outline => {
+  const [cx, cy] = [0.004, 0.612];
+  if (winks) {
+    return {
+      points: Array.from({ length: 7 }, (_, k): P2 => {
+        const t = (k / 6) * 2 - 1;
+        return [cx + t * 0.02, cy - 0.008 * (1 - t * t)];
+      }),
+      closed: false,
+    };
+  }
+  return {
+    points: Array.from({ length: 12 }, (_, k): P2 => {
+      const a = (k / 12) * Math.PI * 2;
+      return [cx + Math.cos(a) * 0.014, cy + Math.sin(a) * 0.014];
+    }),
+    closed: true,
+  };
+};
