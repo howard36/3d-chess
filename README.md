@@ -2,12 +2,12 @@
 
 Chess on a 5×5×5 board.
 
-[![A game of 3D chess against the computer: White's queen picked up in the middle of a five-level glass tower, her moves ringed in gold](docs/preview.jpg)](https://3d-chess.pages.dev)
+[![A game of 3D chess against the computer: White's queen picked up in the middle of a five-level glass tower, her moves ringed in gold](docs/preview.jpg)](https://3dchess.club)
 
-**[Play at 3d-chess.pages.dev →](https://3d-chess.pages.dev)**
+**[Play at 3dchess.club →](https://3dchess.club)**
 
 - Modes: two players over a shared link, or one against the computer (three levels)
-- [Tutorial](https://3d-chess.pages.dev/learn)
+- [Tutorial](https://3dchess.club/learn)
 
 ## Rules
 
