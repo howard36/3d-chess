@@ -90,6 +90,59 @@ export const sculptureDetail = defineEnvFeature({
   default: 'full',
 });
 
+/**
+ * The light under each sculpture. Off is the upright breath of mist at its
+ * foot and its pool lifting the board's lines. Soft: a wide, even glow lying
+ * on the ground, round in the world, a little brighter just past the base
+ * ring and fading out over about a base's width and a half, the board's
+ * lines caught in it. Grounded: the same, dimmer under the base.
+ */
+export const sculptureGlow = defineEnvFeature({
+  id: 'sculptureGlow',
+  label: 'Light underneath',
+  group: GROUP,
+  order: 5,
+  options: [
+    { id: 'off', label: 'Off' },
+    { id: 'soft', label: 'Soft' },
+    { id: 'grounded', label: 'Grounded' },
+  ],
+  default: 'soft',
+});
+
+/**
+ * A sculpture (or fallen piece) the camera has passed and stands behind,
+ * zoomed far out, is not drawn: it goes, and comes back, only while it is
+ * out of frame, so it never pops.
+ */
+export const sculptureNearFade = defineEnvFeature({
+  id: 'sculptureNearFade',
+  label: 'Hide from behind',
+  group: GROUP,
+  order: 6,
+  options: [
+    { id: 'off', label: 'Off' },
+    { id: 'on', label: 'On' },
+  ],
+  default: 'on',
+});
+
+/**
+ * The footprints and the pawns' rings drawn as clearly on a light square as
+ * on a dark one (the same light shows far more on dark stone).
+ */
+export const sculptureEven = defineEnvFeature({
+  id: 'sculptureEven',
+  label: 'Even on light and dark',
+  group: GROUP,
+  order: 7,
+  options: [
+    { id: 'off', label: 'Off' },
+    { id: 'on', label: 'On' },
+  ],
+  default: 'on',
+});
+
 /** Captured giants lying on their sides past the board's edge, parts of their tubes dead. */
 export const fallenPieces = defineEnvFeature({
   id: 'fallenPieces',

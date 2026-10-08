@@ -36,6 +36,8 @@ import { ShootingStar } from './shootingStar';
 import { useDisposeOnUnmount } from './dispose';
 import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
+import { GardenSides } from './gardenSides';
+import type { GardenFigure } from './gardenSides';
 import { neonCurves, ringPoints } from './boardNeon';
 import { neonStrokes, STROKE_TUBE, STROKE_VERTEX, updateStrokes } from './neonStrokes';
 import { KNIGHT_SEGMENTS, KnightLines, sculptureStrokes } from './sculptureStrokes';
@@ -49,6 +51,7 @@ import { skyColorBody, skyColorChunk } from './skyColor';
 import { BoardDetail } from './boardDetail';
 import { Court, COURT_REACH, courtGroundGlsl, courtUniforms } from './court';
 import { Horizon } from './horizon';
+import { SculptureGlow } from './sculptureGlow';
 import { groundParts, VEIL_MIX, VEIL_VERTEX_GLSL } from './horizonGround';
 // ENV PREVIEW (temporary): the preview's settings, and a redraw when one changes
 import { useEnvSetting } from '../../envPreview';
@@ -59,8 +62,11 @@ import {
   boardFrame,
   boardSquares,
   sculptureDetail,
+  sculptureEven,
   sculptureFix,
+  sculptureGlow,
   sculptureLines,
+  sculptureNearFade,
 } from '../../envPreview/features/board';
 import { EnvRedraw } from '../../envPreview/EnvRedraw';
 
@@ -529,13 +535,16 @@ export const neonGeometry = (
     type: PieceType;
     at: readonly [number, number, number];
     toward?: readonly [number, number];
+    square?: string;
   }[] = GARDEN,
   scale = SCALE,
   /** sculptureLines: clean strokes (neonStrokes.ts; the knights' outlines apart, KnightTubes). */
   clean = false,
+  /** sculptureEven: clean base rings as clear on a dark square as on a light one. */
+  even = false,
 ): BufferGeometry =>
   clean
-    ? neonStrokes(sculptureStrokes(places as readonly Place[], scale))
+    ? neonStrokes(sculptureStrokes(places as readonly Place[], scale, even))
     : neonCurves(
         places.flatMap(({ type, at, toward = [0, 0] }, sculpt) => {
           const drawing = sculptureOf(type);
@@ -581,9 +590,9 @@ const BRIGHT = 0.7;
  * everything on it turn with it, and a1 lies at Black's far left as it does
  * on the tower. (Its lines and checker look the same either way.)
  */
-const gardenTurn = { value: 1 };
+export const gardenTurn = { value: 1 };
 /** The sculptures' and their mist's brightness: 1 in the game, less behind the lobby's kings. */
-const gardenDim = { value: 1 };
+export const gardenDim = { value: 1 };
 /**
  * How much of its light each figure of the garden keeps as the tower's shade
  * takes it as a whole (wholeOf): the twelve sculptures, then the fallen
@@ -704,6 +713,56 @@ export const wholeOf = (cover: number) =>
 const FALLEN_BODIES = fallenBodies(SCALE, GROUND_Y);
 
 /**
+ * How far round its foot a sculpture's light on the ground reaches (world
+ * units): its glow (sculptureGlow.tsx) or pool (boardGround.ts), its
+ * footprint and the hand-high pawn at the king's foot.
+ */
+const GROUND_REACH = 7;
+
+/**
+ * Every figure of the garden (the twelve sculptures, then the fallen
+ * pieces, as gardenWhole's slots) with boxes round all it draws: its tubes
+ * and their reflection, and its light on the ground (gardenSides.ts).
+ */
+export const GARDEN_FIGURES: GardenFigure[] = [
+  ...GARDEN.map(({ type, at }): GardenFigure => {
+    const drawing = sculptureOf(type);
+    const across = drawing.outlines.reduce(
+      (r, o) => o.points.reduce((m, [x]) => Math.max(m, Math.abs(x)), r),
+      PROFILES.radius[type],
+    );
+    // Wide enough for a knight's head whichever way it faces
+    const r = across * SCALE + 1;
+    const h = drawing.top * SCALE + 0.5;
+    const [x, , z] = at;
+    return {
+      at: [x, z],
+      boxes: [
+        [x - r, GROUND_Y - h, z - r, x + r, GROUND_Y + h, z + r],
+        [
+          x - GROUND_REACH,
+          GROUND_Y - 1,
+          z - GROUND_REACH,
+          x + GROUND_REACH,
+          GROUND_Y + 1,
+          z + GROUND_REACH,
+        ],
+      ],
+    };
+  }),
+  ...FALLEN_BODIES.map((points): GardenFigure => {
+    const lo = [0, 1, 2].map((k) => Math.min(...points.map((p) => p[k])) - 0.5);
+    const hi = [0, 1, 2].map((k) => Math.max(...points.map((p) => p[k])) + 0.5);
+    // Down to its reflection's foot
+    lo[1] = Math.min(lo[1], 2 * GROUND_Y - hi[1]);
+    return {
+      at: [(lo[0] + hi[0]) / 2, (lo[2] + hi[2]) / 2],
+      boxes: [[lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]]],
+    };
+  }),
+];
+
+/**
  * Every frame, the tower's outline on screen for the shade (mask.ts), which
  * way the garden is turned, and how much of each figure's light the tower's
  * shade leaves it (gardenWhole), into their uniforms.
@@ -713,15 +772,20 @@ const GardenUniforms = ({
   shade,
   dim = 1,
   whole,
+  sides = false,
 }: {
   turn: number;
   shade?: ShadeStack;
   dim?: number | (() => number);
   /** Fade a figure the tower's shade mostly covers as a whole (sculptureFix). */
   whole: boolean;
+  /** Leave out a figure the camera stands behind (sculptureNearFade; gardenSides.ts). */
+  sides?: boolean;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
-  useEffect(() => invalidate(), [turn, shade, dim, whole, invalidate]);
+  useEffect(() => invalidate(), [turn, shade, dim, whole, sides, invalidate]);
+  // Each canvas keeps its own figures shown or not (the lobby's and the game's)
+  const figures = useMemo(() => (sides ? new GardenSides(GARDEN_FIGURES) : null), [sides]);
   // Written as each frame is drawn, like the outline: the uniforms are
   // shared, and two canvases (the lobby's, fading, over the game's) each set
   // their own just before they render
@@ -733,22 +797,27 @@ const GardenUniforms = ({
     gl.getDrawingBufferSize(drawingBuffer);
     shadeViewport.value.set(drawingBuffer.x, drawingBuffer.y, aspect);
     const w = gardenWhole.value;
-    if (!whole) {
-      w.fill(1);
-      return;
+    w.fill(1);
+    if (whole) {
+      gardenView(camera, aspect, turn, shade).forEach((v, i) => {
+        w[i] = wholeOf(v.cover);
+      });
+      const hull = towerOutlineOnScreen(camera, aspect, shade);
+      FALLEN_BODIES.forEach((points, i) => {
+        const body = rectOf(
+          camera,
+          points.map(([x, y, z]): [number, number, number] => [x * turn, y, z * turn]),
+          aspect,
+        );
+        w[FALLEN_SLOT + i] = body.seen ? wholeOf(shadeOver(hull, body)) : 1;
+      });
     }
-    gardenView(camera, aspect, turn, shade).forEach((v, i) => {
-      w[i] = wholeOf(v.cover);
-    });
-    const hull = towerOutlineOnScreen(camera, aspect, shade);
-    FALLEN_BODIES.forEach((points, i) => {
-      const body = rectOf(
-        camera,
-        points.map(([x, y, z]): [number, number, number] => [x * turn, y, z * turn]),
-        aspect,
-      );
-      w[FALLEN_SLOT + i] = body.seen ? wholeOf(shadeOver(hull, body)) : 1;
-    });
+    if (figures) {
+      figures.update(camera, turn);
+      figures.shown.forEach((shown, i) => {
+        w[i] *= shown;
+      });
+    }
   });
   return null;
 };
@@ -1021,17 +1090,21 @@ export const Sculptures = ({
   shade,
   dim,
   whole,
+  sides,
 }: {
   turn: number;
   shade?: ShadeStack;
   dim?: number | (() => number);
   whole: boolean;
+  /** Leave out a figure the camera stands behind (sculptureNearFade). */
+  sides?: boolean;
 }) => {
   // ENV PREVIEW (temporary): clean strokes, or today's ribbons
   const clean = useEnvSetting(sculptureLines) === 'clean';
+  const even = useEnvSetting(sculptureEven) === 'on';
   const parts = useMemo(
-    () => ({ geometry: neonGeometry(GARDEN, SCALE, clean), ...gardenNeon(clean) }),
-    [clean],
+    () => ({ geometry: neonGeometry(GARDEN, SCALE, clean, even), ...gardenNeon(clean) }),
+    [clean, even],
   );
   const knights = useMemo(() => (clean ? new KnightLines(GARDEN, SCALE) : null), [clean]);
   const knightGeometry = useKnightTubes(knights, turn);
@@ -1040,7 +1113,7 @@ export const Sculptures = ({
   const { geometry, tubes, reflection } = parts;
   return (
     <group name="garden">
-      <GardenUniforms turn={turn} shade={shade} dim={dim} whole={whole} />
+      <GardenUniforms turn={turn} shade={shade} dim={dim} whole={whole} sides={sides} />
       <GardenTubes geometry={geometry} materials={{ tubes, reflection }} />
       {knightGeometry && (
         <GardenTubes geometry={knightGeometry} materials={{ tubes, reflection }} />
@@ -1198,7 +1271,10 @@ export const Stage = ({
   const fix = useEnvSetting(sculptureFix) === 'on';
   const frame = useEnvSetting(boardFrame) === 'on';
   const squares = useEnvSetting(boardSquares);
-  const pools = useEnvSetting(sculptureDetail) === 'full';
+  // The light under the sculptures (sculptureGlow): its glow takes the pools' place
+  const glow = useEnvSetting(sculptureGlow);
+  const sides = useEnvSetting(sculptureNearFade) === 'on';
+  const pools = useEnvSetting(sculptureDetail) === 'full' && glow === 'off';
   const board = useMemo(() => ({ frame, squares, pools }), [frame, squares, pools]);
   // The far plain's veil (horizonEdgeFix), on the sky's own colour (skyGlow)
   const air = useSkyAir();
@@ -1216,8 +1292,8 @@ export const Stage = ({
       <Heavens />
       <Sky round={veil} />
       <Ground look={look} />
-      <Sculptures turn={turn} shade={shade} dim={dim} whole={fix} />
-      <Mist />
+      <Sculptures turn={turn} shade={shade} dim={dim} whole={fix} sides={sides} />
+      {glow === 'off' ? <Mist /> : <SculptureGlow style={glow} />}
       <SkyDetail turn={turn} shade={shade} dim={dim} />
       <BoardDetail turn={turn} shade={shade} dim={dim} />
       <Court turn={turn} shade={shade} dim={dim} />
