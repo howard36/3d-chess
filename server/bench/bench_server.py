@@ -381,7 +381,7 @@ def bench_store_ops(ctx: Ctx) -> tuple[Table, dict]:
         [
             "`record_move` cost is flat under `dict` (a shared reference) but grows with history "
             "length under `pickle` (unpickle N moves, repickle N+1) — the source of the per-game "
-            "O(n²) the README warns about.",
+            "O(n²) ARCHITECTURE.md warns about.",
             "`find_seat`/`claim_seat`/`create_game` are O(1) in game count under both models; "
             "modal.Dict's real cost is network round trips, not store size, and is not "
             "modelled here.",
@@ -1691,7 +1691,7 @@ def build_findings(raw: dict) -> list[str]:
         f.append(
             f"Under copy-on-access (the modal.Dict model), `record_move` grows with history: "
             f"{fmt_dur(p0)} at 0 moves vs {fmt_dur(p_long)} at {long_len:,} moves, because each "
-            "move re-(un)pickles the whole record — the per-game O(n²) the README calls out."
+            "move re-(un)pickles the whole record — the per-game O(n²) ARCHITECTURE.md calls out."
         )
     d0, d_long = stat("store", "record_move.dict.0"), stat("store", f"record_move.dict.{long_len}")
     if d0 and d_long:

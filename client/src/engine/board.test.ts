@@ -428,7 +428,7 @@ describe('generateLegalMoves (per piece)', () => {
 
 // ---------------------------------------------------------------------------
 // Exact, position-specific tests. Expected destination sets are derived from
-// the movement rules in README.md (not from the vector tables in pieces.ts), so
+// the movement rules in ARCHITECTURE.md (not from the vector tables in pieces.ts), so
 // these tests would catch a wrong or missing vector.
 // ---------------------------------------------------------------------------
 
@@ -444,7 +444,7 @@ for (let z = 0; z < 5; z++)
   for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) ALL_CELLS.push({ x, y, z });
 
 // In-bounds cells reachable from `from` under a rule on the absolute deltas
-// (|dx|, |dy|, |dz|), which is how README.md states each piece's movement.
+// (|dx|, |dy|, |dz|), which is how ARCHITECTURE.md states each piece's movement.
 /** Exchanges rank and level: (x, y, z) -> (x, z, y). */
 const transpose = ({ x, y, z }: Coord): Coord => ({ x, y: z, z: y });
 
@@ -500,7 +500,7 @@ const layoutOf = (board: Board): Layout => {
   return out;
 };
 
-// The game's starting position (see README, "Starting position").
+// The game's starting position (see ARCHITECTURE.md, "Game rules").
 const START_LAYOUT: Layout = {
   A1: 'RNKNR',
   A2: 'BUQBU',
@@ -532,22 +532,22 @@ const cellsWhere = (from: Coord, rule: (ax: number, ay: number, az: number) => b
     ).map(key),
   );
 
-// README: rook ±n along exactly one axis.
+// ARCHITECTURE.md: rook ±n along exactly one axis.
 const rookRule = (ax: number, ay: number, az: number) =>
   [ax, ay, az].filter((a) => a !== 0).length === 1;
-// README: bishop ±n along exactly two axes (same n on both).
+// ARCHITECTURE.md: bishop ±n along exactly two axes (same n on both).
 const bishopRule = (ax: number, ay: number, az: number) => {
   const nonZero = [ax, ay, az].filter((a) => a !== 0);
   return nonZero.length === 2 && nonZero[0] === nonZero[1];
 };
-// README: unicorn ±n along all three axes.
+// ARCHITECTURE.md: unicorn ±n along all three axes.
 const unicornRule = (ax: number, ay: number, az: number) => ax !== 0 && ax === ay && ay === az;
 const queenRule = (ax: number, ay: number, az: number) =>
   rookRule(ax, ay, az) || bishopRule(ax, ay, az) || unicornRule(ax, ay, az);
-// README: king = any queen direction, one step.
+// ARCHITECTURE.md: king = any queen direction, one step.
 const kingRule = (ax: number, ay: number, az: number) =>
   Math.max(ax, ay, az) === 1 && queenRule(ax, ay, az);
-// README: knight (±2, ±1, 0) in any axis order.
+// ARCHITECTURE.md: knight (±2, ±1, 0) in any axis order.
 const knightRule = (ax: number, ay: number, az: number) => [ax, ay, az].sort().join() === '0,1,2';
 
 const lone = (type: PieceType, at: Coord, color: 'white' | 'black' = 'white') => {

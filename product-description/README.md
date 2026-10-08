@@ -12,7 +12,7 @@ The documents are for people who need to understand or change the product: desig
 
 ### What this is not
 
-- Not protocol or API documentation. The message schema is `server/schema.json`, and the repository's top-level `README.md` explains the protocol and architecture.
+- Not protocol or API documentation. The message schema is `server/schema.json`, and the repository's top-level `ARCHITECTURE.md` explains the protocol and architecture.
 - Not organized by package. The engine, the message-log derivation, the socket hook, the 3D layer, and the server are not described separately. A single behavior is described once, wherever the player meets it.
 - Not a technical design document. Where a technical detail is critical to understanding the experience, it appears in a block quote labeled `Technical note:` and nowhere else.
 

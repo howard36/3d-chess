@@ -148,7 +148,7 @@ def test_record_move_enforces_game_state_and_turn():
 
 
 def test_store_operations_are_synchronous():
-    """Guards the concurrency argument documented in README/CLAUDE.md.
+    """Guards the concurrency argument documented in ARCHITECTURE.md/CLAUDE.md.
 
     modal.Dict calls block, so a store operation is atomic with respect to
     other handlers exactly as long as it never awaits. A plain `def` cannot

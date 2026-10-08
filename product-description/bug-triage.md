@@ -302,7 +302,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 
 - **Where the user meets it:** Changing browser or device, clearing site data, or opening one's own link in another browser.
 - **What happens / what was expected:** A seat belongs to whichever browser stored it. Another browser, a private window, or cleared site data gets the join screen, and "Join Game" is refused with "Game full"; the seat cannot be recovered. Conversely, anyone who knows a game id and a color can claim that seat with a modified client. The creator is not told their color until the game starts, and the join screen says nothing about the game before the click.
-- **Severity:** `low`. By design for a game among friends (see the repository README's trust assumptions).
+- **Severity:** `low`. By design for a game among friends (see the repository's ARCHITECTURE.md, trust assumptions).
 - **Decision needed:** `product call`. A per-seat secret in the link or a "move my seat" link would address both directions.
 - **Raised by:** [the connection and seat model](foundations/connection-and-seat.md#open-questions-and-verification), [the broken game record](cross-cutting/broken-game-record.md), [waiting for an opponent](start/waiting-for-an-opponent.md#open-questions-and-verification), [joining a game](start/joining-a-game.md#open-questions-and-verification).
 - **Status:** the unrecoverable seat confirmed 2026-09-25 by the scripted pass: CONN-12.

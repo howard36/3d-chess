@@ -147,7 +147,7 @@ This is what guarantees that a new game, or another game's page, starts on a con
 
 ## Open questions and verification
 
-- The ~30-day expiry is the storage provider's inactivity rule, quoted from the repository README. Whether reading a game (a rejoin) counts as activity, or only writing to it (a join or a move), is not stated anywhere in the repository; a game that is only ever looked at may expire 30 days after its last move.
+- The ~30-day expiry is the storage provider's inactivity rule, quoted from the repository's ARCHITECTURE.md. Whether reading a game (a rejoin) counts as activity, or only writing to it (a join or a move), is not stated anywhere in the repository; a game that is only ever looked at may expire 30 days after its last move.
 - A returning player now sees a neutral "Returning to your game…" while a rejoin is in flight, which resolves [bug-triage B-12](../bug-triage.md); read from `client/src/screens/GameScreen.tsx` at `1928567`, not checked in the running app.
 - Presence keeps showing the last report while this player is reconnecting, so the opponent shown online can be stale ([bug-triage B-16](../bug-triage.md)). Read from code.
 - A player who clears site data, or switches browsers or tabs, cannot recover their seat through the app: the join is refused with "Game full" and there is no other way in. Only the tab that claimed the seat can join back into it. Whether that is acceptable is a product call.
