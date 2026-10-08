@@ -72,11 +72,11 @@ export const HUD_TOP_PX = 56;
 
 /**
  * Rows kept under the pill for the pieces each side has taken (index.css,
- * .hud-captures: 18 px tall, 4 px under the pill), in every window but a
+ * .hud-captures: 20 px tall, 4 px under the pill), in every window but a
  * short one, where they stand at the top left beside the tower instead. Kept
  * from the first move, so the first capture never moves the board.
  */
-export const CAPTURES_BAND_PX = 26;
+export const CAPTURES_BAND_PX = 28;
 
 /**
  * The band at the top of the window, in CSS px, that the fitted board keeps
