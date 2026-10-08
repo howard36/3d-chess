@@ -1,6 +1,6 @@
 // ENV PREVIEW (temporary): asterisms with no lines, for whoever looks
-// closely: a 5x5 knight's tour behind White's seat, five stars climbing in the
-// five level colours, and the eight queens on a faint drawn board.
+// closely: five stars climbing in the five level colours, and the eight
+// queens on a faint lattice of dots.
 import { defineEnvFeature } from '../registry';
 
 export const skyEggs = defineEnvFeature({

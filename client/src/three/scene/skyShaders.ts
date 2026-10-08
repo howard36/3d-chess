@@ -5,7 +5,7 @@ import { GROUND_Y, PALETTE } from './palette';
 // The richer sky's two programs (heavens.tsx, skyChart.ts, skyDetail.tsx):
 // one for every star (the field, the constellations' stars, the Milky Way's
 // dust, the hidden asterisms, the satellite) and one for every line (the
-// constellations, and the knight's tour that only an event lights). Both
+// constellations). Both
 // draw the sky as it is overhead or, with `uMirror`, as the polished stone
 // gives it back upside down: the object is mirrored about the ground by its
 // matrix, and the light is weighed by the stone's fresnel where the eye's ray

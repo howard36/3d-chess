@@ -8,50 +8,14 @@ import { placeStar } from './skyPlace';
 // envPreview `constellations: crafted`): each line runs whole from
 // star to star (a hairline under each star's glow, so the joints stay clean),
 // each figure has one brighter star, and its lines fade a little toward its
-// base. Anyone looking closely also finds three asterisms with no figure
+// base. Anyone looking closely also finds two asterisms with no figure
 // drawn in lines (`skyEggs`):
-// - a knight's tour: 25 dim stars in a loose 5x5 lattice low behind White's seat
-//   (look up the way the opening camera came from), whose path only a
-//   tracing event lights (skyEvents.tsx);
 // - the tower's echo: five stars climbing one above another, tinted in the
 //   five level colours, A's at the foot to E's at the top, between the
 //   unicorn and the pawn;
 // - the eight queens: eight stars set as a solution of the puzzle in the
 //   faintest lattice of an 8x8 board, low between the bishop and the rook.
 // The low ones also stand above the horizon from the camera's 6° view.
-
-/** A 5x5 knight's tour, the squares in the order the knight visits them (row by row, 1–25). */
-export const TOUR_5X5 = [
-  [1, 14, 9, 20, 3],
-  [24, 19, 2, 15, 10],
-  [13, 8, 23, 4, 21],
-  [18, 25, 6, 11, 16],
-  [7, 12, 17, 22, 5],
-];
-
-/** How far a tour star stands off its square's middle (of the lattice's side). */
-const TOUR_NUDGE = 0.045;
-
-const TOUR: Constellation = (() => {
-  const stars: P2[] = [];
-  const order: number[] = [];
-  TOUR_5X5.forEach((row, r) =>
-    row.forEach((n, c) => {
-      order[n - 1] = stars.length;
-      // Each a little off its square's middle, as real stars stand, so the
-      // lattice's rows and columns never read as dotted rules
-      const i = stars.length;
-      stars.push([
-        c / 4 + TOUR_NUDGE * Math.sin(i * 2.39 + 0.7),
-        1 - r / 4 + TOUR_NUDGE * Math.sin(i * 3.77 + 2.1),
-      ]);
-    }),
-  );
-  return {
-    stars,
-    lines: order.slice(1).map((s, i): [number, number] => [order[i], s]),
-  };
-})();
 
 /** Eight queens, none attacking another: the queen's row in each file. */
 export const EIGHT_QUEENS = [0, 4, 7, 5, 2, 6, 1, 3];
@@ -84,7 +48,6 @@ const QUEENS_BOARD: Constellation = {
 };
 
 export const EGG_PLAN = {
-  tour: { c: TOUR, azimuth: 16, elevation: 14.5, size: 3.6, tilt: 0.02 } as Placement,
   echo: { c: ECHO, azimuth: 63, elevation: 16, size: 3.2, tilt: 0 } as Placement,
   queens: { c: QUEENS, azimuth: 285, elevation: 13, size: 3.5, tilt: -0.03 } as Placement,
   queensBoard: {
@@ -195,9 +158,6 @@ export const chartGeometry = (entries: ChartEntry[], seed = 71) => {
   return { stars: starBuffers(s.pos, s.size, s.bright, s.color), lines };
 };
 
-/** The figures' numbers: the eight from 0, the tour 20. */
-export const FIGURE_ID = { tour: 20 } as const;
-
 /** How the eight and the asterisms are drawn. */
 export const majorEntries = (plans: Placement[]): ChartEntry[] =>
   plans.map((plan, i) => ({
@@ -212,13 +172,6 @@ export const majorEntries = (plans: Placement[]): ChartEntry[] =>
 export const eggEntries = (): ChartEntry[] => {
   const neon = new Color(PALETTE.neon);
   return [
-    {
-      plan: EGG_PLAN.tour,
-      id: FIGURE_ID.tour,
-      bright: [0.12, 0.22],
-      size: [1.6, 1.8],
-      line: 0,
-    },
     {
       plan: EGG_PLAN.echo,
       id: -10,

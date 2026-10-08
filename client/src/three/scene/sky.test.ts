@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Color, PerspectiveCamera, Vector3 } from 'three';
 import { SKY_PLAN } from './heavens';
-import {
-  chartGeometry,
-  EGG_PLAN,
-  eggEntries,
-  EIGHT_QUEENS,
-  majorEntries,
-  TOUR_5X5,
-} from './skyChart';
+import { chartGeometry, EGG_PLAN, eggEntries, EIGHT_QUEENS, majorEntries } from './skyChart';
 import { brightestOf, RICH_FIELD, richField, todayField } from './skyStars';
 import { bandFrame, bandLight } from './skyMilkyWay';
 import { figureInView, traceables } from './skyEvents';
@@ -40,24 +33,6 @@ describe('the figures and asterisms', () => {
 });
 
 describe('the hidden asterisms', () => {
-  it('hide a real knight’s tour of a 5x5 board', () => {
-    const at = new Map<number, [number, number]>();
-    TOUR_5X5.forEach((row, r) => row.forEach((n, c) => at.set(n, [r, c])));
-    expect([...at.keys()].sort((a, b) => a - b)).toEqual(
-      Array.from({ length: 25 }, (_, i) => i + 1),
-    );
-    for (let n = 1; n < 25; n++) {
-      const [r0, c0] = at.get(n)!;
-      const [r1, c1] = at.get(n + 1)!;
-      const d = [Math.abs(r1 - r0), Math.abs(c1 - c0)].sort();
-      expect(d).toEqual([1, 2]);
-    }
-    // Its path is drawn only by a trace's light
-    const tour = eggEntries().find((e) => e.plan === EGG_PLAN.tour)!;
-    expect(tour.line).toBe(0);
-    expect(tour.plan.c.lines).toHaveLength(24);
-  });
-
   it('set eight queens none of which attacks another', () => {
     const q = EIGHT_QUEENS;
     expect(new Set(q).size).toBe(8);

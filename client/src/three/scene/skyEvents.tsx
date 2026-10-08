@@ -21,8 +21,7 @@ import { gardenBoost } from './stage';
 // time, minutes apart:
 // - a constellation traces itself: a soft point of light runs along the
 //   lines of a figure wholly in frame and clear of the tower's shade, each
-//   line brightening behind it, and the figure eases back (the knight's tour
-//   too, hop by hop, when its lattice is in view);
+//   line brightening behind it, and the figure eases back;
 // - a satellite: a steady point crossing a quarter of the frame, slowly;
 // - a pair of meteors falling side by side; for a minute after a mate
 //   (gardenBoost) they come every few seconds of looking up.
@@ -31,7 +30,6 @@ import { gardenBoost } from './stage';
 const SETTLE = 2.5;
 /** How long a trace's light takes to run along a figure, and to ease back (seconds). */
 const TRACE_RUN = 2.6;
-const TRACE_TOUR_RUN = 7;
 const TRACE_FADE = 1.6;
 const SATELLITE_SECONDS = 9;
 
@@ -72,7 +70,7 @@ export const SkyEvents = ({
   traceable,
 }: {
   often?: boolean;
-  /** The charted figures (and the knight's tour) a trace may light. */
+  /** The charted figures a trace may light. */
   traceable: Traceable[];
 }) => {
   const invalidate = useThree((s) => s.invalidate);
@@ -167,7 +165,7 @@ export const SkyEvents = ({
             kind,
             start: t,
             figure: f.id,
-            seconds: (f.points.length > 20 ? TRACE_TOUR_RUN : TRACE_RUN) + TRACE_FADE,
+            seconds: TRACE_RUN + TRACE_FADE,
           };
           skyTrace.uTraceFigure.value = f.id;
           s.due.trace = t + (150 + r() * 90) * wait;

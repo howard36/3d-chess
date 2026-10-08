@@ -54,25 +54,13 @@ const StoneDim = ({ dim = 1 }: { dim?: GardenDetailProps['dim'] }) => {
 const Asterisms = ({ dpr }: { dpr: number }) => {
   const parts = useMemo(() => {
     const { stars, lines } = chartGeometry(eggEntries(), 173);
-    return {
-      stars,
-      lines,
-      starMaterial: skyPointMaterial({}),
-      lineMaterial: skyLineMaterial({ opacity: FIGURE_LINE }),
-    };
+    lines.dispose();
+    return { stars, starMaterial: skyPointMaterial({}) };
   }, []);
   useDisposeOnUnmount(parts);
   parts.starMaterial.uniforms.uDpr.value = dpr;
   return (
     <group name="sky-asterisms">
-      {/* The knight's tour's path: no light but a trace's */}
-      <lineSegments
-        geometry={parts.lines}
-        material={parts.lineMaterial}
-        renderOrder={-898}
-        raycast={noRaycast}
-        frustumCulled={false}
-      />
       <points
         geometry={parts.stars}
         material={parts.starMaterial}
@@ -164,11 +152,8 @@ export const SkyDetail = ({ dim }: GardenDetailProps) => {
   const field = useEnvSetting(stars);
   const figures = useEnvSetting(constellations);
   const traceable = useMemo(
-    () => [
-      ...(figures === 'off' ? [] : traceables(chartedFigures())),
-      ...(eggs ? traceables(eggEntries()) : []),
-    ],
-    [figures, eggs],
+    () => [...(figures === 'off' ? [] : traceables(chartedFigures()))],
+    [figures],
   );
   return (
     <group name="sky-detail">
