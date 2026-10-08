@@ -64,7 +64,7 @@ describe('the garden', () => {
     }
   });
 
-  it('turns the knights to face each other from every side', () => {
+  it('turns the knights to face each other from every side (sculptureLines off)', () => {
     const knights = GARDEN.filter((g) => g.type === PieceType.Knight);
     expect(knights).toHaveLength(2);
     expect(knights[0].toward).toEqual([knights[1].at[0], knights[1].at[2]]);

@@ -13,6 +13,9 @@ import { wholePiece } from '../scene/occlusion';
 import { usePieceMaterial } from '../scene/pieces';
 import { SelectionLight, selectState, stepSelection } from '../scene/selection';
 import { NEON_WHOLE, neonGeometry, neonMaterial, REVEAL_SOFT } from '../scene/stage';
+// ENV PREVIEW (temporary): the sculptures' tubes drawn clean, or today's ribbons
+import { useEnvSetting } from '../../envPreview';
+import { sculptureLines } from '../../envPreview/features/board';
 import {
   breath,
   formForFill,
@@ -175,10 +178,12 @@ export const LobbyKing = ({
   const still = useMemo(prefersReducedMotion, []);
   const piece = usePieceMaterial(color, PieceType.King, 0);
   const body = useMemo(() => lobbyGlaze(piece), [piece]);
+  const clean = useEnvSetting(sculptureLines) === 'clean';
   const neon = useMemo(
     () => ({
-      geometry: neonGeometry([{ type: PieceType.King, at: [x, FLOOR_Y, 0] }], KING_SCALE),
+      geometry: neonGeometry([{ type: PieceType.King, at: [x, FLOOR_Y, 0] }], KING_SCALE, clean),
       material: neonMaterial({
+        clean,
         width: 0.05,
         core: 0.14,
         halo: 0.09,
@@ -190,7 +195,7 @@ export const LobbyKing = ({
         dim: { value: 1 },
       }),
     }),
-    [x],
+    [x, clean],
   );
   useEffect(
     () => () => {

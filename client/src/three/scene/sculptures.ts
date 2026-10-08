@@ -63,7 +63,7 @@ const radiusAt = (segments: [P2, P2][], y: number) => {
  * Ramer–Douglas–Peucker: drops points within `tolerance` of the line
  * through their neighbours.
  */
-const simplify = (pts: P2[], tolerance: number): P2[] => {
+export const simplify = (pts: P2[], tolerance: number): P2[] => {
   if (pts.length < 3) return pts.slice();
   const keep = new Array<boolean>(pts.length).fill(false);
   keep[0] = keep[pts.length - 1] = true;
@@ -96,7 +96,7 @@ const simplify = (pts: P2[], tolerance: number): P2[] => {
  * top, or up to `cap` (still off the axis) when given. Where the envelope
  * steps (a ledge, the top of a collar) the step is kept square.
  */
-const envelope = (profiles: readonly (readonly P2[])[], cap?: number): P2[] => {
+const envelopeOf = (profiles: readonly (readonly P2[])[], cap?: number, clean = false): P2[] => {
   const segments = segmentsOf(profiles);
   const ys = new Set<number>();
   for (const [a, b] of segments) {
@@ -126,7 +126,25 @@ const envelope = (profiles: readonly (readonly P2[])[], cap?: number): P2[] => {
   while (out.length > 1 && out[0][0] < 1e-4) out.shift();
   const last = lastIndex(out, ([r]) => r > 1e-4);
   const trimmed = out.slice(0, Math.min(out.length, last + 2));
-  return simplify(trimmed, 0.0008);
+  return simplify(clean ? ledges(trimmed) : trimmed, 0.0008);
+};
+
+/**
+ * A step of the envelope as one ledge: where it runs out and back at one
+ * height (breakpoints a hair apart each add a step, and a bead's edge one
+ * more), only where it comes from and where it goes on, so the tube bent
+ * round it is a ledge, never a zigzag of tube folded on itself.
+ */
+const ledges = (pts: P2[]): P2[] => {
+  const out: P2[] = [];
+  for (let k = 0; k < pts.length; ) {
+    let j = k;
+    while (j + 1 < pts.length && Math.abs(pts[j + 1][1] - pts[k][1]) < 1e-5) j++;
+    out.push(pts[k]);
+    if (j > k) out.push(pts[j]);
+    k = j + 1;
+  }
+  return out;
 };
 
 /** Corner-cutting (Chaikin): bends a polyline's corners the way a neon tube bends. */
@@ -180,8 +198,10 @@ const hornY = (t: number) => HORN.bottom + (HORN.top - HORN.bottom) * t;
 
 const drawings: Partial<Record<PieceType, SculptureDrawing>> = {};
 
-const build = (type: PieceType): SculptureDrawing => {
+const build = (type: PieceType, clean = false): SculptureDrawing => {
   const P = PROFILES;
+  const envelope = (profiles: readonly (readonly P2[])[], cap?: number) =>
+    envelopeOf(profiles, cap, clean);
   switch (type) {
     case PieceType.Pawn: {
       const right = envelope([foot(type), sample(P.pawn.body), sample(P.pawn.collar)]);
@@ -388,10 +408,11 @@ const build = (type: PieceType): SculptureDrawing => {
  * finer than a tube can follow (the beads and fillets of the turning), is
  * bent smooth as a neon tube would be, and is thinned where it runs straight.
  */
-export const sculptureOf = (type: PieceType): SculptureDrawing => {
-  let d = drawings[type];
+export const sculptureOf = (type: PieceType, clean = false): SculptureDrawing => {
+  const cache = clean ? cleanBuilt : drawings;
+  let d = cache[type];
   if (!d) {
-    const built = build(type);
+    const built = build(type, clean);
     d = {
       ...built,
       outlines: built.outlines.map((o) => ({
@@ -399,16 +420,18 @@ export const sculptureOf = (type: PieceType): SculptureDrawing => {
         closed: o.closed,
       })),
     };
-    drawings[type] = d;
+    cache[type] = d;
   }
   return d;
 };
+/** The drawings built clean (their ledges each one step: see `ledges`). */
+const cleanBuilt: Partial<Record<PieceType, SculptureDrawing>> = {};
 
 // --- Detail: the inner tube, more rings, a twin that differs -----------------------
 
 /** The main silhouette as one curve: up the left side, over the top, down the right. */
-const silhouetteOf = (type: PieceType): P2[] => {
-  const { outlines } = sculptureOf(type);
+export const silhouetteOf = (type: PieceType, clean = false): P2[] => {
+  const { outlines } = sculptureOf(type, clean);
   if (type === PieceType.Queen) {
     // Drawn as the left side (down), the coronet, and the right side (up)
     return [
@@ -497,8 +520,8 @@ export const innerOutlinesOf = (type: PieceType, offset = 0.036): P2[][] => {
 };
 
 /** The silhouette's half-width at a height (piece units). */
-const widthAt = (type: PieceType, y: number) => {
-  const pts = silhouetteOf(type);
+const widthAt = (type: PieceType, y: number, clean = false) => {
+  const pts = silhouetteOf(type, clean);
   let w = 0;
   for (let k = 1; k < pts.length; k++) {
     const [a, b] = [pts[k - 1], pts[k]];
@@ -515,7 +538,7 @@ const widthAt = (type: PieceType, y: number) => {
  * rim, the battlement's foot, the bead under the mitre, the horn's socket
  * or the pawn's head.
  */
-export const moreRingsOf = (type: PieceType): { radius: number; y: number }[] => {
+export const moreRingsOf = (type: PieceType, clean = false): { radius: number; y: number }[] => {
   const heights: Partial<Record<PieceType, number[]>> = {
     [PieceType.King]: [0.667],
     [PieceType.Queen]: [0.684],
@@ -524,7 +547,7 @@ export const moreRingsOf = (type: PieceType): { radius: number; y: number }[] =>
     [PieceType.Unicorn]: [0.497],
     [PieceType.Pawn]: [0.42],
   };
-  return [0.075, ...(heights[type] ?? [])].map((y) => ({ radius: widthAt(type, y), y }));
+  return [0.075, ...(heights[type] ?? [])].map((y) => ({ radius: widthAt(type, y, clean), y }));
 };
 
 /**
@@ -549,4 +572,163 @@ export const knightEyeOf = (winks: boolean): Outline => {
     }),
     closed: true,
   };
+};
+
+// --- Clean lines (sculptureLines: clean) ------------------------------------------
+
+type P3 = [number, number, number];
+
+/** A stroke fixed on a sculpture in 3D (x along its facing, y up, z across), and its surface's normals. */
+export interface FixedStroke {
+  points: P3[];
+  normals: P3[];
+  closed: boolean;
+}
+
+/**
+ * A sculpture drawn clean: every outline one stroke, the details that are
+ * not the same from every side fixed on its body in 3D (they never turn
+ * with the view), its rings fitted to its outline so they meet it at its
+ * edge.
+ */
+export interface CleanDrawing {
+  /** Drawings turned to face the viewer (x across, y up): what is the same from every side. */
+  outlines: Outline[];
+  /** Fixed in 3D on the body: the bishop's cut, the unicorn's spiral. */
+  fixed: FixedStroke[];
+  rings: { radius: number; y: number }[];
+  top: number;
+  /** Its outline is its silhouette from the camera (the knight: knightSilhouette.ts). */
+  silhouette?: boolean;
+}
+
+/** The half-width of a drawn outline at a height (piece units). */
+export const outlineWidthAt = (pts: readonly P2[], y: number) => {
+  let w = 0;
+  for (let k = 1; k < pts.length; k++) {
+    const [a, b] = [pts[k - 1], pts[k]];
+    if ((a[1] - y) * (b[1] - y) > 0 || a[1] === b[1]) continue;
+    const t = (y - a[1]) / (b[1] - a[1]);
+    w = Math.max(w, Math.abs(a[0] + (b[0] - a[0]) * t));
+  }
+  return w;
+};
+
+/** Where the knight's head leaves its base's collar. */
+export const KNIGHT_COLLAR_TOP = 0.17;
+
+let knightBase: P2[] | null = null;
+/** The right half of the knight's turned base, bent smooth: from its foot's rim to its collar's top. */
+export const knightBaseRight = (): P2[] => {
+  if (!knightBase) {
+    const P = PROFILES;
+    const right = envelopeOf(
+      [foot(PieceType.Knight), sample(P.knight.body), sample(P.knight.collar)],
+      KNIGHT_COLLAR_TOP,
+      true,
+    );
+    knightBase = simplify(bend(simplify(right, 0.0035), 3), 0.0004);
+  }
+  return knightBase;
+};
+
+/** Drops a point that repeats the one before it. */
+const dedupe = (pts: P2[]) =>
+  pts.filter((p, k) => k === 0 || Math.hypot(p[0] - pts[k - 1][0], p[1] - pts[k - 1][1]) > 1e-6);
+
+/**
+ * The bishop's cut as the set saws it (a slot rising toward the front at
+ * 40°, two thirds of the way through the mitre: set.ts's MITRE_CUT): where
+ * the slot's middle meets the mitre's surface, round the front of the mitre
+ * from the floor of the cut on one side to the other, so from the side it
+ * is the slanted line, from the front the arch across the mitre, and from
+ * behind (the body hiding it) nothing but where it wraps round.
+ */
+const bishopCut = (outline: readonly P2[]): FixedStroke => {
+  const a = (40 * Math.PI) / 180;
+  const at = 0.595;
+  const floor = -0.045 * Math.cos(a);
+  const points: P3[] = [];
+  const normals: P3[] = [];
+  const n = 40;
+  // Where the cut meets the mitre at an angle round it
+  const reach = (psi: number) => {
+    let y = at;
+    for (let i = 0; i < 8; i++) y = at + outlineWidthAt(outline, y) * Math.cos(psi) * Math.tan(a);
+    return { y, r: outlineWidthAt(outline, y) };
+  };
+  // How far round it reaches on each side: to its floor
+  let limit = Math.PI / 2;
+  for (let i = 0; i < 30; i++) {
+    const { r } = reach(limit);
+    limit = Math.acos(Math.max(-1, Math.min(1, floor / r)));
+  }
+  for (let k = 0; k <= n; k++) {
+    const psi = -limit + (2 * limit * k) / n;
+    const { y, r } = reach(psi);
+    points.push([r * Math.cos(psi), y, r * Math.sin(psi)]);
+    normals.push([Math.cos(psi), 0, Math.sin(psi)]);
+  }
+  return { points, normals, closed: false };
+};
+
+/**
+ * The unicorn's spiral: one helix wound up its horn on the horn's outline,
+ * the turns facing away hidden by the horn, so each turn shows as an arc
+ * from one edge of the horn to the other, rising as it goes round.
+ */
+const unicornSpiral = (outline: readonly P2[]): FixedStroke => {
+  const points: P3[] = [];
+  const normals: P3[] = [];
+  const [t0, t1] = [0.03, 0.8];
+  const n = 120;
+  for (let k = 0; k <= n; k++) {
+    const t = t0 + ((t1 - t0) * k) / n;
+    const theta = 2 * Math.PI * HORN.turns * t;
+    const y = hornY(t);
+    const r = outlineWidthAt(outline, y);
+    points.push([r * Math.cos(theta), y, r * Math.sin(theta)]);
+    normals.push([Math.cos(theta), 0, Math.sin(theta)]);
+  }
+  return { points, normals, closed: false };
+};
+
+const cleanDrawings: Partial<Record<PieceType, CleanDrawing>> = {};
+
+/** The ring at a height, fitted to the outline there. */
+const fitted = (outline: readonly P2[], y: number) => ({ radius: outlineWidthAt(outline, y), y });
+
+/** A sculpture drawn clean (cached; see CleanDrawing). */
+export const cleanSculptureOf = (type: PieceType): CleanDrawing => {
+  const cached = cleanDrawings[type];
+  if (cached) return cached;
+  const d = sculptureOf(type, true);
+  const main = silhouetteOf(type, true);
+  const base = type === PieceType.Knight ? knightBaseRight() : main;
+  const rings = d.rings.map((r) => fitted(base, r.y));
+  let drawing: CleanDrawing;
+  switch (type) {
+    case PieceType.Knight:
+      drawing = { outlines: [], fixed: [], rings, top: d.top, silhouette: true };
+      break;
+    case PieceType.Queen:
+      // Up one side, round the coronet and down the other: one tube
+      drawing = {
+        outlines: [{ points: dedupe(main), closed: false }, d.outlines[3]],
+        fixed: [],
+        rings,
+        top: d.top,
+      };
+      break;
+    case PieceType.Bishop:
+      drawing = { outlines: [d.outlines[0]], fixed: [bishopCut(main)], rings, top: d.top };
+      break;
+    case PieceType.Unicorn:
+      drawing = { outlines: [d.outlines[0]], fixed: [unicornSpiral(main)], rings, top: d.top };
+      break;
+    default:
+      drawing = { outlines: d.outlines, fixed: [], rings, top: d.top };
+  }
+  cleanDrawings[type] = drawing;
+  return drawing;
 };
