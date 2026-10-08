@@ -9,7 +9,6 @@ import type { Choice } from '../../three/lobby/LobbyScene';
 import type { Side } from '../../three/lobby/lobbyMotion';
 import { useLobbyView } from './lobbyContext';
 import type { LobbyStage } from './lobbyContext';
-import { SeatLabels } from './LobbyCards';
 import { BotGlyph } from '../BotGlyph';
 import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 import { DIFFICULTIES, DIFFICULTY_NAME } from '../../ai/levels';
@@ -174,7 +173,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
       ? 'Leaving it to chance…'
       : leveling
         ? 'Choose difficulty'
-        : // (against the computer the pick's seat says it: "You", with the next step)
+        : // (against the computer the next step follows: the king in its light says it)
           !picked || computer
           ? 'Choose your side'
           : // (once the coin has come to rest, what it gave)
@@ -231,12 +230,9 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
       </div>
       {leveling && side && (
         <>
-          <div className="lobby-labels" data-out={out}>
-            <SeatLabels labels={{ [side]: 'You', [other(side)]: 'Computer' }} />
-          </div>
-          {/* Under the kings and their words, where the side's buttons
-              were. The chosen level holds a moment as the others go, then
-              all of it; the page moves on as it goes */}
+          {/* Under the kings, where the side's buttons were. The chosen
+              level holds a moment as the others go, then all of it; the
+              page moves on as it goes */}
           <div
             className="lobby-levels"
             role="group"

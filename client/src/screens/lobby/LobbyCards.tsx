@@ -100,10 +100,11 @@ export const InvitationCard: React.FC<{
   }
   const joining = invitation.state === 'joining';
   // Its heading is the page's (GameScreen): "You're invited to play …"; the
-  // scene shows the rest, so all the card holds is the one thing to do
+  // scene shows the rest, so all it holds is the one thing to do, the button
+  // alone, with no glass round it
   return (
     <section
-      className="lobby-card lobby-glass lobby-invitation"
+      className="lobby-card lobby-invitation"
       aria-labelledby="invitation-title"
       data-testid="invitation"
     >
@@ -121,29 +122,3 @@ export const InvitationCard: React.FC<{
     </section>
   );
 };
-
-/**
- * Who stands where, in words under the kings (placed by the scene's
- * --seat-<seat>-x/front). Not read aloud: the card says the same.
- */
-export const SeatLabels: React.FC<{ labels: Partial<Record<Color, string>> }> = ({ labels }) => (
-  <div aria-hidden>
-    {(['white', 'black'] as const).map(
-      (seat) =>
-        labels[seat] && (
-          <span
-            key={seat}
-            className="lobby-seat"
-            style={
-              {
-                '--x': `var(--seat-${seat}-x, ${seat === 'white' ? '30%' : '70%'})`,
-                '--y': `var(--seat-${seat}-front, 55%)`,
-              } as React.CSSProperties
-            }
-          >
-            {labels[seat]}
-          </span>
-        ),
-    )}
-  </div>
-);

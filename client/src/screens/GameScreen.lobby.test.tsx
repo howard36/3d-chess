@@ -83,7 +83,7 @@ const info = (seats: ('white' | 'black')[], gameId = 'abc123'): WebSocketMessage
 const looks = (send: ReturnType<typeof vi.fn>) =>
   send.mock.calls.filter(([m]) => (m as WebSocketMessage).type === 'look_game');
 
-/** The words under the kings (aria-hidden: the card says the same). */
+/** Words under the kings (none: the cards and the kings say who is where). */
 const seatLabels = () =>
   Array.from(document.querySelectorAll('.lobby-seat')).map((el) => el.textContent);
 
@@ -176,9 +176,8 @@ describe("a guest's invitation", () => {
     const accept = screen.getByRole('button', { name: 'Join game' });
     expect(accept).toBeEnabled();
     expect(accept).toHaveFocus();
-    // Named under the kings too
-    expect(seatLabels()).toContain('Opponent');
-    expect(seatLabels()).toContain('You');
+    // Nothing named under the kings
+    expect(seatLabels()).toEqual([]);
     // The host's king in material across from the guest's free seat
     expect(view).toMatchObject({
       beat: 'invited',
@@ -204,7 +203,7 @@ describe("a guest's invitation", () => {
     expect(button).toHaveAttribute('aria-disabled', 'true');
     // The camera eases on from the invitation's framing as the game gets under way
     expect(view).toMatchObject({ taken: { white: true, black: true }, mine: null, card: false });
-    expect(seatLabels()).toEqual(['Opponent', 'You']);
+    expect(seatLabels()).toEqual([]);
     // Held: nothing more goes out
     fireEvent.click(button);
     expect(send).toHaveBeenCalledTimes(1);
@@ -290,7 +289,7 @@ describe("the host's invitation to send", () => {
     // Set without its scheme, plain
     expect(link).toHaveTextContent(new RegExp(`^${window.location.host}/game/abc123$`));
     expect(screen.getByText('Waiting for your friend…')).toBeInTheDocument();
-    expect(seatLabels()).toEqual(['Opponent', 'You']);
+    expect(seatLabels()).toEqual([]);
     // Nothing to ask the server: the seat is held, the game is known
     expect(send).not.toHaveBeenCalled();
     // The host's king in its light, across from the empty seat, framed

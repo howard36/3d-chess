@@ -1,4 +1,4 @@
-import { levelRamp } from './colors';
+import { mixWithWhite } from './colors';
 import { towerFrameRings } from './labelAnchors';
 import { towerFrame, towerLayout } from '../layout';
 
@@ -17,7 +17,7 @@ import { towerFrame, towerLayout } from '../layout';
 //   < the charcoal army (a dark matte body, ~12–35%, a dim cool rim)
 //   < level hairlines and edges < the porcelain army (~80–92%, satin).
 // Hue plan: the scene is white light on black; the five levels are the only
-// colours, a spectral run from cyan to rose. Every marker is white light
+// colours, a spectral run from rose at the base to sky at the top. Every marker is white light
 // carrying its level's colour, but for capture and check, which are red
 // (kept clear of the rose), and the last move, pure white.
 
@@ -64,7 +64,7 @@ export const PALETTE = {
    * ring (its level shows as the tint of its fill).
    */
   move: '#f8c970',
-  /** The last move's line and circles: a pale mint, one hue step before level A. */
+  /** The last move's line and circles: a pale mint, a hue of its own past the sky of level E. */
   trace: '#acefd1',
   /** A capture: a clear red. */
   capture: '#ff4a3d',
@@ -139,19 +139,35 @@ export const HORIZON = {
 } as const;
 
 /**
- * One colour per level, A (bottom) to E (top): cyan, azure, periwinkle,
- * orchid and rose, in equal perceptual steps of hue (about 0.09 apart in
- * OKLab) stepping a little darker as they rise. No white or grey, and the
- * rose sits well away from the coral of a capture and the red of check.
- * The level hairlines and edges, the level letters, the ring at each
- * piece's foot and the fill of every destination use it.
+ * One colour per level, A (bottom) to E (top): rose, orchid, violet, blue
+ * and sky, the red end at the base and the sky at the top, as every
+ * gradient of them in the interface runs from sky to rose, top to bottom
+ * and left to right. Equal steps of hue (355° to 230°), all one Okhsv
+ * saturation (0.78) and value (0.93), so all five look equally vivid; the
+ * blue and violet, strong only when dark, are held at lightness 0.62 so
+ * they read on the night. No white or grey, and the rose sits well away
+ * from the coral of a capture and the red of check. The level hairlines, the
+ * ring at each piece's foot and the fill of every destination use it; the
+ * edges and the level letters a little lighter (LEVEL_EDGE_COLORS). Worked out by `levelRamp` (colors.ts) with
+ * LEVEL_RAMP, and written out here so nothing computes it at load;
+ * palette.test.ts fails while the two differ.
  */
-export const LEVEL_COLORS = levelRamp({
-  from: 200,
-  to: 350,
-  lightness: [0.8, 0.7],
-  chroma: 0.14,
-});
+export const LEVEL_RAMP = {
+  from: 355,
+  to: 230,
+  saturation: 0.78,
+  value: 0.93,
+  minLightness: 0.62,
+};
+export const LEVEL_COLORS = ['#ec539b', '#de5cec', '#8f61fc', '#4180f3', '#47bbec'];
+
+/**
+ * Each level's edge and letter: its colour mixed this far toward white in
+ * OKLab (mixWithWhite, colors.ts), lightened a little and paled in
+ * proportion, its hue held.
+ */
+export const LEVEL_EDGE_LIFT = 0.09;
+export const LEVEL_EDGE_COLORS = LEVEL_COLORS.map((c) => mixWithWhite(c, LEVEL_EDGE_LIFT));
 
 // A compact tower: the Staunton set at 0.8 leaves the king clear air
 // under the level above.

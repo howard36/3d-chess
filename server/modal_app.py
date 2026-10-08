@@ -36,7 +36,7 @@ from messages import (
 # dependency layer. APP_VERSION is baked in at deploy time so /health can
 # prove which commit is serving (CI greps for it after a deploy).
 # GAMES_STORE names the modal.Dict holding game records; a staging deploy
-# (see README) sets it so it never shares production's games.
+# (see ARCHITECTURE.md) sets it so it never shares production's games.
 image = (
     modal.Image.debian_slim(python_version="3.13")
     .uv_sync("./", uv_version="0.12.9")  # pinned so the image build itself is reproducible
@@ -191,7 +191,7 @@ def record_move(store, gid: str | None, color: str | None, move: Move) -> dict:
     """Append `move` by `color` to `gid`'s history; return the stored move dict.
 
     Validates that the game exists, has both seats, and that it is `color`'s
-    turn. Move legality is deliberately not checked (see README).
+    turn. Move legality is deliberately not checked (see ARCHITECTURE.md).
     """
     record = store.get(gid) if gid is not None else None
     if record is None:

@@ -1,6 +1,7 @@
 import { ARMY } from '../../game/lessons';
 import type { LessonStep, Step } from '../../game/lessons';
 import { PieceGlyph } from '../PieceGlyph';
+import { LEVEL_COLORS } from '../../three/scene/palette';
 
 // The lines a piece moves along, drawn from the middle of a little cube:
 // a rook's to the middles of its faces, a bishop's to the middles of its
@@ -124,8 +125,6 @@ export function Directions({ directions }: { directions: NonNullable<LessonStep[
   );
 }
 
-const LEVEL_EDGES = ['#00d7e0', '#58c1ff', '#96a7ff', '#c48be5', '#de77ab'];
-
 /** Black's promotion squares: the charcoal army's pewter. */
 const BLACK_ROW = '#7c8391';
 
@@ -160,7 +159,7 @@ export function PromotionRow() {
   return (
     <figure className="learn-figure">
       <svg viewBox={box} aria-hidden>
-        {LEVEL_EDGES.map((colour, z) => (
+        {LEVEL_COLORS.map((colour, z) => (
           <polygon
             key={z}
             points={quad(0, 0, 5, 5, z)}
@@ -202,7 +201,7 @@ export function Army() {
       <ul>
         {ARMY.map(({ type, count }) => (
           <li key={type} data-piece={type}>
-            <PieceGlyph type={type} color="white" size={20} />
+            <PieceGlyph type={type} color="white" size={22} />
             <span>{count}</span>
           </li>
         ))}

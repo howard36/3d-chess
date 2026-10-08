@@ -1,7 +1,7 @@
 // The played game, derived from the socket's message log.
 //
 // The client never mutates a board: it replays the move record from the fixed
-// starting position (README, "Event-sourced client state"). The record is the
+// starting position (ARCHITECTURE.md, "Event-sourced client state"). The record is the
 // LATEST game_state snapshot plus the move_made messages after it — every
 // reconnect replays the full history in a fresh snapshot that supersedes the
 // earlier ones, so counting older messages again would duplicate moves.

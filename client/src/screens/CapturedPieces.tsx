@@ -39,7 +39,7 @@ const Haul = ({
     <span className="sr-only">{said}</span>
     {groups.map(({ type, count }) => (
       <span key={type} className="hud-taken" aria-hidden>
-        <PieceGlyph type={type} color={material} size={16} />
+        <PieceGlyph type={type} color={material} size={20} />
         {count > 1 && <span className="hud-count">{count}</span>}
       </span>
     ))}

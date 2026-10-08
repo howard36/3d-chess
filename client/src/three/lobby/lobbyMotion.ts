@@ -82,8 +82,7 @@ export const LOBBY_TIMING = {
   settle: 0.3,
   /**
    * A named pick's free seat opening with the invitation: its outline is
-   * drawn up from the foot as the seat's label comes in under it
-   * (index.css `.lobby-seat`: 600 ms, 200 ms in).
+   * drawn up from the foot.
    */
   openDelay: 0.2,
   open: 0.7,

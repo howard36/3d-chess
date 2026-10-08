@@ -30,8 +30,9 @@
   --button-fg: #f6f8ff;
   --button-border: 1px solid rgba(236, 241, 255, 0.55);
   --button-radius: 3px;
-  /* The five level colours, cyan (A) to rose (E): the home page's title and rims, the lobby's */
-  --landing-levels: linear-gradient(90deg, #00d7e0, #58c1ff, #96a7ff, #c48be5, #de77ab);
+  /* The five level colours, sky (E, the top) to rose (A, the base), as every gradient of them
+     runs, left to right and top to bottom: the home page's title and rims, the lobby's */
+  --landing-levels: linear-gradient(90deg, #47bbec, #4180f3, #8f61fc, #de5cec, #ec539b);
   /* The start and waiting pages */
   --page-bg: radial-gradient(ellipse at 50% 60%, #0a0d15 0%, #04050a 60%, #010205 100%);
   --page-fg: #eef1f7;
@@ -317,7 +318,7 @@
   /* As wide as the pill, and no wider; each haul starts under its stone */
   width: 0;
   min-width: 100%;
-  height: 18px;
+  height: 20px;
   padding: 0 14px;
   transition: opacity 200ms ease;
 }
@@ -328,7 +329,7 @@
 .hud-haul {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 1.5px;
   margin: 0;
 }
 /* The opponent's haul hangs from their stone, at the right: mirrored */
@@ -339,17 +340,19 @@
   display: flex;
   align-items: flex-end;
 }
+/* A glyph's ink is about half its box: overlapped, the pieces stand a pixel
+   or more apart, so every kind taken from both sides fits under the pill */
 .hud-taken svg {
   flex: none;
-  width: 16px;
-  height: 16px;
-  margin: 0 -3px;
+  width: 20px;
+  height: 20px;
+  margin: 0 -4.5px;
   filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.7));
 }
-/* Charcoal against the night sky: a brighter rim than on the promotion tile */
+/* Charcoal against the night sky: a wider edge than on the promotion tile
+   (twice its width, as the glyph's own edge, half clipped away) */
 .hud-taken svg[data-color='black'] path {
-  stroke: rgba(178, 190, 212, 0.95);
-  stroke-width: 1.3px;
+  stroke-width: 1.6px;
 }
 .hud-count {
   margin-left: 1px;
@@ -360,7 +363,7 @@
   font-variant-numeric: tabular-nums;
 }
 .hud-lead {
-  margin: 0 3px;
+  margin: 0 2px;
   color: var(--hud-fg);
   font-size: 11px;
   font-weight: 700;
@@ -810,11 +813,11 @@
 /*
  * The call to action of the lobby's cards and the result card (.lobby-go):
  * a pill of starlight ringed by a rim of the five level colours that turns
- * slowly, glowing cyan on its left and rose on its right like the tower's
- * lowest and highest levels. On hover it lifts; while a game is being
+ * slowly, glowing sky on its left and rose on its right like the tower's
+ * top and base levels. On hover it lifts; while a game is being
  * created the rim turns fast round a dark pill. The rim is a straight
- * gradient, cyan at the left through to rose at the right, whose angle
- * turns: a colour wheel about the pill's middle (conic) running cyan to
+ * gradient, sky at the left through to rose at the right, whose angle
+ * turns: a colour wheel about the pill's middle (conic) running sky to
  * rose and back turned back on itself, a pixel of another colour at the
  * middle of each edge and a seam through the dark pill.
  */
@@ -826,11 +829,11 @@
 .landing-play {
   --landing-rim: linear-gradient(
     calc(90deg + var(--landing-turn)),
-    #00d7e0 8%,
-    #58c1ff,
-    #96a7ff,
-    #c48be5,
-    #de77ab 92%
+    #47bbec 8%,
+    #4180f3,
+    #8f61fc,
+    #de5cec,
+    #ec539b 92%
   );
   display: inline-flex;
   align-items: center;
@@ -850,9 +853,9 @@
   font-weight: 700;
   letter-spacing: 0.005em;
   box-shadow:
-    -12px 0 30px -12px rgba(0, 215, 224, 0.6),
-    12px 0 30px -12px rgba(222, 119, 171, 0.6),
-    0 0 24px rgba(150, 167, 255, 0.16);
+    -12px 0 30px -12px rgba(71, 187, 236, 0.6),
+    12px 0 30px -12px rgba(236, 83, 155, 0.6),
+    0 0 24px rgba(143, 97, 252, 0.16);
   cursor: pointer;
   animation: landing-rim 9s linear infinite;
   transition:
@@ -867,9 +870,9 @@
 .landing-play:not([aria-disabled='true']):hover {
   transform: translateY(-2px) scale(1.02);
   box-shadow:
-    -16px 0 38px -10px rgba(0, 215, 224, 0.8),
-    16px 0 38px -10px rgba(222, 119, 171, 0.8),
-    0 0 40px rgba(150, 167, 255, 0.3);
+    -16px 0 38px -10px rgba(71, 187, 236, 0.8),
+    16px 0 38px -10px rgba(236, 83, 155, 0.8),
+    0 0 40px rgba(143, 97, 252, 0.3);
 }
 .landing-play:not([aria-disabled='true']):active {
   transform: scale(0.98);
@@ -928,7 +931,7 @@
 /*
  * The glass of the home page's tiles (.landing-mode), which the lobby's
  * buttons, levels and cards are made of too (.lobby-glass): dark glass on a
- * diagonal wash of the five level colours, cyan glowing in from the top left
+ * diagonal wash of the five level colours, sky glowing in from the top left
  * and a warmer rose pooling past the bottom right, a sheen waiting off the
  * left edge to sweep across under the pointer, and a rim of the level
  * colours as a ring of its own (::before, masked to the border). The blooms
@@ -952,21 +955,21 @@
     ),
     radial-gradient(
       90% 120% at 16% 14%,
-      rgba(0, 215, 224, calc(0.26 + 0.14 * var(--landing-glow))),
-      rgba(0, 215, 224, 0) 70%
+      rgba(71, 187, 236, calc(0.26 + 0.14 * var(--landing-glow))),
+      rgba(71, 187, 236, 0) 70%
     ),
     radial-gradient(
       80% 110% at 98% 108%,
-      rgba(255, 84, 128, calc(0.26 + 0.14 * var(--landing-glow))),
-      rgba(255, 84, 128, 0) 70%
+      rgba(255, 85, 127, calc(0.26 + 0.14 * var(--landing-glow))),
+      rgba(255, 85, 127, 0) 70%
     ),
     linear-gradient(
       128deg,
-      rgba(0, 215, 224, 0.12) 10%,
-      rgba(88, 193, 255, 0.1) 32%,
-      rgba(150, 167, 255, 0.09) 52%,
-      rgba(196, 139, 229, 0.11) 72%,
-      rgba(222, 119, 171, 0.14) 92%
+      rgba(71, 187, 236, 0.12) 10%,
+      rgba(65, 128, 243, 0.1) 32%,
+      rgba(143, 97, 252, 0.09) 52%,
+      rgba(222, 92, 236, 0.11) 72%,
+      rgba(236, 83, 155, 0.14) 92%
     ),
     rgba(12, 14, 22, 0.86);
   /* The sheen waits off the left edge, three tiles wide */
@@ -983,18 +986,18 @@
   background-repeat: no-repeat;
   color: var(--hud-fg);
   box-shadow:
-    -6px -6px 22px -12px rgba(0, 215, 224, 0.35),
-    6px 6px 22px -12px rgba(222, 119, 171, 0.35);
+    -6px -6px 22px -12px rgba(71, 187, 236, 0.35),
+    6px 6px 22px -12px rgba(236, 83, 155, 0.35);
 }
 .landing-mode::before,
 .lobby-glass::before {
   --landing-rim: linear-gradient(
     calc(128deg + var(--landing-turn)),
-    #00d7e0 8%,
-    #58c1ff,
-    #96a7ff,
-    #c48be5,
-    #de77ab 92%
+    #47bbec 8%,
+    #4180f3,
+    #8f61fc,
+    #de5cec,
+    #ec539b 92%
   );
   content: '';
   position: absolute;
@@ -1168,9 +1171,9 @@
     0 0,
     0 0;
   box-shadow:
-    -12px -10px 32px -12px rgba(0, 215, 224, 0.7),
-    12px 10px 32px -12px rgba(222, 119, 171, 0.7),
-    0 0 30px rgba(150, 167, 255, 0.2);
+    -12px -10px 32px -12px rgba(71, 187, 236, 0.7),
+    12px 10px 32px -12px rgba(236, 83, 155, 0.7),
+    0 0 30px rgba(143, 97, 252, 0.2);
   outline: none;
   transition:
     opacity 400ms ease,
@@ -1198,9 +1201,9 @@
       0 0,
       0 0;
     box-shadow:
-      -12px -10px 32px -12px rgba(0, 215, 224, 0.7),
-      12px 10px 32px -12px rgba(222, 119, 171, 0.7),
-      0 0 30px rgba(150, 167, 255, 0.2);
+      -12px -10px 32px -12px rgba(71, 187, 236, 0.7),
+      12px 10px 32px -12px rgba(236, 83, 155, 0.7),
+      0 0 30px rgba(143, 97, 252, 0.2);
     transition:
       opacity 400ms ease,
       box-shadow 200ms,
@@ -1259,19 +1262,18 @@
   gap: 10px;
 }
 /* Against the computer, its level: three tiles of the home page's glass in
-   a row under the kings, the kings framed as for the side, hanging under
-   their words ("You", "Computer": .lobby-seat, 26 px tall) as the side's
-   buttons hung under the kings, rising in turn with the computer's outline.
+   a row under the kings, the kings framed as for the side, hanging where
+   the side's buttons hung, rising in turn with the computer's outline.
    Each is the home page's tile at the kings' scale: the computer's robot
-   and its strength in a box of dark teal glass, one bar to three, in the
-   colours of the tower's levels from the lowest up, and the level's name,
+   and its strength in a box of dark blue glass, one bar to three, in the
+   level colours from sky to rose, left to right, and the level's name,
    whose size follows the tile's width (container units) */
 .lobby-levels {
   --king: var(--king-height, 200px);
   position: absolute;
   left: 16px;
   right: 16px;
-  top: calc(var(--seat-coin-front, 62%) + clamp(6px, calc(var(--king) * 0.05), 12px) + 26px + 14px);
+  top: calc(var(--seat-coin-front, 62%) + clamp(8px, calc(var(--king) * 0.055), 16px));
   display: flex;
   justify-content: center;
   gap: clamp(8px, calc(var(--king) * 0.045), 14px);
@@ -1324,10 +1326,10 @@
   height: calc(var(--icon) + 16px);
   padding: 0 calc(var(--icon) * 0.34) 0 calc(var(--icon) * 0.24);
   border-radius: calc(var(--icon) * 0.3 + 2px);
-  background: rgba(2, 22, 28, 0.42);
+  background: rgba(2, 22, 32, 0.42);
   box-shadow:
-    inset 0 1px 0 rgba(160, 250, 255, 0.1),
-    inset 0 0 0 1px rgba(0, 215, 224, 0.14);
+    inset 0 1px 0 rgba(212, 240, 255, 0.1),
+    inset 0 0 0 1px rgba(71, 187, 236, 0.14);
 }
 .lobby-level-icon svg {
   width: var(--icon);
@@ -1353,13 +1355,13 @@
   height: 100%;
 }
 .lobby-strength > span:nth-child(1) {
-  background: #00d7e0;
+  background: #47bbec;
 }
 .lobby-strength:is([data-strength='2'], [data-strength='3']) > span:nth-child(2) {
-  background: #96a7ff;
+  background: #8f61fc;
 }
 .lobby-strength[data-strength='3'] > span:nth-child(3) {
-  background: #de77ab;
+  background: #ec539b;
 }
 /* A phone on its side: the heading a size down and a little higher, clear
    of the kings' crosses, and the levels shorter, the robot beside the name,
@@ -1370,9 +1372,6 @@
   }
   .lobby-heading h1 {
     font-size: 30px;
-  }
-  .lobby-levels {
-    top: calc(var(--seat-coin-front, 62%) + 6px + 26px + 10px);
   }
   .lobby-level {
     flex-basis: 172px;
@@ -1393,7 +1392,7 @@
 /* Against the computer, the page's words make way for its arrival: the
    level chosen holds a moment as the others fade, and the page moves on as
    it goes (ChooseSide) */
-.lobby-page :is(.lobby-heading, .lobby-top, .lobby-labels)[data-out] {
+.lobby-page :is(.lobby-heading, .lobby-top)[data-out] {
   animation: lobby-out 350ms ease both;
 }
 .lobby-page .lobby-levels[data-out] {
@@ -1469,8 +1468,8 @@
   border-radius: 20px;
   backdrop-filter: blur(14px);
   box-shadow:
-    -10px -10px 40px -18px rgba(0, 215, 224, 0.45),
-    10px 10px 40px -18px rgba(222, 119, 171, 0.45),
+    -10px -10px 40px -18px rgba(71, 187, 236, 0.45),
+    10px 10px 40px -18px rgba(236, 83, 155, 0.45),
     0 24px 60px rgba(0, 0, 0, 0.6);
   text-align: center;
   pointer-events: auto;
@@ -1537,9 +1536,16 @@
   padding: 0 26px;
   font-size: 16px;
 }
-/* The guest's card: the host's card, holding only its action */
+/* The guest's card: only its action, the button alone where the host's
+   card stands, with no glass round it */
 .lobby-invitation {
   padding: 20px 24px;
+  backdrop-filter: none;
+  box-shadow: none;
+  pointer-events: none;
+}
+.lobby-invitation .lobby-go {
+  pointer-events: auto;
 }
 .lobby-invitation .lobby-actions {
   margin-top: 0;
@@ -1550,23 +1556,6 @@
     width: min(400px, calc(100vw - 32px));
     padding: 14px 18px;
   }
-}
-/* Who stands where: a word under each king */
-.lobby-seat {
-  position: absolute;
-  left: var(--x);
-  top: calc(var(--y) + clamp(6px, calc(var(--king-height, 200px) * 0.05), 12px));
-  transform: translateX(-50%);
-  padding: 3px 11px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  background: rgba(10, 12, 18, 0.7);
-  color: var(--hud-muted);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  animation: lobby-rise 600ms 200ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 /* The link on one line, as wide as it is; a long one is cut off at its end
    (Copy has it whole) */
@@ -1683,9 +1672,9 @@
  * each other at the top (a friend's knight, or the computer's robot), the
  * name at the bottom, and an arrow at the top right that steps on. The rim
  * is a ring of its own (::before, masked to the border). Both rim and glass
- * run on a diagonal, cyan at the top left through to rose at the bottom
+ * run on a diagonal, sky at the top left through to rose at the bottom
  * right, steeper than the tile's own corner to corner: the glass is a wash
- * of the five colours with cyan blooming behind the pieces, just in from the
+ * of the five colours with sky blooming behind the pieces, just in from the
  * top left, and a warmer rose, nearer red, pooling past the bottom right.
  * Under the pointer the blooms brighten (--landing-glow) and a sheen sweeps
  * across once, along the same diagonal. The name keeps to one line: its size
@@ -1725,9 +1714,9 @@
     0 0,
     0 0;
   box-shadow:
-    -12px -10px 32px -12px rgba(0, 215, 224, 0.7),
-    12px 10px 32px -12px rgba(222, 119, 171, 0.7),
-    0 0 30px rgba(150, 167, 255, 0.2);
+    -12px -10px 32px -12px rgba(71, 187, 236, 0.7),
+    12px 10px 32px -12px rgba(236, 83, 155, 0.7),
+    0 0 30px rgba(143, 97, 252, 0.2);
   transition:
     box-shadow 200ms,
     transform 200ms,
@@ -1770,11 +1759,11 @@
   width: var(--landing-icon-width);
   height: 44px;
   border-radius: 10px;
-  /* Dark teal glass, a deeper part of the cyan glow, so the pieces read against it */
-  background: rgba(2, 22, 28, 0.42);
+  /* Dark blue glass, a deeper part of the sky glow, so the pieces read against it */
+  background: rgba(2, 22, 32, 0.42);
   box-shadow:
-    inset 0 1px 0 rgba(160, 250, 255, 0.1),
-    inset 0 0 0 1px rgba(0, 215, 224, 0.14);
+    inset 0 1px 0 rgba(212, 240, 255, 0.1),
+    inset 0 0 0 1px rgba(71, 187, 236, 0.14);
 }
 .landing-mode-icon svg {
   width: 28px;
