@@ -681,19 +681,19 @@ until the row fits the width).
 link" pill of starlight in a rim of the level colours (only where the clipboard can be
 written); nothing else. A copy turns the button to
   "Copied ✓" (and is said, "Link copied"); only a failed one is written: "Couldn't copy.
-  Select the link." "You" and "Opponent" stand under the kings, the neon seat breathes (for its
+  Select the link." The neon seat breathes (for its
   first minute, calmer after half of it), and the camera holds still. In a short, wide
   window (a phone on its side: `cardBeside`, at most 500 px high and 13:10 or wider) the
   card docks at the right and the kings and heading stand in the room left of it.
 - **The guest** (the `invited` beat and `InvitationCard`). A page with no stored seat asks
   `look_game` once per socket until answered, and `game/invitation.ts` reads the answer.
   With a seat free the heading reads "You're invited to play" with the side's stone and
-  name, and under the scene, in a card of the same glass as the host's, there is only "Join
-  game" ("Joining…" once pressed). Until the
+  name, and under the scene, where the host's card stands, there is only "Join game"
+  ("Joining…" once pressed), the button alone with no glass round it. Until the
   look is answered nothing is said; a wait on the server is only mentioned once it has
   lasted 1.5 s (`useDelayed`, `SLOW_SERVER_MS`): "Connecting to server…" or "Reconnecting to
   server…", the same words and delay as the side choice's bottom line;
-  "Opponent" and "You" stand under the kings, and joining fills the guest's king at once,
+  joining fills the guest's king at once,
   before the server answers, on the glass and not yet in its light. The scene is framed as
   the host's wait, the kings a little higher over "Join game" (the view's `card`), and the
   click eases it down to the arrival's framing, as the game's start does on the host's page. A game with both seats taken, or
@@ -775,9 +775,8 @@ plays offline.
 2. _Choose difficulty._ Once the chosen king is set down (`onSettled`, as a friend's game
    moves on to its invitation), the page is an invitation (the `invited` beat, with no
    card: the camera holds the side choice's framing): the computer's seat across from the
-   player's opens, its outline drawn up from the foot and breathing, "You" and "Computer"
-   under the kings, and Easy, Medium and Hard in a row under those, near where the side's
-   buttons were (`.lobby-levels`, rising in turn; the level last played has the focus,
+   player's opens, its outline drawn up from the foot and breathing, and Easy, Medium and Hard in a row under
+   the kings, where the side's buttons were (`.lobby-levels`, rising in turn; the level last played has the focus,
    Medium the first time, `lib/computerGames.ts`): three tiles like the home page's, each
    the computer's robot (`screens/BotGlyph.tsx`, the home page's) beside its strength, one bar to three in the colours of the tower's levels from the top down (sky, violet, rose), and the level's
    name (a phone on its side sets them shorter, the robot beside the name).
