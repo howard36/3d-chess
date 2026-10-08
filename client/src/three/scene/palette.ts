@@ -94,7 +94,14 @@ export const BOARD_DETAIL = {
 
 /** Area C: the court between the tower and the colossal board (court.tsx). */
 export const COURT = {
-  // (area C's colours)
+  /** The horizon's mist as the polished slabs give it back: a cool grey-blue. */
+  sheen: '#919cb3',
+  /** The stone's veins: paler, barely blue. */
+  vein: '#c4cddd',
+  /** The inlay's light and the stepping stones' kerbs: the garden's neon, a breath cooler. */
+  inlay: '#dde5f6',
+  /** The glow-moss: a grey-white with the faintest cool green, far from the last move's mint. */
+  moss: '#d2dfe0',
 } as const;
 
 // ---
