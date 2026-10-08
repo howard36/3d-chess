@@ -75,6 +75,35 @@ export const PALETTE = {
   ink: '#eef1f7',
 } as const;
 
+// The garden's added detail, one group per area (ENV PREVIEW: each area
+// keeps its colours in its own group so parallel work never meets here).
+
+/** Area A: the sky and constellations (skyDetail.tsx, heavens.tsx). */
+export const SKY_DETAIL = {
+  // (area A's colours)
+} as const;
+
+// ---
+
+/** Area B: the colossal board and its sculptures (boardDetail.tsx). */
+export const BOARD_DETAIL = {
+  // (area B's colours)
+} as const;
+
+// ---
+
+/** Area C: the court between the tower and the colossal board (court.tsx). */
+export const COURT = {
+  // (area C's colours)
+} as const;
+
+// ---
+
+/** Area D: the horizon and far ground, and rare events (horizon.tsx). */
+export const HORIZON = {
+  // (area D's colours)
+} as const;
+
 /**
  * One colour per level, A (bottom) to E (top): cyan, azure, periwinkle,
  * orchid and rose, in equal perceptual steps of hue (about 0.09 apart in

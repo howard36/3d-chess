@@ -35,6 +35,10 @@ import { ShootingStar } from './shootingStar';
 import { useDisposeOnUnmount } from './dispose';
 import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
+import { SkyDetail } from './skyDetail';
+import { BoardDetail } from './boardDetail';
+import { Court } from './court';
+import { Horizon } from './horizon';
 // ENV PREVIEW (temporary): the preview's settings, and a redraw when one changes
 import { useEnvSetting } from '../../envPreview';
 import { shootingStar } from '../../envPreview/features/shootingStar';
@@ -842,6 +846,7 @@ export const Stage = ({
   dim,
 }: StageProps & { shade?: ShadeStack; dim?: number | (() => number) }) => {
   const meteor = useEnvSetting(shootingStar);
+  const turn = orientation === 'black' ? -1 : 1;
   return (
     <>
       <EnvRedraw />
@@ -849,8 +854,12 @@ export const Stage = ({
       <Heavens />
       <Sky />
       <Ground />
-      <Sculptures turn={orientation === 'black' ? -1 : 1} shade={shade} dim={dim} />
+      <Sculptures turn={turn} shade={shade} dim={dim} />
       <Mist />
+      <SkyDetail turn={turn} shade={shade} dim={dim} />
+      <BoardDetail turn={turn} shade={shade} dim={dim} />
+      <Court turn={turn} shade={shade} dim={dim} />
+      <Horizon turn={turn} shade={shade} dim={dim} />
       {meteor !== 'off' && <ShootingStar often={meteor === 'often'} />}
     </>
   );
