@@ -1,13 +1,14 @@
 # 3D Chess
 
-Chess on a 5×5×5 board.
+Chess in three dimensions, on a 5×5×5 board.
 
 [![A game of 3D chess against the computer: White's queen picked up in the middle of a five-level glass tower, her moves ringed in gold](docs/preview.jpg)](https://3dchess.club)
 
 **[Play at 3dchess.club →](https://3dchess.club)**
 
-- Modes: two players over a shared link, or one against the computer (three levels)
-- [Tutorial](https://3dchess.club/learn)
+- **Against a friend:** pick a side and send them the game's link
+- **Against the computer:** Easy, Medium or Hard, running in your browser
+- **[Tutorial](https://3dchess.club/learn):** a short lesson on each piece's moves
 
 ## Rules
 
