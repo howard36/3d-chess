@@ -342,8 +342,9 @@ describe('against the computer', () => {
     });
     expect(view?.card).toBeFalsy();
     expect(screen.getByRole('heading', { name: 'Choose difficulty' })).toBeInTheDocument();
-    expect(screen.getByText('You')).toBeInTheDocument();
-    expect(screen.getByText('Computer')).toBeInTheDocument();
+    // Nothing named under the kings
+    expect(screen.queryByText('You')).toBeNull();
+    expect(screen.queryByText('Computer')).toBeNull();
     expect(levels()).toBeInTheDocument();
     expect(['Easy', 'Medium', 'Hard'].map((n) => level(n).textContent)).toEqual([
       'Easy',
