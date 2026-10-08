@@ -162,3 +162,24 @@ export const TOWER_SHADE = /* glsl */ `
     }
     return 1.0 - smoothstep(-0.25 * ${SHADE_WIDTH.toFixed(2)}, ${SHADE_WIDTH.toFixed(2)}, inside ? -d : d);
   }`;
+
+/**
+ * GLSL for a vertex shader: `float shadeOfClip(vec4
+ * clip)`, the tower's shade (TOWER_SHADE, the same function) at a vertex,
+ * from its clip position, 0 behind the camera. For the garden's faint
+ * things whose meshes are fine enough (or whose points are small enough)
+ * that the shade between vertices is as good as the shade per pixel: a
+ * vertex is far cheaper (software rendering pays for every pixel whenever
+ * the camera moves, and the shade is a loop over the outline's edges).
+ * Needs shadeUniforms().
+ */
+export const SHADE_AT_VERTEX = `${TOWER_SHADE.replace(
+  'float towerShade() {',
+  'float towerShadeAt(vec2 p) {',
+).replace(/\n\s*vec2 p = gl_FragCoord[^\n]*\n\s*p\.x \*= uShadeViewport\.z;/, '')}
+  float shadeOfClip(vec4 clip) {
+    if (clip.w <= 0.0) return 0.0;
+    vec2 p = clip.xy / clip.w;
+    p.x *= uShadeViewport.z;
+    return towerShadeAt(p);
+  }`;

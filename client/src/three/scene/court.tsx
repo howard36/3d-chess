@@ -1,10 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { AdditiveBlending, Color, DoubleSide, RingGeometry, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, ShaderMaterial } from 'three';
 import type { GardenDetailProps } from './gardenDetail';
 import { noRaycast } from '../noRaycast';
 import { shadeUniforms } from './mask';
-import { COURT, GROUND_Y } from './palette';
+import { COURT } from './palette';
 import {
   COURT_SLABS,
   COURT_SPAN,
@@ -17,7 +17,7 @@ import {
 } from './courtLayout';
 // ENV PREVIEW (temporary): the court's settings
 import { useEnvSetting } from '../../envPreview';
-import { courtEggs, courtFloor, courtInlay, courtLife } from '../../envPreview/features/court';
+import { courtEggs, courtLife } from '../../envPreview/features/court';
 
 // Area C, the court: the near ground between the tower and the colossal
 // board, where the board's lines have faded out round the tower's foot. It
@@ -65,36 +65,44 @@ const POOL_RADIUS = 10;
 /** How far a slab is laid off level (radians, at most half each way). */
 const TILT = 0.08;
 /** The court's stone and inlay reach this far: the colossal board has come back. */
-const REACH = COURT_SPAN.outer[1];
-
-const f = (n: number) => n.toFixed(4);
-
-const courtVertex = /* glsl */ `
-  uniform float uTurn;
-  uniform float uDim;
-  varying vec3 vWorld;
-  varying vec2 vP;
-  varying float vLit;
-  ${SHADE_AT_VERTEX}
-  void main() {
-    vec4 w = modelMatrix * vec4(position, 1.0);
-    vWorld = w.xyz;
-    // In the garden's frame before it turns for Black
-    vP = w.xz * uTurn;
-    gl_Position = projectionMatrix * viewMatrix * w;
-    // Into the tower's shade, and the lobby's quiet
-    vLit = (1.0 - shadeOfClip(gl_Position)) * uDim;
-  }`;
+export const COURT_REACH = COURT_SPAN.outer[1];
 
 const [wayX, wayZ] = KNIGHT_WAYS[0];
 
-const courtFragment = /* glsl */ `
+const f = (n: number) => n.toFixed(4);
+
+/**
+ * The stone and the inlay, as GLSL for the ground's own shader (stage.tsx),
+ * which draws the court's disc of the plain with them (the court is light
+ * added onto the stone, so it is added there, in the display's values, as
+ * blending would add it): null when both are off. \`decl\` declares
+ * \`vec3 courtLight(vec2 p, float r, vec3 view)\`, the court's light at a point
+ * of the plain (p in the garden's frame before it turns for Black, r its
+ * distance from the centre, view the eye's ray), before the tower's shade
+ * and the lobby's quiet.
+ */
+/** The uniforms courtGroundGlsl's chunk needs. */
+export const courtUniforms = () => ({
+  uSheen: { value: new Color(COURT.sheen) },
+  uVein: { value: new Color(COURT.vein) },
+  uInlay: { value: new Color(COURT.inlay) },
+});
+
+export const courtGroundGlsl = (floor: string, inlay: string) => {
+  if (floor === 'off' && inlay === 'off') return null;
+  const defines = [
+    floor !== 'off' && 'FLOOR_ON',
+    floor === 'veined' && 'VEINS_ON',
+    inlay === 'ring' && 'INLAY_RING',
+    inlay === 'double' && 'INLAY_DOUBLE',
+    inlay === 'star' && 'INLAY_STAR',
+  ].filter(Boolean);
+  return {
+    decl: /* glsl */ `
+  ${defines.map((d) => `#define ${d}`).join('\n  ')}
   uniform vec3 uSheen;
   uniform vec3 uVein;
   uniform vec3 uInlay;
-  varying vec3 vWorld;
-  varying vec2 vP;
-  varying float vLit;
   ${COURT_SLABS}
   float hash12(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -117,17 +125,12 @@ const courtFragment = /* glsl */ `
   }
   // A hairline of half-width hw about d = 0, coverage-correct: never
   // thinner than about a pixel, dimmer instead
-  float hair(float d, float hw) {
+  float courtHair(float d, float hw) {
     float fw = max(fwidth(d), 1e-5);
     float draw = max(hw, fw * 0.6);
     return clamp((draw - abs(d)) / fw + 0.5, 0.0, 1.0) * (hw / draw);
   }
-  void main() {
-    vec2 p = vP;
-    float r = length(p);
-    float lit = vLit;
-    if (lit < 0.003) discard;
-    vec3 view = normalize(vWorld - cameraPosition);
+  vec3 courtLight(vec2 p, float r, vec3 view) {
     float grazing = 1.0 - abs(view.y);
     // The court: from round the tower's foot out to where the colossal
     // board has come back
@@ -183,29 +186,28 @@ const courtFragment = /* glsl */ `
       // The outer ring broken where the colossal board's centre lines (the
       // axes) would run on
       float arcs = smoothstep(${f(INLAY.gap)}, ${f(INLAY.gap + 0.5)}, o.y);
-      inlay = max(inlay, hair(r - ${f(INLAY.outer)}, 0.03) * arcs);
+      inlay = max(inlay, courtHair(r - ${f(INLAY.outer)}, 0.03) * arcs);
       #ifdef INLAY_DOUBLE
-      inlay = max(inlay, hair(r - ${f(INLAY.inner)}, 0.03) * 0.5);
+      inlay = max(inlay, courtHair(r - ${f(INLAY.inner)}, 0.03) * 0.5);
       float along = smoothstep(${f(INLAY.inner)}, ${f(INLAY.inner + 0.4)}, t);
       #else
       // The spokes run in from the ring, fading toward the tower
       float along = smoothstep(${f(INLAY.inner - 2.0)}, ${f(INLAY.outer - 1.0)}, t);
       #endif
       along *= 1.0 - smoothstep(${f(INLAY.outer - 0.4)}, ${f(INLAY.outer)}, t);
-      inlay = max(inlay, hair(across, 0.025) * along * 0.85);
+      inlay = max(inlay, courtHair(across, 0.025) * along * 0.85);
       #else
       float along = smoothstep(${f(INLAY.star[0])}, ${f(INLAY.star[0] + 3.5)}, t)
         * (1.0 - smoothstep(${f(INLAY.star[0] + 4.5)}, ${f(INLAY.star[1])}, t));
-      inlay = hair(across, 0.03) * along * 1.3;
+      inlay = courtHair(across, 0.03) * along * 1.3;
       #endif
       col += uInlay * inlay * ${f(LIGHT.inlay)} * far;
     }
     #endif
-    col *= lit;
-    if (max(col.r, max(col.g, col.b)) < 0.0002) discard;
-    gl_FragColor = vec4(col, 1.0);
-    #include <colorspace_fragment>
-  }`;
+    return col;
+  }`,
+  };
+};
 
 const mossVertex = /* glsl */ `
   uniform float uDpr;
@@ -301,58 +303,6 @@ const decalFragment = /* glsl */ `
 /** The lobby's quiet, as a number now. */
 const dimNow = (dim: GardenDetailProps['dim']) => (typeof dim === 'function' ? dim() : (dim ?? 1));
 
-/** The stone and the inlay: one pass over the court. */
-const CourtGround = ({
-  turn,
-  dim,
-  floor,
-  inlay,
-}: GardenDetailProps & { floor: string; inlay: string }) => {
-  const geometry = useMemo(() => new RingGeometry(0, REACH, 192, 40).rotateX(-Math.PI / 2), []);
-  const material = useMemo(() => {
-    const defines: Record<string, string> = {};
-    if (floor !== 'off') defines.FLOOR_ON = '';
-    if (floor === 'veined') defines.VEINS_ON = '';
-    if (inlay === 'ring') defines.INLAY_RING = '';
-    if (inlay === 'double') defines.INLAY_DOUBLE = '';
-    if (inlay === 'star') defines.INLAY_STAR = '';
-    return new ShaderMaterial({
-      // Added onto the ground, in the opaque list with the rest of the
-      // garden, writing no depth (backdropCache.tsx)
-      depthWrite: false,
-      blending: AdditiveBlending,
-      defines,
-      uniforms: {
-        uTurn: { value: 1 },
-        uDim: { value: 1 },
-        uSheen: { value: new Color(COURT.sheen) },
-        uVein: { value: new Color(COURT.vein) },
-        uInlay: { value: new Color(COURT.inlay) },
-        ...shadeUniforms(),
-      },
-      vertexShader: courtVertex,
-      fragmentShader: courtFragment,
-    });
-  }, [floor, inlay]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  useEffect(() => () => material.dispose(), [material]);
-  material.uniforms.uTurn.value = turn;
-  useFrame(() => {
-    material.uniforms.uDim.value = dimNow(dim);
-  });
-  return (
-    <mesh
-      name="court-ground"
-      geometry={geometry}
-      material={material}
-      position={[0, GROUND_Y, 0]}
-      renderOrder={-895}
-      frustumCulled={false}
-      raycast={noRaycast}
-    />
-  );
-};
-
 /** The moss's glow on the stone and the stepping stones: small quads on the ground, one pass. */
 const CourtDecals = ({
   turn,
@@ -439,18 +389,17 @@ const CourtMoss = ({ turn, dim }: GardenDetailProps) => {
   );
 };
 
+/**
+ * The court's marks and moss; its stone and inlay are drawn in the ground's
+ * own pass (courtGroundGlsl, stage.tsx).
+ */
 export const Court = (props: GardenDetailProps) => {
-  const floor = useEnvSetting(courtFloor);
-  const inlay = useEnvSetting(courtInlay);
   const life = useEnvSetting(courtLife);
   const eggs = useEnvSetting(courtEggs);
   const stones = eggs === 'on';
   const moss = life === 'on';
   return (
     <>
-      {(floor !== 'off' || inlay !== 'off') && (
-        <CourtGround {...props} floor={floor} inlay={inlay} />
-      )}
       {(moss || stones) && <CourtDecals {...props} moss={moss} stones={stones} />}
       {moss && <CourtMoss {...props} />}
     </>

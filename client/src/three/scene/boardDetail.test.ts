@@ -21,15 +21,19 @@ describe("the board's ground detail", () => {
   it('compiles in each part only when it is on', () => {
     const frame = boardGroundGlsl({ ...BOARD_GROUND_OFF, frame: true }, ANCHORS)!;
     expect(frame.lines).toContain('electrodes');
-    expect(frame.lines).not.toContain('POOLS');
+    expect(frame.lines).not.toContain('vPool');
+    expect(frame.vertex).toBe('');
     const subtle = boardGroundGlsl({ ...BOARD_GROUND_OFF, squares: 'subtle' }, ANCHORS)!;
-    expect(subtle.decl).toContain('INLAID');
-    expect(subtle.decl).not.toContain('CRACKS');
+    expect(subtle.lines).toContain('INLAID');
+    expect(subtle.lines).not.toContain('Kintsugi');
     const rich = boardGroundGlsl({ ...BOARD_GROUND_OFF, squares: 'rich' }, ANCHORS)!;
-    expect(rich.decl).toContain('CRACKS');
+    expect(rich.lines).toContain('Kintsugi');
     expect(rich.lines).toContain('Worn');
+    expect(rich.vertex).toBe('');
     const pools = boardGroundGlsl({ ...BOARD_GROUND_OFF, pools: true }, ANCHORS)!;
-    expect(pools.lines).toContain('POOLS');
+    // Worked out per vertex, read per pixel
+    expect(pools.vertex).toContain('POOLS');
+    expect(pools.lines).toContain('vPool');
     expect(pools.polish).toBe('');
   });
 

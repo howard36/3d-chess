@@ -38,8 +38,16 @@ const rows = (squares: readonly string[]) => {
     const [c, r] = cell(s);
     out[r] |= 1 << c;
   }
-  return `int[8](${out.join(', ')})`;
+  return out;
 };
+
+/**
+ * GLSL: entry `i` (an int expression) of a short list of ints, as a chain
+ * of choices (an array indexed at run time is copied whole for every pixel
+ * by some compilers); 0 past its end.
+ */
+const pick = (list: readonly number[], i: string) =>
+  list.reduceRight((rest, v, k) => (v === 0 ? rest : `(${i} == ${k} ? ${v} : ${rest})`), '0');
 
 // Inlaid squares: an engraved border just inside the square's edge, on a
 // scatter of the outer squares (never under a sculpture)
@@ -142,66 +150,99 @@ const MARK: readonly Segment[] = (() => {
 })();
 const MARK_DOT: P2 = [0.7 + 0.33, 0.7 + 0.28];
 
-const segmentList = (segs: readonly Segment[]) =>
-  segs.map((s) => `vec4(${f1(s.a[0])}, ${f1(s.a[1])}, ${f1(s.b[0])}, ${f1(s.b[1])})`).join(', ');
-const widthList = (segs: readonly Segment[]) => segs.map((s) => f1(s.w)).join(', ');
+/** The worn stretches along one axis (0: lines along x) as rows of bits: bit s of row l. */
+const wornRows = (axis: 0 | 1) => {
+  const out = Array.from({ length: 9 }, () => 0);
+  for (const [a, l, s] of WORN) if (a === axis) out[l] |= 1 << s;
+  return out;
+};
 
 /**
  * The GLSL the ground's shader takes: declarations (after its uniforms and
- * helpers), lines (given `line`, `uv`, `bp`, `sq`, `lightSq`, `onBoard`;
- * raises `line` and adds to `glow`) and, after the light is summed, its
- * share of the polish (given `view`, `fresnel`, adds to `col`). `anchors`
- * are the sculptures' feet (x, z) on the board, for their pools.
+ * helpers), lines (given `line`, `lines`, `edge`, `uv`, `bp`, `sq`,
+ * `lightSq`, `onBoard`, `clear`; raises `line` and adds to `glow`) and,
+ * after the light is summed, its share of the polish (given `view`,
+ * `fresnel`, adds to `col`); and for the vertex shader, declarations and
+ * lines (given `vP`, the plain's point, and the uniforms `uTurn` and
+ * `uWhole`; sets `vPool`). `anchors` are the sculptures' feet (x, z) on the
+ * board, for their pools.
+ *
+ * The ground covers most of the screen, so each part that lies in only a
+ * few places (the frame's band, the inlaid, cracked and marked squares) is
+ * worked out in a loop whose count is 0 wherever the part is not, which a
+ * GPU skips for a block of pixels that all count 0 (a software renderer,
+ * CI's, works it all out: there the ground's parts, stage.tsx, keep each
+ * detail to where it lies, and the pools are worked out per vertex). Each
+ * part's run of segments is written out, never an array indexed in a loop
+ * (which some compilers copy whole for every pixel). Inside those loops
+ * nothing takes a derivative (it would be undefined where a block's pixels
+ * part ways): a line's width across a pixel is worked out from the board's
+ * own footprint (`dbx`, `dby`, taken before) and the line's direction.
  */
 export const boardGroundGlsl = (o: BoardGroundOptions, anchors: readonly P2[]) => {
   const on = o.frame || o.squares !== 'off' || o.pools;
   if (!on) return null;
   const decl: string[] = [
     /* glsl */ `
-    // A hairline at d = 0, w wide each side: coverage-correct, thinning into
-    // a dimmer line rather than aliasing far off (as gridLines)
-    float hair(float d, float w) {
-      float fw = max(fwidth(d), 1e-5);
+    // A hairline at d = 0, w wide each side, d changing by fw across a
+    // pixel: coverage-correct, thinning into a dimmer line rather than
+    // aliasing far off (as gridLines)
+    float hairFw(float d, float w, float fw) {
+      fw = max(fw, 1e-5);
       float draw = max(w, fw);
       return (1.0 - smoothstep(draw - fw, draw + fw, abs(d))) * min(w / draw, 1.0);
     }
     // A bead of light r wide, fading rather than shrinking under a pixel
-    float bead(float d, float r) {
-      float fw = max(fwidth(d), 1e-5);
+    float beadFw(float d, float r, float fw) {
+      fw = max(fw, 1e-5);
       float rr = max(r, fw);
       float k = r / rr;
       return (1.0 - smoothstep(rr - fw, rr + fw, d)) * k * k;
     }
-    float segDist(vec2 p, vec4 s) {
+    // The distance from p to a segment, and the way it grows (n)
+    float segDist(vec2 p, vec4 s, out vec2 n) {
       vec2 a = s.xy;
       vec2 e = s.zw - a;
       float t = clamp(dot(p - a, e) / max(dot(e, e), 1e-6), 0.0, 1.0);
-      return length(p - a - e * t);
+      vec2 w = p - a - e * t;
+      float l = length(w);
+      n = w / max(l, 1e-6);
+      return l;
     }
-    bool inSet(int rowsOf[8], vec2 sq) {
-      if (sq.x < 0.0 || sq.y < 0.0 || sq.x > 7.0 || sq.y > 7.0) return false;
-      return ((rowsOf[int(sq.y)] >> int(sq.x)) & 1) == 1;
-    }`,
+    // Square sq in a set given as its row's bits
+    bool inRow(int row, vec2 sq) {
+      return sq.x >= 0.0 && sq.y >= 0.0 && sq.x <= 7.0 && sq.y <= 7.0
+        && ((row >> int(clamp(sq.x, 0.0, 7.0))) & 1) == 1;
+    }
+    // How much a distance growing along g (board units) changes across a pixel
+    #define FW(g) (abs(dot(g, dbx)) + abs(dot(g, dby)))`,
   ];
-  const lines: string[] = [];
+  const lines: string[] = [
+    /* glsl */ `
+    // The board's footprint across a pixel, taken here, where every pixel
+    // of a block takes it
+    vec2 dbx = dFdx(bp);
+    vec2 dby = dFdy(bp);`,
+  ];
   const polish: string[] = [];
 
   if (o.squares === 'rich') {
     lines.push(/* glsl */ `
     {
-      // Worn stretches of line, thinned between two crossings
+      // Worn stretches of line, thinned between two crossings: a line
+      // along x (its row, the nearest whole uv.y) past square sq.x, or
+      // along z
       vec2 nearest = floor(uv + 0.5);
-      for (int k = 0; k < ${WORN.length}; k++) {
-        vec3 w = WORN[k];
-        bool alongX = w.x < 0.5;
-        float l = alongX ? nearest.y : nearest.x;
-        float s = alongX ? sq.x : sq.y;
-        float t = fract(alongX ? uv.x : uv.y);
-        if (l == w.y && s == w.z) {
-          float worn = 1.0 - 0.75 * smoothstep(0.12, 0.42, t) * smoothstep(0.92, 0.6, t);
-          if (alongX) lines.y *= worn; else lines.x *= worn;
-        }
-      }
+      ivec2 l = ivec2(clamp(nearest, 0.0, 8.0));
+      ivec2 s = ivec2(clamp(sq, 0.0, 7.0));
+      bool inX = nearest.y >= 0.0 && nearest.y <= 8.0 && sq.x >= 0.0 && sq.x <= 7.0;
+      bool inZ = nearest.x >= 0.0 && nearest.x <= 8.0 && sq.y >= 0.0 && sq.y <= 7.0;
+      bool alongX = inX && ((${pick(wornRows(0), 'l.y')} >> s.x) & 1) == 1;
+      bool alongZ = inZ && ((${pick(wornRows(1), 'l.x')} >> s.y) & 1) == 1;
+      vec2 t = fract(uv);
+      vec2 worn = 1.0 - 0.75 * smoothstep(0.12, 0.42, t) * smoothstep(0.92, 0.6, t);
+      lines.y *= alongX ? worn.x : 1.0;
+      lines.x *= alongZ ? worn.y : 1.0;
       line = max(lines.x * mix(1.0, 1.7, edge.x), lines.y * mix(1.0, 1.7, edge.y));
     }`);
   }
@@ -213,48 +254,71 @@ export const boardGroundGlsl = (o: BoardGroundOptions, anchors: readonly P2[]) =
       // inlay every half square, and a stronger outer rule; square corner
       // blocks with their diagonals and a ring (rosettes); and where each
       // of the board's lines meets its edge, a bead of light, like the
-      // electrodes of a neon sign
+      // electrodes of a neon sign. Only in its band round the board.
       vec2 q = abs(bp) - ${f1(4 * S)};
       float outside = max(q.x, q.y);
-      float frame = max(hair(outside - 0.55, 0.026) * 0.8, hair(outside - 2.2, 0.032) * 1.3);
-      float corner = step(0.55, min(q.x, q.y)) * step(outside, 2.2);
-      float band = step(0.55, outside) * step(outside, 2.2) * (1.0 - corner);
-      // Along the side, a lozenge every half square
-      float alongSide = q.x > q.y ? bp.y : bp.x;
-      float u = (fract(alongSide / ${f1(S / 2)} + 0.5) - 0.5) * ${f1(S / 2)};
-      frame = max(frame, hair(abs(u) * 0.8 + abs(outside - 1.375) - 0.42, 0.022) * 0.6 * band);
-      // The corner blocks: their inner sides, diagonals and ring
-      vec2 c = q - 1.375;
-      float rosette = max(hair(q.x - 0.55, 0.026), hair(q.y - 0.55, 0.026)) * 0.8;
-      rosette = max(rosette, max(hair(c.x - c.y, 0.02), hair(c.x + c.y, 0.02)) * 0.55);
-      rosette = max(rosette, hair(length(c) - 0.42, 0.022) * 0.75);
-      frame = max(frame, rosette * corner);
-      line = max(line, frame);
-      // The electrodes: on the edge where each line ends, and at the
-      // frame's outer corners
-      float tick = (fract(alongSide / ${f1(S)} + 0.5) - 0.5) * ${f1(S)};
-      float onEdge = step(abs(alongSide), ${f1(4 * S + 0.3)});
-      float d = length(vec2(outside, tick)) + (1.0 - onEdge) * 1e3;
-      float dc = length(q - 2.2);
-      float e = max(bead(d, 0.13), bead(dc, 0.11) * 0.8);
-      line = max(line, e * 2.2);
-      glow += (exp(-d * d * 6.0) + exp(-dc * dc * 7.0) * 0.6) * 0.0035;
+      bool sideX = q.x > q.y;
+      vec2 sgn = sign(bp);
+      vec2 gOut = sideX ? vec2(sgn.x, 0.0) : vec2(0.0, sgn.y);
+      float fwMax = max(FW(vec2(1.0, 0.0)), FW(vec2(0.0, 1.0)));
+      int framed = outside > -1.3 - 3.0 * fwMax && outside < 3.5 + 3.0 * fwMax ? 1 : 0;
+      for (int i = 0; i < framed; i++) {
+        float fwOut = FW(gOut);
+        float frame = max(hairFw(outside - 0.55, 0.026, fwOut) * 0.8, hairFw(outside - 2.2, 0.032, fwOut) * 1.3);
+        float corner = step(0.55, min(q.x, q.y)) * step(outside, 2.2);
+        float band = step(0.55, outside) * step(outside, 2.2) * (1.0 - corner);
+        // Along the side, a lozenge every half square
+        float alongSide = sideX ? bp.y : bp.x;
+        vec2 gAlong = sideX ? vec2(0.0, 1.0) : vec2(1.0, 0.0);
+        float u = (fract(alongSide / ${f1(S / 2)} + 0.5) - 0.5) * ${f1(S / 2)};
+        float oz = outside - 1.375;
+        vec2 gLoz = 0.8 * sign(u) * gAlong + sign(oz) * gOut;
+        frame = max(frame, hairFw(abs(u) * 0.8 + abs(oz) - 0.42, 0.022, FW(gLoz)) * 0.6 * band);
+        // The corner blocks: their inner sides, diagonals and ring
+        vec2 c = q - 1.375;
+        float rosette = max(
+          hairFw(q.x - 0.55, 0.026, FW(vec2(sgn.x, 0.0))),
+          hairFw(q.y - 0.55, 0.026, FW(vec2(0.0, sgn.y)))) * 0.8;
+        rosette = max(rosette, max(
+          hairFw(c.x - c.y, 0.02, FW(vec2(sgn.x, -sgn.y))),
+          hairFw(c.x + c.y, 0.02, FW(sgn))) * 0.55);
+        float lc = length(c);
+        rosette = max(rosette, hairFw(lc - 0.42, 0.022, FW(sgn * c / max(lc, 1e-6))) * 0.75);
+        frame = max(frame, rosette * corner);
+        line = max(line, frame);
+        // The electrodes: on the edge where each line ends, and at the
+        // frame's outer corners
+        float tick = (fract(alongSide / ${f1(S)} + 0.5) - 0.5) * ${f1(S)};
+        float onEdge = step(abs(alongSide), ${f1(4 * S + 0.3)});
+        float d0 = length(vec2(outside, tick));
+        float d = d0 + (1.0 - onEdge) * 1e3;
+        vec2 gD = (outside * gOut + tick * gAlong) / max(d0, 1e-6);
+        vec2 qc = q - 2.2;
+        float dc = length(qc);
+        vec2 gC = sgn * qc / max(dc, 1e-6);
+        float e = max(beadFw(d, 0.13, FW(gD)), beadFw(dc, 0.11, FW(gC)) * 0.8);
+        line = max(line, e * 2.2);
+        glow += (exp(-d * d * 6.0) + exp(-dc * dc * 7.0) * 0.6) * 0.0035;
+      }
     }`);
   }
 
   if (o.squares !== 'off') {
-    decl.push(/* glsl */ `
-    const int INLAID[8] = ${rows(INLAID)};
-    const int DOUBLE[8] = ${rows(DOUBLE)};`);
     lines.push(/* glsl */ `
     {
       // Inlaid squares: an engraved border just inside the edge, a second
-      // inside it on a few
-      vec2 f = fract(uv) * ${f1(S)};
-      float e = min(min(f.x, ${f1(S)} - f.x), min(f.y, ${f1(S)} - f.y));
-      float inlay = inSet(INLAID, sq) ? hair(e - 0.7, 0.022) * 0.55 : 0.0;
-      if (inSet(DOUBLE, sq)) inlay = max(inlay, hair(e - 1.05, 0.02) * 0.4);
-      line = max(line, inlay * onBoard);
+      // inside it on a few (INLAID, DOUBLE)
+      int row = int(clamp(sq.y, 0.0, 7.0));
+      int inlaid = inRow(${pick(rows(INLAID), 'row')}, sq) ? 1 : 0;
+      for (int i = 0; i < inlaid; i++) {
+        vec2 f = fract(uv) * ${f1(S)};
+        vec2 m = min(f, ${f1(S)} - f);
+        float e = min(m.x, m.y);
+        float fwE = m.x < m.y ? FW(vec2(1.0, 0.0)) : FW(vec2(0.0, 1.0));
+        float inlay = hairFw(e - 0.7, 0.022, fwE) * 0.55;
+        if (inRow(${pick(rows(DOUBLE), 'row')}, sq)) inlay = max(inlay, hairFw(e - 1.05, 0.02, fwE) * 0.4);
+        line = max(line, inlay * onBoard);
+      }
     }`);
     polish.push(/* glsl */ `
     // The dark squares more deeply polished than the light: toward the
@@ -267,73 +331,90 @@ export const boardGroundGlsl = (o: BoardGroundOptions, anchors: readonly P2[]) =
   }
 
   if (o.squares === 'rich') {
-    const cracks = CRACKED.map(([square, seed]) => ({ at: cell(square), segs: crackOf(seed) }));
-    const all = cracks.flatMap((c) => c.segs);
-    let start = 0;
-    const tests = cracks
-      .map((c) => {
-        const from = start;
-        start += c.segs.length;
-        return `if (sq == vec2(${f1(c.at[0])}, ${f1(c.at[1])})) {
-          for (int k = ${from}; k < ${start}; k++) {
-            float dd = segDist(f, CRACKS[k]);
-            crack = max(crack, hair(dd, CRACK_W[k]));
-            near = min(near, dd);
-          }
+    const vec = (g: Segment) => `vec4(${f1(g.a[0])}, ${f1(g.a[1])}, ${f1(g.b[0])}, ${f1(g.b[1])})`;
+    // Each cracked square's segments written out (an array indexed in a
+    // loop is copied whole for every pixel by some compilers), in a loop
+    // run once on that square and never elsewhere
+    const cracks = CRACKED.map(([square, seed]) => {
+      const [c, r] = cell(square);
+      const segs = crackOf(seed)
+        .map(
+          (g) => `dd = segDist(f, ${vec(g)}, n);
+          crack = max(crack, hairFw(dd, ${f1(g.w)}, FW(n)));
+          near = min(near, dd);`,
+        )
+        .join('\n          ');
+      return `for (int i = 0; i < (sq == vec2(${f1(c)}, ${f1(r)}) ? 1 : 0); i++) {
+          ${segs}
         }`;
-      })
-      .join('\n        ');
-    decl.push(/* glsl */ `
-    const vec4 CRACKS[${all.length}] = vec4[${all.length}](${segmentList(all)});
-    const float CRACK_W[${all.length}] = float[${all.length}](${widthList(all)});
-    const vec4 MARK[${MARK.length}] = vec4[${MARK.length}](${segmentList(MARK)});
-    const vec3 WORN[${WORN.length}] = vec3[${WORN.length}](${WORN.map(
-      ([a, l, s]) => `vec3(${f1(a)}, ${f1(l)}, ${f1(s)})`,
-    ).join(', ')});`);
+    }).join('\n        ');
+    const mark = MARK.map(
+      (g) => `dd = segDist(f, ${vec(g)}, n);
+          m = max(m, hairFw(dd, 0.018, FW(n)));`,
+    ).join('\n          ');
     lines.push(/* glsl */ `
     {
       vec2 f = fract(uv) * ${f1(S)};
+      float dd;
+      vec2 n;
       // Kintsugi: cracks across a few squares, mended in light
       float crack = 0.0;
       float near = 1e3;
-      ${tests}
+      ${cracks}
       line = max(line, crack * 1.2 * onBoard);
       glow += exp(-near * near * 12.0) * 0.002 * onBoard * clear;
       // The maker's mark in a corner of a8
-      if (sq == vec2(0.0, 0.0)) {
-        float m = 0.0;
-        for (int k = 0; k < ${MARK.length}; k++) m = max(m, hair(segDist(f, MARK[k]), 0.018));
-        m = max(m, bead(length(f - vec2(${f1(MARK_DOT[0])}, ${f1(MARK_DOT[1])})), 0.06) * 1.2);
-        line = max(line, m * 0.8);
+      float m = 0.0;
+      for (int i = 0; i < (sq == vec2(0.0, 0.0) ? 1 : 0); i++) {
+          ${mark}
+          vec2 w = f - vec2(${f1(MARK_DOT[0])}, ${f1(MARK_DOT[1])});
+          float l = length(w);
+          m = max(m, beadFw(l, 0.06, FW(w / max(l, 1e-6))) * 1.2);
       }
+      line = max(line, m * 0.8);
     }`);
   }
 
+  // The pools are smooth (a few units across), so each vertex of the
+  // plain's fine mesh works them out and a pixel only reads them
+  const vertex: string[] = [];
   if (o.pools) {
     const ring = anchors.reduce((s, [x, z]) => s + Math.hypot(x, z), 0) / anchors.length;
-    decl.push(/* glsl */ `
-    const vec2 POOLS[${anchors.length}] = vec2[${anchors.length}](${anchors
-      .map(([x, z]) => `vec2(${f1(x)}, ${f1(z)})`)
-      .join(', ')});`);
+    const each = anchors
+      .map(
+        ([x, z], k) => `d = bp - vec2(${f1(x)}, ${f1(z)});
+      pool += exp(-dot(d, d) / 18.0) * uWhole[${k}];`,
+      )
+      .join('\n      ');
+    vertex.push(/* glsl */ `
+    {
+      // Each sculpture's light pooling on the board round its foot (POOLS)
+      vec2 bp = vP * uTurn;
+      vec2 d;
+      float pool = 0.0;
+      ${each}
+      vPool = pool;
+    }`);
+    decl.push('varying float vPool;');
     lines.push(/* glsl */ `
     {
       // Each sculpture's light pooling on the board round its foot, lifting
       // the lines near it: dimmed with the sculptures (the lobby), brighter
-      // with them at mate, and gone with one the tower's shade takes whole
-      float pool = 0.0;
+      // with them at mate, and gone with one the tower's shade takes whole.
       // Only in the ring the sculptures stand on (they all stand about as
       // far out): elsewhere every pool is nothing
-      if (abs(length(bp) - ${f1(ring)}) < 13.0) {
-        for (int k = 0; k < ${anchors.length}; k++) {
-          vec2 d = bp - POOLS[k];
-          pool += exp(-dot(d, d) / 18.0) * uWhole[k];
-        }
-      }
+      float pool = abs(length(bp) - ${f1(ring)}) < 13.0 ? vPool : 0.0;
       pool *= uDim * (1.0 + uBoost);
       line *= 1.0 + pool * 1.4;
       glow += pool * 0.0045;
     }`);
   }
 
-  return { decl: decl.join('\n'), lines: lines.join('\n'), polish: polish.join('\n') };
+  return {
+    decl: decl.join('\n'),
+    lines: lines.join('\n'),
+    polish: polish.join('\n'),
+    vertexDecl: o.pools ? 'varying float vPool;' : '',
+    vertex: vertex.join('\n'),
+  };
 };

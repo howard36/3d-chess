@@ -30,15 +30,21 @@ const mountWith = async (env: string, orientation: 'white' | 'black' = 'white') 
   scene.traverse((o) => {
     if (o.name.startsWith('court-')) court.push(o as Mesh);
   });
-  return { r, scene, court };
+  // The stone and the inlay are drawn in the ground's own pass, in its court's part
+  const ground = scene.getObjectByName('ground-court') as Mesh;
+  const stone = (ground.material as ShaderMaterial).fragmentShader.includes('courtLight');
+  return { r, scene, court, ground, stone };
 };
 
 const all = (f: { options: readonly { id: string }[] }) => f.options.map((o) => o.id);
 
 describe('the court', () => {
   it('draws nothing when every setting is off: the garden as it was', async () => {
-    const { court } = await mountWith('courtFloor:off,courtInlay:off,courtLife:off,courtEggs:off');
+    const { court, stone } = await mountWith(
+      'courtFloor:off,courtInlay:off,courtLife:off,courtEggs:off',
+    );
     expect(court).toEqual([]);
+    expect(stone).toBe(false);
   });
 
   it('draws as the garden must in every setting: added light, no depth, before the tower', async () => {
@@ -49,9 +55,12 @@ describe('the court', () => {
       ...all(courtEggs).map((o) => `courtEggs:${o}`),
     ];
     for (const one of combos) {
-      const { court, r } = await mountWith(`baseline,${one}`);
-      if (one.endsWith(':off')) expect(court, one).toEqual([]);
-      else expect(court.length, one).toBeGreaterThan(0);
+      const { court, stone, r } = await mountWith(`baseline,${one}`);
+      const drawn = court.length + (stone ? 1 : 0);
+      if (one.endsWith(':off')) expect(drawn, one).toBe(0);
+      else expect(drawn, one).toBeGreaterThan(0);
+      // The stone and inlay only in the ground's pass, the rest as marks of their own
+      expect(stone, one).toBe(/^court(Floor|Inlay):(?!off)/.test(one));
       for (const o of court) {
         const m = o.material as Material;
         expect(m.transparent, one).toBe(false);
@@ -70,12 +79,14 @@ describe('the court', () => {
   it('turns with the colossal board for Black, and quiets for the lobby', async () => {
     const env = 'recommended,courtFloor:sheen,courtInlay:ring,courtLife:on,courtEggs:on';
     const white = await mountWith(env, 'white');
-    for (const o of white.court)
+    await white.r.advanceFrames(1, 1 / 60);
+    for (const o of [...white.court, white.ground])
       expect((o.material as ShaderMaterial).uniforms.uTurn.value, o.name).toBe(1);
     await white.r.unmount();
     replaceEnvStoreForTest(before!);
     const black = await mountWith(env, 'black');
-    for (const o of black.court)
+    await black.r.advanceFrames(1, 1 / 60);
+    for (const o of [...black.court, black.ground])
       expect((o.material as ShaderMaterial).uniforms.uTurn.value, o.name).toBe(-1);
     await black.r.unmount();
     replaceEnvStoreForTest(before!);
@@ -92,7 +103,7 @@ describe('the court', () => {
     const scene = r.scene.instance as unknown as Scene;
     let seen = 0;
     scene.traverse((o) => {
-      if (!o.name.startsWith('court-')) return;
+      if (!o.name.startsWith('court-') && o.name !== 'ground-court') return;
       seen++;
       expect(((o as Mesh).material as ShaderMaterial).uniforms.uDim.value, o.name).toBe(0.22);
     });

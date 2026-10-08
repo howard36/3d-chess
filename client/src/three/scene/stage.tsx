@@ -23,6 +23,7 @@ import { noRaycast } from '../noRaycast';
 import { GRID_LINES } from './gridLines';
 import type { platformStack } from './mask';
 import {
+  SHADE_AT_VERTEX,
   shadeAt,
   shadeUniforms,
   shadeViewport,
@@ -41,14 +42,16 @@ import { FALLEN, fallenBodies } from './boardFallen';
 import type { BoardGroundOptions } from './boardGround';
 import type { NeonCurve, V3 } from './boardNeon';
 import { SkyDetail, skyAirUniforms, useSkyAir } from './skyDetail';
-import { skyColorChunk } from './skyColor';
+import { skyColorBody, skyColorChunk } from './skyColor';
 import { BoardDetail } from './boardDetail';
-import { Court } from './court';
+import { Court, COURT_REACH, courtGroundGlsl, courtUniforms } from './court';
 import { Horizon } from './horizon';
-import { groundGeometry } from './horizonGround';
+import { groundParts, VEIL_MIX, VEIL_VERTEX_GLSL } from './horizonGround';
 // ENV PREVIEW (temporary): the preview's settings, and a redraw when one changes
 import { useEnvSetting } from '../../envPreview';
 import { shootingStar } from '../../envPreview/features/shootingStar';
+import { horizonEdgeFix } from '../../envPreview/features/horizon';
+import { courtFloor, courtInlay } from '../../envPreview/features/court';
 import {
   boardFrame,
   boardSquares,
@@ -79,20 +82,75 @@ import { EnvRedraw } from '../../envPreview/EnvRedraw';
 // --- The night sky ------------------------------------------------------------------
 
 /** The sky drawn: its colour in each direction from its centre (skyColor.ts). */
-const skyFragment = (air: boolean) => /* glsl */ `
-  ${skyColorChunk(air)}
+/**
+ * The sky drawn: its colour in each direction from its centre (skyColor.ts).
+ * The airy sky's light sinks into the tower's shade, taken per vertex (its
+ * sphere then finer): it is faint and the shade smooth, and per pixel the
+ * shade would be most of the sky's cost in software.
+ */
+const skyFragment = (air: boolean) =>
+  air
+    ? /* glsl */ `
+  ${skyColorBody(true)}
+  varying vec3 vDir;
+  varying float vShade;
+  void main() {
+    gl_FragColor = vec4(skyColorShaded(normalize(vDir), vShade), 1.0);
+    #include <colorspace_fragment>
+  }`
+    : /* glsl */ `
+  ${skyColorChunk(false)}
   varying vec3 vDir;
   void main() {
     gl_FragColor = vec4(skyColor(normalize(vDir)), 1.0);
     #include <colorspace_fragment>
   }`;
 
-const Sky = () => {
+const skyVertex = (air: boolean) => /* glsl */ `
+  varying vec3 vDir;
+  ${
+    air
+      ? `${SHADE_AT_VERTEX}
+  varying float vShade;`
+      : ''
+  }
+  void main() {
+    vDir = normalize(position);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    ${air ? 'vShade = shadeOfClip(gl_Position);' : ''}
+  }`;
+
+/**
+ * How far below the horizon the sky is drawn over the round plain (degrees,
+ * a whole number of the sphere's 11.25° rings): the plain hides everything
+ * lower, out to its rim (horizonGround.ts), from as high as the camera
+ * climbs, so the sky need not be worked out there only to be drawn over.
+ */
+const SKY_BELOW = 22.5;
+
+/** The sky's sphere: its rings (11.25° apart, or finer) and its segments round. */
+const skyGeometry = (round: boolean, fine: boolean) => {
+  const k = fine ? 2 : 1;
+  return round
+    ? new SphereGeometry(
+        400,
+        32 * k,
+        (8 + SKY_BELOW / 11.25) * k,
+        0,
+        Math.PI * 2,
+        0,
+        Math.PI / 2 + MathUtils.degToRad(SKY_BELOW),
+      )
+    : new SphereGeometry(400, 32 * k, 16 * k);
+};
+
+const Sky = ({ round }: { round: boolean }) => {
   // ENV PREVIEW (temporary): the air (skyGlow) or today's banks
   const air = useSkyAir();
   const parts = useMemo(
     () => ({
-      geometry: new SphereGeometry(400, 32, 16),
+      // The whole sphere round main's square plain (the sky shows past its corners)
+      geometry: skyGeometry(round, air),
       material: new ShaderMaterial({
         side: BackSide,
         depthWrite: false,
@@ -104,16 +162,11 @@ const Sky = () => {
           uMist: { value: new Color(PALETTE.mist) },
           ...(air ? skyAirUniforms() : {}),
         },
-        vertexShader: /* glsl */ `
-          varying vec3 vDir;
-          void main() {
-            vDir = normalize(position);
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }`,
+        vertexShader: skyVertex(air),
         fragmentShader: skyFragment(air),
       }),
     }),
-    [air],
+    [air, round],
   );
   useDisposeOnUnmount(parts);
   const { geometry, material } = parts;
@@ -138,26 +191,103 @@ export const SQUARE = 8;
 /** Radius of clear dark ground round the tower's foot. */
 const CLEAR = [17, 27] as const;
 
-const groundVertex = /* glsl */ `
+/** The brightness of the colossal board: its lines and its light squares together. */
+const BOARD = 1.1;
+
+/** The ground's sky, for its veil (horizonGround.ts): with the air or today's; none, no veil. */
+type GroundSky = 'air' | 'today' | null;
+
+/** How far out from the board's edge its frame's band reaches (world units). */
+const FRAME_BAND = 6;
+
+/** The board's detail that lies in a part (boardGround.ts), or none. */
+type Detail = ReturnType<typeof boardGroundGlsl>;
+/** The court's stone and inlay (court.tsx's courtGroundGlsl), or none. */
+type CourtGlsl = ReturnType<typeof courtGroundGlsl>;
+
+/**
+ * What one part of the plain draws: the board's detail that lies in it, the
+ * court's stone, and whether it lies wholly in the clear ground round the
+ * tower's foot (inside CLEAR[0]), where the board draws nothing at all.
+ */
+interface GroundPart {
+  detail: Detail;
+  court: CourtGlsl;
+  clear: boolean;
+}
+
+const groundVertex = ({ detail, court, clear }: GroundPart, sky: GroundSky) => {
+  // The court's light in the clear part takes the tower's shade per vertex
+  // (the part's mesh is fine), as it always did (court.tsx)
+  const lit = clear && court;
+  return /* glsl */ `
+  uniform float uTurn;
+  uniform float uWhole[${WHOLE_SLOTS}];
   varying vec2 vP;
   varying vec3 vWorld;
+  ${detail?.vertexDecl ?? ''}
+  ${sky || lit ? SHADE_AT_VERTEX : ''}
+  ${sky ? `${skyColorBody(sky === 'air')}\n  varying vec4 vVeil;` : ''}
+  ${lit ? 'varying float vLit;' : ''}
   void main() {
     vec4 w = modelMatrix * vec4(position, 1.0);
     vP = w.xz;
     vWorld = w.xyz;
     gl_Position = projectionMatrix * viewMatrix * w;
+    ${detail?.vertex ?? ''}
+    ${sky ? VEIL_VERTEX_GLSL : ''}
+    ${lit ? 'vLit = 1.0 - shadeOfClip(gl_Position);' : ''}
+  }`;
+};
+
+/**
+ * GLSL: `vec3 faintToDisplay(vec3 c)`, the display's value of faint light
+ * (three.js's sRGB transfer) without its power, which software works out
+ * slowly: a fit in square and fourth roots, within 0.05 of a step of 255 up
+ * to 0.15 (the court's light stays far under it).
+ */
+const FAINT_TO_DISPLAY = /* glsl */ `
+  vec3 faintToDisplay(vec3 c) {
+    vec3 s = sqrt(c);
+    vec3 fit = 0.90569927 * s + 0.25728784 * sqrt(s) - 0.10946774 * c - 0.07093325;
+    return mix(fit, c * 12.92, vec3(lessThanEqual(c, vec3(0.0031308))));
   }`;
 
-/** The brightness of the colossal board: its lines and its light squares together. */
-const BOARD = 1.1;
+/**
+ * The end of the ground's shader: the plain's colour (`col`) as the display
+ * shows it, with the veil mixed over it and the court added to it (its
+ * light before the shade: `courtLit`), as blending them on in passes of
+ * their own would.
+ */
+const groundOutput = (sky: GroundSky, court: CourtGlsl, courtLit: string) =>
+  sky || court
+    ? /* glsl */ `
+    vec4 shown = linearToOutputTexel(vec4(col, 1.0));
+    ${sky ? VEIL_MIX : ''}
+    ${
+      court
+        ? `{
+      float courtLit = ${courtLit};
+      vec3 cc = courtLight(bp, r, view) * courtLit;
+      if (courtLit >= 0.003 && max(cc.r, max(cc.g, cc.b)) >= 0.0002)
+        shown.rgb += faintToDisplay(cc);
+    }`
+        : ''
+    }
+    gl_FragColor = shown;`
+    : /* glsl */ `
+    gl_FragColor = vec4(col, 1.0);
+    #include <colorspace_fragment>`;
 
-/** The ground's shader, with the colossal board's detail that is on (boardGround.ts). */
-const groundFragment = (board: BoardGroundOptions) => {
-  const detail = boardGroundGlsl(
-    board,
-    GARDEN.map(({ at }): [number, number] => [at[0], at[2]]),
-  );
-  return /* glsl */ `
+/**
+ * The ground's shader for one part of the plain: with the colossal board's
+ * detail that lies in that part (boardGround.ts), the court's stone and
+ * inlay in the court's parts (court.tsx), and, with `sky`, the veil that
+ * thickens the far plain into the night (horizonGround.ts), each mixed in
+ * here rather than blended over the plain in a pass of its own.
+ */
+const groundFragment = ({ detail, court, clear }: GroundPart, sky: GroundSky) => {
+  const head = /* glsl */ `
   uniform vec3 uGround;
   uniform vec3 uLine;
   uniform vec3 uHorizon;
@@ -169,6 +299,25 @@ const groundFragment = (board: BoardGroundOptions) => {
   uniform float uWhole[${WHOLE_SLOTS}];
   varying vec2 vP;
   varying vec3 vWorld;
+  ${sky ? 'varying vec4 vVeil;' : ''}
+  ${court ? `${court.decl}\n  ${FAINT_TO_DISPLAY}` : ''}`;
+  if (clear)
+    return /* glsl */ `
+  ${head}
+  ${court ? 'varying float vLit;' : ''}
+  void main() {
+    vec3 view = normalize(vWorld - cameraPosition);
+    float r = length(vP);
+    vec2 bp = vP * uTurn;
+    // Clear ground round the tower: the colossal board and all its detail
+    // are nothing here (each fades in with uClear, from 0 at its start),
+    // the polish alone is left
+    float fresnel = pow(1.0 - abs(view.y), 5.0);
+    vec3 col = uGround + uHorizon * fresnel * 0.9;
+    ${groundOutput(sky, court, 'vLit * uDim')}
+  }`;
+  return /* glsl */ `
+  ${head}
   ${TOWER_SHADE}
   ${GRID_LINES}
   ${detail?.decl ?? ''}
@@ -207,47 +356,96 @@ const groundFragment = (board: BoardGroundOptions) => {
     float fresnel = pow(1.0 - abs(view.y), 5.0);
     vec3 col = uGround + uLine * lit + uHorizon * fresnel * 0.9;
     ${detail?.polish ?? ''}
-    gl_FragColor = vec4(col, 1.0);
-    #include <colorspace_fragment>
+    ${groundOutput(sky, court, 'hidden * uDim')}
   }`;
 };
 
-const Ground = ({ board }: { board: BoardGroundOptions }) => {
-  const { frame, squares, pools } = board;
-  const parts = useMemo(
-    () => ({
-      geometry: groundGeometry(),
-      material: new ShaderMaterial({
-        // Drawn first and writing no depth: the reflections go under it
-        depthWrite: false,
-        uniforms: {
-          uGround: { value: new Color(PALETTE.ground) },
-          uLine: { value: new Color(PALETTE.neon) },
-          ...shadeUniforms(),
-          uHorizon: { value: new Color(PALETTE.skyHorizon) },
-          uSquare: { value: SQUARE },
-          uClear: { value: [...CLEAR] },
-          uTurn: gardenTurn,
-          uDim: gardenDim,
-          uBoost: gardenBoost,
-          uWhole: gardenWhole,
-        },
-        vertexShader: groundVertex,
-        fragmentShader: groundFragment({ frame, squares, pools }),
-      }),
+/** What the ground draws: the board's detail, the far plain's veil and the court's stone. */
+interface GroundLook {
+  board: BoardGroundOptions;
+  sky: GroundSky;
+  floor: string;
+  inlay: string;
+}
+
+/**
+ * The ground's four parts (horizonGround.ts's groundParts), each with only
+ * the detail that lies in it: a software renderer (CI's) works out all of a
+ * shader for every pixel, so a part pays for nothing that lies elsewhere.
+ * The clear ground round the tower's foot has the court's stone alone; the
+ * rest of the court's disc, the court and the board's squares and pools;
+ * the board out to its frame's band, the squares, pools and frame; the far
+ * plain, none of them. All have the veil (the camera can stand far enough
+ * out for it to reach the court), worked out per vertex.
+ */
+const groundMaterials = ({ board, sky, floor, inlay }: GroundLook) => {
+  const anchors = GARDEN.map(({ at }): [number, number] => [at[0], at[2]]);
+  const court = courtGroundGlsl(floor, inlay);
+  const material = (part: GroundPart): ShaderMaterial =>
+    new ShaderMaterial({
+      // Drawn first and writing no depth: the reflections go under it
+      depthWrite: false,
+      uniforms: {
+        uGround: { value: new Color(PALETTE.ground) },
+        uLine: { value: new Color(PALETTE.neon) },
+        ...shadeUniforms(),
+        uHorizon: { value: new Color(PALETTE.skyHorizon) },
+        ...(sky
+          ? {
+              uTop: { value: new Color(PALETTE.skyTop) },
+              uBottom: { value: new Color(PALETTE.skyBottom) },
+              uMist: { value: new Color(PALETTE.mist) },
+              ...(sky === 'air' ? skyAirUniforms() : {}),
+            }
+          : {}),
+        ...(part.court ? courtUniforms() : {}),
+        uSquare: { value: SQUARE },
+        uClear: { value: [...CLEAR] },
+        uTurn: gardenTurn,
+        uDim: gardenDim,
+        uBoost: gardenBoost,
+        uWhole: gardenWhole,
+      },
+      vertexShader: groundVertex(part, sky),
+      fragmentShader: groundFragment(part, sky),
+    });
+  return {
+    middle: material({ detail: null, court, clear: true }),
+    court: material({
+      detail: boardGroundGlsl({ ...board, frame: false }, anchors),
+      court,
+      clear: false,
     }),
-    [frame, squares, pools],
+    board: material({ detail: boardGroundGlsl(board, anchors), court: null, clear: false }),
+    far: material({ detail: null, court: null, clear: false }),
+  };
+};
+
+const PARTS = ['middle', 'court', 'board', 'far'] as const;
+
+const Ground = ({ look }: { look: GroundLook }) => {
+  const square = look.sky === null;
+  const geometry = useMemo(
+    () => groundParts(CLEAR[0], COURT_REACH, 4 * SQUARE + FRAME_BAND, square, !square),
+    [square],
   );
-  useDisposeOnUnmount(parts);
-  const { geometry, material } = parts;
+  useDisposeOnUnmount(geometry);
+  const materials = useMemo(() => groundMaterials(look), [look]);
+  useDisposeOnUnmount(materials);
   return (
-    <mesh
-      geometry={geometry}
-      material={material}
-      position={[0, GROUND_Y, 0]}
-      renderOrder={-900}
-      raycast={noRaycast}
-    />
+    <group name="ground" position={[0, GROUND_Y, 0]}>
+      {PARTS.map((part) => (
+        <mesh
+          key={part}
+          name={`ground-${part}`}
+          geometry={geometry[part]}
+          material={materials[part]}
+          // The court's ring over the clear middle's rim
+          renderOrder={part === 'middle' ? -900.1 : -900}
+          raycast={noRaycast}
+        />
+      ))}
+    </group>
   );
 };
 
@@ -917,14 +1115,22 @@ export const Stage = ({
   const squares = useEnvSetting(boardSquares);
   const pools = useEnvSetting(sculptureDetail) === 'full';
   const board = useMemo(() => ({ frame, squares, pools }), [frame, squares, pools]);
+  // The far plain's veil (horizonEdgeFix), on the sky's own colour (skyGlow)
+  const air = useSkyAir();
+  const veil = useEnvSetting(horizonEdgeFix) === 'on';
+  const sky: GroundSky = veil ? (air ? 'air' : 'today') : null;
+  // The court's stone and inlay, drawn in the ground's own pass
+  const floor = useEnvSetting(courtFloor);
+  const inlay = useEnvSetting(courtInlay);
+  const look = useMemo(() => ({ board, sky, floor, inlay }), [board, sky, floor, inlay]);
   const turn = orientation === 'black' ? -1 : 1;
   return (
     <>
       <EnvRedraw />
       <CameraFloor />
       <Heavens />
-      <Sky />
-      <Ground board={board} />
+      <Sky round={veil} />
+      <Ground look={look} />
       <Sculptures turn={turn} shade={shade} dim={dim} whole={fix} />
       <Mist />
       <SkyDetail turn={turn} shade={shade} dim={dim} />

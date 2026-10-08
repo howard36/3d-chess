@@ -1,26 +1,8 @@
 import { BufferAttribute, BufferGeometry } from 'three';
-import { TOWER_SHADE } from './mask';
 import { GROUND_Y } from './palette';
 
-/**
- * GLSL for a vertex shader: `float shadeOfClip(vec4
- * clip)`, the tower's shade (mask.ts's TOWER_SHADE, the same function) at a
- * vertex, from its clip position, 0 behind the camera. The court is faint
- * and its meshes fine enough that the shade between vertices is as good as
- * the shade per pixel, and a vertex is far cheaper (software rendering pays
- * for every pixel of the court whenever the camera moves). Needs
- * shadeUniforms().
- */
-export const SHADE_AT_VERTEX = `${TOWER_SHADE.replace(
-  'float towerShade() {',
-  'float towerShadeAt(vec2 p) {',
-).replace(/\n\s*vec2 p = gl_FragCoord[^\n]*\n\s*p\.x \*= uShadeViewport\.z;/, '')}
-  float shadeOfClip(vec4 clip) {
-    if (clip.w <= 0.0) return 0.0;
-    vec2 p = clip.xy / clip.w;
-    p.x *= uShadeViewport.z;
-    return towerShadeAt(p);
-  }`;
+// The tower's shade at a vertex (mask.ts), as the court's meshes take it
+export { SHADE_AT_VERTEX } from './mask';
 
 // The court's plan (court.tsx): where its slabs meet, where the inlay's
 // rings and spokes run, where the stepping stones lie and where the moss
@@ -46,20 +28,17 @@ export const COURT_SLABS = /* glsl */ `
   bool jointBefore(float c, float k) {
     return mod(2.0 * c + 3.0 * k, 5.0) < 1.5;
   }
+  // The slab round cell c of row k: its first and last cells. The joints
+  // repeat every five cells, so how far back the joint before c lies, and
+  // how far on the one after it, follow from m = (2c + 3k) mod 5 alone
+  // (each cell back takes 2 from m, each on adds 2): no search
   vec4 slabOf(vec2 p) {
     float k = floor(p.y / ${SLAB.row.toFixed(1)});
     float c = floor(p.x / ${SLAB.cell.toFixed(1)});
-    float a = c;
-    for (int i = 0; i < 4; i++) {
-      if (jointBefore(a, k)) break;
-      a -= 1.0;
-    }
-    float b = c + 1.0;
-    for (int i = 0; i < 4; i++) {
-      if (jointBefore(b, k)) break;
-      b += 1.0;
-    }
-    return vec4(a, b - 1.0, k, 0.0);
+    float m = mod(2.0 * c + 3.0 * k, 5.0);
+    float back = m < 1.5 ? 0.0 : m < 3.5 ? 1.0 : 2.0;
+    float on = m > 2.5 ? 0.0 : m > 0.5 ? 1.0 : 2.0;
+    return vec4(c - back, c + on, k, 0.0);
   }`;
 
 /** The inlay: its rings' radii, and the spokes between them. */

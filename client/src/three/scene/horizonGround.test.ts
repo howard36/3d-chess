@@ -1,37 +1,67 @@
 import { describe, expect, it } from 'vitest';
-import { GROUND_RADIUS, groundFan } from './horizonGround';
+import type { BufferGeometry } from 'three';
+import { GROUND_RADIUS, groundParts } from './horizonGround';
 import { VEIL } from './horizon';
 
 // The plain's footprint: a disc nearly as wide as the sky, rim the same
-// distance off on every side, and the veil thick before any rim is reached.
+// distance off on every side, in parts that meet with no seam, and the veil
+// thick before any rim is reached.
 
-const rim = (fan: Float32Array) => {
-  const out: [number, number][] = [];
-  for (let i = 3; i < fan.length; i += 3) out.push([fan[i], fan[i + 2]]);
-  return out;
+const points = (g: BufferGeometry) => {
+  const p = g.getAttribute('position');
+  return Array.from({ length: p.count }, (_, i): [number, number, number] => [
+    p.getX(i),
+    p.getY(i),
+    p.getZ(i),
+  ]);
 };
+/** The outermost ring of a part (its last rays + 1 vertices). */
+const rim = (g: BufferGeometry, rays = 128) => points(g).slice(-(rays + 1));
+/** The innermost ring of a part (its first rays + 1 vertices). */
+const inner = (g: BufferGeometry) => points(g).slice(0, 129);
 
 describe('the plain', () => {
-  it('is a disc inside the sky, centred on the tower', () => {
-    const fan = groundFan();
-    expect([fan[0], fan[1], fan[2]]).toEqual([0, 0, 0]);
-    for (const [x, z] of rim(fan)) expect(Math.hypot(x, z)).toBeCloseTo(GROUND_RADIUS, 3);
+  it('is a disc inside the sky, centred on the tower, all of it on the ground', () => {
+    const { middle, court, board, far } = groundParts(17, 29, 38, false, true);
+    for (const g of [middle, court, board, far]) for (const [, y] of points(g)) expect(y).toBe(0);
+    for (const [x, , z] of rim(far)) expect(Math.hypot(x, z)).toBeCloseTo(GROUND_RADIUS, 3);
     expect(GROUND_RADIUS).toBeLessThan(400);
   });
 
+  it('is in parts that meet with no seam: the clear middle, the court, the board to its band, the rest', () => {
+    const { middle, court, board, far } = groundParts(17, 29, 38, false, true);
+    // The middle reaches under the court's ring all round (its sides past the ring's hole)
+    const m = rim(middle, 64);
+    for (let i = 0; i + 1 < m.length; i++) {
+      const [a, b] = [m[i], m[i + 1]];
+      expect(Math.hypot((a[0] + b[0]) / 2, (a[2] + b[2]) / 2)).toBeGreaterThan(17);
+    }
+    for (const [x, , z] of inner(court)) expect(Math.hypot(x, z)).toBeCloseTo(17, 3);
+    expect(inner(board)).toEqual(rim(court));
+    expect(inner(far)).toEqual(rim(board));
+    for (const [x, , z] of rim(court)) expect(Math.hypot(x, z)).toBeCloseTo(29, 3);
+    for (const [x, , z] of rim(board))
+      expect(Math.max(Math.abs(x), Math.abs(z))).toBeCloseTo(38, 3);
+  });
+
   it('faces up', () => {
-    const fan = groundFan();
-    const [a, b] = [rim(fan)[0], rim(fan)[1]];
-    // (centre, a, b) counterclockwise seen from above: the cross product points up
-    const up = a[1] * b[0] - a[0] * b[1];
-    expect(up).toBeGreaterThan(0);
+    for (const g of Object.values(groundParts(17, 29, 38, false, true))) {
+      const p = points(g);
+      const index = g.getIndex()!;
+      for (let t = 0; t < index.count; t += 3) {
+        const [a, b, c] = [0, 1, 2].map((k) => p[index.getX(t + k)]);
+        // (a, b, c) counterclockwise seen from above, or of no area
+        const up = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+        expect(up).toBeGreaterThanOrEqual(-1e-6);
+      }
+    }
   });
 
   it('is main’s square with the fix off, its corners kept', () => {
-    const pts = rim(groundFan(true));
-    for (const [x, z] of pts) expect(Math.max(Math.abs(x), Math.abs(z))).toBeCloseTo(130, 3);
+    const pts = rim(groundParts(17, 29, 38, true, false).far);
+    for (const [x, , z] of pts) expect(Math.max(Math.abs(x), Math.abs(z))).toBeCloseTo(130, 3);
     const corners = pts.filter(
-      ([x, z]) => Math.abs(Math.abs(x) - 130) < 1e-3 && Math.abs(Math.abs(z) - 130) < 1e-3,
+      ([x, , z]) => Math.abs(Math.abs(x) - 130) < 1e-3 && Math.abs(Math.abs(z) - 130) < 1e-3,
     );
     expect(corners.length).toBeGreaterThanOrEqual(4);
   });

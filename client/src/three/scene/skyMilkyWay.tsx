@@ -12,7 +12,7 @@ import {
 import { noRaycast } from '../noRaycast';
 import { useDisposeOnUnmount } from './dispose';
 import { rng } from './textures';
-import { shadeUniforms, TOWER_SHADE } from './mask';
+import { SHADE_AT_VERTEX, shadeUniforms } from './mask';
 import { SKY_DETAIL } from './palette';
 import { starBuffers } from './skyChart';
 import { DEG, DOME } from './skyPlace';
@@ -153,20 +153,24 @@ const dustGeometry = (count: number) => {
 const glowVertex = /* glsl */ `
   attribute float aLight;
   varying float vLight;
+  varying float vLit;
+  ${SHADE_AT_VERTEX}
   void main() {
     vLight = aLight;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    // The tower's shade per vertex: the strip's mesh is fine (a degree or two)
+    vLit = 1.0 - shadeOfClip(gl_Position);
   }`;
 
 const glowFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uGain;
   varying float vLight;
-  ${TOWER_SHADE}
+  varying float vLit;
   void main() {
     float a = vLight * uGain;
     if (a < 2e-5) discard;
-    a *= 1.0 - towerShade();
+    a *= vLit;
     gl_FragColor = vec4(uColor * a, 1.0);
     #include <colorspace_fragment>
   }`;

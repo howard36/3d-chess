@@ -8,31 +8,25 @@ import {
   Color,
   CustomBlending,
   DoubleSide,
-  OneMinusSrcAlphaFactor,
   ShaderMaterial,
-  SrcAlphaFactor,
   SrcColorFactor,
   ZeroFactor,
 } from 'three';
 import type { GardenDetailProps } from './gardenDetail';
 import { noRaycast } from '../noRaycast';
 import { useDisposeOnUnmount } from './dispose';
-import { shadeUniforms, TOWER_SHADE } from './mask';
+import { SHADE_AT_VERTEX, shadeUniforms } from './mask';
 import { GROUND_Y, HORIZON, LEVEL_COLORS, PALETTE } from './palette';
-import { GROUND_RADIUS } from './horizonGround';
 import { BLACK_LOOK, RANGES, skylineOf, WHITE_LOOK } from './horizonSkyline';
 import type { Range } from './horizonSkyline';
 import { gardenBoost } from './stage';
 import { rng } from './textures';
 import { Lighthouse } from './horizonEvents';
-import { skyColorChunk } from './skyColor';
-import { skyAirUniforms, useSkyAir } from './skyDetail';
 // ENV PREVIEW (temporary): each part follows its setting
 import { useEnvSetting } from '../../envPreview';
 import {
   farTower,
   hills,
-  horizonEdgeFix,
   horizonEvents,
   horizonLights,
   horizonMist,
@@ -41,8 +35,9 @@ import {
 // Area D, the horizon and the far ground beyond the colossal board.
 //
 // The plain runs on to the end of the world: past the board it thickens
-// into the night's own haze (the veil), so it meets the sky at a level
-// horizon with no edge or corner from any side. Two ranges of low hills
+// into the night's own haze (the veil, drawn in the ground's own shader:
+// horizonGround.ts), so it meets the sky at a level horizon with no edge or
+// corner from any side. Two ranges of low hills
 // stand far off on it, near-black against the haze and given back faintly
 // by the polished stone; their skylines hide chess pieces worn into rock
 // (horizonSkyline.ts), one or two on each seat's side of the world. On
@@ -55,18 +50,16 @@ import {
 //
 // All of it is the garden's (backdropCache.tsx): ShaderMaterials in the
 // opaque list, writing no depth, drawn after the ground and never with
-// normal blending: the veil mixes by its own alpha, the hills and the tower
-// multiply what is behind them (so they hide the stars), the mist and the
-// lights add. Everything but the veil sinks into the tower's shade, the
-// dark things by fading to no effect. Nothing moves. The veil and the sky
-// do not turn; everything standing on the plain turns with the board for
+// normal blending: the hills and the tower multiply what is behind them (so
+// they hide the stars), the mist and the lights add. All of it sinks into
+// the tower's shade, the dark things by fading to no effect. Nothing moves.
+// The veil and the sky do not turn; everything standing on the plain turns with the board for
 // Black, so each seat looks out over its opponent's side of the world.
 
 const DEG = Math.PI / 180;
 
 /** Draw order, after the ground (-900) and the stars, before the sculptures. */
 const ORDER = {
-  veil: -899.5,
   farHills: -894,
   nearHills: -893,
   tower: -892,
@@ -94,113 +87,20 @@ const useDim = (dim: GardenDetailProps['dim']) => {
   return uniform;
 };
 
-// --- The veil: the plain thickening into the night ----------------------------------
+// The veil, the plain thickening into the night, is drawn in the ground's
+// own shader (stage.tsx, VEIL_VERTEX_GLSL in horizonGround.ts): one pass over the
+// plain, not two.
 
-/** Where the plain begins to thicken, and where it is the night's own (world units from the camera, across). */
-export const VEIL = [70, 330] as const;
-/** The sky's sphere (stage.tsx's Sky). */
-const SKY_RADIUS = 400;
-
-/** An annulus on the ground plane (y = 0), counterclockwise seen from above. */
-const annulus = (radii: readonly number[], segments: number) => {
-  const pos: number[] = [];
-  const index: number[] = [];
-  for (const r of radii)
-    for (let i = 0; i <= segments; i++) {
-      const a = (i / segments) * Math.PI * 2;
-      pos.push(Math.cos(a) * r, 0, -Math.sin(a) * r);
-    }
-  const row = segments + 1;
-  for (let j = 0; j < radii.length - 1; j++)
-    for (let i = 0; i < segments; i++) {
-      const a = j * row + i;
-      const b = a + row;
-      index.push(a, a + 1, b + 1, a, b + 1, b);
-    }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setIndex(index);
-  return g;
-};
-
-const veilVertex = /* glsl */ `
-  varying vec3 vWorld;
-  void main() {
-    vec4 w = modelMatrix * vec4(position, 1.0);
-    vWorld = w.xyz;
-    gl_Position = projectionMatrix * viewMatrix * w;
-  }`;
-
-/**
- * The veil: the sky's own colour where a ray from the camera meets the sky's
- * sphere (skyColor.ts, the very chunk the Sky draws with, either sky), mixed
- * over the plain more and more with distance, so far off the plain becomes
- * exactly what the sky shows there and no edge can be seen.
- */
-const veilFragment = (air: boolean) => /* glsl */ `
-  uniform vec2 uVeil;
-  varying vec3 vWorld;
-  ${skyColorChunk(air)}
-  void main() {
-    vec3 ray = vWorld - cameraPosition;
-    float across = length(ray.xz);
-    float a = smoothstep(uVeil.x, uVeil.y, across);
-    if (a < 0.002) discard;
-    // Where this ray meets the sky's sphere, and the sky's colour there
-    vec3 d = normalize(ray);
-    float b = dot(cameraPosition, d);
-    float c = dot(cameraPosition, cameraPosition) - ${(SKY_RADIUS * SKY_RADIUS).toFixed(1)};
-    float s = -b + sqrt(max(b * b - c, 0.0));
-    gl_FragColor = vec4(skyColor(normalize(cameraPosition + d * s)), a);
-    #include <colorspace_fragment>
-  }`;
-
-const HorizonVeil = () => {
-  // ENV PREVIEW (temporary): the sky with its air (skyGlow) or today's
-  const air = useSkyAir();
-  const parts = useMemo(
-    () => ({
-      geometry: annulus([Math.max(VEIL[0] - 55, 1), 120, 200, 300, GROUND_RADIUS], 128),
-      material: new ShaderMaterial({
-        depthWrite: false,
-        side: DoubleSide,
-        // Mixed over the ground by its own alpha (normal blending would draw
-        // opaque in the opaque list)
-        blending: CustomBlending,
-        blendEquation: AddEquation,
-        blendSrc: SrcAlphaFactor,
-        blendDst: OneMinusSrcAlphaFactor,
-        uniforms: {
-          uTop: { value: new Color(PALETTE.skyTop) },
-          uHorizon: { value: new Color(PALETTE.skyHorizon) },
-          uBottom: { value: new Color(PALETTE.skyBottom) },
-          uMist: { value: new Color(PALETTE.mist) },
-          ...(air ? skyAirUniforms() : {}),
-          uVeil: { value: [...VEIL] },
-        },
-        vertexShader: veilVertex,
-        fragmentShader: veilFragment(air),
-      }),
-    }),
-    [air],
-  );
-  useDisposeOnUnmount(parts);
-  return (
-    <mesh
-      name="horizon-veil"
-      geometry={parts.geometry}
-      material={parts.material}
-      position={[0, GROUND_Y, 0]}
-      renderOrder={ORDER.veil}
-      frustumCulled={false}
-      raycast={noRaycast}
-    />
-  );
-};
+export { VEIL } from './horizonGround';
 
 // --- The far hills -------------------------------------------------------------------
 
-/** A range as a band round the horizon: its foot on the ground, its top on the skyline. */
+/**
+ * A range as a band round the horizon: its foot on the ground, its top on
+ * the skyline; then the same again, marked (aMirror) to be drawn as the
+ * polished stone gives it back, in the same draw (both multiply what is
+ * behind them, which comes out the same in either order).
+ */
 const rangeGeometry = (range: Range) => {
   const { azimuth, columns } = skylineOf(range);
   const pos: number[] = [];
@@ -226,38 +126,53 @@ const rangeGeometry = (range: Range) => {
     for (let j = 0; j + 1 < c0.length; j += 2)
       quad(a0, c0[j], c0[j + 1], a1, same ? c1[j] : c0[j], same ? c1[j + 1] : c0[j + 1]);
   }
+  return withReflection(pos, index);
+};
+
+/** A drawing's corners and triangles, then again marked as its reflection (aMirror). */
+const withReflection = (pos: number[], index: number[]) => {
+  const n = pos.length / 3;
   const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setIndex(index);
+  g.setAttribute('position', new BufferAttribute(new Float32Array([...pos, ...pos]), 3));
+  const mirror = new Float32Array(2 * n);
+  mirror.fill(1, n);
+  g.setAttribute('aMirror', new BufferAttribute(mirror, 1));
+  g.setIndex([...index, ...index.map((i) => i + n)]);
   return g;
 };
 
 const hillVertex = /* glsl */ `
   uniform float uGround;
-  uniform float uMirror;
+  attribute float aMirror;
+  varying float vMirror;
   varying float vY;
   varying vec3 vWorld;
+  varying float vLit;
+  ${SHADE_AT_VERTEX}
   void main() {
     vec4 w = modelMatrix * vec4(position, 1.0);
     vY = w.y - uGround;
     // Given back by the polished stone: mirrored about the ground
-    if (uMirror > 0.5) w.y = 2.0 * uGround - w.y;
+    vMirror = aMirror;
+    if (aMirror > 0.5) w.y = 2.0 * uGround - w.y;
     vWorld = w.xyz;
     gl_Position = projectionMatrix * viewMatrix * w;
+    // The tower's shade per vertex (a ridge's columns are 0.4° apart)
+    vLit = 1.0 - shadeOfClip(gl_Position);
   }`;
 
 const hillFragment = /* glsl */ `
   uniform vec3 uShadow;
   uniform float uFoot;
-  uniform float uMirror;
   uniform float uDim;
+  varying float vMirror;
   varying float vY;
   varying vec3 vWorld;
-  ${TOWER_SHADE}
+  varying float vLit;
   void main() {
     // Mist lies at their feet: the foot fades to no shadow at all
     float amount = smoothstep(0.0, uFoot, vY);
-    if (uMirror > 0.5) {
+    if (vMirror > 0.5) {
       // The reflection: fainter, fading down into the stone
       amount *= 0.22 * (1.0 - 0.6 * smoothstep(0.0, 18.0, vY));
     } else {
@@ -266,12 +181,12 @@ const hillFragment = /* glsl */ `
       float up = normalize(vWorld - cameraPosition).y;
       amount *= mix(0.45, 1.0, smoothstep(-0.035, 0.0, up));
     }
-    amount *= (1.0 - towerShade()) * mix(0.5, 1.0, uDim);
+    amount *= vLit * mix(0.5, 1.0, uDim);
     // Written as a multiplier for what is behind (no colour conversion)
     gl_FragColor = vec4(mix(vec3(1.0), uShadow, amount), 1.0);
   }`;
 
-const hillMaterial = (shadow: string, foot: number, mirror: boolean, dim: { value: number }) =>
+const hillMaterial = (shadow: string, foot: number, dim: { value: number }) =>
   new ShaderMaterial({
     depthWrite: false,
     side: DoubleSide,
@@ -280,7 +195,6 @@ const hillMaterial = (shadow: string, foot: number, mirror: boolean, dim: { valu
       ...shadeUniforms(),
       uShadow: { value: displayColor(shadow) },
       uFoot: { value: foot },
-      uMirror: { value: mirror ? 1 : 0 },
       uGround: { value: GROUND_Y },
       uDim: dim,
     },
@@ -294,10 +208,8 @@ const Hills = ({ chess, dim }: { chess: boolean; dim: { value: number } }) => {
     return {
       far,
       near,
-      farMaterial: hillMaterial(HORIZON.hillFar, 7, false, dim),
-      farMirror: hillMaterial(HORIZON.hillFar, 7, true, dim),
-      nearMaterial: hillMaterial(HORIZON.hillNear, 3, false, dim),
-      nearMirror: hillMaterial(HORIZON.hillNear, 3, true, dim),
+      farMaterial: hillMaterial(HORIZON.hillFar, 7, dim),
+      nearMaterial: hillMaterial(HORIZON.hillNear, 3, dim),
     };
   }, [chess, dim]);
   useDisposeOnUnmount(parts);
@@ -314,9 +226,7 @@ const Hills = ({ chess, dim }: { chess: boolean; dim: { value: number } }) => {
   );
   return (
     <group name="horizon-hills">
-      {mesh('far-hills-mirror', parts.far, parts.farMirror, ORDER.farHills)}
       {mesh('far-hills', parts.far, parts.farMaterial, ORDER.farHills)}
-      {mesh('near-hills-mirror', parts.near, parts.nearMirror, ORDER.nearHills)}
       {mesh('near-hills', parts.near, parts.nearMaterial, ORDER.nearHills)}
     </group>
   );
@@ -360,40 +270,43 @@ const towerGeometry = () => {
     quad(-w0, w0, -w1, w1, y0, y1);
   }
   for (const [x0, x1, y0, y1] of MERLONS) quad(x0, x1, x0, x1, y0, y1);
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setIndex(index);
-  return g;
+  // And its reflection in the stone, in the same draw
+  return withReflection(pos, index);
 };
 
 const towerVertex = /* glsl */ `
   uniform vec3 uAnchor;
-  uniform float uMirror;
+  attribute float aMirror;
+  varying float vMirror;
   varying float vY;
+  varying float vLit;
+  ${SHADE_AT_VERTEX}
   void main() {
     vec3 anchor = (modelMatrix * vec4(uAnchor, 1.0)).xyz;
     vec2 h = normalize((cameraPosition - anchor).xz + vec2(1e-5, 0.0));
     vec3 right = vec3(h.y, 0.0, -h.x);
     vec3 p = anchor + right * position.x + vec3(0.0, position.y, 0.0);
     vY = position.y;
-    if (uMirror > 0.5) p.y = 2.0 * anchor.y - p.y;
+    vMirror = aMirror;
+    if (aMirror > 0.5) p.y = 2.0 * anchor.y - p.y;
     gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+    vLit = 1.0 - shadeOfClip(gl_Position);
   }`;
 
 const towerFragment = /* glsl */ `
   uniform vec3 uShadow;
-  uniform float uMirror;
   uniform float uDim;
+  varying float vMirror;
   varying float vY;
-  ${TOWER_SHADE}
+  varying float vLit;
   void main() {
     float amount = smoothstep(0.0, 1.2, vY);
-    if (uMirror > 0.5) amount *= 0.4 * (1.0 - 0.6 * smoothstep(0.0, 8.0, vY));
-    amount *= (1.0 - towerShade()) * mix(0.5, 1.0, uDim);
+    if (vMirror > 0.5) amount *= 0.4 * (1.0 - 0.6 * smoothstep(0.0, 8.0, vY));
+    amount *= vLit * mix(0.5, 1.0, uDim);
     gl_FragColor = vec4(mix(vec3(1.0), uShadow, amount), 1.0);
   }`;
 
-const towerMaterial = (anchor: number[], mirror: boolean, dim: { value: number }) =>
+const towerMaterial = (anchor: number[], dim: { value: number }) =>
   new ShaderMaterial({
     depthWrite: false,
     side: DoubleSide,
@@ -402,7 +315,6 @@ const towerMaterial = (anchor: number[], mirror: boolean, dim: { value: number }
       ...shadeUniforms(),
       uAnchor: { value: anchor },
       uShadow: { value: displayColor(HORIZON.tower) },
-      uMirror: { value: mirror ? 1 : 0 },
       uDim: dim,
     },
     vertexShader: towerVertex,
@@ -420,14 +332,16 @@ const lightVertex = /* glsl */ `
   attribute vec3 aColor;
   varying float vBright;
   varying vec3 vColor;
+  ${SHADE_AT_VERTEX}
   void main() {
     vec4 w = modelMatrix * vec4(position, 1.0);
     // A light's twin in the polished stone, fainter
     if (aMirror > 0.5) w.y = 2.0 * uGround - w.y;
-    vBright = aBright;
     vColor = aColor;
     gl_Position = projectionMatrix * viewMatrix * w;
     gl_PointSize = aSize * uDpr;
+    // A point is a few pixels: its shade at its centre
+    vBright = aBright * (1.0 - shadeOfClip(gl_Position));
   }`;
 
 const lightFragment = /* glsl */ `
@@ -435,10 +349,9 @@ const lightFragment = /* glsl */ `
   uniform float uDim;
   varying float vBright;
   varying vec3 vColor;
-  ${TOWER_SHADE}
   void main() {
     vec2 p = gl_PointCoord * 2.0 - 1.0;
-    float a = exp(-dot(p, p) * 3.0) * vBright * uLight * uDim * (1.0 - towerShade());
+    float a = exp(-dot(p, p) * 3.0) * vBright * uLight * uDim;
     if (a < 0.002) discard;
     gl_FragColor = vec4(vColor * a, 1.0);
     #include <colorspace_fragment>
@@ -507,8 +420,7 @@ const FarTower = ({ dim }: { dim: { value: number } }) => {
     const lamp = onPlain(TOWER_AT.azimuth, TOWER_AT.radius - 1, WINDOW_Y);
     return {
       geometry: towerGeometry(),
-      material: towerMaterial(anchor, false, dim),
-      mirror: towerMaterial(anchor, true, dim),
+      material: towerMaterial(anchor, dim),
       window: lightGeometry([{ at: lamp, size: 2.2, bright: 0.55, color: HORIZON.window }], 0.2),
       windowMaterial: lightMaterial(dim),
     };
@@ -527,13 +439,6 @@ const FarTower = ({ dim }: { dim: { value: number } }) => {
   });
   return (
     <group name="horizon-tower">
-      <mesh
-        geometry={parts.geometry}
-        material={parts.mirror}
-        renderOrder={ORDER.tower}
-        frustumCulled={false}
-        raycast={noRaycast}
-      />
       <mesh
         geometry={parts.geometry}
         material={parts.material}
@@ -629,21 +534,49 @@ const BANKS = [
   { radius: 250, y: 4.0, depth: 5.5, light: 0.022, seed: 2.2 },
 ] as const;
 
-/** An open cylinder round the axis, its foot on the ground (y = 0). */
+/**
+ * How high a bank's cylinder reaches, in its depths above its densest layer:
+ * past this its light (exp(-dy²), at most every bank's light at full clump)
+ * is under the least the shader draws, so nothing is cut off.
+ */
+const BANK_TOP = 1.85;
+
+/**
+ * Bank's clump round the plain (whole waves round, so they close up), as the
+ * shader's: worked out per vertex, 1.5° apart, where it bends gently.
+ */
+const clumpOf = (az: number, seed: number) =>
+  Math.min(
+    Math.max(
+      0.55 +
+        0.3 * Math.sin(az * 3 + seed) +
+        0.2 * Math.sin(az * 7 + seed * 2.7) +
+        0.12 * Math.sin(az * 13 + seed * 5.1),
+      0,
+    ),
+    1,
+  );
+
+/**
+ * An open cylinder round the axis for each bank, its foot on the ground
+ * (y = 0), each vertex carrying its bank's layer (height, depth, light,
+ * and its clump there).
+ */
 const bankGeometry = () => {
-  const segments = 160;
+  const segments = 240;
   const pos: number[] = [];
-  const bank: number[] = [];
+  const layer: number[] = [];
   const index: number[] = [];
-  BANKS.forEach(({ radius, y, depth }, k) => {
+  BANKS.forEach(({ radius, y, depth, light, seed }) => {
     const base = pos.length / 3;
-    const top = y + depth * 2.2;
+    const top = y + depth * BANK_TOP;
     for (let i = 0; i <= segments; i++) {
       const a = (i / segments) * Math.PI * 2;
       const x = Math.sin(a) * radius;
       const z = Math.cos(a) * radius;
+      const clump = clumpOf(Math.atan2(x, z), seed);
       pos.push(x, 0, z, x, top, z);
-      bank.push(k, k);
+      layer.push(y, depth, light * clump, y, depth, light * clump);
     }
     for (let i = 0; i < segments; i++) {
       const a = base + i * 2;
@@ -652,45 +585,36 @@ const bankGeometry = () => {
   });
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setAttribute('aBank', new BufferAttribute(new Float32Array(bank), 1));
+  g.setAttribute('aLayer', new BufferAttribute(new Float32Array(layer), 3));
   g.setIndex(index);
   return g;
 };
 
 const bankVertex = /* glsl */ `
-  attribute float aBank;
-  varying vec3 vLocal;
-  varying float vBank;
+  uniform float uDim;
+  attribute vec3 aLayer;
+  varying float vY;
+  varying vec2 vLayer;
+  varying float vLight;
+  ${SHADE_AT_VERTEX}
   void main() {
-    vLocal = position;
-    vBank = aBank;
+    vY = position.y;
+    vLayer = aLayer.xy;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    // Its light in banks and gaps round the plain, into the tower's shade
+    vLight = aLayer.z * uDim * (1.0 - shadeOfClip(gl_Position));
   }`;
 
 const bankFragment = /* glsl */ `
   uniform vec3 uColor;
-  uniform vec3 uY;
-  uniform vec3 uDepth;
-  uniform vec3 uLight;
-  uniform vec3 uSeed;
-  uniform float uDim;
-  varying vec3 vLocal;
-  varying float vBank;
-  ${TOWER_SHADE}
+  varying float vY;
+  varying vec2 vLayer;
+  varying float vLight;
   void main() {
-    int k = int(vBank + 0.5);
-    float y0 = k == 0 ? uY.x : k == 1 ? uY.y : uY.z;
-    float depth = k == 0 ? uDepth.x : k == 1 ? uDepth.y : uDepth.z;
-    float light = k == 0 ? uLight.x : k == 1 ? uLight.y : uLight.z;
-    float seed = k == 0 ? uSeed.x : k == 1 ? uSeed.y : uSeed.z;
     // Lying low and thinning upward
-    float dy = (vLocal.y - y0) / depth;
-    float v = exp(-dy * dy) * smoothstep(0.0, y0 * 1.6, vLocal.y);
-    // In banks and gaps round the plain (whole waves round, so they close up)
-    float az = atan(vLocal.x, vLocal.z);
-    float clump = 0.55 + 0.3 * sin(az * 3.0 + seed) + 0.2 * sin(az * 7.0 + seed * 2.7)
-      + 0.12 * sin(az * 13.0 + seed * 5.1);
-    float a = v * clamp(clump, 0.0, 1.0) * light * uDim * (1.0 - towerShade());
+    float dy = (vY - vLayer.x) / vLayer.y;
+    float v = exp(-dy * dy) * smoothstep(0.0, vLayer.x * 1.6, vY);
+    float a = v * vLight;
     if (a < 0.0008) discard;
     gl_FragColor = vec4(uColor * a, 1.0);
     #include <colorspace_fragment>
@@ -707,10 +631,6 @@ const FarMist = ({ dim }: { dim: { value: number } }) => {
         uniforms: {
           ...shadeUniforms(),
           uColor: { value: new Color(HORIZON.mist) },
-          uY: { value: BANKS.map((b) => b.y) },
-          uDepth: { value: BANKS.map((b) => b.depth) },
-          uLight: { value: BANKS.map((b) => b.light) },
-          uSeed: { value: BANKS.map((b) => b.seed) },
           uDim: dim,
         },
         vertexShader: bankVertex,
@@ -735,7 +655,6 @@ const FarMist = ({ dim }: { dim: { value: number } }) => {
 
 /** The horizon and the far ground; each part only while its setting is on. */
 export const Horizon = ({ turn, dim }: GardenDetailProps) => {
-  const veil = useEnvSetting(horizonEdgeFix);
   const ranges = useEnvSetting(hills);
   const tower = useEnvSetting(farTower);
   const mist = useEnvSetting(horizonMist);
@@ -744,7 +663,6 @@ export const Horizon = ({ turn, dim }: GardenDetailProps) => {
   const quiet = useDim(dim);
   return (
     <>
-      {veil === 'on' && <HorizonVeil />}
       <group name="horizon" rotation-y={turn < 0 ? Math.PI : 0}>
         {ranges !== 'off' && <Hills chess={ranges === 'chess'} dim={quiet} />}
         {tower === 'on' && <FarTower dim={quiet} />}

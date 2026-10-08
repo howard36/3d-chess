@@ -2,7 +2,7 @@ import { Color } from 'three';
 import { rng } from './textures';
 import { PALETTE, SKY_DETAIL } from './palette';
 import { starBuffers } from './skyChart';
-import { angleBetween, DEG, DOME, skyDirection } from './skyPlace';
+import { DEG, DOME, skyDirection } from './skyPlace';
 
 // The richer field of stars (envPreview `stars: rich`). Nothing above about
 // 33° is ever on screen, so every star is spent between 1° and 36°, even
@@ -54,14 +54,34 @@ export const richField = (avoid: readonly (readonly number[])[]): FieldBuffers =
   const span = Math.exp(k * 6.5) - 1;
   const lo = Math.sin(BOTTOM * DEG);
   const hi = Math.sin(TOP * DEG);
+  // The figures' stars and their lengths, once (angleBetween's, so the
+  // angles come out the same to the last bit)
+  const flat = Float64Array.from(avoid.flatMap((a) => [a[0], a[1], a[2]]));
+  const avoidLength = Float64Array.from(avoid, (a) => Math.hypot(a[0], a[1], a[2]));
+  /**
+   * The angle to the nearest figure's star (degrees): angleBetween's, but
+   * the arc cosine taken once, of the nearest's cosine (it falls as the
+   * cosine rises, so the least angle is the greatest cosine's), as a page
+   * load waits on this for every star.
+   */
+  const nearest = (dir: readonly number[]) => {
+    const la = Math.hypot(dir[0], dir[1], dir[2]);
+    let most = -Infinity;
+    for (let i = 0; i < avoidLength.length; i++) {
+      const j = i * 3;
+      const d =
+        (dir[0] * flat[j] + dir[1] * flat[j + 1] + dir[2] * flat[j + 2]) / (la * avoidLength[i]);
+      if (d > most) most = d;
+    }
+    return avoid.length ? Math.min(180, Math.acos(Math.min(1, Math.max(-1, most))) / DEG) : 180;
+  };
   const push = (dir: number[], m: number, c: Color) => {
     const el = Math.asin(dir[1]) / DEG;
     // Into the haze low down: the faint first
     const haze = Math.min(Math.max((el - BOTTOM) / 9, 0), 1);
     let b = brightness(m) * (0.22 + 0.78 * haze ** (m > 3 ? 1.4 : 0.8));
     // Clear of the figures: within 2° of a constellation's star, only dust
-    let near = 180;
-    for (const a of avoid) near = Math.min(near, angleBetween(dir, a));
+    const near = nearest(dir);
     if (near < 2.2) b = Math.min(b, 0.07 + 0.03 * (near / 2.2));
     out.pos.push(dir[0] * DOME, dir[1] * DOME, dir[2] * DOME);
     out.size.push(near < 2.2 ? Math.min(sizeOf(m), 1.4) : sizeOf(m));

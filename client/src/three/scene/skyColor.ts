@@ -2,11 +2,13 @@ import { TOWER_SHADE } from './mask';
 
 // The night sky's colour in a direction from the sky sphere's centre, as
 // GLSL `vec3 skyColor(vec3 d)`: one chunk shared by the Sky (stage.tsx),
-// which draws it, and the horizon's veil (horizon.tsx), which thickens the
-// far plain into exactly what the sky shows behind it, so the plain meets
-// the sky with no step. Two skies (envPreview `skyGlow`): today's, and one
-// with more air in it. Each needs the uniforms uTop, uHorizon, uBottom and
-// uMist; the airy one also uAir and shadeUniforms() (skyAirUniforms).
+// which draws it, and the ground's veil (stage.tsx), which thickens the far
+// plain into exactly what the sky shows behind it, so the plain meets the
+// sky with no step. Two skies (envPreview `skyGlow`): today's, and one with
+// more air in it. Each needs the uniforms uTop, uHorizon, uBottom and uMist;
+// the airy one also uAir and shadeUniforms() (skyAirUniforms). A shader that
+// has the tower's shade at hand already (the ground's) takes the chunk
+// without it (`skyColorBody`) and calls `skyColorShaded(d, shade)`.
 
 /** The sky's gradient and the breath of mist along its horizon (both skies). */
 const SKY_BASE = /* glsl */ `
@@ -39,6 +41,9 @@ export const SKY_TODAY_COLOR = /* glsl */ `
     float bank = smoothstep(low + 0.014, low - 0.004, h) * smoothstep(-0.05, -0.005, h);
     float stratum = exp(-pow((h - high) / 0.007, 2.0));
     return c + uMist * (bank * 0.014 + stratum * 0.008);
+  }
+  vec3 skyColorShaded(vec3 d, float shade) {
+    return skyColor(d);
   }`;
 
 /**
@@ -48,11 +53,10 @@ export const SKY_TODAY_COLOR = /* glsl */ `
  * over the horizon, and above it a thin, broken stratum. All of it added
  * light, so all of it sinks into the tower's shade.
  */
-export const SKY_AIR_COLOR = /* glsl */ `
+const SKY_AIR_BODY = /* glsl */ `
   ${SKY_BASE}
   uniform vec3 uAir;
-  ${TOWER_SHADE}
-  vec3 skyColor(vec3 d) {
+  vec3 skyColorShaded(vec3 d, float shade) {
     float h = d.y;
     vec3 c = skyBase(d);
     // Whole waves round the horizon, so everything closes up behind
@@ -66,9 +70,22 @@ export const SKY_AIR_COLOR = /* glsl */ `
     float broken = smoothstep(-0.3, 0.7, sin(az * 4.0 + 1.3) + 0.5 * sin(az * 9.0 + 0.2));
     float stratum = exp(-pow((h - high) / 0.009, 2.0)) * broken;
     add += uMist * (bank * 0.028 + stratum * 0.013);
-    if (add.b > 2e-5) add *= 1.0 - towerShade();
+    if (add.b > 2e-5) add *= 1.0 - shade;
     return c + add;
+  }`;
+
+export const SKY_AIR_COLOR = /* glsl */ `
+  ${SKY_AIR_BODY}
+  ${TOWER_SHADE}
+  vec3 skyColor(vec3 d) {
+    return skyColorShaded(d, towerShade());
   }`;
 
 /** The sky's colour chunk for a sky with (envPreview `skyGlow: on`) or without its air. */
 export const skyColorChunk = (air: boolean) => (air ? SKY_AIR_COLOR : SKY_TODAY_COLOR);
+
+/**
+ * The chunk without the tower's shade, for a shader that includes
+ * TOWER_SHADE itself: only `skyColorShaded(d, shade)` (either sky).
+ */
+export const skyColorBody = (air: boolean) => (air ? SKY_AIR_BODY : SKY_TODAY_COLOR);

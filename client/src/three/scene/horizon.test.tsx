@@ -24,7 +24,6 @@ afterEach(() => {
 });
 
 const PARTS = [
-  'horizon-veil',
   'horizon-hills',
   'horizon-tower',
   'horizon-mist',
@@ -60,11 +59,27 @@ describe('the horizon', () => {
       });
   });
 
-  it('turns with the board for Black, but not its veil', async () => {
+  it('turns with the board for Black, but not its veil (the ground’s own)', async () => {
     withEnv('?env=recommended');
     const { scene } = await mount('black');
     expect(scene.getObjectByName('horizon')!.rotation.y).toBeCloseTo(Math.PI);
-    expect(scene.getObjectByName('horizon-veil')!.parent!.name).not.toBe('horizon');
+    const ground = scene.getObjectByName('ground')!;
+    expect(ground.rotation.y).toBe(0);
+    for (const part of ['middle', 'court', 'board', 'far']) {
+      const m = (ground.getObjectByName(`ground-${part}`) as Mesh).material as ShaderMaterial;
+      // Worked out per vertex, mixed in per pixel
+      expect(m.vertexShader, part).toContain('skyColorShaded');
+      expect(m.fragmentShader, part).toContain('vVeil');
+    }
+  });
+
+  it('veils the plain only with its edge fixed, main’s square plain otherwise', async () => {
+    withEnv('?env=recommended,horizonEdgeFix:off');
+    const { scene } = await mount();
+    const far = scene.getObjectByName('ground-far') as Mesh;
+    expect((far.material as ShaderMaterial).vertexShader).not.toContain('skyColorShaded');
+    far.geometry.computeBoundingBox();
+    expect(far.geometry.boundingBox!.max.x).toBeCloseTo(130, 3);
   });
 
   it('keeps its lighthouse unlit at rest, drawn from the first frame', async () => {

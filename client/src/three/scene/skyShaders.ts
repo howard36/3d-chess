@@ -1,5 +1,5 @@
 import { AdditiveBlending, Color, ShaderMaterial } from 'three';
-import { shadeUniforms, TOWER_SHADE } from './mask';
+import { SHADE_AT_VERTEX, shadeUniforms } from './mask';
 import { GROUND_Y, PALETTE } from './palette';
 
 // The richer sky's two programs (heavens.tsx, skyChart.ts, skyDetail.tsx):
@@ -11,7 +11,9 @@ import { GROUND_Y, PALETTE } from './palette';
 // matrix, and the light is weighed by the stone's fresnel where the eye's ray
 // meets it. Everything sinks into the tower's shade (mask.ts), and like the
 // rest of the garden it is light added in three.js's opaque list
-// (backdropCache.tsx).
+// (backdropCache.tsx). The shade and the stone's weight are worked out per
+// vertex: a star is a few pixels across and a line a short run between
+// two, so that is as good as per pixel and far cheaper in software.
 
 /**
  * GLSL: `float stoneWeight(vec3 world)`: 1 for the sky itself, or, mirrored,
@@ -44,15 +46,15 @@ const pointVertex = /* glsl */ `
   varying float vBright;
   varying float vSize;
   varying vec3 vColor;
-  varying vec3 vWorld;
+  ${SHADE_AT_VERTEX}
+  ${STONE}
   void main() {
-    vBright = aBright;
     vColor = aColor;
     vSize = aSize * uSizeScale;
     vec4 w = modelMatrix * vec4(position, 1.0);
-    vWorld = w.xyz;
     gl_Position = projectionMatrix * viewMatrix * w;
     gl_PointSize = vSize * uDpr;
+    vBright = aBright * stoneWeight(w.xyz) * (1.0 - shadeOfClip(gl_Position));
   }`;
 
 const pointFragment = /* glsl */ `
@@ -61,9 +63,6 @@ const pointFragment = /* glsl */ `
   varying float vBright;
   varying float vSize;
   varying vec3 vColor;
-  varying vec3 vWorld;
-  ${TOWER_SHADE}
-  ${STONE}
   void main() {
     vec2 p = gl_PointCoord * 2.0 - 1.0;
     float r = length(p);
@@ -73,7 +72,6 @@ const pointFragment = /* glsl */ `
     float core = 1.0 - smoothstep(0.0, 0.42, r);
     float big = smoothstep(2.4, 3.6, vSize) * uSharp;
     float a = mix(soft, core * 0.8 + soft * 0.32, big) * vBright * uOpacity;
-    a *= stoneWeight(vWorld) * (1.0 - towerShade());
     if (a < 0.002) discard;
     gl_FragColor = vec4(vColor * a, 1.0);
     #include <colorspace_fragment>
@@ -123,14 +121,16 @@ const lineVertex = /* glsl */ `
   varying float vAlong;
   varying float vFigure;
   varying float vBase;
-  varying vec3 vWorld;
+  varying float vLit;
+  ${SHADE_AT_VERTEX}
+  ${STONE}
   void main() {
     vAlong = aAlong;
     vFigure = aFigure;
     vBase = aBase;
     vec4 w = modelMatrix * vec4(position, 1.0);
-    vWorld = w.xyz;
     gl_Position = projectionMatrix * viewMatrix * w;
+    vLit = stoneWeight(w.xyz) * (1.0 - shadeOfClip(gl_Position));
   }`;
 
 const lineFragment = /* glsl */ `
@@ -142,9 +142,7 @@ const lineFragment = /* glsl */ `
   varying float vAlong;
   varying float vFigure;
   varying float vBase;
-  varying vec3 vWorld;
-  ${TOWER_SHADE}
-  ${STONE}
+  varying float vLit;
   void main() {
     float a = uOpacity * vBase;
     // The traced figure: its lines lit behind a soft running head
@@ -152,7 +150,7 @@ const lineFragment = /* glsl */ `
     float behind = uTraceHead - vAlong;
     float head = exp(-behind * behind / 0.0011);
     a += traced * uTraceLight * (step(0.0, behind) * 0.07 + head * 0.24);
-    a *= stoneWeight(vWorld) * (1.0 - towerShade());
+    a *= vLit;
     if (a < 0.002) discard;
     gl_FragColor = vec4(uColor * a, 1.0);
     #include <colorspace_fragment>
