@@ -426,8 +426,9 @@ export const Levels = ({
         const tint = new Color(hex);
         // How far the level has built itself (1: whole), shared by its glass and edge
         const build = { value: 1 };
-        // The edge: one thin square of the level's light, lifted toward white
-        const edgeColor = tint.clone().lerp(WHITE, 0.3);
+        // The edge: one thin square of the level's light, lifted only a breath
+        // toward white, so it keeps the level's colour at its full strength
+        const edgeColor = tint.clone().lerp(WHITE, 0.04);
         return {
           glass: new ShaderMaterial({
             transparent: true,

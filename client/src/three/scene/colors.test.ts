@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hexToOklch, levelRamp, oklchToHex } from './colors';
+import { hexToOklch, levelRamp, okhsvToOklch, oklchToHex, oklchToOkhsv } from './colors';
 
 const hueGap = (a: number, b: number) => {
   const d = ((((b - a) % 360) + 540) % 360) - 180;
@@ -7,33 +7,61 @@ const hueGap = (a: number, b: number) => {
 };
 
 describe('levelRamp', () => {
-  it('gives five real colours, evenly spaced in hue, of one lightness and vividness', () => {
-    const ramp = levelRamp({ from: 250, to: 20, lightness: [0.7, 0.7], chroma: 0.12 });
+  const okhsv = (hex: string) => oklchToOkhsv(hexToOklch(hex));
+
+  it('gives five real colours, evenly spaced in hue, all equally vivid', () => {
+    const ramp = levelRamp({ from: 20, to: 140, saturation: 0.7, value: 0.95, minLightness: 0 });
     expect(ramp).toHaveLength(5);
     expect(new Set(ramp).size).toBe(5);
     const lch = ramp.map(hexToOklch);
-    for (const c of lch) {
-      expect(c.l).toBeCloseTo(0.7, 2);
-      // No white, black or grey: every colour keeps its chroma
-      expect(c.c).toBeGreaterThan(0.1);
-    }
     const steps = lch.slice(1).map((c, i) => hueGap(lch[i].h, c.h));
-    for (const s of steps) expect(s).toBeCloseTo(-57.5, 0);
+    for (const s of steps) expect(s).toBeCloseTo(30, 0);
+    for (const hex of ramp) {
+      expect(okhsv(hex).s).toBeCloseTo(0.7, 2);
+      expect(okhsv(hex).v).toBeCloseTo(0.95, 2);
+    }
   });
 
-  it('runs the way it is given, and can ramp lightness too', () => {
-    const long = levelRamp({ from: 20, to: 260, lightness: [0.72, 0.72], chroma: 0.13 }).map(
-      hexToOklch,
-    );
-    // Through yellow and green (about 110° and 145°), not magenta
-    expect(long[2].h).toBeGreaterThan(120);
-    expect(long[2].h).toBeLessThan(160);
-    const shaded = levelRamp({ from: 200, to: 280, lightness: [0.5, 0.9], chroma: 0.13 }).map(
-      hexToOklch,
-    );
-    for (let i = 1; i < 5; i++) expect(shaded[i].l).toBeGreaterThan(shaded[i - 1].l);
-    expect(shaded[0].l).toBeCloseTo(0.5, 2);
-    expect(shaded[4].l).toBeCloseTo(0.9, 2);
+  it('is equally vivid where one chroma is not: a full cyan and a pastel blue are not alike', () => {
+    // One OKLCH chroma (0.13): cyan at the edge of what sRGB shows, blue far inside it
+    const cyan = oklchToOkhsv({ l: 0.8, c: 0.13, h: 200 }).s;
+    const blue = oklchToOkhsv({ l: 0.75, c: 0.13, h: 275 }).s;
+    expect(cyan - blue).toBeGreaterThan(0.4);
+    const [c, b] = levelRamp({ from: 200, to: 275, saturation: 0.6, value: 0.93, minLightness: 0 })
+      .filter((_, i) => i === 0 || i === 4)
+      .map(okhsv);
+    expect(c.s).toBeCloseTo(b.s, 2);
+  });
+
+  it('holds a dark hue at the lightness floor, as vivid as sRGB lets it be there', () => {
+    // Blue at this saturation and value is darker than 0.62 ...
+    expect(okhsvToOklch(265, 0.8, 0.93).l).toBeLessThan(0.6);
+    const ramp = levelRamp({
+      from: 265,
+      to: 205,
+      saturation: 0.8,
+      value: 0.93,
+      minLightness: 0.62,
+    });
+    const blue = hexToOklch(ramp[0]);
+    // ... so it stands at the floor, and gives up only what sRGB cannot show there
+    expect(blue.l).toBeCloseTo(0.62, 2);
+    expect(okhsv(ramp[0]).s).toBeGreaterThan(0.7);
+    // A light hue is untouched by the floor
+    expect(okhsv(ramp[4]).s).toBeCloseTo(0.8, 2);
+    expect(hexToOklch(ramp[4]).l).toBeGreaterThan(0.7);
+  });
+
+  it('round-trips Okhsv', () => {
+    for (const [h, s, v] of [
+      [30, 0.5, 0.9],
+      [200, 0.8, 0.95],
+      [300, 0.3, 0.6],
+    ]) {
+      const back = oklchToOkhsv(okhsvToOklch(h, s, v));
+      expect(back.s).toBeCloseTo(s, 4);
+      expect(back.v).toBeCloseTo(v, 4);
+    }
   });
 
   it('keeps a colour sRGB cannot show at its lightness and hue, giving up only chroma', () => {
