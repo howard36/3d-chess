@@ -66,6 +66,9 @@ let vite = null;
 let base = process.env.SHOWCASE_URL;
 if (!base) {
   const { createServer } = await import('vite');
+  // Tailwind finds the classes it generates (sr-only and the rest) from the
+  // working directory: run from anywhere else, the page loses them.
+  process.chdir(CLIENT);
   vite = await createServer({ root: CLIENT, logLevel: 'error', server: { port: 5199 } });
   await vite.listen();
   base = vite.resolvedUrls.local[0].replace(/\/$/, '');
