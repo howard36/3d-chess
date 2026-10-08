@@ -23,14 +23,14 @@ const GLYPHS: Record<PieceType, string> = {
   [PieceType.Knight]:
     'M7.5 21H19v-2.3l-1.1-1.2c.4-4.2-.6-9-5.6-11.8l-.9-1.9-1.5 2.1C7.5 7.4 6 9.9 6.1 12.5l1.8 1.3 3-1.5c.3 1.7-.8 3.1-2.2 4.3l-1.2 2.1z',
   // The 3D piece's spiralled horn, not a horse: a spire whose twist is two
-  // wide, steep grooves, low on the horn where it is wide enough to show them
-  // (what tells it from the bishop and the pawn at a glance), on a ring, a
-  // flared stem and a broad plinth. Thin at the tip where the bishop
+  // steep grooves, low on the horn where it is wide enough to show them (what
+  // tells it from the bishop and the pawn at a glance; any wider and they
+  // darken the porcelain horn), on a ring, a flared stem and a broad plinth. Thin at the tip where the bishop
   // is round (so it stands nearly as tall as the queen), and a third heavier
   // than the pawn, as it is worth more. (The knight's silhouette with a horn is the knight at the size
   // the HUD draws it.)
   [PieceType.Unicorn]:
-    'M9.74 11.31L10.3 9.56L13.11 7.6L13.44 8.72zM9.96 12.3L13.73 9.66L14.6 12.3zM10.74 8.11L11.17 6.58L11.57 4.95L11.9 3.32L11.98 2.5L12.02 2.5L12.04 2.91L12.25 4.13L12.85 6.63zM9.8 12.7H14.2a.7 .7 0 0 1 0 1.4H9.8a.7 .7 0 0 1 0-1.4zM14.4 14.1L17 18.6L7 18.6L9.6 14.1zM6.4 19h11.2v2H6.4z',
+    'M9.65 11.57L10.38 9.31L13.06 7.43L13.49 8.88zM9.68 12.3L13.68 9.5L14.6 12.3zM10.67 8.36L11.17 6.58L11.57 4.95L11.9 3.32L11.98 2.5L12.02 2.5L12.04 2.91L12.25 4.13L12.52 5.36L12.89 6.8zM9.8 12.7H14.2a.7 .7 0 0 1 0 1.4H9.8a.7 .7 0 0 1 0-1.4zM14.4 14.1L17 18.6L7 18.6L9.6 14.1zM6.4 19h11.2v2H6.4z',
   // A small ball on a slim body: the lightest piece in the set
   [PieceType.Pawn]: 'M12 6.6a2 2 0 1 1 0 4a2 2 0 1 1 0-4zM10.4 11.5h3.2L15 18.8H9zM8 19.2h8V21H8z',
 };
