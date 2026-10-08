@@ -1,7 +1,11 @@
-// Colour helpers for colour-coding the five levels, in OKLCH: a perceptual
-// space where equal steps of hue look like equal steps, and a lightness and
-// chroma held constant keep every colour equally bright and equally vivid.
-// Pure, so the ramps can be tested (and picked) without WebGL.
+// Colour helpers for colour-coding the five levels, in OKLCH (a perceptual
+// space where equal steps of hue look like equal steps) and Okhsv, its
+// hue-saturation-value form. One OKLCH chroma does not look equally vivid
+// in every hue: a screen's cyan peaks near chroma 0.15, its blue near 0.31,
+// so the same chroma is a cyan at full strength and a pastel blue. Okhsv's
+// saturation measures a colour against the strongest its hue can be, so one
+// saturation looks equally vivid in every hue. Pure, so the ramps can be
+// tested (and picked) without WebGL.
 
 interface Oklch {
   /** Lightness, 0 (black) to 1 (white). */
@@ -76,24 +80,124 @@ export const hexToOklch = (hex: string): Oklch => {
 };
 
 /**
- * The five level colours, A to E: real colours stepping in equal perceptual
- * steps of hue from `from` to `to` (OKLCH degrees, the way given: 20 → 260
- * passes through yellow and green, 20 → -100 through magenta) and of
- * lightness from A's to E's, all of one chroma (a colour sRGB cannot show
- * loses only what it must), with no white or grey among them.
+ * A colour mixed `t` of the way to white in OKLab: its lightness rises
+ * evenly, its colour fades in proportion and its hue holds. Mixing in
+ * linear light instead (adding white light) lifts a colour's weak channels
+ * most, so it pales faster than it lightens and its hue drifts.
+ */
+export const mixWithWhite = (hex: string, t: number): string => {
+  const { l, c, h } = hexToOklch(hex);
+  return oklchToHex({ l: l + (1 - l) * t, c: c * (1 - t), h });
+};
+
+// Okhsv (Björn Ottosson's), on a cusp found by search: for a hue, the
+// lightness and chroma of its strongest colour sRGB can show.
+
+const inside = (c: number[]) => c.every((v) => v >= -1e-6 && v <= 1 + 1e-6);
+
+/** The most chroma sRGB can show at a lightness and hue. */
+const maxChroma = (l: number, h: number) => {
+  let lo = 0;
+  let hi = 0.5;
+  for (let i = 0; i < 32; i++) {
+    const mid = (lo + hi) / 2;
+    if (inside(oklchToLinear({ l, c: mid, h }))) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+};
+
+/** A hue's cusp: the lightness at which it reaches its most chroma, and that chroma. */
+const cusp = (h: number) => {
+  let a = 0.2;
+  let b = 0.999;
+  for (let i = 0; i < 40; i++) {
+    const m1 = a + (b - a) / 3;
+    const m2 = b - (b - a) / 3;
+    if (maxChroma(m1, h) < maxChroma(m2, h)) a = m1;
+    else b = m2;
+  }
+  const l = (a + b) / 2;
+  return { l, c: maxChroma(l, h) };
+};
+
+const K1 = 0.206;
+const K2 = 0.03;
+const K3 = (1 + K1) / (1 + K2);
+const toe = (x: number) => 0.5 * (K3 * x - K1 + Math.sqrt((K3 * x - K1) ** 2 + 4 * K2 * K3 * x));
+const toeInv = (x: number) => (x * x + K1 * x) / (K3 * (x + K2));
+
+/** The triangle under a hue's cusp, and the scale Okhsv's value takes from it. */
+const okhsvFrame = (h: number) => {
+  const { l, c } = cusp(h);
+  const sMax = c / l;
+  const tMax = c / (1 - l);
+  return { tMax, k: 1 - 0.5 / sMax };
+};
+const valueScale = (h: number, lv: number, cv: number) => {
+  const lvt = toeInv(lv);
+  const cvt = (cv * lvt) / lv;
+  const rgb = oklchToLinear({ l: lvt, c: cvt, h });
+  return Math.cbrt(1 / Math.max(rgb[0], rgb[1], rgb[2], 0));
+};
+
+/** OKLCH of an Okhsv colour: hue in degrees, saturation and value 0 to 1. */
+export const okhsvToOklch = (hue: number, s: number, v: number): Oklch => {
+  const h = ((hue % 360) + 360) % 360;
+  const { tMax, k } = okhsvFrame(h);
+  const lv = 1 - (s * 0.5) / (0.5 + tMax - tMax * k * s);
+  const cv = (s * tMax * 0.5) / (0.5 + tMax - tMax * k * s);
+  const l = toeInv(v * lv);
+  const c = (v * cv * l) / (v * lv);
+  const scale = valueScale(h, lv, cv);
+  return { l: l * scale, c: c * scale, h };
+};
+
+/** The Okhsv saturation and value of an OKLCH colour. */
+export const oklchToOkhsv = ({ l, c, h }: Oklch) => {
+  const { tMax, k } = okhsvFrame(h);
+  const t = tMax / (c + l * tMax);
+  const lv = t * l;
+  const cv = t * c;
+  const scale = valueScale(h, lv, cv);
+  const ls = l / scale;
+  return { s: ((0.5 + tMax) * cv) / (tMax * 0.5 + tMax * k * cv), v: toe(ls) / lv };
+};
+
+/**
+ * The five level colours, A to E: hues stepping evenly from `from` to `to`
+ * (OKLCH degrees, the way given: 355 → 230 passes through violet, 20 → 260
+ * through yellow and green), all of one Okhsv saturation and value, so they
+ * look equally vivid. A hue whose colour would fall below `minLightness`
+ * (a blue or violet, strong only when dark) keeps that lightness and as much
+ * of the saturation as sRGB allows there.
  */
 export const levelRamp = ({
   from,
   to,
-  lightness: [l0, l1],
-  chroma,
+  saturation,
+  value,
+  minLightness,
 }: {
   from: number;
   to: number;
-  lightness: [number, number];
-  chroma: number;
+  saturation: number;
+  value: number;
+  minLightness: number;
 }): string[] =>
   Array.from({ length: 5 }, (_, i) => {
-    const k = i / 4;
-    return oklchToHex({ l: l0 + (l1 - l0) * k, c: chroma, h: from + (to - from) * k });
+    const color = okhsvToOklch(from + ((to - from) * i) / 4, saturation, value);
+    if (color.l >= minLightness) return oklchToHex(color);
+    // At the floor: the chroma that reaches the saturation, or sRGB's most
+    const l = minLightness;
+    let lo = 0;
+    let hi = maxChroma(l, color.h) * 0.999;
+    if (oklchToOkhsv({ l, c: hi, h: color.h }).s >= saturation) {
+      for (let k = 0; k < 32; k++) {
+        const mid = (lo + hi) / 2;
+        if (oklchToOkhsv({ l, c: mid, h: color.h }).s < saturation) lo = mid;
+        else hi = mid;
+      }
+    }
+    return oklchToHex({ l, c: hi, h: color.h });
   });
