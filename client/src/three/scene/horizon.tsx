@@ -19,7 +19,10 @@ import { SHADE_AT_VERTEX, shadeUniforms } from './mask';
 import { GROUND_Y, HORIZON, LEVEL_COLORS, PALETTE } from './palette';
 import { BLACK_LOOK, RANGES, skylineOf, WHITE_LOOK } from './horizonSkyline';
 import type { Range } from './horizonSkyline';
-import { gardenBoost } from './stage';
+import { gardenBoost, neonMaterial } from './stage';
+import { neonStrokes } from './neonStrokes';
+import type { NeonStroke } from './neonStrokes';
+import type { V3 } from './boardNeon';
 import { rng } from './textures';
 import { Lighthouse } from './horizonEvents';
 // ENV PREVIEW (temporary): each part follows its setting
@@ -44,14 +47,16 @@ import {
 // white's side a far tower, a rook's, keeps one tiny window lit, the only
 // warm light in the world, and it goes dark when a game is won. Banks of
 // mist lie on the far plain between the board and the hills, and at the
-// hills' feet a few far lights burn, and one faint sliver banded in the
-// five level colours: another tower, far away. Once in a long
+// hills' feet a few far lights burn, and on black's side stands another
+// game's tower, five level-coloured plates in a faint cube, too far to be
+// more than a square with five lines across it. Once in a long
 // while a lighthouse's beam sweeps through the haze (horizonEvents.tsx).
 //
 // All of it is the garden's (backdropCache.tsx): ShaderMaterials in the
 // opaque list, writing no depth, drawn after the ground and never with
 // normal blending: the hills and the tower multiply what is behind them (so
-// they hide the stars), the mist and the lights add. All of it sinks into
+// they hide the stars), the mist and the lights add, and the other tower's
+// tubes take the brighter, as the sculptures' do. All of it sinks into
 // the tower's shade, the dark things by fading to no effect. Nothing moves.
 // The veil and the sky do not turn; everything standing on the plain turns with the board for
 // Black, so each seat looks out over its opponent's side of the world.
@@ -63,6 +68,7 @@ const ORDER = {
   farHills: -894,
   nearHills: -893,
   tower: -892,
+  otherTower: -891.5,
   mist: -891,
   lights: -890,
 } as const;
@@ -457,16 +463,158 @@ const FarTower = ({ dim }: { dim: { value: number } }) => {
   );
 };
 
+// --- The other tower ---------------------------------------------------------------
+
 /** Where the other tower burns: on black's side of the world, left of the tower in Black's view. */
 export const OTHER_TOWER_AT = { azimuth: BLACK_LOOK + 23, radius: 215 } as const;
 
-/** The other tower's sliver: its foot above the ground, each level's band, points per band, their brightness. */
-export const OTHER_TOWER = { foot: 0.15, band: 0.75, perBand: 6, bright: 0.1 } as const;
+/**
+ * Its shape (world units): a cube `side` across standing `foot` above the
+ * ground, and five square plates inside it, each `plate` of the side across;
+ * the distance out from the plain's centre of the opening's camera, behind
+ * the board (on White's side for White's seat, the horizon turned for
+ * Black's) that it faces;
+ * the tubes' radius and light, the frame's share of the plates' light, and
+ * the reflection's.
+ */
+export const OTHER_TOWER = {
+  side: 4.2,
+  foot: 0.35,
+  plate: 0.84,
+  faces: 22,
+  width: 0.07,
+  intensity: 0.38,
+  frame: 0.35,
+  reflection: 0.2,
+} as const;
+
+/**
+ * The other tower's tubes, one set per colour: the frame's (index 0, a
+ * cube's twelve edges) and each level's plate (1-5, from A at the foot up),
+ * each square fixed in the world, facing the opening's camera, so from the
+ * side, as it is always seen from so far and so low, it reads as the game's
+ * tower does: a square with five level-coloured lines across it. Each comes
+ * again below the ground, upside down and fainter, as the polished stone
+ * gives it back (fading with its depth).
+ */
+export const otherTowerStrokes = (): NeonStroke[][] => {
+  const { side, foot, plate, frame, reflection } = OTHER_TOWER;
+  const at = onPlain(OTHER_TOWER_AT.azimuth, OTHER_TOWER_AT.radius, 0);
+  // Its own axes: across the view (r), and toward where the seats look
+  // out from at the opening (f), so it shows them its front square-on
+  const seat = onPlain(WHITE_LOOK, OTHER_TOWER.faces, 0);
+  const f = [seat[0] - at[0], seat[2] - at[2]];
+  const fl = Math.hypot(f[0], f[1]);
+  const [fx, fz] = [f[0] / fl, f[1] / fl];
+  const [rx, rz] = [fz, -fx];
+  const point = (x: number, y: number, z: number): V3 => [rx * x + fx * z, y, rz * x + fz * z];
+  const square = (half: number, y: number) =>
+    [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ].map(([x, z]) => point(x * half, y, z * half));
+  const h = side / 2;
+  const top = foot + side;
+  // Its light given back: fainter, and fading with the depth under the stone
+  const below = (y: number) => reflection * Math.exp(-y / (side * 0.8));
+  const twice = (points: V3[], closed: boolean, light: number): NeonStroke[] => [
+    { at, points, closed, mode: 1, light },
+    {
+      at,
+      points: points.map(([x, y, z]): V3 => [x, -y, z]),
+      closed,
+      mode: 1,
+      light: points.map(([, y]) => light * below(y)),
+    },
+  ];
+  // An upright edge in a few steps, so its reflection fades smoothly
+  const upright = (x: number, z: number) =>
+    Array.from({ length: 5 }, (_, k) => point(x, foot + (side * k) / 4, z));
+  const frameStrokes = [
+    ...twice(square(h, foot), true, frame),
+    ...twice(square(h, top), true, frame),
+    ...[
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ].flatMap(([x, z]) => twice(upright(x * h, z * h), false, frame)),
+  ];
+  const plates = LEVEL_COLORS.map((_, i) =>
+    twice(square(h * plate, foot + ((i + 0.5) / LEVEL_COLORS.length) * side), true, 1),
+  );
+  return [frameStrokes, ...plates];
+};
+
+/** The other tower's colours, as its strokes come (the frame's, then each level's from A). */
+const otherTowerColors = () => {
+  const grey = new Color(PALETTE.neon);
+  return [
+    new Color(HORIZON.otherTowerFrame),
+    ...LEVEL_COLORS.map((hex) => new Color(hex).lerp(grey, 0.3)),
+  ];
+};
+
+/**
+ * The other tower: another game's glass tower far off on black's side of
+ * the plain, five plates in a faint cube drawn in the sculptures' clean tubes
+ * (their program; each colour its own draw), joined by the brighter where
+ * they meet, never summed, so its corners and its near and far edges, one
+ * over the other from so far, are no brighter than a line.
+ */
+const OtherTower = ({ turn, dim }: { turn: number; dim: { value: number } }) => {
+  const sign = useMemo(() => ({ value: 1 }), []);
+  sign.value = turn < 0 ? -1 : 1;
+  const { parts, sets } = useMemo(() => {
+    const colors = otherTowerColors();
+    const sets = otherTowerStrokes().map((strokes, i) => {
+      const material = neonMaterial({
+        width: OTHER_TOWER.width,
+        // All core, no halo: from so far, a hairline (drawn about a pixel
+        // wide, dimmer for its thinness, so it never breaks up)
+        core: 1,
+        halo: 0,
+        intensity: OTHER_TOWER.intensity,
+        mirror: false,
+        fade: 0,
+        turn: sign,
+        dim,
+        clean: true,
+      });
+      // With the garden, in three.js's opaque list (backdropCache.tsx)
+      material.transparent = false;
+      material.uniforms.uColor.value = colors[i];
+      return { geometry: neonStrokes(strokes), material };
+    });
+    const parts: Record<string, { dispose(): void }> = {};
+    sets.forEach(({ geometry, material }, i) => {
+      parts[`geometry${i}`] = geometry;
+      parts[`material${i}`] = material;
+    });
+    return { parts, sets };
+  }, [sign, dim]);
+  useDisposeOnUnmount(parts);
+  return (
+    <group name="horizon-other-tower">
+      {sets.map(({ geometry, material }, i) => (
+        <mesh
+          key={i}
+          geometry={geometry}
+          material={material}
+          renderOrder={ORDER.otherTower}
+          frustumCulled={false}
+          raycast={noRaycast}
+        />
+      ))}
+    </group>
+  );
+};
 
 /**
  * The far lights: a few small clusters at the hills' feet, most a cool
- * starlight and a few warmer, and on black's side a sliver banded in the
- * level colours, faded: another glass tower, far away.
+ * starlight and a few warmer.
  */
 const farLights = (): Light[] => {
   const random = rng(4417);
@@ -498,25 +646,6 @@ const farLights = (): Light[] => {
         color: random() < 0.3 ? HORIZON.lightWarm : HORIZON.lightCool,
       });
     }
-  // The other tower: one faint upright sliver of light from the ground up,
-  // in five bands of the level colours, each band a run of points close
-  // enough (under a pixel apart at that distance) to merge into one
-  // continuous stroke, never a column of dots
-  const grey = new Color(PALETTE.neon);
-  LEVEL_COLORS.forEach((hex, i) => {
-    const c = new Color(hex).lerp(grey, 0.35);
-    for (let k = 0; k < OTHER_TOWER.perBand; k++)
-      out.push({
-        at: onPlain(
-          OTHER_TOWER_AT.azimuth,
-          OTHER_TOWER_AT.radius,
-          OTHER_TOWER.foot + (i + (k + 0.5) / OTHER_TOWER.perBand) * OTHER_TOWER.band,
-        ),
-        size: 1.7,
-        bright: OTHER_TOWER.bright,
-        color: `#${c.getHexString()}`,
-      });
-  });
   return out;
 };
 
@@ -683,6 +812,7 @@ export const Horizon = ({ turn, dim }: GardenDetailProps) => {
         {tower === 'on' && <FarTower dim={quiet} />}
         {mist === 'on' && <FarMist dim={quiet} />}
         {lights === 'on' && <FarLights dim={quiet} />}
+        {lights === 'on' && <OtherTower turn={turn} dim={quiet} />}
       </group>
       {events !== 'off' && <Lighthouse often={events === 'often'} dim={quiet} />}
     </>

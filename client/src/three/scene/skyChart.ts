@@ -9,12 +9,10 @@ import { placeStar } from './skyPlace';
 // star to star (a hairline under each star's glow, so the joints stay clean),
 // each figure has one brighter star, and its lines fade a little toward its
 // base. Between today's eight (heavens.tsx) the expanded
-// sky adds four smaller, dimmer figures, and anyone looking closely finds
+// sky adds three smaller, dimmer figures, and anyone looking closely finds
 // three asterisms with no figure drawn in lines (`skyEggs`):
 // - castling: a small king and rook joined by the arc of their move, low
 //   just past the tower from the opening's look up (turn a little right);
-// - the fork: a small knight with two lines out to two bright stars, high
-//   between the rook and the queen;
 // - a pawn chain: five stars climbing a diagonal, each with a collar, low
 //   between the pawn and the western knight;
 // - the toppled king, lying on its side low over the horizon between the two
@@ -23,7 +21,7 @@ import { placeStar } from './skyPlace';
 //   (look up the way the opening camera came from), whose path only a
 //   tracing event lights (skyEvents.tsx);
 // - the tower's echo: five stars climbing one above another, tinted in the
-//   five level colours, cyan at the foot to rose at the top, between the
+//   five level colours, A's at the foot to E's at the top, between the
 //   unicorn and the pawn;
 // - the eight queens: eight stars set as a solution of the puzzle, each in
 //   its square of the faintest 8x8 board drawn in whole hairlines round them,
@@ -82,32 +80,6 @@ const CASTLING: Constellation = {
   alpha: 5,
 };
 
-/** The knight's outline (heavens.tsx keeps the big one; this is its shape). */
-export const KNIGHT_SHAPE: P2[] = [
-  [0.52, 1.0],
-  [0.66, 0.84],
-  [0.8, 0.6],
-  [0.86, 0.28],
-  [0.82, 0.0],
-  [0.24, 0.0],
-  [0.3, 0.3],
-  [0.36, 0.42],
-  [0.04, 0.48],
-  [0.1, 0.66],
-  [0.38, 0.86],
-];
-
-/** A small knight forking two bright stars. */
-const FORK: Constellation = {
-  stars: [
-    ...KNIGHT_SHAPE.map(([u, v]): P2 => [0.3 + u * 0.42, v * 0.5]),
-    [0.04, 0.96],
-    [0.97, 0.88],
-  ],
-  lines: [...loop(11), [0, 11], [0, 12]],
-  alpha: 11,
-};
-
 /**
  * Five pawns defending each other up a diagonal, each with its collar: a
  * short bar a little under its star, crossing the chain's line (never
@@ -163,7 +135,6 @@ export const KING_SHAPE: Constellation = {
 export const SKY_MINOR: Placement[] = [
   { c: KING_SHAPE, azimuth: 150, elevation: 10.5, size: 5, tilt: 1.5 },
   { c: CASTLING, azimuth: 204, elevation: 12.5, size: 6, tilt: 0.03 },
-  { c: FORK, azimuth: 330, elevation: 23.5, size: 5.5, tilt: -0.04 },
   { c: PAWN_CHAIN, azimuth: 105, elevation: 12, size: 5, tilt: 0 },
 ];
 

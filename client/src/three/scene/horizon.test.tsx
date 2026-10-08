@@ -3,6 +3,8 @@ import ReactThreeTestRenderer from '@react-three/test-renderer';
 import type { Material, Mesh, Object3D, Scene, ShaderMaterial } from 'three';
 import { Stage, gardenBoost } from './stage';
 import { BACKDROP_END } from './backdropCache';
+import { OTHER_TOWER, otherTowerStrokes } from './horizon';
+import { LEVEL_COLORS } from './palette';
 import { createEnvStore, replaceEnvStoreForTest } from '../../envPreview';
 import type { EnvStore } from '../../envPreview';
 
@@ -28,6 +30,7 @@ const PARTS = [
   'horizon-tower',
   'horizon-mist',
   'horizon-lights',
+  'horizon-other-tower',
   'horizon-events',
 ];
 
@@ -113,5 +116,52 @@ describe('the horizon', () => {
     gardenBoost.value = 0;
     await r.advanceFrames(2, 1 / 30);
     expect(windowLight()).toBe(0);
+  });
+
+  it('stands the other tower as the game’s: five plates in a cube, square from the side', () => {
+    const [frame, ...plates] = otherTowerStrokes();
+    expect(plates).toHaveLength(LEVEL_COLORS.length);
+    const { side, foot } = OTHER_TOWER;
+    // Every stroke fixed in the world (never turned to face the camera)
+    for (const s of [frame, ...plates].flat()) expect(s.mode).toBe(1);
+    // Each plate a level square, from A at the foot up, inside the cube,
+    // with its reflection below the ground
+    let last = -Infinity;
+    plates.forEach(([plate, mirrored]) => {
+      const ys = new Set(plate.points.map((p) => p[1]));
+      expect(ys.size).toBe(1);
+      const [y] = ys;
+      expect(y).toBeGreaterThan(Math.max(last, foot));
+      expect(y).toBeLessThan(foot + side);
+      last = y;
+      expect(mirrored.points.every((p) => p[1] === -y)).toBe(true);
+    });
+    // The cube as wide as it is tall, seen from its front: its corners
+    // across the view span the side, as its edges do upward
+    const above = frame.filter((s) => s.points.every((p) => p[1] >= 0));
+    const ys = above.flatMap((s) => s.points.map((p) => p[1]));
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(side, 6);
+    const corners = above[0].points;
+    const across = Math.hypot(corners[1][0] - corners[0][0], corners[1][2] - corners[0][2]);
+    expect(across).toBeCloseTo(side, 6);
+  });
+
+  it('draws the other tower in the sculptures’ tube program, no new one', async () => {
+    withEnv('?env=recommended');
+    const { scene } = await mount();
+    const tower = scene.getObjectByName('horizon-other-tower')!;
+    const shaders = new Set<string>();
+    tower.traverse((o) => {
+      const m = (o as Mesh).material as ShaderMaterial | undefined;
+      if (m) shaders.add(m.vertexShader + m.fragmentShader);
+    });
+    expect(shaders.size).toBe(1);
+    let sculptures = false;
+    scene.traverse((o) => {
+      const m = (o as Mesh).material as ShaderMaterial | undefined;
+      if (m && !tower.getObjectById(o.id) && shaders.has(m.vertexShader + m.fragmentShader))
+        sculptures = true;
+    });
+    expect(sculptures).toBe(true);
   });
 });
