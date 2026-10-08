@@ -42,7 +42,7 @@ export const courtLife = defineEnvFeature({
     { id: 'off', label: 'Off' },
     { id: 'on', label: 'On' },
   ],
-  default: 'on',
+  default: 'off',
 });
 
 /** Hidden things: stepping stones laid in knight's jumps, out between the knights. */
