@@ -74,14 +74,14 @@ describe('the stepping stones', () => {
     // From inside the court, clear of the shade's darkest round the tower
     const [x0, z0] = STONES[0];
     expect(Math.hypot(x0, z0)).toBeGreaterThan(COURT_SPAN.inner[1]);
-    // Clear of the inlay's outer ring (whole): no stone touches it
+    // Clear of both of the inlay's rings (whole): no stone touches either
     for (const [x, z] of STONES) {
       const near = Math.hypot(Math.abs(x) - STONE_HALF, Math.max(Math.abs(z) - STONE_HALF, 0));
       const farthest = Math.hypot(Math.abs(x) + STONE_HALF, Math.abs(z) + STONE_HALF);
-      expect(near < INLAY.outer && farthest > INLAY.outer).toBe(false);
-      expect(
-        Math.min(Math.abs(near - INLAY.outer), Math.abs(farthest - INLAY.outer)),
-      ).toBeGreaterThan(0.8);
+      for (const ring of [INLAY.inner, INLAY.outer]) {
+        expect(near < ring && farthest > ring).toBe(false);
+        expect(Math.min(Math.abs(near - ring), Math.abs(farthest - ring))).toBeGreaterThan(0.8);
+      }
     }
     // The last stands at the colossal board's edge (±32)
     expect(Math.abs(STONES[STONES.length - 1][0])).toBeGreaterThan(31);

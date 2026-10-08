@@ -22,7 +22,7 @@ import { placeStar } from './skyPlace';
 // - a knight's tour: 25 dim stars in a loose 5x5 lattice low behind White's seat
 //   (look up the way the opening camera came from), whose path only a
 //   tracing event lights (skyEvents.tsx);
-// - the tower's echo: five stars stacked one above another, tinted in the
+// - the tower's echo: five stars climbing one above another, tinted in the
 //   five level colours, cyan at the foot to rose at the top, between the
 //   unicorn and the pawn;
 // - the eight queens: eight stars set as a solution of the puzzle, each in
@@ -205,7 +205,15 @@ export const EIGHT_QUEENS = [0, 4, 7, 5, 2, 6, 1, 3];
 
 /** The tower's echo: five stars stacked, A at the foot. */
 const ECHO: Constellation = {
-  stars: [0, 1, 2, 3, 4].map((i): P2 => [0.5, i / 4]),
+  // Leaning a little and stepping unevenly, as real stars stand: never a
+  // ruled column of dots
+  stars: [
+    [0.42, 0],
+    [0.58, 0.23],
+    [0.48, 0.5],
+    [0.66, 0.72],
+    [0.57, 1],
+  ],
   lines: [],
 };
 

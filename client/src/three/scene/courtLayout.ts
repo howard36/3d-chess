@@ -65,15 +65,15 @@ export const KNIGHT_WAYS: [number, number][] = [
 /** Half the side of a stepping stone. */
 export const STONE_HALF = 0.72;
 /**
- * The stepping stones: from near the tower's foot out to the colossal
- * board's edge along -x, each a knight's jump from the last (two along, one
- * across), clear of the inlay's outer ring, and on along the board's centre
- * line between the two knights (a4, a5), which face each other across the
- * path.
+ * The stepping stones: from just outside the inlay's inner ring out to the
+ * colossal board's edge along -x, each a knight's jump from the last (two
+ * along, one across), touching neither of the inlay's rings, and on along
+ * the board's centre line between the two knights (a4, a5), which face each
+ * other across the path.
  */
-export const STONES: [number, number][] = Array.from({ length: 7 }, (_, i) => [
-  -9.5 - 4 * i,
-  i % 2 ? 1 : -1,
+export const STONES: [number, number][] = Array.from({ length: 6 }, (_, i) => [
+  -13.5 - 4 * i,
+  i % 2 ? -1 : 1,
 ]);
 
 /** A small seeded random number generator (mulberry32). */
