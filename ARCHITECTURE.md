@@ -394,7 +394,7 @@ levels) divided by hairlines of the level's colour. Porcelain and charcoal Staun
 foot. Far out, a colossal chessboard drawn in faint light carries twelve giant pieces
 outlined in white neon, which sink into the tower's shade as they near it on screen, so
 nothing competes with the board; overhead are stars and chess constellations for a camera
-that looks up. The garden changes only with the view, so while the camera rests it is drawn
+that looks up (see The garden). The garden changes only with the view, so while the camera rests it is drawn
 from a copy of itself taken on the first frame at rest (`scene/backdropCache.tsx`), and a
 move or a selection redraws the tower over it. Files and ranks label the two edges of the bottom platform nearest the
 camera (the top one's, seen from high above). The five level letters, each in its platform's edge colour, share one corner post
@@ -496,7 +496,8 @@ How the code is split:
   `Lift`, the `Topple` of a mated king, the decoration that stays on the glass while its
   piece lifts (`ON_FLOOR`), and `useGlide()`, which tells a piece body the levels its glide
   leaves and lands on, so its foot band changes colour on the way.
-- `three/scene/` draws everything else: the garden and sky (`stage.tsx`, `heavens.tsx`),
+- `three/scene/` draws everything else: the garden and sky (`stage.tsx`, `heavens.tsx` and
+  the parts named in The garden),
   the levels and labels (`plates.tsx`, `grid.tsx`, `smartLabels.tsx`), the piece bodies
   (`pieces.tsx`), the marks of play (`markers.tsx`, `line.tsx`, `selection.tsx`,
   `blades.tsx`) and the capture and mate (`fx.tsx`). `three/intro/` times the entrance. `palette.ts` holds the colours, the
@@ -506,6 +507,62 @@ How the code is split:
   with `vi.mock`.
 
 All motion runs on r3f's clock, and the canvas renders on demand.
+
+### The garden
+
+Everything round the tower is background: dim, cool and colourless near it, and sunk into
+the tower's shade on screen (`scene/mask.ts`: a distance field to the tower's outline that
+darkens the garden near it; from a low camera it reaches less far below the tower than
+above or beside it, so the plain under the pieces stays readable). `Stage` (`stage.tsx`)
+mounts it in four areas, each handed the board's turn for the seat, the shade's caster and
+the lobby's dimming (`gardenDetail.ts`):
+
+- **The sky** (`heavens.tsx`, `skyDetail.tsx`): a field of stars of real spread of
+  brightness and colour, spent only where a camera can look (1° to 36° up; `skyStars.ts`,
+  with a gold-and-blue double among the doubles), a faint Milky Way leaning out of the haze
+  (`skyMilkyWay.tsx`), airglow and mist banks in the sky's colour (`skyColor.ts`, one chunk
+  shared with the plain's far veil so the two meet with no step), and the chess
+  constellations drawn as a chart draws them, each line whole from star to star
+  (`skyChart.ts`, placed by `skyPlace.ts`, two programs for all of it in `skyShaders.ts`).
+  Two asterisms have no lines: the tower's echo (five stars climbing in the levels' colours)
+  and the eight queens as a faint board of dots with the queens' squares left dark.
+- **The colossal board** (`boardGround.ts`, `boardDetail.tsx`, `boardFallen.ts`): a framed
+  board of faint light, its dark squares given an even polish, and the twelve sculptures in
+  white neon tube. Every stroke is a capsule drawn per pixel (`neonStrokes.ts`), so a line is
+  one even tube however it bends: no spurs, no breaks. Turned pieces show their outline to
+  the viewer, the same from every side, with rings fitted to it; what is not the same from
+  every side stands fixed in the world: the bishop's cut, the unicorn's spiral, and the
+  knights, outlined by their real silhouette from wherever the camera is
+  (`sculptureStrokes.ts`, `knightSilhouette.ts`), so nothing mirrors as the view turns.
+  Each sculpture lights the stone round its foot with a broad, even disc lying on the ground
+  (`sculptureGlow.tsx`); past the board's edge lie a few fallen giants. A figure the camera
+  has passed and stands behind is not drawn: it is shown or hidden whole, and changes only
+  on a frame when none of it is on screen (`gardenSides.ts`, through `gardenWhole`).
+- **The court** (`court.tsx`, `courtLayout.ts`): the near ground round the tower's foot,
+  the quietest part: polished slabs seen only as a change of sheen, two whole rings of
+  light with spokes pointing the knight's eight ways, and stepping stones a knight's jump
+  apart.
+- **The horizon** (`horizon.tsx`, `horizonGround.ts`, `horizonSkyline.ts`): the plain is a
+  disc nearly as wide as the sky, thickening into the sky's own colour, so it meets the
+  night at a level horizon with no edge; two ranges of hills, a few crags among them a chess
+  piece's silhouette; mist and a few far lights; on White's side a far rook's tower with one warm window lit
+  (dark once a game is won), and on Black's another game's tower, five plates of light in
+  the levels' colours, square from the side.
+
+Rare events (`shootingStar.tsx`, `skyEvents.tsx`: a constellation tracing itself, a
+satellite, paired meteors; `horizonEvents.tsx`: a lighthouse's sweep) never wake the
+canvas: each starts only on a frame already being drawn while the player turns the view,
+keeps frames coming only while it lasts, runs on r3f's clock, and is drawn at no light
+from the first frame so no program links when it comes. Every garden material follows the
+backdrop cache's rules (CLAUDE.md "Performance"): opaque list below `BACKDROP_END`, no
+depth, and nothing that changes but a uniform, a matrix or a visibility. The ground is one
+shader drawn in four parts (`PARTS` in `stage.tsx`), each compiled with only its own
+detail, and the work that can be is done per vertex, since software rendering runs both
+sides of every branch.
+
+The dev-only sculpture viewer (`sculptures.html`, `src/dev/SculptureViewer.tsx`) shows one
+sculpture up close; `node scripts/sculptures.mjs --target a4 --out <dir>` saves a sheet of
+it from several sides (or `--orbit 2` for a turn round it), with Vite running.
 
 ### Recording the board
 

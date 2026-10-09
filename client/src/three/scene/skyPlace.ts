@@ -2,7 +2,7 @@ import { Vector3 } from 'three';
 
 // Where things stand in the sky: directions by azimuth and elevation, and
 // figures drawn in a unit box laid out on the dome (heavens.tsx and the
-// richer sky's parts).
+// the sky's other parts).
 
 /** Radius of the dome the stars are set on (inside the sky sphere). */
 export const DOME = 300;
