@@ -3,7 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
 import { deriveHistory } from '../game/history';
-import type { GameHistory } from '../game/history';
+import type { GameHistory, GameOver } from '../game/history';
+import { selectDrawOffer, selectEnding, withEnding } from '../game/ending';
 import {
   hasSessionSince,
   selectErrors,
@@ -118,16 +119,26 @@ const GameScreen: React.FC<GameScreenProps> = ({
   // presence or error message neither replays the game nor gives the 3D
   // board a new position (which would clear the player's selection).
   const historyRef = React.useRef<GameHistory | null>(null);
-  const history = deriveHistory(messages, historyRef.current);
-  historyRef.current = history;
+  const replayed = deriveHistory(messages, historyRef.current);
+  historyRef.current = replayed;
+  // A resignation or an agreed draw, folded into the replayed game (the same
+  // objects while neither changes, ending.ts)
+  const endingRef = React.useRef<GameOver | null>(null);
+  const ending = selectEnding(messages, endingRef.current);
+  endingRef.current = ending;
+  const history = React.useMemo(() => withEnding(replayed, ending), [replayed, ending]);
   const { board, replayFailedAt, gameOver } = history;
+  const drawOffer = selectDrawOffer(messages, history.moveRecords.length);
 
   // The mate plays out (the king topples) before the result covers the
-  // board, while the pulse runs on behind it — when the mate was just played,
-  // not when a finished game is reopened.
-  const endedLive =
-    [...messages].reverse().find((m) => m.type === 'move_made' || m.type === 'game_state')?.type ===
-    'move_made';
+  // board, while the pulse runs on behind it — when the mate was just played
+  // (or the game resigned or agreed drawn), not when a finished game is reopened.
+  const lastWord = [...messages]
+    .reverse()
+    .find(
+      (m) => m.type === 'move_made' || m.type === 'game_ended' || m.type === 'game_state',
+    )?.type;
+  const endedLive = lastWord === 'move_made' || lastWord === 'game_ended';
   const showEndModal = useEndCard(gameOver, endedLive);
 
   const awaitingMove =
@@ -141,8 +152,14 @@ const GameScreen: React.FC<GameScreenProps> = ({
   // the new connection's rejoin is answered (the snapshot may be stale, and a
   // move made against it could be recorded but unplayable), while a move
   // awaits its echo, or when the record is broken.
+  // Nor once the game is over: after a resignation or an agreed draw the
+  // pieces still have moves, which the server would refuse.
   const boardDisabled =
-    status !== 'connected' || !sessionReady || replayFailedAt !== null || awaitingMove;
+    status !== 'connected' ||
+    !sessionReady ||
+    replayFailedAt !== null ||
+    awaitingMove ||
+    gameOver !== null;
   // Set the moment a move is sent, cleared once it is no longer awaited (its
   // echo, a refusal or error, or a new connection)
   const moveInFlight = React.useRef(false);
@@ -482,6 +499,15 @@ const GameScreen: React.FC<GameScreenProps> = ({
             {replayErrorBanner}
           </>
         }
+        actions={{
+          offer: drawOffer,
+          // Sent only on a socket back in the game (a queued one is dropped)
+          disabled: status !== 'connected' || !sessionReady || replaced,
+          onResign: () => gameSocket.send({ type: 'resign' }),
+          onOfferDraw: () => gameSocket.send({ type: 'offer_draw' }),
+          onAnswerDraw: (accept) =>
+            gameSocket.send({ type: accept ? 'accept_draw' : 'decline_draw' }),
+        }}
         // The whole entrance for a game that started while this page was
         // open, a short one for a page that opened on a game under way
         intro={handover !== 'none' ? 'lobby' : startedLive(messages) ? 'full' : 'short'}

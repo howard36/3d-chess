@@ -154,6 +154,30 @@ export function chooseMove(
   };
 }
 
+/** How long the computer weighs up a position (a draw offered to it), at most. */
+export const ASSESS_MS = 400;
+
+/**
+ * What the search makes of the position after `records`, in centipawns for
+ * the side to move: a plain look at it, as Hard would see it in a moment,
+ * without any level's misjudgements or blind spots (the computer weighing up
+ * a draw offered to it).
+ */
+export function assessPosition(
+  records: readonly WireMove[],
+  options: Pick<ChooseOptions, 'now' | 'maxNodes'> = {},
+): number {
+  const { maxDepth, quiescence } = LEVELS.hard;
+  return new Searcher(Position.fromRecords(records)).search({
+    maxDepth,
+    timeMs: ASSESS_MS,
+    maxNodes: options.maxNodes,
+    margin: 0,
+    quiescence,
+    now: options.now,
+  }).score;
+}
+
 /**
  * Picks among the moves judged within `margin` of the best, each weighted by
  * how far it falls short (a softmax at `temperature`), from `u` in [0, 1).

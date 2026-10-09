@@ -17,6 +17,13 @@ export type WebSocketV1MessageEnvelope =
   | GameState
   | Move
   | MoveMade
+  | Resign
+  | OfferDraw
+  | AcceptDraw
+  | DeclineDraw
+  | DrawOffered
+  | DrawDeclined
+  | GameEnded
   | Presence
   | Error;
 /**
@@ -25,6 +32,10 @@ export type WebSocketV1MessageEnvelope =
 export type ClientId = string;
 export type Color = "white" | "black";
 export type Promotion = "Q" | "R" | "B" | "N" | "U";
+/**
+ * How a game ended by the players' own decision rather than on the board: one side resigned, or both agreed a draw.
+ */
+export type EndingResult = "resignation" | "agreement";
 export type ErrorCode =
   | "invalid_message"
   | "already_in_game"
@@ -34,7 +45,9 @@ export type ErrorCode =
   | "invalid_move"
   | "game_not_started"
   | "wrong_turn"
-  | "seat_in_use";
+  | "seat_in_use"
+  | "game_over"
+  | "invalid_draw";
 
 export interface CreateGame {
   type: "create_game";
@@ -92,12 +105,35 @@ export interface GameState {
   color: Color;
   started: boolean;
   moves: MoveRecord[];
+  ending?: Ending;
+  drawOffer?: DrawOffer;
 }
 export interface MoveRecord {
   by: Color;
   from: string;
   to: string;
   promotion?: Promotion;
+}
+/**
+ * Set once the game has ended by resignation or agreement.
+ */
+export interface Ending {
+  result: EndingResult;
+  /**
+   * The side that won: the resigning side's opponent. Absent for an agreed draw.
+   */
+  winner?: "white" | "black";
+}
+/**
+ * The latest draw offer, if any; it stands only if its ply is the number of moves and it was not declined.
+ */
+export interface DrawOffer {
+  by: Color;
+  ply: number;
+  /**
+   * The opponent declined it. A draw can be offered once per move.
+   */
+  declined?: boolean;
 }
 export interface Move {
   type: "move";
@@ -111,6 +147,57 @@ export interface MoveMade {
   from: string;
   to: string;
   promotion?: Promotion;
+}
+/**
+ * The sender resigns: the opponent wins.
+ */
+export interface Resign {
+  type: "resign";
+}
+/**
+ * The sender offers a draw.
+ */
+export interface OfferDraw {
+  type: "offer_draw";
+}
+/**
+ * The sender accepts the opponent's standing draw offer.
+ */
+export interface AcceptDraw {
+  type: "accept_draw";
+}
+/**
+ * The sender declines the opponent's standing draw offer.
+ */
+export interface DeclineDraw {
+  type: "decline_draw";
+}
+/**
+ * To both players: `by` offered a draw when `ply` moves had been played.
+ */
+export interface DrawOffered {
+  type: "draw_offered";
+  by: Color;
+  ply: number;
+}
+/**
+ * To both players: `by` declined the draw offered when `ply` moves had been played.
+ */
+export interface DrawDeclined {
+  type: "draw_declined";
+  by: Color;
+  ply: number;
+}
+/**
+ * To both players: the game ended by resignation or agreement. No move, offer or resignation is accepted after it.
+ */
+export interface GameEnded {
+  type: "game_ended";
+  result: EndingResult;
+  /**
+   * The side that won; absent for an agreed draw.
+   */
+  winner?: "white" | "black";
 }
 export interface Presence {
   type: "presence";

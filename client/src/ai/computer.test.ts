@@ -21,18 +21,20 @@ class FakeWorker {
       const reply: ThinkReply =
         FakeWorker.mode === 'error'
           ? { id: request.id, error: 'boom' }
-          : {
-              id: request.id,
-              move: {
-                move: { from: 'Dc4', to: 'Cc4' },
-                score: 0,
-                depth: 1,
-                nodes: 1,
-                forced: false,
-                obvious: false,
-                ply: request.records.length,
-              },
-            };
+          : request.assess
+            ? { id: request.id, score: -42 }
+            : {
+                id: request.id,
+                move: {
+                  move: { from: 'Dc4', to: 'Cc4' },
+                  score: 0,
+                  depth: 1,
+                  nodes: 1,
+                  forced: false,
+                  obvious: false,
+                  ply: request.records.length,
+                },
+              };
       this.onmessage?.({ data: reply } as MessageEvent<ThinkReply>);
     });
   }
@@ -51,6 +53,22 @@ it('asks its worker, with the record stripped to plain moves', async () => {
   expect(FakeWorker.last!.requests[0].difficulty).toBe('easy');
   computer.dispose();
   expect(FakeWorker.last!.terminated).toBe(true);
+});
+
+it('asks its worker what it makes of a position, or works it out on the page', async () => {
+  FakeWorker.mode = 'answer';
+  vi.stubGlobal('Worker', FakeWorker);
+  const computer = createComputer();
+  expect(await computer.assess([{ from: 'Bc2', to: 'Cc2' }])).toBe(-42);
+  expect(FakeWorker.last!.requests[0]).toMatchObject({
+    assess: true,
+    records: [{ from: 'Bc2', to: 'Cc2' }],
+  });
+  computer.dispose();
+
+  vi.stubGlobal('Worker', undefined);
+  const onPage = createComputer();
+  expect(typeof (await onPage.assess([]))).toBe('number');
 });
 
 it('passes on a search that failed', async () => {
