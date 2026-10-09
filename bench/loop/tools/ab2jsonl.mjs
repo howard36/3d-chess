@@ -39,6 +39,7 @@ const parse = (cell) => {
 
 let tier = null;
 let rows = 0;
+let missing = 0;
 const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'scoreboard.jsonl');
 for (const line of text.split('\n')) {
   const h = line.match(/^### (\w+)/);
@@ -51,7 +52,12 @@ for (const line of text.split('\n')) {
   if (only && !only.test(`${where} · ${scenario}`)) continue;
   const pb = parse(b);
   const ph = parse(hd);
-  if (!pb || !ph) continue;
+  // A row one side lost is kept, with that side null, and said
+  if (!pb && !ph) continue;
+  if (!pb || !ph) {
+    console.warn(`missing on ${pb ? 'head' : 'base'}: ${where} · ${scenario}`);
+    missing++;
+  }
   const row = {
     run,
     change,
@@ -61,9 +67,9 @@ for (const line of text.split('\n')) {
     tier,
     where,
     scenario,
-    unit: pb.unit,
-    baseValue: pb.value,
-    headValue: ph.value,
+    unit: (pb ?? ph).unit,
+    baseValue: pb?.value ?? null,
+    headValue: ph?.value ?? null,
     pairs: pairs ? pairs.split(/\s+/).map(Number) : [],
     verdict: verdict.replace(/\*/g, '') || 'unchanged',
     source: basename(file),
@@ -71,4 +77,4 @@ for (const line of text.split('\n')) {
   appendFileSync(out, `${JSON.stringify(row)}\n`);
   rows++;
 }
-console.log(`${rows} rows appended to ${out}`);
+console.log(`${rows} rows appended to ${out}${missing ? ` (${missing} with one side missing)` : ''}`);
