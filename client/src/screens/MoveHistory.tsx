@@ -74,16 +74,22 @@ const MoveBlock = React.memo(
           disabled={n > applied}
           onClick={() => onShow(n)}
         >
-          {formatMove(moves[i])}
+          {/* One text node; Black's starts with the space between the two
+              (white space at a line's start is not drawn) */}
+          {n % 2 === 0 ? ` ${formatMove(moves[i])}` : formatMove(moves[i])}
         </button>
       );
     };
     const rows = [];
     for (let i = start; i < Math.min(moves.length, start + BLOCK); i += 2) {
+      // Three nodes a row and one text node each (the number, then the
+      // moves), no wrappers or spacers: a reopened game of thousands of
+      // moves mounts its whole record at once. It reads "1. Bb1–Cb1 Dd5–Cd5".
       rows.push(
         <li key={i / 2 + 1}>
-          <span className="hud-move-no">{i / 2 + 1}.</span> {ply(i)}{' '}
-          {i + 1 < moves.length ? ply(i + 1) : ''}
+          {`${i / 2 + 1}. `}
+          {ply(i)}
+          {i + 1 < moves.length ? ply(i + 1) : null}
         </li>,
       );
     }

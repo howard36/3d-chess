@@ -63,9 +63,28 @@ describe('the move list', () => {
     const expected = [];
     for (let i = 0; i < n; i += 2) {
       const [w, b] = [moves[i], moves[i + 1]];
-      expected.push(`${i / 2 + 1}. ${w.from}–${w.to} ${b ? `${b.from}–${b.to}` : ''}`);
+      expected.push(`${i / 2 + 1}. ${w.from}–${w.to}${b ? ` ${b.from}–${b.to}` : ''}`);
     }
     expect(rows()).toEqual(expected);
+  });
+
+  it('keeps a row to three nodes, one text node each', () => {
+    // A reopened long game mounts its whole record at once: the number,
+    // then each move a button holding its text, and nothing else
+    render(history({ moves: record(3) }));
+    const [full, half] = screen.getByTestId('move-list').querySelectorAll('li');
+    const shape = (li: Element) =>
+      [...li.childNodes].map((n) =>
+        n.nodeType === Node.TEXT_NODE
+          ? 'text'
+          : `${n.nodeName.toLowerCase()}(${[...n.childNodes].map((c) => c.nodeType).join()})`,
+      );
+    expect(shape(full)).toEqual(['text', 'button(3)', 'button(3)']);
+    expect(shape(half)).toEqual(['text', 'button(3)']);
+    // Read as written; the space before Black's move is not in its name
+    const [w, b] = record(2);
+    expect(full.textContent).toBe(`1. ${w.from}–${w.to} ${b.from}–${b.to}`);
+    expect(full.querySelectorAll('button')[1]).toHaveAccessibleName(`${b.from}–${b.to}`);
   });
 
   it('shows nothing before the first move', () => {
