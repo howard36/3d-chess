@@ -687,9 +687,30 @@ function baseWorktree(ref) {
     rmSync(join(dir, path), { recursive: true, force: true });
     cpSync(join(ROOT, path), join(dir, path), { recursive: true });
   }
-  symlinkSync(join(CLIENT, 'node_modules'), join(dir, 'client', 'node_modules'), 'dir');
+  // Shared dependencies, unless the base locks others: then it installs its own,
+  // or the A/B would time this checkout's three.js, React or Starlette on both sides
+  const differs = (lock) =>
+    spawnSync('git', ['diff', '--quiet', sha, '--', lock], { cwd: ROOT }).status !== 0;
+  const python = join(dir, 'server', '.venv', 'bin', 'python');
+  if (differs('client/package-lock.json')) {
+    log(`base ${sha.slice(0, 7)} locks other npm packages: npm ci in its worktree`);
+    execFileSync('npm', ['ci', '--no-audit', '--no-fund'], {
+      cwd: join(dir, 'client'),
+      stdio: 'ignore',
+    });
+  } else {
+    symlinkSync(join(CLIENT, 'node_modules'), join(dir, 'client', 'node_modules'), 'dir');
+  }
+  if (differs('server/uv.lock')) {
+    log(`base ${sha.slice(0, 7)} locks other Python packages: uv sync in its worktree`);
+    execFileSync('uv', ['sync', '--extra', 'test', '--frozen'], {
+      cwd: join(dir, 'server'),
+      stdio: 'ignore',
+    });
+    return { dir, sha, python };
+  }
   symlinkSync(join(ROOT, 'server', '.venv'), join(dir, 'server', '.venv'), 'dir');
-  return { dir, sha };
+  return { dir, sha, python: VENV_PYTHON };
 }
 
 function removeWorktree(dir) {
@@ -755,7 +776,7 @@ function verdict(pairs, better) {
 function abMain() {
   const tiers = ONLY.filter((t) => ['client', 'server', 'browser'].includes(t));
   const started = new Date();
-  const { dir, sha } = baseWorktree(BASE);
+  const { dir, sha, python: basePython } = baseWorktree(BASE);
   const headSha = sh('git', ['rev-parse', 'HEAD']);
   const dirty =
     sh('git', ['status', '--porcelain', '--', '.', ':!bench/RESULTS.md', ':!bench/out']) !== '';
@@ -777,7 +798,7 @@ function abMain() {
           out: join(OUT_DIR, 'ab', side, String(pair + 1)),
           rounds: 1,
           repeat: 1,
-          python: VENV_PYTHON,
+          python: side === 'base' ? basePython : VENV_PYTHON,
         };
         rmSync(ctx.out, { recursive: true, force: true });
         mkdirSync(ctx.out, { recursive: true });
