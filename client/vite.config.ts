@@ -125,9 +125,46 @@ const keepSceneOutOfEntry = (): Plugin => ({
   },
 });
 
+/**
+ * A game's link is how a friend is invited, and a link preview (a chat app's,
+ * a social site's) reads the page's meta tags without running the app. So
+ * the build writes invite.html, index.html with the invitation's words in
+ * place of the start page's, and public/_redirects serves it at /game/*.
+ * The build fails if a tag it replaces is missing.
+ */
+const INVITE_META: Record<string, string> = {
+  description:
+    'Chess in three dimensions, on five stacked boards. Open the link to take your seat. No account needed.',
+  'og:title': "You're invited to a game of 3D Chess",
+  'og:description':
+    'Chess in three dimensions, on five stacked boards. Open the link to take your seat. No account needed.',
+};
+const invitePage = (): Plugin => ({
+  name: 'invite-page',
+  apply: 'build',
+  enforce: 'post',
+  generateBundle(_options, bundle) {
+    const index = bundle['index.html'];
+    if (index?.type !== 'asset') this.error('invite-page: no index.html in the bundle');
+    let html = String(index.source);
+    for (const [key, content] of Object.entries(INVITE_META)) {
+      const tag = new RegExp(`(<meta\\s+(?:name|property)="${key}"\\s+content=")[^"]*(")`);
+      if (!tag.test(html)) this.error(`invite-page: index.html has no ${key} meta tag`);
+      html = html.replace(tag, `$1${content.replaceAll("'", '&#39;')}$2`);
+    }
+    this.emitFile({ type: 'asset', fileName: 'invite.html', source: html });
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), r3fCatalogue(), preloadSceneOnGamePages(), keepSceneOutOfEntry()],
+  plugins: [
+    react(),
+    r3fCatalogue(),
+    preloadSceneOnGamePages(),
+    keepSceneOutOfEntry(),
+    invitePage(),
+  ],
   css: {
     postcss: './postcss.config.js',
   },

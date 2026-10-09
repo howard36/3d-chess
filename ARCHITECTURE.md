@@ -1123,6 +1123,14 @@ repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
 
+Link previews read `client/index.html`'s meta tags (title, description, and `og:image`,
+`public/og.jpg`: the README's picture cut to 1.91:1, written by `scripts/readme-image.mjs`
+from the same frame). A game's link is an invitation, so the build also writes
+`invite.html`, the same page with the invitation's words in its description and
+`og:title` (`invitePage` in `vite.config.ts`, which fails the build if a tag it replaces
+is missing), and `public/_redirects` has Cloudflare Pages serve it at `/game/*`; every
+other address gets `index.html` (Pages' single-page fallback).
+
 Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
 per ecosystem (client npm, server uv, GitHub Actions, the actions pinned to commit SHAs),
 and each major on its own. Two come apart on purpose: `three` (with `@types/three`), whose
