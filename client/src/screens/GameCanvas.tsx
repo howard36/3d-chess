@@ -78,7 +78,10 @@ const GameCanvas = ({
     // (StrictMode's second mount puts back what its first unmount took down)
     if (published.current) w.__r3fState = published.current;
     return () => {
-      if (published.current && w.__r3fState === published.current) delete w.__r3fState;
+      // (only a plain value: a driver's own accessor, which records each
+      // canvas it is handed, stays for the next one)
+      const own = Object.getOwnPropertyDescriptor(w, '__r3fState');
+      if (published.current && own?.value === published.current) delete w.__r3fState;
     };
   }, []);
   return (
