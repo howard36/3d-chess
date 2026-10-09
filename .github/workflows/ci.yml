@@ -190,14 +190,8 @@ jobs:
       # add_local_python_source("messages") resolve. GITHUB_SHA is baked into
       # the image as APP_VERSION so the health check below can tell the new
       # deployment from the old one (which was already healthy).
-      # --strategy recreate terminates the running container as part of the
-      # deploy (new work then starts a fresh one): a rolling deploy would let
-      # the old one keep its sockets (up to the function's
-      # hour) while new ones reach the new container, and the server's
-      # connections live in its process, so a game split across the two would
-      # record moves its other player never hears of. Players reconnect.
       - name: Deploy Modal app
-        run: uv run modal deploy --strategy recreate modal_app.py
+        run: uv run modal deploy modal_app.py
         working-directory: server
       # max_containers=1 means no warm replica, so the first request after a
       # deploy pays a cold start. Poll until /health reports this commit.
