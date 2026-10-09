@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
 import { deriveHistory } from '../game/history';

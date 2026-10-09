@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // Renders the picture at the top of the README: the start page as a player
 // first sees it, the tower in its garden with the pieces on their starting
-// squares, before the demo's first move.
+// squares, before the demo's first move. The same frame, cut to a link
+// preview's 1.91:1, is the page's social image (og:image in index.html).
 //
-//   node scripts/readme-image.mjs                     # writes ../docs/preview.jpg
+//   node scripts/readme-image.mjs                     # writes ../docs/preview.jpg and public/og.jpg
 //   node scripts/readme-image.mjs --out /tmp/x.jpg    # somewhere else (.png for lossless)
+//   node scripts/readme-image.mjs --og /tmp/og.jpg    # the social image somewhere else
 //   node scripts/readme-image.mjs --width 1400 --height 800 --scale 2 --quality 90
 //
 // Starts its own Vite (no backend: the start page asks nothing of the
@@ -31,6 +33,12 @@ const WIDTH = Number(opt('width', '1400'));
 const HEIGHT = Number(opt('height', '800'));
 const SCALE = Number(opt('scale', '2'));
 const QUALITY = Number(opt('quality', '90'));
+// The social image: the full width, 1.91:1 (1400 x 733 at the default size),
+// cut evenly from the top and bottom, where the garden is empty. Drawn at CSS
+// size, not the device scale: link previews show it at most 1200 wide, and
+// crawlers drop large files.
+const OG = path.resolve(opt('og', path.join(CLIENT, 'public', 'og.jpg')));
+const OG_HEIGHT = Math.round(WIDTH / 1.91);
 const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
 /**
@@ -111,6 +119,16 @@ try {
     ...(jpeg ? { quality: QUALITY } : {}),
   });
   console.log(OUT);
+
+  fs.mkdirSync(path.dirname(OG), { recursive: true });
+  await page.screenshot({
+    path: OG,
+    type: 'jpeg',
+    quality: QUALITY,
+    scale: 'css',
+    clip: { x: 0, y: Math.round((HEIGHT - OG_HEIGHT) / 2), width: WIDTH, height: OG_HEIGHT },
+  });
+  console.log(OG);
 } finally {
   await browser.close();
   await vite?.close();

@@ -4,7 +4,7 @@
 import WS from 'jest-websocket-mock';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
-import { MemoryRouter, useNavigate } from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router';
 import React from 'react';
 import userEvent from '@testing-library/user-event';
 import App from './App';

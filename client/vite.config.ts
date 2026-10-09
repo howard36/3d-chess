@@ -1,4 +1,4 @@
-import { defineConfig, transformWithEsbuild } from 'vite';
+import { defineConfig, minify } from 'vite';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
@@ -39,11 +39,13 @@ const preloadSceneOnGamePages = (): Plugin => ({
         if (!chunk) throw new Error(`preload-scene-on-game-pages: no chunk holds ${file}`);
         return chunk;
       };
-      // Each, and what it imports, less the entry (loading anyway)
+      // Each, and what it imports, less the entry and the chunks it imports
+      // (loading anyway: the page links those itself)
       const entry = chunks.find((c) => c.isEntry);
+      const loading = new Set(entry ? [entry.fileName, ...entry.imports] : []);
       const files = [
         ...new Set(PRELOADED.map(from).flatMap((c) => [c.fileName, ...c.imports])),
-      ].filter((f) => f !== entry?.fileName);
+      ].filter((f) => !loading.has(f));
       const preload = (f: string) =>
         `{const l=document.createElement('link');l.rel='modulepreload';l.crossOrigin='';l.href='/${f}';document.head.appendChild(l)}`;
       return [
@@ -74,11 +76,11 @@ const earlySocket = (): Plugin => {
     async transformIndexHtml(html) {
       const keys = { role: ROLE_KEY_PREFIX, clientId: CLIENT_ID_KEY };
       // Minified: it is in every page's HTML
-      const { code } = await transformWithEsbuild(
-        `(${startEarlySocket.toString()})(${JSON.stringify(url)},${JSON.stringify(keys)})`,
+      const { code, errors } = await minify(
         'early-socket.js',
-        { minify: true },
+        `(${startEarlySocket.toString()})(${JSON.stringify(url)},${JSON.stringify(keys)})`,
       );
+      if (errors.length) throw new Error(`early-socket: ${errors[0].message}`);
       // Right after the charset (which must stand in the first 1024 bytes),
       // ahead of the stylesheet: an inline script waits for a stylesheet before it
       const charset = /<meta charset[^>]*>/i;
@@ -159,6 +161,54 @@ const keepSceneOutOfEntry = (): Plugin => ({
   },
 });
 
+/**
+ * A game's link is how a friend is invited, and a link preview (a chat app's,
+ * a social site's) reads the page's meta tags without running the app. So
+ * the build writes invite.html, index.html with the invitation's title and
+ * description in place of the start page's, and public/_redirects serves it at /game/*.
+ * The build fails if a tag it replaces is missing.
+ */
+const INVITE_META: Record<string, string> = {
+  'og:title': "You're invited to a game of 3D Chess",
+  'og:description': 'Your opponent is waiting.',
+  description: 'Your opponent is waiting.',
+};
+const invitePage = (): Plugin => ({
+  name: 'invite-page',
+  apply: 'build',
+  enforce: 'post',
+  generateBundle(_options, bundle) {
+    const index = bundle['index.html'];
+    if (index?.type !== 'asset') this.error('invite-page: no index.html in the bundle');
+    let html = String(index.source);
+    for (const [key, content] of Object.entries(INVITE_META)) {
+      const tag = new RegExp(`(<meta\\s+(?:name|property)="${key}"\\s+content=")[^"]*(")`);
+      if (!tag.test(html)) this.error(`invite-page: index.html has no ${key} meta tag`);
+      html = html.replace(tag, `$1${content.replaceAll("'", '&#39;')}$2`);
+    }
+    this.emitFile({ type: 'asset', fileName: 'invite.html', source: html });
+  },
+});
+
+/**
+ * og:image must be an absolute address, and the site's own holds only what
+ * main has deployed: a branch's preview on Cloudflare Pages (which builds
+ * with CF_PAGES_BRANCH and CF_PAGES_URL set) points at the image it deployed
+ * itself, so its link previews show the picture they will have once merged.
+ */
+const SOCIAL_IMAGE = 'https://3dchess.club/og.jpg';
+const socialImageOnPreviews = (): Plugin => ({
+  name: 'social-image-on-previews',
+  apply: 'build',
+  transformIndexHtml(html) {
+    const { CF_PAGES_BRANCH: branch, CF_PAGES_URL: url } = process.env;
+    if (!branch || branch === 'main' || !url) return html;
+    if (!html.includes(SOCIAL_IMAGE))
+      throw new Error(`social-image-on-previews: index.html has no ${SOCIAL_IMAGE}`);
+    return html.replaceAll(SOCIAL_IMAGE, `${url.replace(/\/$/, '')}/og.jpg`);
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -167,6 +217,8 @@ export default defineConfig({
     earlySocket(),
     preloadSceneOnGamePages(),
     keepSceneOutOfEntry(),
+    invitePage(),
+    socialImageOnPreviews(),
   ],
   css: {
     postcss: './postcss.config.js',

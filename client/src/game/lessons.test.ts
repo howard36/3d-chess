@@ -252,7 +252,10 @@ describe('practice', () => {
     expect(new Set(promotions.map((m) => toZXY(m.to)))).toEqual(new Set(['Ec5']));
     expect(promotions.every((m) => m.promotion)).toBe(true);
     expect(promotions.map((m) => m.promotion)).toContain(PieceType.Unicorn);
-    const promoted = practise(start, promotions.find((m) => m.promotion === PieceType.Unicorn)!);
+    const promoted = practise(
+      start,
+      promotions.find((m) => m.promotion === PieceType.Unicorn)!,
+    );
     expect(promoted.board.getPiece(fromZXY('Ec5'))).toEqual({
       type: PieceType.Unicorn,
       color: 'white',

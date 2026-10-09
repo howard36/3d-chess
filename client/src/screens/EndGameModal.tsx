@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import type { GameOver, Turn } from '../game/history';
 import { DRAW_BY, isDecisive, resultWords } from '../game/announce';
 import { Stone } from './TurnPill';

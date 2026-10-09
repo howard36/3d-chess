@@ -7,7 +7,7 @@
 // cold, so cold is measured in fresh processes; warm (JIT-compiled) numbers
 // come from fresh module instances in this one.
 //
-//   node --expose-gc node_modules/vite-node/vite-node.mjs bench/startup.ts [--quick]
+//   node --expose-gc node_modules/vite-node/dist/cli.mjs bench/startup.ts [--quick]
 //
 // Both caches (the set per quality, the baked set) live in module state, so
 // a fresh instance of the module (imported under a unique query) starts
@@ -70,7 +70,7 @@ for (let run = 0; run < coldRuns; run++) {
   // (node on vite-node's entry directly: npx would add a second or so per run)
   const child = spawnSync(
     process.execPath,
-    ['--expose-gc', 'node_modules/vite-node/vite-node.mjs', 'bench/startup.ts'],
+    ['--expose-gc', 'node_modules/vite-node/dist/cli.mjs', 'bench/startup.ts'],
     {
       env: { ...process.env, BENCH_STARTUP_CHILD: '1' },
       encoding: 'utf8',

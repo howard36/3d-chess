@@ -1079,7 +1079,6 @@ server/bench/    Server benchmarks: store operations, live WebSocket load, adver
 bench/           The benchmark runner (run.mjs) and its report (RESULTS.md, rewritten by a run).
 bench/loop/      Performance work log: ledger of ideas tried, A/B reports, patches, tools.
 docs/            The README's picture (preview.jpg, from client/scripts/readme-image.mjs).
-product-description/  The player's-eye description of the product, and its bug triage.
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
 .github/workflows/  ci.yml (tests, gates, deploy) and claude.yml (@claude on issues and PRs).
 .github/dependabot.yml  Weekly dependency PRs (npm, uv, GitHub Actions).
@@ -1132,6 +1131,16 @@ tests ran against. Authentication comes from the `MODAL_TOKEN_ID` and `MODAL_TOK
 repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
+
+Link previews read `client/index.html`'s meta tags (title, description, and `og:image`,
+`public/og.jpg`: the README's picture cut to 1.91:1, written by `scripts/readme-image.mjs`
+from the same frame). A game's link is an invitation, so the build also writes
+`invite.html`, the same page with the invitation's `og:title` and description
+(`invitePage` in `vite.config.ts`, which fails the build if a tag it replaces is missing), and
+`public/_redirects` has Cloudflare Pages serve it at `/game/*`; every other address gets
+`index.html` (Pages' single-page fallback). `og:image` names `https://3dchess.club/og.jpg`,
+which only holds what main deployed, so a branch's preview build points it at the
+preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
 
 Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
 per ecosystem (client npm, server uv, GitHub Actions, the actions pinned to commit SHAs),
@@ -1205,7 +1214,15 @@ rules stops the client tier instead of timing different work.
 ## Known limitations (accepted for this project's scope)
 
 - The server doesn't detect checkmate, stalemate or the draws; game-over is decided
-  independently by each client.
+  independently by each client, from the final position only. So after an ending on the
+  board the server still records a turn-correct move (the app sends none: its board takes
+  no input once a game is over), and a move a modified client records after a mate takes
+  the result away again on the other board. Only a resignation or an agreed draw, which the
+  server records, makes it refuse further moves.
+- A rejoin refused with `invalid_game` after the page has already shown the game (it expired
+  during a long outage) keeps the stored seat and leaves the board on screen, taking no
+  input, with the error in the banner; only a reload resolves it (the stored seat is then
+  deleted and the page says "No game here").
 - A WebSocket session is bounded by the Modal function timeout (1 hour). The client
   auto-reconnects and rejoins when that (or any drop) severs the socket, so the
   interruption is a brief "Reconnecting…" rather than a frozen game.

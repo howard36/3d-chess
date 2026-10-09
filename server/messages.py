@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Literal, Optional, Union
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, conint, constr
 
@@ -53,7 +53,7 @@ class Ending(BaseModel):
         extra='forbid',
     )
     result: EndingResult
-    winner: Optional[Color] = Field(
+    winner: Color | None = Field(
         None,
         description="The side that won: the resigning side's opponent. Absent for an agreed draw.",
     )
@@ -65,7 +65,7 @@ class DrawOffer(BaseModel):
     )
     by: Color
     ply: conint(ge=0)
-    declined: Optional[bool] = Field(
+    declined: bool | None = Field(
         None,
         description='The opponent declined it. A draw can be offered once per move.',
     )
@@ -76,8 +76,8 @@ class CreateGame(BaseModel):
         extra='forbid',
     )
     type: Literal['create_game']
-    clientId: Optional[ClientId] = None
-    color: Optional[Color] = Field(
+    clientId: ClientId | None = None
+    color: Color | None = Field(
         None,
         description='The side the creator wants to play. Omitted, the server picks one at random.',
     )
@@ -106,7 +106,7 @@ class GameInfo(BaseModel):
     )
     type: Literal['game_info']
     gameId: str
-    seats: List[Color] = Field(
+    seats: list[Color] = Field(
         ..., description='The seats already claimed, in the order they were taken.'
     )
 
@@ -117,7 +117,7 @@ class JoinGame(BaseModel):
     )
     type: Literal['join_game']
     gameId: str
-    clientId: Optional[ClientId] = None
+    clientId: ClientId | None = None
 
 
 class GameJoined(BaseModel):
@@ -135,8 +135,8 @@ class RejoinGame(BaseModel):
     type: Literal['rejoin_game']
     gameId: str
     color: Color
-    clientId: Optional[ClientId] = None
-    takeover: Optional[bool] = Field(
+    clientId: ClientId | None = None
+    takeover: bool | None = Field(
         None,
         description="Whether to take the seat from another tab's live connection (the default). An automatic reconnect sends false, and is refused with seat_in_use instead.",
     )
@@ -157,7 +157,7 @@ class MoveRecord(BaseModel):
     by: Color
     from_: constr(pattern=r'^[A-E][a-e][1-5]$') = Field(..., alias='from')
     to: constr(pattern=r'^[A-E][a-e][1-5]$')
-    promotion: Optional[Promotion] = None
+    promotion: Promotion | None = None
 
 
 class Move(BaseModel):
@@ -167,7 +167,7 @@ class Move(BaseModel):
     type: Literal['move']
     from_: constr(pattern=r'^[A-E][a-e][1-5]$') = Field(..., alias='from')
     to: constr(pattern=r'^[A-E][a-e][1-5]$')
-    promotion: Optional[Promotion] = None
+    promotion: Promotion | None = None
 
 
 class MoveMade(BaseModel):
@@ -178,7 +178,7 @@ class MoveMade(BaseModel):
     by: Color
     from_: constr(pattern=r'^[A-E][a-e][1-5]$') = Field(..., alias='from')
     to: constr(pattern=r'^[A-E][a-e][1-5]$')
-    promotion: Optional[Promotion] = None
+    promotion: Promotion | None = None
 
 
 class Resign(BaseModel):
@@ -233,7 +233,7 @@ class GameEnded(BaseModel):
     )
     type: Literal['game_ended']
     result: EndingResult
-    winner: Optional[Color] = Field(
+    winner: Color | None = Field(
         None, description='The side that won; absent for an agreed draw.'
     )
 
@@ -263,11 +263,11 @@ class GameState(BaseModel):
     type: Literal['game_state']
     color: Color
     started: bool
-    moves: List[MoveRecord]
-    ending: Optional[Ending] = Field(
+    moves: list[MoveRecord]
+    ending: Ending | None = Field(
         None, description='Set once the game has ended by resignation or agreement.'
     )
-    drawOffer: Optional[DrawOffer] = Field(
+    drawOffer: DrawOffer | None = Field(
         None,
         description='The latest draw offer, if any; it stands only if its ply is the number of moves and it was not declined.',
     )
@@ -275,49 +275,47 @@ class GameState(BaseModel):
 
 class WebsocketV1MessageEnvelope(
     RootModel[
-        Union[
-            CreateGame,
-            GameCreated,
-            LookGame,
-            GameInfo,
-            JoinGame,
-            GameJoined,
-            RejoinGame,
-            GameStart,
-            GameState,
-            Move,
-            MoveMade,
-            Resign,
-            OfferDraw,
-            AcceptDraw,
-            DeclineDraw,
-            DrawOffered,
-            DrawDeclined,
-            GameEnded,
-            Presence,
-            Error,
-        ]
+        CreateGame
+        | GameCreated
+        | LookGame
+        | GameInfo
+        | JoinGame
+        | GameJoined
+        | RejoinGame
+        | GameStart
+        | GameState
+        | Move
+        | MoveMade
+        | Resign
+        | OfferDraw
+        | AcceptDraw
+        | DeclineDraw
+        | DrawOffered
+        | DrawDeclined
+        | GameEnded
+        | Presence
+        | Error
     ]
 ):
-    root: Union[
-        CreateGame,
-        GameCreated,
-        LookGame,
-        GameInfo,
-        JoinGame,
-        GameJoined,
-        RejoinGame,
-        GameStart,
-        GameState,
-        Move,
-        MoveMade,
-        Resign,
-        OfferDraw,
-        AcceptDraw,
-        DeclineDraw,
-        DrawOffered,
-        DrawDeclined,
-        GameEnded,
-        Presence,
-        Error,
-    ] = Field(..., title='WebSocket V1 Message Envelope')
+    root: (
+        CreateGame
+        | GameCreated
+        | LookGame
+        | GameInfo
+        | JoinGame
+        | GameJoined
+        | RejoinGame
+        | GameStart
+        | GameState
+        | Move
+        | MoveMade
+        | Resign
+        | OfferDraw
+        | AcceptDraw
+        | DeclineDraw
+        | DrawOffered
+        | DrawDeclined
+        | GameEnded
+        | Presence
+        | Error
+    ) = Field(..., title='WebSocket V1 Message Envelope')

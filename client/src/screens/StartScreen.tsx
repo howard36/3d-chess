@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { prefersReducedMotion } from '../three/motion';
 import { lazyChunk } from '../lib/cachedImport';
 import { ChunkBoundary } from '../components/ChunkBoundary';
