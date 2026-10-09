@@ -1096,8 +1096,11 @@ geometry's cold startup (`client/bench/startup.ts`); **server**, the relay in pr
 over real sockets, with store models that mimic `modal.Dict`'s copies and blocking calls
 (`server/bench/bench_server.py`, its store models in `bench_app.py`); and **browser**, the production build end to end in
 headless Chromium (`client/scripts/bench-browser.mjs`, software WebGL, so its frame times
-are only relative). Cases marked ⚠ are adversarial. Numbers compare only between runs on
-one machine; the report records the machine, the commit and each tier's run time.
+are only relative; it walks into a game through the UI the way the e2e suite does, by
+role and name, so a change to the way into a game must keep it walking). Cases marked ⚠
+are adversarial. Numbers compare only between runs on one machine; the report records the
+machine, the commit and each tier's run time. A browser section that fails is a "failed"
+row in the report and fails the tier: `run.mjs` says so in the report and exits 1.
 
 To measure a change, run `node bench/run.mjs --base <ref>` (e.g. `--base HEAD` for
 uncommitted work, `--base main` for a branch): it checks the base commit out into a
