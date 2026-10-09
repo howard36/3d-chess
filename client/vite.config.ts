@@ -58,8 +58,7 @@ const preloadSceneOnGamePages = (): Plugin => ({
 });
 
 /**
- * The built page opens its socket from an inline script at the top of its
- * head, before the entry has loaded, and on a game's address sends its first
+ * The built page opens its socket from an inline script in its head, before the entry has loaded, and on a game's address sends its first
  * request (src/lib/earlySocket.ts): the app adopts the socket and what came
  * back. Build only: the dev server's StrictMode mounts the app's socket twice
  * (closing the first), which would rejoin the seat a second time.
@@ -77,7 +76,8 @@ const earlySocket = (): Plugin => {
       return [
         {
           tag: 'script',
-          injectTo: 'head-prepend',
+          // (after the charset, which must stand in the first 1024 bytes)
+          injectTo: 'head',
           children: `(${startEarlySocket.toString()})(${JSON.stringify(url)},${JSON.stringify(keys)})`,
         },
       ];

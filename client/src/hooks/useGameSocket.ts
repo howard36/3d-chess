@@ -171,6 +171,15 @@ export function useGameSocket(): GameSocket {
       const ws = usable ? adopted.socket.socket : new WebSocket(WS_URL);
       socketRef.current = ws;
 
+      // Sends what was queued before the socket was open, but moves (below)
+      const flush = () => {
+        const queued = outgoingQueueRef.current.filter((m) => m.type !== 'move');
+        outgoingQueueRef.current = [];
+        for (const msg of queued) {
+          ws.send(JSON.stringify(msg));
+          sentRef.current.push(msg);
+        }
+      };
       const opened = () => {
         if (disposed || socketRef.current !== ws) return;
         attemptRef.current = 0;
@@ -185,12 +194,7 @@ export function useGameSocket(): GameSocket {
         // now, and it was never echoed so the board never showed it — dropping
         // it is consistent, the player just moves again. Session-establishing
         // messages (create/join/rejoin) are exactly what the queue is for.
-        const queued = outgoingQueueRef.current.filter((m) => m.type !== 'move');
-        outgoingQueueRef.current = [];
-        for (const msg of queued) {
-          ws.send(JSON.stringify(msg));
-          sentRef.current.push(msg);
-        }
+        flush();
       };
       ws.onopen = opened;
 
@@ -217,6 +221,11 @@ export function useGameSocket(): GameSocket {
         retryTimer = setTimeout(connect, reconnectDelayMs(attemptRef.current++));
       };
 
+      if (adopted && !usable) {
+        // Closed before it could be taken over: what was queued on its session
+        // is asked again on the next one
+        outgoingQueueRef.current = [];
+      }
       if (usable && adopted) {
         // What the early socket did between the first render and now
         const { received, sent } = adopted.socket;
@@ -225,6 +234,10 @@ export function useGameSocket(): GameSocket {
           opened();
           if (sent) sentRef.current.push(sent);
           hasActivityRef.current ||= !!sent;
+        } else if (adopted.open) {
+          // Open since the first render: what the screens asked for before
+          // this effect ran (their effects run first) goes out now
+          flush();
         }
         const late = received.slice(adopted.seen).map(parse);
         if (late.length) {

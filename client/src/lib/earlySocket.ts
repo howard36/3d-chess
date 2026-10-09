@@ -52,9 +52,10 @@ export function startEarlySocket(url: string, keys: EarlyKeys): void {
     socket.onopen = () => {
       const match = /^\/game\/([^/]+)\/?$/.exec(location.pathname);
       if (!match) return;
-      const gameId = decodeURIComponent(match[1]);
       let message: WebSocketMessage;
       try {
+        // (a malformed address: the app decides)
+        const gameId = decodeURIComponent(match[1]);
         const color = localStorage.getItem(keys.role + gameId);
         if (color === 'white' || color === 'black') {
           let clientId = sessionStorage.getItem(keys.clientId);

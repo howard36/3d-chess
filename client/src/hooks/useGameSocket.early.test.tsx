@@ -1,6 +1,7 @@
 import WS from 'jest-websocket-mock';
-import { renderHook, act, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { render, renderHook, act, waitFor } from '@testing-library/react';
+import { useEffect } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameSocket, WS_URL } from './useGameSocket';
 import { resetEarlySocketForTests, startEarlySocket, takeEarlySocket } from '../lib/earlySocket';
 import { ROLE_KEY_PREFIX } from '../lib/playerRole';
@@ -109,5 +110,37 @@ describe('the early socket', () => {
     await expect(server).toReceiveMessage(JSON.stringify({ type: 'look_game', gameId: 'XYZ789' }));
     expect(result.current.sentThisSession!((m) => m.type === 'look_game')).toBe(true);
     expect(server.server.clients()).toHaveLength(1);
+  });
+
+  it('sends what the app asked for before taking over a socket that opened asking nothing', async () => {
+    // Storage that throws: the page's script leaves the request to the app
+    window.history.pushState({}, '', '/game/XYZ789');
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    startEarlySocket(WS_URL, keys);
+    await server.connected;
+    getItem.mockRestore();
+    expect(window.__earlySocket!.sent).toBeNull();
+    // A screen's effect asks in the first commit, before the hook's own effect has run
+    const Screen = ({ send }: { send: (m: { type: 'look_game'; gameId: string }) => void }) => {
+      useEffect(() => {
+        send({ type: 'look_game', gameId: 'XYZ789' });
+      }, [send]);
+      return null;
+    };
+    const App = () => {
+      const socket = useGameSocket();
+      return <Screen send={socket.send} />;
+    };
+    render(<App />);
+    await expect(server).toReceiveMessage(JSON.stringify({ type: 'look_game', gameId: 'XYZ789' }));
+  });
+
+  it('does not take the page as its script left it when the address cannot be read', async () => {
+    window.history.pushState({}, '', '/game/%E0%A4%A');
+    startEarlySocket(WS_URL, keys);
+    await server.connected;
+    expect(window.__earlySocket!.sent).toBeNull();
   });
 });
