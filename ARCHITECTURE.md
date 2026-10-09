@@ -244,8 +244,13 @@ Key decisions:
   `data-winner`; `data-testid="seat"` its `data-seat`; `opponent-presence` its
   `data-online`; `captured-pieces` each haul as `data-side` (`me`, `them`); and
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
-  and `data-move-count`. In the game's entrance the pill and the captured pieces fade in
-  last, settling down onto their place as the last pawns form (`--intro-hud`), and the
+  and `data-move-count`. The browser tab follows the pill: while it is the seated player's
+  move in a game under way (a friend's or the computer's), in view or not, the title is
+  "● Your move · 3D Chess" and the icon is `public/favicon-turn.svg` (the favicon, the
+  tower's five levels, with a gold dot); the page's own come back on the opponent's move,
+  at the end of the game and when the page goes (`hooks/useTabSignal.ts`, which also
+  carries the host's "Opponent joined"; no frames, no timers). In the game's entrance
+  the pill and the captured pieces fade in last, settling down onto their place as the last pawns form (`--intro-hud`), and the
   canvas's wrapper carries `data-intro` (`playing`, then `done`), which e2e's
   `waitForBoard` waits for; the move box stays the first Tab stop throughout. The started game's page is `screens/GameView.tsx`, which `GameScreen` renders with
   everything it derives from the log; its 3D board, `screens/GameCanvas.tsx` (loaded
@@ -799,8 +804,9 @@ written); nothing else. A copy turns the button to
   (`lobbyHandover`) until the lobby has gone. Level A stands from the start
   (`levels.built`), nothing fades up, the camera stands still, and B to E build on up from
   A as the armies form, in about 3.1 s. A host whose tab is
-  hidden when the guest arrives gets the title "● Opponent joined · 3D Chess", and the
-  arrival waits for them (a hidden tab draws no frames). A page that opens on a game
+  hidden when the guest arrives gets the title "● Opponent joined · 3D Chess" until they
+  look (over "Your move", see HUD), and the arrival waits for them (a hidden tab draws no
+  frames). A page that opens on a game
   already under way skips the lobby and plays the short entrance.
 
 Under `prefers-reduced-motion` the seat does not breathe, the
