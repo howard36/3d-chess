@@ -1,6 +1,6 @@
 # Verification harness
 
-The Playwright scripts that ran the first two verification passes (the second ran against `c571311`, the build the documents then described). They are a record of how those results were obtained; they are not part of the product's test suite, and nothing here is run by CI. **They target the app as it was at `c571311` and do not run against `24c650c`**; see the last section.
+The Playwright scripts that ran the first two verification passes (the second ran against `c571311`, the build the documents then described). They are a record of how those results were obtained; they are not part of the product's test suite, and nothing here is run by CI. **They target the app as it was at `c571311` and do not run against `24c650c` or later**; see the last section.
 
 ## Running it
 
@@ -45,7 +45,7 @@ In a container whose Chromium does not match Playwright's version, prefix with `
 - Reduced motion is emulated with `page.emulateMedia({ reducedMotion: 'reduce' })`, and the clipboard with `context.grantPermissions(['clipboard-read', 'clipboard-write'])`.
 - `results.jsonl` accumulates across runs; the latest line for an ID is its result.
 
-## At `24c650c`
+## At `24c650c` and later
 
 The scripts drive and read the app as it was at `c571311`, and the app has changed under them in ways small edits will not fix:
 

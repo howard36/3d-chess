@@ -2,7 +2,7 @@
 
 ## Summary
 
-This document covers the two ways the position itself speaks to the player: **check**, shown on the board alone by the King rocking on his foot and turning red among dark blades, and the **end of the game**, shown as a result card over the board. A game ends by [checkmate, stalemate, a threefold repetition, or the fifty-move rule](../foundations/game-rules.md#check-checkmate-and-stalemate), decided independently by each player's browser as soon as the move that causes it lands; the server never learns that a game is over. At checkmate the end plays out first (the King is knocked over and the winners cheer). The [result card](../glossary.md#the-interface) then says the result to each player from their own side ("You win", "You lose", or "Draw", with how) and offers "Play again", which leads to the side choice for another game of the same kind; it can also be closed, to study the final position. This document owns a King in check, the four endings, the result card, and "Play again".
+This document covers the two ways the position itself speaks to the player: **check**, shown on the board alone by the King rocking on his foot and turning red among dark blades, and the **end of the game**, shown as a result card over the board. A game ends by [checkmate, stalemate, a threefold repetition, or the fifty-move rule](../foundations/game-rules.md#check-checkmate-and-stalemate), decided independently by each player's browser as soon as the move that causes it lands; the server never learns of these. The players can also end a game themselves, by a resignation or an agreed draw, which the server records ([resigning and draws](resigning-and-draws.md)); those endings share the result card described here. Once a game is over, by any ending, the board takes no more input. At checkmate the end plays out first (the King is knocked over and the winners cheer). The [result card](../glossary.md#the-interface) then says the result to each player from their own side ("You win", "You lose", or "Draw", with how) and offers "Play again", which leads to the side choice for another game of the same kind; it can also be closed, to study the final position. This document owns a King in check, the four endings on the board, the result card, and "Play again".
 
 ## The simple case
 
@@ -54,13 +54,15 @@ While in check, the player's selectable pieces offer only moves that leave the K
 - **Repetition:** the position (the same pieces on the same cells, the same side to move) stands for the third time. A draw.
 - **The fifty-move rule:** a hundred moves in all have been played with no capture and no pawn move. A draw.
 
+Two more endings come from the players rather than the board: a **resignation** (the other side wins) and a **draw agreed** between them. They are described in [resigning and draws](resigning-and-draws.md); an ending on the board comes first, so neither is possible once one of the four has landed.
+
 A mate wins even on the move that would also complete a repetition or the fifty moves. Each browser reaches its conclusion by itself, from the same record, at the moment the final move lands, and lets the end play out on the board first:
 
 - **At checkmate** the mating piece's arrival knocks the King over (the knock lands a moment before the piece comes to rest); he passes his tipping point about half a second later and strikes the glass about 1.1 seconds after the knock, with a small bounce. As he strikes, the pulse of light spreads across his own level only, at an even speed (so it takes longer from a corner than from the middle), the blades sink into the glass, and 0.37 seconds later the winning army hops in a wave travelling out from him. On White's side of the garden the far tower's lit window goes dark. The result card follows 1.3 seconds after the strike, about 3 seconds after the mating move arrived. The wait follows the animation itself, so on a slow device the card never covers the fall early; if the board stops drawing altogether the card appears after 12 seconds.
-- **At a draw** nothing plays out: the card follows 0.6 seconds after the final move arrives.
+- **At a draw**, and when the players end the game, nothing plays out: the card follows 0.6 seconds after the final move, the resignation, or the acceptance arrives.
 - **Already over.** When the game was already over as the board appeared (a reload, a return, a snapshot after a drop), the King is simply drawn lying down and the card appears at once.
 
-As the game ends, the [turn pill](../game-page/turn-indicator.md) gives the result from each player's side instead of the turn, with one stone lit (the winner's, or at a draw the player's own): "Checkmate · you win", "Checkmate · you lose", "Stalemate · draw", "Repetition · draw", or "50-move rule · draw".
+As the game ends, the [turn pill](../game-page/turn-indicator.md) gives the result from each player's side instead of the turn, with one stone lit (the winner's, or at a draw the player's own): "Checkmate · you win", "Checkmate · you lose", "Stalemate · draw", "Repetition · draw", or "50-move rule · draw" (and, for the players' endings, "White resigned · you win" or "· you lose", and "Draw agreed").
 
 The card is a glass card over a veil across the whole window. Everything behind it, the board and the whole HUD, is made inert: it cannot be clicked, focused, or read by assistive technology. The card shows a close button at its top right, the two stones, porcelain and charcoal, with the winner's lit (neither at a draw), a heading said to the player, and how the game ended under it:
 
@@ -71,10 +73,13 @@ The card is a glass card over a veil across the whole window. Everything behind 
 | Stalemate | "Draw" | "by stalemate" |
 | Repetition | "Draw" | "by repetition" |
 | Fifty moves | "Draw" | "by the 50-move rule" |
+| The opponent resigned | "You win" | "White resigned" (or "Black resigned") |
+| The player resigned | "You lose" | "White resigned" (or "Black resigned") |
+| A draw agreed | "Draw" | "by agreement" |
 
 Below them is one button, "Play again", a pale pill of starlight in a turning rim of the level colors, which takes keyboard focus as the card opens, so Enter or Space activates it at once. Screen readers announce a dialog named by its heading and described by the line under it.
 
-The card is not shown when the board is [frozen](../cross-cutting/broken-game-record.md): a position the browser could not fully replay is not treated as final.
+The card is not shown for a position on a [frozen](../cross-cutting/broken-game-record.md) board: a position the browser could not fully replay is not treated as final. A resignation or an agreed draw on a frozen board does end the game, and shows the card.
 
 ### End without sending
 
@@ -84,7 +89,7 @@ The result card ends without sending in one way: **closing it**, with its close 
 
 A closed card comes back whenever the game is opened again: a reload, a return through the link or a bookmark, or browser Back from the side choice all replay the record, reach the same final position, and show the card again at once, without the final glide. The player's [stored seat](../foundations/connection-and-seat.md#the-stored-seat) is never removed for a finished game, so its link always leads back to the result.
 
-Closing the tab or navigating away records nothing; the server has no notion of the game being over, so there is nothing to record.
+Closing the tab or navigating away records nothing; the server has no notion of a game being over on the board, so there is nothing to record.
 
 ### Send
 
@@ -121,14 +126,14 @@ Reduced motion: the King is not knocked over but simply shown fallen, nothing ro
 | Event | Before sending | While in flight |
 | --- | --- | --- |
 | Escape or Cancel | No effect on check. Escape closes the result card, as do its close button and a click on the veil. | Not applicable. |
-| Pressing elsewhere or turning the view | In check, presses work as in [making a move](making-a-move.md). While the end plays out, before the card, the view can still be turned. Under the card, the board, the view, and the whole HUD cannot be reached; once it is closed, they can again (see the edge cases for what a press on the board then does). | Not applicable. |
+| Pressing elsewhere or turning the view | In check, presses work as in [making a move](making-a-move.md). While the end plays out, before the card, the view can still be turned. Under the card, the board, the view, and the whole HUD cannot be reached; once it is closed, they can again, but the board takes no input: a press on a piece does nothing. | Not applicable. |
 | Leaving the game page within the app | The page leaves the finished game; against a friend the connection resets. Going Back or reopening the link shows the card again. | Not applicable. |
 | The game ends | This document's subject. | Not applicable. |
 | The server answers with an error | An error banner, if one arrives, shows under the veil and cannot be dismissed while the card is up. | Not applicable. |
 | The connection drops | Check and the card stay. "Reconnecting…" appears under the veil, and the page rejoins when the connection returns; the snapshot changes nothing. If another tab has taken the seat meanwhile, the replaced dialog appears instead. | Not applicable. |
 | The window loses focus or the tab is hidden | No effect on check. A mate that lands while the tab is hidden plays out when the player returns (the scene is not drawn meanwhile), and the card follows it. | Not applicable. |
 | Reload or closing the tab | Check reappears on reload if still in force. The card reappears on reload, even if it had been closed; closing the tab records nothing. | Not applicable. |
-| The opponent acts | In check, the opponent cannot move until the player does. After a checkmate or stalemate the opponent has no move to make; after a draw by repetition or the fifty moves, see the edge cases. | Not applicable. |
+| The opponent acts | In check, the opponent cannot move until the player does, but may resign or offer a draw ([resigning and draws](resigning-and-draws.md)). After any ending the opponent's board takes no more input either. | Not applicable. |
 | Another tab takes the seat | The replaced dialog appears on top of the result card, and the card is made inert with everything else, so "Play here" is the only thing Tab reaches. After "Play here", the card is still there. | Not applicable. |
 | A second touch point or a cancelled touch | No effect. | Not applicable. |
 
@@ -136,15 +141,15 @@ Reduced motion: the King is not knocked over but simply shown fallen, nothing ro
 
 **Seat and turn.** Check is always on the side to move. The result is said to each player from their own side, so neither has to know their color to read it as a win or a loss.
 
-**The game record.** Nothing is recorded when a game ends. The record simply stops growing (but see the edge cases); the result is recomputed from it every time the game is opened.
+**The game record.** Nothing is recorded when a game ends on the board. The record simply stops growing; the result is recomputed from it every time the game is opened. (A resignation or an agreement is recorded; see [resigning and draws](resigning-and-draws.md).)
 
-**Connection.** Neither check nor the result needs the server: both are worked out in the browser. The server would accept further moves after the end, since it does not know of it.
+**Connection.** Neither check nor the result needs the server: both are worked out in the browser. The server would accept further moves after an ending on the board, since it does not judge the board, but the app sends none: the board takes no input once the game is over.
 
 **The opponent.** Sees the same red King and the same end at the same moment, from the same echo. Learns only that the player went offline when they leave the game's page. Against the computer, the computer stops thinking once the game is over.
 
 **Other tabs and devices.** Every tab or device that opens the finished game shows the card.
 
-**Game over.** This document's subject. There is no other way for a game to end: no resignation, no draw offer, no timeout, no draw by material.
+**Game over.** This document's subject, with [resigning and draws](resigning-and-draws.md) for the endings the players choose. There is no timeout and no draw by material.
 
 **Stored seat.** Kept after the game ends, so the link keeps working for the player until the game expires.
 
@@ -152,7 +157,7 @@ Reduced motion: the King is not knocked over but simply shown fallen, nothing ro
 
 ## Edge cases
 
-- **A drawn game can go on.** The board does not stop taking presses when the game ends. After checkmate or stalemate this changes nothing, since the side to move has no legal move (its pieces can be picked up but show no destinations). After a draw by repetition or the fifty-move rule, the side to move still has legal moves: once that player closes the card, they can press a piece and a destination, the move is sent and recorded, and both boards replay it; the position after it is usually no longer drawn, so the result goes away and the game carries on. The move box refuses moves after the end (it answers "Wait for their move.", even to the player whose turn the final position gives), but the board does not. Against the computer, the computer then answers. See [bug triage](../bug-triage.md) B-25.
+- **The board after the end.** Once the game is over, by any ending, the board takes no input on either side: after a draw by repetition or the fifty-move rule the side to move still has legal moves, but a press on a piece does nothing, and the move box answers "Wait for their move.". (Until `b325641` the board still took moves after a draw once the card was closed, and the game went on: [bug triage](../bug-triage.md) B-25, fixed.)
 - **The turn pill after the game.** It reads the result from the player's side ("Checkmate · you lose" for a mated player); the mated King lies fallen.
 - **Enter after the last move.** Focus moves to "Play again" as the card appears, so a key press meant for something else (a second Enter in the move box after typing the mating move, for example) can take the player straight to the side choice.
 - **Both players each start over.** "Play again" does not create a game; the player still has to pick a side and send a new link.
@@ -163,8 +168,8 @@ Reduced motion: the King is not knocked over but simply shown fallen, nothing ro
 
 ## Open questions and verification
 
-- A drawn game can be played on after its card is closed ([bug triage](../bug-triage.md) B-25). Read from `client/src/screens/GameView.tsx` (the board's `disabled` does not include the game's end), `client/src/three/Board.tsx`, `client/src/screens/GameScreen.tsx` (`handleMove`), and `client/src/game/computerGame.ts` (the computer's stand-in accepts a move after the end). Confirmed against a friend by a scripted run at `24c650c` (END-13); not tried against the computer.
+- The board closing at the end (`boardDisabled` in `client/src/screens/GameScreen.tsx` includes `gameOver` since `b325641`) fixes [bug triage](../bug-triage.md) B-25, which a scripted run had confirmed at `24c650c` (END-13): read from code, not rerun. The computer's stand-in still accepts a move after an ending on the board (`client/src/game/computerGame.ts`, `answer`), but the page no longer sends one.
 - Whether a stray Enter can reach "Play again" right after the mating move is typed depends on the echo's timing; read from code (`client/src/screens/EndGameModal.tsx`, `autoFocus`), not tried.
-- The end playing out (the knock, the tipping point at about 0.53 s and the strike at about 1.1 s after it, computed from `KNOCK_FALL` in `client/src/three/pieceMotion.tsx`; the pulse, the wave 370 ms after the strike, the card 1.3 s after it: `client/src/lib/mate.ts`; 0.6 s at a draw and the 12 s fallback: `client/src/screens/useEndCard.ts`) and the card (`client/src/screens/EndGameModal.tsx`, `GameView.tsx`) are read from the code at `24c650c`; not checked in the running app. The mate line and the result on both pages are exercised by `client/e2e/gameOver.spec.ts`; check detection by `client/src/engine/board.test.ts`; the draws by `client/src/engine/draws.test.ts` and `client/src/game/history.test.ts`; the card's close and "Play again" by `client/src/screens/GameScreen.endModal.test.tsx`.
+- The end playing out (the knock, the tipping point at about 0.53 s and the strike at about 1.1 s after it, computed from `KNOCK_FALL` in `client/src/three/pieceMotion.tsx`; the pulse, the wave 370 ms after the strike, the card 1.3 s after it: `client/src/lib/mate.ts`; 0.6 s at a draw and the 12 s fallback: `client/src/screens/useEndCard.ts`) and the card (`client/src/screens/EndGameModal.tsx`, `GameView.tsx`) are read from the code at `b325641`; not checked in the running app. The mate line and the result on both pages are exercised by `client/e2e/gameOver.spec.ts`; check detection by `client/src/engine/board.test.ts`; the draws by `client/src/engine/draws.test.ts` and `client/src/game/history.test.ts`; the card's close and "Play again" by `client/src/screens/GameScreen.endModal.test.tsx`.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

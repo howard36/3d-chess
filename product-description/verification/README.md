@@ -12,7 +12,7 @@ The feature documents were written from the code and the tests. This directory i
 | [game-page.md](game-page.md) | `game-page/*` |
 | [session.md](session.md) | `session/*` |
 | [cross-cutting.md](cross-cutting.md) | `cross-cutting/*` |
-| [harness/](harness/README.md) | the Playwright scripts used for the first two scripted passes (not updated for `24c650c`) |
+| [harness/](harness/README.md) | the Playwright scripts used for the first two scripted passes (not updated since `c571311`) |
 
 Each file has one table per document. Each row is an item with a stable ID (`MOVE-07`, `CREATE-03`), a priority, what it needs (a device, a second player, a network condition), the claim with a link to the document section, the setup, numbered steps, the expected result, and a Result column for the tester. Items that cannot be checked by hand (design questions, things that need a product decision) are listed under each document as "Not checkable by hand". An item whose claim no longer holds in any form is kept with its ID and marked *retired*, so that IDs are never reused.
 
@@ -25,7 +25,7 @@ Priorities: **P1** is an established fact, a claim many documents depend on, or 
    - `cd client && npm ci && VITE_WS_URL=ws://127.0.0.1:8000/ws npm run dev`, then open `http://localhost:5173`.
 
    `VITE_WS_URL` must be set before Vite starts; without it the client talks to the production server. The local server keeps games in memory, so restarting it is a clean slate (and is also how to simulate a server restart). Stopping it is how to simulate an outage. Games against the computer and the tutorial need no server at all.
-2. **Confirm the commit.** Every document says `Drafted against 3D Chess commit 24c650c`. Run `git rev-parse --short HEAD` in the repository and `git diff 24c650c -- client server`; if the diff is not empty, the documents describe a different build and some failures will be drift, not defects.
+2. **Confirm the commit.** Every document says `Drafted against 3D Chess commit b325641`. Run `git rev-parse --short HEAD` in the repository and `git diff b325641 -- client server`; if the diff is not empty, the documents describe a different build and some failures will be drift, not defects.
 3. **Get two players.** Most items need both seats taken. Use two *browser contexts*: two different browsers, or one normal and one private window. Two tabs of the same window share the stored seat and will take the seat from each other; that is what the [second-tab](../session/second-tab.md) items test, and nothing else should use it.
 4. **Let the entrances finish.** Every board screen opens with an [entrance](../foundations/the-view.md#the-entrance) during which the board takes no input. Unless an item is about the entrance, wait for it to end (the turn pill fades in last) before the first step. With reduced motion it is a 150 ms fade.
 5. Keep the documents open beside the game. Read the linked section before each item; the item is a summary, the section is the claim.
@@ -54,7 +54,9 @@ Use it to read state back after a real interaction (how many cells are highlight
 
 ## Results so far
 
-**At `24c650c`: three items have been run.** One short scripted check (2026-10-09, Playwright in headless Chromium with reduced motion, driven by the repository's own e2e helpers rather than the harness) played the repetition line and confirmed the new suspected bug B-25: END-12 (in part), END-13 and ERR-05 record it. The checklists were rewritten for this commit (the home page, the lobby, games against the computer, the tutorial, the HUD, the draws, the result card, the new starting position). Every Result cell reads `unverified`, except a few whose claim is untouched since the last pass, which say so ("pass at `c571311` (unchanged since; not rerun)"), and the two that need a real phone, which stay `blocked`. The [harness](harness/README.md) was not updated and cannot run them as they stand. **No document is marked `verified`.**
+**At `24c650c`: three items have been run.** One short scripted check (2026-10-09, Playwright in headless Chromium with reduced motion, driven by the repository's own e2e helpers rather than the harness) played the repetition line and confirmed the new suspected bug B-25: END-12 (in part), END-13 and ERR-05 record it. The checklists were rewritten for this commit (the home page, the lobby, games against the computer, the tutorial, the HUD, the draws, the result card, the new starting position). Every Result cell reads `unverified`, except a few whose claim is untouched since the last pass, which say so ("pass at `c571311` (unchanged since; not rerun)"), and the two that need a real phone, which stay `blocked`. The [harness](harness/README.md) was not updated and cannot run them as they stand.
+
+**At `b325641`: nothing has been run.** The checklists were brought to `b325641`, which adds the tab signal, the page for unknown addresses, the error banner that an answer ends, and resigning and draw offers with the board closed once a game is over: each file's "Brought to `b325641`" note lists the rows added or rewritten, all `unverified`. END-13 now expects the fix of B-25; its result still records the bug as seen at `24c650c`. **No document is marked `verified`.**
 
 The earlier passes, whose results are in the history of these files:
 

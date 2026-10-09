@@ -34,6 +34,8 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **How to play.** The button that opens the tutorial: under the tiles on the home page, and at the top right of the board screen (a "?" in a window under 720 pixels wide). Opened from a game, the tutorial leads back to it ("← Game", "Back to game").
 
+**Nothing here.** The page for any address the app has no page for (a mistyped one, `/game/` with no id): the lobby's glass card on the night, "Nothing here", and one button, "Home", which has keyboard focus. See [screens and navigation](foundations/screens-and-navigation.md#addresses-the-app-does-not-know).
+
 **Crash screen.** The page shown when the client hits an error it cannot handle: "Something went wrong", a sentence saying reloading is safe, and a "Back to start" link that loads `/` from scratch. It replaces whatever page was showing. See [screens and navigation](foundations/screens-and-navigation.md#the-crash-screen).
 
 ## Games and seats
@@ -100,7 +102,11 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Fifty-move rule.** A hundred moves in all (fifty by each side) with no capture and no pawn move. The game is drawn. The pill calls it "50-move rule".
 
-**Game over.** Checkmate, stalemate, a repetition, or the fifty-move rule, as each player's browser works it out from the move record. The server never learns that a game is over; see [check and the end of the game](play/check-and-game-end.md).
+**Game over.** Checkmate, stalemate, a repetition, or the fifty-move rule, as each player's browser works it out from the move record (the server never learns of these; see [check and the end of the game](play/check-and-game-end.md)); or a *resignation* or an *agreed draw*, which the server records. Once the game is over, by any ending, the board takes no more input.
+
+**Resignation.** A player ending the game by giving it up, at any moment, on either turn; the opponent wins. Made from the *game menu*, with one more question ("Resign?"). See [resigning and draws](play/resigning-and-draws.md).
+
+**Draw offer, agreed draw.** A player proposing a draw from the *game menu*; it stands until the opponent accepts it (an *agreed draw*, "Draw agreed"), declines it ("Draw declined"), or either side plays a move, which lets it lapse. A draw can be offered once between two moves, by either side. See [resigning and draws](play/resigning-and-draws.md).
 
 **Promotion square.** For White, any cell on rank 5 of level E; for Black, any cell on rank 1 of level A. A pawn that reaches one must become a Queen, Rook, Bishop, Knight, or Unicorn.
 
@@ -126,7 +132,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Check glow.** How the board marks a king in check: he rocks on his foot as the check lands and turns red, lit from below, among four clusters of dark obsidian blades with red edges. A selected king in check keeps his red.
 
-**The board takes input.** The board accepts presses only while all four hold: the connection is *connected*, this connection's create, join, or rejoin has been answered (so the position shown is the server's, not the one from before a drop), the move record is not *frozen*, and none of this player's own moves is *in flight*; and not during the *entrance*. The move box follows the same rule. When the board does not take input, presses on pieces and cells do nothing, any selection is cleared, and the promotion dialog closes. The view can still be turned. The board takes input on the opponent's turn too; there is simply nothing of the player's that can be selected. It also still takes input after the game has ended (see [bug triage](bug-triage.md) B-25).
+**The board takes input.** The board accepts presses only while all five hold: the connection is *connected*, this connection's create, join, or rejoin has been answered (so the position shown is the server's, not the one from before a drop), the move record is not *frozen*, none of this player's own moves is *in flight*, and the game is not over; and not during the *entrance*. The move box follows the same rule. When the board does not take input, presses on pieces and cells do nothing, any selection is cleared, and the promotion dialog closes. The view can still be turned. The board takes input on the opponent's turn too; there is simply nothing of the player's that can be selected.
 
 **Held.** The board does not take input because this player's move is in flight. The piece played stays lifted where the player left it. It lasts until the answer arrives or the connection drops; after a drop the board still waits for the new connection's snapshot before it takes input again.
 
@@ -134,7 +140,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 ## Requests
 
-**Request.** Something a player does that may be sent to the server and answered: creating a game, looking at an invitation, joining, rejoining, playing a move, taking a seat back. In a game against the computer the browser's own stand-in answers instead of the server, at once. It is the unit of interaction every document narrates. Its phases are *begin*, *end without sending*, *send*, *in flight*, and *the answer arrives*.
+**Request.** Something a player does that may be sent to the server and answered: creating a game, looking at an invitation, joining, rejoining, playing a move, resigning, offering or answering a draw, taking a seat back. In a game against the computer the browser's own stand-in answers instead of the server, at once. It is the unit of interaction every document narrates. Its phases are *begin*, *end without sending*, *send*, *in flight*, and *the answer arrives*.
 
 **Send.** The moment a request leaves the browser. A request made while the connection is not open is *queued* instead and sent when it opens, except a move, which is never queued (see *dropped*).
 
@@ -152,7 +158,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Land.** A move lands on a board when its echo, or a snapshot containing it, arrives and the browser replays it: the piece glides (or is simply drawn, for a move already in the record when the board appeared), the last-move trace moves, the turn pill changes, and the move list gains the move, all at that moment and never before.
 
-**Snapshot.** The server's answer to a rejoin: the player's color, whether the game has started, and the entire move record. A snapshot replaces everything the page knew about the move record, so moves are never counted twice.
+**Snapshot.** The server's answer to a rejoin: the player's color, whether the game has started, the entire move record, and, when there are any, how the players ended the game and the latest draw offer. A snapshot replaces everything the page knew about the move record, so moves are never counted twice.
 
 **Error.** A request the server refused, with a short message shown to the player. The full list is in [error messages](cross-cutting/error-messages.md).
 
@@ -162,7 +168,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Client id.** A random identifier each browser tab picks for itself and sends with every create, join, and rejoin. The server remembers which client id claimed each seat. It lasts as long as the tab (a reload keeps it), and it is not shared with other tabs, so two tabs of one browser are two clients even though they share the *stored seat*.
 
-**Dropped.** A move that is discarded without being sent because the connection was not open when it was made, or was still pending when a new connection opened. The board never showed it, so nothing visibly changes; the player simply moves again.
+**Dropped.** A move (or a resignation, a draw offer, or an answer to one) that is discarded without being sent because the connection was not open when it was made, or was still pending when a new connection opened. The board never showed it, so nothing visibly changes; the player simply moves again.
 
 ## Input
 
@@ -178,7 +184,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Orbit, zoom.** The two ways to turn the view: orbit rotates the camera round the tower's center (left drag, Shift/Ctrl/Cmd with right drag, or one-finger drag), and zoom moves it closer or farther (wheel, middle drag, or pinch). There is no pan: the camera always looks at the tower's center. See [the view](foundations/the-view.md#turning-the-view).
 
-**HUD.** The HTML laid over the board. At the top center, the *turn pill* with the *captured pieces* hanging under it, and the *status column* under them; at the top right, "How to play"; only while the *move box* has keyboard focus, the *move card* at the bottom left; and, once a finished game's *result card* has been closed, "Play again" at the bottom center. On a phone held upright the pill fills the top row, from a 12 pixel gutter to the "?" of "How to play"; in a window 480 pixels tall or less (a phone on its side) the pill, the captured pieces, and the status column stand at the top left, beside the tower. Only "How to play", the move card (while shown), the error banner's "✕", "Retry", and "Play again" catch the pointer; everything else in the HUD lets presses and drags through to the board.
+**HUD.** The HTML laid over the board. At the top center, the *turn pill* with the *captured pieces* hanging under it, and the *status column* under them; at the top right, "How to play", with the *game menu*'s flag under it while the game is on; only while the *move box* has keyboard focus, the *move card* at the bottom left; and, once a finished game's *result card* has been closed, "Play again" at the bottom center. On a phone held upright the pill fills the top row, from a 12 pixel gutter to the "?" of "How to play"; in a window 480 pixels tall or less (a phone on its side) the pill, the captured pieces, and the status column stand at the top left, beside the tower. Only "How to play", the game menu (its flag, its menu, and an opponent's draw offer), the move card (while shown), the error banner's "✕", "Retry", and "Play again" catch the pointer; everything else in the HUD lets presses and drags through to the board.
 
 ## Events that end or interrupt a request
 
@@ -222,7 +228,7 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Stone.** A small disc in one army's material, porcelain for White and charcoal for Black, standing for that side in the turn pill, the invitation's heading, and the result card. The side to move's stone wears a thin ring of light.
 
-**Turn indicator, turn pill.** The glass pill at the top center of the board screen. Its left half is the player: their stone and "Your move" when it is their turn, "You" when it is not. Its right half is the opponent: "Their move" or "Opponent" ("Computer" against the computer; "Offline" when the opponent has no connection), and their stone. The half whose side is to move is lit: brighter words and a ring of light round its stone. It does not mark check. Once the game is over the pill gives the result instead ("Checkmate · you win", "Checkmate · you lose", "Stalemate · draw", "Repetition · draw", "50-move rule · draw"). It lets presses through to the board. See [the turn indicator](game-page/turn-indicator.md) and [seat and opponent status](game-page/seat-and-opponent-status.md).
+**Turn indicator, turn pill.** The glass pill at the top center of the board screen. Its left half is the player: their stone and "Your move" when it is their turn, "You" when it is not. Its right half is the opponent: "Their move" or "Opponent" ("Computer" against the computer; "Offline" when the opponent has no connection), and their stone. The half whose side is to move is lit: brighter words and a ring of light round its stone. It does not mark check. Once the game is over the pill gives the result instead ("Checkmate · you win", "Checkmate · you lose", "White resigned · you win", "Stalemate · draw", "Repetition · draw", "50-move rule · draw", "Draw agreed"). The browser tab follows it: while it is the player's move, the tab's title reads "● Your move · 3D Chess" and its icon carries a gold dot (the *tab signal*). It lets presses through to the board. See [the turn indicator](game-page/turn-indicator.md) and [seat and opponent status](game-page/seat-and-opponent-status.md).
 
 **Captured pieces.** Under the turn pill, what each side has taken: the player's under their half, beginning under their stone, and the opponent's under theirs, ending under their stone. Each is a small silhouette per kind of piece taken (the same silhouettes as the promotion dialog's), in the taken army's material, with how many beside it when there is more than one (one pawn and "3" for three pawns), most valuable first from the stone inward, and a small "+N" on the side ahead on material, at this board's own values (queen 10, knight and bishop 3, rook 2.5, unicorn 1.5, pawn 1, counting a promotion; so "+2.5" can appear). Nothing shows before the first capture. In a short window the two stand one above the other under the pill at the top left, the player's first. A screen reader reaches them after the pill as words ("You have taken a knight and 3 pawns; you are 5 ahead."), never announced. See [the turn indicator](game-page/turn-indicator.md#the-pieces-each-side-has-taken).
 
@@ -230,13 +236,13 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Move card.** The glass card at the bottom left of the board screen (across the bottom in a window no wider than 13:9, at the bottom right in a short one). It is never shown as a panel: it stays in the page out of sight, holding the *move list* for screen readers and the *move box*, and shows (with just the box) only while the box has keyboard focus. See [the move list](game-page/move-list.md).
 
-**Move announcement.** What a screen reader is told as each move lands, whatever is on screen: the move ("White bishop Ad2 takes pawn on Dd5"), then check or the result ("Check.", "Checkmate. You win.", "Repetition. Draw."), then whose move it is ("Your move." or "Black to move."). See [accessibility](cross-cutting/accessibility.md).
+**Move announcement.** What a screen reader is told as each move lands, whatever is on screen: the move ("White bishop Ad2 takes pawn on Dd5"), then check or the result ("Check.", "Checkmate. You win.", "Repetition. Draw."; a resignation or an agreed draw is said alone: "White resigned. You lose.", "Draw agreed."), then whose move it is ("Your move." or "Black to move."). See [accessibility](cross-cutting/accessibility.md).
 
 **Move box.** The field of the move card where a move can be typed ("Type a move"; "Bb1-Cb1", "=Q" to promote), sent with Enter or the ↵ button beside it. It plays the move exactly as pressing its piece and destination would, and is how a player without a pointer plays. It is the first thing Tab reaches on the board screen, and appears when it does. See [making a move](play/making-a-move.md).
 
 **Move list.** The game's moves in the move card, one numbered row per White–Black pair, in cell notation with an en dash (`Bb1–Cb1`) and `=` plus a letter for a promotion (`Da4–Ea5=U`). Never visible: it is in the page for screen readers only. See [the move list](game-page/move-list.md).
 
-**Error banner.** A glass notice with a thin red rule at its left edge: the server's message (a screen reader hears "Error: " before it), with a "✕" button that dismisses it. On the board screen it is in the status column under the turn pill; on the game page before the game starts (over the lobby) it sits at the top center; there "No such game", "Cannot join", "Cannot rejoin", and "Game full" never show in it, because the invitation says "No game here" or "This game is taken" instead. *Dismissing* hides every error received on the page so far; nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The side choice shows errors differently, as red text at its bottom ("Couldn't start a game: " and the message).
+**Error banner.** A glass notice with a thin red rule at its left edge: the server's message (a screen reader hears "Error: " before it), with a "✕" button that dismisses it. On the board screen it is in the status column under the turn pill; on the game page before the game starts (over the lobby) it sits at the top center; there "No such game", "Cannot join", "Cannot rejoin", and "Game full" never show in it, because the invitation says "No game here" or "This game is taken" instead. It shows the latest refusal of a request made on this page, while it stands: *dismissing* ("✕") hides it, and so does the next answer that moves the game on (a move landing, a seat taken, a snapshot); nothing is sent or stored, and the next error shows the banner again. See [the error banner](game-page/error-banner.md). The side choice shows errors differently, as red text at its bottom ("Couldn't start a game: " and the message).
 
 **Reconnecting line, reconnecting banner.** "Reconnecting…" beside a small breathing light, in the status column while the connection state is *reconnecting*; the turn pill dims behind it, since what it says may be out of date. On the pre-game screens it sits at the top right.
 
@@ -244,7 +250,11 @@ The vocabulary used across these documents. When a document uses one of these wo
 
 **Promotion dialog.** A glass card over a lightly veiled board: "PROMOTE TO" above five tiles, each a piece's silhouette in the player's material with its name ("Queen", "Rook", "Bishop", "Knight", "Unicorn"), and "Cancel" under them. See [promotion](play/promotion.md).
 
-**Result card** (the *end-game dialog* in older documents). A glass card over the veiled final position: a close button, the two stones with the winner's lit, "You win", "You lose", or "Draw", "by checkmate", "by stalemate", "by repetition", or "by the 50-move rule" under it, and "Play again", which has keyboard focus when the card opens and leads to the side choice of the same kind. It can be closed (its close button, Escape, or a click outside it) to study the final position, which leaves "Play again" below the tower. See [check and the end of the game](play/check-and-game-end.md).
+**Result card** (the *end-game dialog* in older documents). A glass card over the veiled final position: a close button, the two stones with the winner's lit, "You win", "You lose", or "Draw", with "by checkmate", "White resigned" (or "Black resigned"), "by stalemate", "by repetition", "by the 50-move rule", or "by agreement" under it, and "Play again", which has keyboard focus when the card opens and leads to the side choice of the same kind. It can be closed (its close button, Escape, or a click outside it) to study the final position, which leaves "Play again" below the tower. See [check and the end of the game](play/check-and-game-end.md).
+
+**Game menu.** A round button with a white flag at the top right of the board screen, under "How to play", shown while the game is on (named "Resign or offer a draw"). It opens a small glass menu with "Offer draw" and "Resign"; under it hang, while they apply, the player's own offer ("Draw offered"), its refusal ("Draw declined"), or the opponent's offer with "Accept" and "Decline". Greyed out while the connection is down. See [resigning and draws](play/resigning-and-draws.md).
+
+**Tab signal.** The browser tab's title and icon while it is the player's move in a game under way, against a friend or the computer: "● Your move · 3D Chess" and the tower icon with a gold dot, shown whether or not the tab is in view, and gone when the move is made, the game ends, or the page is left. A host whose tab is hidden when the guest arrives sees "● Opponent joined · 3D Chess" instead, until they look. Otherwise the title is "3D Chess — Online Multiplayer". See [the turn indicator](game-page/turn-indicator.md).
 
 **Replaced dialog.** A glass card titled "This game is open in another tab", with the text "Your seat moved to the newer tab or window. Close this one, or take the game back here." and a "Play here" button, which has keyboard focus when the dialog opens.
 

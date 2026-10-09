@@ -2,7 +2,7 @@
 
 ## Summary
 
-3D Chess is chess on a 5 × 5 × 5 cube: five stacked 5 × 5 boards, played with the familiar pieces plus the Unicorn, which moves along the cube's space diagonals. This document owns every rule the player plays by: the board and its coordinates, the starting position, how each piece moves, pawns and promotion, check, checkmate, and stalemate, and what standard chess has that this game does not. It has no interaction of its own. Feature documents link here instead of restating a rule.
+3D Chess is chess on a 5 × 5 × 5 cube: five stacked 5 × 5 boards, played with the familiar pieces plus the Unicorn, which moves along the cube's space diagonals. This document owns every rule the player plays by: the board and its coordinates, the starting position, how each piece moves, pawns and promotion, check, checkmate, and stalemate, the draws, resigning and agreed draws, and what standard chess has that this game does not. It has no interaction of its own. Feature documents link here instead of restating a rule.
 
 The rules are enforced only by each player's own browser: it offers only legal moves, and it decides by itself when the game is over. The server records whatever it is sent in turn; see [who enforces the rules](#who-enforces-the-rules).
 
@@ -86,6 +86,10 @@ Besides stalemate, the game is drawn automatically, as in chess, in two more way
 
 Nobody claims either draw: it happens on the move that completes it, as checkmate and stalemate do. A move that mates wins, even if it also completes a repetition or the fifty moves. Each browser decides these draws from the move record, like the rest of the rules, and the [computer](../computer/playing-the-computer.md) plays by them too.
 
+## Resigning and agreed draws
+
+The players can also end a game themselves. Either may resign at any moment, on their move or not, and the opponent wins. Either may offer a draw, which the opponent accepts or declines; a draw can be offered once between two moves, by either side, and an offer stands until it is answered or a move is played. An ending on the board comes first: once a mate or an automatic draw has landed, neither is possible. Unlike the board's endings these are recorded by the server, which refuses any move, resignation, or offer after them. How they are made is in [resigning and draws](../play/resigning-and-draws.md); against the computer, which never offers a draw and accepts one only when it stands clearly worse, see [playing the computer](../computer/playing-the-computer.md).
+
 What happens on screen when the game ends is in [check and the end of the game](../play/check-and-game-end.md).
 
 ## What standard chess has that this game does not
@@ -93,22 +97,21 @@ What happens on screen when the game ends is in [check and the end of the game](
 - No castling.
 - No two-cell pawn first move, and so no en passant.
 - No draw by insufficient material. A game with only the two Kings left goes on until the fifty-move rule (or a repetition) draws it.
-- No resignation and no draw offer. A game ends only by checkmate or one of the automatic draws: stalemate, repetition, or the fifty-move rule.
-- No clock. A player may take as long as they like.
+- No clock. A player may take as long as they like, and an opponent who has walked away can only be resigned against or waited for.
 
 ## Who enforces the rules
 
 Each player's browser holds the complete rules and applies them in four places: it offers only legal destinations for the selected piece, it accepts only a legal move typed into the move box, it marks a King that is in check, and it decides after every move whether the game is over (checkmate, stalemate, repetition, or the fifty-move rule). In a game against the computer the browser also stands in for the server and refuses an illegal move outright; see [playing the computer](../computer/playing-the-computer.md). The two browsers reach the same conclusions because they replay the same [move record](../glossary.md#games-and-seats) with the same rules.
 
-The server checks only that a move names two valid cells, carries a promotion letter only from the allowed five, and comes from the side whose turn it is. It does not check that the piece exists, that the move is legal, or that the game is still in progress. A correct client never sends anything else, so a player using the app never sees the difference; what a player sees if the record ever contains a move their browser cannot replay is described in [the broken game record](../cross-cutting/broken-game-record.md).
+The server checks only that a move names two valid cells, carries a promotion letter only from the allowed five, and comes from the side whose turn it is. It does not check that the piece exists, that the move is legal, or that the game is still in progress on the board; it refuses moves only once the players have ended the game by a resignation or an agreed draw. A correct client never sends anything else, so a player using the app never sees the difference; what a player sees if the record ever contains a move their browser cannot replay is described in [the broken game record](../cross-cutting/broken-game-record.md).
 
 > Technical note: The browser works out the position by replaying the whole move record from the starting position every time the record changes. There is no stored board anywhere; the move record is the game.
 
 ## Open questions and verification
 
-- The mirrored starting position, the 61 opening moves (also counted against the engine at `24c650c` for this refresh), the movement of every piece, pawn edges, promotion squares, check detection, and the mate and stalemate patterns are covered by the engine's unit tests (`client/src/engine/board.test.ts`, `board.reference.test.ts`); the shortest mate is the line played by `client/e2e/gameOver.spec.ts`.
+- The mirrored starting position, the 61 opening moves (also counted against the engine at `b325641` for this refresh), the movement of every piece, pawn edges, promotion squares, check detection, and the mate and stalemate patterns are covered by the engine's unit tests (`client/src/engine/board.test.ts`, `board.reference.test.ts`); the shortest mate is the line played by `client/e2e/gameOver.spec.ts`.
 - The starting position changed since the earlier drafts of this description (the Bishops, Unicorns, and Queen moved from level B to rank 2 of level A, and the pawns to both ranks of level B); read from `Board.setupStartingPosition` in `client/src/engine/board.ts`.
 - The draws are read from `client/src/engine/draws.ts` and `client/src/game/history.ts` and covered by `draws.test.ts` and `history.test.ts`; not played out by hand.
 - A game reduced to two Kings is not drawn at once; it ends only by the fifty-move rule or a repetition. A player may expect an immediate draw.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

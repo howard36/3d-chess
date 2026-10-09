@@ -157,14 +157,14 @@ After any interrupt before the seat confirmation, this browser holds no stored s
 - **The host is away.** The join works while the host's page is closed or disconnected: the guest's arrival plays, and the board shows "Offline". A guest playing White can play the first move.
 - **A lower-case or mistyped id.** Ids are case-sensitive, so `/game/k7q2zd` says "No game here" even when `/game/K7Q2ZD` exists.
 - **A returning guest.** Reopening the link after joining shows "Returning to your game…" until the snapshot arrives, then the board with its short entrance; no lobby. See [reloading and returning](../session/reload-and-return.md).
-- **The page title** stays "3D Chess — Online Multiplayer" throughout.
+- **The page title** stays "3D Chess — Online Multiplayer" until the game starts; then, on the player's move, the [tab signal](../glossary.md#the-interface) reads "● Your move · 3D Chess".
 
 ## Open questions and verification
 
-- Brought up to `24c650c` from `client/src/screens/GameScreen.tsx` (the look, the join, the lobby views, the handover), `client/src/game/invitation.ts`, `client/src/screens/lobby/LobbyCards.tsx` (`InvitationCard`: "Join game" alone with no card; "This game is taken" and "No game here" with "Play a friend"), `client/src/three/lobby/`, `server/schema.json` (`look_game`, `game_info`), `server/modal_app.py` (`taken_seats`, `claim_seat`), `client/src/screens/GameScreen.lobby.test.tsx`, and `client/e2e/createGame.spec.ts`; not checked in the running app.
+- Brought up to `b325641` from `client/src/screens/GameScreen.tsx` (the look, the join, the lobby views, the handover), `client/src/game/invitation.ts`, `client/src/screens/lobby/LobbyCards.tsx` (`InvitationCard`: "Join game" alone with no card; "This game is taken" and "No game here" with "Play a friend"), `client/src/three/lobby/`, `server/schema.json` (`look_game`, `game_info`), `server/modal_app.py` (`taken_seats`, `claim_seat`), `client/src/screens/GameScreen.lobby.test.tsx`, and `client/e2e/createGame.spec.ts`; not checked in the running app.
 - A tab whose join was recorded but whose answer was lost, reloaded before any seat was stored, asks again which seats are taken; the answer lists both, so the card says "This game is taken" and offers no "Join game", although a join from this tab would get its seat back. Read from `client/src/game/invitation.ts` (both seats taken reads as full); not tried. `ARCHITECTURE.md` lists it as a known limitation.
 - Once a page has been told "Game full" or "Cannot join", it keeps saying so for as long as it is open: the invitation reads every refusal in the page's log, not only the latest answer. Harmless while every retry would be refused again.
 - A join refused as "Already in a game" leaves "Joining…" up for as long as the page is open and is re-sent on every new connection. It only matters to a creator whose browser does not store the seat ([bug triage](../bug-triage.md) B-11).
 - Whether the browser's "reopen closed tab" restores the tab's session storage, and so its client id, is browser behavior and was not checked.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

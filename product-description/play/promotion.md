@@ -140,6 +140,6 @@ An error or a drop is handled as in [making a move](making-a-move.md#the-answer-
 - The dialog has no focus trap of its own. Tab stays within it only because the page behind is inert; past "Cancel", Tab goes to the browser's toolbar before returning to "Queen". Read from code (`client/src/screens/GameView.tsx`, `behindDialog`); not tried with a screen reader.
 - Clicking an error banner under the veil cancels the promotion. Read from the drawing order and the inert page (`client/src/screens/GameView.tsx`, `client/src/screens/PromotionPicker.tsx`); not confirmed by hand.
 - The dialog, its cancel paths, the send, the automatic close on a drop or a new position, and the "=U" in the move list are covered by `client/src/App.test.tsx`, `client/src/three/Board.test.tsx`, and `client/e2e/promotion.spec.ts`; the typed form's parsing by `client/src/game/typedMove.test.ts`. The focus on "Queen" after a real click was confirmed by the scripted pass at `c571311` ([bug triage](../bug-triage.md) B-07, fixed).
-- Brought up to `24c650c` from `client/src/screens/PromotionPicker.tsx` and `GameView.tsx`; the dialog itself is unchanged since the scripted pass apart from its glyphs (the Unicorn's now drawn as the 3D piece's horn), which were not checked in the running app.
+- Brought up to `b325641` from `client/src/screens/PromotionPicker.tsx` and `GameView.tsx`; the dialog itself is unchanged since the scripted pass apart from its glyphs (the Unicorn's now drawn as the 3D piece's horn), which were not checked in the running app.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

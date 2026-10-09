@@ -113,8 +113,8 @@ One setting changes the preview, never the menu:
 
 ## Open questions and verification
 
-- Read from `client/src/screens/StartScreen.tsx`, `LandingPreview.tsx`, `landingLayout.ts`, `client/src/game/demo.ts` (the pace: 2 s, 2.2 s, 5 s, 0.7 s, 0.9 s), `client/src/three/landingView.ts` (22°, two passes a turn), the `.landing` rules in `client/src/index.css`, and `ARCHITECTURE.md` ("Landing page") at `24c650c`; not checked in the running app for this refresh.
+- Read from `client/src/screens/StartScreen.tsx`, `LandingPreview.tsx`, `landingLayout.ts`, `client/src/game/demo.ts` (the pace: 2 s, 2.2 s, 5 s, 0.7 s, 0.9 s), `client/src/three/landingView.ts` (22°, two passes a turn), the `.landing` rules in `client/src/index.css`, and `ARCHITECTURE.md` ("Landing page") at `b325641`; not checked in the running app for this refresh.
 - The preview needs WebGL. What a browser without it shows is not known beyond the chunk failing to load, which leaves the menu.
 - The tiles' hover effects (the turning rim, the sheen) are described from the CSS, not watched.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

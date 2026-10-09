@@ -47,7 +47,8 @@ At the instant of the drop:
 - anything the server was sending at that moment (an echo, a snapshot, an answer to a create or join) is lost, and the server never sends it again;
 - nothing the page had already sent is sent again yet; a create or join whose answer has not arrived will be re-sent when a connection opens;
 - [the board stops taking input](../foundations/input-model.md#when-the-board-takes-input): a selection is cleared with its markers, an open [promotion dialog](../play/promotion.md) closes without sending and does not come back, and the move box sends nothing;
-- a board that was [held](../glossary.md#selection-and-board-state) for a move in flight stays unable to take input, now for both reasons.
+- a board that was [held](../glossary.md#selection-and-board-state) for a move in flight stays unable to take input, now for both reasons;
+- the [game menu](../play/resigning-and-draws.md)'s flag, and an opponent's offer's "Accept" and "Decline", are greyed out, and an open menu closes; a resignation, offer, or answer still waiting to be sent is dropped, like a move.
 
 Nothing else on the page changes. The position, the turn pill (dimmed behind the reconnecting line), and the [move list](../game-page/move-list.md) that screen readers read keep their last values. What the pill says about the opponent's presence may now be wrong, since nothing can update it until the page rejoins. An error in the [error banner](../game-page/error-banner.md) stays and can still be dismissed; the [frozen-board banner](../cross-cutting/broken-game-record.md) and the [result card](../play/check-and-game-end.md) stay too. While the result card is up, the board and the whole HUD behind it, "Reconnecting…" included, are out of reach but still visible under its veil. The view can be turned as usual when no dialog covers it.
 
@@ -210,6 +211,6 @@ After any interrupt the page is either reconnecting, caught up by a snapshot, be
 - Whether the one-hour limit lets the server announce the player offline, and whether a redeploy closes every connection at once, are properties of the deployment and were not determined.
 - Whether screen readers announce "Reconnecting…" when it appears was not checked. Whether a phone or tablet keeps the connection open when the browser goes to the background or the screen locks was not tried.
 - A local server keeps games in memory, so restarting it to imitate a server restart loses the game and the rejoin is refused with "Cannot rejoin". Production keeps games across restarts.
-- The connection layer is unchanged in behavior since `4e18386`; this document was brought up to `24c650c` for the screens around it (the side choice's delayed bottom line, the lobby's screens, the arrival after a rejoin). Covered by `client/src/hooks/useGameSocket.test.ts`, `client/src/App.test.tsx`, `GameScreen.lobby.test.tsx`, and `server/tests/test_local_ws.py`. No end-to-end test drops a connection mid-game; the scripted harness did, at `c571311` ([the verification protocol](../verification/README.md)).
+- The connection layer is unchanged in behavior since `4e18386`, apart from resignations and draw messages, which since `b325641` are dropped like moves rather than queued; this document was brought up to `b325641` for the screens around it (the side choice's delayed bottom line, the lobby's screens, the arrival after a rejoin). Covered by `client/src/hooks/useGameSocket.test.ts`, `client/src/App.test.tsx`, `GameScreen.lobby.test.tsx`, and `server/tests/test_local_ws.py`. No end-to-end test drops a connection mid-game; the scripted harness did, at `c571311` ([the verification protocol](../verification/README.md)).
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

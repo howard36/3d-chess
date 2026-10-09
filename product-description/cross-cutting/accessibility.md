@@ -9,7 +9,7 @@
 | Player | Can | Cannot |
 | --- | --- | --- |
 | Pointer and sight (mouse, touch, or pen) | Everything the product offers. | Nothing is withheld. |
-| Keyboard only | Choose a way to play on the home page; pick a side (and a difficulty against the computer); copy the share link ("Copy link", where offered); join a game ("Join game"); play every move by typing it in the move box (Tab brings it up), promoting by typing the piece's letter; dismiss an error; answer the promotion dialog if a pointer opened it; close the result card (Escape) or leave a finished game ("Play again"); take the seat back ("Play here"); open the tutorial and move through its lessons and steps; leave the crash screen ("Back to start"). | Select a piece on the board, see its legal destinations, turn the view, or play a move in the tutorial. |
+| Keyboard only | Choose a way to play on the home page; pick a side (and a difficulty against the computer); copy the share link ("Copy link", where offered); join a game ("Join game"); play every move by typing it in the move box (Tab brings it up), promoting by typing the piece's letter; dismiss an error; answer the promotion dialog if a pointer opened it; resign, offer a draw, or answer one (the game menu); close the result card (Escape) or leave a finished game ("Play again"); take the seat back ("Play here"); open the tutorial and move through its lessons and steps; leave the crash screen ("Back to start"). | Select a piece on the board, see its legal destinations, turn the view, or play a move in the tutorial. |
 | Screen reader | Hear every move as it lands, with the piece, what it took, check, and whose move it is now; the opponent coming and going; errors; the result of the game; the [frozen-board banner](broken-game-record.md) and the crash screen; the lobby's arrival line ("Opponent joined", "You play Black", "Computer · Hard"); read the page headings, the [turn pill](../game-page/turn-indicator.md)'s description ("You play White. Your move."), the captured pieces as sentences, and the [move list](../game-page/move-list.md); play by typing moves in the move box and hear why a move was refused; read the tutorial's words and its count of moves; use every HTML control. | Perceive the position, a selection, the legal destinations, or the last move, except by reading the move list and replaying it mentally; learn which moves are legal except by trying them; follow the tutorial's demonstrations on the board. |
 | Low vision | Enlarge the HTML with browser zoom; bring the board closer by zooming the view with the wheel, a middle drag, or a pinch. | Enlarge the board with browser zoom (it always fills the window), or scroll to content that zoom pushes out of the window. Check is shown on the board only (the pill no longer marks it). |
 | Color vision deficiency | Tell White's pieces from Black's, which differ in lightness; tell a King in check by his blades as well as his red. | Tell the gold destination circle from the red capture circle by anything but hue and the capture's turning arcs; tell the levels apart by anything but hue and height. |
@@ -28,7 +28,7 @@ Tab moves keyboard focus through the page's HTML buttons, its one text field, an
 | Invitation to send | "← Home" and "Copy link" (focused on arrival), where the browser allows copying (an `https` address or `localhost`). The [share link](../glossary.md#games-and-seats) itself is plain text, not a link. |
 | Invitation to the free seat | "← Home" and "Join game" (focused on arrival); or the card's "Play a friend" (focused). While joining, "Joining…" keeps focus but does nothing. |
 | "Returning to your game…" | "← Home". |
-| Board screen, no dialog | The error banner's "✕" when an error shows; the move box's field (which appears when it takes focus) and its ↵ button; "How to play"; "Retry" if the board failed to load; "Play again" below the tower once the result card has been closed. Nothing on the board. |
+| Board screen, no dialog | The error banner's "✕" when an error shows; the move box's field (which appears when it takes focus) and its ↵ button; "How to play"; while the game is on, the game menu's flag, then its "Offer draw" and "Resign" (or "Cancel" and "Resign" under "Resign?") while it is open, and "Accept" and "Decline" while an opponent's offer stands; "Retry" if the board failed to load; "Play again" below the tower once the result card has been closed. Nothing on the board. |
 | Board screen, promotion dialog open | The five piece buttons and "Cancel". |
 | Board screen, result card up | "Close" and "Play again" (focused). |
 | Any game page screen, when [replaced](../glossary.md#events-that-end-or-interrupt-a-request) | "Play here" only. |
@@ -57,7 +57,7 @@ The field can be typed in at any time. Once the game is over, a submit says "Wai
 
 ### Escape
 
-Escape is handled in three places: in the promotion dialog it cancels the promotion; on the result card it closes the card; in a move box that Tab brought up it empties the box and puts it away. Escape anywhere else does nothing: it does not clear a [selection](../glossary.md#selection-and-board-state), dismiss the error banner, or close the replaced dialog.
+Escape is handled in four places: in the promotion dialog it cancels the promotion; on the result card it closes the card; in the game menu it closes the menu and puts the focus back on the flag; in a move box that Tab brought up it empties the box and puts it away. Escape anywhere else does nothing: it does not clear a [selection](../glossary.md#selection-and-board-state), dismiss the error banner, or close the replaced dialog.
 
 ## Focus
 
@@ -68,9 +68,11 @@ Nothing is focused when the home page or the board screen loads. The app moves f
 - **The promotion dialog** puts focus on "Queen" as it opens, so Enter or Space picks the Queen at once, Escape cancels, and Tab moves to "Rook", "Bishop", "Knight", "Unicorn", and "Cancel". When it closes, focus falls to the page.
 - **The result card** puts focus on "Play again" as it opens. The board and the HUD behind it, the move box included, are inert. When it is closed, focus falls to the page, and the browser carries on from where the card was: the next Tab reaches "Play again" below the tower, not the move box (seen in Chromium at `24c650c` after Escape).
 - **The replaced dialog** puts focus on "Play here" as it opens. Everything behind it is inert, the result card included.
+- **The game menu** takes no focus when it opens; asking "Resign?" puts focus on "Cancel", and "Cancel", Escape, or "Offer draw" put it back on the flag. An opponent's offer never takes focus.
+- **"Nothing here"** puts focus on its "Home" button.
 - **The move box** keeps focus in its field after a move is sent or refused, so a keyboard player types the next move without Tab.
-- **A control that disappears** (a side button after the pick, "Join game", "✕", "Play here", a piece button, "Cancel", "Play again") takes focus with it. Focus drops to the page and nothing moves it to the new content.
-- **Page changes** within the app move no focus and do not change the page title, so nothing signals the change itself to a keyboard user; a screen reader hears the new page's live regions and can find its heading.
+- **A control that disappears** (a side button after the pick, "Join game", "✕", "Play here", a piece button, "Cancel", "Play again", "Accept" or "Decline" once answered, the game menu when the game ends) takes focus with it. Focus drops to the page and nothing moves it to the new content.
+- **Page changes** within the app move no focus and do not change the page title (only the tab signal does), so nothing signals the change itself to a keyboard user; a screen reader hears the new page's live regions and can find its heading.
 
 ## Screen readers
 
@@ -92,15 +94,18 @@ Nothing is focused when the home page or the board screen loads. The app moves f
 | "Couldn't load the board" and its "Retry" | alert | Announced when it appears. |
 | Crash screen | alert (heading, sentence, and link) | Announced when it replaces the page. |
 | The board | an image, named "The 3D board, white side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, press Tab to type a move." ("black side nearest" for Black) | Its name, which points to the move box. Nothing about the position. |
-| Turn pill | plain text, with a description for screen readers: "You play White. Your move." ("Black to move", ", in check", "Your opponent is offline.", or the result: "Checkmate, you win.", "Repetition, a draw.") | Read when the user reaches it. Its changes are not announced by the pill itself; the move announcement says them. |
+| Turn pill | plain text, with a description for screen readers: "You play White. Your move." ("Black to move", ", in check", "Your opponent is offline.", or the result: "Checkmate, you win.", "White resigned, you lose.", "Repetition, a draw.", "Draw agreed.") | Read when the user reaches it. Its changes are not announced by the pill itself; the move announcement says them. |
 | Captured pieces | plain text after the pill, one sentence per side with anything to say: "You have taken a unicorn and 2 pawns; you are 1 ahead." | Read when reached; not announced. |
-| Move announcement | status, polite live region, in the page from the moment the board is | Each move that lands, by either player: "White pawn Bb1 to Cb1. Black to move.", with "takes {piece} on {cell}", ", promotes to {piece}", "Check.", or the result ("Checkmate. You win.", "Repetition. Draw."). A snapshot that brings several moves announces only the last. |
+| Move announcement | status, polite live region, in the page from the moment the board is | Each move that lands, by either player: "White pawn Bb1 to Cb1. Black to move.", with "takes {piece} on {cell}", ", promotes to {piece}", "Check.", or the result ("Checkmate. You win.", "Repetition. Draw."). A resignation or an agreed draw is announced alone: "White resigned. You lose.", "Draw agreed.". A snapshot that brings several moves announces only the last. |
 | Presence | status, in the page from the moment the board is | "Your opponent is offline." and "Your opponent is online." as they change. |
 | Move box | a form named "Type a move"; the field labelled "Type a move, like Bb1-Cb1"; a "Play the move" button; a status line for problems | A refused move's explanation, and "Wait for their move.", are announced politely; the explanation is the field's description, and the field is marked invalid. |
 | Move list | an ordered list named "Move history", always visually hidden | Read when reached, one row per numbered White–Black pair. |
 | "How to play" | a button named "How to play" (a "?" on narrow windows, still named in words) | Read with its name. |
+| Game menu | a button named "Resign or offer a draw", marked expanded while its menu (a group named "Game") is open; "Resign?" names the group of "Cancel" and "Resign" | Read with their names. Nothing in it takes focus by itself except "Cancel" when "Resign?" is asked. |
+| Draw offers | a polite live region, in the page from the moment the board is | "Your opponent offers a draw.", "Draw offered." (the player's own), and "Draw declined." as they happen. The opponent's offer's "Accept" and "Decline" are ordinary buttons. |
+| "Nothing here" | a heading and a "Home" button, focused | Read as the page appears. |
 | Promotion dialog | dialog, modal, named "Promote to" | Entered with focus on "Queen". Everything behind it is hidden. |
-| Result card | dialog, modal, named by its heading and described by the line under it | Entered as a dialog named "You win", "You lose", or "Draw", described as "by checkmate", "by stalemate", "by repetition", or "by the 50-move rule", with focus on "Play again"; its close button is named "Close". Everything behind it is hidden. |
+| Result card | dialog, modal, named by its heading and described by the line under it | Entered as a dialog named "You win", "You lose", or "Draw", described as "by checkmate", "White resigned" (or "Black resigned"), "by stalemate", "by repetition", "by the 50-move rule", or "by agreement", with focus on "Play again"; its close button is named "Close". Everything behind it is hidden. |
 | Replaced dialog | alert dialog, modal, named "This game is open in another tab", described by its sentence | Entered with focus on "Play here". |
 | Tutorial | the board an image named "The 3D board, White's side nearest, with the lesson's pieces."; the lesson buttons a navigation named "Lessons", each named for its lesson; the step dots a group, each named for its step; the count of moves a polite live region; the next button named "Next: {what comes next}" | The words and the count; nothing of the board. |
 
@@ -150,7 +155,7 @@ The page never scrolls (the tutorial's card scrolls its own words if a window is
 
 ## Page language and title
 
-Every page declares its language as English, and all on-screen text is English. The page title is "3D Chess — Online Multiplayer" on every page; it changes only for a host whose tab is in the background when the guest arrives ("● Opponent joined · 3D Chess").
+Every page declares its language as English, and all on-screen text is English. The page title is "3D Chess — Online Multiplayer" on every page; it changes while it is the player's move in a game under way ("● Your move · 3D Chess", with a gold dot on the tab's icon: the [tab signal](../glossary.md#the-interface)) and for a host whose tab is in the background when the guest arrives ("● Opponent joined · 3D Chess"). The dot is a second sign of the title's words, not the only one.
 
 ## Cancel and interrupt
 
@@ -202,6 +207,6 @@ Every page declares its language as English, and all on-screen text is English. 
 - **Check is no longer stated on the pill.** Sighted players see it only on the board (red, blades); the pill's screen-reader description and the announcement still say it. Whether a non-color cue on the HUD is wanted again is a design call.
 - **A preview that cannot be paused.** WCAG 2.2.2 (Pause, Stop, Hide) asks for a way to pause moving content that starts by itself, lasts more than five seconds, and is shown beside other content; the home page's preview has none, beside its three controls. A product and accessibility call.
 - **Reduced motion and the breathing dots.** Whether the lobby's "Waiting for your friend…" dot and the reconnecting dot hold still under reduced motion was not checked.
-- **Read, not tried.** The roles, names, and focus are read from `client/src/screens/` (`StartScreen.tsx`, `lobby/ChooseSide.tsx`, `lobby/LobbyCards.tsx`, `lobby/LobbyLayout.tsx`, `GameScreen.tsx`, `GameView.tsx`, `TurnPill.tsx`, `CapturedPieces.tsx`, `MoveCard.tsx`, `MoveAnnouncer.tsx`, `EndGameModal.tsx`, `PromotionPicker.tsx`, `learn/LearnScreen.tsx`), `client/src/game/announce.ts`, `client/src/game/material.ts`, and `client/src/components/ErrorBoundary.tsx` at `24c650c`, and covered in part by their unit tests. No part of this document was tried with a screen reader or the system's reduced-motion setting for this refresh.
+- **Read, not tried.** The roles, names, and focus are read from `client/src/screens/` (`StartScreen.tsx`, `lobby/ChooseSide.tsx`, `lobby/LobbyCards.tsx`, `lobby/LobbyLayout.tsx`, `GameScreen.tsx`, `GameView.tsx`, `TurnPill.tsx`, `CapturedPieces.tsx`, `MoveCard.tsx`, `MoveAnnouncer.tsx`, `EndGameModal.tsx`, `PromotionPicker.tsx`, `learn/LearnScreen.tsx`), `client/src/game/announce.ts`, `client/src/game/material.ts`, and `client/src/components/ErrorBoundary.tsx` at `b325641`, and covered in part by their unit tests. No part of this document was tried with a screen reader or the system's reduced-motion setting for this refresh.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

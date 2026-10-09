@@ -2,7 +2,7 @@
 
 ## Summary
 
-3D Chess has seven kinds of address: the [home page](../glossary.md#the-product-and-its-screens) at `/`; the [side choice](../glossary.md#the-product-and-its-screens) for a game against a friend at `/new` and against the computer at `/computer`; a game's page against a friend at `/game/{id}` and against the computer at `/computer/{id}`; and the [tutorial](../glossary.md#the-product-and-its-screens) at `/learn` and `/learn/{lesson}`. The side choices and a game's page before its game starts share one scene, the [lobby](../glossary.md#the-product-and-its-screens), which stays up without reloading as the page moves from one to the other. A game's page shows one of several screens depending on its [phase](../glossary.md#the-product-and-its-screens) and whether the browser holds a seat, and a crash screen can replace any page. This document owns that map: what each address shows, how a game's page decides which screen to show, how the player moves between pages (buttons, browser Back and Forward, typed addresses), what survives each move, and the crash screen. It is a foundation; the features on each screen have their own documents.
+3D Chess has seven kinds of address: the [home page](../glossary.md#the-product-and-its-screens) at `/`; the [side choice](../glossary.md#the-product-and-its-screens) for a game against a friend at `/new` and against the computer at `/computer`; a game's page against a friend at `/game/{id}` and against the computer at `/computer/{id}`; and the [tutorial](../glossary.md#the-product-and-its-screens) at `/learn` and `/learn/{lesson}`. Any other address shows ["Nothing here"](#addresses-the-app-does-not-know). The side choices and a game's page before its game starts share one scene, the [lobby](../glossary.md#the-product-and-its-screens), which stays up without reloading as the page moves from one to the other. A game's page shows one of several screens depending on its [phase](../glossary.md#the-product-and-its-screens) and whether the browser holds a seat, and a crash screen can replace any page. This document owns that map: what each address shows, how a game's page decides which screen to show, how the player moves between pages (buttons, browser Back and Forward, typed addresses), what survives each move, and the crash screen. It is a foundation; the features on each screen have their own documents.
 
 ## The map
 
@@ -116,6 +116,7 @@ The app changes pages in these ways of its own, and the browser adds its usual c
 | "← Game", or the last "Back to game" | tutorial opened from a game | that game's page | The game's page opens fresh, as on a reload: it rejoins with the stored seat (or reloads the computer game from the browser). A new history entry is added. |
 | "← Home", or the last "Play a game" | tutorial opened from the home page | home page, side choice | Nothing is sent. A new history entry is added. |
 | "Back to start" on the crash screen | crash screen | home page | A full page load, like typing the address. |
+| "Home" on "Nothing here" | an unknown address | home page | Nothing is sent. A new history entry is added. |
 | Browser Back or Forward away from a game's page | game page | any other page | Against a friend the connection is reset, as above. |
 | Browser Back or Forward to a game page | any other page | game page | A game page opened fresh: it rejoins with the stored seat, or opens the invitation to the free seat without one. A computer game reopens on the game itself, without the arrival. |
 | Browser Back or Forward straight to another game's page | game page | another game page | The connection is reset, and the other game's page is opened fresh: nothing of the first game's page (a join in flight, dismissed errors, a move awaiting its echo) carries over. It rejoins with that game's stored seat, or opens the invitation. |
@@ -124,11 +125,11 @@ The app changes pages in these ways of its own, and the browser adds its usual c
 
 What survives each of these: the [stored seat](connection-and-seat.md#the-stored-seat) always survives, the server's record of the game always survives (and a computer game's copy in the browser), and the tab's [client id](connection-and-seat.md#the-client-id) survives everything but closing the tab. Everything else (the selection, the view's angle and zoom, a dismissed error, an open promotion dialog, a closed result card, text in the move box, a request that was queued or in flight, the tutorial's step and moves) belongs to the page and is lost.
 
-The page title is "3D Chess — Online Multiplayer" on every page. The one exception: a host whose tab is in the background when the guest arrives sees "● Opponent joined · 3D Chess" until they return to the tab. A background tab gives no sign that it is the player's turn.
+The page title is "3D Chess — Online Multiplayer" on every page, with the tower's five levels as the tab's icon, except for the [tab signal](../glossary.md#the-interface): while it is the player's move in a game under way, against a friend or the computer, the title reads "● Your move · 3D Chess" and the icon carries a gold dot, whether or not the tab is in view; and a host whose tab is in the background when the guest arrives sees "● Opponent joined · 3D Chess" until they return to the tab. Both go back to the page's own title and icon when they no longer apply. See [the turn indicator](../game-page/turn-indicator.md#the-tab).
 
 ## Addresses the app does not know
 
-Only the addresses above are pages. Any other address inside the app (for example `/game/` with no id, or `/games`) shows an empty dark page: no title, no message, no link home. The connection is still opened in the background. See [bug triage](../bug-triage.md) B-13.
+Only the addresses above are pages. Any other address inside the app (for example `/game/` with no id, or `/games`) shows the lobby's glass card on the dark night, without a scene: "Nothing here", and one button, "Home", which has keyboard focus and leads to the home page (a new history entry). The connection is still opened in the background. (Until `939b9b4` such an address showed an empty dark page: [bug triage](../bug-triage.md) B-13, fixed.)
 
 A game id that does not exist, or has expired, opens a normal game page, which says "No game here" as soon as the server answers: at once for a visitor, or after the refused rejoin for a stale stored seat. See [joining a game](../start/joining-a-game.md) and [reloading and returning](../session/reload-and-return.md). A computer game's id that this browser does not hold says "No game here" at once.
 
@@ -189,10 +190,10 @@ Navigation has no request of its own, but each interrupt row applies to the page
 
 ## Open questions and verification
 
-- Unknown addresses show an empty dark page with no way back but the address bar ([bug triage](../bug-triage.md) B-13, still open).
-- The tab title reflects only one moment of the game (a guest arriving while the host's tab is in the background), not whose turn it is or that the game is over. Whether more is wanted is a product call.
-- The routes, the resets, and the history entries are read from `client/src/App.tsx`, `client/src/screens/StartScreen.tsx`, `client/src/screens/lobby/ChooseSide.tsx`, `client/src/screens/GameScreen.tsx`, `client/src/screens/GameView.tsx`, `client/src/screens/EndGameModal.tsx`, and `client/src/screens/learn/` at `24c650c`, and covered by `client/src/App.test.tsx` and `client/src/AppNavigation.test.tsx`; not checked in the running app.
+- Unknown addresses show "Nothing here" with "Home" since `939b9b4` (`client/src/screens/NotFound.tsx`, the catch-all route in `App.tsx`; [bug triage](../bug-triage.md) B-13, fixed). Read from code and `client/src/AppNavigation.test.tsx`, not tried.
+- The tab signal (`client/src/hooks/useTabSignal.ts`) says only that it is the player's move, or that a guest has arrived; an opponent's draw offer, the opponent leaving, or the end of the game leave the title as it is. Whether more is wanted is a product call.
+- The routes, the resets, and the history entries are read from `client/src/App.tsx`, `client/src/screens/StartScreen.tsx`, `client/src/screens/lobby/ChooseSide.tsx`, `client/src/screens/GameScreen.tsx`, `client/src/screens/GameView.tsx`, `client/src/screens/EndGameModal.tsx`, and `client/src/screens/learn/` at `b325641`, and covered by `client/src/App.test.tsx` and `client/src/AppNavigation.test.tsx`; not checked in the running app.
 - The crash screen's sentence speaks of the server even for a game against the computer. Minor.
 - Which real failures reach the crash screen is unconfirmed. Whether a browser without 3D support reaches it was not tried.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

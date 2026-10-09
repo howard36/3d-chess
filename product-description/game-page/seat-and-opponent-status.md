@@ -142,6 +142,6 @@ For this panel, "Before sending" describes it while nothing of this player's is 
 - A report received before the game started stays in the log and is what the board shows for the instant before the join's own report arrives. Read from code, not observed.
 - How long a lost network (as opposed to a closed tab) takes to show as "Offline" depends on when the server detects the dead connection. Not measured.
 - The presence announcement is a status region present from the moment the board is, so its first report should be announced; not tried with a screen reader.
-- Covered by tests: `client/src/App.test.tsx`, `client/src/game/session.test.ts` (`selectOpponentOnline`), `server/tests/test_local_ws.py` (`test_presence_follows_connections`, `test_rejoin_replaces_lingering_socket`), and `client/e2e/session.spec.ts`. Brought up to `24c650c` from `client/src/screens/TurnPill.tsx`, `GameView.tsx`, and `GameScreen.tsx`; not re-checked in the running app.
+- Covered by tests: `client/src/App.test.tsx`, `client/src/game/session.test.ts` (`selectOpponentOnline`), `server/tests/test_local_ws.py` (`test_presence_follows_connections`, `test_rejoin_replaces_lingering_socket`), and `client/e2e/session.spec.ts`. Brought up to `b325641` from `client/src/screens/TurnPill.tsx`, `GameView.tsx`, and `GameScreen.tsx`; not re-checked in the running app.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

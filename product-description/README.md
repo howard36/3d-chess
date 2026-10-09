@@ -97,7 +97,7 @@ Progress is tracked in the [coverage table](#coverage) below.
 ### Scope decisions
 
 - **One surface.** The web client as a player (or a would-be player) sees it, at the source commit, against a server built from the same commit. Two players in two browser contexts is the normal setup for a game against a friend; a game against the computer and the tutorial need only one browser and no server.
-- **Where this repo lives.** This description lives in `product-description/` in the 3D Chess repository itself. Work on the description never changes `client/` or `server/`; every document cites the source commit it describes, `24c650c` (fixes to the product land separately, and the documents are then brought up to the new commit).
+- **Where this repo lives.** This description lives in `product-description/` in the 3D Chess repository itself. Work on the description never changes `client/` or `server/`; every document cites the source commit it describes, `b325641` (fixes to the product land separately, and the documents are then brought up to the new commit).
 - **Server operations are out of scope.** Deployment, `/health`, logging, CI, and the Modal and Cloudflare configuration are not experiences a player has. Where an operational fact reaches the player (the one-hour connection limit, the roughly 30-day expiry of an idle game, a server restart), it is described in [the connection and seat model](foundations/connection-and-seat.md).
 - **Modified clients are out of scope, except for what an honest client shows.** The server trusts clients and does not check move legality. What a player running the real client sees when the record holds a move it cannot replay is described in [the broken game record](cross-cutting/broken-game-record.md); how to write such a client is not.
 - **Test hooks and developer pages are out of scope.** `window.__r3fState`, the Playwright helpers, the recording scripts, and the development-only pages (`pieces.html`, `sculptures.html`, the preview's `?t=`) exist for development and change nothing a player sees.
@@ -157,6 +157,7 @@ play/
   promotion.md                   the "Promote to" dialog
   the-opponents-move.md          waiting through the opponent's turn and seeing their move land
   check-and-game-end.md          a King in check, the four endings, the result card, Play again
+  resigning-and-draws.md         the game menu: resigning, offering a draw, accepting or declining one
 
 game-page/
   seat-and-opponent-status.md    the player's stone on the turn pill, and an opponent shown "Offline"
@@ -180,9 +181,9 @@ cross-cutting/
 
 Status is one of `not started`, `drafted`, or `verified`. No document is `verified`: that needs a person's pass over its checklist.
 
-Every document describes commit `24c650c`. They were written from the code and tests and have not been checked in the running app at that commit, except where a document's open questions say so.
+Every document describes commit `b325641`. They were written from the code and tests and have not been checked in the running app at that commit, except where a document's open questions say so.
 
-History, in short. The set was first written against `d94507b` and brought up to `4e18386`, which carried the fixes for B-01 to B-10; a scripted pass at `c571311` passed 216 of 218 checklist items (2 needed a real phone). After that the product changed a great deal, and the documents followed it in stages that left them describing a mix of commits: the HUD (turn pill, move card), the board's new look (the glass tower), the landing page, and the way into a game (the side choice and the lobby). The refresh to `24c650c` brought every document to one commit and added the home page with its tiles, playing the computer, the tutorial, the draws by repetition and the fifty-move rule, the result card with "Play again", the changed starting position, and the board's newer motion (the entrance, the eased glide, the toppling capture, the mate). The checklists were rewritten for `24c650c` and have not been run there: their Result columns read `unverified`, and the earlier passes' results are in the files' history (see [the verification protocol](verification/README.md#results-so-far)). The triage gained B-24 and B-25, and every older entry says where it stands at `24c650c`.
+History, in short. The set was first written against `d94507b` and brought up to `4e18386`, which carried the fixes for B-01 to B-10; a scripted pass at `c571311` passed 216 of 218 checklist items (2 needed a real phone). After that the product changed a great deal, and the documents followed it in stages that left them describing a mix of commits: the HUD (turn pill, move card), the board's new look (the glass tower), the landing page, and the way into a game (the side choice and the lobby). The refresh to `24c650c` brought every document to one commit and added the home page with its tiles, playing the computer, the tutorial, the draws by repetition and the fifty-move rule, the result card with "Play again", the changed starting position, and the board's newer motion (the entrance, the eased glide, the toppling capture, the mate). The checklists were rewritten for `24c650c`, and three items were run there by a short scripted check that confirmed B-25; the rest read `unverified`, and the earlier passes' results are in the files' history (see [the verification protocol](verification/README.md#results-so-far)). The triage gained B-24 and B-25, and every older entry says where it stood at `24c650c`. The set was then brought to `b325641`, which adds the tab signal and a new favicon (#85), a page for unknown addresses and an error banner that judges each refusal by its own request (#97, fixing B-13 and B-15), and resigning and draw offers, with the board closed once a game is over (#98, fixing B-25): [resigning and draws](play/resigning-and-draws.md) is new, and the documents, the glossary, the checklists, and the triage were updated for them.
 
 | Document | Status |
 | --- | --- |
@@ -204,6 +205,7 @@ History, in short. The set was first written against `d94507b` and brought up to
 | play/promotion.md | drafted |
 | play/the-opponents-move.md | drafted |
 | play/check-and-game-end.md | drafted |
+| play/resigning-and-draws.md | drafted |
 | game-page/seat-and-opponent-status.md | drafted |
 | game-page/turn-indicator.md | drafted |
 | game-page/move-list.md | drafted |
@@ -218,12 +220,12 @@ History, in short. The set was first written against `d94507b` and brought up to
 
 ## Reference
 
-The source of truth is the 3D Chess repository (`howard36/3d-chess`), the parent directory of this one, at commit `24c650c`, and its `ARCHITECTURE.md`. The relevant locations are:
+The source of truth is the 3D Chess repository (`howard36/3d-chess`), the parent directory of this one, at commit `b325641`, and its `ARCHITECTURE.md`. The relevant locations are:
 
 - `client/src/App.tsx`, `client/src/main.tsx`: the routes and the crash screen that wraps them
-- `client/src/screens/`: the home page (`StartScreen.tsx`, `LandingPreview.tsx`), the side choices and the lobby's cards (`lobby/`), the game page (`GameScreen.tsx`, `GameView.tsx`) and its HUD and dialogs (`TurnPill.tsx`, `CapturedPieces.tsx`, `MoveCard.tsx`, `MoveAnnouncer.tsx`, `PromotionPicker.tsx`, `EndGameModal.tsx`, `useEndCard.ts`), a game against the computer (`ComputerGameScreen.tsx`), and the tutorial (`learn/`)
-- `client/src/game/`: how the position, the turn, the endings, the seat, presence, errors, and an invitation are derived from the message log (`history.ts`, `session.ts`, `invitation.ts`), what a screen reader hears (`announce.ts`), the material count (`material.ts`), a typed move (`typedMove.ts`), the computer's stand-in for the server (`computerGame.ts`), the home page's demo (`demo.ts`), and the lessons (`lessons.ts`)
-- `client/src/hooks/useGameSocket.ts`, `useResendOnReconnect.ts`, `useComputerGame.ts`: the connection, its states, the retry timing, what is queued or dropped, and the computer's stand-in for it
+- `client/src/screens/`: the home page (`StartScreen.tsx`, `LandingPreview.tsx`), the side choices and the lobby's cards (`lobby/`), the game page (`GameScreen.tsx`, `GameView.tsx`) and its HUD and dialogs (`TurnPill.tsx`, `CapturedPieces.tsx`, `MoveCard.tsx`, `MoveAnnouncer.tsx`, `GameActions.tsx` for resigning and draws, `PromotionPicker.tsx`, `EndGameModal.tsx`, `useEndCard.ts`), a game against the computer (`ComputerGameScreen.tsx`), the tutorial (`learn/`), and the page for an unknown address (`NotFound.tsx`)
+- `client/src/game/`: how the position, the turn, the endings, the seat, presence, errors, and an invitation are derived from the message log (`history.ts`, `ending.ts` for a resignation, an agreed draw, and the standing offer, `session.ts`, `invitation.ts`), what a screen reader hears (`announce.ts`), the material count (`material.ts`), a typed move (`typedMove.ts`), the computer's stand-in for the server (`computerGame.ts`), the home page's demo (`demo.ts`), and the lessons (`lessons.ts`)
+- `client/src/hooks/useGameSocket.ts`, `useResendOnReconnect.ts`, `useComputerGame.ts`: the connection, its states, the retry timing, what is queued or dropped, and the computer's stand-in for it; `useTabSignal.ts`: the tab's title and icon
 - `client/src/lib/playerRole.ts`, `clientId.ts`, `computerGames.ts`: the stored seat, the tab's client id, and computer games kept in the browser
 - `client/src/ai/`: the computer player (`levels.ts` for the difficulties and the pause before each move)
 - `client/src/three/`: the 3D board (`Board.tsx`), what counts as a press (`tap.ts`, `tapAssist.ts`), orientation (`layout.ts`), the fitted camera (`cameraFit.ts`, `FitCameraToBoard.tsx`), the glide (`glide.ts`) and the pieces' motion (`pieceMotion.tsx`), the entrance (`intro/`), the lobby's scene (`lobby/`); `client/src/three/scene/` draws the look, with its colors in `palette.ts`

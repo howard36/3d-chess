@@ -145,8 +145,8 @@ There is no request; "before sending" is a lesson as it stands, and "while in fl
 
 ## Open questions and verification
 
-- Read from `client/src/screens/learn/` (`LearnScreen.tsx`, `LearnCanvas.tsx`, `LearnRoute.tsx`, `learnBack.ts`, `learnLayout.ts`, `Directions.tsx`), `client/src/game/lessons.ts`, `client/src/screens/GameView.tsx` (`HowToPlay`), `ARCHITECTURE.md` ("The tutorial"), `LearnScreen.test.tsx`, and `client/e2e/learn.spec.ts` at `24c650c`; not checked in the running app.
+- Read from `client/src/screens/learn/` (`LearnScreen.tsx`, `LearnCanvas.tsx`, `LearnRoute.tsx`, `learnBack.ts`, `learnLayout.ts`, `Directions.tsx`), `client/src/game/lessons.ts`, `client/src/screens/GameView.tsx` (`HowToPlay`), `ARCHITECTURE.md` ("The tutorial"), `LearnScreen.test.tsx`, and `client/e2e/learn.spec.ts` at `b325641`; not checked in the running app.
 - The tutorial cannot be played from the keyboard (no move box). Whether it should is a product call.
 - Whether a reload of a tutorial opened from a game keeps "← Game" depends on the browser restoring the history entry's state; read from how the router keeps it, not tried.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

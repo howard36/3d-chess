@@ -1,14 +1,16 @@
 # Bug triage
 
-A consolidated list of the defects and inconsistencies that the feature documents raised in their "Open questions and verification" sections and in their bodies. B-01 to B-23 were read from the 3D Chess source and tests at commit `d94507b`, and their **Why** lines keep the file:line references of that commit; the 19 that were reproduced, in whole or in part, by the [first, scripted verification pass](verification/README.md#results-so-far) carry a **Status** line naming the checklist items. Every entry still open, or fixed since, has an **At `24c650c`** line that says where it stands at the commit the documents now describe, with references into that commit. B-24 and B-25 were found at `24c650c`. The list exists so the product team can decide, item by item, whether to fix, to document as intended, or to leave.
+A consolidated list of the defects and inconsistencies that the feature documents raised in their "Open questions and verification" sections and in their bodies. B-01 to B-23 were read from the 3D Chess source and tests at commit `d94507b`, and their **Why** lines keep the file:line references of that commit; the 19 that were reproduced, in whole or in part, by the [first, scripted verification pass](verification/README.md#results-so-far) carry a **Status** line naming the checklist items. Every entry still open, or fixed since, has an **At `24c650c`** line that says where it stands at the commit the documents now describe, with references into that commit. B-24 and B-25 were found at `24c650c`. Entries changed by the work merged after it carry an **At `b325641`** line as well: `939b9b4` (#97) fixed B-13 and B-15, and `b325641` (#98) fixed B-25 and narrowed B-20; `8f30691` (#85) narrowed B-21. The list exists so the product team can decide, item by item, whether to fix, to document as intended, or to leave.
 
 ## Summary
 
 The documents raised about 60 questions; after merging by root cause, 23 entries remained at `d94507b`, and the refresh for `24c650c` added two. Three entries were **high**, all fixed on 2026-09-26: a press on the board acted on pointer-down, so turning the view could play a move (B-01); a move made just after reconnecting could be recorded against a stale position and freeze the game (B-02); and a join whose answer was lost stranded the joiner (B-03). B-01 to B-10 were fixed then (B-10 as a side effect), and their entries carry a **Fix** line; the two product calls among them were decided as described there (B-06: the tab the player chose keeps the seat; B-09: dialogs, live regions, reduced motion and typed moves, not keyboard navigation of the 3D board).
 
-**At `24c650c`**, the redesign (the home page, the lobby, the glass tower, the turn pill and the result card) and later fixes have closed four more (B-12, B-14, B-19, B-22, the last but for a "reset view" control) and narrowed five (B-16, B-18, B-20, B-21, B-23). Still open: B-11, B-13, B-15, B-17, and the rest of the partly fixed ones. Two are new: a drawn game can be played on from the board once its result card is closed (B-25, **medium**: ordinary presses undo a finished game's result for both players), and two tabs on one game against the computer overwrite each other's stored game (B-24). None of the entries at `24c650c` has been checked in the running app; each says what it was read from.
+**At `24c650c`**, the redesign (the home page, the lobby, the glass tower, the turn pill and the result card) and later fixes have closed four more (B-12, B-14, B-19, B-22, the last but for a "reset view" control) and narrowed five (B-16, B-18, B-20, B-21, B-23). Still open: B-11, B-13, B-15, B-17, and the rest of the partly fixed ones. Two are new: a drawn game can be played on from the board once its result card is closed (B-25, **medium**: ordinary presses undo a finished game's result for both players), and two tabs on one game against the computer overwrite each other's stored game (B-24). Only B-25 was checked in the running app at `24c650c` (confirmed by a scripted run); the others say what they were read from.
 
-| ID | Title | Severity | Area | Decision needed | Status at `24c650c` |
+**At `b325641`**, the documents' current commit, three more are fixed: B-13 (unknown addresses now show "Nothing here" with "Home"), B-15 (the error banner judges each refusal by its own request, and an answer that moves the game on ends it), and B-25 (the board takes no input once a game is over). B-20 is narrowed further by resigning and draw offers, and B-21 by the tab's title and icon on the player's move. Still open: B-11, B-17, B-24, and the remainder of B-16, B-18, B-20, B-21, B-22 and B-23.
+
+| ID | Title | Severity | Area | Decision needed | Status at `b325641` |
 | --- | --- | --- | --- | --- | --- |
 | B-01 | A press on the board acts on pointer-down, so turning the view can play a move or drop the selection | high | play | fix | fixed |
 | B-02 | A move pressed just after reconnecting is recorded against a stale position and can freeze the game | high | session | fix | fixed |
@@ -19,13 +21,13 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 | B-07 | The promotion dialog loses keyboard focus to the press that opens it | medium | play | fix | fixed |
 | B-08 | The default view crops the board, badly on phones, and the HUD collides in narrow windows | medium | view | fix | fixed |
 | B-09 | The game cannot be played without a pointer, and dialogs and cues are not accessible | medium | cross-cutting | product call | fixed |
-| B-25 | A drawn game can be played on from the board once its result card is closed | medium | play | fix | open (new) |
+| B-25 | A drawn game can be played on from the board once its result card is closed | medium | play | fix | fixed (b325641) |
 | B-10 | Back then Forward before the start screen's connection opens shows "Error: Already in a game" | low | session | fix | fixed |
 | B-11 | With browser storage disabled, the creator lands on the join screen and a reload loses the seat | low | start | fix | open |
 | B-12 | Returning players see "Game created! Share this link with a friend:" while their rejoin is in flight | low | session | fix | fixed |
-| B-13 | Unknown addresses render an empty dark page | low | navigation | fix | open |
+| B-13 | Unknown addresses render an empty dark page | low | navigation | fix | fixed (939b9b4) |
 | B-14 | A very fast double press on a destination sends the move twice and shows "Not your turn" | low | play | fix | fixed |
-| B-15 | Old errors keep acting: success never clears the banner, and earlier refusals steer later joins | low | game page | fix | open |
+| B-15 | Old errors keep acting: success never clears the banner, and earlier refusals steer later joins | low | game page | fix | fixed (939b9b4) |
 | B-16 | The presence line goes stale while the player is disconnected | low | game page | product call | partly fixed |
 | B-17 | The retry schedule starts over on every successful open, so a fault on each rejoin retries every 0.5 s | low | session | fix | open |
 | B-18 | The frozen-board handling misleads: wrong wording, a wrong count, and a King capture offered | low | cross-cutting | fix | partly fixed |
@@ -34,7 +36,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 | B-21 | Nothing signals the player's turn, an opponent joining, or a move in flight | low | cross-cutting | product call | partly fixed |
 | B-22 | The board has no coordinate labels, so the move list cannot be matched to cells | low | view | product call | fixed, except a "reset view" control |
 | B-23 | Nothing identifies a seat but this browser's storage | low | cross-cutting | product call | partly fixed |
-| B-24 | Two tabs on one game against the computer overwrite each other's stored game | low | computer | fix | open (new) |
+| B-24 | Two tabs on one game against the computer overwrite each other's stored game | low | computer | fix | open |
 
 ## High
 
@@ -162,6 +164,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Close the board once the game is over (as the move box already is), and have the computer's stand-in refuse moves after the end.
 - **Raised by:** [making a move](play/making-a-move.md#edge-cases), [check and the end of the game](play/check-and-game-end.md#edge-cases), [the broken game record](cross-cutting/broken-game-record.md#open-questions-and-verification), [the glossary](glossary.md#selection-and-board-state).
 - **Status:** confirmed 2026-10-09 at `24c650c` by a scripted run (END-13): after the repetition line and Escape on the result card, White pressed `Bb1` and `Cb1`; the move landed on both pages, both pills dropped the result, and Black played on. The move box answered "Wait for their move." to the same move (ERR-05).
+- **At `b325641`:** fixed by `b325641` (#98): the board takes no input once the game is over, by any ending (`boardDisabled`, `client/src/screens/GameScreen.tsx:170-175`). The computer's stand-in still accepts a move after an ending on the board (`client/src/game/computerGame.ts`, `answer`), but the page no longer sends one. Read from code; END-13 not rerun.
 
 ## Low
 
@@ -215,6 +218,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Raised by:** [screens and navigation](foundations/screens-and-navigation.md#open-questions-and-verification).
 - **Status:** confirmed 2026-09-25 by the scripted pass: NAV-02.
 - **At `24c650c`:** still open. `client/src/App.tsx:89-104` lists `/`, `/learn/:lesson?`, `/new`, `/game/:gameId`, `/computer` and `/computer/:gameId`, and nothing else: any other address is still an empty dark page with no link home. Read from code; NAV-02 at `24c650c` unverified.
+- **At `b325641`:** fixed by `939b9b4` (#97): a catch-all route (`client/src/App.tsx:106`) shows `client/src/screens/NotFound.tsx`, the lobby's card with "Nothing here" and a focused "Home" button. Read from code and `client/src/AppNavigation.test.tsx`; NAV-02 not run.
 
 ### B-14: A very fast double press on a destination sends the move twice and shows "Not your turn"
 
@@ -240,6 +244,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Raised by:** [the error banner](game-page/error-banner.md#open-questions-and-verification), [joining a game](start/joining-a-game.md#open-questions-and-verification), [reloading and returning](session/reload-and-return.md#open-questions-and-verification), [the broken game record](cross-cutting/broken-game-record.md#open-questions-and-verification).
 - **Status:** confirmed 2026-09-25 by the scripted pass: RELOAD-02 (no joined screen after "Cannot rejoin"), BANNER-02 (the banner survived two moves).
 - **At `24c650c`:** still open, in today's words. The banner still shows the latest error until "✕" (`client/src/screens/GameScreen.tsx:200`, `latestError`), whatever succeeds after it. The failed-join and stale-seat reactions still read every error since the page was opened or reset (`:207`, `:221`, `errors.some`), as does the invitation (`client/src/game/invitation.ts`): once a page has been told "Cannot join" or "Game full", its card says "No game here" or "This game is taken" for as long as it is open. Read from code.
+- **At `b325641`:** fixed by `939b9b4` (#97). The banner shows the refusal that still stands (`selectStandingError`, `client/src/game/session.ts:90`): the latest error since the page opened, unless a later answer (a move landing, a game created, a seat taken, the game starting, a snapshot, the invitation's answer) has overtaken it; "✕" dismisses that one error. The failed-join and stale-seat reactions read only their own request's answers (`refusedSince`, `:107`), and the side choice's errors no longer reach the game's page. The same change fixed a seat lost on reload when a stale rejoin's refusal was read after the page had joined. Still as before: the invitation's card (`client/src/game/invitation.ts`) reads every refusal in the log, harmlessly. Read from code and `client/src/screens/GameScreen.errors.test.tsx`; BANNER rows not run.
 
 ### B-16: The presence line goes stale while the player is disconnected
 
@@ -252,6 +257,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Raised by:** [seat and opponent status](game-page/seat-and-opponent-status.md#open-questions-and-verification), [the connection and seat model](foundations/connection-and-seat.md#open-questions-and-verification).
 - **Status:** confirmed 2026-09-25 by the scripted pass: CONN-10.
 - **At `24c650c`:** partly fixed. The turn pill and the captured pieces dim while the connection is down (`client/src/screens/GameView.tsx:235`, `stale={reconnecting}`), which says that what they show may be out of date; but the pill still shows the last presence report (`client/src/game/session.ts:57-61`), and nothing marks it stale behind the replaced dialog. Read from code.
+- **At `b325641`:** unchanged (`client/src/screens/GameView.tsx:249`).
 
 ### B-17: The retry schedule starts over on every successful open, so a fault on each rejoin retries every 0.5 s
 
@@ -263,6 +269,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Decision needed:** `fix`. Reset the count when the rejoin is answered, not when the socket opens.
 - **Raised by:** [connection loss](session/connection-loss.md#open-questions-and-verification).
 - **At `24c650c`:** still open: `client/src/hooks/useGameSocket.ts:119-121` resets the attempt count when a connection opens. Read from code.
+- **At `b325641`:** unchanged (`client/src/hooks/useGameSocket.ts:130`).
 
 ### B-18: The frozen-board handling misleads: wrong wording, a wrong count, and a King capture offered
 
@@ -275,6 +282,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Raised by:** [the broken game record](cross-cutting/broken-game-record.md#open-questions-and-verification), [the move list](game-page/move-list.md#edge-cases).
 - **Status:** banner text, freeze, and the unflagged illegal move confirmed 2026-09-25 by the scripted pass: FROZEN-01, FROZEN-02, FROZEN-03.
 - **At `24c650c`:** partly fixed. The banner now reads "Move {N} of this game can't be replayed by this version of the app. The board stays at the position before it." (`client/src/screens/GameScreen.tsx:337-341`), so it no longer calls the move illegal, and its likeliest cause in the honest app, B-02, is fixed. Still open: N counts single moves, while the move list (now in the page for screen readers only) numbers pairs (`client/src/screens/MoveCard.tsx:45`); the engine's legal moves still include capturing a King left in check (`client/src/engine/board.ts:367`), which the replay then freezes on (`client/src/game/history.ts:154-177`); and a move recorded after the end still takes the result away, which the app itself now allows after a draw (B-25). Read from code; FROZEN rows at `24c650c` unverified.
+- **At `b325641`:** the banner's text is at `client/src/screens/GameScreen.tsx:375`. A move recorded after the end can no longer come from the app itself after a draw (B-25 fixed); the rest is unchanged.
 
 ### B-19: Small copy and rendering slips
 
@@ -302,6 +310,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Raised by:** [check and the end of the game](play/check-and-game-end.md#open-questions-and-verification), [the opponent's move](play/the-opponents-move.md#open-questions-and-verification), [the rules](foundations/game-rules.md#open-questions-and-verification).
 - **Status:** unchanged at `1928567`, except that "Start new game" now leads to the side choice at `/new`.
 - **At `24c650c`:** partly addressed. The result card can be closed (its close button, Escape, or a click outside it) to study the final position, with "Play again" waiting below the tower; "Play again" leads to the side choice of the same kind, `/new` or `/computer` (`client/src/screens/EndGameModal.tsx`). There is still no rematch with the same opponent, no resignation or draw offer, no clock, and no way to step through the moves on screen, so an opponent who leaves for good still stalls the game until it expires. Read from code.
+- **At `b325641`:** narrowed further by `b325641` (#98): a player can now resign at any moment or offer a draw, which the opponent accepts or declines, through the game menu at the top right ([resigning and draws](play/resigning-and-draws.md)); against the computer, which never offers, a draw is accepted only when it stands clearly worse. Still missing: a rematch with the same opponent, a clock, a way to claim a game from an opponent who has left for good (the player can only resign or wait), and stepping through the moves on screen.
 
 ### B-21: Nothing signals the player's turn, an opponent joining, or a move in flight
 
@@ -312,6 +321,7 @@ The documents raised about 60 questions; after merging by root cause, 23 entries
 - **Raised by:** [the opponent's move](play/the-opponents-move.md#open-questions-and-verification), [waiting for an opponent](start/waiting-for-an-opponent.md#open-questions-and-verification), [screens and navigation](foundations/screens-and-navigation.md#open-questions-and-verification), [making a move](play/making-a-move.md#open-questions-and-verification).
 - **Status:** partly addressed at `1928567` (read from code, WAIT-18 unverified): a host whose tab is in the background when the guest arrives sees the title "● Opponent joined · 3D Chess", and the arrival waits for them. The player's turn and a move in flight are still not signalled.
 - **At `24c650c`:** partly addressed, as at `1928567`: a host whose tab is in the background when the guest arrives sees the title "● Opponent joined · 3D Chess" (`client/src/screens/GameScreen.tsx:385-393`), and the arrival waits for them. Nothing yet signals the player's turn to a tab in the background. A move in flight shows only as the piece left lifted over its origin until the move lands ([making a move](play/making-a-move.md#while-in-flight)). Read from code; WAIT-18 at `24c650c` unverified.
+- **At `b325641`:** narrowed further by `8f30691` (#85): while it is the player's move in a game under way, the tab's title reads "● Your move · 3D Chess" and its icon carries a gold dot (`client/src/hooks/useTabSignal.ts`, called at `client/src/screens/GameScreen.tsx:419`), whether or not the tab is in view. There is still no sound or notification, an opponent's draw offer gives no sign in the tab, and a move in flight still shows only as the piece left lifted.
 
 ### B-22: The board has no coordinate labels, so the move list cannot be matched to cells
 

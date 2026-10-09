@@ -104,7 +104,7 @@ The list shows the record as it stood before the move: the player's own move in 
 ## Open questions and verification
 
 - Whether screen readers keep the list's semantics while it is visually hidden (it is clipped, not removed) was not tried with a screen reader.
-- The list in wire notation, complete when the record is frozen, is covered by `client/src/App.test.tsx` and `client/src/screens/MoveCard.test.tsx`; the moves after a reload by `client/e2e/session.spec.ts`. Brought up to `24c650c` from `client/src/screens/MoveCard.tsx`; unchanged in behavior since `f7bff4d` (the list is now rendered in blocks of 64 moves, which a reader does not notice). Not re-verified by hand.
+- The list in wire notation, complete when the record is frozen, is covered by `client/src/App.test.tsx` and `client/src/screens/MoveCard.test.tsx`; the moves after a reload by `client/e2e/session.spec.ts`. Brought up to `b325641` from `client/src/screens/MoveCard.tsx`; unchanged in behavior since `f7bff4d` (the list is now rendered in blocks of 64 moves, which a reader does not notice). Not re-verified by hand.
 - A sighted player has no way to see the history. Whether a visible list is wanted is a product call.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

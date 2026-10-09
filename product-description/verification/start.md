@@ -4,6 +4,8 @@ How to run this file: bring up the local server and client as in [the protocol](
 
 > **History.** The pre-game flow was rebuilt at `1928567` (the side choice, the lobby, the invitations, the arrival); the old items (CREATE-01 to CREATE-14, WAIT-01 to WAIT-12, JOIN-01 to JOIN-10) tested the screens before it and are retired, with their results in this file's history. The items below were written for the lobby and brought up to `24c650c` (the home page's "Play a friend", no labels under the kings, one "Copy link" and no share sheet, "Play a friend" on the invitation's cards, the garden going dark at the handover); items for the home page, the computer, and the tutorial were added. **None of the items in this file has been run**: every Result reads `unverified`. CREATE-27 and CREATE-29 described the landing page before the home page's menu and are retired in favor of HOME-01 to HOME-06.
 
+> **Brought to `b325641`.** CPU-10 and CPU-11 (a draw offered to the computer, and resigning against it) were added. None of these has been run.
+
 ## start/the-home-page.md
 
 | ID | P | Device | Claim | Setup | Steps | Expected | Result |
@@ -98,6 +100,8 @@ Not checkable by hand:
 | CPU-07 | P2 | server stopped | A game against the computer plays with the server down ([interactions](../computer/playing-the-computer.md#interactions-with-other-systems)). | Server stopped; `/computer`. | 1. Pick a side and a difficulty.<br>2. Play several moves. | Nothing about the connection is shown anywhere; the game plays normally. | unverified |
 | CPU-08 | P2 | mouse | The difficulty last chosen is focused next time ([begin](../computer/playing-the-computer.md#begin)). | CPU-02 done (Hard). | 1. Open `/computer` again and pick a side. | "Hard" has focus. | unverified |
 | CPU-09 | P2 | second tab | Two tabs on one computer game each play their own copy, and the last to move wins the stored game (suspected bug, B-24) ([edge cases](../computer/playing-the-computer.md#edge-cases)). | A computer game in progress, the player to move. | 1. Open the same address in a second tab.<br>2. Play a different move in each tab.<br>3. Reload the first tab. | 2: no replaced dialog; each tab shows only its own move. 3: the first tab shows the second tab's move. | unverified |
+| CPU-10 | P1 | mouse | Offered a draw, the computer declines in an even position and plays on ([resigning and draws](../play/resigning-and-draws.md#against-the-computer)). | A new computer game, the player White, any difficulty. | 1. Before moving, open the menu and click "Offer draw".<br>2. Wait 2 s. | About 0.9 s after the offer: "Draw declined" under the flag; the game goes on; "Offer draw" greyed out until the next move. | unverified |
+| CPU-11 | P2 | mouse | Resigning against the computer ends the game at once ([resigning and draws](../play/resigning-and-draws.md#against-the-computer)). | A computer game, the player to move. | 1. Resign. | The pill "White resigned · you lose" at once; the card "You lose", "White resigned"; "Play again" leads to `/computer`. | unverified |
 
 Not checkable by hand:
 
@@ -118,4 +122,4 @@ Not checkable by hand:
 
 - Nothing.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

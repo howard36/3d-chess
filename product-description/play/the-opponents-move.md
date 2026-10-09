@@ -64,7 +64,7 @@ When the echo arrives, the player's board replays the record with the new move a
 - the light on the turn pill passes to the player's half ("Your move"), the player's pieces become selectable, and the move box can send: see [making a move](making-a-move.md);
 - if the player is now in check, their King rocks on his foot and [turns red](check-and-game-end.md#check); if the move ends the game (checkmate, stalemate, a threefold repetition, or the fifty-move rule), the end plays out on the board and the [result card](check-and-game-end.md) follows.
 
-There is no sound, no notification, and no change to the tab's title. A player looking elsewhere learns that it is their turn only by looking at the board. A screen reader hears the move announcement: the move, then "Your move."
+There is no sound and no notification, but the browser tab changes: its title reads "● Your move · 3D Chess" and its icon carries a gold dot ([the tab](../game-page/turn-indicator.md#the-tab)), so a player in another tab sees it in the tab strip. A screen reader hears the move announcement: the move, then "Your move."
 
 How the move lands depends on when the player sees it:
 
@@ -102,7 +102,7 @@ How the move lands depends on when the player sees it:
 | The game ends | Cannot happen before the opponent moves. | The opponent's move can checkmate the player or draw the game; the result card follows once the end has played out. |
 | The server answers with an error | Errors answer only the player's own requests; none are pending during the opponent's turn. An error already showing stays. | No effect. |
 | The connection drops | "Reconnecting…" appears; the turn pill keeps showing the opponent's last presence. A move the opponent makes meanwhile is recorded and arrives in the snapshot, gliding in. If the player has meanwhile opened the game in another tab, this tab does not take the seat back when its connection returns: it shows the replaced dialog, and the other tab receives the move. | Same: the echo is lost, and the move comes in the snapshot. |
-| The window loses focus or the tab is hidden | No effect, and no notification when the move arrives. | The position updates in the background; the glide plays when the tab is shown again. |
+| The window loses focus or the tab is hidden | No effect, and no notification when the move arrives; the tab's title and icon say "● Your move". | The position updates in the background; the glide plays when the tab is shown again. |
 | Reload or closing the tab | The opponent sees the player "Offline" on their turn pill, and can still move. On return the player's board shows everything recorded meanwhile, without a glide. | Same. |
 | The opponent acts | This row is the document's subject: presence changes appear on the turn pill; the move itself lands as described above. | The move lands. |
 | Another tab takes the seat | The other tab now receives the opponent's move; this tab shows the replaced dialog. | Same. |
@@ -120,7 +120,7 @@ How the move lands depends on when the player sees it:
 
 **Other tabs and devices.** Only the tab holding the player's seat receives the opponent's moves live. A tab that was offline when the player moved to another tab stays out of the game when its connection returns, and shows the replaced dialog instead of taking the seat back.
 
-**Game over.** The opponent's move can end the game. Otherwise the game has no way to end during the opponent's turn: no timeout, no abandonment, no resignation.
+**Game over.** The opponent's move can end the game. During the opponent's turn either player can also end it from the [game menu](resigning-and-draws.md): the player may resign or offer a draw, and the opponent may resign or offer one. There is no timeout and no abandonment.
 
 **Stored seat.** Lets the player close the tab during a long wait and come back to the game through the link.
 
@@ -139,9 +139,9 @@ How the move lands depends on when the player sees it:
 ## Open questions and verification
 
 - There is no notification of any kind (sound, title, browser notification) when the opponent moves; a player in another tab has no way to know. Whether one is wanted is a product call.
-- An opponent who leaves for good leaves the game stuck on their turn with no way for the player to end it. By design (no resignation, no clock), but worth a product call.
+- An opponent who leaves for good leaves the game stuck on their turn: the player can only resign, or offer a draw nobody will answer. There is no clock and no way to claim the game. Worth a product call ([bug triage](../bug-triage.md) B-20).
 - The glide on returning to a hidden tab is read from how the 3D scene pauses drawing and clamps a long frame; not observed in a real background tab.
 - Reduced motion is read from the system setting whenever a move lands (`client/src/three/Board.tsx`, `client/src/three/motion.ts`), not watched for changes.
-- Moves while the opponent is disconnected, their arrival on rejoin, and presence are covered by `server/tests/test_local_ws.py` and `client/e2e/session.spec.ts`; animation on arrival versus on mount, and its absence under reduced motion, by `client/src/three/Board.test.tsx`. Brought up to `24c650c` from the code; not re-checked in the running app.
+- Moves while the opponent is disconnected, their arrival on rejoin, and presence are covered by `server/tests/test_local_ws.py` and `client/e2e/session.spec.ts`; animation on arrival versus on mount, and its absence under reduced motion, by `client/src/three/Board.test.tsx`. Brought up to `b325641` from the code; not re-checked in the running app.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

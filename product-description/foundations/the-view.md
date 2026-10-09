@@ -193,10 +193,10 @@ After any interrupt the view stays where it was left, except when the board scre
 
 ## Open questions and verification
 
-- This document was brought up to `24c650c` from the code and `ARCHITECTURE.md` ("Camera", "The board", "The garden"), not checked in the running app: the level colors (`client/src/three/scene/palette.ts`), the step-back of other levels (`scene/focus.ts`, `STEP_BACK` 0.6), the labels' post (`scene/labelAnchors.ts`), the entrance (`three/intro/timeline.ts`), the fit and the lens shift (`three/cameraFit.ts`, `FitCameraToBoard.tsx`), the glide (`three/glide.ts`: 300 ms plus 45 ms per unit of distance, between 360 and 560 ms), the capture, check strike, refused shake, and the mate (`three/pieceMotion.tsx`, `scene/fx.tsx`, `lib/mate.ts`), and the garden (`scene/stage.tsx` and its parts).
+- This document was brought up to `b325641` from the code and `ARCHITECTURE.md` ("Camera", "The board", "The garden"), not checked in the running app: the level colors (`client/src/three/scene/palette.ts`), the step-back of other levels (`scene/focus.ts`, `STEP_BACK` 0.6), the labels' post (`scene/labelAnchors.ts`), the entrance (`three/intro/timeline.ts`), the fit and the lens shift (`three/cameraFit.ts`, `FitCameraToBoard.tsx`), the glide (`three/glide.ts`: 300 ms plus 45 ms per unit of distance, between 360 and 560 ms), the capture, check strike, refused shake, and the mate (`three/pieceMotion.tsx`, `scene/fx.tsx`, `lib/mate.ts`), and the garden (`scene/stage.tsx` and its parts).
 - The camera controls' behavior (which button does what, damping, the effect of Shift/Ctrl/Cmd, touch gestures) is the 3D library's with panning turned off, and was read from the library, not tried by hand.
 - Whether a drag in progress survives the result card appearing (with the board behind it made inert) is read from how the camera controls capture the pointer; not tried.
 - Reduced motion is read from `client/src/three/motion.ts` and the scene; not tried with a real system setting.
 - There is no "reset view" control (see [bug triage](../bug-triage.md) B-22).
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`

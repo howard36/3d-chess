@@ -4,6 +4,8 @@ How to run this file: bring up the local server and client as in [the protocol](
 
 > **Status at `24c650c`.** This file was brought up to `24c650c`: "Returning to your game…" instead of a flash of the invitation, "No game here" for an expired game, the turn pill instead of the seat label and the presence line, the move box that appears on Tab instead of the "Move" button, the result card instead of the end-game dialog, the invitation to send instead of the share-link screen, and the new starting position's moves. Every row passed at `c571311` (the results are kept in the history of this file); none has been run at `24c650c`, so every Result reads `unverified`. RELOAD-02, which checked a suspected bug that is gone (an expired game's "Join Game" briefly showing the joined screen), was rewritten to check what replaced it.
 
+> **Brought to `b325641`.** RELOAD-08 (a standing draw offer after a reload) was added. None of these has been run.
+
 ## session/reload-and-return.md
 
 | ID | P | Device | Claim | Setup | Steps | Expected | Result |
@@ -14,6 +16,7 @@ How to run this file: bring up the local server and client as in [the protocol](
 | RELOAD-04 | P2 | second tab | Reloading the replaced tab takes the seat back ([edge cases](../session/reload-and-return.md#edge-cases)). | The game open in two tabs of White's context; the first replaced. | 1. Reload the first tab. | The first tab shows the board; the second shows "This game is open in another tab". | unverified |
 | RELOAD-05 | P1 | second player | A history jump away from a page that saw its own game start live leaves the target game's stored seat alone and rejoins it with its own color ([edge cases](../session/reload-and-return.md#edge-cases)). | One context (P) and a second player (Q). P creates game B, Q joins it, and P notes P's color in B; P goes back to the home page without loading a new page (the browser's Back button, as many times as needed; typing the address loads a fresh page and does not test this). P creates game A and waits on its invitation to send until Q joins A; repeat A until P's color in A differs from P's color in B. Q keeps both games open. | 1. From A's board, P jumps two entries back in the history menu to B's page (without passing through the home page).<br>2. Read P's stored seat for B (`localStorage['3dchess:role:{B}']`). | 1: P's page for B shows B's board with P's stone in P's color in B, no replaced dialog; Q's page for B shows no dialog and P's stone filled. 2: P's color in B, unchanged. | unverified |
 | RELOAD-06 | P2 | drop, delayed answers | A reload whose first rejoin answer is lost still takes over on the next connection ([send](../session/reload-and-return.md#send)). | The game open in two tabs of White's context; the first replaced. | 1. Reload the first tab and cut its connection before the snapshot arrives, keeping it down; then reload the second tab so that it holds the seat.<br>2. Release the first tab's connection. | 1: the first tab stays on "Returning to your game…" with "Reconnecting…" at the top right. 2: the first tab shows the board and holds the seat; the second tab shows "This game is open in another tab". | unverified |
+| RELOAD-08 | P2 | second player | A standing draw offer survives a reload, on both sides ([the answer arrives](../session/reload-and-return.md#the-answer-arrives)). | White has offered a draw. | 1. Reload White's page.<br>2. Reload Black's page. | 1: "Draw offered" under White's flag again. 2: the offer with "Accept" and "Decline" again. | unverified |
 | RELOAD-07 | P2 | mouse | A computer game comes back from the browser at once, with no "Returning to your game…" ([edge cases](../session/reload-and-return.md#edge-cases)). | A computer game, two moves each played. | 1. Stop the local server.<br>2. Reload `/computer/{id}`. | The board with the four moves in place, the short entrance, no "Returning to your game…", no "Reconnecting…". | unverified |
 
 Not checkable by hand:
@@ -56,4 +59,4 @@ Not checkable by hand:
 - A move sent by the older tab at the instant of replacement: a race inside the server.
 - The one-round-trip wait for the snapshot after "Play here": too short to see without delayed answers.
 
-Drafted against 3D Chess commit `24c650c`
+Drafted against 3D Chess commit `b325641`
