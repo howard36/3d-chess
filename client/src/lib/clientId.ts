@@ -7,7 +7,9 @@
 // of those. (A duplicated tab copies sessionStorage and so shares its id;
 // that only costs it the "don't take the seat back unasked" protection.)
 
-const KEY = '3dchess:clientId';
+/** (Also read by earlySocket.ts's inline script.) */
+export const CLIENT_ID_KEY = '3dchess:clientId';
+const KEY = CLIENT_ID_KEY;
 
 const randomId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto

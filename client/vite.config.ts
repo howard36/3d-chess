@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
+import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
+import { CLIENT_ID_KEY } from './src/lib/clientId';
 
 /**
  * three.js, the scene and the set's precomputed parts load in a chunk of
@@ -53,6 +56,34 @@ const preloadSceneOnGamePages = (): Plugin => ({
     },
   },
 });
+
+/**
+ * The built page opens its socket from an inline script at the top of its
+ * head, before the entry has loaded, and on a game's address sends its first
+ * request (src/lib/earlySocket.ts): the app adopts the socket and what came
+ * back. Build only: the dev server's StrictMode mounts the app's socket twice
+ * (closing the first), which would rejoin the seat a second time.
+ */
+const earlySocket = (): Plugin => {
+  let url = DEFAULT_WS_URL;
+  return {
+    name: 'early-socket',
+    apply: 'build',
+    configResolved(config) {
+      url = config.env.VITE_WS_URL ?? DEFAULT_WS_URL;
+    },
+    transformIndexHtml() {
+      const keys = { role: ROLE_KEY_PREFIX, clientId: CLIENT_ID_KEY };
+      return [
+        {
+          tag: 'script',
+          injectTo: 'head-prepend',
+          children: `(${startEarlySocket.toString()})(${JSON.stringify(url)},${JSON.stringify(keys)})`,
+        },
+      ];
+    },
+  };
+};
 
 /**
  * r3f's Canvas registers the whole three namespace (extend(THREE)), which
@@ -127,7 +158,13 @@ const keepSceneOutOfEntry = (): Plugin => ({
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), r3fCatalogue(), preloadSceneOnGamePages(), keepSceneOutOfEntry()],
+  plugins: [
+    react(),
+    r3fCatalogue(),
+    earlySocket(),
+    preloadSceneOnGamePages(),
+    keepSceneOutOfEntry(),
+  ],
   css: {
     postcss: './postcss.config.js',
   },
