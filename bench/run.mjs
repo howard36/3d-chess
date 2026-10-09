@@ -828,7 +828,11 @@ function abMain() {
     const any =
       runs.base.find((m) => m.has(key))?.get(key) ?? runs.head.find((m) => m.has(key)).get(key);
     const v = verdict(pairs, any.better);
-    rows.push({ ...any, pairs, v });
+    // Each side's own values, paired or not: a row one side lost must show
+    const sides = ['base', 'head'].map((side) =>
+      runs[side].map((m) => m.get(key)?.value).filter(Number.isFinite),
+    );
+    rows.push({ ...any, pairs, v, sides });
   }
 
   const md = ['# A/B benchmark comparison'];
@@ -856,10 +860,19 @@ function abMain() {
   }
   const real = rows.filter((r) => r.v?.real);
   const better = real.filter((r) => r.v.improved);
+  // Measured in fewer pairs than were run, or on one side only: a section
+  // that stopped, a selector that no longer matches
+  const short = rows.filter((r) => r.pairs.length < PAIRS);
   md.push('## Summary');
   md.push(
     `${rows.length} measurements compared: **${better.length} better, ${real.length - better.length} ` +
-      `worse**, ${rows.length - real.length} unchanged within their noise.`,
+      `worse**, ${rows.length - real.length - short.filter((r) => !r.v?.real).length} unchanged ` +
+      `within their noise` +
+      (short.length
+        ? `, **${short.length} not measured in every pair** (${short
+            .map((r) => `${r.where}: ${r.what} — ${r.pairs.length} of ${PAIRS}`)
+            .join('; ')}).`
+        : '.'),
   );
   const fmtChange = (v) =>
     v
@@ -869,8 +882,7 @@ function abMain() {
     r.tier,
     r.where,
     r.what,
-    shown(median(r.pairs.map(([b]) => b)), r.unit),
-    shown(median(r.pairs.map(([, h]) => h)), r.unit),
+    ...r.sides.map((xs) => (xs.length ? shown(median(xs), r.unit) : 'missing')),
     fmtChange(r.v),
     r.v ? r.v.ratios.map((x) => x.toFixed(2)).join(' ') : '',
     !r.v ? 'one side only' : r.v.real ? `**${r.v.improved ? 'better' : 'worse'}**` : '',
@@ -897,8 +909,8 @@ function abMain() {
   }
   md.push('## Everything measured');
   md.push(
-    '*Base* and *Head* are the medians over the pairs; for throughputs (/s) higher is better, for ' +
-      'everything else lower.',
+    '*Base* and *Head* are the medians over each side’s runs; for throughputs (/s) higher is ' +
+      'better, for everything else lower.',
   );
   for (const tier of ['client', 'startup', 'server', 'browser']) {
     const mine = rows.filter((r) => r.tier === tier);
