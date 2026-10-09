@@ -9,8 +9,7 @@ import { gridSurface } from './mesh';
 // the requested quality, so gentle stretches cost few rings.
 
 export type ProfileNode =
-  | readonly [r: number, y: number]
-  | readonly [r: number, y: number, 'corner'];
+  readonly [r: number, y: number] | readonly [r: number, y: number, 'corner'];
 export type Profile = readonly ProfileNode[];
 type P2 = [number, number];
 

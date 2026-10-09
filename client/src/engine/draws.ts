@@ -70,7 +70,7 @@ export function positionHash(board: Board, turn: 'white' | 'black'): number {
  */
 export function hashAfter(hash: number, before: Board, after: Board, move: Move): number {
   let hi = Math.floor(hash / 2 ** 32) ^ BLACK_HI;
-  let lo = (hash % 2 ** 32 | 0) ^ BLACK_LO;
+  let lo = ((hash % 2 ** 32) | 0) ^ BLACK_LO;
   const toggle = (piece: Piece | null, c: Coord) => {
     if (!piece) return;
     const k = keyIndex(piece, c);

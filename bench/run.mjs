@@ -257,7 +257,7 @@ function runClient(ctx = MAIN) {
       run(
         'client startup',
         process.execPath,
-        ['--expose-gc', 'node_modules/vite-node/vite-node.mjs', 'bench/startup.ts'],
+        ['--expose-gc', 'node_modules/vite-node/dist/cli.mjs', 'bench/startup.ts'],
         { cwd: client, env },
       ),
     );
@@ -1122,7 +1122,7 @@ md.push(
     '# a tier, a file or a single case on its own (fastest while iterating)',
     'cd client && npx vitest bench --config vitest.bench.config.ts                    # engine, game, interaction',
     'cd client && npx vitest bench --config vitest.bench.config.ts bench/engine.bench.ts -t "E4"',
-    'cd client && node --expose-gc node_modules/vite-node/vite-node.mjs bench/startup.ts  # piece geometry startup',
+    'cd client && node --expose-gc node_modules/vite-node/dist/cli.mjs bench/startup.ts  # piece geometry startup',
     'uv run --project server python server/bench/bench_server.py --out /tmp/server.json [--only store,move-rtt]',
     'cd client && node scripts/bench-browser.mjs --out /tmp/browser.json [--only reopen]',
     '```',

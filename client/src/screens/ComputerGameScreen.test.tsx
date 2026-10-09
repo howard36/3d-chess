@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import ComputerGameScreen from './ComputerGameScreen';
 import { LobbyContext } from './lobby/lobbyContext';
 import type { LobbyApi, LobbyStage } from './lobby/lobbyContext';

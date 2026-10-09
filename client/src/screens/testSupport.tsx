@@ -1,4 +1,4 @@
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import type { GameSocket } from '../hooks/useGameSocket';
 import type { WebSocketMessage } from '../types/messages';
 import GameScreen from './GameScreen';

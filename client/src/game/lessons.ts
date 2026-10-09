@@ -16,14 +16,7 @@ import type { LastMove } from './history';
 // square are its lines.
 
 export type LessonId =
-  | 'setup'
-  | 'rook'
-  | 'bishop'
-  | 'unicorn'
-  | 'queen'
-  | 'king'
-  | 'knight'
-  | 'pawn';
+  'setup' | 'rook' | 'bishop' | 'unicorn' | 'queen' | 'king' | 'knight' | 'pawn';
 
 /** A line a piece moves along, as [file, rank, level] steps. */
 export type Step = readonly [number, number, number];
