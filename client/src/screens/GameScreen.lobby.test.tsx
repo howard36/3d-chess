@@ -9,6 +9,7 @@ import type { LobbyApi, LobbyStage } from './lobby/lobbyContext';
 import type { GameSocket } from '../hooks/useGameSocket';
 import type { WebSocketMessage } from '../types/messages';
 import { getStoredRole, setStoredRole } from '../lib/playerRole';
+import { YOUR_MOVE_TITLE } from '../hooks/useTabSignal';
 import { fakeSocket, loadBoardChunk } from './testSupport';
 
 // The game's page before it starts: the host's invitation to send, and the
@@ -437,13 +438,17 @@ describe('the handover from the lobby to the game', () => {
     const spy = vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
     const title = document.title;
     try {
-      const { rerender } = render(at(fakeSocket(created)));
+      const { rerender, unmount } = render(at(fakeSocket(created)));
+      expect(document.title).toBe(title);
       rerender(at(fakeSocket([...created, start('white')])));
       expect(document.title).toMatch(/Opponent joined/);
       hidden = false;
       act(() => {
         document.dispatchEvent(new Event('visibilitychange'));
       });
+      // The host plays White: their move
+      expect(document.title).toBe(YOUR_MOVE_TITLE);
+      unmount();
       expect(document.title).toBe(title);
     } finally {
       spy.mockRestore();
