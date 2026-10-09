@@ -96,3 +96,37 @@ export const MoveGlide = ({
     </group>
   );
 };
+
+/**
+ * Keeps its children out of sight for `afterMs` from mount, then shows them:
+ * a taken piece put back by a step back through the record, which stands
+ * again once the piece that took it has glided off its square. Mount it
+ * freshly (via key) for each step. Like MoveGlide, it asks for frames only
+ * while it waits, on r3f's clock, and its group is tagged as a glide's
+ * (the board's hover probe looks inside).
+ */
+export const Reveal = ({ afterMs, children }: { afterMs: number; children: React.ReactNode }) => {
+  const group = useRef<Group>(null);
+  const elapsedMs = useRef(0);
+  const invalidate = useThree((s) => s.invalidate);
+
+  useLayoutEffect(() => {
+    if (group.current) group.current.visible = afterMs <= 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only; a new step mounts a new wrapper
+  }, []);
+  useEffect(() => invalidate(), [invalidate]);
+
+  useFrame((_, delta) => {
+    const g = group.current;
+    if (!g || g.visible) return;
+    elapsedMs.current += Math.min(delta * 1000, MOVE_ANIMATION.maxFrameMs);
+    if (elapsedMs.current >= afterMs) g.visible = true;
+    invalidate();
+  });
+
+  return (
+    <group ref={group} userData={{ moveGlide: true }}>
+      {children}
+    </group>
+  );
+};

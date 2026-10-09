@@ -1109,6 +1109,134 @@ describe('Board', () => {
       expect(group.position.y).toBeCloseTo(fy - ty);
       expect(group.position.z).toBeCloseTo(fz - tz);
     });
+
+    // Stepping through the record (the game's review, `review`): the move
+    // before the one shown, FROM to TO, then the next one, TO to NEXT
+    describe('in review', () => {
+      const NEXT = { x: 2, y: 4, z: 2 };
+      const nextMove = (moveCount: number) =>
+        ({ move: { from: TO, to: NEXT }, moveCount, capturedPiece: null }) as LastMoveInfo;
+      type Pos = { x: number; y: number; z: number };
+      const offset = (renderer: Renderer, i = 0) =>
+        (glideGroups(renderer)[i].instance as unknown as { position: Pos }).position;
+      const expectAt = (p: Pos, from: Coord, to: Coord) => {
+        const [fx, fy, fz] = toWorld(from, 'white');
+        const [tx, ty, tz] = toWorld(to, 'white');
+        expect(p.x).toBeCloseTo(fx - tx);
+        expect(p.y).toBeCloseTo(fy - ty);
+        expect(p.z).toBeCloseTo(fz - tz);
+      };
+
+      it('glides a step on as a move lands, and a step back home, in reverse', async () => {
+        const renderer = await ReactThreeTestRenderer.create(
+          <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} review />,
+        );
+        expect(glideGroups(renderer)).toHaveLength(0);
+        // On: the rook glides from TO to NEXT
+        await renderer.update(
+          <Board board={rookBoard(NEXT)} currentTurn="white" lastMove={nextMove(2)} review />,
+        );
+        expect(glideGroups(renderer)).toHaveLength(1);
+        expectAt(offset(renderer), TO, NEXT);
+        expect(last(marked)).toMatchObject({ fresh: true });
+        // Back: the rook, on TO again, glides there from NEXT; the mark is the
+        // earlier move's, at rest
+        await renderer.update(
+          <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} review />,
+        );
+        expect(glideGroups(renderer)).toHaveLength(1);
+        expectAt(offset(renderer), NEXT, TO);
+        expect(last(marked)).toMatchObject({ fresh: false, glideMs: 0 });
+        // ...and home, at rest, once it is over
+        await act(async () => {
+          await renderer.advanceFrames(80, 0.01);
+        });
+        expect(offset(renderer).x).toBe(0);
+        // On again: it glides again
+        await renderer.update(
+          <Board board={rookBoard(NEXT)} currentTurn="white" lastMove={nextMove(2)} review />,
+        );
+        expectAt(offset(renderer), TO, NEXT);
+      });
+
+      it('shows a jump of several moves at once, either way', async () => {
+        const renderer = await ReactThreeTestRenderer.create(
+          <Board board={boardBeforeMove()} currentTurn="white" review />,
+        );
+        await renderer.update(
+          <Board board={rookBoard(NEXT)} currentTurn="white" lastMove={nextMove(2)} review />,
+        );
+        expect(glideGroups(renderer)).toHaveLength(0);
+        expect(last(marked)).toMatchObject({ fresh: false });
+        await renderer.update(<Board board={boardBeforeMove()} currentTurn="white" review />);
+        expect(glideGroups(renderer)).toHaveLength(0);
+        expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(FROM, 'white')]);
+      });
+
+      it('outside review, still glides the last of several moves landing at once', async () => {
+        const renderer = await ReactThreeTestRenderer.create(
+          <Board board={boardBeforeMove()} currentTurn="white" />,
+        );
+        await renderer.update(
+          <Board board={rookBoard(NEXT)} currentTurn="white" lastMove={nextMove(2)} />,
+        );
+        expect(glideGroups(renderer)).toHaveLength(1);
+        expectAt(offset(renderer), TO, NEXT);
+      });
+
+      it('puts a taken piece back once its taker, going home, has left it', async () => {
+        const victim = { type: PieceType.Pawn, color: 'black' as const };
+        captures.length = 0;
+        const renderer = await ReactThreeTestRenderer.create(
+          <Board
+            board={boardAfterMove()}
+            currentTurn="black"
+            lastMove={lastMove(1, victim)}
+            review
+          />,
+        );
+        await renderer.update(<Board board={boardBeforeMove(true)} currentTurn="white" review />);
+        // No capture's effect going back
+        expect(captures).toHaveLength(0);
+        const groups = glideGroups(renderer);
+        expect(groups).toHaveLength(2);
+        const glide = groups.find(
+          (g) => g.findAll((n) => n.props.userData?.piece?.type === PieceType.Rook).length > 0,
+        )!;
+        const reveal = groups.find((g) => g !== glide)!;
+        expectAt((glide.instance as unknown as { position: Pos }).position, TO, FROM);
+        const shown = () => (reveal.instance as unknown as { visible: boolean }).visible;
+        expect(shown()).toBe(false);
+        // Out of sight until the rook is as far from it as it was when it took it
+        const forward = planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'), { capture: true });
+        const leftMs = touchdownMs(forward) - contactAtMs(forward)!;
+        await act(async () => {
+          await renderer.advanceFrames(Math.floor(leftMs / 10) - 2, 0.01);
+        });
+        expect(shown()).toBe(false);
+        await act(async () => {
+          await renderer.advanceFrames(4, 0.01);
+        });
+        expect(shown()).toBe(true);
+      });
+
+      it('glides nothing for a player who asked for less motion', async () => {
+        // jsdom has no matchMedia: lend the window one
+        vi.stubGlobal(
+          'matchMedia',
+          vi.fn((query: string) => ({ matches: query.includes('reduce') })),
+        );
+        try {
+          const renderer = await ReactThreeTestRenderer.create(
+            <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} review />,
+          );
+          await renderer.update(<Board board={boardBeforeMove()} currentTurn="white" review />);
+          expect(glideGroups(renderer)).toHaveLength(0);
+        } finally {
+          vi.unstubAllGlobals();
+        }
+      });
+    });
   });
 });
 
