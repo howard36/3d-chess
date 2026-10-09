@@ -66,7 +66,7 @@ Nothing is focused when the home page or the board screen loads. The app moves f
 - **The invitations.** The invitation to send puts focus on "Copy link"; the invitation to the free seat on "Join game", or on its card's "Play a friend".
 - **The difficulty.** Against the computer, the difficulty last played (Medium the first time) takes focus as the three tiles appear.
 - **The promotion dialog** puts focus on "Queen" as it opens, so Enter or Space picks the Queen at once, Escape cancels, and Tab moves to "Rook", "Bishop", "Knight", "Unicorn", and "Cancel". When it closes, focus falls to the page.
-- **The result card** puts focus on "Play again" as it opens. The board and the HUD behind it, the move box included, are inert. When it is closed, focus falls to the page.
+- **The result card** puts focus on "Play again" as it opens. The board and the HUD behind it, the move box included, are inert. When it is closed, focus falls to the page, and the browser carries on from where the card was: the next Tab reaches "Play again" below the tower, not the move box (seen in Chromium at `24c650c` after Escape).
 - **The replaced dialog** puts focus on "Play here" as it opens. Everything behind it is inert, the result card included.
 - **The move box** keeps focus in its field after a move is sent or refused, so a keyboard player types the next move without Tab.
 - **A control that disappears** (a side button after the pick, "Join game", "✕", "Play here", a piece button, "Cancel", "Play again") takes focus with it. Focus drops to the page and nothing moves it to the new content.

@@ -232,7 +232,7 @@ These are not errors and never appear in the error banner, but each tells the pl
 ## Open questions and verification
 
 - **Cryptic messages.** "No game here" does not say whether the id is wrong, in the wrong case, or expired; "This game is taken" does not tell a seated player on another browser that their seat is held by a browser they are not using, and the app offers no way back; "No such seat to rejoin" and "Already in a game" describe the protocol, not anything the player did; "Clients may not send {type} messages" shows internal message names (only a modified client can see it).
-- **Refusals that stick** ([B-15](../bug-triage.md#b-15-old-errors-keep-acting-success-never-clears-the-banner-and-earlier-refusals-steer-later-joins), still open; a fix is in progress separately): `client/src/game/invitation.ts` and the failed-join effect in `client/src/screens/GameScreen.tsx` read the whole log.
+- **Refusals that stick** ([B-15](../bug-triage.md#b-15-old-errors-keep-acting-success-never-clears-the-banner-and-earlier-refusals-steer-later-joins), still open): `client/src/game/invitation.ts` and the failed-join effect in `client/src/screens/GameScreen.tsx` read the whole log.
 - **"A pawn cannot promote to that piece."** `client/src/game/typedMove.ts` produces it only when none of a promotion's moves matches the letter, and every letter the box accepts matches one of the five. It appears unreachable.
 - **The move box's hyphen.** "{from}-{to} is not a promotion." joins the cells with a hyphen, while the move list uses an en dash. Cosmetic.
 - **Silence when the move box may not send** (`client/src/screens/MoveCard.tsx`).

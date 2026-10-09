@@ -54,7 +54,7 @@ Use it to read state back after a real interaction (how many cells are highlight
 
 ## Results so far
 
-**At `24c650c`: no item has been run.** The checklists were rewritten for this commit (the home page, the lobby, games against the computer, the tutorial, the HUD, the draws, the result card, the new starting position). Every Result cell reads `unverified`, except a few whose claim is untouched since the last pass, which say so ("pass at `c571311` (unchanged since; not rerun)"), and the two that need a real phone, which stay `blocked`. The [harness](harness/README.md) was not updated and cannot run them as they stand. **No document is marked `verified`.**
+**At `24c650c`: three items have been run.** One short scripted check (2026-10-09, Playwright in headless Chromium with reduced motion, driven by the repository's own e2e helpers rather than the harness) played the repetition line and confirmed the new suspected bug B-25: END-12 (in part), END-13 and ERR-05 record it. The checklists were rewritten for this commit (the home page, the lobby, games against the computer, the tutorial, the HUD, the draws, the result card, the new starting position). Every Result cell reads `unverified`, except a few whose claim is untouched since the last pass, which say so ("pass at `c571311` (unchanged since; not rerun)"), and the two that need a real phone, which stay `blocked`. The [harness](harness/README.md) was not updated and cannot run them as they stand. **No document is marked `verified`.**
 
 The earlier passes, whose results are in the history of these files:
 

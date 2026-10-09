@@ -33,7 +33,7 @@ While this player's own page holds no seat on its connection (reconnecting, wait
 
 ### The seat appears
 
-The pill appears the instant the game page reaches the [playing phase](../foundations/screens-and-navigation.md#the-game-page-and-its-phases), together with the board: when the server announces that the game has started (the creator and the joiner, live), or when a rejoin's [snapshot](../glossary.md#requests) says both seats are taken (a reload, a return through the link, a reconnect). The color is the one the server names in that message, which is always the seat this browser holds.
+The pill appears the instant the game page reaches the [playing phase](../foundations/screens-and-navigation.md#a-games-page-and-its-phases), together with the board: when the server announces that the game has started (the creator and the joiner, live), or when a rejoin's [snapshot](../glossary.md#requests) says both seats are taken (a reload, a return through the link, a reconnect). The color is the one the server names in that message, which is always the seat this browser holds.
 
 The player's stone is always at the left end of the pill and the opponent's at the right, whichever color the player holds. Once shown, the stones do not change for as long as the page is open, because a [seat](../foundations/connection-and-seat.md#seats) is held for the life of the game. The pill stays fixed while the view is turned or zoomed. Where it sits at each window size is described in [the turn indicator](turn-indicator.md#begin).
 
