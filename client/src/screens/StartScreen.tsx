@@ -26,7 +26,7 @@ const StartScreen: React.FC = () => {
 
   return (
     <main className="landing" data-testid="landing">
-      <ChunkBoundary onFail={() => setNoPreview(true)}>
+      <ChunkBoundary canvas onFail={() => setNoPreview(true)}>
         <React.Suspense fallback={null}>
           <LandingPreview still={still} />
         </React.Suspense>

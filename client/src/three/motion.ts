@@ -7,9 +7,6 @@ export const MOVE_ANIMATION = {
   maxFrameMs: 33,
 } as const;
 
-export const easeInOutCubic = (t: number): number =>
-  t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
-
 /**
  * Whether the player asked their system for less motion. The move glide and
  * the capture's effect are then skipped: the position simply changes, and the

@@ -9,6 +9,30 @@ test('the start page leads to the tutorial, which draws its board and walks the 
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  // Shader programs linked: each step makes the board again, and its
+  // materials are retired, not disposed, so a step links none
+  await page.addInitScript(() => {
+    const w = window as unknown as { __links: number };
+    w.__links = 0;
+    const link = WebGL2RenderingContext.prototype.linkProgram;
+    WebGL2RenderingContext.prototype.linkProgram = function (program: WebGLProgram) {
+      w.__links++;
+      return link.call(this, program);
+    };
+  });
+  const links = () => page.evaluate(() => (window as unknown as { __links: number }).__links);
+  // The count once it has held still for a second (software rendering links slowly)
+  const settledLinks = async () => {
+    let last = -1;
+    let still = 0;
+    for (let i = 0; i < 120 && still < 4; i++) {
+      const n = await links();
+      still = n === last ? still + 1 : 0;
+      last = n;
+      await page.waitForTimeout(250);
+    }
+    return last;
+  };
 
   await page.goto('/');
   await page.getByRole('button', { name: 'How to play' }).click();
@@ -19,6 +43,8 @@ test('the start page leads to the tutorial, which draws its board and walks the 
   await page.getByRole('button', { name: 'Next: Rook' }).click();
   await expect(page).toHaveURL(/\/learn\/rook$/);
   await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '12');
+  // The first board's programs, linked in its first frames
+  const linked = await settledLinks();
 
   await page.getByRole('button', { name: 'Unicorn', exact: true }).click();
   await expect(page).toHaveURL(/\/learn\/unicorn$/);
@@ -42,6 +68,9 @@ test('the start page leads to the tutorial, which draws its board and walks the 
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.45, { steps: 10 });
   await page.mouse.up();
+
+  // Five steps later (each a board made again), no program linked anew
+  expect(await settledLinks()).toBe(linked);
 
   // Only the game's canvas publishes the store e2e projects clicks through
   expect(await page.evaluate(() => '__r3fState' in window)).toBe(false);

@@ -7,6 +7,7 @@ import { hudFade, introDone, introPlan, sceneFade } from '../three/intro/timelin
 import type { IntroVariant } from '../three/intro/timeline';
 import { lazyChunk, reloadPage } from '../lib/cachedImport';
 import { ChunkBoundary } from '../components/ChunkBoundary';
+import type { ChunkFailure } from '../components/ChunkBoundary';
 import type { Move } from '../engine';
 import type { GameHistory } from '../game/history';
 import type { Color } from '../types/messages';
@@ -149,29 +150,34 @@ const GameView: React.FC<GameViewProps> = ({
   }, [introPlaying]);
   const screen = React.useRef<HTMLDivElement>(null);
   // The board's chunk failed to load (`failed`); each retry mounts a fresh try
-  const [boardLoad, setBoardLoad] = React.useState({ attempt: 0, failed: false });
+  // (or the browser has no WebGL: then a retry cannot help)
+  const [boardLoad, setBoardLoad] = React.useState({
+    attempt: 0,
+    failed: false,
+    noWebGL: false,
+  });
   const firstFrame = React.useRef(false);
   const reportFirstFrame = () => {
     if (firstFrame.current) return;
     firstFrame.current = true;
     onFirstFrame?.();
   };
-  const boardFailed = () => {
+  const boardFailed = (why: ChunkFailure) => {
     // A retry that fails too: where the browser holds on to a failed chunk
     // (Chromium does, for the page's life) and after a deploy has replaced
     // it, only a fresh page gets the board, and the game comes back with it
     // from the server's record
-    if (boardLoad.attempt > 0) return reloadPage();
+    if (why === 'chunk' && boardLoad.attempt > 0) return reloadPage();
     // No entrance without the board: the HUD shows at once, and a board that
     // loads on a retry shows the finished scene
     clock.t = Infinity;
     setIntroPlaying(false);
-    setBoardLoad((b) => ({ ...b, failed: true }));
+    setBoardLoad((b) => ({ ...b, failed: true, noWebGL: why === 'webgl' }));
     reportFirstFrame();
   };
   const retryBoard = () => {
     gameCanvas.retry();
-    setBoardLoad((b) => ({ attempt: b.attempt + 1, failed: false }));
+    setBoardLoad((b) => ({ attempt: b.attempt + 1, failed: false, noWebGL: false }));
   };
   const GameCanvas = gameCanvas.Component;
   // Until the director takes over on the first frame: the entrance's start
@@ -219,7 +225,7 @@ const GameView: React.FC<GameViewProps> = ({
       >
         {/* The 3D board, from its own chunk: nothing shows there until it
             has loaded (the HUD over it does), nor if it fails to */}
-        <ChunkBoundary key={boardLoad.attempt} onFail={boardFailed}>
+        <ChunkBoundary key={boardLoad.attempt} canvas onFail={boardFailed}>
           <React.Suspense fallback={null}>
             <GameCanvas
               color={color}
@@ -276,6 +282,7 @@ const GameView: React.FC<GameViewProps> = ({
             yourTurn={!gameOver && color === currentTurn}
             reviewing={review.reviewing}
             onMove={onMove}
+            shown={boardLoad.failed}
           />
           {/* After the move box, which stays the first Tab stop */}
           <HowToPlay />
@@ -299,10 +306,17 @@ const GameView: React.FC<GameViewProps> = ({
           {boardLoad.failed && (
             <div className="hud-center">
               <div role="alert" className="hud-notice hud-glass" data-testid="board-failed">
-                Couldn't load the board
-                <button className="hud-retry" onClick={retryBoard}>
-                  Retry
-                </button>
+                {boardLoad.noWebGL ? (
+                  // Nothing to retry: the move box still plays
+                  'No 3D board: WebGL is off in this browser'
+                ) : (
+                  <>
+                    Couldn't load the board
+                    <button className="hud-retry" onClick={retryBoard}>
+                      Retry
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}

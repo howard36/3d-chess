@@ -110,7 +110,7 @@ const LobbyLayout = () => {
       >
         {view && (
           <div ref={canvasHost} className="lobby-stage" aria-hidden>
-            <ChunkBoundary onFail={() => setNoScene(true)}>
+            <ChunkBoundary canvas onFail={() => setNoScene(true)}>
               <React.Suspense fallback={null}>
                 <LobbyCanvas view={view} anchors={anchors} canvasHost={canvasHost} />
               </React.Suspense>

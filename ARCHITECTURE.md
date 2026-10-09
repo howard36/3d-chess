@@ -118,7 +118,8 @@ Key decisions:
 - **Concurrency model.** One container, one event loop, cooperative scheduling. Because
   `modal.Dict` returns deserialized copies, every mutation is read-modify-write and is
   written back **before any `await`** — that ordering is what makes concurrent handlers
-  safe. Two rules keep it true, and `test_store_ops.py` asserts both: the store operations
+  safe. Two rules keep it true, and `test_store_ops.py` asserts both (and that nothing uses
+  `modal.Dict`'s awaiting `.aio` calls): the store operations
   in `modal_app.py` (`create_game`, `claim_seat`, `taken_seats`, `find_seat`, `record_move`,
   `resign`, `offer_draw`, `accept_draw`, `decline_draw`) are
   synchronous functions, so nothing inside them can yield to the event loop; and the
@@ -164,7 +165,7 @@ Key decisions:
   with nothing in reach puts the selection down, and a mouse is never assisted. A move can
   also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is how a keyboard-only
   or screen-reader player plays: it is the first thing Tab reaches on the board screen, and
-  appears when it does (see HUD).
+  appears when it does, or stays in sight throughout when there is no 3D board (see HUD).
 - **Camera.** The only camera control is turning the view about the board's centre: drag
   with the left mouse button or one finger. The wheel or a two-finger pinch zooms. There
   is no pan (right-drag, a two-finger drag and the arrow keys do nothing), so the orbit
@@ -274,7 +275,9 @@ Key decisions:
   of sight, its field to type a move (`Bb1-Cb1`), which is the first Tab stop on the board
   screen. The field appears while it has keyboard
   focus, at the bottom left (across the bottom in a window no wider than 13:9, at the bottom
-  right in a short one, over the move history where they meet), and Escape puts it away. A visually hidden live region announces
+  right in a short one, over the move history where they meet), and Escape puts it away; with
+  no 3D board (its chunk failed, or the browser has no WebGL) it stays in sight and Escape does
+  not hide it. A visually hidden live region announces
   every move as it lands ("White bishop Ad2 takes pawn on Dd5. Check. Your move.",
   `game/announce.ts`).
   The **move history** (`screens/MoveHistory.tsx`, from the first move on) is the record in
@@ -319,8 +322,8 @@ Key decisions:
   canvas's wrapper carries `data-intro` (`playing`, then `done`), which e2e's
   `waitForBoard` waits for; the move box stays the first Tab stop throughout. The started game's page is `screens/GameView.tsx`, which `GameScreen` renders with
   everything it derives from the log; its 3D board, `screens/GameCanvas.tsx` (loaded
-  lazily), publishes `window.__r3fState` from its `Canvas onCreated`, which e2e reads to
-  project clicks (the lobby's canvas never does).
+  lazily), publishes `window.__r3fState` from its `Canvas onCreated` and takes it down when
+  it unmounts, which e2e reads to project clicks (the lobby's canvas never does).
 - **Landing page.** The start screen at `/` (`screens/StartScreen.tsx`) fills the window
   with a live preview (`screens/LandingPreview.tsx`): the real `Board`, drawn without its
   labels (`labels={false}`) and framed on the tower alone (`towerBodyRings`), plays a
@@ -1201,7 +1204,11 @@ its moments at once), and the game keeps its HUD and move record with "Couldn't 
 board" and a Retry. The retry asks for the chunk again with a fresh `React.lazy` (which
 keeps its first failure for good) and, should that fail too, reloads the page: Chromium
 keeps a module that failed to fetch failed for the rest of the page's life, and a
-replaced chunk is gone. In the build, r3f's `Canvas` is handed only the three.js classes the scene
+replaced chunk is gone. A browser that gives a canvas no WebGL (turned off, a blocklisted GPU,
+no GPU) leaves it out the same way (`ChunkBoundary`'s `canvas`): the start page without its
+preview, the lobby without its scene, the tutorial without its board, and the game says
+"No 3D board: WebGL is off in this browser", with no Retry and its move box in sight to play by.
+In the build, r3f's `Canvas` is handed only the three.js classes the scene
 writes as elements (`src/three/r3fCatalogue.ts`) instead of the whole namespace, so the
 rest of three.js is left out; a new element's class must be added there
 (`r3fCatalogue.test.ts` fails until it is, and the build fails if the swap stops applying).

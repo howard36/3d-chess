@@ -38,6 +38,55 @@ export default defineConfig(
     },
   },
   {
+    // CLAUDE.md's rules that a reader could otherwise only remember
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/schema'],
+              message: 'Wire types come from types/messages.ts, never the generated schema.ts.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "AssignmentExpression > MemberExpression.left[property.name='__r3fState']",
+          message:
+            'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
+        },
+      ],
+    },
+  },
+  { files: ['src/types/messages.ts'], rules: { 'no-restricted-imports': 'off' } },
+  { files: ['src/screens/GameCanvas.tsx'], rules: { 'no-restricted-syntax': 'off' } },
+  {
+    // Animations run on r3f's clock, which the showcase's virtual clock drives;
+    // a timer or the wall clock escapes it
+    files: ['src/three/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'setTimeout', message: 'Animate on r3f’s clock (useFrame), not a timer.' },
+        { name: 'setInterval', message: 'Animate on r3f’s clock (useFrame), not a timer.' },
+      ],
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'window',
+          property: 'setTimeout',
+          message: 'Animate on r3f’s clock, not a timer.',
+        },
+        { object: 'Date', property: 'now', message: 'Animate on r3f’s clock, not the wall clock.' },
+      ],
+    },
+  },
+  {
     // The scene's modules keep each part's components beside the constants and
     // helpers that go with it; an edit to the scene redraws the canvas anyway,
     // so component-only modules would buy nothing here.

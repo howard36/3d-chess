@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import {
   BufferAttribute,
   BufferGeometry,
@@ -17,6 +17,7 @@ import { GRID_LINES } from './gridLines';
 import { FRAME, LEVEL_COLORS, LEVEL_EDGE_COLORS, MARGIN } from './palette';
 import { useIntro } from '../intro/clock';
 import { levelBuild } from '../intro/timeline';
+import { retireMaterial } from './programs';
 
 // The levels: five sheets of clear glass, each edged by one thin square of
 // light in its level's colour. On the glass, the 3D chess checker (dark
@@ -480,13 +481,16 @@ export const Levels = ({
       }),
     [],
   );
+  // Retired, not disposed: a board made again (each step of the tutorial, each
+  // pass of the start page's demo) then links none of their programs again
+  const gl = useThree((s) => s.gl);
   useEffect(
     () => () =>
       materials.forEach((m) => {
-        m.glass.dispose();
-        m.edge.forEach((e) => e.dispose());
+        retireMaterial(gl, m.glass);
+        m.edge.forEach((e) => retireMaterial(gl, e));
       }),
-    [materials],
+    [gl, materials],
   );
   // Each edge's light: its focus (below) times its brightness. Up to full
   // opacity the light is the edge's opacity; past it, its colour, which keeps
