@@ -2,7 +2,7 @@
 
 Chess in three dimensions, on a 5×5×5 board.
 
-[![A game of 3D chess against the computer: White's queen picked up in the middle of a five-level glass tower, her moves ringed in gold](docs/preview.jpg)](https://3dchess.club)
+[![The 3D Chess home page: a five-level glass tower with every piece on its starting square, beside the ways to play](docs/preview.jpg)](https://3dchess.club)
 
 **[Play at 3dchess.club →](https://3dchess.club)**
 
