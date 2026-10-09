@@ -1140,7 +1140,8 @@ node bench/run.mjs --primary --base main   # a change: the primary rows, A/B, be
 
 # Deploy backend manually (not normally needed — CI deploys on merge to main).
 # GITHUB_SHA is what /health reports; without it the image says "dev".
-cd server && GITHUB_SHA=$(git rev-parse HEAD) uv run --extra deploy modal deploy modal_app.py
+# --strategy recreate, as CI: the old container's sockets must not outlive it (see ci.yml)
+cd server && GITHUB_SHA=$(git rev-parse HEAD) uv run --extra deploy modal deploy --strategy recreate modal_app.py
 # Try a change without touching production: a separate app name AND a separate game
 # store (GAMES_STORE names the modal.Dict; the default is production's). Stop it after.
 cd server && GAMES_STORE=3d-chess-games-staging uv run --extra deploy \
