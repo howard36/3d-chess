@@ -231,8 +231,13 @@ Key decisions:
   self-play, not 2D chess's); one above the other at the top left in a short window. The camera fit keeps their row clear
   from the first move (`hudTop`), so a capture never moves the board, and a screen
   reader reads them as a sentence per side, never announced. Under them, only while they
-  apply: "Reconnecting…" (the pill and the captures dim), the latest error and the
-  frozen-record notice. The **move card** is never shown as a panel: it stays in the page out
+  apply: "Reconnecting…" (the pill and the captures dim), the refusal that still stands and the
+  frozen-record notice. A refusal stands from when it arrives until "✕" or a later answer
+  (a move made, a seat taken or rejoined, an invitation answered) ends it, and only one this
+  page asked for counts: what the log held when the page mounted (the side choice's, on the
+  way from `/new`) is not its own (`selectStandingError` in `game/session.ts`). A join or a
+  rejoin is likewise judged by the answers since it was sent (`refusedSince`), never by an
+  earlier request's. The **move card** is never shown as a panel: it stays in the page out
   of sight, its list of moves for screen readers and its field to type a move (`Bb1-Cb1`),
   which is the first Tab stop on the board screen. The field appears while it has keyboard
   focus, at the bottom left (across the bottom in a window no wider than 13:9, at the bottom
@@ -244,8 +249,13 @@ Key decisions:
   `data-winner`; `data-testid="seat"` its `data-seat`; `opponent-presence` its
   `data-online`; `captured-pieces` each haul as `data-side` (`me`, `them`); and
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
-  and `data-move-count`. In the game's entrance the pill and the captured pieces fade in
-  last, settling down onto their place as the last pawns form (`--intro-hud`), and the
+  and `data-move-count`. The browser tab follows the pill: while it is the seated player's
+  move in a game under way (a friend's or the computer's), in view or not, the title is
+  "● Your move · 3D Chess" and the icon is `public/favicon-turn.svg` (the favicon, the
+  tower's five levels, with a gold dot); the page's own come back on the opponent's move,
+  at the end of the game and when the page goes (`hooks/useTabSignal.ts`, which also
+  carries the host's "Opponent joined"; no frames, no timers). In the game's entrance
+  the pill and the captured pieces fade in last, settling down onto their place as the last pawns form (`--intro-hud`), and the
   canvas's wrapper carries `data-intro` (`playing`, then `done`), which e2e's
   `waitForBoard` waits for; the move box stays the first Tab stop throughout. The started game's page is `screens/GameView.tsx`, which `GameScreen` renders with
   everything it derives from the log; its 3D board, `screens/GameCanvas.tsx` (loaded
@@ -286,6 +296,9 @@ Key decisions:
   plays (it has no pause), except under `prefers-reduced-motion`, where it is a still of
   the final position, the king left standing, with still rims. In development
   `?t=<seconds>` starts the demo that far in.
+- **No page.** Any other address (`/games`, `/game/` with no id) is the catch-all route's
+  `screens/NotFound.tsx`: the lobby's glass card alone on the page's night, "Nothing here"
+  and a Home button. It is in the entry and loads no scene.
 
 ## Protocol
 
@@ -799,8 +812,9 @@ written); nothing else. A copy turns the button to
   (`lobbyHandover`) until the lobby has gone. Level A stands from the start
   (`levels.built`), nothing fades up, the camera stands still, and B to E build on up from
   A as the armies form, in about 3.1 s. A host whose tab is
-  hidden when the guest arrives gets the title "● Opponent joined · 3D Chess", and the
-  arrival waits for them (a hidden tab draws no frames). A page that opens on a game
+  hidden when the guest arrives gets the title "● Opponent joined · 3D Chess" until they
+  look (over "Your move", see HUD), and the arrival waits for them (a hidden tab draws no
+  frames). A page that opens on a game
   already under way skips the lobby and plays the short entrance.
 
 Under `prefers-reduced-motion` the seat does not breathe, the
@@ -1009,6 +1023,7 @@ docs/            The README's picture (preview.jpg, from client/scripts/readme-i
 product-description/  The player's-eye description of the product, and its bug triage.
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
 .github/workflows/  ci.yml (tests, gates, deploy) and claude.yml (@claude on issues and PRs).
+.github/dependabot.yml  Weekly dependency PRs (npm, uv, GitHub Actions).
 ```
 
 ## Development
@@ -1059,6 +1074,13 @@ repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
 
+Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
+per ecosystem (client npm, server uv, GitHub Actions, the actions pinned to commit SHAs),
+and each major on its own. Two come apart on purpose: `three` (with `@types/three`), whose
+update can move the piece set's golden hashes (`golden.test.ts`; `npm run bake:pieces` if
+the shapes change), and `datamodel-code-generator`, pinned exactly, whose update may need
+`messages.py` regenerated. `@types/node` majors are ignored: they move with `.nvmrc`.
+
 The client's entry (about 90 KB gzip) holds the start screen, the side choice and the game
 screen (the invitation, the HUD, the move record). Everything 3D is a chunk the entry loads
 lazily, shared by the start page's preview (`screens/LandingPreview.tsx`), the lobby's
@@ -1096,8 +1118,11 @@ geometry's cold startup (`client/bench/startup.ts`); **server**, the relay in pr
 over real sockets, with store models that mimic `modal.Dict`'s copies and blocking calls
 (`server/bench/bench_server.py`, its store models in `bench_app.py`); and **browser**, the production build end to end in
 headless Chromium (`client/scripts/bench-browser.mjs`, software WebGL, so its frame times
-are only relative). Cases marked ⚠ are adversarial. Numbers compare only between runs on
-one machine; the report records the machine, the commit and each tier's run time.
+are only relative; it walks into a game through the UI the way the e2e suite does, by
+role and name, so a change to the way into a game must keep it walking). Cases marked ⚠
+are adversarial. Numbers compare only between runs on one machine; the report records the
+machine, the commit and each tier's run time. A browser section that fails is a "failed"
+row in the report and fails the tier: `run.mjs` says so in the report and exits 1.
 
 To measure a change, run `node bench/run.mjs --base <ref>` (e.g. `--base HEAD` for
 uncommitted work, `--base main` for a branch): it checks the base commit out into a
