@@ -71,16 +71,26 @@ export const WARM = 'warm-programs';
  * and a points object each (`points`) on one point far beyond any far plane.
  * Drawn once in a frame, each compiles and links its program and sets up
  * its GPU state as the real mark will, so that mark's first frame costs no
- * more than any other.
+ * more than any other. three.js gives a material one program for geometry
+ * with normals and another for geometry without, so the triangle carries
+ * what the real mark's geometry does: normals for `meshes` (every mark's
+ * has them), only positions for `bare` (the garden's copy, a full-screen
+ * triangle). The bare ones come first, then the meshes, then the points.
  */
-export const warmObjects = (meshes: Material[], points: Material[] = []) => {
+export const warmObjects = (meshes: Material[], points: Material[] = [], bare: Material[] = []) => {
   const group = new Group();
   group.name = WARM;
   const flat = new BufferGeometry();
   flat.setAttribute('position', new BufferAttribute(new Float32Array(9), 3));
+  const shaded = flat.clone();
+  shaded.setAttribute(
+    'normal',
+    new BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3),
+  );
   const far = new BufferGeometry();
   far.setAttribute('position', new BufferAttribute(new Float32Array([0, 0, 1e9]), 3));
-  for (const m of meshes) group.add(new Mesh(flat, m));
+  for (const m of bare) group.add(new Mesh(flat, m));
+  for (const m of meshes) group.add(new Mesh(shaded, m));
   for (const m of points) group.add(new Points(far, m));
   group.traverse((o) => {
     o.frustumCulled = false;
@@ -88,6 +98,7 @@ export const warmObjects = (meshes: Material[], points: Material[] = []) => {
   });
   const dispose = () => {
     flat.dispose();
+    shaded.dispose();
     far.dispose();
   };
   return { group, dispose };
