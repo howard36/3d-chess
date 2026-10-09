@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import type { GameCreated, Error as ServerError } from '../../types/messages';
 import type { GameSocket } from '../../hooks/useGameSocket';
 import { useResendOnReconnect } from '../../hooks/useResendOnReconnect';

@@ -142,10 +142,10 @@ describe('clean strokes', () => {
       [0, 3],
       [100, 6],
       [100, 60],
-      ...Array.from(
-        { length: 12 },
-        (_, k): P2 => [100 - 40 * Math.sin(k / 6), 60 + 40 * (1 - Math.cos(k / 6))],
-      ),
+      ...Array.from({ length: 12 }, (_, k): P2 => [
+        100 - 40 * Math.sin(k / 6),
+        60 + 40 * (1 - Math.cos(k / 6)),
+      ]),
     ];
     const radius: [number, number] = [8, 9];
     const reach = 9 * STROKE_REACH + 2;

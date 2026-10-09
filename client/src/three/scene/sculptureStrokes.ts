@@ -76,35 +76,29 @@ export const sculptureStrokes = (places: readonly Place[], scale: number): NeonS
     const facing = facingOf(place);
     const { at } = place;
     return [
-      ...d.outlines.map(
-        (o): NeonStroke => ({
-          at,
-          points: o.points.map(([x, y]): V3 => [x * scale, y * scale, 0]),
-          closed: o.closed,
-          sculpt,
-        }),
-      ),
-      ...d.fixed.map(
-        (f): NeonStroke => ({
-          at,
-          points: f.points.map((p) => toWorld(facing, p, scale)),
-          normals: f.normals.map((n) => toWorld(facing, n)),
-          closed: f.closed,
-          mode: 1,
-          sculpt,
-        }),
-      ),
-      ...d.rings.map(
-        (ring): NeonStroke => ({
-          at,
-          points: ringPoints(ring.radius * scale, ring.y * scale, 36),
-          closed: true,
-          mode: 1,
-          sculpt,
-          light:
-            RING_LIGHT * (place.square && ring.y < ON_GROUND ? lightOn(place.square, 'ring') : 1),
-        }),
-      ),
+      ...d.outlines.map((o): NeonStroke => ({
+        at,
+        points: o.points.map(([x, y]): V3 => [x * scale, y * scale, 0]),
+        closed: o.closed,
+        sculpt,
+      })),
+      ...d.fixed.map((f): NeonStroke => ({
+        at,
+        points: f.points.map((p) => toWorld(facing, p, scale)),
+        normals: f.normals.map((n) => toWorld(facing, n)),
+        closed: f.closed,
+        mode: 1,
+        sculpt,
+      })),
+      ...d.rings.map((ring): NeonStroke => ({
+        at,
+        points: ringPoints(ring.radius * scale, ring.y * scale, 36),
+        closed: true,
+        mode: 1,
+        sculpt,
+        light:
+          RING_LIGHT * (place.square && ring.y < ON_GROUND ? lightOn(place.square, 'ring') : 1),
+      })),
     ];
   });
 

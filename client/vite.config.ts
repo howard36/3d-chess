@@ -36,11 +36,13 @@ const preloadSceneOnGamePages = (): Plugin => ({
         if (!chunk) throw new Error(`preload-scene-on-game-pages: no chunk holds ${file}`);
         return chunk;
       };
-      // Each, and what it imports, less the entry (loading anyway)
+      // Each, and what it imports, less the entry and the chunks it imports
+      // (loading anyway: the page links those itself)
       const entry = chunks.find((c) => c.isEntry);
+      const loading = new Set(entry ? [entry.fileName, ...entry.imports] : []);
       const files = [
         ...new Set(PRELOADED.map(from).flatMap((c) => [c.fileName, ...c.imports])),
-      ].filter((f) => f !== entry?.fileName);
+      ].filter((f) => !loading.has(f));
       const preload = (f: string) =>
         `{const l=document.createElement('link');l.rel='modulepreload';l.crossOrigin='';l.href='/${f}';document.head.appendChild(l)}`;
       return [
