@@ -4,6 +4,8 @@ import json, pathlib
 
 FINAL = 'final on #116: branch vs #116'
 RECHECK = 'recheck on #116: cold-load + select, 4 pairs'
+BISECT1 = 'bisect B2: 454bd45 vs c862f83 (#114 alone)'
+BISECT2 = 'bisect B2: c862f83 vs 89e9cd9 (#100, #111, #112)'
 REGRESS = 'regression check: 454bd45 vs 89e9cd9'
 here = pathlib.Path(__file__).parent
 facts = json.loads((here / 'final-20261009-1606-facts.json').read_text())
@@ -23,38 +25,49 @@ report = {
            'every timing is an interleaved A/B (each pair base and head run back to back); '
            'a change is <em>called</em> only when every pair agrees and it beats 5% and the pairs’ spread.'),
   'needs': {'items': [
-    {'title': 'PR #117 is merged (after #116, as you asked)',
-     'body': '<p>' + facts['merged'] + '</p>'},
-    {'title': 'Deploy with <code>--strategy recreate</code> (ec7e2bd): a production change',
+    {'title': 'PR #118: deploy with <code>--strategy recreate</code>, your call',
      'body': '<p>Modal’s default rolling deploy lets the old container keep its WebSockets (up to the function’s hour) while new '
              'sockets go to the new one. The server keeps its connections in its process, so after a merge a game whose player '
              'reconnects (a phone waking, a reload) can sit on two containers: moves are recorded in the shared Dict but never '
              'relayed, and two event loops write one record. <code>recreate</code> stops the old container as the new one '
              'goes live; every live game then sees one reconnect per deploy. Checked in modal 1.6.1’s source, not run against '
-             'Modal from here.</p>',
+             'Modal from here. It was in this PR; split out (PR #118, not merged) because it changes what players see.</p>',
      'figure': {'html': table(['On a deploy', 'rolling (main)', 'recreate (this PR)'], [
         ['Old container', 'keeps its sockets up to 1 h', 'stopped (waits ≤ 40 s)'],
         ['A player who reconnects', 'reaches the new container', 'reaches the new container'],
         ['Their opponent', 'may stay on the old one: no relayed moves, shown offline', 'reconnects too: same container'],
         ['What players see', 'nothing, until a move goes missing', 'one “Reconnecting” per deploy'],
       ]), 'caption': 'What each strategy does to live games (modal/runner.py, cli/run.py in modal 1.6.1).'},
-     'recommend': 'Keep it (merged with the PR, as you allowed). If one reconnect per deploy is unwelcome, revert the one line in <code>.github/workflows/ci.yml</code>.'},
+     'recommend': 'Merge #118: one “Reconnecting” per deploy is cheaper than a game whose moves silently stop arriving.'},
     {'title': 'The creator’s wait for the share link grew 22% since the last run',
      'body': '<p>Against the last run’s measured head (89e9cd9), “create: click → share link shown” went 1.63 → 1.93 s, slower in every '
              'pair (not a primary row). Between them: #100 link previews, #111 server packages, #112 toolchain, #114 three r186. '
-             'The bisect A/B (main against its pre-#114 parent) was spoiled: a second copy of it kept running in the background, '
-             'and every setup row ran 1.5–2× slow. The run ran out of budget to repeat it. The last two runs root-caused this wait '
-             'to shader links on the GPU after the side pick (ledger B1/L1), so #114 (three’s renderer, +21 KB) is the likely cause.</p>',
+             'Bisected with #116’s harness: #114 alone does not move it (1.73 → 1.60 s, not called) and makes the joiner’s first frame 15% faster (called). '
+             + facts['b2'] + '</p>',
      'charts': [{'rows': {'change': REGRESS, 'only': 'Game setup · (create: click → share link shown|join: navigation → Join button|join: click → joiner’s first frame|join: click → creator’s first frame)'},
-                 'caption': 'Main (454bd45) against the last run’s head (89e9cd9), each on its own packages, 3 pairs.'}],
-     'recommend': 'Let the next run bisect it first (4 pairs of the setup section, main vs c862f83, about 20 minutes). No action from you.'},
+                 'caption': 'Main (454bd45) against the last run’s head (89e9cd9), each on its own packages, 3 pairs, the old harness.'},
+                {'rows': {'change': BISECT1, 'only': 'Game setup · (create: click → share link shown|join: navigation → Join button|join: click → joiner’s first frame)'},
+                 'caption': 'Bisect step 1: #114 alone (454bd45 against c862f83), #116’s harness, 4 pairs.'}] + facts.get('b2_chart', []),
+     'recommend': facts['b2_recommend']},
     {'title': 'Records may expire after 7 days, not 30',
      'body': '<p>ARCHITECTURE.md and modal_app.py say game records expire after ~30 days of inactivity. The installed modal 1.6.1 says '
              'a Dict entry expires after 7 days of inactivity, except in Dicts created before 2025-05-20. Which applies depends '
              'on when <code>3d-chess-games</code> was made, which needs Modal credentials this session lacks.</p>',
+     'figure': {'html': table(['Source', 'What it says'], [
+        ['ARCHITECTURE.md:75', 'records expire after ~30 days of inactivity'],
+        ['server/modal_app.py:659', 'the same, ~30 days'],
+        ['modal 1.6.1, <code>modal/dict.py</code> docstring', '“An individual Dict entry will expire after 7 days of inactivity”, except Dicts created before 2025-05-20 (30 days after the last write, being sunset)'],
+      ]), 'caption': 'The two claims side by side; which applies depends on the Dict’s creation date.'},
      'recommend': 'Run <code>modal dict list</code> and tell me the creation date; the docs (and maybe the invitation’s promise) follow from it.'},
     {'title': 'CLAUDE.md still has no North star, Measurement, Reporting, Loop state or Tests section',
      'body': '<p>The prompt relies on them; as in the last three runs I used the nearest: “Performance”, <code>bench/loop/</code>, the vitest and e2e suites.</p>',
+     'figure': {'html': table(['The prompt relies on', 'Used instead'], [
+        ['North star (and “What it is not”)', 'CLAUDE.md “Performance” and ARCHITECTURE.md “Scope and trust assumptions”'],
+        ['Measurement', 'CLAUDE.md “Performance”, bench/primary.mjs (#116)'],
+        ['Reporting, Loop state', '<code>bench/loop/</code> as the last runs left it'],
+        ['Tests', 'the vitest and e2e suites, CI'],
+        ['Session log', 'a section at the end of each run record'],
+      ]), 'caption': 'Missing sections and the nearest thing the repo has.'},
      'recommend': 'Add a short North star (what the game is for, what it is not) so the reviewers can rule ideas out by it.'},
   ]},
   'scoreboard': {
@@ -103,21 +116,21 @@ report = {
              'swings between ×1.5 and ×10. A ×2 floor kept the depth and saved nothing (1543 → 1514 ms). <code>bench/loop/probe-20261009-ai-iterations.md</code>.</p>'},
   ]},
   'choices': {'intro': '<ul>'
-     '<li>Shipped the deploy strategy change in this PR, flagged above, rather than leave a known split-game bug for later.</li>'
+     '<li>Opened the deploy strategy change as its own PR (#118) and left it unmerged: the grader found it bundled into this one, a production change I had decided alone.</li>'
      '<li>Showed the move box whenever the board is missing (also on a failed chunk), with its hint’s “Esc to hide” dropped then.</li>'
      '<li>The diff review used three reviewers (client; bench, server and CI; invariants and every lens together) instead of one per lens, to stay inside the budget. None found a merge blocker; their smaller findings are fixed.</li>'
      '<li>Rebuilt my unpushed branch once to split a change staged into the wrong commit (tree unchanged).</li>'
      '<li>Did not pursue Tailwind’s removal, Activity keep-alive, the import map or the worker spawn: logged in the ledger.</li></ul>'},
   'notConfirmed': {'intro': '<ul>'
-     '<li>The share-link bisect (spoiled; see Needs from me).</li>'
+     '<li>' + facts['b2_notconfirmed'] + '</li>'
      '<li>The deploy strategy against Modal itself (read in the CLI’s source only).</li>'
      '<li>A fresh A/B against the first recorded run (92ce041): the bench’s setup and move rows changed definition last run (the long game), so that series cannot be extended; this run’s app changes do not touch the primary rows’ code paths.</li>'
      '<li>The start page’s demo relinking each pass (a reviewer’s claim): no relink was seen in 90 s on either side.</li>'
      '<li>Real phones and real GPUs: everything here is SwiftShader in headless Chromium.</li></ul>'},
-  'merge': {'intro': '<p>No other sessions were active. This PR edits CLAUDE.md (two sentences) and ARCHITECTURE.md; a parallel PR touching the same lines would need a merge.</p>'},
+  'merge': {'intro': '<p>' + facts['merged'] + '</p><p>No other sessions were active. This PR edits CLAUDE.md (two sentences) and ARCHITECTURE.md; a parallel PR touching the same lines would need a merge.</p>'},
   'next': {'intro': '<ol>'
      '<li>W1: a pick in the first seconds after the entrance waits 2–3 s on the warm-up’s links (every select run’s first pick: 3.2–4.7 s; after the warm-up, 0.1–0.4 s). Bench: a “first pick” row and wait for <code>data-warm</code> elsewhere (F5); app: make the selection’s programs ready first.</li>'
-     '<li>B2: bisect the share link’s +22%.</li>'
+     '<li>Q1: make #116’s “start page answers its first click” row stable (it lands ~15 ms or ~3.4 s by a race with the preview’s build), or leave it out of the one-number speed.</li>'
      '<li>Why a select click sometimes picks nothing up (1 run in 5).</li>'
      '<li>N1: keep a game alive while its tutorial is open (React 19.2 Activity, r3f 9.8).</li>'
      '<li>N5/R6: Tailwind’s false-positive utilities (≈2.3 KB gz of the blocking CSS).</li></ol>'},
