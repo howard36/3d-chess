@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocketMessage } from '../types/messages';
 import { fakeSocket, gameScreenAt } from './testSupport';
+import { YOUR_MOVE_TITLE } from '../hooks/useTabSignal';
 
 // As in GameScreen.endModal.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
 vi.mock('@react-three/fiber', () => ({
@@ -99,6 +100,14 @@ describe('resigning', () => {
     expect(screen.getByRole('dialog', { name: 'You win' })).toHaveAccessibleDescription(
       'Black resigned',
     );
+  });
+
+  it('takes "Your move" off the tab once the opponent resigns', () => {
+    // Black's move: the tab says so, until White resigns
+    const { rerender } = play(started('black'));
+    expect(document.title).toBe(YOUR_MOVE_TITLE);
+    rerender([...started('black'), { type: 'game_ended', result: 'resignation', winner: 'black' }]);
+    expect(document.title).not.toBe(YOUR_MOVE_TITLE);
   });
 
   it('tells the side that resigned, and comes back that way on a rejoin', () => {
