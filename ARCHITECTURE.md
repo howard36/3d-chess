@@ -225,8 +225,8 @@ Key decisions:
   (`e2e/touchCamera.spec.ts` loses a finger's pointer-up through real touch input).
 - **HUD.** Quiet by default: a glass **turn pill** at the top centre (across the row on a phone held upright,
   from a 12 px gutter at the left to the way to the tutorial at the right), a quiet "How to
-  play" at the top right ("?" in a narrow window), and nothing else unless something needs
-  saying.
+  play" at the top right ("?" in a narrow window), the move history from the first move on
+  (below), and nothing else unless something needs saying.
   The pill's left half is the player and its right half the opponent, each with a small stone in its army's
   material (porcelain, charcoal); the half of the side to move is lit, its stone ringed in
   light ("Your move" / "Their move"); check is shown on the board, not here. An opponent with no
@@ -238,7 +238,7 @@ Key decisions:
   agreement"); `data-result` is `checkmate`, `resignation`, `stalemate`, `repetition`,
   `fifty-moves` or `agreement`, and the board takes no more input. While the game is on, a
   flag in a circle stands under the way to the tutorial at the right (`screens/GameActions.tsx`,
-  `.hud-game`: below the HUD's band, but in every window shape where the window is empty
+  `.hud-game`, over the move history in one column with it, `.hud-side`: below the HUD's band, but in every window shape where the window is empty
   beside the tower, which `hudFit.spec.ts` checks with the rest of the HUD). It opens a small
   menu, "Offer draw" and "Resign"; "Resign" asks once more ("Resign?", the focus on Cancel,
   a click hard on the heels of the one that asked ignored), so a stray click never ends a
@@ -271,8 +271,9 @@ Key decisions:
   numbered pairs ("1. Bb1–Cb1 Dd5–Cd5"), every move a button that shows the board as it
   stood after it, over four steps: the start (move 0), back, on and the latest, and ← → Home
   End while focus is not in a field. Where the window leaves room beside the tower it is a
-  narrow glass panel at the right under "How to play" (the list scrolls, the move shown kept
-  in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
+  narrow glass panel at the right under "How to play" and the flag, in one column with them
+  (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
+  height to fit (the list scrolls, the move shown kept in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
   in a row under the tower (above "Play again" once the game is over), the move shown
   between them ("7… Ed4–Ba1"), which opens the list above them. Closed, the list is
   visually hidden, never `display: none`: it is how a screen reader reads the record, and
@@ -281,7 +282,11 @@ Key decisions:
   check and captured pieces, and takes no input (no selection, no move; the move box says
   "Go to the latest move first."); the move shown is lit in the list and the way back
   ("Latest") is lit too, with a dot once a move has landed since, the view staying where the
-  player left it. The pill, the announcer and their hooks follow the live game throughout.
+  player left it. The pill, the announcer and their hooks follow the live game throughout,
+  and so do resigning and draws: the flag, its menu and an offer stay while the player looks
+  back and act on the game, not the position shown, and a game ended (a resignation or an
+  agreed draw included) is stepped through like any other, the board taking no input at its
+  end either.
   The earlier positions are replayed only while the player looks back (`game/review.ts`,
   carried on as moves land), never on a move landing at the live position. One step
   glides like a move (back, in reverse), a jump snaps (see The board); with reduced motion

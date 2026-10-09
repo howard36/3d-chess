@@ -882,6 +882,44 @@
   background: var(--hud-check);
   pointer-events: none;
 }
+/* Where the window has room beside the tower, the flag for resigning and
+   draws (with the offers under it) and the move history stand in one column
+   at the right, under the way to the tutorial, so an offer pushes the list
+   down rather than covering it, and the list gives up height to fit; where
+   it has not, the column is no box at all and each keeps its own place (the
+   flag at the top right, the steps under the tower) */
+.hud-side {
+  display: contents;
+}
+@media not ((max-aspect-ratio: 13/9) and (min-height: 481px)) {
+  .hud-side {
+    position: absolute;
+    top: 60px;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .hud-side > .hud-game,
+  .hud-side > .hud-history {
+    position: relative;
+    top: auto;
+    right: auto;
+  }
+  /* Its menu opens over the list */
+  .hud-side > .hud-game {
+    z-index: 1;
+    flex: none;
+  }
+  .hud-side > .hud-history {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: 100%;
+  }
+}
 /* A window no wider than 13:9: the steps under the tower, the list above
    them on asking */
 @media (max-aspect-ratio: 13/9) and (min-height: 481px) {

@@ -1221,11 +1221,11 @@ describe('Board', () => {
       });
 
       it('glides nothing for a player who asked for less motion', async () => {
-        const matchMedia = vi
-          .spyOn(window, 'matchMedia')
-          .mockImplementation(
-            (query: string) => ({ matches: query.includes('reduce') }) as MediaQueryList,
-          );
+        // jsdom has no matchMedia: lend the window one
+        vi.stubGlobal(
+          'matchMedia',
+          vi.fn((query: string) => ({ matches: query.includes('reduce') })),
+        );
         try {
           const renderer = await ReactThreeTestRenderer.create(
             <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} review />,
@@ -1233,7 +1233,7 @@ describe('Board', () => {
           await renderer.update(<Board board={boardBeforeMove()} currentTurn="white" review />);
           expect(glideGroups(renderer)).toHaveLength(0);
         } finally {
-          matchMedia.mockRestore();
+          vi.unstubAllGlobals();
         }
       });
     });

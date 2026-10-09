@@ -279,18 +279,23 @@ const GameView: React.FC<GameViewProps> = ({
           />
           {/* After the move box, which stays the first Tab stop */}
           <HowToPlay />
-          {/* Under the way to the tutorial: resigning and draws */}
-          {color && !gameOver && actions && <GameActions seat={color} {...actions} />}
-          <MoveHistory
-            moves={moveRecords}
-            applied={history.appliedMoveCount}
-            shown={shown.ply}
-            newer={review.newer}
-            onShow={review.show}
-            // Not behind a dialog, nor while the entrance plays
-            enabled={!behindDialog && !introPlaying}
-            ended={!!gameOver && showEndModal && !resultUp}
-          />
+          {/* Under the way to the tutorial, one column at the right where
+              the window has room beside the tower (index.css, .hud-side):
+              resigning and draws, which act on the live game whatever
+              position the board shows, then the move history */}
+          <div className="hud-side">
+            {color && !gameOver && actions && <GameActions seat={color} {...actions} />}
+            <MoveHistory
+              moves={moveRecords}
+              applied={history.appliedMoveCount}
+              shown={shown.ply}
+              newer={review.newer}
+              onShow={review.show}
+              // Not behind a dialog, nor while the entrance plays
+              enabled={!behindDialog && !introPlaying}
+              ended={!!gameOver && showEndModal && !resultUp}
+            />
+          </div>
           {boardLoad.failed && (
             <div className="hud-center">
               <div role="alert" className="hud-notice hud-glass" data-testid="board-failed">

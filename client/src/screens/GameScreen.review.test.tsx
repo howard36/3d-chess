@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PieceType } from '../engine';
@@ -164,5 +164,61 @@ describe('stepping back through the game', () => {
     );
     fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
     expect(nav()).toHaveAttribute('data-viewing-ply', '3');
+  });
+
+  it('resigns and answers draws for the live game while looking back', async () => {
+    const sent: WebSocketMessage[] = [];
+    const send = (m: WebSocketMessage) => {
+      if (!['look_game', 'rejoin_game'].includes(m.type)) sent.push(m);
+      return true;
+    };
+    const offered: WebSocketMessage[] = [snapshot, { type: 'draw_offered', by: 'black', ply: 3 }];
+    const { rerender } = render(gameScreenAt(fakeSocket(offered, send)));
+    await boardMounted();
+    fireEvent.keyDown(document.body, { key: 'Home' });
+    expect(nav()).toHaveAttribute('data-viewing-ply', '0');
+    // The opponent's offer stands, and is answered, whatever the board shows
+    const offer = screen.getByTestId('draw-offer');
+    await userEvent.click(within(offer).getByRole('button', { name: 'Decline' }));
+    expect(sent).toEqual([{ type: 'decline_draw' }]);
+    // The flag's menu is there too, and resigning resigns the game
+    await userEvent.click(screen.getByRole('button', { name: 'Resign or offer a draw' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Resign' }));
+    await new Promise((r) => setTimeout(r, 400));
+    await userEvent.click(screen.getByRole('button', { name: 'Resign' }));
+    expect(sent).toEqual([{ type: 'decline_draw' }, { type: 'resign' }]);
+    // The board stays where the player left it as the game ends
+    rerender(
+      gameScreenAt(
+        fakeSocket([...offered, { type: 'game_ended', result: 'resignation', winner: 'black' }]),
+      ),
+    );
+    expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-result', 'resignation');
+    expect(nav()).toHaveAttribute('data-viewing-ply', '0');
+    expect(board().gameOver).toBeNull();
+    expect(screen.queryByTestId('game-actions')).not.toBeInTheDocument();
+  });
+
+  it('steps through a game that ended by agreement, the board taking no move at its end', async () => {
+    render(
+      gameScreenAt(
+        fakeSocket([
+          snapshot,
+          { type: 'draw_offered', by: 'black', ply: 3 },
+          { type: 'game_ended', result: 'agreement' },
+        ]),
+      ),
+    );
+    await boardMounted();
+    expect(board().gameOver).toMatchObject({ result: 'agreement' });
+    expect(board().disabled).toBe(true);
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    expect(nav()).toHaveAttribute('data-viewing-ply', '2');
+    expect(pieceOn('Db1')).toBeNull();
+    expect(board().gameOver).toBeNull();
+    fireEvent.keyDown(document.body, { key: 'End' });
+    expect(nav()).not.toHaveAttribute('data-review');
+    expect(board().gameOver).toMatchObject({ result: 'agreement' });
+    expect(board().disabled).toBe(true);
   });
 });

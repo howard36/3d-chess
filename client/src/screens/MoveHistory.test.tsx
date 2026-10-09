@@ -40,8 +40,10 @@ const windowNarrow = (narrow: boolean) => {
     addEventListener: (_: string, f: () => void) => listeners.add(f),
     removeEventListener: (_: string, f: () => void) => listeners.delete(f),
   };
-  vi.spyOn(window, 'matchMedia').mockImplementation(
-    (q: string) => (q.includes('aspect-ratio') ? query : { matches: false }) as MediaQueryList,
+  // jsdom has no matchMedia: lend the window one
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((q: string) => (q.includes('aspect-ratio') ? query : { matches: false })),
   );
   return (now: boolean) => {
     narrow = now;
@@ -49,7 +51,10 @@ const windowNarrow = (narrow: boolean) => {
   };
 };
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('the move list', () => {
   it.each([1, 63, 64, 65, 128, 129, 301])('lists %i moves, a row per two', (n) => {

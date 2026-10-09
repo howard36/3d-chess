@@ -112,8 +112,8 @@ for (const seat of ['white', 'black'] as const) {
 
 /**
  * The HUD's rects over the board: the pill, each side's captured pieces, the
- * way to the tutorial, and the flag for resigning and draws, with the
- * opponent's draw offer under it when one stands.
+ * way to the tutorial, the flag for resigning and draws, with the
+ * opponent's draw offer under it when one stands, and the move history.
  */
 const hudRects = (page: Page) =>
   page.evaluate(() => {
@@ -239,6 +239,14 @@ for (const seat of ['white', 'black'] as const) {
     await game.show([]);
     game.offerDraw();
     await expect(page.getByTestId('draw-offer')).toBeVisible();
+    expect(await everywhere()).toEqual([]);
+    // A game under way, the opponent's offer hanging over the move history
+    // in the right's column, the player looking back at the opening
+    await game.show(CHECK);
+    game.offerDraw();
+    await expect(page.getByTestId('draw-offer')).toBeVisible();
+    await page.keyboard.press('Home');
+    await expect(page.getByTestId('move-history')).toHaveAttribute('data-viewing-ply', '0');
     expect(await everywhere()).toEqual([]);
     // The result
     await game.show(MATE);
