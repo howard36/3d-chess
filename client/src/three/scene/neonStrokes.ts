@@ -89,11 +89,18 @@ export const writeStrokes = (
   first = 0,
 ) => {
   let i = first;
+  // Element by element: TypedArray.set from a plain array costs a call
+  // apiece, and this runs for every segment of the garden as it is built
   const put = (name: AttrName, v: readonly number[]) => {
     const size = LAYOUT[name];
     const a = arrays[name];
-    for (let c = 0; c < 4; c++) a.set(v, (i * 4 + c) * size);
+    const n = v.length;
+    for (let c = 0; c < 4; c++) {
+      const at = (i * 4 + c) * size;
+      for (let e = 0; e < n; e++) a[at + e] = v[e];
+    }
   };
+  const info = [0, 0, 0, 0];
   for (const s of strokes) {
     const pts = s.points;
     const n = pts.length;
@@ -112,7 +119,11 @@ export const writeStrokes = (
       put('aNB', s.normals?.[j] ?? ZERO);
       put('aAnchor', s.at);
       put('aAxis', axis);
-      put('aInfo', [s.mode ?? 0, s.sculpt ?? 0, lit(k), lit(j)]);
+      info[0] = s.mode ?? 0;
+      info[1] = s.sculpt ?? 0;
+      info[2] = lit(k);
+      info[3] = lit(j);
+      put('aInfo', info);
       i++;
     }
   }
@@ -133,12 +144,11 @@ export const neonStrokes = (
   // Each segment's quad: (along 0|1, side -1|1) at its four corners
   const corners = new Float32Array(size * 12);
   const index = new Uint32Array(size * 6);
+  const corner = [0, -1, 0, 0, 1, 0, 1, -1, 0, 1, 1, 0];
+  const quad = [0, 2, 1, 1, 2, 3];
   for (let i = 0; i < size; i++) {
-    corners.set([0, -1, 0, 0, 1, 0, 1, -1, 0, 1, 1, 0], i * 12);
-    index.set(
-      [0, 2, 1, 1, 2, 3].map((c) => i * 4 + c),
-      i * 6,
-    );
+    for (let c = 0; c < 12; c++) corners[i * 12 + c] = corner[c];
+    for (let c = 0; c < 6; c++) index[i * 6 + c] = i * 4 + quad[c];
   }
   g.setAttribute('position', new BufferAttribute(corners, 3));
   g.setIndex(new BufferAttribute(index, 1));

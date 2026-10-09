@@ -1,7 +1,14 @@
 import { useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
 import { BufferAttribute, BufferGeometry, Group, Mesh, Points } from 'three';
-import type { Material, WebGLRenderer } from 'three';
+import type {
+  Camera,
+  Material,
+  Object3D,
+  Scene,
+  WebGLProgram as ThreeProgram,
+  WebGLRenderer,
+} from 'three';
 
 // three.js deletes a shader program as soon as the last material drawn with
 // it is disposed, and the next material with the same shaders compiles and
@@ -84,4 +91,96 @@ export const warmObjects = (meshes: Material[], points: Material[] = []) => {
     far.dispose();
   };
   return { group, dispose };
+};
+
+/** The longest afterGpu waits (ms) before going on regardless. */
+export const GPU_WAIT_MAX = 10_000;
+
+/**
+ * Calls `then` once the GPU has done everything asked of it so far: a fence
+ * placed now, polled between tasks, the page free meanwhile (rather than a
+ * query that would hold the page until then). Returns false, calling `then`
+ * at once, where there are no fences; a lost context, or a GPU that never
+ * answers (GPU_WAIT_MAX), calls `then` without waiting further, with false.
+ */
+export const afterGpu = (gl: WebGLRenderer, then: (done: boolean) => void) => {
+  const context = gl.getContext() as WebGL2RenderingContext;
+  const fence =
+    typeof context.fenceSync === 'function'
+      ? context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0)
+      : null;
+  if (!fence) {
+    then(false);
+    return false;
+  }
+  context.flush();
+  // (Date, not performance: the showcase's virtual clock stops the latter)
+  const started = Date.now();
+  const check = () => {
+    const lost = context.isContextLost();
+    const passed =
+      !lost && context.getSyncParameter(fence, context.SYNC_STATUS) === context.SIGNALED;
+    if (!passed && !lost && Date.now() - started < GPU_WAIT_MAX) {
+      setTimeout(check, 4);
+      return;
+    }
+    context.deleteSync(fence);
+    then(passed);
+  };
+  setTimeout(check, 4);
+  return true;
+};
+
+/**
+ * Links the shader programs of everything under `root`, all at once and
+ * without waiting on any, and calls `then` once they are ready to draw with.
+ * three.js links a program in the render() that first draws it and at once
+ * reads its uniforms back from the GPU, a wait on everything queued before it
+ * (the frame's earlier draws, the frames before still being drawn): a long
+ * task each, in software as long as a frame. Here `compile` hands the GPU
+ * every program (it waits on none), and once the GPU has linked them
+ * (afterGpu) with nothing drawn since, their uniforms and attributes are
+ * read back, which the idle GPU answers at once, and three.js keeps them:
+ * the frame that draws with them waits on none. Returns false (calling
+ * `then` at once) where the GPU cannot be waited on so; `scene` gives the
+ * lights (`root` itself by default).
+ */
+export const linkAhead = (
+  gl: WebGLRenderer,
+  root: Object3D,
+  camera: Camera,
+  then: () => void,
+  scene: Scene | null = null,
+) => {
+  const materials = gl.compile(root, camera, scene);
+  const wait = (tries: number): boolean => {
+    const frame = gl.info.render.frame;
+    return afterGpu(gl, (done) => {
+      const idle = done && gl.info.render.frame === frame;
+      // A frame drawn since the fence would be waited on too: wait for it
+      // (a canvas at rest draws none), but not for ever (one that animates
+      // draws them all the time: their first draw reads them back, as
+      // three.js does, though they are linked)
+      if (done && !idle && tries > 1) {
+        wait(tries - 1);
+        return;
+      }
+      if (idle)
+        for (const m of materials)
+          readBack(gl.properties.get(m) as { currentProgram?: ThreeProgram } | undefined);
+      then();
+    });
+  };
+  return wait(LINK_AHEAD_TRIES);
+};
+
+/** How many fences linkAhead places, at most, for a moment the GPU has nothing else to do. */
+export const LINK_AHEAD_TRIES = 4;
+
+/** A linked program's uniforms and attributes, read back from the GPU (three.js keeps them). */
+const readBack = (state: { currentProgram?: ThreeProgram } | undefined) => {
+  const program = state?.currentProgram;
+  if (!program) return;
+  program.getUniforms();
+  program.getAttributes();
 };

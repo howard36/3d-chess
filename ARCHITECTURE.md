@@ -553,12 +553,16 @@ Rare events (`shootingStar.tsx`, `skyEvents.tsx`: a constellation tracing itself
 satellite, paired meteors; `horizonEvents.tsx`: a lighthouse's sweep) never wake the
 canvas: each starts only on a frame already being drawn while the player turns the view,
 keeps frames coming only while it lasts, runs on r3f's clock, and is drawn at no light
-from the first frame so no program links when it comes. Every garden material follows the
-backdrop cache's rules (CLAUDE.md "Performance"): opaque list below `BACKDROP_END`, no
-depth, and nothing that changes but a uniform, a matrix or a visibility. The ground is one
-shader drawn in four parts (`PARTS` in `stage.tsx`), each compiled with only its own
-detail, and the work that can be is done per vertex, since software rendering runs both
-sides of every branch.
+from the first frame so no program links when it comes. On the game's page the garden's
+programs (all the scene's) are linked before that first frame, the page free meanwhile
+(`linkBeforeFirstFrame` in `rendererSetup.ts`, `linkAhead` in `scene/programs.ts`: handed
+to the GPU at once, a fence polled between tasks, the uniforms read back while it is idle),
+and the warm-up of the marks of play links its programs the same way. Every garden
+material follows the backdrop cache's rules (CLAUDE.md "Performance"): opaque list below
+`BACKDROP_END`, no depth, and nothing that changes but a uniform, a matrix or a
+visibility. The ground is one shader drawn in four parts (`PARTS` in `stage.tsx`), each
+compiled with only its own detail, and the work that can be is done per vertex, since
+software rendering runs both sides of every branch.
 
 The dev-only sculpture viewer (`sculptures.html`, `src/dev/SculptureViewer.tsx`) shows one
 sculpture up close; `node scripts/sculptures.mjs --target a4 --out <dir>` saves a sheet of

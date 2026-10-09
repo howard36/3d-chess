@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useThree } from '@react-three/fiber';
 import {
@@ -173,7 +173,10 @@ export const BackdropCache = ({ children }: { children: ReactNode }) => {
     return { material, copy, take };
   }, []);
 
-  useEffect(() => {
+  // In the scene as it is created (a layout effect), so the copy's program
+  // is linked with the rest before the first frame (linkBeforeFirstFrame),
+  // not in the first frame the camera rests, the page waiting on it
+  useLayoutEffect(() => {
     const { material, copy, take } = parts;
     const state = {
       last: [] as number[],
