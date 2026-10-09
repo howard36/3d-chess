@@ -52,6 +52,13 @@ turned through the centre, `(x, y, z) → (4 − x, 4 − y, 4 − z)`. This is 
 5×5×5 set-up (pieces on rank 1 of levels A and B, pawns on rank 2) with rank and level
 exchanged. Every rule treats the two axes alike, so move for move it is the same game.
 
+The players can also end a game themselves. Either may resign at any moment, on their move or
+not (the opponent wins), or offer a draw, which the opponent accepts or declines. A draw can be
+offered once a move, by either side, and an offer stands until it is answered or a move is
+played (by either side: playing on cancels it). An ending on the board comes first: a mate or
+an automatic draw stands even if a resignation or an agreement follows it. The computer accepts
+a draw only when it stands clearly worse (see Playing the computer).
+
 ## Scope and trust assumptions
 
 This is a hobby project for games among friends. The design leans on that deliberately:
@@ -91,8 +98,9 @@ Key decisions:
 - **Event-sourced client state.** The client never mutates a board directly. It keeps the
   ordered log of received messages and derives everything (board, turn, phase, game over)
   by replaying moves from the fixed starting position. The derivation is pure code in
-  `client/src/game/` (`history.ts` replays the record, `session.ts` reads the seat,
-  presence and errors, `invitation.ts` what a guest's invitation says); `GameScreen` only
+  `client/src/game/` (`history.ts` replays the record, `ending.ts` reads a resignation or
+  an agreed draw and the draw offer standing, `session.ts` the seat, presence and errors,
+  `invitation.ts` what a guest's invitation says); `GameScreen` only
   wires its output to the UI (the lobby before the game, `GameView` once it has begun). A
   local move is only _sent_; the board updates when the server's `move_made` echo arrives. This keeps
   both clients in lockstep and makes rejoin trivial. The replay hands back the same
@@ -100,8 +108,9 @@ Key decisions:
   neither replays the game nor resets the 3D board (which would drop the player's
   selection).
 - **Server = relay + durable move log.** Per game the server stores `{seats, moves}` (plus
-  `claimants`, which client id claimed each seat) in a `modal.Dict` (durable) and keeps
-  live sockets in a plain in-process dict (ephemeral).
+  `claimants`, which client id claimed each seat, and once there are any, `ending`, a
+  resignation or an agreed draw, and `drawOffer`, the latest draw offer) in a `modal.Dict`
+  (durable) and keeps live sockets in a plain in-process dict (ephemeral).
   A disconnect detaches the socket but leaves the game record intact; `rejoin_game`
   reclaims a seat and receives the full history in a `game_state` message.
   Last-connection-wins on rejoin, so a refreshed tab can't be locked out by its own
@@ -110,7 +119,8 @@ Key decisions:
   `modal.Dict` returns deserialized copies, every mutation is read-modify-write and is
   written back **before any `await`** — that ordering is what makes concurrent handlers
   safe. Two rules keep it true, and `test_store_ops.py` asserts both: the store operations
-  in `modal_app.py` (`create_game`, `claim_seat`, `taken_seats`, `find_seat`, `record_move`) are
+  in `modal_app.py` (`create_game`, `claim_seat`, `taken_seats`, `find_seat`, `record_move`,
+  `resign`, `offer_draw`, `accept_draw`, `decline_draw`) are
   synchronous functions, so nothing inside them can yield to the event loop; and the
   WebSocket handler never reads or writes the store itself, only passes it to those
   operations. `modal.Dict`'s calls block; never switch to the `.aio` variants.
@@ -222,9 +232,22 @@ Key decisions:
   light ("Your move" / "Their move"); check is shown on the board, not here. An opponent with no
   live connection shows as an outlined stone and "Offline"; a connected one is not marked.
   Once the game is over the pill gives the result from the player's side ("Checkmate · you
-  win", "Repetition · draw", "50-move rule · draw"), and the result card says "Draw" with how
-  ("by stalemate", "by repetition", "by the 50-move rule"); `data-result` is `checkmate`,
-  `stalemate`, `repetition` or `fifty-moves`. Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
+  win", "White resigned · you lose", "Repetition · draw", "50-move rule · draw", "Draw
+  agreed"), and the result card says "You win", "You lose" or "Draw" with how ("by
+  checkmate", "White resigned", "by stalemate", "by repetition", "by the 50-move rule", "by
+  agreement"); `data-result` is `checkmate`, `resignation`, `stalemate`, `repetition`,
+  `fifty-moves` or `agreement`, and the board takes no more input. While the game is on, a
+  flag in a circle stands under the way to the tutorial at the right (`screens/GameActions.tsx`,
+  `.hud-game`: below the HUD's band, but in every window shape where the window is empty
+  beside the tower, which `hudFit.spec.ts` checks with the rest of the HUD). It opens a small
+  menu, "Offer draw" and "Resign"; "Resign" asks once more ("Resign?", the focus on Cancel,
+  a click hard on the heels of the one that asked ignored), so a stray click never ends a
+  game. Under the flag hang, while they apply: the player's own offer ("Draw offered",
+  waiting), its refusal ("Draw declined", until the next move), or the opponent's offer
+  with Accept and Decline. Nothing there takes the focus; a polite live region
+  (`draw-announcer`) says each offer, and the move announcer the result ("Black resigned.
+  You win.", "Draw agreed."). The flag is disabled while the connection is down or not yet
+  back in the game, and a resignation or offer queued meanwhile is dropped, like a move. Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
   `GameHistory.captured` and `game/material.ts`): each side's haul under its own half, a
   silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in the taken army's material with a count when more than one, and "+N" on the side ahead on material (in pawns:
   queen 10, knight and bishop 3, rook 2.5, unicorn 1.5, measured for this board by
@@ -249,11 +272,12 @@ Key decisions:
   `data-winner`; `data-testid="seat"` its `data-seat`; `opponent-presence` its
   `data-online`; `captured-pieces` each haul as `data-side` (`me`, `them`); and
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
-  and `data-move-count`. The browser tab follows the pill: while it is the seated player's
+  and `data-move-count`; `game-actions` is the flag's corner, with `draw-pending`,
+  `draw-declined` and `draw-offer` in it while they show. The browser tab follows the pill: while it is the seated player's
   move in a game under way (a friend's or the computer's), in view or not, the title is
   "● Your move · 3D Chess" and the icon is `public/favicon-turn.svg` (the favicon, the
   tower's five levels, with a gold dot); the page's own come back on the opponent's move,
-  at the end of the game and when the page goes (`hooks/useTabSignal.ts`, which also
+  at the end of the game (a resignation or an agreed draw included) and when the page goes (`hooks/useTabSignal.ts`, which also
   carries the host's "Opponent joined"; no frames, no timers). In the game's entrance
   the pill and the captured pieces fade in last, settling down onto their place as the last pawns form (`--intro-hud`), and the
   canvas's wrapper carries `data-intro` (`playing`, then `done`), which e2e's
@@ -353,6 +377,19 @@ Message flow, happy path:
    opponent the player is online; when a player's live socket drops it tells the opponent
    `online: false`. A replaced socket's late disconnect is not a departure. The client shows
    the opponent as offline (an outlined stone) from the latest presence message about them.
+6. Resigning and draws: `resign` → `game_ended {result: "resignation", winner}` to both;
+   `offer_draw` → `draw_offered {by, ply}` to both (`ply`, the number of moves played when it
+   was made); the opponent's `accept_draw` → `game_ended {result: "agreement"}`, or
+   `decline_draw` → `draw_declined {by, ply}` (`by` the side declining). The record keeps
+   them (`ending`; `drawOffer`, the latest offer, `{by, ply, declined?}`), and a `game_state`
+   carries both, so a reload or rejoin finds the game ended, or the offer still standing. An
+   offer stands only while its `ply` is still the number of moves, so a move cancels it with
+   no message of its own, and a client reads the same whichever of a move and an offer made
+   at the same moment reaches it first (`game/ending.ts`). Only a seated player of a game
+   with both seats taken may send them (`game_not_started` otherwise); after an ending the
+   server refuses every move, resignation and offer with `game_over`; an offer while one has
+   already been made since the last move, or an answer with no standing offer of the
+   opponent's to answer, gets `invalid_draw`.
 
 Coordinates on the wire use the display notation described below (e.g. `"Aa1"`).
 
@@ -873,9 +910,11 @@ Recording the board).
 `GameScreen` with a `computer` prop, over a stand-in for the socket: `useComputerGame`
 (`hooks/useComputerGame.ts`) implements `GameSocket` and answers the screen's messages as
 the server would (`game/computerGame.ts`: `rejoin_game` with a `game_state`, `move` with a
-`move_made` after checking the move against the rules engine, the refusals the server
-gives), so the board is event-sourced from the log exactly as in a game between two people.
-The game (side, level, whether the computer has sat down, the move record) is kept in
+`move_made` after checking the move against the rules engine, `resign` and `offer_draw` as
+the server does, the refusals the server gives), so the board is event-sourced from the log
+exactly as in a game between two people.
+The game (side, level, whether the computer has sat down, the move record, the ending and
+the latest draw offer) is kept in
 `localStorage` after every move (`3dchess:computer:<id>`, and in memory where storage is
 refused), so a reload comes back to it. The stand-in's log opens with the game as it
 stands, as a rejoin's answer would (and a game not yet begun has the computer sit down at
@@ -894,6 +933,16 @@ included): about half a second for a forced move, under a second for an obvious 
 recapture, or one far better than anything else), brisker in the first eight plies, and
 otherwise 0.65–1.35 times 1, 1.4 or 1.7 s by level. Should the search fail, the computer
 plays a legal move all the same.
+
+**A draw offered to the computer.** The computer never offers one. Offered one, it drops any
+move it was thinking over and weighs up the position (`assess` in `ai/computer.ts`,
+`assessPosition` in `ai/choose.ts`, in the same worker: a plain search of up to 0.4 s with
+Hard's depth, without any level's misjudgements or blind spots), then answers after a beat
+(`DRAW_ANSWER_MS`, 0.9 s from the offer, its thinking included). It accepts only when it
+stands clearly worse, at 150 centipawns or more down by its own reckoning (`ACCEPTS_DRAW_AT`
+in `game/computerGame.ts`), the same at every level; otherwise, or if it could not weigh
+the position up, it declines and plays on. A move the player makes before the answer
+cancels the offer.
 
 **The engine** (`client/src/ai/`) is separate from the rules engine, built for speed:
 `position.ts` keeps the board as 125 bytes, cells numbered as `engine/board.ts` numbers
@@ -1160,9 +1209,10 @@ rules stops the client tier instead of timing different work.
   client replays history defensively — a record it cannot apply, or one that leaves a
   position it cannot evaluate (a captured king), freezes the board at the last good
   position with an explanation instead of crashing — but it cannot repair the record.
-- No resign or draw offer: games end only by checkmate or one of the automatic draws
-  (stalemate, repetition, the fifty-move rule). Nor is a game drawn for want of the material
-  to mate (a bare king against king and rook, say): it goes on until the fifty moves run out.
+- A game is not drawn for want of the material to mate (a bare king against king and rook,
+  say): it goes on until the fifty moves run out, or the players agree a draw.
+- No clock: a player may take as long as they like, and an opponent who has walked away
+  can only be resigned against or waited for.
 - A game against the computer lives in the browser that played it: it cannot be opened in
   another browser or device, and clearing site data ends it.
 - No spectators: a game has exactly two seats.

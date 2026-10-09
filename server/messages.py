@@ -6,7 +6,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, constr
+from pydantic import BaseModel, ConfigDict, Field, RootModel, conint, constr
 
 
 class Color(Enum):
@@ -39,6 +39,36 @@ class ErrorCode(Enum):
     game_not_started = 'game_not_started'
     wrong_turn = 'wrong_turn'
     seat_in_use = 'seat_in_use'
+    game_over = 'game_over'
+    invalid_draw = 'invalid_draw'
+
+
+class EndingResult(Enum):
+    resignation = 'resignation'
+    agreement = 'agreement'
+
+
+class Ending(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    result: EndingResult
+    winner: Optional[Color] = Field(
+        None,
+        description="The side that won: the resigning side's opponent. Absent for an agreed draw.",
+    )
+
+
+class DrawOffer(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    by: Color
+    ply: conint(ge=0)
+    declined: Optional[bool] = Field(
+        None,
+        description='The opponent declined it. A draw can be offered once per move.',
+    )
 
 
 class CreateGame(BaseModel):
@@ -151,6 +181,63 @@ class MoveMade(BaseModel):
     promotion: Optional[Promotion] = None
 
 
+class Resign(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['resign']
+
+
+class OfferDraw(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['offer_draw']
+
+
+class AcceptDraw(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['accept_draw']
+
+
+class DeclineDraw(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['decline_draw']
+
+
+class DrawOffered(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['draw_offered']
+    by: Color
+    ply: conint(ge=0)
+
+
+class DrawDeclined(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['draw_declined']
+    by: Color
+    ply: conint(ge=0)
+
+
+class GameEnded(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['game_ended']
+    result: EndingResult
+    winner: Optional[Color] = Field(
+        None, description='The side that won; absent for an agreed draw.'
+    )
+
+
 class Presence(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -177,6 +264,13 @@ class GameState(BaseModel):
     color: Color
     started: bool
     moves: List[MoveRecord]
+    ending: Optional[Ending] = Field(
+        None, description='Set once the game has ended by resignation or agreement.'
+    )
+    drawOffer: Optional[DrawOffer] = Field(
+        None,
+        description='The latest draw offer, if any; it stands only if its ply is the number of moves and it was not declined.',
+    )
 
 
 class WebsocketV1MessageEnvelope(
@@ -193,6 +287,13 @@ class WebsocketV1MessageEnvelope(
             GameState,
             Move,
             MoveMade,
+            Resign,
+            OfferDraw,
+            AcceptDraw,
+            DeclineDraw,
+            DrawOffered,
+            DrawDeclined,
+            GameEnded,
             Presence,
             Error,
         ]
@@ -210,6 +311,13 @@ class WebsocketV1MessageEnvelope(
         GameState,
         Move,
         MoveMade,
+        Resign,
+        OfferDraw,
+        AcceptDraw,
+        DeclineDraw,
+        DrawOffered,
+        DrawDeclined,
+        GameEnded,
         Presence,
         Error,
     ] = Field(..., title='WebSocket V1 Message Envelope')

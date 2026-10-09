@@ -381,6 +381,144 @@ def test_rejoin_restores_history_and_play_continues(client):
         assert ws_w.receive_json() == mm
 
 
+def both_receive(white_ws, black_ws):
+    """The next message on both sockets, which must be the same broadcast."""
+    msg = white_ws.receive_json()
+    assert black_ws.receive_json() == msg
+    return msg
+
+
+def test_resignation_ends_the_game_for_both(client, store):
+    with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
+        gid, white_ws, black_ws = start_game(ws1, ws2)
+        white_ws.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+        both_receive(white_ws, black_ws)
+        # Either side may resign at any time, on its turn or not
+        white_ws.send_json({"type": "resign"})
+        ended = both_receive(white_ws, black_ws)
+        assert ended == {"type": "game_ended", "result": "resignation", "winner": "black"}
+        assert store[gid]["ending"] == {"result": "resignation", "winner": "black"}
+        # Then nothing more: no move, resignation or offer
+        black_ws.send_json({"type": "move", "from": "Ea4", "to": "Ea3"})
+        assert black_ws.receive_json()["code"] == "game_over"
+        black_ws.send_json({"type": "resign"})
+        assert black_ws.receive_json()["code"] == "game_over"
+        white_ws.send_json({"type": "offer_draw"})
+        assert white_ws.receive_json()["code"] == "game_over"
+        assert len(store[gid]["moves"]) == 1
+
+
+def test_resigning_needs_a_game_under_way(client):
+    with client.websocket_connect("/ws") as ws:
+        for kind in ("resign", "offer_draw", "accept_draw", "decline_draw"):
+            ws.send_json({"type": kind})
+            assert ws.receive_json()["code"] == "game_not_started"
+        create_game(ws)
+        for kind in ("resign", "offer_draw"):
+            ws.send_json({"type": kind})
+            assert ws.receive_json()["code"] == "game_not_started"
+        # Server-only messages from a client are refused
+        ws.send_json({"type": "game_ended", "result": "agreement"})
+        assert ws.receive_json()["code"] == "invalid_message"
+        ws.send_json({"type": "draw_offered", "by": "white", "ply": 0})
+        assert ws.receive_json()["code"] == "invalid_message"
+
+
+def test_a_draw_offered_and_accepted(client, store):
+    with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
+        gid, white_ws, black_ws = start_game(ws1, ws2)
+        black_ws.send_json({"type": "offer_draw"})
+        assert both_receive(white_ws, black_ws) == {
+            "type": "draw_offered",
+            "by": "black",
+            "ply": 0,
+        }
+        # The offerer can neither answer nor repeat it
+        black_ws.send_json({"type": "accept_draw"})
+        assert black_ws.receive_json()["code"] == "invalid_draw"
+        black_ws.send_json({"type": "offer_draw"})
+        assert black_ws.receive_json()["code"] == "invalid_draw"
+        white_ws.send_json({"type": "accept_draw"})
+        assert both_receive(white_ws, black_ws) == {"type": "game_ended", "result": "agreement"}
+        white_ws.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+        assert white_ws.receive_json()["code"] == "game_over"
+        assert store[gid]["ending"] == {"result": "agreement"}
+
+
+def test_a_draw_declined_and_play_goes_on(client):
+    with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
+        _, white_ws, black_ws = start_game(ws1, ws2)
+        white_ws.send_json({"type": "offer_draw"})
+        both_receive(white_ws, black_ws)
+        black_ws.send_json({"type": "decline_draw"})
+        assert both_receive(white_ws, black_ws) == {
+            "type": "draw_declined",
+            "by": "black",
+            "ply": 0,
+        }
+        # Once a move: not again until someone moves
+        white_ws.send_json({"type": "offer_draw"})
+        assert white_ws.receive_json()["code"] == "invalid_draw"
+        white_ws.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+        assert both_receive(white_ws, black_ws)["type"] == "move_made"
+        white_ws.send_json({"type": "offer_draw"})
+        assert both_receive(white_ws, black_ws)["ply"] == 1
+
+
+def test_a_move_cancels_a_standing_offer(client):
+    with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
+        _, white_ws, black_ws = start_game(ws1, ws2)
+        # The offerer's own move cancels it
+        white_ws.send_json({"type": "offer_draw"})
+        both_receive(white_ws, black_ws)
+        white_ws.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+        both_receive(white_ws, black_ws)
+        black_ws.send_json({"type": "accept_draw"})
+        assert black_ws.receive_json()["code"] == "invalid_draw"
+        # ...and so does the opponent's, answering it by playing on
+        white_ws.send_json({"type": "offer_draw"})
+        both_receive(white_ws, black_ws)
+        black_ws.send_json({"type": "move", "from": "Ea4", "to": "Ea3"})
+        both_receive(white_ws, black_ws)
+        black_ws.send_json({"type": "decline_draw"})
+        assert black_ws.receive_json()["code"] == "invalid_draw"
+
+
+def test_rejoin_carries_the_ending_and_the_latest_offer(client, creator_is_white):
+    with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
+        gid, white_ws, black_ws = start_game(ws1, ws2)
+        white_ws.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+        both_receive(white_ws, black_ws)
+        black_ws.send_json({"type": "offer_draw"})
+        both_receive(white_ws, black_ws)
+    assert wait_until(lambda: len(modal_app.connections) == 0)
+
+    with client.websocket_connect("/ws") as ws_w:
+        state = rejoin(ws_w, gid, "white")
+        assert state["drawOffer"] == {"by": "black", "ply": 1}
+        assert "ending" not in state
+        # The offer still stands across the reconnect
+        ws_w.send_json({"type": "decline_draw"})
+        assert ws_w.receive_json() == {"type": "draw_declined", "by": "white", "ply": 1}
+    assert wait_until(lambda: len(modal_app.connections) == 0)
+
+    with client.websocket_connect("/ws") as ws_b:
+        state = rejoin(ws_b, gid, "black")
+        assert state["drawOffer"] == {"by": "black", "ply": 1, "declined": True}
+        ws_b.send_json({"type": "resign"})
+        assert ws_b.receive_json() == {
+            "type": "game_ended",
+            "result": "resignation",
+            "winner": "white",
+        }
+    assert wait_until(lambda: len(modal_app.connections) == 0)
+
+    with client.websocket_connect("/ws") as ws_w:
+        state = rejoin(ws_w, gid, "white")
+        assert state["ending"] == {"result": "resignation", "winner": "white"}
+        assert state["moves"] == [{"by": "white", "from": "Aa2", "to": "Aa3"}]
+
+
 def test_moves_while_opponent_disconnected_appear_on_rejoin(client, creator_is_white):
     with client.websocket_connect("/ws") as ws1:
         gid, _ = create_game(ws1)
@@ -652,7 +790,7 @@ def test_game_error_is_logged_as_warning(client, caplog):
     assert len(warnings) == 1
     assert f"gid={gid}" in warnings[0]
     assert "code=game_not_started" in warnings[0]
-    assert "message=Both players must have joined to move" in warnings[0]
+    assert "message=Both players must have joined" in warnings[0]
 
 
 def test_lifecycle_and_moves_are_logged_at_info(client, caplog):

@@ -17,10 +17,14 @@ from messages import Move, Promotion
 from modal_app import (
     STORE_OPERATIONS,
     GameError,
+    accept_draw,
     claim_seat,
     create_game,
+    decline_draw,
     find_seat,
+    offer_draw,
     record_move,
+    resign,
     taken_seats,
 )
 
@@ -145,6 +149,73 @@ def test_record_move_enforces_game_state_and_turn():
     }
     assert [m["by"] for m in store["G00001"]["moves"]] == ["white", "black"]
     assert store["G00001"]["moves"][1]["promotion"] == Promotion.Q.value
+
+
+def under_way():
+    return {"G00001": {"seats": ["white", "black"], "moves": []}}
+
+
+def refusal(op, *args):
+    with pytest.raises(GameError) as e:
+        op(*args)
+    return e.value.code.value
+
+
+def test_resign_ends_the_game_for_the_opponent():
+    store = under_way()
+    assert resign(store, "G00001", "black") == {"result": "resignation", "winner": "white"}
+    assert store["G00001"]["ending"] == {"result": "resignation", "winner": "white"}
+    # Nothing more is accepted: moves, a second resignation, offers and answers
+    assert refusal(record_move, store, "G00001", "white", move("Aa2", "Aa3")) == "game_over"
+    assert refusal(resign, store, "G00001", "white") == "game_over"
+    assert refusal(offer_draw, store, "G00001", "white") == "game_over"
+    assert refusal(accept_draw, store, "G00001", "white") == "game_over"
+    assert refusal(decline_draw, store, "G00001", "white") == "game_over"
+    assert store["G00001"]["moves"] == []
+
+
+def test_resign_and_offers_need_a_game_under_way():
+    store = {"G00001": {"seats": ["white"], "moves": []}}
+    for op in (resign, offer_draw, accept_draw, decline_draw):
+        assert refusal(op, store, None, None) == "game_not_started"
+        assert refusal(op, store, "G00001", "white") == "game_not_started"
+    assert store["G00001"] == {"seats": ["white"], "moves": []}
+
+
+def test_a_draw_offer_accepted_ends_the_game_drawn():
+    store = under_way()
+    assert offer_draw(store, "G00001", "white") == {"by": "white", "ply": 0}
+    # Only the opponent can answer it, and only one offer stands
+    assert refusal(accept_draw, store, "G00001", "white") == "invalid_draw"
+    assert refusal(decline_draw, store, "G00001", "white") == "invalid_draw"
+    assert refusal(offer_draw, store, "G00001", "black") == "invalid_draw"
+    assert refusal(offer_draw, store, "G00001", "white") == "invalid_draw"
+    assert accept_draw(store, "G00001", "black") == {"result": "agreement"}
+    assert store["G00001"]["ending"] == {"result": "agreement"}
+    assert refusal(record_move, store, "G00001", "white", move("Aa2", "Aa3")) == "game_over"
+
+
+def test_a_draw_offer_declined_or_lapsed():
+    store = under_way()
+    record_move(store, "G00001", "white", move("Aa2", "Aa3"))
+    # Offered on the opponent's turn, and declined
+    assert offer_draw(store, "G00001", "white") == {"by": "white", "ply": 1}
+    assert decline_draw(store, "G00001", "black") == {"by": "white", "ply": 1, "declined": True}
+    assert "ending" not in store["G00001"]
+    # Answered once; and offered once a move, by either side
+    assert refusal(accept_draw, store, "G00001", "black") == "invalid_draw"
+    assert refusal(decline_draw, store, "G00001", "black") == "invalid_draw"
+    assert refusal(offer_draw, store, "G00001", "white") == "invalid_draw"
+    assert refusal(offer_draw, store, "G00001", "black") == "invalid_draw"
+    # A move makes a new offer possible, which the next move cancels
+    record_move(store, "G00001", "black", move("Ea4", "Ea3"))
+    assert offer_draw(store, "G00001", "black") == {"by": "black", "ply": 2}
+    record_move(store, "G00001", "white", move("Aa3", "Aa4"))
+    assert refusal(accept_draw, store, "G00001", "white") == "invalid_draw"
+    assert refusal(decline_draw, store, "G00001", "white") == "invalid_draw"
+    # ...and the game goes on, a new offer welcome
+    assert offer_draw(store, "G00001", "white") == {"by": "white", "ply": 3}
+    assert store["G00001"]["drawOffer"] == {"by": "white", "ply": 3}
 
 
 def test_store_operations_are_synchronous():
