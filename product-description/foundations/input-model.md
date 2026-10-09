@@ -69,7 +69,7 @@ A second press on a destination right after the first cannot send the move twice
 
 The move box is the second way to play a move and the only one that works without a pointer. It is a text field ("Type a move") with a small ↵ button, the field of the [move card](../glossary.md#the-interface). The card is never shown as a panel: it is out of sight, but the move box is the first thing Tab reaches on the board screen, and appears (alone, at the bottom left, with a one-line hint) the moment it has keyboard focus; it goes again when it loses focus with nothing typed, or on Escape. Its full behavior belongs to [making a move](../play/making-a-move.md); for the input model it matters in three ways:
 
-- It is an ordinary HTML form. Typing is always possible; Enter or the ↵ button submits. A move is sent only while the board takes input, the game is not over, and it is the player's turn; on the opponent's turn it says "Wait for their move.", and at any other time a submit does nothing.
+- It is an ordinary HTML form. Typing is always possible; Enter or the ↵ button submits. A move is sent only while the board takes input, the game is not over, and it is the player's turn. On the opponent's turn, and once the game is over, it says "Wait for their move."; on the player's own turn while the board takes no input (a move in flight, a drop, a frozen record, the entrance), a submit does nothing.
 - A move typed there is checked against the same rules as a press and is sent exactly as a pressed move is: the board is held until the echo, and a typed promotion names its piece (`=Q`, `=R`, `=B`, `=N`, or `=U`) and is sent without the promotion dialog.
 - A move that cannot be played is not sent; a line of text under the field says why.
 

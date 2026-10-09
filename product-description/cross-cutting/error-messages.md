@@ -136,9 +136,9 @@ A move typed in the move box is checked in the browser, against the position on 
 | "{from}-{to} is not a promotion." | A promotion letter was typed for a legal move that does not promote. | Yes. |
 | "Say which piece to promote to: add =Q, =R, =B, =N or =U." | A legal move of a pawn onto a promotion square without a promotion letter. The move box never opens the promotion dialog. | Yes. |
 | "A pawn cannot promote to that piece." | A promotion letter that names no piece the pawn can become. | Practically never: every letter the box accepts names one of the five. |
-| "Wait for their move." | A move submitted on the opponent's turn. It is not checked or sent. | Yes. |
+| "Wait for their move." | A move submitted on the opponent's turn, or after the game is over. It is not checked or sent. | Yes. |
 
-The box checks a move only when it may send: the player's turn, the board taking input, and the game not over. On the opponent's turn it says "Wait for their move."; at any other time (a move in flight, a drop, a frozen record, a finished game) Enter and the ↵ button do nothing, with no message.
+The box checks a move only when it may send: the player's turn, the board taking input, and the game not over. On the opponent's turn, and once the game is over (whoever's turn the final position gives), it says "Wait for their move."; on the player's own turn while the board takes no input (a move in flight, a drop, a frozen record, the entrance), Enter and the ↵ button do nothing, with no message.
 
 ### Texts that act like errors
 

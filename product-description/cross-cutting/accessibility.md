@@ -45,7 +45,7 @@ A move is two cells, level-file-rank, in either case, with a hyphen, an en dash,
 
 A move that is legal is sent exactly as a press on the board would send it, and the field empties; the board is then [held](../glossary.md#selection-and-board-state) until the move lands, and focus stays in the field, ready for the next move. A move that cannot be played is not sent; a line under the field says why (see [error messages](error-messages.md#explained-by-the-move-box)), the field is marked invalid, and the text stays to be corrected. A move submitted on the opponent's turn is not sent either, and the line says "Wait for their move." A typed promotion is sent directly, without the promotion dialog.
 
-The field can be typed in at any time. While the board takes no input (a move in flight, a drop, a frozen record) or the game is over, a submit does nothing and says nothing.
+The field can be typed in at any time. Once the game is over, a submit says "Wait for their move.", as on the opponent's turn. On the player's own turn while the board takes no input (a move in flight, a drop, a frozen record, the entrance), a submit does nothing and says nothing.
 
 ### What the keyboard cannot do
 
@@ -88,7 +88,8 @@ Nothing is focused when the home page or the board screen loads. The app moves f
 | "Returning to your game…" | status | Read as the page appears. |
 | Error banner, the message, and its "✕" | alert; read as "Error: {message}"; the button named "Dismiss error" | Announced when it appears. |
 | Reconnecting line, "Reconnecting…" | status, in the page before the line appears | Announced politely when it appears. |
-| Frozen-board banner, "Couldn't load the board" | alert | Announced when it appears. |
+| Frozen-board banner, "Move {n} of this game can't be replayed…" | alert | Announced when it appears. |
+| "Couldn't load the board" and its "Retry" | alert | Announced when it appears. |
 | Crash screen | alert (heading, sentence, and link) | Announced when it replaces the page. |
 | The board | an image, named "The 3D board, white side nearest. Pieces are selected and moved with a pointer; to play from the keyboard, press Tab to type a move." ("black side nearest" for Black) | Its name, which points to the move box. Nothing about the position. |
 | Turn pill | plain text, with a description for screen readers: "You play White. Your move." ("Black to move", ", in check", "Your opponent is offline.", or the result: "Checkmate, you win.", "Repetition, a draw.") | Read when the user reaches it. Its changes are not announced by the pill itself; the move announcement says them. |
