@@ -6,7 +6,9 @@
 
 import type { Color } from '../types/messages';
 
-const keyFor = (gameId: string) => `3dchess:role:${gameId}`;
+/** The stored role's key, less its game id (also read by earlySocket.ts's inline script). */
+export const ROLE_KEY_PREFIX = '3dchess:role:';
+const keyFor = (gameId: string) => `${ROLE_KEY_PREFIX}${gameId}`;
 
 export function getStoredRole(gameId: string): Color | null {
   try {

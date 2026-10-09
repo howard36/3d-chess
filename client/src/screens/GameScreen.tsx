@@ -206,6 +206,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
     if (rejoinSessionRef.current === sessionId) return;
     if (hasSessionSince(messages, sessionStartIndex)) return;
     rejoinSessionRef.current = sessionId;
+    // Already asked on this socket, by the page as it loaded (earlySocket.ts),
+    // as the session opened
+    if (gameSocket.sentThisSession?.((m) => m.type === 'rejoin_game' && m.gameId === gameId)) {
+      rejoinSentAtRef.current = sessionStartIndex;
+      return;
+    }
     rejoinSentAtRef.current = messages.length;
     gameSocket.send({
       type: 'rejoin_game',
@@ -303,6 +309,8 @@ const GameScreen: React.FC<GameScreenProps> = ({
     if (!gameId || storedRole || joinRequested || looked) return;
     if (sessionId === 0 || status !== 'connected' || lookSessionRef.current === sessionId) return;
     lookSessionRef.current = sessionId;
+    // (asked already as the page loaded: earlySocket.ts)
+    if (gameSocket.sentThisSession?.((m) => m.type === 'look_game' && m.gameId === gameId)) return;
     gameSocket.send({ type: 'look_game', gameId });
   }, [gameId, storedRole, joinRequested, looked, sessionId, status, gameSocket]);
 

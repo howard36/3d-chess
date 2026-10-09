@@ -1,6 +1,9 @@
-import { defineConfig } from 'vite';
+import { defineConfig, minify } from 'vite';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
+import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
+import { CLIENT_ID_KEY } from './src/lib/clientId';
 
 /**
  * three.js, the scene and the set's precomputed parts load in a chunk of
@@ -55,6 +58,37 @@ const preloadSceneOnGamePages = (): Plugin => ({
     },
   },
 });
+
+/**
+ * The built page opens its socket from an inline script in its head, before the entry has loaded, and on a game's address sends its first
+ * request (src/lib/earlySocket.ts): the app adopts the socket and what came
+ * back. Build only: the dev server's StrictMode mounts the app's socket twice
+ * (closing the first), which would rejoin the seat a second time.
+ */
+const earlySocket = (): Plugin => {
+  let url = DEFAULT_WS_URL;
+  return {
+    name: 'early-socket',
+    apply: 'build',
+    configResolved(config) {
+      url = config.env.VITE_WS_URL ?? DEFAULT_WS_URL;
+    },
+    async transformIndexHtml(html) {
+      const keys = { role: ROLE_KEY_PREFIX, clientId: CLIENT_ID_KEY };
+      // Minified: it is in every page's HTML
+      const { code, errors } = await minify(
+        'early-socket.js',
+        `(${startEarlySocket.toString()})(${JSON.stringify(url)},${JSON.stringify(keys)})`,
+      );
+      if (errors.length) throw new Error(`early-socket: ${errors[0].message}`);
+      // Right after the charset (which must stand in the first 1024 bytes),
+      // ahead of the stylesheet: an inline script waits for a stylesheet before it
+      const charset = /<meta charset[^>]*>/i;
+      if (!charset.test(html)) throw new Error('early-socket: index.html has no <meta charset>');
+      return html.replace(charset, (tag) => `${tag}\n    <script>${code.trim()}</script>`);
+    },
+  };
+};
 
 /**
  * r3f's Canvas registers the whole three namespace (extend(THREE)), which
@@ -180,6 +214,7 @@ export default defineConfig({
   plugins: [
     react(),
     r3fCatalogue(),
+    earlySocket(),
     preloadSceneOnGamePages(),
     keepSceneOutOfEntry(),
     invitePage(),

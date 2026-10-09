@@ -156,6 +156,21 @@ test('GameScreen auto-rejoins on a fresh load when a role is stored', async () =
   expect(send).toHaveBeenCalledTimes(1);
 });
 
+test('GameScreen does not ask again what the page asked as it loaded (earlySocket.ts)', () => {
+  setStoredRole('abc123', 'black');
+  const send = vi.fn();
+  const sentThisSession = (match: (m: WebSocketMessage) => boolean) =>
+    match({ type: 'rejoin_game', gameId: 'abc123', color: 'black', clientId: 'x', takeover: true });
+  renderGameScreen('abc123', { ...fakeSocket([], send), sentThisSession });
+  expect(send).not.toHaveBeenCalled();
+  // ...and a guest's look, likewise
+  const look = vi.fn();
+  const looked = (match: (m: WebSocketMessage) => boolean) =>
+    match({ type: 'look_game', gameId: 'def456' });
+  renderGameScreen('def456', { ...fakeSocket([], look), sentThisSession: looked });
+  expect(look).not.toHaveBeenCalled();
+});
+
 test('GameScreen does not rejoin when the session already created the game', () => {
   setStoredRole('abc123', 'white');
   const send = vi.fn();
