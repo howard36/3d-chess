@@ -1111,7 +1111,7 @@ client/scripts/  Showcase recorder, piece gallery, piece bake, browser benchmark
 client/bench/    Client benchmarks (vitest bench) and their seeded fixtures.
 server/          FastAPI app + Modal deployment (modal_app.py), schema, generated models, pytest suite.
 server/bench/    Server benchmarks: store operations, live WebSocket load, adversarial input.
-bench/           The benchmark runner (run.mjs) and its report (RESULTS.md, rewritten by a run).
+bench/           The benchmark runner (run.mjs) and the primary rows (primary.mjs); reports go to bench/out/.
 bench/loop/      Performance work log: ledger of ideas tried, A/B reports, patches, tools.
 docs/            The README's picture (preview.jpg, from client/scripts/readme-image.mjs).
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
@@ -1137,8 +1137,9 @@ cd client && npm run test          # unit/component (Vitest)
 cd client && npm run e2e           # Playwright; starts server + Vite itself
 uv run --project server pytest     # server tests (spawns a real uvicorn)
 
-# Benchmarks: every tier in turn, then read bench/RESULTS.md (--quick for a smoke run)
+# Benchmarks: every tier in turn, then read bench/out/RESULTS.md (--quick for a smoke run)
 node bench/run.mjs                 # --only client|server|browser; --compare <old bench/out>
+node bench/run.mjs --primary --base main   # a change: the primary rows, A/B, bench/out/AB.md
 
 # Deploy backend manually (not normally needed — CI deploys on merge to main).
 # GITHUB_SHA is what /health reports; without it the image says "dev".
@@ -1190,7 +1191,7 @@ screen (the invitation, the HUD, the move record). Everything 3D is a chunk the 
 lazily, shared by the start page's preview (`screens/LandingPreview.tsx`), the lobby's
 canvas (`screens/lobby/LobbyCanvas.tsx`), the game's board (`screens/GameCanvas.tsx`) and
 the tutorial's (`screens/learn/LearnCanvas.tsx`):
-three.js, the scene and the set's precomputed parts, about 330 KB (gzip; `bench/RESULTS.md`, "Bundle"). The start page asks for
+three.js, the scene and the set's precomputed parts, about 330 KB (gzip; the benchmark report's "Bundle"). The start page asks for
 it at once and shows its title and button without waiting for it; on the side choice
 (`/new`, `/computer`), a game's address (`/game/:id`, `/computer/:id`) and the tutorial
 (`/learn`) the built page preloads it from the start (a
@@ -1218,38 +1219,69 @@ backend first, and Playwright reuses them.
 
 ### Benchmarks
 
-`node bench/run.mjs` runs three tiers one after another and writes `bench/RESULTS.md`
-(raw JSON in the ignored `bench/out/`): **client**, the rules engine, the log-derived game
-state, the board's pointer and frame math (`client/bench/*.bench.ts`, vitest bench over
+`node bench/run.mjs` runs three tiers one after another and writes its report to
+`bench/out/RESULTS.md` (raw JSON beside it; `bench/out/` is ignored: a report is true of one
+commit on one machine, and a copy kept in the tree reads as current long after it is not):
+**client**, the rules engine, the log-derived game state, the board's pointer and frame
+math, the computer's search on fixed work (`client/bench/*.bench.ts`, vitest bench over
 seeded games and positions built to be as expensive as the rules allow) and the piece
 geometry's cold startup (`client/bench/startup.ts`); **server**, the relay in process and
 over real sockets, with store models that mimic `modal.Dict`'s copies and blocking calls
-(`server/bench/bench_server.py`, its store models in `bench_app.py`); and **browser**, the production build end to end in
-headless Chromium (`client/scripts/bench-browser.mjs`, software WebGL, so its frame times
-are only relative; it walks into a game through the UI the way the e2e suite does, by
-role and name, so a change to the way into a game must keep it walking). Cases marked ⚠
-are adversarial. Numbers compare only between runs on one machine; the report records the
-machine, the commit and each tier's run time. A browser section that fails is a "failed"
-row in the report and fails the tier: `run.mjs` says so in the report and exits 1.
+(`server/bench/bench_server.py`, its store models in `bench_app.py`); and **browser**, the
+production build end to end in headless Chromium (`client/scripts/bench-browser.mjs`,
+software WebGL, so its frame times are only relative; it walks into a game through the UI
+the way the e2e suite does, by role and name, so a change to the way into a game must keep
+it walking). Cases marked ⚠ are adversarial. Numbers compare only between runs on one
+machine; the report records the machine, the commit and each tier's run time. A browser
+section that fails is a "failed" row in the report and fails the tier: `run.mjs` says so
+in the report and exits 1.
 
-To measure a change, run `node bench/run.mjs --base <ref>` (e.g. `--base HEAD` for
-uncommitted work, `--base main` for a branch): it checks the base commit out into a
-temporary worktree, gives it this checkout's benchmark code, and runs the two
-interleaved (base, head, head, base, ...), judging each change by pairs of runs made next
-to each other, so a shared machine speeding up or slowing down over the run cannot pass
-for a change. It writes `bench/out/AB.md`; narrow it (`--only client --files engine --grep
-E4`) and a comparison takes under a minute. A saved run can also be compared with
-`--compare <copy of bench/out>`, which is only as good as the machine was steady between
-the two runs: every table gains a "vs baseline" column and the report opens with what got
-better or worse beyond the noise. Each client case runs in
-three rounds and starts from a collected heap; its "Run-to-run" spread is the noise a change
-must beat to count (the server and browser tiers get one with `--repeat 3`, at three times
-their run time; measured once, they only resolve changes of about 30% on a shared VM). While iterating, run one
-tier (`--only client`) or one file or case directly (`npx vitest bench --config
+**The primary rows** (`bench/primary.mjs`) are one number for each moment a player waits
+on (CLAUDE.md "Performance"): the start page usable and answering its first click, a shared
+game's first screen, the first board frame (joining a game, playing the computer), a long
+game reopened, a move landing (the player's and the opponent's), a piece selected, and the
+computer's search speed (at a fixed time a move, speed is strength). Each runs from the
+player's action (a click, a navigation, the opponent's send) to what the player sees,
+never from a point in between, which a change can move without the player noticing. The
+report and the A/B comparison lead with them; every other row is a diagnostic, saying
+where the time goes. In the browser tier each measured page plays against a socket from
+the script, never a second page: two pages in one browser share its GPU process and wait
+on each other's shader compiles, which players on two devices never do. Moves are clicked
+on the board through the app's raycasting, in the opening of a real game with captures by
+both sides and a check (`client/bench/tacticalGame.ts`, pinned by its test), and each
+landing is watched for jank, shader programs linked (0 once warm) and, over the game, the
+renderer's live geometries and textures (a leak shows as growth). The findings at the top
+of the report state the numbers and nothing about their cause, which would outlive the code
+it described.
+
+To measure a change, run `node bench/run.mjs --primary --base <ref>` (e.g. `--base HEAD`
+for uncommitted work, `--base main` for a branch): it checks the base commit out into a
+temporary worktree, gives it this checkout's benchmark code, and runs the two interleaved
+(base, head, head, base, ...), judging each change by pairs of runs made next to each
+other, so a shared machine speeding up or slowing down over the run cannot pass for a
+change. It writes `bench/out/AB.md`, opening with the primary rows, their verdicts and one
+speed for them all (the geometric mean of each row's median pair: ×1.004 for identical
+code); `--primary` runs only what those rows need (the browser tier's `primary` profile and
+the client tier's search bench), about 13 minutes for three pairs on a 4-core VM, where
+the client and browser tiers in full took 37. More pairs do not help a row get called: a
+call needs every pair to agree and the change to exceed their spread.
+Without `--primary` or `--only`, `--base` runs the tiers the diff can move (the server's
+code: the server tier; the client's app code: client and browser; nothing: all, an A/A
+test). Narrow it further (`--only client --files engine --grep E4`) and a comparison takes
+under a minute. Among the diagnostics, a few calls are expected by chance (identical code
+had 1–5% of rows called), and the report says how many. A saved run can also be compared
+with `--compare <copy of bench/out>`, which is only as good as the machine was steady
+between the two runs: every table gains a "vs baseline" column and the report opens with
+what got better or worse beyond the noise. Each client case runs in three rounds and starts
+from a collected heap; its "Run-to-run" spread is the noise a change must beat to count
+(the server and browser tiers get one with `--repeat 3`, at three times their run time;
+measured once, they only resolve changes of about 30% on a shared VM). While iterating, run
+one tier (`--only client`) or one file or case directly (`npx vitest bench --config
 vitest.bench.config.ts bench/engine.bench.ts -t E4`; the server and browser scripts take
-`--only <section>`). The client fixtures' games are chosen in a fixed move order and
-fingerprinted, so a faster engine is timed on exactly the same games, and a change to the
-rules stops the client tier instead of timing different work.
+`--only <section>`, and the browser script `--profile primary`). The client fixtures'
+games are chosen in a fixed move order and fingerprinted, so a faster engine is timed on
+exactly the same games, and a change to the rules stops the client tier instead of timing
+different work.
 
 ## Known limitations (accepted for this project's scope)
 

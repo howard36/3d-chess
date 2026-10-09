@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Runs the benchmark suite and writes its report as Markdown.
 //
-//   node bench/run.mjs [--quick] [--only client,server,browser] [--out bench/RESULTS.md]
-//                      [--compare <dir>] [--from <dir>] [--rounds N]
+//   node bench/run.mjs [--quick] [--primary] [--only client,server,browser]
+//                      [--out bench/out/RESULTS.md] [--compare <dir>] [--from <dir>] [--rounds N]
 //                      [--repeat N] [--files engine,game] [--grep <case name pattern>]
-//                      [--base <git ref> [--pairs N]] [--server-sections a,b] [--browser-sections a,b]
+//                      [--base <git ref> [--pairs N]]
+//                      [--server-sections a,b] [--browser-sections a,b]
 //
 // Three tiers, run one after another so none times the others' load:
 //
@@ -17,9 +18,18 @@
 //            (client/scripts/bench-browser.mjs; needs Chromium, see ARCHITECTURE.md)
 //
 // Needs client/node_modules (npm ci) and the server's test extra
-// (uv sync --extra test in server/). Raw JSON goes to bench/out/ (ignored by
-// git); the report is the only file meant to be committed. --quick takes a
-// few samples of everything, to check the suite runs, not to measure.
+// (uv sync --extra test in server/). The report and the raw JSON go to
+// bench/out/ (ignored by git: a report is true of one commit on one machine,
+// and a copy left in the tree reads as current long after it is not).
+// --quick takes a few samples of everything, to check the suite runs, not to
+// measure.
+//
+// The report and the A/B comparison lead with the primary rows
+// (bench/primary.mjs): one number for each moment a player waits on, each
+// from the player's action to what they see. --primary runs only what those
+// rows need (the browser tier's primary profile and the client tier's search
+// bench), the quick way to judge a change: with --base, about 13 minutes on
+// a 4-core VM, where the client and browser tiers in full took 37.
 //
 // --compare <dir> adds a "vs baseline" column and a summary of what got
 // better or worse, against the raw output of an earlier run: copy bench/out
@@ -44,6 +54,8 @@
 // (bench/out/AB.md unless --out) judging each change by pairs of runs made
 // next to each other. A/A tests on a shared VM showed its speed drifting by
 // 50-100% over minutes, which fools any comparison of runs made apart.
+// Without --only it runs the tiers the diff can touch (server/ changed: the
+// server tier; the client's app code: client and browser).
 //
 // --from <dir> runs nothing: it renders the report from a run's raw output
 // already on disk (bench/out, or a copy), e.g. to compare two saved runs.
@@ -63,6 +75,8 @@ import os from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { PRIMARY, PRIMARY_BROWSER_SECTIONS, PRIMARY_CLIENT_FILES, keyOf } from './primary.mjs';
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIENT = join(ROOT, 'client');
 const OUT_DIR = join(ROOT, 'bench', 'out');
@@ -74,12 +88,14 @@ const option = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 const QUICK = flag('--quick');
-const ONLY = option('--only', 'client,server,browser').split(',');
-const REPORT = resolve(option('--out', join(ROOT, 'bench', 'RESULTS.md')));
+const PRIMARY_ONLY = flag('--primary');
+const ONLY_GIVEN = option('--only', null);
+let ONLY = (ONLY_GIVEN ?? (PRIMARY_ONLY ? 'client,browser' : 'client,server,browser')).split(',');
+const REPORT = resolve(option('--out', join(ROOT, 'bench', 'out', 'RESULTS.md')));
 const COMPARE = option('--compare', null);
 const FROM = option('--from', null);
 const ROUNDS = Math.max(1, Number(option('--rounds', QUICK ? '1' : '3')) || 1);
-const FILES = option('--files', '')
+const FILES = option('--files', PRIMARY_ONLY ? PRIMARY_CLIENT_FILES.join(',') : '')
   .split(',')
   .filter(Boolean)
   .map((f) => `bench/${f}.bench.ts`);
@@ -88,7 +104,10 @@ const REPEAT = Math.max(1, Number(option('--repeat', '1')) || 1);
 const BASE = option('--base', null);
 const PAIRS = Math.max(2, Number(option('--pairs', '3')) || 3);
 const SERVER_SECTIONS = option('--server-sections', null);
-const BROWSER_SECTIONS = option('--browser-sections', null);
+const BROWSER_SECTIONS = option(
+  '--browser-sections',
+  PRIMARY_ONLY ? PRIMARY_BROWSER_SECTIONS.join(',') : null,
+);
 const VENV_PYTHON = join(
   ROOT,
   'server',
@@ -145,7 +164,7 @@ function loadBaseline(dir) {
   };
 }
 
-const SIDECARS = ['engine', 'game', 'interaction', 'startup'];
+const SIDECARS = ['engine', 'game', 'interaction', 'ai', 'startup'];
 const readSidecars = (dir) =>
   Object.fromEntries(SIDECARS.map((k) => [k, readJson(join(dir, 'client-meta', `${k}.json`))]));
 
@@ -362,7 +381,7 @@ function runBrowser(ctx = MAIN) {
       'scripts/bench-browser.mjs',
       '--out',
       out,
-      ...(QUICK ? ['--quick'] : []),
+      ...(QUICK ? ['--quick'] : PRIMARY_ONLY ? ['--profile', 'primary'] : []),
       ...(BROWSER_SECTIONS ? ['--only', BROWSER_SECTIONS] : []),
     ],
     join(ctx.root, 'client'),
@@ -456,9 +475,9 @@ function withBaseline(tier, s, baseSections) {
   if (!baseSections || !s.metrics) return s;
   const base = baseSections.find((b) => b.title === s.title);
   // A row is the same row in both runs by its metric's key, or else by its first cell
-  const keyOf = (row, metric) => metric?.key ?? row[0];
+  const rowKey = (row, metric) => metric?.key ?? row[0];
   const then = new Map(
-    (base?.rows ?? []).map((row, i) => [keyOf(row, base.metrics?.[i]), base.metrics?.[i]]),
+    (base?.rows ?? []).map((row, i) => [rowKey(row, base.metrics?.[i]), base.metrics?.[i]]),
   );
   return {
     ...s,
@@ -467,7 +486,7 @@ function withBaseline(tier, s, baseSections) {
     rows: s.rows.map((row, i) => {
       const m = s.metrics[i];
       if (!m) return [...row, ''];
-      const key = keyOf(row, m);
+      const key = rowKey(row, m);
       const b = then.get(key);
       if (!b) return [...row, 'new'];
       const band =
@@ -545,81 +564,47 @@ function lookup(groups, group, name) {
   return g?.benchmarks.find((b) => b.name.startsWith(name)) ?? null;
 }
 
-/** Findings computed from this run's client numbers (each skipped if its data is missing). */
+/**
+ * Findings from this run's client numbers, each skipped if its data is
+ * missing. They state the numbers and nothing about their cause: a cause
+ * written here once stays in the report after the code has changed (the
+ * report long said a pattern backtracked quadratically beside numbers that
+ * grew linearly), and a reader takes the report's word for it.
+ */
 function clientFindings(groups, sidecars) {
   const out = [];
   const b = (group, name) => lookup(groups, group, name);
-  const mid = b('E4', 'middlegame');
-  const midFast = b('E4', 'what-if, early exit: middlegame');
-  const crowded = b('E4', 'crowded');
-  if (mid && midFast) {
-    out.push(
-      `**The end-of-game test dominates every move.** After each move the replay generates *every* ` +
-        `legal move of the side to move to rule out mate and stalemate: ${duration(mid.median)} in the ` +
-        `middlegame${crowded ? ` (${duration(crowded.median)} on the crowded board)` : ''}, against ` +
-        `${duration(midFast.median)} for the same answer stopping at the first legal move ` +
-        `(${Math.round(mid.median / midFast.median)}× less; what-if code, not in the app).`,
-    );
-  }
   const fresh = b('G1', 'new game');
   const m3000 = b('G1', 'marathon ⚠ (3,000');
-  if (fresh && m3000) {
-    out.push(
-      `**Opening a game costs ${duration(fresh.median)} before a single move is replayed** (the ` +
-        `game-over test of the starting position); replaying is ~${duration((m3000.median - fresh.median) / 3000)} ` +
-        `per ply, so a legal 3,000-ply game (no draw rules stop it) takes ${duration(m3000.median)} to open, ` +
-        `and every later move replays it all again.`,
-    );
-  }
-  const whole = b('G4', 'decisive');
-  const lastMove = b('G2', 'decisive game, the mating move');
   const move3000 = b('G2', 'marathon ⚠, ply 3,000');
-  if (whole && lastMove && move3000) {
+  if (fresh && m3000 && move3000) {
     out.push(
-      `**Every move replays the whole game from the start:** ${duration(lastMove.median)} when the ` +
-        `mating move of a ${whole.name.match(/\d+/)?.[0] ?? ''}-ply game lands, ${duration(move3000.median)} ` +
-        `at ply 3,000, on both players' screens. Over that whole game, one client spends ` +
-        `${duration(whole.median)} of main-thread time replaying.`,
-    );
-  }
-  const typed = [1000, 4000, 16000]
-    .map((n) => [n, b('G6', `move + ${n.toLocaleString('en-US')} spaces`)])
-    .filter(([, r]) => r);
-  if (typed.length >= 2) {
-    const [n0, r0] = typed[0];
-    const [n1, r1] = typed[typed.length - 1];
-    const exponent = Math.log(r1.median / r0.median) / Math.log(n1 / n0);
-    out.push(
-      `**The move box's pattern backtracks quadratically** on a legal move followed by a long run of ` +
-        `spaces and a stray character: ${typed.map(([n, r]) => `${duration(r.median)} at ${n.toLocaleString('en-US')} spaces`).join(', ')} ` +
-        `(time ∝ length^${exponent.toFixed(1)}). A paste of that shape blocks the page's main thread; ` +
-        `the field has no length limit.`,
-    );
-  }
-  const flaky = b('G5', 'flaky');
-  const live = b('G5', 'decisive');
-  if (flaky && live) {
-    out.push(
-      `**Every message costs more as the log grows, even when nothing changes:** the game screen's ` +
-        `per-message work (log copy, selectors, replay memo check, check tests) is ${duration(live.median)} ` +
-        `in a normal game and ${duration(flaky.median)} after a flaky opponent's 5,000 reconnects ` +
-        `(10k-message log), all of it scans of the whole log.`,
+      `Opening a game replays its record: ${duration(fresh.median)} for a new game, ` +
+        `${duration(m3000.median)} for 3,000 plies; a move arriving at ply 3,000 costs ` +
+        `${duration(move3000.median)}.`,
     );
   }
   const storm = b('E1', 'queen storm');
   if (storm) {
     out.push(
-      `Selecting a piece stays interactive even when adversarial: the slowest click (a queen among ` +
-        `six queens a side) is ${duration(storm.median)}.`,
+      `The slowest piece to select (a queen among six queens a side, adversarial) takes ` +
+        `${duration(storm.median)} of rules work.`,
+    );
+  }
+  const search = groups.find((g) => g.group.startsWith('A1'));
+  if (search?.benchmarks.length) {
+    const nodes = sidecars.ai?.workloads?.[search.group]?.rows?.[0]?.[2];
+    out.push(
+      `The computer’s search: ${search.benchmarks
+        .map((x) => `${duration(x.median)} (${x.name})`)
+        .join(', ')} for ${nodes ? `about ${nodes}` : 'a fixed number of'} positions each.`,
     );
   }
   const facts = sidecars.startup?.facts;
   if (facts) {
     out.push(
-      `**First visit: ~${duration(facts['cold first-visit total (ms)'])} of main-thread geometry work**, ` +
-        `in idle-callback tasks one piece type at a time; the sculpted knight alone is ` +
-        `${duration(facts['cold knight build (ms)'])} cold, a long task (the high-quality knight: ` +
-        `${duration(facts['warm high-quality knight (ms)'])} even warm).`,
+      `First visit: ~${duration(facts['cold first-visit total (ms)'])} of main-thread work ` +
+        `building and baking the piece set; the knight alone ${duration(facts['cold knight build (ms)'])} cold.`,
     );
   }
   return out;
@@ -642,8 +627,7 @@ function sh(cmd, cmdArgs, cwd = ROOT) {
 function environment() {
   const cpus = os.cpus();
   // The report itself and the raw output don't count as changes to what was measured
-  const dirty =
-    sh('git', ['status', '--porcelain', '--', '.', ':!bench/RESULTS.md', ':!bench/out']) !== '';
+  const dirty = sh('git', ['status', '--porcelain', '--', '.', ':!bench/out']) !== '';
   const nodeWanted = existsSync(join(ROOT, '.nvmrc'))
     ? readFileSync(join(ROOT, '.nvmrc'), 'utf8').trim()
     : '?';
@@ -774,13 +758,49 @@ function verdict(pairs, better) {
   return { ratios, change, spread, real, improved };
 }
 
+/**
+ * The tiers a change from `sha` to this checkout (commits, uncommitted and
+ * untracked files) can move, and why: the server's code moves the server
+ * tier, the client's app code (what the build is made of) the client and
+ * browser tiers. Only the app counts: the benchmark code is this checkout's
+ * on both sides. Nothing the app is made of changed (an A/A test): every tier.
+ */
+function tiersFromDiff(sha) {
+  const changed = [
+    ...sh('git', ['diff', '--name-only', sha]).split('\n'),
+    ...sh('git', ['ls-files', '--others', '--exclude-standard']).split('\n'),
+  ].filter((f) => f && f !== 'unknown');
+  const harness = (f) => HARNESS.some((h) => f === h || f.startsWith(`${h}/`));
+  const app = changed.filter((f) => !harness(f) && !/\.test\.tsx?$|\.spec\.ts$/.test(f));
+  const server = app.some((f) => f.startsWith('server/') && !f.startsWith('server/tests/'));
+  const client = app.some((f) =>
+    /^client\/(src\/|public\/|index\.html$|vite\.config\.ts$|package(-lock)?\.json$)/.test(f),
+  );
+  const tiers = [...(client ? ['client', 'browser'] : []), ...(server ? ['server'] : [])];
+  if (!tiers.length) {
+    return {
+      tiers: ['client', 'server', 'browser'],
+      why: 'nothing the app is made of differs from the base: every tier (an A/A test)',
+    };
+  }
+  return {
+    tiers,
+    why: `the diff touches ${[client && 'the client’s app code', server && 'the server'].filter(Boolean).join(' and ')}`,
+  };
+}
+
 function abMain() {
-  const tiers = ONLY.filter((t) => ['client', 'server', 'browser'].includes(t));
-  const started = new Date();
   const { dir, sha, python: basePython } = baseWorktree(BASE);
+  const chosen = ONLY_GIVEN
+    ? { tiers: ONLY, why: '--only' }
+    : PRIMARY_ONLY
+      ? { tiers: ONLY, why: '--primary' }
+      : tiersFromDiff(sha);
+  const tiers = chosen.tiers.filter((t) => ['client', 'server', 'browser'].includes(t));
+  log(`tiers: ${tiers.join(', ')} (${chosen.why})`);
+  const started = new Date();
   const headSha = sh('git', ['rev-parse', 'HEAD']);
-  const dirty =
-    sh('git', ['status', '--porcelain', '--', '.', ':!bench/RESULTS.md', ':!bench/out']) !== '';
+  const dirty = sh('git', ['status', '--porcelain', '--', '.', ':!bench/out']) !== '';
   const runs = { base: [], head: [] };
   const failures = [];
   let cleaned = false;
@@ -839,8 +859,8 @@ function abMain() {
   const md = ['# A/B benchmark comparison'];
   md.push(
     `Base \`${BASE}\` (\`${sha.slice(0, 7)}\`) against this checkout (\`${headSha.slice(0, 7)}\`` +
-      `${dirty ? ' with uncommitted changes' : ''}), ${PAIRS} interleaved pairs (base then head, then ` +
-      `head then base, ...) of ${tiers.join(', ')}; both sides run this checkout’s benchmark code. ` +
+      `${dirty ? ' with uncommitted changes' : ''}), ${runs.base.length} interleaved pairs (base then head, then ` +
+      `head then base, ...) of ${tiers.join(', ')} (${chosen.why}); both sides run this checkout’s benchmark code. ` +
       `${Math.round((finished - started) / 60000)} min. Generated by ` +
       `\`node bench/run.mjs ${process.argv.slice(2).join(' ')}\`.`,
   );
@@ -859,25 +879,22 @@ function abMain() {
           .join('\n'),
     );
   }
-  const real = rows.filter((r) => r.v?.real);
-  const better = real.filter((r) => r.v.improved);
   // Measured in fewer pairs than were run, or on one side only: a section
   // that stopped, a selector that no longer matches
-  const short = rows.filter((r) => r.pairs.length < PAIRS);
-  md.push('## Summary');
-  md.push(
-    `${rows.length} measurements compared: **${better.length} better, ${real.length - better.length} ` +
-      `worse**, ${rows.length - real.length} unchanged within their noise` +
-      (short.length
-        ? `; of them all, **${short.length} not measured in every pair** (${short
-            .map((r) => `${r.where}: ${r.what} — ${r.pairs.length} of ${PAIRS}`)
-            .join('; ')}).`
-        : '.'),
-  );
+  const short = rows.filter((r) => r.pairs.length < runs.base.length);
+  if (short.length) {
+    md.push(
+      `**${short.length} measurement(s) not taken in every pair**: ${short
+        .map((r) => `${r.where}: ${r.what} (${r.pairs.length} of ${runs.base.length})`)
+        .join('; ')}.`,
+    );
+  }
   const fmtChange = (v) =>
     v
       ? `${v.change > 0 ? '+' : '−'}${Math.abs(v.change).toFixed(Math.abs(v.change) >= 10 ? 0 : 1)}%`
       : '';
+  const called = (v) =>
+    !v ? 'one side only' : v.real ? `**${v.improved ? 'better' : 'worse'}**` : '';
   const line = (r) => [
     r.tier,
     r.where,
@@ -885,7 +902,7 @@ function abMain() {
     ...r.sides.map((xs) => (xs.length ? shown(median(xs), r.unit) : 'missing')),
     fmtChange(r.v),
     r.v ? r.v.ratios.map((x) => x.toFixed(2)).join(' ') : '',
-    !r.v ? 'one side only' : r.v.real ? `**${r.v.improved ? 'better' : 'worse'}**` : '',
+    called(r.v),
   ];
   const columns = [
     'Tier',
@@ -898,6 +915,51 @@ function abMain() {
     'Verdict',
   ];
   const align = ['l', 'l', 'l', 'r', 'r', 'r', 'r', 'l'];
+
+  // The primary rows first: the moments a player waits on
+  const byKey = new Map(rows.map((r) => [keyOf(r), r]));
+  const primary = PRIMARY.map((p) => ({ p, r: byKey.get(keyOf(p)) }));
+  const measured = primary.filter(({ r }) => r?.v);
+  md.push('## Primary rows');
+  if (measured.length) {
+    // Each row's head/base as a speed (time rows inverted): above 1, faster.
+    // Its pairs' median ratio, so one wild pair of a row with two modes (the
+    // start page's first click) cannot tip the whole figure
+    const speeds = measured.map(({ r }) => {
+      const ratio = median(r.v.ratios);
+      return r.better === 'higher' ? ratio : 1 / ratio;
+    });
+    const geo = Math.exp(speeds.reduce((t, x) => t + Math.log(x), 0) / speeds.length);
+    md.push(
+      `Over the ${measured.length} primary rows measured (bench/primary.mjs), head runs at ` +
+        `**×${geo.toFixed(3)}** base’s speed (the geometric mean of each row’s median pair; ` +
+        `above 1 is faster; an A/A run of identical code measured ×1.004). ` +
+        `${measured.filter(({ r }) => r.v.real && r.v.improved).length} called better, ` +
+        `${measured.filter(({ r }) => r.v.real && !r.v.improved).length} called worse.`,
+    );
+  }
+  md.push(
+    table({
+      columns: ['Moment', 'Base', 'Head', 'Change', 'Pairs (head/base)', 'Verdict'],
+      align: ['l', 'r', 'r', 'r', 'r', 'l'],
+      rows: primary.map(({ p, r }) =>
+        r ? [p.moment, ...line(r).slice(3)] : [p.moment, '', '', '', '', 'not measured'],
+      ),
+    }),
+  );
+
+  const others = rows.filter((r) => !PRIMARY.some((p) => keyOf(p) === keyOf(r)));
+  const real = others.filter((r) => r.v?.real);
+  const better = real.filter((r) => r.v.improved);
+  md.push('## Diagnostics');
+  md.push(
+    `${others.length} other measurements compared: **${better.length} better, ` +
+      `${real.length - better.length} worse**, ${others.length - real.length} unchanged within ` +
+      `their noise. These say where the time goes, not whether a player waits less; and among ` +
+      `this many, identical code (A/A tests) had 1–5% called, so about ` +
+      `${Math.round(others.length * 0.01)}–${Math.round(others.length * 0.05)} calls here are ` +
+      `expected by chance.`,
+  );
   if (real.length) {
     md.push(
       table({
@@ -928,7 +990,8 @@ function abMain() {
   mkdirSync(dirname(report), { recursive: true });
   writeFileSync(report, md.join('\n\n') + '\n');
   log(
-    `A/B report written to ${report}: ${better.length} better, ${real.length - better.length} worse`,
+    `A/B report written to ${report}: primary rows ${measured.filter(({ r }) => r.v.real && r.v.improved).length} better, ` +
+      `${measured.filter(({ r }) => r.v.real && !r.v.improved).length} worse`,
   );
   process.exit(failures.length ? 1 : 0);
 }
@@ -992,6 +1055,47 @@ md.push(
 );
 if (findings.length) md.push(findings.map((f) => `- ${f}`).join('\n'));
 
+// The primary rows: the moments a player waits on (bench/primary.mjs)
+{
+  const now = flatten(results);
+  const then = BASELINE
+    ? flatten({
+        client: {
+          vitest: BASELINE.client,
+          sidecars: { startup: BASELINE.startup },
+        },
+        server: { data: BASELINE.server },
+        browser: { data: BASELINE.browser },
+      })
+    : null;
+  const rows = PRIMARY.map((p) => {
+    const m = now.get(keyOf(p));
+    if (!m) return [p.moment, 'not measured', ''];
+    const b = then?.get(keyOf(p));
+    // The change only: the tables below judge it against each row's noise
+    const vs = b ? compareMetric(m.value, b.value, m.better, Infinity)?.text : '';
+    return [
+      p.moment,
+      shown(m.value, m.unit),
+      `${p.tier} · ${p.where}`,
+      ...(then ? [vs ?? ''] : []),
+    ];
+  });
+  md.push('## Primary rows');
+  md.push(
+    'One number for each moment a player waits on, from the player’s action to what they see ' +
+      '(`bench/primary.mjs`); everything after them says where the time goes. `--primary` runs ' +
+      'only what these need.',
+  );
+  md.push(
+    table({
+      columns: ['Moment', 'Value', 'From', ...(then ? ['vs baseline'] : [])],
+      align: ['l', 'r', 'l', 'r'],
+      rows,
+    }),
+  );
+}
+
 md.push('## Environment');
 md.push(table({ columns: ['', ''], rows: Object.entries(env), align: ['l', 'l'] }));
 for (const tier of ['server', 'browser']) {
@@ -1019,6 +1123,7 @@ if (results.client) {
     ['engine', 'Rules engine (`client/src/engine`)'],
     ['game', 'Event-sourced game state (`client/src/game`)'],
     ['interaction', 'Board interaction math (`client/src/three`)'],
+    ['ai', 'The computer’s search (`client/src/ai`)'],
   ];
   const baseBench = BASELINE?.client
     ? new Map(
@@ -1138,8 +1243,11 @@ md.push(
     '# once',
     '(cd client && npm ci) && (cd server && uv sync --extra test)',
     '',
-    '# everything, then read bench/RESULTS.md (raw JSON in bench/out/)',
+    '# everything, then read bench/out/RESULTS.md (raw JSON beside it)',
     'node bench/run.mjs',
+    '',
+    '# the primary rows only (the moments a player waits on): what to run while iterating',
+    'node bench/run.mjs --primary --base main      # A/B against main, report in bench/out/AB.md',
     '',
     '# one tier, or a fast smoke run',
     'node bench/run.mjs --only client',

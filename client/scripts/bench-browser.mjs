@@ -3,7 +3,7 @@
 // headless Chromium against a production build of the client and a local
 // backend.
 //
-//   node scripts/bench-browser.mjs --out /tmp/bench-browser.json [--quick]
+//   node scripts/bench-browser.mjs --out /tmp/bench-browser.json [--quick | --profile primary]
 //
 // Self-contained: it picks free ports, starts the backend (server/.venv's
 // uvicorn, or `uv run`), builds the client with VITE_WS_URL pointing at that
@@ -12,7 +12,7 @@
 // scenarios, writes the report and tears everything down again, also on an
 // error or Ctrl-C. --quick runs fewer and shorter cases (about a minute
 // instead of about three). --only a,b runs a subset of the scenarios, by key:
-// bundle, cold-load, setup, move-latency, reopen, presence, select, render,
+// bundle, cold-load, setup, move-latency, computer, reopen, presence, select, render,
 // typed-paste. --keep keeps the temporary build and logs. Every section's
 // rows come with a metrics list (the row's primary number, keyed stably) for
 // comparing runs, and raw.timings holds each step's wall time. A section that
@@ -66,6 +66,7 @@ const SECTION_KEYS = [
   'cold-load',
   'setup',
   'move-latency',
+  'computer',
   'reopen',
   'presence',
   'select',
@@ -91,11 +92,17 @@ const CHROMIUM_ARGS = [
 
 // A long, quiet game that the draw rules never end (bench/longGame.ts: no
 // capture, check or promotion, no position twice, a pawn move every forty
-// plies), the same on every run: its moves are typed in the move-latency
-// section and seeded for the reopen. (The knight shuffle played before it
-// stood the opening position a third time at ply 8: a draw by repetition.)
+// plies), the same on every run: seeded for the reopen and the other boards.
+// (The knight shuffle played before it stood the opening position a third
+// time at ply 8: a draw by repetition.)
 const LONG_GAME = JSON.parse(
   fs.readFileSync(new URL('../bench/longGame.json', import.meta.url), 'utf8'),
+);
+// The game whose moves the move-latency section plays (bench/tacticalGame.ts:
+// real play, with captures by both sides and a check), each ply's move and
+// whether it takes or checks
+const TACTICAL_GAME = JSON.parse(
+  fs.readFileSync(new URL('../bench/tacticalGame.json', import.meta.url), 'utf8'),
 );
 const gameMove = (i) => {
   if (i >= LONG_GAME.length)
@@ -103,33 +110,65 @@ const gameMove = (i) => {
   return LONG_GAME[i];
 };
 
-const CFG = QUICK
-  ? {
-      coldRuns: 2,
-      setupRuns: 1,
-      moves: 3,
-      selects: 3,
-      selectsAfterTurn: 2,
-      reopenPlies: [0, 100, 500],
-      reopenRuns: 1,
-      flaps: [50],
-      idleMs: 1000,
-      orbitMs: 1500,
-      typedLengths: [5000, 20000],
-    }
-  : {
-      coldRuns: 6,
-      setupRuns: 2,
-      moves: 10,
-      selects: 8,
-      selectsAfterTurn: 4,
-      reopenPlies: [0, 100, 500, 2000],
-      reopenRuns: 2,
-      flaps: [0, 200],
-      idleMs: 2000,
-      orbitMs: 3000,
-      typedLengths: [2500, 5000, 10000, 20000],
-    };
+// How much of each scenario a run does, by profile: `full` (the default),
+// `quick` (--quick: a check that every section runs, too few samples to
+// compare) and `primary` (--profile primary: what bench/primary.mjs's rows
+// need, few enough to repeat in an A/B pair while iterating; bench/run.mjs
+// --primary asks for it)
+const FULL = {
+  coldRuns: 6,
+  coldCases: ['desktop', 'phone', 'phone-cpu4-4g'],
+  setupRuns: 2,
+  moves: 32,
+  computerRuns: 2,
+  computerMoves: 3,
+  selects: 8,
+  selectsAfterTurn: 4,
+  reopenPlies: [0, 100, 500, 2000],
+  reopenRuns: 2,
+  flaps: [0, 200],
+  idleMs: 2000,
+  orbitMs: 3000,
+  typedLengths: [2500, 5000, 10000, 20000],
+};
+const PROFILES = {
+  full: FULL,
+  quick: {
+    ...FULL,
+    coldRuns: 2,
+    setupRuns: 1,
+    moves: 8,
+    computerRuns: 1,
+    computerMoves: 2,
+    selects: 3,
+    selectsAfterTurn: 2,
+    reopenPlies: [0, 100, 500],
+    reopenRuns: 1,
+    flaps: [50],
+    idleMs: 1000,
+    orbitMs: 1500,
+    typedLengths: [5000, 20000],
+  },
+  // Only the cases the primary rows read; the pairs of an A/B repeat them
+  primary: {
+    ...FULL,
+    coldRuns: 5,
+    coldCases: ['desktop', 'phone-cpu4-4g'],
+    setupRuns: 1,
+    moves: 16,
+    computerRuns: 1,
+    computerMoves: 2,
+    selectsAfterTurn: 0,
+    reopenPlies: [2000],
+    reopenRuns: 1,
+  },
+};
+const PROFILE = QUICK ? 'quick' : opt('profile', 'full');
+if (!PROFILES[PROFILE]) {
+  console.error(`--profile takes one of: ${Object.keys(PROFILES).join(', ')}`);
+  process.exit(2);
+}
+const CFG = PROFILES[PROFILE];
 
 const VIEWPORTS = {
   desktop: {
@@ -337,7 +376,7 @@ const BENCH_INIT = () => {
     wsUrls: [],
     clicks: [], // [time, target text]
     enter: [], // Enter keydowns in the move box
-    renders: [], // renderer.render() calls: [start, main-thread duration]
+    renders: [], // renderer.render() calls: [start, main-thread duration, garden, draw calls, triangles]
     r3fAt: null,
     firsts: {}, // first time each landmark was in the DOM
     counts: [], // move-announcer data-move-count: [time, count, data-last-move]
@@ -347,6 +386,8 @@ const BENCH_INIT = () => {
     syncs: [], // WebGL queries that held the main thread ≥ 2 ms: [time, name, duration]
     stage: [], // the route and the lobby's beat and scene as they change: [time, path, beat, scene]
     raf: [], // every animation frame's start (the page's frame pacing, canvases or not)
+    workers: [], // workers started: [time]
+    think: [], // the computer's requests to its worker: { id, asked, answered, nodes, depth }
   };
   Object.defineProperty(window, '__bench', { value: b });
   Object.defineProperty(window, '__benchNow', { value: now });
@@ -415,6 +456,27 @@ const BENCH_INIT = () => {
       });
     }
   };
+  // The computer's worker (ai/computer.ts): each request and its answer
+  const NativeWorker = window.Worker;
+  if (NativeWorker) {
+    window.Worker = class extends NativeWorker {
+      constructor(...args) {
+        super(...args);
+        b.workers.push(now());
+        this.addEventListener('message', (e) => {
+          const t = b.think.find((x) => x.id === e.data?.id && x.answered == null);
+          if (!t) return;
+          t.answered = now();
+          t.nodes = e.data.move?.nodes ?? null;
+          t.depth = e.data.move?.depth ?? null;
+        });
+      }
+      postMessage(msg, ...rest) {
+        if (typeof msg?.id === 'number') b.think.push({ id: msg.id, asked: now() });
+        return super.postMessage(msg, ...rest);
+      }
+    };
+  }
   addEventListener(
     'click',
     (e) => b.clicks.push([now(), (e.target?.textContent || '').trim().slice(0, 40)]),
@@ -466,6 +528,9 @@ const BENCH_INIT = () => {
       (buttonNamed('Join game') || buttonNamed('Join Game'))
     )
       f.joinButton = t;
+    if (!f.sideChoice && document.querySelector('[aria-label="Choose your side"] button')) {
+      f.sideChoice = t;
+    }
     if (
       inGame &&
       !f.shareScreen &&
@@ -532,7 +597,14 @@ const BENCH_INIT = () => {
         try {
           return render.call(this, scene, camera);
         } finally {
-          b.renders.push([performance.timeOrigin + t0, performance.now() - t0, gardenMode(scene)]);
+          const { calls, triangles } = this.info.render;
+          b.renders.push([
+            performance.timeOrigin + t0,
+            performance.now() - t0,
+            gardenMode(scene),
+            calls,
+            triangles,
+          ]);
         }
       };
     },
@@ -552,6 +624,14 @@ const waitBoard = (page, timeout = 120000) =>
       !document.querySelector('[data-intro="playing"]'),
     null,
     { polling: 100, timeout },
+  );
+
+/** Waits until the game's board has drawn its first frame (its entrance may still be playing). */
+const waitFirstFrame = (page, timeout = 120000) =>
+  page.waitForFunction(
+    () => window.__bench.renders.length > 0 && !!window.__bench.firsts.turnIndicator,
+    null,
+    { polling: 50, timeout },
   );
 
 /**
@@ -1009,12 +1089,12 @@ async function coldSection(browser) {
     { key: 'desktop', label: 'desktop', vp: 'desktop' },
     { key: 'phone', label: 'phone', vp: 'phone' },
     { key: 'phone-cpu4-4g', label: 'phone, 4× CPU, Fast 4G', vp: 'phone', cpu: 4, net: FAST_4G },
-  ];
+  ].filter((c) => CFG.coldCases.includes(c.key));
   await section(
     'cold-load',
     {
       title: 'Cold load of the start screen',
-      intro: `A first visit: a fresh browser context (empty cache) opens \`/\` until the “Play a friend” button is enabled and the socket to the server is open, ${CFG.coldRuns} runs per case. Desktop is ${VIEWPORTS.desktop.label}, phone ${VIEWPORTS.phone.label}; the third case models a mid-range phone on a mobile network: DevTools’ 4× CPU throttling and its “Fast 4G” preset (165 ms RTT, 8.1 Mbit/s down). Served from localhost by \`vite preview\` (gzip); nothing here draws WebGL.`,
+      intro: `A first visit: a fresh browser context (empty cache) opens \`/\` until the “Play a friend” button is enabled and the socket to the server is open (“ready”), then clicks the button at once, until the side choice shows, ${CFG.coldRuns} runs per case. Desktop is ${VIEWPORTS.desktop.label}, phone ${VIEWPORTS.phone.label}; the third case models a mid-range phone on a mobile network: DevTools’ 4× CPU throttling and its “Fast 4G” preset (165 ms RTT, 8.1 Mbit/s down). Served from localhost by \`vite preview\` (gzip); nothing here draws WebGL.`,
       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
       align: ['l', 'l', 'r', 'r', 'r', 'r'],
       timeoutMs: QUICK ? 120000 : 300000,
@@ -1039,6 +1119,15 @@ async function coldSection(browser) {
             { polling: 20, timeout: 30000 },
           );
           const pm = await perfMetrics(cdp);
+          // The player clicks “Play a friend” the moment it works: until the
+          // side choice shows, whatever the page still does after its ready
+          // (the start page's preview fetching and building the board) is in
+          // the way
+          await page.getByRole('button', { name: /^(Play a friend|Start a game)\b/ }).click();
+          await page.waitForFunction(() => window.__bench.firsts.sideChoice, null, {
+            polling: 20,
+            timeout: 30000,
+          });
           await page
             .waitForFunction(
               () => performance.getEntriesByName('first-contentful-paint').length > 0,
@@ -1062,6 +1151,9 @@ async function coldSection(browser) {
               button: b.firsts.createButton - t0,
               socket: b.wsOpen[0] - t0,
               ready: ready - t0,
+              clickToChoice:
+                b.firsts.sideChoice -
+                b.clicks.find((c) => /^(Play a friend|Start a game)/.test(c[1]))?.[0],
               longest: lts.length ? Math.max(...lts.map((l) => l[1])) : 0,
               transfer: nav.transferSize + res.reduce((s, r) => s + (r.transferSize || 0), 0),
               jsTransfer: res
@@ -1091,6 +1183,7 @@ async function coldSection(browser) {
           ['socket open', 'socket'],
           ['main-thread script, to ready', 'script'],
           ['longest task, to ready', 'longest'],
+          ['click at ready → side choice shown', 'clickToChoice'],
         ];
         metrics.forEach(([label, k], i) => {
           const [row, m] = stat(label, col(k));
@@ -1117,15 +1210,26 @@ async function coldSection(browser) {
 }
 
 // 3. Game setup through the UI ----------------------------------------------
+//
+// Each player's side of the meeting is timed on its own, against a socket
+// from here for the other player: two pages in one browser share its GPU
+// process and this machine's cores, so a page would be timed waiting on the
+// other's shader compiles, which players on two devices never do (that
+// contention made the joiner's first frame swing between 3 and 12 s).
 
-/** Creator clicks create, joiner opens the link and joins; both boards up. */
-async function setupViaUI(browser, scope) {
-  const ctxA = scope.ctx(await newBenchContext(browser, 'desktop'));
-  const ctxB = scope.ctx(await newBenchContext(browser, 'desktop'));
-  const pageA = await ctxA.newPage();
-  const pageB = await ctxB.newPage();
-  await pageA.goto(`${BASE}/`);
-  await pageA.waitForFunction(
+const isPlayAFriend = (text) => /^(Play a friend|Start a game)\b/.test(text);
+
+/**
+ * The creator's side: the start page's “Play a friend”, White, the share
+ * link; a socket joins as Black, and the creator's board comes up. Returns
+ * the timings and the game (the page as White, Black's socket), kept for
+ * the move-latency section.
+ */
+async function createViaUI(browser, scope, { keep = true } = {}) {
+  const ctx = scope.ctx(await newBenchContext(browser, 'desktop'));
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/`);
+  await page.waitForFunction(
     () => window.__bench.firsts.createButton && window.__bench.wsOpen.length > 0,
     null,
     { polling: 50 },
@@ -1135,97 +1239,91 @@ async function setupViaUI(browser, scope) {
   // label (the home page's tiles end in a drawn "→"). It was named "Start a
   // game" before the home page had two ways to play, as a base commit may
   // still have it.
-  await pageA.getByRole('button', { name: /^(Play a friend|Start a game)\b/ }).click();
+  await page.getByRole('button', { name: /^(Play a friend|Start a game)\b/ }).click();
   // The side choice (/new), where a pick asks the server for the game; a
   // build without one asks on "Play a friend" and goes straight to the game
-  await pageA.waitForURL(/\/(new|game\/)/);
-  const chose = new URL(pageA.url()).pathname === '/new';
-  if (chose) await pageA.getByRole('button', { name: /^White\b/ }).click();
-  await pageA.waitForFunction(() => window.__bench.firsts.shareScreen, null, { polling: 50 });
-  await pageB.goto(pageA.url());
-  await pageB.getByRole('button', { name: /^Join game\b/i }).click();
-  await Promise.all([waitBoard(pageA), waitBoard(pageB)]);
-  const [a, b] = await Promise.all([snap(pageA), snap(pageB)]);
-  // The programs the joiner's board has linked: each one's shaders, briefly
-  const programs = await pageB.evaluate(() => {
-    const { gl } = window.__r3fState.get();
-    const ctx = gl.getContext();
-    return gl.info.programs.map((p) => {
-      const src = ctx.getShaderSource(p.fragmentShader) ?? '';
-      const body = src.slice(src.lastIndexOf('void main')).replace(/\s+/g, ' ');
-      return [src.length, body.slice(0, 140)];
-    });
-  });
-  const clickA = a.clicks.find((c) =>
-    chose ? c[1].startsWith('White') : /^(Play a friend|Start a game)\b/.test(c[1]),
-  )?.[0];
-  const clickB = b.clicks.find((c) => /^Join game$/i.test(c[1]))?.[0];
-  const rxOf = (s, type) => s.rx.find((r) => r[1] === type)?.[0];
-  const frameB = firstFrameEnd(b);
+  await page.waitForURL(/\/(new|game\/)/);
+  const chose = new URL(page.url()).pathname === '/new';
+  if (chose) await page.getByRole('button', { name: /^White\b/ }).click();
+  await page.waitForFunction(() => window.__bench.firsts.shareScreen, null, { polling: 50 });
+  const gameId = new URL(page.url()).pathname.split('/').pop();
+  // The friend arrives
+  const black = scope.sock(await Sock.open(WS_URL));
+  const joinSent = nodeNow();
+  black.send({ type: 'join_game', gameId, clientId: `bench-${gameId}-black` });
+  await black.waitType('game_start');
+  // The board's first frame; a game kept for playing on waits out its entrance too
+  await (keep ? waitBoard(page) : waitFirstFrame(page));
+  const a = await snap(page);
+  const click = a.clicks.find((c) => (chose ? c[1].startsWith('White') : isPlayAFriend(c[1])))?.[0];
+  const rxOf = (type) => a.rx.find((r) => r[1] === type)?.[0];
   const t = {
-    createRtt: rxOf(a, 'game_created') - clickA,
-    createShown: a.firsts.shareScreen - clickA,
+    createRtt: rxOf('game_created') - click,
+    createShown: a.firsts.shareScreen - click,
+    creatorStart: rxOf('game_start') - joinSent,
+    creatorFrame: firstFrameEnd(a) - joinSent,
     // Where the creator's wait goes: what happened from the pick to the link
     createTrace: {
-      created: rxOf(a, 'game_created') - clickA,
       stages: a.stage
-        .filter(([s]) => s >= clickA - 1 && s <= a.firsts.shareScreen + 1)
-        .map(([s, ...rest]) => [Math.round(s - clickA), ...rest]),
-      longTasks: tasksIn(a.lt, clickA, a.firsts.shareScreen).map(([s, d]) => [
-        Math.round(s - clickA),
+        .filter(([s]) => s >= click - 1 && s <= a.firsts.shareScreen + 1)
+        .map(([s, ...rest]) => [Math.round(s - click), ...rest]),
+      longTasks: tasksIn(a.lt, click, a.firsts.shareScreen).map(([s, d]) => [
+        Math.round(s - click),
         Math.round(d),
       ]),
       links: (a.linked ?? [])
-        .filter(([l]) => l >= clickA && l <= a.firsts.shareScreen)
-        .map(([l, what]) => [Math.round(l - clickA), what]),
-      syncs: (a.syncs ?? [])
-        .filter(([u]) => u >= clickA && u <= a.firsts.shareScreen)
-        .map(([u, n, d]) => [Math.round(u - clickA), n, Math.round(d)]),
-      frames: a.raf.filter((s) => s >= clickA && s <= a.firsts.shareScreen).length,
-      longestFrame: maxOf(
-        a.raf
-          .filter((s) => s >= clickA && s <= a.firsts.shareScreen)
-          .map((s, i, all) => (i ? s - all[i - 1] : 0)),
-      ),
+        .filter(([l]) => l >= click && l <= a.firsts.shareScreen)
+        .map(([l, what]) => [Math.round(l - click), what]),
     },
+  };
+  return { t, game: { page, black } };
+}
+
+/**
+ * The joiner's side: a socket creates the game as White; the page opens its
+ * link, joins with “Join game” and its board comes up.
+ */
+async function joinViaUI(browser, scope) {
+  const white = scope.sock(await Sock.open(WS_URL));
+  white.send({ type: 'create_game', clientId: `bench-${Date.now()}-white`, color: 'white' });
+  await white.waitType('game_created');
+  const { gameId } = white.last.game_created;
+  const ctx = scope.ctx(await newBenchContext(browser, 'desktop'));
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/game/${gameId}`);
+  await page.getByRole('button', { name: /^Join game\b/i }).click();
+  await waitFirstFrame(page);
+  const b = await snap(page);
+  const click = b.clicks.find((c) => /^Join game$/i.test(c[1]))?.[0];
+  const frame = firstFrameEnd(b);
+  const [first] = b.renders;
+  const within = (t) => t >= first[0] && t <= first[0] + first[1];
+  return {
+    joinButton: b.firsts.joinButton - b.timeOrigin,
+    joinStart: b.rx.find((r) => r[1] === 'game_start')?.[0] - click,
+    joinerFrame: frame - click,
+    firstRenderCpu: first[1],
+    joinerLongest: maxOf([0, ...tasksIn(b.lt, click, frame).map((l) => l[1])]),
+    joinerLongTotal: sum(tasksIn(b.lt, click, frame).map((l) => l[1])),
+    joinerLinks: (b.links ?? []).filter((l) => l >= click && l <= frame).length,
+    firstRenderLinks: (b.links ?? []).filter(within).length,
+    firstRenderSyncs: (b.syncs ?? [])
+      .filter(([t]) => within(t))
+      .map(([t, n, d]) => [Math.round(t - first[0]), n, Math.round(d)]),
     // Where the joiner's wait goes: what happened from the click to its first frame
     joinTrace: {
       stages: b.stage
-        .filter(([t]) => t >= clickB - 1 && t <= frameB + 1)
-        .map(([t, ...rest]) => [Math.round(t - clickB), ...rest]),
-      longTasks: tasksIn(b.lt, clickB - 2000, frameB).map(([t, d]) => [
-        Math.round(t - clickB),
+        .filter(([t]) => t >= click - 1 && t <= frame + 1)
+        .map(([t, ...rest]) => [Math.round(t - click), ...rest]),
+      longTasks: tasksIn(b.lt, click - 2000, frame).map(([t, d]) => [
+        Math.round(t - click),
         Math.round(d),
       ]),
       links: (b.linked ?? [])
-        .filter(([l]) => l >= clickB - 2000 && l <= frameB)
-        .map(([l, what, where]) => [Math.round(l - clickB), where, what.slice(0, 40)]),
-      syncs: (b.syncs ?? [])
-        .filter(([u]) => u >= clickB - 2000 && u <= frameB)
-        .map(([u, n, d]) => [Math.round(u - clickB), n, Math.round(d)]),
-      renders: b.renders
-        .filter(([t]) => t >= clickB - 2000 && t <= frameB)
-        .map(([t, d, m]) => [Math.round(t - clickB), Math.round(d), m]),
+        .filter(([l]) => l >= click - 2000 && l <= frame)
+        .map(([l, what, where]) => [Math.round(l - click), where, what.slice(0, 40)]),
     },
-    joinButton: b.firsts.joinButton - b.timeOrigin,
-    joinStart: rxOf(b, 'game_start') - clickB,
-    joinerFrame: frameB - clickB,
-    creatorFrame: firstFrameEnd(a) - clickB,
-    firstRenderCpu: b.renders[0][1],
-    joinerLongest: maxOf(tasksIn(b.lt, clickB, frameB).map((l) => l[1])),
-    joinerLongTotal: sum(tasksIn(b.lt, clickB, frameB).map((l) => l[1])),
-    programs,
-    joinerLinks: (b.links ?? []).filter((l) => l >= clickB && l <= frameB).length,
-    firstRenderSyncs: (b.syncs ?? [])
-      .filter(([t]) => t >= b.renders[0][0] && t <= b.renders[0][0] + b.renders[0][1])
-      .map(([t, n, d]) => [Math.round(t - b.renders[0][0]), n, Math.round(d)]),
-    firstRenderLinks: (b.links ?? []).filter(
-      (l) => l >= b.renders[0][0] && l <= b.renders[0][0] + b.renders[0][1],
-    ).length,
   };
-  const seatA = await pageA.getByTestId('seat').getAttribute('data-seat');
-  const seats = { [seatA]: pageA, [other(seatA)]: pageB };
-  return { t, seats };
 }
 
 async function setupSection(browser, shared) {
@@ -1233,49 +1331,59 @@ async function setupSection(browser, shared) {
     'setup',
     {
       title: 'Game setup',
-      intro: `Two players meet: the creator clicks “Play a friend”, picks White and gets the share link (“create: click” is the pick, which asks the server for the game); the joiner (a second fresh context) opens it and clicks “Join game”; done when both pages have the board mounted, its first frame drawn and the game’s entrance over. ${CFG.setupRuns} run(s), desktop viewport, both pages on the same VM. The first frame includes building the scene and its shader programs, which SwiftShader does on the CPU (the browser drew a board before this section, so the GPU process’s shader cache is warm, as for a returning player). ${SW_NOTE}`,
+      intro: `Two players meet, each side timed on its own page with the other player a socket from here (two pages in one browser would share its GPU process and wait on each other’s shader compiles, as players on two devices never do). The creator clicks “Play a friend”, picks White and gets the share link (“create: click” is the pick, which asks the server for the game), then a socket joins and the creator’s board comes up. The joiner opens a socket-created game’s link and clicks “Join game”. Done when the page has the board mounted, its first frame drawn and the game’s entrance over. ${CFG.setupRuns} run(s) of each, desktop viewport. The first frame includes building the scene and its shader programs, which SwiftShader does on the CPU (the browser drew a board before this section, so the GPU process’s shader cache is warm, as for a returning player). ${SW_NOTE}`,
       columns: ['Step', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
     },
     async (sec) => {
-      const runs = [];
+      const created = [];
+      const joined = [];
       for (let i = 0; i < CFG.setupRuns; i++) {
+        // Turn about, so drift weighs on both alike
+        const scope = new Scope();
+        try {
+          joined.push(await joinViaUI(browser, scope));
+        } finally {
+          await scope.close();
+        }
         const last = i === CFG.setupRuns - 1;
-        // The last run's game is kept for the move-latency section
+        // The last creator's game is kept for the move-latency section
         const runScope = last ? shared.scope : new Scope();
         try {
-          const { t, seats } = await setupViaUI(browser, runScope);
-          runs.push(t);
-          if (last) shared.game = seats;
+          const { t, game } = await createViaUI(browser, runScope, { keep: last });
+          created.push(t);
+          if (last) shared.game = game;
         } finally {
           if (!last) await runScope.close();
         }
       }
-      raw.setup = runs;
-      const col = (k) => runs.map((r) => r[k]);
+      raw.setup = { created, joined };
+      const c = (k) => created.map((r) => r[k]);
+      const j = (k) => joined.map((r) => r[k]);
       sec.addAll([
-        stat('create: click → game_created received', col('createRtt'), 'server round trip'),
-        stat('create: click → share link shown', col('createShown')),
-        stat('join: navigation → Join button', col('joinButton'), 'cold page load'),
-        stat('join: click → game_start received', col('joinStart')),
-        stat('join: click → joiner’s first frame', col('joinerFrame'), 'board usable'),
-        stat('join: click → creator’s first frame', col('creatorFrame')),
+        stat('create: click → game_created received', c('createRtt'), 'server round trip'),
+        stat('create: click → share link shown', c('createShown')),
+        stat('creator: friend joins → game_start received', c('creatorStart')),
+        stat('creator: friend joins → first frame', c('creatorFrame'), 'board usable'),
+        stat('join: navigation → Join button', j('joinButton'), 'cold page load'),
+        stat('join: click → game_start received', j('joinStart')),
+        stat('join: click → joiner’s first frame', j('joinerFrame'), 'board usable'),
         stat(
           'joiner’s first render() call',
-          col('firstRenderCpu'),
+          j('firstRenderCpu'),
           'main thread, incl. shader setup',
         ),
-        stat('joiner: longest task, click → frame', col('joinerLongest')),
-        stat('joiner: long tasks total, click → frame', col('joinerLongTotal')),
+        stat('joiner: longest task, click → frame', j('joinerLongest')),
+        stat('joiner: long tasks total, click → frame', j('joinerLongTotal')),
         countStat(
           'joiner: shader programs linked, click → frame',
-          col('joinerLinks'),
+          j('joinerLinks'),
           'count; lobby’s and board’s',
         ),
         countStat(
           'joiner’s first render(): shader programs linked',
-          col('firstRenderLinks'),
+          j('firstRenderLinks'),
           'count',
         ),
       ]);
@@ -1285,101 +1393,385 @@ async function setupSection(browser, shared) {
 
 // 4. Move latency through the real UI ---------------------------------------
 
+/**
+ * A page pixel that clicks the square `zxy` (its piece, or its highlighted
+ * cell) through the app's raycasting; throws if none reaches it.
+ */
+async function clickSquare(page, zxy) {
+  // A piece gliding through the line of sight can block every sample for a
+  // moment: poll briefly before giving up
+  const deadline = Date.now() + 3000;
+  let at = await squarePixel(page, zxy);
+  while (!at && Date.now() < deadline) {
+    await sleep(100);
+    at = await squarePixel(page, zxy);
+  }
+  if (!at) throw new Error(`no pixel reaches ${zxy}`);
+  await page.mouse.click(at.x, at.y);
+}
+
+/** Waits until `zxy` is drawn as a destination of the piece picked up (its cell takes the click). */
+const waitDestination = (page, zxy) =>
+  page.waitForFunction(
+    (target) => {
+      let found = false;
+      window.__r3fState.get().scene.traverse((o) => {
+        if (o.userData?.cube && o.userData.highlight && o.userData.zxy === target) found = true;
+      });
+      return found;
+    },
+    zxy,
+    { polling: 50, timeout: 30000 },
+  );
+
+/** How long after a move's first frame its landing is watched: the glide and a capture's topple. */
+const LANDING_MS = 1200;
+
+/** The renderer's live resources (three.js `info`), for a leak check over a game. */
+const RESOURCES = () => {
+  const { gl } = window.__r3fState.get();
+  return {
+    geometries: gl.info.memory.geometries,
+    textures: gl.info.memory.textures,
+    programs: gl.info.programs?.length ?? NaN,
+  };
+};
+
 async function movesSection(browser, shared) {
+  const plies = TACTICAL_GAME.slice(0, CFG.moves);
+  const kinds = (p) =>
+    [p.capture && 'capture', p.check && 'check'].filter(Boolean).join(' + ') || 'quiet';
   await section(
     'move-latency',
     {
-      title: 'Move latency through the move box',
-      intro: `${CFG.moves} plies of the bench’s long game (quiet moves, no capture or check), each typed into the move box (\`#typed-move\`) and sent with Enter on the page of the side to move, the next once both pages have drawn it. Timed on the pages’ clocks from the Enter keydown to the move-announcer’s \`data-move-count\` changing (React’s commit) on the mover’s page and on the opponent’s. Both players’ pages run on the same VM. ${SW_NOTE}`,
+      title: 'Move latency',
+      intro: `${plies.length} plies of the bench’s tactical game (\`client/bench/tacticalGame.ts\`: the opening of a real game, ${plies.filter((p) => p.capture).length} captures and ${plies.filter((p) => p.check).length} check among them), on the creator’s page from the setup section (White) against a socket (Black). White’s moves are clicked on the board, the piece and then its destination, through the app’s raycasting as the e2e suite clicks; Black’s are sent by the socket. Timed on the page’s clock (comparable with this process’s) from the destination click, or the socket’s send, to the move-announcer’s \`data-move-count\` changing (React’s commit) and to the end of the first frame drawn after it. Each move’s landing (its glide, and a taken piece’s topple) is then watched for ${LANDING_MS} ms before the next. ${SW_NOTE}`,
       columns: ['Measure', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
     },
     async (sec, scope) => {
-      let seats = shared.game;
-      if (!seats) {
+      let game = shared.game;
+      if (!game) {
         log('  (setup section gave no game; starting one)');
-        seats = (await setupViaUI(browser, scope)).seats;
+        game = (await createViaUI(browser, scope)).game;
       }
-      await Promise.all([settle(seats.white), settle(seats.black)]);
+      const { page, black } = game;
+      await settle(page);
+      const before = await page.evaluate(RESOURCES);
       const moves = [];
-      for (let i = 0; i < CFG.moves; i++) {
-        const side = i % 2 === 0 ? 'white' : 'black';
-        const mover = seats[side];
-        const opp = seats[other(side)];
-        const text = gameMove(i);
-        await mover.focus('#typed-move');
-        await mover.keyboard.insertText(text);
-        await mover.keyboard.press('Enter');
-        await Promise.all([waitCount(mover, i + 1), waitCount(opp, i + 1)]);
-        const commitOf = async (page) =>
-          page.evaluate((n) => window.__bench.counts.find((c) => c[1] === n)[0], i + 1);
-        await Promise.all(
-          [mover, opp].map(async (page) => waitFrameAfter(page, await commitOf(page))),
-        );
-        const [m, o] = await Promise.all([snap(mover), snap(opp)]);
-        const enter = m.enter.at(-1);
-        const shownM = m.counts.find((c) => c[1] === i + 1);
-        const shownO = o.counts.find((c) => c[1] === i + 1);
-        if (shownM[2] !== text || shownO[2] !== text) {
-          throw new Error(`ply ${i + 1}: expected ${text}, pages show ${shownM[2]} / ${shownO[2]}`);
+      for (let i = 0; i < plies.length; i++) {
+        const { move, capture, check } = plies[i];
+        const [from, to] = move.split('-');
+        const white = i % 2 === 0;
+        let start;
+        if (white) {
+          // Pick the piece up (not timed), then click where it goes
+          await clickSquare(page, from);
+          await waitDestination(page, to);
+          const t = await page.evaluate(() => window.__benchNow());
+          await waitFrameAfter(page, t);
+          const tClick = await page.evaluate(() => window.__benchNow());
+          await clickSquare(page, to);
+          start = (await snap(page)).clicks.find((c) => c[0] >= tClick)?.[0];
+        } else {
+          start = nodeNow();
+          black.send({ type: 'move', from, to });
         }
-        const echo = m.rx.find((r) => r[0] >= enter && r[1] === 'move_made')?.[0];
-        const oRx = o.rx.find((r) => r[0] >= enter && r[1] === 'move_made')?.[0];
-        const frameM = m.renders.find((f) => f[0] >= shownM[0]);
-        const frameO = o.renders.find((f) => f[0] >= shownO[0]);
-        const drawnM = frameM[0] + frameM[1];
-        const drawnO = frameO[0] + frameO[1];
-        const tasksM = tasksIn(m.lt, enter, drawnM).map((l) => l[1]);
-        const tasksO = tasksIn(o.lt, enter, drawnO).map((l) => l[1]);
+        await waitCount(page, i + 1);
+        const committed = await page.evaluate(
+          (n) => window.__bench.counts.find((c) => c[1] === n)[0],
+          i + 1,
+        );
+        await waitFrameAfter(page, committed);
+        const drawnAt = await page.evaluate((from) => {
+          const r = window.__bench.renders.find((f) => f[0] >= from);
+          return r[0] + r[1];
+        }, committed);
+        // Its landing, before the next move
+        await page.waitForFunction((until) => window.__benchNow() >= until, drawnAt + LANDING_MS, {
+          polling: 50,
+        });
+        const s = await snap(page);
+        const shown = s.counts.find((c) => c[1] === i + 1);
+        if (shown[2] !== move)
+          throw new Error(`ply ${i + 1}: expected ${move}, page shows ${shown[2]}`);
+        const frame = s.renders.find((f) => f[0] >= shown[0]);
+        const drawn = frame[0] + frame[1];
+        const landing = inWindow(s.renders, start, drawn + LANDING_MS);
+        const landingStarts = landing.map((f) => f[0]);
         moves.push({
           ply: i + 1,
-          wire: oRx - enter,
-          echo: echo - enter,
-          own: shownM[0] - enter,
-          opp: shownO[0] - enter,
-          oppRxToShown: shownO[0] - oRx,
-          ownFrame: drawnM - enter,
-          oppFrame: drawnO - enter,
-          longestMover: maxOf([0, ...tasksM]),
-          longMover: sum(tasksM),
-          longestOpp: maxOf([0, ...tasksO]),
-          longestRenderMover: maxOf(inWindow(m.renders, enter, drawnM).map((f) => f[1])),
-          linksMover: (m.links ?? []).filter((l) => l >= enter && l <= drawnM).length,
-          syncsMover: (m.syncs ?? [])
-            .filter(([t]) => t >= enter && t <= drawnM)
-            .map(([t, n, d]) => [Math.round(t - enter), n, Math.round(d)]),
-          linksOpp: (o.links ?? []).filter((l) => l >= enter && l <= drawnO).length,
+          side: white ? 'white' : 'black',
+          kind: kinds(plies[i]),
+          capture,
+          check,
+          echo: s.rx.find((r) => r[0] >= start && r[1] === 'move_made')?.[0] - start,
+          shown: shown[0] - start,
+          frame: drawn - start,
+          render: frame[1],
+          calls: frame[3],
+          triangles: frame[4],
+          longest: maxOf([0, ...tasksIn(s.lt, start, drawn).map((l) => l[1])]),
+          landingLongestRender: maxOf(landing.map((f) => f[1])),
+          landingLongestGap: maxOf(landingStarts.slice(1).map((t, k) => t - landingStarts[k])),
+          landingLongest: maxOf([0, ...tasksIn(s.lt, start, drawn + LANDING_MS).map((l) => l[1])]),
+          landingLinks: (s.links ?? []).filter((l) => l >= start && l <= drawn + LANDING_MS).length,
         });
       }
-      raw.moves = moves;
-      const col = (k) => moves.map((r) => r[k]);
+      const after = await page.evaluate(RESOURCES);
+      raw.moves = { plies: moves, resources: { before, after } };
+      const pick = (side, k, pred = () => true) =>
+        moves.filter((m) => m.side === side && pred(m)).map((m) => m[k]);
+      const own = (k, pred) => pick('white', k, pred);
+      const opp = (k, pred) => pick('black', k, pred);
+      const takes = (m) => m.capture;
       sec.addAll([
-        stat('Enter → opponent’s page handles move_made', col('wire'), 'send, server, relay'),
-        stat('Enter → mover’s page handles its echo', col('echo')),
-        stat('Enter → mover’s announcer updated', col('own'), 'echo, replay, React commit'),
-        stat('Enter → opponent’s announcer updated', col('opp')),
+        stat('click → page handles its echo', own('echo'), 'send, server, relay back'),
+        stat('click → announcer updated', own('shown'), 'echo, replay, React commit'),
+        stat('click → mover’s first frame with the move', own('frame'), 'what the player sees'),
         stat(
-          'opponent: move_made handled → announcer',
-          col('oppRxToShown'),
-          'client-side work only',
+          'click → mover’s first frame, captures',
+          own('frame', takes),
+          'the taken piece topples',
         ),
-        stat('Enter → mover’s first frame with the move', col('ownFrame'), 'what the player sees'),
-        stat('Enter → opponent’s first frame with the move', col('oppFrame')),
-        stat('mover: longest task, Enter → drawn', col('longestMover')),
-        stat('mover: long tasks total, Enter → drawn', col('longMover'), 'tasks ≥ 50 ms'),
-        stat('opponent: longest task, Enter → drawn', col('longestOpp')),
+        stat('mover: that frame’s render() call', own('render'), 'main thread'),
+        countStat('mover: that frame’s draw calls', own('calls'), 'count; GPU-independent'),
+        stat('mover: longest task, click → frame', own('longest')),
+        stat('opponent’s move: sent → page handles it', opp('echo'), 'server and relay'),
+        stat('opponent’s move: sent → announcer updated', opp('shown')),
+        stat('opponent’s move: sent → first frame with it', opp('frame'), 'what the player sees'),
         stat(
-          'mover: longest render() call, Enter → drawn',
-          col('longestRenderMover'),
-          'steady frames take a few ms',
+          'opponent’s move: sent → first frame, captures',
+          opp('frame', takes),
+          'one of the page’s pieces topples',
         ),
-        countStat('mover: shader programs linked, Enter → drawn', col('linksMover'), 'count'),
-        countStat('opponent: shader programs linked, Enter → drawn', col('linksOpp'), 'count'),
+        stat('opponent: longest task, sent → frame', opp('longest')),
+        stat(
+          'landing: longest render() call',
+          moves.map((m) => m.landingLongestRender),
+          `main thread, ${LANDING_MS} ms after each move’s first frame`,
+        ),
+        stat(
+          'landing: longest gap between frames',
+          moves.map((m) => m.landingLongestGap),
+          'jank',
+        ),
+        stat(
+          'landing: longest task',
+          moves.map((m) => m.landingLongest),
+        ),
+        countStat(
+          'landing: shader programs linked',
+          moves.map((m) => m.landingLinks),
+          'count; 0 once warm (WarmPrograms)',
+        ),
+        countStat(
+          `geometries alive, growth over ${moves.length} plies`,
+          [after.geometries - before.geometries],
+          `count; ${before.geometries} → ${after.geometries} (three.js info.memory)`,
+        ),
+        countStat(
+          `textures alive, growth over ${moves.length} plies`,
+          [after.textures - before.textures],
+          `count; ${before.textures} → ${after.textures}`,
+        ),
+        countStat(
+          `shader programs, growth over ${moves.length} plies`,
+          [after.programs - before.programs],
+          `count; ${before.programs} → ${after.programs}`,
+        ),
       ]);
       sec.notes.push(
-        `A “page handles” time is when the message event is dispatched on that page’s main thread, so it includes any wait for the thread (a frame being drawn). After the first ply both pages keep drawing (the last-move line’s shimmer asks for every frame; see Rendering), so later plies compete with that. The next move is typed as soon as both pages have drawn this one. Correctness guard: both pages’ data-last-move matched the typed move every ply.`,
+        `A “page handles” time is when the message event is dispatched on the page’s main thread, so it includes any wait for the thread (a frame being drawn). Captures: ${plies
+          .map((p, k) => (p.capture ? `ply ${k + 1} (${k % 2 ? 'Black' : 'White'})` : null))
+          .filter(Boolean)
+          .join(', ')}; check: ${plies
+          .map((p, k) => (p.check ? `ply ${k + 1}` : null))
+          .filter(Boolean)
+          .join(
+            ', ',
+          )}. A growth in live geometries or textures over the game is a leak (each move’s marks and effects should give back what they take). Correctness guard: the page’s data-last-move matched every ply.`,
       );
+    },
+  );
+}
+
+// 4a. Playing the computer ----------------------------------------------------
+
+/** Pawns and pieces White can try first, the pawns on their own level before the rest. */
+const WHITE_TRIES = ['Bc2', 'Bb2', 'Bd2', 'Ba2', 'Be2', 'Ab1', 'Ad1', 'Bb1', 'Bd1', 'Bc1'];
+
+/** Squares drawn as destinations of the piece picked up, by name. */
+const DESTINATIONS = () => {
+  const out = [];
+  window.__r3fState.get().scene.traverse((o) => {
+    if (o.userData?.cube && o.userData.highlight) out.push(o.userData.zxy);
+  });
+  return out.sort();
+};
+
+/**
+ * Plays a move for White by clicking, whatever the position: picks up the
+ * first piece in WHITE_TRIES that has somewhere to go and clicks its first
+ * destination (by name). Returns the page time of the destination click.
+ */
+async function clickAnyMove(page) {
+  const box = await page.locator('canvas').boundingBox();
+  for (const from of WHITE_TRIES) {
+    const at = await squarePixel(page, from);
+    if (!at) continue;
+    await page.mouse.click(at.x, at.y);
+    const shown = await page
+      .waitForFunction(DESTINATIONS, null, { polling: 50, timeout: 1500 })
+      .then(() => true)
+      .catch(() => false);
+    const to = shown ? (await page.evaluate(DESTINATIONS))[0] : null;
+    if (to && (await squarePixel(page, to))) {
+      const t = await page.evaluate(() => window.__benchNow());
+      await clickSquare(page, to);
+      return (await snap(page)).clicks.find((c) => c[0] >= t)?.[0];
+    }
+    // Nothing to do with it from here: put it down and try the next
+    await page.mouse.click(box.x + box.width * 0.04, box.y + box.height * 0.5);
+    await sleep(200);
+  }
+  throw new Error('White has no move the bench can click');
+}
+
+async function computerSection(browser) {
+  // The level that searches for its whole time (the others stop at their
+  // depth first), so its speed is the positions it gets through
+  const level = 'Hard';
+  await section(
+    'computer',
+    {
+      title: 'Playing the computer',
+      intro: `A game against the computer, ${CFG.computerRuns} run(s) in a fresh context each (${VIEWPORTS.desktop.label}): from the start page’s “Play the computer”, White and the ${level} level, into the game (the lobby’s way in, in full motion); then ${CFG.computerMoves} moves of White’s, each clicked on the board, each answered by the computer. Its search runs in a worker, started (and its code fetched) at its first move, and searches for a fixed time by level (${level}: 1,800 ms, as deep as that goes); the app then plays its move after a human pause (\`thinkTime\`, random by design), which is not timed here. “asked → answer” is the worker’s round trip, from the page’s request to its reply. ${SW_NOTE}`,
+      columns: ['Measure', 'median', 'p95', 'max', 'n', 'Notes'],
+      align: ['l', 'r', 'r', 'r', 'r', 'l'],
+      timeoutMs: QUICK ? 150000 : 300000,
+    },
+    async (sec) => {
+      const runs = [];
+      for (let r = 0; r < CFG.computerRuns; r++) {
+        const scope = new Scope();
+        try {
+          const ctx = scope.ctx(await newBenchContext(browser, 'desktop'));
+          const page = await ctx.newPage();
+          await page.goto(`${BASE}/`);
+          await page.getByRole('button', { name: /^Play the computer\b/ }).click();
+          await page.waitForURL(/\/computer$/);
+          await page.getByRole('button', { name: /^White\b/ }).click();
+          const levelButton = page
+            .getByRole('group', { name: 'Difficulty' })
+            .getByRole('button', { name: level });
+          await levelButton.waitFor();
+          const beforePick = await page.evaluate(() => window.__benchNow());
+          await levelButton.click();
+          await page.waitForURL(/\/computer\/[a-z0-9]+$/);
+          await waitBoard(page);
+          const usable = await page.evaluate(() => window.__benchNow());
+          await settle(page);
+          const moves = [];
+          for (let k = 0; k < CFG.computerMoves; k++) {
+            const click = await clickAnyMove(page);
+            await waitCount(page, 2 * k + 1);
+            await waitCount(page, 2 * k + 2, 30000);
+            const replied = await page.evaluate(
+              (n) => window.__bench.counts.find((c) => c[1] === n)[0],
+              2 * k + 2,
+            );
+            await waitFrameAfter(page, replied);
+            await quietMain(page);
+            const s = await snap(page);
+            const frame = s.renders.find((f) => f[0] >= replied);
+            const ask = s.think.filter((t) => t.asked >= click).at(0);
+            moves.push({
+              click,
+              asked: ask?.asked,
+              answered: ask?.answered,
+              nodes: ask?.nodes,
+              depth: ask?.depth,
+              shownToFrame: frame[0] + frame[1] - replied,
+            });
+          }
+          const s = await snap(page);
+          const pick = s.clicks.find((c) => c[0] >= beforePick)?.[0];
+          const thinking = moves.map((m) => {
+            const busy = tasksIn(s.lt, m.asked, m.answered).map((l) => l[1]);
+            return {
+              ...m,
+              roundTrip: m.answered - m.asked,
+              perSecond: m.nodes / ((m.answered - m.asked) / 1000),
+              longest: maxOf([0, ...busy]),
+            };
+          });
+          runs.push({
+            wayInFrame: firstFrameEnd(s) - pick,
+            wayInUsable: usable - pick,
+            workers: s.workers.length,
+            links: (s.links ?? []).filter((l) => l >= usable).length,
+            moves: thinking,
+          });
+        } finally {
+          await scope.close();
+        }
+      }
+      raw.computer = runs;
+      const all = runs.flatMap((r) => r.moves);
+      const later = runs.flatMap((r) => r.moves.slice(1));
+      sec.addAll([
+        stat(
+          `way in: ${level} click → first frame`,
+          runs.map((r) => r.wayInFrame),
+          'the lobby, then the board',
+        ),
+        stat(
+          `way in: ${level} click → entrance over`,
+          runs.map((r) => r.wayInUsable),
+          'the board takes moves',
+        ),
+        stat(
+          'first move: asked → answer from the worker',
+          runs.map((r) => r.moves[0]?.roundTrip),
+          'starts the worker, fetches the search',
+        ),
+        stat(
+          'later moves: asked → answer from the worker',
+          later.map((m) => m.roundTrip),
+        ),
+        [
+          [
+            'later moves: positions searched a second',
+            fmtNum(median(later.map((m) => m.perSecond))),
+            fmtNum(
+              quantile(
+                later.map((m) => m.perSecond),
+                0.95,
+              ),
+            ),
+            fmtNum(maxOf(later.map((m) => m.perSecond))),
+            String(later.filter((m) => ok(m.perSecond)).length),
+            `in the worker; depth ${fmtNum(median(later.map((m) => m.depth)))} (median)`,
+          ],
+          metric(median(later.map((m) => m.perSecond)), 'per_s', 'higher'),
+        ],
+        stat(
+          'while it thinks: longest task on the page',
+          all.map((m) => m.longest),
+          'the search is off the page’s thread',
+        ),
+        stat(
+          'its move: shown → first frame with it',
+          all.map((m) => m.shownToFrame),
+        ),
+        countStat(
+          'shader programs linked after the entrance',
+          runs.map((r) => r.links),
+          'count; the game screen’s warm-up included',
+        ),
+      ]);
     },
   );
 }
@@ -1412,8 +1804,12 @@ const squarePixel = (page, zxy) =>
     };
     const canvas = document.querySelector('canvas');
     const rect = canvas.getBoundingClientRect();
+    // At a piece's height first, then lower: down to an empty cell's click
+    // box, a thin slab on its floor (as the e2e suite's clickSquare samples)
+    if (!cube.geometry.boundingBox) cube.geometry.computeBoundingBox();
+    const { min, max } = cube.geometry.boundingBox;
     for (const dx of [0, 0.3, -0.3])
-      for (const dy of [0.4, 0.2, 0])
+      for (const dy of [0.4, 0.2, 0, (min.y + max.y) / 2, -0.4])
         for (const dz of [0, 0.3, -0.3]) {
           const v = at.clone();
           v.x += dx;
@@ -2204,7 +2600,7 @@ async function typedSection(browser, warm) {
     {
       title: 'Move box: validating a long pasted string',
       intro:
-        'Adversarial input to the move box: a paste of `Ab1Aa3` + N spaces + `!` submitted with Enter on White’s turn. `parseTypedMove`’s pattern has three adjacent `\\s*` runs at its end, so a long run of trailing whitespace that fails to match makes the regex backtrack over every split of it before the error shows, all on the main thread (the page cannot draw or take input meanwhile). Timed from the Enter keydown to the error text being committed; not a GPU cost, so the numbers hold on real devices of similar CPU speed.',
+        'Adversarial input to the move box: a paste of `Ab1Aa3` + N spaces + `!` submitted with Enter on White’s turn, which the move box must reject. Its validation (`parseTypedMove`) runs on the main thread, so the page cannot draw or take input meanwhile. Timed from the Enter keydown to the error text being committed; not a GPU cost, so the numbers hold on real devices of similar CPU speed.',
       columns: ['Input', 'Enter → error shown', 'longest task', 'Notes'],
       align: ['l', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 120000 : 240000,
@@ -2277,7 +2673,12 @@ async function typedSection(browser, warm) {
 }
 
 // ---------------------------------------------------------------------------
-// Findings: each backed by a number measured above
+// Findings: what was measured, in a sentence each
+//
+// Each one states numbers from this run and nothing about their cause: a
+// cause written here once stays in the report after the code has changed
+// (the report used to say a pattern backtracked quadratically next to
+// numbers that grew linearly). Comparisons are worded from the numbers.
 
 function findings() {
   const f = [];
@@ -2290,58 +2691,54 @@ function findings() {
     }
   };
   const pct = (x) => `${Math.round(x)}%`;
-  tryAdd(() => {
-    const js = raw.bundle.filter((r) => r.group === 'JS');
-    if (js.length !== 1) return null;
-    return `The build ships one JS chunk of ${fmtBytes(js[0].raw)} (${fmtBytes(js[0].gzip)} gzip, ${fmtBytes(js[0].brotli)} brotli)${js[0].three ? ', three.js included' : ''}; the start screen, which draws no 3D, downloads and runs all of it before its button works.`;
-  });
+  const med = (rows, k) => median(rows.map((r) => r[k]));
   tryAdd(() => {
     const d = raw.cold.desktop;
     const t = raw.cold['phone-cpu4-4g'];
-    const label = '4× CPU on Fast 4G';
-    return `Cold start screen: the create button is enabled ${fmtMs(median(d.map((r) => r.button)))} after navigation on desktop (median; ${fmtMs(median(d.map((r) => r.script)))} of main-thread script, longest task ${fmtMs(median(d.map((r) => r.longest)))}) and ${fmtMs(median(t.map((r) => r.button)))} for a phone at ${label} (longest task ${fmtMs(median(t.map((r) => r.longest)))}); the socket opens ${fmtMs(median(t.map((r) => r.socket)))} in.`;
+    return `Start page: “Play a friend” is enabled ${fmtMs(med(d, 'button'))} after navigation on desktop and ${fmtMs(med(t, 'button'))} on a phone at 4× CPU on Fast 4G (medians); clicked at once, it shows the side choice ${fmtMs(med(d, 'clickToChoice'))} later on desktop and ${fmtMs(med(t, 'clickToChoice'))} on that phone.`;
   });
   tryAdd(() => {
-    const s = raw.setup;
-    return `Joining a game takes ${fmtMs(median(s.map((r) => r.joinerFrame)))} (median) from the Join click to the joiner’s first frame, of which the server’s answer is ${fmtMs(median(s.map((r) => r.joinStart)))}; the first render() call alone holds the main thread for ${fmtMs(median(s.map((r) => r.firstRenderCpu)))} under SwiftShader.`;
+    const { joined, created } = raw.setup;
+    return `Joining a game: ${fmtMs(med(joined, 'joinerFrame'))} from the Join click to the joiner’s first frame (longest task ${fmtMs(med(joined, 'joinerLongest'))}, ${fmtInt(med(joined, 'joinerLinks'))} shader programs linked); the creator’s board draws ${fmtMs(med(created, 'creatorFrame'))} after the friend joins.`;
   });
   tryAdd(() => {
-    const m = raw.moves;
-    return `A typed move reaches the opponent’s announcer ${fmtMs(median(m.map((r) => r.opp)))} after Enter (median over ${m.length} plies; the mover’s own ${fmtMs(median(m.map((r) => r.own)))}, as it waits for the server’s echo), of which the send, server and relay take ${fmtMs(median(m.map((r) => r.wire)))}. It is drawn ${fmtMs(median(m.map((r) => r.oppFrame)))} after Enter on the opponent’s page: the first frame after each move holds the main thread in a single render() call (${fmtMs(median(m.map((r) => r.longestRenderMover)))} median on the mover’s page under SwiftShader), where steady frames take a few ms.`;
+    const m = raw.moves.plies;
+    const mine = m.filter((r) => r.side === 'white');
+    const theirs = m.filter((r) => r.side === 'black');
+    const { before, after } = raw.moves.resources;
+    return `A move lands ${fmtMs(med(mine, 'frame'))} after the player’s click (first frame with it, median of ${mine.length}) and ${fmtMs(med(theirs, 'frame'))} after the opponent sends one; ${fmtInt(sum(m.map((r) => r.landingLinks)))} shader programs were linked during ${m.length} landings, and the renderer’s live geometries went from ${before.geometries} to ${after.geometries} over the game and its textures from ${before.textures} to ${after.textures}.`;
+  });
+  tryAdd(() => {
+    const runs = raw.computer;
+    const later = runs.flatMap((r) => r.moves.slice(1));
+    const all = runs.flatMap((r) => r.moves);
+    return `Playing the computer: its first answer took ${fmtMs(median(runs.map((r) => r.moves[0].roundTrip)))} from request to reply (the worker started, the search fetched), later ones ${fmtMs(med(later, 'roundTrip'))}, at ${fmtNum(med(later, 'perSecond'))} positions a second; the page’s longest task while it thought was ${fmtMs(maxOf(all.map((m) => m.longest)))}.`;
   });
   tryAdd(() => {
     const hs = Object.keys(raw.reopen)
       .map(Number)
       .sort((a, b) => a - b);
-    const lo = hs[0];
-    const hi = hs.at(-1);
-    const med = (H, k) => median(raw.reopen[H].map((r) => r[k]));
-    return `Every move re-derives the game from the opening: on a reopened ${hi}-ply game an incoming move takes ${fmtMs(med(hi, 'nextShown'))} from arrival to display (longest task ${fmtMs(med(hi, 'nextLongest'))}) vs ${fmtMs(med(lo, 'nextShown'))} at ${lo} plies, and the reopen itself spends ${fmtMs(med(hi, 'replay'))} from game_state to the record shown vs ${fmtMs(med(lo, 'replay'))}.`;
+    const [lo, hi] = [hs[0], hs.at(-1)];
+    const m = (H, k) => med(raw.reopen[H], k);
+    return `Reopening a ${hi}-ply game shows its record ${fmtMs(m(hi, 'recordShown'))} after navigation (${fmtMs(m(lo, 'recordShown'))} at ${lo} plies), and the next move shows ${fmtMs(m(hi, 'nextShown'))} after it arrives (${fmtMs(m(lo, 'nextShown'))} at ${lo}).`;
   });
   tryAdd(() => {
     const p = raw.presence;
-    const base = p.find((r) => r.F === 0);
     const top = p.filter((r) => r.F > 0).at(-1);
-    const control = base
-      ? ` (control, no flaps: ${fmtMs(base.busy)} over the 200 ms wait, ${base.frames} frames, the move shown after ${fmtMs(base.lag)})`
-      : '';
-    return `${top.F} opponent disconnect/rejoin flaps (${top.presenceRx} presence messages in ${fmtMs(top.flapMs)}) cost the page ${fmtMs(top.busy)} of main-thread time and ${top.frames} frames until it caught up; a move sent after them was shown ${fmtMs(top.lag)} later${control}.`;
+    return `${top.F} opponent disconnect/rejoin flaps (${top.presenceRx} presence messages in ${fmtMs(top.flapMs)}) cost the page ${fmtMs(top.busy)} of main-thread time and ${top.frames} frames; a move sent after them showed ${fmtMs(top.lag)} later.`;
   });
   tryAdd(() => {
     const r = raw.render.desktop;
     const lm = raw.render.lastMove.idle;
     const rm = raw.render.reducedMotion?.idle;
-    return `On-demand rendering holds only until the first move: an untouched new game drew ${r.idle.frames} frames in ${CFG.idleMs / 1000} s (Chromium ${pct(r.idle.cpuPct)} CPU), but with a last move on the board its line’s shimmer asks for a frame every frame, so the untouched page drew ${fmtNum(lm.fps)} frames/s, as many as SwiftShader could, with Chromium at ${pct(lm.cpuPct)} CPU (100% = one core), for as long as nobody moves${rm ? `; under prefers-reduced-motion it drew ${rm.frames}` : ''}. A selected piece keeps the canvas drawing too (${fmtNum(r.idleSelected.fps)} frames/s).`;
-  });
-  tryAdd(() => {
-    const vps = ['desktop', 'phone'].filter((v) => raw.render[v]);
-    return `Turning the view, SwiftShader drew ${vps.map((v) => `${fmtNum(raw.render[v].orbit.fps)} frames/s on ${v} (${raw.render[v].canvas} px)`).join(' and ')}, with render() itself ${vps.map((v) => fmtMs(raw.render[v].orbit.cpuMedian)).join(' / ')} of main thread per frame: the frame rate is bound by rasterising, not by the scene’s JavaScript.`;
+    return `Left alone for ${CFG.idleMs / 1000} s, a new game drew ${r.idle.frames} frames (Chromium ${pct(r.idle.cpuPct)} CPU), one with a piece selected ${r.idleSelected.frames}, one with a last move on the board ${lm.frames} (Chromium ${pct(lm.cpuPct)})${rm ? `, and that one under prefers-reduced-motion ${rm.frames}` : ''}.`;
   });
   tryAdd(() => {
     const t = raw.typed.filter((x) => x.n);
     const [a, big] = [t.at(-2), t.at(-1)];
-    const ctl = raw.typed.find((x) => !x.n && x.label.includes('short'));
-    return `Pasting \`Ab1Aa3\` + ${big.n.toLocaleString('en-US')} spaces + \`!\` into the move box and pressing Enter blocks the main thread for ${fmtMs(big.longest)} before the error shows, vs ${fmtMs(ctl.ms)} for a short invalid string: \`parseTypedMove\`’s pattern backtracks over trailing whitespace, and the cost grows about quadratically with its length (${a.n.toLocaleString('en-US')} → ${big.n.toLocaleString('en-US')} spaces: ${fmtMs(a.ms)} → ${fmtMs(big.ms)}, ×${prec(big.ms / a.ms)} for ×${prec(big.n / a.n)} the length).`;
+    const growth = big.ms / a.ms;
+    const exponent = Math.log(growth) / Math.log(big.n / a.n);
+    return `A pasted move of ${big.n.toLocaleString('en-US')} trailing spaces is rejected ${fmtMs(big.ms)} after Enter (longest task ${fmtMs(big.longest)}); from ${a.n.toLocaleString('en-US')} spaces the time grew ×${prec(growth)} for ×${prec(big.n / a.n)} the length (time ∝ length^${exponent.toFixed(1)}).`;
   });
   if (offHost.length) {
     f.push(
@@ -2505,7 +2902,7 @@ async function main() {
     Renderer: /swiftshader/i.test(renderer)
       ? 'SwiftShader (software WebGL)'
       : `${renderer} (expected SwiftShader)`,
-    Mode: `${QUICK ? 'quick' : 'full'}${ONLY ? ` (only ${ONLY.join(', ')})` : ''}`,
+    Mode: `${PROFILE}${ONLY ? ` (only ${ONLY.join(', ')})` : ''}`,
     Viewports: `${VIEWPORTS.desktop.label}; ${VIEWPORTS.phone.label}`,
     Machine: `${os.cpus().length} × ${os.cpus()[0]?.model?.trim() ?? 'CPU'}, Node ${process.version}`,
     Serving: `vite build (production) served by vite preview; backend uvicorn on localhost (in-memory store); build took ${fmtMs(TIMINGS.build * 1000)}`,
@@ -2544,6 +2941,7 @@ async function main() {
   } finally {
     await shared.scope.close();
   }
+  await computerSection(browser);
   await reopenSection(browser);
   await presenceSection(browser);
   await selectSection(browser);
