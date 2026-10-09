@@ -85,10 +85,10 @@ export const WarmPrograms = () => {
 
   useEffect(() => {
     const selection = selectionMaterials(new Color(PALETTE.select));
-    // In the order they are likely needed
+    // In the order they are likely needed: first the garden's copy, drawn
+    // from the first frame the camera rests
+    const bare = [backdropMaterial()];
     const meshes = [
-      // The garden's copy, drawn from the first frame the camera rests
-      backdropMaterial(),
       selection.columnMaterial,
       selection.floorMaterial,
       poolMaterial(0),
@@ -104,15 +104,15 @@ export const WarmPrograms = () => {
       pulseMaterial(),
     ];
     const points = [selection.moteMaterial];
-    const { group, dispose } = warmObjects(meshes, points);
+    const { group, dispose } = warmObjects(meshes, points, bare);
     // The motes with the rest of a piece picked up, then the others
     const objects = [...group.children];
-    const [mote] = objects.splice(meshes.length, 1);
+    const [mote] = objects.splice(bare.length + meshes.length, 1);
     objects.splice(3, 0, mote);
     const w: Warming = {
       group,
       objects,
-      materials: [...meshes, ...points],
+      materials: [...bare, ...meshes, ...points],
       shown: null,
       next: 0,
       linked: false,

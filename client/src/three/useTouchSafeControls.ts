@@ -19,7 +19,8 @@ import { useEffect } from 'react';
 // the view.
 
 /**
- * The pointer bookkeeping of three's OrbitControls (r176). These fields are
+ * The pointer bookkeeping of three's OrbitControls (r186: it listens for a
+ * pressed pointer's moves and up on the element's document). These fields are
  * not public API; this module is the only place that touches them.
  */
 export interface OrbitPointerState {
@@ -101,8 +102,9 @@ export function dropPointers(c: OrbitPointerState, ids: readonly number[]): void
   }
   if (!dropped) return;
   if (c._pointers.length === 0) {
-    el?.removeEventListener('pointermove', c._onPointerMove);
-    el?.removeEventListener('pointerup', c._onPointerUp);
+    const doc = el?.ownerDocument;
+    doc?.removeEventListener('pointermove', c._onPointerMove);
+    doc?.removeEventListener('pointerup', c._onPointerUp);
     c.state = NONE;
     c.dispatchEvent({ type: 'end' });
     return;

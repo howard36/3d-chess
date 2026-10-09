@@ -224,8 +224,8 @@ export default defineConfig({
     postcss: './postcss.config.js',
   },
   resolve: {
-    // r3f and its reconciler each pin a scheduler of their own (0.25) beside
-    // react-dom's (0.26): one copy, and one task queue for both roots
+    // r3f pins a scheduler of its own (0.28) beside react-dom's (0.27, the
+    // same code): one copy, and one task queue for both roots
     dedupe: ['scheduler'],
   },
 });
