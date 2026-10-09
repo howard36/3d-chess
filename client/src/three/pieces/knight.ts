@@ -39,7 +39,7 @@ import type { Sdf } from './sdf';
 export const KNIGHT_SEAT = 0.14;
 
 /** The head is drawn scaled about the seat, in profile only (its thickness is as given). */
-const SCALE = 0.92;
+export const SCALE = 0.92;
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
 const ramp = (a: number, b: number, x: number) =>
@@ -87,14 +87,14 @@ export const KNIGHT_OUTLINE: readonly (readonly [number, number])[] = [
 ];
 
 /** Half the thickness across: a full chest, a strong neck, a head narrowing to the muzzle. */
-const halfWidth = (x: number, y: number) => {
+export const halfWidth = (x: number, y: number) => {
   const neck = lerp(0.13, 0.088, ramp(0.2, 0.46, y));
   const head = lerp(0.076, 0.052, ramp(0.14, 0.29, x));
   return lerp(neck, head, ramp(0.36, 0.48, y) * ramp(-0.02, 0.08, x));
 };
 
 /** How far in from the outline the sides round over: soft on the chest, crisp at the muzzle. */
-const roundOver = (x: number, y: number) => {
+export const roundOver = (x: number, y: number) => {
   const chest = ramp(0.42, 0.36, y) * ramp(-0.02, 0.04, x);
   const crisp = Math.max(ramp(0.2, 0.26, x) * ramp(0.34, 0.37, y), ramp(0.66, 0.7, y));
   return lerp(lerp(0.036, 0.06, chest), 0.025, crisp);
@@ -129,6 +129,16 @@ const normalize = (v: Vec3): Vec3 => {
   return [v[0] / l, v[1] / l, v[2] / l];
 };
 
+/** An ear (the one on +z; the other mirrors it): a round cone from its root to its tip. */
+export const EAR = {
+  from: [0.025, 0.685, 0.03] as Vec3,
+  to: [0.055, 0.765, 0.052] as Vec3,
+  r0: 0.03,
+  r1: 0.009,
+};
+/** A cheek plate (on +z; the other mirrors it): an ellipsoid. */
+export const CHEEK = { at: [0.07, 0.46, 0.045] as Vec3, radii: [0.075, 0.075, 0.04] as Vec3 };
+
 /** Mane locks: pairs, each falling down the crest and out to one side. */
 const LOCK_PAIRS = 6;
 const LOCK_SPLAY = (25 * Math.PI) / 180;
@@ -147,8 +157,8 @@ const sculpt = (() => {
 
     // The carved block, with the ears and the round cheek plates
     const slab = carvedSlab(side, halfWidth, roundOver);
-    const ears = mirrorZ(roundCone([0.025, 0.685, 0.03], [0.055, 0.765, 0.052], 0.03, 0.009, 1));
-    const cheeks = mirrorZ(ellipsoid([0.07, 0.46, 0.045], [0.075, 0.075, 0.04]));
+    const ears = mirrorZ(roundCone(EAR.from, EAR.to, EAR.r0, EAR.r1, 1));
+    const cheeks = mirrorZ(ellipsoid(CHEEK.at, CHEEK.radii));
     const block = unite(0.016, unite(0.012, slab, cheeks), ears);
 
     const EYE = surfaceAlong(block, [0.118, 0.6, 0], [0, 0, 1]);

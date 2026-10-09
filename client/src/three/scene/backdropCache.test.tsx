@@ -195,12 +195,25 @@ describe('the garden', () => {
     // The sky, then the ground, then everything added onto them (the stars,
     // the shooting star, the sculptures and their mist): as when those were
     // three.js's transparent list, drawn after the opaque ground
+    // (the ground in parts, each with only its own detail: its clear middle
+    // drawn just before the rest, which overlap its rim)
     const orders = drawn.map((d) => d.order);
     const sky = Math.min(...orders);
-    const ground = [...new Set(orders)].sort((x, y) => x - y)[1];
     expect(sky).toBe(-1000);
+    const parts = drawn.filter((d) => d.name.startsWith('ground-'));
+    expect(parts.map((d) => d.name).sort()).toEqual([
+      'ground-board',
+      'ground-court',
+      'ground-far',
+      'ground-middle',
+    ]);
+    const ground = Math.max(...parts.map((d) => d.order));
     expect(ground).toBe(-900);
-    for (const d of drawn) if (d.order > ground) expect(d.material.blending, d.name).not.toBe(1);
+    for (const d of drawn) {
+      if (d.name.startsWith('ground-')) expect(d.order, d.name).toBeGreaterThan(-901);
+      else if (d.order > sky) expect(d.order, d.name).toBeGreaterThan(ground);
+      if (d.order > ground) expect(d.material.blending, d.name).not.toBe(1);
+    }
   });
 });
 

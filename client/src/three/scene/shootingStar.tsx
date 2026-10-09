@@ -10,7 +10,7 @@ import {
   Vector3,
 } from 'three';
 import { noRaycast } from '../noRaycast';
-import { skyDirection } from './heavens';
+import { DEG, skyDirection } from './skyPlace';
 import { rng } from './textures';
 import { shadeUniforms, TOWER_SHADE } from './mask';
 import { PALETTE } from './palette';
@@ -61,7 +61,57 @@ const meteorFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-const DEG = Math.PI / 180;
+/**
+ * One streak's line and material. It is drawn from the first frame, at no
+ * light (every fragment discarded), so its program links with the rest of
+ * the garden's rather than in whatever frame the first streak falls on (a
+ * move landing, perhaps). `launchMeteor` sets its path; `uHead` and `uLight`
+ * run it.
+ */
+export const makeMeteor = () => {
+  const along = Float32Array.from({ length: TRAIL }, (_, i) => i / (TRAIL - 1));
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(TRAIL * 3), 3));
+  geometry.setAttribute('aAlong', new BufferAttribute(along, 1));
+  // Added onto the sky with the stars (heavens.tsx), in the opaque list
+  const material = new ShaderMaterial({
+    depthWrite: false,
+    blending: AdditiveBlending,
+    uniforms: {
+      ...shadeUniforms(),
+      // Two directions apart, so the path is defined before the first streak
+      uFrom: { value: skyDirection(0, 60 * DEG) },
+      uTo: { value: skyDirection(0.2, 55 * DEG) },
+      uColor: { value: new Color(PALETTE.neon) },
+      uHead: { value: 0 },
+      uLight: { value: 0 },
+    },
+    vertexShader: meteorVertex,
+    fragmentShader: meteorFragment,
+  });
+  const line = new Line(geometry, material);
+  line.renderOrder = -896;
+  line.frustumCulled = false;
+  line.raycast = noRaycast;
+  return { geometry, material, line };
+};
+
+/** Sets a streak's path, from one direction in the sky to another. */
+export const launchMeteor = (material: ShaderMaterial, from: Vector3, to: Vector3) => {
+  material.uniforms.uFrom.value.copy(from);
+  material.uniforms.uTo.value.copy(to);
+};
+
+/** A streak's head (0–1 along its path, on past 1 as the tail burns away) and light, `p` seconds in. */
+export const meteorAt = (seconds: number, peak = 0.45) => {
+  const p = seconds / METEOR_SECONDS;
+  return {
+    done: p >= 1 + METEOR_TAIL,
+    head: p,
+    // In gently, out as the head burns away
+    light: peak * Math.min(p / 0.15, 1) * Math.min(Math.max((1.1 - p) / 0.35, 0), 1),
+  };
+};
 
 /**
  * Now and then, while the camera looks up past the tower, one faint streak
@@ -73,33 +123,7 @@ const DEG = Math.PI / 180;
  */
 export const ShootingStar = () => {
   const invalidate = useThree((s) => s.invalidate);
-  const { geometry, material, line } = useMemo(() => {
-    const along = Float32Array.from({ length: TRAIL }, (_, i) => i / (TRAIL - 1));
-    const g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(new Float32Array(TRAIL * 3), 3));
-    g.setAttribute('aAlong', new BufferAttribute(along, 1));
-    // Added onto the sky with the stars (heavens.tsx), in the opaque list
-    const m = new ShaderMaterial({
-      depthWrite: false,
-      blending: AdditiveBlending,
-      uniforms: {
-        ...shadeUniforms(),
-        uFrom: { value: new Vector3(0, 1, 0) },
-        uTo: { value: new Vector3(0, 1, 0) },
-        uColor: { value: new Color(PALETTE.neon) },
-        uHead: { value: 0 },
-        uLight: { value: 0 },
-      },
-      vertexShader: meteorVertex,
-      fragmentShader: meteorFragment,
-    });
-    const l = new Line(g, m);
-    l.visible = false;
-    l.renderOrder = -896;
-    l.frustumCulled = false;
-    l.raycast = noRaycast;
-    return { geometry: g, material: m, line: l };
-  }, []);
+  const { geometry, material, line } = useMemo(makeMeteor, []);
   useEffect(
     () => () => {
       geometry.dispose();
@@ -123,24 +147,24 @@ export const ShootingStar = () => {
       const side = s.random() < 0.5 ? -1 : 1;
       const az = look + side * (20 + s.random() * 7) * DEG;
       const el = (20 + s.random() * 5) * DEG;
-      material.uniforms.uFrom.value.copy(skyDirection(az, el));
-      material.uniforms.uTo.value.copy(
+      launchMeteor(
+        material,
+        skyDirection(az, el),
         skyDirection(az + side * (8 + s.random() * 4) * DEG, el - (8 + s.random() * 3) * DEG),
       );
       s.start = t;
       s.next = t + 45 + s.random() * 45;
     }
     if (s.start >= 0) {
-      const p = (t - s.start) / METEOR_SECONDS;
-      if (p >= 1 + METEOR_TAIL) {
+      const m = meteorAt(t - s.start);
+      if (m.done) {
         s.start = -1;
-        line.visible = false;
+        // Back to no light (still drawn: its program stays linked)
+        material.uniforms.uLight.value = 0;
+        material.uniforms.uHead.value = 0;
       } else {
-        material.uniforms.uHead.value = p;
-        // In gently, out as the head burns away
-        material.uniforms.uLight.value =
-          0.45 * Math.min(p / 0.15, 1) * Math.min(Math.max((1.1 - p) / 0.35, 0), 1);
-        line.visible = true;
+        material.uniforms.uHead.value = m.head;
+        material.uniforms.uLight.value = m.light;
         invalidate();
       }
     }

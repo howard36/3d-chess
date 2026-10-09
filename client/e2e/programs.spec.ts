@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { startGame } from './helpers/game';
 import { clickSquare, waitForBoard, waitForDestination } from './helpers/board';
+import { openStandInGame } from './helpers/standIn';
 
 // A shader program's first draw compiles and links it and waits on the GPU
 // (seconds in software): the board warms every mark's program up once it is
@@ -86,4 +87,56 @@ test('a whole game links no shader program once the board is warm', async ({ bro
   expect(await links(game.white)).toEqual([]);
   expect(await links(game.black)).toEqual([]);
   await game.close();
+});
+
+test('the board’s first frame links no shader program: they are linked before it', async ({
+  page,
+}) => {
+  // Every program linked, and whether inside a render() (the board's
+  // renderer's, wrapped as GameCanvas publishes it for the tests)
+  await page.addInitScript(() => {
+    const w = window as unknown as {
+      __linked: { inRender: boolean }[];
+      __renders: number;
+      __r3fState?: unknown;
+    };
+    w.__linked = [];
+    w.__renders = 0;
+    let rendering = false;
+    const link = WebGL2RenderingContext.prototype.linkProgram;
+    WebGL2RenderingContext.prototype.linkProgram = function (program: WebGLProgram) {
+      w.__linked.push({ inRender: rendering });
+      return link.call(this, program);
+    };
+    let state: { gl: { render: (...a: unknown[]) => void } } | undefined;
+    Object.defineProperty(window, '__r3fState', {
+      configurable: true,
+      get: () => state,
+      set: (v: { gl: { render: (...a: unknown[]) => void } }) => {
+        state = v;
+        const render = v.gl.render;
+        v.gl.render = function (...a: unknown[]) {
+          rendering = true;
+          try {
+            return render.apply(this, a);
+          } finally {
+            rendering = false;
+            w.__renders++;
+          }
+        };
+      },
+    });
+  });
+  await openStandInGame(page, 'white', 'FIRSTFRAME');
+  await page.waitForFunction(
+    () => (window as unknown as { __renders: number }).__renders > 0,
+    null,
+    { timeout: 120_000 },
+  );
+  const linked = await page.evaluate(
+    () => (window as unknown as { __linked: { inRender: boolean }[] }).__linked,
+  );
+  // The garden's and the tower's, all of them before the first frame
+  expect(linked.length).toBeGreaterThan(20);
+  expect(linked.filter((l) => l.inRender)).toEqual([]);
 });

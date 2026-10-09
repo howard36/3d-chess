@@ -17,7 +17,7 @@ import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import { BackdropCache } from '../three/scene/backdropCache';
 import { WarmPrograms } from '../three/scene/warm';
-import { setUpRenderer } from '../three/rendererSetup';
+import { linkBeforeFirstFrame, setUpRenderer } from '../three/rendererSetup';
 import type { Board as EngineBoard, Move } from '../engine';
 import type { GameOver, LastMove, Turn } from '../game/history';
 import type { Color } from '../types/messages';
@@ -105,6 +105,8 @@ const GameCanvas = ({
         // user orbits or the camera setup above changes.
         onCreated={(state: RootState) => {
           setUpRenderer(state);
+          // The garden's programs linked before its first frame, the page free meanwhile
+          linkBeforeFirstFrame(state);
           (window as Window & { __r3fState?: RootState }).__r3fState = state;
         }}
       >

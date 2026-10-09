@@ -10,7 +10,7 @@ import { markMaterial, shimmerMaterial } from './markers';
 import { PALETTE } from './palette';
 import { PieceType } from '../../engine/pieces';
 import { bodyMaterial, markGlazeWarm, poolMaterial } from './pieces';
-import { keepPrograms, warmObjects } from './programs';
+import { keepPrograms, linkAhead, warmObjects } from './programs';
 import { selectionMaterials } from './selection';
 
 /** The warm-up under way: its objects, the one being drawn, and the next. */
@@ -20,6 +20,8 @@ interface Warming {
   materials: Material[];
   shown: Object3D | null;
   next: number;
+  /** Every program linked ahead (linkAhead): the drawing can start. */
+  linked: boolean;
   dispose: () => void;
 }
 
@@ -31,14 +33,15 @@ interface Warming {
  * programs (keepPrograms). A program's first draw compiles and links it and
  * waits on the GPU for it, a long task; this way it comes after the
  * entrance instead of in the frame of the first move or the first piece
- * picked up. One program a frame, those of a piece picked up first, so a
- * click in the meantime waits on one link at most. GameCanvas mounts it
- * once the board's first frame is drawn and the entrance is over, so it
- * never holds up either.
+ * picked up. All are linked first (linkAhead: the page waits on none of
+ * them), then drawn one a frame, those of a piece picked up first.
+ * GameCanvas mounts it once the board's first frame is drawn and the
+ * entrance is over, so it never holds up either.
  */
 export const WarmPrograms = () => {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
   const invalidate = useThree((s) => s.invalidate);
   const warming = useRef<Warming | null>(null);
   // A lost context comes back with none of its programs (three.js makes
@@ -55,7 +58,7 @@ export const WarmPrograms = () => {
   // joins (asking for its frame), until all have been drawn once
   useFrame(() => {
     const w = warming.current;
-    if (!w) return;
+    if (!w?.linked) return;
     if (w.shown) {
       w.group.remove(w.shown);
       w.shown = null;
@@ -106,15 +109,23 @@ export const WarmPrograms = () => {
     const objects = [...group.children];
     const [mote] = objects.splice(meshes.length, 1);
     objects.splice(3, 0, mote);
-    group.clear();
-    warming.current = {
+    const w: Warming = {
       group,
       objects,
       materials: [...meshes, ...points],
       shown: null,
       next: 0,
+      linked: false,
       dispose,
     };
+    const ready = () => {
+      if (warming.current !== w) return;
+      w.linked = true;
+      invalidate();
+    };
+    warming.current = w;
+    linkAhead(gl, group, camera, ready, scene);
+    group.clear();
     scene.add(group);
     invalidate();
     return () => {
@@ -126,6 +137,6 @@ export const WarmPrograms = () => {
       w.dispose();
       warming.current = null;
     };
-  }, [gl, scene, invalidate, restored]);
+  }, [gl, scene, camera, invalidate, restored]);
   return null;
 };

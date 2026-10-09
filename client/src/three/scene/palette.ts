@@ -29,7 +29,7 @@ export const PALETTE = {
   ground: '#030409',
   /** The neon of the sculptures and the colossal board: a cool white. */
   neon: '#e9efff',
-  /** The mist at the sculptures' feet. */
+  /** The mist along the horizon. */
   mist: '#7d8aa6',
 
   // The armies (pieces.tsx)
@@ -73,6 +73,55 @@ export const PALETTE = {
 
   /** The coordinate labels' type. */
   ink: '#eef1f7',
+} as const;
+
+/** The sky's detail (skyDetail.tsx, heavens.tsx). */
+export const SKY_DETAIL = {
+  // The field's temperatures, all pale: blue-white, white, pale gold and a
+  // rare pale orange (never red)
+  starBlue: '#d2ddff',
+  starWhite: '#f1f3fb',
+  starGold: '#ffecd0',
+  starOrange: '#ffd9b6',
+  /** The Milky Way's glow and its dust of stars: a cool grey, a breath bluer than the mist. */
+  milkyWay: '#8c9abb',
+  /** The airglow low in the sky: a teal-grey, quieter than the mist. */
+  airglow: '#6f8c96',
+} as const;
+
+/** The colossal board's detail (sculptureGlow.tsx). */
+export const BOARD_DETAIL = {
+  /** The light each sculpture throws on the stone round its foot: the tubes' cool white, a breath greyer. */
+  glow: '#e1e8fa',
+} as const;
+
+/** The court between the tower and the colossal board (court.tsx). */
+export const COURT = {
+  /** The horizon's mist as the polished slabs give it back: a cool grey-blue. */
+  sheen: '#919cb3',
+  /** The inlay's light and the stepping stones' kerbs: the garden's neon, a breath cooler. */
+  inlay: '#dde5f6',
+} as const;
+
+/** The horizon and far ground, and its rare events (horizon.tsx). */
+export const HORIZON = {
+  /**
+   * The far hills' shadow: what a silhouette multiplies the night behind it
+   * by, near range and far (the far one paler, with the air between).
+   */
+  hillNear: '#646975',
+  hillFar: '#7b818d',
+  /** The far tower's stone, darker than the hills in front of which it stands. */
+  tower: '#60656f',
+  /** Its one lit window: a minute pale amber, the only warm light in the world. */
+  window: '#ffd8a3',
+  /** The far plain's mist banks. */
+  mist: '#7d8aa6',
+  /** Far lights at the hills' feet: most a cool starlight, a few warmer. */
+  lightCool: '#dfe6ff',
+  lightWarm: '#ffe6c4',
+  /** The lighthouse's beam in the haze. */
+  beam: '#e6ecff',
 } as const;
 
 /**

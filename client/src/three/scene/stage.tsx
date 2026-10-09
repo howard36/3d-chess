@@ -1,15 +1,13 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
-  AdditiveBlending,
   BackSide,
-  BufferAttribute,
   BufferGeometry,
   Color,
   CustomBlending,
+  MathUtils,
   MaxEquation,
   OneFactor,
-  PlaneGeometry,
   ShaderMaterial,
   SphereGeometry,
   Vector2,
@@ -23,6 +21,7 @@ import { noRaycast } from '../noRaycast';
 import { GRID_LINES } from './gridLines';
 import type { platformStack } from './mask';
 import {
+  SHADE_AT_VERTEX,
   shadeAt,
   shadeUniforms,
   shadeViewport,
@@ -35,6 +34,20 @@ import { ShootingStar } from './shootingStar';
 import { useDisposeOnUnmount } from './dispose';
 import { Heavens } from './heavens';
 import { sculptureOf } from './sculptures';
+import { GardenSides } from './gardenSides';
+import type { GardenFigure } from './gardenSides';
+import { neonStrokes, STROKE_TUBE, STROKE_VERTEX, updateStrokes } from './neonStrokes';
+import { KNIGHT_SEGMENTS, KnightLines, sculptureStrokes } from './sculptureStrokes';
+import type { Place } from './sculptureStrokes';
+import { boardGroundGlsl } from './boardGround';
+import { FALLEN, fallenBodies } from './boardFallen';
+import { SkyDetail, skyAirUniforms } from './skyDetail';
+import { SKY_COLOR } from './skyColor';
+import { BoardDetail } from './boardDetail';
+import { Court, COURT_REACH, COURT_GLSL, courtUniforms } from './court';
+import { Horizon } from './horizon';
+import { SculptureGlow } from './sculptureGlow';
+import { groundParts, VEIL_MIX, VEIL_VERTEX_GLSL } from './horizonGround';
 
 // The garden at night. The tower floats over an endless dark plain of
 // glossy stone; under it, nothing, so from straight above there is only
@@ -45,22 +58,65 @@ import { sculptureOf } from './sculptures';
 // facing each other across the board (PLACES), drawn only in thin white
 // neon tube: their outlines (sculptures.ts) turn to face the viewer as a
 // turned piece looks the same from every side, and stand on real rings of
-// light round their bases and collars. Each has a breath of mist at its
-// feet, and the ground gives back a faint, soft reflection. The tubes are
-// dim and join by taking the brighter (never summed), so no knot of light
-// outshines the board. Two flank the tower in the opening view, and every
-// side has one or two. Everything here sinks into the tower's shade near it
-// on screen, a smooth gradient darkest over the tower's glass (mask.ts), so
-// a sculpture nearing the tower darkens steadily and slips behind it with no
-// edge anywhere. Overhead, stars and chess constellations for a camera that
-// looks up (heavens.tsx). Nothing moves.
+// light round their bases and collars. Each throws a faint glow on the stone
+// round its foot (sculptureGlow.tsx), and the ground gives back a faint,
+// soft reflection of its tubes. The tubes are dim and join by taking the
+// brighter (never summed), so no knot of light outshines the board. Two
+// flank the tower in the opening view, and every side has one or two.
+// Everything here sinks into the tower's shade near it on screen, a smooth
+// gradient darkest over the tower's glass (mask.ts), so a sculpture nearing
+// the tower darkens steadily and slips behind it with no edge anywhere.
+// Overhead, stars and chess constellations for a camera that looks up
+// (heavens.tsx).
 
 // --- The night sky ------------------------------------------------------------------
+
+/**
+ * The sky drawn: its colour in each direction from its centre (skyColor.ts).
+ * Its light sinks into the tower's shade, taken per vertex (its sphere is
+ * fine): the air is faint and the shade smooth, and per pixel the shade
+ * would be most of the sky's cost in software.
+ */
+const SKY_FRAGMENT = /* glsl */ `
+  ${SKY_COLOR}
+  varying vec3 vDir;
+  varying float vShade;
+  void main() {
+    gl_FragColor = vec4(skyColorShaded(normalize(vDir), vShade), 1.0);
+    #include <colorspace_fragment>
+  }`;
+
+const SKY_VERTEX = /* glsl */ `
+  varying vec3 vDir;
+  ${SHADE_AT_VERTEX}
+  varying float vShade;
+  void main() {
+    vDir = normalize(position);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vShade = shadeOfClip(gl_Position);
+  }`;
+
+/**
+ * How far below the horizon the sky is drawn over the round plain (degrees,
+ * a whole number of the sphere's 11.25° rings): the plain hides everything
+ * lower, out to its rim (horizonGround.ts), from as high as the camera
+ * climbs, so the sky need not be worked out there only to be drawn over.
+ */
+const SKY_BELOW = 22.5;
 
 const Sky = () => {
   const parts = useMemo(
     () => ({
-      geometry: new SphereGeometry(400, 32, 16),
+      // Rings 5.625° apart, down to SKY_BELOW
+      geometry: new SphereGeometry(
+        400,
+        64,
+        (8 + SKY_BELOW / 11.25) * 2,
+        0,
+        Math.PI * 2,
+        0,
+        Math.PI / 2 + MathUtils.degToRad(SKY_BELOW),
+      ),
       material: new ShaderMaterial({
         side: BackSide,
         depthWrite: false,
@@ -70,39 +126,10 @@ const Sky = () => {
           uHorizon: { value: new Color(PALETTE.skyHorizon) },
           uBottom: { value: new Color(PALETTE.skyBottom) },
           uMist: { value: new Color(PALETTE.mist) },
+          ...skyAirUniforms(),
         },
-        vertexShader: /* glsl */ `
-          varying vec3 vDir;
-          void main() {
-            vDir = normalize(position);
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }`,
-        fragmentShader: /* glsl */ `
-          uniform vec3 uTop;
-          uniform vec3 uHorizon;
-          uniform vec3 uBottom;
-          uniform vec3 uMist;
-          varying vec3 vDir;
-          void main() {
-            vec3 d = normalize(vDir);
-            float h = d.y;
-            vec3 c = h > 0.0
-              ? mix(uHorizon, uTop, pow(h, 0.45))
-              : mix(uHorizon, uBottom, pow(-h, 0.5));
-            // A breath of mist lying along the horizon, in a soft wider glow
-            c += uMist * exp(-pow(h / 0.05, 2.0)) * 0.045;
-            c += uMist * exp(-pow(h / 0.16, 2.0)) * 0.008;
-            // Far off, two banks of mist, their tops rolling slowly round
-            // the horizon (whole waves round it, so they close up behind)
-            float az = atan(d.x, d.z);
-            float low = 0.012 + 0.006 * sin(az * 3.0 + 0.7) + 0.004 * sin(az * 7.0 + 2.1);
-            float high = 0.034 + 0.009 * sin(az * 2.0 + 4.0) + 0.005 * sin(az * 5.0 + 0.3);
-            float bank = smoothstep(low + 0.014, low - 0.004, h) * smoothstep(-0.05, -0.005, h);
-            float stratum = exp(-pow((h - high) / 0.007, 2.0));
-            c += uMist * (bank * 0.014 + stratum * 0.008);
-            gl_FragColor = vec4(c, 1.0);
-            #include <colorspace_fragment>
-          }`,
+        vertexShader: SKY_VERTEX,
+        fragmentShader: SKY_FRAGMENT,
       }),
     }),
     [],
@@ -130,36 +157,129 @@ export const SQUARE = 8;
 /** Radius of clear dark ground round the tower's foot. */
 const CLEAR = [17, 27] as const;
 
-const groundVertex = /* glsl */ `
+/** The brightness of the colossal board: its lines and its light squares together. */
+const BOARD = 1.1;
+
+/** How far out from the board's edge its frame's band reaches (world units). */
+const FRAME_BAND = 6;
+
+/**
+ * What one part of the plain draws: the board's detail that lies in it
+ * (boardGround.ts), whether the court's stone and inlay do (court.tsx), and
+ * whether it lies wholly in the clear ground round the tower's foot (inside
+ * CLEAR[0]), where the board draws nothing at all.
+ */
+interface GroundPart {
+  detail: ReturnType<typeof boardGroundGlsl> | null;
+  court: boolean;
+  clear: boolean;
+}
+
+const groundVertex = ({ clear }: GroundPart) => /* glsl */ `
+  uniform float uTurn;
   varying vec2 vP;
   varying vec3 vWorld;
+  ${SHADE_AT_VERTEX}
+  ${SKY_COLOR}
+  varying vec4 vVeil;
+  ${clear ? 'varying float vLit;' : ''}
   void main() {
     vec4 w = modelMatrix * vec4(position, 1.0);
     vP = w.xz;
     vWorld = w.xyz;
     gl_Position = projectionMatrix * viewMatrix * w;
+    ${VEIL_VERTEX_GLSL}
+    ${
+      // The court's light in the clear part takes the tower's shade per
+      // vertex (the part's mesh is fine)
+      clear ? 'vLit = 1.0 - shadeOfClip(gl_Position);' : ''
+    }
   }`;
 
-/** The brightness of the colossal board: its lines and its light squares together. */
-const BOARD = 1.1;
+/**
+ * GLSL: `vec3 faintToDisplay(vec3 c)`, the display's value of faint light
+ * (three.js's sRGB transfer) without its power, which software works out
+ * slowly: a fit in square and fourth roots, within 0.05 of a step of 255 up
+ * to 0.15 (the court's light stays far under it).
+ */
+const FAINT_TO_DISPLAY = /* glsl */ `
+  vec3 faintToDisplay(vec3 c) {
+    vec3 s = sqrt(c);
+    vec3 fit = 0.90569927 * s + 0.25728784 * sqrt(s) - 0.10946774 * c - 0.07093325;
+    return mix(fit, c * 12.92, vec3(lessThanEqual(c, vec3(0.0031308))));
+  }`;
 
-const groundFragment = /* glsl */ `
+/**
+ * The end of the ground's shader: the plain's colour (`col`) as the display
+ * shows it, with the veil mixed over it and the court added to it (its
+ * light before the shade: `courtLit`), as blending them on in passes of
+ * their own would.
+ */
+const groundOutput = (court: boolean, courtLit: string) => /* glsl */ `
+    vec4 shown = linearToOutputTexel(vec4(col, 1.0));
+    ${VEIL_MIX}
+    ${
+      court
+        ? `{
+      float courtLit = ${courtLit};
+      vec3 cc = courtLight(bp, r, view) * courtLit;
+      if (courtLit >= 0.003 && max(cc.r, max(cc.g, cc.b)) >= 0.0002)
+        shown.rgb += faintToDisplay(cc);
+    }`
+        : ''
+    }
+    gl_FragColor = shown;`;
+
+/**
+ * The ground's shader for one part of the plain: with the colossal board's
+ * detail that lies in that part (boardGround.ts), the court's stone and
+ * inlay in the court's parts (court.tsx), and the veil that thickens the far
+ * plain into the night (horizonGround.ts), each mixed in here rather than
+ * blended over the plain in a pass of its own.
+ */
+const groundFragment = ({ detail, court, clear }: GroundPart) => {
+  const head = /* glsl */ `
   uniform vec3 uGround;
   uniform vec3 uLine;
   uniform vec3 uHorizon;
   uniform float uSquare;
   uniform vec2 uClear;
+  uniform float uTurn;
+  uniform float uDim;
   varying vec2 vP;
   varying vec3 vWorld;
+  varying vec4 vVeil;
+  ${court ? `${COURT_GLSL}\n  ${FAINT_TO_DISPLAY}` : ''}`;
+  if (clear)
+    return /* glsl */ `
+  ${head}
+  varying float vLit;
+  void main() {
+    vec3 view = normalize(vWorld - cameraPosition);
+    float r = length(vP);
+    vec2 bp = vP * uTurn;
+    // Clear ground round the tower: the colossal board and all its detail
+    // are nothing here (each fades in with uClear, from 0 at its start),
+    // the polish alone is left
+    float fresnel = pow(1.0 - abs(view.y), 5.0);
+    vec3 col = uGround + uHorizon * fresnel * 0.9;
+    ${groundOutput(court, 'vLit * uDim')}
+  }`;
+  return /* glsl */ `
+  ${head}
   ${TOWER_SHADE}
   ${GRID_LINES}
+  ${detail?.decl ?? ''}
   void main() {
     vec3 view = normalize(vWorld - cameraPosition);
     float r = length(vP);
     float dist = distance(vWorld, cameraPosition);
+    // The board in its own coordinates, turned half about for Black (its
+    // lines and checker look the same either way; its detail does not)
+    vec2 bp = vP * uTurn;
     // The colossal board's lines, joined by taking the brighter (never
     // summed), so crossings stay even
-    vec2 uv = vP / uSquare + 4.0;
+    vec2 uv = bp / uSquare + 4.0;
     vec2 lines = gridLines(uv, 0.006);
     float onBoard = step(-0.02, uv.x) * step(uv.x, 8.02) * step(-0.02, uv.y) * step(uv.y, 8.02);
     vec2 span = vec2(step(-0.01, uv.y) * step(uv.y, 8.01), step(-0.01, uv.x) * step(uv.x, 8.01));
@@ -177,52 +297,87 @@ const groundFragment = /* glsl */ `
     float far = 1.0 - smoothstep(40.0, 110.0, dist);
     // Into the tower's shade (mask.ts)
     float hidden = 1.0 - towerShade();
+    float glow = 0.0;
+    ${detail?.lines ?? ''}
     float lit = (line * 0.04 + lightSq * 0.004) * ${BOARD.toFixed(1)} * clear * far * hidden;
+    lit += glow * far * hidden;
     // Polished: toward the horizon it gives back the mist
     float fresnel = pow(1.0 - abs(view.y), 5.0);
     vec3 col = uGround + uLine * lit + uHorizon * fresnel * 0.9;
-    gl_FragColor = vec4(col, 1.0);
-    #include <colorspace_fragment>
+    ${detail?.polish ?? ''}
+    ${groundOutput(court, 'hidden * uDim')}
   }`;
+};
+
+/**
+ * The ground's four parts (horizonGround.ts's groundParts), each with only
+ * the detail that lies in it: a software renderer (CI's) works out all of a
+ * shader for every pixel, so a part pays for nothing that lies elsewhere.
+ * The clear ground round the tower's foot has the court's stone alone; the
+ * rest of the court's disc, the court and the board's squares; the board
+ * out to its frame's band, the squares and frame; the far plain, none of
+ * them. All have the veil (the camera can stand far enough out for it to
+ * reach the court), worked out per vertex.
+ */
+const groundMaterials = () => {
+  const material = (part: GroundPart): ShaderMaterial =>
+    new ShaderMaterial({
+      // Drawn first and writing no depth: the reflections go under it
+      depthWrite: false,
+      uniforms: {
+        uGround: { value: new Color(PALETTE.ground) },
+        uLine: { value: new Color(PALETTE.neon) },
+        ...shadeUniforms(),
+        uHorizon: { value: new Color(PALETTE.skyHorizon) },
+        uTop: { value: new Color(PALETTE.skyTop) },
+        uBottom: { value: new Color(PALETTE.skyBottom) },
+        uMist: { value: new Color(PALETTE.mist) },
+        ...skyAirUniforms(),
+        ...(part.court ? courtUniforms() : {}),
+        uSquare: { value: SQUARE },
+        uClear: { value: [...CLEAR] },
+        uTurn: gardenTurn,
+        uDim: gardenDim,
+      },
+      vertexShader: groundVertex(part),
+      fragmentShader: groundFragment(part),
+    });
+  return {
+    middle: material({ detail: null, court: true, clear: true }),
+    court: material({ detail: boardGroundGlsl(false), court: true, clear: false }),
+    board: material({ detail: boardGroundGlsl(true), court: false, clear: false }),
+    far: material({ detail: null, court: false, clear: false }),
+  };
+};
+
+const PARTS = ['middle', 'court', 'board', 'far'] as const;
 
 const Ground = () => {
-  const parts = useMemo(
-    () => ({
-      geometry: new PlaneGeometry(260, 260, 4, 4).rotateX(-Math.PI / 2),
-      material: new ShaderMaterial({
-        // Drawn first and writing no depth: the reflections go under it
-        depthWrite: false,
-        uniforms: {
-          uGround: { value: new Color(PALETTE.ground) },
-          uLine: { value: new Color(PALETTE.neon) },
-          ...shadeUniforms(),
-          uHorizon: { value: new Color(PALETTE.skyHorizon) },
-          uSquare: { value: SQUARE },
-          uClear: { value: [...CLEAR] },
-        },
-        vertexShader: groundVertex,
-        fragmentShader: groundFragment,
-      }),
-    }),
-    [],
-  );
-  useDisposeOnUnmount(parts);
-  const { geometry, material } = parts;
+  const geometry = useMemo(() => groundParts(CLEAR[0], COURT_REACH, 4 * SQUARE + FRAME_BAND), []);
+  useDisposeOnUnmount(geometry);
+  const materials = useMemo(groundMaterials, []);
+  useDisposeOnUnmount(materials);
   return (
-    <mesh
-      geometry={geometry}
-      material={material}
-      position={[0, GROUND_Y, 0]}
-      renderOrder={-900}
-      raycast={noRaycast}
-    />
+    <group name="ground" position={[0, GROUND_Y, 0]}>
+      {PARTS.map((part) => (
+        <mesh
+          key={part}
+          name={`ground-${part}`}
+          geometry={geometry[part]}
+          material={materials[part]}
+          // The court's ring over the clear middle's rim
+          renderOrder={part === 'middle' ? -900.1 : -900}
+          raycast={noRaycast}
+        />
+      ))}
+    </group>
   );
 };
 
 // --- The sculptures ---------------------------------------------------------------------
 
 /** Their scale: a colossal king stands about 5.6 units tall. */
-const SCALE = 6.5;
+export const SCALE = 6.5;
 
 /**
  * Where each stands: on the centre of a square of the colossal board, set
@@ -234,9 +389,11 @@ const SCALE = 6.5;
  * 20² + 20²), at most 37° apart round it, so one or two stand clear of the
  * tower from every side (see garden.test.ts). The opening view looks from
  * 16° toward 196°: White sees Black's king and a bishop flank the tower,
- * the queen behind it; Black sees White's queen and a bishop. A drawing
- * looks in toward the board's centre, but the knights, side by side, look at
- * each other (`faces`), so they face each other from every side.
+ * the queen behind it; Black sees White's queen and a bishop. What is not
+ * the same from every side faces in toward the board's centre, but the
+ * knights, side by side, look at each other (`faces`): they stand facing
+ * each other in the world, outlined by their silhouette from wherever the
+ * camera is (knightSilhouette.ts).
  */
 const PLACES: { type: PieceType; square: string; faces?: string }[] = [
   { type: PieceType.King, square: 'e1' },
@@ -273,93 +430,20 @@ export const GARDEN = PLACES.map(({ type, square, faces }) => ({
   toward: faces ? squareCentre(faces) : ([0, 0] as [number, number]),
 }));
 
+/** gardenWhole's slots: the sculptures', then the fallen pieces', then one always drawn. */
+export const FALLEN_SLOT = PLACES.length;
+export const WHOLE_SLOTS = FALLEN_SLOT + FALLEN.length + 1;
+export const ALWAYS_WHOLE = WHOLE_SLOTS - 1;
+
 /**
- * Every sculpture's tubes as one ribbon mesh. Each vertex carries its
- * sculpture's anchor, the point it looks toward (the board's centre unless
- * given), its point and tangent (in the drawing plane for an outline, in 3D
- * for a ring) and its side of the ribbon; the vertex shader turns an outline
- * to face the camera, its front toward that point, and widens every tube
- * across the view, so the whole garden is one draw call. (The lobby draws
- * its empty seats with the same tubes: a king at piece scale.)
+ * Every sculpture's tubes as one stroke mesh (neonStrokes.ts), but the
+ * knights' outlines (KnightLines, useKnightTubes): the vertex shader turns an
+ * outline to face the camera and spans every tube across the view, so the
+ * whole garden is one draw call. (The lobby draws its empty seats with the
+ * same tubes: a king at piece scale.)
  */
-export const neonGeometry = (
-  places: readonly {
-    type: PieceType;
-    at: readonly [number, number, number];
-    toward?: readonly [number, number];
-  }[] = GARDEN,
-  scale = SCALE,
-): BufferGeometry => {
-  const anchor: number[] = [];
-  const toward: number[] = [];
-  const local: number[] = [];
-  const tangent: number[] = [];
-  const side: number[] = [];
-  const mode: number[] = [];
-  const index: number[] = [];
-  const addCurve = (
-    at: readonly [number, number, number],
-    looks: readonly [number, number],
-    pts: [number, number, number][],
-    closed: boolean,
-    fixed: boolean,
-  ) => {
-    const n = pts.length;
-    const base = side.length;
-    for (let k = 0; k < n; k++) {
-      const prev = pts[closed ? (k - 1 + n) % n : Math.max(k - 1, 0)];
-      const next = pts[closed ? (k + 1) % n : Math.min(k + 1, n - 1)];
-      const t = [next[0] - prev[0], next[1] - prev[1], next[2] - prev[2]];
-      const l = Math.hypot(t[0], t[1], t[2]) || 1;
-      for (const s of [-1, 1]) {
-        anchor.push(...at);
-        toward.push(...looks);
-        local.push(...pts[k]);
-        tangent.push(t[0] / l, t[1] / l, t[2] / l);
-        side.push(s);
-        mode.push(fixed ? 1 : 0);
-      }
-    }
-    const segments = closed ? n : n - 1;
-    for (let k = 0; k < segments; k++) {
-      const a = base + 2 * k;
-      const b = base + 2 * ((k + 1) % n);
-      index.push(a, a + 1, b, b, a + 1, b + 1);
-    }
-  };
-  places.forEach(({ type, at, toward: looks = [0, 0] }) => {
-    const drawing = sculptureOf(type);
-    for (const o of drawing.outlines) {
-      addCurve(
-        at,
-        looks,
-        o.points.map(([x, y]) => [x * scale, y * scale, 0]),
-        o.closed,
-        false,
-      );
-    }
-    for (const ring of drawing.rings) {
-      const pts = Array.from({ length: 24 }, (_, k): [number, number, number] => {
-        const a = (k / 24) * Math.PI * 2;
-        return [
-          Math.cos(a) * ring.radius * scale,
-          ring.y * scale,
-          Math.sin(a) * ring.radius * scale,
-        ];
-      });
-      addCurve(at, looks, pts, true, true);
-    }
-  });
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(local), 3));
-  g.setAttribute('aAnchor', new BufferAttribute(new Float32Array(anchor), 3));
-  g.setAttribute('aToward', new BufferAttribute(new Float32Array(toward), 2));
-  g.setAttribute('aTangent', new BufferAttribute(new Float32Array(tangent), 3));
-  g.setAttribute('aSide', new BufferAttribute(new Float32Array(side), 1));
-  g.setAttribute('aMode', new BufferAttribute(new Float32Array(mode), 1));
-  g.setIndex(index);
-  return g;
-};
+export const neonGeometry = (places: readonly Place[] = GARDEN, scale = SCALE): BufferGeometry =>
+  neonStrokes(sculptureStrokes(places, scale));
 
 // --- Behind the tower ------------------------------------------------------------------
 
@@ -379,9 +463,17 @@ const BRIGHT = 0.7;
  * everything on it turn with it, and a1 lies at Black's far left as it does
  * on the tower. (Its lines and checker look the same either way.)
  */
-const gardenTurn = { value: 1 };
+export const gardenTurn = { value: 1 };
 /** The sculptures' and their mist's brightness: 1 in the game, less behind the lobby's kings. */
-const gardenDim = { value: 1 };
+export const gardenDim = { value: 1 };
+/**
+ * Whether each figure of the garden is drawn (1) or left out (0, one the
+ * camera stands behind: gardenSides.ts): the twelve sculptures, then the
+ * fallen pieces, and a last slot always drawn. Their tubes, reflections and
+ * glow on the ground all take it.
+ */
+export const gardenWhole = { value: new Float32Array(WHOLE_SLOTS).fill(1) };
+const drawingBuffer = new Vector2();
 type ShadeStack = ReturnType<typeof platformStack>;
 
 const corner = new Vector3();
@@ -466,22 +558,80 @@ export const gardenView = (camera: Camera, aspect: number, turn = 1): SculptureV
   });
 };
 
-const drawingBuffer = new Vector2();
+/** The fallen pieces' outlines on the ground, as points round them (boardFallen.ts). */
+const FALLEN_BODIES = fallenBodies(SCALE, GROUND_Y);
+
 /**
- * Every frame, the tower's outline on screen for the shade (mask.ts), and
- * which way the garden is turned into its uniforms.
+ * How far round its foot a sculpture's light on the ground reaches (world
+ * units): its glow (sculptureGlow.tsx), its footprint and the hand-high
+ * pawn at the king's foot.
+ */
+const GROUND_REACH = 7;
+
+/**
+ * Every figure of the garden (the twelve sculptures, then the fallen
+ * pieces, as gardenWhole's slots) with boxes round all it draws: its tubes
+ * and their reflection, and its light on the ground (gardenSides.ts).
+ */
+export const GARDEN_FIGURES: GardenFigure[] = [
+  ...GARDEN.map(({ type, at }): GardenFigure => {
+    const drawing = sculptureOf(type);
+    const across = drawing.outlines.reduce(
+      (r, o) => o.points.reduce((m, [x]) => Math.max(m, Math.abs(x)), r),
+      PROFILES.radius[type],
+    );
+    // Wide enough for a knight's head whichever way it faces
+    const r = across * SCALE + 1;
+    const h = drawing.top * SCALE + 0.5;
+    const [x, , z] = at;
+    return {
+      at: [x, z],
+      boxes: [
+        [x - r, GROUND_Y - h, z - r, x + r, GROUND_Y + h, z + r],
+        [
+          x - GROUND_REACH,
+          GROUND_Y - 1,
+          z - GROUND_REACH,
+          x + GROUND_REACH,
+          GROUND_Y + 1,
+          z + GROUND_REACH,
+        ],
+      ],
+    };
+  }),
+  ...FALLEN_BODIES.map((points): GardenFigure => {
+    const lo = [0, 1, 2].map((k) => Math.min(...points.map((p) => p[k])) - 0.5);
+    const hi = [0, 1, 2].map((k) => Math.max(...points.map((p) => p[k])) + 0.5);
+    // Down to its reflection's foot
+    lo[1] = Math.min(lo[1], 2 * GROUND_Y - hi[1]);
+    return {
+      at: [(lo[0] + hi[0]) / 2, (lo[2] + hi[2]) / 2],
+      boxes: [[lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]]],
+    };
+  }),
+];
+
+/**
+ * Every frame, the tower's outline on screen for the shade (mask.ts), which
+ * way the garden is turned, and which figures are drawn (gardenWhole), into
+ * their uniforms.
  */
 const GardenUniforms = ({
   turn,
   shade,
   dim = 1,
+  sides = false,
 }: {
   turn: number;
   shade?: ShadeStack;
   dim?: number | (() => number);
+  /** Leave out a figure the camera stands behind (gardenSides.ts). */
+  sides?: boolean;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
-  useEffect(() => invalidate(), [turn, shade, dim, invalidate]);
+  useEffect(() => invalidate(), [turn, shade, dim, sides, invalidate]);
+  // Each canvas keeps its own figures shown or not (the lobby's and the game's)
+  const figures = useMemo(() => (sides ? new GardenSides(GARDEN_FIGURES) : null), [sides]);
   // Written as each frame is drawn, like the outline: the uniforms are
   // shared, and two canvases (the lobby's, fading, over the game's) each set
   // their own just before they render
@@ -492,62 +642,22 @@ const GardenUniforms = ({
     updateTowerOutline(camera, aspect, shade);
     gl.getDrawingBufferSize(drawingBuffer);
     shadeViewport.value.set(drawingBuffer.x, drawingBuffer.y, aspect);
+    const w = gardenWhole.value;
+    w.fill(1);
+    if (figures) {
+      figures.update(camera, turn);
+      figures.shown.forEach((shown, i) => {
+        w[i] = shown;
+      });
+    }
   });
   return null;
 };
 
-const neonVertex = /* glsl */ `
-  uniform float uWidth;
-  uniform float uMirror;
-  uniform float uGround;
-  uniform float uTurn;
-  attribute vec3 aAnchor;
-  attribute vec2 aToward;
-  attribute vec3 aTangent;
-  attribute float aSide;
-  attribute float aMode;
-  varying float vAcross;
-  varying float vDepth;
-  varying float vRing;
-  void main() {
-    // Turned about for Black, as the board is (gardenTurn)
-    vec3 anchor = vec3(aAnchor.x * uTurn, aAnchor.y, aAnchor.z * uTurn);
-    vec2 toward = aToward * uTurn;
-    vec3 toCam = cameraPosition - anchor;
-    vec2 h = normalize(toCam.xz + vec2(1e-5, 0.0));
-    // The drawing's plane faces the camera, turned about the vertical
-    vec3 right = vec3(h.y, 0.0, -h.x);
-    // A knight looks toward its point (its twin, or the board's centre),
-    // whichever side of it the camera stands
-    float face = dot(right.xz, toward - anchor.xz) >= 0.0 ? 1.0 : -1.0;
-    vec3 p;
-    vec3 t;
-    if (aMode < 0.5) {
-      p = anchor + right * position.x * face + vec3(0.0, position.y, 0.0);
-      t = right * aTangent.x * face + vec3(0.0, aTangent.y, 0.0);
-    } else {
-      p = anchor + position;
-      t = aTangent;
-    }
-    vDepth = p.y - uGround;
-    if (uMirror > 0.5) {
-      p.y = 2.0 * uGround - p.y;
-      t.y = -t.y;
-    }
-    // Widened across the view, so every tube reads the same from any side
-    vec3 v = normalize(cameraPosition - p);
-    vec3 s = cross(t, v);
-    float sl = length(s);
-    s = sl > 1e-5 ? s / sl : vec3(0.0, 1.0, 0.0);
-    p += s * aSide * uWidth;
-    vAcross = aSide;
-    vRing = aMode;
-    gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
-  }`;
-
 /** The soft edge of a tube drawn up to a height (`uReveal`, world units). */
 export const REVEAL_SOFT = 0.12;
 
+/** The tubes' light (neonStrokes.ts's tube). */
 const neonFragment = /* glsl */ `
   uniform vec3 uColor;
   uniform float uCore;
@@ -559,25 +669,16 @@ const neonFragment = /* glsl */ `
   uniform float uDim;
   uniform float uGround;
   uniform float uReveal;
-  varying float vAcross;
-  varying float vDepth;
-  varying float vRing;
+  ${STROKE_TUBE}
   ${TOWER_SHADE}
   void main() {
-    float a = abs(vAcross);
-    float fw = max(fwidth(vAcross), 1e-5);
-    // The tube: never thinner than about a pixel, dimmer instead
-    float w = max(uCore, fw * 0.8);
-    float core = (1.0 - smoothstep(w - fw, w + fw, a)) * min(uCore / w, 1.0);
-    float halo = exp(-a * a * 7.0) * (1.0 - a) * uHalo;
-    // The rings a little quieter than the outlines they stand the pieces on
-    float light = (core + halo) * uIntensity * ${BRIGHT.toFixed(1)} * (1.0 + uBoost) * (1.0 - 0.3 * vRing);
-    // A reflection fades with its depth under the polished ground
-    light *= uFade > 0.0 ? exp(-vDepth / uFade) : 1.0;
-    // Into the tower's shade, steadily, nearest the tower darkest
+    float t;
+    float light = strokeTube(uCore, uHalo, t);
+    light *= uIntensity * ${BRIGHT.toFixed(1)} * (1.0 + uBoost);
+    float depth = mix(vLit.z, vLit.w, t);
+    light *= uFade > 0.0 ? exp(-depth / uFade) : 1.0;
     light *= (1.0 - uShaded * towerShade()) * uDim;
-    // Drawn up to a height (a lobby seat opening), with a soft edge
-    light *= 1.0 - smoothstep(uReveal - ${REVEAL_SOFT.toFixed(2)}, uReveal, vDepth + uGround);
+    light *= 1.0 - smoothstep(uReveal - ${REVEAL_SOFT.toFixed(2)}, uReveal, depth + uGround);
     if (light < 0.001) discard;
     gl_FragColor = vec4(uColor * light, 1.0);
     #include <colorspace_fragment>
@@ -596,8 +697,10 @@ const opaque = (m: ShaderMaterial) => {
 export const gardenBoost = { value: 0 };
 
 /**
- * The tubes' light. `turn` is the garden's (gardenTurn) unless given, and
- * `shaded: false` keeps them out of the tower's shade (the lobby's seats).
+ * The tubes' light. `turn` is the garden's (gardenTurn) unless given,
+ * `shaded: false` keeps them out of the tower's shade (the lobby's seats),
+ * and `whole` says which figures are drawn (gardenWhole for the garden's;
+ * all of them unless given).
  */
 export const neonMaterial = (o: {
   width: number;
@@ -609,6 +712,7 @@ export const neonMaterial = (o: {
   turn?: { value: number };
   shaded?: boolean;
   dim?: { value: number };
+  whole?: { value: Float32Array };
 }) =>
   new ShaderMaterial({
     transparent: true,
@@ -634,159 +738,103 @@ export const neonMaterial = (o: {
       uFade: { value: o.fade },
       uReveal: { value: NEON_WHOLE },
       uBoost: gardenBoost,
+      uWhole: o.whole ?? { value: new Float32Array(WHOLE_SLOTS).fill(1) },
     },
-    vertexShader: neonVertex,
+    vertexShader: STROKE_VERTEX(WHOLE_SLOTS),
     fragmentShader: neonFragment,
   });
 
-const Sculptures = ({
+/** The sculptures' tubes. */
+const TUBES = { width: 0.26, core: 0.12, halo: 0.06, intensity: 0.078, mirror: false, fade: 0 };
+/** Their reflections: softer and dimmer in the polished stone, fading with depth. */
+const REFLECTION = {
+  width: 0.45,
+  core: 0.05,
+  halo: 0.14,
+  intensity: 0.025,
+  mirror: true,
+  fade: 3.2,
+};
+
+/**
+ * The garden's tube materials, as the sculptures' (anything drawn with
+ * their light: boardDetail.tsx), in three.js's opaque list, which draws
+ * first, so the whole garden is drawn before the tower (backdropCache.tsx);
+ * still joined by the max.
+ */
+export const gardenNeon = () => ({
+  tubes: opaque(neonMaterial({ ...TUBES, whole: gardenWhole })),
+  reflection: opaque(neonMaterial({ ...REFLECTION, whole: gardenWhole })),
+});
+
+/**
+ * Knights drawn by their silhouette: their strokes rewritten as the camera
+ * moves round them (KnightLines), before the frame is drawn; at rest
+ * nothing changes, and nothing is redone.
+ */
+export const useKnightTubes = (knights: KnightLines, turn: number) => {
+  const geometry = useMemo(() => neonStrokes([], knights.count * KNIGHT_SEGMENTS), [knights]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useFrame(({ camera }) => {
+    const p = camera.position;
+    if (knights.update([p.x, p.y, p.z], turn)) updateStrokes(geometry, knights.strokes);
+  });
+  return geometry;
+};
+
+/** A tube geometry drawn with the garden's tube materials (and their reflection). */
+export const GardenTubes = ({
+  geometry,
+  materials,
+  order = 0,
+}: {
+  geometry: BufferGeometry;
+  materials: ReturnType<typeof gardenNeon>;
+  /** Added to the sculptures' renderOrder (still below the tower: BACKDROP_END). */
+  order?: number;
+}) => (
+  <>
+    <mesh
+      geometry={geometry}
+      material={materials.reflection}
+      renderOrder={-880 + order}
+      frustumCulled={false}
+      raycast={noRaycast}
+    />
+    <mesh
+      geometry={geometry}
+      material={materials.tubes}
+      renderOrder={-870 + order}
+      frustumCulled={false}
+      raycast={noRaycast}
+    />
+  </>
+);
+
+export const Sculptures = ({
   turn,
   shade,
   dim,
+  sides,
 }: {
   turn: number;
   shade?: ShadeStack;
   dim?: number | (() => number);
+  /** Leave out a figure the camera stands behind (gardenSides.ts). */
+  sides?: boolean;
 }) => {
-  const parts = useMemo(
-    () => ({
-      geometry: neonGeometry(),
-      // In three.js's opaque list, which draws first, so the whole garden
-      // is drawn before the tower (backdropCache.tsx); still joined by the max
-      tubes: opaque(
-        neonMaterial({
-          width: 0.26,
-          core: 0.12,
-          halo: 0.06,
-          intensity: 0.078,
-          mirror: false,
-          fade: 0,
-        }),
-      ),
-      // Softer and dimmer in the polished stone, fading with depth
-      reflection: opaque(
-        neonMaterial({
-          width: 0.45,
-          core: 0.05,
-          halo: 0.14,
-          intensity: 0.025,
-          mirror: true,
-          fade: 3.2,
-        }),
-      ),
-    }),
-    [],
-  );
+  const parts = useMemo(() => ({ geometry: neonGeometry(), ...gardenNeon() }), []);
+  const knights = useMemo(() => new KnightLines(GARDEN, SCALE), []);
+  const knightGeometry = useKnightTubes(knights, turn);
 
   useDisposeOnUnmount(parts);
   const { geometry, tubes, reflection } = parts;
   return (
     <group name="garden">
-      <GardenUniforms turn={turn} shade={shade} dim={dim} />
-      <mesh
-        geometry={geometry}
-        material={reflection}
-        renderOrder={-880}
-        frustumCulled={false}
-        raycast={noRaycast}
-      />
-      <mesh
-        geometry={geometry}
-        material={tubes}
-        renderOrder={-870}
-        frustumCulled={false}
-        raycast={noRaycast}
-      />
+      <GardenUniforms turn={turn} shade={shade} dim={dim} sides={sides} />
+      <GardenTubes geometry={geometry} materials={{ tubes, reflection }} />
+      <GardenTubes geometry={knightGeometry} materials={{ tubes, reflection }} />
     </group>
-  );
-};
-
-// --- Mist at their feet ---------------------------------------------------------------------
-
-const mistGeometry = (): BufferGeometry => {
-  const anchor: number[] = [];
-  const corner: number[] = [];
-  const size: number[] = [];
-  const index: number[] = [];
-  GARDEN.forEach(({ at }, i) => {
-    for (const [cx, cy] of [
-      [-1, -1],
-      [1, -1],
-      [1, 1],
-      [-1, 1],
-    ]) {
-      anchor.push(...at);
-      corner.push(cx, cy, 0);
-      size.push(SCALE * 0.62, SCALE * 0.16);
-    }
-    const b = i * 4;
-    index.push(b, b + 1, b + 2, b, b + 2, b + 3);
-  });
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(corner), 3));
-  g.setAttribute('aAnchor', new BufferAttribute(new Float32Array(anchor), 3));
-  g.setAttribute('aSize', new BufferAttribute(new Float32Array(size), 2));
-  g.setIndex(index);
-  return g;
-};
-
-const Mist = () => {
-  const parts = useMemo(
-    () => ({
-      geometry: mistGeometry(),
-      material: new ShaderMaterial({
-        // Added onto the ground; in the opaque list with the rest of the
-        // garden, drawn before the tower (backdropCache.tsx)
-        depthWrite: false,
-        blending: AdditiveBlending,
-        uniforms: {
-          uColor: { value: new Color(PALETTE.mist) },
-          uBoost: gardenBoost,
-          uDim: gardenDim,
-          ...shadeUniforms(),
-          uTurn: gardenTurn,
-        },
-        vertexShader: /* glsl */ `
-          uniform float uTurn;
-          attribute vec3 aAnchor;
-          attribute vec2 aSize;
-          varying vec2 vC;
-          void main() {
-            vec3 anchor = vec3(aAnchor.x * uTurn, aAnchor.y, aAnchor.z * uTurn);
-            vec2 h = normalize((cameraPosition - anchor).xz + vec2(1e-5, 0.0));
-            vec3 right = vec3(h.y, 0.0, -h.x);
-            vec3 p = anchor + right * position.x * aSize.x + vec3(0.0, position.y * aSize.y, 0.0);
-            vC = position.xy;
-            gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
-          }`,
-        fragmentShader: /* glsl */ `
-          uniform vec3 uColor;
-          uniform float uBoost;
-          uniform float uDim;
-          varying vec2 vC;
-          ${TOWER_SHADE}
-          void main() {
-            float m = exp(-dot(vC * vec2(2.0, 2.6), vC * vec2(2.0, 2.6)));
-            float a = m * 0.075 * (1.0 + 0.6 * uBoost) * ${BRIGHT.toFixed(1)};
-            a *= (1.0 - towerShade()) * uDim;
-            if (a < 0.001) discard;
-            gl_FragColor = vec4(uColor * a, 1.0);
-            #include <colorspace_fragment>
-          }`,
-      }),
-    }),
-    [],
-  );
-  useDisposeOnUnmount(parts);
-  const { geometry, material } = parts;
-  return (
-    <mesh
-      geometry={geometry}
-      material={material}
-      renderOrder={-860}
-      frustumCulled={false}
-      raycast={noRaycast}
-    />
   );
 };
 
@@ -836,14 +884,21 @@ export const Stage = ({
   orientation,
   shade,
   dim,
-}: StageProps & { shade?: ShadeStack; dim?: number | (() => number) }) => (
-  <>
-    <CameraFloor />
-    <Heavens />
-    <Sky />
-    <Ground />
-    <Sculptures turn={orientation === 'black' ? -1 : 1} shade={shade} dim={dim} />
-    <Mist />
-    <ShootingStar />
-  </>
-);
+}: StageProps & { shade?: ShadeStack; dim?: number | (() => number) }) => {
+  const turn = orientation === 'black' ? -1 : 1;
+  return (
+    <>
+      <CameraFloor />
+      <Heavens />
+      <Sky />
+      <Ground />
+      <Sculptures turn={turn} shade={shade} dim={dim} sides />
+      <SculptureGlow />
+      <SkyDetail />
+      <BoardDetail turn={turn} shade={shade} dim={dim} />
+      <Court turn={turn} shade={shade} dim={dim} />
+      <Horizon turn={turn} shade={shade} dim={dim} />
+      <ShootingStar />
+    </>
+  );
+};
