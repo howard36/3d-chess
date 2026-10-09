@@ -129,6 +129,7 @@ const hudRects = (page: Page) =>
         document.querySelector('[data-testid="captured-pieces"] [data-side="them"]'),
       ),
       rect('how to play', document.querySelector('.hud-learn')),
+      rect('move history', document.querySelector('[data-testid="move-history"]')),
     ].filter((r) => r !== null);
   });
 
@@ -192,6 +193,17 @@ async function problemsAt(page: Page, width: number, height: number) {
     if (learn.left < 0 || learn.right > width) problems.push('how to play runs out of the window');
     for (const h of hud)
       if (h !== learn && meet(learn, h, 4)) problems.push(`how to play meets the ${h.what}`);
+  }
+  // The move history (once a move is played), in the window and clear of the rest of the HUD
+  const moves = hud.find((r) => r.what === 'move history');
+  if (moves) {
+    if (moves.left < 0 || moves.right > width || moves.top < 0 || moves.bottom > height) {
+      problems.push('the move history runs out of the window');
+    }
+    for (const h of hud)
+      if (h !== moves && h !== learn && meet(moves, h, 4)) {
+        problems.push(`the move history meets the ${h.what}`);
+      }
   }
   return problems.map((p) => `${width}x${height}: ${p}`);
 }

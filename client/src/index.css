@@ -457,6 +457,8 @@
   font-size: 13px;
   pointer-events: auto;
   animation: hud-rise 150ms ease both;
+  /* Over the move history, where they meet, while it shows */
+  z-index: 1;
 }
 /* Hidden until its field takes keyboard focus; still in the page (and the
    tab order) for keyboards and screen readers */
@@ -693,6 +695,244 @@
     left: auto;
     right: 12px;
     width: clamp(160px, calc(50vw - 170px), 232px);
+  }
+}
+
+/*
+ * The move history (screens/MoveHistory.tsx): the moves in pairs, each a
+ * button that shows the board after it, over the four steps through them.
+ * A narrow panel at the right, under the way to the tutorial, where the
+ * window leaves room beside the tower; in a window no wider than 13:9 the
+ * steps alone, under the tower, the move shown between them opening the list
+ * above them. Away from the live position the way back to it is lit, with a
+ * dot when a move has landed since.
+ */
+.hud-history {
+  position: absolute;
+  top: 60px;
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 196px;
+  max-height: calc(100dvh - 60px - 14px);
+  padding: 4px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: auto;
+  /* In the game's entrance it fades in with the pill (--intro-hud) */
+  opacity: var(--intro-hud, 1);
+}
+.hud-moves {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(42vh, 340px);
+  margin: 0;
+  padding: 2px 0;
+  overflow-y: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(236, 241, 255, 0.2) transparent;
+}
+.hud-moves li {
+  display: grid;
+  grid-template-columns: 26px 1fr 1fr;
+  align-items: center;
+  column-gap: 2px;
+  min-height: 24px;
+}
+.hud-move-no {
+  padding-right: 4px;
+  color: var(--hud-muted);
+  font-size: 11px;
+  text-align: right;
+}
+.hud-ply {
+  min-width: 0;
+  height: 22px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: rgba(238, 241, 247, 0.86);
+  font: inherit;
+  letter-spacing: 0.01em;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.hud-ply:hover {
+  background: rgba(236, 241, 255, 0.08);
+  color: var(--hud-fg);
+}
+.hud-ply:focus-visible,
+.hud-step:focus-visible,
+.hud-now:focus-visible {
+  outline: 1.5px solid rgba(230, 238, 255, 0.7);
+  outline-offset: -1.5px;
+}
+.hud-ply[aria-current] {
+  background: rgba(236, 241, 255, 0.16);
+  color: var(--hud-fg);
+  font-weight: 600;
+}
+.hud-history[data-review] .hud-ply[aria-current] {
+  background: var(--hud-accent);
+  color: var(--hud-accent-fg);
+}
+.hud-ply:disabled {
+  color: var(--hud-muted);
+  cursor: default;
+}
+.hud-steps {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+.hud-history[data-open] .hud-steps {
+  margin-top: 3px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(236, 241, 255, 0.1);
+}
+.hud-step {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--hud-fg);
+  cursor: pointer;
+}
+.hud-step:hover {
+  background: rgba(236, 241, 255, 0.08);
+}
+.hud-step[aria-disabled] {
+  color: var(--hud-muted);
+  opacity: 0.45;
+  background: none;
+  cursor: default;
+}
+/* The move shown, which opens the list: only where the list is closed (below) */
+.hud-now {
+  display: none;
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 4px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.hud-now:hover {
+  color: var(--hud-fg);
+}
+.hud-history[data-review] .hud-now {
+  color: var(--hud-fg);
+}
+/* Away from the live position: the way back is lit */
+.hud-history[data-review] .hud-step[data-step='latest'] {
+  background: var(--hud-accent);
+  color: var(--hud-accent-fg);
+}
+.hud-latest {
+  position: relative;
+  display: flex;
+  margin-left: auto;
+}
+.hud-step-name {
+  display: none;
+  margin-right: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+/* Away from the live position, the way back says what it is, where there is room */
+@media not ((max-aspect-ratio: 13/9) and (min-height: 481px)) {
+  .hud-history[data-review] .hud-step-name {
+    display: inline;
+  }
+  .hud-history[data-review] .hud-step[data-step='latest'] {
+    width: auto;
+    padding: 0 6px 0 10px;
+  }
+}
+/* A move has landed since the player stepped back */
+.hud-latest[data-newer]::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid #0b0d13;
+  border-radius: 50%;
+  background: var(--hud-check);
+  pointer-events: none;
+}
+/* A window no wider than 13:9: the steps under the tower, the list above
+   them on asking */
+@media (max-aspect-ratio: 13/9) and (min-height: 481px) {
+  .hud-history {
+    top: auto;
+    right: auto;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: 50%;
+    width: min(300px, calc(100vw - 24px));
+    max-height: none;
+    transform: translateX(-50%);
+  }
+  /* Over "Play again" once the game is over */
+  .hud-history[data-ended] {
+    bottom: 76px;
+  }
+  .hud-moves {
+    max-height: min(36dvh, 300px);
+  }
+  .hud-now {
+    display: block;
+  }
+  .hud-latest {
+    margin-left: 0;
+  }
+}
+/* A short window (a phone on its side): the panel beside the tower, as far
+   down as the window goes */
+@media (max-height: 480px) {
+  .hud-history {
+    top: 58px;
+    width: clamp(168px, calc(50vw - 190px), 196px);
+  }
+  .hud-moves {
+    max-height: none;
+  }
+}
+/* A touch screen: the steps a fingertip wide */
+@media (pointer: coarse) {
+  .hud-step,
+  .hud-now {
+    height: 40px;
+  }
+  .hud-step {
+    width: 40px;
+  }
+  .hud-moves li {
+    min-height: 32px;
+  }
+  .hud-ply {
+    height: 30px;
   }
 }
 
