@@ -140,6 +140,16 @@ Key decisions:
   straight for another game's page through history) resets the socket session; the move
   from the side choice at `/new` to the new game's page keeps it, since it holds the
   creator's `game_created`.
+- **The page's first socket.** The built page opens its socket before the app has loaded:
+  an inline script at the top of `index.html` (`client/src/lib/earlySocket.ts`, injected by
+  `vite.config.ts`'s build-only `early-socket` plugin) opens it and, on `/game/:id`, sends
+  the first request the game screen would (`rejoin_game` with the seat stored for the game,
+  else `look_game`), keeping the replies. `useGameSocket` adopts it on its first mount as
+  session 1, its messages in its first render, and records what each session has sent, so
+  the screen doesn't ask again. A reopened game's record and a guest's invitation no longer
+  wait for the entry, React's first commit and the scene chunk's evaluation before the first
+  round trip starts. The dev server keeps the app's own socket: StrictMode mounts the hook
+  twice, closing the adopted socket, which would rejoin the seat a second time.
 - **Tab identity.** Each tab picks a random `clientId` (`client/src/lib/clientId.ts`,
   kept in `sessionStorage`, so it survives a reload but is not shared with other tabs)
   and sends it with `create_game`, `join_game` and `rejoin_game`.

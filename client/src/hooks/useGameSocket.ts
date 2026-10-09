@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WebSocketMessage } from '../types/messages';
+import { DEFAULT_WS_URL, takeEarlySocket } from '../lib/earlySocket';
+import type { EarlySocket } from '../lib/earlySocket';
 
-export const WS_URL: string =
-  import.meta.env.VITE_WS_URL ?? 'wss://howard36--3d-chess-backend-serve.modal.run/ws';
+export const WS_URL: string = import.meta.env.VITE_WS_URL ?? DEFAULT_WS_URL;
 
 /**
  * Close code the server sends to a socket whose seat was reclaimed by a newer
@@ -24,6 +25,21 @@ const IN_GAME = new Set<WebSocketMessage['type']>([
 
 /** Delay before reconnect attempt n (0-based): 0.5s, 1s, 2s, 4s, then 8s forever. */
 const reconnectDelayMs = (attempt: number) => Math.min(500 * 2 ** attempt, 8000);
+
+/** A message as received (the server only sends schema-conformant JSON). */
+const parse = (data: string): WebSocketMessage => {
+  try {
+    return JSON.parse(data) as WebSocketMessage;
+  } catch {
+    // A parse failure is a protocol violation: surfaced like any server
+    // error instead of letting the exception kill the message handler
+    return {
+      type: 'error',
+      code: 'invalid_message',
+      message: 'Received a malformed message from the server',
+    };
+  }
+};
 
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'replaced';
 
@@ -54,6 +70,12 @@ export interface GameSocket {
   /** Index into `messages` of the first message received on the current socket. */
   sessionStartIndex: number;
   /**
+   * Whether a message like this was sent on the current session (by send(),
+   * or by the page's inline script before the app loaded: earlySocket.ts),
+   * so a screen asks the server once per session.
+   */
+  sentThisSession?: (match: (msg: WebSocketMessage) => boolean) => boolean;
+  /**
    * Open a fresh socket after this one was replaced. Keeps the message log;
    * the new session id makes the screen rejoin, which reclaims the seat and
    * in turn replaces the other connection.
@@ -68,19 +90,37 @@ export interface GameSocket {
 }
 
 export function useGameSocket(): GameSocket {
+  // The socket the page opened before the app loaded, if any (first mount only)
+  const [early] = useState<{ socket: EarlySocket; open: boolean; seen: number } | null>(() => {
+    const e = takeEarlySocket();
+    return e
+      ? { socket: e, open: e.socket.readyState === WebSocket.OPEN, seen: e.received.length }
+      : null;
+  });
   const socketRef = useRef<WebSocket | null>(null);
   // Messages passed to send() before the socket is open; flushed on open.
   const outgoingQueueRef = useRef<WebSocketMessage[]>([]);
   // True once this session has sent or received anything (reset() is a no-op otherwise).
-  const hasActivityRef = useRef(false);
+  const hasActivityRef = useRef(
+    !!early && (early.socket.received.length > 0 || !!early.socket.sent),
+  );
   // Mirrors messages.length so socket callbacks can read it without stale closures.
-  const messageCountRef = useRef(0);
-  const sessionCounterRef = useRef(0);
+  const messageCountRef = useRef(early?.seen ?? 0);
+  const sessionCounterRef = useRef(early?.open ? 1 : 0);
+  // What was sent on the current session
+  const sentRef = useRef<WebSocketMessage[]>(
+    early?.open && early.socket.sent ? [early.socket.sent] : [],
+  );
   // Consecutive failed/dropped connections, for backoff; cleared on open.
   const attemptRef = useRef(0);
-  const [messages, setMessages] = useState<WebSocketMessage[]>([]);
-  const [status, setStatus] = useState<ConnectionStatus>('connecting');
-  const [session, setSession] = useState({ id: 0, startIndex: 0 });
+  // An early socket's messages so far are this log's first
+  const [messages, setMessages] = useState<WebSocketMessage[]>(() =>
+    early ? early.socket.received.slice(0, early.seen).map(parse) : [],
+  );
+  const [status, setStatus] = useState<ConnectionStatus>(early?.open ? 'connected' : 'connecting');
+  const [session, setSession] = useState(
+    early?.open ? { id: 1, startIndex: 0 } : { id: 0, startIndex: 0 },
+  );
   // Bumping the generation tears down the current socket and opens a new one.
   const [generation, setGeneration] = useState(0);
 
@@ -91,11 +131,17 @@ export function useGameSocket(): GameSocket {
     const socket = socketRef.current;
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(msg));
+      sentRef.current.push(msg);
       return true;
     }
     outgoingQueueRef.current.push(msg);
     return false;
   }, []);
+
+  const sentThisSession = useCallback(
+    (match: (msg: WebSocketMessage) => boolean) => sentRef.current.some(match),
+    [],
+  );
 
   const reconnect = useCallback(() => {
     attemptRef.current = 0;
@@ -117,17 +163,36 @@ export function useGameSocket(): GameSocket {
     setGeneration((g) => g + 1);
   }, []);
 
+  // The early socket, adopted once (the effect's first run)
+  const adoptRef = useRef(early);
+
   useEffect(() => {
     let disposed = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const connect = () => {
-      const ws = new WebSocket(WS_URL);
+      const adopted = adoptRef.current;
+      adoptRef.current = null;
+      const usable =
+        adopted &&
+        (adopted.socket.socket.readyState === WebSocket.CONNECTING ||
+          adopted.socket.socket.readyState === WebSocket.OPEN);
+      const ws = usable ? adopted.socket.socket : new WebSocket(WS_URL);
       socketRef.current = ws;
 
-      ws.onopen = () => {
+      // Sends what was queued before the socket was open, but in-game messages (below)
+      const flush = () => {
+        const queued = outgoingQueueRef.current.filter((m) => !IN_GAME.has(m.type));
+        outgoingQueueRef.current = [];
+        for (const msg of queued) {
+          ws.send(JSON.stringify(msg));
+          sentRef.current.push(msg);
+        }
+      };
+      const opened = () => {
         if (disposed || socketRef.current !== ws) return;
         attemptRef.current = 0;
+        sentRef.current = [];
         // A fresh socket is a fresh server-side session: the server has no
         // idea who this connection is until it creates/joins/rejoins a game.
         // Bumping the session id is what tells consumers to re-establish that.
@@ -141,31 +206,16 @@ export function useGameSocket(): GameSocket {
         // too (and sent before the new socket's rejoin, it would be refused).
         // Session-establishing messages (create/join/rejoin) are exactly what
         // the queue is for.
-        const queued = outgoingQueueRef.current.filter((m) => !IN_GAME.has(m.type));
-        outgoingQueueRef.current = [];
-        for (const msg of queued) {
-          ws.send(JSON.stringify(msg));
-        }
+        flush();
       };
+      ws.onopen = opened;
 
       ws.onmessage = (event) => {
         // A superseded socket (reset, replaced) may still deliver a reply in
         // flight; it belongs to a session this log no longer describes.
         if (disposed || socketRef.current !== ws) return;
         hasActivityRef.current = true;
-        let parsed: WebSocketMessage;
-        try {
-          parsed = JSON.parse(event.data) as WebSocketMessage;
-        } catch {
-          // The server only sends schema-conformant JSON; a parse failure is a
-          // protocol violation. Surface it like any server error instead of
-          // letting the exception kill the message handler.
-          parsed = {
-            type: 'error',
-            code: 'invalid_message',
-            message: 'Received a malformed message from the server',
-          };
-        }
+        const parsed = parse(String(event.data));
         messageCountRef.current += 1;
         setMessages((prev) => [...prev, parsed]);
       };
@@ -182,6 +232,32 @@ export function useGameSocket(): GameSocket {
         setStatus('reconnecting');
         retryTimer = setTimeout(connect, reconnectDelayMs(attemptRef.current++));
       };
+
+      if (adopted && !usable) {
+        // Closed before it could be taken over: what was queued on its session
+        // is asked again on the next one
+        outgoingQueueRef.current = [];
+      }
+      if (usable && adopted) {
+        // What the early socket did between the first render and now
+        const { received, sent } = adopted.socket;
+        if (ws.readyState === WebSocket.OPEN && !adopted.open) {
+          // Opened since: its session starts here (its request already sent)
+          opened();
+          if (sent) sentRef.current.push(sent);
+          hasActivityRef.current ||= !!sent;
+        } else if (adopted.open) {
+          // Open since the first render: what the screens asked for before
+          // this effect ran (their effects run first) goes out now
+          flush();
+        }
+        const late = received.slice(adopted.seen).map(parse);
+        if (late.length) {
+          hasActivityRef.current = true;
+          messageCountRef.current += late.length;
+          setMessages((prev) => [...prev, ...late]);
+        }
+      }
     };
 
     connect();
@@ -200,6 +276,7 @@ export function useGameSocket(): GameSocket {
     status,
     sessionId: session.id,
     sessionStartIndex: session.startIndex,
+    sentThisSession,
     reconnect,
     reset,
   };

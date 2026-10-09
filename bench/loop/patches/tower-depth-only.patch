@@ -1,0 +1,645 @@
+diff --git a/client/src/screens/GameCanvas.tsx b/client/src/screens/GameCanvas.tsx
+index d095a7f..adee210 100644
+--- a/client/src/screens/GameCanvas.tsx
++++ b/client/src/screens/GameCanvas.tsx
+@@ -112,7 +112,7 @@ const GameCanvas = ({
+       >
+         <IntroContext.Provider value={clock}>
+           {/* The garden, drawn from a copy while the camera is at rest */}
+-          <BackdropCache>
++          <BackdropCache tower>
+             <Stage orientation={color ?? 'white'} />
+           </BackdropCache>
+           <Board
+diff --git a/client/src/three/scene/backdropCache.tsx b/client/src/three/scene/backdropCache.tsx
+index 94e216d..ddb41ef 100644
+--- a/client/src/three/scene/backdropCache.tsx
++++ b/client/src/three/scene/backdropCache.tsx
+@@ -12,6 +12,7 @@ import {
+ } from 'three';
+ import type { Camera, Material, Object3D, Scene, WebGLRenderer } from 'three';
+ import { noRaycast } from '../noRaycast';
++import { createTower } from './towerCache';
+ 
+ // The garden (Stage: the sky, the ground, the stars, the sculptures and their
+ // mist) is most of a frame's fill, and it changes only with the camera, the
+@@ -150,7 +151,14 @@ type Mode = 'plain' | 'capture' | 'cached';
+  * The garden (`children`: Stage) drawn from a copy while nothing it depends
+  * on changes. See the top of this file.
+  */
+-export const BackdropCache = ({ children }: { children: ReactNode }) => {
++export const BackdropCache = ({
++  children,
++  tower = false,
++}: {
++  children: ReactNode;
++  /** The tower's pieces at rest from a copy too (towerCache.ts): the game's board. */
++  tower?: boolean;
++}) => {
+   const gl = useThree((s) => s.gl);
+   const scene = useThree((s) => s.scene);
+   const garden = useRef<Group>(null);
+@@ -184,6 +192,15 @@ export const BackdropCache = ({ children }: { children: ReactNode }) => {
+       texture: null as FramebufferTexture | null,
+       valid: false,
+     };
++    const towerCache = tower
++      ? createTower(
++          scene,
++          () => garden.current,
++          backdropMaterial,
++          () => (state.valid ? state.texture : null),
++          pushValue,
++        )
++      : null;
+     const show = (mode: Mode) => {
+       if (garden.current) garden.current.visible = mode !== 'cached';
+       copy.visible = mode === 'cached';
+@@ -210,13 +227,25 @@ export const BackdropCache = ({ children }: { children: ReactNode }) => {
+         return;
+       }
+       const next = backdropSignature(renderer, camera, g, state.next);
++      let mode: Mode;
+       if (!same(next, state.last)) {
+         state.valid = false;
+         state.next = state.last;
+         state.last = next;
+-        show('plain');
+-      } else show(state.valid ? 'cached' : 'capture');
++        mode = 'plain';
++      } else mode = state.valid ? 'cached' : 'capture';
++      show(mode);
++      if (towerCache) {
++        const t = towerCache.before(renderer, camera, mode === 'cached', mode !== 'plain');
++        scene.userData.towerMode = t;
++        // The garden is in the tower's copy
++        if (t === 'cached' || t === 'repair') {
++          g.visible = false;
++          copy.visible = false;
++        }
++      }
+     };
++
+     // A lost context loses the copy
+     const canvas = gl.domElement;
+     const lost = () => {
+@@ -226,7 +255,12 @@ export const BackdropCache = ({ children }: { children: ReactNode }) => {
+     canvas.addEventListener('webglcontextlost', lost);
+     canvas.addEventListener('webglcontextrestored', lost);
+     scene.add(copy, take);
++    if (towerCache) scene.add(...towerCache.hooks);
+     return () => {
++      if (towerCache) {
++        scene.remove(...towerCache.hooks);
++        towerCache.dispose();
++      }
+       canvas.removeEventListener('webglcontextlost', lost);
+       canvas.removeEventListener('webglcontextrestored', lost);
+       scene.onBeforeRender = before;
+@@ -237,7 +271,7 @@ export const BackdropCache = ({ children }: { children: ReactNode }) => {
+       take.geometry.dispose();
+       material.dispose();
+     };
+-  }, [gl, scene, parts]);
++  }, [gl, scene, parts, tower]);
+ 
+   return (
+     <group ref={garden} name="backdrop">
+diff --git a/client/src/three/scene/towerCache.test.ts b/client/src/three/scene/towerCache.test.ts
+new file mode 100644
+index 0000000..91362c8
+--- /dev/null
++++ b/client/src/three/scene/towerCache.test.ts
+@@ -0,0 +1,153 @@
++import { describe, expect, it, vi } from 'vitest';
++import { BoxGeometry, Group, Mesh, PerspectiveCamera, Scene, ShaderMaterial } from 'three';
++import type { WebGLRenderer } from 'three';
++import { createTower } from './towerCache';
++import type { Backbuffer } from './backbuffer';
++
++// The tower's frame plans, with a stand-in backbuffer (jsdom has no WebGL):
++// which pieces draw, which come from the copy, what is drawn again clipped,
++// and that a frame leaves the scene as it found it.
++
++const pushValue = (out: number[], v: unknown) => {
++  if (typeof v === 'number') out.push(v);
++};
++
++const setup = () => {
++  const scene = new Scene();
++  const garden = new Group();
++  garden.name = 'backdrop';
++  scene.add(garden);
++  const grid = new Group();
++  scene.add(grid);
++  const pieces = [-2, 0, 2].map((x) => {
++    const m = new Mesh(new BoxGeometry(0.5, 0.5, 0.5), new ShaderMaterial({ uniforms: { uHover: { value: 0 } } }));
++    m.position.set(x, 0, 0);
++    grid.add(m);
++    return m;
++  });
++  const camera = new PerspectiveCamera(36, 1, 0.1, 100);
++  camera.position.set(0, 0, 10);
++  camera.lookAt(0, 0, 0);
++  camera.updateMatrixWorld();
++  scene.updateMatrixWorld(true);
++  const bb = {
++    width: 100,
++    height: 100,
++    copy: () => ({}),
++    save: vi.fn(),
++    restore: vi.fn(),
++  } as unknown as Backbuffer;
++  const state = {
++    scissor: vi.fn(),
++    setScissorTest: vi.fn(),
++    buffers: { depth: { setMask: vi.fn(), setClear: vi.fn() } },
++  };
++  const renderer = {
++    autoClear: true,
++    state,
++    getContext: () => ({ clear: vi.fn(), DEPTH_BUFFER_BIT: 256 }),
++    getScissorTest: () => false,
++  } as unknown as WebGLRenderer;
++  const tower = createTower(bb, scene, () => garden, new ShaderMaterial(), pushValue);
++  scene.add(...tower.hooks);
++  const [restore, , take] = tower.hooks;
++  /** One frame: plan it, "draw" it (the take's hook runs if shown), and clean up. */
++  const frame = (gardenCached = true, atRest = true) => {
++    scene.updateMatrixWorld(true);
++    const mode = tower.before(renderer, camera, gardenCached, atRest);
++    const seen = pieces.map((p) => ({ visible: p.visible, order: p.renderOrder }));
++    const shown = { restore: restore.visible, take: take.visible, autoClear: renderer.autoClear };
++    if (take.visible) take.onAfterRender(renderer, scene, camera, take.geometry, take.material, new Group());
++    if (restore.visible) restore.onBeforeRender(renderer, scene, camera, restore.geometry, restore.material, new Group());
++    tower.after(renderer);
++    return { mode, seen, shown };
++  };
++  return { scene, pieces, bb, renderer, frame, state };
++};
++
++describe('the tower cache', () => {
++  it('draws everything while the camera moves', () => {
++    const { frame } = setup();
++    expect(frame(false, false).mode).toBe('off');
++  });
++
++  it('takes the copy, then draws the pieces from it', () => {
++    const { frame, pieces, bb, renderer } = setup();
++    // First seen, every piece counts as changed: drawn after the copy is taken
++    const first = frame();
++    expect(first.mode).toBe('full');
++    expect(first.seen.every((s) => s.order >= 1e6)).toBe(true);
++    // Unchanged since: they join the copy
++    const second = frame();
++    expect(second.mode).toBe('cached');
++    expect(second.seen.every((s) => s.visible && s.order >= 1e5 && s.order < 5e5)).toBe(true);
++    expect(second.shown.take).toBe(true);
++    // From then on, from the copy: none drawn, the copy put back, no clear
++    const third = frame();
++    expect(third.mode).toBe('cached');
++    expect(third.seen.every((s) => !s.visible)).toBe(true);
++    expect(third.shown).toEqual({ restore: true, take: false, autoClear: false });
++    expect(bb.restore).toHaveBeenCalled();
++    // ...and each frame leaves the scene as it found it
++    expect(pieces.every((p) => p.visible && p.renderOrder === 0)).toBe(true);
++    expect(renderer.autoClear).toBe(true);
++  });
++
++  it('draws again, clipped, where a piece left the copy', () => {
++    const { frame, pieces, state } = setup();
++    frame();
++    frame();
++    frame();
++    pieces[1].position.y += 0.3;
++    const lifted = frame();
++    expect(lifted.mode).toBe('repair');
++    // The lifted piece after the copy, its neighbours (apart on screen) still from the copy
++    expect(lifted.seen[1].order).toBeGreaterThanOrEqual(1e6);
++    expect(lifted.seen[0].visible).toBe(false);
++    expect(lifted.seen[2].visible).toBe(false);
++    expect(lifted.shown.take).toBe(true);
++    expect(state.setScissorTest).toHaveBeenCalledWith(true);
++    // Still moving: from the copy, drawn after it
++    pieces[1].position.y += 0.1;
++    expect(frame().mode).toBe('cached');
++    // At rest again: joins the copy
++    const settled = frame();
++    expect(settled.mode).toBe('cached');
++    expect(settled.seen[1].order).toBeGreaterThanOrEqual(1e5);
++    expect(frame().seen.every((s) => !s.visible)).toBe(true);
++  });
++
++  it('sees a uniform change as a change', () => {
++    const { frame, pieces } = setup();
++    frame();
++    frame();
++    frame();
++    (pieces[0].material as ShaderMaterial).uniforms.uHover.value = 1;
++    const f = frame();
++    expect(f.mode).toBe('repair');
++    expect(f.seen[0].order).toBeGreaterThanOrEqual(1e6);
++  });
++
++  it('draws in full when the garden changes, or most of the screen would be drawn again', () => {
++    const { frame, pieces } = setup();
++    frame();
++    frame();
++    frame();
++    expect(frame(false, true).mode).toBe('full');
++    // Big pieces in the copy, then all of them move: their rects are most of the screen
++    for (const p of pieces) p.scale.setScalar(10);
++    frame();
++    frame();
++    frame();
++    for (const p of pieces) p.position.y += 0.1;
++    expect(frame().mode).toBe('full');
++  });
++
++  it('stands aside for anything opaque it cannot place in a copy', () => {
++    const { frame, scene } = setup();
++    const odd = new Mesh(new BoxGeometry(), new ShaderMaterial({ depthWrite: false }));
++    scene.add(odd);
++    frame();
++    expect(frame().mode).toBe('off');
++  });
++});
+diff --git a/client/src/three/scene/towerCache.ts b/client/src/three/scene/towerCache.ts
+new file mode 100644
+index 0000000..ded233e
+--- /dev/null
++++ b/client/src/three/scene/towerCache.ts
+@@ -0,0 +1,373 @@
++import {
++  Box3,
++  BufferAttribute,
++  BufferGeometry,
++  FramebufferTexture,
++  Mesh,
++  ShaderMaterial,
++  Vector2,
++  Vector3,
++  Vector4,
++} from 'three';
++import type { Camera, Material, Object3D, Scene, Texture, WebGLRenderer } from 'three';
++import { noRaycast } from '../noRaycast';
++import { WARM } from './programs';
++
++// The tower's half of the frame at rest. The garden's copy (backdropCache.tsx)
++// spares a frame the garden; the pieces' glaze is most of what is left, and
++// a move or a pick changes one or two pieces. So a second copy is taken once
++// the garden and every piece unchanged since the frame before are drawn, and
++// a frame with the camera at rest starts from it: the canvas's picture as it
++// stood then, written back in one pass, and the pieces in it drawn again
++// into the depth buffer only (their own vertex shader, no colour: what
++// places the marks, the labels and the moving pieces behind or in front of
++// them is exact). Only the pieces that changed (a glide, a lift, a burn) are
++// shaded, and everything see-through after them. A piece that leaves the
++// copy has its rect on screen (where it stood when the copy was taken)
++// filled from the garden's copy again, and the pieces in the copy that reach
++// into it shaded again in full. A frame comes out as the full frame would
++// draw it but where a piece's edge and what lies behind it share a pixel:
++// the copy holds the pixel's resolved colour, not its samples, a step of 1
++// at most after what is drawn over it (as with the garden's copy). Anything
++// the cache can't account for (a camera or garden change, an opaque thing
++// that isn't a plain depth-tested ShaderMaterial mesh, most of the screen
++// changing at once) draws the frame as always, and takes the copy again.
++
++/** Where, in three.js's opaque list, the copy is drawn back, the garden filled in, and the copy taken. */
++const RESTORE_ORDER = -3000;
++const FILL_ORDER = -2900;
++const TAKE_ORDER = 5e5;
++const MOVING = 1e6;
++
++/** Beyond this share of the screen to fill again, a frame is drawn in full. */
++const MOST = 0.5;
++
++/** A rect on the drawing buffer, in pixels from its bottom left: x0, y0, x1, y1. */
++type Rect = [number, number, number, number];
++
++const screenTriangle = () => {
++  const g = new BufferGeometry();
++  g.setAttribute(
++    'position',
++    new BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3),
++  );
++  return g;
++};
++
++const noTriangle = () => {
++  const g = new BufferGeometry();
++  g.setAttribute('position', new BufferAttribute(new Float32Array(9), 3));
++  return g;
++};
++
++/** The depth-only stand-in for a material: its vertex shader, no colour. */
++const depthTwin = (m: ShaderMaterial) =>
++  new ShaderMaterial({
++    vertexShader: m.vertexShader,
++    fragmentShader: 'void main() { gl_FragColor = vec4(0.0); }',
++    side: m.side,
++    colorWrite: false,
++    depthTest: true,
++    depthWrite: true,
++    toneMapped: false,
++  });
++
++const box = new Box3();
++const corner = new Vector3();
++const clip = new Vector4();
++const drawingBuffer = new Vector2();
++
++/** Where `o` draws on screen, a few pixels to spare; null when it can't be told (behind the eye). */
++const rectOf = (o: Mesh, camera: Camera, width: number, height: number): Rect | null => {
++  const g = o.geometry;
++  if (!g.boundingBox) g.computeBoundingBox();
++  box.copy(g.boundingBox!).applyMatrix4(o.matrixWorld);
++  let x0 = Infinity;
++  let y0 = Infinity;
++  let x1 = -Infinity;
++  let y1 = -Infinity;
++  for (let i = 0; i < 8; i++) {
++    corner.set(
++      i & 1 ? box.max.x : box.min.x,
++      i & 2 ? box.max.y : box.min.y,
++      i & 4 ? box.max.z : box.min.z,
++    );
++    corner.applyMatrix4(camera.matrixWorldInverse);
++    clip.set(corner.x, corner.y, corner.z, 1).applyMatrix4(camera.projectionMatrix);
++    if (clip.w <= 1e-6) return null;
++    const x = (clip.x / clip.w) * 0.5 + 0.5;
++    const y = (clip.y / clip.w) * 0.5 + 0.5;
++    x0 = Math.min(x0, x);
++    y0 = Math.min(y0, y);
++    x1 = Math.max(x1, x);
++    y1 = Math.max(y1, y);
++  }
++  const pad = 3;
++  return [
++    Math.max(0, Math.floor(x0 * width) - pad),
++    Math.max(0, Math.floor(y0 * height) - pad),
++    Math.min(width, Math.ceil(x1 * width) + pad),
++    Math.min(height, Math.ceil(y1 * height) + pad),
++  ];
++};
++
++const meets = (a: Rect, b: Rect) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
++
++const pushAll = (out: number[], values: ArrayLike<number>) => {
++  for (let i = 0; i < values.length; i++) out.push(values[i]);
++};
++
++/** A uniform's value as numbers (backdropCache's pushValue). */
++type PushValue = (out: number[], v: unknown) => void;
++
++/** Everything about `o` that its pixels depend on, but the camera. */
++const signature = (o: Mesh, out: number[], pushValue: PushValue) => {
++  out.length = 0;
++  const g = o.geometry;
++  out.push(g.id, g.drawRange.start, g.drawRange.count);
++  for (const name in g.attributes) out.push((g.attributes[name] as BufferAttribute).version ?? 0);
++  if (g.index) out.push(g.index.version);
++  pushAll(out, o.matrixWorld.elements);
++  const m = o.material as ShaderMaterial;
++  out.push(m.id, m.version, m.side, o.renderOrder);
++  const uniforms = m.uniforms;
++  if (uniforms) for (const name in uniforms) pushValue(out, uniforms[name].value);
++  return out;
++};
++
++const same = (a: number[] | undefined, b: number[]) => {
++  if (!a || a.length !== b.length) return false;
++  for (let i = 0; i < a.length; i++)
++    if (a[i] !== b[i] && !(a[i] !== a[i] && b[i] !== b[i])) return false;
++  return true;
++};
++
++export type TowerMode = 'off' | 'full' | 'cached' | 'repair';
++
++/**
++ * The tower's copy, for BackdropCache: `copyMaterial` makes the material
++ * that draws a copy back (backdropMaterial), `gardenCopy` gives the garden's.
++ */
++export const createTower = (
++  scene: Scene,
++  garden: () => Object3D | null,
++  copyMaterial: () => ShaderMaterial,
++  gardenCopy: () => Texture | null,
++  pushValue: PushValue,
++) => {
++  const mesh = (name: string, geometry: BufferGeometry, material: Material, order: number) => {
++    const m = new Mesh(geometry, material);
++    m.name = name;
++    m.renderOrder = order;
++    m.frustumCulled = false;
++    m.raycast = noRaycast;
++    m.visible = false;
++    return m;
++  };
++  const restoreMaterial = copyMaterial();
++  const fillMaterial = copyMaterial();
++  const triangle = screenTriangle();
++  const restore = mesh('tower-restore', triangle, restoreMaterial, RESTORE_ORDER);
++  const fill = mesh('tower-fill', triangle, fillMaterial, FILL_ORDER);
++  const take = mesh('tower-take', noTriangle(), restoreMaterial, TAKE_ORDER);
++  // Drawn last of all (see-through, touching no pixel): puts the pieces back as they were
++  const doneMaterial = copyMaterial();
++  doneMaterial.transparent = true;
++  const done = mesh('tower-done', take.geometry, doneMaterial, Number.MAX_SAFE_INTEGER);
++  done.visible = true;
++  const hooks = new Set<Object3D>([restore, fill, take, done]);
++  const twins = new Map<string, ShaderMaterial>();
++  const twinOf = (m: ShaderMaterial) => {
++    const key = `${m.side}|${m.vertexShader}`;
++    let t = twins.get(key);
++    if (!t) twins.set(key, (t = depthTwin(m)));
++    return t;
++  };
++
++  let texture: FramebufferTexture | null = null;
++  let valid = false;
++  /** The pieces in the copy, and where they draw. */
++  let inCopy = new Map<Mesh, Rect | null>();
++  let nextCopy = new Map<Mesh, Rect | null>();
++  let sigs = new Map<Mesh, number[]>();
++  let nextSigs = new Map<Mesh, number[]>();
++  let fillRect: Rect = [0, 0, 0, 0];
++  const changed: { o: Mesh; renderOrder: number; material: Material }[] = [];
++  const scissor = new Vector4();
++  let mode: TowerMode = 'off';
++
++  fill.onBeforeRender = (renderer: WebGLRenderer) => {
++    const [x0, y0, x1, y1] = fillRect;
++    renderer.state.scissor(scissor.set(x0, y0, x1 - x0, y1 - y0));
++    renderer.state.setScissorTest(true);
++  };
++  fill.onAfterRender = (renderer: WebGLRenderer) => renderer.state.setScissorTest(false);
++  take.onAfterRender = (renderer: WebGLRenderer) => {
++    const size = renderer.getDrawingBufferSize(drawingBuffer);
++    if (!texture || texture.image.width !== size.x || texture.image.height !== size.y) {
++      texture?.dispose();
++      texture = new FramebufferTexture(size.x, size.y);
++      restoreMaterial.uniforms.uCache.value = texture;
++    }
++    renderer.copyFramebufferToTexture(texture);
++    valid = true;
++    const t = inCopy;
++    inCopy = nextCopy;
++    nextCopy = t;
++  };
++
++  const set = (o: Mesh, change: { renderOrder?: number; material?: Material }) => {
++    changed.push({ o, renderOrder: o.renderOrder, material: o.material as Material });
++    if (change.renderOrder !== undefined) o.renderOrder = change.renderOrder;
++    if (change.material !== undefined) o.material = change.material;
++  };
++
++  /**
++   * Plans the frame (from scene.onBeforeRender, the garden's mode decided):
++   * which pieces are shaded, which come from the copy, what is filled in.
++   * `gardenCached`: the garden's copy holds this camera's garden.
++   * `atRest`: the camera and the garden are as they were the frame before.
++   */
++  const before = (
++    renderer: WebGLRenderer,
++    camera: Camera,
++    gardenCached: boolean,
++    atRest: boolean,
++  ) => {
++    after();
++    // The tower's opaque pieces, and whether anything opaque can't be cached
++    const pieces: Mesh[] = [];
++    let unsure: string | false = false;
++    const g = garden();
++    const visit = (o: Object3D) => {
++      if (
++        o === g ||
++        hooks.has(o) ||
++        o.name === WARM ||
++        o.name.startsWith('backdrop-') ||
++        !o.visible
++      )
++        return;
++      const m = (o as Mesh).material as Material | Material[] | undefined;
++      const drawn =
++        (o as Mesh).isMesh ||
++        (o as { isPoints?: boolean }).isPoints ||
++        (o as { isLine?: boolean }).isLine;
++      if (m && drawn) {
++        // (several materials: only see-through ones, drawn after the pieces, are no concern)
++        if (Array.isArray(m)) {
++          if (m.some((one) => !one.transparent && one.visible)) unsure ||= `materials:${o.name}`;
++        } else if (!m.transparent && m.visible) {
++          const plain =
++            (o as Mesh).isMesh &&
++            (m as ShaderMaterial).isShaderMaterial &&
++            m.depthTest &&
++            m.depthWrite &&
++            m.colorWrite &&
++            !m.alphaToCoverage;
++          if (plain) pieces.push(o as Mesh);
++          else unsure ||= `${o.type}:${o.name}:${m.type}`;
++        }
++      }
++      for (const c of o.children) visit(c);
++    };
++    for (const c of scene.children) visit(c);
++    (scene.userData as Record<string, unknown>).towerUnsure = unsure;
++
++    nextSigs.clear();
++    for (const p of pieces) nextSigs.set(p, signature(p, [], pushValue));
++    const moving = new Set<Mesh>();
++    for (const p of pieces) if (!same(sigs.get(p), nextSigs.get(p)!)) moving.add(p);
++    const t = sigs;
++    sigs = nextSigs;
++    nextSigs = t;
++
++    const { x: width, y: height } = renderer.getDrawingBufferSize(drawingBuffer);
++    const off = (globalThis as { __towerOff?: boolean }).__towerOff === true;
++    const garden0 = gardenCopy();
++    if (unsure || off || !atRest || !gardenCached || !garden0) {
++      valid = false;
++      mode = 'off';
++      return mode;
++    }
++    const removed: Mesh[] = [];
++    if (valid) for (const [p] of inCopy) if (moving.has(p) || !sigs.has(p)) removed.push(p);
++    let rect: Rect | null = null;
++    if (valid && removed.length) {
++      for (const p of removed) {
++        const r = inCopy.get(p);
++        if (!r) {
++          valid = false;
++          break;
++        }
++        rect = rect
++          ? [
++              Math.min(rect[0], r[0]),
++              Math.min(rect[1], r[1]),
++              Math.max(rect[2], r[2]),
++              Math.max(rect[3], r[3]),
++            ]
++          : [...r];
++      }
++      if (rect && (rect[2] - rect[0]) * (rect[3] - rect[1]) > MOST * width * height) valid = false;
++    }
++    // What the copy holds once this frame takes it again
++    nextCopy.clear();
++    for (const p of pieces) if (!moving.has(p)) nextCopy.set(p, rectOf(p, camera, width, height));
++
++    if (!valid) {
++      // In full, the pieces that changed shaded after the copy is taken
++      mode = 'full';
++      take.visible = true;
++      for (const p of moving) set(p, { renderOrder: MOVING + p.renderOrder });
++      return mode;
++    }
++    mode = rect ? 'repair' : 'cached';
++    fillRect = rect ?? [0, 0, 0, 0];
++    restore.visible = true;
++    fill.visible = mode === 'repair';
++    fillMaterial.uniforms.uCache.value = garden0;
++    let added = false;
++    for (const p of pieces) {
++      if (moving.has(p)) set(p, { renderOrder: MOVING + p.renderOrder });
++      else if (!inCopy.has(p)) added = true;
++      else if (!(rect && meets(inCopy.get(p)!, rect)))
++        set(p, { material: twinOf(p.material as ShaderMaterial) });
++      // (else: shaded again in full, over the rect filled in)
++    }
++    if (mode === 'repair') for (const p of removed) inCopy.delete(p);
++    // The copy changes (pieces join it or leave it): taken again
++    take.visible = added || mode === 'repair';
++    return mode;
++  };
++
++  function after() {
++    for (let i = changed.length - 1; i >= 0; i--) {
++      const c = changed[i];
++      c.o.renderOrder = c.renderOrder;
++      c.o.material = c.material;
++    }
++    changed.length = 0;
++    restore.visible = fill.visible = take.visible = false;
++  }
++  done.onAfterRender = after;
++
++  const dispose = () => {
++    texture?.dispose();
++    triangle.dispose();
++    take.geometry.dispose();
++    restoreMaterial.dispose();
++    fillMaterial.dispose();
++    doneMaterial.dispose();
++    for (const t of twins.values()) t.dispose();
++  };
++
++  return {
++    hooks: [restore, fill, take, done],
++    before,
++    dispose,
++    invalidate: () => {
++      valid = false;
++    },
++  };
++};
