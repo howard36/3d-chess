@@ -13,6 +13,8 @@ interface MoveCardProps {
   /** It is this player's turn (whether or not the board takes input). */
   yourTurn: boolean;
   onMove: (move: Move) => void;
+  /** In sight whatever has focus: there is no board to play on, only this. */
+  shown?: boolean;
 }
 
 // A move as the wire writes it (level-file-rank), with an en dash, so a
@@ -87,7 +89,15 @@ const MoveList = React.memo(({ moves }: { moves: MoveRecord[] }) => {
  * for screen readers, and the field, which appears when it takes keyboard
  * focus (Tab) and goes again when it loses it empty.
  */
-const MoveCard: React.FC<MoveCardProps> = ({ board, color, moves, canMove, yourTurn, onMove }) => {
+const MoveCard: React.FC<MoveCardProps> = ({
+  board,
+  color,
+  moves,
+  canMove,
+  yourTurn,
+  onMove,
+  shown = false,
+}) => {
   const [text, setText] = React.useState('');
   const [problem, setProblem] = React.useState<string | null>(null);
   const [focused, setFocused] = React.useState(false);
@@ -113,7 +123,7 @@ const MoveCard: React.FC<MoveCardProps> = ({ board, color, moves, canMove, yourT
     onMove(result.move);
   };
 
-  const revealed = (focused || text !== '') && !dismissed;
+  const revealed = shown || ((focused || text !== '') && !dismissed);
   return (
     <section
       className="hud-card hud-glass"
@@ -184,7 +194,7 @@ const MoveCard: React.FC<MoveCardProps> = ({ board, color, moves, canMove, yourT
         </div>
         {focused && !problem && (
           <div className="hud-hint" aria-hidden>
-            e.g. Bb1-Cb1, then Enter · Esc to hide
+            e.g. Bb1-Cb1, then Enter{shown ? '' : ' · Esc to hide'}
           </div>
         )}
       </form>

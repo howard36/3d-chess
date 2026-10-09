@@ -58,3 +58,22 @@ describe('MoveCard’s move list', () => {
     expect(rows()).toHaveLength(65);
   });
 });
+
+describe('MoveCard’s field', () => {
+  it('is out of sight until it has focus, unless there is no board to play on', () => {
+    const { rerender } = render(card([]));
+    expect(screen.getByTestId('move-card')).toHaveAttribute('data-hidden', '');
+    rerender(
+      <MoveCard
+        board={Board.setupStartingPosition()}
+        color="white"
+        moves={[]}
+        canMove
+        yourTurn
+        onMove={() => {}}
+        shown
+      />,
+    );
+    expect(screen.getByTestId('move-card')).not.toHaveAttribute('data-hidden');
+  });
+});
