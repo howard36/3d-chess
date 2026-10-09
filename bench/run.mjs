@@ -98,9 +98,10 @@ const VENV_PYTHON = join(
 
 /**
  * Where a tier runs and writes: this checkout by default; with --base, also
- * a worktree of the base commit (`python`: run the server bench with the
- * shared venv's interpreter, never `uv run`, which would re-sync that venv
- * against the worktree).
+ * a worktree of the base commit (`python`: run the server bench with that
+ * side's venv interpreter, never `uv run`, which would re-sync the venv
+ * against the worktree; the base shares this checkout's unless it locks
+ * other packages).
  */
 const MAIN = { root: ROOT, out: OUT_DIR, rounds: ROUNDS, repeat: REPEAT, python: null };
 
@@ -866,10 +867,9 @@ function abMain() {
   md.push('## Summary');
   md.push(
     `${rows.length} measurements compared: **${better.length} better, ${real.length - better.length} ` +
-      `worse**, ${rows.length - real.length - short.filter((r) => !r.v?.real).length} unchanged ` +
-      `within their noise` +
+      `worse**, ${rows.length - real.length} unchanged within their noise` +
       (short.length
-        ? `, **${short.length} not measured in every pair** (${short
+        ? `; of them all, **${short.length} not measured in every pair** (${short
             .map((r) => `${r.where}: ${r.what} — ${r.pairs.length} of ${PAIRS}`)
             .join('; ')}).`
         : '.'),
