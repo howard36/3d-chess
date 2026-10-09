@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OPPONENT_JOINED_TITLE, TURN_ICON, YOUR_MOVE_TITLE, useTabSignal } from './useTabSignal';
 
-const TITLE = '3D Chess — Online Multiplayer';
+const TITLE = '3D Chess';
 const ICON = '/favicon.svg';
 const icon = () => document.querySelector('link[rel~="icon"]')!.getAttribute('href');
 
