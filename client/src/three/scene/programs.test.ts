@@ -86,6 +86,20 @@ describe('warmObjects and keepPrograms', () => {
     expect(group.children.every((o) => !o.frustumCulled)).toBe(true);
   });
 
+  it("carries normals as the marks' geometry does, and none for the bare ones", () => {
+    // three.js links one program for geometry with normals and another for
+    // geometry without: warmed on the wrong kind, a mark links its own
+    const [copy, mark, mote] = [material(), material(), new PointsMaterial()];
+    const { group } = warmObjects([mark], [mote], [copy]);
+    const [bare, mesh, points] = group.children as (Mesh | Points)[];
+    expect(bare.material).toBe(copy);
+    expect(Object.keys(bare.geometry.attributes)).toEqual(['position']);
+    expect(mesh.material).toBe(mark);
+    expect(Object.keys(mesh.geometry.attributes).sort()).toEqual(['normal', 'position']);
+    expect([...mesh.geometry.getAttribute('position').array]).toEqual(new Array(9).fill(0));
+    expect(points.material).toBe(mote);
+  });
+
   it('keeps the programs the warmed materials drew with', () => {
     const program = {};
     const [warm, later] = [material(), material()];

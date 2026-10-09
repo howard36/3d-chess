@@ -82,7 +82,7 @@ export const backdropSignature = (
     if (m) for (const one of Array.isArray(m) ? m : [m]) materials.add(one);
   });
   for (const m of materials) {
-    out.push(m.id, m.version, m.visible ? 1 : 0);
+    out.push((m as NumberedMaterial).id, m.version, m.visible ? 1 : 0);
     const uniforms = (m as ShaderMaterial).uniforms;
     if (uniforms) for (const name in uniforms) pushValue(out, uniforms[name].value);
   }
@@ -90,6 +90,9 @@ export const backdropSignature = (
 };
 
 const drawingBuffer = new Vector2();
+
+/** Every material has a numeric `id` (three's Material.js); @types/three 0.186 leaves it out. */
+type NumberedMaterial = Material & { readonly id: number };
 
 const pushAll = (out: number[], values: ArrayLike<number>) => {
   for (let i = 0; i < values.length; i++) out.push(values[i]);
