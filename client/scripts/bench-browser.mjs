@@ -366,9 +366,12 @@ const BENCH_INIT = () => {
       // Which program: the start of its fragment shader's main
       const shaders = this.getAttachedShaders(program) ?? [];
       const src = shaders.map((sh) => this.getShaderSource(sh) ?? '').join('\n');
+      // (and which canvas: the nearest test id above it)
+      const where = this.canvas?.closest?.('[data-testid]')?.getAttribute('data-testid') ?? '?';
       (b.linked ??= []).push([
         now(),
         src.slice(src.lastIndexOf('void main')).replace(/\s+/g, ' ').slice(0, 90),
+        where,
       ]);
       return link.call(this, program);
     };
@@ -1179,6 +1182,25 @@ async function setupViaUI(browser, scope) {
           .filter((s) => s >= clickA && s <= a.firsts.shareScreen)
           .map((s, i, all) => (i ? s - all[i - 1] : 0)),
       ),
+    },
+    // Where the joiner's wait goes: what happened from the click to its first frame
+    joinTrace: {
+      stages: b.stage
+        .filter(([t]) => t >= clickB - 1 && t <= frameB + 1)
+        .map(([t, ...rest]) => [Math.round(t - clickB), ...rest]),
+      longTasks: tasksIn(b.lt, clickB - 2000, frameB).map(([t, d]) => [
+        Math.round(t - clickB),
+        Math.round(d),
+      ]),
+      links: (b.linked ?? [])
+        .filter(([l]) => l >= clickB - 2000 && l <= frameB)
+        .map(([l, what, where]) => [Math.round(l - clickB), where, what.slice(0, 40)]),
+      syncs: (b.syncs ?? [])
+        .filter(([u]) => u >= clickB - 2000 && u <= frameB)
+        .map(([u, n, d]) => [Math.round(u - clickB), n, Math.round(d)]),
+      renders: b.renders
+        .filter(([t]) => t >= clickB - 2000 && t <= frameB)
+        .map(([t, d, m]) => [Math.round(t - clickB), Math.round(d), m]),
     },
     joinButton: b.firsts.joinButton - b.timeOrigin,
     joinStart: rxOf(b, 'game_start') - clickB,
