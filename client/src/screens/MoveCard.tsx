@@ -41,10 +41,12 @@ const MoveBlock = React.memo(
     for (let i = start; i < Math.min(moves.length, start + BLOCK); i += 2) {
       const white = moves[i];
       const black = moves[i + 1];
+      // One text node a row (not five): a reopened game of thousands of
+      // moves mounts its whole record at once
       rows.push(
-        <li key={i / 2 + 1}>
-          {i / 2 + 1}. {formatMove(white)} {black ? formatMove(black) : ''}
-        </li>,
+        <li
+          key={i / 2 + 1}
+        >{`${i / 2 + 1}. ${formatMove(white)} ${black ? formatMove(black) : ''}`}</li>,
       );
     }
     return rows;
