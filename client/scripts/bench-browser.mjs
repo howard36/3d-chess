@@ -15,7 +15,9 @@
 // bundle, cold-load, setup, move-latency, reopen, presence, select, render,
 // typed-paste. --keep keeps the temporary build and logs. Every section's
 // rows come with a metrics list (the row's primary number, keyed stably) for
-// comparing runs, and raw.timings holds each step's wall time.
+// comparing runs, and raw.timings holds each step's wall time. A section that
+// fails (the app's flow changed under it, say) becomes a "failed" row in the
+// report, which is still written, and the script exits 1.
 //
 // Chromium comes from PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH when set, as for the
 // e2e suite. BENCH_NO_IDLE_CALLBACK=1 takes requestIdleCallback away from every
@@ -1128,17 +1130,20 @@ async function setupViaUI(browser, scope) {
     null,
     { polling: 50 },
   );
-  // (named "Start a game" before the home page had two ways to play, as a base
-  // commit may still have it; the home page's tiles end in a CSS arrow, "→")
+  // By role and the start of the name, as the e2e suite finds them
+  // (e2e/helpers/game.ts): a button's accessible name can carry more than its
+  // label (the home page's tiles end in a drawn "→"). It was named "Start a
+  // game" before the home page had two ways to play, as a base commit may
+  // still have it.
   await pageA.getByRole('button', { name: /^(Play a friend|Start a game)\b/ }).click();
   // The side choice (/new), where a pick asks the server for the game; a
   // build without one asks on "Play a friend" and goes straight to the game
   await pageA.waitForURL(/\/(new|game\/)/);
   const chose = new URL(pageA.url()).pathname === '/new';
-  if (chose) await pageA.getByRole('button', { name: /^White/ }).click();
+  if (chose) await pageA.getByRole('button', { name: /^White\b/ }).click();
   await pageA.waitForFunction(() => window.__bench.firsts.shareScreen, null, { polling: 50 });
   await pageB.goto(pageA.url());
-  await pageB.getByRole('button', { name: /^Join game$/i }).click();
+  await pageB.getByRole('button', { name: /^Join game\b/i }).click();
   await Promise.all([waitBoard(pageA), waitBoard(pageB)]);
   const [a, b] = await Promise.all([snap(pageA), snap(pageB)]);
   // The programs the joiner's board has linked: each one's shaders, briefly
@@ -2532,6 +2537,17 @@ async function main() {
 let exitCode = 0;
 try {
   await main();
+  // A failed section is a row in the report, which is still written; the
+  // exit code says so too, so bench/run.mjs reports the tier as failed
+  // rather than passing a run that measured nothing
+  if (raw.errors?.length) {
+    log(
+      `${raw.errors.length} section(s) failed: ${raw.errors
+        .map((e) => `${e.section} (${e.error})`)
+        .join('; ')}`,
+    );
+    exitCode = 1;
+  }
 } catch (e) {
   log(`fatal: ${e?.stack ?? e}`);
   exitCode = 1;

@@ -14,6 +14,15 @@ export const WS_URL: string = import.meta.env.VITE_WS_URL ?? DEFAULT_WS_URL;
  */
 export const SEAT_REPLACED_CLOSE_CODE = 4001;
 
+/** What a player does in a game under way: never carried over to a new socket. */
+const IN_GAME = new Set<WebSocketMessage['type']>([
+  'move',
+  'resign',
+  'offer_draw',
+  'accept_draw',
+  'decline_draw',
+]);
+
 /** Delay before reconnect attempt n (0-based): 0.5s, 1s, 2s, 4s, then 8s forever. */
 const reconnectDelayMs = (attempt: number) => Math.min(500 * 2 ** attempt, 8000);
 
@@ -171,9 +180,9 @@ export function useGameSocket(): GameSocket {
       const ws = usable ? adopted.socket.socket : new WebSocket(WS_URL);
       socketRef.current = ws;
 
-      // Sends what was queued before the socket was open, but moves (below)
+      // Sends what was queued before the socket was open, but in-game messages (below)
       const flush = () => {
-        const queued = outgoingQueueRef.current.filter((m) => m.type !== 'move');
+        const queued = outgoingQueueRef.current.filter((m) => !IN_GAME.has(m.type));
         outgoingQueueRef.current = [];
         for (const msg of queued) {
           ws.send(JSON.stringify(msg));
@@ -192,8 +201,11 @@ export function useGameSocket(): GameSocket {
         setStatus('connected');
         // A queued move was made against a board that may have moved on by
         // now, and it was never echoed so the board never showed it — dropping
-        // it is consistent, the player just moves again. Session-establishing
-        // messages (create/join/rejoin) are exactly what the queue is for.
+        // it is consistent, the player just moves again. So is a resignation
+        // or a draw offer or answer, made in a game that may have moved on
+        // too (and sent before the new socket's rejoin, it would be refused).
+        // Session-establishing messages (create/join/rejoin) are exactly what
+        // the queue is for.
         flush();
       };
       ws.onopen = opened;

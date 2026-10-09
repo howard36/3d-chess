@@ -121,6 +121,8 @@ describe('useGameSocket', () => {
     // session (the game may have moved on), the rejoin must.
     act(() => {
       result.current.send({ type: 'move', from: 'Bb1', to: 'Cb1' });
+      result.current.send({ type: 'resign' });
+      result.current.send({ type: 'offer_draw' });
       result.current.send({ type: 'rejoin_game', gameId: 'ABC123', color: 'white' });
     });
 
@@ -129,9 +131,9 @@ describe('useGameSocket', () => {
     await expect(server).toReceiveMessage(
       JSON.stringify({ type: 'rejoin_game', gameId: 'ABC123', color: 'white' }),
     );
-    expect(server.messages).not.toContainEqual(
-      JSON.stringify({ type: 'move', from: 'Bb1', to: 'Cb1' }),
-    );
+    expect(server.messages).toEqual([
+      JSON.stringify({ type: 'rejoin_game', gameId: 'ABC123', color: 'white' }),
+    ]);
   });
 
   it('stays down after a seat_replaced close and only reconnects on request', async () => {

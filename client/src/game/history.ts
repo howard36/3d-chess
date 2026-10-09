@@ -18,10 +18,12 @@ export interface GameOver {
   /**
    * Mate, or one of the draws: no legal move without being in check, the
    * same position for the third time, or fifty moves each with no capture
-   * and no pawn move (engine/draws.ts).
+   * and no pawn move (engine/draws.ts). The replay finds only these; the
+   * players' own ending, a resignation or an agreed draw, comes from the log
+   * beside it (ending.ts).
    */
-  result: 'checkmate' | 'stalemate' | 'repetition' | 'fifty-moves';
-  /** The side that delivered mate; absent for a draw. */
+  result: 'checkmate' | 'stalemate' | 'repetition' | 'fifty-moves' | 'resignation' | 'agreement';
+  /** The side that delivered mate, or whose opponent resigned; absent for a draw. */
   winner?: Turn;
 }
 

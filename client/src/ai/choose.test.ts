@@ -1,7 +1,7 @@
 import { Board } from '../engine/board';
 import { moveFromMessage } from '../engine/protocol';
 import { DEMO_GAME } from '../game/demo';
-import { chooseMove, hardToSee, pickMove, seeded } from './choose';
+import { assessPosition, chooseMove, hardToSee, pickMove, seeded } from './choose';
 import { DIFFICULTIES, LEVELS, isDifficulty, thinkTime } from './levels';
 import { BISHOP, KING, KNIGHT, PAWN, QUEEN, UNICORN, cellOf } from './position';
 import type { WireMove } from './position';
@@ -26,6 +26,12 @@ const isLegal = (records: WireMove[], move: WireMove) => {
     .generateLegalMoves(m.from)
     .some((l) => l.to.x === m.to.x && l.to.y === m.to.y && l.to.z === m.to.z);
 };
+
+it('weighs up a position for the side to move', () => {
+  // Even at the start; won for White a move before the demo's mate
+  expect(Math.abs(assessPosition([], { maxNodes: 4000 }))).toBeLessThan(100);
+  expect(assessPosition(demo.slice(0, -1), { maxNodes: 4000 })).toBeGreaterThan(MATE - 100);
+});
 
 it('plays a legal move at every level, all game long', () => {
   for (const difficulty of DIFFICULTIES) {

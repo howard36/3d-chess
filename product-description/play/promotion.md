@@ -2,7 +2,7 @@
 
 ## Summary
 
-Promotion is the choice a player makes when one of their pawns reaches a [promotion square](../foundations/game-rules.md#promotion): which piece it becomes. Pressing a promotion square as a pawn's destination opens a small dialog, "Promote to", with one button per piece and keyboard focus on "Queen"; the move is sent only when the player picks one, and can be abandoned with Cancel, Escape, or a click outside the dialog. A promotion can also be typed in the [move box](../glossary.md#the-interface) with the piece's letter, which sends it without the dialog. The dialog lives on the board screen, over the board, and appears only on the player's own turn while [the board takes input](../foundations/input-model.md#when-the-board-takes-input). This document owns the dialog, from pressing the promotion square to picking or cancelling, and the typed form; once a piece is picked, the move is in flight exactly as in [making a move](making-a-move.md).
+Promotion is the choice a player makes when one of their pawns reaches a [promotion square](../foundations/game-rules.md#promotion): which piece it becomes. Pressing a promotion square as a pawn's destination opens a small dialog, "Promote to", with one button per piece and keyboard focus on "Queen"; the move is sent only when the player picks one, and can be abandoned with Cancel, Escape, or a click outside the dialog. A promotion can also be typed in the [move box](../glossary.md#the-interface) with the piece's letter, which sends it without the dialog. The dialog lives on the board screen, over the board, and appears only on the player's own turn while [the board takes input](../foundations/input-model.md#when-the-board-takes-input). This document owns the dialog, from pressing the promotion square to picking or cancelling, and the typed form; once a piece is picked, the move is in flight exactly as in [making a move](making-a-move.md). The same dialog appears in the [tutorial](../learn/the-tutorial.md)'s Pawn lesson, where the pick only changes the tutorial's board.
 
 ## The simple case
 
@@ -59,7 +59,7 @@ The dialog closes without sending in any of these ways:
 
 In every case nothing is sent and nothing is recorded. The player is back on their own turn with nothing selected: the pawn is not reselected, and the player must press it again to promote (or to move something else instead).
 
-**A typed promotion that cannot be played** sends nothing and is explained under the move box, like any typed move (see [making a move](making-a-move.md#end-without-sending)). Two lines are particular to promotion: a pawn move onto the promotion square without a letter gives "Say which piece to promote to: add =Q, =R, =B, =N or =U.", and a letter on a move that is not a promotion gives, for example, "Ab2-Ab3 is not a promotion."
+**A typed promotion that cannot be played** sends nothing and is explained under the move box, like any typed move (see [making a move](making-a-move.md#end-without-sending)). Two lines are particular to promotion: a pawn move onto the promotion square without a letter gives "Say which piece to promote to: add =Q, =R, =B, =N or =U.", and a letter on a move that is not a promotion gives, for example, "Bb1-Cb1 is not a promotion."
 
 ### Send
 
@@ -73,7 +73,7 @@ As in [making a move](making-a-move.md#while-in-flight): the board ignores press
 
 ### The answer arrives
 
-On the echo, both boards replay the record with the promotion: the chosen piece [glides](../foundations/the-view.md#motion) from the pawn's cell to the promotion square, a captured piece burns away as it arrives (or, under reduced motion, the new piece is simply drawn there), the mint trace moves, and the turn passes to the opponent. The [move list](../game-page/move-list.md) (for screen readers) has the move with "=" and the piece's letter: Q for Queen, R for Rook, B for Bishop, N for Knight, U for Unicorn. The new piece is from then on an ordinary piece of its kind. If the promotion gives check or ends the game, that follows as for any move.
+On the echo, both boards replay the record with the promotion: the chosen piece [glides](../foundations/the-view.md#motion) from the pawn's cell to the promotion square, a captured piece is knocked over and burns away as it arrives (or, under reduced motion, the new piece is simply drawn there), the mint trace moves, and the turn passes to the opponent. The [move list](../game-page/move-list.md) (for screen readers) has the move with "=" and the piece's letter: Q for Queen, R for Rook, B for Bishop, N for Knight, U for Unicorn. The new piece is from then on an ordinary piece of its kind. If the promotion gives check or ends the game, that follows as for any move.
 
 An error or a drop is handled as in [making a move](making-a-move.md#the-answer-arrives): an error releases the board with the message in the error banner and the pawn still on its cell; a drop is settled by the next snapshot.
 
@@ -128,7 +128,7 @@ An error or a drop is handled as in [making a move](making-a-move.md#the-answer-
 ## Edge cases
 
 - **Every pressed promotion shows the dialog.** There is no automatic Queen and no remembered choice; each promotion made on the board asks. Only a typed promotion skips the dialog, and it must name its piece.
-- **Capturing onto the promotion square.** Pressing the opponent's piece on the promotion square opens the dialog like a quiet promotion; the captured piece burns away when the move lands.
+- **Capturing onto the promotion square.** Pressing the opponent's piece on the promotion square opens the dialog like a quiet promotion; the captured piece is knocked over when the move lands.
 - **Enter right after opening.** Because "Queen" has focus, pressing Enter (or Space) as soon as the dialog appears promotes to a Queen. A player who presses Enter out of habit gets a Queen, not a pause.
 - **A click inside the card.** Clicking the card between buttons does nothing, but it takes keyboard focus off the buttons, after which Escape does nothing until Tab brings focus back to a button.
 - **An error banner behind the dialog.** An error from before the dialog opened stays visible under the veil. Clicking it cancels the promotion instead of dismissing the error.
@@ -137,11 +137,9 @@ An error or a drop is handled as in [making a move](making-a-move.md#the-answer-
 
 ## Open questions and verification
 
-- The dialog has no focus trap of its own. Tab stays within it only because the page behind is inert; past "Cancel", Tab goes to the browser's toolbar before returning to "Queen". Read from code (`client/src/screens/GameScreen.tsx:332-335`); not tried with a screen reader.
-- Clicking an error banner under the veil cancels the promotion. Read from the drawing order and the inert page (`client/src/screens/GameScreen.tsx:335`, `client/src/screens/PromotionPicker.tsx:30-40`); not confirmed by hand.
-- The dialog, its cancel paths, the send, the automatic close on a drop or a new position, and the "=U" in the move list are covered by `client/src/App.test.tsx`, `client/src/three/Board.test.tsx`, and `client/e2e/promotion.spec.ts`; the typed form's parsing by `client/src/game/typedMove.test.ts`. The focus on "Queen" after a real click was confirmed by the rerun of the scripted pass against this build (PROMO-02, PROMO-04, PROMO-08 no longer reproduce the lost focus); see [`bug-triage.md`](../bug-triage.md) B-07, fixed.
+- The dialog has no focus trap of its own. Tab stays within it only because the page behind is inert; past "Cancel", Tab goes to the browser's toolbar before returning to "Queen". Read from code (`client/src/screens/GameView.tsx`, `behindDialog`); not tried with a screen reader.
+- Clicking an error banner under the veil cancels the promotion. Read from the drawing order and the inert page (`client/src/screens/GameView.tsx`, `client/src/screens/PromotionPicker.tsx`); not confirmed by hand.
+- The dialog, its cancel paths, the send, the automatic close on a drop or a new position, and the "=U" in the move list are covered by `client/src/App.test.tsx`, `client/src/three/Board.test.tsx`, and `client/e2e/promotion.spec.ts`; the typed form's parsing by `client/src/game/typedMove.test.ts`. The focus on "Queen" after a real click was confirmed by the scripted pass at `c571311` ([bug triage](../bug-triage.md) B-07, fixed).
+- Brought up to `b325641` from `client/src/screens/PromotionPicker.tsx` and `GameView.tsx`; the dialog itself is unchanged since the scripted pass apart from its glyphs (the Unicorn's now drawn as the 3D piece's horn), which were not checked in the running app.
 
-- The dialog's description (the glass card, the veil, the tiles) was brought up to the new HUD from `client/src/screens/PromotionPicker.tsx` at `bb16fed`, not checked in the running app.
-- The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](../foundations/the-view.md), not checked in the running app, and need re-verification.
-
-Verified against 3D Chess commit `4e18386`
+Drafted against 3D Chess commit `b325641`
