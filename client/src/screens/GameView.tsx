@@ -15,6 +15,8 @@ import PromotionPicker from './PromotionPicker';
 import TurnPill from './TurnPill';
 import CapturedPieces from './CapturedPieces';
 import MoveCard from './MoveCard';
+import MoveHistory from './MoveHistory';
+import { useReview } from './useReview';
 import MoveAnnouncer from './MoveAnnouncer';
 import GameActions from './GameActions';
 import type { DrawOfferState } from '../game/ending';
@@ -29,6 +31,9 @@ export type { IntroVariant };
 // stay should it fail to load
 const gameCanvas = lazyChunk(() => import('./GameCanvas'));
 gameCanvas.preload();
+
+/** The board's moves while it shows an earlier position (it takes none, should one come). */
+const ignoreMove = () => {};
 
 export interface GameViewProps {
   /** The replayed game (deriveHistory). */
@@ -129,7 +134,7 @@ const GameView: React.FC<GameViewProps> = ({
   onFirstFrame,
   onIntroDone,
 }) => {
-  const { board, moveRecords, currentTurn, lastMove, captured, gameOver } = history;
+  const { board, moveRecords, currentTurn, gameOver } = history;
 
   // The entrance's plan and clock, fixed when the view mounts
   const [clock] = React.useState<IntroClock>(() => {
@@ -185,6 +190,11 @@ const GameView: React.FC<GameViewProps> = ({
   // While a dialog is up, everything behind it is out of reach: not
   // clickable (the backdrop covers it) and not focusable or readable either.
   const behindDialog = replaced || resultUp || (!!promotionChoices && !boardDisabled);
+  // The position the board shows: the live one, or an earlier one the
+  // player has stepped back to through the move history, which takes no
+  // move. The pill, the announcer and their hooks follow the live game.
+  const review = useReview(history);
+  const shown = review.position;
   return (
     // game-screen (index.css): no text selection, callout or double-tap
     // zoom on a touch screen, except in the move box and the move list
@@ -213,13 +223,15 @@ const GameView: React.FC<GameViewProps> = ({
           <React.Suspense fallback={null}>
             <GameCanvas
               color={color}
-              board={board}
-              currentTurn={currentTurn}
-              lastMove={lastMove}
-              gameOver={gameOver}
-              // Nothing can be picked up while the entrance plays
-              disabled={boardDisabled || introPlaying}
-              onMove={onMove}
+              board={shown.board}
+              currentTurn={shown.currentTurn}
+              lastMove={shown.lastMove}
+              gameOver={review.reviewing ? null : gameOver}
+              // Nothing can be picked up while the entrance plays, nor in
+              // an earlier position
+              disabled={boardDisabled || introPlaying || review.reviewing}
+              // A move is played from the live position only
+              onMove={review.reviewing ? ignoreMove : onMove}
               onChoosePromotion={onChoosePromotion}
               clock={clock}
               introPaused={introPaused}
@@ -248,7 +260,7 @@ const GameView: React.FC<GameViewProps> = ({
                   opponentName={opponentName}
                   stale={reconnecting}
                 />
-                <CapturedPieces seat={color} captured={captured} board={board} />
+                <CapturedPieces seat={color} captured={shown.captured} board={shown.board} />
               </div>
             )}
             <div className="hud-status">
@@ -260,15 +272,30 @@ const GameView: React.FC<GameViewProps> = ({
           <MoveCard
             board={board}
             color={color}
-            moves={moveRecords}
-            canMove={!boardDisabled && !gameOver && color === currentTurn}
+            canMove={!boardDisabled && !gameOver && color === currentTurn && !review.reviewing}
             yourTurn={!gameOver && color === currentTurn}
+            reviewing={review.reviewing}
             onMove={onMove}
           />
           {/* After the move box, which stays the first Tab stop */}
           <HowToPlay />
-          {/* Under the way to the tutorial: resigning and draws */}
-          {color && !gameOver && actions && <GameActions seat={color} {...actions} />}
+          {/* Under the way to the tutorial, one column at the right where
+              the window has room beside the tower (index.css, .hud-side):
+              resigning and draws, which act on the live game whatever
+              position the board shows, then the move history */}
+          <div className="hud-side">
+            {color && !gameOver && actions && <GameActions seat={color} {...actions} />}
+            <MoveHistory
+              moves={moveRecords}
+              applied={history.appliedMoveCount}
+              shown={shown.ply}
+              newer={review.newer}
+              onShow={review.show}
+              // Not behind a dialog, nor while the entrance plays
+              enabled={!behindDialog && !introPlaying}
+              ended={!!gameOver && showEndModal && !resultUp}
+            />
+          </div>
           {boardLoad.failed && (
             <div className="hud-center">
               <div role="alert" className="hud-notice hud-glass" data-testid="board-failed">

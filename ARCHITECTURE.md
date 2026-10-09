@@ -235,8 +235,8 @@ Key decisions:
   (`e2e/touchCamera.spec.ts` loses a finger's pointer-up through real touch input).
 - **HUD.** Quiet by default: a glass **turn pill** at the top centre (across the row on a phone held upright,
   from a 12 px gutter at the left to the way to the tutorial at the right), a quiet "How to
-  play" at the top right ("?" in a narrow window), and nothing else unless something needs
-  saying.
+  play" at the top right ("?" in a narrow window), the move history from the first move on
+  (below), and nothing else unless something needs saying.
   The pill's left half is the player and its right half the opponent, each with a small stone in its army's
   material (porcelain, charcoal); the half of the side to move is lit, its stone ringed in
   light ("Your move" / "Their move"); check is shown on the board, not here. An opponent with no
@@ -248,7 +248,7 @@ Key decisions:
   agreement"); `data-result` is `checkmate`, `resignation`, `stalemate`, `repetition`,
   `fifty-moves` or `agreement`, and the board takes no more input. While the game is on, a
   flag in a circle stands under the way to the tutorial at the right (`screens/GameActions.tsx`,
-  `.hud-game`: below the HUD's band, but in every window shape where the window is empty
+  `.hud-game`, over the move history in one column with it, `.hud-side`: below the HUD's band, but in every window shape where the window is empty
   beside the tower, which `hudFit.spec.ts` checks with the rest of the HUD). It opens a small
   menu, "Offer draw" and "Resign"; "Resign" asks once more ("Resign?", the focus on Cancel,
   a click hard on the heels of the one that asked ignored), so a stray click never ends a
@@ -271,18 +271,44 @@ Key decisions:
   way from `/new`) is not its own (`selectStandingError` in `game/session.ts`). A join or a
   rejoin is likewise judged by the answers since it was sent (`refusedSince`), never by an
   earlier request's. The **move card** is never shown as a panel: it stays in the page out
-  of sight, its list of moves for screen readers and its field to type a move (`Bb1-Cb1`),
-  which is the first Tab stop on the board screen. The field appears while it has keyboard
+  of sight, its field to type a move (`Bb1-Cb1`), which is the first Tab stop on the board
+  screen. The field appears while it has keyboard
   focus, at the bottom left (across the bottom in a window no wider than 13:9, at the bottom
-  right in a short one), and Escape puts it away. A visually hidden live region announces
+  right in a short one, over the move history where they meet), and Escape puts it away. A visually hidden live region announces
   every move as it lands ("White bishop Ad2 takes pawn on Dd5. Check. Your move.",
-  `game/announce.ts`). The parts are `screens/TurnPill.tsx`,
-  `CapturedPieces.tsx`, `MoveCard.tsx` and `MoveAnnouncer.tsx`, styled in `index.css`. For
+  `game/announce.ts`).
+  The **move history** (`screens/MoveHistory.tsx`, from the first move on) is the record in
+  numbered pairs ("1. Bb1–Cb1 Dd5–Cd5"), every move a button that shows the board as it
+  stood after it, over four steps: the start (move 0), back, on and the latest, and ← → Home
+  End while focus is not in a field. Where the window leaves room beside the tower it is a
+  narrow glass panel at the right under "How to play" and the flag, in one column with them
+  (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
+  height to fit (the list scrolls, the move shown kept in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
+  in a row under the tower (above "Play again" once the game is over), the move shown
+  between them ("7… Ed4–Ba1"), which opens the list above them. Closed, the list is
+  visually hidden, never `display: none`: it is how a screen reader reads the record, and
+  a polite status says where the board stands as the player steps. Away from the live
+  position (`screens/useReview.ts`) the board shows the earlier one, its last-move line,
+  check and captured pieces, and takes no input (no selection, no move; the move box says
+  "Go to the latest move first."); the move shown is lit in the list and the way back
+  ("Latest") is lit too, with a dot once a move has landed since, the view staying where the
+  player left it. The pill, the announcer and their hooks follow the live game throughout,
+  and so do resigning and draws: the flag, its menu and an offer stay while the player looks
+  back and act on the game, not the position shown, and a game ended (a resignation or an
+  agreed draw included) is stepped through like any other, the board taking no input at its
+  end either.
+  The earlier positions are replayed only while the player looks back (`game/review.ts`,
+  carried on as moves land), never on a move landing at the live position. One step
+  glides like a move (back, in reverse), a jump snaps (see The board); with reduced motion
+  nothing glides. The parts are `screens/TurnPill.tsx`,
+  `CapturedPieces.tsx`, `MoveCard.tsx`, `MoveHistory.tsx` and `MoveAnnouncer.tsx`, styled in
+  `index.css`. For
   tests and tools the pill carries `data-turn`, `data-check`, `data-result` and
   `data-winner`; `data-testid="seat"` its `data-seat`; `opponent-presence` its
-  `data-online`; `captured-pieces` each haul as `data-side` (`me`, `them`); and
+  `data-online`; `captured-pieces` each haul as `data-side` (`me`, `them`);
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
-  and `data-move-count`; `game-actions` is the flag's corner, with `draw-pending`,
+  and `data-move-count`; `move-history` the ply the board shows as `data-viewing-ply`
+  (the live ply at the live position), with `data-review` away from it; `game-actions` is the flag's corner, with `draw-pending`,
   `draw-declined` and `draw-offer` in it while they show. The browser tab follows the pill: while it is the seated player's
   move in a game under way (a friend's or the computer's), in view or not, the title is
   "● Your move · 3D Chess" and the icon is `public/favicon-turn.svg` (the favicon, the
@@ -493,8 +519,14 @@ a column of cool light. A move glides, the piece rigid, along the straight line
 between the squares, easing out of its square and into the next and taking longer the
 farther it goes (`three/glide.ts`, played by `MoveGlide` in `three/moveAnimation.tsx`); a
 piece the player held up stays up while its move goes to the server and settles onto its
-square on the way. As the attacker reaches its victim, the victim's outline flashes and a
-small ring of light spreads on the glass at its foot; it is knocked over away from the
+square on the way. What brought the shown position is decided once each time its move count
+changes (`Board.tsx`, `arrival`): a later position glides its last move in; in the game's
+review (`review`, the move history: see HUD) only a step of one move glides, forward as a
+move lands or back with the undone move's piece gliding home in reverse (a piece it had
+taken standing again, `Reveal`, once the glide has left its square), and a jump of
+several moves either way, like a position from history, is simply there. As the attacker
+reaches its victim, the victim's outline flashes and a small ring of light spreads on the
+glass at its foot; it is knocked over away from the
 attacker, burning away as it falls (`CaptureFx` in `scene/fx.tsx`). A king put in check
 rocks on his foot as the check lands, and a piece the player taps but cannot pick up shakes
 its head (`Jolt` in `three/pieceMotion.tsx`); with reduced motion none of this plays. At mate the king

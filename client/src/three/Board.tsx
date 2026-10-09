@@ -20,7 +20,7 @@ import { Coord, fromZXY, sameCoord, toZXY } from '../engine/coords';
 import { CELLS } from './layout';
 import { contactAtMs, planGlide, touchdownMs } from './glide';
 import type { GlidePlan } from './glide';
-import { MoveGlide } from './moveAnimation';
+import { MoveGlide, Reveal } from './moveAnimation';
 import { PIECE_LIFT } from './pieceMotion';
 import { prefersReducedMotion } from './motion';
 import { MATE_TUNING } from '../lib/mate';
@@ -112,6 +112,40 @@ export interface BoardProps {
    * landed, its moves ringed. It can still be put down and picked up by hand.
    */
   showMovesOf?: Coord | null;
+  /**
+   * The position steps through the game's record (the game's review), back
+   * as well as on: one move back glides the undone move's piece home, and
+   * a jump of several moves either way shows the new position at once.
+   * Without it, a later position always glides its last move in.
+   */
+  review?: boolean;
+}
+
+/** How the shown position arrived: a piece gliding into it. */
+interface Glide {
+  /** The piece standing on `to` glides in from `from`. */
+  from: Coord;
+  to: Coord;
+  plan: GlidePlan;
+  /** A step back through the record: the undone move's piece goes home. */
+  back: boolean;
+  /**
+   * Forward, what the move took (the capture's effect). Back, the piece the
+   * undone move had taken, standing again on `from`: it shows once the
+   * gliding piece has left it, `revealMs` in.
+   */
+  captured: Piece | null;
+  revealMs: number;
+}
+
+interface Arrival {
+  /** The shown position's move count, which the arrival was decided for. */
+  count: number;
+  /** One more for each arrival, keying what plays once per arrival. */
+  key: number;
+  glide: Glide | null;
+  /** The shown position's last move (a step back undoes it). */
+  lastMove: LastMoveInfo | undefined;
 }
 
 const Board = (props: BoardProps) => {
@@ -132,17 +166,50 @@ const Board = (props: BoardProps) => {
   const markerAt = (cell: Coord): MarkerProps => ({ floor: atCellFloor(worldOf(cell)) });
 
   const lastMove = props.lastMove;
-  // Moves already played when this board mounted are history (a rejoin
-  // replay): they keep their highlight but must not animate.
-  const mountMoveCount = useRef(lastMove?.moveCount ?? 0);
-  const animate =
-    !!lastMove && lastMove.moveCount > mountMoveCount.current && !prefersReducedMotion();
-  // What a live move brings about for the kings (a check's strike, a mate's
-  // topple and pulse) waits for the moving piece to land (MoveGlide's
-  // onLanded); a move from history shows it at once.
-  const [landedMove, setLandedMove] = useState(mountMoveCount.current);
-  const landing = animate && !!lastMove && lastMove.moveCount > landedMove;
-  const lastToKey = lastMove ? toZXY(lastMove.move.to) : null;
+  // The piece the player has just played, held up until its move comes back
+  // (so its glide sets off from where the player's hand left it)
+  const [carried, setCarried] = useState<Coord | null>(null);
+
+  // How the shown position arrived, decided once each time it changes (its
+  // move count). One move on (a move landing, a step forward through the
+  // record) glides that move's piece in from its source; in review, one move
+  // back glides the undone move's piece home. Anything else is simply there:
+  // the moves already played when this board mounted (a rejoin's replay
+  // keeps their highlight but must not animate), a jump through the record.
+  const shownCount = lastMove?.moveCount ?? 0;
+  const arrival = useRef<Arrival>({ count: shownCount, key: 0, glide: null, lastMove });
+  if (arrival.current.count !== shownCount) {
+    const was = arrival.current;
+    const step = shownCount - was.count;
+    // (Nothing glides for a player who asked for less motion)
+    const still = prefersReducedMotion();
+    let glide: Glide | null = null;
+    if (!still && lastMove && (props.review ? step === 1 : step > 0)) {
+      const { from, to } = lastMove.move;
+      const lift = carried && sameCoord(carried, from) ? PIECE_LIFT.selected * PIECE_SCALE : 0;
+      const capture = !!lastMove.capturedPiece;
+      const plan = planGlide(worldOf(from), worldOf(to), { lift, capture });
+      glide = { from, to, plan, back: false, captured: lastMove.capturedPiece, revealMs: 0 };
+    } else if (!still && props.review && step === -1 && was.lastMove) {
+      const { from, to } = was.lastMove.move;
+      const captured = was.lastMove.capturedPiece;
+      const plan = planGlide(worldOf(to), worldOf(from));
+      // The taken piece stands again once its taker, going home, has left
+      // it: as far from it as the taker was when it reached it
+      const forward = planGlide(worldOf(from), worldOf(to), { capture: !!captured });
+      const revealMs = forward.travelMs - (contactAtMs(forward) ?? forward.travelMs);
+      glide = { from: to, to: from, plan, back: true, captured, revealMs };
+    }
+    arrival.current = { count: shownCount, key: was.key + 1, glide, lastMove };
+  }
+  const { glide, key: arrivalKey } = arrival.current;
+  // A glide forward lands a move: what it brings about for the kings (a
+  // check's strike, a mate's topple and pulse) waits for the moving piece to
+  // land (MoveGlide's onLanded); a move from history shows it at once.
+  const [landedKey, setLandedKey] = useState(arrivalKey);
+  const landing = !!glide && !glide.back && arrivalKey > landedKey;
+  const glideToKey = glide ? toZXY(glide.to) : null;
+  const revealKey = glide?.back && glide.captured ? toZXY(glide.from) : null;
 
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | Coord>(null);
@@ -180,10 +247,7 @@ const Board = (props: BoardProps) => {
     setHoveredCell(hit?.key ?? null);
     setHoverOnFloor(hit?.on === 'floor');
   }, []);
-  // The piece the player has just played, held up until its move comes back
-  // (so its glide sets off from where the player's hand left it), and the
-  // piece last tapped in vain, with a count so each tap answers
-  const [carried, setCarried] = useState<Coord | null>(null);
+  // The piece last tapped in vain, with a count so each tap answers
   const [refused, setRefused] = useState<{ key: string; count: number } | null>(null);
 
   // A selection made against an earlier position is stale once the board or
@@ -212,21 +276,6 @@ const Board = (props: BoardProps) => {
   useEffect(() => {
     if (!props.disabled) setCarried(null);
   }, [props.disabled]);
-
-  // How the latest move glides, fixed when it arrives
-  const glidePlan = useRef<{ count: number; plan: GlidePlan } | null>(null);
-  if (animate && lastMove && glidePlan.current?.count !== lastMove.moveCount) {
-    const { from, to } = lastMove.move;
-    const lift = carried && sameCoord(carried, from) ? PIECE_LIFT.selected * PIECE_SCALE : 0;
-    glidePlan.current = {
-      count: lastMove.moveCount,
-      plan: planGlide(worldOf(from), worldOf(to), {
-        lift,
-        capture: !!lastMove.capturedPiece,
-      }),
-    };
-  }
-  const plan = animate ? glidePlan.current?.plan : undefined;
 
   // Collect all pieces with their coordinates from the provided board
   const pieces = CELLS.flatMap((coord) => {
@@ -406,7 +455,7 @@ const Board = (props: BoardProps) => {
   const matedSquare = matedKing && toZXY(matedKing.coord);
   const mate = useMemo(() => {
     if (!matedKing || !props.gameOver?.winner || !lastMove) return null;
-    const live = animate;
+    const live = !!glide && !glide.back;
     const winner = props.gameOver.winner;
     const king = worldOf(matedKing.coord);
     const away = fallAway(king, worldOf(lastMove.move.to));
@@ -425,7 +474,7 @@ const Board = (props: BoardProps) => {
     }
     return { live, away, cheer };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fixed when the mate arrives
-  }, [matedSquare, props.gameOver, lastMove?.moveCount, animate]);
+  }, [matedSquare, props.gameOver, lastMove?.moveCount, arrivalKey]);
 
   // --- Hover: the cell under the pointer, from the pointer's ray (see hover.ts)
   const grid = useRef<Group>(null);
@@ -602,21 +651,29 @@ const Board = (props: BoardProps) => {
           );
           // The just-moved piece glides in from its source cell. Piece keys are
           // position-derived and can recur across moves, so the wrapper is keyed
-          // by moveCount: every new move mounts a fresh tween, superseding one
+          // by arrival: every new one mounts a fresh tween, superseding one
           // still in flight.
-          if (plan && lastMove && key === lastToKey) {
+          if (glide && key === glideToKey) {
             return (
               <MoveGlide
-                key={`anim-${lastMove.moveCount}`}
-                plan={plan}
-                fromLevel={lastMove.move.from.z}
+                key={`anim-${arrivalKey}`}
+                plan={glide.plan}
+                fromLevel={glide.from.z}
                 toLevel={coord.z}
-                onLanded={() => setLandedMove((n) => Math.max(n, lastMove.moveCount))}
+                onLanded={() => setLandedKey((n) => Math.max(n, arrivalKey))}
                 // The mate's knock (and a check's strike) as it looks landed
                 landsEarlyMs={MATE_TUNING.knockLeadMs}
               >
                 {mesh}
               </MoveGlide>
+            );
+          }
+          // A step back puts a taken piece back, once its taker has left it
+          if (glide && key === revealKey) {
+            return (
+              <Reveal key={`reveal-${arrivalKey}`} afterMs={glide.revealMs}>
+                {mesh}
+              </Reveal>
             );
           }
           return mesh;
@@ -646,8 +703,8 @@ const Board = (props: BoardProps) => {
             key={`lastmove-${lastMove.moveCount}`}
             from={markerAt(lastMove.move.from)}
             to={markerAt(lastMove.move.to)}
-            fresh={animate}
-            glideMs={plan ? touchdownMs(plan) : 0}
+            fresh={!!glide && !glide.back}
+            glideMs={glide && !glide.back ? touchdownMs(glide.plan) : 0}
           />
         )}
         {checkedKings.map(({ color, coord }) => (
@@ -657,15 +714,15 @@ const Board = (props: BoardProps) => {
             {...(color === matedColor ? { mated: true } : {})}
           />
         ))}
-        {plan && lastMove?.capturedPiece && (
+        {glide && !glide.back && glide.captured && (
           <CaptureFx
-            key={`capturefx-${lastMove.moveCount}`}
-            {...markerAt(lastMove.move.to)}
-            victim={lastMove.capturedPiece}
-            victimFacing={knightFacing(lastMove.capturedPiece.color)}
-            hitMs={contactAtMs(plan) ?? touchdownMs(plan)}
-            landMs={touchdownMs(plan)}
-            heading={plan.heading}
+            key={`capturefx-${arrivalKey}`}
+            {...markerAt(glide.to)}
+            victim={glide.captured}
+            victimFacing={knightFacing(glide.captured.color)}
+            hitMs={contactAtMs(glide.plan) ?? touchdownMs(glide.plan)}
+            landMs={touchdownMs(glide.plan)}
+            heading={glide.plan.heading}
             orientation={orientation}
           />
         )}

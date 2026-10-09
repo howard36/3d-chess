@@ -1,23 +1,19 @@
 import React from 'react';
 import type { Board, Move } from '../engine';
-import type { Color, MoveRecord } from '../types/messages';
+import type { Color } from '../types/messages';
 import { parseTypedMove } from '../game/typedMove';
 
 interface MoveCardProps {
   board: Board;
   color: Color | null;
-  /** The whole move record, as the server holds it. */
-  moves: MoveRecord[];
   /** It is this player's move and the board takes input. */
   canMove: boolean;
   /** It is this player's turn (whether or not the board takes input). */
   yourTurn: boolean;
+  /** The board shows an earlier position (the move history's): a move is played from the latest. */
+  reviewing?: boolean;
   onMove: (move: Move) => void;
 }
-
-// A move as the wire writes it (level-file-rank), with an en dash, so a
-// record this client cannot replay still lists.
-const formatMove = (m: MoveRecord) => `${m.from}–${m.to}${m.promotion ? `=${m.promotion}` : ''}`;
 
 const Enter = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden>
@@ -31,63 +27,20 @@ const Enter = () => (
   </svg>
 );
 
-/** Moves a block of the list holds (an even number: a row is two moves). */
-const BLOCK = 64;
-
-/** The rows of moves `start` to `start + BLOCK` (as many as there are). */
-const MoveBlock = React.memo(
-  ({ moves, start }: { moves: MoveRecord[]; start: number }) => {
-    const rows = [];
-    for (let i = start; i < Math.min(moves.length, start + BLOCK); i += 2) {
-      const white = moves[i];
-      const black = moves[i + 1];
-      // One text node a row (not five): a reopened game of thousands of
-      // moves mounts its whole record at once
-      rows.push(
-        <li
-          key={i / 2 + 1}
-        >{`${i / 2 + 1}. ${formatMove(white)} ${black ? formatMove(black) : ''}`}</li>,
-      );
-    }
-    return rows;
-  },
-  // A record grows at its end, so only the last block changes as a move
-  // lands; the others hold the same records and are left alone
-  (a, b) => {
-    if (a.start !== b.start) return false;
-    const end = a.start + BLOCK;
-    if (Math.min(a.moves.length, end) !== Math.min(b.moves.length, end)) return false;
-    for (let i = a.start; i < Math.min(a.moves.length, end); i++) {
-      if (a.moves[i] !== b.moves[i]) return false;
-    }
-    return true;
-  },
-);
-
-/**
- * The record, in the page for screen readers: a row per two moves, in
- * blocks, so a move landing in a long game renders one block, not the list,
- * and typing in the field renders none.
- */
-const MoveList = React.memo(({ moves }: { moves: MoveRecord[] }) => {
-  const blocks = [];
-  for (let start = 0; start < moves.length; start += BLOCK) {
-    blocks.push(<MoveBlock key={start} moves={moves} start={start} />);
-  }
-  return (
-    <ol className="sr-only" aria-label="Move history" data-testid="move-list">
-      {blocks}
-    </ol>
-  );
-});
-
 /**
  * A field to type the next move ("Bb1-Cb1", "=Q" to promote), at the bottom
- * left, and the moves so far. It stays in the page but out of sight: the list
- * for screen readers, and the field, which appears when it takes keyboard
- * focus (Tab) and goes again when it loses it empty.
+ * left. It stays in the page but out of sight, and appears when it takes
+ * keyboard focus (Tab) and goes again when it loses it empty. (The moves so
+ * far are the move history's, MoveHistory.tsx.)
  */
-const MoveCard: React.FC<MoveCardProps> = ({ board, color, moves, canMove, yourTurn, onMove }) => {
+const MoveCard: React.FC<MoveCardProps> = ({
+  board,
+  color,
+  canMove,
+  yourTurn,
+  reviewing = false,
+  onMove,
+}) => {
   const [text, setText] = React.useState('');
   const [problem, setProblem] = React.useState<string | null>(null);
   const [focused, setFocused] = React.useState(false);
@@ -98,6 +51,10 @@ const MoveCard: React.FC<MoveCardProps> = ({ board, color, moves, canMove, yourT
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!color || text.trim() === '') return;
+    if (reviewing) {
+      setProblem('Go to the latest move first.');
+      return;
+    }
     if (!yourTurn) {
       setProblem('Wait for their move.');
       return;
@@ -146,8 +103,6 @@ const MoveCard: React.FC<MoveCardProps> = ({ board, color, moves, canMove, yourT
         }
       }}
     >
-      {/* The record, in the page for screen readers */}
-      <MoveList moves={moves} />
       <form onSubmit={submit} aria-label="Type a move">
         <label htmlFor="typed-move" className="sr-only">
           Type a move, like Bb1-Cb1

@@ -112,8 +112,8 @@ for (const seat of ['white', 'black'] as const) {
 
 /**
  * The HUD's rects over the board: the pill, each side's captured pieces, the
- * way to the tutorial, and the flag for resigning and draws, with the
- * opponent's draw offer under it when one stands.
+ * way to the tutorial, the flag for resigning and draws, with the
+ * opponent's draw offer under it when one stands, and the move history.
  */
 const hudRects = (page: Page) =>
   page.evaluate(() => {
@@ -134,6 +134,7 @@ const hudRects = (page: Page) =>
         document.querySelector('[data-testid="captured-pieces"] [data-side="them"]'),
       ),
       rect('how to play', document.querySelector('.hud-learn')),
+      rect('move history', document.querySelector('[data-testid="move-history"]')),
       rect('game menu', document.querySelector('.hud-game-menu')),
       rect('draw offer', document.querySelector('[data-testid="draw-offer"]')),
     ].filter((r) => r !== null);
@@ -200,6 +201,17 @@ async function problemsAt(page: Page, width: number, height: number) {
     for (const h of hud)
       if (h !== learn && meet(learn, h, 4)) problems.push(`how to play meets the ${h.what}`);
   }
+  // The move history (once a move is played), in the window and clear of the rest of the HUD
+  const moves = hud.find((r) => r.what === 'move history');
+  if (moves) {
+    if (moves.left < 0 || moves.right > width || moves.top < 0 || moves.bottom > height) {
+      problems.push('the move history runs out of the window');
+    }
+    for (const h of hud)
+      if (h !== moves && h !== learn && meet(moves, h, 4)) {
+        problems.push(`the move history meets the ${h.what}`);
+      }
+  }
   return problems.map((p) => `${width}x${height}: ${p}`);
 }
 
@@ -227,6 +239,14 @@ for (const seat of ['white', 'black'] as const) {
     await game.show([]);
     game.offerDraw();
     await expect(page.getByTestId('draw-offer')).toBeVisible();
+    expect(await everywhere()).toEqual([]);
+    // A game under way, the opponent's offer hanging over the move history
+    // in the right's column, the player looking back at the opening
+    await game.show(CHECK);
+    game.offerDraw();
+    await expect(page.getByTestId('draw-offer')).toBeVisible();
+    await page.keyboard.press('Home');
+    await expect(page.getByTestId('move-history')).toHaveAttribute('data-viewing-ply', '0');
     expect(await everywhere()).toEqual([]);
     // The result
     await game.show(MATE);

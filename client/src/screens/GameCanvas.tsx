@@ -125,6 +125,8 @@ const GameCanvas = ({
             // Nothing can be picked up while the entrance plays
             disabled={disabled}
             gameOver={gameOver}
+            // The position steps back and on through the move history
+            review
           />
           {/* The only camera control is turning the view about the
             board's centre, which never moves (no pan by mouse, touch or
