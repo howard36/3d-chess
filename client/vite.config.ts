@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, transformWithEsbuild } from 'vite';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
@@ -71,16 +71,19 @@ const earlySocket = (): Plugin => {
     configResolved(config) {
       url = config.env.VITE_WS_URL ?? DEFAULT_WS_URL;
     },
-    transformIndexHtml() {
+    async transformIndexHtml(html) {
       const keys = { role: ROLE_KEY_PREFIX, clientId: CLIENT_ID_KEY };
-      return [
-        {
-          tag: 'script',
-          // (after the charset, which must stand in the first 1024 bytes)
-          injectTo: 'head',
-          children: `(${startEarlySocket.toString()})(${JSON.stringify(url)},${JSON.stringify(keys)})`,
-        },
-      ];
+      // Minified: it is in every page's HTML
+      const { code } = await transformWithEsbuild(
+        `(${startEarlySocket.toString()})(${JSON.stringify(url)},${JSON.stringify(keys)})`,
+        'early-socket.js',
+        { minify: true },
+      );
+      // Right after the charset (which must stand in the first 1024 bytes),
+      // ahead of the stylesheet: an inline script waits for a stylesheet before it
+      const charset = /<meta charset[^>]*>/i;
+      if (!charset.test(html)) throw new Error('early-socket: index.html has no <meta charset>');
+      return html.replace(charset, (tag) => `${tag}\n    <script>${code.trim()}</script>`);
     },
   };
 };
