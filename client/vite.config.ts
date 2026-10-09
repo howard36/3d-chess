@@ -128,16 +128,12 @@ const keepSceneOutOfEntry = (): Plugin => ({
 /**
  * A game's link is how a friend is invited, and a link preview (a chat app's,
  * a social site's) reads the page's meta tags without running the app. So
- * the build writes invite.html, index.html with the invitation's words in
+ * the build writes invite.html, index.html with the invitation's title in
  * place of the start page's, and public/_redirects serves it at /game/*.
  * The build fails if a tag it replaces is missing.
  */
 const INVITE_META: Record<string, string> = {
-  description:
-    'Chess in three dimensions, on five stacked boards. Open the link to take your seat. No account needed.',
   'og:title': "You're invited to a game of 3D Chess",
-  'og:description':
-    'Chess in three dimensions, on five stacked boards. Open the link to take your seat. No account needed.',
 };
 const invitePage = (): Plugin => ({
   name: 'invite-page',
@@ -156,6 +152,25 @@ const invitePage = (): Plugin => ({
   },
 });
 
+/**
+ * og:image must be an absolute address, and the site's own holds only what
+ * main has deployed: a branch's preview on Cloudflare Pages (which builds
+ * with CF_PAGES_BRANCH and CF_PAGES_URL set) points at the image it deployed
+ * itself, so its link previews show the picture they will have once merged.
+ */
+const SOCIAL_IMAGE = 'https://3dchess.club/og.jpg';
+const socialImageOnPreviews = (): Plugin => ({
+  name: 'social-image-on-previews',
+  apply: 'build',
+  transformIndexHtml(html) {
+    const { CF_PAGES_BRANCH: branch, CF_PAGES_URL: url } = process.env;
+    if (!branch || branch === 'main' || !url) return html;
+    if (!html.includes(SOCIAL_IMAGE))
+      throw new Error(`social-image-on-previews: index.html has no ${SOCIAL_IMAGE}`);
+    return html.replaceAll(SOCIAL_IMAGE, `${url.replace(/\/$/, '')}/og.jpg`);
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -164,6 +179,7 @@ export default defineConfig({
     preloadSceneOnGamePages(),
     keepSceneOutOfEntry(),
     invitePage(),
+    socialImageOnPreviews(),
   ],
   css: {
     postcss: './postcss.config.js',
