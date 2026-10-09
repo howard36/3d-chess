@@ -1,6 +1,6 @@
 # Verification harness
 
-The Playwright scripts that ran the verification passes (the second, against `4e18386`, is the one in the checklists' Result columns). They are a record of how each result in the checklists was obtained and a way to rerun it; they are not part of the product's test suite, and nothing here is run by CI.
+The Playwright scripts that ran the first two verification passes (the second ran against `c571311`, the build the documents then described). They are a record of how those results were obtained; they are not part of the product's test suite, and nothing here is run by CI. **They target the app as it was at `c571311` and do not run against `24c650c` or later**; see the last section.
 
 ## Running it
 
@@ -45,6 +45,15 @@ In a container whose Chromium does not match Playwright's version, prefix with `
 - Reduced motion is emulated with `page.emulateMedia({ reducedMotion: 'reduce' })`, and the clipboard with `context.grantPermissions(['clipboard-read', 'clipboard-write'])`.
 - `results.jsonl` accumulates across runs; the latest line for an ID is its result.
 
-## After the HUD change
+## At `24c650c` and later
 
-The scripts drive and read the HUD as it was before `f7bff4d`: they type into `#typed-move` with `fill` (the field is now out of sight until it has focus, so Playwright will not fill it) and match the old words ("You are playing as", "White to move", "Opponent: online", the visible move list). They need more than small updates to run again: reading the seat, turn, presence, and moves through the hooks the e2e suite uses (`seat`'s `data-seat`, `turn-indicator`'s `data-turn`, `opponent-presence`'s `data-online`, `move-announcer`'s `data-last-move`), and typing moves by focusing the field (Tab, or `focus()`) and pressing keys. Until then they are a record of the first passes, not something to re-run.
+The scripts drive and read the app as it was at `c571311`, and the app has changed under them in ways small edits will not fix:
+
+- **The starting position** changed, so every line, destination list and coordinate in the scripts (and in `line.ts`) is wrong; the checklists' new lines were computed again with the product's own rules engine.
+- **The way into a game** is now the home page's "Play a friend" and the side choice (`/new`), not a "Start New Game" button; the invitation's card and "Join game" replace the share-link and join screens; the creator picks a side.
+- **The HUD** is the turn pill and a move card whose field is out of sight until it has focus (Playwright's `fill` will not reach it): seat, turn, presence and moves are read through the hooks the e2e suite uses (`seat`'s `data-seat`, `turn-indicator`'s `data-turn` and `data-result`, `opponent-presence`'s `data-online`, `move-announcer`'s `data-last-move`), and moves are typed by focusing the field (Tab) and pressing keys.
+- **The board's look** changed: the scene's markers for rings, glides and fading pieces that `boardState` reads are gone; `client/e2e/helpers/board.ts` shows how the current build is read.
+- **Every board screen opens with an entrance** during which the board takes no input; the e2e suite waits for `data-intro="done"` (its `waitForBoard`).
+- **Games against the computer and the tutorial** are new and have no scripts.
+
+Until the scripts are rewritten they are a record of the first two passes, not something to rerun. A new pass may be better built on the repository's own e2e helpers (`client/e2e/helpers/`), which follow the app as it changes.

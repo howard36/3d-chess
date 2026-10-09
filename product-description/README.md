@@ -4,9 +4,9 @@ A written description of the user experience of 3D Chess: what a player sees, wh
 
 ## Purpose
 
-3D Chess is, from the player's point of view, a large state chart. The player moves through it with a handful of inputs: clicks on HTML buttons, presses on the 3D board, drags and wheel turns that move the view, the Escape key, and the browser's own reload, back, and tab controls. A second player moves through the same chart at the same time, and the server's answers arrive in between. Most of that behavior is defined implicitly, spread across React effects, a message log that the client replays, a WebSocket hook with its own retry loop, a Python relay, and the tests of all four. There is no single place that says, in plain language, "when the player does X, this is what happens, and this is what happens if the connection drops or the opponent moves halfway through."
+3D Chess is, from the player's point of view, a large state chart. The player moves through it with a handful of inputs: clicks on HTML buttons, presses on the 3D board, drags and wheel turns that move the view, the Escape key, the move box, and the browser's own reload, back, and tab controls. A second player (or the computer) moves through the same chart at the same time, and the server's answers arrive in between. Most of that behavior is defined implicitly, spread across React effects, a message log that the client replays, a WebSocket hook with its own retry loop, a Python relay, a stand-in for that relay in games against the computer, and the tests of all of them. There is no single place that says, in plain language, "when the player does X, this is what happens, and this is what happens if the connection drops or the opponent moves halfway through."
 
-This project is that place. It describes the full experience a player has on the 3D Chess web client (the start screen at `/`, the side choice at `/new`, and the game page at `/game/{id}`) in a desktop browser, playing against a second person in a second browser.
+This project is that place. It describes the full experience a player has on the 3D Chess web client: the home page at `/`; a game against a friend, from the side choice at `/new` to the game page at `/game/{id}`, played against a second person in a second browser; a game against the computer, from `/computer` to `/computer/{id}`; and the tutorial at `/learn`. It is written for a desktop browser, with what changes on phones and touch screens collected in one document.
 
 The documents are for people who need to understand or change the product: designers, engineers, writers, testers, and anyone evaluating whether a behavior is intentional. They are written from the outside in. They describe the experience, not the implementation.
 
@@ -22,7 +22,7 @@ The documents are for people who need to understand or change the product: desig
 - Technical detail goes in block quotes, prefixed with `Technical note:`. Use it only when the mechanism changes what the player would expect.
 - Use sentence case for headings.
 - Name the vocabulary consistently. The [glossary](glossary.md) is the source of truth for terms like *seat*, *stored seat*, *in flight*, *echo*, *the board takes input*, *press*, *level*, and *legal destination*.
-- Every document ends with the commit of 3D Chess it was verified against and a list of open questions.
+- Every document ends with "Open questions and verification" and a footer naming the commit of 3D Chess it describes: `Drafted against 3D Chess commit {sha}` when it was written from the code and tests, `Verified against 3D Chess commit {sha}` only once a person's pass over its checklist has passed (see [verification](verification/README.md)).
 - When a behavior is surprising, say so and say why it is that way if the reason is known. Do not smooth it over.
 
 ## The work to be done
@@ -33,7 +33,7 @@ Each document describes one feature. Features are large things (making a move) o
 
 Every feature document follows the same skeleton so that documents are comparable and nothing is skipped.
 
-1. **Summary.** One paragraph describing the feature abstractly. For example: "Creating a game turns one click on the start screen into a new game on the server, with this browser holding one of its two seats, and takes the player to that game's page to wait for an opponent."
+1. **Summary.** One paragraph describing the feature abstractly. For example: "Creating a game turns a choice of side into a new game on the server, with this browser holding the seat the player chose, and takes the player to that game's page to invite an opponent."
 2. **The simple case.** The common path in prose.
 3. **The interaction, event by event.** The unit of interaction in 3D Chess is a *request*: something the player does that may be sent to the server and answered. Its five phases, and the heading each gets in every document, are:
    - **Begin**: what starts it (a click, a press on the board, a page load, or, for the opponent's requests, a message arriving) and what is decided at that instant.
@@ -54,7 +54,7 @@ Every feature document follows the same skeleton so that documents are comparabl
 5. **Cancel and interrupt.** The same checklist, in the same order, in every document, with two columns: *before sending* and *while in flight*:
    1. Escape or Cancel
    2. Pressing elsewhere or turning the view
-   3. Leaving the game page within the app (browser Back or Forward, "Start new game", "Back to start")
+   3. Leaving the game page within the app (browser Back or Forward, "Play again", "How to play", "← Home", "Back to start")
    4. The game ends
    5. The server answers with an error
    6. The connection drops
@@ -65,7 +65,7 @@ Every feature document follows the same skeleton so that documents are comparabl
    11. A second touch point or a cancelled touch
 6. **Interactions with other systems.** One bold-led paragraph per concern, in this order: **Seat and turn.** **The game record.** **Connection.** **The opponent.** **Other tabs and devices.** **Game over.** **Stored seat.** **Keyboard, touch, and screen size.** A concern with no interaction still gets its one line.
 7. **Edge cases.** Anything a player could notice that is not covered above.
-8. **Open questions and verification.** The 3D Chess commit the document was verified against, and any behavior that could not be confirmed.
+8. **Open questions and verification.** The 3D Chess commit the document describes (drafted or verified against), and any behavior that could not be confirmed.
 
 Item 5 matters most. Asking the same interrupt questions of every feature is how gaps and inconsistencies are found.
 
@@ -96,11 +96,12 @@ Progress is tracked in the [coverage table](#coverage) below.
 
 ### Scope decisions
 
-- **One surface.** The web client as a seated player (or a would-be player) sees it, at the source commit, against a server built from the same commit. Two players in two browser contexts is the normal setup; most features need both.
-- **Where this repo lives.** This description lives in `product-description/` on a branch of the 3D Chess repository itself, because the working environment could keep nothing else. Work on the description never changes `client/` or `server/`; every document cites the source commit it describes, `4e18386` (fixes to the product land separately, and the documents are then brought up to the new commit).
+- **One surface.** The web client as a player (or a would-be player) sees it, at the source commit, against a server built from the same commit. Two players in two browser contexts is the normal setup for a game against a friend; a game against the computer and the tutorial need only one browser and no server.
+- **Where this repo lives.** This description lives in `product-description/` in the 3D Chess repository itself. Work on the description never changes `client/` or `server/`; every document cites the source commit it describes, `b325641` (fixes to the product land separately, and the documents are then brought up to the new commit).
 - **Server operations are out of scope.** Deployment, `/health`, logging, CI, and the Modal and Cloudflare configuration are not experiences a player has. Where an operational fact reaches the player (the one-hour connection limit, the roughly 30-day expiry of an idle game, a server restart), it is described in [the connection and seat model](foundations/connection-and-seat.md).
 - **Modified clients are out of scope, except for what an honest client shows.** The server trusts clients and does not check move legality. What a player running the real client sees when the record holds a move it cannot replay is described in [the broken game record](cross-cutting/broken-game-record.md); how to write such a client is not.
-- **Test hooks are out of scope.** `window.__r3fState` and the Playwright helpers exist for testing and change nothing a player sees.
+- **Test hooks and developer pages are out of scope.** `window.__r3fState`, the Playwright helpers, the recording scripts, and the development-only pages (`pieces.html`, `sculptures.html`, the preview's `?t=`) exist for development and change nothing a player sees.
+- **The computer's strength is described, not measured.** [Playing the computer](computer/playing-the-computer.md) says how each difficulty plays from its settings and the repository's self-play results; how strong it feels to a person is not something these documents can verify.
 - **The rules are described once.** Piece movement, check, checkmate, stalemate, and promotion squares live in [the rules](foundations/game-rules.md). Feature documents link there rather than restate a rule.
 - **Visual language is described once.** The look of the board (the tower, the pieces, the garden), the colors and shapes of hover, selection, legal-move markers, the last-move trace, check, and checkmate, and the move glide live in [the view](foundations/the-view.md).
 - **Every server message a player can see is catalogued once.** [Error messages](cross-cutting/error-messages.md) lists each error text, what causes it, and where it appears; feature documents say which ones they can produce and link.
@@ -119,41 +120,50 @@ bug-triage.md                    suspected defects collected from every document
 verification/
   README.md                      how to run a hand-verification pass and record results
   foundations.md                 checklists for foundations/
-  start.md                       checklists for start/
+  start.md                       checklists for start/, computer/, and learn/
   play.md                        checklists for play/
   game-page.md                   checklists for game-page/
   session.md                     checklists for session/
   cross-cutting.md               checklists for cross-cutting/
-  harness/                       the Playwright scripts that ran the first, scripted pass
+  harness/                       the Playwright scripts that ran the scripted passes (at c571311)
 
 foundations/
   game-rules.md                  the board, its coordinates, the pieces and how they move, check,
-                                 checkmate, stalemate, promotion, the starting position
+                                 checkmate, stalemate, the draws, promotion, the starting position
   input-model.md                 how a press reaches the board, what takes it, when the board takes
                                  input, and what the interrupt words mean
   connection-and-seat.md         games, seats, the stored seat, connection states, rejoining,
                                  presence, and what the server keeps
-  screens-and-navigation.md      the two addresses, the game page's three phases, moving between them,
+  screens-and-navigation.md      every address, a game page's phases, moving between pages,
                                  and the crash screen
-  the-view.md                    the 3D scene, orientation per player, markers and motion, orbit
-                                 and zoom
+  the-view.md                    the 3D scene, the entrance, orientation per player, markers and
+                                 motion, orbit and zoom
 
 start/
-  creating-a-game.md             the pilot: the landing page, the side choice and its pick, to the game page
+  the-home-page.md               the home page: the preview and the three ways on
+  creating-a-game.md             the side choice and its pick, to the new game's page
   waiting-for-an-opponent.md     the host's invitation to send, until someone joins, and the arrival
   joining-a-game.md              the invitation to the free seat, Join game, and what happens when it fails
+
+computer/
+  playing-the-computer.md        the side and the difficulty, the computer's arrival and moves,
+                                 the game kept in the browser
+
+learn/
+  the-tutorial.md                How to play: the lessons, playing moves on them, the way back to a game
 
 play/
   making-a-move.md               selecting a piece, legal-move markers, sending a move, the move in flight
   promotion.md                   the "Promote to" dialog
   the-opponents-move.md          waiting through the opponent's turn and seeing their move land
-  check-and-game-end.md          the red King in check, checkmate and stalemate, the end-game dialog
+  check-and-game-end.md          a King in check, the four endings, the result card, Play again
+  resigning-and-draws.md         the game menu: resigning, offering a draw, accepting or declining one
 
 game-page/
   seat-and-opponent-status.md    the player's stone on the turn pill, and an opponent shown "Offline"
-  turn-indicator.md              the turn pill: "Your move" / "Their move", check, the result, and the captured pieces under it
+  turn-indicator.md              the turn pill: "Your move" / "Their move", the result, and the captured pieces under it
   move-list.md                   the move card: the move box and the move list, out of sight until Tab
-  error-banner.md                the error notice under the turn pill and its dismiss button
+  error-banner.md                the error notice and its dismiss button
 
 session/
   reload-and-return.md           reloading, closing and coming back, and games that have expired
@@ -169,9 +179,11 @@ cross-cutting/
 
 ## Coverage
 
-Status is one of `not started`, `drafted`, or `verified`.
+Status is one of `not started`, `drafted`, or `verified`. No document is `verified`: that needs a person's pass over its checklist.
 
-The documents were first written against commit `d94507b` and have since been brought up to `4e18386`, which carries the fixes for B-01 to B-10 (see [`bug-triage.md`](bug-triage.md), each entry's **Fix** and **Follow-up** lines). The checklists were rewritten to match, and their Result columns come from the second scripted pass, against `c571311` (`4e18386` adds only a server change no item depends on) (216 of 218 items pass; 2 need a real phone). No document is marked `verified`, which still needs a person's pass. The HUD then changed at `f7bff4d` (the turn pill, the move card behind the Notation panel setting, spoken moves): the glossary, [the turn indicator](game-page/turn-indicator.md), [seat and opponent status](game-page/seat-and-opponent-status.md), [the move list](game-page/move-list.md), [the error banner](game-page/error-banner.md), [the input model](foundations/input-model.md), [accessibility](cross-cutting/accessibility.md), [error messages](cross-cutting/error-messages.md), and [screen sizes and touch](cross-cutting/screen-sizes-and-touch.md) describe it; the other documents were then brought up to it from the code (the turn pill's lit half, "CHECK", and the result; "Offline" on the pill; the move box, brought up by Tab; the glass dialogs with "You win", "You lose", or "Draw") and say in their open questions that this wording needs re-verification, and the checklists other than game-page.md say how to read their rows that quote the old HUD. The board's look then changed entirely (by `bb16fed`): a tower of five glass levels in a night garden, porcelain and charcoal pieces, gold destination circles, red capture arcs, a mint last-move line, a red King in check, a checkmate pulse before the result, labels on the board, no pan, and a settings panel for the look. [The view](foundations/the-view.md) was rewritten for it and checked against screenshots of the running app; [the input model](foundations/input-model.md), the glossary, and every other document that mentioned the old look were brought up to it from the code and say in their open questions that they need re-verification; the checklists say how to read their rows that expect the old marks. The captured pieces then came back under the turn pill ([the turn indicator](game-page/turn-indicator.md#the-pieces-each-side-has-taken), the glossary, [accessibility](cross-cutting/accessibility.md), [screen sizes and touch](cross-cutting/screen-sizes-and-touch.md)), the setting that shows the move card is now called the Notation panel, and a stalemate's dialog now follows the last move after 0.6 s rather than 1.2 s ([check and game end](play/check-and-game-end.md#checkmate-and-stalemate)). Later, the checkmate dialog was brought forward to the moment the King strikes the floor ([check and game end](play/check-and-game-end.md#checkmate-and-stalemate)), and the camera's centring was fixed at the fit, so the view no longer slides as it climbs or zooms ([the view](foundations/the-view.md)). Finally the settings were removed: the gear and its panel, the Notation panel setting, and every adjustable look option (including the Knight's arc) are gone, the look is fixed, and the move card is never shown as a panel, only its field, on keyboard focus. Then the start screen became a landing page: a live 3D preview of the tower playing a sample game while the camera circles it, with a "Pause preview" button, the button renamed "Start a game" ("Creating game…" while in flight), and one line under it for errors ("Couldn't start a game: …"), the connection's state (only while a click waits for it), and the preview's result. [Creating a game](start/creating-a-game.md), the glossary, [screens and navigation](foundations/screens-and-navigation.md), [connection and seat](foundations/connection-and-seat.md), [connection loss](session/connection-loss.md), [accessibility](cross-cutting/accessibility.md), [error messages](cross-cutting/error-messages.md), and [screen sizes and touch](cross-cutting/screen-sizes-and-touch.md) describe it, brought up from the code and not checked in the running app; the other documents and the checklists only follow the new labels, and the harness's locators were changed to match. Then the pre-game flow was rebuilt (`1928567`): "Start a game" opens a side choice at `/new` whose pick creates the game, and the share-link, join, and joined screens gave way to the lobby (two kings on a sheet of glass in the garden) with an invitation to send for the host, an invitation to the free seat for the guest (which asks the server which seats are taken before the guest accepts), and an arrival that hands over to the board's entrance. The three [start](start/creating-a-game.md) documents and [verification/start.md](verification/start.md) were rewritten for it from the code, not checked in the running app (their checklist items read `unverified`); the glossary, [screens and navigation](foundations/screens-and-navigation.md), [connection and seat](foundations/connection-and-seat.md), [the input model](foundations/input-model.md), and [check and game end](play/check-and-game-end.md) were brought up where they described the old screens. The other documents and checklists (`session/`, `game-page/`, `cross-cutting/`, `bug-triage.md`, and the other checklists) still name the old screens ("Join Game", "Game created! Share this link with a friend:", "Copy link" alone, "Joined game, waiting for start...", "Start new game" leading to the start screen) in places and need bringing up; read them through the glossary's notes on the old names. Meanwhile, on main, the landing page lost the line under its button (the preview's "Checkmate · White wins" with it) and its "Pause preview" button: the preview always plays (held still only for reduced motion), the start button is the page's only control, and the title and the button stand in bands of one height above and below the tower (124 px, 140 in a tall window), each at the band's edge nearest the tower. On main the button's own label carried what a create waited on ("Connecting…", "Creating game…", "Try again"); here, where the button creates nothing and only opens the side choice, it never changes. When main was merged in, the start documents, the glossary, the foundations, and the start checklist took its landing page facts; other documents and checklists brought up to main's landing page there (accessibility, error messages, screen sizes, connection loss, and their checklists and harness) may still describe a create made from the landing page's button, and need bringing up to the side choice like the rest.
+Every document describes commit `b325641`. They were written from the code and tests and have not been checked in the running app at that commit, except where a document's open questions say so.
+
+History, in short. The set was first written against `d94507b` and brought up to `4e18386`, which carried the fixes for B-01 to B-10; a scripted pass at `c571311` passed 216 of 218 checklist items (2 needed a real phone). After that the product changed a great deal, and the documents followed it in stages that left them describing a mix of commits: the HUD (turn pill, move card), the board's new look (the glass tower), the landing page, and the way into a game (the side choice and the lobby). The refresh to `24c650c` brought every document to one commit and added the home page with its tiles, playing the computer, the tutorial, the draws by repetition and the fifty-move rule, the result card with "Play again", the changed starting position, and the board's newer motion (the entrance, the eased glide, the toppling capture, the mate). The checklists were rewritten for `24c650c`, and three items were run there by a short scripted check that confirmed B-25; the rest read `unverified`, and the earlier passes' results are in the files' history (see [the verification protocol](verification/README.md#results-so-far)). The triage gained B-24 and B-25, and every older entry says where it stood at `24c650c`. The set was then brought to `b325641`, which adds the tab signal and a new favicon (#85), a page for unknown addresses and an error banner that judges each refusal by its own request (#97, fixing B-13 and B-15), and resigning and draw offers, with the board closed once a game is over (#98, fixing B-25): [resigning and draws](play/resigning-and-draws.md) is new, and the documents, the glossary, the checklists, and the triage were updated for them.
 
 | Document | Status |
 | --- | --- |
@@ -183,13 +195,17 @@ The documents were first written against commit `d94507b` and have since been br
 | foundations/connection-and-seat.md | drafted |
 | foundations/screens-and-navigation.md | drafted |
 | foundations/the-view.md | drafted |
+| start/the-home-page.md | drafted |
 | start/creating-a-game.md | drafted |
 | start/waiting-for-an-opponent.md | drafted |
 | start/joining-a-game.md | drafted |
+| computer/playing-the-computer.md | drafted |
+| learn/the-tutorial.md | drafted |
 | play/making-a-move.md | drafted |
 | play/promotion.md | drafted |
 | play/the-opponents-move.md | drafted |
 | play/check-and-game-end.md | drafted |
+| play/resigning-and-draws.md | drafted |
 | game-page/seat-and-opponent-status.md | drafted |
 | game-page/turn-indicator.md | drafted |
 | game-page/move-list.md | drafted |
@@ -204,15 +220,15 @@ The documents were first written against commit `d94507b` and have since been br
 
 ## Reference
 
-The source of truth is the 3D Chess repository (`howard36/3d-chess`), the parent directory of this one, at commit `4e18386`. The relevant locations are:
+The source of truth is the 3D Chess repository (`howard36/3d-chess`), the parent directory of this one, at commit `b325641`, and its `ARCHITECTURE.md`. The relevant locations are:
 
-- `client/src/App.tsx`, `client/src/main.tsx`: the two routes and the crash screen that wraps them
-- `client/src/screens/`: the start screen, the side choice and the lobby's cards (`screens/lobby/`), the game page and its overlays (move box, move list, promotion dialog, end-game dialog)
-- `client/src/hooks/useResendOnReconnect.ts`, `client/src/lib/clientId.ts`: re-sending a create or join lost to a drop, and the tab's client id
-- `client/src/game/history.ts`, `client/src/game/session.ts`, `client/src/game/typedMove.ts`: how the position, the turn, the seat, presence, and errors are derived from the message log, and how a typed move is read
-- `client/src/hooks/useGameSocket.ts`: the connection, its states, the retry timing, and what is queued or dropped
-- `client/src/lib/playerRole.ts`: the stored seat
-- `client/src/three/`: the 3D board, what counts as a press (`tap.ts`, `tapAssist.ts`), orientation (`layout.ts`), the fitted camera (`cameraFit.ts`), animation; `client/src/three/scene/` draws the look (the levels, labels, pieces, garden, and marks of play), with its colors in `palette.ts`
-- `client/src/engine/`: the rules (move generation, check, checkmate, stalemate, promotion, starting position, coordinates)
+- `client/src/App.tsx`, `client/src/main.tsx`: the routes and the crash screen that wraps them
+- `client/src/screens/`: the home page (`StartScreen.tsx`, `LandingPreview.tsx`), the side choices and the lobby's cards (`lobby/`), the game page (`GameScreen.tsx`, `GameView.tsx`) and its HUD and dialogs (`TurnPill.tsx`, `CapturedPieces.tsx`, `MoveCard.tsx`, `MoveAnnouncer.tsx`, `GameActions.tsx` for resigning and draws, `PromotionPicker.tsx`, `EndGameModal.tsx`, `useEndCard.ts`), a game against the computer (`ComputerGameScreen.tsx`), the tutorial (`learn/`), and the page for an unknown address (`NotFound.tsx`)
+- `client/src/game/`: how the position, the turn, the endings, the seat, presence, errors, and an invitation are derived from the message log (`history.ts`, `ending.ts` for a resignation, an agreed draw, and the standing offer, `session.ts`, `invitation.ts`), what a screen reader hears (`announce.ts`), the material count (`material.ts`), a typed move (`typedMove.ts`), the computer's stand-in for the server (`computerGame.ts`), the home page's demo (`demo.ts`), and the lessons (`lessons.ts`)
+- `client/src/hooks/useGameSocket.ts`, `useResendOnReconnect.ts`, `useComputerGame.ts`: the connection, its states, the retry timing, what is queued or dropped, and the computer's stand-in for it; `useTabSignal.ts`: the tab's title and icon
+- `client/src/lib/playerRole.ts`, `clientId.ts`, `computerGames.ts`: the stored seat, the tab's client id, and computer games kept in the browser
+- `client/src/ai/`: the computer player (`levels.ts` for the difficulties and the pause before each move)
+- `client/src/three/`: the 3D board (`Board.tsx`), what counts as a press (`tap.ts`, `tapAssist.ts`), orientation (`layout.ts`), the fitted camera (`cameraFit.ts`, `FitCameraToBoard.tsx`), the glide (`glide.ts`) and the pieces' motion (`pieceMotion.tsx`), the entrance (`intro/`), the lobby's scene (`lobby/`); `client/src/three/scene/` draws the look, with its colors in `palette.ts`
+- `client/src/engine/`: the rules (move generation, check, checkmate, stalemate, the draws in `draws.ts`, promotion, the starting position, coordinates)
 - `server/modal_app.py`, `server/schema.json`: what the server accepts, records, relays, and rejects, and with which messages
-- Tests: `client/src/App.test.tsx`, `client/src/three/Board.test.tsx`, `client/src/hooks/useGameSocket.test.ts`, `client/src/game/*.test.ts`, `client/src/engine/*.test.ts`, `server/tests/test_local_ws.py`, and the Playwright specs in `client/e2e/`
+- Tests: `client/src/App.test.tsx`, `client/src/screens/*.test.tsx`, `client/src/three/Board.test.tsx`, `client/src/hooks/*.test.ts`, `client/src/game/*.test.ts`, `client/src/engine/*.test.ts`, `server/tests/test_local_ws.py`, and the Playwright specs in `client/e2e/`
