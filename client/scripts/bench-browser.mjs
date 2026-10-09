@@ -1920,7 +1920,7 @@ function browserCpu() {
       }
     }
     const mine = new Set([process.pid]);
-    for (let grew = true; grew; ) {
+    for (let grew = true; grew;) {
       grew = false;
       for (const [pid, p] of procs) {
         if (!mine.has(pid) && mine.has(p.ppid)) {

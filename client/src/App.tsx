@@ -1,4 +1,4 @@
-import { Routes, Route, matchPath, useLocation, useParams } from 'react-router-dom';
+import { Routes, Route, matchPath, useLocation, useParams } from 'react-router';
 import StartScreen from './screens/StartScreen';
 // Small: the game's 3D board (GameCanvas) and the lobby's canvas are its lazily loaded parts
 import GameScreen from './screens/GameScreen';

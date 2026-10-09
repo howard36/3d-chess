@@ -1,5 +1,5 @@
 import React from 'react';
-import { CHARCOAL, CHARCOAL_EDGE } from './PieceGlyph';
+import { CHARCOAL, CHARCOAL_EDGE } from './charcoal';
 
 /**
  * The computer: a robot's head in Black's charcoal (PieceGlyph's), its face

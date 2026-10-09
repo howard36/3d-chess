@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { describe, expect, it } from 'vitest';
 import { PieceType } from '../../engine/pieces';
 import { pieceSet } from '../pieces';

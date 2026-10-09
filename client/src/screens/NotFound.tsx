@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 // Any address the app has no page for (a mistyped one, /game/ with no game):
 // the lobby's card on the page's night, and the way home. No scene: it

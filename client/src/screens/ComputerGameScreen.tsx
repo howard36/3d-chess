@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import GameScreen from './GameScreen';
 import { useComputerGame } from '../hooks/useComputerGame';
 import { doneArriving, isArriving, loadComputerGame } from '../lib/computerGames';

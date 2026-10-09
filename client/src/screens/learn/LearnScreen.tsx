@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 import { lazyChunk } from '../../lib/cachedImport';
 import { ChunkBoundary } from '../../components/ChunkBoundary';
 import { LESSONS, lessonById, practise, reachable, startPractice } from '../../game/lessons';

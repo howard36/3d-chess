@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { prefersReducedMotion } from '../three/motion';
 import type { IntroClock } from '../three/intro/clock';
 import { INTRO_HUD_VAR, INTRO_SCENE_VAR } from '../three/intro/vars';

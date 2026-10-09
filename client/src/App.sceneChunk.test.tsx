@@ -5,7 +5,7 @@ import WS from 'jest-websocket-mock';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { WS_URL } from './hooks/useGameSocket';

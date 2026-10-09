@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { ChunkBoundary } from '../../components/ChunkBoundary';
 import { learnScreen } from './learnChunk';
 
