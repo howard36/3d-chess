@@ -87,7 +87,8 @@ const MoveList = React.memo(({ moves }: { moves: MoveRecord[] }) => {
  * A field to type the next move ("Bb1-Cb1", "=Q" to promote), at the bottom
  * left, and the moves so far. It stays in the page but out of sight: the list
  * for screen readers, and the field, which appears when it takes keyboard
- * focus (Tab) and goes again when it loses it empty.
+ * focus (Tab) and goes again when it loses it empty (always in sight when
+ * `shown`: there is no board to play on).
  */
 const MoveCard: React.FC<MoveCardProps> = ({
   board,

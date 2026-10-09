@@ -1573,7 +1573,7 @@ async function selectSection(browser) {
         countStat(
           'picks where a hover frame came before the click’s',
           [timed.filter((p) => p.hoverFirst).length],
-          `count of ${timed.length}; never timed`,
+          `count of ${timed.length}; timed from the click's own frame`,
         ),
         countStat(
           'clicks that picked nothing up (no frame drawn)',
