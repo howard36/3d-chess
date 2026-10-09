@@ -16,6 +16,7 @@ import { getStoredRole, setStoredRole, clearStoredRole } from '../lib/playerRole
 import { getClientId } from '../lib/clientId';
 import { gameLink } from '../lib/gameLink';
 import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
+import { useTabSignal } from '../hooks/useTabSignal';
 import { useEndCard } from './useEndCard';
 import GameView from './GameView';
 import { selectInvitation } from '../game/invitation';
@@ -377,22 +378,14 @@ const GameScreen: React.FC<GameScreenProps> = ({
     return () => window.clearTimeout(timer);
   }, [handover, arrived, gameDrawn]);
 
-  // A host whose tab is in the background when the guest arrives: the tab's
-  // title says so, and the arrival waits for them (the scene draws no
-  // frames in a hidden tab)
-  React.useEffect(() => {
-    if (handover !== 'arrive' || !wasHost.current || !document.hidden) return;
-    const title = document.title;
-    document.title = '● Opponent joined · 3D Chess';
-    const back = () => {
-      if (!document.hidden) document.title = title;
-    };
-    document.addEventListener('visibilitychange', back);
-    return () => {
-      document.removeEventListener('visibilitychange', back);
-      document.title = title;
-    };
-  }, [handover]);
+  // The tab's title and icon: the player's move (as the turn pill has it),
+  // or, for a host in another tab when the guest arrives, "Opponent joined"
+  // (the arrival waits for them: the scene draws no frames in a hidden tab)
+  useTabSignal({
+    yourMove:
+      phase === 'started' && !!color && !replaced && !gameOver && history.currentTurn === color,
+    opponentJoined: handover === 'arrive' && wasHost.current,
+  });
 
   let lobbyView: LobbyStage | null = null;
   if (phase === 'started') {
