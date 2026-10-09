@@ -33,7 +33,7 @@
 // main-thread duration) by wrapping the renderer the Canvas publishes as
 // window.__r3fState. Games that need a long record or a flapping opponent are
 // driven straight over WebSockets from here; the server checks turn order but
-// not legality, and the knight shuffle below is legal anyway.
+// not legality, and the long game below is legal anyway.
 
 import { chromium } from '@playwright/test';
 import { execFileSync, spawn } from 'node:child_process';
@@ -87,10 +87,19 @@ const CHROMIUM_ARGS = [
   '--no-sandbox',
 ];
 
-// The knight shuffle: White Ab1-Aa3, Black Ed5-Ee3, and back. Every four plies
-// the position is the opening one again, and the game has no repetition or
-// move-count rule, so it can go on for thousands of plies.
-const SHUFFLE = ['Ab1-Aa3', 'Ed5-Ee3', 'Aa3-Ab1', 'Ee3-Ed5'];
+// A long, quiet game that the draw rules never end (bench/longGame.ts: no
+// capture, check or promotion, no position twice, a pawn move every forty
+// plies), the same on every run: its moves are typed in the move-latency
+// section and seeded for the reopen. (The knight shuffle played before it
+// stood the opening position a third time at ply 8: a draw by repetition.)
+const LONG_GAME = JSON.parse(
+  fs.readFileSync(new URL('../bench/longGame.json', import.meta.url), 'utf8'),
+);
+const gameMove = (i) => {
+  if (i >= LONG_GAME.length)
+    throw new Error(`the long game has ${LONG_GAME.length} plies, not ${i + 1}`);
+  return LONG_GAME[i];
+};
 
 const CFG = QUICK
   ? {
@@ -738,7 +747,7 @@ class Scope {
 }
 
 /**
- * A started game with `plies` of the knight shuffle recorded, both seats held
+ * A started game with `plies` of the long game recorded, both seats held
  * by sockets here: { gameId, seats: { white, black } }.
  */
 async function seedGame(scope, plies) {
@@ -756,7 +765,7 @@ async function seedGame(scope, plies) {
   const clientIds = { [color]: `bench-${tag}-a`, [other(color)]: `bench-${tag}-b` };
   for (let i = 0; i < plies; i++) {
     const s = seats[i % 2 === 0 ? 'white' : 'black'];
-    const [from, to] = SHUFFLE[i % 4].split('-');
+    const [from, to] = gameMove(i).split('-');
     s.send({ type: 'move', from, to });
     // Every seated socket hears every move: its (i+1)th echo is this one
     await s.waitType('move_made', i + 1);
@@ -1117,8 +1126,8 @@ async function setupViaUI(browser, scope) {
     { polling: 50 },
   );
   // (named "Start a game" before the home page had two ways to play, as a base
-  // commit may still have it)
-  await pageA.getByRole('button', { name: /^(Play a friend|Start a game)$/ }).click();
+  // commit may still have it; the home page's tiles end in a CSS arrow, "→")
+  await pageA.getByRole('button', { name: /^(Play a friend|Start a game)\b/ }).click();
   // The side choice (/new), where a pick asks the server for the game; a
   // build without one asks on "Play a friend" and goes straight to the game
   await pageA.waitForURL(/\/(new|game\/)/);
@@ -1140,7 +1149,7 @@ async function setupViaUI(browser, scope) {
     });
   });
   const clickA = a.clicks.find((c) =>
-    chose ? c[1].startsWith('White') : /^(Play a friend|Start a game)$/.test(c[1]),
+    chose ? c[1].startsWith('White') : /^(Play a friend|Start a game)\b/.test(c[1]),
   )?.[0];
   const clickB = b.clicks.find((c) => /^Join game$/i.test(c[1]))?.[0];
   const rxOf = (s, type) => s.rx.find((r) => r[1] === type)?.[0];
@@ -1254,7 +1263,7 @@ async function movesSection(browser, shared) {
     'move-latency',
     {
       title: 'Move latency through the move box',
-      intro: `${CFG.moves} plies of the knight shuffle, each typed into the move box (\`#typed-move\`) and sent with Enter on the page of the side to move, the next once both pages have drawn it. Timed on the pages’ clocks from the Enter keydown to the move-announcer’s \`data-move-count\` changing (React’s commit) on the mover’s page and on the opponent’s. Both players’ pages run on the same VM. ${SW_NOTE}`,
+      intro: `${CFG.moves} plies of the bench’s long game (quiet moves, no capture or check), each typed into the move box (\`#typed-move\`) and sent with Enter on the page of the side to move, the next once both pages have drawn it. Timed on the pages’ clocks from the Enter keydown to the move-announcer’s \`data-move-count\` changing (React’s commit) on the mover’s page and on the opponent’s. Both players’ pages run on the same VM. ${SW_NOTE}`,
       columns: ['Measure', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
@@ -1271,7 +1280,7 @@ async function movesSection(browser, shared) {
         const side = i % 2 === 0 ? 'white' : 'black';
         const mover = seats[side];
         const opp = seats[other(side)];
-        const text = SHUFFLE[i % 4];
+        const text = gameMove(i);
         await mover.focus('#typed-move');
         await mover.keyboard.insertText(text);
         await mover.keyboard.press('Enter');
@@ -1561,7 +1570,7 @@ async function reopenSection(browser) {
             await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
             const heap = await cdp.send('Runtime.getHeapUsage').catch(() => null);
             const shown = s.counts.find((c) => c[1] === H);
-            const expected = H > 0 ? SHUFFLE[(H - 1) % 4] : null;
+            const expected = H > 0 ? gameMove(H - 1) : null;
             const lastMove = await page
               .getByTestId('move-announcer')
               .getAttribute('data-last-move');
@@ -1574,7 +1583,7 @@ async function reopenSection(browser) {
             const ready = Math.max(shown[0], frame);
             const lts = tasksIn(s.lt, s.timeOrigin, ready);
             // One more move from White: its arrival until the page shows it
-            const [from, to] = SHUFFLE[H % 4].split('-');
+            const [from, to] = gameMove(H).split('-');
             game.seats.white.send({ type: 'move', from, to });
             await waitCount(page, H + 1);
             const s2 = await snap(page);
@@ -1657,7 +1666,7 @@ async function reopenSection(browser) {
         ),
       ]);
       sec.notes.push(
-        `Correctness guard: every run showed data-move-count = H and data-last-move = the H-th shuffle move (${SHUFFLE[3]} for H a multiple of 4), then H+1 after White’s move.`,
+        `Correctness guard: every run showed data-move-count = H and data-last-move = the long game’s H-th move, then H+1 after White’s move.`,
       );
     },
   );
@@ -2112,7 +2121,9 @@ async function renderSection(browser) {
             ...idleRow(
               label,
               idle,
-              extra.reducedMotion ? 'prefers-reduced-motion: reduce; ' : 'Black’s Ed5-Ee3 last; ',
+              extra.reducedMotion
+                ? 'prefers-reduced-motion: reduce; '
+                : `Black’s ${gameMove(1)} last; `,
             ),
           );
         } finally {
