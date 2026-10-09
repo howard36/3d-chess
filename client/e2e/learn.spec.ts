@@ -21,6 +21,18 @@ test('the start page leads to the tutorial, which draws its board and walks the 
     };
   });
   const links = () => page.evaluate(() => (window as unknown as { __links: number }).__links);
+  // The count once it has held still for a second (software rendering links slowly)
+  const settledLinks = async () => {
+    let last = -1;
+    let still = 0;
+    for (let i = 0; i < 120 && still < 4; i++) {
+      const n = await links();
+      still = n === last ? still + 1 : 0;
+      last = n;
+      await page.waitForTimeout(250);
+    }
+    return last;
+  };
 
   await page.goto('/');
   await page.getByRole('button', { name: 'How to play' }).click();
@@ -32,8 +44,7 @@ test('the start page leads to the tutorial, which draws its board and walks the 
   await expect(page).toHaveURL(/\/learn\/rook$/);
   await expect(page.getByTestId('learn-count')).toHaveAttribute('data-count', '12');
   // The first board's programs, linked in its first frames
-  await page.waitForTimeout(1500);
-  const linked = await links();
+  const linked = await settledLinks();
 
   await page.getByRole('button', { name: 'Unicorn', exact: true }).click();
   await expect(page).toHaveURL(/\/learn\/unicorn$/);
@@ -59,8 +70,7 @@ test('the start page leads to the tutorial, which draws its board and walks the 
   await page.mouse.up();
 
   // Five steps later (each a board made again), no program linked anew
-  await page.waitForTimeout(1500);
-  expect(await links()).toBe(linked);
+  expect(await settledLinks()).toBe(linked);
 
   // Only the game's canvas publishes the store e2e projects clicks through
   expect(await page.evaluate(() => '__r3fState' in window)).toBe(false);
