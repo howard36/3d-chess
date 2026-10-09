@@ -128,12 +128,14 @@ const keepSceneOutOfEntry = (): Plugin => ({
 /**
  * A game's link is how a friend is invited, and a link preview (a chat app's,
  * a social site's) reads the page's meta tags without running the app. So
- * the build writes invite.html, index.html with the invitation's title in
- * place of the start page's, and public/_redirects serves it at /game/*.
+ * the build writes invite.html, index.html with the invitation's title and
+ * description in place of the start page's, and public/_redirects serves it at /game/*.
  * The build fails if a tag it replaces is missing.
  */
 const INVITE_META: Record<string, string> = {
   'og:title': "You're invited to a game of 3D Chess",
+  'og:description': 'Your opponent is waiting.',
+  description: 'Your opponent is waiting.',
 };
 const invitePage = (): Plugin => ({
   name: 'invite-page',

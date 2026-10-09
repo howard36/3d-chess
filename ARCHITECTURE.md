@@ -1126,8 +1126,8 @@ Pages" check on pull requests.
 Link previews read `client/index.html`'s meta tags (title, description, and `og:image`,
 `public/og.jpg`: the README's picture cut to 1.91:1, written by `scripts/readme-image.mjs`
 from the same frame). A game's link is an invitation, so the build also writes
-`invite.html`, the same page with the invitation's `og:title` (`invitePage` in
-`vite.config.ts`, which fails the build if a tag it replaces is missing), and
+`invite.html`, the same page with the invitation's `og:title` and description
+(`invitePage` in `vite.config.ts`, which fails the build if a tag it replaces is missing), and
 `public/_redirects` has Cloudflare Pages serve it at `/game/*`; every other address gets
 `index.html` (Pages' single-page fallback). `og:image` names `https://3dchess.club/og.jpg`,
 which only holds what main deployed, so a branch's preview build points it at the
