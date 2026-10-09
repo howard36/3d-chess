@@ -233,7 +233,8 @@ describe("a guest's invitation", () => {
   });
 
   it('shows any other error under the card, until dismissed', async () => {
-    render(
+    const { rerender } = render(at(fakeSocket([info(['white'])])));
+    rerender(
       at(
         fakeSocket([
           info(['white']),
