@@ -14,7 +14,7 @@ The record survives everything that can happen to connections: drops, reloads, b
 
 Separately, and only while the server is running, it remembers which live connection holds which seat, and which client id that connection announced. This is what it forgets when a connection closes: the seat stays taken, but nobody is connected to it until a new connection [rejoins](#rejoining).
 
-A connection can be tied to at most one game in its life. Once a connection has created, joined, or rejoined a game, any further create, join, or rejoin on it is refused with "Already in a game". A look (the invitation asking which seats are taken) never ties it. A rejoin refused as [seat in use](#last-connection-wins) does not tie the connection to the game. The app never sends a second request on a tied connection, because every new game or new visit starts on a fresh connection (see [returning to the start screen](#leaving-a-games-page)).
+A connection can be tied to at most one game in its life. Once a connection has created, joined, or rejoined a game, any further create, join, or rejoin on it is refused with "Already in a game". A look (the invitation asking which seats are taken) never ties it. A rejoin refused as [seat in use](#last-connection-wins) does not tie the connection to the game. The app never sends a second request on a tied connection, because every new game or new visit starts on a fresh connection (see [leaving a game's page](#leaving-a-games-page)).
 
 ## Seats
 
@@ -137,7 +137,7 @@ The opponent sees none of this except a repeated report that the player is onlin
 
 - When a player joins: the joiner is told whether the creator is connected, and the creator is told that the joiner is online. A repeated join does the same again.
 - When a player rejoins: the rejoining player is told whether the opponent is connected, and the opponent is told that the player is online.
-- When a player's live connection closes (drop, reload, closing the tab, returning to the start screen): the opponent is told that the player is offline. A replaced connection closing does not count.
+- When a player's live connection closes (drop, reload, closing the tab, returning to the home page): the opponent is told that the player is offline. A replaced connection closing does not count.
 
 The board screen shows the latest report about the opponent on the turn pill: nothing while they are online, their stone as an outline and "Offline" while they are not; see [seat and opponent status](../game-page/seat-and-opponent-status.md). Nothing is shown before the first report. While this player's own connection is down, the last report stays on screen even though it may no longer be true.
 

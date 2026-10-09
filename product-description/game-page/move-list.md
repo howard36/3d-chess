@@ -19,11 +19,11 @@ The move list has no request of its own. Its content is changed only by other re
 ```mermaid
 stateDiagram-v2
     state "In the page, up to date" as current
-    state "Under the end-game dialog" as over
+    state "Under the result card" as over
     [*] --> current : board screen appears
     current --> current : a move lands (row added)
     current --> over : final move lands (game over)
-    over --> [*] : "Start new game", reload, or leave
+    over --> [*] : "Play again", reload, or leave
 ```
 
 ### Begin
@@ -55,9 +55,9 @@ The list shows the record as it stood before the move: the player's own move in 
 | --- | --- | --- |
 | Your color | No effect: the entries are White's and Black's, the same for both players. | Cannot change. |
 | Whose turn it is | No effect on the list. | No effect: a move is listed when it lands. |
-| How you reached the page | Creator and joiner: an empty list. Returning with a stored seat: the whole record, from the snapshot. A visitor without a stored seat sees the join screen and no list. | Not applicable. |
+| How you reached the page | Creator and joiner: an empty list. Returning with a stored seat: the whole record, from the snapshot. A visitor without a stored seat sees the invitation to the free seat and no list. | Not applicable. |
 | Connection state | Connected: as described. Reconnecting, connecting, or replaced: the list keeps its last content and is brought up to date by the next snapshot. | A drop while a move is in flight: the move is listed after the snapshot if the server recorded it. |
-| Game state | In progress or in check: as described. Over: the final move is listed and the end-game dialog covers the page. Frozen: every recorded move is listed, including the one this browser cannot replay. | The player's own move can end the game; it is listed as it lands, behind the dialog. |
+| Game state | In progress or in check: as described. Over: the final move is listed and the result card covers the page. Frozen: every recorded move is listed, including the one this browser cannot replay. | The player's own move can end the game; it is listed as it lands, behind the dialog. |
 | Shift, Ctrl, or Cmd held | No effect. | No effect. |
 | Input device | Mouse and touch: no effect, the list is not drawn. Keyboard: the list itself is not a tab stop; a screen reader reads it as a list. | No effect. |
 
@@ -104,6 +104,7 @@ The list shows the record as it stood before the move: the player's own move in 
 ## Open questions and verification
 
 - Whether screen readers keep the list's semantics while it is visually hidden (it is clipped, not removed) was not tried with a screen reader.
-- The list in wire notation, complete when the record is frozen, is covered by `client/src/App.test.tsx`; the moves after a reload by `client/e2e/session.spec.ts`. The rewrite for the removal of the Notation panel was made from the code, not re-verified by hand.
+- The list in wire notation, complete when the record is frozen, is covered by `client/src/App.test.tsx` and `client/src/screens/MoveCard.test.tsx`; the moves after a reload by `client/e2e/session.spec.ts`. Brought up to `24c650c` from `client/src/screens/MoveCard.tsx`; unchanged in behavior since `f7bff4d` (the list is now rendered in blocks of 64 moves, which a reader does not notice). Not re-verified by hand.
+- A sighted player has no way to see the history. Whether a visible list is wanted is a product call.
 
-Verified against 3D Chess commit `f7bff4d`
+Drafted against 3D Chess commit `24c650c`

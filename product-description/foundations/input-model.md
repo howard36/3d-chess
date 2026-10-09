@@ -84,7 +84,7 @@ Buttons and links behave as they do on any web page: they act on click (release)
 - in the [tutorial](../learn/the-tutorial.md): "← Home" (or "← Game"), the lessons, the steps, "Reset", and the next button;
 - the crash screen's "Back to start" link.
 
-A disabled button cannot be reached with Tab. On the board screen, Tab goes first to the move box, then its ↵ button, then "How to play".
+A disabled button cannot be reached with Tab. On the board screen, Tab goes first to the move box, then its ↵ button, then "How to play"; while an error shows, the error banner's "✕" comes before them.
 
 Each dialog puts keyboard focus on a button when it opens: "Queen" in the promotion dialog, "Play again" on the result card, and "Play here" in the replaced dialog. Enter or Space then answers it at once, and Tab moves between the dialog's buttons only, because everything behind it is inert.
 
