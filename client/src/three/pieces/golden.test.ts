@@ -14,7 +14,9 @@ import type { PieceQuality } from './set';
 // set's knight comes from knight.medium.ts here and the low set's is
 // sculpted, so both ways of getting a knight are pinned; the medium set's
 // occlusion comes from occlusion.medium.ts (occlusionData.test.ts pins it
-// against the bake worked out afresh).
+// against the bake worked out afresh). three's own generators are part of it
+// (the queen's pearls are SphereGeometry): three r185 put a sphere's poles
+// exactly on its axis, moving them by under 1e-17 and changing these.
 
 const hashInto = (h: ReturnType<typeof createHash>, key: string, g: BufferGeometry) => {
   for (const name of Object.keys(g.attributes).sort()) {
