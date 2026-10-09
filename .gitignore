@@ -53,5 +53,5 @@ __pycache__/
 # Claude Code worktrees
 .claude/worktrees/
 
-# Benchmark raw output (bench/run.mjs); the report, bench/RESULTS.md, is tracked
+# Benchmark reports and raw output (bench/run.mjs): true of one commit on one machine
 bench/out/
