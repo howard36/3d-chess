@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { announceLastMove, describeLastMove, describeTurn } from './announce';
+import { announceLastMove, describeLastMove, describeTurn, resultWords } from './announce';
 import { deriveHistory } from './history';
 import type { MoveRecord, WebSocketMessage } from '../types/messages';
 
@@ -96,5 +96,40 @@ describe('describeTurn', () => {
 
   it('works for a player whose seat is not yet known', () => {
     expect(describeTurn(replay([]), null)).toBe('White to move.');
+  });
+
+  it('says who resigned, and an agreed draw', () => {
+    const resigned = {
+      ...replay(CHECK_LINE),
+      gameOver: { result: 'resignation' as const, winner: 'white' as const },
+    };
+    expect(describeTurn(resigned, 'white')).toBe('Black resigned. You win.');
+    expect(describeTurn(resigned, 'black')).toBe('Black resigned. You lose.');
+    expect(describeTurn(resigned, null)).toBe('Black resigned. White wins.');
+    // Said alone: the last move was announced as it landed
+    expect(announceLastMove(resigned, 'white')).toBe('Black resigned. You win.');
+    const agreed = { ...replay(CHECK_LINE), gameOver: { result: 'agreement' as const } };
+    expect(announceLastMove(agreed, 'black')).toBe('Draw agreed.');
+  });
+});
+
+describe('resultWords', () => {
+  it('names the result and the verdict for the seat', () => {
+    expect(resultWords({ result: 'checkmate', winner: 'black' }, 'black')).toEqual({
+      how: 'Checkmate',
+      verdict: 'you win',
+    });
+    expect(resultWords({ result: 'resignation', winner: 'black' }, 'white')).toEqual({
+      how: 'White resigned',
+      verdict: 'you lose',
+    });
+    expect(resultWords({ result: 'repetition' }, 'white')).toEqual({
+      how: 'Repetition',
+      verdict: 'draw',
+    });
+    expect(resultWords({ result: 'agreement' }, 'white')).toEqual({
+      how: 'Draw agreed',
+      verdict: null,
+    });
   });
 });

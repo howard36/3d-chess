@@ -8,7 +8,15 @@ import { Board } from '../engine';
 import { moveFromMessage, moveToMessage } from '../engine/protocol';
 import { deriveHistory } from './history';
 import type { Difficulty } from '../ai/levels';
-import type { Color, Error as ServerError, MoveRecord, WebSocketMessage } from '../types/messages';
+import type {
+  Color,
+  DrawOffer,
+  Ending,
+  Error as ServerError,
+  GameState,
+  MoveRecord,
+  WebSocketMessage,
+} from '../types/messages';
 
 export interface ComputerGame {
   id: string;
@@ -18,7 +26,18 @@ export interface ComputerGame {
   /** The computer has taken its seat (a beat after the game was made). */
   started: boolean;
   moves: MoveRecord[];
+  /** The player resigned, or the computer accepted a draw. */
+  ending?: Ending;
+  /** The player's latest draw offer (the computer never offers one). */
+  drawOffer?: DrawOffer;
 }
+
+/**
+ * The computer accepts a draw only when it stands this badly or worse, in
+ * centipawns for its own side: about a minor piece and a half down, or
+ * facing a winning attack.
+ */
+export const ACCEPTS_DRAW_AT = -150;
 
 export interface Answer {
   /** The game after the message (the same object if it did not change). */
@@ -65,8 +84,22 @@ const isLegal = (board: Board, record: MoveRecord): boolean => {
     );
 };
 
-/** Whether the game has ended (mated, or drawn), or cannot go on. */
+/** The game as a rejoin's answer gives it. */
+export const snapshot = (game: ComputerGame): GameState => {
+  const state: GameState = {
+    type: 'game_state',
+    color: game.color,
+    started: game.started,
+    moves: game.moves,
+  };
+  if (game.ending) state.ending = game.ending;
+  if (game.drawOffer) state.drawOffer = game.drawOffer;
+  return state;
+};
+
+/** Whether the game has ended (mated, drawn, resigned), or cannot go on. */
 export function isOver(game: ComputerGame): boolean {
+  if (game.ending) return true;
   // By the game's own rules (history.ts): mate, stalemate, a repetition or
   // the fifty moves, or a record that cannot be played on
   const history = deriveHistory([
@@ -74,6 +107,12 @@ export function isOver(game: ComputerGame): boolean {
   ]);
   return history.gameOver !== null || history.replayFailedAt !== null;
 }
+
+/** The player's draw offer, if it stands: made since the last move, and not yet answered. */
+export const standingOffer = (game: ComputerGame | null): DrawOffer | null => {
+  const offer = game?.drawOffer;
+  return offer && offer.ply === game.moves.length && !offer.declined && !game.ending ? offer : null;
+};
 
 /** Whether it is the computer's move in a game under way. */
 export function computerToMove(game: ComputerGame | null): game is ComputerGame {
@@ -97,25 +136,65 @@ export function answer(game: ComputerGame | null, gameId: string, msg: WebSocket
     if (msg.type === 'look_game')
       return none([{ type: 'game_info', gameId, seats: ['white', 'black'] }]);
     if (msg.type === 'join_game') return none([error('game_full', 'Game is full')]);
-    return none([
-      { type: 'game_state', color: game.color, started: game.started, moves: game.moves },
-    ]);
+    return none([snapshot(game)]);
   }
-  if (msg.type === 'move') {
-    if (!game) return none([error('invalid_game', 'No such game')]);
-    if (!game.started) return none([error('game_not_started', 'The game has not started')]);
-    const by = turnAfter(game.moves);
-    if (by !== game.color) return none([error('wrong_turn', 'Not your turn')]);
-    const record: MoveRecord = { by, from: msg.from, to: msg.to };
-    if (msg.promotion) record.promotion = msg.promotion;
-    const board = replay(game.moves);
-    if (!board || !isLegal(board, record)) return none([error('invalid_move', 'Illegal move')]);
-    return {
-      game: { ...game, moves: [...game.moves, record] },
-      replies: [{ type: 'move_made', ...record }],
-    };
+  const playing =
+    msg.type === 'move' ||
+    msg.type === 'resign' ||
+    msg.type === 'offer_draw' ||
+    msg.type === 'accept_draw' ||
+    msg.type === 'decline_draw';
+  if (!playing) return none([error('invalid_message', 'Not available against the computer')]);
+  // As the server: a game under way, not ended by the players
+  if (!game) return none([error('invalid_game', 'No such game')]);
+  if (!game.started) return none([error('game_not_started', 'The game has not started')]);
+  if (game.ending) return none([error('game_over', 'The game is over')]);
+  if (msg.type === 'resign') {
+    const ending: Ending = { result: 'resignation', winner: other(game.color) };
+    return { game: { ...game, ending }, replies: [{ type: 'game_ended', ...ending }] };
   }
-  return none([error('invalid_message', 'Not available against the computer')]);
+  if (msg.type === 'offer_draw') {
+    const ply = game.moves.length;
+    if (game.drawOffer?.ply === ply)
+      return none([error('invalid_draw', 'A draw was already offered this move')]);
+    const drawOffer: DrawOffer = { by: game.color, ply };
+    return { game: { ...game, drawOffer }, replies: [{ type: 'draw_offered', ...drawOffer }] };
+  }
+  // The computer never offers a draw, so there is none for the player to answer
+  if (msg.type === 'accept_draw' || msg.type === 'decline_draw')
+    return none([error('invalid_draw', 'No draw offer to answer')]);
+  const by = turnAfter(game.moves);
+  if (by !== game.color) return none([error('wrong_turn', 'Not your turn')]);
+  const record: MoveRecord = { by, from: msg.from, to: msg.to };
+  if (msg.promotion) record.promotion = msg.promotion;
+  const board = replay(game.moves);
+  if (!board || !isLegal(board, record)) return none([error('invalid_move', 'Illegal move')]);
+  return {
+    game: { ...game, moves: [...game.moves, record] },
+    replies: [{ type: 'move_made', ...record }],
+  };
+}
+
+/**
+ * The computer answers the player's standing draw offer, having weighed up
+ * the position (`score`, in centipawns for the side to move; null if it
+ * could not): it accepts only when it stands clearly worse (ACCEPTS_DRAW_AT).
+ * Nothing happens if no offer stands (the player moved, or resigned, meanwhile).
+ */
+export function answerDrawOffer(game: ComputerGame, score: number | null): Answer {
+  const offer = standingOffer(game);
+  if (!offer) return { game, replies: [] };
+  const computer = other(game.color);
+  const own = score === null ? null : turnAfter(game.moves) === computer ? score : -score;
+  if (own !== null && own <= ACCEPTS_DRAW_AT) {
+    const ending: Ending = { result: 'agreement' };
+    return { game: { ...game, ending }, replies: [{ type: 'game_ended', ...ending }] };
+  }
+  const drawOffer: DrawOffer = { ...offer, declined: true };
+  return {
+    game: { ...game, drawOffer },
+    replies: [{ type: 'draw_declined', by: computer, ply: offer.ply }],
+  };
 }
 
 /** The computer takes its seat: the game begins. */

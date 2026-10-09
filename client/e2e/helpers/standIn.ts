@@ -45,5 +45,8 @@ export async function openStandInGame(
     },
     presence: (online: boolean) =>
       socket!.send(JSON.stringify({ type: 'presence', color: opponent, online })),
+    /** The opponent offers a draw, at once, in the position served. */
+    offerDraw: () =>
+      socket!.send(JSON.stringify({ type: 'draw_offered', by: opponent, ply: record.length })),
   };
 }

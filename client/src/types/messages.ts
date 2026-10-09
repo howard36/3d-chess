@@ -16,6 +16,12 @@ export type {
   Error,
   Color,
   Promotion,
+  Ending,
+  EndingResult,
+  DrawOffer,
+  DrawOffered,
+  DrawDeclined,
+  GameEnded,
 } from './schema';
 
 export type { WebSocketV1MessageEnvelope as WebSocketMessage } from './schema';

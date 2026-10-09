@@ -20,7 +20,7 @@ Chess in three dimensions, on a 5×5×5 board.
 - **Knight:** an L (2 + 1) in any plane, jumping
 - **Pawn:** one step forward or up. Captures forward-up, forward-sideways or up-sideways. Promotes on the last rank of the top level
 - No castling, double first step or en passant
-- Checkmate, stalemate, threefold repetition and the fifty-move rule as usual
+- Checkmate, stalemate, threefold repetition and the fifty-move rule as usual; either player can resign or offer a draw
 
 ## Built with
 

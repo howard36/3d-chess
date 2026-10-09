@@ -1680,6 +1680,156 @@
   }
 }
 
+/* Resigning and draws (GameActions): a flag in a circle under the way to the
+   tutorial, at the right, where the window is empty beside the tower in
+   every shape (below the HUD's band, but far from the tower's top, which
+   stands under the pill's middle); its menu and the offers hang under it */
+.hud-game {
+  position: absolute;
+  top: 60px;
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  /* Fades in with the pill in the game's entrance */
+  opacity: var(--intro-hud, 1);
+}
+/* The flag, its menu and the opponent's offer take the pointer (a press on
+   their glass must not reach the board behind); the words under it do not */
+.hud-game-menu,
+.hud-menu,
+.hud-offer {
+  pointer-events: auto;
+}
+.hud-game-menu {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid rgba(236, 241, 255, 0.22);
+  border-radius: 50%;
+  background: none;
+  color: var(--hud-muted);
+  cursor: pointer;
+}
+.hud-game-menu:hover,
+.hud-game-menu:focus-visible,
+.hud-game-menu[aria-expanded='true'] {
+  color: var(--hud-fg);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.25);
+}
+.hud-game-menu:disabled {
+  opacity: 0.4;
+  cursor: default;
+  box-shadow: none;
+}
+@media (pointer: coarse) {
+  .hud-game-menu {
+    width: 40px;
+    height: 40px;
+  }
+}
+/* The menu: glass under the flag, over the offers */
+.hud-menu {
+  position: absolute;
+  top: 46px;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 132px;
+  padding: 6px;
+}
+.hud-menu-item {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--hud-fg);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.hud-menu-item:hover:not(:disabled),
+.hud-menu-item:focus-visible {
+  outline: none;
+  background: rgba(236, 241, 255, 0.1);
+}
+.hud-menu-item:disabled {
+  color: var(--hud-muted);
+  cursor: default;
+}
+.hud-menu-item[data-danger] {
+  color: #ff8a8c;
+}
+.hud-menu-ask {
+  margin: 4px 12px 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.hud-menu-row {
+  display: flex;
+  gap: 2px;
+}
+/* The opponent's offer: its words, then the answers */
+.hud-offer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 5px 5px 14px;
+  border-radius: 21px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.hud-offer-answers {
+  display: flex;
+  gap: 2px;
+}
+.hud-offer .hud-menu-item {
+  height: 30px;
+  border-radius: 15px;
+  font-size: 13px;
+}
+.hud-offer .hud-menu-item[data-accept] {
+  background: var(--hud-accent);
+  color: var(--hud-accent-fg);
+}
+.hud-offer .hud-menu-item[data-accept]:hover,
+.hud-offer .hud-menu-item[data-accept]:focus-visible {
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.25);
+}
+@media (pointer: coarse) {
+  .hud-offer .hud-menu-item {
+    height: 36px;
+    border-radius: 18px;
+  }
+}
+/* A phone on its side: the room beside the tower is narrow, the offer's
+   answers go under its words */
+@media (max-height: 480px) {
+  .hud-offer {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    padding: 8px 6px 6px;
+    border-radius: 12px;
+  }
+  .hud-offer-words {
+    margin-right: 8px;
+  }
+}
+
 /*
  * The two ways to play, alike: tiles of dark glass in a rim of the five
  * level colours, which turns while the pointer is on it; two pieces facing

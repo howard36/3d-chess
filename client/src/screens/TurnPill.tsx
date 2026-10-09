@@ -1,6 +1,6 @@
 import React from 'react';
 import type { GameOver, Turn } from '../game/history';
-import { RESULT_NAME } from '../game/announce';
+import { resultWords } from '../game/announce';
 
 interface TurnPillProps {
   /** This player's colour. */
@@ -44,10 +44,10 @@ export const Stone = ({
 /** What the pill says, in words, for a screen reader reaching it. */
 const describe = ({ seat, turn, inCheck, gameOver, opponentOnline }: TurnPillProps) => {
   const you = `You play ${named(seat)}.`;
-  if (gameOver?.result === 'checkmate') {
-    return `${you} Checkmate, ${gameOver.winner === seat ? 'you win' : 'you lose'}.`;
+  if (gameOver) {
+    const { how, verdict } = resultWords(gameOver, seat);
+    return `${you} ${how}${verdict === 'draw' ? ', a draw' : verdict ? `, ${verdict}` : ''}.`;
   }
-  if (gameOver) return `${you} ${RESULT_NAME[gameOver.result]}, a draw.`;
   const move = turn === seat ? 'Your move' : `${named(turn)} to move`;
   const away = opponentOnline === false ? ' Your opponent is offline.' : '';
   return `${you} ${move}${inCheck ? ', in check' : ''}.${away}`;
@@ -78,14 +78,14 @@ const TurnPill: React.FC<TurnPillProps> = (props) => {
     'data-stale': stale || undefined,
   };
   if (gameOver) {
-    const verdict =
-      gameOver.result !== 'checkmate' ? 'draw' : gameOver.winner === seat ? 'you win' : 'you lose';
+    const { how, verdict } = resultWords(gameOver, seat);
     return (
       <div className="hud-pill hud-glass hud-result" {...common}>
         {label}
         <Stone color={gameOver.winner ?? seat} lit aria-hidden />
         <span aria-hidden>
-          {RESULT_NAME[gameOver.result]} <span className="hud-sub">· {verdict}</span>
+          {how}
+          {verdict && <span className="hud-sub"> · {verdict}</span>}
         </span>
       </div>
     );
