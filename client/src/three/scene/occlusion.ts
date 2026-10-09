@@ -306,6 +306,7 @@ export const wholePiece = (type: PieceType): BufferGeometry =>
 const whenIdle = (run: () => void) => {
   if (typeof window.requestIdleCallback === 'function')
     window.requestIdleCallback(run, { timeout: 4000 });
+  // eslint-disable-next-line no-restricted-properties -- a preload's idle fallback, not an animation
   else window.setTimeout(run, 50);
 };
 
