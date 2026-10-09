@@ -39,16 +39,16 @@ const setHash = (quality: PieceQuality) => {
 
 describe('the piece set, byte for byte', () => {
   it('medium, as built (its knight from the precomputed meshes)', () => {
-    expect(setHash('medium')).toBe('77ffc3796d9dd007');
+    expect(setHash('medium')).toBe('aeb001fa14000e0c');
   });
 
   it('medium, as drawn (occlusion and parts baked in, from the precomputed values)', () => {
     const h = createHash('sha256');
     for (const type of Object.values(PieceType)) hashInto(h, type, wholePiece(type));
-    expect(h.digest('hex').slice(0, 16)).toBe('196a80b3120abc54');
+    expect(h.digest('hex').slice(0, 16)).toBe('7f316a9fecba5740');
   });
 
   it('low, as built', () => {
-    expect(setHash('low')).toBe('0d47e3184007076a');
+    expect(setHash('low')).toBe('4893f52581b34d92');
   });
 });

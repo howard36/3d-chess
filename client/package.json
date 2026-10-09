@@ -18,11 +18,11 @@
   },
   "dependencies": {
     "@fontsource/manrope": "^5.3.0",
-    "@react-three/fiber": "^9.1.2",
+    "@react-three/fiber": "^9.8.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.5.3",
-    "three": "^0.176.0"
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
@@ -35,7 +35,7 @@
     "@types/node": "^24.19.1",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
-    "@types/three": "^0.176.0",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^3.1.2",
     "eslint": "^9.25.1",
