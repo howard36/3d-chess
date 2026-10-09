@@ -1015,6 +1015,7 @@ docs/            The README's picture (preview.jpg, from client/scripts/readme-i
 product-description/  The player's-eye description of the product, and its bug triage.
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
 .github/workflows/  ci.yml (tests, gates, deploy) and claude.yml (@claude on issues and PRs).
+.github/dependabot.yml  Weekly dependency PRs (npm, uv, GitHub Actions).
 ```
 
 ## Development
@@ -1064,6 +1065,13 @@ tests ran against. Authentication comes from the `MODAL_TOKEN_ID` and `MODAL_TOK
 repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
+
+Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
+per ecosystem (client npm, server uv, GitHub Actions, the actions pinned to commit SHAs),
+and each major on its own. Two come apart on purpose: `three` (with `@types/three`), whose
+update can move the piece set's golden hashes (`golden.test.ts`; `npm run bake:pieces` if
+the shapes change), and `datamodel-code-generator`, pinned exactly, whose update may need
+`messages.py` regenerated. `@types/node` majors are ignored: they move with `.nvmrc`.
 
 The client's entry (about 90 KB gzip) holds the start screen, the side choice and the game
 screen (the invitation, the HUD, the move record). Everything 3D is a chunk the entry loads
