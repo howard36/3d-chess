@@ -13,9 +13,9 @@ import type { GameHistory } from '../src/game/history';
 import { describeTaken, groupTaken, materialLead } from '../src/game/material';
 import {
   hasSessionSince,
-  selectErrors,
   selectOpponentOnline,
   selectSeat,
+  selectStandingError,
 } from '../src/game/session';
 import { parseTypedMove } from '../src/game/typedMove';
 import type { MoveRecord, WebSocketMessage } from '../src/types/messages';
@@ -64,7 +64,7 @@ const perMessage = (log: WebSocketMessage[], next: WebSocketMessage, prev: GameH
   const messages = [...log, next];
   const seat = selectSeat(messages);
   const online = selectOpponentOnline(messages, seat.color);
-  const errors = selectErrors(messages).filter((e) => e.code !== 'seat_in_use');
+  const error = selectStandingError(messages, 0);
   const ready = hasSessionSince(messages, 0);
   const seatInUse = messages.slice(0).some((m) => m.type === 'error' && m.code === 'seat_in_use');
   const history = deriveHistory(messages, prev);
@@ -73,7 +73,7 @@ const perMessage = (log: WebSocketMessage[], next: WebSocketMessage, prev: GameH
     'move_made';
   const inCheck = !history.gameOver && history.board.inCheck(history.currentTurn);
   const kings = [history.board.inCheck('white'), history.board.inCheck('black')];
-  return { online, errors, ready, seatInUse, endedLive, inCheck, kings, history };
+  return { online, error, ready, seatInUse, endedLive, inCheck, kings, history };
 };
 
 const OPEN = 'G1 · Open a game (replay the whole record)';

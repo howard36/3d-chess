@@ -231,8 +231,13 @@ Key decisions:
   self-play, not 2D chess's); one above the other at the top left in a short window. The camera fit keeps their row clear
   from the first move (`hudTop`), so a capture never moves the board, and a screen
   reader reads them as a sentence per side, never announced. Under them, only while they
-  apply: "Reconnecting…" (the pill and the captures dim), the latest error and the
-  frozen-record notice. The **move card** is never shown as a panel: it stays in the page out
+  apply: "Reconnecting…" (the pill and the captures dim), the refusal that still stands and the
+  frozen-record notice. A refusal stands from when it arrives until "✕" or a later answer
+  (a move made, a seat taken or rejoined, an invitation answered) ends it, and only one this
+  page asked for counts: what the log held when the page mounted (the side choice's, on the
+  way from `/new`) is not its own (`selectStandingError` in `game/session.ts`). A join or a
+  rejoin is likewise judged by the answers since it was sent (`refusedSince`), never by an
+  earlier request's. The **move card** is never shown as a panel: it stays in the page out
   of sight, its list of moves for screen readers and its field to type a move (`Bb1-Cb1`),
   which is the first Tab stop on the board screen. The field appears while it has keyboard
   focus, at the bottom left (across the bottom in a window no wider than 13:9, at the bottom
@@ -291,6 +296,9 @@ Key decisions:
   plays (it has no pause), except under `prefers-reduced-motion`, where it is a still of
   the final position, the king left standing, with still rims. In development
   `?t=<seconds>` starts the demo that far in.
+- **No page.** Any other address (`/games`, `/game/` with no id) is the catch-all route's
+  `screens/NotFound.tsx`: the lobby's glass card alone on the page's night, "Nothing here"
+  and a Home button. It is in the entry and loads no scene.
 
 ## Protocol
 

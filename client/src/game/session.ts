@@ -63,8 +63,52 @@ export function selectOpponentOnline(messages: WebSocketMessage[], color: Color 
   return null;
 }
 
-export const selectErrors = (messages: WebSocketMessage[]): ServerError[] =>
-  messages.filter((m): m is ServerError => m.type === 'error');
+// The answers that mean a request went through (a game created, joined,
+// rejoined or looked at, a move recorded), or that the game has moved on
+// (the opponent's move): any refusal before one of them is over.
+const ANSWERS: ReadonlySet<WebSocketMessage['type']> = new Set([
+  'game_created',
+  'game_joined',
+  'game_start',
+  'game_state',
+  'game_info',
+  'move_made',
+]);
+
+export interface StandingError {
+  error: ServerError;
+  /** Its place in the log (a dismissal names the error it dismissed). */
+  index: number;
+}
+
+/**
+ * The refusal that still stands at the end of the log, looking no further
+ * back than `fromIndex` (where the page's own requests begin): the latest
+ * error, unless a later answer has overtaken it. seat_in_use is not one: the
+ * page answers it with a dialog of its own.
+ */
+export function selectStandingError(
+  messages: WebSocketMessage[],
+  fromIndex: number,
+): StandingError | null {
+  for (let i = messages.length - 1; i >= Math.max(0, fromIndex); i--) {
+    const m = messages[i];
+    if (m.type === 'error') {
+      if (m.code !== 'seat_in_use') return { error: m, index: i };
+    } else if (ANSWERS.has(m.type)) return null;
+  }
+  return null;
+}
+
+/**
+ * Whether a request sent when the log was `fromIndex` long was refused with
+ * one of `codes`: only its own answer counts, not an earlier request's.
+ */
+export const refusedSince = (
+  messages: WebSocketMessage[],
+  fromIndex: number,
+  codes: readonly ServerError['code'][],
+) => messages.slice(fromIndex).some((m) => m.type === 'error' && codes.includes(m.code));
 
 /**
  * True if the log holds, at or after `fromIndex`, a message that establishes

@@ -6,9 +6,10 @@ import { deriveHistory } from '../game/history';
 import type { GameHistory } from '../game/history';
 import {
   hasSessionSince,
-  selectErrors,
+  refusedSince,
   selectOpponentOnline,
   selectSeat,
+  selectStandingError,
   startedLive,
 } from '../game/session';
 import type { GameSocket } from '../hooks/useGameSocket';
@@ -57,10 +58,16 @@ const GameScreen: React.FC<GameScreenProps> = ({
 }) => {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
-  // Whether this client has sent join_game (players with a stored role never do)
-  const [joinRequested, setJoinRequested] = React.useState(false);
-  // Errors the user has already dismissed (by count, since the log is append-only)
-  const [dismissedErrorCount, setDismissedErrorCount] = React.useState(0);
+  // Where in the log this client sent join_game (players with a stored role
+  // never do), so the join is judged by its own answer
+  const [joinSentAt, setJoinSentAt] = React.useState<number | null>(null);
+  const joinRequested = joinSentAt !== null;
+  // Where this page's own story begins: what the log already holds when it
+  // mounts (the side choice's messages, on the way from /new) was not asked
+  // for here, and its refusals are not this page's to show
+  const [pageStart] = React.useState(() => gameSocket.messages.length);
+  // The place in the log of the error the user last dismissed
+  const [dismissedAt, setDismissedAt] = React.useState(-1);
   // Render mirror of the persisted role; localStorage is the source of truth
   const computerColor = computer?.color ?? null;
   const [storedRole, setStoredRoleState] = React.useState(
@@ -69,6 +76,9 @@ const GameScreen: React.FC<GameScreenProps> = ({
   // The socket session a rejoin_game was last sent on, so each fresh socket
   // (page load or mid-game reconnect) rejoins at most once.
   const rejoinSessionRef = React.useRef(0);
+  // Where in the log the last rejoin_game was sent, so a refusal is read as
+  // that rejoin's only (null: none awaits judging)
+  const rejoinSentAtRef = React.useRef<number | null>(null);
   // Whether the next rejoin may take the seat from another tab's live
   // connection. Arriving on the page, or clicking "Play here", is the player
   // choosing this tab; an automatic reconnect is not, and must not evict the
@@ -86,6 +96,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
     // Re-sync when the route's gameId changes (a different game's page)
     setStoredRoleState(computerColor ?? (gameId ? getStoredRole(gameId) : null));
     rejoinSessionRef.current = 0;
+    rejoinSentAtRef.current = null;
   }, [gameId, computerColor]);
 
   const { messages, sessionId, sessionStartIndex, status } = gameSocket;
@@ -97,11 +108,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
     () => selectOpponentOnline(messages, color),
     [messages, color],
   );
-  const allErrors = React.useMemo(() => selectErrors(messages), [messages]);
-  // seat_in_use is answered with the "open in another tab" dialog, not the banner
-  const errors = React.useMemo(
-    () => allErrors.filter((e) => e.code !== 'seat_in_use'),
-    [allErrors],
+  // The page's refusal that still stands: a later answer (a move made, a seat
+  // taken) ends it. seat_in_use is answered with the "open in another tab"
+  // dialog, not the banner
+  const standingError = React.useMemo(
+    () => selectStandingError(messages, pageStart),
+    [messages, pageStart],
   );
   // This socket holds a seat on the server: its create, join or rejoin was
   // answered. Until then the page shows the position from before the socket
@@ -177,6 +189,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
     if (rejoinSessionRef.current === sessionId) return;
     if (hasSessionSince(messages, sessionStartIndex)) return;
     rejoinSessionRef.current = sessionId;
+    rejoinSentAtRef.current = messages.length;
     gameSocket.send({
       type: 'rejoin_game',
       gameId,
@@ -198,33 +211,37 @@ const GameScreen: React.FC<GameScreenProps> = ({
     }
   }, [gameId, assignedColor]);
 
-  const latestError = errors.length > dismissedErrorCount ? errors[errors.length - 1] : null;
+  const shownError = standingError && standingError.index > dismissedAt ? standingError : null;
 
   // A failed join (bad game id, game full) returns the user to the join button
   React.useEffect(() => {
     if (
-      joinRequested &&
+      joinSentAt !== null &&
       !seat.started &&
-      errors.some((e) => e.code === 'invalid_game' || e.code === 'game_full')
+      refusedSince(messages, joinSentAt, ['invalid_game', 'game_full'])
     ) {
-      setJoinRequested(false);
+      setJoinSentAt(null);
     }
-  }, [errors, seat.started, joinRequested]);
+  }, [messages, seat.started, joinSentAt]);
 
   // A failed rejoin means the stored role is stale (the game expired or the
-  // seat was never claimed): forget it and fall back to the join button.
+  // seat was never claimed): forget it and fall back to the join button. The
+  // refusal is then spent: a seat the page takes after it is kept.
   React.useEffect(() => {
+    const rejoinSentAt = rejoinSentAtRef.current;
     if (
       gameId &&
       storedRole &&
+      rejoinSentAt !== null &&
       !seat.started &&
       !history.snapshot &&
-      errors.some((e) => e.code === 'invalid_rejoin' || e.code === 'invalid_game')
+      refusedSince(messages, rejoinSentAt, ['invalid_rejoin', 'invalid_game'])
     ) {
+      rejoinSentAtRef.current = null;
       clearStoredRole(gameId);
       setStoredRoleState(null);
     }
-  }, [errors, gameId, storedRole, seat.started, history.snapshot]);
+  }, [messages, gameId, storedRole, seat.started, history.snapshot]);
 
   const phase: Phase = seat.started
     ? 'started'
@@ -277,17 +294,18 @@ const GameScreen: React.FC<GameScreenProps> = ({
     gameSocket.reconnect();
   };
 
-  // The latest error, until dismissed: glass with a thin red rule. A screen
-  // reader hears "Error:" first; the eye has the rule.
-  const errorBanner = latestError && (
+  // The refusal that stands, until dismissed or overtaken by an answer: glass
+  // with a thin red rule. A screen reader hears "Error:" first; the eye has
+  // the rule.
+  const errorBanner = shownError && (
     <div role="alert" className="hud-notice hud-glass" data-testid="error-banner">
       <span>
         <span className="sr-only">Error: </span>
-        {latestError.message}
+        {shownError.error.message}
       </span>
       <button
         className="hud-dismiss"
-        onClick={() => setDismissedErrorCount(errors.length)}
+        onClick={() => setDismissedAt(shownError.index)}
         aria-label="Dismiss error"
       >
         <span aria-hidden>✕</span>
@@ -489,7 +507,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   const acceptInvitation = () => {
     if (!gameId || phase !== 'waiting') return;
     requestJoin({ type: 'join_game', gameId, clientId: getClientId() });
-    setJoinRequested(true);
+    setJoinSentAt(messages.length);
   };
 
   return (
@@ -539,7 +557,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       <div className="lobby-status" role="status">
         {reconnectingBanner}
       </div>
-      {errorBanner && !['invalid_game', 'game_full'].includes(latestError?.code ?? '') && (
+      {shownError && !['invalid_game', 'game_full'].includes(shownError.error.code) && (
         <div className="lobby-errors">{errorBanner}</div>
       )}
       {replacedNotice}

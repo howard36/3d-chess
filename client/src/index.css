@@ -1507,7 +1507,7 @@
   }
 }
 /* The display type of the page's heading, a size down */
-.lobby-card h2 {
+.lobby-card :is(h1, h2) {
   margin: 4px 0 0;
   font-size: 26px;
   font-weight: 700;
@@ -1521,6 +1521,20 @@
   height: 16px;
   margin: 0 7px 0 2px;
   vertical-align: -1px;
+}
+/* An address with no page (screens/NotFound.tsx): the card alone, in the
+   middle of the page's night */
+.lost .lobby-card {
+  top: 50%;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  animation-name: lost-card-in;
+}
+@keyframes lost-card-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 14px));
+  }
 }
 .lobby-actions {
   display: flex;
