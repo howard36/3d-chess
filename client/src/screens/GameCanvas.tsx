@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { Canvas } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
@@ -29,6 +29,8 @@ import type { Color } from '../types/messages';
 
 /** The elevations the game's view can turn between, all kept in frame. */
 const GAME_SWEEP = orbitSweep(layout.orbit);
+
+type TestWindow = Window & { __r3fState?: RootState };
 
 export interface GameCanvasProps {
   color: Color | null;
@@ -68,6 +70,17 @@ const GameCanvas = ({
   // The entrance is over: the board takes input from now on
   const [introOver, setIntroOver] = useState(() => introDone(clock.plan, clock.t));
   const [drawn, setDrawn] = useState(false);
+  // The state this canvas published (below), taken down with it: a stale one
+  // would hold the old renderer and let e2e's wait for a board pass early
+  const published = useRef<RootState | null>(null);
+  useEffect(() => {
+    const w = window as TestWindow;
+    // (StrictMode's second mount puts back what its first unmount took down)
+    if (published.current) w.__r3fState = published.current;
+    return () => {
+      if (published.current && w.__r3fState === published.current) delete w.__r3fState;
+    };
+  }, []);
   return (
     <>
       {/* Main 3D Board canvas. The camera starts on the viewing player's
@@ -107,7 +120,8 @@ const GameCanvas = ({
           setUpRenderer(state);
           // The garden's programs linked before its first frame, the page free meanwhile
           linkBeforeFirstFrame(state);
-          (window as Window & { __r3fState?: RootState }).__r3fState = state;
+          published.current = state;
+          (window as TestWindow).__r3fState = state;
         }}
       >
         <IntroContext.Provider value={clock}>
