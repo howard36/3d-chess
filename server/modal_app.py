@@ -10,11 +10,16 @@ from fastapi.websockets import WebSocketState
 from pydantic import ValidationError
 
 from messages import (
+    AcceptDraw,
     Color,
     CreateGame,
+    DeclineDraw,
+    DrawDeclined,
+    DrawOffered,
     Error,
     ErrorCode,
     GameCreated,
+    GameEnded,
     GameInfo,
     GameJoined,
     GameStart,
@@ -23,8 +28,10 @@ from messages import (
     LookGame,
     Move,
     MoveMade,
+    OfferDraw,
     Presence,
     RejoinGame,
+    Resign,
     WebsocketV1MessageEnvelope,
 )
 
@@ -39,7 +46,7 @@ from messages import (
 # (see ARCHITECTURE.md) sets it so it never shares production's games.
 image = (
     modal.Image.debian_slim(python_version="3.13")
-    .uv_sync("./", uv_version="0.12.9")  # pinned so the image build itself is reproducible
+    .uv_sync("./", uv_version="0.12.24")  # pinned so the image build itself is reproducible
     .env(
         {
             "APP_VERSION": os.environ.get("GITHUB_SHA", "dev"),
@@ -105,7 +112,11 @@ class GameError(Exception):
 # --- Store operations ---------------------------------------------------------
 #
 # The store holds each game's durable record: {"seats": [colors claimed],
-# "moves": [move dicts in wire format]}. In production it is a modal.Dict,
+# "moves": [move dicts in wire format]}, plus "claimants" (which client id
+# claimed each seat), "ending" once a player resigns or a draw is agreed
+# ({"result", "winner"?}), and "drawOffer", the latest draw offer
+# ({"by", "ply", "declined"?}; it stands only while "ply" is the number of
+# moves, so a move cancels it without touching it). In production it is a modal.Dict,
 # which returns deserialized copies and whose calls BLOCK (they are the sync
 # wrappers; never switch to the `.aio` variants). So every mutation below is a
 # read-modify-write that must complete without yielding to the event loop, or
@@ -187,17 +198,30 @@ def find_seat(store, gid: str, color: str) -> dict:
     return record
 
 
-def record_move(store, gid: str | None, color: str | None, move: Move) -> dict:
-    """Append `move` by `color` to `gid`'s history; return the stored move dict.
+def _live_record(store, gid: str | None, absent: ErrorCode = ErrorCode.game_not_started) -> dict:
+    """The record of `gid` if its game is under way: both seats taken, not ended.
 
-    Validates that the game exists, has both seats, and that it is `color`'s
-    turn. Move legality is deliberately not checked (see ARCHITECTURE.md).
+    `absent` is the refusal when the connection is in no game.
     """
     record = store.get(gid) if gid is not None else None
     if record is None:
-        raise GameError(ErrorCode.invalid_move, "Not in a game")
+        raise GameError(absent, "Not in a game")
     if len(record["seats"]) < 2:
-        raise GameError(ErrorCode.game_not_started, "Both players must have joined to move")
+        raise GameError(ErrorCode.game_not_started, "Both players must have joined")
+    if "ending" in record:
+        raise GameError(ErrorCode.game_over, "The game is over")
+    return record
+
+
+def record_move(store, gid: str | None, color: str | None, move: Move) -> dict:
+    """Append `move` by `color` to `gid`'s history; return the stored move dict.
+
+    Validates that the game exists, has both seats, has not ended (a
+    resignation or an agreed draw), and that it is `color`'s turn. Move
+    legality is deliberately not checked (see ARCHITECTURE.md). A standing draw
+    offer lapses with the move: it was made at the previous ply.
+    """
+    record = _live_record(store, gid, absent=ErrorCode.invalid_move)
     if _turn(record) != color:
         raise GameError(ErrorCode.wrong_turn, "Not your turn")
     move_dict = {"by": color, "from": move.from_, "to": move.to}
@@ -208,7 +232,76 @@ def record_move(store, gid: str | None, color: str | None, move: Move) -> dict:
     return move_dict
 
 
-STORE_OPERATIONS = (create_game, claim_seat, taken_seats, find_seat, record_move)
+def resign(store, gid: str | None, color: str | None) -> dict:
+    """`color` resigns `gid`; return the ending ({"result", "winner"})."""
+    record = _live_record(store, gid)
+    ending = {"result": "resignation", "winner": _opponent(color)}
+    record["ending"] = ending
+    store[gid] = record
+    return ending
+
+
+def _standing_offer(record: dict) -> dict | None:
+    offer = record.get("drawOffer")
+    if offer is None or offer["ply"] != len(record["moves"]) or offer.get("declined"):
+        return None
+    return offer
+
+
+def offer_draw(store, gid: str | None, color: str | None) -> dict:
+    """`color` offers a draw in `gid`; return the offer ({"by", "ply"}).
+
+    A draw can be offered once per move (ply), by either side: never while an
+    offer stands, nor again after one made since the last move was declined.
+    """
+    record = _live_record(store, gid)
+    ply = len(record["moves"])
+    latest = record.get("drawOffer")
+    if latest is not None and latest["ply"] == ply:
+        raise GameError(ErrorCode.invalid_draw, "A draw was already offered this move")
+    offer = {"by": color, "ply": ply}
+    record["drawOffer"] = offer
+    store[gid] = record
+    return offer
+
+
+def _offer_to_answer(record: dict, color: str | None) -> dict:
+    offer = _standing_offer(record)
+    if offer is None or offer["by"] == color:
+        raise GameError(ErrorCode.invalid_draw, "No draw offer to answer")
+    return offer
+
+
+def accept_draw(store, gid: str | None, color: str | None) -> dict:
+    """`color` accepts the opponent's standing offer in `gid`; return the ending."""
+    record = _live_record(store, gid)
+    _offer_to_answer(record, color)
+    ending = {"result": "agreement"}
+    record["ending"] = ending
+    store[gid] = record
+    return ending
+
+
+def decline_draw(store, gid: str | None, color: str | None) -> dict:
+    """`color` declines the opponent's standing offer in `gid`; return the offer, declined."""
+    record = _live_record(store, gid)
+    offer = {**_offer_to_answer(record, color), "declined": True}
+    record["drawOffer"] = offer
+    store[gid] = record
+    return offer
+
+
+STORE_OPERATIONS = (
+    create_game,
+    claim_seat,
+    taken_seats,
+    find_seat,
+    record_move,
+    resign,
+    offer_draw,
+    accept_draw,
+    decline_draw,
+)
 
 
 def _turn(record: dict) -> str:
@@ -298,6 +391,35 @@ async def _close_replaced(old_ws: WebSocket) -> None:
         await old_ws.close(code=SEAT_REPLACED_CLOSE_CODE, reason="seat_replaced")
     except Exception:
         pass
+
+
+def _game_state(record: dict, color: str) -> dict:
+    """The `game_state` snapshot of `record` for the player seated as `color`.
+
+    It carries everything a rejoining client replays: the moves, and the
+    ending and the latest draw offer when there are any.
+    """
+    state = {
+        "type": "game_state",
+        "color": color,
+        "started": len(record["seats"]) == 2,
+        "moves": record["moves"],
+    }
+    for key in ("ending", "drawOffer"):
+        if key in record:
+            state[key] = record[key]
+    model = GameState.model_validate(state)
+    return model.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+async def _broadcast(gid: str, message) -> None:
+    """Send `message` (a protocol model) to every player of `gid` who is connected.
+
+    A player who is not catches up from the durable record's game_state on rejoin.
+    """
+    payload = message.model_dump(mode="json", by_alias=True, exclude_none=True)
+    for sock in list(connections.get(gid, {}).values()):
+        await _safe_send(sock, payload)
 
 
 def _require_not_in_game(gid: str | None) -> None:
@@ -404,17 +526,7 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                             # since the first one, and the opponent already had its
                             # start. Answer like a rejoin, with the whole record.
                             record = find_seat(store, gid, player_color)
-                            state = GameState.model_validate(
-                                {
-                                    "type": "game_state",
-                                    "color": player_color,
-                                    "started": len(record["seats"]) == 2,
-                                    "moves": record["moves"],
-                                }
-                            )
-                            await _safe_send(
-                                ws, state.model_dump(mode="json", by_alias=True, exclude_none=True)
-                            )
+                            await _safe_send(ws, _game_state(record, player_color))
                         else:
                             # Send GameStart to the connected players, white first
                             for col in ("white", "black"):
@@ -461,17 +573,7 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                             replaced,
                             client,
                         )
-                        state = GameState.model_validate(
-                            {
-                                "type": "game_state",
-                                "color": player_color,
-                                "started": len(record["seats"]) == 2,
-                                "moves": record["moves"],
-                            }
-                        )
-                        await _safe_send(
-                            ws, state.model_dump(mode="json", by_alias=True, exclude_none=True)
-                        )
+                        await _safe_send(ws, _game_state(record, player_color))
                         await _send_opponent_presence(gid, ws, player_color)
                         await _notify_opponent_presence(gid, player_color, True)
                         if replaced:
@@ -490,11 +592,34 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                             move_dict.get("promotion"),
                         )
                         move_made = MoveMade.model_validate({"type": "move_made", **move_dict})
-                        payload = move_made.model_dump(
-                            mode="json", by_alias=True, exclude_none=True
+                        await _broadcast(gid, move_made)
+                    elif isinstance(envelope, Resign):
+                        ending = resign(store, gid, player_color)
+                        logger.info("resigned gid=%s by=%s", gid, player_color)
+                        await _broadcast(
+                            gid, GameEnded.model_validate({"type": "game_ended", **ending})
                         )
-                        for sock in list(connections.get(gid, {}).values()):
-                            await _safe_send(sock, payload)
+                    elif isinstance(envelope, OfferDraw):
+                        offer = offer_draw(store, gid, player_color)
+                        logger.info(
+                            "draw offered gid=%s by=%s ply=%d", gid, offer["by"], offer["ply"]
+                        )
+                        await _broadcast(
+                            gid, DrawOffered.model_validate({"type": "draw_offered", **offer})
+                        )
+                    elif isinstance(envelope, AcceptDraw):
+                        ending = accept_draw(store, gid, player_color)
+                        logger.info("draw agreed gid=%s by=%s", gid, player_color)
+                        await _broadcast(
+                            gid, GameEnded.model_validate({"type": "game_ended", **ending})
+                        )
+                    elif isinstance(envelope, DeclineDraw):
+                        offer = decline_draw(store, gid, player_color)
+                        logger.info("draw declined gid=%s by=%s", gid, player_color)
+                        declined = DrawDeclined(
+                            type="draw_declined", by=Color(player_color), ply=offer["ply"]
+                        )
+                        await _broadcast(gid, declined)
                     else:
                         # Structurally valid, but a message type only the server may send
                         raise GameError(

@@ -3,9 +3,12 @@ import type { WebSocketMessage } from '../types/messages';
 import type { GameSocket } from './useGameSocket';
 import {
   answer,
+  answerDrawOffer,
   computerMove,
   computerToMove,
   fallbackMove,
+  snapshot,
+  standingOffer,
   startGame,
 } from '../game/computerGame';
 import type { Answer, ComputerGame } from '../game/computerGame';
@@ -21,7 +24,12 @@ export interface ComputerGameOptions {
   pace?: (game: ComputerGame, move: ComputerMove) => number;
   /** While set, the computer does not start on its move (the page is not ready for it). */
   hold?: boolean;
+  /** How long the computer takes to answer a draw offer, at the least (DRAW_ANSWER_MS by default). */
+  drawAnswerMs?: number;
 }
+
+/** The computer answers a draw offer after a beat, as a person would, never at once. */
+export const DRAW_ANSWER_MS = 900;
 
 const defaultPace = (game: ComputerGame, move: ComputerMove) =>
   thinkTime(game.difficulty, move, Math.random());
@@ -35,7 +43,8 @@ const defaultPace = (game: ComputerGame, move: ComputerMove) =>
  * page never draws a moment without its lobby or its board), the computer
  * sitting down at once in a game not yet begun. When it is the computer's
  * move, the computer thinks (in a worker) and its move arrives as a
- * move_made after a human pause.
+ * move_made after a human pause. A draw the player offers it, it weighs up
+ * (in the same worker) and answers after a beat, before it plays on.
  */
 export function useComputerGame(gameId: string, options: ComputerGameOptions = {}): GameSocket {
   const gameRef = useRef<ComputerGame | null>(null);
@@ -47,12 +56,7 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
   const [messages, setMessages] = useState<WebSocketMessage[]>(() => {
     const game = gameRef.current;
     if (!game) return [];
-    const state: WebSocketMessage = {
-      type: 'game_state',
-      color: game.color,
-      started: game.started,
-      moves: game.moves,
-    };
+    const state = snapshot(game);
     if (game.started) return [state];
     const begun = startGame(game);
     gameRef.current = begun.game;
@@ -93,9 +97,12 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
   const moveCount = gameRef.current?.moves.length ?? 0;
   const started = gameRef.current?.started ?? false;
   const hold = options.hold ?? false;
+  // A draw offered to it is answered first: it plays on only once it has
+  // declined (an offer made while it thinks drops that thought)
+  const offered = standingOffer(gameRef.current) !== null;
   useEffect(() => {
     const game = gameRef.current;
-    if (!answered || hold || !computerToMove(game)) return;
+    if (!answered || hold || offered || !computerToMove(game)) return;
     let live = true;
     let timer: number | undefined;
     const asked = performance.now();
@@ -115,7 +122,34 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
       live = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [answered, moveCount, started, hold, apply]);
+  }, [answered, moveCount, started, hold, offered, apply]);
+
+  // A draw offered to it: it weighs up the position and answers after a
+  // beat (counted from the offer), unless the player has moved or resigned
+  // meanwhile
+  useEffect(() => {
+    const game = gameRef.current;
+    if (!answered || !offered || !game) return;
+    let live = true;
+    let timer: number | undefined;
+    const asked = performance.now();
+    computerRef.current ??= (optionsRef.current.computer ?? createComputer)();
+    const reply = (score: number | null) => {
+      if (!live || gameRef.current !== game) return;
+      const beat = optionsRef.current.drawAnswerMs ?? DRAW_ANSWER_MS;
+      timer = window.setTimeout(
+        () => {
+          if (live && gameRef.current === game) apply(answerDrawOffer(game, score));
+        },
+        Math.max(0, beat - (performance.now() - asked)),
+      );
+    };
+    computerRef.current.assess(game.moves).then(reply, () => reply(null));
+    return () => {
+      live = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [answered, offered, moveCount, apply]);
 
   const noop = useCallback(() => {}, []);
   return {

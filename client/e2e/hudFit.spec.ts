@@ -60,6 +60,7 @@ async function seated(page: Page, seat: 'white' | 'black') {
       await waitForIntro(page);
     },
     presence: game.presence,
+    offerDraw: game.offerDraw,
   };
 }
 
@@ -109,7 +110,11 @@ for (const seat of ['white', 'black'] as const) {
   });
 }
 
-/** The HUD's rects over the board: the pill, each side's captured pieces, and the way to the tutorial. */
+/**
+ * The HUD's rects over the board: the pill, each side's captured pieces, the
+ * way to the tutorial, and the flag for resigning and draws, with the
+ * opponent's draw offer under it when one stands.
+ */
 const hudRects = (page: Page) =>
   page.evaluate(() => {
     const rect = (what: string, el: Element | null) => {
@@ -130,6 +135,8 @@ const hudRects = (page: Page) =>
       ),
       rect('how to play', document.querySelector('.hud-learn')),
       rect('move history', document.querySelector('[data-testid="move-history"]')),
+      rect('game menu', document.querySelector('.hud-game-menu')),
+      rect('draw offer', document.querySelector('[data-testid="draw-offer"]')),
     ].filter((r) => r !== null);
   });
 
@@ -227,8 +234,11 @@ for (const seat of ['white', 'black'] as const) {
     await game.show(STRIPPED.slice(0, -1));
     await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-check', 'true');
     expect(await everywhere()).toEqual([]);
-    // The opening: Black's army stands at the top of the tower
+    // The opening: Black's army stands at the top of the tower; the
+    // opponent offers a draw, which hangs under the flag
     await game.show([]);
+    game.offerDraw();
+    await expect(page.getByTestId('draw-offer')).toBeVisible();
     expect(await everywhere()).toEqual([]);
     // The result
     await game.show(MATE);

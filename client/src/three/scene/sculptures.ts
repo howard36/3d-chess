@@ -137,7 +137,7 @@ const envelopeOf = (profiles: readonly (readonly P2[])[], cap?: number, clean = 
  */
 const ledges = (pts: P2[]): P2[] => {
   const out: P2[] = [];
-  for (let k = 0; k < pts.length; ) {
+  for (let k = 0; k < pts.length;) {
     let j = k;
     while (j + 1 < pts.length && Math.abs(pts[j + 1][1] - pts[k][1]) < 1e-5) j++;
     out.push(pts[k]);
@@ -260,9 +260,10 @@ const build = (type: PieceType, clean = false): SculptureDrawing => {
               ]
             : [[p[0], p[1]]],
       );
-      const head = smoothLoop(outline, 6).map(
-        ([x, y]): P2 => [x * 0.92, KNIGHT_SEAT + (y - KNIGHT_SEAT) * 0.92],
-      );
+      const head = smoothLoop(outline, 6).map(([x, y]): P2 => [
+        x * 0.92,
+        KNIGHT_SEAT + (y - KNIGHT_SEAT) * 0.92,
+      ]);
       const first = head.findIndex(([, y]) => y >= collarTop);
       const last = lastIndex(head, ([, y]) => y >= collarTop);
       // From the withers over the head and down the chest

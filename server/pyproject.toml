@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "3D Chess backend on Modal"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-  "fastapi[standard]>=0.115.4",
+  # Plain FastAPI: Modal serves the ASGI app itself, so the production image
+  # needs none of `standard` (a server, a CLI, OpenTelemetry's SDK). The local
+  # server comes from the test extra's uvicorn.
+  "fastapi>=0.143.0",
 ]
 
 [project.optional-dependencies]
@@ -15,11 +18,11 @@ test = [
   "3d-chess-backend[deploy]",  # tests import modal_app, which imports modal
   "uvicorn[standard]",
   "pytest",
-  "pytest-asyncio",
-  "httpx",
+  "pytest-asyncio>=1.0",
+  "httpx2",  # Starlette's TestClient prefers it; plain httpx is deprecated there
   "websockets",
   # Pinned so CI's messages.py freshness check is byte-stable across runs
-  "datamodel-code-generator==0.36.0",
+  "datamodel-code-generator==0.83.0",
   "ruff",
 ]
 

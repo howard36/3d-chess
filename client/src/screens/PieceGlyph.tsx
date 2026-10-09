@@ -1,6 +1,7 @@
 import React from 'react';
 import { PieceType } from '../engine/pieces';
 import type { Turn } from '../game/history';
+import { CHARCOAL } from './charcoal';
 
 // Silhouettes on a 24-unit grid, drawn here because the unicorn has no chess
 // glyph in any font. The promotion tiles, the captured pieces and the
@@ -34,19 +35,6 @@ const GLYPHS: Record<PieceType, string> = {
   // A small ball on a slim body: the lightest piece in the set
   [PieceType.Pawn]: 'M12 6.6a2 2 0 1 1 0 4a2 2 0 1 1 0-4zM10.4 11.5h3.2L15 18.8H9zM8 19.2h8V21H8z',
 };
-
-/**
- * Charcoal, Black's material: a dark slate lit softly from the top left, in
- * the black turn stone's tones (offset, colour), which the start page's
- * computer (BotGlyph) is drawn in too.
- */
-export const CHARCOAL = [
-  ['0', '#666c7a'],
-  ['0.45', '#3e424b'],
-  ['1', '#24262c'],
-] as const;
-/** The pale edge round the computer's head (BotGlyph). */
-export const CHARCOAL_EDGE = 'rgba(150,162,184,0.85)';
 
 /**
  * A charcoal piece's edge, along the glyph's diagonal (offset, colour,

@@ -4,7 +4,7 @@
 import WS from 'jest-websocket-mock';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
-import { MemoryRouter, useNavigate } from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router';
 import React from 'react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
@@ -70,6 +70,24 @@ test('the default route is the start screen', async () => {
   );
   expect(await screen.findByRole('button', { name: 'Play a friend' })).toBeInTheDocument();
 });
+
+test.each(['/games', '/game/', '/game/ABC123/moves', '/new/x'])(
+  'an address with no page (%s) says so, and leads home',
+  async (path) => {
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('heading', { name: 'Nothing here' })).toBeInTheDocument();
+    // Not the lobby: no stage, and no game asked of the server
+    expect(screen.queryByTestId('lobby')).not.toBeInTheDocument();
+    const home = screen.getByRole('button', { name: 'Home' });
+    expect(home).toHaveFocus();
+    await userEvent.click(home);
+    expect(await screen.findByRole('button', { name: 'Play a friend' })).toBeInTheDocument();
+  },
+);
 
 test('jumping from one game page to another keeps each game its own seat', async () => {
   // Game A: this page joined it live and got Black. Game B: this browser is White there.

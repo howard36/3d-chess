@@ -1,12 +1,13 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import ComputerGameScreen from './ComputerGameScreen';
 import { LobbyContext } from './lobby/lobbyContext';
 import type { LobbyApi, LobbyStage } from './lobby/lobbyContext';
 import { isArriving, markArriving, saveComputerGame } from '../lib/computerGames';
 import { setStoredRole } from '../lib/playerRole';
 import { loadBoardChunk } from './testSupport';
+import { YOUR_MOVE_TITLE } from '../hooks/useTabSignal';
 
 // A game against the computer, from the page's side: the lobby's short wait
 // (no one to invite), the computer's arrival, and the game with the computer
@@ -117,6 +118,8 @@ it('opened any other way (a reload, history), it opens on the game, no lobby ove
   render(at('g3'));
   expect(await screen.findByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
   expect(view ?? null).toBeNull();
+  // The player's move: the tab says so
+  expect(document.title).toBe(YOUR_MOVE_TITLE);
 });
 
 it('leads to the tutorial, which is told the way back to this game', async () => {
@@ -140,12 +143,15 @@ it('the computer moves first when it plays White, once the entrance is over', as
   const announcer = await screen.findByTestId('move-announcer');
   await new Promise((r) => setTimeout(r, 50));
   expect(thinking.asked).toBe(0);
+  // The computer's move: the tab keeps its own title
+  expect(document.title).not.toBe(YOUR_MOVE_TITLE);
   act(() => entrance.end!());
   await waitFor(() => expect(announcer).toHaveAttribute('data-move-count', '1'), {
     timeout: 4000,
   });
   expect(thinking.asked).toBe(1);
   expect(screen.getByTestId('seat')).toHaveAttribute('data-seat', 'black');
+  expect(document.title).toBe(YOUR_MOVE_TITLE);
 });
 
 it('a game not kept here: "No game here", and a new game against the computer', async () => {

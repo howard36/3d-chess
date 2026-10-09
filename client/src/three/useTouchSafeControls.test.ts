@@ -51,6 +51,7 @@ describe('stalePointers', () => {
 
 // three's OrbitControls, driven through its real listeners on a jsdom element
 // (which lacks pointer capture and layout, so both are stubbed).
+const made: OrbitControls[] = [];
 const setup = () => {
   const el = document.createElement('div');
   document.body.appendChild(el);
@@ -71,13 +72,16 @@ const setup = () => {
   const camera = new PerspectiveCamera(40, 1, 0.1, 100);
   camera.position.set(0, 6, 14);
   const controls = new OrbitControls(camera, el);
+  made.push(controls);
   controls.enablePan = false;
   controls.update();
   const internals = controls as unknown as OrbitPointerState;
   const send = (type: string, pointerId: number, x: number, y: number) => {
     if (type === 'pointerdown') active.add(pointerId);
     const sent = el.dispatchEvent(
-      Object.assign(new Event(type), {
+      // Bubbling, as a browser's pointer events do: the controls hear a
+      // pressed pointer's moves and up on the document
+      Object.assign(new Event(type, { bubbles: true }), {
         pointerId,
         pointerType: 'touch',
         pageX: x,
@@ -104,6 +108,8 @@ const setup = () => {
 };
 
 afterEach(() => {
+  // Its listeners on the document must not hear the next test's pointers
+  for (const c of made.splice(0)) c.disconnect();
   document.body.innerHTML = '';
 });
 
@@ -157,8 +163,13 @@ describe('a finger whose pointer-up is lost', () => {
     finger.down(1, 100, 300);
     finger.move(1, 120, 300);
     expect(captured.has(1)).toBe(true);
+    const unlisten = vi.spyOn(document, 'removeEventListener');
     // touchend with no fingers left; the pointer-up never came
     expect(reconcileTouches(internals, [], el)).toEqual([1]);
+    // It stops listening for moves and ups, as after its own last pointer-up
+    expect(unlisten).toHaveBeenCalledWith('pointermove', internals._onPointerMove);
+    expect(unlisten).toHaveBeenCalledWith('pointerup', internals._onPointerUp);
+    unlisten.mockRestore();
     expect(internals._pointers).toEqual([]);
     expect(internals.state).toBe(-1);
     expect(end).toHaveBeenCalledTimes(1);

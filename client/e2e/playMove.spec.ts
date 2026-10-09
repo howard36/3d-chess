@@ -12,11 +12,17 @@ test('two players each play a move by clicking the board', async ({ browser }) =
   await expect(game.black.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
   await expect(game.white.getByTestId('turn-indicator')).toContainText('Your move');
   await expect(game.black.getByTestId('turn-indicator')).toContainText('Their move');
+  // The tab says whose move it is, the icon with its dot
+  await expect(game.white).toHaveTitle('● Your move · 3D Chess');
+  await expect(game.black).not.toHaveTitle(/Your move/);
+  await expect(game.white.locator('link[rel="icon"]')).toHaveAttribute('href', /favicon-turn/);
 
   // White: pawn Bb1 one step up. play() waits for both clients to flip
   // the turn, which proves the move round-tripped through the server.
   await game.play('Bb1', 'Cb1');
   expect(await game.turn()).toBe('black');
+  await expect(game.black).toHaveTitle('● Your move · 3D Chess');
+  await expect(game.white).not.toHaveTitle(/Your move/);
 
   // Black replies in kind (Dd5 -> Cd5), proving the mirrored-orientation
   // projection and the reverse relay direction both work.

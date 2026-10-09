@@ -13,6 +13,13 @@
     { "$ref": "#/definitions/game_state" },
     { "$ref": "#/definitions/move" },
     { "$ref": "#/definitions/move_made" },
+    { "$ref": "#/definitions/resign" },
+    { "$ref": "#/definitions/offer_draw" },
+    { "$ref": "#/definitions/accept_draw" },
+    { "$ref": "#/definitions/decline_draw" },
+    { "$ref": "#/definitions/draw_offered" },
+    { "$ref": "#/definitions/draw_declined" },
+    { "$ref": "#/definitions/game_ended" },
     { "$ref": "#/definitions/presence" },
     { "$ref": "#/definitions/error" }
   ],
@@ -35,8 +42,40 @@
         "invalid_move",
         "game_not_started",
         "wrong_turn",
-        "seat_in_use"
+        "seat_in_use",
+        "game_over",
+        "invalid_draw"
       ]
+    },
+    "ending_result": {
+      "description": "How a game ended by the players' own decision rather than on the board: one side resigned, or both agreed a draw.",
+      "enum": ["resignation", "agreement"]
+    },
+    "ending": {
+      "type": "object",
+      "properties": {
+        "result": { "$ref": "#/definitions/ending_result" },
+        "winner": {
+          "description": "The side that won: the resigning side's opponent. Absent for an agreed draw.",
+          "$ref": "#/definitions/color"
+        }
+      },
+      "required": ["result"],
+      "additionalProperties": false
+    },
+    "draw_offer": {
+      "description": "A draw offered by `by` when `ply` moves had been played. It stands only while that is still the number of moves (a move cancels it) and it has not been answered.",
+      "type": "object",
+      "properties": {
+        "by": { "$ref": "#/definitions/color" },
+        "ply": { "type": "integer", "minimum": 0 },
+        "declined": {
+          "description": "The opponent declined it. A draw can be offered once per move.",
+          "type": "boolean"
+        }
+      },
+      "required": ["by", "ply"],
+      "additionalProperties": false
     },
     "create_game": {
       "type": "object",
@@ -134,7 +173,15 @@
         "type": { "const": "game_state" },
         "color": { "$ref": "#/definitions/color" },
         "started": { "type": "boolean" },
-        "moves": { "type": "array", "items": { "$ref": "#/definitions/move_record" } }
+        "moves": { "type": "array", "items": { "$ref": "#/definitions/move_record" } },
+        "ending": {
+          "description": "Set once the game has ended by resignation or agreement.",
+          "$ref": "#/definitions/ending"
+        },
+        "drawOffer": {
+          "description": "The latest draw offer, if any; it stands only if its ply is the number of moves and it was not declined.",
+          "$ref": "#/definitions/draw_offer"
+        }
       },
       "required": ["type", "color", "started", "moves"],
       "additionalProperties": false
@@ -171,6 +218,70 @@
         "promotion": { "$ref": "#/definitions/promotion" }
       },
       "required": ["type", "by", "from", "to"],
+      "additionalProperties": false
+    },
+    "resign": {
+      "description": "The sender resigns: the opponent wins.",
+      "type": "object",
+      "properties": { "type": { "const": "resign" } },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "offer_draw": {
+      "description": "The sender offers a draw.",
+      "type": "object",
+      "properties": { "type": { "const": "offer_draw" } },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "accept_draw": {
+      "description": "The sender accepts the opponent's standing draw offer.",
+      "type": "object",
+      "properties": { "type": { "const": "accept_draw" } },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "decline_draw": {
+      "description": "The sender declines the opponent's standing draw offer.",
+      "type": "object",
+      "properties": { "type": { "const": "decline_draw" } },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "draw_offered": {
+      "description": "To both players: `by` offered a draw when `ply` moves had been played.",
+      "type": "object",
+      "properties": {
+        "type": { "const": "draw_offered" },
+        "by": { "$ref": "#/definitions/color" },
+        "ply": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["type", "by", "ply"],
+      "additionalProperties": false
+    },
+    "draw_declined": {
+      "description": "To both players: `by` declined the draw offered when `ply` moves had been played.",
+      "type": "object",
+      "properties": {
+        "type": { "const": "draw_declined" },
+        "by": { "$ref": "#/definitions/color" },
+        "ply": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["type", "by", "ply"],
+      "additionalProperties": false
+    },
+    "game_ended": {
+      "description": "To both players: the game ended by resignation or agreement. No move, offer or resignation is accepted after it.",
+      "type": "object",
+      "properties": {
+        "type": { "const": "game_ended" },
+        "result": { "$ref": "#/definitions/ending_result" },
+        "winner": {
+          "description": "The side that won; absent for an agreed draw.",
+          "$ref": "#/definitions/color"
+        }
+      },
+      "required": ["type", "result"],
       "additionalProperties": false
     },
     "presence": {

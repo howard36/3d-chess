@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import type { Color } from '../../types/messages';
 import type { Invitation } from '../../game/invitation';
 import type { GameSocket } from '../../hooks/useGameSocket';

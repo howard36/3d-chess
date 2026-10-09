@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- favicon.svg with a dot at the top right: the player's move
+       (hooks/useTabSignal.ts). The dot is the board's gold for where a piece
+       may go, ringed in the tile's dark so it holds on any tab strip. -->
+  <rect width="64" height="64" rx="14" fill="#0a0d15" />
+  <g stroke="#0a0d15" stroke-width="3" stroke-linejoin="round">
+    <path d="M32 44 L57 51 L32 58 L7 51 Z" fill="#ec539b" />
+    <path d="M32 35 L57 42 L32 49 L7 42 Z" fill="#de5cec" />
+    <path d="M32 26 L57 33 L32 40 L7 33 Z" fill="#8f61fc" />
+    <path d="M32 17 L57 24 L32 31 L7 24 Z" fill="#4180f3" />
+    <path d="M32 8 L57 15 L32 22 L7 15 Z" fill="#47bbec" />
+  </g>
+  <circle cx="49" cy="15" r="15" fill="#0a0d15" />
+  <circle cx="49" cy="15" r="11" fill="#f8c970" />
+</svg>

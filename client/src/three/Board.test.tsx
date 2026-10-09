@@ -923,11 +923,10 @@ describe('Board', () => {
     });
 
     it('skips the glide and the capture effect when the player prefers reduced motion', async () => {
-      const matchMedia = vi
-        .spyOn(window, 'matchMedia')
-        .mockImplementation(
-          (query: string) => ({ matches: query.includes('reduce') }) as MediaQueryList,
-        );
+      // jsdom has no matchMedia to spy on: lend the window one for the test
+      const matchMedia = window.matchMedia;
+      window.matchMedia = (query: string) =>
+        ({ matches: query.includes('reduce') }) as MediaQueryList;
       try {
         marked.length = 0;
         captures.length = 0;
@@ -946,7 +945,7 @@ describe('Board', () => {
         // The marker still says what moved
         expect(last(marked)!.to.floor).toEqual(floorOf(TO));
       } finally {
-        matchMedia.mockRestore();
+        window.matchMedia = matchMedia;
       }
     });
 

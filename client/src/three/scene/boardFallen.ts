@@ -156,46 +156,36 @@ export const fallenStrokes = (scale: number, groundY: number, slot: number): Neo
     const sculpt = slot + i;
     const { at, axis } = pose;
     return [
-      ...d.outlines.map(
-        (o): NeonStroke => ({
-          at,
-          points: o.points.map(([x, y]): V3 => [x * scale, y * scale, 0]),
-          closed: o.closed,
-          mode: 2,
-          axis,
-          sculpt,
-          light: FALLEN_LIGHT,
+      ...d.outlines.map((o): NeonStroke => ({
+        at,
+        points: o.points.map(([x, y]): V3 => [x * scale, y * scale, 0]),
+        closed: o.closed,
+        mode: 2,
+        axis,
+        sculpt,
+        light: FALLEN_LIGHT,
+      })),
+      ...d.fixed.map((s): NeonStroke => ({
+        at,
+        points: s.points.map((p) => lying(pose, p, scale)),
+        normals: s.normals.map((n) => lying(pose, n)),
+        closed: s.closed,
+        mode: 1,
+        axis,
+        sculpt,
+        light: FALLEN_LIGHT,
+      })),
+      ...d.rings.map((ring): NeonStroke => ({
+        at,
+        points: Array.from({ length: 48 }, (_, k) => {
+          const a = (k / 48) * Math.PI * 2;
+          return lying(pose, [Math.cos(a) * ring.radius, ring.y, Math.sin(a) * ring.radius], scale);
         }),
-      ),
-      ...d.fixed.map(
-        (s): NeonStroke => ({
-          at,
-          points: s.points.map((p) => lying(pose, p, scale)),
-          normals: s.normals.map((n) => lying(pose, n)),
-          closed: s.closed,
-          mode: 1,
-          axis,
-          sculpt,
-          light: FALLEN_LIGHT,
-        }),
-      ),
-      ...d.rings.map(
-        (ring): NeonStroke => ({
-          at,
-          points: Array.from({ length: 48 }, (_, k) => {
-            const a = (k / 48) * Math.PI * 2;
-            return lying(
-              pose,
-              [Math.cos(a) * ring.radius, ring.y, Math.sin(a) * ring.radius],
-              scale,
-            );
-          }),
-          closed: true,
-          mode: 1,
-          sculpt,
-          light: FALLEN_LIGHT * 0.7,
-        }),
-      ),
+        closed: true,
+        mode: 1,
+        sculpt,
+        light: FALLEN_LIGHT * 0.7,
+      })),
     ];
   });
 

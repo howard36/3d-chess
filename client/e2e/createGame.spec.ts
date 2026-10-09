@@ -83,3 +83,11 @@ test('an invitation to a game that is full or gone says so', async ({ browser })
   await expect(third.getByRole('heading', { name: 'This game is taken' })).toBeVisible();
   for (const p of [host, guest, third]) await p.context().close();
 });
+
+test('an address with no page says so, and leads home', async ({ page }) => {
+  await page.goto('/game/');
+  await expect(page.getByRole('heading', { name: 'Nothing here' })).toBeVisible();
+  await page.getByRole('button', { name: 'Home' }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('button', { name: 'Play a friend' })).toBeVisible();
+});

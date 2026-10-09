@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { describe, expect, it } from 'vitest';
 import { BufferGeometry } from 'three';
 import { buildKnight } from './knight';

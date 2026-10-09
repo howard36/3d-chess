@@ -1,0 +1,68 @@
+# Weekly dependency PRs. Minor and patch updates come grouped, one PR per
+# ecosystem; each major comes on its own, as do the upgrades that need a
+# deliberate check (below). CI is the gate: nothing here merges by itself.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /client
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build(client)
+    groups:
+      # three can change the piece set's geometry, which golden.test.ts pins
+      # by hash (and the precomputed knight and occlusion, `npm run
+      # bake:pieces`): its updates come together with its types, never
+      # mixed into the routine group.
+      three:
+        patterns:
+          - three
+          - "@types/three"
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+        exclude-patterns:
+          - three
+          - "@types/three"
+    ignore:
+      # @types/node follows the Node line CI runs (.nvmrc, engines.node):
+      # bump its major by hand together with them.
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: uv
+    directory: /server
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: build(server)
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+        # Pinned exactly so messages.py is byte-stable: its update comes on
+        # its own, and needs messages.py regenerated (/regen-types) if the
+        # output changes (CI's freshness check says so).
+        exclude-patterns:
+          - datamodel-code-generator
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: ci
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch

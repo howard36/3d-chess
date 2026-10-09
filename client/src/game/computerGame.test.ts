@@ -1,9 +1,12 @@
 import {
+  ACCEPTS_DRAW_AT,
   answer,
+  answerDrawOffer,
   computerMove,
   computerToMove,
   fallbackMove,
   isOver,
+  standingOffer,
   startGame,
 } from './computerGame';
 import type { ComputerGame } from './computerGame';
@@ -145,4 +148,82 @@ it('stops at a draw: the computer plays no further', () => {
   expect(isOver(drawn)).toBe(true);
   expect(computerToMove(drawn)).toBe(false);
   expect(computerMove(drawn, { from: 'Ab1', to: 'Cc1' }).replies).toEqual([]);
+});
+
+it('takes the player’s resignation, and nothing after it', () => {
+  const g = game({ moves: records(['Bc2-Cc2']) });
+  const resigned = answer(g, 'abc', { type: 'resign' });
+  expect(resigned.replies).toEqual([
+    { type: 'game_ended', result: 'resignation', winner: 'black' },
+  ]);
+  const over = resigned.game!;
+  expect(over.ending).toEqual({ result: 'resignation', winner: 'black' });
+  expect(isOver(over)).toBe(true);
+  expect(computerToMove(over)).toBe(false);
+  for (const msg of [
+    { type: 'resign' },
+    { type: 'offer_draw' },
+    { type: 'move', from: 'Dc4', to: 'Cc4' },
+  ] as const) {
+    expect(answer(over, 'abc', msg).replies[0]).toMatchObject({ code: 'game_over' });
+  }
+  // A rejoin gives the game as it ended
+  expect(
+    answer(over, 'abc', { type: 'rejoin_game', gameId: 'abc', color: 'white' }).replies[0],
+  ).toMatchObject({ ending: { result: 'resignation', winner: 'black' } });
+  // Not before the game, nor in a game it does not hold
+  expect(answer(game({ started: false }), 'abc', { type: 'resign' }).replies[0]).toMatchObject({
+    code: 'game_not_started',
+  });
+  expect(answer(null, 'abc', { type: 'offer_draw' }).replies[0]).toMatchObject({
+    code: 'invalid_game',
+  });
+});
+
+it('takes a draw offer once a move; there is never one for the player to answer', () => {
+  const offered = answer(game(), 'abc', { type: 'offer_draw' });
+  expect(offered.replies).toEqual([{ type: 'draw_offered', by: 'white', ply: 0 }]);
+  expect(standingOffer(offered.game)).toEqual({ by: 'white', ply: 0 });
+  expect(answer(offered.game, 'abc', { type: 'offer_draw' }).replies[0]).toMatchObject({
+    code: 'invalid_draw',
+  });
+  for (const type of ['accept_draw', 'decline_draw'] as const) {
+    expect(answer(offered.game, 'abc', { type }).replies[0]).toMatchObject({
+      code: 'invalid_draw',
+    });
+  }
+  // A move cancels it
+  const moved = answer(offered.game, 'abc', { type: 'move', from: 'Bc2', to: 'Cc2' }).game!;
+  expect(standingOffer(moved)).toBeNull();
+  expect(answerDrawOffer(moved, -500)).toEqual({ game: moved, replies: [] });
+  // A snapshot carries the latest offer
+  expect(
+    answer(moved, 'abc', { type: 'rejoin_game', gameId: 'abc', color: 'white' }).replies[0],
+  ).toMatchObject({ drawOffer: { by: 'white', ply: 0 } });
+});
+
+it('accepts a draw only when it stands clearly worse, by its own reckoning', () => {
+  // The player (White) to move: the score is White's
+  const onPlayersTurn = answer(game(), 'abc', { type: 'offer_draw' }).game!;
+  const accepted = answerDrawOffer(onPlayersTurn, -ACCEPTS_DRAW_AT);
+  expect(accepted.replies).toEqual([{ type: 'game_ended', result: 'agreement' }]);
+  expect(accepted.game!.ending).toEqual({ result: 'agreement' });
+  expect(answerDrawOffer(onPlayersTurn, 100).replies).toEqual([
+    { type: 'draw_declined', by: 'black', ply: 0 },
+  ]);
+  // The computer (White) to move: the score is its own
+  const onItsTurn = answer(game({ color: 'black' }), 'abc', { type: 'offer_draw' }).game!;
+  expect(answerDrawOffer(onItsTurn, ACCEPTS_DRAW_AT).replies[0].type).toBe('game_ended');
+  const declined = answerDrawOffer(onItsTurn, ACCEPTS_DRAW_AT + 1);
+  expect(declined.replies).toEqual([{ type: 'draw_declined', by: 'white', ply: 0 }]);
+  expect(declined.game!.drawOffer).toEqual({ by: 'black', ply: 0, declined: true });
+  expect(standingOffer(declined.game)).toBeNull();
+  // Unable to weigh it up, it declines
+  expect(answerDrawOffer(onItsTurn, null).replies[0].type).toBe('draw_declined');
+});
+
+it('refuses what only the server sends', () => {
+  expect(
+    answer(game(), 'abc', { type: 'game_ended', result: 'agreement' }).replies[0],
+  ).toMatchObject({ code: 'invalid_message' });
 });

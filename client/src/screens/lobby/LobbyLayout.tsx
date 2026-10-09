@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router';
 import { lazyChunk } from '../../lib/cachedImport';
 import { ChunkBoundary } from '../../components/ChunkBoundary';
 import { LobbyContext } from './lobbyContext';

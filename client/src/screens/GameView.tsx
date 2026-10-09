@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { prefersReducedMotion } from '../three/motion';
 import type { IntroClock } from '../three/intro/clock';
 import { INTRO_HUD_VAR, INTRO_SCENE_VAR } from '../three/intro/vars';
@@ -18,6 +18,8 @@ import MoveCard from './MoveCard';
 import MoveHistory from './MoveHistory';
 import { useReview } from './useReview';
 import MoveAnnouncer from './MoveAnnouncer';
+import GameActions from './GameActions';
+import type { DrawOfferState } from '../game/ending';
 import { learnScreen } from './learn/learnChunk';
 import type { LearnState } from './learn/learnBack';
 
@@ -64,6 +66,17 @@ export interface GameViewProps {
   reconnectingBanner?: React.ReactNode;
   /** Alerts under the pill: the latest error, the frozen-record notice. */
   alerts?: React.ReactNode;
+  /**
+   * Resigning and draws (GameActions), shown while the game is on: the draw
+   * offer since the last move, whether anything can be sent, and the sends.
+   */
+  actions?: {
+    offer: DrawOfferState;
+    disabled: boolean;
+    onResign: () => void;
+    onOfferDraw: () => void;
+    onAnswerDraw: (accept: boolean) => void;
+  };
   /**
    * The entrance (three/intro/timeline.ts): `full` for a game that starts
    * while the page is open, `short` for a page that opens on a game already
@@ -115,6 +128,7 @@ const GameView: React.FC<GameViewProps> = ({
   replacedNotice,
   reconnectingBanner,
   alerts,
+  actions,
   intro = 'full',
   introPaused = false,
   onFirstFrame,
@@ -265,6 +279,8 @@ const GameView: React.FC<GameViewProps> = ({
           />
           {/* After the move box, which stays the first Tab stop */}
           <HowToPlay />
+          {/* Under the way to the tutorial: resigning and draws */}
+          {color && !gameOver && actions && <GameActions seat={color} {...actions} />}
           <MoveHistory
             moves={moveRecords}
             applied={history.appliedMoveCount}

@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { BufferGeometry } from 'three';
@@ -14,7 +15,9 @@ import type { PieceQuality } from './set';
 // set's knight comes from knight.medium.ts here and the low set's is
 // sculpted, so both ways of getting a knight are pinned; the medium set's
 // occlusion comes from occlusion.medium.ts (occlusionData.test.ts pins it
-// against the bake worked out afresh).
+// against the bake worked out afresh). three's own generators are part of it
+// (the queen's pearls are SphereGeometry): three r185 put a sphere's poles
+// exactly on its axis, moving them by under 1e-17 and changing these.
 
 const hashInto = (h: ReturnType<typeof createHash>, key: string, g: BufferGeometry) => {
   for (const name of Object.keys(g.attributes).sort()) {
@@ -39,16 +42,16 @@ const setHash = (quality: PieceQuality) => {
 
 describe('the piece set, byte for byte', () => {
   it('medium, as built (its knight from the precomputed meshes)', () => {
-    expect(setHash('medium')).toBe('77ffc3796d9dd007');
+    expect(setHash('medium')).toBe('aeb001fa14000e0c');
   });
 
   it('medium, as drawn (occlusion and parts baked in, from the precomputed values)', () => {
     const h = createHash('sha256');
     for (const type of Object.values(PieceType)) hashInto(h, type, wholePiece(type));
-    expect(h.digest('hex').slice(0, 16)).toBe('196a80b3120abc54');
+    expect(h.digest('hex').slice(0, 16)).toBe('7f316a9fecba5740');
   });
 
   it('low, as built', () => {
-    expect(setHash('low')).toBe('0d47e3184007076a');
+    expect(setHash('low')).toBe('4893f52581b34d92');
   });
 });

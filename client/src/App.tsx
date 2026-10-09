@@ -1,4 +1,4 @@
-import { Routes, Route, matchPath, useLocation, useParams } from 'react-router-dom';
+import { Routes, Route, matchPath, useLocation, useParams } from 'react-router';
 import StartScreen from './screens/StartScreen';
 // Small: the game's 3D board (GameCanvas) and the lobby's canvas are its lazily loaded parts
 import GameScreen from './screens/GameScreen';
@@ -9,6 +9,7 @@ import { ChunkBoundary } from './components/ChunkBoundary';
 import { reloadPage } from './lib/cachedImport';
 // The tutorial is a chunk of its own
 import LearnRoute from './screens/learn/LearnRoute';
+import NotFound from './screens/NotFound';
 import { useGameSocket } from './hooks/useGameSocket';
 import type { GameSocket } from './hooks/useGameSocket';
 import React from 'react';
@@ -101,6 +102,8 @@ function App() {
         <Route path="/computer" element={<ChooseSide gameSocket={gameSocket} computer />} />
         <Route path="/computer/:gameId" element={<ComputerGameRoute />} />
       </Route>
+      {/* Any other address, /game/ with no game among them */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
