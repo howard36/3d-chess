@@ -1437,23 +1437,17 @@ const squarePixel = (page, zxy) =>
   }, zxy);
 
 /**
- * The first frame begun after the canvas took a click made at or after `t`.
- * A click is a move, a press and a release: the move alone (a hover lifting
- * the piece) can ask for a frame that begins before the click lands, and that
- * frame does not hold the piece. Throws when the page saw no click.
+ * The first frame begun after the canvas took a click made at or after `t`,
+ * or null if the click drew nothing (it picked nothing up: counted as missed,
+ * never timed). A click is a move, a press and a release: the move alone (a
+ * hover lifting the piece) can ask for a frame that begins before the click
+ * lands, and that frame does not hold the piece. Throws when the page saw no
+ * click.
  */
 function frameAfterClick(s, t) {
   const click = s.clicks.find((c) => c[0] >= t)?.[0];
   if (click == null) throw new Error('select: the page saw no click');
-  const frame = s.renders.find((r) => r[0] >= click);
-  if (!frame)
-    throw new Error(
-      `select: no frame after the click (click at +${Math.round(click - t)} ms; frames begun at ${s.renders
-        .filter((r) => r[0] >= t - 50)
-        .map((r) => `+${Math.round(r[0] - t)}`)
-        .join(' ')} ms)`,
-    );
-  return frame;
+  return s.renders.find((r) => r[0] >= click) ?? null;
 }
 
 async function selectSection(browser) {
@@ -1488,19 +1482,21 @@ async function selectSection(browser) {
         await quietMain(page);
         const s = await snap(page);
         const frame = frameAfterClick(s, t);
-        const drawn = frame[0] + frame[1];
-        picks.push({
-          frame: drawn - t,
-          render: frame[1],
-          mode: frame[2],
-          // A hover frame began between the press's start and the click
-          hoverFirst: s.renders.find((r) => r[0] >= t) !== frame,
-          links: s.links.filter((l) => l >= t && l <= drawn).length,
-          syncs: (s.syncs ?? [])
-            .filter(([u]) => u >= t && u <= drawn)
-            .map(([u, n, d]) => [Math.round(u - t), n, Math.round(d)]),
-          longest: maxOf([0, ...tasksIn(s.lt, t, drawn).map((l) => l[1])]),
-        });
+        const drawn = frame ? frame[0] + frame[1] : 0;
+        picks.push(
+          frame && {
+            frame: drawn - t,
+            render: frame[1],
+            mode: frame[2],
+            // A hover frame began between the press's start and the click
+            hoverFirst: s.renders.find((r) => r[0] >= t) !== frame,
+            links: s.links.filter((l) => l >= t && l <= drawn).length,
+            syncs: (s.syncs ?? [])
+              .filter(([u]) => u >= t && u <= drawn)
+              .map(([u, n, d]) => [Math.round(u - t), n, Math.round(d)]),
+            longest: maxOf([0, ...tasksIn(s.lt, t, drawn).map((l) => l[1])]),
+          },
+        );
         // Put it down: a click on empty space beside the tower
         const box = await page.locator('canvas').boundingBox();
         const t2 = await page.evaluate(() => window.__benchNow());
@@ -1524,7 +1520,7 @@ async function selectSection(browser) {
         await quietMain(page);
         const s = await snap(page);
         const frame = frameAfterClick(s, t);
-        turned.push({ frame: frame[0] + frame[1] - t, mode: frame[2] });
+        turned.push(frame && { frame: frame[0] + frame[1] - t, mode: frame[2] });
         const box = await page.locator('canvas').boundingBox();
         const t2 = await page.evaluate(() => window.__benchNow());
         await page.mouse.click(box.x + box.width * 0.04, box.y + box.height * 0.5);
@@ -1533,7 +1529,11 @@ async function selectSection(browser) {
       }
       raw.selects = picks;
       raw.selectsAfterTurn = turned;
-      const col = (k) => picks.map((r) => r[k]);
+      // A click that drew nothing (null) picked nothing up: counted, not timed
+      const missed = picks.filter((p) => !p).length + turned.filter((p) => !p).length;
+      const timed = picks.filter(Boolean);
+      const timedTurned = turned.filter(Boolean);
+      const col = (k) => timed.map((r) => r[k]);
       raw.selectRest = afterFirst;
       raw.selectRestPrograms = await page.evaluate(() => {
         const { gl } = window.__r3fState.get();
@@ -1567,23 +1567,28 @@ async function selectSection(browser) {
         countStat('shader programs linked, click → frame', col('links'), 'count'),
         countStat(
           'first frames that drew the garden in full',
-          [picks.filter((p) => p.mode !== 'cached').length],
-          `count of ${picks.length}; the rest from its copy`,
+          [timed.filter((p) => p.mode !== 'cached').length],
+          `count of ${timed.length}; the rest from its copy`,
         ),
         countStat(
           'picks where a hover frame came before the click’s',
-          [picks.filter((p) => p.hoverFirst).length],
-          `count of ${picks.length}; never timed`,
+          [timed.filter((p) => p.hoverFirst).length],
+          `count of ${timed.length}; never timed`,
+        ),
+        countStat(
+          'clicks that picked nothing up (no frame drawn)',
+          [missed],
+          `count of ${picks.length + turned.length}; left out of the times`,
         ),
         stat(
           'after a turn of the view: click → first frame with the piece held',
-          turned.map((r) => r.frame),
+          timedTurned.map((r) => r.frame),
           'the first click once the camera rests',
         ),
         countStat(
           'after a turn of the view: first frames that drew the garden in full',
-          [turned.filter((p) => p.mode !== 'cached').length],
-          `count of ${turned.length}`,
+          [timedTurned.filter((p) => p.mode !== 'cached').length],
+          `count of ${timedTurned.length}`,
         ),
       ]);
     },
