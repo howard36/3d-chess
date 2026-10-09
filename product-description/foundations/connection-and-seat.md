@@ -4,15 +4,17 @@
 
 Everything a player does in 3D Chess travels over one live connection between the browser tab and the server, and everything the player sees is worked out from what the server has said on it. This document owns that model: what the server keeps about a game, what a seat is and how a browser remembers it, the tab's client id, the four connection states and what the player sees in each, what happens to requests made while disconnected or lost to a drop, how a new connection takes its seat back, how the opponent's presence is reported, and what happens when two connections claim the same seat. Feature documents link here for these facts rather than restating them.
 
+A game against the computer has none of this: it is never on the server, and the browser answers the game page's requests itself, at once, on a connection that is always "connected" and never drops. See [playing the computer](../computer/playing-the-computer.md). The tab's connection to the server still opens when the app loads, but such a game never uses it.
+
 ## What the server keeps
 
-For each [game](../glossary.md#games-and-seats) the server keeps three things: which seats have been taken, the [client id](#the-client-id) of the tab that claimed each one, and the [move record](../glossary.md#games-and-seats). It keeps no board, no result, no names, no clock, and no record of who is looking. It never learns that a game has ended; checkmate and stalemate exist only in the players' browsers (see [the rules](game-rules.md#who-enforces-the-rules)).
+For each [game](../glossary.md#games-and-seats) the server keeps three things: which seats have been taken, the [client id](#the-client-id) of the tab that claimed each one, and the [move record](../glossary.md#games-and-seats). It keeps no board, no result, no names, no clock, and no record of who is looking. It never learns that a game has ended; checkmate, stalemate, and the draws by repetition and the fifty-move rule exist only in the players' browsers (see [the rules](game-rules.md#who-enforces-the-rules)).
 
 The record survives everything that can happen to connections: drops, reloads, both players leaving, and the server itself restarting. A game is deleted only by [expiry](../glossary.md#games-and-seats), about 30 days after it was last active. After that its link leads to a game the server does not know, and there is no way to recover it.
 
 Separately, and only while the server is running, it remembers which live connection holds which seat, and which client id that connection announced. This is what it forgets when a connection closes: the seat stays taken, but nobody is connected to it until a new connection [rejoins](#rejoining).
 
-A connection can be tied to at most one game in its life. Once a connection has created, joined, or rejoined a game, any further create, join, or rejoin on it is refused with "Already in a game". A look (the invitation asking which seats are taken) never ties it. A rejoin refused as [seat in use](#last-connection-wins) does not tie the connection to the game. The app never sends a second request on a tied connection, because every new game or new visit starts on a fresh connection (see [returning to the start screen](#returning-to-the-start-screen)).
+A connection can be tied to at most one game in its life. Once a connection has created, joined, or rejoined a game, any further create, join, or rejoin on it is refused with "Already in a game". A look (the invitation asking which seats are taken) never ties it. A rejoin refused as [seat in use](#last-connection-wins) does not tie the connection to the game. The app never sends a second request on a tied connection, because every new game or new visit starts on a fresh connection (see [returning to the start screen](#leaving-a-games-page)).
 
 ## Seats
 
@@ -31,7 +33,7 @@ The browser remembers the seat it holds in each game as a [stored seat](../gloss
 - **Written** the moment the server assigns a seat: when the new game's id arrives on the side choice, and on the game page when the server confirms a join or announces that the game has started. Writing the same color again changes nothing.
 - **Read** every time a game page opens. A stored seat makes the page [rejoin](#rejoining) automatically; no stored seat makes the page open the [invitation to the free seat](../start/joining-a-game.md).
 - **Deleted** in one situation only: the server refuses the rejoin ("No such seat to rejoin" or "Cannot rejoin") before the page has received any snapshot and before the game has started on that page. That means the stored seat is stale, typically because the game expired. The page then falls back to the invitation to the free seat, which says "No game here" for an expired game; "No such seat to rejoin" also shows in the [error banner](../game-page/error-banner.md). A rejoin refused as seat in use does not delete it.
-- **Kept** in every other case, including after the game has ended. A finished game's link reopens the finished game, end-game dialog and all.
+- **Kept** in every other case, including after the game has ended. A finished game's link reopens the finished game, result card and all.
 
 The stored seat is shared by every tab and window of the same browser profile, which is why a second tab of the same game takes the seat rather than joining as the opponent (see [a second tab](../session/second-tab.md)). It is not shared with another browser, another profile, or a private window. Clearing the browser's site data forgets every stored seat; opening such a game's link afterwards opens the invitation to the free seat, which says "This game is taken" once both seats are taken, and the player cannot get the seat back through the app. Only the tab that claimed the seat, still with its client id, could get it back with a join, and only while the invitation still offers one (the other seat free).
 
@@ -65,12 +67,14 @@ stateDiagram-v2
     replaced --> connecting : "Play here"
 ```
 
-| State | Meaning | Start screen and side choice show | Game page shows |
+| State | Meaning | Side choice shows | Game page shows |
 | --- | --- | --- | --- |
-| connecting | The first attempt after the app loaded, after a reset, or after "Play here". | The start screen: nothing, ever. The side choice: "Connecting to server…" at its bottom until a pick is made | Nothing extra. The board, if shown, does not take input. |
-| connected | The connection is open. | Nothing extra | Nothing extra. After every new connection the board takes no input until the rejoin's snapshot arrives. |
-| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | The start screen: nothing. The side choice: "Reconnecting to server…" at its bottom, before or after a pick | The [reconnecting line](../glossary.md#the-interface): under the turn pill on the board screen, at the top right on the other screens. The board does not take input. |
+| connecting | The first attempt after the app loaded, after a reset, or after "Play here". | "Connecting to server…" at its bottom, only once a wait has lasted 1.5 s | Nothing extra. The board, if shown, does not take input. On the invitation to the free seat, "Connecting to server…" after 1.5 s. |
+| connected | The connection is open. | Nothing extra ("Waiting for server…" if a pick's answer is 1.5 s late) | Nothing extra. After every new connection the board takes no input until the rejoin's snapshot arrives. |
+| reconnecting | The connection failed or dropped, and the browser is retrying on its own. | "Reconnecting to server…" at its bottom, after 1.5 s, before or after a pick | The [reconnecting line](../glossary.md#the-interface): under the turn pill on the board screen, at the top right on the other screens. The board does not take input. |
 | replaced | Another tab or window of this browser holds the seat: either the server closed this connection because the other tab took the seat, or this tab's connection came back after a drop and the server answered that the seat is in use. No retry happens. | Cannot occur | The [replaced dialog](../session/second-tab.md) over everything |
+
+The home page, the tutorial, and the computer's side choice and games never show the connection's state.
 
 In the second kind of *replaced*, the connection itself stays open but holds no seat; the player sees the same dialog either way.
 
@@ -139,24 +143,22 @@ The board screen shows the latest report about the opponent on the turn pill: no
 
 Presence is information only. A player may move while the opponent is offline; the move is recorded and the opponent sees it in the snapshot when they return.
 
-## Returning to the start screen
+## Leaving a game's page
 
-Arriving at the start screen or the side choice from a game by any route (the end-game dialog's "Start new game", "← Home", browser Back, or the crash screen's "Back to start") [resets](../glossary.md#events-that-end-or-interrupt-a-request) the connection if anything has been sent or received on it: the page forgets everything the server said, drops any queued request, closes the connection, and opens a fresh one. Browser Back or Forward straight from one game's page to another's resets it the same way. The server sees the player's connection close, so the opponent is told the player is offline. Nothing is sent until the fresh connection opens, and anything the old connection still delivers is ignored. The stored seat is kept, so going Forward, or opening the link again, rejoins the game.
+Leaving a game's page against a friend by any route (the result card's "Play again", "← Home", "How to play", browser Back, or the crash screen's "Back to start"), and arriving at the home page from anywhere, [resets](../glossary.md#events-that-end-or-interrupt-a-request) the connection if anything has been sent or received on it: the page forgets everything the server said, drops any queued request, closes the connection, and opens a fresh one. Browser Back or Forward straight from one game's page to another's resets it the same way. The server sees the player's connection close, so the opponent is told the player is offline. Nothing is sent until the fresh connection opens, and anything the old connection still delivers is ignored. The stored seat is kept, so going Forward, coming back from the tutorial with "← Game", or opening the link again, rejoins the game.
 
 This is what guarantees that a new game, or another game's page, starts on a connection with no game tied to it.
 
 ## Open questions and verification
 
 - The ~30-day expiry is the storage provider's inactivity rule, quoted from the repository's ARCHITECTURE.md. Whether reading a game (a rejoin) counts as activity, or only writing to it (a join or a move), is not stated anywhere in the repository; a game that is only ever looked at may expire 30 days after its last move.
-- A returning player now sees a neutral "Returning to your game…" while a rejoin is in flight, which resolves [bug-triage B-12](../bug-triage.md); read from `client/src/screens/GameScreen.tsx` at `1928567`, not checked in the running app.
-- Presence keeps showing the last report while this player is reconnecting, so the opponent shown online can be stale ([bug-triage B-16](../bug-triage.md)). Read from code.
-- A player who clears site data, or switches browsers or tabs, cannot recover their seat through the app: the join is refused with "Game full" and there is no other way in. Only the tab that claimed the seat can join back into it. Whether that is acceptable is a product call.
+- A returning player sees a neutral "Returning to your game…" while a rejoin is in flight, which resolves [bug-triage B-12](../bug-triage.md).
+- Presence keeps showing the last report while this player is reconnecting; the turn pill now dims while the connection is down, which says it may be out of date, but still shows the old report ([bug-triage B-16](../bug-triage.md), partly fixed).
+- A player who clears site data, or switches browsers or tabs, cannot recover their seat through the app: the invitation says "This game is taken" and there is no other way in. Only the tab that claimed the seat can join back into it, and only while the other seat is free. Whether that is acceptable is a product call.
 - A creator who loses the stored seat but keeps the tab (for example by clearing only local storage and reloading) is offered the other seat of their own game; "Join game" gets their own seat back as a repeated join, but the page shows "Joining…", with the offered side's king filled, rather than the invitation to send until the opponent arrives. Read from `server/modal_app.py` and `client/src/game/session.ts`; not tried.
 - A duplicated tab shares the original's client id, so an automatic rejoin in either can take the seat from the other without a click. Read from code; not tried.
 - A tab shown the replaced dialog because of seat in use keeps its connection open without a seat. If that connection later drops and returns after the other tab has closed, its automatic rejoin gets the seat back and the dialog goes away without a click. Read from code; not tried.
-- The retry schedule, queueing, dropped moves, the replaced state, last-connection-wins, seat in use, re-sent joins and creates, and the wait for the snapshot are covered by `client/src/hooks/useGameSocket.test.ts`, `client/src/App.test.tsx`, `server/tests/test_local_ws.py`, and `client/e2e/session.spec.ts`.
+- The connection layer (`client/src/hooks/useGameSocket.ts`, `useResendOnReconnect.ts`, `client/src/lib/playerRole.ts`, `clientId.ts`, `server/modal_app.py`) is unchanged in behavior since `4e18386` apart from the look request; the retry schedule, queueing, dropped moves, the replaced state, last-connection-wins, seat in use, re-sent joins and creates, and the wait for the snapshot are covered by `client/src/hooks/useGameSocket.test.ts`, `client/src/App.test.tsx`, `server/tests/test_local_ws.py`, and `client/e2e/session.spec.ts`.
+- When the reset happens is read from `client/src/App.tsx` at `24c650c`: on every arrival at `/`, and on leaving a `/game/{id}` address for any other (including `/new` and `/learn`). Leaving the side choice or the tutorial for anything but `/` does not reset.
 
-- The HUD wording in this document (the turn pill, presence as "Offline" on it, the move box, brought up by Tab, the dialogs as glass cards over a veil) was brought up to the new HUD from `client/src/screens/` and the [game page documents](../game-page/turn-indicator.md) at `bb16fed`, not checked in the running app, and needs re-verification.
-- The board's look changed at `bb16fed` (the glass tower, the porcelain and charcoal pieces, the gold and red markers, the mint last-move line, the red King in check); this document's mentions of it were brought up to date from the code and [the view](the-view.md), not checked in the running app, and need re-verification.
-
-Verified against 3D Chess commit `4e18386`
+Drafted against 3D Chess commit `24c650c`

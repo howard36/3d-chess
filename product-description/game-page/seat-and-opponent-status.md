@@ -71,7 +71,7 @@ If the rejoin finds the seat held by another tab of this browser (the player wen
 
 ### Leaving and coming back
 
-Leaving for the start screen, or jumping through the browser's history straight to another game's page, [resets](../foundations/connection-and-seat.md#returning-to-the-start-screen) the connection, and the page forgets everything it knew, the seat and the last report included. Coming back (browser Back or Forward, the link, a bookmark) opens a fresh game page: the share-link screen shows for a moment, then the snapshot brings back the board with the pill, and the fresh report follows it.
+Leaving for the start screen, or jumping through the browser's history straight to another game's page, [resets](../foundations/connection-and-seat.md#leaving-a-games-page) the connection, and the page forgets everything it knew, the seat and the last report included. Coming back (browser Back or Forward, the link, a bookmark) opens a fresh game page: the share-link screen shows for a moment, then the snapshot brings back the board with the pill, and the fresh report follows it.
 
 ## Modifiers
 

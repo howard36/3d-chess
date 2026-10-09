@@ -39,7 +39,7 @@ stateDiagram-v2
 
 The request begins with the drop: the connection closes and the player did not close it. The causes are the network going away or changing, a laptop going to sleep, the server restarting or being redeployed, the [one-hour limit](../glossary.md#the-connection), and a fault on the server, which closes the connection with an internal-error code. The player cannot tell these apart, and neither can the page: all of them are handled identically.
 
-One kind of close is not a drop. When another tab or window of the same browser takes the seat, the server closes this connection as [replaced](../glossary.md#events-that-end-or-interrupt-a-request); the page shows the replaced dialog and does not retry. That is described in [a second tab](second-tab.md). Returning to the start screen, or jumping through history to another game's page, also closes the connection, on purpose; that is a [reset](../foundations/connection-and-seat.md#returning-to-the-start-screen), not a drop.
+One kind of close is not a drop. When another tab or window of the same browser takes the seat, the server closes this connection as [replaced](../glossary.md#events-that-end-or-interrupt-a-request); the page shows the replaced dialog and does not retry. That is described in [a second tab](second-tab.md). Returning to the start screen, or jumping through history to another game's page, also closes the connection, on purpose; that is a [reset](../foundations/connection-and-seat.md#leaving-a-games-page), not a drop.
 
 At the instant of the drop:
 

@@ -20,15 +20,15 @@ So `Aa1` is White's home corner and `Ee5` is Black's. The same notation appears 
 
 ## The starting position
 
-Each side has 20 pieces: a King, a Queen, two Rooks, two Knights, two Bishops, two Unicorns, and ten Pawns, on the two ranks and two levels nearest its own corner.
+Each side has 20 pieces: a King, a Queen, two Rooks, two Knights, two Bishops, two Unicorns, and ten Pawns, on the two ranks and two levels nearest its own corner. The pieces stand on the side's bottom level and the pawns on the level above, two rows of five.
 
 | Cells | White | Cells | Black |
 | --- | --- | --- | --- |
 | Level A, rank 1 (`Aa1`–`Ae1`) | Rook, Knight, King, Knight, Rook | Level E, rank 5 (`Ea5`–`Ee5`) | Rook, Knight, King, Knight, Rook |
-| Level B, rank 1 (`Ba1`–`Be1`) | Bishop, Unicorn, Queen, Bishop, Unicorn | Level D, rank 5 (`Da5`–`De5`) | Unicorn, Bishop, Queen, Unicorn, Bishop |
-| Levels A and B, rank 2 (`Aa2`–`Ae2`, `Ba2`–`Be2`) | ten Pawns | Levels E and D, rank 4 (`Ea4`–`Ee4`, `Da4`–`De4`) | ten Pawns |
+| Level A, rank 2 (`Aa2`–`Ae2`) | Bishop, Unicorn, Queen, Bishop, Unicorn | Level E, rank 4 (`Ea4`–`Ee4`) | Unicorn, Bishop, Queen, Unicorn, Bishop |
+| Level B, ranks 1 and 2 (`Ba1`–`Be2`) | ten Pawns | Level D, ranks 4 and 5 (`Da4`–`De5`) | ten Pawns |
 
-Black's position is White's turned through the center of the cube: every piece at level, file, rank is matched by the same piece at the opposite level, opposite file, opposite rank. That is why Black's second back rank reads Unicorn, Bishop, Queen, Unicorn, Bishop from file a: seen from Black's side it is the same Bishop, Unicorn, Queen, Bishop, Unicorn that White sees. Levels C and ranks 3 are empty at the start.
+Black's position is White's turned through the center of the cube: every piece at level, file, rank is matched by the same piece at the opposite level, opposite file, opposite rank. That is why Black's second rank reads Unicorn, Bishop, Queen, Unicorn, Bishop from file a: seen from Black's side it is the same Bishop, Unicorn, Queen, Bishop, Unicorn that White sees. Level C and rank 3 are empty at the start. (This is the traditional 5 × 5 × 5 set-up, with the pieces on rank 1 of levels A and B and the pawns on rank 2, with rank and level exchanged; every rule treats the two alike, so it is the same game move for move.)
 
 White moves first. In the starting position White has 61 legal moves, and Black, by symmetry, the same.
 
@@ -71,11 +71,20 @@ A pawn reaches them by a quiet step (forward from rank 4 on the top level, or up
 
 These work as in standard chess, across all three dimensions.
 
-- **Check.** The side to move's King is attacked by at least one opposing piece. The player must answer it: every move offered is one that leaves the King unattacked. The board shows check by the [check glow](the-view.md#markers-and-colors): the whole King turns red, over a red plate of light, with dark blades round him. The [turn pill](../game-page/turn-indicator.md) rings that side's stone in red with a "CHECK" badge beside it while the game is not over.
+- **Check.** The side to move's King is attacked by at least one opposing piece. The player must answer it: every move offered is one that leaves the King unattacked. Check is shown on the board only, by the [check glow](the-view.md#markers-and-colors): the King rocks on his foot as the check lands and turns red, among dark blades of obsidian. The [turn pill](../game-page/turn-indicator.md) does not mark it; a screen reader hears "Check." in the [move announcement](../glossary.md#the-interface).
 - **Checkmate.** The side to move is in check and has no legal move. The other side wins.
 - **Stalemate.** The side to move is not in check and has no legal move. The game is a draw.
 
 Two Kings can never stand next to each other, since each attacks all 26 cells around it. Because Kings in three dimensions have so many escape cells, patterns that mate on a flat board usually do not mate here; the shortest mate from the starting position takes four moves (two by each side, with the losing side cooperating).
+
+## Draws by repetition and the fifty-move rule
+
+Besides stalemate, the game is drawn automatically, as in chess, in two more ways:
+
+- **Repetition.** The same position stands for the third time: the same pieces on the same cells and the same side to move. The three need not be in a row. Since there is no castling and no en passant, a position is only that. A capture or a pawn move can never be undone, so only positions since the last capture or pawn move can repeat.
+- **The fifty-move rule.** Fifty moves by each side (a hundred moves in all) have been played with no capture and no pawn move.
+
+Nobody claims either draw: it happens on the move that completes it, as checkmate and stalemate do. A move that mates wins, even if it also completes a repetition or the fifty moves. Each browser decides these draws from the move record, like the rest of the rules, and the [computer](../computer/playing-the-computer.md) plays by them too.
 
 What happens on screen when the game ends is in [check and the end of the game](../play/check-and-game-end.md).
 
@@ -83,13 +92,13 @@ What happens on screen when the game ends is in [check and the end of the game](
 
 - No castling.
 - No two-cell pawn first move, and so no en passant.
-- No draw by repetition, by the fifty-move rule, or by insufficient material. A game with only the two Kings left goes on until a player leaves.
-- No resignation and no draw offer. A game ends only by checkmate or stalemate.
+- No draw by insufficient material. A game with only the two Kings left goes on until the fifty-move rule (or a repetition) draws it.
+- No resignation and no draw offer. A game ends only by checkmate or one of the automatic draws: stalemate, repetition, or the fifty-move rule.
 - No clock. A player may take as long as they like.
 
 ## Who enforces the rules
 
-Each player's browser holds the complete rules and applies them in four places: it offers only legal destinations for the selected piece, it accepts only a legal move typed into the move box, it marks a King that is in check, and it decides after every move whether the game is over. The two browsers reach the same conclusions because they replay the same [move record](../glossary.md#games-and-seats) with the same rules.
+Each player's browser holds the complete rules and applies them in four places: it offers only legal destinations for the selected piece, it accepts only a legal move typed into the move box, it marks a King that is in check, and it decides after every move whether the game is over (checkmate, stalemate, repetition, or the fifty-move rule). In a game against the computer the browser also stands in for the server and refuses an illegal move outright; see [playing the computer](../computer/playing-the-computer.md). The two browsers reach the same conclusions because they replay the same [move record](../glossary.md#games-and-seats) with the same rules.
 
 The server checks only that a move names two valid cells, carries a promotion letter only from the allowed five, and comes from the side whose turn it is. It does not check that the piece exists, that the move is legal, or that the game is still in progress. A correct client never sends anything else, so a player using the app never sees the difference; what a player sees if the record ever contains a move their browser cannot replay is described in [the broken game record](../cross-cutting/broken-game-record.md).
 
@@ -97,8 +106,9 @@ The server checks only that a move names two valid cells, carries a promotion le
 
 ## Open questions and verification
 
-- The mirrored starting position, the 61 opening moves, the movement of every piece, pawn edges, promotion squares, check detection, and the mate and stalemate patterns are covered by the engine's unit tests (`client/src/engine/board.test.ts`); the shortest mate is the line played by `client/e2e/gameOver.spec.ts`.
-- A game reduced to two Kings never ends; there is no draw rule for it. This is by design (no draw rules exist) but a player may not expect it.
-- The board's labels (files, ranks, level letters) were seen in screenshots of the running app at `bb16fed`; the rest of this document was not re-verified after the board's new look and needs re-verification.
+- The mirrored starting position, the 61 opening moves (also counted against the engine at `24c650c` for this refresh), the movement of every piece, pawn edges, promotion squares, check detection, and the mate and stalemate patterns are covered by the engine's unit tests (`client/src/engine/board.test.ts`, `board.reference.test.ts`); the shortest mate is the line played by `client/e2e/gameOver.spec.ts`.
+- The starting position changed since the earlier drafts of this description (the Bishops, Unicorns, and Queen moved from level B to rank 2 of level A, and the pawns to both ranks of level B); read from `Board.setupStartingPosition` in `client/src/engine/board.ts`.
+- The draws are read from `client/src/engine/draws.ts` and `client/src/game/history.ts` and covered by `draws.test.ts` and `history.test.ts`; not played out by hand.
+- A game reduced to two Kings is not drawn at once; it ends only by the fifty-move rule or a repetition. A player may expect an immediate draw.
 
-Verified against 3D Chess commit `4e18386`
+Drafted against 3D Chess commit `24c650c`
