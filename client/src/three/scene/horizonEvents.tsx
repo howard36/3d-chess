@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
@@ -136,10 +136,9 @@ const pointGeometry = () => {
 
 /**
  * The lighthouse's sweep: now and then, while the player turns a low view,
- * one beam swings through the haze beside the tower. `often` waits seconds
- * rather than minutes (the preview's, to review it).
+ * one beam swings through the haze beside the tower.
  */
-export const Lighthouse = ({ often = false, dim }: { often?: boolean; dim: { value: number } }) => {
+export const Lighthouse = ({ dim }: { dim: { value: number } }) => {
   const invalidate = useThree((s) => s.invalidate);
   const dpr = useThree((s) => s.viewport.dpr);
   const parts = useMemo(() => {
@@ -190,15 +189,11 @@ export const Lighthouse = ({ often = false, dim }: { often?: boolean; dim: { val
     turn: 1,
     last: new Matrix4(),
   });
-  const wait = often ? 0.04 : 1;
-  useEffect(() => {
-    state.current.next = -1;
-  }, [wait]);
   useFrame(({ clock, camera }) => {
     const s = state.current;
     const t = clock.elapsedTime;
     const u = parts.beamMaterial.uniforms;
-    if (s.next < 0) s.next = t + (90 + s.random() * 90) * wait;
+    if (s.next < 0) s.next = t + 90 + s.random() * 90;
     const moved = !s.last.equals(camera.matrixWorld);
     s.last.copy(camera.matrixWorld);
     // Low enough that the horizon is in frame, for a moment
@@ -220,7 +215,7 @@ export const Lighthouse = ({ often = false, dim }: { often?: boolean; dim: { val
       s.turn = s.random() < 0.5 ? -1 : 1;
       s.from = az + Math.PI - (s.turn * SWEEP_TURN) / 2;
       s.start = t;
-      s.next = t + (150 + s.random() * 150) * wait;
+      s.next = t + 150 + s.random() * 150;
     }
     if (s.start >= 0) {
       const p = (t - s.start) / SWEEP_SECONDS;

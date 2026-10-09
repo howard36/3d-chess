@@ -5,23 +5,12 @@ import { Stage, gardenBoost } from './stage';
 import { BACKDROP_END } from './backdropCache';
 import { OTHER_TOWER, otherTowerStrokes } from './horizon';
 import { LEVEL_COLORS } from './palette';
-import { createEnvStore, replaceEnvStoreForTest } from '../../envPreview';
-import type { EnvStore } from '../../envPreview';
 
-// The horizon's parts, each mounted only while its setting is on (off is
-// main's garden exactly), drawn with the garden, turned with the board for
+// The horizon's parts, drawn with the garden, turned with the board for
 // Black, and still at rest: the lighthouse waits unlit and the window burns
 // until a game is won.
 
-let before: EnvStore | null = null;
-const withEnv = (search: string) => {
-  const store = createEnvStore({ start: { host: 'localhost', search }, storage: null });
-  const old = replaceEnvStoreForTest(store);
-  before ??= old;
-};
 afterEach(() => {
-  if (before) replaceEnvStoreForTest(before);
-  before = null;
   gardenBoost.value = 0;
 });
 
@@ -40,14 +29,7 @@ const mount = async (orientation: 'white' | 'black' = 'white') => {
 };
 
 describe('the horizon', () => {
-  it('adds nothing with every setting off', async () => {
-    withEnv('?env=baseline');
-    const { scene } = await mount();
-    for (const name of PARTS) expect(scene.getObjectByName(name), name).toBeUndefined();
-  });
-
   it('draws each part with the garden: after the ground, never normal blending', async () => {
-    withEnv('?env=recommended');
     const { scene } = await mount();
     for (const name of PARTS) expect(scene.getObjectByName(name), name).toBeTruthy();
     const horizon: Object3D[] = PARTS.map((n) => scene.getObjectByName(n)!);
@@ -63,7 +45,6 @@ describe('the horizon', () => {
   });
 
   it('turns with the board for Black, but not its veil (the ground’s own)', async () => {
-    withEnv('?env=recommended');
     const { scene } = await mount('black');
     expect(scene.getObjectByName('horizon')!.rotation.y).toBeCloseTo(Math.PI);
     const ground = scene.getObjectByName('ground')!;
@@ -76,17 +57,7 @@ describe('the horizon', () => {
     }
   });
 
-  it('veils the plain only with its edge fixed, main’s square plain otherwise', async () => {
-    withEnv('?env=recommended,horizonEdgeFix:off');
-    const { scene } = await mount();
-    const far = scene.getObjectByName('ground-far') as Mesh;
-    expect((far.material as ShaderMaterial).vertexShader).not.toContain('skyColorShaded');
-    far.geometry.computeBoundingBox();
-    expect(far.geometry.boundingBox!.max.x).toBeCloseTo(130, 3);
-  });
-
   it('keeps its lighthouse unlit at rest, drawn from the first frame', async () => {
-    withEnv('?env=recommended');
     const { r, scene } = await mount();
     await r.advanceFrames(120, 1 / 30);
     const events = scene.getObjectByName('horizon-events')!;
@@ -99,7 +70,6 @@ describe('the horizon', () => {
   });
 
   it('puts the far window out when a game is won', async () => {
-    withEnv('?env=recommended');
     const { r, scene } = await mount();
     const windowLight = () => {
       let light = -1;
@@ -147,7 +117,6 @@ describe('the horizon', () => {
   });
 
   it('draws the other tower in the sculptures’ tube program, no new one', async () => {
-    withEnv('?env=recommended');
     const { scene } = await mount();
     const tower = scene.getObjectByName('horizon-other-tower')!;
     const shaders = new Set<string>();

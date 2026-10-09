@@ -4,12 +4,11 @@ import { LEVEL_COLORS, PALETTE } from './palette';
 import type { Constellation, P2, Placement } from './skyPlace';
 import { placeStar } from './skyPlace';
 
-// The constellations drawn as a star chart draws them (the richer sky,
-// envPreview `constellations: crafted`): each line runs whole from
-// star to star (a hairline under each star's glow, so the joints stay clean),
-// each figure has one brighter star, and its lines fade a little toward its
-// base. Anyone looking closely also finds two asterisms with no figure
-// drawn in lines (`skyEggs`):
+// The constellations drawn as a star chart draws them: each line runs whole
+// from star to star (a hairline under each star's glow, so the joints stay
+// clean), each figure has one brighter star, and its lines fade a little
+// toward its base. Anyone looking closely also finds two asterisms with no
+// figure drawn in lines:
 // - the tower's echo: five stars climbing one above another, tinted in the
 //   five level colours, A's at the foot to E's at the top, between the
 //   unicorn and the pawn;

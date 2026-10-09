@@ -1,23 +1,9 @@
 // The colossal board's added detail, as GLSL for the ground's shader
-// (stage.tsx): its frame, the life of its squares, and the light its
-// sculptures pool on it. Everything here is drawn in the board's own
-// coordinates (turned half about for Black, as the sculptures are) and in
-// world units, at or under the board lines' brightness, and the ground's
-// shader puts it all into the tower's shade and the far fade with the
-// lines. Each part is compiled in only when it is on, so a frame pays for
-// nothing it does not draw, and with everything off the shader is the
-// board as it always was.
-
-export interface BoardGroundOptions {
-  /** A real board's frame: a double rule, a lozenge inlay, rosettes, electrodes. */
-  frame: boolean;
-  /** The squares: off, subtle (polish and inlays), rich (cracks and a mark too). */
-  squares: 'off' | 'subtle' | 'rich';
-  /** Light pooling on the board round each sculpture. */
-  pools: boolean;
-}
-
-export const BOARD_GROUND_OFF: BoardGroundOptions = { frame: false, squares: 'off', pools: false };
+// (stage.tsx): its frame and the life of its squares. Everything here is
+// drawn in the board's own coordinates (turned half about for Black, as the
+// sculptures are) and in world units, at or under the board lines'
+// brightness, and the ground's shader puts it all into the tower's shade and
+// the far fade with the lines.
 
 type P2 = readonly [number, number];
 
@@ -55,114 +41,8 @@ const INLAID = ['a1', 'c1', 'h2', 'a6', 'h7', 'c8', 'f8', 'b3', 'g5', 'f1'];
 // ...and a few of those with a second border inside the first
 const DOUBLE = ['c1', 'f8', 'g5'];
 
-/** A small seeded random number generator (mulberry32). */
-const random = (seed: number) => () => {
-  seed |= 0;
-  seed = (seed + 0x6d2b79f5) | 0;
-  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
-
-interface Segment {
-  a: P2;
-  b: P2;
-  /** Half-width of the line at each end (world units). */
-  w: number;
-}
-
-/**
- * A crack across a square, in the square's own coordinates (0–8 each way):
- * a wandering line from one edge most of the way to the far one, and a
- * branch or two off it, thinning toward their ends, as stone cracks.
- */
-export const crackOf = (seed: number): Segment[] => {
-  const rnd = random(seed);
-  const segs: Segment[] = [];
-  const walk = (from: P2, heading: number, steps: number, width: number, branch: boolean) => {
-    let p = from;
-    let h = heading;
-    for (let k = 0; k < steps; k++) {
-      h += (rnd() - 0.5) * 0.9;
-      const len = 0.7 + rnd() * 0.7;
-      const q: P2 = [p[0] + Math.cos(h) * len, p[1] + Math.sin(h) * len];
-      if (q[0] < 0.25 || q[0] > S - 0.25 || q[1] < 0.25 || q[1] > S - 0.25) break;
-      const w = width * (1 - (k / steps) * 0.6);
-      segs.push({ a: p, b: q, w });
-      if (branch && k >= 1 && k <= steps - 3 && rnd() < 0.35) {
-        walk(
-          q,
-          h + (rnd() < 0.5 ? -1 : 1) * (0.7 + rnd() * 0.5),
-          2 + Math.floor(rnd() * 2),
-          w * 0.7,
-          false,
-        );
-      }
-      p = q;
-    }
-  };
-  const along = rnd() * (S - 3) + 1.5;
-  walk([0.3, along], (rnd() - 0.5) * 0.6, 8, 0.05, true);
-  return segs;
-};
-
-/** The squares that carry a crack, and each one's seed. */
-const CRACKED: readonly [square: string, seed: number][] = [
-  ['h6', 7],
-  ['c8', 23],
-  ['f1', 41],
-];
-
-/**
- * The maker's mark in the corner of a8 (the board's own coordinates): a
- * small square stamp with a knight's move inside, and a dot where it starts.
- */
-const MARK: readonly Segment[] = (() => {
-  const o = 0.7;
-  const s = 1.1;
-  const box: P2[] = [
-    [o, o],
-    [o + s, o],
-    [o + s, o + s],
-    [o, o + s],
-  ];
-  const sides = box.map((a, i): Segment => ({ a, b: box[(i + 1) % 4], w: 0.022 }));
-  const l: P2[] = [
-    [o + 0.33, o + 0.28],
-    [o + 0.33, o + 0.82],
-    [o + 0.66, o + 0.82],
-  ];
-  return [...sides, { a: l[0], b: l[1], w: 0.02 }, { a: l[1], b: l[2], w: 0.02 }];
-})();
-const MARK_DOT: P2 = [0.7 + 0.33, 0.7 + 0.28];
-
-/**
- * The GLSL the ground's shader takes: declarations (after its uniforms and
- * helpers), lines (given `line`, `lines`, `edge`, `uv`, `bp`, `sq`,
- * `lightSq`, `onBoard`, `clear`; raises `line` and adds to `glow`) and,
- * after the light is summed, its share of the polish (given `view`,
- * `fresnel`, adds to `col`); and for the vertex shader, declarations and
- * lines (given `vP`, the plain's point, and the uniforms `uTurn` and
- * `uWhole`; sets `vPool`). `anchors` are the sculptures' feet (x, z) on the
- * board, for their pools.
- *
- * The ground covers most of the screen, so each part that lies in only a
- * few places (the frame's band, the inlaid, cracked and marked squares) is
- * worked out in a loop whose count is 0 wherever the part is not, which a
- * GPU skips for a block of pixels that all count 0 (a software renderer,
- * CI's, works it all out: there the ground's parts, stage.tsx, keep each
- * detail to where it lies, and the pools are worked out per vertex). Each
- * part's run of segments is written out, never an array indexed in a loop
- * (which some compilers copy whole for every pixel). Inside those loops
- * nothing takes a derivative (it would be undefined where a block's pixels
- * part ways): a line's width across a pixel is worked out from the board's
- * own footprint (`dbx`, `dby`, taken before) and the line's direction.
- */
-export const boardGroundGlsl = (o: BoardGroundOptions, anchors: readonly P2[]) => {
-  const on = o.frame || o.squares !== 'off' || o.pools;
-  if (!on) return null;
-  const decl: string[] = [
-    /* glsl */ `
+/** The helpers the lines use. */
+const DECL = /* glsl */ `
     // A hairline at d = 0, w wide each side, d changing by fw across a
     // pixel: coverage-correct, thinning into a dimmer line rather than
     // aliasing far off (as gridLines)
@@ -178,24 +58,44 @@ export const boardGroundGlsl = (o: BoardGroundOptions, anchors: readonly P2[]) =
       float k = r / rr;
       return (1.0 - smoothstep(rr - fw, rr + fw, d)) * k * k;
     }
-    // The distance from p to a segment, and the way it grows (n)
-    float segDist(vec2 p, vec4 s, out vec2 n) {
-      vec2 a = s.xy;
-      vec2 e = s.zw - a;
-      float t = clamp(dot(p - a, e) / max(dot(e, e), 1e-6), 0.0, 1.0);
-      vec2 w = p - a - e * t;
-      float l = length(w);
-      n = w / max(l, 1e-6);
-      return l;
-    }
     // Square sq in a set given as its row's bits
     bool inRow(int row, vec2 sq) {
       return sq.x >= 0.0 && sq.y >= 0.0 && sq.x <= 7.0 && sq.y <= 7.0
         && ((row >> int(clamp(sq.x, 0.0, 7.0))) & 1) == 1;
     }
     // How much a distance growing along g (board units) changes across a pixel
-    #define FW(g) (abs(dot(g, dbx)) + abs(dot(g, dby)))`,
-  ];
+    #define FW(g) (abs(dot(g, dbx)) + abs(dot(g, dby)))`;
+
+/**
+ * The dark squares more deeply polished than the light: toward the horizon
+ * they give back a little more of the mist, a checker of sheen only a low
+ * eye sees.
+ */
+const POLISH = /* glsl */ `
+    {
+      float sheen = pow(1.0 - abs(view.y), 3.0) * (1.0 - lightSq) * onBoard * clear * far;
+      col += uHorizon * sheen * 0.55;
+    }`;
+
+/**
+ * The GLSL the ground's shader takes: declarations (after its uniforms and
+ * helpers), lines (given `line`, `uv`, `bp`, `sq`, `onBoard`; raises `line`
+ * and adds to `glow`) and, after the light is summed, its share of the
+ * polish (given `view`, `lightSq`, `onBoard`, `clear`, `far`, adds to
+ * `col`). `frame` adds the board's frame, for a part of the plain its band
+ * lies in.
+ *
+ * The ground covers most of the screen, so each part that lies in only a
+ * few places (the frame's band, the inlaid squares) is worked out in a loop
+ * whose count is 0 wherever the part is not, which a GPU skips for a block
+ * of pixels that all count 0 (a software renderer, CI's, works it all out:
+ * there the ground's parts, stage.tsx, keep each detail to where it lies).
+ * Inside those loops nothing takes a derivative (it would be undefined where
+ * a block's pixels part ways): a line's width across a pixel is worked out
+ * from the board's own footprint (`dbx`, `dby`, taken before) and the line's
+ * direction.
+ */
+export const boardGroundGlsl = (frame: boolean) => {
   const lines: string[] = [
     /* glsl */ `
     // The board's footprint across a pixel, taken here, where every pixel
@@ -203,9 +103,8 @@ export const boardGroundGlsl = (o: BoardGroundOptions, anchors: readonly P2[]) =
     vec2 dbx = dFdx(bp);
     vec2 dby = dFdy(bp);`,
   ];
-  const polish: string[] = [];
 
-  if (o.frame) {
+  if (frame) {
     lines.push(/* glsl */ `
     {
       // The frame: outside the board's edge, a hairline rule, a lozenge
@@ -261,8 +160,7 @@ export const boardGroundGlsl = (o: BoardGroundOptions, anchors: readonly P2[]) =
     }`);
   }
 
-  if (o.squares !== 'off') {
-    lines.push(/* glsl */ `
+  lines.push(/* glsl */ `
     {
       // Inlaid squares: an engraved border just inside the edge, a second
       // inside it on a few (INLAID, DOUBLE)
@@ -278,101 +176,6 @@ export const boardGroundGlsl = (o: BoardGroundOptions, anchors: readonly P2[]) =
         line = max(line, inlay * onBoard);
       }
     }`);
-    polish.push(/* glsl */ `
-    // The dark squares more deeply polished than the light: toward the
-    // horizon they give back a little more of the mist, a checker of sheen
-    // only a low eye sees
-    {
-      float sheen = pow(1.0 - abs(view.y), 3.0) * (1.0 - lightSq) * onBoard * clear * far;
-      col += uHorizon * sheen * 0.55;
-    }`);
-  }
 
-  if (o.squares === 'rich') {
-    const vec = (g: Segment) => `vec4(${f1(g.a[0])}, ${f1(g.a[1])}, ${f1(g.b[0])}, ${f1(g.b[1])})`;
-    // Each cracked square's segments written out (an array indexed in a
-    // loop is copied whole for every pixel by some compilers), in a loop
-    // run once on that square and never elsewhere
-    const cracks = CRACKED.map(([square, seed]) => {
-      const [c, r] = cell(square);
-      const segs = crackOf(seed)
-        .map(
-          (g) => `dd = segDist(f, ${vec(g)}, n);
-          crack = max(crack, hairFw(dd, ${f1(g.w)}, FW(n)));
-          near = min(near, dd);`,
-        )
-        .join('\n          ');
-      return `for (int i = 0; i < (sq == vec2(${f1(c)}, ${f1(r)}) ? 1 : 0); i++) {
-          ${segs}
-        }`;
-    }).join('\n        ');
-    const mark = MARK.map(
-      (g) => `dd = segDist(f, ${vec(g)}, n);
-          m = max(m, hairFw(dd, 0.018, FW(n)));`,
-    ).join('\n          ');
-    lines.push(/* glsl */ `
-    {
-      vec2 f = fract(uv) * ${f1(S)};
-      float dd;
-      vec2 n;
-      // Kintsugi: cracks across a few squares, mended in light
-      float crack = 0.0;
-      float near = 1e3;
-      ${cracks}
-      line = max(line, crack * 1.2 * onBoard);
-      glow += exp(-near * near * 12.0) * 0.002 * onBoard * clear;
-      // The maker's mark in a corner of a8
-      float m = 0.0;
-      for (int i = 0; i < (sq == vec2(0.0, 0.0) ? 1 : 0); i++) {
-          ${mark}
-          vec2 w = f - vec2(${f1(MARK_DOT[0])}, ${f1(MARK_DOT[1])});
-          float l = length(w);
-          m = max(m, beadFw(l, 0.06, FW(w / max(l, 1e-6))) * 1.2);
-      }
-      line = max(line, m * 0.8);
-    }`);
-  }
-
-  // The pools are smooth (a few units across), so each vertex of the
-  // plain's fine mesh works them out and a pixel only reads them
-  const vertex: string[] = [];
-  if (o.pools) {
-    const ring = anchors.reduce((s, [x, z]) => s + Math.hypot(x, z), 0) / anchors.length;
-    const each = anchors
-      .map(
-        ([x, z], k) => `d = bp - vec2(${f1(x)}, ${f1(z)});
-      pool += exp(-dot(d, d) / 18.0) * uWhole[${k}];`,
-      )
-      .join('\n      ');
-    vertex.push(/* glsl */ `
-    {
-      // Each sculpture's light pooling on the board round its foot (POOLS)
-      vec2 bp = vP * uTurn;
-      vec2 d;
-      float pool = 0.0;
-      ${each}
-      vPool = pool;
-    }`);
-    decl.push('varying float vPool;');
-    lines.push(/* glsl */ `
-    {
-      // Each sculpture's light pooling on the board round its foot, lifting
-      // the lines near it: dimmed with the sculptures (the lobby), brighter
-      // with them at mate, and gone with one the tower's shade takes whole.
-      // Only in the ring the sculptures stand on (they all stand about as
-      // far out): elsewhere every pool is nothing
-      float pool = abs(length(bp) - ${f1(ring)}) < 13.0 ? vPool : 0.0;
-      pool *= uDim * (1.0 + uBoost);
-      line *= 1.0 + pool * 1.4;
-      glow += pool * 0.0045;
-    }`);
-  }
-
-  return {
-    decl: decl.join('\n'),
-    lines: lines.join('\n'),
-    polish: polish.join('\n'),
-    vertexDecl: o.pools ? 'varying float vPool;' : '',
-    vertex: vertex.join('\n'),
-  };
+  return { decl: DECL, lines: lines.join('\n'), polish: POLISH };
 };

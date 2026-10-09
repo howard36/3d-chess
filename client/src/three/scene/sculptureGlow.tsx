@@ -17,9 +17,7 @@ import {
   WHOLE_SLOTS,
 } from './stage';
 
-// ENV PREVIEW (temporary; sculptureGlow): the light each colossal sculpture
-// throws on the stone round its foot, in place of the upright breath of
-// mist (stage.tsx's Mist) and the pools of the ground (boardGround.ts). A
+// The light each colossal sculpture throws on the stone round its foot. A
 // disc lying on the ground, round in the world, so the camera sees it
 // foreshortened as it sees the board: no screen-facing oval. Its light is a
 // broad, even bell with no hot centre, a little brighter in a soft band just
@@ -27,8 +25,8 @@ import {
 // over about a base's width and a half; the board's lines a little brighter
 // where it lies on them. Faint and cool, the tubes' own white; dimmed with
 // the sculptures (the lobby), barely brighter at mate, turned for Black, and
-// gone with a sculpture the tower's shade takes whole or the camera stands
-// behind (gardenWhole). On the floor, so it has no reflection.
+// gone with a sculpture the camera stands behind (gardenWhole). On the
+// floor, so it has no reflection.
 //
 // All twelve discs are one mesh, one draw. The tower's shade (a loop over
 // its outline's edges) is worked out per vertex, the mesh fine enough for
@@ -40,9 +38,8 @@ import {
 export const GLOW_REACH = 4;
 /** Its soft band just past the base ring: where, how wide, how much brighter. */
 const BAND = { at: 1.12, width: 0.32, lift: 0.18 };
-/** The light under the base as a share of the band's edge: soft, or grounded (dimmer). */
-export const GLOW_CORE = { soft: 0.8, grounded: 0.42 } as const;
-export type GlowStyle = keyof typeof GLOW_CORE;
+/** The light under the base as a share of the band's edge. */
+const GLOW_CORE = 0.8;
 /** Its brightness at the brightest (linear light, before the sculptures' brightness). */
 const INTENSITY = 0.008;
 /** The board's lines' share of light added where the glow lies on them, at its brightest. */
@@ -56,36 +53,33 @@ const smoothstep = (a: number, b: number, x: number) => {
 };
 
 /** The glow's light at u base radii from the axis, before normalising. */
-const rawGlow = (u: number, core: number) => {
-  const inner = core + (1 - core) * smoothstep(0, 1.05, u);
+const rawGlow = (u: number) => {
+  const inner = GLOW_CORE + (1 - GLOW_CORE) * smoothstep(0, 1.05, u);
   const s = 1 - smoothstep(1, GLOW_REACH, u);
   const band = BAND.lift * Math.exp(-(((u - BAND.at) / BAND.width) ** 2));
   return (inner + band) * s * s;
 };
 
-/** Its brightest, for each style (over u from 0 to the reach). */
-const PEAK = Object.fromEntries(
-  Object.entries(GLOW_CORE).map(([k, core]) => {
-    let m = 0;
-    for (let u = 0; u <= GLOW_REACH; u += 0.001) m = Math.max(m, rawGlow(u, core));
-    return [k, m];
-  }),
-) as Record<GlowStyle, number>;
+/** Its brightest (over u from 0 to the reach). */
+const PEAK = (() => {
+  let m = 0;
+  for (let u = 0; u <= GLOW_REACH; u += 0.001) m = Math.max(m, rawGlow(u));
+  return m;
+})();
 
 /** The glow's light, 0–1, at u base radii from a sculpture's axis (the shader's glow()). */
-export const glowProfile = (u: number, style: GlowStyle) =>
-  rawGlow(u, GLOW_CORE[style]) / PEAK[style];
+export const glowProfile = (u: number) => rawGlow(u) / PEAK;
 
 const f = (x: number) => (Number.isInteger(x) ? x.toFixed(1) : String(+x.toPrecision(6)));
 
-/** GLSL: `float glow(float u)`, glowProfile for a style. */
-const glowGlsl = (style: GlowStyle) => /* glsl */ `
+/** GLSL: `float glow(float u)`, glowProfile. */
+const GLOW_GLSL = /* glsl */ `
   float glow(float u) {
-    float inner = ${f(GLOW_CORE[style])} + ${f(1 - GLOW_CORE[style])} * smoothstep(0.0, 1.05, u);
+    float inner = ${f(GLOW_CORE)} + ${f(1 - GLOW_CORE)} * smoothstep(0.0, 1.05, u);
     float s = 1.0 - smoothstep(1.0, ${f(GLOW_REACH)}, u);
     float b = (u - ${f(BAND.at)}) / ${f(BAND.width)};
     float band = ${f(BAND.lift)} * exp(-b * b);
-    return (inner + band) * s * s * ${f(1 / PEAK[style])};
+    return (inner + band) * s * s * ${f(1 / PEAK)};
   }`;
 
 /** Rings of the disc's mesh, as shares of its radius (for the shade per vertex), and its segments. */
@@ -141,7 +135,7 @@ export const glowGeometry = (): BufferGeometry => {
 };
 
 /** The glow's material (added onto the ground, in the opaque list: backdropCache.tsx). */
-export const glowMaterial = (style: GlowStyle) =>
+export const glowMaterial = () =>
   new ShaderMaterial({
     depthWrite: false,
     blending: AdditiveBlending,
@@ -182,7 +176,7 @@ export const glowMaterial = (style: GlowStyle) =>
       varying vec2 vBoard;
       varying float vLit;
       ${GRID_LINES}
-      ${glowGlsl(style)}
+      ${GLOW_GLSL}
       void main() {
         float g = glow(length(vU)) * vLit;
         // The board's lines caught in it (the board's own, on the board only)
@@ -196,12 +190,9 @@ export const glowMaterial = (style: GlowStyle) =>
       }`,
   });
 
-/** The glow under every sculpture (sculptureGlow: soft or grounded). */
-export const SculptureGlow = ({ style }: { style: GlowStyle }) => {
-  const parts = useMemo(
-    () => ({ geometry: glowGeometry(), material: glowMaterial(style) }),
-    [style],
-  );
+/** The glow under every sculpture. */
+export const SculptureGlow = () => {
+  const parts = useMemo(() => ({ geometry: glowGeometry(), material: glowMaterial() }), []);
   useDisposeOnUnmount(parts);
   return (
     <mesh

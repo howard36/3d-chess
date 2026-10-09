@@ -22,14 +22,14 @@ const inner = (g: BufferGeometry) => points(g).slice(0, 129);
 
 describe('the plain', () => {
   it('is a disc inside the sky, centred on the tower, all of it on the ground', () => {
-    const { middle, court, board, far } = groundParts(17, 29, 38, false, true);
+    const { middle, court, board, far } = groundParts(17, 29, 38);
     for (const g of [middle, court, board, far]) for (const [, y] of points(g)) expect(y).toBe(0);
     for (const [x, , z] of rim(far)) expect(Math.hypot(x, z)).toBeCloseTo(GROUND_RADIUS, 3);
     expect(GROUND_RADIUS).toBeLessThan(400);
   });
 
   it('is in parts that meet with no seam: the clear middle, the court, the board to its band, the rest', () => {
-    const { middle, court, board, far } = groundParts(17, 29, 38, false, true);
+    const { middle, court, board, far } = groundParts(17, 29, 38);
     // The middle reaches under the court's ring all round (its sides past the ring's hole)
     const m = rim(middle, 64);
     for (let i = 0; i + 1 < m.length; i++) {
@@ -45,7 +45,7 @@ describe('the plain', () => {
   });
 
   it('faces up', () => {
-    for (const g of Object.values(groundParts(17, 29, 38, false, true))) {
+    for (const g of Object.values(groundParts(17, 29, 38))) {
       const p = points(g);
       const index = g.getIndex()!;
       for (let t = 0; t < index.count; t += 3) {
@@ -55,15 +55,6 @@ describe('the plain', () => {
         expect(up).toBeGreaterThanOrEqual(-1e-6);
       }
     }
-  });
-
-  it('is main’s square with the fix off, its corners kept', () => {
-    const pts = rim(groundParts(17, 29, 38, true, false).far);
-    for (const [x, , z] of pts) expect(Math.max(Math.abs(x), Math.abs(z))).toBeCloseTo(130, 3);
-    const corners = pts.filter(
-      ([x, , z]) => Math.abs(Math.abs(x) - 130) < 1e-3 && Math.abs(Math.abs(z) - 130) < 1e-3,
-    );
-    expect(corners.length).toBeGreaterThanOrEqual(4);
   });
 
   it('is the night’s own colour before its rim, from wherever the camera stands', () => {

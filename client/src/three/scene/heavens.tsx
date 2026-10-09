@@ -1,37 +1,25 @@
 import { useMemo } from 'react';
 import { useThree } from '@react-three/fiber';
-import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, ShaderMaterial } from 'three';
 import { noRaycast } from '../noRaycast';
 import { useDisposeOnUnmount } from './dispose';
-import { rng } from './textures';
-import { shadeUniforms, TOWER_SHADE } from './mask';
-import { PALETTE } from './palette';
 import type { Constellation, Placement } from './skyPlace';
 import { placeStar } from './skyPlace';
-import { chartGeometry, EGG_PLAN, majorEntries, starBuffers } from './skyChart';
-import { richFieldGeometry, todayField } from './skyStars';
+import { chartGeometry, EGG_PLAN, majorEntries } from './skyChart';
+import { richFieldGeometry } from './skyStars';
 import { skyLineMaterial, skyPointMaterial } from './skyShaders';
-// ENV PREVIEW (temporary): the richer sky's settings
-import { useEnvSetting } from '../../envPreview';
-import { stars as starsSetting } from '../../envPreview/features/stars';
-import { constellations as constellationsSetting } from '../../envPreview/features/constellations';
 
 export { placeStar, skyDirection } from './skyPlace';
 
-// The night overhead. A sparse field of faint stars thins out toward the
-// horizon's mist, and high above the garden, where only a camera sunk below
-// the horizon looking up past the tower can see, eight chess pieces are
-// drawn among them as constellations: a few brighter
-// stars each, joined by hair-thin lines, round the whole sky, so whichever
-// way the player looks up there is one beside the tower. They sit above the
-// top of the frame in every ordinary view: an easter egg, not a backdrop.
-// Nothing moves, and whatever lies behind the tower is held down to nothing
-// (mask.ts).
-//
-// The richer sky (ENV PREVIEW: `stars: rich`, `constellations: crafted`)
-// spends the field where a camera can see it (skyStars.ts) and draws the
-// figures as a star chart does (skyChart.ts); the Milky Way, the hidden asterisms and the stars in the
-// stone are skyDetail.tsx's.
+// The night overhead. A field of stars, spent where a camera can see it
+// (skyStars.ts), and high above the garden, where only a camera sunk below
+// the horizon looking up past the tower can see, eight chess pieces drawn
+// among them as constellations, as a star chart draws them (skyChart.ts): a
+// few brighter stars each, joined by hair-thin lines, round the whole sky,
+// so whichever way the player looks up there is one beside the tower. They
+// sit above the top of the frame in every ordinary view: an easter egg, not
+// a backdrop. Whatever lies behind the tower is held down to nothing
+// (mask.ts). The Milky Way, the hidden asterisms and the sky's rare events
+// are skyDetail.tsx's.
 
 const loop = (n: number, from = 0): [number, number][] =>
   Array.from({ length: n }, (_, i) => [from + i, from + ((i + 1) % n)]);
@@ -194,143 +182,17 @@ export const SKY_PLAN: Placement[] = [
   { c: KNIGHT_WEST, azimuth: 128, elevation: 21, size: 9.5, tilt: 0.05 },
 ];
 
-const pointVertex = /* glsl */ `
-  uniform float uDpr;
-  attribute float aSize;
-  attribute float aBright;
-  attribute vec3 aColor;
-  varying float vBright;
-  varying vec3 vColor;
-  varying vec3 vWorld;
-  void main() {
-    vBright = aBright;
-    vColor = aColor;
-    vec4 w = modelMatrix * vec4(position, 1.0);
-    vWorld = w.xyz;
-    gl_Position = projectionMatrix * viewMatrix * w;
-    gl_PointSize = aSize * uDpr;
-  }`;
-
-const pointFragment = /* glsl */ `
-  uniform float uOpacity;
-  varying float vBright;
-  varying vec3 vColor;
-  varying vec3 vWorld;
-  ${TOWER_SHADE}
-  void main() {
-    vec2 p = gl_PointCoord * 2.0 - 1.0;
-    float r = length(p);
-    float a = (1.0 - smoothstep(0.3, 1.0, r)) * vBright * uOpacity * (1.0 - towerShade());
-    if (a < 0.003) discard;
-    gl_FragColor = vec4(vColor * a, 1.0);
-    #include <colorspace_fragment>
-  }`;
-
-const lineVertex = /* glsl */ `
-  varying vec3 vWorld;
-  void main() {
-    vec4 w = modelMatrix * vec4(position, 1.0);
-    vWorld = w.xyz;
-    gl_Position = projectionMatrix * viewMatrix * w;
-  }`;
-
-const lineFragment = /* glsl */ `
-  uniform vec3 uColor;
-  uniform float uOpacity;
-  varying vec3 vWorld;
-  ${TOWER_SHADE}
-  void main() {
-    float a = uOpacity * (1.0 - towerShade());
-    if (a < 0.003) discard;
-    gl_FragColor = vec4(uColor * a, 1.0);
-    #include <colorspace_fragment>
-  }`;
-
-/** Today's background field: sparse and dim, thinning into the horizon's mist. */
-const fieldGeometry = () => {
-  const f = todayField();
-  return starBuffers(f.pos, f.size, f.bright, f.color);
-};
-
-/** The constellations' stars: a little brighter and larger than the field's. */
-const figureStarGeometry = () => {
-  const random = rng(71);
-  const pos: number[] = [];
-  const size: number[] = [];
-  const bright: number[] = [];
-  const color: number[] = [];
-  const cool = new Color(PALETTE.neon);
-  for (const plan of SKY_PLAN) {
-    for (const s of plan.c.stars) {
-      pos.push(...placeStar(s, plan));
-      size.push(2 + random() * 0.7);
-      bright.push(0.34 + random() * 0.16);
-      color.push(cool.r, cool.g, cool.b);
-    }
-    // Unjoined stars (an eye) quieter than the figure's own, never a
-    // bright stray on it
-    for (const s of plan.c.loose ?? []) {
-      pos.push(...placeStar(s, plan));
-      size.push(1.6);
-      bright.push(0.2);
-      color.push(cool.r, cool.g, cool.b);
-    }
-  }
-  return starBuffers(pos, size, bright, color);
-};
-
-const figureLineGeometry = () => {
-  const pos: number[] = [];
-  for (const plan of SKY_PLAN) {
-    for (const [a, b] of plan.c.lines) {
-      pos.push(...placeStar(plan.c.stars[a], plan), ...placeStar(plan.c.stars[b], plan));
-    }
-  }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  return g;
-};
-
-// Light added onto the night, after the ground and before the garden and
-// the tower: in three.js's opaque list with the rest of the garden
-// (backdropCache.tsx), still added
-const pointMaterial = (opacity: number) =>
-  new ShaderMaterial({
-    depthWrite: false,
-    blending: AdditiveBlending,
-    uniforms: { uDpr: { value: 1 }, uOpacity: { value: opacity }, ...shadeUniforms() },
-    vertexShader: pointVertex,
-    fragmentShader: pointFragment,
-  });
-
 /** The constellations' line strength. */
-export const FIGURE_LINE = 0.065;
+const FIGURE_LINE = 0.065;
 
 /** Every constellation star, the asterisms' too: no bright field star stands near one. */
-export const figureDirections = () =>
+const figureDirections = () =>
   [...SKY_PLAN, ...Object.values(EGG_PLAN)].flatMap((plan) =>
     plan.c.stars.map((s) => placeStar(s, plan)),
   );
 
-/** Today's field (`stars: off`). */
-const TodayField = ({ dpr }: { dpr: number }) => {
-  const parts = useMemo(() => ({ geometry: fieldGeometry(), material: pointMaterial(1) }), []);
-  useDisposeOnUnmount(parts);
-  // Point sizes are in CSS pixels; the shader draws in device pixels
-  parts.material.uniforms.uDpr.value = dpr;
-  return (
-    <points
-      geometry={parts.geometry}
-      material={parts.material}
-      renderOrder={-899}
-      raycast={noRaycast}
-      frustumCulled={false}
-    />
-  );
-};
-
-/** The richer field (`stars: rich`, skyStars.ts). */
-const RichField = ({ dpr }: { dpr: number }) => {
+/** The field of stars (skyStars.ts). */
+const Field = ({ dpr }: { dpr: number }) => {
   const parts = useMemo(
     () => ({ geometry: richFieldGeometry(figureDirections()), material: skyPointMaterial({}) }),
     [],
@@ -345,49 +207,6 @@ const RichField = ({ dpr }: { dpr: number }) => {
       raycast={noRaycast}
       frustumCulled={false}
     />
-  );
-};
-
-/** Today's eight constellations (`constellations: off`). */
-const TodayFigures = ({ dpr }: { dpr: number }) => {
-  const parts = useMemo(
-    () => ({
-      figureStars: figureStarGeometry(),
-      figureLines: figureLineGeometry(),
-      starMaterial: pointMaterial(1),
-      lineMaterial: new ShaderMaterial({
-        depthWrite: false,
-        blending: AdditiveBlending,
-        uniforms: {
-          ...shadeUniforms(),
-          uColor: { value: new Color(PALETTE.neon) },
-          uOpacity: { value: FIGURE_LINE },
-        },
-        vertexShader: lineVertex,
-        fragmentShader: lineFragment,
-      }),
-    }),
-    [],
-  );
-  useDisposeOnUnmount(parts);
-  parts.starMaterial.uniforms.uDpr.value = dpr;
-  return (
-    <>
-      <lineSegments
-        geometry={parts.figureLines}
-        material={parts.lineMaterial}
-        renderOrder={-898}
-        raycast={noRaycast}
-        frustumCulled={false}
-      />
-      <points
-        geometry={parts.figureStars}
-        material={parts.starMaterial}
-        renderOrder={-897}
-        raycast={noRaycast}
-        frustumCulled={false}
-      />
-    </>
   );
 };
 
@@ -430,12 +249,10 @@ const ChartFigures = ({ dpr }: { dpr: number }) => {
 /** The sky's stars and its chess constellations. */
 export const Heavens = () => {
   const dpr = useThree((s) => s.viewport.dpr);
-  const field = useEnvSetting(starsSetting);
-  const figures = useEnvSetting(constellationsSetting);
   return (
     <group name="heavens">
-      {field === 'off' ? <TodayField dpr={dpr} /> : <RichField dpr={dpr} />}
-      {figures === 'off' ? <TodayFigures dpr={dpr} /> : <ChartFigures dpr={dpr} />}
+      <Field dpr={dpr} />
+      <ChartFigures dpr={dpr} />
     </group>
   );
 };

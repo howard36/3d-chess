@@ -1,15 +1,14 @@
 import { MathUtils } from 'three';
 import type { Camera, PerspectiveCamera } from 'three';
 
-// ENV PREVIEW (temporary; sculptureNearFade): the colossal figures are meant
-// to be seen from the tower's side, as a player sitting at the tower sees
-// them. Zoomed far out the camera can pass a figure and stand behind it,
-// where it would loom up close between the camera and the tower; there the
-// figure is not drawn. A figure is shown or hidden whole (every part of it
-// takes its slot of gardenWhole), never faded, and it changes only on a
-// frame when none of it is on screen, so nothing ever pops in view: turning
-// round from a figure's front to its back, the camera has it out of frame
-// for a moment, and it goes then.
+// The colossal figures are meant to be seen from the tower's side, as a
+// player sitting at the tower sees them. Zoomed far out the camera can pass
+// a figure and stand behind it, where it would loom up close between the
+// camera and the tower; there the figure is not drawn. A figure is shown or
+// hidden whole (every part of it takes its slot of gardenWhole), never
+// faded, and it changes only on a frame when none of it is on screen, so
+// nothing ever pops in view: turning round from a figure's front to its
+// back, the camera has it out of frame for a moment, and it goes then.
 
 /** A figure of the garden: where it stands, and the boxes round all it draws. */
 export interface GardenFigure {

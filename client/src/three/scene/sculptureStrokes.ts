@@ -1,18 +1,16 @@
 import { PieceType } from '../../engine/pieces';
 import { cleanSculptureOf } from './sculptures';
 import { knightOutline } from './knightSilhouette';
-import { ringPoints } from './boardNeon';
-import type { V3 } from './boardNeon';
-import type { NeonStroke } from './neonStrokes';
+import { ringPoints } from './neonStrokes';
+import type { NeonStroke, V3 } from './neonStrokes';
 
-// The garden's sculptures as clean strokes (sculptureLines: clean; the tubes
-// themselves in neonStrokes.ts): each turned piece's outline one stroke
-// facing the viewer, the same from every side; its rings fitted to it; the
-// details that are not the same from every side (the bishop's cut, the
-// unicorn's spiral) fixed on the body in 3D, facing its own way in the
-// world; and the knights, which look one way, outlined by their silhouette
-// from wherever the camera stands (knightSilhouette.ts), redrawn as it
-// moves. Pure (no WebGL).
+// The garden's sculptures as strokes (the tubes themselves in
+// neonStrokes.ts): each turned piece's outline one stroke facing the viewer,
+// the same from every side; its rings fitted to it; the details that are not
+// the same from every side (the bishop's cut, the unicorn's spiral) fixed on
+// the body in 3D, facing its own way in the world; and the knights, which
+// look one way, outlined by their silhouette from wherever the camera stands
+// (knightSilhouette.ts), redrawn as it moves. Pure (no WebGL).
 
 export interface Place {
   type: PieceType;
@@ -34,21 +32,21 @@ export const isLightSquare = (square: string) =>
   (square.charCodeAt(0) - 97 + Number(square.slice(1)) - 1) % 2 === 1;
 
 /**
- * ENV PREVIEW (temporary; sculptureEven): the light of a line lying on a
- * square of the board, so it stands out as much from a dark square as from
- * a light one. A tube joins the ground by the brighter of the two, so the
- * same tube stands far further above dark stone than above light (the
- * footprints about twice as far as the ground's own light goes, to the eye;
- * a base ring, brighter, about a third further). Worked out from each
- * line's light against its square's, measured in captures with the glow
- * under the sculptures on (sculptureGlow): `line` for the footprints and
- * the pawns' rings, `ring` for the base rings the sculptures stand on.
+ * The light of a line lying on a square of the board, so it stands out as
+ * much from a dark square as from a light one. A tube joins the ground by
+ * the brighter of the two, so the same tube stands far further above dark
+ * stone than above light (the footprints about twice as far as the ground's
+ * own light goes, to the eye; a base ring, brighter, about a third further).
+ * Worked out from each line's light against its square's, measured in
+ * captures with the glow under the sculptures (sculptureGlow.tsx): `line`
+ * for the footprints and the pawns' rings, `ring` for the base rings the
+ * sculptures stand on.
  */
 export const ON_DARK = { line: 0.55, ring: 0.72 } as const;
 
-/** A line's light on a square (ON_DARK's on a dark one), or 1 with `even` off. */
-export const lightOn = (square: string, even: boolean, kind: keyof typeof ON_DARK = 'line') =>
-  even && !isLightSquare(square) ? ON_DARK[kind] : 1;
+/** A line's light on a square: ON_DARK's on a dark one. */
+export const lightOn = (square: string, kind: keyof typeof ON_DARK = 'line') =>
+  isLightSquare(square) ? 1 : ON_DARK[kind];
 
 /**
  * Which way a sculpture faces in the world (unit x, z), for what is not the
@@ -72,12 +70,7 @@ export const toWorld = ([fx, fz]: readonly [number, number], [x, y, z]: V3, scal
 ];
 
 /** Every sculpture's strokes but the knights' outlines (KnightLines draws those). */
-export const sculptureStrokes = (
-  places: readonly Place[],
-  scale: number,
-  /** Base rings as clear on a dark square as on a light one (lightOn). */
-  even = false,
-): NeonStroke[] =>
+export const sculptureStrokes = (places: readonly Place[], scale: number): NeonStroke[] =>
   places.flatMap((place, sculpt) => {
     const d = cleanSculptureOf(place.type);
     const facing = facingOf(place);
@@ -109,8 +102,7 @@ export const sculptureStrokes = (
           mode: 1,
           sculpt,
           light:
-            RING_LIGHT *
-            (place.square && ring.y < ON_GROUND ? lightOn(place.square, even, 'ring') : 1),
+            RING_LIGHT * (place.square && ring.y < ON_GROUND ? lightOn(place.square, 'ring') : 1),
         }),
       ),
     ];

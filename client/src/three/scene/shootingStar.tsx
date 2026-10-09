@@ -121,7 +121,7 @@ export const meteorAt = (seconds: number, peak = 0.45) => {
  * for a moment (a player exploring the sky is turning the view), and then
  * keeps the frames coming only while it lasts.
  */
-export const ShootingStar = ({ often = false }: { often?: boolean }) => {
+export const ShootingStar = () => {
   const invalidate = useThree((s) => s.invalidate);
   const { geometry, material, line } = useMemo(makeMeteor, []);
   useEffect(
@@ -132,15 +132,10 @@ export const ShootingStar = ({ often = false }: { often?: boolean }) => {
     [geometry, material],
   );
   const state = useRef({ random: rng(907), next: -1, start: -1, upSince: -1 });
-  // ENV PREVIEW (temporary): `often` (shootingStar:often) waits seconds, not a minute
-  const wait = often ? 0.1 : 1;
-  useEffect(() => {
-    state.current.next = -1;
-  }, [wait]);
   useFrame(({ clock, camera }) => {
     const s = state.current;
     const t = clock.elapsedTime;
-    if (s.next < 0) s.next = t + (30 + s.random() * 30) * wait;
+    if (s.next < 0) s.next = t + 30 + s.random() * 30;
     // Looking up far enough that the frame holds the sky at 20–25° beside
     // the tower
     const dir = camera.getWorldDirection(new Vector3());
@@ -158,7 +153,7 @@ export const ShootingStar = ({ often = false }: { often?: boolean }) => {
         skyDirection(az + side * (8 + s.random() * 4) * DEG, el - (8 + s.random() * 3) * DEG),
       );
       s.start = t;
-      s.next = t + (45 + s.random() * 45) * wait;
+      s.next = t + 45 + s.random() * 45;
     }
     if (s.start >= 0) {
       const m = meteorAt(t - s.start);

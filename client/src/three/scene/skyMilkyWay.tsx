@@ -18,16 +18,15 @@ import { starBuffers } from './skyChart';
 import { DEG, DOME } from './skyPlace';
 import { skyPointMaterial } from './skyShaders';
 
-// The Milky Way (envPreview `milkyWay: faint | clear`): a band of soft light
-// on a great circle tilted to the horizon, so that in the low sky a camera
-// can see it rises out of the horizon's haze as a leaning column on two
-// opposite sides (between the king and the bishop, the brighter, wider
-// side, split by a dark lane of dust; and through the unicorn, fainter),
-// steep enough that each stands whole beside the tower when the camera
-// looks up a little to one side of it, and is absent from the rest. The glow is worked out per vertex
-// on a strip of mesh lying along the band, so a fragment only reads its
-// light and the tower's shade, and only where the band is; a dust of faint
-// stars gathers in it.
+// The Milky Way: a band of soft light on a great circle tilted to the
+// horizon, so that in the low sky a camera can see it rises out of the
+// horizon's haze as a leaning column on two opposite sides (between the king
+// and the bishop, the brighter, wider side, split by a dark lane of dust; and
+// through the unicorn, fainter), steep enough that each stands whole beside
+// the tower when the camera looks up a little to one side of it, and is
+// absent from the rest. The glow is worked out per vertex on a strip of mesh
+// lying along the band, so a fragment only reads its light and the tower's
+// shade, and only where the band is; a dust of faint stars gathers in it.
 
 /** Where the band rises out of the horizon (degrees round from +z toward +x). */
 export const BAND_NODE = 236;
@@ -175,17 +174,13 @@ const glowFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-/** How bright each choice is: the glow's peak (linear) and the dust's count and strength. */
-const LOOK = {
-  faint: { gain: 0.02, dust: 1100, dustOpacity: 0.9 },
-  clear: { gain: 0.034, dust: 1600, dustOpacity: 1.2 },
-};
+/** How bright it is: the glow's peak (linear) and the dust's count and strength. */
+const LOOK = { gain: 0.02, dust: 1100, dustOpacity: 0.9 };
 
-export const MilkyWay = ({ look }: { look: 'faint' | 'clear' }) => {
+export const MilkyWay = () => {
   const dpr = useThree((s) => s.viewport.dpr);
-  const parts = useMemo(() => {
-    const l = LOOK[look];
-    return {
+  const parts = useMemo(
+    () => ({
       band: bandGeometry(),
       glow: new ShaderMaterial({
         // Seen from inside the sky, either way round
@@ -195,15 +190,16 @@ export const MilkyWay = ({ look }: { look: 'faint' | 'clear' }) => {
         uniforms: {
           ...shadeUniforms(),
           uColor: { value: new Color(SKY_DETAIL.milkyWay) },
-          uGain: { value: l.gain },
+          uGain: { value: LOOK.gain },
         },
         vertexShader: glowVertex,
         fragmentShader: glowFragment,
       }),
-      dust: dustGeometry(l.dust),
-      dustMaterial: skyPointMaterial({ opacity: l.dustOpacity }),
-    };
-  }, [look]);
+      dust: dustGeometry(LOOK.dust),
+      dustMaterial: skyPointMaterial({ opacity: LOOK.dustOpacity }),
+    }),
+    [],
+  );
   useDisposeOnUnmount(parts);
   parts.dustMaterial.uniforms.uDpr.value = dpr;
   return (

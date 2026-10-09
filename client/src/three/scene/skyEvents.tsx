@@ -12,7 +12,7 @@ import { DEG, DOME, placeStar, skyDirection } from './skyPlace';
 import { skyPointMaterial, skyTrace } from './skyShaders';
 import { gardenBoost } from './stage';
 
-// Rare things in the sky (envPreview `skyEvents`), in the shooting star's
+// Rare things in the sky, in the shooting star's
 // manner (shootingStar.tsx): nothing wakes the canvas, an event starts only
 // on a frame already being drawn while the camera has been looking up for a
 // few seconds (a player exploring the sky is turning the view), keeps the
@@ -66,10 +66,8 @@ export const figureInView = (camera: Camera, aspect: number, points: Vector3[]) 
 type Kind = 'trace' | 'satellite' | 'meteors';
 
 export const SkyEvents = ({
-  often = false,
   traceable,
 }: {
-  often?: boolean;
   /** The charted figures a trace may light. */
   traceable: Traceable[];
 }) => {
@@ -117,11 +115,6 @@ export const SkyEvents = ({
     lastFigure: -1,
     showerUntil: -1,
   });
-  // ENV PREVIEW (temporary): `often` waits seconds, not minutes
-  const wait = often ? 0.035 : 1;
-  useEffect(() => {
-    state.current.due = { trace: -1, satellite: -1, meteors: -1 };
-  }, [wait]);
   const q = useMemo(() => new Quaternion(), []);
   const along = useMemo(() => new Vector3(), []);
   const out = useMemo(() => new Vector3(0, 0, 1), []);
@@ -132,9 +125,9 @@ export const SkyEvents = ({
     const r = s.random;
     if (s.due.trace < 0) {
       s.due = {
-        trace: t + (40 + r() * 40) * wait,
-        satellite: t + (100 + r() * 80) * wait,
-        meteors: t + (150 + r() * 90) * wait,
+        trace: t + 40 + r() * 40,
+        satellite: t + 100 + r() * 80,
+        meteors: t + 150 + r() * 90,
       };
     }
     // A mate: a minute of meteors
@@ -168,7 +161,7 @@ export const SkyEvents = ({
             seconds: TRACE_RUN + TRACE_FADE,
           };
           skyTrace.uTraceFigure.value = f.id;
-          s.due.trace = t + (150 + r() * 90) * wait;
+          s.due.trace = t + 150 + r() * 90;
         } else if (kind === 'satellite') {
           // Across a quarter of the frame, well up, beside the tower
           const side = r() < 0.5 ? -1 : 1;
@@ -185,7 +178,7 @@ export const SkyEvents = ({
             ),
             to: skyDirection(az + side * Math.cos(turn) * 12 * DEG, el + Math.sin(turn) * 12 * DEG),
           };
-          s.due.satellite = t + (200 + r() * 120) * wait;
+          s.due.satellite = t + 200 + r() * 120;
         } else {
           // Two side by side from one radiant, the second a moment later
           const side = r() < 0.5 ? -1 : 1;
@@ -202,7 +195,7 @@ export const SkyEvents = ({
           );
           s.run = { kind, start: t, seconds: 2.9 };
           const shower = t < s.showerUntil;
-          s.due.meteors = t + (shower ? 7 + r() * 6 : (240 + r() * 160) * wait);
+          s.due.meteors = t + (shower ? 7 + r() * 6 : 240 + r() * 160);
         }
         break;
       }
@@ -222,7 +215,7 @@ export const SkyEvents = ({
         m.material.uniforms.uHead.value = 0;
       }
       s.run = null;
-      s.rest = t + 8 * Math.max(wait, 0.15);
+      s.rest = t + 8;
       return;
     }
     if (run.kind === 'trace') {

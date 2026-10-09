@@ -21,45 +21,35 @@ import { BLACK_LOOK, RANGES, skylineOf, WHITE_LOOK } from './horizonSkyline';
 import type { Range } from './horizonSkyline';
 import { gardenBoost, neonMaterial } from './stage';
 import { neonStrokes } from './neonStrokes';
-import type { NeonStroke } from './neonStrokes';
-import type { V3 } from './boardNeon';
+import type { NeonStroke, V3 } from './neonStrokes';
 import { rng } from './textures';
 import { Lighthouse } from './horizonEvents';
-// ENV PREVIEW (temporary): each part follows its setting
-import { useEnvSetting } from '../../envPreview';
-import {
-  farTower,
-  hills,
-  horizonEvents,
-  horizonLights,
-  horizonMist,
-} from '../../envPreview/features/horizon';
 
-// Area D, the horizon and the far ground beyond the colossal board.
+// The horizon and the far ground beyond the colossal board.
 //
 // The plain runs on to the end of the world: past the board it thickens
 // into the night's own haze (the veil, drawn in the ground's own shader:
 // horizonGround.ts), so it meets the sky at a level horizon with no edge or
-// corner from any side. Two ranges of low hills
-// stand far off on it, near-black against the haze and given back faintly
-// by the polished stone; their skylines hide chess pieces worn into rock
-// (horizonSkyline.ts), one or two on each seat's side of the world. On
-// white's side a far tower, a rook's, keeps one tiny window lit, the only
-// warm light in the world, and it goes dark when a game is won. Banks of
-// mist lie on the far plain between the board and the hills, and at the
-// hills' feet a few far lights burn, and on black's side stands another
-// game's tower, five level-coloured plates in a faint cube, too far to be
-// more than a square with five lines across it. Once in a long
-// while a lighthouse's beam sweeps through the haze (horizonEvents.tsx).
+// corner from any side. Two ranges of low hills stand far off on it,
+// near-black against the haze and given back faintly by the polished stone;
+// their skylines hide chess pieces worn into rock (horizonSkyline.ts), one
+// or two on each seat's side of the world. On white's side a far tower, a
+// rook's, keeps one tiny window lit, the only warm light in the world, and
+// it goes dark when a game is won. Banks of mist lie on the far plain
+// between the board and the hills, and at the hills' feet a few far lights
+// burn, and on black's side stands another game's tower, five
+// level-coloured plates, too far to be more than five lines stacked into a
+// square. Once in a long while a lighthouse's beam sweeps through the haze
+// (horizonEvents.tsx).
 //
 // All of it is the garden's (backdropCache.tsx): ShaderMaterials in the
 // opaque list, writing no depth, drawn after the ground and never with
 // normal blending: the hills and the tower multiply what is behind them (so
 // they hide the stars), the mist and the lights add, and the other tower's
-// tubes take the brighter, as the sculptures' do. All of it sinks into
-// the tower's shade, the dark things by fading to no effect. Nothing moves.
-// The veil and the sky do not turn; everything standing on the plain turns with the board for
-// Black, so each seat looks out over its opponent's side of the world.
+// tubes take the brighter, as the sculptures' do. All of it sinks into the
+// tower's shade, the dark things by fading to no effect. The veil and the
+// sky do not turn; everything standing on the plain turns with the board
+// for Black, so each seat looks out over its opponent's side of the world.
 
 const DEG = Math.PI / 180;
 
@@ -208,16 +198,16 @@ const hillMaterial = (shadow: string, foot: number, dim: { value: number }) =>
     fragmentShader: hillFragment,
   });
 
-const Hills = ({ chess, dim }: { chess: boolean; dim: { value: number } }) => {
+const Hills = ({ dim }: { dim: { value: number } }) => {
   const parts = useMemo(() => {
-    const [far, near] = RANGES.map((r) => rangeGeometry(chess ? r : { ...r, summits: [] }));
+    const [far, near] = RANGES.map(rangeGeometry);
     return {
       far,
       near,
       farMaterial: hillMaterial(HORIZON.hillFar, 7, dim),
       nearMaterial: hillMaterial(HORIZON.hillNear, 3, dim),
     };
-  }, [chess, dim]);
+  }, [dim]);
   useDisposeOnUnmount(parts);
   const mesh = (name: string, g: BufferGeometry, m: ShaderMaterial, order: number) => (
     <mesh
@@ -538,7 +528,7 @@ const otherTowerColors = () => {
 
 /**
  * The other tower: another game's glass tower far off on black's side of
- * the plain, five floating plates drawn in the sculptures' clean tubes
+ * the plain, five floating plates drawn in the sculptures' tubes
  * (their program; each colour its own draw), joined by the brighter where
  * they meet, never summed, so its corners and its near and far edges, one
  * over the other from so far, are no brighter than a line.
@@ -560,7 +550,6 @@ const OtherTower = ({ turn, dim }: { turn: number; dim: { value: number } }) => 
         fade: 0,
         turn: sign,
         dim,
-        clean: true,
       });
       // With the garden, in three.js's opaque list (backdropCache.tsx)
       material.transparent = false;
@@ -776,24 +765,19 @@ const FarMist = ({ dim }: { dim: { value: number } }) => {
   );
 };
 
-/** The horizon and the far ground; each part only while its setting is on. */
+/** The horizon and the far ground. */
 export const Horizon = ({ turn, dim }: GardenDetailProps) => {
-  const ranges = useEnvSetting(hills);
-  const tower = useEnvSetting(farTower);
-  const mist = useEnvSetting(horizonMist);
-  const lights = useEnvSetting(horizonLights);
-  const events = useEnvSetting(horizonEvents);
   const quiet = useDim(dim);
   return (
     <>
       <group name="horizon" rotation-y={turn < 0 ? Math.PI : 0}>
-        {ranges !== 'off' && <Hills chess={ranges === 'chess'} dim={quiet} />}
-        {tower === 'on' && <FarTower dim={quiet} />}
-        {mist === 'on' && <FarMist dim={quiet} />}
-        {lights === 'on' && <FarLights dim={quiet} />}
-        {lights === 'on' && <OtherTower turn={turn} dim={quiet} />}
+        <Hills dim={quiet} />
+        <FarTower dim={quiet} />
+        <FarMist dim={quiet} />
+        <FarLights dim={quiet} />
+        <OtherTower turn={turn} dim={quiet} />
       </group>
-      {events !== 'off' && <Lighthouse often={events === 'often'} dim={quiet} />}
+      <Lighthouse dim={quiet} />
     </>
   );
 };

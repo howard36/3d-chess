@@ -2,15 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { Color, PerspectiveCamera, Vector3 } from 'three';
 import { SKY_PLAN } from './heavens';
 import { chartGeometry, EGG_PLAN, eggEntries, EIGHT_QUEENS, majorEntries } from './skyChart';
-import { brightestOf, RICH_FIELD, richField, todayField } from './skyStars';
+import { RICH_FIELD, richField } from './skyStars';
 import { bandFrame, bandLight } from './skyMilkyWay';
 import { figureInView, traceables } from './skyEvents';
 import { angleBetween, DEG, elevationOf, placeStar } from './skyPlace';
 import { LEVEL_COLORS, PALETTE, SKY_DETAIL } from './palette';
 
-// The richer sky (ENV PREVIEW: stars, constellations, skyEggs, milkyWay,
-// skyEvents): where its figures stand, that its hidden puzzles are right,
-// and that its stars are spent where a camera can see them.
+// The sky's detail: where its figures stand, that its hidden puzzles are
+// right, and that its stars are spent where a camera can see them.
 
 const figureStars = (plans = SKY_PLAN) =>
   plans.flatMap((plan) => plan.c.stars.map((s) => placeStar(s, plan)));
@@ -102,7 +101,7 @@ describe('the charted figures', () => {
   });
 });
 
-describe('the rich field', () => {
+describe('the field', () => {
   const avoid = figureStars();
   const f = richField(avoid);
   const count = f.bright.length;
@@ -115,10 +114,6 @@ describe('the rich field', () => {
       expect(el).toBeGreaterThan(0.9);
       expect(el).toBeLessThan(36.5);
     }
-    // Today's spends almost half above anything ever on screen
-    const today = todayField();
-    const high = today.bright.filter((_, i) => elevationOf(today.pos.slice(i * 3, i * 3 + 3)) > 36);
-    expect(high.length / today.bright.length).toBeGreaterThan(0.4);
   });
 
   it('is mostly faint dust, with a few hundred plain stars and a dozen or so bright ones', () => {
@@ -152,13 +147,6 @@ describe('the rich field', () => {
           .map((v) => v.toFixed(4))
           .join(),
       );
-  });
-
-  it('gives the stone its brightest stars', () => {
-    const g = brightestOf(f, 50);
-    const b = Array.from(g.getAttribute('aBright').array);
-    expect(b).toHaveLength(50);
-    expect(Math.min(...b)).toBeCloseTo([...f.bright].sort((x, y) => y - x)[49], 5);
   });
 });
 

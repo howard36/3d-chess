@@ -21,8 +21,8 @@ const SKY_RADIUS = 400;
  * GLSL, the veil, worked out for each vertex of the ground (given `w`, the
  * vertex in the world, after gl_Position is set; needs the sky's chunk,
  * skyColor.ts, and SHADE_AT_VERTEX): the sky's own colour where a ray from
- * the camera meets the sky's sphere (the very colour the Sky draws there,
- * either sky), and how much of it to mix over the plain, more and more with
+ * the camera meets the sky's sphere (the very colour the Sky draws there),
+ * and how much of it to mix over the plain, more and more with
  * distance, so far off the plain becomes exactly what the sky shows there
  * and no edge can be seen; into `vVeil`. The ground's mesh is fine enough
  * where it changes (horizonGround's groundParts); VEIL_MIX mixes it in per
@@ -48,10 +48,7 @@ export const VEIL_VERTEX_GLSL = /* glsl */ `
 export const VEIL_MIX = /* glsl */ `
   shown.rgb = mix(shown.rgb, vVeil.rgb, vVeil.a < 0.002 ? 0.0 : vVeil.a);`;
 
-/** Main's plain: a square 260 across. */
-const SQUARE_HALF = 130;
-
-/** Rays round the plain for its parts (a multiple of 8, so a square's corners are vertices). */
+/** Rays round the plain for its parts (a multiple of 8, so the board's corners are vertices). */
 const RAYS = 128;
 
 /** Where the ray at angle a (from +x, counterclockwise seen from above) meets a square of half-side h. */
@@ -108,26 +105,17 @@ const MIDDLE_OVER = 0.2;
  * (stage.tsx's Ground): the clear ground round the tower's foot (radius
  * `clear`), the rest of the court's disc (radius `court`), the colossal
  * board out to its frame's band (a square of half-side `board`) and the far
- * plain out to the rim (main's square with the preview's fix off). Their
- * meshes carry light worked out per vertex (the veil, with `veil`; the
- * pools round the sculptures, a few units across; the court's share of the
- * tower's shade), so they are fine enough where it changes, and no finer: a
- * software renderer pays for every triangle (about a microsecond each, in
- * CI's), and for a block of pixels for every triangle that touches it. The
- * far plain's rings step out by a constant ratio (the veil changes with the
- * angle below the horizon). The middle has fewer rays than the rest and so
- * cannot share their vertices: it reaches a little past its edge, and the
- * court's ring is drawn over that rim, both the same there, so they meet
- * with no seam.
+ * plain out to the rim. Their meshes carry light worked out per vertex (the
+ * veil; the court's share of the tower's shade), so they are fine enough
+ * where it changes, and no finer: a software renderer pays for every
+ * triangle (about a microsecond each, in CI's), and for a block of pixels
+ * for every triangle that touches it. The far plain's rings step out by a
+ * constant ratio (the veil changes with the angle below the horizon). The
+ * middle has fewer rays than the rest and so cannot share their vertices: it
+ * reaches a little past its edge, and the court's ring is drawn over that
+ * rim, both the same there, so they meet with no seam.
  */
-export const groundParts = (
-  clear: number,
-  court: number,
-  board: number,
-  square: boolean,
-  veil: boolean,
-) => {
-  const rim = (c: number, s: number) => (square ? onSquare(SQUARE_HALF, c, s) : GROUND_RADIUS);
+export const groundParts = (clear: number, court: number, board: number) => {
   const toBoard = (c: number, s: number) => onSquare(board, c, s);
   return {
     middle: between(
@@ -142,6 +130,6 @@ export const groundParts = (
       6,
     ),
     board: between(() => court, toBoard, 5),
-    far: between(toBoard, rim, veil ? 14 : 1, RAYS, true),
+    far: between(toBoard, () => GROUND_RADIUS, 14, RAYS, true),
   };
 };

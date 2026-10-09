@@ -5,15 +5,15 @@
 //
 //   node scripts/sculptures.mjs --out /tmp/s --target a4                 # 8 sides x 2 heights
 //   node scripts/sculptures.mjs --out /tmp/s --target g2 --az 0,90 --el 5,40 --dist 10
-//   node scripts/sculptures.mjs --out /tmp/s --target fallen:2 --env sculptureLines:off
+//   node scripts/sculptures.mjs --out /tmp/s --target fallen:2
 //   node scripts/sculptures.mjs --out /tmp/s --target a4 --orbit 2      # a frame every 2°, orbit.mp4
 //
 // --target a square ('a4'), 'fallen:<i>' or 'x,y,z'; --az / --el degrees (az
 // 0 faces the board's centre); --dist world units; --size the square
-// picture's side in px; --env the preview settings (as ?env= takes them);
-// --turn -1 for Black's garden; --name the sheet's file name. Needs only
-// Vite running (SHOWCASE_URL, default http://127.0.0.1:5173); ffmpeg for an
-// orbit, ImageMagick's montage for a sheet.
+// picture's side in px; --turn -1 for Black's garden; --name the sheet's
+// file name. Needs only Vite running (SHOWCASE_URL, default
+// http://127.0.0.1:5173); ffmpeg for an orbit, ImageMagick's montage for a
+// sheet.
 // Remote containers: PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium.
 
 import { chromium } from '@playwright/test';
@@ -35,7 +35,6 @@ const AZ = list(opt('az', '0,45,90,135,180,225,270,315'));
 const EL = list(opt('el', '6,35'));
 const DIST = Number(opt('dist', '14'));
 const SIZE = Number(opt('size', '360'));
-const ENV = opt('env', 'recommended');
 const TURN = opt('turn', '1');
 const ORBIT = opt('orbit');
 const FOV = Number(opt('fov', '30'));
@@ -56,7 +55,7 @@ const browser = await chromium.launch({
 try {
   const page = await browser.newPage({ viewport: { width: SIZE, height: SIZE } });
   page.on('pageerror', (e) => console.error(`[page] ${e.message}`));
-  const query = new URLSearchParams({ env: ENV, envpanel: '0', turn: TURN });
+  const query = new URLSearchParams({ turn: TURN });
   await page.goto(`${BASE}/sculptures.html?${query}`);
   await page.waitForFunction(() => window.__viewerReady === true, null, { timeout: 120000 });
   const shoot = async (view, file) => {

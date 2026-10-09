@@ -1,18 +1,17 @@
 import { Color } from 'three';
 import { rng } from './textures';
-import { PALETTE, SKY_DETAIL } from './palette';
+import { SKY_DETAIL } from './palette';
 import { starBuffers } from './skyChart';
 import { DEG, DOME, skyDirection } from './skyPlace';
 
-// The richer field of stars (envPreview `stars: rich`). Nothing above about
-// 33° is ever on screen, so every star is spent between 1° and 36°, even
-// over the sky there; they come in a real spread of brightness: mostly a
-// dust of faint points, a few hundred plain stars and about a dozen bright
-// ones with a soft glow, each a pale colour (blue-white, white, pale gold, a
-// rare pale orange), and a handful of doubles, a gold star with a blue
-// companion among them. Low down they sink into the horizon's haze, and none
-// of the bright ones stands near a constellation's stars, so the figures
-// still read first.
+// The field of stars. Nothing above about 33° is ever on screen, so every
+// star is spent between 1° and 36°, even over the sky there; they come in a
+// real spread of brightness: mostly a dust of faint points, a few hundred
+// plain stars and about a dozen bright ones with a soft glow, each a pale
+// colour (blue-white, white, pale gold, a rare pale orange), and a handful
+// of doubles, a gold star with a blue companion among them. Low down they
+// sink into the horizon's haze, and none of the bright ones stands near a
+// constellation's stars, so the figures still read first.
 
 export const RICH_FIELD = 3000;
 /** Up to where the field reaches (degrees): a little past the highest sky on screen. */
@@ -118,33 +117,4 @@ export const richField = (avoid: readonly (readonly number[])[]): FieldBuffers =
 export const richFieldGeometry = (avoid: readonly (readonly number[])[]) => {
   const f = richField(avoid);
   return starBuffers(f.pos, f.size, f.bright, f.color);
-};
-
-/** The brightest stars of a field (for the stone's reflection), as geometry. */
-export const brightestOf = (f: FieldBuffers, count: number) => {
-  const order = f.bright.map((b, i) => [b, i]).sort((a, b) => b[0] - a[0]);
-  const keep = order.slice(0, count).map(([, i]) => i);
-  const pick = (list: number[], n: number) => keep.flatMap((i) => list.slice(i * n, i * n + n));
-  return starBuffers(pick(f.pos, 3), pick(f.size, 1), pick(f.bright, 1), pick(f.color, 3));
-};
-
-/** Today's field (envPreview `stars: off`), as buffers: 900 stars even over the dome above 3°. */
-export const todayField = (): FieldBuffers => {
-  const random = rng(53);
-  const out: FieldBuffers = { pos: [], size: [], bright: [], color: [] };
-  const cool = new Color(PALETTE.neon);
-  const warm = new Color(SKY_DETAIL.starWarm);
-  for (let i = 0; i < 900; i++) {
-    // Even over the dome above 3°
-    const y = 0.05 + random() * 0.95;
-    const a = random() * Math.PI * 2;
-    const r = Math.sqrt(1 - y * y);
-    const low = Math.min((y - 0.05) / 0.2, 1);
-    out.pos.push(Math.sin(a) * r * DOME, y * DOME, Math.cos(a) * r * DOME);
-    out.size.push(1.2 + random() ** 3 * 1.4);
-    out.bright.push((0.1 + random() ** 2.6 * 0.42) * (0.3 + 0.7 * low));
-    const c = random() < 0.2 ? warm : cool;
-    out.color.push(c.r, c.g, c.b);
-  }
-  return out;
 };

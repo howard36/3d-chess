@@ -21,7 +21,7 @@ import { KNIGHT_COLLAR_TOP, knightBaseRight, simplify } from './sculptures';
 // fine grid (marching squares on each row's signed distance to its spans,
 // exact where an edge crosses a row), is the silhouette. It is joined to
 // the turned base, bent smooth as a tube would be, and comes back as a
-// drawing in the plane facing the camera (boardNeon's mode 0, x across).
+// drawing in the plane facing the camera (neonStrokes' mode 0, x across).
 // Each knight is redrawn only as the camera moves round it; a frame at rest
 // costs nothing. Pure (no WebGL), in piece units.
 

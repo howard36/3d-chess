@@ -1,45 +1,18 @@
 import { AdditiveBlending, Color, ShaderMaterial } from 'three';
 import { SHADE_AT_VERTEX, shadeUniforms } from './mask';
-import { GROUND_Y, PALETTE } from './palette';
+import { PALETTE } from './palette';
 
-// The richer sky's two programs (heavens.tsx, skyChart.ts, skyDetail.tsx):
-// one for every star (the field, the constellations' stars, the Milky Way's
-// dust, the hidden asterisms, the satellite) and one for every line (the
-// constellations). Both
-// draw the sky as it is overhead or, with `uMirror`, as the polished stone
-// gives it back upside down: the object is mirrored about the ground by its
-// matrix, and the light is weighed by the stone's fresnel where the eye's ray
-// meets it. Everything sinks into the tower's shade (mask.ts), and like the
-// rest of the garden it is light added in three.js's opaque list
-// (backdropCache.tsx). The shade and the stone's weight are worked out per
-// vertex: a star is a few pixels across and a line a short run between
-// two, so that is as good as per pixel and far cheaper in software.
-
-/**
- * GLSL: `float stoneWeight(vec3 world)`: 1 for the sky itself, or, mirrored,
- * how much of this point the polished stone gives back: the fresnel of a
- * dark polish (about 4% looking straight down, more toward grazing), none
- * near the tower's foot (where the ground is clear and dark) and none past
- * the plain's edge.
- */
-const STONE = /* glsl */ `
-  uniform float uMirror;
-  uniform float uDim;
-  float stoneWeight(vec3 world) {
-    if (uMirror < 0.5) return 1.0;
-    vec3 v = normalize(world - cameraPosition);
-    float down = max(-v.y, 1e-3);
-    float t = (cameraPosition.y - ${GROUND_Y.toFixed(3)}) / down;
-    vec2 hit = cameraPosition.xz + v.xz * t;
-    float r = length(hit);
-    float edge = max(abs(hit.x), abs(hit.y));
-    float fresnel = 0.04 + 0.96 * pow(1.0 - down, 5.0);
-    return fresnel * smoothstep(7.0, 15.0, r) * (1.0 - smoothstep(95.0, 125.0, edge)) * uDim;
-  }`;
+// The sky's two programs (heavens.tsx, skyChart.ts, skyDetail.tsx): one for
+// every star (the field, the constellations' stars, the Milky Way's dust, the
+// hidden asterisms, the satellite) and one for every line (the
+// constellations). Everything sinks into the tower's shade (mask.ts), and
+// like the rest of the garden it is light added in three.js's opaque list
+// (backdropCache.tsx). The shade is worked out per vertex: a star is a few
+// pixels across and a line a short run between two, so that is as good as
+// per pixel and far cheaper in software.
 
 const pointVertex = /* glsl */ `
   uniform float uDpr;
-  uniform float uSizeScale;
   attribute float aSize;
   attribute float aBright;
   attribute vec3 aColor;
@@ -47,14 +20,13 @@ const pointVertex = /* glsl */ `
   varying float vSize;
   varying vec3 vColor;
   ${SHADE_AT_VERTEX}
-  ${STONE}
   void main() {
     vColor = aColor;
-    vSize = aSize * uSizeScale;
+    vSize = aSize;
     vec4 w = modelMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * viewMatrix * w;
     gl_PointSize = vSize * uDpr;
-    vBright = aBright * stoneWeight(w.xyz) * (1.0 - shadeOfClip(gl_Position));
+    vBright = aBright * (1.0 - shadeOfClip(gl_Position));
   }`;
 
 const pointFragment = /* glsl */ `
@@ -66,7 +38,7 @@ const pointFragment = /* glsl */ `
   void main() {
     vec2 p = gl_PointCoord * 2.0 - 1.0;
     float r = length(p);
-    // A star is a soft dot (as today's); a bright one a hot core in a
+    // A star is a soft dot; a bright one a hot core in a
     // faint glow, so it reads as brighter, not just bigger
     float soft = 1.0 - smoothstep(0.3, 1.0, r);
     float core = 1.0 - smoothstep(0.0, 0.42, r);
@@ -77,13 +49,10 @@ const pointFragment = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-/** The stars' material: `opacity` scales every star, `sizeScale` their size (CSS px). */
+/** The stars' material: `opacity` scales every star. */
 export const skyPointMaterial = (o: {
   opacity?: number;
-  sizeScale?: number;
-  mirror?: boolean;
-  dim?: { value: number };
-  /** 0 draws every star as a soft dot (the reflection's softened copy). */
+  /** 0 draws every star as a soft dot (the satellite). */
   sharp?: number;
 }) =>
   new ShaderMaterial({
@@ -93,10 +62,7 @@ export const skyPointMaterial = (o: {
       ...shadeUniforms(),
       uDpr: { value: 1 },
       uOpacity: { value: o.opacity ?? 1 },
-      uSizeScale: { value: o.sizeScale ?? 1 },
       uSharp: { value: o.sharp ?? 1 },
-      uMirror: { value: o.mirror ? 1 : 0 },
-      uDim: o.dim ?? { value: 1 },
     },
     vertexShader: pointVertex,
     fragmentShader: pointFragment,
@@ -106,7 +72,7 @@ export const skyPointMaterial = (o: {
  * A constellation tracing itself in light (skyEvents.tsx): which figure
  * (its `aFigure`, -1 none), how far along its lines the light has run (0–1,
  * past 1 as it eases back) and how bright it is. Shared by every line
- * material, the reflection's too; still at rest.
+ * material; still at rest.
  */
 export const skyTrace = {
   uTraceFigure: { value: -1 },
@@ -123,14 +89,13 @@ const lineVertex = /* glsl */ `
   varying float vBase;
   varying float vLit;
   ${SHADE_AT_VERTEX}
-  ${STONE}
   void main() {
     vAlong = aAlong;
     vFigure = aFigure;
     vBase = aBase;
     vec4 w = modelMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * viewMatrix * w;
-    vLit = stoneWeight(w.xyz) * (1.0 - shadeOfClip(gl_Position));
+    vLit = 1.0 - shadeOfClip(gl_Position);
   }`;
 
 const lineFragment = /* glsl */ `
@@ -157,11 +122,7 @@ const lineFragment = /* glsl */ `
   }`;
 
 /** The constellations' lines (with aAlong, aFigure and aBase: skyChart.ts). */
-export const skyLineMaterial = (o: {
-  opacity: number;
-  mirror?: boolean;
-  dim?: { value: number };
-}) =>
+export const skyLineMaterial = (o: { opacity: number }) =>
   new ShaderMaterial({
     depthWrite: false,
     blending: AdditiveBlending,
@@ -170,8 +131,6 @@ export const skyLineMaterial = (o: {
       ...skyTrace,
       uColor: { value: new Color(PALETTE.neon) },
       uOpacity: { value: o.opacity },
-      uMirror: { value: o.mirror ? 1 : 0 },
-      uDim: o.dim ?? { value: 1 },
     },
     vertexShader: lineVertex,
     fragmentShader: lineFragment,

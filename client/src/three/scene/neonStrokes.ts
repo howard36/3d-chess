@@ -1,23 +1,20 @@
 import { BufferAttribute, BufferGeometry } from 'three';
-import type { V3 } from './boardNeon';
 
-// The neon tubes drawn clean (the sculptureLines setting's `clean`): every
-// stroke is cut into its segments, and each segment is drawn as a capsule
-// on screen, the set of pixels within the tube's radius of the segment,
-// measured per pixel. A stroke is so one even tube, however sharply it bends:
-// two segments meeting overlap in a round joint, and as tubes join by taking
-// the brighter (never summed) the overlap is no brighter than either, with no
-// spur, fin or gap at any corner, from any side; an open stroke ends in a
-// round cap. (The ribbons they replace, widened per point, folded over
-// themselves wherever a bend was tighter than the tube's width on screen,
-// and the fold drew straight spikes off the line.) A quad of four corners
+// The neon tubes of the garden's sculptures and everything drawn with their
+// light (stage.tsx's neonMaterial): every stroke is cut into its segments,
+// and each segment is drawn as a capsule on screen, the set of pixels within
+// the tube's radius of the segment, measured per pixel. A stroke is so one
+// even tube, however sharply it bends: two segments meeting overlap in a
+// round joint, and as tubes join by taking the brighter (never summed) the
+// overlap is no brighter than either, with no spur, fin or gap at any corner,
+// from any side; an open stroke ends in a round cap. A quad of four corners
 // per segment, each corner carrying the whole segment (its ends and the
-// points either side); the vertex shader places them as the curve's kind
+// points either side); the vertex shader places them as the stroke's kind
 // asks and spans the quad round the segment on screen (STROKE_VERTEX), the
 // fragment shader draws the tube's profile across it. (Not instanced: the
 // software renderer CI draws with pays for every instance as for a draw.)
 //
-// A stroke is one of three kinds (`mode`), as boardNeon's curves:
+// A stroke is one of three kinds (`mode`):
 //   0  a drawing turned about the vertical to face the camera (x across, y
 //      up): a turned piece's outline, the same from every side;
 //   1  fixed in 3D about its anchor (rings, footprints, and the details that
@@ -25,10 +22,21 @@ import type { V3 } from './boardNeon';
 //      spiral, the knights' eyes), so it never turns with the view;
 //   2  a drawing turned about its own `axis` to face the camera (x across, y
 //      along the axis): a fallen piece's outline.
-// A fixed stroke may carry a normal per point: the way the surface it lies
-// on faces there. It is lit only where that faces the camera (its body,
-// solid, hides the far side), fading out just as it meets the outline.
-// Pure geometry here, testable without WebGL.
+// Each segment also carries the figure it belongs to (`sculpt`, whose light
+// the tower's shade can take as a whole: gardenWhole) and its own share of
+// the tube's light. A fixed stroke may carry a normal per point: the way the
+// surface it lies on faces there. It is lit only where that faces the camera
+// (its body, solid, hides the far side), fading out just as it meets the
+// outline. Pure geometry here, testable without WebGL.
+
+export type V3 = readonly [number, number, number];
+
+/** A horizontal ring of `n` points (mode 1), radius `r` at height `y`. */
+export const ringPoints = (r: number, y: number, n: number): V3[] =>
+  Array.from({ length: n }, (_, k): V3 => {
+    const a = (k / n) * Math.PI * 2;
+    return [Math.cos(a) * r, y, Math.sin(a) * r];
+  });
 
 export interface NeonStroke {
   /** Where it hangs: a sculpture's foot on the ground. */
@@ -41,7 +49,7 @@ export interface NeonStroke {
   axis?: V3;
   /** The surface's outward normal at each point (mode 1): lit only where it faces the camera. */
   normals?: readonly V3[];
-  /** Which figure's whole-fade it takes (gardenWhole). */
+  /** Which figure's slot of gardenWhole it takes. */
   sculpt?: number;
   /** The tube's light, 0-1: one value, or one per point. */
   light?: number | readonly number[];
@@ -344,9 +352,8 @@ export const STROKE_VERTEX = (slots: number) => /* glsl */ `
   }`;
 
 /**
- * The fragment shader's tube: `light` as the old ribbons drew it across
- * (a core never thinner than about a pixel, dimmer instead, and a soft
- * halo), from the pixel's distance to the segment; `ends` its share along
+ * The fragment shader's tube: its light across it (a core never thinner
+ * than about a pixel, dimmer instead, and a soft halo), from the pixel's distance to the segment; `ends` its share along
  * it, for what the ends carry (their light, height and facing).
  */
 export const STROKE_TUBE = /* glsl */ `

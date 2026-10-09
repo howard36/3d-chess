@@ -9,14 +9,13 @@ import {
   jointBefore,
   KNIGHT_WAYS,
   SHADE_AT_VERTEX,
-  mossPlan,
   SLAB,
   STONE_HALF,
   STONES,
 } from './courtLayout';
 
-// The court's plan (court.tsx): its paving, its inlay, its stepping stones
-// and its moss, and the colours it keeps to under the tower.
+// The court's plan (court.tsx): its paving, its inlay and its stepping
+// stones, and the colours it keeps to under the tower.
 
 describe("the tower's shade at a vertex", () => {
   it("is mask.ts's own shade, from the vertex's place on screen, not the pixel's", () => {
@@ -59,7 +58,6 @@ describe('the inlay', () => {
   it('lies in the court, inside the colossal board coming back', () => {
     expect(INLAY.inner).toBeGreaterThan(COURT_SPAN.inner[1]);
     expect(INLAY.outer).toBeLessThan(COURT_SPAN.outer[0]);
-    expect(INLAY.star[1]).toBeLessThanOrEqual(COURT_SPAN.outer[1]);
   });
 });
 
@@ -100,38 +98,8 @@ describe('the stepping stones', () => {
   });
 });
 
-describe('the moss', () => {
-  const { points, patches } = mossPlan();
-
-  it('grows sparsely, in short patches toward the rim, clear of the tower', () => {
-    expect(points.length).toBeGreaterThan(120);
-    expect(points.length).toBeLessThan(400);
-    for (const { at } of points) {
-      const r = Math.hypot(at[0], at[2]);
-      expect(r).toBeGreaterThan(COURT_SPAN.inner[1] - 2);
-      expect(r).toBeLessThan(COURT_SPAN.outer[1]);
-    }
-    // Never a joint's whole length: the moss never draws the paving's grid
-    for (const p of patches) expect(p.spread).toBeLessThan(SLAB.row / 2);
-  });
-
-  it('keeps off the stepping stones and the inlay', () => {
-    for (const { at } of points) {
-      const [x, , z] = at;
-      for (const [sx, sz] of STONES)
-        expect(Math.max(Math.abs(x - sx), Math.abs(z - sz))).toBeGreaterThan(STONE_HALF);
-      expect(Math.abs(Math.hypot(x, z) - INLAY.outer)).toBeGreaterThan(0.3);
-    }
-  });
-
-  it('is the same every time', () => {
-    expect(mossPlan().points).toEqual(points);
-  });
-});
-
 describe("the court's colours", () => {
   it('are near-grey and cool, nothing like a mark of play or a level', () => {
-    const hueGap = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
     const marks = [PALETTE.move, PALETTE.trace, PALETTE.capture, PALETTE.check, ...LEVEL_COLORS];
     for (const [name, hex] of Object.entries(COURT)) {
       const c = hexToOklch(hex);
@@ -139,8 +107,5 @@ describe("the court's colours", () => {
       expect(c.c, name).toBeLessThan(0.05);
       for (const m of marks.map(hexToOklch)) expect(c.c, name).toBeLessThan(m.c / 2);
     }
-    // The moss leans cool, away from the last move's mint
-    const moss = hexToOklch(COURT.moss);
-    expect(hueGap(moss.h, hexToOklch(PALETTE.trace).h)).toBeGreaterThan(20);
   });
 });

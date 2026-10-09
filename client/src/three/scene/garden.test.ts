@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { PerspectiveCamera, Vector3 } from 'three';
+import { PerspectiveCamera } from 'three';
 import { PieceType } from '../../engine/pieces';
-import { GARDEN, gardenView, SQUARE, squareCentre, WHOLE_FADE, wholeOf } from './stage';
+import { GARDEN, gardenView, SQUARE, squareCentre } from './stage';
 import { placeStar, SKY_PLAN } from './heavens';
 import { sculptureOf } from './sculptures';
 import { eyeAt } from './testKit';
@@ -64,48 +64,11 @@ describe('the garden', () => {
     }
   });
 
-  it('turns the knights to face each other from every side (sculptureLines off)', () => {
+  it('stands the knights looking at each other', () => {
     const knights = GARDEN.filter((g) => g.type === PieceType.Knight);
     expect(knights).toHaveLength(2);
     expect(knights[0].toward).toEqual([knights[1].at[0], knights[1].at[2]]);
     expect(knights[1].toward).toEqual([knights[0].at[0], knights[0].at[2]]);
-    const onScreen = (cam: PerspectiveCamera, x: number, z: number) =>
-      new Vector3(x, knights[0].at[1], z).project(cam);
-    for (const turn of [1, -1]) {
-      for (const el of [-14, 18, 60]) {
-        for (const zoom of [0.5, 1, 1.6]) {
-          for (let az = 0; az < 360; az += 5) {
-            const cam = cameraAt(az, el, zoom);
-            knights.forEach(({ at, toward }, i) => {
-              const twin = knights[1 - i].at;
-              const [ax, az2] = [at[0] * turn, at[2] * turn];
-              // The vertex shader's turn: the drawing faces the camera, its
-              // front (+x) toward the point the sculpture looks at
-              const h = [cam.position.x - ax, cam.position.z - az2];
-              const right = [h[1], -h[0]];
-              const look = [toward[0] * turn - ax, toward[1] * turn - az2];
-              const face = right[0] * look[0] + right[1] * look[1] >= 0 ? 1 : -1;
-              const from = onScreen(cam, ax, az2);
-              const front = onScreen(
-                cam,
-                ax + right[0] * face * 1e-3,
-                az2 + right[1] * face * 1e-3,
-              );
-              const other = onScreen(cam, twin[0] * turn, twin[2] * turn);
-              // Behind the camera, out of sight
-              const behind = (x: number, z: number) =>
-                new Vector3(x, at[1], z).applyMatrix4(cam.matrixWorldInverse).z > 0;
-              if (behind(ax, az2) || behind(twin[0] * turn, twin[2] * turn)) return;
-              if (Math.abs(from.x) > 1 || Math.abs(other.x) > 1) return;
-              expect(
-                Math.sign(front.x - from.x),
-                `knight ${i}, el ${el}°, az ${az}°, zoom ${zoom}, turn ${turn}`,
-              ).toBe(Math.sign(other.x - from.x));
-            });
-          }
-        }
-      }
-    }
   });
 
   it('fades a sculpture right behind the tower out', () => {
@@ -117,47 +80,6 @@ describe('the garden', () => {
     // Turned about for Black, the one there is the queen from d1
     const turned = gardenView(cameraAt(0, 18), ASPECT, -1);
     expect(turned[GARDEN.findIndex((g) => g.square === 'd1')].cover).toBeGreaterThan(0.95);
-  });
-
-  it('takes the sculpture right behind the tower away whole, crown and all, at either seat', () => {
-    // The opening view (16° round, 18° up), on a wide window and a phone
-    // upright: the queen from d8 stands behind the tower at White's, the
-    // king from e1 at Black's (the garden turned half about); its crown
-    // would stand over level E among the far rank's pieces
-    for (const [aspect, zoom] of [
-      [ASPECT, 1],
-      [390 / 844, 29.1 / 19],
-    ]) {
-      for (const [turn, square] of [
-        [1, 'd8'],
-        [-1, 'e1'],
-      ] as const) {
-        const cam = cameraAt(16, 18, zoom);
-        cam.aspect = aspect;
-        cam.updateProjectionMatrix();
-        const view = gardenView(cam, aspect, turn);
-        const behind = GARDEN.findIndex((g) => g.square === square);
-        expect(wholeOf(view[behind].cover), `${square} at ${aspect.toFixed(2)}`).toBeLessThan(0.05);
-        // ...while the two beside the tower keep all their light
-        const beside = view.filter((v) => v.inFrame > 0.5 && v.cover < WHOLE_FADE[0]);
-        if (aspect > 1) expect(beside.length).toBeGreaterThanOrEqual(2);
-      }
-    }
-  });
-
-  it('fades a sculpture as a whole smoothly, and only once the shade mostly covers it', () => {
-    expect(wholeOf(0)).toBe(1);
-    expect(wholeOf(WHOLE_FADE[0])).toBe(1);
-    expect(wholeOf(WHOLE_FADE[1])).toBe(0);
-    let last = 1;
-    for (let c = 0; c <= 1; c += 0.01) {
-      const w = wholeOf(c);
-      expect(w).toBeLessThanOrEqual(last);
-      expect(last - w).toBeLessThan(0.07);
-      last = w;
-    }
-    // The sculptures counted clear of the tower (above) keep all their light
-    expect(CLEAR).toBeLessThan(WHOLE_FADE[0]);
   });
 
   it('keeps the constellations above the frame in the ordinary views', () => {

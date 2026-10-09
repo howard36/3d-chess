@@ -7,6 +7,7 @@ import { cleanSculptureOf, outlineWidthAt, silhouetteOf } from './sculptures';
 import { knightEyes, knightHead, knightOutline } from './knightSilhouette';
 import {
   neonStrokes,
+  ringPoints,
   segmentCount,
   strokeSegments,
   strokeQuad,
@@ -14,7 +15,7 @@ import {
   STROKE_VERTEX,
   updateStrokes,
 } from './neonStrokes';
-import type { NeonStroke } from './neonStrokes';
+import type { NeonStroke, V3 } from './neonStrokes';
 import {
   facingOf,
   KNIGHT_SEGMENTS,
@@ -24,12 +25,10 @@ import {
 } from './sculptureStrokes';
 import { FALLEN, fallenKnightLines, fallenPoseClean, fallenStrokes } from './boardFallen';
 import { detailStrokes } from './boardDetail';
-import { ringPoints } from './boardNeon';
-import type { V3 } from './boardNeon';
 
-// The sculptures drawn clean (sculptureLines: clean): every stroke one even
-// tube with round joins, drawn segment by segment; nothing not the same
-// from every side turns with the view; nothing broken.
+// The sculptures' strokes: every stroke one even tube with round joins,
+// drawn segment by segment; nothing not the same from every side turns with
+// the view; nothing broken.
 
 type P2 = [number, number];
 const DEG = Math.PI / 180;
@@ -327,16 +326,14 @@ describe('the sculptures drawn clean', () => {
   });
 });
 
-describe('the sculptures’ detail drawn clean', () => {
-  it('leaves out the inner tube, and draws each footprint one closed square', () => {
-    const strokes = detailStrokes('full');
+describe('the sculptures’ detail', () => {
+  it('draws each footprint one closed square', () => {
+    const strokes = detailStrokes();
     // Only rings, footprints, eyes and the hand-high pawn: nothing open but a wink and the pawn
     const open = strokes.filter((s) => !s.closed);
     expect(open.length).toBeLessThanOrEqual(2);
     const squares = strokes.filter((s) => s.points.length === 4 && s.closed);
     expect(squares).toHaveLength(GARDEN.length);
-    expect(detailStrokes('inner').every((s) => s.closed && s.mode === 1)).toBe(true);
-    expect(detailStrokes('off')).toEqual([]);
   });
 
   it('fixes the knights’ eyes on the sides of their heads, each seen from its own side', () => {
@@ -354,7 +351,7 @@ describe('the sculptures’ detail drawn clean', () => {
   });
 });
 
-describe('the fallen giants drawn clean', () => {
+describe('the fallen giants', () => {
   it('keep every tube whole and lit', () => {
     const strokes = fallenStrokes(SCALE, GROUND_Y, FALLEN_SLOT);
     for (let i = 0; i < FALLEN.length; i++) {

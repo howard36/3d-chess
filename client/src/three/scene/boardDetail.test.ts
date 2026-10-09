@@ -1,80 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import { PieceType } from '../../engine/pieces';
-import { BOARD_GROUND_OFF, boardGroundGlsl, crackOf } from './boardGround';
-import { FALLEN, fallenCurves, fallenPose } from './boardFallen';
-import { neonCurves, ringPoints } from './boardNeon';
-import { innerOutlinesOf, knightEyeOf, moreRingsOf, sculptureOf } from './sculptures';
+import { boardGroundGlsl } from './boardGround';
+import { FALLEN, fallenPose, fallenStrokes } from './boardFallen';
+import { moreRingsOf, sculptureOf } from './sculptures';
 import { GROUND_Y } from './palette';
 import { FALLEN_SLOT, GARDEN, SCALE, SQUARE, WHOLE_SLOTS } from './stage';
 import { detailStrokes } from './boardDetail';
-import { isLightSquare, lightOn, ON_DARK, sculptureStrokes } from './sculptureStrokes';
+import { isLightSquare, lightOn, ON_DARK, RING_LIGHT, sculptureStrokes } from './sculptureStrokes';
 
 // The colossal board's added detail: what it draws stays where it belongs
-// (in its square, inside its outline, off the board, on the ground), and
-// with everything off the board's shader is the board as it was.
-
-const ANCHORS: [number, number][] = [[0, 28]];
+// (in its square, inside its outline, off the board, on the ground).
 
 describe("the board's ground detail", () => {
-  it('compiles in nothing when it is all off', () => {
-    expect(boardGroundGlsl(BOARD_GROUND_OFF, ANCHORS)).toBeNull();
-  });
-
-  it('compiles in each part only when it is on', () => {
-    const frame = boardGroundGlsl({ ...BOARD_GROUND_OFF, frame: true }, ANCHORS)!;
+  it('compiles in the frame only for a part its band lies in, the squares everywhere', () => {
+    const frame = boardGroundGlsl(true);
     expect(frame.lines).toContain('electrodes');
-    expect(frame.lines).not.toContain('vPool');
-    expect(frame.vertex).toBe('');
-    const subtle = boardGroundGlsl({ ...BOARD_GROUND_OFF, squares: 'subtle' }, ANCHORS)!;
-    expect(subtle.lines).toContain('INLAID');
-    expect(subtle.lines).not.toContain('Kintsugi');
-    const rich = boardGroundGlsl({ ...BOARD_GROUND_OFF, squares: 'rich' }, ANCHORS)!;
-    expect(rich.lines).toContain('Kintsugi');
-    // Every board line whole: no worn stretches
-    expect(rich.lines).not.toContain('Worn');
-    expect(rich.vertex).toBe('');
-    const pools = boardGroundGlsl({ ...BOARD_GROUND_OFF, pools: true }, ANCHORS)!;
-    // Worked out per vertex, read per pixel
-    expect(pools.vertex).toContain('POOLS');
-    expect(pools.lines).toContain('vPool');
-    expect(pools.polish).toBe('');
-  });
-
-  it('keeps every crack inside its own square, thinning as it goes', () => {
-    for (const seed of [7, 23, 41, 1, 2, 3]) {
-      const segs = crackOf(seed);
-      expect(segs.length).toBeGreaterThan(3);
-      for (const { a, b, w } of segs) {
-        for (const [x, y] of [a, b]) {
-          expect(x).toBeGreaterThanOrEqual(0);
-          expect(x).toBeLessThanOrEqual(SQUARE);
-          expect(y).toBeGreaterThanOrEqual(0);
-          expect(y).toBeLessThanOrEqual(SQUARE);
-        }
-        expect(w).toBeGreaterThan(0);
-        expect(w).toBeLessThanOrEqual(0.05);
-      }
-    }
+    expect(frame.lines).toContain('INLAID');
+    const squares = boardGroundGlsl(false);
+    expect(squares.lines).not.toContain('electrodes');
+    expect(squares.lines).toContain('INLAID');
+    // The dark squares' polish, after the light is summed
+    expect(squares.polish).toContain('sheen');
+    expect(squares.decl).toBe(frame.decl);
   });
 });
 
 describe("the sculptures' detail", () => {
-  it('bends the inner tube inside each outline, clear of it, above the foot', () => {
-    for (const type of Object.values(PieceType)) {
-      const runs = innerOutlinesOf(type);
-      expect(runs.length, type).toBeGreaterThan(0);
-      const { top } = sculptureOf(type);
-      for (const run of runs) {
-        for (const [x, y] of run) {
-          expect(Number.isFinite(x) && Number.isFinite(y)).toBe(true);
-          expect(y).toBeGreaterThan(0.04);
-          expect(y).toBeLessThan(top);
-          expect(Math.abs(x)).toBeLessThan(0.3);
-        }
-      }
-    }
-  });
-
   it('rings each piece where it is round, inside its foot', () => {
     for (const type of Object.values(PieceType)) {
       const rings = moreRingsOf(type);
@@ -84,11 +35,6 @@ describe("the sculptures' detail", () => {
         expect(r.radius).toBeLessThanOrEqual(sculptureOf(type).rings[0].radius + 1e-6);
       }
     }
-  });
-
-  it('gives the twin knights eyes, and one a wink', () => {
-    expect(knightEyeOf(false).closed).toBe(true);
-    expect(knightEyeOf(true).closed).toBe(false);
   });
 });
 
@@ -114,23 +60,17 @@ describe('the fallen giants', () => {
     }
   });
 
-  it('take a slot each of the whole-fade, after the sculptures', () => {
-    const curves = fallenCurves(SCALE, GROUND_Y, FALLEN_SLOT);
-    const slots = new Set(curves.map((c) => c.sculpt));
+  it('take a slot each of gardenWhole, after the sculptures', () => {
+    const slots = new Set(fallenStrokes(SCALE, GROUND_Y, FALLEN_SLOT).map((c) => c.sculpt));
     expect(slots.size).toBe(FALLEN.length);
-    for (const s of slots) expect(s!).toBeLessThan(WHOLE_SLOTS - 1);
-    // Some of each one's tube has gone dark
-    for (let i = 0; i < FALLEN.length; i++) {
-      const lights = curves
-        .filter((c) => c.sculpt === FALLEN_SLOT + i)
-        .flatMap((c) => (typeof c.light === 'number' ? [c.light] : (c.light ?? [])));
-      expect(Math.min(...lights)).toBeLessThan(0.05);
-      expect(Math.max(...lights)).toBeGreaterThan(0.3);
+    for (const s of slots) {
+      expect(s!).toBeGreaterThanOrEqual(FALLEN_SLOT);
+      expect(s!).toBeLessThan(WHOLE_SLOTS - 1);
     }
   });
 });
 
-describe('lines on light and dark squares (sculptureEven)', () => {
+describe('lines on light and dark squares', () => {
   it('knows the squares as any board does: a1 dark, h1 light', () => {
     expect(isLightSquare('a1')).toBe(false);
     expect(isLightSquare('h1')).toBe(true);
@@ -139,69 +79,32 @@ describe('lines on light and dark squares (sculptureEven)', () => {
     expect(isLightSquare('e8')).toBe(true);
   });
 
-  it('dims a line on a dark square only, the base rings less, and nothing when off', () => {
-    expect(lightOn('d1', true)).toBe(1);
-    expect(lightOn('e1', true)).toBe(ON_DARK.line);
-    expect(lightOn('e1', true, 'ring')).toBe(ON_DARK.ring);
+  it('dims a line on a dark square only, the base rings less', () => {
+    expect(lightOn('d1')).toBe(1);
+    expect(lightOn('e1')).toBe(ON_DARK.line);
+    expect(lightOn('e1', 'ring')).toBe(ON_DARK.ring);
     expect(ON_DARK.line).toBeLessThan(ON_DARK.ring);
     expect(ON_DARK.ring).toBeLessThan(1);
-    expect(lightOn('e1', false)).toBe(1);
   });
 
-  it('dims the footprints and pawn rings on dark squares, and only the base rings of the sculptures', () => {
-    const footprints = (even: boolean) =>
-      detailStrokes('full', even).filter((s) => s.points.length === 4 && s.closed);
-    const before = footprints(false);
-    const after = footprints(true);
-    expect(after).toHaveLength(GARDEN.length);
-    after.forEach((s, i) => {
+  it('dims the footprints on dark squares, and only the base rings of the sculptures', () => {
+    const footprints = detailStrokes().filter((s) => s.points.length === 4 && s.closed);
+    expect(footprints).toHaveLength(GARDEN.length);
+    const lit = footprints.map((s, i) => {
       const dark = !isLightSquare(GARDEN[i].square);
-      expect(s.light).toBeCloseTo((before[i].light as number) * (dark ? ON_DARK.line : 1), 9);
+      return (s.light as number) / (dark ? ON_DARK.line : 1);
     });
-    const rings = (even: boolean) =>
-      sculptureStrokes(GARDEN, SCALE, even).filter((s) => s.mode === 1 && s.points.length === 36);
-    const [plain, evened] = [rings(false), rings(true)];
-    plain.forEach((s, k) => {
-      const i = s.sculpt!;
+    expect(GARDEN.some((g) => isLightSquare(g.square))).toBe(true);
+    expect(GARDEN.some((g) => !isLightSquare(g.square))).toBe(true);
+    for (const l of lit) expect(l).toBeCloseTo(lit[0], 9);
+    const rings = sculptureStrokes(GARDEN, SCALE).filter(
+      (s) => s.mode === 1 && s.points.length === 36,
+    );
+    expect(rings.length).toBeGreaterThan(GARDEN.length);
+    for (const s of rings) {
       const base = s.points[0][1] < 0.1;
-      const dark = !isLightSquare(GARDEN[i].square);
-      expect(evened[k].light).toBeCloseTo(
-        (s.light as number) * (base && dark ? ON_DARK.ring : 1),
-        9,
-      );
-    });
-  });
-});
-
-describe('the neon tubes', () => {
-  it('make a ribbon of two vertices a point, with every attribute the shader reads', () => {
-    const g = neonCurves([
-      { at: [0, 0, 0], points: ringPoints(1, 0, 8), closed: true, mode: 1, sculpt: 3, light: 0.5 },
-      {
-        at: [1, 0, 0],
-        points: [
-          [0, 0, 0],
-          [0, 1, 0],
-        ],
-        closed: false,
-      },
-    ]);
-    expect(g.getAttribute('position').count).toBe(2 * (8 + 2));
-    for (const name of [
-      'aAnchor',
-      'aToward',
-      'aTangent',
-      'aSide',
-      'aMode',
-      'aAxis',
-      'aSculpt',
-      'aLight',
-    ])
-      expect(g.getAttribute(name).count, name).toBe(20);
-    // Closed: as many segments as points; open: one fewer
-    expect(g.getIndex()!.count).toBe(6 * (8 + 1));
-    expect(g.getAttribute('aSculpt').getX(0)).toBe(3);
-    expect(g.getAttribute('aLight').getX(0)).toBe(0.5);
-    expect(g.getAttribute('aLight').getX(19)).toBe(1);
+      const dark = !isLightSquare(GARDEN[s.sculpt!].square);
+      expect(s.light).toBeCloseTo(RING_LIGHT * (base && dark ? ON_DARK.ring : 1), 9);
+    }
   });
 });

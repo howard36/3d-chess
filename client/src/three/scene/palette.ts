@@ -29,7 +29,7 @@ export const PALETTE = {
   ground: '#030409',
   /** The neon of the sculptures and the colossal board: a cool white. */
   neon: '#e9efff',
-  /** The mist at the sculptures' feet. */
+  /** The mist along the horizon. */
   mist: '#7d8aa6',
 
   // The armies (pieces.tsx)
@@ -75,15 +75,10 @@ export const PALETTE = {
   ink: '#eef1f7',
 } as const;
 
-// The garden's added detail, one group per area (ENV PREVIEW: each area
-// keeps its colours in its own group so parallel work never meets here).
-
-/** Area A: the sky and constellations (skyDetail.tsx, heavens.tsx). */
+/** The sky's detail (skyDetail.tsx, heavens.tsx). */
 export const SKY_DETAIL = {
-  /** Today's warm field stars (a fifth of them; the rest are `neon`). */
-  starWarm: '#ffe6c4',
-  // The rich field's temperatures, all pale: blue-white, white, pale gold
-  // and a rare pale orange (never red)
+  // The field's temperatures, all pale: blue-white, white, pale gold and a
+  // rare pale orange (never red)
   starBlue: '#d2ddff',
   starWhite: '#f1f3fb',
   starGold: '#ffecd0',
@@ -94,32 +89,21 @@ export const SKY_DETAIL = {
   airglow: '#6f8c96',
 } as const;
 
-// ---
-
-/** Area B: the colossal board and its sculptures (boardDetail.tsx). */
+/** The colossal board's detail (sculptureGlow.tsx). */
 export const BOARD_DETAIL = {
-  // (area B's colours)
   /** The light each sculpture throws on the stone round its foot: the tubes' cool white, a breath greyer. */
   glow: '#e1e8fa',
 } as const;
 
-// ---
-
-/** Area C: the court between the tower and the colossal board (court.tsx). */
+/** The court between the tower and the colossal board (court.tsx). */
 export const COURT = {
   /** The horizon's mist as the polished slabs give it back: a cool grey-blue. */
   sheen: '#919cb3',
-  /** The stone's veins: paler, barely blue. */
-  vein: '#c4cddd',
   /** The inlay's light and the stepping stones' kerbs: the garden's neon, a breath cooler. */
   inlay: '#dde5f6',
-  /** The glow-moss: a grey-white with the faintest cool green, far from the last move's mint. */
-  moss: '#d2dfe0',
 } as const;
 
-// ---
-
-/** Area D: the horizon and far ground, and rare events (horizon.tsx). */
+/** The horizon and far ground, and its rare events (horizon.tsx). */
 export const HORIZON = {
   /**
    * The far hills' shadow: what a silhouette multiplies the night behind it

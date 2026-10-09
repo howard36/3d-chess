@@ -9,10 +9,9 @@ import { sculptureOf } from '../three/scene/sculptures';
 import { GROUND_Y } from '../three/scene/palette';
 
 // The sculpture viewer: the garden's neon (its twelve sculptures, their
-// detail and the fallen pieces, through the game's own components and the
-// env-preview settings in the address) alone on a dark ground, out of the
-// tower's shade, with a camera put anywhere round any one of them, to see
-// the tubes up close. Dev only: open http://127.0.0.1:5173/sculptures.html
+// detail and the fallen pieces, through the game's own components) alone on
+// a dark ground, out of the tower's shade, with a camera put anywhere round
+// any one of them, to see the tubes up close. Dev only: open http://127.0.0.1:5173/sculptures.html
 // while Vite runs, or save views with scripts/sculptures.mjs. In the page,
 // window.__view({ target, az, el, dist, turn }) moves the camera:
 //
@@ -24,8 +23,7 @@ import { GROUND_Y } from '../three/scene/palette';
 //   dist    distance from the target (world units)
 //   turn    -1 to turn the garden about as for Black (default 1)
 //
-// and resolves once the frame is drawn. Query: ?env=... as in the game (the
-// preview's settings), turn=-1.
+// and resolves once the frame is drawn. Query: turn=-1 for Black's garden.
 
 type Target = string | [number, number, number];
 interface ViewSpec {
@@ -110,7 +108,7 @@ export const SculptureViewer = ({ params }: { params: URLSearchParams }) => {
       >
         <color attach="background" args={['#05070d']} />
         <Rig turn={turn} />
-        <Sculptures turn={turn} shade={NO_SHADE} whole={false} />
+        <Sculptures turn={turn} shade={NO_SHADE} />
         <BoardDetail turn={turn} shade={NO_SHADE} />
       </Canvas>
     </div>
