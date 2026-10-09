@@ -1436,6 +1436,26 @@ const squarePixel = (page, zxy) =>
     return null;
   }, zxy);
 
+/**
+ * The first frame begun after the canvas took a click made at or after `t`.
+ * A click is a move, a press and a release: the move alone (a hover lifting
+ * the piece) can ask for a frame that begins before the click lands, and that
+ * frame does not hold the piece. Throws when the page saw no click.
+ */
+function frameAfterClick(s, t) {
+  const click = s.clicks.find((c) => c[0] >= t)?.[0];
+  if (click == null) throw new Error('select: the page saw no click');
+  const frame = s.renders.find((r) => r[0] >= click);
+  if (!frame)
+    throw new Error(
+      `select: no frame after the click (click at +${Math.round(click - t)} ms; frames begun at ${s.renders
+        .filter((r) => r[0] >= t - 50)
+        .map((r) => `+${Math.round(r[0] - t)}`)
+        .join(' ')} ms)`,
+    );
+  return frame;
+}
+
 async function selectSection(browser) {
   await section(
     'select',
@@ -1467,12 +1487,14 @@ async function selectSection(browser) {
         await waitFrameAfter(page, t);
         await quietMain(page);
         const s = await snap(page);
-        const frame = s.renders.find((r) => r[0] >= t);
+        const frame = frameAfterClick(s, t);
         const drawn = frame[0] + frame[1];
         picks.push({
           frame: drawn - t,
           render: frame[1],
           mode: frame[2],
+          // A hover frame began between the press's start and the click
+          hoverFirst: s.renders.find((r) => r[0] >= t) !== frame,
           links: s.links.filter((l) => l >= t && l <= drawn).length,
           syncs: (s.syncs ?? [])
             .filter(([u]) => u >= t && u <= drawn)
@@ -1501,7 +1523,7 @@ async function selectSection(browser) {
         await waitFrameAfter(page, t);
         await quietMain(page);
         const s = await snap(page);
-        const frame = s.renders.find((r) => r[0] >= t);
+        const frame = frameAfterClick(s, t);
         turned.push({ frame: frame[0] + frame[1] - t, mode: frame[2] });
         const box = await page.locator('canvas').boundingBox();
         const t2 = await page.evaluate(() => window.__benchNow());
@@ -1547,6 +1569,11 @@ async function selectSection(browser) {
           'first frames that drew the garden in full',
           [picks.filter((p) => p.mode !== 'cached').length],
           `count of ${picks.length}; the rest from its copy`,
+        ),
+        countStat(
+          'picks where a hover frame came before the click’s',
+          [picks.filter((p) => p.hoverFirst).length],
+          `count of ${picks.length}; never timed`,
         ),
         stat(
           'after a turn of the view: click → first frame with the piece held',
