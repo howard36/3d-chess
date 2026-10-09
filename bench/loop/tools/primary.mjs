@@ -3,18 +3,11 @@
 // Each row: median over the runs, and the spread (min-max) as % of the median.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { PRIMARY as ROWS } from '../../primary.mjs';
 
-export const PRIMARY = [
-  ['Cold load', 'desktop · create button enabled'],
-  ['Cold load', 'phone, 4× CPU, Fast 4G · create button enabled'],
-  ['Game setup', 'join: navigation → Join button'],
-  ['Reopening', 'navigation → record shown (announcer = H) · H = 2000'],
-  ['Game setup', 'join: click → joiner’s first frame'],
-  ['Game setup', 'joiner’s first render() call'],
-  ['Move latency', 'Enter → mover’s first frame with the move'],
-  ['Move latency', 'Enter → opponent’s first frame with the move'],
-  ['Selecting', 'click → first frame with the piece held'],
-];
+// The browser tier's primary rows, from bench/primary.mjs (the suite's own
+// list; runs from before it named some rows differently and show them missing)
+export const PRIMARY = ROWS.filter((r) => r.tier === 'browser').map((r) => [r.where, r.what]);
 const EXTRA = (process.env.EXTRA ?? '').split('|').filter(Boolean).map((k) => ['', k]);
 
 const med = (a) => {

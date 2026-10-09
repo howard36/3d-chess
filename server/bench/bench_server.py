@@ -1669,7 +1669,11 @@ async def bench_churn(ctx: Ctx) -> tuple[Table, dict]:
 
 
 def build_findings(raw: dict) -> list[str]:
-    """Factual bullets, each backed by a number from this run; skipped when absent."""
+    """Factual bullets, each backed by a number from this run; skipped when absent.
+
+    They state what was measured and what happened, never why: a cause written
+    here outlives the code it described (the report long said histories were
+    unbounded, after the draw rules had bounded them)."""
     f: list[str] = []
 
     def stat(section: str, key: str, field: str = "median_ns") -> Any:
@@ -1680,8 +1684,7 @@ def build_findings(raw: dict) -> list[str]:
     if acc and rej and rej > acc:
         f.append(
             f"A rejected message costs more than a valid one: a bad-coordinate `move` takes "
-            f"{fmt_dur(rej)} median to decode+validate vs {fmt_dur(acc)} for a valid `move`, "
-            "consistent with the non-discriminated 11-member union trying every member first."
+            f"{fmt_dur(rej)} median to decode+validate vs {fmt_dur(acc)} for a valid `move`."
         )
 
     p0 = stat("store", "record_move.pickle.0")
@@ -1690,8 +1693,7 @@ def build_findings(raw: dict) -> list[str]:
     if p0 and p_long:
         f.append(
             f"Under copy-on-access (the modal.Dict model), `record_move` grows with history: "
-            f"{fmt_dur(p0)} at 0 moves vs {fmt_dur(p_long)} at {long_len:,} moves, because each "
-            "move re-(un)pickles the whole record — the per-game O(n²) ARCHITECTURE.md calls out."
+            f"{fmt_dur(p0)} at 0 moves vs {fmt_dur(p_long)} at {long_len:,} moves."
         )
     d0, d_long = stat("store", "record_move.dict.0"), stat("store", f"record_move.dict.{long_len}")
     if d0 and d_long:
@@ -1706,15 +1708,13 @@ def build_findings(raw: dict) -> list[str]:
         f.append(
             f"With a simulated 2 ms blocking store RPC, {lat['games']} concurrent games together "
             f"reach only {fmt_tput(lat['moves_per_s'], 'moves/s')}, against a modelled ceiling of "
-            "1/(2×2 ms) = 250 moves/s: every game serializes behind the blocking get+set on the "
-            "single event loop."
+            "1/(2×2 ms) = 250 moves/s (one blocking get and set per move)."
         )
         dict_same = conc.get(f"dict.g{lat['games']}")
         if dict_same:
             f.append(
                 f"The same {lat['games']}-game load on the dict store reaches "
-                f"{fmt_tput(dict_same['moves_per_s'], 'moves/s')}, so under the latent:2 model the "
-                "store calls, not the relay, set the ceiling."
+                f"{fmt_tput(dict_same['moves_per_s'], 'moves/s')}."
             )
     one, many = conc.get("dict.g1"), conc.get("dict.g200")
     if one and many and one.get("stats") and many.get("stats"):
@@ -1725,7 +1725,7 @@ def build_findings(raw: dict) -> list[str]:
             f"{fmt_dur(many['stats']['median_ns'])} (vs {fmt_dur(one['stats']['median_ns'])} "
             "for a lone game)"
             + (f", with the server process at {cpu:.0f}% of one core" if cpu is not None else "")
-            + ": past the plateau, extra games queue on the single event loop."
+            + "."
         )
 
     small = stat("rejoin_live", "rejoin.100")
@@ -1733,7 +1733,7 @@ def build_findings(raw: dict) -> list[str]:
     if small and big_len:
         pb = stat("rejoin_live", f"rejoin.{big_len}", "payload_bytes")
         f.append(
-            "Rejoin latency scales with history, and histories are unbounded (no draw rules): "
+            "Rejoining a game: "
             f"{fmt_dur(small)} at 100 moves vs {fmt_dur(stat('rejoin_live', f'rejoin.{big_len}'))} "
             f"at {big_len:,} moves" + (f" ({fmt_bytes(pb)} payload)." if pb else ".")
         )
@@ -1741,10 +1741,8 @@ def build_findings(raw: dict) -> list[str]:
     adv = raw.get("oversized", {})
     if any(k.startswith("nesting") and "1011" in str(v.get("outcome")) for k, v in adv.items()):
         f.append(
-            "Deeply nested JSON (10,000 levels and up in this run) raises `RecursionError` in "
-            "`json.loads`, which escapes the handler's `except (ValueError, KeyError)` and lands "
-            "in the outer `except Exception`, closing that one connection with 1011; the server "
-            "stays healthy."
+            "Deeply nested JSON (10,000 levels and up in this run) closes that one connection "
+            "with 1011."
         )
     if "1009" in str(adv.get("oversized · 17 MiB", {}).get("outcome")):
         bomb = "1009" in str(adv.get("deflate bomb · 17 MiB", {}).get("outcome"))
