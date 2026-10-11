@@ -254,3 +254,40 @@ for (const seat of ['white', 'black'] as const) {
     expect(await everywhere()).toEqual([]);
   });
 }
+
+// A touch screen (pointer: coarse) makes the steps through the history a
+// fingertip wide: they stay inside their panel and the window at every size,
+// the way back to the game too, which grows its name while looking back
+test.describe('on a touch screen', () => {
+  test.use({ hasTouch: true, isMobile: true });
+
+  test('the steps through the history stay inside their panel and the window', async ({ page }) => {
+    const game = await seated(page, 'white');
+    await game.show(CHECK);
+    const outside = async () => {
+      const out: string[] = [];
+      for (const [width, height] of SIZES) {
+        await page.setViewportSize({ width, height });
+        out.push(
+          ...(await page.getByTestId('move-history').evaluate((nav, size) => {
+            const panel = nav.getBoundingClientRect();
+            return Array.from(nav.querySelectorAll<HTMLElement>('.hud-steps button'))
+              .map((b) => [b.dataset.step ?? 'now', b.getBoundingClientRect()] as const)
+              .filter(([, r]) => r.width > 0)
+              .filter(
+                ([, r]) =>
+                  r.left < Math.max(0, panel.left) - 0.5 ||
+                  r.right > Math.min(window.innerWidth, panel.right) + 0.5,
+              )
+              .map(([step]) => `${size}: ${step}`);
+          }, `${width}x${height}`)),
+        );
+      }
+      return out;
+    };
+    expect(await outside()).toEqual([]);
+    await page.keyboard.press('Home');
+    await expect(page.getByTestId('move-history')).toHaveAttribute('data-viewing-ply', '0');
+    expect(await outside()).toEqual([]);
+  });
+});
