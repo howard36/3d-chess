@@ -7,7 +7,7 @@ facts = json.loads((here / 'final-20261011-0531-facts.json').read_text())
 BISECT = 'bisect R115: b39a335 (#115) vs 454bd45'
 V1 = 'branch v1 (with W1′, since dropped) vs 0a73938'
 FINAL = 'final: 4dd4448 vs 0a73938 (primary, 4 pairs)'
-FIRST = 'vs first run: f3a7969 vs 92ce041 (primary, 3 pairs)'
+FIRST = 'vs first run: e8cd940 (app = f3a7969) vs 92ce041 (primary, 3 pairs)'
 LEAN = facts['lean_change']
 RECHECK = facts['recheck_change']
 
@@ -37,7 +37,7 @@ report = {
     {'title': 'Review and merge the PR',
      'body': '<p>Two speed fixes a player feels (a reopened long game’s record, the start page’s first click on a first visit), '
              'half of an upstream regression fixed (#115: the record’s first render; its per-landing and memory costs remain, see Next), two silent failures made visible, a server guard, a touch-layout fix, '
-             'and the benchmark telling the truth about counts. ' + facts['speed_line'] + ' CI is green on the PR. It bundles a server fix (5cd0599) '
+             'and the benchmark telling the truth about counts. ' + facts['speed_line'] + ' ' + facts['ci'] + ' It bundles a server fix (5cd0599) '
              'and a CI/format change (8c4902b) with the client work, as #116 and #117 did; CLAUDE.md asks for one change per PR. '
              'Some changes have a follow-up commit from the diff review (the run record groups them).</p>',
      'charts': [{'rows': {'change': FINAL, 'only': 'PRIMARY'}, 'caption': 'The primary rows, branch (4dd4448) against main, `--primary`, 4 pairs.'}],
@@ -59,9 +59,9 @@ report = {
                 'caption': 'A game against the computer, 1280×720; the right one has the notice injected in the HUD’s existing notice style.'},
      'recommend': 'Yes to a one-line notice with Reload (the game is saved locally, so a reload loses nothing). It is new interface copy, so it is your call.'},
     {'title': 'The target is not met: against the first recorded run the primary rows are ×0.97',
-     'body': '<p>The run’s target was the primary rows 1.2× faster than the first recorded run (92ce041). Measured today with this checkout’s harness on both (3 pairs; 92ce041 had no computer player, so those two rows are missing): ×0.968. Faster since then: a shared game’s page −43%, reopening −33%, a move landing −40%. Slower: <strong>joining’s first board frame 1.83 → 5.61 s</strong>, the start page +10–20%, its first click 9 → 16 ms. The lobby, the garden, the preview and the entrance all came after 92ce041, so part of this is features; the join is still the biggest wait a player has.</p>',
-     'charts': [{'rows': {'change': FIRST, 'only': 'PRIMARY'}, 'caption': 'This branch (f3a7969) against the first recorded run (92ce041), `--primary`, 3 pairs.'}],
-     'recommend': 'Point the next run at the join (ledger J2, L1/J1): the lobby’s shader links and the game canvas’s first frame.'},
+     'body': '<p>The run’s target was the primary rows 1.2× faster than the first recorded run (92ce041). Measured today with this checkout’s harness on both (3 pairs; 92ce041 had no computer player, so those two rows are missing): ×0.968. Faster since then: a shared game’s page −43%, reopening −33%, a move landing −40%. Slower: <strong>joining’s first board frame 1.83 → 5.61 s</strong>, the start page +10–20%, its first click 9 → 16 ms, the first pick 38 ms → 2.3 s (the warm-up, W1), and two memory rows: <strong>JS heap on a reopened 2,000-ply game +34%</strong> (10.6 → 14.2 MiB; #115 is +6% of it) and <strong>one texture more alive after 16 plies</strong> (0 → 1, every pair; main has it too, so it came in between, not on this branch). The lobby, the garden, the preview and the entrance all came after 92ce041, so part of this is features; the join is still the biggest wait a player has.</p>',
+     'charts': [{'rows': {'change': FIRST, 'only': 'PRIMARY'}, 'caption': 'This branch (e8cd940; its app code is f3a7969’s) against the first recorded run (92ce041), `--primary`, 3 pairs.'}],
+     'recommend': 'Point the next run at #115’s landing (R115b), then the join (J2, L1/J1); bisect the texture that stays alive (X5) and the heap growth on the way.'},
     {'title': 'Proposed, not installed: format bench scripts on save',
      'body': '<p>The lint now checks <code>bench/*.mjs</code> (one <code>.prettierrc</code> at the root). <code>.claude/hooks/format.sh</code> formats only '
              '<code>client/</code>, so an agent’s edit to a bench script can now fail the lint. It is shared machinery, so I left it alone.</p>',
@@ -80,7 +80,7 @@ report = {
   ]},
   'scoreboard': {'intro': facts['scoreboard_intro'], 'items': [
     {'title': 'The branch against main, primary rows (4 pairs)', 'charts': [{'rows': {'change': FINAL, 'only': 'PRIMARY'}, 'caption': 'Branch 4dd4448 against main 0a73938, `--primary`, 4 pairs.'}]},
-    {'title': 'Against the first recorded run (92ce041)', 'charts': [{'rows': {'change': FIRST, 'only': 'PRIMARY'}, 'caption': 'f3a7969 against 92ce041, `--primary`, 3 pairs (the computer rows did not exist then).'}]},
+    {'title': 'Against the first recorded run (92ce041)', 'charts': [{'rows': {'change': FIRST, 'only': 'PRIMARY'}, 'caption': 'e8cd940 (app = f3a7969) against 92ce041, `--primary`, 3 pairs (the computer rows did not exist then).'}]},
     {'title': 'The rows that leaned slower, 4 more pairs', 'body': facts['lean_body'], 'charts': [{'rows': {'change': LEAN, 'only': facts['lean_only']}, 'caption': 'Final code against main: cold-load, move latency, selection, 4 pairs.'}]},
     {'title': 'Rechecked on the final commit', 'body': facts['recheck_body'],
      'charts': [{'rows': {'change': RECHECK, 'only': facts['recheck_only']}, 'caption': 'Final commit against main: reopen and cold-load sections, 4 pairs.'}]},
@@ -95,7 +95,7 @@ report = {
              '(at most 128 moves listed in the first commit, where it was 2,000).</p>',
      'charts': [{'rows': {'change': BISECT, 'only': 'Reopening a long game · (navigation → record shown|game_state handled|next move: received|long tasks total|JS heap)'}, 'caption': 'The regression: #115 against its parent, 4 pairs.'},
                 {'rows': {'change': FINAL, 'only': 'Reopening a long game · (navigation → record shown|game_state handled|next move: received|long tasks total|JS heap)'}, 'caption': 'The fix: branch against main, 4 pairs.'}]},
-    {'title': 'The start page answers a first visit’s click at once (d42c74e)',
+    {'title': 'A first visit’s first click no longer waits 3 s on the preview (d42c74e)',
      'body': '<p>The preview linked its shaders inside its first frame; on a first visit (nothing cached) a click on “Play a friend” waited 2.7–3.7 s behind it in software (13 of 15 pairs). Now never over 2.5 s (median about 0.25 s, worst 2.03 s). '
              'It links them ahead, the page free meanwhile, as the game’s board already did. The README picture is unchanged (checked pixel by pixel).</p>',
      'figure': {'html': first_click, 'caption': 'First load of each run, ms.'}},

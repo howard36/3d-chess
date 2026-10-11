@@ -7,7 +7,7 @@
   "items": [
    {
     "title": "Review and merge the PR",
-    "body": "<p>Two speed fixes a player feels (a reopened long game’s record, the start page’s first click on a first visit), half of an upstream regression fixed (#115: the record’s first render; its per-landing and memory costs remain, see Next), two silent failures made visible, a server guard, a touch-layout fix, and the benchmark telling the truth about counts. No row is called slower in any A/B; one leans slower and is named here: the first pick after the entrance, +13% and +7.8% in two 4-pair A/Bs (pairs 0.96 1.33 1.00 1.26 · 1.02 1.06 1.30 0.96), a 2.3–2.6 s wait on the GPU in software, on a path nothing in the final branch changes. CI is green on the PR. It bundles a server fix (5cd0599) and a CI/format change (8c4902b) with the client work, as #116 and #117 did; CLAUDE.md asks for one change per PR. Some changes have a follow-up commit from the diff review (the run record groups them).</p>",
+    "body": "<p>Two speed fixes a player feels (a reopened long game’s record, the start page’s first click on a first visit), half of an upstream regression fixed (#115: the record’s first render; its per-landing and memory costs remain, see Next), two silent failures made visible, a server guard, a touch-layout fix, and the benchmark telling the truth about counts. No row is called slower in any A/B; one leans slower and is named here: the first pick after the entrance, +13% and +7.8% in two 4-pair A/Bs (pairs 0.96 1.33 1.00 1.26 · 1.02 1.06 1.30 0.96), a 2.3–2.6 s wait on the GPU in software. The branch does not touch the warm-up or the selection, but it does change code on that page (the glide marker, history, the move list), so it is not ruled out. CI: green on e8cd940; the commits since are the report, a script revert and loop files (see the PR’s checks for the head). It bundles a server fix (5cd0599) and a CI/format change (8c4902b) with the client work, as #116 and #117 did; CLAUDE.md asks for one change per PR. Some changes have a follow-up commit from the diff review (the run record groups them).</p>",
     "charts": [
      {
       "rows": {
@@ -39,17 +39,17 @@
    },
    {
     "title": "The target is not met: against the first recorded run the primary rows are ×0.97",
-    "body": "<p>The run’s target was the primary rows 1.2× faster than the first recorded run (92ce041). Measured today with this checkout’s harness on both (3 pairs; 92ce041 had no computer player, so those two rows are missing): ×0.968. Faster since then: a shared game’s page −43%, reopening −33%, a move landing −40%. Slower: <strong>joining’s first board frame 1.83 → 5.61 s</strong>, the start page +10–20%, its first click 9 → 16 ms. The lobby, the garden, the preview and the entrance all came after 92ce041, so part of this is features; the join is still the biggest wait a player has.</p>",
+    "body": "<p>The run’s target was the primary rows 1.2× faster than the first recorded run (92ce041). Measured today with this checkout’s harness on both (3 pairs; 92ce041 had no computer player, so those two rows are missing): ×0.968. Faster since then: a shared game’s page −43%, reopening −33%, a move landing −40%. Slower: <strong>joining’s first board frame 1.83 → 5.61 s</strong>, the start page +10–20%, its first click 9 → 16 ms, the first pick 38 ms → 2.3 s (the warm-up, W1), and two memory rows: <strong>JS heap on a reopened 2,000-ply game +34%</strong> (10.6 → 14.2 MiB; #115 is +6% of it) and <strong>one texture more alive after 16 plies</strong> (0 → 1, every pair; main has it too, so it came in between, not on this branch). The lobby, the garden, the preview and the entrance all came after 92ce041, so part of this is features; the join is still the biggest wait a player has.</p>",
     "charts": [
      {
       "rows": {
-       "change": "vs first run: f3a7969 vs 92ce041 (primary, 3 pairs)",
+       "change": "vs first run: e8cd940 (app = f3a7969) vs 92ce041 (primary, 3 pairs)",
        "only": "PRIMARY"
       },
-      "caption": "This branch (f3a7969) against the first recorded run (92ce041), `--primary`, 3 pairs."
+      "caption": "This branch (e8cd940; its app code is f3a7969’s) against the first recorded run (92ce041), `--primary`, 3 pairs."
      }
     ],
-    "recommend": "Point the next run at the join (ledger J2, L1/J1): the lobby’s shader links and the game canvas’s first frame."
+    "recommend": "Point the next run at #115’s landing (R115b), then the join (J2, L1/J1); bisect the texture that stays alive (X5) and the heap growth on the way."
    },
    {
     "title": "Proposed, not installed: format bench scripts on save",
@@ -91,10 +91,10 @@
     "charts": [
      {
       "rows": {
-       "change": "vs first run: f3a7969 vs 92ce041 (primary, 3 pairs)",
+       "change": "vs first run: e8cd940 (app = f3a7969) vs 92ce041 (primary, 3 pairs)",
        "only": "PRIMARY"
       },
-      "caption": "f3a7969 against 92ce041, `--primary`, 3 pairs (the computer rows did not exist then)."
+      "caption": "e8cd940 (app = f3a7969) against 92ce041, `--primary`, 3 pairs (the computer rows did not exist then)."
      }
     ]
    },
@@ -104,7 +104,7 @@
     "charts": [
      {
       "rows": {
-       "change": "recheck on f3a7969: cold-load + move latency + select, 4 pairs",
+       "change": "recheck on e8cd940 (app = f3a7969): cold-load + move latency + select, 4 pairs",
        "only": "(Cold load of the start screen · desktop · (create button enabled|click at ready → side choice shown|first load)|Move latency · (click → mover|opponent’s move: sent → first frame with it)|Selecting a piece · (click → first frame with the piece held|first pick: click))"
       },
       "caption": "Final code against main: cold-load, move latency, selection, 4 pairs."
@@ -157,7 +157,7 @@
     ]
    },
    {
-    "title": "The start page answers a first visit’s click at once (d42c74e)",
+    "title": "A first visit’s first click no longer waits 3 s on the preview (d42c74e)",
     "body": "<p>The preview linked its shaders inside its first frame; on a first visit (nothing cached) a click on “Play a friend” waited 2.7–3.7 s behind it in software (13 of 15 pairs). Now never over 2.5 s (median about 0.25 s, worst 2.03 s). It links them ahead, the page free meanwhile, as the game’s board already did. The README picture is unchanged (checked pixel by pixel).</p>",
     "figure": {
      "html": "<table><thead><tr><th>Pair</th><th>main (0a73938)</th><th>branch</th></tr></thead><tbody><tr><td>v1 · 1</td><td>2,900</td><td>258</td></tr><tr><td>v1 · 2</td><td>3,146</td><td>1,085</td></tr><tr><td>v1 · 3</td><td>2,670</td><td>8</td></tr><tr><td>final · 1</td><td>3,171</td><td>254</td></tr><tr><td>final · 2</td><td>2,676</td><td>186</td></tr><tr><td>final · 3</td><td>3,732</td><td>13</td></tr><tr><td>final · 4</td><td>10</td><td>59</td></tr><tr><td>recheck · 1</td><td>60</td><td>10</td></tr><tr><td>recheck · 2</td><td>3,072</td><td>250</td></tr><tr><td>recheck · 3</td><td>2,858</td><td>249</td></tr><tr><td>recheck · 4</td><td>3,749</td><td>9</td></tr><tr><td>leaning · 1</td><td>3,311</td><td>1,171</td></tr><tr><td>leaning · 2</td><td>3,004</td><td>257</td></tr><tr><td>leaning · 3</td><td>3,186</td><td>2,034</td></tr><tr><td>leaning · 4</td><td>2,711</td><td>1,091</td></tr><tr><td><strong>slow mode (&gt; 2.5 s), 15 pairs</strong></td><td><strong>13 of 15</strong></td><td><strong>0 of 15</strong> (worst 2,034)</td></tr></tbody></table>",
@@ -183,7 +183,7 @@
   ]
  },
  "removed": {
-  "intro": "<ul><li><code>GameHistory.boardBefore</code>, kept only to rebuild the last move (−12 lines in history.ts); W1′’s <code>linkInTurn</code> left with W1′.</li><li>Net lines over the run (0a73938 → head, loop state excluded): <strong>+292</strong> = app client +46 (+75 −29: the touch layout’s CSS ~30 lines, comments much of the rest), app server +13, tests and e2e +141, bench and scripts +82, docs and config +10. No dependency added or removed; one config file moved (<code>.prettierrc</code> to the root).</li></ul>"
+  "intro": "<ul><li><code>GameHistory.boardBefore</code>, kept only to rebuild the last move (−12 lines in history.ts); W1′’s <code>linkInTurn</code> left with W1′; the readme script’s guard reverted.</li><li>Net lines over the run (0a73938 → head, loop state excluded): <strong>+278</strong> (+345 −67) = app client +46 (+75 −29: the touch layout’s CSS ~30 lines, comments much of the rest), app server +13, tests and e2e +141, bench and scripts +68, docs and config +10. No dependency added or removed; one config file moved (<code>.prettierrc</code> to the root).</li></ul>"
  },
  "rejected": {
   "items": [
@@ -207,15 +207,15 @@
   ]
  },
  "choices": {
-  "intro": "<ul><li>Fixed #115’s regression (an upstream change, the project’s code) before anything else, once bisected.</li><li>Dropped my own W1′ commit from the unpushed branch (rebuilt history) when its A/B showed play linking programs, instead of reverting it in a new commit.</li><li>Guarded game ids on the server only (the store operations) rather than adding a pattern to <code>schema.json</code>: no protocol change, no regenerated types, the client sees the same <code>invalid_game</code>.</li><li>Moved <code>client/.prettierrc</code> to the repo root and added <code>bench/*.mjs</code> to the lint (and one sentence of CLAUDE.md), after my own formatting slip.</li><li>On a phone held sideways, dropped “Latest”’s name while reviewing (Needs from me: taste).</li><li>Logged the computer’s failures to the console rather than adding words on screen (Needs from me).</li><li>Ran 11 lens reviewers (skipped “what’s new” and “dependencies”: nothing changed since they ran two days ago) and 3 diff reviewers (client; bench, server and CI; invariants and docs) rather than one per lens on the diff.</li><li>Reverted my own guard in <code>readme-image.mjs</code> after testing the race it guarded against: with every GPU fence held 4 s, the unchanged script still captures the whole tower.</li><li>Kept the touch steps at 36–38 px in the side panel rather than dropping “Latest”’s name everywhere (Needs from me).</li></ul>"
+  "intro": "<ul><li><strong>Not met: one commit per change.</strong> Three changes have a follow-up commit from the diff review (R115: d715022, 5eb3bda, 42e78f8; B1′: 30b0367, f165177; B3: 90a1da1, 3a80da8), and the readme guard is a commit and its revert. I left them rather than force-push a pushed branch; squashing the PR would put all of it in one commit on main, which breaks the rule the other way. Your call how to land it (the PR offers a split).</li><li>Fixed #115’s regression (an upstream change, the project’s code) before anything else, once bisected.</li><li>Dropped my own W1′ commit from the unpushed branch (rebuilt history) when its A/B showed play linking programs, instead of reverting it in a new commit.</li><li>Guarded game ids on the server only (the store operations) rather than adding a pattern to <code>schema.json</code>: no protocol change, no regenerated types, the client sees the same <code>invalid_game</code>.</li><li>Moved <code>client/.prettierrc</code> to the repo root and added <code>bench/*.mjs</code> to the lint (and one sentence of CLAUDE.md), after my own formatting slip.</li><li>On a phone held sideways, dropped “Latest”’s name while reviewing (Needs from me: taste).</li><li>Logged the computer’s failures to the console rather than adding words on screen (Needs from me).</li><li>Ran 11 lens reviewers (skipped “what’s new” and “dependencies”: nothing changed since they ran two days ago) and 3 diff reviewers (client; bench, server and CI; invariants and docs) rather than one per lens on the diff.</li><li>Reverted my own guard in <code>readme-image.mjs</code> after testing the race it guarded against: with every GPU fence held 4 s, the unchanged script still captures the whole tower.</li><li>Kept the touch steps at 36–38 px in the side panel rather than dropping “Latest”’s name everywhere (Needs from me).</li></ul>"
  },
  "notConfirmed": {
-  "intro": "<ul><li>#115’s landing (+85%) and heap (+6%) costs: still there, cause not found (a probe rules out the move list’s scaling).</li><li>Real phones and GPUs: everything is SwiftShader on a 4-core VM. The first-visit click is a GPU-cache effect; on a real GPU the links are far shorter, so the gain there is smaller, unmeasured.</li><li>The glide marker’s saved frames have no bench row (a unit test counts them: 1 → 0).</li><li>The first-visit click is not <em>called</em> by the A/B rule (two modes); the raw table is the evidence.</li><li>The touch layout on a real device (rendered in Chromium with a touch pointer only).</li><li>What was uncommitted during the A/Bs: only <code>bench/loop/</code> files, plus <code>client/e2e/noWebGL.spec.ts</code> (T8, not shipped code) during the 06:59Z recheck; the app code measured is each named commit’s.</li></ul>"
+  "intro": "<ul><li>#115’s landing (+85%) and heap (+6%) costs: still there, cause not found (a probe rules out the move list’s scaling).</li><li>Real phones and GPUs: everything is SwiftShader on a 4-core VM. The first-visit click is a GPU-cache effect; on a real GPU the links are far shorter, so the gain there is smaller, unmeasured.</li><li>The glide marker’s saved frames have no bench row (a unit test counts them: 1 → 0).</li><li>The first-visit click is not <em>called</em> by the A/B rule (two modes); the raw table is the evidence.</li><li>The touch layout on a real device (rendered in Chromium with a touch pointer only).</li><li>What was uncommitted during the A/Bs: only <code>bench/loop/</code> files, plus <code>client/e2e/noWebGL.spec.ts</code> (T8, a test) during the reopen recheck; the first-run and leaning-rows A/Bs ran on e8cd940, whose app code is f3a7969’s, with only loop files and <code>tools/landing-probe/</code> uncommitted. The app code measured is each named commit’s.</li><li>Whether the texture that stays alive after 16 plies is a leak or a one-off, and where the heap’s +34% since the first run went (both seen only against 92ce041).</li></ul>"
  },
  "merge": {
   "intro": "<p>No other sessions were active. Files other work touches: CLAUDE.md (one sentence: the lint also checks <code>bench/*.mjs</code>), ARCHITECTURE.md (the move list’s two renders, the preview’s linked first frame, counts in the A/B), and <code>client/.prettierrc</code> moved to the repo root.</p>"
  },
  "next": {
-  "intro": "<ol><li>R115b: #115’s per-landing (+85%) and memory (+6%) costs on a 2,000-ply game; trace the reopen section’s landing (the move list itself is ruled out).</li><li>J2 with L1/J1: joining’s first board frame is 3× the first recorded run’s (5.6 s in software): the lobby’s post-pick links, the game canvas’s first frame.</li><li>W1 by another road: the first pick waits on a GPU busy linking (2.3–2.6 s in software), not on the order of links; link the selection’s programs before the entrance ends.</li><li>P9: the start page’s preview links the demo’s marks mid-demo (a first-visit click still met up to 1.1 s once).</li><li>V5/I1: a half-open socket after a phone wakes; endless “Reconnecting” on a server error (needs words on screen).</li><li>E8: the format hook for <code>bench/*.mjs</code> (proposed above). C9: a test that the lobby’s camera hands over on exactly the game’s first pose.</li></ol>"
+  "intro": "<ol><li>R115b: #115’s per-landing (+85%) and memory (+6%) costs on a 2,000-ply game; trace the reopen section’s landing (the move list itself is ruled out).</li><li>X5: one texture more alive after 16 plies than at the first run (0 → 1, on main too) and the heap at 2,000 plies +34% since then: bisect, then fix or explain.</li><li>J2 with L1/J1: joining’s first board frame is 3× the first recorded run’s (5.6 s in software): the lobby’s post-pick links, the game canvas’s first frame.</li><li>W1 by another road: the first pick waits on a GPU busy linking (2.3–2.6 s in software), not on the order of links; link the selection’s programs before the entrance ends.</li><li>P9: the start page’s preview links the demo’s marks mid-demo (a first-visit click still met up to 1.1 s once).</li><li>V5/I1: a half-open socket after a phone wakes; endless “Reconnecting” on a server error (needs words on screen).</li><li>E8: the format hook for <code>bench/*.mjs</code> (proposed above). C9: a test that the lobby’s camera hands over on exactly the game’s first pose.</li></ol>"
  }
 }
