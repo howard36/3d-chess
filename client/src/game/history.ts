@@ -42,8 +42,6 @@ export interface GameHistory {
   moveRecords: MoveRecord[];
   /** Position after the last applied move. */
   board: Board;
-  /** Position before the last applied move (null before the first). */
-  boardBefore: Board | null;
   /** How many of `moveRecords` were applied (all of them unless replay failed). */
   appliedMoveCount: number;
   /** White moves first; alternates with each applied move. */
@@ -148,8 +146,7 @@ export function deriveHistory(
     prev.moveRecords.length < moveRecords.length &&
     prev.moveRecords.every((r, i) => r === moveRecords[i]);
   let board = extending ? prev.board : Board.setupStartingPosition();
-  // The board before the last applied move, for what that move captured
-  let before = extending ? prev.boardBefore : null;
+  let lastMove = extending ? prev.lastMove : undefined;
   const captured: Record<Turn, PieceType[]> = extending
     ? { white: [...prev.captured.white], black: [...prev.captured.black] }
     : { white: [], black: [] };
@@ -172,9 +169,9 @@ export function deriveHistory(
       const hash = hashAfter(positions[positions.length - 1], board, next, move);
       if (taken || board.getPiece(move.from)?.type === PieceType.Pawn) positions.length = 0;
       positions.push(hash);
-      before = board;
       board = next;
       appliedMoveCount = i + 1;
+      lastMove = { move, moveCount: appliedMoveCount, capturedPiece: taken };
     } catch {
       replayFailedAt = i;
       break;
@@ -183,22 +180,11 @@ export function deriveHistory(
 
   const gameOver =
     replayFailedAt === null ? gameOverAt(board, turnAfter(appliedMoveCount), positions) : null;
-  let lastMove: LastMove | undefined;
-  if (appliedMoveCount > 0) {
-    // This record was applied successfully above, so converting it again can't throw.
-    const move = moveFromMessage(moveRecords[appliedMoveCount - 1]);
-    lastMove = {
-      move,
-      moveCount: appliedMoveCount,
-      capturedPiece: before!.getPiece(move.to),
-    };
-  }
 
   return {
     snapshot,
     moveRecords,
     board,
-    boardBefore: before,
     appliedMoveCount,
     currentTurn: turnAfter(appliedMoveCount),
     lastMove,
