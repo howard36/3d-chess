@@ -117,9 +117,10 @@ const VENV_PYTHON = join(
 
 /**
  * Where a tier runs and writes: this checkout by default; with --base, also
- * a worktree of the base commit (`python`: run the server bench with the
- * shared venv's interpreter, never `uv run`, which would re-sync that venv
- * against the worktree).
+ * a worktree of the base commit (`python`: run the server bench with that
+ * side's venv interpreter, never `uv run`, which would re-sync the venv
+ * against the worktree; the base shares this checkout's unless it locks
+ * other packages).
  */
 const MAIN = { root: ROOT, out: OUT_DIR, rounds: ROUNDS, repeat: REPEAT, python: null };
 
@@ -671,9 +672,30 @@ function baseWorktree(ref) {
     rmSync(join(dir, path), { recursive: true, force: true });
     cpSync(join(ROOT, path), join(dir, path), { recursive: true });
   }
-  symlinkSync(join(CLIENT, 'node_modules'), join(dir, 'client', 'node_modules'), 'dir');
+  // Shared dependencies, unless the base locks others: then it installs its own,
+  // or the A/B would time this checkout's three.js, React or Starlette on both sides
+  const differs = (lock) =>
+    spawnSync('git', ['diff', '--quiet', sha, '--', lock], { cwd: ROOT }).status !== 0;
+  const python = join(dir, 'server', '.venv', 'bin', 'python');
+  if (differs('client/package-lock.json')) {
+    log(`base ${sha.slice(0, 7)} locks other npm packages: npm ci in its worktree`);
+    execFileSync('npm', ['ci', '--no-audit', '--no-fund'], {
+      cwd: join(dir, 'client'),
+      stdio: 'ignore',
+    });
+  } else {
+    symlinkSync(join(CLIENT, 'node_modules'), join(dir, 'client', 'node_modules'), 'dir');
+  }
+  if (differs('server/uv.lock')) {
+    log(`base ${sha.slice(0, 7)} locks other Python packages: uv sync in its worktree`);
+    execFileSync('uv', ['sync', '--extra', 'test', '--frozen'], {
+      cwd: join(dir, 'server'),
+      stdio: 'ignore',
+    });
+    return { dir, sha, python };
+  }
   symlinkSync(join(ROOT, 'server', '.venv'), join(dir, 'server', '.venv'), 'dir');
-  return { dir, sha };
+  return { dir, sha, python: VENV_PYTHON };
 }
 
 function removeWorktree(dir) {
@@ -768,7 +790,7 @@ function tiersFromDiff(sha) {
 }
 
 function abMain() {
-  const { dir, sha } = baseWorktree(BASE);
+  const { dir, sha, python: basePython } = baseWorktree(BASE);
   const chosen = ONLY_GIVEN
     ? { tiers: ONLY, why: '--only' }
     : PRIMARY_ONLY
@@ -797,7 +819,7 @@ function abMain() {
           out: join(OUT_DIR, 'ab', side, String(pair + 1)),
           rounds: 1,
           repeat: 1,
-          python: VENV_PYTHON,
+          python: side === 'base' ? basePython : VENV_PYTHON,
         };
         rmSync(ctx.out, { recursive: true, force: true });
         mkdirSync(ctx.out, { recursive: true });
@@ -827,7 +849,11 @@ function abMain() {
     const any =
       runs.base.find((m) => m.has(key))?.get(key) ?? runs.head.find((m) => m.has(key)).get(key);
     const v = verdict(pairs, any.better);
-    rows.push({ ...any, pairs, v });
+    // Each side's own values, paired or not: a row one side lost must show
+    const sides = ['base', 'head'].map((side) =>
+      runs[side].map((m) => m.get(key)?.value).filter(Number.isFinite),
+    );
+    rows.push({ ...any, pairs, v, sides });
   }
 
   const md = ['# A/B benchmark comparison'];
@@ -853,6 +879,16 @@ function abMain() {
           .join('\n'),
     );
   }
+  // Measured in fewer pairs than were run, or on one side only: a section
+  // that stopped, a selector that no longer matches
+  const short = rows.filter((r) => r.pairs.length < runs.base.length);
+  if (short.length) {
+    md.push(
+      `**${short.length} measurement(s) not taken in every pair**: ${short
+        .map((r) => `${r.where}: ${r.what} (${r.pairs.length} of ${runs.base.length})`)
+        .join('; ')}.`,
+    );
+  }
   const fmtChange = (v) =>
     v
       ? `${v.change > 0 ? '+' : '−'}${Math.abs(v.change).toFixed(Math.abs(v.change) >= 10 ? 0 : 1)}%`
@@ -863,8 +899,7 @@ function abMain() {
     r.tier,
     r.where,
     r.what,
-    shown(median(r.pairs.map(([b]) => b)), r.unit),
-    shown(median(r.pairs.map(([, h]) => h)), r.unit),
+    ...r.sides.map((xs) => (xs.length ? shown(median(xs), r.unit) : 'missing')),
     fmtChange(r.v),
     r.v ? r.v.ratios.map((x) => x.toFixed(2)).join(' ') : '',
     called(r.v),
@@ -936,8 +971,8 @@ function abMain() {
   }
   md.push('## Everything measured');
   md.push(
-    '*Base* and *Head* are the medians over the pairs; for throughputs (/s) higher is better, for ' +
-      'everything else lower.',
+    '*Base* and *Head* are the medians over each side’s runs; for throughputs (/s) higher is ' +
+      'better, for everything else lower.',
   );
   for (const tier of ['client', 'startup', 'server', 'browser']) {
     const mine = rows.filter((r) => r.tier === tier);

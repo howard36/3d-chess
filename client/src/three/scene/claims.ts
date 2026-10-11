@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { useThree } from '@react-three/fiber';
 import type { Vec3 } from '../types';
 
@@ -52,27 +52,17 @@ export const claimed = (p: Point, kinds: readonly ClaimKind[]) =>
 // selection's own circle at its foot.
 
 let heldFloor: Vec3 | null = null;
-const heldListeners = new Set<() => void>();
-const setHeld = (floor: Vec3 | null) => {
-  heldFloor = floor;
-  heldListeners.forEach((l) => l());
-};
-const subscribeHeld = (l: () => void) => {
-  heldListeners.add(l);
-  return () => heldListeners.delete(l);
-};
 
 /** Publishes `floor` as the held piece's while the calling (Selection) marker is mounted. */
 export const useHoldAt = (floor: Vec3) => {
   const [x, y, z] = floor;
   useLayoutEffect(() => {
-    setHeld([x, y, z]);
-    return () => setHeld(null);
+    heldFloor = [x, y, z];
+    return () => {
+      heldFloor = null;
+    };
   }, [x, y, z]);
 };
-
-/** The held piece's floor, or null; re-renders the caller when it changes. */
-export const useHeld = () => useSyncExternalStore(subscribeHeld, () => heldFloor);
 
 /** The held piece's floor, or null (for useFrame). */
 export const heldAt = () => heldFloor;

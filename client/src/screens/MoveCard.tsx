@@ -13,6 +13,8 @@ interface MoveCardProps {
   /** The board shows an earlier position (the move history's): a move is played from the latest. */
   reviewing?: boolean;
   onMove: (move: Move) => void;
+  /** In sight whatever has focus: there is no board to play on, only this. */
+  shown?: boolean;
 }
 
 const Enter = () => (
@@ -30,8 +32,9 @@ const Enter = () => (
 /**
  * A field to type the next move ("Bb1-Cb1", "=Q" to promote), at the bottom
  * left. It stays in the page but out of sight, and appears when it takes
- * keyboard focus (Tab) and goes again when it loses it empty. (The moves so
- * far are the move history's, MoveHistory.tsx.)
+ * keyboard focus (Tab) and goes again when it loses it empty (always in sight
+ * when `shown`: there is no board to play on). (The moves so far are the move
+ * history's, MoveHistory.tsx.)
  */
 const MoveCard: React.FC<MoveCardProps> = ({
   board,
@@ -40,6 +43,7 @@ const MoveCard: React.FC<MoveCardProps> = ({
   yourTurn,
   reviewing = false,
   onMove,
+  shown = false,
 }) => {
   const [text, setText] = React.useState('');
   const [problem, setProblem] = React.useState<string | null>(null);
@@ -70,7 +74,7 @@ const MoveCard: React.FC<MoveCardProps> = ({
     onMove(result.move);
   };
 
-  const revealed = (focused || text !== '') && !dismissed;
+  const revealed = shown || ((focused || text !== '') && !dismissed);
   return (
     <section
       className="hud-card hud-glass"
@@ -139,7 +143,7 @@ const MoveCard: React.FC<MoveCardProps> = ({
         </div>
         {focused && !problem && (
           <div className="hud-hint" aria-hidden>
-            e.g. Bb1-Cb1, then Enter · Esc to hide
+            e.g. Bb1-Cb1, then Enter{shown ? '' : ' · Esc to hide'}
           </div>
         )}
       </form>

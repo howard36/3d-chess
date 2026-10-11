@@ -38,6 +38,11 @@
   --page-fg: #eef1f7;
 }
 
+/* In the stylesheet, not set by the script: the first paint is already dark */
+body {
+  @apply min-h-screen overflow-hidden bg-gray-900 font-sans text-white antialiased;
+}
+
 /*
  * The game screen is played with fingers as much as a mouse. A double tap or
  * a long press must never select text (iOS would select the whole page) or

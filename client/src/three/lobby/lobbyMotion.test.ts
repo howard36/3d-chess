@@ -5,7 +5,6 @@ import { PROFILES } from '../pieces';
 import { PieceType } from '../../engine/pieces';
 import {
   arrivalRing,
-  blendPose,
   breath,
   cardBeside,
   entranceFrom,
@@ -352,49 +351,6 @@ describe('the lobby camera', () => {
     expect(z).toBeCloseTo(3 + 8, 12);
     // A zero direction does not divide by zero
     expect(Number.isFinite(poseFromDirection([0, 0, 0], [0, 0, 0], 1).azimuth)).toBe(true);
-  });
-});
-
-describe('blending two poses', () => {
-  const a: CameraPose = { target: [0, 0, 0], azimuth: 0.2, elevation: 0.1, distance: 5 };
-  const b: CameraPose = { target: [1, 2, 3], azimuth: 1.2, elevation: 0.6, distance: 20 };
-
-  it('starts at the first and ends at the second', () => {
-    expect(blendPose(a, b, 0)).toEqual(a);
-    const end = blendPose(a, b, 1);
-    expect(end.target).toEqual(b.target);
-    expect(end.azimuth).toBeCloseTo(b.azimuth, 12);
-    expect(end.elevation).toBeCloseTo(b.elevation, 12);
-    expect(end.distance).toBeCloseTo(b.distance, 12);
-  });
-
-  it('eases in and out, drawing back geometrically', () => {
-    const mid = blendPose(a, b, 0.5);
-    expect(mid.target[1]).toBeCloseTo(1, 12);
-    expect(mid.distance).toBeCloseTo(Math.sqrt(5 * 20), 12);
-    // Slow at both ends
-    expect(blendPose(a, b, 0.1).elevation - a.elevation).toBeLessThan(
-      0.1 * (b.elevation - a.elevation),
-    );
-    expect(b.elevation - blendPose(a, b, 0.9).elevation).toBeLessThan(
-      0.1 * (b.elevation - a.elevation),
-    );
-  });
-
-  it('turns the short way round', () => {
-    // From just short of +π to just past -π: through π, not through 0
-    const from: CameraPose = { ...a, azimuth: 3 };
-    const to: CameraPose = { ...a, azimuth: -3 };
-    const mid = blendPose(from, to, 0.5);
-    expect(mid.azimuth).toBeCloseTo(Math.PI, 12);
-    const end = blendPose(from, to, 1);
-    expect(end.azimuth).toBeCloseTo(TAU - 3, 12);
-    expect(wrap(end.azimuth)).toBeCloseTo(wrap(-3), 12);
-    for (const t of samples(0, 1, 50)) {
-      const az = blendPose(from, to, t).azimuth;
-      expect(az).toBeGreaterThanOrEqual(3 - 1e-12);
-      expect(az).toBeLessThanOrEqual(TAU - 3 + 1e-12);
-    }
   });
 });
 

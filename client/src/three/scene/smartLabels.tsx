@@ -13,6 +13,7 @@ import type { BoardLayout, Vec3 } from '../types';
 import { useIntro } from '../intro/clock';
 import { labelFade } from '../intro/timeline';
 import { smooth } from './ease';
+import { retireMaterial } from './programs';
 
 // How the labels are drawn. Manrope's double-storey "a" never reads as "o";
 // its "1" has a flag.
@@ -178,6 +179,21 @@ export const SmartLabels = ({
 
   const group = useRef<Group>(null);
   const sprites = useRef(new Map<string, [Sprite | null, Sprite | null]>());
+  // The sprites' materials, retired rather than disposed when the labels go
+  // (as the board's: a board made again keeps their program)
+  const gl = useThree((s) => s.gl);
+  const [materials] = useState(() => new Set<SpriteMaterial>());
+  const keepMaterial = useMemo(
+    () => (m: SpriteMaterial | null) => void (m && materials.add(m)),
+    [materials],
+  );
+  useEffect(
+    () => () => {
+      materials.forEach((m) => retireMaterial(gl, m));
+      materials.clear();
+    },
+    [gl, materials],
+  );
   const slots = useRef(new Map<string, Slot>());
   const state = useRef<AnchorState | null>(null);
   const reference = useRef<number | null>(null);
@@ -280,6 +296,8 @@ export const SmartLabels = ({
             raycast={noRaycast}
           >
             <spriteMaterial
+              ref={keepMaterial}
+              dispose={null}
               map={textures.get(label.level !== undefined ? `level-${label.text}` : label.text)}
               transparent
               depthWrite={false}

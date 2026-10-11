@@ -8,6 +8,7 @@ never reads or writes the store itself, so no handler-level read can be
 separated from its write by an `await`.
 """
 
+import ast
 import inspect
 
 import pytest
@@ -234,6 +235,45 @@ def test_handler_never_touches_the_store_directly():
     and wrote it back would race, and the sync store operations could not
     prevent it. So the handler may only hand `store` to those operations.
     """
-    source = inspect.getsource(modal_app.create_web_app)
-    for forbidden in ("store[", "store.get(", " in store"):
-        assert forbidden not in source, f"handler must not access the store directly: {forbidden}"
+    tree = ast.parse(inspect.getsource(modal_app.create_web_app))
+    names = {op.__name__ for op in STORE_OPERATIONS}
+    handed = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) in names:
+            handed.update(id(a) for a in node.args if isinstance(a, ast.Name) and a.id == "store")
+    # The one other use: the default, `if store is None: store = {}`
+    default = tree.body[0].body[0]
+    assert ast.unparse(default) == "if store is None:\n    store = {}"
+    allowed = {id(default.test.left)}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id == "store" and isinstance(node.ctx, ast.Load):
+            assert id(node) in handed | allowed, (
+                f"handler must only hand `store` to a store operation (line {node.lineno})"
+            )
+
+
+def test_every_store_function_is_a_synchronous_store_operation():
+    """A function given the store (its first parameter) is a store operation:
+    listed in STORE_OPERATIONS (so the tests above see it) unless private, and
+    synchronous either way."""
+    listed = set(STORE_OPERATIONS)
+    for name, fn in inspect.getmembers(modal_app, inspect.isfunction):
+        # (the handler's factory takes the store too: the test above covers it)
+        if fn.__module__ != modal_app.__name__ or fn is modal_app.create_web_app:
+            continue
+        params = list(inspect.signature(fn).parameters)
+        if not params or params[0] != "store":
+            continue
+        assert not inspect.iscoroutinefunction(fn), f"{name} must stay synchronous"
+        assert name.startswith("_") or fn in listed, f"{name} is missing from STORE_OPERATIONS"
+
+
+def test_the_store_is_never_used_through_its_async_variants():
+    """modal.Dict's `.aio` calls await, which would open the read-modify-write
+    window the synchronous store operations close."""
+    code = [
+        node.attr
+        for node in ast.walk(ast.parse(inspect.getsource(modal_app)))
+        if isinstance(node, ast.Attribute)
+    ]
+    assert "aio" not in code

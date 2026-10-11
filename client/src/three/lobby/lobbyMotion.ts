@@ -292,30 +292,6 @@ export const poseFromDirection = (target: Vec3, direction: Vec3, distance: numbe
   };
 };
 
-const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
-
-/** Between two poses, `t` 0–1: turning the short way round, easing in and out. */
-export const blendPose = (a: CameraPose, b: CameraPose, t: number): CameraPose =>
-  mixPose(a, b, easeInOutCubic(t));
-
-/** The pose `k` (0–1) of the way between two, turning the short way round. */
-const mixPose = (a: CameraPose, b: CameraPose, k: number): CameraPose => {
-  let turn = b.azimuth - a.azimuth;
-  turn = Math.atan2(Math.sin(turn), Math.cos(turn));
-  const mix = (p: number, q: number) => p + (q - p) * k;
-  return {
-    target: [
-      mix(a.target[0], b.target[0]),
-      mix(a.target[1], b.target[1]),
-      mix(a.target[2], b.target[2]),
-    ],
-    azimuth: a.azimuth + turn * k,
-    elevation: mix(a.elevation, b.elevation),
-    // Out along a gentle curve: the distance grows geometrically
-    distance: a.distance * (b.distance / a.distance) ** k,
-  };
-};
-
 /** The ring of light that answers a seat being taken: its radius and brightness at `t` s. */
 export const arrivalRing = (t: number) => {
   const k = clamp01(t / 1.4);

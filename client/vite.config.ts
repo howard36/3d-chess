@@ -131,12 +131,20 @@ const r3fCatalogue = (): Plugin => {
 
 /**
  * The start page, a game's invitation and its HUD show before three.js has
- * arrived: three.js, r3f and the scene load lazily (CLAUDE.md). One static
+ * arrived: three.js, r3f and the scene load lazily (CLAUDE.md), as do the
+ * tutorial's page and a game against the computer (their own chunks, which
+ * load their canvases lazily in turn), and the computer's search (in its
+ * worker; the page knows only ai/levels.ts and ai/computer.ts). One static
  * import of a helper that imports three would pull it all into the entry
- * without a word, so the build fails if the entry, or a chunk it imports
- * statically, holds any of it.
+ * without a word, so the build fails if one of those pages' chunks, or a
+ * chunk it imports statically, holds any of it.
  */
-const SCENE_MODULE = /\/node_modules\/(three|@react-three)\//;
+const SCENE_MODULE =
+  /\/node_modules\/(three|@react-three)\/|\/src\/ai\/(?!levels\.ts$|computer\.ts$)/;
+const SHOWN_BEFORE_SCENE = [
+  '/src/screens/learn/LearnScreen.tsx',
+  '/src/screens/ComputerGameScreen.tsx',
+];
 const keepSceneOutOfEntry = (): Plugin => ({
   name: 'keep-scene-out-of-entry',
   apply: 'build',
@@ -153,11 +161,18 @@ const keepSceneOutOfEntry = (): Plugin => ({
       seen.add(file);
       const scene = chunk.moduleIds.filter((id) => SCENE_MODULE.test(id.replaceAll('\\', '/')));
       if (scene.length)
-        this.error(`keep-scene-out-of-entry: ${file} loads with the entry and holds ${scene[0]}`);
+        this.error(`keep-scene-out-of-entry: ${file} loads before the scene and holds ${scene[0]}`);
       chunk.imports.forEach(walk);
     };
     for (const c of chunks.values()) if (c.isEntry) walk(c.fileName);
     if (!seen.size) this.error('keep-scene-out-of-entry: no entry chunk');
+    for (const page of SHOWN_BEFORE_SCENE) {
+      const chunk = [...chunks.values()].find((c) =>
+        c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(page)),
+      );
+      if (!chunk) this.error(`keep-scene-out-of-entry: no chunk holds ${page}`);
+      else walk(chunk.fileName);
+    }
   },
 });
 

@@ -454,7 +454,7 @@ export const bodyMaterial = (
 };
 
 /**
- * A piece's own material, disposed with the caller: what PieceBody draws, and
+ * A piece's own material, retired with the caller (a board made again keeps its program): what PieceBody draws, and
  * what an effect that redraws a piece (a capture) should use so the piece
  * looks the same.
  */
@@ -467,7 +467,7 @@ export const usePieceMaterial = (
   // (the variant as the material is made; setGlazeVariant changes it after)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const material = useMemo(() => bodyMaterial(color, type, level, variant), [color, type, level]);
-  useEffect(() => () => material.dispose(), [material]);
+  useRetireOnUnmount(material);
   return material;
 };
 

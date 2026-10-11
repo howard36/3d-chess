@@ -414,7 +414,6 @@ export const DETAIL: Record<PieceQuality, Detail> = {
 // --- Builders --------------------------------------------------------------------
 
 interface Ctx {
-  quality: PieceQuality;
   d: Detail;
   /** The knight's head, mane and eyes at this detail. */
   knight: (d: Detail) => KnightGeometry;
@@ -835,7 +834,7 @@ export const buildPieceSet = (
   knight: (d: Detail) => KnightGeometry,
 ): PieceSet => {
   const d = DETAIL[quality];
-  const c: Ctx = { quality, d, knight, segments: d.segments, profiles: PROFILES };
+  const c: Ctx = { d, knight, segments: d.segments, profiles: PROFILES };
   // Each piece is built when it is first asked for, then kept: a test that
   // draws only pawns never pays for the sculpted knight
   const set = {} as PieceSet;

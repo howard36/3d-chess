@@ -126,18 +126,22 @@ export const afterGpu = (gl: WebGLRenderer, then: (done: boolean) => void) => {
   }
   context.flush();
   // (Date, not performance: the showcase's virtual clock stops the latter)
+  // eslint-disable-next-line no-restricted-properties -- a GPU fence's timeout, not an animation
   const started = Date.now();
   const check = () => {
     const lost = context.isContextLost();
     const passed =
       !lost && context.getSyncParameter(fence, context.SYNC_STATUS) === context.SIGNALED;
+    // eslint-disable-next-line no-restricted-properties -- as above
     if (!passed && !lost && Date.now() - started < GPU_WAIT_MAX) {
+      // eslint-disable-next-line no-restricted-globals -- polls the fence off the frame loop
       setTimeout(check, 4);
       return;
     }
     context.deleteSync(fence);
     then(passed);
   };
+  // eslint-disable-next-line no-restricted-globals -- as above
   setTimeout(check, 4);
   return true;
 };

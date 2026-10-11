@@ -90,7 +90,7 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
   return (
     <main className="learn" data-testid="learn" data-card={beside ? 'beside' : 'below'}>
       <div className="learn-stage">
-        <ChunkBoundary onFail={() => setNoBoard(true)}>
+        <ChunkBoundary canvas onFail={() => setNoBoard(true)}>
           <React.Suspense fallback={null}>
             <LearnCanvas
               practice={practice}
