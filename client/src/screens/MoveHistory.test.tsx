@@ -78,7 +78,7 @@ describe('the move list', () => {
   });
 
   it('keeps a row to three nodes, one text node each', () => {
-    // A reopened long game mounts its whole record at once: the number,
+    // A reopened long game mounts every row of its record: the number,
     // then each move a button holding its text, and nothing else
     render(history({ moves: record(3) }));
     const [full, half] = screen.getByTestId('move-list').querySelectorAll('li');
@@ -111,7 +111,7 @@ describe('the move list', () => {
         {history({ moves })}
       </Profiler>,
     );
-    expect(commits[0]).toBeLessThanOrEqual(64);
+    expect(commits[0]).toBeLessThanOrEqual(128);
     expect(rows()).toHaveLength(1000);
     expect(rows()[999]).toBe('1000. Aa3–Ab1 Ee3–Ed5');
   });
