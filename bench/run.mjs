@@ -744,9 +744,20 @@ const shown = (value, unit) =>
  * The pairs' verdict for one measured thing: each pair's ratio head/base,
  * their geometric mean as the change, and a change called real only when
  * every pair agrees on its direction and it exceeds both 5% and the pairs'
- * own disagreement (their ratios' range).
+ * own disagreement (their ratios' range). A side at 0 is judged by the
+ * pairs' differences instead (`diffs`, the change their median).
  */
 function verdict(pairs, better) {
+  // A count at 0 on a side (the programs a move links once warm, a leak's
+  // growth) has no ratio: its change is the difference, called when every
+  // pair moves the same way
+  if (pairs.length >= 2 && pairs.some(([b, h]) => b === 0 || h === 0)) {
+    const diffs = pairs.map(([b, h]) => h - b);
+    const change = median(diffs);
+    const real = diffs.every((d) => d > 0) || diffs.every((d) => d < 0);
+    const improved = better === 'higher' ? change > 0 : change < 0;
+    return { ratios: [], diffs, change, spread: 0, real, improved };
+  }
   const ratios = pairs.map(([b, h]) => h / b).filter((r) => Number.isFinite(r) && r > 0);
   if (ratios.length < 2) return null;
   const mean = Math.exp(ratios.reduce((s, r) => s + Math.log(r), 0) / ratios.length);
@@ -890,9 +901,13 @@ function abMain() {
     );
   }
   const fmtChange = (v) =>
-    v
-      ? `${v.change > 0 ? '+' : '−'}${Math.abs(v.change).toFixed(Math.abs(v.change) >= 10 ? 0 : 1)}%`
-      : '';
+    !v
+      ? ''
+      : v.diffs
+        ? v.change
+          ? `${v.change > 0 ? '+' : '−'}${Math.abs(v.change)}`
+          : ''
+        : `${v.change > 0 ? '+' : '−'}${Math.abs(v.change).toFixed(Math.abs(v.change) >= 10 ? 0 : 1)}%`;
   const called = (v) =>
     !v ? 'one side only' : v.real ? `**${v.improved ? 'better' : 'worse'}**` : '';
   const line = (r) => [
@@ -901,7 +916,11 @@ function abMain() {
     r.what,
     ...r.sides.map((xs) => (xs.length ? shown(median(xs), r.unit) : 'missing')),
     fmtChange(r.v),
-    r.v ? r.v.ratios.map((x) => x.toFixed(2)).join(' ') : '',
+    r.v?.diffs
+      ? r.v.diffs.map((d) => (d > 0 ? `+${d}` : String(d))).join(' ')
+      : r.v
+        ? r.v.ratios.map((x) => x.toFixed(2)).join(' ')
+        : '',
     called(r.v),
   ];
   const columns = [
@@ -919,8 +938,16 @@ function abMain() {
   // The primary rows first: the moments a player waits on
   const byKey = new Map(rows.map((r) => [keyOf(r), r]));
   const primary = PRIMARY.map((p) => ({ p, r: byKey.get(keyOf(p)) }));
-  const measured = primary.filter(({ r }) => r?.v);
+  const measured = primary.filter(({ r }) => r?.v?.ratios.length);
+  const unmeasured = primary.filter(({ r }) => !r?.v?.ratios.length);
   md.push('## Primary rows');
+  if (unmeasured.length) {
+    md.push(
+      `**${unmeasured.length} of ${primary.length} primary rows not compared** (missing on a ` +
+        `side, or in fewer than two pairs), left out of the figure below: ` +
+        `${unmeasured.map(({ p }) => p.moment).join('; ')}.`,
+    );
+  }
   if (measured.length) {
     // Each row's head/base as a speed (time rows inverted): above 1, faster.
     // Its pairs' median ratio, so one wild pair of a row with two modes (the
