@@ -1151,7 +1151,7 @@ describe('Board', () => {
         await act(async () => {
           await renderer.advanceFrames(80, 0.01);
         });
-        expect(offset(renderer).x).toBe(0);
+        for (const axis of ['x', 'y', 'z'] as const) expect(offset(renderer)[axis]).toBeCloseTo(0);
         // On again: it glides again
         await renderer.update(
           <Board board={rookBoard(NEXT)} currentTurn="white" lastMove={nextMove(2)} review />,
