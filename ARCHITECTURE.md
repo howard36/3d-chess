@@ -72,7 +72,7 @@ This is a hobby project for games among friends. The design leans on that delibe
   seat requires only the game id and a color, no secret). Those are non-goals here — the
   threat model is "my friends", not "the internet".
 - **Games are ephemeral.** Move history is stored in a `modal.Dict` so games survive
-  container restarts and page reloads, but records expire after ~30 days of inactivity and
+  container restarts and page reloads, but records expire after 7 days of inactivity (no reads or writes) and
   nothing else is persisted. No accounts, no history, no matchmaking.
 
 If the project ever outgrows these assumptions, the first things to revisit are:

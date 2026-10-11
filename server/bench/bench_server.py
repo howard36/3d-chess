@@ -1636,7 +1636,8 @@ async def bench_churn(ctx: Ctx) -> tuple[Table, dict]:
         ["l", "l", "r", "r", "r", "l"],
         [
             "Game records are retained deliberately (rejoin depends on them; modal.Dict expires "
-            "them via a ~30-day TTL), so store growth under churn is expected, not a leak.",
+            "them after 7 days of inactivity), so store growth under churn is expected, not a "
+            "leak.",
             "A slow-consumer test was designed but dropped: the protocol's strict turn "
             "alternation means a stalled reader can be sent at most one move broadcast before the "
             "game halts waiting for its move, so it cannot be flooded into blocking the relay "
