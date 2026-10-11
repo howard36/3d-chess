@@ -1189,6 +1189,14 @@ async function coldSection(browser) {
           const [row, m] = stat(label, col(k));
           sec.add([i === 0 ? `**${c.label}**` : '', ...row], m, `${c.label} · ${label}`);
         });
+        // The section's first load meets the start page's preview programs
+        // uncached (the browser's GPU process caches them for the loads
+        // after it): a player's first visit, which the median above hides
+        if (c === cases[0]) {
+          const label = 'first load: click at ready → side choice shown';
+          const [row, m] = stat(label, [runs[0].clickToChoice]);
+          sec.add(['', ...row], m, `${c.label} · ${label}`);
+        }
         sec.add(
           [
             '',
@@ -1203,7 +1211,7 @@ async function coldSection(browser) {
         );
       }
       sec.notes.push(
-        'Times are from navigation start. “ready” is the later of the button enabled and the socket open; “main-thread script” is Chromium’s ScriptDuration (CDP Performance metrics) until then, throttled time under 4× CPU. DevTools network emulation delays response bodies, not headers, hence “HTML received” (responseEnd) rather than TTFB. The browser has already drawn a board (the warm-up), and the cases take turns.',
+        'Times are from navigation start. “ready” is the later of the button enabled and the socket open; “main-thread script” is Chromium’s ScriptDuration (CDP Performance metrics) until then, throttled time under 4× CPU. DevTools network emulation delays response bodies, not headers, hence “HTML received” (responseEnd) rather than TTFB. The browser has already drawn a board (the warm-up), and the cases take turns; the first load still meets the start page’s own shader programs uncached (“first load”).',
       );
     },
   );
