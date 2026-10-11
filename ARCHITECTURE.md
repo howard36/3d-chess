@@ -290,7 +290,12 @@ Key decisions:
   in a row under the tower (above "Play again" once the game is over), the move shown
   between them ("7… Ed4–Ba1"), which opens the list above them. Closed, the list is
   visually hidden, never `display: none`: it is how a screen reader reads the record, and
-  a polite status says where the board stands as the player steps. Away from the live
+  a polite status says where the board stands as the player steps. A reopened game's list
+  comes in two renders: the blocks in view (the last, the move shown's) with the record, the
+  rest a deferred render later, so thousands of buttons never hold up the record; rows out of
+  the list's view are not laid out (`content-visibility`). On a touch screen the steps are a
+  fingertip wide and, beside the tower, share the panel's width (on a phone on its side the
+  way back goes without its name). Away from the live
   position (`screens/useReview.ts`) the board shows the earlier one, its last-move line,
   check and captured pieces, and takes no input (no selection, no move; the move box says
   "Go to the latest move first."); the move shown is lit in the list and the way back
@@ -648,8 +653,9 @@ Rare events (`shootingStar.tsx`, `skyEvents.tsx`: a constellation tracing itself
 satellite, paired meteors; `horizonEvents.tsx`: a lighthouse's sweep) never wake the
 canvas: each starts only on a frame already being drawn while the player turns the view,
 keeps frames coming only while it lasts, runs on r3f's clock, and is drawn at no light
-from the first frame so no program links when it comes. On the game's page the garden's
-programs (all the scene's) are linked before that first frame, the page free meanwhile
+from the first frame so no program links when it comes. On the game's page and in the start
+page's preview the garden's programs (all the scene's) are linked before that first frame, the
+page free meanwhile
 (`linkBeforeFirstFrame` in `rendererSetup.ts`, `linkAhead` in `scene/programs.ts`: handed
 to the GPU at once, a fence polled between tasks, the uniforms read back while it is idle),
 and the warm-up of the marks of play links its programs the same way. Every garden
@@ -1264,7 +1270,9 @@ speed for them all (the geometric mean of each row's median pair: ×1.004 for id
 code); `--primary` runs only what those rows need (the browser tier's `primary` profile and
 the client tier's search bench), about 13 minutes for three pairs on a 4-core VM, where
 the client and browser tiers in full took 37. More pairs do not help a row get called: a
-call needs every pair to agree and the change to exceed their spread.
+call needs every pair to agree and the change to exceed their spread (a count at 0 on a side,
+which has no ratio, is judged by the pairs' differences, called when every pair moves the same
+way).
 Without `--primary` or `--only`, `--base` runs the tiers the diff can move (the server's
 code: the server tier; the client's app code: client and browser; nothing: all, an A/A
 test). Narrow it further (`--only client --files engine --grep E4`) and a comparison takes

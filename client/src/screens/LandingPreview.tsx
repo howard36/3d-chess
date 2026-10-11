@@ -110,8 +110,9 @@ export function LandingPreview({ still }: { still: boolean }) {
         // The turn and the demo ask for their own frames; still, the preview
         // draws only when something changes
         frameloop="demand"
-        // Its programs linked before its first frame, the page free meanwhile:
-        // a click on the page never waits on the preview's shaders
+        // Its first frame's programs linked before it, the page free
+        // meanwhile: a click in the first seconds does not wait on the
+        // garden's shaders (the demo's marks still link as they first show)
         onCreated={(state) => {
           setUpRenderer(state);
           linkBeforeFirstFrame(state);
