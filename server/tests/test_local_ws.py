@@ -272,7 +272,7 @@ def test_finished_games_do_not_leak_sockets(client, store):
         with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
             start_game(ws1, ws2)
     # Live-socket map drains; durable records persist (their cleanup is the
-    # store's concern — Modal Dict entries expire after ~30 days of inactivity).
+    # store's concern — Modal Dict entries expire after 7 days of inactivity).
     assert wait_until(lambda: len(modal_app.connections) == 0)
     assert len(store) == 3
 

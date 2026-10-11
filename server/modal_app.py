@@ -656,6 +656,7 @@ def create_web_app(store=None) -> fastapi.FastAPI:
 @modal.asgi_app()
 def serve() -> fastapi.FastAPI:
     # Durable game records survive container restarts and expire via Modal's
-    # ~30-day inactivity TTL, so abandoned games clean themselves up.
+    # 7-day inactivity TTL (no reads or writes), so abandoned games clean
+    # themselves up.
     store = modal.Dict.from_name(os.environ["GAMES_STORE"], create_if_missing=True)
     return create_web_app(store=store)
