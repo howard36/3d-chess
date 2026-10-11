@@ -81,10 +81,13 @@ it('passes on a search that failed', async () => {
 it('thinks on the page when the worker cannot load, or there is none', async () => {
   FakeWorker.mode = 'fail-load';
   vi.stubGlobal('Worker', FakeWorker);
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   const computer = createComputer();
   const move = await computer.think([], 'easy');
   expect(move?.ply).toBe(0);
   expect(FakeWorker.last!.terminated).toBe(true);
+  expect(warn).toHaveBeenCalledOnce();
+  warn.mockRestore();
   // Later questions go straight to the page
   expect((await computer.think([{ from: 'Bc2', to: 'Cc2' }], 'easy'))?.ply).toBe(1);
 

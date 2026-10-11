@@ -86,6 +86,7 @@ export function createComputer(): Computer {
       // The worker's script failed to load or run: think on the page instead
       worker.onerror = (event) => {
         event.preventDefault();
+        console.warn('The computer’s worker failed; it thinks on the page instead.', event.message);
         fallBack();
       };
     }
