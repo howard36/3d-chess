@@ -1872,7 +1872,10 @@ async function selectSection(browser) {
         const zxy = squares[i % squares.length];
         const at = await squarePixel(page, zxy);
         if (!at) throw new Error(`no pixel reaches ${zxy}`);
-        const t = await page.evaluate(() => window.__benchNow());
+        const [t, warm] = await page.evaluate(() => [
+          window.__benchNow(),
+          document.querySelector('canvas')?.dataset.warm === 'done',
+        ]);
         await page.mouse.click(at.x, at.y);
         await waitFrameAfter(page, t);
         await quietMain(page);
@@ -1881,6 +1884,8 @@ async function selectSection(browser) {
         const drawn = frame ? frame[0] + frame[1] : 0;
         picks.push(
           frame && {
+            // The game's warm-up (WarmPrograms) was over at the click
+            warm,
             frame: drawn - t,
             render: frame[1],
             mode: frame[2],
@@ -1958,6 +1963,16 @@ async function selectSection(browser) {
           'the entrance and the warm-up, to rest',
         ),
         stat('click → first frame with the piece held', col('frame'), 'what the player sees'),
+        stat(
+          'first pick: click → first frame with the piece held',
+          timed.slice(0, 1).map((p) => p.frame),
+          'a player quick off the mark: the first pick once the entrance is over, often before the shader warm-up is done',
+        ),
+        countStat(
+          'first pick made while the warm-up was under way',
+          timed.slice(0, 1).map((p) => (p.warm ? 0 : 1)),
+          'count; 1 when the first pick met the warm-up',
+        ),
         stat('that frame’s render() call', col('render'), 'main thread'),
         stat('longest task, click → frame', col('longest')),
         countStat('shader programs linked, click → frame', col('links'), 'count'),
