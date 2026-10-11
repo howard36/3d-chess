@@ -63,17 +63,6 @@ const STILL_CLOCK = () => {
     return nextId++;
   };
   window.cancelAnimationFrame = (id) => queue.delete(id);
-  // Draw calls made: the preview holds its first frame until its programs
-  // are linked (linkBeforeFirstFrame), a still picture with no tower in it
-  window.__draws = 0;
-  for (const gl of [WebGLRenderingContext, WebGL2RenderingContext])
-    for (const name of ['drawArrays', 'drawElements']) {
-      const draw = gl.prototype[name];
-      gl.prototype[name] = function (...args) {
-        window.__draws++;
-        return draw.apply(this, args);
-      };
-    }
 };
 
 let vite = null;
@@ -110,18 +99,15 @@ try {
   await page.waitForSelector('[data-testid="landing-canvas"] canvas', { timeout: 180000 });
 
   // Draw frames until the picture stops changing (the piece set and the
-  // garden build over the first few), counted from the preview's first draw:
-  // a quarter of a second of the demo's clock, then frames that take no time
-  // at all. Its first move waits almost three seconds.
+  // garden build over the first few): a quarter of a second of the demo's
+  // clock, then frames that take no time at all. Its first move waits almost
+  // three seconds.
   let last = null;
   for (let i = 0, same = 0; i < 120 && same < 3; i++) {
-    const drawn = await page.evaluate(
-      (ms) => (window.__step(ms), window.__draws > 0),
-      i < 16 ? 16 : 0,
-    );
+    await page.evaluate((ms) => window.__step(ms), i < 16 ? 16 : 0);
     await page.waitForTimeout(300);
     const shot = await page.screenshot({ type: 'png', scale: 'css' });
-    same = drawn && last && shot.equals(last) ? same + 1 : 0;
+    same = last && shot.equals(last) ? same + 1 : 0;
     last = shot;
   }
 
