@@ -7,6 +7,8 @@ facts = json.loads((here / 'final-20261011-0531-facts.json').read_text())
 BISECT = 'bisect R115: b39a335 (#115) vs 454bd45'
 V1 = 'branch v1 (with W1′, since dropped) vs 0a73938'
 FINAL = 'final: 4dd4448 vs 0a73938 (primary, 4 pairs)'
+FIRST = 'vs first run: f3a7969 vs 92ce041 (primary, 3 pairs)'
+LEAN = facts['lean_change']
 RECHECK = facts['recheck_change']
 
 def table(head, rows):
@@ -34,27 +36,32 @@ report = {
   'needs': {'items': [
     {'title': 'Review and merge the PR',
      'body': '<p>Two speed fixes a player feels (a reopened long game’s record, the start page’s first click on a first visit), '
-             'an upstream regression found and fixed (#115’s move list), two silent failures made visible, a server guard, a touch-layout fix, '
-             'and the benchmark telling the truth about counts. Nothing is called slower; CI is the last gate. It bundles a server fix (5cd0599) '
-             'and a CI/format change (8c4902b) with the client work, as #116 and #117 did; CLAUDE.md asks for one change per PR.</p>',
+             'half of an upstream regression fixed (#115: the record’s first render; its per-landing and memory costs remain, see Next), two silent failures made visible, a server guard, a touch-layout fix, '
+             'and the benchmark telling the truth about counts. ' + facts['speed_line'] + ' CI is green on the PR. It bundles a server fix (5cd0599) '
+             'and a CI/format change (8c4902b) with the client work, as #116 and #117 did; CLAUDE.md asks for one change per PR. '
+             'Some changes have a follow-up commit from the diff review (the run record groups them).</p>',
      'charts': [{'rows': {'change': FINAL, 'only': 'PRIMARY'}, 'caption': 'The primary rows, branch (4dd4448) against main, `--primary`, 4 pairs.'}],
      'recommend': 'Squash-merge once CI is green. If you want CLAUDE.md’s one-change rule applied strictly, I split out 5cd0599 (server) and 8c4902b (format check) as their own PRs first.'},
     {'title': 'Taste: on a phone held sideways, “Latest” loses its name while you look back',
      'body': '<p>On a touch screen the steps are a fingertip wide. In the side panel of a phone on its side (640×360), “Latest” with its name ran 22 px past '
              'the window’s edge, its icon cut off. Now the four steps share the panel’s width and the way back is the lit icon alone there; '
-             'touch screens with room (a tablet, a touch laptop) keep the name.</p>',
+             'touch screens with room (a tablet, a touch laptop) keep the name. The cost: the steps are 38 px wide there (45 px at 844×390), '
+             'and 36 px beside a named “Latest” on a touch laptop, where they were 40 px but overflowed. The alternative is to drop the name on every touch screen (four 45 px steps).</p>',
      'figure': {'html': pair(img('history-640x360-review-base.crop.jpg', 'Main, 640×360, touch, looking back: “Latest” cut off'),
                              img('history-640x360-review-head.crop.jpg', 'Branch: four steps inside the panel, the way back lit')),
                 'caption': 'MoveHistory in the HUD’s wrappers, Chromium with a touch pointer (bench/loop/tools/history-probe).'},
-     'recommend': 'Keep it: the existing rule already shows the name only “where there is room”, and here there is none.'},
+     'recommend': 'Keep it: the existing rule already shows the name only “where there is room”, and here there is none; 36–38 px is above WCAG 2.2’s 24 px minimum, below Apple’s 44 pt guide.'},
     {'title': 'Say so on screen when the computer cannot think?',
      'body': '<p>If the search’s code fails to load (a deploy replaced the chunk, a dropped connection), every later answer is the first legal move, played at once, '
              'at any level: a computer that suddenly plays nonsense. This run made it log its cause; the player still sees nothing.</p>',
-     'figure': {'html': table(['Failure', 'Before', 'Now', 'Possible'], [
-        ['Worker fails to load', 'thinks on the page, silently', 'same, with a console warning', '—'],
-        ['Search fails', 'first legal move at once, silently', 'same, with a console error', 'a one-line notice: “The computer couldn’t load. Reload”']]),
-               'caption': 'computer.ts, useComputerGame.ts.'},
+     'figure': {'html': pair(img('notice-before.jpg', 'Now: a computer game whose search failed looks like any other'),
+                             img('notice-after.jpg', 'Proposed (a mock, not in the PR): the HUD’s own notice, with Reload')),
+                'caption': 'A game against the computer, 1280×720; the right one has the notice injected in the HUD’s existing notice style.'},
      'recommend': 'Yes to a one-line notice with Reload (the game is saved locally, so a reload loses nothing). It is new interface copy, so it is your call.'},
+    {'title': 'The target is not met: against the first recorded run the primary rows are ×0.97',
+     'body': '<p>The run’s target was the primary rows 1.2× faster than the first recorded run (92ce041). Measured today with this checkout’s harness on both (3 pairs; 92ce041 had no computer player, so those two rows are missing): ×0.968. Faster since then: a shared game’s page −43%, reopening −33%, a move landing −40%. Slower: <strong>joining’s first board frame 1.83 → 5.61 s</strong>, the start page +10–20%, its first click 9 → 16 ms. The lobby, the garden, the preview and the entrance all came after 92ce041, so part of this is features; the join is still the biggest wait a player has.</p>',
+     'charts': [{'rows': {'change': FIRST, 'only': 'PRIMARY'}, 'caption': 'This branch (f3a7969) against the first recorded run (92ce041), `--primary`, 3 pairs.'}],
+     'recommend': 'Point the next run at the join (ledger J2, L1/J1): the lobby’s shader links and the game canvas’s first frame.'},
     {'title': 'Proposed, not installed: format bench scripts on save',
      'body': '<p>The lint now checks <code>bench/*.mjs</code> (one <code>.prettierrc</code> at the root). <code>.claude/hooks/format.sh</code> formats only '
              '<code>client/</code>, so an agent’s edit to a bench script can now fail the lint. It is shared machinery, so I left it alone.</p>',
@@ -73,22 +80,24 @@ report = {
   ]},
   'scoreboard': {'intro': facts['scoreboard_intro'], 'items': [
     {'title': 'The branch against main, primary rows (4 pairs)', 'charts': [{'rows': {'change': FINAL, 'only': 'PRIMARY'}, 'caption': 'Branch 4dd4448 against main 0a73938, `--primary`, 4 pairs.'}]},
+    {'title': 'Against the first recorded run (92ce041)', 'charts': [{'rows': {'change': FIRST, 'only': 'PRIMARY'}, 'caption': 'f3a7969 against 92ce041, `--primary`, 3 pairs (the computer rows did not exist then).'}]},
+    {'title': 'The rows that leaned slower, 4 more pairs', 'body': facts['lean_body'], 'charts': [{'rows': {'change': LEAN, 'only': facts['lean_only']}, 'caption': 'Final code against main: cold-load, move latency, selection, 4 pairs.'}]},
     {'title': 'Rechecked on the final commit', 'body': facts['recheck_body'],
      'charts': [{'rows': {'change': RECHECK, 'only': facts['recheck_only']}, 'caption': 'Final commit against main: reopen and cold-load sections, 4 pairs.'}]},
-    {'title': 'The start page’s first click on a first visit', 'body': '<p>Each A/B pair’s first cold load (the preview’s shaders not yet cached by the browser). The row’s rule cannot call a row with two modes; the raw values show the slow mode is gone.</p>',
+    {'title': 'The start page’s first click on a first visit', 'body': '<p>Each A/B pair’s first cold load (the preview’s shaders not yet cached by the browser), four A/Bs. The rule cannot call a row with two modes; the raw values show the slow mode gone, with a slower tail of 1–2 s left on the branch (the demo’s marks still link as they first show, ledger P9).</p>',
      'figure': {'html': first_click, 'caption': 'click at ready → side choice shown, the section’s first load, ms (raw `cold.desktop[0]` of each run; A/Bs v1, final, recheck).'}},
   ]},
   'changed': {'items': [
     {'title': 'A reopened long game’s record comes up a third sooner (d715022, 5eb3bda)',
      'body': '<p>#115’s move history mounted all 2,000 plies as buttons in the reopen’s first commit and read the list’s layout there. Bisected: #115 alone made '
-             '“record shown” 162 → 265 ms (+56%, every pair) and a landing move 5.9 → 11.6 ms, with +6% heap. Now the first render holds the blocks in view '
+             '“record shown” 162 → 265 ms (+56%, every pair), a landing move 5.9 → 11.6 ms and the heap +6%. This run fixes the first of the three; the landing and the heap are still #115’s (next run’s first item: a probe shows the move list’s own landing cost hardly grows with the record, so the time is elsewhere). For “record shown”, the first render now holds the blocks in view '
              '(the last two, the shown move’s) and the rest follows in a deferred render; rows out of view are not laid out. Counted in a unit test '
              '(at most 128 moves listed in the first commit, where it was 2,000).</p>',
      'charts': [{'rows': {'change': BISECT, 'only': 'Reopening a long game · (navigation → record shown|game_state handled|next move: received|long tasks total|JS heap)'}, 'caption': 'The regression: #115 against its parent, 4 pairs.'},
                 {'rows': {'change': FINAL, 'only': 'Reopening a long game · (navigation → record shown|game_state handled|next move: received|long tasks total|JS heap)'}, 'caption': 'The fix: branch against main, 4 pairs.'}]},
     {'title': 'The start page answers a first visit’s click at once (d42c74e)',
-     'body': '<p>The preview linked its shaders inside its first frame; on a first visit (nothing cached) a click on “Play a friend” waited 2.7–3.7 s behind it in software. '
-             'It now links them ahead, the page free meanwhile, as the game’s board already did. The README picture is unchanged (checked pixel by pixel).</p>',
+     'body': '<p>The preview linked its shaders inside its first frame; on a first visit (nothing cached) a click on “Play a friend” waited 2.7–3.7 s behind it in software (13 of 15 pairs). Now never over 2.5 s (median about 0.25 s, worst 2.03 s). '
+             'It links them ahead, the page free meanwhile, as the game’s board already did. The README picture is unchanged (checked pixel by pixel).</p>',
      'figure': {'html': first_click, 'caption': 'First load of each run, ms.'}},
     {'title': 'On a touch screen the history’s steps stay inside their panel (4dd4448)',
      'body': '<p>A phone on its side clipped “Latest” off screen while looking back; a touch laptop ran 6 px past the glass. hudFit.spec now runs a touch case at all 8 sizes.</p>',
@@ -105,13 +114,13 @@ report = {
   ]},
   'removed': {'intro': facts['removed']},
   'rejected': {'items': [
-    {'title': 'The warm-up linking one program at a time, a pick’s first (W1′, with the garden copy left out)',
+    {'title': 'The warm-up linking one program at a time, a pick’s first (W1′; with it, the garden copy left out, W2, not measured alone and back in the ledger)',
      'body': '<p>Meant to stop a quick first pick waiting on the warm-up (2.3–2.6 s in software). It did not help (2.53 → 2.38 s, not called): the pick’s render() is 2–3 ms, '
              'its frame waits on a GPU process busy linking, which no order of links shortens in software. And the warm-up finished later, so play linked programs: '
              '0 → 8 over 16 plies, an opponent’s capture 154 → 710 ms. Dropped before any push.</p>',
      'charts': [{'rows': {'change': V1, 'only': '(Move latency · opponent’s move: sent → first frame, captures|Selecting a piece · first pick: click)'}, 'caption': 'Branch v1 (with W1′) against main, 3 pairs.'}]},
     {'title': 'Smaller', 'body': '<ul><li>Removing <code>ignoreMove</code> (looked unreachable): it is a second guard the review test calls on purpose.</li>'
-             '<li>Saving a computer game after the echo instead of before: both happen in the click’s task, under a millisecond; nothing a player sees moves.</li></ul>'},
+             '<li>Saving a computer game after the echo instead of before: ' + facts['a4'] + '</li></ul>'},
   ]},
   'choices': {'intro': facts['choices']},
   'notConfirmed': {'intro': facts['not_confirmed']},
