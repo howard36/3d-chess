@@ -7,6 +7,13 @@ import type { GlidePlan } from './glide';
 import { GlideContext } from './pieceMotion';
 
 /**
+ * What marks a glide's group (Board finds it by it): one object, so r3f is
+ * handed the same prop each render and asks for no frame (a new literal is a
+ * new prop, and a frame drawn for nothing)
+ */
+const GLIDE_DATA = { moveGlide: true };
+
+/**
  * Glides its children from the move's source cell into their resting place
  * along the plan (planGlide): a straight line, eased, the piece rigid.
  *
@@ -91,7 +98,7 @@ export const MoveGlide = ({
   });
 
   return (
-    <group ref={group} userData={{ moveGlide: true }}>
+    <group ref={group} userData={GLIDE_DATA}>
       <GlideContext.Provider value={glide}>{children}</GlideContext.Provider>
     </group>
   );
@@ -125,7 +132,7 @@ export const Reveal = ({ afterMs, children }: { afterMs: number; children: React
   });
 
   return (
-    <group ref={group} userData={{ moveGlide: true }}>
+    <group ref={group} userData={GLIDE_DATA}>
       {children}
     </group>
   );
