@@ -1,6 +1,6 @@
 {
  "heading": "A long game reopens a third sooner, a first visit’s first click no longer waits 3 s, and the benchmark now catches count regressions",
- "pr": "",
+ "pr": ", PR <a href=\"https://github.com/howard36/3d-chess/pull/120\">howard36/3d-chess#120</a> (open, not merged)",
  "end": "07:45",
  "recheck_change": "recheck on f3a7969: reopen + cold-load, 4 pairs",
  "recheck_only": "(Reopening a long game · (navigation → record shown|game_state handled|long tasks total|next move: received)|Cold load of the start screen · desktop · (create button enabled|click at ready))",

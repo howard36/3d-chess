@@ -2,7 +2,7 @@
  "title": "Perf run 20261011-0531",
  "eyebrow": "3D chess · perf-iteration · run 20261011-0531",
  "heading": "A long game reopens a third sooner, a first visit’s first click no longer waits 3 s, and the benchmark now catches count regressions",
- "meta": "Base <code>0a73938</code> (main) → branch <code>improve/20261011-0531</code> · 2026-10-11 05:31–07:45Z · headless Chromium 141, SwiftShader, 4 vCPU · every timing is an interleaved A/B (each pair base and head run back to back); a change is <em>called</em> only when every pair agrees and it beats 5% and the pairs’ spread.",
+ "meta": "Base <code>0a73938</code> (main) → branch <code>improve/20261011-0531</code>, PR <a href=\"https://github.com/howard36/3d-chess/pull/120\">howard36/3d-chess#120</a> (open, not merged) · 2026-10-11 05:31–07:45Z · headless Chromium 141, SwiftShader, 4 vCPU · every timing is an interleaved A/B (each pair base and head run back to back); a change is <em>called</em> only when every pair agrees and it beats 5% and the pairs’ spread.",
  "needs": {
   "items": [
    {
