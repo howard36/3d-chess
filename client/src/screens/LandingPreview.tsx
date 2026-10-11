@@ -13,7 +13,7 @@ import { DEMO_GAME, demoFrame, demoLog } from '../game/demo';
 import type { DemoFrame } from '../game/demo';
 import { deriveHistory } from '../game/history';
 import type { GameHistory } from '../game/history';
-import { setUpRenderer } from '../three/rendererSetup';
+import { linkBeforeFirstFrame, setUpRenderer } from '../three/rendererSetup';
 import { pointerEvents } from '../three/pointerEvents';
 
 /** The longest step one frame may advance the demo: a background tab resumes it, never skips it. */
@@ -110,7 +110,12 @@ export function LandingPreview({ still }: { still: boolean }) {
         // The turn and the demo ask for their own frames; still, the preview
         // draws only when something changes
         frameloop="demand"
-        onCreated={setUpRenderer}
+        // Its programs linked before its first frame, the page free meanwhile:
+        // a click on the page never waits on the preview's shaders
+        onCreated={(state) => {
+          setUpRenderer(state);
+          linkBeforeFirstFrame(state);
+        }}
         // The page may be left before the first commit: never connect to a gone container
         events={pointerEvents}
       >
