@@ -746,6 +746,10 @@ body {
   align-items: center;
   column-gap: 2px;
   min-height: 24px;
+  /* A row out of the list's view is not laid out or drawn, its height
+     kept (a reopened game's record is thousands of rows) */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 24px;
   /* The move's number, a bare text node: its own column */
   color: var(--hud-muted);
   font-size: 11px;
@@ -975,6 +979,7 @@ body {
   }
   .hud-moves li {
     min-height: 32px;
+    contain-intrinsic-size: auto 32px;
   }
   .hud-ply {
     height: 30px;
