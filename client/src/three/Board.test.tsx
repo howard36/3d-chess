@@ -922,6 +922,38 @@ describe('Board', () => {
       expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(TO, 'white')]);
     });
 
+    it('draws no frame for a render that changes nothing, once a move has glided in', async () => {
+      const invalidate = vi.fn();
+      const Probe = () => {
+        const get = useThree((s) => s.get);
+        React.useLayoutEffect(() => {
+          get().set({ invalidate });
+        }, [get]);
+        return null;
+      };
+      const after = boardAfterMove();
+      const at = (disabled: boolean) => (
+        <>
+          <Probe />
+          <Board board={after} currentTurn="black" lastMove={lastMove(1)} disabled={disabled} />
+        </>
+      );
+      const renderer = await ReactThreeTestRenderer.create(
+        <>
+          <Probe />
+          <Board board={boardBeforeMove()} currentTurn="white" />
+        </>,
+      );
+      await renderer.update(at(false));
+      expect(glideGroups(renderer)).toHaveLength(1);
+      await act(async () => {
+        await renderer.advanceFrames(80, 0.01);
+      });
+      invalidate.mockClear();
+      await renderer.update(at(true));
+      expect(invalidate).not.toHaveBeenCalled();
+    });
+
     it('skips the glide and the capture effect when the player prefers reduced motion', async () => {
       // jsdom has no matchMedia to spy on: lend the window one for the test
       const matchMedia = window.matchMedia;
@@ -1151,7 +1183,7 @@ describe('Board', () => {
         await act(async () => {
           await renderer.advanceFrames(80, 0.01);
         });
-        expect(offset(renderer).x).toBe(0);
+        for (const axis of ['x', 'y', 'z'] as const) expect(offset(renderer)[axis]).toBeCloseTo(0);
         // On again: it glides again
         await renderer.update(
           <Board board={rookBoard(NEXT)} currentTurn="white" lastMove={nextMove(2)} review />,

@@ -70,7 +70,11 @@ for (const line of text.split('\n')) {
     unit: (pb ?? ph).unit,
     baseValue: pb?.value ?? null,
     headValue: ph?.value ?? null,
-    pairs: pairs ? pairs.split(/\s+/).map(Number) : [],
+    // Ratios are printed to two decimals; a count judged by its pairs'
+    // differences (a side at 0) prints whole numbers, kept apart
+    ...(pairs && !pairs.split(/\s+/).every((t) => t.includes('.'))
+      ? { pairs: [], pairDiffs: pairs.split(/\s+/).map(Number) }
+      : { pairs: pairs ? pairs.split(/\s+/).map(Number) : [] }),
     verdict: verdict.replace(/\*/g, '') || 'unchanged',
     source: basename(file),
   };

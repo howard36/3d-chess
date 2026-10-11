@@ -1,8 +1,17 @@
+import { Profiler } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as review from '../game/review';
 import type { MoveRecord } from '../types/messages';
 import MoveHistory from './MoveHistory';
+
+// Spied on, to count the moves a render lists
+vi.mock('../game/review', async (actual) => {
+  const real = await actual<typeof import('../game/review')>();
+  return { ...real, formatMove: vi.fn(real.formatMove) };
+});
+const formatted = vi.mocked(review.formatMove);
 import type { MoveHistoryProps } from './MoveHistory';
 
 const SHUFFLE: MoveRecord[] = [
@@ -69,7 +78,7 @@ describe('the move list', () => {
   });
 
   it('keeps a row to three nodes, one text node each', () => {
-    // A reopened long game mounts its whole record at once: the number,
+    // A reopened long game mounts every row of its record: the number,
     // then each move a button holding its text, and nothing else
     render(history({ moves: record(3) }));
     const [full, half] = screen.getByTestId('move-list').querySelectorAll('li');
@@ -92,6 +101,21 @@ describe('the move list', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it('shows a long record first in the block in view, the whole of it a render later', () => {
+    // A reopened game of 2,000 moves: its record comes up without waiting on 2,000 buttons
+    const moves = record(2000);
+    const commits: number[] = [];
+    formatted.mockClear();
+    render(
+      <Profiler id="history" onRender={() => commits.push(formatted.mock.calls.length)}>
+        {history({ moves })}
+      </Profiler>,
+    );
+    expect(commits[0]).toBeLessThanOrEqual(128);
+    expect(rows()).toHaveLength(1000);
+    expect(rows()[999]).toBe('1000. Aa3–Ab1 Ee3–Ed5');
+  });
+
   it('keeps each row as a move lands, and redraws only the last block', () => {
     const moves = record(129);
     const { rerender } = render(history({ moves }));
@@ -105,6 +129,10 @@ describe('the move list', () => {
     expect(after[64].textContent).toBe('65. Ab1–Aa3 Ed5–Ee3');
     // An earlier block's text nodes were not touched
     expect(after[0].querySelector('button')!.firstChild).toBe(firstText);
+    // ...nor rendered again: the landing listed the last block's moves only
+    formatted.mockClear();
+    rerender(history({ moves: [...moves, ...record(2)] }));
+    expect(formatted.mock.calls.length).toBeLessThanOrEqual(3);
     // A record replaced (a reconnect's snapshot) lists anew
     rerender(history({ moves: record(129).map((m) => ({ ...m, promotion: undefined })) }));
     expect(rows()).toHaveLength(65);

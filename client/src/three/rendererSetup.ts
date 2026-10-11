@@ -19,8 +19,8 @@ import { afterGpu, linkAhead } from './scene/programs';
  *   software). Asked here, before anything is queued, they cost next to
  *   nothing, and three.js remembers the answers.
  *
- * The game's board also links its first frame's programs ahead of it
- * (linkBeforeFirstFrame).
+ * The game's board and the start page's preview also link their first
+ * frame's programs ahead of it (linkBeforeFirstFrame).
  */
 export const setUpRenderer = ({ gl }: Pick<RootState, 'gl'>) => {
   gl.debug.checkShaderErrors = import.meta.env.DEV;
@@ -42,10 +42,11 @@ export const setUpRenderer = ({ gl }: Pick<RootState, 'gl'>) => {
  * when the waiting happens: the first frame is the same picture, drawn when
  * the GPU is ready for it (the entrance starts from it, on r3f's clock). A
  * program it needs that the scene did not foresee is linked in it, as before.
- * The game's board only (GameCanvas): its page shows the HUD and the record
- * before the board by design, and its entrance fades the board up from the
- * dark from that frame on; the lobby's words, by contrast, come in with
- * their canvas's first frame, which a page left free would show first.
+ * The game's board (GameCanvas), whose page shows the HUD and the record
+ * before the board by design, its entrance fading the board up from the
+ * dark from that frame on, and the start page's preview, which nothing on
+ * the page waits for; not the lobby, whose words come in with their
+ * canvas's first frame, which a page left free would show first.
  */
 export const linkBeforeFirstFrame = ({
   gl,

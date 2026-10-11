@@ -1094,7 +1094,7 @@ async function coldSection(browser) {
     'cold-load',
     {
       title: 'Cold load of the start screen',
-      intro: `A first visit: a fresh browser context (empty cache) opens \`/\` until the “Play a friend” button is enabled and the socket to the server is open (“ready”), then clicks the button at once, until the side choice shows, ${CFG.coldRuns} runs per case. Desktop is ${VIEWPORTS.desktop.label}, phone ${VIEWPORTS.phone.label}; the third case models a mid-range phone on a mobile network: DevTools’ 4× CPU throttling and its “Fast 4G” preset (165 ms RTT, 8.1 Mbit/s down). Served from localhost by \`vite preview\` (gzip); nothing here draws WebGL.`,
+      intro: `A first visit: a fresh browser context (empty cache) opens \`/\` until the “Play a friend” button is enabled and the socket to the server is open (“ready”), then clicks the button at once, until the side choice shows, ${CFG.coldRuns} runs per case. Desktop is ${VIEWPORTS.desktop.label}, phone ${VIEWPORTS.phone.label}; the third case models a mid-range phone on a mobile network: DevTools’ 4× CPU throttling and its “Fast 4G” preset (165 ms RTT, 8.1 Mbit/s down). Served from localhost by \`vite preview\` (gzip); the start page’s preview draws behind it as it loads.`,
       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
       align: ['l', 'l', 'r', 'r', 'r', 'r'],
       timeoutMs: QUICK ? 120000 : 300000,
@@ -1189,6 +1189,14 @@ async function coldSection(browser) {
           const [row, m] = stat(label, col(k));
           sec.add([i === 0 ? `**${c.label}**` : '', ...row], m, `${c.label} · ${label}`);
         });
+        // The section's first load meets the start page's preview programs
+        // uncached (the browser's GPU process caches them for the loads
+        // after it): a player's first visit, which the median above hides
+        if (c === cases[0]) {
+          const label = 'first load: click at ready → side choice shown';
+          const [row, m] = stat(label, [runs[0].clickToChoice]);
+          sec.add(['', ...row], m, `${c.label} · ${label}`);
+        }
         sec.add(
           [
             '',
@@ -1203,7 +1211,7 @@ async function coldSection(browser) {
         );
       }
       sec.notes.push(
-        'Times are from navigation start. “ready” is the later of the button enabled and the socket open; “main-thread script” is Chromium’s ScriptDuration (CDP Performance metrics) until then, throttled time under 4× CPU. DevTools network emulation delays response bodies, not headers, hence “HTML received” (responseEnd) rather than TTFB. The browser has already drawn a board (the warm-up), and the cases take turns.',
+        'Times are from navigation start. “ready” is the later of the button enabled and the socket open; “main-thread script” is Chromium’s ScriptDuration (CDP Performance metrics) until then, throttled time under 4× CPU. DevTools network emulation delays response bodies, not headers, hence “HTML received” (responseEnd) rather than TTFB. The browser has already drawn a board (the warm-up), and the cases take turns; the first load still meets the start page’s own shader programs uncached (“first load”).',
       );
     },
   );
@@ -1872,7 +1880,10 @@ async function selectSection(browser) {
         const zxy = squares[i % squares.length];
         const at = await squarePixel(page, zxy);
         if (!at) throw new Error(`no pixel reaches ${zxy}`);
-        const t = await page.evaluate(() => window.__benchNow());
+        const [t, warm] = await page.evaluate(() => [
+          window.__benchNow(),
+          document.querySelector('canvas')?.dataset.warm === 'done',
+        ]);
         await page.mouse.click(at.x, at.y);
         await waitFrameAfter(page, t);
         await quietMain(page);
@@ -1881,6 +1892,8 @@ async function selectSection(browser) {
         const drawn = frame ? frame[0] + frame[1] : 0;
         picks.push(
           frame && {
+            // The game's warm-up (WarmPrograms) was over at the click
+            warm,
             frame: drawn - t,
             render: frame[1],
             mode: frame[2],
@@ -1958,6 +1971,22 @@ async function selectSection(browser) {
           'the entrance and the warm-up, to rest',
         ),
         stat('click → first frame with the piece held', col('frame'), 'what the player sees'),
+        stat(
+          'first pick: click → first frame with the piece held',
+          picks
+            .slice(0, 1)
+            .filter(Boolean)
+            .map((p) => p.frame),
+          'a player quick off the mark: the first pick once the entrance is over, often before the shader warm-up is done',
+        ),
+        countStat(
+          'first pick made while the warm-up was under way',
+          picks
+            .slice(0, 1)
+            .filter(Boolean)
+            .map((p) => (p.warm ? 0 : 1)),
+          'count; 1 when the first pick met the warm-up',
+        ),
         stat('that frame’s render() call', col('render'), 'main thread'),
         stat('longest task, click → frame', col('longest')),
         countStat('shader programs linked, click → frame', col('links'), 'count'),

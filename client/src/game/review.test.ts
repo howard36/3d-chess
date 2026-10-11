@@ -75,9 +75,13 @@ describe('reviewLine', () => {
 
   it('starts again for a record that is not the old one carried on', () => {
     const line = reviewLine(deriveHistory([snapshot(GAME.slice(0, 3))]));
-    // A reconnect's snapshot: the same moves, new records
-    const again = reviewLine(deriveHistory([snapshot(recordsOf(['Ae2-Db5', 'Ec4-Bc1']))]), line);
-    expect(again.positions).toHaveLength(3);
+    // A reconnect's snapshot: the same moves, as many, new records
+    const again = reviewLine(
+      deriveHistory([snapshot(GAME.slice(0, 3).map((r) => ({ ...r })))]),
+      line,
+    );
+    expect(again.positions).toHaveLength(4);
+    expect(again).not.toBe(line);
     expect(again.positions[0]).not.toBe(line.positions[0]);
   });
 

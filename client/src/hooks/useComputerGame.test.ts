@@ -121,6 +121,7 @@ it('holds its move while asked to', async () => {
 });
 
 it('plays a legal move of its own when its search fails or answers nothing', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
   for (const answer of ['fail', null] as const) {
     localStorage.clear();
     newGame('black', 'g2');
@@ -130,6 +131,9 @@ it('plays a legal move of its own when its search fails or answers nothing', asy
     expect(result.current.messages[2]).toMatchObject({ type: 'move_made', by: 'white' });
     unmount();
   }
+  // A failed search says so; an empty answer (no move to make) is no failure
+  expect(error).toHaveBeenCalledOnce();
+  error.mockRestore();
 });
 
 it('waits out the computer’s thinking time before its move lands', async () => {

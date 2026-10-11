@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint . && prettier --check .",
+    "lint": "eslint . && prettier --check . ../bench/*.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "e2e": "playwright test",

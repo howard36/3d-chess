@@ -117,7 +117,11 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
         if (live && gameRef.current === game) apply(computerMove(game, chosen));
       }, wait);
     };
-    computerRef.current.think(game.moves, game.difficulty).then(play, () => play(null));
+    computerRef.current.think(game.moves, game.difficulty).then(play, (cause) => {
+      // The game goes on, with a move of no thought at all: say why
+      console.error('The computer could not think; it plays its first legal move.', cause);
+      play(null);
+    });
     return () => {
       live = false;
       if (timer !== undefined) window.clearTimeout(timer);

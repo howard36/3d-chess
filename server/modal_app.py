@@ -1,6 +1,7 @@
 import logging
 import os
 import random
+import re
 import string
 
 import fastapi
@@ -132,6 +133,18 @@ class GameError(Exception):
 # access pattern.
 
 
+# A game id as create_game makes them. Any other names no game and is never
+# looked up: the id comes from the link, and a long one would go to the
+# store as a long key, every game on the server waiting on that call
+GAME_ID_CHARS = string.ascii_uppercase + string.digits
+GAME_ID = re.compile(f"[{GAME_ID_CHARS}]{{6}}")
+
+
+def _stored(store, gid: str) -> dict | None:
+    """The record of `gid`, or None for an id create_game would never make."""
+    return store.get(gid) if GAME_ID.fullmatch(gid) else None
+
+
 def create_game(store, client_id: str | None = None, color: str | None = None) -> tuple[str, str]:
     """Create a game with one seat claimed; return (game id, creator's color).
 
@@ -140,7 +153,7 @@ def create_game(store, client_id: str | None = None, color: str | None = None) -
     seat's claimant (see claim_seat).
     """
     while True:
-        gid = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        gid = "".join(random.choices(GAME_ID_CHARS, k=6))
         if gid not in store:
             break
     # Creator can be white or black, but white always moves first
@@ -162,7 +175,7 @@ def claim_seat(store, gid: str, client_id: str | None = None) -> tuple[str, bool
     seat again (with True), so a tab whose game_joined was lost to a drop can
     simply re-send its join instead of being told "Game full" by its own claim.
     """
-    record = store.get(gid)
+    record = _stored(store, gid)
     if record is None:
         raise GameError(ErrorCode.invalid_game, "Cannot join")
     claimants = record.get("claimants", {})
@@ -182,7 +195,7 @@ def claim_seat(store, gid: str, client_id: str | None = None) -> tuple[str, bool
 
 def taken_seats(store, gid: str) -> list[str]:
     """Return the seats claimed in `gid` (read-only)."""
-    record = store.get(gid)
+    record = _stored(store, gid)
     if record is None:
         raise GameError(ErrorCode.invalid_game, "No such game")
     return list(record["seats"])
@@ -190,7 +203,7 @@ def taken_seats(store, gid: str) -> list[str]:
 
 def find_seat(store, gid: str, color: str) -> dict:
     """Return the record of `gid` if `color` holds a seat in it (read-only)."""
-    record = store.get(gid)
+    record = _stored(store, gid)
     if record is None:
         raise GameError(ErrorCode.invalid_game, "Cannot rejoin")
     if color not in record["seats"]:

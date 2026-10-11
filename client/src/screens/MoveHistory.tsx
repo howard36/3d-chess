@@ -84,7 +84,8 @@ const MoveBlock = React.memo(
     for (let i = start; i < Math.min(moves.length, start + BLOCK); i += 2) {
       // Three nodes a row and one text node each (the number, then the
       // moves), no wrappers or spacers: a reopened game of thousands of
-      // moves mounts its whole record at once. It reads "1. Bb1–Cb1 Dd5–Cd5".
+      // moves mounts its whole record, a render after the blocks in view
+      // (`whole`, below). It reads "1. Bb1–Cb1 Dd5–Cd5".
       rows.push(
         <li key={i / 2 + 1}>
           {`${i / 2 + 1}. `}
@@ -197,6 +198,12 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [step]);
 
+  // The blocks in view (the last two, and the shown move's) on the first
+  // render, the whole record in the render after it: a reopened game of
+  // thousands of moves shows its record without waiting on the list's
+  // thousands of buttons, which come a moment later (a deferred render), above
+  const whole = React.useDeferredValue(true, false);
+
   // The shown move kept in view in the list (the latest, as moves land),
   // and focus kept on it while it is in the list
   const list = React.useRef<HTMLOListElement>(null);
@@ -217,10 +224,12 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       ol.scrollTop = top + button.offsetHeight + pad - ol.clientHeight;
     }
     if (ol.contains(document.activeElement) && document.activeElement !== button) button.focus();
-  }, [shown, moves.length, open]);
+  }, [shown, moves.length, open, whole]);
 
   const blocks = [];
   for (let start = 0; start < moves.length; start += BLOCK) {
+    const inView = start + 2 * BLOCK >= moves.length || (shown > start && shown <= start + BLOCK);
+    if (!whole && !inView) continue;
     blocks.push(
       <MoveBlock
         key={start}

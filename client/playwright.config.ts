@@ -43,6 +43,8 @@ export default defineConfig({
   // HTML report the workflow uploads on failure (the default reporter never
   // writes playwright-report/), with a trace of each failed test (below).
   retries: 0,
+  // A `test.only` left in would run that one test and pass the job
+  forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? [['dot'], ['html', { open: 'never' }]] : 'list',
   // Start the websocket backend locally (no Modal deploy needed) and the Vite
   // dev server before running the tests. Export VITE_WS_URL to point the app

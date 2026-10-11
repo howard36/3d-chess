@@ -746,6 +746,10 @@ body {
   align-items: center;
   column-gap: 2px;
   min-height: 24px;
+  /* A row out of the list's view is not laid out or drawn, its height
+     kept (a reopened game's record is thousands of rows) */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 24px;
   /* The move's number, a bare text node: its own column */
   color: var(--hud-muted);
   font-size: 11px;
@@ -975,9 +979,37 @@ body {
   }
   .hud-moves li {
     min-height: 32px;
+    contain-intrinsic-size: auto 32px;
   }
   .hud-ply {
     height: 30px;
+  }
+}
+/* A touch screen with the panel beside the tower: the fingertip-wide steps
+   share the panel's width with the way back, which keeps its name... */
+@media (pointer: coarse) {
+  @media not ((max-aspect-ratio: 13/9) and (min-height: 481px)) {
+    .hud-step,
+    .hud-latest {
+      flex: 1 1 0;
+      width: auto;
+      min-width: 0;
+    }
+    .hud-history[data-review] .hud-latest {
+      flex: none;
+    }
+  }
+}
+/* ...but for a phone on its side, which has no room for it */
+@media (max-height: 480px) and (pointer: coarse) {
+  .hud-history[data-review] .hud-latest {
+    flex: 1 1 0;
+  }
+  .hud-history[data-review] .hud-step[data-step='latest'] {
+    padding: 0;
+  }
+  .hud-history[data-review] .hud-step-name {
+    display: none;
   }
 }
 

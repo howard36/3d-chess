@@ -14,7 +14,7 @@ import inspect
 import pytest
 
 import modal_app
-from messages import Move, Promotion
+from messages import ErrorCode, Move, Promotion
 from modal_app import (
     STORE_OPERATIONS,
     GameError,
@@ -63,6 +63,28 @@ def test_create_game_never_reuses_an_id(monkeypatch):
     monkeypatch.setattr(modal_app.random, "choices", lambda *a, **k: list(next(ids)))
     gid, _ = create_game(store)
     assert gid == "BBBBBB"
+
+
+def test_an_id_create_game_would_never_make_is_never_looked_up():
+    class Watched(dict):
+        def get(self, key, default=None):
+            raise AssertionError(f"looked up {key[:20]!r}")
+
+    store = Watched()
+    for gid in ["x" * 1_000_000, "abcdef", "ABCDE", "ABCDEFG", "ABC-DE"]:
+        for op in (claim_seat, taken_seats):
+            with pytest.raises(GameError) as refused:
+                op(store, gid)
+            assert refused.value.code == ErrorCode.invalid_game
+        with pytest.raises(GameError):
+            find_seat(store, gid, "white")
+
+
+def test_create_game_makes_ids_of_the_shape_looked_up():
+    store = {}
+    for _ in range(50):
+        gid, _ = create_game(store)
+        assert modal_app.GAME_ID.fullmatch(gid)
 
 
 def test_claim_seat_takes_the_free_color(white_creator):
