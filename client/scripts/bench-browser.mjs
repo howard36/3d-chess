@@ -1094,7 +1094,7 @@ async function coldSection(browser) {
     'cold-load',
     {
       title: 'Cold load of the start screen',
-      intro: `A first visit: a fresh browser context (empty cache) opens \`/\` until the “Play a friend” button is enabled and the socket to the server is open (“ready”), then clicks the button at once, until the side choice shows, ${CFG.coldRuns} runs per case. Desktop is ${VIEWPORTS.desktop.label}, phone ${VIEWPORTS.phone.label}; the third case models a mid-range phone on a mobile network: DevTools’ 4× CPU throttling and its “Fast 4G” preset (165 ms RTT, 8.1 Mbit/s down). Served from localhost by \`vite preview\` (gzip); nothing here draws WebGL.`,
+      intro: `A first visit: a fresh browser context (empty cache) opens \`/\` until the “Play a friend” button is enabled and the socket to the server is open (“ready”), then clicks the button at once, until the side choice shows, ${CFG.coldRuns} runs per case. Desktop is ${VIEWPORTS.desktop.label}, phone ${VIEWPORTS.phone.label}; the third case models a mid-range phone on a mobile network: DevTools’ 4× CPU throttling and its “Fast 4G” preset (165 ms RTT, 8.1 Mbit/s down). Served from localhost by \`vite preview\` (gzip); the start page’s preview draws behind it as it loads.`,
       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
       align: ['l', 'l', 'r', 'r', 'r', 'r'],
       timeoutMs: QUICK ? 120000 : 300000,
@@ -1973,12 +1973,18 @@ async function selectSection(browser) {
         stat('click → first frame with the piece held', col('frame'), 'what the player sees'),
         stat(
           'first pick: click → first frame with the piece held',
-          timed.slice(0, 1).map((p) => p.frame),
+          picks
+            .slice(0, 1)
+            .filter(Boolean)
+            .map((p) => p.frame),
           'a player quick off the mark: the first pick once the entrance is over, often before the shader warm-up is done',
         ),
         countStat(
           'first pick made while the warm-up was under way',
-          timed.slice(0, 1).map((p) => (p.warm ? 0 : 1)),
+          picks
+            .slice(0, 1)
+            .filter(Boolean)
+            .map((p) => (p.warm ? 0 : 1)),
           'count; 1 when the first pick met the warm-up',
         ),
         stat('that frame’s render() call', col('render'), 'main thread'),
