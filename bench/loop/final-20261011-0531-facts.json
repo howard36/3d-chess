@@ -1,0 +1,75 @@
+{
+ "heading": "A long game reopens a third sooner, a first visit’s first click no longer waits 3 s, and the benchmark now catches count regressions",
+ "pr": "",
+ "end": "07:45",
+ "recheck_change": "recheck on f3a7969: reopen + cold-load, 4 pairs",
+ "recheck_only": "(Reopening a long game · (navigation → record shown|game_state handled|long tasks total|next move: received)|Cold load of the start screen · desktop · (create button enabled|click at ready))",
+ "recheck_body": "<p>The commits after the 4-pair A/B changed the move list (the last two blocks first) and comments, so the two sections behind the headline results were run again on the final commit (f3a7969), 4 more pairs: reopen “record shown” 261 → 178 ms (−28%, every pair faster, 0.67 0.93 0.78 0.54; not called only because one pair was 0.93), “game_state handled → record shown” −37% and long tasks to ready −14%, both called better. Start page usable +5.1% there (1.02 1.06 1.14 0.99, not called) and −0.2% in the A/B before it: noise.</p>",
+ "first_click_rows": [
+  [
+   "v1 · 1",
+   "2,900",
+   "258"
+  ],
+  [
+   "v1 · 2",
+   "3,146",
+   "1,085"
+  ],
+  [
+   "v1 · 3",
+   "2,670",
+   "8"
+  ],
+  [
+   "final · 1",
+   "3,171",
+   "254"
+  ],
+  [
+   "final · 2",
+   "2,676",
+   "186"
+  ],
+  [
+   "final · 3",
+   "3,732",
+   "13"
+  ],
+  [
+   "final · 4",
+   "10",
+   "59"
+  ],
+  [
+   "recheck · 1",
+   "60",
+   "10"
+  ],
+  [
+   "recheck · 2",
+   "3,072",
+   "250"
+  ],
+  [
+   "recheck · 3",
+   "2,858",
+   "249"
+  ],
+  [
+   "recheck · 4",
+   "3,749",
+   "9"
+  ],
+  [
+   "<strong>slow mode (&gt; 2.5 s)</strong>",
+   "<strong>9 of 11</strong>",
+   "<strong>0 of 11</strong>"
+  ]
+ ],
+ "scoreboard_intro": "<p>Against main, over 4 interleaved pairs of every primary row, the branch runs at ×1.045 main’s speed, with nothing called slower. The rows this run changed: reopening a 2,000-ply game −19% (−28% on the final commit, every pair faster), and the start page’s first click on a first visit, which the primary row (a median of 5 loads) cannot see: 2.7–3.7 s on main in 9 of 11 pairs, never over 1.1 s on the branch. Selection and moves did not move (the warm-up change aimed at the first pick was rejected). The target (primary rows 1.2× the first recorded run, 92ce041) is not measured: the suite’s rows have changed definition since then (the long game, then #116’s rows), so that series cannot be extended.</p>",
+ "removed": "<ul><li><code>GameHistory.boardBefore</code>, kept only to rebuild the last move (−12 lines in history.ts).</li><li>Over the run, app code: client +75 −29 non-test (the touch layout’s CSS ~30 of it, comments much of the rest), server +17 −4; tests and e2e +150; bench and build +90. No dependency added or removed; one config file moved (<code>.prettierrc</code> to the root).</li></ul>",
+ "choices": "<ul><li>Fixed #115’s regression (an upstream change, the project’s code) before anything else, once bisected.</li><li>Dropped my own W1′ commit from the unpushed branch (rebuilt history) when its A/B showed play linking programs, instead of reverting it in a new commit.</li><li>Guarded game ids on the server only (the store operations) rather than adding a pattern to <code>schema.json</code>: no protocol change, no regenerated types, the client sees the same <code>invalid_game</code>.</li><li>Moved <code>client/.prettierrc</code> to the repo root and added <code>bench/*.mjs</code> to the lint (and one sentence of CLAUDE.md), after my own formatting slip.</li><li>On a phone held sideways, dropped “Latest”’s name while reviewing (Needs from me: taste).</li><li>Logged the computer’s failures to the console rather than adding words on screen (Needs from me).</li><li>Ran 11 lens reviewers (skipped “what’s new” and “dependencies”: nothing changed since they ran two days ago) and 3 diff reviewers (client; bench, server and CI; invariants and docs) rather than one per lens on the diff.</li><li>Fixed <code>readme-image.mjs</code>’s race though it did not reproduce here.</li></ul>",
+ "not_confirmed": "<ul><li>The target against the first recorded run (series changed, see Scoreboard).</li><li>Real phones and GPUs: everything is SwiftShader on a 4-core VM. The first-visit click is a GPU-cache effect; on a real GPU the links are far shorter, so the gain there is smaller, unmeasured.</li><li>The glide marker’s saved frames have no bench row (a unit test counts them: 1 → 0).</li><li>The first-visit click is not <em>called</em> by the A/B rule (two modes); the raw table is the evidence.</li><li>The README image race: reasoned by two reviewers, not reproduced; the script now waits for the canvas’s first draw, and its picture matches main’s.</li><li>The touch layout on a real device (rendered in Chromium with a touch pointer only).</li></ul>",
+ "next": "<ol><li>W1, by another road: the first pick waits on a GPU busy linking (2.3–2.6 s in software), not on the order of links. Link the selection’s programs before the entrance ends (in the lobby, or under the entrance’s dark), measured with the new first-pick row.</li><li>P9: the start page’s preview links the demo’s marks mid-demo (a first-visit click still met up to 1.1 s once): warm them as the game does.</li><li>L1/J1: the lobby’s post-pick links (the creator’s share link, the joiner’s first frame, 5–6 s in software).</li><li>V5/I1: a half-open socket after a phone wakes, and endless “Reconnecting” on a server error (needs words on screen).</li><li>E8: the format hook for <code>bench/*.mjs</code> (proposed above).</li><li>C9: a test that the lobby’s camera hands over on exactly the game’s first pose.</li></ol>"
+}
