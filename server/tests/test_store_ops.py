@@ -32,7 +32,7 @@ from modal_app import (
 
 @pytest.fixture()
 def white_creator(monkeypatch):
-    monkeypatch.setattr(modal_app.random, "choice", lambda seq: "white")
+    monkeypatch.setattr(modal_app._rng, "choice", lambda seq: "white")
 
 
 def move(frm, to, promotion=None):
@@ -60,7 +60,7 @@ def test_create_game_gives_the_creator_the_side_asked_for(white_creator):
 def test_create_game_never_reuses_an_id(monkeypatch):
     store = {"AAAAAA": {"seats": ["white"], "moves": []}}
     ids = iter(["AAAAAA", "BBBBBB"])
-    monkeypatch.setattr(modal_app.random, "choices", lambda *a, **k: list(next(ids)))
+    monkeypatch.setattr(modal_app._rng, "choices", lambda *a, **k: list(next(ids)))
     gid, _ = create_game(store)
     assert gid == "BBBBBB"
 
