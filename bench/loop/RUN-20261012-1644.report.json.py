@@ -37,6 +37,12 @@ report = {
              '<p>It bundles a server change (SystemRandom ids, one server test), bench and lint changes with the client work; CLAUDE.md asks for one logical change per PR.</p>',
      'charts': [{'rows': {'change': FINAL, 'only': 'PRIMARY'}, 'caption': facts['final_caption']}],
      'recommend': 'Let me split it before merging: the server pair (26bae12, 3016c9b), the checks and lint (df8083c, 8a020e8, 1aa90ee, a446a69, c023ab5, ab48319, e5759d9, 8311a5b), and the client fixes (8b968ce, 924cb6f, 5317469, f6e8215) as three PRs. Or squash-merge as is, as the last runs were.'},
+    {'title': 'Keep the one-frame warm-up although selection leans slower?',
+     'body': '<p>The one-frame warm-up (924cb6f) removes 11 lines and twelve whole-scene frames; the first pick leaned faster (7 of 8 pairs). The primary “Selecting a piece” row (median of 8 picks) leaned slower in each of its three A/Bs: +12%, +2.7%, +5.4%, none called, with pairs ranging 0.52–1.95. The run’s rule is never more than 3% slower; the evidence neither clears it nor shows a cost. A mechanism for a slower median is not obvious (the warm-up ends sooner, not later), but I did not prove there is none.</p>',
+     'charts': [{'rows': {'change': WF, 'only': 'Selecting a piece · (click → first frame with the piece held|first pick: click)'}, 'caption': 'WF against main, 4 pairs (select + move latency + computer).'},
+                {'rows': {'change': WFS, 'only': 'Selecting a piece · (click → first frame with the piece held|first pick: click)'}, 'caption': 'WF against main, select alone, 4 more pairs.'},
+                {'rows': {'change': FINAL, 'only': 'Selecting a piece · (click → first frame with the piece held|first pick: click)'}, 'caption': 'The final commit against main, 3 pairs.'}],
+     'recommend': 'Keep it, and let the next run settle it first with an A/A of the select section (its spread) and 6 pairs. If you would rather hold the 3% rule strictly now, revert 924cb6f alone; nothing else depends on it.'},
     {'title': 'The first-pick fix moves the warm-up’s cost rather than removing it: take it anyway? (reverted, patch kept)',
      'body': '<p>In software rendering the warm-up of the marks of play costs about 2 s of GPU time, and it lands on whatever the player does first after the entrance: on main, the first pick (about 2.4 s). '
              'W1b linked those programs under the entrance and read them back once the board rested. The first pick dropped to 0.8–1.05 s (called better in three A/Bs), but the second and third picks and the computer’s second reply each waited about 0.3 s more, '
@@ -67,7 +73,7 @@ report = {
   ]},
   'changed': {'items': [
     {'title': 'The warm-up draws its marks in one frame, not thirteen (924cb6f)',
-     'body': '<p>Since the warm-up links every program ahead, drawing a warm object links nothing: each of the twelve frames after the first only drew the whole scene again, a frame of GPU time each in software, while the first pick of a game waited behind them. −11 lines. The first pick leaned faster in 7 of 8 pairs (−9% and −23%, not called); nothing else moved.</p>',
+     'body': '<p>Since the warm-up links every program ahead, drawing a warm object links nothing: each of the twelve frames after the first only drew the whole scene again, a frame of GPU time each in software, while the first pick of a game waited behind them. −11 lines. The first pick leaned faster in 7 of 8 pairs (−9% and −23%, not called). The selection median (the primary row) leaned slower in all three of its A/Bs (+12%, +2.7%, +5.4%, none called): see Needs from me.</p>',
      'charts': [{'rows': {'change': WFS, 'only': PICK}, 'caption': 'The one-frame warm-up against main, select, 4 pairs.'}]},
     {'title': 'Three silent failures fixed',
      'body': '<ul><li>The computer stalled for ever, saying nothing, if its search chose a move the rules refuse (its board and the engine disagreeing). It now logs the move and plays on (8b968ce).</li>'
