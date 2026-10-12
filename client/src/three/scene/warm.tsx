@@ -13,13 +13,12 @@ import { bodyMaterial, markGlazeWarm, poolMaterial } from './pieces';
 import { keepPrograms, linkAhead, warmObjects } from './programs';
 import { selectionMaterials } from './selection';
 
-/** The warm-up under way: its objects, the one being drawn, and the next. */
+/** The warm-up under way: its objects, and whether they have been drawn. */
 interface Warming {
   group: Group;
   objects: Object3D[];
   materials: Material[];
-  shown: Object3D | null;
-  next: number;
+  drawn: boolean;
   /** Every program linked ahead (linkAhead): the drawing can start. */
   linked: boolean;
   dispose: () => void;
@@ -34,7 +33,8 @@ interface Warming {
  * waits on the GPU for it, a long task; this way it comes after the
  * entrance instead of in the frame of the first move or the first piece
  * picked up. All are linked first (linkAhead: the page waits on none of
- * them), then drawn one a frame, those of a piece picked up first.
+ * them), then drawn together in one frame: linked ahead, a draw links
+ * nothing, so each frame more would only draw the whole scene again.
  * GameCanvas mounts it once the board's first frame is drawn and the
  * entrance is over, so it never holds up either.
  */
@@ -54,18 +54,14 @@ export const WarmPrograms = () => {
     return () => canvas.removeEventListener('webglcontextrestored', again);
   }, [gl]);
 
-  // Before each frame: the object the last frame drew leaves, and the next
-  // joins (asking for its frame), until all have been drawn once
+  // Before a frame: all the objects join (asking for the frame); before the
+  // next, once they have been drawn, they leave
   useFrame(() => {
     const w = warming.current;
     if (!w?.linked) return;
-    if (w.shown) {
-      w.group.remove(w.shown);
-      w.shown = null;
-    }
-    if (w.next < w.objects.length) {
-      w.shown = w.objects[w.next++];
-      w.group.add(w.shown);
+    if (!w.drawn) {
+      w.group.add(...w.objects);
+      w.drawn = true;
       invalidate();
       return;
     }
@@ -85,8 +81,6 @@ export const WarmPrograms = () => {
 
   useEffect(() => {
     const selection = selectionMaterials(new Color(PALETTE.select));
-    // In the order they are likely needed: first the garden's copy, drawn
-    // from the first frame the camera rests
     const bare = [backdropMaterial()];
     const meshes = [
       selection.columnMaterial,
@@ -105,16 +99,11 @@ export const WarmPrograms = () => {
     ];
     const points = [selection.moteMaterial];
     const { group, dispose } = warmObjects(meshes, points, bare);
-    // The motes with the rest of a piece picked up, then the others
-    const objects = [...group.children];
-    const [mote] = objects.splice(bare.length + meshes.length, 1);
-    objects.splice(3, 0, mote);
     const w: Warming = {
       group,
-      objects,
+      objects: [...group.children],
       materials: [...bare, ...meshes, ...points],
-      shown: null,
-      next: 0,
+      drawn: false,
       linked: false,
       dispose,
     };
