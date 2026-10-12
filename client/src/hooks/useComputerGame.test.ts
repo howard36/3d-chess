@@ -262,7 +262,21 @@ it('holds its move while an offer stands, and lets a move cancel the offer', asy
   }
 });
 
+it('plays a legal move of its own when its search answers a move the rules refuse', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  newGame('black');
+  // White's rook cannot reach Aa4 over its own pawn
+  const ai = scripted([reply('Aa1', 'Aa4')]);
+  const { result } = renderHook(() => useComputerGame('g1', options(ai.computer)));
+  await waitFor(() => expect(result.current.messages).toHaveLength(3));
+  expect(result.current.messages[2]).toMatchObject({ type: 'move_made', by: 'white' });
+  expect(result.current.messages[2]).not.toMatchObject({ from: 'Aa1', to: 'Aa4' });
+  expect(error).toHaveBeenCalledOnce();
+  error.mockRestore();
+});
+
 it('declines when it cannot weigh the position up', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
   newGame('black');
   const ai = scripted([], ['fail']);
   const { result } = renderHook(() =>
@@ -273,4 +287,6 @@ it('declines when it cannot weigh the position up', async () => {
   });
   await waitFor(() => expect(result.current.messages).toHaveLength(4));
   expect(result.current.messages[3]).toMatchObject({ type: 'draw_declined' });
+  expect(error).toHaveBeenCalledOnce();
+  error.mockRestore();
 });

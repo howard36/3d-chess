@@ -114,7 +114,18 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
       const total = move ? (optionsRef.current.pace ?? defaultPace)(game, move) : 0;
       const wait = Math.max(0, total - (performance.now() - asked));
       timer = window.setTimeout(() => {
-        if (live && gameRef.current === game) apply(computerMove(game, chosen));
+        if (!live || gameRef.current !== game) return;
+        const answer = computerMove(game, chosen);
+        // Its own move refused by the rules: its board and the engine disagree
+        // (ai/position.ts against engine/board.ts). Say so, and play on
+        const fallback = answer.replies.length ? null : fallbackMove(game);
+        if (fallback) {
+          console.error(
+            'The computer chose a move the rules refuse; it plays its first legal move.',
+            chosen,
+          );
+        }
+        apply(fallback ? computerMove(game, fallback) : answer);
       }, wait);
     };
     computerRef.current.think(game.moves, game.difficulty).then(play, (cause) => {
@@ -148,7 +159,10 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
         Math.max(0, beat - (performance.now() - asked)),
       );
     };
-    computerRef.current.assess(game.moves).then(reply, () => reply(null));
+    computerRef.current.assess(game.moves).then(reply, (cause) => {
+      console.error('The computer could not weigh the position up; it declines.', cause);
+      reply(null);
+    });
     return () => {
       live = false;
       if (timer !== undefined) window.clearTimeout(timer);
