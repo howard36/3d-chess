@@ -1,7 +1,8 @@
 // Games against the computer, kept in the browser: there is no server
 // record, so this is the only copy. Written after every move and read back
-// on a reload; kept in memory too, so a game plays on (for this visit) where
-// storage is refused.
+// on a reload; a game whose last write was refused (storage full or off) is
+// kept in memory instead, so it plays on for this visit from its latest
+// move, not from the last copy storage took.
 
 import type { ComputerGame } from '../game/computerGame';
 import { isDifficulty } from '../ai/levels';
@@ -9,6 +10,7 @@ import type { Difficulty } from '../ai/levels';
 
 const keyFor = (gameId: string) => `3dchess:computer:${gameId}`;
 const DIFFICULTY_KEY = '3dchess:computer-difficulty';
+/** The games whose last write storage refused: newer than its copy. */
 const memory = new Map<string, ComputerGame>();
 
 const isGame = (value: unknown, gameId: string): value is ComputerGame => {
@@ -24,6 +26,8 @@ const isGame = (value: unknown, gameId: string): value is ComputerGame => {
 };
 
 export function loadComputerGame(gameId: string): ComputerGame | null {
+  const held = memory.get(gameId);
+  if (held) return held;
   try {
     const raw = localStorage.getItem(keyFor(gameId));
     if (raw) {
@@ -31,17 +35,21 @@ export function loadComputerGame(gameId: string): ComputerGame | null {
       if (isGame(parsed, gameId)) return parsed;
     }
   } catch {
-    // Unreadable or refused: what this visit holds, if anything
+    // Unreadable or refused: no game
   }
-  return memory.get(gameId) ?? null;
+  return null;
 }
 
 export function saveComputerGame(game: ComputerGame): void {
-  memory.set(game.id, game);
   try {
     localStorage.setItem(keyFor(game.id), JSON.stringify(game));
-  } catch {
-    // The game goes on; only a reload loses it
+    memory.delete(game.id);
+  } catch (cause) {
+    // The game goes on from memory; a reload loses what storage refused
+    if (!memory.has(game.id)) {
+      console.warn('Storage refused this game: it is kept for this visit only.', cause);
+    }
+    memory.set(game.id, game);
   }
 }
 
