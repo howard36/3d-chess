@@ -19,10 +19,8 @@ interface Warming {
   objects: Object3D[];
   materials: Material[];
   drawn: boolean;
-  /** Every program linked ahead (linkAhead). */
+  /** Every program linked ahead (linkAhead): the drawing can start. */
   linked: boolean;
-  /** Read back once the drawing may start ('asked' while it waits on the GPU). */
-  readBack: false | 'asked' | true;
   dispose: () => void;
 }
 
@@ -68,25 +66,6 @@ export const WarmPrograms = ({ draw = true }: { draw?: boolean }) => {
   useFrame(() => {
     const w = warming.current;
     if (!w?.linked || !drawing.current) return;
-    // Linked while the entrance played, a frame drawn between every fence,
-    // so linkAhead read nothing back: the warm frame would wait on the GPU
-    // for each of them, in the first moves of the game. Again, now the
-    // board rests: the links are done, a fence later the read-backs cost
-    // nothing
-    if (w.readBack !== true) {
-      if (!w.readBack) {
-        w.readBack = 'asked';
-        w.group.add(...w.objects);
-        const read = () => {
-          if (warming.current !== w) return;
-          w.readBack = true;
-          invalidate();
-        };
-        linkAhead(gl, w.group, camera, read, scene);
-        w.group.clear();
-      }
-      return;
-    }
     if (!w.drawn) {
       w.group.add(...w.objects);
       w.drawn = true;
@@ -133,7 +112,6 @@ export const WarmPrograms = ({ draw = true }: { draw?: boolean }) => {
       materials: [...bare, ...meshes, ...points],
       drawn: false,
       linked: false,
-      readBack: false,
       dispose,
     };
     const ready = () => {
