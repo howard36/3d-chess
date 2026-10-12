@@ -177,9 +177,7 @@ const GameCanvas = ({
               onIntroDone();
             }}
           />
-          {/* Linked under the entrance (not while it waits under the lobby,
-            whose arrival is still playing), drawn once it is over */}
-          {drawn && !introPaused && <WarmPrograms draw={introOver} />}
+          {introOver && drawn && <WarmPrograms />}
         </IntroContext.Provider>
       </Canvas>
     </>
