@@ -10,7 +10,8 @@ import tseslint from 'typescript-eslint';
 // the server echoes the move)
 const NO_SET_PIECE = {
   property: 'setPiece',
-  message: 'Never mutate a board: apply a move (engine/board.ts), or build a position in game/.',
+  message:
+    'Never mutate a board: apply a move (engine/board.ts); only the engine and the lessons build positions.',
 };
 
 export default defineConfig(
