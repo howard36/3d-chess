@@ -1610,13 +1610,14 @@ async function movesSection(browser, shared) {
 /** Pawns and pieces White can try first, the pawns on their own level before the rest. */
 const WHITE_TRIES = ['Bc2', 'Bb2', 'Bd2', 'Ba2', 'Be2', 'Ab1', 'Ad1', 'Bb1', 'Bd1', 'Bc1'];
 
-/** Squares drawn as destinations of the piece picked up, by name. */
+/** Squares drawn as destinations of the piece picked up, by name; null while there are none. */
 const DESTINATIONS = () => {
   const out = [];
   window.__r3fState.get().scene.traverse((o) => {
     if (o.userData?.cube && o.userData.highlight) out.push(o.userData.zxy);
   });
-  return out.sort();
+  // (null, not []: waitForFunction takes an empty array as done)
+  return out.length ? out.sort() : null;
 };
 
 /**
@@ -1634,7 +1635,7 @@ async function clickAnyMove(page) {
       .waitForFunction(DESTINATIONS, null, { polling: 50, timeout: 1500 })
       .then(() => true)
       .catch(() => false);
-    const to = shown ? (await page.evaluate(DESTINATIONS))[0] : null;
+    const to = shown ? ((await page.evaluate(DESTINATIONS))?.[0] ?? null) : null;
     if (to && (await squarePixel(page, to))) {
       const t = await page.evaluate(() => window.__benchNow());
       await clickSquare(page, to);
