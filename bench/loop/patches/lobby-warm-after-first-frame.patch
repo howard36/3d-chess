@@ -1,0 +1,181 @@
+diff --git a/client/src/three/lobby/LobbyScene.tsx b/client/src/three/lobby/LobbyScene.tsx
+index 33de934..39b4ca1 100644
+--- a/client/src/three/lobby/LobbyScene.tsx
++++ b/client/src/three/lobby/LobbyScene.tsx
+@@ -16,7 +16,9 @@ import { noRaycast } from '../noRaycast';
+ import { platformStack } from '../scene/mask';
+ import { PALETTE } from '../scene/palette';
+ import { Stage } from '../scene/stage';
+-import { BackdropCache } from '../scene/backdropCache';
++import { BackdropCache, backdropMaterial } from '../scene/backdropCache';
++import { keepPrograms, linkAhead, warmObjects } from '../scene/programs';
++import { selectionMaterials } from '../scene/selection';
+ import { LAYER } from '../scene/layers';
+ import { CoinKing, LobbyKing } from './LobbyKing';
+ import type { KingPair } from './LobbyKing';
+@@ -98,6 +100,44 @@ const KING_FOOT_RADIUS = 0.3;
+ 
+ const ringGeometry = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+ 
++/** The seat ring's light: a band spreading across the glass from a seat. */
++const seatRingMaterial = () =>
++  new ShaderMaterial({
++    transparent: true,
++    depthWrite: false,
++    blending: AdditiveBlending,
++    uniforms: {
++      uColor: { value: new Color(PALETTE.select) },
++      uRadius: { value: 0 },
++      uStrength: { value: 0 },
++      uCentre: { value: [0, 0] },
++    },
++    vertexShader: /* glsl */ `
++      varying vec2 vP;
++      void main() {
++        vP = (modelMatrix * vec4(position, 1.0)).xz;
++        gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
++      }`,
++    fragmentShader: /* glsl */ `
++      uniform vec3 uColor;
++      uniform float uRadius;
++      uniform float uStrength;
++      uniform vec2 uCentre;
++      varying vec2 vP;
++      void main() {
++        float r = length(vP - uCentre);
++        float band = exp(-pow((r - uRadius) / 0.05, 2.0));
++        float inner = exp(-pow((r - uRadius * 0.7) / 0.18, 2.0)) * 0.15;
++        float a = (band + inner) * uStrength;
++        // Only on the glass
++        vec2 q = abs(vP);
++        a *= 1.0 - smoothstep(2.45, 2.55, max(q.x, q.y));
++        if (a < 0.002) discard;
++        gl_FragColor = vec4(uColor * a, 1.0);
++        #include <colorspace_fragment>
++      }`,
++  });
++
+ const SeatRing = ({
+   x,
+   playing,
+@@ -110,45 +150,7 @@ const SeatRing = ({
+   const invalidate = useThree((s) => s.invalidate);
+   const mesh = useRef<Mesh>(null);
+   const t = useRef(-1);
+-  const material = useMemo(
+-    () =>
+-      new ShaderMaterial({
+-        transparent: true,
+-        depthWrite: false,
+-        blending: AdditiveBlending,
+-        uniforms: {
+-          uColor: { value: new Color(PALETTE.select) },
+-          uRadius: { value: 0 },
+-          uStrength: { value: 0 },
+-          uCentre: { value: [0, 0] },
+-        },
+-        vertexShader: /* glsl */ `
+-          varying vec2 vP;
+-          void main() {
+-            vP = (modelMatrix * vec4(position, 1.0)).xz;
+-            gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+-          }`,
+-        fragmentShader: /* glsl */ `
+-          uniform vec3 uColor;
+-          uniform float uRadius;
+-          uniform float uStrength;
+-          uniform vec2 uCentre;
+-          varying vec2 vP;
+-          void main() {
+-            float r = length(vP - uCentre);
+-            float band = exp(-pow((r - uRadius) / 0.05, 2.0));
+-            float inner = exp(-pow((r - uRadius * 0.7) / 0.18, 2.0)) * 0.15;
+-            float a = (band + inner) * uStrength;
+-            // Only on the glass
+-            vec2 q = abs(vP);
+-            a *= 1.0 - smoothstep(2.45, 2.55, max(q.x, q.y));
+-            if (a < 0.002) discard;
+-            gl_FragColor = vec4(uColor * a, 1.0);
+-            #include <colorspace_fragment>
+-          }`,
+-      }),
+-    [],
+-  );
++  const material = useMemo(seatRingMaterial, []);
+   useEffect(() => () => material.dispose(), [material]);
+   useEffect(() => {
+     material.uniforms.uCentre.value = [x, 0];
+@@ -447,6 +449,65 @@ const GardenVeil = ({ veil }: { veil: React.RefObject<number> }) => {
+   );
+ };
+ 
++/**
++ * Links the programs of what the lobby draws only later (a seat's ring, a
++ * king's column of light with its floor and motes, the garden's copy at
++ * rest) right after its first frame, while the page waits for a click:
++ * otherwise each links inside the frame that first draws it, a long task in
++ * software, and on a guest's page all of them come after "Join game",
++ * between the click and the board's first frame. Nothing is drawn for it
++ * (linkAhead) and the lobby's first frame does not wait; the programs are
++ * kept (keepPrograms) for the lobby's own materials to draw with.
++ */
++const LobbyWarm = () => {
++  const gl = useThree((s) => s.gl);
++  const scene = useThree((s) => s.scene);
++  const camera = useThree((s) => s.camera);
++  useEffect(() => {
++    const selection = selectionMaterials(new Color(PALETTE.select));
++    const bare = [backdropMaterial()];
++    const meshes = [seatRingMaterial(), selection.columnMaterial, selection.floorMaterial];
++    const points = [selection.moteMaterial];
++    const materials = [...bare, ...meshes, ...points];
++    const { group, dispose } = warmObjects(meshes, points, bare);
++    let live = true;
++    const done = () => {
++      if (!live) return;
++      live = false;
++      const kept = keepPrograms(gl, materials);
++      for (const m of materials) if (!kept.has(m)) m.dispose();
++      dispose();
++    };
++    // Handed to the GPU right after the lobby's first frame (queued behind
++    // its draws; the page waits on none of it)
++    const start = () => {
++      if (live) linkAhead(gl, group, camera, done, scene);
++    };
++    let restore: (() => void) | null = null;
++    if (gl.info.render.frame > 0) start();
++    else {
++      const after = scene.onAfterRender;
++      restore = () => {
++        scene.onAfterRender = after;
++        restore = null;
++      };
++      scene.onAfterRender = function (...args) {
++        restore?.();
++        after.apply(this, args);
++        start();
++      };
++    }
++    return () => {
++      restore?.();
++      if (!live) return;
++      live = false;
++      for (const m of materials) m.dispose();
++      dispose();
++    };
++  }, [gl, scene, camera]);
++  return null;
++};
++
+ // --- The scene ---------------------------------------------------------------------------------
+ 
+ export const LobbyScene = ({
+@@ -553,6 +614,7 @@ export const LobbyScene = ({
+         />
+       </BackdropCache>
+       <GardenVeil veil={veil} />
++      <LobbyWarm />
+       {/* The glass and all that stands on it, turned as the lobby leaves (leavePose) */}
+       <group ref={glass}>
+         <LobbyPlatform />

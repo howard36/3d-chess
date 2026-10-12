@@ -37,6 +37,12 @@ const parse = (cell) => {
   return { value: v, unit };
 };
 
+/** A pairs cell of differences ("+1 −2 0", "+52.5 ms −1.20 s 0 ms") as numbers, times in ms. */
+const diffsOf = (cell) =>
+  [...cell.matchAll(/([+\u2212-]?)([\d.]+)\s*(ns|µs|ms|s|B|KiB|MiB)?(?=\s|$)/g)].map(
+    ([, sign, n, unit]) => (sign && sign !== '+' ? -1 : 1) * Number(n) * (unit ? SCALE[unit] : 1),
+  );
+
 let tier = null;
 let rows = 0;
 let missing = 0;
@@ -70,10 +76,11 @@ for (const line of text.split('\n')) {
     unit: (pb ?? ph).unit,
     baseValue: pb?.value ?? null,
     headValue: ph?.value ?? null,
-    // Ratios are printed to two decimals; a count judged by its pairs'
-    // differences (a side at 0) prints whole numbers, kept apart
-    ...(pairs && !pairs.split(/\s+/).every((t) => t.includes('.'))
-      ? { pairs: [], pairDiffs: pairs.split(/\s+/).map(Number) }
+    // Ratios are printed to two decimals; a value judged by its pairs'
+    // differences (a side at 0) prints them signed, a count's as whole
+    // numbers and a time's with its unit ("+52.5 ms"), kept apart (in ms)
+    ...(pairs && !pairs.split(/\s+/).every((t) => /^\d+\.\d+$/.test(t))
+      ? { pairs: [], pairDiffs: diffsOf(pairs) }
       : { pairs: pairs ? pairs.split(/\s+/).map(Number) : [] }),
     verdict: verdict.replace(/\*/g, '') || 'unchanged',
     source: basename(file),
