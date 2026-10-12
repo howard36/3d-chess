@@ -98,21 +98,17 @@ export function stepTo(step: ReviewStep, shown: number, latest: number): number 
   }
 }
 
-/** The step a key takes (← → Home End), or null for any other key. */
-export function stepOfKey(key: string): ReviewStep | null {
-  switch (key) {
-    case 'ArrowLeft':
-      return 'previous';
-    case 'ArrowRight':
-      return 'next';
-    case 'Home':
-      return 'first';
-    case 'End':
-      return 'latest';
-    default:
-      return null;
-  }
-}
+/** The key that takes each step (KeyboardEvent.key: ← → Home End). */
+export const STEP_KEY: Record<ReviewStep, string> = {
+  first: 'Home',
+  previous: 'ArrowLeft',
+  next: 'ArrowRight',
+  latest: 'End',
+};
+
+/** The step a key takes, or null for any other key. */
+export const stepOfKey = (key: string): ReviewStep | null =>
+  (Object.keys(STEP_KEY) as ReviewStep[]).find((s) => STEP_KEY[s] === key) ?? null;
 
 /**
  * How a ply is written in the record: the move's number, with "…" for
