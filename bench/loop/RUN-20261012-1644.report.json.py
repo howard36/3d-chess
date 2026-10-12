@@ -11,6 +11,7 @@ WFS = 'WF: warm-up in one frame vs 889c13f (select, 4 more pairs)'
 W1B = "W1b v1: warm-up linked from the board's first frame vs 924cb6f (setup+computer+move-latency+select, 4 pairs)"
 FINAL = facts['final_change']
 W1C = 'final v2: W1b with read-backs at rest vs 889c13f (computer+select, 4 pairs)'
+V3 = 'final v3: e4ee30c (with W1b) vs 889c13f (primary, 3 pairs)'
 RAW = json.loads((here / facts['w1c_raw']).read_text())
 FIRST = facts['first_change']
 
@@ -31,52 +32,43 @@ report = {
            'a change is <em>called</em> only when every pair agrees and it beats 5% and the pairs’ spread.'),
   'needs': {'items': [
     {'title': 'Review and merge PR #121',
-     'body': '<p>One speed fix a player feels: <strong>the first piece picked up after a game’s entrance no longer waits seconds</strong> for the warm-up of the marks of play. '
-             'Also: the warm-up in one frame, three correctness fixes (a computer that could stall for ever, a computer game that rewound after its storage filled, guessable game ids), '
-             'and seven checks that could pass on broken code, or rules nothing enforced, now enforced. ' + facts['speed_line'] + ' ' + facts['ci'] + '</p>'
-             '<p>Like the last runs it bundles a server change (SystemRandom ids, one server test) and bench/lint changes with the client work; CLAUDE.md asks for one change per PR.</p>',
-     'charts': [{'rows': {'change': FINAL, 'only': 'PRIMARY'}, 'caption': 'The primary rows, branch against main, `--primary`, 4 pairs.'}],
-     'recommend': 'Squash-merge once CI is green. If you want the one-change rule applied strictly, I split out 26bae12 + 3016c9b (server) first.'},
-    {'title': 'Keep the first-pick fix? It moves the warm-up’s cost, it does not remove it',
-     'body': '<p>In software rendering the warm-up of the marks of play costs about 2 s of GPU time, and it lands on whatever the player does first after the entrance. '
-             'On main that is the first pick (about 2.4 s). This branch links the programs under the entrance and reads them back once the board rests: the first pick drops to about 0.8 s, '
-             'but the second and third picks and the computer’s second reply each wait about 0.3 s more. Net, the player waits about 0.8 s less over the first few actions; '
-             'nothing is called worse on the final code (the computer’s reply +46% and selecting +41% lean worse, not called; an earlier version made the reply +114%, called, and was fixed). '
-             'On a real GPU these links take milliseconds and none of this shows. No row times the entrance’s smoothness (T16).</p>',
-     'figure': {'html': table(['Pair', 'main: picks 1–3 (ms)', 'main: computer replies (ms)', 'branch: picks 1–3', 'branch: computer replies'], RAW),
-                'caption': 'Raw first frames from the final code’s A/B (computer + select, 4 pairs, ab-20261012-w1c.md): each pair’s first three picks, and each run’s three computer replies (two runs a pair).'},
-     'charts': [{'rows': {'change': W1C, 'only': PICK + '|Playing the computer · (its move: shown|way in)'}, 'caption': 'Final code against main, computer + select, 4 pairs.'}],
-     'recommend': 'Keep it: the first pick was the one wait of seconds, and the rest are fractions. If you prefer the cost all in one place, revert 0fe7a3c + e4ee30c and keep the one-frame warm-up (924cb6f). Next run: spread the read-backs over idle moments (W3).'},
-    {'title': 'Say so on screen when a computer game can no longer be saved?',
-     'body': '<p>Once a long computer game outgrows the browser’s storage, its moves are kept for this visit only (fixed this run: they no longer rewind). A reload loses them. Today the only sign is a console warning.</p>',
-     'recommend': 'Yes, one short line in the HUD’s existing notice style (“This game can’t be saved here”). It is new interface copy, so it is your call (ledger R5).'},
-    {'title': 'The target is not met against the first recorded run',
-     'body': '<p>' + facts['first_body'] + '</p>',
-     'charts': [{'rows': {'change': FIRST, 'only': 'PRIMARY'}, 'caption': 'This branch against the first recorded run (92ce041), `--primary`, 3 pairs (the computer rows did not exist then).'}],
-     'recommend': 'Next run, the join (J3): its 5.4 s is three.js reading uniforms back behind SwiftShader’s queue of lobby frames. That needs a design decision about how many lobby frames to draw while the game’s board links (below).'},
+     'body': '<p>The warm-up of the marks of play draws in one frame instead of thirteen (−11 lines), three correctness fixes (a computer that could stall for ever, a computer game that rewound after its storage filled, guessable game ids), '
+             'and seven checks that could pass on broken code, or rules nothing enforced, now enforced. No primary row is faster beyond noise; the run’s speed change for a player (below) is held back for your call. ' + facts['speed_line'] + ' ' + facts['ci'] + '</p>'
+             '<p>It bundles a server change (SystemRandom ids, one server test), bench and lint changes with the client work; CLAUDE.md asks for one logical change per PR.</p>',
+     'charts': [{'rows': {'change': FINAL, 'only': 'PRIMARY'}, 'caption': facts['final_caption']}],
+     'recommend': 'Let me split it before merging: the server pair (26bae12, 3016c9b), the checks and lint (df8083c, 8a020e8, 1aa90ee, a446a69, c023ab5, ab48319, e5759d9, 8311a5b), and the client fixes (8b968ce, 924cb6f, 5317469, f6e8215) as three PRs. Or squash-merge as is, as the last runs were.'},
+    {'title': 'The first-pick fix moves the warm-up’s cost rather than removing it: take it anyway? (reverted, patch kept)',
+     'body': '<p>In software rendering the warm-up of the marks of play costs about 2 s of GPU time, and it lands on whatever the player does first after the entrance: on main, the first pick (about 2.4 s). '
+             'W1b linked those programs under the entrance and read them back once the board rested. The first pick dropped to 0.8–1.05 s (called better in three A/Bs), but the second and third picks and the computer’s second reply each waited about 0.3 s more, '
+             'and the primary “Selecting a piece” row (the median of 8 picks) leaned slower twice on the final code: +41% (0.95 1.58 1.43 1.85) and +37% (1.02 1.95 1.29), neither called. '
+             'The run’s rule is never more than 3% slower, and CLAUDE.md calls buying one wait with another a trade-off, not a win, so I reverted it (20bb91f, 50bc357). It is in <code>bench/loop/patches/warm-under-entrance-W1b.patch</code>.</p>',
+     'figure': {'html': table(['Pair', 'main: picks 1–3 (ms)', 'main: computer replies (ms)', 'W1b: picks 1–3', 'W1b: computer replies'], RAW),
+                'caption': 'Raw first frames, W1b’s final form against main (computer + select, 4 pairs, ab-20261012-w1c.md): each pair’s first three picks, and each run’s three computer replies (two runs a pair).'},
+     'charts': [{'rows': {'change': V3, 'only': PICK}, 'caption': 'W1b’s final form (e4ee30c) against main, select rows, 3 pairs: the first pick better, the median of 8 picks leaning slower.'}],
+     'recommend': 'Not as it is. Next run: spread the 13 read-backs over idle moments (W3), so no single action pays for them; with that, W1b should take the first pick’s 1.6 s without moving it elsewhere. If the first pick matters more to you than picks 2–3, apply the patch as is.'},
     {'title': 'The join’s wait: fewer lobby frames while the board links? (design call)',
      'body': '<p>A CPU profile of a join shows the joiner’s long tasks are <code>getUniforms</code> read-backs inside render(), each waiting for the GPU to finish the lobby frames queued before it (0.66, 1.15, 0.53 s), plus 0.3 s creating the board’s WebGL context. Linking ahead (tried, rejected) moves links, not those waits. '
              'What would shorten them is drawing fewer lobby frames while the board’s canvas starts: the arrival’s ring and lift would step instead of glide in software.</p>',
+     'figure': {'html': table(['From “Join game”', 'Long task', 'Where its time went (CPU profile, 0.5 ms samples)'], [
+        ['+166 ms', '330 ms', 'React mounting the game screen (useMemo in the scene), garbage collection'],
+        ['+497 ms', '664 ms', '90% <code>getUniforms</code> inside render(): a read-back waiting on the GPU'],
+        ['+2,492 ms', '545 ms', '55% <code>getContext</code>: the board’s WebGL context created'],
+        ['+4,849 ms', '1,145 ms', '98% <code>getUniforms</code> inside render()'],
+        ['+6,724 ms', '531 ms', '99% <code>getUniforms</code> (linkAhead’s read-back)']]),
+                'caption': 'One join on the branch’s build, SwiftShader, 1280×720 (bench/loop/tools/join-probe/run.mjs). The waits are the GPU finishing queued lobby frames, not links.'},
      'recommend': 'Let me try a lower frame rate for the lobby only while the board’s first frame is pending, behind a measurement of its frames; you judge the look.'},
-    {'title': 'Proposed, not installed: two small things in shared machinery',
-     'body': '<ul><li><code>.claude/hooks/format.sh</code> formats only some of what the lint checks: <code>client/scripts/*.mjs</code>, <code>client/*.html</code>, <code>bench/*.mjs</code> (E8).</li>'
-             '<li>Add <code>pytest-timeout</code>: a socket regression in the server tests hangs instead of failing (R8).</li></ul>',
-     'recommend': 'Both one-liners; your call since other sessions share them.'},
-    {'title': 'CLAUDE.md still has no North star, Measurement, Reporting, Loop state or Tests section',
-     'body': '<p>As in the last five runs I used “Performance”, <code>bench/loop/</code> and the vitest + e2e suites.</p>',
-     'recommend': 'Add a short North star (what the game is for, what it is not).'},
   ]},
   'scoreboard': {'intro': facts['scoreboard_intro'], 'items': [
-    {'title': 'The branch against main, primary rows (4 pairs)', 'charts': [{'rows': {'change': FINAL, 'only': 'PRIMARY'}, 'caption': 'Branch against main 889c13f, `--primary`, 4 pairs.'}]},
+    {'title': 'The 1.2× target against the first recorded run is not met', 'body': '<p>' + facts['first_body'] + '</p>'},
+    {'title': 'Rows that leaned slower without being called', 'body': facts['lean_body']},
+    {'title': 'The final commit against main, primary rows', 'charts': [{'rows': {'change': FINAL, 'only': 'PRIMARY'}, 'caption': facts['final_caption']}]},
     {'title': 'The branch against the first recorded run (92ce041)', 'charts': [{'rows': {'change': FIRST, 'only': 'PRIMARY'}, 'caption': 'Branch against 92ce041, `--primary`, 3 pairs.'}]},
-    {'title': 'The final code, computer and select sections (4 pairs)', 'body': '<p>The final A/B ran on f6e8215; one fix followed (e4ee30c, the warm-up’s read-backs), rechecked here on the sections it touches.</p>', 'charts': [{'rows': {'change': W1C, 'only': PICK + '|Playing the computer'}, 'caption': 'e4ee30c against main, computer + select, 4 pairs.'}]},
+    {'title': 'With W1b, before its revert (3 pairs)', 'charts': [{'rows': {'change': V3, 'only': 'PRIMARY'}, 'caption': 'e4ee30c against main, `--primary`, 3 pairs.'}]},
   ]},
   'changed': {'items': [
-    {'title': 'The first pick after the entrance: about 2.4 s → about 0.8 s (924cb6f, 0fe7a3c, e4ee30c)',
-     'body': '<p>The warm-up linked its 13 programs only once the entrance was over; the first pick’s frame then blocked 1.1–2.0 s reading a program back behind those links (seen in the raw data on both sides). Now they link under the entrance, are read back once the board rests, and are drawn in one frame instead of thirteen. The trade-off is in Needs from me.</p>',
-     'charts': [{'rows': {'change': W1C, 'only': PICK}, 'caption': 'The final code against main, 4 pairs.'},
-                {'rows': {'change': W1B, 'only': PICK}, 'caption': 'Links under the entrance (first version), against the one-frame warm-up (924cb6f), 4 pairs.'},
-                {'rows': {'change': WFS, 'only': PICK}, 'caption': 'The one-frame warm-up against main, 4 pairs.'}]},
+    {'title': 'The warm-up draws its marks in one frame, not thirteen (924cb6f)',
+     'body': '<p>Since the warm-up links every program ahead, drawing a warm object links nothing: each of the twelve frames after the first only drew the whole scene again, a frame of GPU time each in software, while the first pick of a game waited behind them. −11 lines. The first pick leaned faster in 7 of 8 pairs (−9% and −23%, not called); nothing else moved.</p>',
+     'charts': [{'rows': {'change': WFS, 'only': PICK}, 'caption': 'The one-frame warm-up against main, select, 4 pairs.'}]},
     {'title': 'Three silent failures fixed',
      'body': '<ul><li>The computer stalled for ever, saying nothing, if its search chose a move the rules refuse (its board and the engine disagreeing). It now logs the move and plays on (8b968ce).</li>'
              '<li>A computer game that outgrew storage rewound to the last copy storage took on a remount or a reload; it now plays on from its latest move, and says so once in the console (5317469).</li>'
@@ -90,6 +82,10 @@ report = {
   ]},
   'removed': {'intro': facts['removed']},
   'rejected': {'items': [
+    {'title': 'Linking the warm-up under the entrance (W1b, reverted; see Needs from me)',
+     'body': '<p>The first pick 2.4 s → 0.8–1.05 s (called better three times), but the cost moved to the next picks and the computer’s second reply; selecting leaned +37–41% on the final code. A first version also made the joiner’s longest task +25% (called; it linked under the lobby’s arrival) and a second made the computer’s reply +114% (called; read-backs in the warm frame): both fixed before the revert.</p>',
+     'charts': [{'rows': {'change': W1B, 'only': PICK + '|Game setup · joiner: longest'}, 'caption': 'First version against the one-frame warm-up, 4 pairs.'},
+                {'rows': {'change': 'final v1: f6e8215 vs 889c13f (primary, 4 pairs)', 'only': 'Playing the computer · its move: shown'}, 'caption': 'Second version against main: the computer’s reply, 4 pairs.'}]},
     {'title': 'Linking the lobby’s later programs ahead (LW)',
      'body': '<p>Two lenses traced 1.75–2.27 s of the joiner’s long tasks to the lobby’s own links after “Join game”. Linked right after the lobby’s first frame, the links left the click → frame window (30 → 25, every pair) but the join’s first frame did not move (+0.4%). The profile shows why: the waits are read-backs behind queued frames, not links. +60 lines for a count; patch kept.</p>',
      'charts': [{'rows': {'change': LW2, 'only': 'Game setup · (join: click → joiner|joiner: long|joiner: shader)'}, 'caption': 'LW v2 against main, 4 pairs.'}]},
@@ -98,7 +94,10 @@ report = {
   ]},
   'choices': {'intro': facts['choices']},
   'notConfirmed': {'intro': facts['not_confirmed']},
-  'merge': {'intro': '<p>No other sessions were active. Nothing in CLAUDE.md or ARCHITECTURE.md needed changing for this diff (the warm-up’s draw schedule is described only in warm.tsx).</p>'},
+  'merge': {'intro': '<p>No other sessions were active. Nothing in CLAUDE.md or ARCHITECTURE.md needed changing for this diff (the warm-up’s draw schedule is described only in warm.tsx). Proposed for shared files, not installed:</p>'
+                     '<ul><li><code>.claude/hooks/format.sh</code>: add <code>"$root"/client/scripts/*.mjs|"$root"/client/*.html|"$root"/bench/*.mjs</code> to its prettier case; the lint checks them and the hook does not format them (E8).</li>'
+                     '<li><code>server/pyproject.toml</code>: add <code>pytest-timeout</code> (e.g. 30 s); a socket regression in the server tests hangs instead of failing (R8).</li>'
+                     '<li>CLAUDE.md: a short North star (what the game is for, what it is not). This run, like the last five, used “Performance”, <code>bench/loop/</code> and the test suites in place of the loop prompt’s North star, Measurement, Reporting, Loop state and Tests sections.</li></ul>'},
   'next': {'intro': facts['next']},
 }
 (here / 'RUN-20261012-1644.report.json').write_text(json.dumps(report, ensure_ascii=False, indent=1))
