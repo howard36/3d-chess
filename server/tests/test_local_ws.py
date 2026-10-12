@@ -34,7 +34,7 @@ def client(store):
 @pytest.fixture()
 def creator_is_white(monkeypatch):
     """Pin the creator's color to white for tests that need determinism."""
-    monkeypatch.setattr(modal_app.random, "choice", lambda seq: "white")
+    monkeypatch.setattr(modal_app._rng, "choice", lambda seq: "white")
 
 
 def wait_until(predicate, timeout=2.0):
