@@ -35,15 +35,22 @@ interface Warming {
  * picked up. All are linked first (linkAhead: the page waits on none of
  * them), then drawn together in one frame: linked ahead, a draw links
  * nothing, so each frame more would only draw the whole scene again.
- * GameCanvas mounts it once the board's first frame is drawn and the
- * entrance is over, so it never holds up either.
+ * GameCanvas mounts it once the board's first frame is drawn and its
+ * entrance has begun, so the GPU links them under the entrance (a pick just
+ * after it found them still linking, seconds in software), and has it draw
+ * them (`draw`) once the entrance is over.
  */
-export const WarmPrograms = () => {
+export const WarmPrograms = ({ draw = true }: { draw?: boolean }) => {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
   const invalidate = useThree((s) => s.invalidate);
   const warming = useRef<Warming | null>(null);
+  const drawing = useRef(draw);
+  drawing.current = draw;
+  useEffect(() => {
+    if (draw) invalidate();
+  }, [draw, invalidate]);
   // A lost context comes back with none of its programs (three.js makes
   // them anew): warm them up again
   const [restored, setRestored] = useState(0);
@@ -58,7 +65,7 @@ export const WarmPrograms = () => {
   // next, once they have been drawn, they leave
   useFrame(() => {
     const w = warming.current;
-    if (!w?.linked) return;
+    if (!w?.linked || !drawing.current) return;
     if (!w.drawn) {
       w.group.add(...w.objects);
       w.drawn = true;
