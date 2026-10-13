@@ -39,11 +39,35 @@ it('ignores what is not a game, and plays on from memory where storage is refuse
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
     throw new Error('refused');
   });
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
   const other = { ...game, id: 'memoryonly' };
   saveComputerGame(other);
   expect(loadComputerGame('memoryonly')).toEqual(other);
   expect(getStoredDifficulty()).toBe('medium');
   expect(() => setStoredDifficulty('easy')).not.toThrow();
+});
+
+it('plays on from its latest move once storage starts refusing it, and says so once', () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  saveComputerGame(game);
+  // Storage full: the next moves are refused
+  const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('QuotaExceededError');
+  });
+  const later = {
+    ...game,
+    moves: [...game.moves, { by: 'black' as const, from: 'Ed4', to: 'Dd4' }],
+  };
+  saveComputerGame(later);
+  saveComputerGame({ ...later });
+  // Not the older copy storage still holds
+  expect(loadComputerGame(game.id)).toEqual(later);
+  expect(warn).toHaveBeenCalledOnce();
+  // Room again: storage holds the latest, and is read from again
+  setItem.mockRestore();
+  saveComputerGame(later);
+  localStorage.setItem(`3dchess:computer:${game.id}`, JSON.stringify(game));
+  expect(loadComputerGame(game.id)).toEqual(game);
 });
 
 it('remembers the last level, Medium the first time', () => {

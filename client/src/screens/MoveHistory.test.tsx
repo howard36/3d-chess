@@ -269,6 +269,23 @@ describe('the keys', () => {
     expect(onShow).not.toHaveBeenCalled();
   });
 
+  it('are named on the steps they take, as their titles say them', () => {
+    render(history({ moves: record(6), shown: 3 }));
+    const step = (name: string) => screen.getByRole('button', { name });
+    expect([
+      ['Start', 'Home', 'Start (Home)'],
+      ['Back', 'ArrowLeft', 'Back (←)'],
+      ['Forward', 'ArrowRight', 'Forward (→)'],
+      ['Latest', 'End', 'Latest (End)'],
+    ]).toEqual(
+      ['Start', 'Back', 'Forward', 'Latest'].map((n) => [
+        n,
+        step(n).getAttribute('aria-keyshortcuts'),
+        step(n).getAttribute('title'),
+      ]),
+    );
+  });
+
   it('take nothing already taken, and go nowhere past the ends', () => {
     const onShow = vi.fn();
     render(history({ moves: record(6), onShow }));
