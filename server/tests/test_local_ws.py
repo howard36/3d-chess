@@ -34,7 +34,7 @@ def client(store):
 @pytest.fixture()
 def creator_is_white(monkeypatch):
     """Pin the creator's color to white for tests that need determinism."""
-    monkeypatch.setattr(modal_app.random, "choice", lambda seq: "white")
+    monkeypatch.setattr(modal_app._rng, "choice", lambda seq: "white")
 
 
 def wait_until(predicate, timeout=2.0):
@@ -551,7 +551,8 @@ def test_rejoin_while_in_game_rejected(client, creator_is_white):
         assert ws.receive_json()["code"] == "already_in_game"
 
 
-def test_rejoin_replaces_lingering_socket(client, creator_is_white):
+def test_rejoin_replaces_lingering_socket(client, creator_is_white, caplog):
+    caplog.set_level(logging.INFO, logger="3d_chess")
     with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
         gid, _ = create_game(ws1)
         ws2.send_json({"type": "join_game", "gameId": gid})
@@ -579,10 +580,21 @@ def test_rejoin_replaces_lingering_socket(client, creator_is_white):
             assert closed.value.reason == "seat_replaced"
 
             # Once the old socket's disconnect is processed it must not evict
-            # the replacement.
-            assert wait_until(lambda: modal_app.connections.get(gid, {}).get("white") is not None)
+            # the replacement. The test client hands the app a socket's
+            # disconnect only when that socket is closed here, so close it and
+            # wait for its handler to finish (its "websocket closed" line)
+            def closed_lines():
+                return [
+                    m for m in app_logs(caplog, logging.INFO) if m.startswith("websocket closed")
+                ]
 
-            # The replacement plays as white; black still receives the move
+            before = len(closed_lines())
+            ws1.close()
+            assert wait_until(lambda: len(closed_lines()) > before)
+            assert modal_app.connections.get(gid, {}).get("white") is not None
+
+            # The replacement plays as white; black still receives the move,
+            # and was never told white went offline
             ws_new.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
             assert ws_new.receive_json()["type"] == "move_made"
             assert ws2.receive_json()["type"] == "move_made"
