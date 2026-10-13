@@ -166,11 +166,16 @@ const keepSceneOutOfEntry = (): Plugin => ({
     };
     for (const c of chunks.values()) if (c.isEntry) walk(c.fileName);
     if (!seen.size) this.error('keep-scene-out-of-entry: no entry chunk');
+    // Those pages load as chunks of their own, never in the entry (a static
+    // import would put them there, and the walk below would find it seen)
+    const entry = new Set(seen);
     for (const page of SHOWN_BEFORE_SCENE) {
       const chunk = [...chunks.values()].find((c) =>
         c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(page)),
       );
       if (!chunk) this.error(`keep-scene-out-of-entry: no chunk holds ${page}`);
+      else if (entry.has(chunk.fileName))
+        this.error(`keep-scene-out-of-entry: ${page} is in the entry, not a chunk of its own`);
       else walk(chunk.fileName);
     }
   },

@@ -180,6 +180,10 @@ async function problemsAt(page: Page, width: number, height: number) {
   }
   const hud = await hudRects(page);
   const problems: string[] = [];
+  // Measured at all: a tower drawn where towerRects cannot see it (no piece's
+  // meshes in its group, no label sprites) would pass with nothing to cover
+  if (!tower.some((t) => t.what !== 'label')) problems.push('no piece measured');
+  if (!tower.some((t) => t.what === 'label')) problems.push('no label measured');
   for (const h of hud) {
     for (const t of tower) if (meet(h, t)) problems.push(`${h.what} covers ${t.what}`);
   }
