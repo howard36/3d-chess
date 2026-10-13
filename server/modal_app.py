@@ -145,6 +145,11 @@ def _stored(store, gid: str) -> dict | None:
     return store.get(gid) if GAME_ID.fullmatch(gid) else None
 
 
+# A game's id is all it takes to claim its open seat: drawn from the system's
+# entropy, not the module's Mersenne Twister, whose state its outputs give away
+_rng = random.SystemRandom()
+
+
 def create_game(store, client_id: str | None = None, color: str | None = None) -> tuple[str, str]:
     """Create a game with one seat claimed; return (game id, creator's color).
 
@@ -153,12 +158,12 @@ def create_game(store, client_id: str | None = None, color: str | None = None) -
     seat's claimant (see claim_seat).
     """
     while True:
-        gid = "".join(random.choices(GAME_ID_CHARS, k=6))
+        gid = "".join(_rng.choices(GAME_ID_CHARS, k=6))
         if gid not in store:
             break
     # Creator can be white or black, but white always moves first
     if color is None:
-        color = random.choice(["white", "black"])
+        color = _rng.choice(["white", "black"])
     record: dict = {"seats": [color], "moves": []}
     if client_id is not None:
         record["claimants"] = {color: client_id}

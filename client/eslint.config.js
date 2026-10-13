@@ -5,6 +5,15 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
+// A board changes only through the engine (a move applied makes a new one):
+// screens and the scene never set a piece (CLAUDE.md: the board updates when
+// the server echoes the move)
+const NO_SET_PIECE = {
+  property: 'setPiece',
+  message:
+    'Never mutate a board: apply a move (engine/board.ts); only the engine and the lessons build positions.',
+};
+
 export default defineConfig(
   // src/types/schema.ts is generated (npm run generate:types); don't lint it
   { ignores: ['dist', 'coverage', 'test-results', 'playwright-report', 'src/types/schema.ts'] },
@@ -46,7 +55,7 @@ export default defineConfig(
         {
           patterns: [
             {
-              group: ['**/schema'],
+              group: ['**/schema', '**/schema.ts'],
               message: 'Wire types come from types/messages.ts, never the generated schema.ts.',
             },
           ],
@@ -59,21 +68,40 @@ export default defineConfig(
           message:
             'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
         },
+        {
+          selector: "AssignmentExpression > MemberExpression.left[property.value='__r3fState']",
+          message:
+            'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
+        },
       ],
+      'no-restricted-properties': ['error', NO_SET_PIECE],
     },
+  },
+  {
+    // The engine, and the tutorial's positions (game/lessons.ts), build boards
+    files: ['src/engine/**', 'src/game/lessons.ts', '**/*.test.{ts,tsx}'],
+    rules: { 'no-restricted-properties': 'off' },
   },
   { files: ['src/types/messages.ts'], rules: { 'no-restricted-imports': 'off' } },
   { files: ['src/screens/GameCanvas.tsx'], rules: { 'no-restricted-syntax': 'off' } },
   {
     // Animations run on r3f's clock, which the showcase's virtual clock drives;
-    // a timer or the wall clock escapes it
-    files: ['src/three/**/*.{ts,tsx}'],
+    // a timer, a frame of the browser's own or the wall clock escapes it
+    files: [
+      'src/three/**/*.{ts,tsx}',
+      'src/screens/**/*Canvas.tsx',
+      'src/screens/LandingPreview.tsx',
+    ],
     ignores: ['**/*.test.{ts,tsx}'],
     rules: {
       'no-restricted-globals': [
         'error',
         { name: 'setTimeout', message: 'Animate on r3f’s clock (useFrame), not a timer.' },
         { name: 'setInterval', message: 'Animate on r3f’s clock (useFrame), not a timer.' },
+        {
+          name: 'requestAnimationFrame',
+          message: 'Animate on r3f’s clock (useFrame), not a frame of the browser’s own.',
+        },
       ],
       'no-restricted-properties': [
         'error',
@@ -83,6 +111,17 @@ export default defineConfig(
           message: 'Animate on r3f’s clock, not a timer.',
         },
         { object: 'Date', property: 'now', message: 'Animate on r3f’s clock, not the wall clock.' },
+        {
+          object: 'performance',
+          property: 'now',
+          message: 'Animate on r3f’s clock, not the wall clock.',
+        },
+        {
+          object: 'window',
+          property: 'requestAnimationFrame',
+          message: 'Animate on r3f’s clock (useFrame), not a frame of the browser’s own.',
+        },
+        NO_SET_PIECE,
       ],
     },
   },
