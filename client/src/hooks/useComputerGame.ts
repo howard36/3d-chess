@@ -10,6 +10,7 @@ import {
   snapshot,
   standingOffer,
   startGame,
+  takeBack,
 } from '../game/computerGame';
 import type { Answer, ComputerGame } from '../game/computerGame';
 import { loadComputerGame, saveComputerGame } from '../lib/computerGames';
@@ -28,6 +29,12 @@ export interface ComputerGameOptions {
   drawAnswerMs?: number;
 }
 
+/** The socket's stand-in, and what only a game against the computer has. */
+export interface ComputerGameSocket extends GameSocket {
+  /** Takes back the player's last move, and the computer's reply (game/computerGame.ts). */
+  takeBack: () => void;
+}
+
 /** The computer answers a draw offer after a beat, as a person would, never at once. */
 export const DRAW_ANSWER_MS = 900;
 
@@ -44,9 +51,14 @@ const defaultPace = (game: ComputerGame, move: ComputerMove) =>
  * sitting down at once in a game not yet begun. When it is the computer's
  * move, the computer thinks (in a worker) and its move arrives as a
  * move_made after a human pause. A draw the player offers it, it weighs up
- * (in the same worker) and answers after a beat, before it plays on.
+ * (in the same worker) and answers after a beat, before it plays on. A
+ * take-back is answered with the game as it then stands (a game_state), and
+ * drops whatever the computer was thinking over or answering.
  */
-export function useComputerGame(gameId: string, options: ComputerGameOptions = {}): GameSocket {
+export function useComputerGame(
+  gameId: string,
+  options: ComputerGameOptions = {},
+): ComputerGameSocket {
   const gameRef = useRef<ComputerGame | null>(null);
   const loadedFor = useRef<string | null>(null);
   if (loadedFor.current !== gameId) {
@@ -79,6 +91,8 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
     },
     [apply, gameId],
   );
+
+  const takeBackMove = useCallback(() => apply(takeBack(gameRef.current)), [apply]);
 
   const answered = messages.some((m) => m.type === 'game_state');
 
@@ -189,5 +203,6 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
     sessionStartIndex: 0,
     reconnect: noop,
     reset: noop,
+    takeBack: takeBackMove,
   };
 }

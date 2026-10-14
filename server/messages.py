@@ -41,6 +41,7 @@ class ErrorCode(Enum):
     seat_in_use = 'seat_in_use'
     game_over = 'game_over'
     invalid_draw = 'invalid_draw'
+    invalid_takeback = 'invalid_takeback'
 
 
 class EndingResult(Enum):
@@ -68,6 +69,18 @@ class DrawOffer(BaseModel):
     declined: bool | None = Field(
         None,
         description='The opponent declined it. A draw can be offered once per move.',
+    )
+
+
+class TakebackRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    by: Color
+    ply: conint(ge=0)
+    declined: bool | None = Field(
+        None,
+        description='The opponent declined it. A take-back can be asked for once per move.',
     )
 
 
@@ -227,6 +240,45 @@ class DrawDeclined(BaseModel):
     ply: conint(ge=0)
 
 
+class RequestTakeback(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['request_takeback']
+
+
+class AcceptTakeback(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['accept_takeback']
+
+
+class DeclineTakeback(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['decline_takeback']
+
+
+class TakebackRequested(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['takeback_requested']
+    by: Color
+    ply: conint(ge=0)
+
+
+class TakebackDeclined(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['takeback_declined']
+    by: Color
+    ply: conint(ge=0)
+
+
 class GameEnded(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -271,6 +323,10 @@ class GameState(BaseModel):
         None,
         description='The latest draw offer, if any; it stands only if its ply is the number of moves and it was not declined.',
     )
+    takebackRequest: TakebackRequest | None = Field(
+        None,
+        description='The latest take-back request, if any; it stands only if its ply is the number of moves and it was not declined.',
+    )
 
 
 class WebsocketV1MessageEnvelope(
@@ -292,6 +348,11 @@ class WebsocketV1MessageEnvelope(
         | DeclineDraw
         | DrawOffered
         | DrawDeclined
+        | RequestTakeback
+        | AcceptTakeback
+        | DeclineTakeback
+        | TakebackRequested
+        | TakebackDeclined
         | GameEnded
         | Presence
         | Error
@@ -315,6 +376,11 @@ class WebsocketV1MessageEnvelope(
         | DeclineDraw
         | DrawOffered
         | DrawDeclined
+        | RequestTakeback
+        | AcceptTakeback
+        | DeclineTakeback
+        | TakebackRequested
+        | TakebackDeclined
         | GameEnded
         | Presence
         | Error

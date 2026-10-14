@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { selectDrawOffer, selectEnding, withEnding } from './ending';
+import { selectDrawOffer, selectEnding, selectTakebackRequest, withEnding } from './ending';
 import { deriveHistory } from './history';
 import type { GameState, MoveMade, WebSocketMessage } from '../types/messages';
 
@@ -60,6 +60,35 @@ describe('withEnding', () => {
       gameOver: { result: 'checkmate' as const, winner: 'black' as const },
     };
     expect(withEnding(mated, { result: 'agreement' })).toBe(mated);
+  });
+});
+
+describe('selectTakebackRequest', () => {
+  const none = { standing: null, declined: null, canOffer: true };
+
+  it('is read as a draw offer is: standing, declined, lapsed, and from a snapshot', () => {
+    expect(selectTakebackRequest([state()], 0)).toEqual(none);
+    const asked: WebSocketMessage[] = [
+      state(),
+      { type: 'takeback_requested', by: 'white', ply: 0 },
+    ];
+    expect(selectTakebackRequest(asked, 0)).toEqual({
+      standing: 'white',
+      declined: null,
+      canOffer: false,
+    });
+    expect(
+      selectTakebackRequest([...asked, { type: 'takeback_declined', by: 'black', ply: 0 }], 0),
+    ).toEqual({ standing: null, declined: 'white', canOffer: false });
+    expect(selectTakebackRequest([...asked, made], 1)).toEqual(none);
+    expect(
+      selectTakebackRequest([state({ takebackRequest: { by: 'black', ply: 2 } })], 2).standing,
+    ).toBe('black');
+    // A draw offer is not a take-back request, nor the other way round
+    expect(
+      selectTakebackRequest([state(), { type: 'draw_offered', by: 'white', ply: 0 }], 0),
+    ).toEqual(none);
+    expect(selectDrawOffer(asked, 0)).toEqual(none);
   });
 });
 

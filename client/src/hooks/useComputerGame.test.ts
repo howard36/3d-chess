@@ -292,3 +292,51 @@ it('declines when it cannot weigh the position up', async () => {
   expect(error).toHaveBeenCalledOnce();
   error.mockRestore();
 });
+
+it('takes a move back: the computer drops what it was thinking over, then answers anew', async () => {
+  newGame('white');
+  let answerFirst: (m: ComputerMove) => void = () => {};
+  const asked: number[] = [];
+  const computer: Computer = {
+    think: (records) => {
+      asked.push(records.length);
+      return asked.length === 1
+        ? new Promise((resolve) => (answerFirst = resolve))
+        : Promise.resolve(reply('Dd4', 'Cd4'));
+    },
+    assess: () => Promise.resolve(0),
+    dispose: () => {},
+  };
+  const { result } = renderHook(() =>
+    useComputerGame(
+      'g1',
+      options(() => computer),
+    ),
+  );
+  act(() => {
+    result.current.send({ type: 'move', from: 'Bc2', to: 'Cc2' });
+  });
+  await waitFor(() => expect(asked).toEqual([1]));
+  // Taken back while it thinks: the game as it now stands, as a rejoin's answer
+  act(() => result.current.takeBack());
+  expect(result.current.messages[3]).toEqual({
+    type: 'game_state',
+    color: 'white',
+    started: true,
+    moves: [],
+  });
+  expect(loadComputerGame('g1')!.moves).toEqual([]);
+  // Its answer to the move taken back never lands
+  await act(async () => answerFirst(reply('Dc4', 'Cc4')));
+  expect(result.current.messages).toHaveLength(4);
+  // Nothing more to take back
+  act(() => result.current.takeBack());
+  expect(result.current.messages).toHaveLength(4);
+  // The player moves again, and the computer answers that
+  act(() => {
+    result.current.send({ type: 'move', from: 'Bd2', to: 'Cd2' });
+  });
+  await waitFor(() => expect(result.current.messages).toHaveLength(6));
+  expect(result.current.messages[5]).toMatchObject({ by: 'black', from: 'Dd4', to: 'Cd4' });
+  expect(loadComputerGame('g1')!.moves).toHaveLength(2);
+});

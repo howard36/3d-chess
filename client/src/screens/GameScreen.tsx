@@ -4,7 +4,7 @@ import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
 import { deriveHistory } from '../game/history';
 import type { GameHistory, GameOver } from '../game/history';
-import { selectDrawOffer, selectEnding, withEnding } from '../game/ending';
+import { selectDrawOffer, selectEnding, selectTakebackRequest, withEnding } from '../game/ending';
 import {
   hasSessionSince,
   refusedSince,
@@ -38,8 +38,9 @@ interface GameScreenProps {
    * page's first render (there is no one to invite); `arriving`, the side
    * choice is still on the lobby's stage, and the computer's king takes its
    * seat there before the game's entrance (the arrival, as a friend's would).
+   * `onTakeBack` takes back the player's last move (and the computer's reply).
    */
-  computer?: { color: Color; difficulty: Difficulty; arriving?: boolean };
+  computer?: { color: Color; difficulty: Difficulty; arriving?: boolean; onTakeBack?: () => void };
   /** Where "Play again" (and "No game here") leads: the side choice (/new) by default. */
   newGamePath?: string;
   /** Called once the game's entrance is over and the board is in play. */
@@ -142,6 +143,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   const history = React.useMemo(() => withEnding(replayed, ending), [replayed, ending]);
   const { board, replayFailedAt, gameOver } = history;
   const drawOffer = selectDrawOffer(messages, history.moveRecords.length);
+  const takebackRequest = selectTakebackRequest(messages, history.moveRecords.length);
 
   // The mate plays out (the king topples) before the result covers the
   // board, while the pulse runs on behind it — when the mate was just played
@@ -526,6 +528,23 @@ const GameScreen: React.FC<GameScreenProps> = ({
           onOfferDraw: () => gameSocket.send({ type: 'offer_draw' }),
           onAnswerDraw: (accept) =>
             gameSocket.send({ type: accept ? 'accept_draw' : 'decline_draw' }),
+          // Once the player has a move to take back: against the computer at
+          // once, against a friend by asking (once a move, like a draw)
+          takeBack: computer
+            ? computer.onTakeBack && {
+                enabled: !boardDisabled && history.moveRecords.some((m) => m.by === color),
+                onTakeBack: computer.onTakeBack,
+              }
+            : {
+                enabled:
+                  !boardDisabled &&
+                  takebackRequest.canOffer &&
+                  history.moveRecords.some((m) => m.by === color),
+                onTakeBack: () => gameSocket.send({ type: 'request_takeback' }),
+                request: takebackRequest,
+                onAnswer: (accept) =>
+                  gameSocket.send({ type: accept ? 'accept_takeback' : 'decline_takeback' }),
+              },
         }}
         // The whole entrance for a game that started while this page was
         // open, a short one for a page that opened on a game under way

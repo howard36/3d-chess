@@ -127,3 +127,83 @@ test('against the computer: it declines an even draw, and takes a resignation', 
   expect(seen()).toEqual([]);
   await context.close();
 });
+
+test('a take-back asked for, declined, then granted, by both players’ consent', async ({
+  browser,
+}) => {
+  const game = await startGame(browser);
+  const takeBack = (page: Page) => page.getByRole('button', { name: 'Ask to take back move' });
+  const moves = (page: Page) => page.getByTestId('move-announcer');
+  // Nothing of White's to take back yet
+  await expect(takeBack(game.white)).toBeDisabled();
+  await game.play('Bc2', 'Cc2');
+  await game.play('Dc4', 'Dc3');
+
+  // White asks; Black declines, and the asking waits for the next move
+  await takeBack(game.white).click();
+  await expect(game.white.getByTestId('takeback-pending')).toBeVisible();
+  const prompt = game.black.getByTestId('takeback-offer');
+  await expect(prompt).toContainText('Take-back requested');
+  await prompt.getByRole('button', { name: 'Decline' }).click();
+  await expect(prompt).toHaveCount(0);
+  await expect(game.white.getByTestId('takeback-declined')).toBeVisible();
+  await expect(takeBack(game.white)).toBeDisabled();
+  await game.play('Bd2', 'Cd2');
+
+  // Black asks on Black's own move, and White grants it: Black's move and
+  // White's reply go, and Black is to move again there, on both boards
+  await takeBack(game.black).click();
+  const whitePrompt = game.white.getByTestId('takeback-offer');
+  await whitePrompt.getByRole('button', { name: 'Accept' }).click();
+  for (const page of [game.white, game.black]) {
+    await expect(moves(page)).toHaveAttribute('data-move-count', '1');
+    await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
+    await expect(page.getByTestId('takeback-offer')).toHaveCount(0);
+    await expect(page.getByTestId('takeback-pending')).toHaveCount(0);
+  }
+  // The server keeps it: a reload finds the shorter record, and play goes on
+  await game.white.reload();
+  await waitForBoard(game.white);
+  await expect(moves(game.white)).toHaveAttribute('data-move-count', '1');
+  await game.play('Dc4', 'Dc3');
+  await expect(moves(game.white)).toHaveAttribute('data-move-count', '2');
+  await game.close();
+});
+
+test('against the computer: a move taken back at once, its reply with it', async ({ browser }) => {
+  const context = await browser.newContext({ reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  const seen = watchComputerGame(page);
+  await page.goto('/computer');
+  await page.getByRole('button', { name: /^White/ }).click();
+  await page
+    .getByRole('group', { name: 'Difficulty' })
+    .getByRole('button', { name: 'Easy' })
+    .click();
+  await page.waitForURL(/\/computer\/[a-z0-9]+$/);
+  await waitForBoard(page);
+
+  const takeBack = page.getByRole('button', { name: 'Take back move' });
+  await expect(takeBack).toBeDisabled();
+  await clickSquare(page, 'Bc2', 'white');
+  await waitForDestination(page, 'Cc2');
+  await clickSquare(page, 'Cc2', 'white');
+  const announcer = page.getByTestId('move-announcer');
+  await expect(announcer).toHaveAttribute('data-move-count', '2', { timeout: 20_000 });
+
+  await takeBack.click();
+  await expect(announcer).toHaveAttribute('data-move-count', '0');
+  await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
+  await expect(takeBack).toBeDisabled();
+  // Kept with the game in the browser
+  await page.reload();
+  await waitForBoard(page);
+  await expect(announcer).toHaveAttribute('data-move-count', '0');
+  // ...and the game goes on from there
+  await clickSquare(page, 'Bd2', 'white');
+  await waitForDestination(page, 'Cd2');
+  await clickSquare(page, 'Cd2', 'white');
+  await expect(announcer).toHaveAttribute('data-move-count', '2', { timeout: 20_000 });
+  expect(seen()).toEqual([]);
+  await context.close();
+});

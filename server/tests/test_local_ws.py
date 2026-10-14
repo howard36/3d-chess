@@ -410,7 +410,15 @@ def test_resignation_ends_the_game_for_both(client, store):
 
 def test_resigning_needs_a_game_under_way(client):
     with client.websocket_connect("/ws") as ws:
-        for kind in ("resign", "offer_draw", "accept_draw", "decline_draw"):
+        for kind in (
+            "resign",
+            "offer_draw",
+            "accept_draw",
+            "decline_draw",
+            "request_takeback",
+            "accept_takeback",
+            "decline_takeback",
+        ):
             ws.send_json({"type": kind})
             assert ws.receive_json()["code"] == "game_not_started"
         create_game(ws)
@@ -463,6 +471,53 @@ def test_a_draw_declined_and_play_goes_on(client):
         assert both_receive(white_ws, black_ws)["type"] == "move_made"
         white_ws.send_json({"type": "offer_draw"})
         assert both_receive(white_ws, black_ws)["ply"] == 1
+
+
+def test_a_take_back_asked_for_and_granted(client, store):
+    with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
+        gid, white_ws, black_ws = start_game(ws1, ws2)
+        white_ws.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+        both_receive(white_ws, black_ws)
+        black_ws.send_json({"type": "move", "from": "Ea4", "to": "Ea3"})
+        both_receive(white_ws, black_ws)
+        white_ws.send_json({"type": "request_takeback"})
+        assert both_receive(white_ws, black_ws) == {
+            "type": "takeback_requested",
+            "by": "white",
+            "ply": 2,
+        }
+        # The requester can neither answer nor repeat it
+        white_ws.send_json({"type": "accept_takeback"})
+        assert white_ws.receive_json()["code"] == "invalid_takeback"
+        white_ws.send_json({"type": "request_takeback"})
+        assert white_ws.receive_json()["code"] == "invalid_takeback"
+        # Granted: each player gets the game as it now stands, in their own seat
+        black_ws.send_json({"type": "accept_takeback"})
+        state = {"type": "game_state", "started": True, "moves": []}
+        assert white_ws.receive_json() == {**state, "color": "white"}
+        assert black_ws.receive_json() == {**state, "color": "black"}
+        assert store[gid]["moves"] == []
+        # ...and White moves again
+        white_ws.send_json({"type": "move", "from": "Ab2", "to": "Ab3"})
+        assert both_receive(white_ws, black_ws)["type"] == "move_made"
+
+
+def test_a_take_back_declined_and_play_goes_on(client, store):
+    with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
+        gid, white_ws, black_ws = start_game(ws1, ws2)
+        white_ws.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+        both_receive(white_ws, black_ws)
+        white_ws.send_json({"type": "request_takeback"})
+        both_receive(white_ws, black_ws)
+        black_ws.send_json({"type": "decline_takeback"})
+        assert both_receive(white_ws, black_ws) == {
+            "type": "takeback_declined",
+            "by": "black",
+            "ply": 1,
+        }
+        # A rejoin finds the request, declined
+        assert store[gid]["takebackRequest"] == {"by": "white", "ply": 1, "declined": True}
+        assert len(store[gid]["moves"]) == 1
 
 
 def test_a_move_cancels_a_standing_offer(client):

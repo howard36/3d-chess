@@ -1,6 +1,7 @@
 // How the players themselves end a game, derived from the socket's message
 // log alongside the replayed record (history.ts): a resignation or an agreed
-// draw, and the draw offer standing between them.
+// draw, and the draw offer standing between them (and, the same way, a
+// player's request to take back a move).
 //
 // Like the moves, both come from the LATEST game_state snapshot plus the
 // messages after it. Each draw message names the ply it was made at, and an
@@ -75,12 +76,36 @@ export function selectDrawOffer(
   messages: readonly WebSocketMessage[],
   plies: number,
 ): DrawOfferState {
+  return selectAsk(messages, plies, 'drawOffer', 'draw_offered', 'draw_declined');
+}
+
+/**
+ * The request to take back a move since the last move (when `plies` moves
+ * have been played), read as a draw offer is: who asked, or whose request
+ * was declined. A take-back can be asked for once a move.
+ */
+export function selectTakebackRequest(
+  messages: readonly WebSocketMessage[],
+  plies: number,
+): DrawOfferState {
+  return selectAsk(messages, plies, 'takebackRequest', 'takeback_requested', 'takeback_declined');
+}
+
+/** A draw offer or a take-back request since the last move, from the log. */
+function selectAsk(
+  messages: readonly WebSocketMessage[],
+  plies: number,
+  key: 'drawOffer' | 'takebackRequest',
+  asked: 'draw_offered' | 'takeback_requested',
+  refused: 'draw_declined' | 'takeback_declined',
+): DrawOfferState {
   const { snapshot, after } = sinceSnapshot(messages);
-  let offer: DrawOffer | null = snapshot?.drawOffer?.ply === plies ? snapshot.drawOffer : null;
+  const kept = snapshot?.[key];
+  let offer: DrawOffer | null = kept?.ply === plies ? kept : null;
   let declined = !!offer?.declined;
   for (const m of after) {
-    if (m.type === 'draw_offered' && m.ply === plies) offer = { by: m.by, ply: m.ply };
-    else if (m.type === 'draw_declined' && m.ply === plies) declined = true;
+    if (m.type === asked && 'ply' in m && m.ply === plies) offer = { by: m.by, ply: m.ply };
+    else if (m.type === refused && 'ply' in m && m.ply === plies) declined = true;
   }
   return {
     standing: offer && !declined ? offer.by : null,

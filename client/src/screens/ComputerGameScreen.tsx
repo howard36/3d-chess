@@ -28,7 +28,16 @@ const ComputerGame: React.FC<{ gameId: string }> = ({ gameId }) => {
   return (
     <GameScreen
       gameSocket={socket}
-      computer={game ? { color: game.color, difficulty: game.difficulty, arriving } : undefined}
+      computer={
+        game
+          ? {
+              color: game.color,
+              difficulty: game.difficulty,
+              arriving,
+              onTakeBack: socket.takeBack,
+            }
+          : undefined
+      }
       newGamePath="/computer"
       onPlaying={() => setPlaying(true)}
     />

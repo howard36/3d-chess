@@ -139,12 +139,12 @@ test('on a phone the steps stand under the tower once the game is over, the list
   const history = white.getByTestId('move-history');
   // While the game is on, no steps under the tower
   await expect(history).toHaveAttribute('data-hidden', 'true');
-  await expect(white.getByRole('button', { name: 'Back' })).toHaveCount(0);
+  await expect(white.getByRole('button', { name: 'Back', exact: true })).toHaveCount(0);
   await resign(white);
   await closeResult(white);
   // Closed: the list out of sight, but in the page for screen readers
   await expect(white.getByTestId('move-list')).toHaveClass(/sr-only/);
-  await white.getByRole('button', { name: 'Back' }).click();
+  await white.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(history).toHaveAttribute('data-viewing-ply', '1');
   await expect.poll(() => pieceOn(white, 'Cd5')).toBe(null);
   // The move shown opens the list, whose moves show the board after them

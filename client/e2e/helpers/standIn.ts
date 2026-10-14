@@ -48,5 +48,10 @@ export async function openStandInGame(
     /** The opponent offers a draw, at once, in the position served. */
     offerDraw: () =>
       socket!.send(JSON.stringify({ type: 'draw_offered', by: opponent, ply: record.length })),
+    /** The opponent asks to take back a move, at once, in the position served. */
+    requestTakeback: () =>
+      socket!.send(
+        JSON.stringify({ type: 'takeback_requested', by: opponent, ply: record.length }),
+      ),
   };
 }

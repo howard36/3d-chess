@@ -197,6 +197,34 @@ export function answerDrawOffer(game: ComputerGame, score: number | null): Answe
   };
 }
 
+/**
+ * How many moves a take-back removes: the player's last move and the
+ * computer's reply to it, if it has replied (0: nothing to take back, the
+ * player has not moved, or the game is over).
+ */
+export function takeBackPlies(game: ComputerGame | null): number {
+  if (!game || !game.started || isOver(game)) return 0;
+  for (let i = game.moves.length - 1; i >= 0; i--) {
+    if (game.moves[i].by === game.color) return game.moves.length - i;
+  }
+  return 0;
+}
+
+/**
+ * The player takes back their last move (and the computer's reply): the game
+ * goes back to the position before it, answered with the game as it now
+ * stands, as a rejoin would be, which the record is derived from afresh. A
+ * draw offer goes with the moves. Nothing happens if there is nothing to take
+ * back.
+ */
+export function takeBack(game: ComputerGame | null): Answer {
+  const plies = takeBackPlies(game);
+  if (!game || plies === 0) return { game, replies: [] };
+  const back: ComputerGame = { ...game, moves: game.moves.slice(0, game.moves.length - plies) };
+  delete back.drawOffer;
+  return { game: back, replies: [snapshot(back)] };
+}
+
 /** The computer takes its seat: the game begins. */
 export function startGame(game: ComputerGame): Answer {
   if (game.started) return { game, replies: [] };

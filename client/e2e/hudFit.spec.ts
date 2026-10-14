@@ -61,6 +61,7 @@ async function seated(page: Page, seat: 'white' | 'black') {
     },
     presence: game.presence,
     offerDraw: game.offerDraw,
+    requestTakeback: game.requestTakeback,
   };
 }
 
@@ -116,8 +117,9 @@ for (const seat of ['white', 'black'] as const) {
 
 /**
  * The HUD's rects over the board: the pill, each side's captured pieces, the
- * way to the tutorial, the flag for resigning and draws, with the
- * opponent's draw offer under it when one stands, and the move history.
+ * way to the tutorial, the flag for resigning and draws and the arrow for
+ * taking a move back, with the opponent's draw offer and take-back request
+ * under them when they stand, and the move history.
  */
 const hudRects = (page: Page) =>
   page.evaluate(() => {
@@ -144,7 +146,9 @@ const hudRects = (page: Page) =>
         document.querySelector('[data-testid="move-history"]:not([data-hidden])'),
       ),
       rect('game menu', document.querySelector('.hud-game-menu')),
+      rect('take back', document.querySelector('[data-testid="take-back"]')),
       rect('draw offer', document.querySelector('[data-testid="draw-offer"]')),
+      rect('take-back request', document.querySelector('[data-testid="takeback-offer"]')),
     ].filter((r) => r !== null);
   });
 
@@ -256,6 +260,12 @@ for (const seat of ['white', 'black'] as const) {
     await game.show(CHECK);
     game.offerDraw();
     await expect(page.getByTestId('draw-offer')).toBeVisible();
+    expect(await everywhere()).toEqual([]);
+    // ...and their request to take a move back too: one at a time, the
+    // take-back first (the window has room for one under the flag)
+    game.requestTakeback();
+    await expect(page.getByTestId('takeback-offer')).toBeVisible();
+    await expect(page.getByTestId('draw-offer')).toHaveCount(0);
     expect(await everywhere()).toEqual([]);
     // The result, the move history in sight behind its card
     await game.show(MATE);
