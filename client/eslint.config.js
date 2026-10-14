@@ -162,5 +162,16 @@ export default defineConfig(
     rules: { 'react-refresh/only-export-components': 'off' },
   },
   // The one place that publishes __r3fState (after the blocks that restrict it)
-  { files: ['src/screens/GameCanvas.tsx'], rules: { 'no-restricted-syntax': 'off' } },
+  {
+    files: ['src/screens/GameCanvas.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Date']",
+          message: 'Animate on r3f’s clock, not the wall clock.',
+        },
+      ],
+    },
+  },
 );

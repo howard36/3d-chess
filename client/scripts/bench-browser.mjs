@@ -593,26 +593,42 @@ const BENCH_INIT = () => {
         return copy.visible ? 'cached' : take?.visible ? 'capture' : 'plain';
       };
       // When the GPU has drawn each frame: render() returns once the frame is
-      // handed over, and in software the GPU draws it for a long while after
-      // (a fence after it, polled off the frame: its time, as r[5])
+      // handed over, and in software the GPU draws it for a long while after.
+      // A fence after each; fences pass in order, so one poller, off the
+      // frame, checks only the oldest still pending (its time, as r[5]; a
+      // frame with no fence gets false, never a time)
       const ctx = gl.getContext();
-      const drawn = (record) => {
-        if (typeof ctx.fenceSync !== 'function') return;
-        const fence = ctx.fenceSync(ctx.SYNC_GPU_COMMANDS_COMPLETE, 0);
-        if (!fence) return;
-        ctx.flush();
-        const poll = () => {
-          const lost = ctx.isContextLost();
-          if (!lost && ctx.getSyncParameter(fence, ctx.SYNC_STATUS) !== ctx.SIGNALED) {
-            setTimeout(poll, 1);
-            return;
-          }
-          if (!lost) {
+      const pending = [];
+      let polling = false;
+      const poll = () => {
+        while (pending.length) {
+          const [fence, record] = pending[0];
+          if (ctx.isContextLost()) {
+            record[5] = false;
+          } else if (ctx.getSyncParameter(fence, ctx.SYNC_STATUS) === ctx.SIGNALED) {
             ctx.deleteSync(fence);
             record[5] = now();
-          }
-        };
-        setTimeout(poll, 1);
+          } else break;
+          pending.shift();
+        }
+        polling = pending.length > 0;
+        if (polling) setTimeout(poll, 1);
+      };
+      const drawn = (record) => {
+        const fence =
+          typeof ctx.fenceSync === 'function'
+            ? ctx.fenceSync(ctx.SYNC_GPU_COMMANDS_COMPLETE, 0)
+            : null;
+        if (!fence) {
+          record[5] = false;
+          return;
+        }
+        ctx.flush();
+        pending.push([fence, record]);
+        if (!polling) {
+          polling = true;
+          setTimeout(poll, 1);
+        }
       };
       gl.render = function (scene, camera) {
         const t0 = performance.now();
@@ -637,16 +653,22 @@ const BENCH_INIT = () => {
 };
 
 /**
- * Waits (up to 15 s) until the first frame begun at or after `from` has been
- * drawn by the GPU (its fence passed: r[5]), so a row reading it never drops
- * the slow ones.
+ * Waits (up to 15 s) until the first frame begun at or after `from` (with
+ * `click`, after the first click at or after it: a hover frame can come
+ * first) has been drawn by the GPU (its fence passed: r[5]; false, no fence,
+ * never comes), so a row reading it never drops the slow ones.
  */
-const gpuDrawn = (page, from) =>
+const gpuDrawn = (page, from, click = false) =>
   page
-    .waitForFunction((t) => window.__bench.renders.find((r) => r[0] >= t)?.[5] != null, from, {
-      polling: 20,
-      timeout: 15000,
-    })
+    .waitForFunction(
+      ([t, c]) => {
+        const b = window.__bench;
+        const at = c ? b.clicks.find((k) => k[0] >= t)?.[0] : t;
+        return at != null && b.renders.find((r) => r[0] >= at)?.[5] != null;
+      },
+      [from, click],
+      { polling: 20, timeout: 15000 },
+    )
     .catch(() => log('  (a frame was not drawn by the GPU within 15 s)'));
 
 /** A copy of the page's recorded data (plus its time origin). */
@@ -1557,7 +1579,7 @@ async function movesSection(browser, shared) {
           shown: shown[0] - start,
           frame: drawn - start,
           // ...and drawn by the GPU (its fence passed)
-          gpu: frame[5] != null ? frame[5] - start : null,
+          gpu: frame[5] ? frame[5] - start : null,
           render: frame[1],
           calls: frame[3],
           triangles: frame[4],
@@ -1946,7 +1968,7 @@ async function selectSection(browser) {
         await page.mouse.click(at.x, at.y);
         await waitFrameAfter(page, t);
         await quietMain(page);
-        await gpuDrawn(page, t);
+        await gpuDrawn(page, t, true);
         const s = await snap(page);
         const frame = frameAfterClick(s, t);
         const drawn = frame ? frame[0] + frame[1] : 0;
@@ -1959,7 +1981,7 @@ async function selectSection(browser) {
             // warm frame), or null before it was asked
             warmLink,
             frame: drawn - t,
-            gpu: frame[5] != null ? frame[5] - t : null,
+            gpu: frame[5] ? frame[5] - t : null,
             render: frame[1],
             mode: frame[2],
             // A hover frame began between the press's start and the click
