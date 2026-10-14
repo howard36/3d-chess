@@ -10,8 +10,6 @@ export interface MoveHistoryProps {
   applied: number;
   /** The ply the board shows: `applied` at the live position. */
   shown: number;
-  /** A move has landed since the player began to look back. */
-  newer: boolean;
   /** Shows the position after `ply` moves (`applied`: the live position). */
   onShow: (ply: number) => void;
   /**
@@ -21,6 +19,11 @@ export interface MoveHistoryProps {
   enabled: boolean;
   /** The game is over and "Play again" stands under the tower (index.css keeps clear of it). */
   ended?: boolean;
+  /**
+   * The game is on: the record is out of sight, kept in the page as words for
+   * screen readers, and takes no step. It comes into sight with the result.
+   */
+  hidden?: boolean;
 }
 
 /** Moves a block of the list holds (an even number: a row is two moves). */
@@ -54,14 +57,20 @@ interface BlockProps {
   shown: number;
   /** The list is open: its shown move takes Tab. */
   open: boolean;
+  /** The moves are words only (the record out of sight while the game is on). */
+  words: boolean;
   onShow: (ply: number) => void;
 }
 
 /** The rows of moves `start` to `start + BLOCK` (as many as there are), each move a button. */
 const MoveBlock = React.memo(
-  ({ moves, start, applied, shown, open, onShow }: BlockProps) => {
+  ({ moves, start, applied, shown, open, words, onShow }: BlockProps) => {
     const ply = (i: number) => {
       const n = i + 1;
+      // One text node; Black's starts with the space between the two
+      // (white space at a line's start is not drawn)
+      const text = n % 2 === 0 ? ` ${formatMove(moves[i])}` : formatMove(moves[i]);
+      if (words) return <span>{text}</span>;
       return (
         <button
           type="button"
@@ -74,9 +83,7 @@ const MoveBlock = React.memo(
           disabled={n > applied}
           onClick={() => onShow(n)}
         >
-          {/* One text node; Black's starts with the space between the two
-              (white space at a line's start is not drawn) */}
-          {n % 2 === 0 ? ` ${formatMove(moves[i])}` : formatMove(moves[i])}
+          {text}
         </button>
       );
     };
@@ -101,6 +108,7 @@ const MoveBlock = React.memo(
   // step; the others hold the same records and are left alone
   (a, b) => {
     if (a.start !== b.start || a.shown !== b.shown || a.open !== b.open) return false;
+    if (a.words !== b.words) return false;
     if (a.onShow !== b.onShow) return false;
     const end = a.start + BLOCK;
     if (Math.min(a.applied, end) !== Math.min(b.applied, end)) return false;
@@ -151,24 +159,24 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
   moves,
   applied,
   shown,
-  newer,
   onShow,
   enabled,
   ended = false,
+  hidden = false,
 }) => {
   // Where the window has room the list is always open; where it has not,
-  // it opens on asking
+  // it opens on asking (never while the game is on)
   const narrow = useNarrow();
   const [asked, setAsked] = React.useState(false);
-  const open = !narrow || asked;
+  const open = !hidden && (!narrow || asked);
   const reviewing = shown < applied;
   // The player has stepped through the record (so a return to the game is said)
   const [stepped, setStepped] = React.useState(false);
 
   // The same callback from one render to the next, so a step renders only
   // the blocks it changes
-  const latest = React.useRef({ onShow, shown, applied, enabled });
-  latest.current = { onShow, shown, applied, enabled };
+  const latest = React.useRef({ onShow, shown, applied, enabled: enabled && !hidden });
+  latest.current = { onShow, shown, applied, enabled: enabled && !hidden };
   const show = React.useCallback((ply: number) => {
     if (!latest.current.enabled || ply === latest.current.shown) return;
     setStepped(true);
@@ -259,6 +267,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
         applied={applied}
         shown={shown > start && shown <= start + BLOCK ? shown : -1}
         open={open}
+        words={hidden}
         onShow={show}
       />,
     );
@@ -266,6 +275,22 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
 
   // Nothing to show before the first move
   if (moves.length === 0) return null;
+  // While the game is on, the record is said, not shown
+  if (hidden) {
+    return (
+      <nav
+        className="sr-only"
+        aria-label="Moves played"
+        data-testid="move-history"
+        data-viewing-ply={shown}
+        data-hidden
+      >
+        <ol id="move-list" ref={list} aria-label="Move history" data-testid="move-list">
+          {blocks}
+        </ol>
+      </nav>
+    );
+  }
   const label = plyLabel(moves, shown);
   const stepButton = (s: ReviewStep, off: boolean, named = false) => (
     <button
@@ -325,9 +350,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
           {label}
         </button>
         {stepButton('next', !reviewing)}
-        <span className="hud-latest" data-newer={(reviewing && newer) || undefined}>
-          {stepButton('latest', !reviewing, true)}
-        </span>
+        <span className="hud-latest">{stepButton('latest', !reviewing, true)}</span>
       </div>
       {/* Where the board stands, said as the player steps */}
       <div className="sr-only" role="status">

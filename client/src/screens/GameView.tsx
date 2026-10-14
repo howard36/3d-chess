@@ -288,19 +288,20 @@ const GameView: React.FC<GameViewProps> = ({
           <HowToPlay />
           {/* Under the way to the tutorial, one column at the right where
               the window has room beside the tower (index.css, .hud-side):
-              resigning and draws, which act on the live game whatever
-              position the board shows, then the move history */}
+              resigning and draws while the game is on, then the move
+              history once it is over */}
           <div className="hud-side">
             {color && !gameOver && actions && <GameActions seat={color} {...actions} />}
             <MoveHistory
               moves={moveRecords}
               applied={history.appliedMoveCount}
               shown={shown.ply}
-              newer={review.newer}
               onShow={review.show}
               // Not behind a dialog, nor while the entrance plays
               enabled={!behindDialog && !introPlaying}
               ended={!!gameOver && showEndModal && !resultUp}
+              // Out of sight while the game is on; in sight with the result
+              hidden={!gameOver || !showEndModal}
             />
           </div>
           {boardLoad.failed && (
