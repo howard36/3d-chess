@@ -1192,6 +1192,9 @@ from the same frame). A game's link is an invitation, so the build also writes
 `index.html` (Pages' single-page fallback). `og:image` names `https://3dchess.club/og.jpg`,
 which only holds what main deployed, so a branch's preview build points it at the
 preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
+`public/_headers` sets three headers on every address: other sites may not show the app in
+a frame, browsers must not guess file types, and a link the player follows sends only the
+site's name.
 
 Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
 per ecosystem (client npm, server uv, GitHub Actions, the actions pinned to commit SHAs),

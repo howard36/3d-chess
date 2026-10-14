@@ -86,8 +86,12 @@ test('opens on the armies as a game starts: what each side has, nothing picked u
 test('gives a piece other than the pawn one step: no switcher, Next goes to the next piece', async () => {
   await renderAt('/learn/rook');
   expect(screen.queryByRole('group', { name: 'Rook lessons' })).toBeNull();
+  const words = screen.getByText(/^Rooks move/).parentElement!;
   await userEvent.click(screen.getByRole('button', { name: 'Next: Bishop' }));
   expect(screen.getByTestId('where')).toHaveTextContent('/learn/bishop');
+  // The focus stays on Next: the new lesson's words are said as they come
+  expect(words).toHaveAttribute('aria-live', 'polite');
+  expect(words).toHaveTextContent(/^Bishops/);
 });
 
 test('says only what the board cannot show: a line, and a quieter note for a rule', async () => {
