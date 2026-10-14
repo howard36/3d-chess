@@ -36,6 +36,7 @@ vi.mock('./three/scene/backdropCache', () => ({
   BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
 }));
 // No frames in jsdom: the game's entrance is over as soon as it mounts
+vi.mock('./three/framePacer', () => ({ PaceOnGpu: () => null }));
 vi.mock('./three/scene/warm', () => ({
   WarmPrograms: () => null,
 }));
