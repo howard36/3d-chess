@@ -110,7 +110,10 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
     const play = (move: ComputerMove | null) => {
       if (!live || gameRef.current !== game) return;
       const chosen = move?.move ?? fallbackMove(game);
-      if (!chosen) return;
+      if (!chosen) {
+        console.error('The computer is to move but has no move to make: it waits.');
+        return;
+      }
       const total = move ? (optionsRef.current.pace ?? defaultPace)(game, move) : 0;
       const wait = Math.max(0, total - (performance.now() - asked));
       timer = window.setTimeout(() => {
@@ -128,7 +131,14 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
         apply(fallback ? computerMove(game, fallback) : answer);
       }, wait);
     };
-    computerRef.current.think(game.moves, game.difficulty).then(play, (cause) => {
+    const thought = (move: ComputerMove | null) => {
+      // Its search found no move where it is to move: its board and the
+      // engine disagree (as below). Say so, and play on
+      if (!move)
+        console.error('The computer’s search found no move; it plays its first legal move.');
+      play(move);
+    };
+    computerRef.current.think(game.moves, game.difficulty).then(thought, (cause) => {
       // The game goes on, with a move of no thought at all: say why
       console.error('The computer could not think; it plays its first legal move.', cause);
       play(null);

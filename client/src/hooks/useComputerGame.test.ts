@@ -131,8 +131,10 @@ it('plays a legal move of its own when its search fails or answers nothing', asy
     expect(result.current.messages[2]).toMatchObject({ type: 'move_made', by: 'white' });
     unmount();
   }
-  // A failed search says so; an empty answer (no move to make) is no failure
-  expect(error).toHaveBeenCalledOnce();
+  // Both say so: a failed search, and one that found no move where the rules
+  // have one (its board and the engine disagree)
+  expect(error).toHaveBeenCalledTimes(2);
+  expect(error.mock.calls[1][0]).toMatch(/found no move/);
   error.mockRestore();
 });
 
