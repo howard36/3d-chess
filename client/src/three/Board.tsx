@@ -41,6 +41,7 @@ import { Capture, Check, LastMove, Quiet } from './scene/markers';
 import { KNIGHT_YAW, layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
 import { Selection } from './scene/selection';
 import { pieceArrival } from './intro/timeline';
+import { useEntranceReplay } from './replay';
 
 // The 125 cell boxes are click targets only, never drawn: every one is
 // `visible={false}`, and three's Raycaster tests layers, not visibility, so
@@ -149,7 +150,12 @@ interface Arrival {
 }
 
 const Board = (props: BoardProps) => {
-  const board = props.board;
+  // A page opened on a game under way forms the position before its last
+  // move while the entrance plays, and then plays that move as it would have
+  // landed live (replay.ts); the board takes no input meanwhile
+  const replay = useEntranceReplay(props.board, props.lastMove);
+  const board = replay?.board ?? props.board;
+  const disabled = !!props.disabled || !!replay;
   // A click is aimed where it was released, as its press was (exactClicks.ts)
   useExactClicks();
   // Spectators (no assigned colour) get White's view.
@@ -165,7 +171,7 @@ const Board = (props: BoardProps) => {
   const worldOf = (cell: Coord) => worldPositions.get(toZXY(cell))!;
   const markerAt = (cell: Coord): MarkerProps => ({ floor: atCellFloor(worldOf(cell)) });
 
-  const lastMove = props.lastMove;
+  const lastMove = replay ? undefined : props.lastMove;
   // The piece the player has just played, held up until its move comes back
   // (so its glide sets off from where the player's hand left it)
   const [carried, setCarried] = useState<Coord | null>(null);
@@ -174,9 +180,10 @@ const Board = (props: BoardProps) => {
   // move count). One move on (a move landing, a step forward through the
   // record) glides that move's piece in from its source; in review, one move
   // back glides the undone move's piece home. Anything else is simply there:
-  // the moves already played when this board mounted (a rejoin's replay
-  // keeps their highlight but must not animate), a jump through the record.
-  const shownCount = lastMove?.moveCount ?? 0;
+  // the moves already played when this board mounted (a reconnect's replay
+  // keeps their highlight but must not animate; the entrance's replay of the
+  // last move, above, is one move on), a jump through the record.
+  const shownCount = replay?.ply ?? lastMove?.moveCount ?? 0;
   const arrival = useRef<Arrival>({ count: shownCount, key: 0, glide: null, lastMove });
   if (arrival.current.count !== shownCount) {
     const was = arrival.current;
@@ -208,6 +215,9 @@ const Board = (props: BoardProps) => {
   // land (MoveGlide's onLanded); a move from history shows it at once.
   const [landedKey, setLandedKey] = useState(arrivalKey);
   const landing = !!glide && !glide.back && arrivalKey > landedKey;
+  // The kings show what a move did to them once it has landed (and nothing
+  // while the position before the last move waits for it)
+  const kingsWait = landing || !!replay;
   const glideToKey = glide ? toZXY(glide.to) : null;
   const revealKey = glide?.back && glide.captured ? toZXY(glide.from) : null;
 
@@ -260,7 +270,7 @@ const Board = (props: BoardProps) => {
     // (The same empty list when nothing was held, so a move landing with no
     // piece picked up renders the board once, not twice)
     setLegalMoves((moves) => (moves.length === 0 ? moves : []));
-  }, [props.board, props.currentTurn, props.disabled]);
+  }, [board, props.currentTurn, disabled]);
   // The piece kept picked up (showMovesOf) is picked up again, after the
   // clearing above, in each new position once its move has landed
   const shown = props.showMovesOf ?? null;
@@ -269,13 +279,13 @@ const Board = (props: BoardProps) => {
     if (!shown || landing || !canPick(shown)) return;
     choose(shown, board.generateLegalMoves(shown));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- as the clearing above, and the landing
-  }, [props.board, props.currentTurn, props.disabled, shownKey, landing]);
+  }, [board, props.currentTurn, disabled, shownKey, landing]);
   // The played piece goes down once its move is back (a new board), or once
   // the board takes input again without it (the move refused)
-  useEffect(() => setCarried(null), [props.board]);
+  useEffect(() => setCarried(null), [board]);
   useEffect(() => {
-    if (!props.disabled) setCarried(null);
-  }, [props.disabled]);
+    if (!disabled) setCarried(null);
+  }, [disabled]);
 
   // Collect all pieces with their coordinates from the provided board
   const pieces = CELLS.flatMap((coord) => {
@@ -285,7 +295,7 @@ const Board = (props: BoardProps) => {
 
   // Whether the player may pick up the piece on this cell right now.
   const canPick = (coord: Coord) => {
-    if (props.disabled) return false;
+    if (disabled) return false;
     const piece = board.getPiece(coord);
     // Only allow clicking pieces that match both the current turn and playerColor
     return (
@@ -310,7 +320,7 @@ const Board = (props: BoardProps) => {
     }
     if (!canPick(coord)) {
       // Not this player's to pick up (yet): it shakes its head
-      if (!props.disabled) {
+      if (!disabled) {
         const key = toZXY(coord);
         setRefused((r) => ({ key, count: (r?.count ?? 0) + 1 }));
       }
@@ -401,7 +411,7 @@ const Board = (props: BoardProps) => {
 
   // Handle highlighted cube click (move application)
   const handleCubeClick = (targetCoord: Coord) => {
-    if (props.disabled || !selected || !held.current) return;
+    if (disabled || !selected || !held.current) return;
     // Several legal moves share a destination only when a pawn promotes there
     // (one per promotion piece); otherwise there is exactly one.
     const choices = legalMoves.filter((m) => sameCoord(m.to, targetCoord));
@@ -429,12 +439,12 @@ const Board = (props: BoardProps) => {
   const isSelected = (c: Coord) => !!selected && sameCoord(selected, c);
 
   // Kings standing in check, with where they stand (once a live move has landed).
-  const checkedKings = landing
+  const checkedKings = kingsWait
     ? []
     : pieces.filter(({ type, color }) => type === PieceType.King && board.inCheck(color));
   const checked = checkedKings.map(({ color }) => color);
   const matedColor =
-    !landing && props.gameOver?.result === 'checkmate' && props.gameOver.winner
+    !kingsWait && props.gameOver?.result === 'checkmate' && props.gameOver.winner
       ? props.gameOver.winner === 'white'
         ? 'black'
         : 'white'

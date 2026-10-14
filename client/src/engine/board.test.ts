@@ -1271,3 +1271,37 @@ describe('isStalemate', () => {
     expect(board.isCheckmate(BLACK)).toBe(false);
   });
 });
+
+describe('unapplyMove', () => {
+  const pawn = { type: PieceType.Pawn, color: 'white' } as const;
+  const knight = { type: PieceType.Knight, color: 'black' } as const;
+
+  it('puts the moved piece back and the piece it took where it stood', () => {
+    const before = new Board();
+    before.setPiece({ x: 1, y: 1, z: 1 }, pawn);
+    before.setPiece({ x: 2, y: 2, z: 1 }, knight);
+    const move = { from: { x: 1, y: 1, z: 1 }, to: { x: 2, y: 2, z: 1 } };
+    const after = before.applyMove(move);
+    const back = after.unapplyMove(move, knight)!;
+    expect(back.getPiece(move.from)).toEqual(pawn);
+    expect(back.getPiece(move.to)).toEqual(knight);
+    // The board it was handed is left as it was
+    expect(after.getPiece(move.from)).toBeNull();
+  });
+
+  it('turns a promoted piece back into its pawn', () => {
+    const from = { x: 2, y: 3, z: 4 };
+    const to = { x: 2, y: 4, z: 4 };
+    const before = new Board();
+    before.setPiece(from, pawn);
+    const move = { from, to, promotion: PieceType.Queen };
+    const back = before.applyMove(move).unapplyMove(move, null)!;
+    expect(back.getPiece(from)).toEqual(pawn);
+    expect(back.getPiece(to)).toBeNull();
+  });
+
+  it('declines a board the move cannot have made', () => {
+    const move = { from: { x: 1, y: 1, z: 1 }, to: { x: 2, y: 2, z: 1 } };
+    expect(new Board().unapplyMove(move, null)).toBeNull();
+  });
+});

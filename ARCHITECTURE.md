@@ -647,7 +647,12 @@ How the code is split:
   click lands on the square whose floor is under the pointer. It renders the grid, markers
   and effects in the `board-decor` group, outside the clickable `board-grid` group, so
   decoration can never take a click. The last move's line and entrance are keyed by move
-  and play only for a move that arrived live, never on a reload or rejoin.
+  and play only for a move that arrived live, never on a reconnect. A page that opens on
+  a game under way (a reload, a rejoin) forms the position before the last move in its
+  entrance, taking no input, and a beat after its last piece has formed (`replayAt` in
+  `three/intro/timeline.ts`) plays that move as it would have landed live: its glide, its
+  line, a capture's effect, then a check or a mate (`three/replay.ts`). A move that lands
+  meanwhile shows as it lands; with reduced motion the position is simply there.
 - `three/PieceMesh.tsx` places a piece. Pointer events hit an invisible, still stand-in
   fitted round the piece at rest and lifted, never the moving body, so a piece that rises
   under the pointer cannot slip out from under it. `three/pieceMotion.tsx` holds the timed
@@ -906,8 +911,8 @@ until the row fits the width).
   the tiles' glass in their rim: "Invite
   a friend", the link (`lib/gameLink.ts`, plain, without its scheme, on one line and
   cut off at its end when long, its box only as wide as the link), and one "Copy
-link" pill of starlight in a rim of the level colours (only where the clipboard can be
-written); nothing else. A copy turns the button to
+  link" pill of starlight in a rim of the level colours (only where the clipboard can be
+  written); nothing else. A copy turns the button to
   "Copied ✓" (and is said, "Link copied"); only a failed one is written: "Couldn't copy.
   Select the link." The neon seat breathes (for its
   first minute, calmer after half of it), and the camera holds still. In a short, wide
