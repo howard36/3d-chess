@@ -1,7 +1,6 @@
 import { MathUtils } from 'three';
 import { towerBodyRings } from './scene/labelAnchors';
 import { layout } from './scene/palette';
-import { DEMO_LOOP_SECONDS } from '../game/demo';
 
 // The landing page's preview of the tower: a slow turn round it at a fixed
 // elevation, framed beside the page's menu (the bands: screens/landingLayout.ts).
@@ -12,16 +11,15 @@ export const LANDING_VIEW = {
   elevation: 22,
   /**
    * Where the turn starts, in degrees round from White's side: clear of the
-   * garden's sculptures, and turned so the first game's mate lands seen from
-   * Black's side, where the mated king stands nearest.
+   * garden's sculptures (the start page's pictures are taken from here).
    */
   azimuth: 28,
   /**
-   * Seconds for a full turn round the tower: two passes of the demo (about
-   * 90 s), so every pass opens, and its mate lands, at one of the same two
-   * angles.
+   * Seconds for a full turn round the tower: slow enough (2.4° a second)
+   * that the eye stays on the game's moves, never a match for the games'
+   * lengths (the page opens on a random one).
    */
-  period: 2 * DEMO_LOOP_SECONDS,
+  period: 150,
 } as const;
 
 const [e, a] = [

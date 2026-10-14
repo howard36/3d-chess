@@ -98,13 +98,17 @@ try {
   await page.goto(`${base}/`);
   await page.waitForSelector('[data-testid="landing-canvas"] canvas', { timeout: 180000 });
 
-  // Draw frames until the picture stops changing (the piece set and the
-  // garden build over the first few): a quarter of a second of the demo's
-  // clock, then frames that take no time at all. Its first move waits almost
-  // three seconds.
+  // Draw frames until the preview has faded in over the page's picture of it
+  // (which then goes) and the picture stops changing (the piece set and the
+  // garden build over the first few): a few tenths of a second of the
+  // clock, then frames that take no time at all. Nothing moves until the
+  // preview has faded in, and its first move waits two seconds after.
   let last = null;
-  for (let i = 0, same = 0; i < 120 && same < 3; i++) {
-    await page.evaluate((ms) => window.__step(ms), i < 16 ? 16 : 0);
+  for (let i = 0, same = 0; i < 160 && same < 3; i++) {
+    const fading = await page.evaluate(
+      () => !!document.querySelector('[data-testid="landing-picture"]'),
+    );
+    await page.evaluate((ms) => window.__step(ms), fading ? 16 : 0);
     await page.waitForTimeout(300);
     const shot = await page.screenshot({ type: 'png', scale: 'css' });
     same = last && shot.equals(last) ? same + 1 : 0;

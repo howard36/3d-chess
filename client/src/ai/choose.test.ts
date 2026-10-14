@@ -1,13 +1,13 @@
 import { Board } from '../engine/board';
 import { moveFromMessage } from '../engine/protocol';
-import { DEMO_GAME } from '../game/demo';
+import { SHORT_GAME } from '../game/shortGame';
 import { assessPosition, chooseMove, hardToSee, pickMove, seeded } from './choose';
 import { DIFFICULTIES, LEVELS, isDifficulty, thinkTime } from './levels';
 import { BISHOP, KING, KNIGHT, PAWN, QUEEN, UNICORN, cellOf } from './position';
 import type { WireMove } from './position';
 import { MATE } from './search';
 
-const demo: WireMove[] = DEMO_GAME.map((m) => {
+const demo: WireMove[] = SHORT_GAME.map((m) => {
   const [from, to] = m.split('-');
   return { from, to };
 });
