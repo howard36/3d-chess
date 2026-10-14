@@ -11,6 +11,7 @@ import { PALETTE } from './palette';
 import { PieceType } from '../../engine/pieces';
 import { bodyMaterial, markGlazeWarm, poolMaterial } from './pieces';
 import { keepPrograms, linkAhead, warmObjects } from './programs';
+import type { LinkOutcome } from './programs';
 import { selectionMaterials } from './selection';
 
 /** The warm-up under way: its objects, and whether they have been drawn. */
@@ -107,8 +108,10 @@ export const WarmPrograms = () => {
       linked: false,
       dispose,
     };
-    const ready = () => {
+    const ready = (outcome: LinkOutcome) => {
       if (warming.current !== w) return;
+      // For the bench: whether the warm frame will wait on the GPU's read-backs
+      gl.domElement.dataset.warmLink = outcome;
       w.linked = true;
       invalidate();
     };

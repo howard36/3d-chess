@@ -164,10 +164,12 @@ export const linkAhead = (
   gl: WebGLRenderer,
   root: Object3D,
   camera: Camera,
-  then: () => void,
+  then: (outcome: LinkOutcome) => void,
   scene: Scene | null = null,
 ) => {
   const materials = gl.compile(root, camera, scene);
+  const fenced =
+    typeof (gl.getContext() as Partial<WebGL2RenderingContext>).fenceSync === 'function';
   const wait = (tries: number): boolean => {
     const frame = gl.info.render.frame;
     return afterGpu(gl, (done) => {
@@ -183,11 +185,19 @@ export const linkAhead = (
       if (idle)
         for (const m of materials)
           readBack(gl.properties.get(m) as { currentProgram?: ThreeProgram } | undefined);
-      then();
+      then(idle ? 'idle' : done ? 'busy' : fenced ? 'timeout' : 'nofence');
     });
   };
   return wait(LINK_AHEAD_TRIES);
 };
+
+/**
+ * How linkAhead ended: its programs read back with the GPU idle, or not
+ * (their first draw reads them back, a wait on the GPU): frames drawn after
+ * every fence it placed, the GPU not answering (or the context lost), or no
+ * fences to wait on.
+ */
+export type LinkOutcome = 'idle' | 'busy' | 'timeout' | 'nofence';
 
 /** How many fences linkAhead places, at most, for a moment the GPU has nothing else to do. */
 export const LINK_AHEAD_TRIES = 4;

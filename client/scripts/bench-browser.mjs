@@ -1706,6 +1706,12 @@ async function computerSection(browser) {
             });
           }
           const s = await snap(page);
+          // Its moves came from the search in a worker, not a fallback (a
+          // worker that failed thinks on the page; a search that failed
+          // plays at once): anything else times another path
+          if (!s.workers.length) throw new Error('computer: no worker was started');
+          const unthought = moves.findIndex((m) => !(m.nodes > 0));
+          if (unthought >= 0) throw new Error(`computer: move ${unthought + 1} had no search`);
           const pick = s.clicks.find((c) => c[0] >= beforePick)?.[0];
           const thinking = moves.map((m) => {
             const busy = tasksIn(s.lt, m.asked, m.answered).map((l) => l[1]);
@@ -1881,9 +1887,10 @@ async function selectSection(browser) {
         const zxy = squares[i % squares.length];
         const at = await squarePixel(page, zxy);
         if (!at) throw new Error(`no pixel reaches ${zxy}`);
-        const [t, warm] = await page.evaluate(() => [
+        const [t, warm, warmLink] = await page.evaluate(() => [
           window.__benchNow(),
           document.querySelector('canvas')?.dataset.warm === 'done',
+          document.querySelector('canvas')?.dataset.warmLink ?? null,
         ]);
         await page.mouse.click(at.x, at.y);
         await waitFrameAfter(page, t);
@@ -1895,6 +1902,10 @@ async function selectSection(browser) {
           frame && {
             // The game's warm-up (WarmPrograms) was over at the click
             warm,
+            // How its programs were linked ahead (linkAhead's outcome: 'idle'
+            // read back at rest; anything else leaves the read-backs to the
+            // warm frame), or null before it was asked
+            warmLink,
             frame: drawn - t,
             render: frame[1],
             mode: frame[2],
@@ -1987,6 +1998,14 @@ async function selectSection(browser) {
             .filter(Boolean)
             .map((p) => (p.warm ? 0 : 1)),
           'count; 1 when the first pick met the warm-up',
+        ),
+        countStat(
+          'the warm-up’s read-backs left to its frame',
+          picks
+            .slice(0, 1)
+            .filter((p) => p?.warmLink)
+            .map((p) => (p.warmLink === 'idle' ? 0 : 1)),
+          'count; 1 when linkAhead gave up (the canvas kept drawing, no fence, no answer) and the warm frame waits on the GPU for them',
         ),
         stat('that frame’s render() call', col('render'), 'main thread'),
         stat('longest task, click → frame', col('longest')),
