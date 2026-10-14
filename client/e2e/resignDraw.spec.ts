@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { startGame } from './helpers/game';
 import { clickSquare, waitForBoard, waitForDestination } from './helpers/board';
+import { watchComputerGame } from './helpers/computer';
 
 // Ending a game by the players' own decision: a resignation, and a draw
 // offered and declined, cancelled by a move, then agreed. Both players see
@@ -94,6 +95,8 @@ test('against the computer: it declines an even draw, and takes a resignation', 
 }) => {
   const context = await browser.newContext({ reducedMotion: 'reduce' });
   const page = await context.newPage();
+  // Declined because it weighed the position up, not because it could not
+  const seen = watchComputerGame(page);
   await page.goto('/computer');
   await page.getByRole('button', { name: /^White/ }).click();
   await page
@@ -121,5 +124,6 @@ test('against the computer: it declines an even draw, and takes a resignation', 
   await page.reload();
   await waitForBoard(page);
   await expect(pill).toHaveAttribute('data-result', 'resignation');
+  expect(seen()).toEqual([]);
   await context.close();
 });

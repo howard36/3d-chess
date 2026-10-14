@@ -304,10 +304,11 @@ export const wholePiece = (type: PieceType): BufferGeometry =>
 
 /** The next idle moment: an idle callback, or a timer where there is none (Safari, iOS). */
 const whenIdle = (run: () => void) => {
+  /* eslint-disable no-restricted-properties -- a preload's idle moment, not an animation */
   if (typeof window.requestIdleCallback === 'function')
     window.requestIdleCallback(run, { timeout: 4000 });
-  // eslint-disable-next-line no-restricted-properties -- a preload's idle fallback, not an animation
   else window.setTimeout(run, 50);
+  /* eslint-enable no-restricted-properties */
 };
 
 /**
