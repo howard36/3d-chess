@@ -72,6 +72,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
+import { parseArgs } from 'node:util';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -82,16 +83,36 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIENT = join(ROOT, 'client');
 const OUT_DIR = join(ROOT, 'bench', 'out');
 
-const args = process.argv.slice(2);
-const flag = (name) => args.includes(name);
-const option = (name, fallback) => {
-  const i = args.indexOf(name);
-  return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
-};
+// A flag it does not know, or one missing its value, stops it with the usage
+// above: a typo would otherwise run something else and overwrite the report
+const STRINGS = ['only', 'out', 'compare', 'from', 'rounds', 'files', 'grep', 'repeat', 'base'];
+STRINGS.push('pairs', 'server-sections', 'browser-sections');
+let parsed;
+try {
+  parsed = parseArgs({
+    options: Object.fromEntries([
+      ['quick', { type: 'boolean' }],
+      ['primary', { type: 'boolean' }],
+      ...STRINGS.map((name) => [name, { type: 'string' }]),
+    ]),
+    strict: true,
+    allowPositionals: false,
+  }).values;
+} catch (e) {
+  process.stderr.write(`[bench] ${e.message}\nUsage: see the top of bench/run.mjs.\n`);
+  process.exit(2);
+}
+const flag = (name) => parsed[name.slice(2)] === true;
+const option = (name, fallback) => parsed[name.slice(2)] || fallback;
 const QUICK = flag('--quick');
 const PRIMARY_ONLY = flag('--primary');
 const ONLY_GIVEN = option('--only', null);
 let ONLY = (ONLY_GIVEN ?? (PRIMARY_ONLY ? 'client,browser' : 'client,server,browser')).split(',');
+const TIERS = ['client', 'server', 'browser'];
+if (ONLY.some((t) => !TIERS.includes(t))) {
+  process.stderr.write(`[bench] --only takes ${TIERS.join(', ')} (comma-separated, no spaces)\n`);
+  process.exit(2);
+}
 const REPORT = resolve(option('--out', join(ROOT, 'bench', 'out', 'RESULTS.md')));
 const COMPARE = option('--compare', null);
 const FROM = option('--from', null);
