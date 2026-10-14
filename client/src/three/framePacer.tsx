@@ -23,11 +23,16 @@ const stepped = () => typeof (window as { __vclock?: unknown }).__vclock === 'ob
  */
 export const PaceOnGpu = () => {
   const gl = useThree((s) => s.gl);
-  const fence = useRef<WebGLSync | null>(null);
+  const fence = useRef<{ sync: WebGLSync; skipped: number } | null>(null);
   useEffect(() => {
     const context = gl.getContext() as WebGL2RenderingContext;
+    const canvas = gl.domElement;
+    // A fence from before a lost context is no fence after it: forget it
+    const lost = () => (fence.current = null);
+    canvas.addEventListener('webglcontextlost', lost);
     return () => {
-      if (fence.current && !context.isContextLost()) context.deleteSync(fence.current);
+      canvas.removeEventListener('webglcontextlost', lost);
+      if (fence.current && !context.isContextLost()) context.deleteSync(fence.current.sync);
       fence.current = null;
     };
   }, [gl]);
@@ -36,21 +41,30 @@ export const PaceOnGpu = () => {
     const last = fence.current;
     if (last) {
       const lost = context.isContextLost();
+      // Only a fence the GPU says it has not reached holds the frame (one it
+      // cannot read says nothing), and for PACE_MAX_SKIPS frames at most
       const busy =
         !lost &&
         !stepped() &&
-        context.getSyncParameter(last, context.SYNC_STATUS) !== context.SIGNALED;
+        last.skipped < PACE_MAX_SKIPS &&
+        context.getSyncParameter(last.sync, context.SYNC_STATUS) === context.UNSIGNALED;
       if (busy) {
+        last.skipped++;
         invalidate();
         return;
       }
-      if (!lost) context.deleteSync(last);
+      if (!lost) context.deleteSync(last.sync);
       fence.current = null;
     }
     gl.render(scene, camera);
     if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;
-    fence.current = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    const sync = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    if (!sync) return;
+    fence.current = { sync, skipped: 0 };
     context.flush();
   }, 1);
   return null;
 };
+
+/** The display frames a frame waits for the GPU at most (a second at 60 Hz): a fence that never passes holds nothing. */
+export const PACE_MAX_SKIPS = 60;

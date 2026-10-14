@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { PaceOnGpu } from './framePacer';
+import { PACE_MAX_SKIPS, PaceOnGpu } from './framePacer';
 
 // r3f stood in: the frame callback and its priority captured, the renderer a stand-in with fences
 const frame = vi.hoisted(() => ({ run: null as null | ((s: object) => void), priority: 0 }));
@@ -10,6 +10,7 @@ const gpu = vi.hoisted(() => {
     SYNC_GPU_COMMANDS_COMPLETE: 1,
     SYNC_STATUS: 2,
     SIGNALED: 3,
+    UNSIGNALED: 4,
     lost: false,
     fenceSync: () => {
       const f = { passed: false };
@@ -23,7 +24,12 @@ const gpu = vi.hoisted(() => {
     },
     getSyncParameter: (f: { passed: boolean }) => (f.passed ? 3 : 4),
   };
-  return { fences, context, gl: { getContext: () => context, render: () => {} } };
+  const canvas = new EventTarget();
+  return {
+    fences,
+    context,
+    gl: { getContext: () => context, render: () => {}, domElement: canvas },
+  };
 });
 vi.mock('@react-three/fiber', () => ({
   useThree: (pick: (s: object) => unknown) => pick({ gl: gpu.gl }),
@@ -82,4 +88,26 @@ it('draws every frame on a stepped clock (a recording), which no fence can keep 
   } finally {
     delete (window as { __vclock?: object }).__vclock;
   }
+});
+
+it('forgets a fence from before a lost context: after the restore it draws at once', () => {
+  const draw = vi.spyOn(gpu.gl, 'render');
+  draw.mockClear();
+  render(<PaceOnGpu />);
+  frame.run!(state);
+  // Lost at rest (no frame runs meanwhile), then restored: the old fence reads as unsignalled
+  gpu.gl.domElement.dispatchEvent(new Event('webglcontextlost'));
+  frame.run!(state);
+  expect(draw).toHaveBeenCalledTimes(2);
+});
+
+it('draws anyway once a fence has held it for PACE_MAX_SKIPS frames', () => {
+  const draw = vi.spyOn(gpu.gl, 'render');
+  draw.mockClear();
+  render(<PaceOnGpu />);
+  frame.run!(state);
+  for (let i = 0; i < PACE_MAX_SKIPS; i++) frame.run!(state);
+  expect(draw).toHaveBeenCalledTimes(1);
+  frame.run!(state);
+  expect(draw).toHaveBeenCalledTimes(2);
 });

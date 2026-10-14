@@ -20,6 +20,8 @@ interface Warming {
   objects: Object3D[];
   materials: Material[];
   drawn: boolean;
+  /** The renderer's frame count when they joined: drawn once it has moved on. */
+  joinedAt: number;
   /** Every program linked ahead (linkAhead): the drawing can start. */
   linked: boolean;
   dispose: () => void;
@@ -63,6 +65,13 @@ export const WarmPrograms = () => {
     if (!w.drawn) {
       w.group.add(...w.objects);
       w.drawn = true;
+      w.joinedAt = gl.info.render.frame;
+      invalidate();
+      return;
+    }
+    // A frame can be left undrawn (PaceOnGpu, the GPU still on the last one):
+    // they stay until one has drawn them
+    if (gl.info.render.frame === w.joinedAt) {
       invalidate();
       return;
     }
@@ -105,6 +114,7 @@ export const WarmPrograms = () => {
       objects: [...group.children],
       materials: [...bare, ...meshes, ...points],
       drawn: false,
+      joinedAt: 0,
       linked: false,
       dispose,
     };

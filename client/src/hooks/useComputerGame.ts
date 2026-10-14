@@ -132,6 +132,7 @@ export function useComputerGame(gameId: string, options: ComputerGameOptions = {
       }, wait);
     };
     const thought = (move: ComputerMove | null) => {
+      if (!live || gameRef.current !== game) return;
       // Its search found no move where it is to move: its board and the
       // engine disagree (as below). Say so, and play on
       if (!move)
