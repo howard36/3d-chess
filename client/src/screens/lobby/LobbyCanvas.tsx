@@ -4,6 +4,7 @@ import { NeutralToneMapping } from 'three';
 import { LobbyScene } from '../../three/lobby/LobbyScene';
 import type { LobbyView } from '../../three/lobby/LobbyScene';
 import { LOBBY_FOV } from '../../three/lobby/lobbyMotion';
+import { PaceOnGpu } from '../../three/framePacer';
 import { setUpRenderer } from '../../three/rendererSetup';
 
 // The lobby's canvas: three.js and the lobby's scene, in the chunk the game's
@@ -28,6 +29,7 @@ const LobbyCanvas = ({ view, anchors, canvasHost }: LobbyCanvasProps) => (
     style={{ touchAction: 'manipulation' }}
   >
     <LobbyScene view={view} anchors={anchors} canvasHost={canvasHost} />
+    <PaceOnGpu />
   </Canvas>
 );
 

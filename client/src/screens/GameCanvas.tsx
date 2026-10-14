@@ -17,6 +17,7 @@ import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import { BackdropCache } from '../three/scene/backdropCache';
 import { WarmPrograms } from '../three/scene/warm';
+import { PaceOnGpu } from '../three/framePacer';
 import { linkBeforeFirstFrame, setUpRenderer } from '../three/rendererSetup';
 import type { Board as EngineBoard, Move } from '../engine';
 import type { GameOver, LastMove, Turn } from '../game/history';
@@ -179,6 +180,8 @@ const GameCanvas = ({
           />
           {introOver && drawn && <WarmPrograms />}
         </IntroContext.Provider>
+        {/* One frame at a time on the GPU: a move or a pick never waits behind queued ones */}
+        <PaceOnGpu />
       </Canvas>
     </>
   );
