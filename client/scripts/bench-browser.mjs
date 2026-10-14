@@ -636,6 +636,19 @@ const BENCH_INIT = () => {
   });
 };
 
+/**
+ * Waits (up to 15 s) until the first frame begun at or after `from` has been
+ * drawn by the GPU (its fence passed: r[5]), so a row reading it never drops
+ * the slow ones.
+ */
+const gpuDrawn = (page, from) =>
+  page
+    .waitForFunction((t) => window.__bench.renders.find((r) => r[0] >= t)?.[5] != null, from, {
+      polling: 20,
+      timeout: 15000,
+    })
+    .catch(() => log('  (a frame was not drawn by the GPU within 15 s)'));
+
 /** A copy of the page's recorded data (plus its time origin). */
 const snap = (page) =>
   page.evaluate(() => ({ ...window.__bench, timeOrigin: performance.timeOrigin }));
@@ -1525,6 +1538,7 @@ async function movesSection(browser, shared) {
         await page.waitForFunction((until) => window.__benchNow() >= until, drawnAt + LANDING_MS, {
           polling: 50,
         });
+        await gpuDrawn(page, committed);
         const s = await snap(page);
         const shown = s.counts.find((c) => c[1] === i + 1);
         if (shown[2] !== move)
@@ -1932,6 +1946,7 @@ async function selectSection(browser) {
         await page.mouse.click(at.x, at.y);
         await waitFrameAfter(page, t);
         await quietMain(page);
+        await gpuDrawn(page, t);
         const s = await snap(page);
         const frame = frameAfterClick(s, t);
         const drawn = frame ? frame[0] + frame[1] : 0;
