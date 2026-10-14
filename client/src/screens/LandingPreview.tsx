@@ -67,6 +67,31 @@ function Reveal({
 }
 
 /**
+ * Builds the scene (the garden and the board, the most work the page does)
+ * in a transition, after the canvas is made: React yields to input every few
+ * milliseconds while it renders, so a click in the first second, which
+ * otherwise waited on the whole build, is answered at once. The programs of
+ * the scene so built are linked ahead of its first frame (LinkAhead).
+ */
+function Yielding({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => React.startTransition(() => setMounted(true)), []);
+  return mounted ? (
+    <>
+      {children}
+      <LinkAhead />
+    </>
+  ) : null;
+}
+
+/** Links the programs of everything mounted before it ahead of the next frame (linkBeforeFirstFrame). */
+function LinkAhead() {
+  const get = useThree((s) => s.get);
+  React.useLayoutEffect(() => linkBeforeFirstFrame(get()), [get]);
+  return null;
+}
+
+/**
  * Runs the demo's clock on r3f's (so scripts/showcase.mjs, which records on a
  * virtual clock, captures it) and reports each new ply or pass. The veil
  * changes every frame of a fade, so it is written straight to its element
@@ -171,29 +196,29 @@ export function LandingPreview({
         // The turn and the demo ask for their own frames; until they set
         // off, the preview draws only when something changes
         frameloop="demand"
-        // Its first frame's programs linked before it, the page free
-        // meanwhile: a click in the first seconds does not wait on the
-        // garden's shaders (the demo's marks still link as they first show)
-        onCreated={(state) => {
-          setUpRenderer(state);
-          linkBeforeFirstFrame(state);
-        }}
+        // The scene built in a transition, and its first frame's programs
+        // linked before it, the page free meanwhile (Yielding): a click in
+        // the first seconds waits on neither
+        onCreated={setUpRenderer}
         // The page may be left before the first commit: never connect to a gone container
         events={pointerEvents}
       >
-        <Stage orientation="white" />
-        {/* A fresh board for each pass (the next game opens under the veil):
+        <Yielding>
+          <Stage orientation="white" />
+          {/* A fresh board for each pass (the next game opens under the veil):
             a board plays only the moves made after it mounts */}
-        <Board
-          key={frame.pass}
-          board={history.board}
-          currentTurn={history.currentTurn}
-          playerColor={null}
-          lastMove={history.lastMove}
-          disabled
-          gameOver={history.gameOver}
-          labels={false}
-        />
+          <Board
+            key={frame.pass}
+            board={history.board}
+            currentTurn={history.currentTurn}
+            playerColor={null}
+            lastMove={history.lastMove}
+            disabled
+            gameOver={history.gameOver}
+            labels={false}
+          />
+          {!picture && !revealed && <Reveal wrapper={wrapper} onShown={shown} />}
+        </Yielding>
         <FitCameraToBoard
           viewDirection={landingViewDirection}
           minDistance={layout.orbit.minDistance}
@@ -204,7 +229,6 @@ export function LandingPreview({
           centre="rings"
           lens={lens}
         />
-        {!picture && !revealed && <Reveal wrapper={wrapper} onShown={shown} />}
         {revealed && <AutoOrbit period={LANDING_VIEW.period} />}
         {revealed && <DemoDirector order={order} veil={veil} onFrame={setFrame} />}
       </Canvas>

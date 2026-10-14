@@ -582,14 +582,24 @@ const BENCH_INIT = () => {
     characterData: true,
   });
   // The start page's preview's first draw (its canvas draws without a change
-  // to the DOM)
+  // to the DOM). Each canvas is looked up once: a game's frames make hundreds
+  // of draws, which must cost the page nothing
+  const landingCanvas = new WeakMap();
   for (const proto of [WebGL2RenderingContext.prototype, WebGLRenderingContext.prototype]) {
     for (const name of ['drawElements', 'drawArrays']) {
       const draw = proto[name];
       proto[name] = function (...args) {
-        if (!b.landingDrawn && this.canvas?.closest?.('[data-testid="landing-canvas"]')) {
-          b.landingDrawn = true;
-          check();
+        if (!b.landingDrawn) {
+          const canvas = this.canvas;
+          let landing = landingCanvas.get(canvas);
+          if (landing === undefined) {
+            landing = !!canvas?.closest?.('[data-testid="landing-canvas"]');
+            landingCanvas.set(canvas, landing);
+          }
+          if (landing) {
+            b.landingDrawn = true;
+            check();
+          }
         }
         return draw.apply(this, args);
       };

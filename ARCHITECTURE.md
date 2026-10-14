@@ -374,7 +374,7 @@ Key decisions:
   page's head starts the AVIF downloading before the entry has run (`preloadLandingPicture`,
   on `/` alone). The preview opens on exactly the picture's moment (the opening position
   from the turn's first angle) and fades in over it in 0.3 s once its first frame is
-  drawn, nothing moving until it has, and the picture goes. `landingLens.test.ts`
+  drawn, nothing moving until it has, and the picture goes. The preview builds its scene (the garden and the board, the most work the page does) in a transition after its canvas is made (`Yielding` in `LandingPreview.tsx`), and links the scene's programs once it is in: React yields to input while it renders, so a click in the first second is answered at once instead of waiting on the build. `landingLens.test.ts`
   recomputes the baked numbers from the fit and fails when the rings, the opening view
   or the bands change: bake them again and re-render the pictures
   (`scripts/landing-pictures.mjs`, through the dev-only `landing-pictures.html`). The
