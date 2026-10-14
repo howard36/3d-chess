@@ -76,6 +76,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { PRIMARY, PRIMARY_BROWSER_SECTIONS, PRIMARY_CLIENT_FILES, keyOf } from './primary.mjs';
+import { median, verdict } from './verdict.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIENT = join(ROOT, 'client');
@@ -189,11 +190,6 @@ function loadRun(dir) {
   }
   return { info, results };
 }
-
-const median = (xs) => {
-  const s = [...xs].sort((a, b) => a - b);
-  return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
-};
 
 /**
  * vitest's JSON with each case registered once per round (inRounds in
@@ -740,40 +736,6 @@ const shown = (value, unit) =>
         : unit === 'count'
           ? String(Number(value.toPrecision(3)))
           : duration(value);
-
-/**
- * The pairs' verdict for one measured thing: each pair's ratio head/base,
- * their geometric mean as the change, and a change called real only when
- * every pair agrees on its direction and it exceeds both 5% and the pairs'
- * own disagreement (their ratios' range). A value at 0 on a side is judged
- * by the pairs' differences instead (`diffs`, the change their median).
- */
-function verdict(pairs, better, unit) {
-  // A value at 0 on a side has no ratio: its change is the difference,
-  // called when every pair moves the same way. A count (the programs a move
-  // links once warm, a leak's growth) is judged so whenever a pair has a 0;
-  // anything else (a longest task, 0 until one reaches the browser's 50 ms)
-  // only when no two pairs give a ratio, since a time's differences all lean
-  // one way by chance far more often than its ratios clear the rule below
-  const ratioPairs = pairs.filter(([b, h]) => b > 0 && h > 0);
-  const zero = pairs.some(([b, h]) => b === 0 || h === 0);
-  if (pairs.length >= 2 && zero && (unit === 'count' || ratioPairs.length < 2)) {
-    const diffs = pairs.map(([b, h]) => h - b);
-    const change = median(diffs);
-    const real = diffs.every((d) => d > 0) || diffs.every((d) => d < 0);
-    const improved = better === 'higher' ? change > 0 : change < 0;
-    return { ratios: [], diffs, change, spread: 0, real, improved };
-  }
-  const ratios = pairs.map(([b, h]) => h / b).filter((r) => Number.isFinite(r) && r > 0);
-  if (ratios.length < 2) return null;
-  const mean = Math.exp(ratios.reduce((s, r) => s + Math.log(r), 0) / ratios.length);
-  const change = (mean - 1) * 100;
-  const spread = ((Math.max(...ratios) - Math.min(...ratios)) / mean) * 100;
-  const agree = ratios.every((r) => r > 1) || ratios.every((r) => r < 1);
-  const real = agree && Math.abs(change) > Math.max(5, spread);
-  const improved = better === 'higher' ? change > 0 : change < 0;
-  return { ratios, change, spread, real, improved };
-}
 
 /**
  * The tiers a change from `sha` to this checkout (commits, uncommitted and
