@@ -27,7 +27,6 @@ const history = (props: Partial<MoveHistoryProps> & { moves: MoveRecord[] }) => 
   const all: MoveHistoryProps = {
     applied: props.moves.length,
     shown: props.moves.length,
-    newer: false,
     onShow: () => {},
     enabled: true,
     ...props,
@@ -199,7 +198,7 @@ describe('the steps', () => {
     expect(onShow).not.toHaveBeenCalled();
   });
 
-  it('light the way back away from the live position, and mark a move landed since', () => {
+  it('light the way back away from the live position', () => {
     const { rerender } = render(history({ moves: record(6) }));
     const nav = screen.getByTestId('move-history');
     expect(nav).toHaveAttribute('data-viewing-ply', '6');
@@ -207,9 +206,6 @@ describe('the steps', () => {
     rerender(history({ moves: record(6), shown: 2 }));
     expect(nav).toHaveAttribute('data-viewing-ply', '2');
     expect(nav).toHaveAttribute('data-review', 'true');
-    expect(document.querySelector('.hud-latest')).not.toHaveAttribute('data-newer');
-    rerender(history({ moves: record(7), shown: 2, newer: true }));
-    expect(document.querySelector('.hud-latest')).toHaveAttribute('data-newer', 'true');
   });
 
   it('take nothing while the history is out of reach', async () => {
@@ -239,6 +235,27 @@ describe('the steps', () => {
     expect(screen.getByTestId('move-history').querySelector('[role="status"]')).toHaveTextContent(
       'Latest move.',
     );
+  });
+});
+
+describe('while the game is on', () => {
+  it('keeps the record out of sight, as words in the page, and takes no step', async () => {
+    const onShow = vi.fn();
+    const { rerender } = render(history({ moves: record(5), onShow, hidden: true }));
+    const nav = screen.getByTestId('move-history');
+    expect(nav).toHaveClass('sr-only');
+    expect(nav).toHaveAttribute('data-hidden');
+    expect(nav).toHaveAttribute('data-viewing-ply', '5');
+    // A screen reader still reads the record, but finds nothing to press
+    expect(rows()).toEqual(['1. Ab1–Aa3 Ed5–Ee3', '2. Aa3–Ab1 Ee3–Ed5', '3. Ab1–Aa3']);
+    expect(screen.queryAllByRole('button')).toEqual([]);
+    for (const key of ['ArrowLeft', 'Home', 'End']) fireEvent.keyDown(window, { key });
+    expect(onShow).not.toHaveBeenCalled();
+    // The game over, it comes into sight and steps
+    rerender(history({ moves: record(5), onShow }));
+    expect(screen.getByTestId('move-history')).not.toHaveAttribute('data-hidden');
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(onShow).toHaveBeenCalledWith(4);
   });
 });
 

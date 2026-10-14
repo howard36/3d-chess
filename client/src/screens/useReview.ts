@@ -8,29 +8,27 @@ export interface Review {
   position: Position;
   /** The board shows an earlier position than the live one. */
   reviewing: boolean;
-  /** A move has landed since the player stepped back. */
-  newer: boolean;
   /** Shows the position after `ply` moves; the live ply (or past it) is the live position. */
   show: (ply: number) => void;
 }
 
 /**
  * Where the player stands in the game's record: at the live position, which
- * follows every move as it lands, or at an earlier one they stepped back to,
- * which stays put as moves land (the history marks them `newer`). The
+ * follows every move as it lands, or at an earlier one they stepped back to
+ * (only once the game is over: the history takes no step before). The
  * positions are replayed (game/review.ts) only while the player looks back,
  * so a move landing at the live position costs nothing here.
  */
 export function useReview(history: GameHistory): Review {
   const live = history.appliedMoveCount;
-  // The ply looked at, and the live ply when the player began to look back
-  const [view, setView] = React.useState<{ ply: number; since: number } | null>(null);
-  const reviewing = view !== null && view.ply < live;
+  // The ply looked at (null: the live position)
+  const [view, setView] = React.useState<number | null>(null);
+  const reviewing = view !== null && view < live;
   const liveRef = React.useRef(live);
   liveRef.current = live;
   // A record replaced by a shorter one (never in play) leaves nothing to look back to
   React.useEffect(() => {
-    if (view && view.ply >= live) setView(null);
+    if (view !== null && view >= live) setView(null);
   }, [view, live]);
 
   const lineRef = React.useRef<ReviewLine | null>(null);
@@ -52,15 +50,12 @@ export function useReview(history: GameHistory): Review {
   );
 
   const show = React.useCallback((ply: number) => {
-    setView((v) =>
-      ply >= liveRef.current ? null : { ply: Math.max(0, ply), since: v?.since ?? liveRef.current },
-    );
+    setView(ply >= liveRef.current ? null : Math.max(0, ply));
   }, []);
 
   return {
-    position: line && view ? line.positions[view.ply] : livePosition,
+    position: line && view !== null ? line.positions[view] : livePosition,
     reviewing,
-    newer: view !== null && reviewing && live > view.since,
     show,
   };
 }

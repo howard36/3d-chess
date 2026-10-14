@@ -704,13 +704,13 @@ body {
 }
 
 /*
- * The move history (screens/MoveHistory.tsx): the moves in pairs, each a
- * button that shows the board after it, over the four steps through them.
- * A narrow panel at the right, under the way to the tutorial, where the
- * window leaves room beside the tower; in a window no wider than 13:9 the
- * steps alone, under the tower, the move shown between them opening the list
- * above them. Away from the live position the way back to it is lit, with a
- * dot when a move has landed since.
+ * The move history (screens/MoveHistory.tsx), in sight once the game is over:
+ * the moves in pairs, each a button that shows the board after it, over the
+ * four steps through them. A narrow panel at the right, under the way to the
+ * tutorial, where the window leaves room beside the tower; in a window no
+ * wider than 13:9 the steps alone, under the tower, the move shown between
+ * them opening the list above them. Away from the live position the way back
+ * to it is lit.
  */
 .hud-history {
   position: absolute;
@@ -860,7 +860,6 @@ body {
   color: var(--hud-accent-fg);
 }
 .hud-latest {
-  position: relative;
   display: flex;
   margin-left: auto;
 }
@@ -879,19 +878,6 @@ body {
     width: auto;
     padding: 0 6px 0 10px;
   }
-}
-/* A move has landed since the player stepped back */
-.hud-latest[data-newer]::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 7px;
-  height: 7px;
-  border: 1.5px solid #0b0d13;
-  border-radius: 50%;
-  background: var(--hud-check);
-  pointer-events: none;
 }
 /* Where the window has room beside the tower, the flag for resigning and
    draws (with the offers under it) and the move history stand in one column

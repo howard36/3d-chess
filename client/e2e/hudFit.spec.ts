@@ -64,6 +64,10 @@ async function seated(page: Page, seat: 'white' | 'black') {
   };
 }
 
+/** Puts the result card away, to study the final board. */
+const closeResult = (page: Page) =>
+  page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+
 /** How far the pill's content runs past its rim, in CSS px (0 when it fits), at each size. */
 async function overflowAtEverySize(page: Page) {
   const out: Record<string, number> = {};
@@ -134,7 +138,11 @@ const hudRects = (page: Page) =>
         document.querySelector('[data-testid="captured-pieces"] [data-side="them"]'),
       ),
       rect('how to play', document.querySelector('.hud-learn')),
-      rect('move history', document.querySelector('[data-testid="move-history"]')),
+      // In sight once the game is over (while it is on, only in the page for a screen reader)
+      rect(
+        'move history',
+        document.querySelector('[data-testid="move-history"]:not([data-hidden])'),
+      ),
       rect('game menu', document.querySelector('.hud-game-menu')),
       rect('draw offer', document.querySelector('[data-testid="draw-offer"]')),
     ].filter((r) => r !== null);
@@ -240,30 +248,35 @@ for (const seat of ['white', 'black'] as const) {
     game.offerDraw();
     await expect(page.getByTestId('draw-offer')).toBeVisible();
     expect(await everywhere()).toEqual([]);
-    // A game under way, the opponent's offer hanging over the move history
-    // in the right's column, the player looking back at the opening
+    // A game under way, the opponent's offer hanging under the flag
     await game.show(CHECK);
     game.offerDraw();
     await expect(page.getByTestId('draw-offer')).toBeVisible();
-    await page.keyboard.press('Home');
-    await expect(page.getByTestId('move-history')).toHaveAttribute('data-viewing-ply', '0');
     expect(await everywhere()).toEqual([]);
-    // The result
+    // The result, the move history in sight behind its card
     await game.show(MATE);
     await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-result', 'checkmate');
+    await expect(page.getByTestId('move-history')).not.toHaveAttribute('data-hidden');
+    expect(await everywhere()).toEqual([]);
+    // ...and the card put away, the player looking back at the opening
+    await closeResult(page);
+    await page.keyboard.press('Home');
+    await expect(page.getByTestId('move-history')).toHaveAttribute('data-viewing-ply', '0');
     expect(await everywhere()).toEqual([]);
   });
 }
 
-// A touch screen (pointer: coarse) makes the steps through the history a
-// fingertip wide: they stay inside their panel and the window at every size,
-// the way back to the game too, which grows its name while looking back
+// A touch screen (pointer: coarse) makes the steps through the history (in
+// sight once the game is over) a fingertip wide: they stay inside their panel
+// and the window at every size, the way back to the end too, which grows its
+// name while looking back
 test.describe('on a touch screen', () => {
   test.use({ hasTouch: true, isMobile: true });
 
   test('the steps through the history stay inside their panel and the window', async ({ page }) => {
     const game = await seated(page, 'white');
-    await game.show(CHECK);
+    await game.show(MATE);
+    await closeResult(page);
     const outside = async () => {
       const out: string[] = [];
       for (const [width, height] of SIZES) {

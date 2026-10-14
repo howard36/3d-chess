@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PieceType } from '../engine';
@@ -9,11 +9,12 @@ import type { BoardProps } from '../three/Board';
 import { fakeSocket, gameScreenAt } from './testSupport';
 import { setStoredRole } from '../lib/playerRole';
 
-// Stepping back through a game on its page: the board shows the position
-// stepped to and takes no move there, the HUD's pill and announcer follow the
-// live game, and a move landing meanwhile leaves the view where it is. No
-// WebGL in jsdom: the three.js layer is stubbed, and the board hands over the
-// props it was drawn with.
+// Stepping back through a game on its page, once it is over: while it is on
+// the record is out of sight and takes no step; with the result it comes into
+// sight, the board shows the position stepped to and takes no move there, and
+// the HUD's pill and announcer follow the game. No WebGL in jsdom: the
+// three.js layer is stubbed, and the board hands over the props it was drawn
+// with.
 const drawn = vi.hoisted(() => ({ board: null as BoardProps | null }));
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -53,6 +54,11 @@ const snapshot: WebSocketMessage = {
   started: true,
   moves: RECORD,
 };
+/** The same game reopened after Black resigned: the result card shows at once. */
+const resigned: WebSocketMessage = {
+  ...snapshot,
+  ending: { result: 'resignation', winner: 'white' },
+};
 
 const boardMounted = () =>
   vi.waitFor(() => {
@@ -61,6 +67,8 @@ const boardMounted = () =>
 const board = () => drawn.board!;
 const pieceOn = (zxy: string) => board().board.getPiece(fromZXY(zxy));
 const nav = () => screen.getByTestId('move-history');
+/** The result card put away, to study the final board. */
+const closeResult = () => userEvent.click(screen.getByRole('button', { name: 'Close' }));
 
 beforeEach(() => {
   localStorage.clear();
@@ -68,36 +76,70 @@ beforeEach(() => {
   drawn.board = null;
 });
 
-describe('stepping back through the game', () => {
-  it('shows the position after a move clicked, and takes no move there', async () => {
-    const send = vi.fn(() => true);
-    render(gameScreenAt(fakeSocket([snapshot], send)));
+describe('while the game is on', () => {
+  it('keeps the record out of sight and takes no step', async () => {
+    render(gameScreenAt(fakeSocket([snapshot])));
     await boardMounted();
     await vi.waitFor(() => expect(board().disabled).toBe(false));
+    expect(nav()).toHaveAttribute('data-hidden');
+    // Read by a screen reader, but nothing to press
+    expect(screen.getByTestId('move-list')).toHaveTextContent('Cb1–Db1');
+    expect(document.querySelector('[data-ply]')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+    for (const key of ['ArrowLeft', 'Home']) fireEvent.keyDown(document.body, { key });
+    expect(nav()).toHaveAttribute('data-viewing-ply', '3');
+    expect(board().board.getPiece(fromZXY('Db1'))).not.toBeNull();
+    expect(board().disabled).toBe(false);
+  });
+
+  it('brings it into sight with the result, once the end has played', async () => {
+    const { rerender } = render(gameScreenAt(fakeSocket([snapshot])));
+    await boardMounted();
+    rerender(
+      gameScreenAt(
+        fakeSocket([snapshot, { type: 'game_ended', result: 'resignation', winner: 'white' }]),
+      ),
+    );
+    expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-result', 'resignation');
+    // The end plays out first; the record comes with the card
+    expect(nav()).toHaveAttribute('data-hidden');
+    await screen.findByRole('dialog', {}, { timeout: 3000 });
+    expect(nav()).not.toHaveAttribute('data-hidden');
+    await closeResult();
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    expect(nav()).toHaveAttribute('data-viewing-ply', '2');
+  });
+});
+
+describe('stepping back through a finished game', () => {
+  it('shows the position after a move clicked, and takes no move there', async () => {
+    const send = vi.fn(() => true);
+    render(gameScreenAt(fakeSocket([resigned], send)));
+    await boardMounted();
     expect(board().review).toBe(true);
+    await closeResult();
     await userEvent.click(document.querySelector<HTMLElement>('[data-ply="1"]')!);
     expect(nav()).toHaveAttribute('data-viewing-ply', '1');
+    expect(nav()).toHaveAttribute('data-review', 'true');
     expect(pieceOn('Cb1')).toEqual({ type: PieceType.Pawn, color: 'white' });
     expect(pieceOn('Cd5')).toBeNull();
     expect(board().lastMove?.moveCount).toBe(1);
     expect(board().currentTurn).toBe('black');
+    expect(board().gameOver).toBeNull();
     expect(board().disabled).toBe(true);
     // The board would not ask, but a move sent from there goes nowhere
     act(() => board().onMove!({ from: fromZXY('Dd5'), to: fromZXY('Cd5') }));
-    // The pill and the announcer say the live game
-    expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
-    expect(screen.getByTestId('move-announcer')).toHaveAttribute('data-move-count', '3');
-    // The move box says where to play from
-    const box = screen.getByRole('textbox', { name: 'Type a move, like Bb1-Cb1' });
-    await userEvent.type(box, 'Ba1-Ca1{Enter}');
-    expect(screen.getByText('Go to the latest move first.')).toBeInTheDocument();
     expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'move' }));
+    // The pill and the announcer say the game
+    expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-result', 'resignation');
+    expect(screen.getByTestId('move-announcer')).toHaveAttribute('data-move-count', '3');
   });
 
-  it('steps with the keys, to the start and back to the live position', async () => {
-    render(gameScreenAt(fakeSocket([snapshot])));
+  it('steps with the keys, to the start and back to the end', async () => {
+    render(gameScreenAt(fakeSocket([resigned])));
     await boardMounted();
-    const live = board().board;
+    await closeResult();
+    const end = board().board;
     fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
     expect(nav()).toHaveAttribute('data-viewing-ply', '2');
     expect(pieceOn('Db1')).toBeNull();
@@ -109,34 +151,15 @@ describe('stepping back through the game', () => {
     expect(nav()).toHaveAttribute('data-viewing-ply', '1');
     fireEvent.keyDown(document.body, { key: 'End' });
     expect(nav()).not.toHaveAttribute('data-review');
-    // The live position, the same board as before
-    expect(board().board).toBe(live);
-    expect(board().disabled).toBe(false);
-  });
-
-  it('stays put as a move lands, the way back marking it', async () => {
-    const { rerender } = render(gameScreenAt(fakeSocket([snapshot])));
-    await boardMounted();
-    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
-    const there = board().board;
-    rerender(
-      gameScreenAt(
-        fakeSocket([snapshot, { type: 'move_made', by: 'black', from: 'Ed5', to: 'Cc5' }]),
-      ),
-    );
-    expect(nav()).toHaveAttribute('data-viewing-ply', '2');
-    expect(board().board).toBe(there);
-    expect(document.querySelector('.hud-latest')).toHaveAttribute('data-newer', 'true');
-    expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
-    await userEvent.click(screen.getByRole('button', { name: 'Latest' }));
-    expect(nav()).toHaveAttribute('data-viewing-ply', '4');
-    expect(pieceOn('Cc5')).toEqual({ type: PieceType.Knight, color: 'black' });
-    expect(board().disabled).toBe(false);
+    // The final position, the same board as before, and still no move on it
+    expect(board().board).toBe(end);
+    expect(board().gameOver).toMatchObject({ result: 'resignation' });
+    expect(board().disabled).toBe(true);
   });
 
   it('shows the pieces taken by then', async () => {
     const takes: WebSocketMessage = {
-      ...snapshot,
+      ...resigned,
       moves: [
         { by: 'white', from: 'Ae2', to: 'Db5' },
         { by: 'black', from: 'Ec4', to: 'Bc1' },
@@ -144,72 +167,28 @@ describe('stepping back through the game', () => {
     };
     render(gameScreenAt(fakeSocket([takes])));
     await boardMounted();
+    await closeResult();
     const haul = () => screen.queryByTestId('captured-pieces')?.textContent ?? '';
-    const live = haul();
+    const end = haul();
     fireEvent.keyDown(document.body, { key: 'Home' });
-    expect(live).not.toBe('');
+    expect(end).not.toBe('');
     expect(haul()).toBe('');
     fireEvent.keyDown(document.body, { key: 'End' });
-    expect(haul()).toBe(live);
+    expect(haul()).toBe(end);
   });
 
-  it('takes no step while the promotion dialog is up', async () => {
-    render(gameScreenAt(fakeSocket([snapshot])));
+  it('takes no step while the result card is up', async () => {
+    render(gameScreenAt(fakeSocket([resigned])));
     await boardMounted();
-    act(() =>
-      board().onChoosePromotion!([
-        { from: fromZXY('Db1'), to: fromZXY('Eb1'), promotion: PieceType.Queen },
-        { from: fromZXY('Db1'), to: fromZXY('Eb1'), promotion: PieceType.Rook },
-      ]),
-    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
     expect(nav()).toHaveAttribute('data-viewing-ply', '3');
   });
 
-  it('resigns and answers draws for the live game while looking back', async () => {
-    const sent: WebSocketMessage[] = [];
-    const send = (m: WebSocketMessage) => {
-      if (!['look_game', 'rejoin_game'].includes(m.type)) sent.push(m);
-      return true;
-    };
-    const offered: WebSocketMessage[] = [snapshot, { type: 'draw_offered', by: 'black', ply: 3 }];
-    const { rerender } = render(gameScreenAt(fakeSocket(offered, send)));
-    await boardMounted();
-    fireEvent.keyDown(document.body, { key: 'Home' });
-    expect(nav()).toHaveAttribute('data-viewing-ply', '0');
-    // The opponent's offer stands, and is answered, whatever the board shows
-    const offer = screen.getByTestId('draw-offer');
-    await userEvent.click(within(offer).getByRole('button', { name: 'Decline' }));
-    expect(sent).toEqual([{ type: 'decline_draw' }]);
-    // The flag's menu is there too, and resigning resigns the game
-    await userEvent.click(screen.getByRole('button', { name: 'Resign or offer a draw' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Resign' }));
-    await new Promise((r) => setTimeout(r, 400));
-    await userEvent.click(screen.getByRole('button', { name: 'Resign' }));
-    expect(sent).toEqual([{ type: 'decline_draw' }, { type: 'resign' }]);
-    // The board stays where the player left it as the game ends
-    rerender(
-      gameScreenAt(
-        fakeSocket([...offered, { type: 'game_ended', result: 'resignation', winner: 'black' }]),
-      ),
-    );
-    expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-result', 'resignation');
-    expect(nav()).toHaveAttribute('data-viewing-ply', '0');
-    expect(board().gameOver).toBeNull();
-    expect(screen.queryByTestId('game-actions')).not.toBeInTheDocument();
-  });
-
   it('steps through a game that ended by agreement, the board taking no move at its end', async () => {
-    render(
-      gameScreenAt(
-        fakeSocket([
-          snapshot,
-          { type: 'draw_offered', by: 'black', ply: 3 },
-          { type: 'game_ended', result: 'agreement' },
-        ]),
-      ),
-    );
+    render(gameScreenAt(fakeSocket([{ ...snapshot, ending: { result: 'agreement' } }])));
     await boardMounted();
+    await closeResult();
     expect(board().gameOver).toMatchObject({ result: 'agreement' });
     expect(board().disabled).toBe(true);
     fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
