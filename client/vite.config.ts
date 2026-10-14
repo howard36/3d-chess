@@ -4,6 +4,29 @@ import react from '@vitejs/plugin-react';
 import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
 import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
 import { CLIENT_ID_KEY } from './src/lib/clientId';
+import { preloadLandingPicture } from './src/screens/landingLayout';
+
+/**
+ * The start page shows a picture of its preview while three.js loads
+ * (LandingPicture): the built page starts it downloading from an inline
+ * script in its head, before the entry has loaded and run, on the start page
+ * alone (preloadLandingPicture).
+ */
+const preloadLandingPictureOnStartPage = (): Plugin => ({
+  name: 'preload-landing-picture',
+  apply: 'build',
+  async transformIndexHtml(html) {
+    const { code, errors } = await minify(
+      'landing-picture.js',
+      `(${preloadLandingPicture.toString()})()`,
+    );
+    if (errors.length) throw new Error(`preload-landing-picture: ${errors[0].message}`);
+    const charset = /<meta charset[^>]*>/i;
+    if (!charset.test(html))
+      throw new Error('preload-landing-picture: index.html has no <meta charset>');
+    return html.replace(charset, (tag) => `${tag}\n    <script>${code.trim()}</script>`);
+  },
+});
 
 /**
  * three.js, the scene and the set's precomputed parts load in a chunk of
@@ -235,6 +258,7 @@ export default defineConfig({
     react(),
     r3fCatalogue(),
     earlySocket(),
+    preloadLandingPictureOnStartPage(),
     preloadSceneOnGamePages(),
     keepSceneOutOfEntry(),
     invitePage(),

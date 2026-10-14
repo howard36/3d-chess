@@ -42,6 +42,11 @@ interface OrbitControlsLike {
  * The fitted distance is kept on the camera (`userData.fitDistance`): the
  * game's entrance (intro/IntroDirector.tsx) starts farther out on the same
  * line of sight and dollies in to it.
+ *
+ * With `lens` (the start page's preview), the window is framed by the lens
+ * instead: the camera stands at the lens's distance and takes its field of
+ * view and shift (three/landingLens.ts), so a picture of the view scales to
+ * any window of the layout exactly.
  */
 export function FitCameraToBoard({
   viewDirection,
@@ -53,6 +58,7 @@ export function FitCameraToBoard({
   centre,
   sweep,
   balanceInset,
+  lens,
 }: {
   /** Where the camera looks from when it sits on the target. */
   viewDirection: readonly [number, number, number];
@@ -72,6 +78,11 @@ export function FitCameraToBoard({
   sweep?: FitWindow['sweep'];
   /** The line under the HUD the board's centre is balanced below (FitWindow.balanceInset). */
   balanceInset?: number;
+  /** Frames the window by the lens rather than the distance (the start page's: landingLens). */
+  lens?: (
+    width: number,
+    height: number,
+  ) => { distance: number; fov: number; shift: [number, number] };
 }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as OrbitControlsLike | null;
@@ -98,6 +109,18 @@ export function FitCameraToBoard({
     const direction = camera.position.clone().sub(target);
     if (direction.lengthSq() === 0) direction.copy(new Vector3(...viewDirection));
     direction.normalize();
+    if (lens) {
+      // Turned as the view stands (the preview's turn), at the lens's distance
+      const framed = lens(width, height);
+      camera.position.copy(target).addScaledVector(direction, framed.distance);
+      camera.lookAt(target);
+      camera.fov = framed.fov;
+      camera.updateProjectionMatrix();
+      camera.userData.fitDistance = framed.distance;
+      setLensShift(camera, framed.shift, width, height);
+      invalidate();
+      return;
+    }
     const fit = fitView(opening, frameRings, view).distance;
     const { min, max } = zoomRange(fit, minDistance);
     const fitted = MathUtils.clamp(fit, min, max);
@@ -135,6 +158,7 @@ export function FitCameraToBoard({
     centre,
     sweep,
     frameRings,
+    lens,
   ]);
 
   return null;

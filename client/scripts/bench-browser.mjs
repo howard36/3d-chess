@@ -531,6 +531,20 @@ const BENCH_INIT = () => {
     if (!f.sideChoice && document.querySelector('[aria-label="Choose your side"] button')) {
       f.sideChoice = t;
     }
+    // The start page's picture of its preview (where there is one), from the
+    // frame it is painted in (decoded, then the next frame), and the live
+    // preview on screen: drawn, and not held transparent (where it fades in
+    // over the picture, once it has)
+    const picture = document.querySelector('[data-testid="landing-picture"] img');
+    if (!f.landingPicture && !b.pictureSeen && picture?.complete && picture.naturalWidth > 0) {
+      b.pictureSeen = true;
+      picture
+        .decode()
+        .catch(() => {})
+        .then(() => requestAnimationFrame(() => (f.landingPicture = now())));
+    }
+    const opacity = document.querySelector('.landing-preview')?.style.opacity;
+    if (!f.previewLive && b.landingDrawn && (opacity === '' || opacity === '1')) f.previewLive = t;
     if (
       inGame &&
       !f.shareScreen &&
@@ -559,12 +573,38 @@ const BENCH_INIT = () => {
       b.problems.push([t, text]);
     }
   };
+  // An image's load changes nothing in the DOM (the start page's picture)
+  document.addEventListener('load', check, true);
   new MutationObserver(check).observe(document, {
     subtree: true,
     childList: true,
     attributes: true,
     characterData: true,
   });
+  // The start page's preview's first draw (its canvas draws without a change
+  // to the DOM). Each canvas is looked up once: a game's frames make hundreds
+  // of draws, which must cost the page nothing
+  const landingCanvas = new WeakMap();
+  for (const proto of [WebGL2RenderingContext.prototype, WebGLRenderingContext.prototype]) {
+    for (const name of ['drawElements', 'drawArrays']) {
+      const draw = proto[name];
+      proto[name] = function (...args) {
+        if (!b.landingDrawn) {
+          const canvas = this.canvas;
+          let landing = landingCanvas.get(canvas);
+          if (landing === undefined) {
+            landing = !!canvas?.closest?.('[data-testid="landing-canvas"]');
+            landingCanvas.set(canvas, landing);
+          }
+          if (landing) {
+            b.landingDrawn = true;
+            check();
+          }
+        }
+        return draw.apply(this, args);
+      };
+    }
+  }
   // The Canvas publishes its r3f state here (GameScreen's onCreated); wrap
   // its renderer's render() to time every frame drawn
   let r3f;
@@ -1154,10 +1194,10 @@ async function coldSection(browser) {
     'cold-load',
     {
       title: 'Cold load of the start screen',
-      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
+      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. In as many more loads, left alone, it times the board’s first showing (the start page’s picture of its preview, decoded and painted, or the live preview where there is no picture) and the live preview on screen (its first frame drawn, and faded in over the picture where there is one). Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
       align: ['l', 'l', 'r', 'r', 'r', 'r'],
-      timeoutMs: QUICK ? 120000 : 300000,
+      timeoutMs: QUICK ? 240000 : 480000,
     },
     async (sec) => {
       /** One cold load: a fresh context opens `/` until the page can create a game. */
@@ -1227,10 +1267,47 @@ async function coldSection(browser) {
           await ctx.close();
         }
       };
+      /**
+       * One cold load left alone: a fresh context opens `/` and waits for the
+       * live preview on screen, timing it and the board's first showing (the
+       * start page's picture of the preview, where there is one, or the
+       * preview itself).
+       */
+      const pictureRun = async (c) => {
+        const ctx = await newBenchContext(browser, c.vp);
+        try {
+          const page = await ctx.newPage();
+          const cdp = await ctx.newCDPSession(page);
+          if (c.cpu) await cdp.send('Emulation.setCPUThrottlingRate', { rate: c.cpu });
+          if (c.net) {
+            await cdp.send('Network.enable');
+            await cdp.send('Network.emulateNetworkConditions', c.net);
+          }
+          await page.goto(`${BASE}/`, { waitUntil: 'commit', timeout: 60000 });
+          await page.waitForFunction(() => window.__bench.firsts.previewLive, null, {
+            polling: 20,
+            timeout: 120000,
+          });
+          // (awaited here, before the context closes under it)
+          return await page.evaluate(() => {
+            const { firsts } = window.__bench;
+            const t0 = performance.timeOrigin;
+            const live = firsts.previewLive - t0;
+            const picture = firsts.landingPicture ? firsts.landingPicture - t0 : Infinity;
+            return { board: Math.min(picture, live), preview: live };
+          });
+        } finally {
+          await ctx.close();
+        }
+      };
       // Round robin, so drift over the section falls on every case alike
       raw.cold = Object.fromEntries(cases.map((c) => [c.key, []]));
       for (let i = 0; i < CFG.coldRuns; i++) {
         for (const c of cases) raw.cold[c.key].push(await coldRun(c));
+      }
+      raw.coldPicture = Object.fromEntries(cases.map((c) => [c.key, []]));
+      for (let i = 0; i < CFG.coldRuns; i++) {
+        for (const c of cases) raw.coldPicture[c.key].push(await pictureRun(c));
       }
       for (const c of cases) {
         const runs = raw.cold[c.key];
@@ -1249,6 +1326,17 @@ async function coldSection(browser) {
           const [row, m] = stat(label, col(k));
           sec.add([i === 0 ? `**${c.label}**` : '', ...row], m, `${c.label} · ${label}`);
         });
+        // The board on the page: its picture, then the live preview over it
+        for (const [label, k] of [
+          ['board on screen (its picture, or the live preview)', 'board'],
+          ['live preview on screen', 'preview'],
+        ]) {
+          const [row, m] = stat(
+            label,
+            raw.coldPicture[c.key].map((r) => r[k]),
+          );
+          sec.add(['', ...row], m, `${c.label} · ${label}`);
+        }
         // The section's first load meets the start page's preview programs
         // uncached (the browser's GPU process caches them for the loads
         // after it): a player's first visit, which the median above hides

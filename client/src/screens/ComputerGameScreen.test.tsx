@@ -119,8 +119,9 @@ it('opened any other way (a reload, history), it opens on the game, no lobby ove
   render(at('g3'));
   expect(await screen.findByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
   expect(view ?? null).toBeNull();
-  // The player's move: the tab says so
-  expect(document.title).toBe(YOUR_MOVE_TITLE);
+  // The player's move: the tab says so (set in an effect, which may run
+  // after the commit the queries above saw)
+  await waitFor(() => expect(document.title).toBe(YOUR_MOVE_TITLE));
 });
 
 it('leads to the tutorial, which is told the way back to this game', async () => {
@@ -152,7 +153,8 @@ it('the computer moves first when it plays White, once the entrance is over', as
   });
   expect(thinking.asked).toBe(1);
   expect(screen.getByTestId('seat')).toHaveAttribute('data-seat', 'black');
-  expect(document.title).toBe(YOUR_MOVE_TITLE);
+  // (an effect's, after the commit that showed the move)
+  await waitFor(() => expect(document.title).toBe(YOUR_MOVE_TITLE));
 });
 
 it('a game not kept here: "No game here", and a new game against the computer', async () => {

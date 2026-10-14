@@ -12,7 +12,7 @@ import {
   takeBackPlies,
 } from './computerGame';
 import type { ComputerGame } from './computerGame';
-import { DEMO_GAME } from './demo';
+import { SHORT_GAME } from './shortGame';
 import type { MoveRecord } from '../types/messages';
 
 const game = (over: Partial<ComputerGame> = {}): ComputerGame => ({
@@ -132,7 +132,7 @@ it('has a legal move ready should the computer’s search fail', () => {
 });
 
 it('sees a game over: mate, or a record it cannot play', () => {
-  const mated = game({ color: 'black', moves: records(DEMO_GAME) });
+  const mated = game({ color: 'black', moves: records(SHORT_GAME) });
   expect(isOver(mated)).toBe(true);
   expect(computerToMove(mated)).toBe(false);
   expect(fallbackMove(mated)).toBeNull();

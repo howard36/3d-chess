@@ -10,9 +10,9 @@ import * as catalogue from './r3fCatalogue';
 // runs the dev server) would notice a missing one: a scene element whose
 // class is not listed would only fail in production. So every lowercase
 // JSX element in the scene and the screens that names a three.js class must
-// be listed (but, in the screens, for SVG's own elements whose names
-// three.js shares).
-const SVG = new Set(['path', 'line']);
+// be listed (but, in the screens, for SVG's and HTML's own elements whose
+// names three.js shares: the start page's picture has a <source>).
+const DOM = new Set(['path', 'line', 'source']);
 
 const sources = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -35,7 +35,7 @@ describe('the r3f catalogue', () => {
       }
     };
     scan(sources(__dirname), new Set());
-    scan(sources(join(__dirname, '../screens')), SVG);
+    scan(sources(join(__dirname, '../screens')), DOM);
     expect(used.size).toBeGreaterThan(5);
     expect([...used].filter((name) => !(name in catalogue))).toEqual([]);
     // ...and nothing more, so the list stays the scene's own
