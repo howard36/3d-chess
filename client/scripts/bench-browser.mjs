@@ -592,19 +592,44 @@ const BENCH_INIT = () => {
         if (!copy) return null;
         return copy.visible ? 'cached' : take?.visible ? 'capture' : 'plain';
       };
+      // When the GPU has drawn each frame: render() returns once the frame is
+      // handed over, and in software the GPU draws it for a long while after
+      // (a fence after it, polled off the frame: its time, as r[5])
+      const ctx = gl.getContext();
+      const drawn = (record) => {
+        if (typeof ctx.fenceSync !== 'function') return;
+        const fence = ctx.fenceSync(ctx.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (!fence) return;
+        ctx.flush();
+        const poll = () => {
+          const lost = ctx.isContextLost();
+          if (!lost && ctx.getSyncParameter(fence, ctx.SYNC_STATUS) !== ctx.SIGNALED) {
+            setTimeout(poll, 1);
+            return;
+          }
+          if (!lost) {
+            ctx.deleteSync(fence);
+            record[5] = now();
+          }
+        };
+        setTimeout(poll, 1);
+      };
       gl.render = function (scene, camera) {
         const t0 = performance.now();
         try {
           return render.call(this, scene, camera);
         } finally {
           const { calls, triangles } = this.info.render;
-          b.renders.push([
+          const record = [
             performance.timeOrigin + t0,
             performance.now() - t0,
             gardenMode(scene),
             calls,
             triangles,
-          ]);
+            null,
+          ];
+          b.renders.push(record);
+          drawn(record);
         }
       };
     },
@@ -1517,6 +1542,8 @@ async function movesSection(browser, shared) {
           echo: s.rx.find((r) => r[0] >= start && r[1] === 'move_made')?.[0] - start,
           shown: shown[0] - start,
           frame: drawn - start,
+          // ...and drawn by the GPU (its fence passed)
+          gpu: frame[5] != null ? frame[5] - start : null,
           render: frame[1],
           calls: frame[3],
           triangles: frame[4],
@@ -1539,6 +1566,11 @@ async function movesSection(browser, shared) {
         stat('click → announcer updated', own('shown'), 'echo, replay, React commit'),
         stat('click → mover’s first frame with the move', own('frame'), 'what the player sees'),
         stat(
+          'click → mover’s first frame with the move, drawn by the GPU',
+          own('gpu'),
+          'that frame’s fence passed: the picture made, not just handed over',
+        ),
+        stat(
           'click → mover’s first frame, captures',
           own('frame', takes),
           'the taken piece topples',
@@ -1549,6 +1581,11 @@ async function movesSection(browser, shared) {
         stat('opponent’s move: sent → page handles it', opp('echo'), 'server and relay'),
         stat('opponent’s move: sent → announcer updated', opp('shown')),
         stat('opponent’s move: sent → first frame with it', opp('frame'), 'what the player sees'),
+        stat(
+          'opponent’s move: sent → first frame with it, drawn by the GPU',
+          opp('gpu'),
+          'that frame’s fence passed',
+        ),
         stat(
           'opponent’s move: sent → first frame, captures',
           opp('frame', takes),
@@ -1907,6 +1944,7 @@ async function selectSection(browser) {
             // warm frame), or null before it was asked
             warmLink,
             frame: drawn - t,
+            gpu: frame[5] != null ? frame[5] - t : null,
             render: frame[1],
             mode: frame[2],
             // A hover frame began between the press's start and the click
@@ -1932,9 +1970,14 @@ async function selectSection(browser) {
         await page.evaluate(ORBIT, { ms: 400, degPerSec: 40 });
         await quietMain(page);
         await page.waitForTimeout(500);
-        const zxy = squares[i % squares.length];
-        const at = await squarePixel(page, zxy);
-        if (!at) throw new Error(`no pixel reaches ${zxy}`);
+        // The next piece in the list a pixel reaches from this side
+        let zxy = null;
+        let at = null;
+        for (let k = 0; k < squares.length && !at; k++) {
+          zxy = squares[(i + k) % squares.length];
+          at = await squarePixel(page, zxy);
+        }
+        if (!at) throw new Error('no pixel reaches any of the pieces to pick up');
         const t = await page.evaluate(() => window.__benchNow());
         await page.mouse.click(at.x, at.y);
         await waitFrameAfter(page, t);
@@ -1983,6 +2026,11 @@ async function selectSection(browser) {
           'the entrance and the warm-up, to rest',
         ),
         stat('click → first frame with the piece held', col('frame'), 'what the player sees'),
+        stat(
+          'click → first frame with the piece held, drawn by the GPU',
+          col('gpu'),
+          'that frame’s fence passed',
+        ),
         stat(
           'first pick: click → first frame with the piece held',
           picks
@@ -2302,7 +2350,8 @@ const ORBIT = async ({ ms, degPerSec }) => {
   const start = performance.now();
   await new Promise((resolve) => {
     const step = () => {
-      const t = performance.now() - start;
+      // Never past `ms`: the turn is the same however often frames come
+      const t = Math.min(ms, performance.now() - start);
       const yaw = yaw0 + ((degPerSec * Math.PI) / 180) * (t / 1000);
       camera.position.set(
         target.x + r * Math.cos(pitch) * Math.sin(yaw),
