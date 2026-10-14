@@ -25,6 +25,7 @@ vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
 vi.mock('../three/scene/backdropCache', () => ({
   BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
 }));
+vi.mock('../three/framePacer', () => ({ PaceOnGpu: () => null }));
 vi.mock('../three/scene/warm', () => ({ WarmPrograms: () => null }));
 // The entrance is over at once
 vi.mock('../three/intro/IntroDirector', async () => {

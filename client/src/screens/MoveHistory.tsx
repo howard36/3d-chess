@@ -187,6 +187,30 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
     [show],
   );
 
+  // Opened in a narrow window, where it stands over the tower: put away by a
+  // press anywhere else, or Escape (focus back on its toggle if it was in it)
+  const nav = React.useRef<HTMLElement>(null);
+  const toggle = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => {
+    if (!narrow || !asked) return;
+    const away = (e: PointerEvent) => {
+      if (!nav.current?.contains(e.target as Node)) setAsked(false);
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      if (nav.current?.contains(document.activeElement)) toggle.current?.focus();
+      setAsked(false);
+    };
+    document.addEventListener('pointerdown', away);
+    window.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      window.removeEventListener('keydown', escape);
+    };
+  }, [narrow, asked]);
+
   // ← → Home End, wherever focus is but in a field
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -293,6 +317,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
   );
   return (
     <nav
+      ref={nav}
       className="hud-history hud-glass"
       aria-label="Moves played"
       data-testid="move-history"
@@ -314,6 +339,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
         {stepButton('first', shown === 0)}
         {stepButton('previous', shown === 0)}
         <button
+          ref={toggle}
           type="button"
           className="hud-now"
           aria-expanded={open}

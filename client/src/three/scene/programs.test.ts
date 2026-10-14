@@ -218,7 +218,7 @@ describe('linkAhead', () => {
         expect(p.getUniforms).toHaveBeenCalledOnce();
         expect(p.getAttributes).toHaveBeenCalledOnce();
       }
-      expect(then).toHaveBeenCalledOnce();
+      expect(then).toHaveBeenCalledExactlyOnceWith('idle');
     } finally {
       vi.useRealTimers();
     }
@@ -239,7 +239,7 @@ describe('linkAhead', () => {
       signal();
       await vi.advanceTimersByTimeAsync(10);
       expect(p.getUniforms).toHaveBeenCalledOnce();
-      expect(then).toHaveBeenCalledOnce();
+      expect(then).toHaveBeenCalledExactlyOnceWith('idle');
     } finally {
       vi.useRealTimers();
     }
@@ -259,7 +259,23 @@ describe('linkAhead', () => {
       }
       expect(context.fenceSync).toHaveBeenCalledTimes(LINK_AHEAD_TRIES);
       expect(p.getUniforms).not.toHaveBeenCalled();
-      expect(then).toHaveBeenCalledOnce();
+      expect(then).toHaveBeenCalledExactlyOnceWith('busy');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says so when the GPU stops answering (a lost context)', async () => {
+    vi.useFakeTimers();
+    try {
+      const p = program();
+      const { gl, context } = fencedRenderer(new Map([[material(), p]]));
+      const then = vi.fn();
+      linkAhead(gl, new Mesh(), {} as never, then);
+      context.lost = true;
+      await vi.advanceTimersByTimeAsync(10);
+      expect(p.getUniforms).not.toHaveBeenCalled();
+      expect(then).toHaveBeenCalledExactlyOnceWith('timeout');
     } finally {
       vi.useRealTimers();
     }
@@ -276,7 +292,7 @@ describe('linkAhead', () => {
     } as unknown as WebGLRenderer;
     const then = vi.fn();
     expect(linkAhead(gl, new Mesh(), {} as never, then)).toBe(false);
-    expect(then).toHaveBeenCalledOnce();
+    expect(then).toHaveBeenCalledExactlyOnceWith('nofence');
     expect(p.getUniforms).not.toHaveBeenCalled();
   });
 });

@@ -609,7 +609,15 @@ How the code is split:
   Board, PieceMesh and GameCanvas import these parts directly; unit tests stand them in
   with `vi.mock`.
 
-All motion runs on r3f's clock, and the canvas renders on demand.
+All motion runs on r3f's clock, and the canvas renders on demand. The game's and the
+lobby's canvases send a new frame to the GPU only after the GPU has finished the previous
+one (`three/framePacer.tsx`, a WebGL fence after each frame). Until then the canvas skips
+the frame and asks for the next one, and the motion keeps stepping every display frame.
+Without this, a GPU slower than the display (a phone's, or software rendering) received a
+frame every display frame and fell further behind: in the browser bench a move appeared
+over two seconds after it was made, and the board's start-up during a join waited behind
+the lobby's queued frames. Under a stepped clock (the showcase's `window.__vclock`) every
+frame is drawn.
 
 ### The garden
 
@@ -1187,6 +1195,9 @@ from the same frame). A game's link is an invitation, so the build also writes
 `index.html` (Pages' single-page fallback). `og:image` names `https://3dchess.club/og.jpg`,
 which only holds what main deployed, so a branch's preview build points it at the
 preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
+`public/_headers` sets three headers on every address: other sites may not show the app in
+a frame, browsers must not guess file types, and a link the player follows sends only the
+site's name.
 
 Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
 per ecosystem (client npm, server uv, GitHub Actions, the actions pinned to commit SHAs),

@@ -32,6 +32,7 @@ vi.mock('../three/Board', () => ({ default: () => null }));
 vi.mock('../three/scene/backdropCache', () => ({
   BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
 }));
+vi.mock('../three/framePacer', () => ({ PaceOnGpu: () => null }));
 vi.mock('../three/scene/warm', () => ({ WarmPrograms: () => null }));
 // The entrance is over as soon as it is drawn, or when a test says (entrance.end)
 const entrance = vi.hoisted(() => ({ auto: true, end: null as (() => void) | null }));

@@ -1,7 +1,11 @@
 // The primary rows: one number for each moment a player waits on (CLAUDE.md
 // "Performance"), each measured from the player's own action (a click, a
 // navigation, the opponent's send) to what the player sees, never from a
-// point in between, which a change can move without the player noticing.
+// point in between, which a change can move without the player noticing. A
+// move or a piece picked up is timed to the picture drawn by the GPU, not to
+// the picture handed to it: in software rendering the GPU finishes a picture
+// long after render() returns, and a page that hands pictures over sooner
+// can show them later.
 // Everything else the suite measures is a diagnostic: it says where the time
 // goes, not whether the player waits less.
 //
@@ -25,70 +29,70 @@ export const PRIMARY = [
     tier: 'browser',
     section: 'cold-load',
     where: 'Cold load of the start screen',
-    what: 'desktop · create button enabled',
+    what: 'desktop · “Play a friend” enabled',
   },
   {
     moment: 'Start page usable, phone (4× CPU, Fast 4G)',
     tier: 'browser',
     section: 'cold-load',
     where: 'Cold load of the start screen',
-    what: 'phone, 4× CPU, Fast 4G · create button enabled',
+    what: 'phone, 4× CPU, Fast 4G · “Play a friend” enabled',
   },
   {
     moment: 'Start page answers its first click, desktop',
     tier: 'browser',
     section: 'cold-load',
     where: 'Cold load of the start screen',
-    what: 'desktop · click at ready → side choice shown',
+    what: 'desktop · first click: side choice shown',
   },
   {
     moment: 'A shared game’s page, first screen',
     tier: 'browser',
     section: 'setup',
     where: 'Game setup',
-    what: 'join: navigation → Join button',
+    what: 'Joining: Join button shown',
   },
   {
-    moment: 'First board frame, joining a game',
+    moment: 'First board picture, joining a game',
     tier: 'browser',
     section: 'setup',
     where: 'Game setup',
-    what: 'join: click → joiner’s first frame',
+    what: 'Joining: board’s first picture handed to the GPU',
   },
   {
-    moment: 'First board frame, playing the computer',
+    moment: 'First board picture, playing the computer',
     tier: 'browser',
     section: 'computer',
     where: 'Playing the computer',
-    what: 'way in: Hard click → first frame',
+    what: 'Way in: board’s first picture handed to the GPU',
   },
   {
     moment: 'Reopening a long game (2,000 plies)',
     tier: 'browser',
     section: 'reopen',
     where: 'Reopening a long game',
-    what: 'navigation → record shown (announcer = H) · H = 2000',
+    what: 'move record shown · 2000 plies',
   },
   {
-    moment: 'A move landing, the player’s',
+    moment: 'The player’s move appears',
     tier: 'browser',
     section: 'move-latency',
     where: 'Move latency',
-    what: 'click → mover’s first frame with the move',
+    what: 'Player’s move: picture drawn by the GPU',
   },
   {
-    moment: 'A move landing, the opponent’s',
+    moment: 'The opponent’s move appears',
     tier: 'browser',
     section: 'move-latency',
     where: 'Move latency',
-    what: 'opponent’s move: sent → first frame with it',
+    what: 'Opponent’s move: picture drawn by the GPU',
   },
   {
-    moment: 'Selecting a piece',
+    moment: 'A picked-up piece appears',
     tier: 'browser',
     section: 'select',
-    where: 'Selecting a piece',
-    what: 'click → first frame with the piece held',
+    where: 'Picking up a piece',
+    what: 'Picking up a piece: picture drawn by the GPU',
   },
   {
     moment: 'The computer’s strength in its time (search speed)',
