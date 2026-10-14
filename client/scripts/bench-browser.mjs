@@ -531,8 +531,10 @@ const BENCH_INIT = () => {
     if (!f.sideChoice && document.querySelector('[aria-label="Choose your side"] button')) {
       f.sideChoice = t;
     }
-    // The start page's picture of its preview, from the frame it is painted
-    // in (decoded, then the next frame), and the live preview faded in over it
+    // The start page's picture of its preview (where there is one), from the
+    // frame it is painted in (decoded, then the next frame), and the live
+    // preview on screen: drawn, and not held transparent (where it fades in
+    // over the picture, once it has)
     const picture = document.querySelector('[data-testid="landing-picture"] img');
     if (!f.landingPicture && !b.pictureSeen && picture?.complete && picture.naturalWidth > 0) {
       b.pictureSeen = true;
@@ -541,8 +543,8 @@ const BENCH_INIT = () => {
         .catch(() => {})
         .then(() => requestAnimationFrame(() => (f.landingPicture = now())));
     }
-    if (!f.previewShown && document.querySelector('.landing-preview')?.style.opacity === '1')
-      f.previewShown = t;
+    const opacity = document.querySelector('.landing-preview')?.style.opacity;
+    if (!f.previewLive && b.landingDrawn && (opacity === '' || opacity === '1')) f.previewLive = t;
     if (
       inGame &&
       !f.shareScreen &&
@@ -579,6 +581,20 @@ const BENCH_INIT = () => {
     attributes: true,
     characterData: true,
   });
+  // The start page's preview's first draw (its canvas draws without a change
+  // to the DOM)
+  for (const proto of [WebGL2RenderingContext.prototype, WebGLRenderingContext.prototype]) {
+    for (const name of ['drawElements', 'drawArrays']) {
+      const draw = proto[name];
+      proto[name] = function (...args) {
+        if (!b.landingDrawn && this.canvas?.closest?.('[data-testid="landing-canvas"]')) {
+          b.landingDrawn = true;
+          check();
+        }
+        return draw.apply(this, args);
+      };
+    }
+  }
   // The Canvas publishes its r3f state here (GameScreen's onCreated); wrap
   // its renderer's render() to time every frame drawn
   let r3f;
@@ -1168,10 +1184,10 @@ async function coldSection(browser) {
     'cold-load',
     {
       title: 'Cold load of the start screen',
-      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. In as many more loads, left alone, it times the start page’s picture of its preview (decoded and painted) and the live preview faded in over it. Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
+      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. In as many more loads, left alone, it times the board’s first showing (the start page’s picture of its preview, decoded and painted, or the live preview where there is no picture) and the live preview on screen (its first frame drawn, and faded in over the picture where there is one). Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
       align: ['l', 'l', 'r', 'r', 'r', 'r'],
-      timeoutMs: QUICK ? 120000 : 300000,
+      timeoutMs: QUICK ? 240000 : 480000,
     },
     async (sec) => {
       /** One cold load: a fresh context opens `/` until the page can create a game. */
@@ -1243,8 +1259,9 @@ async function coldSection(browser) {
       };
       /**
        * One cold load left alone: a fresh context opens `/` and waits for the
-       * start page's picture of its preview, then for the live preview to
-       * fade in over it.
+       * live preview on screen, timing it and the board's first showing (the
+       * start page's picture of the preview, where there is one, or the
+       * preview itself).
        */
       const pictureRun = async (c) => {
         const ctx = await newBenchContext(browser, c.vp);
@@ -1257,14 +1274,17 @@ async function coldSection(browser) {
             await cdp.send('Network.emulateNetworkConditions', c.net);
           }
           await page.goto(`${BASE}/`, { waitUntil: 'commit', timeout: 60000 });
-          await page.waitForFunction(() => window.__bench.firsts.previewShown, null, {
+          await page.waitForFunction(() => window.__bench.firsts.previewLive, null, {
             polling: 20,
             timeout: 120000,
           });
-          return page.evaluate(() => {
+          // (awaited here, before the context closes under it)
+          return await page.evaluate(() => {
             const { firsts } = window.__bench;
             const t0 = performance.timeOrigin;
-            return { picture: firsts.landingPicture - t0, preview: firsts.previewShown - t0 };
+            const live = firsts.previewLive - t0;
+            const picture = firsts.landingPicture ? firsts.landingPicture - t0 : Infinity;
+            return { board: Math.min(picture, live), preview: live };
           });
         } finally {
           await ctx.close();
@@ -1298,8 +1318,8 @@ async function coldSection(browser) {
         });
         // The board on the page: its picture, then the live preview over it
         for (const [label, k] of [
-          ['picture of the preview shown', 'picture'],
-          ['live preview faded in over it', 'preview'],
+          ['board on screen (its picture, or the live preview)', 'board'],
+          ['live preview on screen', 'preview'],
         ]) {
           const [row, m] = stat(
             label,

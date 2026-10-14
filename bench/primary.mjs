@@ -43,14 +43,14 @@ export const PRIMARY = [
     tier: 'browser',
     section: 'cold-load',
     where: 'Cold load of the start screen',
-    what: 'phone, 4× CPU, Fast 4G · picture of the preview shown',
+    what: 'phone, 4× CPU, Fast 4G · board on screen (its picture, or the live preview)',
   },
   {
     moment: 'Start page shows the board, desktop',
     tier: 'browser',
     section: 'cold-load',
     where: 'Cold load of the start screen',
-    what: 'desktop · picture of the preview shown',
+    what: 'desktop · board on screen (its picture, or the live preview)',
   },
   {
     moment: 'Start page answers its first click, desktop',
