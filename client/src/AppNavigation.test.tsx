@@ -28,6 +28,7 @@ vi.mock('@react-three/fiber', () => ({
     </div>
   ),
 }));
+vi.mock('./three/framePacer', () => ({ PaceOnGpu: () => null }));
 vi.mock('./three/lobby/LobbyScene', () => ({
   LobbyScene: ({ view }: { view: LobbyView }) => {
     React.useEffect(() => {

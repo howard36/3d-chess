@@ -11,6 +11,7 @@ import { PALETTE } from './palette';
 import { PieceType } from '../../engine/pieces';
 import { bodyMaterial, markGlazeWarm, poolMaterial } from './pieces';
 import { keepPrograms, linkAhead, warmObjects } from './programs';
+import type { LinkOutcome } from './programs';
 import { selectionMaterials } from './selection';
 
 /** The warm-up under way: its objects, and whether they have been drawn. */
@@ -19,6 +20,8 @@ interface Warming {
   objects: Object3D[];
   materials: Material[];
   drawn: boolean;
+  /** The renderer's frame count when they joined: drawn once it has moved on. */
+  joinedAt: number;
   /** Every program linked ahead (linkAhead): the drawing can start. */
   linked: boolean;
   dispose: () => void;
@@ -62,6 +65,13 @@ export const WarmPrograms = () => {
     if (!w.drawn) {
       w.group.add(...w.objects);
       w.drawn = true;
+      w.joinedAt = gl.info.render.frame;
+      invalidate();
+      return;
+    }
+    // A frame can be left undrawn (PaceOnGpu, the GPU still on the last one):
+    // they stay until one has drawn them
+    if (gl.info.render.frame === w.joinedAt) {
       invalidate();
       return;
     }
@@ -104,11 +114,14 @@ export const WarmPrograms = () => {
       objects: [...group.children],
       materials: [...bare, ...meshes, ...points],
       drawn: false,
+      joinedAt: 0,
       linked: false,
       dispose,
     };
-    const ready = () => {
+    const ready = (outcome: LinkOutcome) => {
       if (warming.current !== w) return;
+      // For the bench: whether the warm frame will wait on the GPU's read-backs
+      gl.domElement.dataset.warmLink = outcome;
       w.linked = true;
       invalidate();
     };

@@ -14,6 +14,7 @@ vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
 vi.mock('../three/scene/backdropCache', () => ({
   BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
 }));
+vi.mock('../three/framePacer', () => ({ PaceOnGpu: () => null }));
 vi.mock('../three/scene/warm', () => ({ WarmPrograms: () => null }));
 vi.mock('../three/intro/IntroDirector', () => ({
   INTRO_SCENE_VAR: '--intro-scene',
