@@ -21,6 +21,9 @@ const IN_GAME = new Set<WebSocketMessage['type']>([
   'offer_draw',
   'accept_draw',
   'decline_draw',
+  'request_takeback',
+  'accept_takeback',
+  'decline_takeback',
 ]);
 
 /** Delay before reconnect attempt n (0-based): 0.5s, 1s, 2s, 4s, then 8s forever. */
@@ -202,7 +205,7 @@ export function useGameSocket(): GameSocket {
         // A queued move was made against a board that may have moved on by
         // now, and it was never echoed so the board never showed it — dropping
         // it is consistent, the player just moves again. So is a resignation
-        // or a draw offer or answer, made in a game that may have moved on
+        // or a draw offer or answer (or a take-back's), made in a game that may have moved on
         // too (and sent before the new socket's rejoin, it would be refused).
         // Session-establishing messages (create/join/rejoin) are exactly what
         // the queue is for.

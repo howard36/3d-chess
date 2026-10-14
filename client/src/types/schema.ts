@@ -23,6 +23,11 @@ export type WebSocketV1MessageEnvelope =
   | DeclineDraw
   | DrawOffered
   | DrawDeclined
+  | RequestTakeback
+  | AcceptTakeback
+  | DeclineTakeback
+  | TakebackRequested
+  | TakebackDeclined
   | GameEnded
   | Presence
   | Error;
@@ -47,7 +52,8 @@ export type ErrorCode =
   | "wrong_turn"
   | "seat_in_use"
   | "game_over"
-  | "invalid_draw";
+  | "invalid_draw"
+  | "invalid_takeback";
 
 export interface CreateGame {
   type: "create_game";
@@ -107,6 +113,7 @@ export interface GameState {
   moves: MoveRecord[];
   ending?: Ending;
   drawOffer?: DrawOffer;
+  takebackRequest?: TakebackRequest;
 }
 export interface MoveRecord {
   by: Color;
@@ -132,6 +139,17 @@ export interface DrawOffer {
   ply: number;
   /**
    * The opponent declined it. A draw can be offered once per move.
+   */
+  declined?: boolean;
+}
+/**
+ * The latest take-back request, if any; it stands only if its ply is the number of moves and it was not declined.
+ */
+export interface TakebackRequest {
+  by: Color;
+  ply: number;
+  /**
+   * The opponent declined it. A take-back can be asked for once per move.
    */
   declined?: boolean;
 }
@@ -185,6 +203,40 @@ export interface DrawOffered {
  */
 export interface DrawDeclined {
   type: "draw_declined";
+  by: Color;
+  ply: number;
+}
+/**
+ * The sender asks the opponent to let them take back their last move (and the opponent's reply, if made).
+ */
+export interface RequestTakeback {
+  type: "request_takeback";
+}
+/**
+ * The sender lets the opponent take back their move. Both players are then sent a game_state with the moves taken back.
+ */
+export interface AcceptTakeback {
+  type: "accept_takeback";
+}
+/**
+ * The sender refuses the opponent's standing take-back request.
+ */
+export interface DeclineTakeback {
+  type: "decline_takeback";
+}
+/**
+ * To both players: `by` asked to take back their last move when `ply` moves had been played.
+ */
+export interface TakebackRequested {
+  type: "takeback_requested";
+  by: Color;
+  ply: number;
+}
+/**
+ * To both players: `by` declined the take-back asked for when `ply` moves had been played.
+ */
+export interface TakebackDeclined {
+  type: "takeback_declined";
   by: Color;
   ply: number;
 }

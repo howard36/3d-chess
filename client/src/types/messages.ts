@@ -21,6 +21,9 @@ export type {
   DrawOffer,
   DrawOffered,
   DrawDeclined,
+  TakebackRequest,
+  TakebackRequested,
+  TakebackDeclined,
   GameEnded,
 } from './schema';
 

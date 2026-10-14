@@ -59,6 +59,11 @@ played (by either side: playing on cancels it). An ending on the board comes fir
 an automatic draw stands even if a resignation or an agreement follows it. The computer accepts
 a draw only when it stands clearly worse (see Playing the computer).
 
+A player may also ask to take back their last move, and the reply to it if one has been made,
+in a game under way: the opponent accepts or declines, and the request is made and lapses
+just as a draw offer is (once a move, cancelled by a move). Against the computer the move is
+taken back at once.
+
 ## Scope and trust assumptions
 
 This is a hobby project for games among friends. The design leans on that deliberately:
@@ -99,7 +104,7 @@ Key decisions:
   ordered log of received messages and derives everything (board, turn, phase, game over)
   by replaying moves from the fixed starting position. The derivation is pure code in
   `client/src/game/` (`history.ts` replays the record, `ending.ts` reads a resignation or
-  an agreed draw and the draw offer standing, `session.ts` the seat, presence and errors,
+  an agreed draw and the draw offer and take-back request standing, `session.ts` the seat, presence and errors,
   `invitation.ts` what a guest's invitation says); `GameScreen` only
   wires its output to the UI (the lobby before the game, `GameView` once it has begun). A
   local move is only _sent_; the board updates when the server's `move_made` echo arrives. This keeps
@@ -109,7 +114,8 @@ Key decisions:
   selection).
 - **Server = relay + durable move log.** Per game the server stores `{seats, moves}` (plus
   `claimants`, which client id claimed each seat, and once there are any, `ending`, a
-  resignation or an agreed draw, and `drawOffer`, the latest draw offer) in a `modal.Dict`
+  resignation or an agreed draw, `drawOffer`, the latest draw offer, and `takebackRequest`,
+  the latest request to take back a move) in a `modal.Dict`
   (durable) and keeps live sockets in a plain in-process dict (ephemeral).
   A disconnect detaches the socket but leaves the game record intact; `rejoin_game`
   reclaims a seat and receives the full history in a `game_state` message.
@@ -121,7 +127,8 @@ Key decisions:
   safe. Two rules keep it true, and `test_store_ops.py` asserts both (and that nothing uses
   `modal.Dict`'s awaiting `.aio` calls): the store operations
   in `modal_app.py` (`create_game`, `claim_seat`, `taken_seats`, `find_seat`, `record_move`,
-  `resign`, `offer_draw`, `accept_draw`, `decline_draw`) are
+  `resign`, `offer_draw`, `accept_draw`, `decline_draw`, `request_takeback`, `accept_takeback`,
+  `decline_takeback`) are
   synchronous functions, so nothing inside them can yield to the event loop; and the
   WebSocket handler never reads or writes the store itself, only passes it to those
   operations. `modal.Dict`'s calls block; never switch to the `.aio` variants.
@@ -255,9 +262,17 @@ Key decisions:
   a click hard on the heels of the one that asked ignored), so a stray click never ends a
   game. Under the flag hang, while they apply: the player's own offer ("Draw offered",
   waiting), its refusal ("Draw declined", until the next move), or the opponent's offer
-  with Accept and Decline. Nothing there takes the focus; a polite live region
-  (`draw-announcer`) says each offer, and the move announcer the result ("Black resigned.
-  You win.", "Draw agreed."). The flag is disabled while the connection is down or not yet
+  with Accept and Decline. Under the flag, a curved arrow in a circle of its own takes back
+  the player's last move and the reply to it ("Take back move" against the computer, at once;
+  "Ask to take back move" against a friend, disabled until the player has a move to take back
+  and once asked this move): its request hangs under it as a draw offer does ("Take-back
+  requested", "Take-back declined", or the opponent's "Take-back requested" with Accept and
+  Decline). One line at most hangs there (a narrow window has room beside the tower for no
+  more): a question for the player first, the take-back's before the draw's, then the
+  player's own take-back and draw. Nothing there takes the focus; polite live regions
+  (`draw-announcer`, `takeback-announcer`) say each offer and request, and the move
+  announcer the result ("Black resigned. You win.", "Draw agreed.") and a move taken back
+  ("Move taken back. Your move."). The flag and the arrow are disabled while the connection is down or not yet
   back in the game, and a resignation or offer queued meanwhile is dropped, like a move. Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
   `GameHistory.captured` and `game/material.ts`): each side's haul under its own half, a
   silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in the taken army's material with a count when more than one, and "+N" on the side ahead on material (in pawns:
@@ -319,8 +334,9 @@ Key decisions:
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
   and `data-move-count`; `move-history` the ply the board shows as `data-viewing-ply`
   (the live ply at the live position), with `data-review` away from it and `data-hidden`
-  while the game is on; `game-actions` is the flag's corner, with `draw-pending`,
-  `draw-declined` and `draw-offer` in it while they show. The browser tab follows the pill: while it is the seated player's
+  while the game is on; `game-actions` is the flag's corner, with `take-back` (the arrow),
+  and `draw-pending`, `draw-declined`, `draw-offer`, `takeback-pending`, `takeback-declined`
+  and `takeback-offer` in it while they show. The browser tab follows the pill: while it is the seated player's
   move in a game under way (a friend's or the computer's), in view or not, the title is
   "● Your move · 3D Chess" and the icon is `public/favicon-turn.svg` (the favicon, the
   tower's five levels, with a gold dot); the page's own come back on the opponent's move,
@@ -461,6 +477,16 @@ Message flow, happy path:
    server refuses every move, resignation and offer with `game_over`; an offer while one has
    already been made since the last move, or an answer with no standing offer of the
    opponent's to answer, gets `invalid_draw`.
+7. Taking a move back: `request_takeback` → `takeback_requested {by, ply}` to both, refused
+   with `invalid_takeback` unless the sender has a move on the record and has not asked this
+   move (or had a request declined); the opponent's `decline_takeback` →
+   `takeback_declined {by, ply}`, or `accept_takeback` → the record loses the requester's last
+   move and any reply to it, along with the draw offer and the request (each names a ply the
+   game can reach again), and each connected player gets a `game_state` of the game as it
+   now stands, from which the client replays the record afresh (`game/history.ts`). The
+   record keeps the latest request (`takebackRequest`, `{by, ply, declined?}`), which a
+   `game_state` carries, and it stands and lapses as a draw offer does (`game/ending.ts`,
+   `selectTakebackRequest`); the same refusals apply (`game_not_started`, `game_over`).
 
 Coordinates on the wire use the display notation described below (e.g. `"Aa1"`).
 
@@ -1029,6 +1055,16 @@ stands clearly worse, at 150 centipawns or more down by its own reckoning (`ACCE
 in `game/computerGame.ts`), the same at every level; otherwise, or if it could not weigh
 the position up, it declines and plays on. A move the player makes before the answer
 cancels the offer.
+
+**Taking a move back.** Against the computer the arrow under the flag asks nothing: it takes
+back the player's last move and the computer's reply if it has made one (`takeBack` in
+`game/computerGame.ts`, through `useComputerGame`'s `takeBack`), so the player is to move in
+the position before their move. The stand-in answers with a `game_state` of the game as it
+now stands, as the server does for a take-back granted, and the draw offer goes with the
+moves. Taken back while the computer thinks, its answer to the move taken back never lands
+(the worker still finishes that search before it starts on the next). Playing Black, the
+computer's opening move stays; once the game is over (a mate, a draw, a resignation) there
+is nothing to take back.
 
 **The engine** (`client/src/ai/`) is separate from the rules engine, built for speed:
 `position.ts` keeps the board as 125 bytes, cells numbered as `engine/board.ts` numbers

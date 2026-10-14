@@ -19,6 +19,11 @@
     { "$ref": "#/definitions/decline_draw" },
     { "$ref": "#/definitions/draw_offered" },
     { "$ref": "#/definitions/draw_declined" },
+    { "$ref": "#/definitions/request_takeback" },
+    { "$ref": "#/definitions/accept_takeback" },
+    { "$ref": "#/definitions/decline_takeback" },
+    { "$ref": "#/definitions/takeback_requested" },
+    { "$ref": "#/definitions/takeback_declined" },
     { "$ref": "#/definitions/game_ended" },
     { "$ref": "#/definitions/presence" },
     { "$ref": "#/definitions/error" }
@@ -44,7 +49,8 @@
         "wrong_turn",
         "seat_in_use",
         "game_over",
-        "invalid_draw"
+        "invalid_draw",
+        "invalid_takeback"
       ]
     },
     "ending_result": {
@@ -71,6 +77,20 @@
         "ply": { "type": "integer", "minimum": 0 },
         "declined": {
           "description": "The opponent declined it. A draw can be offered once per move.",
+          "type": "boolean"
+        }
+      },
+      "required": ["by", "ply"],
+      "additionalProperties": false
+    },
+    "takeback_request": {
+      "description": "`by` asked to take back their last move (and the opponent's reply, if made) when `ply` moves had been played. It stands only while that is still the number of moves (a move cancels it) and it has not been answered.",
+      "type": "object",
+      "properties": {
+        "by": { "$ref": "#/definitions/color" },
+        "ply": { "type": "integer", "minimum": 0 },
+        "declined": {
+          "description": "The opponent declined it. A take-back can be asked for once per move.",
           "type": "boolean"
         }
       },
@@ -181,6 +201,10 @@
         "drawOffer": {
           "description": "The latest draw offer, if any; it stands only if its ply is the number of moves and it was not declined.",
           "$ref": "#/definitions/draw_offer"
+        },
+        "takebackRequest": {
+          "description": "The latest take-back request, if any; it stands only if its ply is the number of moves and it was not declined.",
+          "$ref": "#/definitions/takeback_request"
         }
       },
       "required": ["type", "color", "started", "moves"],
@@ -264,6 +288,49 @@
       "type": "object",
       "properties": {
         "type": { "const": "draw_declined" },
+        "by": { "$ref": "#/definitions/color" },
+        "ply": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["type", "by", "ply"],
+      "additionalProperties": false
+    },
+    "request_takeback": {
+      "description": "The sender asks the opponent to let them take back their last move (and the opponent's reply, if made).",
+      "type": "object",
+      "properties": { "type": { "const": "request_takeback" } },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "accept_takeback": {
+      "description": "The sender lets the opponent take back their move. Both players are then sent a game_state with the moves taken back.",
+      "type": "object",
+      "properties": { "type": { "const": "accept_takeback" } },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "decline_takeback": {
+      "description": "The sender refuses the opponent's standing take-back request.",
+      "type": "object",
+      "properties": { "type": { "const": "decline_takeback" } },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "takeback_requested": {
+      "description": "To both players: `by` asked to take back their last move when `ply` moves had been played.",
+      "type": "object",
+      "properties": {
+        "type": { "const": "takeback_requested" },
+        "by": { "$ref": "#/definitions/color" },
+        "ply": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["type", "by", "ply"],
+      "additionalProperties": false
+    },
+    "takeback_declined": {
+      "description": "To both players: `by` declined the take-back asked for when `ply` moves had been played.",
+      "type": "object",
+      "properties": {
+        "type": { "const": "takeback_declined" },
         "by": { "$ref": "#/definitions/color" },
         "ply": { "type": "integer", "minimum": 0 }
       },

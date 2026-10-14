@@ -12,9 +12,11 @@ from pydantic import ValidationError
 
 from messages import (
     AcceptDraw,
+    AcceptTakeback,
     Color,
     CreateGame,
     DeclineDraw,
+    DeclineTakeback,
     DrawDeclined,
     DrawOffered,
     Error,
@@ -32,7 +34,10 @@ from messages import (
     OfferDraw,
     Presence,
     RejoinGame,
+    RequestTakeback,
     Resign,
+    TakebackDeclined,
+    TakebackRequested,
     WebsocketV1MessageEnvelope,
 )
 
@@ -117,7 +122,8 @@ class GameError(Exception):
 # claimed each seat), "ending" once a player resigns or a draw is agreed
 # ({"result", "winner"?}), and "drawOffer", the latest draw offer
 # ({"by", "ply", "declined"?}; it stands only while "ply" is the number of
-# moves, so a move cancels it without touching it). In production it is a modal.Dict,
+# moves, so a move cancels it without touching it), and "takebackRequest",
+# the latest take-back request, kept the same way. In production it is a modal.Dict,
 # which returns deserialized copies and whose calls BLOCK (they are the sync
 # wrappers; never switch to the `.aio` variants). So every mutation below is a
 # read-modify-write that must complete without yielding to the event loop, or
@@ -259,11 +265,73 @@ def resign(store, gid: str | None, color: str | None) -> dict:
     return ending
 
 
-def _standing_offer(record: dict) -> dict | None:
-    offer = record.get("drawOffer")
-    if offer is None or offer["ply"] != len(record["moves"]) or offer.get("declined"):
+def _standing(record: dict, key: str) -> dict | None:
+    """The draw offer or take-back request under `key`, if it stands."""
+    ask = record.get(key)
+    if ask is None or ask["ply"] != len(record["moves"]) or ask.get("declined"):
         return None
-    return offer
+    return ask
+
+
+def _taken_back(moves: list, color: str | None) -> int:
+    """How many moves a take-back by `color` removes: their last and any reply."""
+    for i in range(len(moves) - 1, -1, -1):
+        if moves[i]["by"] == color:
+            return len(moves) - i
+    return 0
+
+
+def request_takeback(store, gid: str | None, color: str | None) -> dict:
+    """`color` asks to take back their last move in `gid`; return the request ({"by", "ply"}).
+
+    Only a player with a move on the record may ask, and once per move (ply):
+    never while a request stands, nor again after one made since the last
+    move was declined.
+    """
+    record = _live_record(store, gid)
+    if _taken_back(record["moves"], color) == 0:
+        raise GameError(ErrorCode.invalid_takeback, "No move of yours to take back")
+    ply = len(record["moves"])
+    latest = record.get("takebackRequest")
+    if latest is not None and latest["ply"] == ply:
+        raise GameError(ErrorCode.invalid_takeback, "A take-back was already asked for this move")
+    request = {"by": color, "ply": ply}
+    record["takebackRequest"] = request
+    store[gid] = record
+    return request
+
+
+def _request_to_answer(record: dict, color: str | None) -> dict:
+    request = _standing(record, "takebackRequest")
+    if request is None or request["by"] == color:
+        raise GameError(ErrorCode.invalid_takeback, "No take-back to answer")
+    return request
+
+
+def accept_takeback(store, gid: str | None, color: str | None) -> dict:
+    """`color` grants the opponent's standing take-back in `gid`; return the record.
+
+    The requester's last move goes, and the reply to it if one was made. The
+    draw offer and the take-back request go with them: each names a ply the
+    game can reach again.
+    """
+    record = _live_record(store, gid)
+    request = _request_to_answer(record, color)
+    moves = record["moves"]
+    record["moves"] = moves[: len(moves) - _taken_back(moves, request["by"])]
+    record.pop("drawOffer", None)
+    record.pop("takebackRequest", None)
+    store[gid] = record
+    return record
+
+
+def decline_takeback(store, gid: str | None, color: str | None) -> dict:
+    """`color` refuses the opponent's standing take-back in `gid`; return it, declined."""
+    record = _live_record(store, gid)
+    request = {**_request_to_answer(record, color), "declined": True}
+    record["takebackRequest"] = request
+    store[gid] = record
+    return request
 
 
 def offer_draw(store, gid: str | None, color: str | None) -> dict:
@@ -284,7 +352,7 @@ def offer_draw(store, gid: str | None, color: str | None) -> dict:
 
 
 def _offer_to_answer(record: dict, color: str | None) -> dict:
-    offer = _standing_offer(record)
+    offer = _standing(record, "drawOffer")
     if offer is None or offer["by"] == color:
         raise GameError(ErrorCode.invalid_draw, "No draw offer to answer")
     return offer
@@ -319,6 +387,9 @@ STORE_OPERATIONS = (
     offer_draw,
     accept_draw,
     decline_draw,
+    request_takeback,
+    accept_takeback,
+    decline_takeback,
 )
 
 
@@ -415,7 +486,7 @@ def _game_state(record: dict, color: str) -> dict:
     """The `game_state` snapshot of `record` for the player seated as `color`.
 
     It carries everything a rejoining client replays: the moves, and the
-    ending and the latest draw offer when there are any.
+    ending, the latest draw offer and take-back request when there are any.
     """
     state = {
         "type": "game_state",
@@ -423,7 +494,7 @@ def _game_state(record: dict, color: str) -> dict:
         "started": len(record["seats"]) == 2,
         "moves": record["moves"],
     }
-    for key in ("ending", "drawOffer"):
+    for key in ("ending", "drawOffer", "takebackRequest"):
         if key in record:
             state[key] = record[key]
     model = GameState.model_validate(state)
@@ -636,6 +707,39 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         logger.info("draw declined gid=%s by=%s", gid, player_color)
                         declined = DrawDeclined(
                             type="draw_declined", by=Color(player_color), ply=offer["ply"]
+                        )
+                        await _broadcast(gid, declined)
+                    elif isinstance(envelope, RequestTakeback):
+                        request = request_takeback(store, gid, player_color)
+                        logger.info(
+                            "take-back requested gid=%s by=%s ply=%d",
+                            gid,
+                            request["by"],
+                            request["ply"],
+                        )
+                        await _broadcast(
+                            gid,
+                            TakebackRequested.model_validate(
+                                {"type": "takeback_requested", **request}
+                            ),
+                        )
+                    elif isinstance(envelope, AcceptTakeback):
+                        record = accept_takeback(store, gid, player_color)
+                        logger.info(
+                            "take-back granted gid=%s by=%s moves=%d",
+                            gid,
+                            player_color,
+                            len(record["moves"]),
+                        )
+                        # Each player gets the game as it now stands, as a
+                        # rejoin would: the record is replayed afresh
+                        for color, sock in list(connections.get(gid, {}).items()):
+                            await _safe_send(sock, _game_state(record, color))
+                    elif isinstance(envelope, DeclineTakeback):
+                        request = decline_takeback(store, gid, player_color)
+                        logger.info("take-back declined gid=%s by=%s", gid, player_color)
+                        declined = TakebackDeclined(
+                            type="takeback_declined", by=Color(player_color), ply=request["ply"]
                         )
                         await _broadcast(gid, declined)
                     else:

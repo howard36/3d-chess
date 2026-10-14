@@ -185,3 +185,82 @@ describe('draw offers', () => {
     expect(flag()).toBeDisabled();
   });
 });
+
+describe('take-backs', () => {
+  const takeBack = () => screen.getByTestId('take-back');
+  /** White has moved, and Black has replied: the record two moves long. */
+  const replied = (color: 'white' | 'black'): WebSocketMessage[] => [
+    ...started(color),
+    { type: 'move_made', by: 'black', from: 'Dc4', to: 'Cc4' },
+  ];
+
+  it('asks the opponent, then waits on the answer', () => {
+    const { sent, rerender } = play(replied('white'));
+    expect(takeBack()).toHaveAccessibleName('Ask to take back move');
+    act(() => takeBack().click());
+    expect(sent).toEqual([{ type: 'request_takeback' }]);
+    const asked: WebSocketMessage[] = [
+      ...replied('white'),
+      { type: 'takeback_requested', by: 'white', ply: 2 },
+    ];
+    rerender(asked);
+    expect(screen.getByTestId('takeback-pending')).toHaveTextContent('Take-back requested');
+    expect(screen.getByTestId('takeback-announcer')).toHaveTextContent('Take-back requested.');
+    // Once a move
+    expect(takeBack()).toBeDisabled();
+    rerender([...asked, { type: 'takeback_declined', by: 'black', ply: 2 }]);
+    expect(screen.queryByTestId('takeback-pending')).not.toBeInTheDocument();
+    expect(screen.getByTestId('takeback-declined')).toHaveTextContent('Take-back declined');
+    expect(takeBack()).toBeDisabled();
+  });
+
+  it('puts the opponent’s request to the player, to accept or decline', () => {
+    const asked: WebSocketMessage[] = [
+      ...replied('black'),
+      { type: 'takeback_requested', by: 'white', ply: 2 },
+    ];
+    const { sent, rerender } = play(asked);
+    const prompt = screen.getByTestId('takeback-offer');
+    expect(prompt).toHaveTextContent('Take-back requested');
+    expect(screen.getByTestId('takeback-announcer')).toHaveTextContent(
+      'Your opponent asks to take back a move.',
+    );
+    expect(document.body).toHaveFocus();
+    act(() => within(prompt).getByRole('button', { name: 'Decline' }).click());
+    act(() => within(prompt).getByRole('button', { name: 'Accept' }).click());
+    expect(sent).toEqual([{ type: 'decline_takeback' }, { type: 'accept_takeback' }]);
+    // Granted: the server sends the game as it now stands
+    rerender([...asked, { type: 'game_state', color: 'black', started: true, moves: [] }]);
+    expect(screen.queryByTestId('takeback-offer')).not.toBeInTheDocument();
+    const announcer = screen.getByTestId('move-announcer');
+    expect(announcer).toHaveAttribute('data-move-count', '0');
+    expect(announcer).toHaveTextContent('Move taken back. White to move.');
+    expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
+  });
+
+  it('asks one question at a time: the take-back first, then the draw', () => {
+    const both: WebSocketMessage[] = [
+      ...replied('black'),
+      { type: 'draw_offered', by: 'white', ply: 2 },
+      { type: 'takeback_requested', by: 'white', ply: 2 },
+    ];
+    const { rerender } = play(both);
+    expect(screen.getByTestId('takeback-offer')).toBeInTheDocument();
+    expect(screen.queryByTestId('draw-offer')).not.toBeInTheDocument();
+    // Both are said
+    expect(screen.getByTestId('draw-announcer')).toHaveTextContent('Your opponent offers a draw.');
+    rerender([...both, { type: 'takeback_declined', by: 'black', ply: 2 }]);
+    expect(screen.queryByTestId('takeback-offer')).not.toBeInTheDocument();
+    expect(screen.getByTestId('draw-offer')).toBeInTheDocument();
+  });
+
+  it('has nothing to take back before the player’s first move', () => {
+    play(started('black'));
+    expect(takeBack()).toBeDisabled();
+  });
+
+  it('takes nothing while the connection is down', () => {
+    render(gameScreenAt(fakeSocket(replied('white'), () => true, { status: 'reconnecting' })));
+    expect(takeBack()).toBeDisabled();
+  });
+});

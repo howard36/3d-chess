@@ -20,7 +20,7 @@ import MoveHistory from './MoveHistory';
 import { useReview } from './useReview';
 import MoveAnnouncer from './MoveAnnouncer';
 import GameActions from './GameActions';
-import type { DrawOfferState } from '../game/ending';
+import type { GameActionsProps } from './GameActions';
 import { learnScreen } from './learn/learnChunk';
 import type { LearnState } from './learn/learnBack';
 
@@ -69,15 +69,10 @@ export interface GameViewProps {
   alerts?: React.ReactNode;
   /**
    * Resigning and draws (GameActions), shown while the game is on: the draw
-   * offer since the last move, whether anything can be sent, and the sends.
+   * offer since the last move, whether anything can be sent, and the sends;
+   * against the computer, taking a move back too.
    */
-  actions?: {
-    offer: DrawOfferState;
-    disabled: boolean;
-    onResign: () => void;
-    onOfferDraw: () => void;
-    onAnswerDraw: (accept: boolean) => void;
-  };
+  actions?: Omit<GameActionsProps, 'seat'>;
   /**
    * The entrance (three/intro/timeline.ts): `full` for a game that starts
    * while the page is open, `short` for a page that opens on a game already
