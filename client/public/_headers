@@ -1,0 +1,9 @@
+# Cloudflare Pages: every page and file. The app is never shown in another
+# site's frame (clickjacking), files are taken as the type they are served
+# with, and a link out says only the site it came from (a game's address is
+# the only credential for its seats).
+/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

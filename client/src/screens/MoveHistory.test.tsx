@@ -334,6 +334,29 @@ describe('in a narrow window', () => {
     expect(list).toHaveClass('sr-only');
   });
 
+  it('puts the open list away with a press elsewhere, or Escape', async () => {
+    windowNarrow(true);
+    render(
+      <>
+        {history({ moves: record(6) })}
+        <canvas data-testid="elsewhere" />
+      </>,
+    );
+    const list = screen.getByTestId('move-list');
+    const toggle = screen.getByRole('button', { name: /Move list/ });
+    await userEvent.click(toggle);
+    // A press inside it (a move) leaves it open
+    fireEvent.pointerDown(document.querySelector('[data-ply="5"]')!);
+    expect(list).not.toHaveClass('sr-only');
+    fireEvent.pointerDown(screen.getByTestId('elsewhere'));
+    expect(list).toHaveClass('sr-only');
+    await userEvent.click(toggle);
+    act(() => (document.querySelector('[data-ply="6"]') as HTMLElement).focus());
+    await userEvent.keyboard('{Escape}');
+    expect(list).toHaveClass('sr-only');
+    expect(toggle).toHaveFocus();
+  });
+
   it('follows the window as it turns', () => {
     const turn = windowNarrow(false);
     render(history({ moves: record(6) }));
