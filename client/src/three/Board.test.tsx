@@ -25,7 +25,7 @@ import { Board as EngineBoard } from '../engine';
 import { fromZXY } from '../engine/coords';
 import { IntroContext } from './intro/clock';
 import type { IntroClock } from './intro/clock';
-import { introPlan, REPLAY_AFTER } from './intro/timeline';
+import { introPlan, replayAt } from './intro/timeline';
 
 type Renderer = { scene: unknown };
 type Color = 'white' | 'black';
@@ -1118,22 +1118,20 @@ describe('Board', () => {
           await renderer.advanceFrames(Math.round(seconds / 0.01), 0.01);
         });
 
-      it('forms the position before the last move, and plays the move once the entrance is over', async () => {
+      it('forms the position before the last move, and plays the move a beat after every piece has formed', async () => {
         const clock = entrance();
         const renderer = await ReactThreeTestRenderer.create(view(clock));
-        // The pieces still forming: the rook stands where it came from, the
-        // pawn it takes where it stood; nothing marked, no check
-        clock.t = clock.plan.total - 0.01;
+        // Just short of it: the rook stands where it came from, the pawn it
+        // takes where it stood; nothing marked, no check
+        clock.t = replayAt(clock.plan) - 0.01;
         await frames(renderer, 0.01);
         expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(FROM, 'white')]);
         expect(piecePositions(renderer, PieceType.Pawn, 'black')).toEqual([toWorld(TO, 'white')]);
         expect(marked).toHaveLength(0);
         expect(drawn.checks).toHaveLength(0);
-        // The entrance over: a beat, then the move glides in as it would have live
-        clock.t = clock.plan.total;
-        await frames(renderer, REPLAY_AFTER - 0.02);
-        expect(glideGroups(renderer)).toHaveLength(0);
-        await frames(renderer, 0.03);
+        // Every piece formed and a beat more: the move glides in as it would have live
+        clock.t = replayAt(clock.plan);
+        await frames(renderer, 0.01);
         expect(glideGroups(renderer)).toHaveLength(1);
         expect(last(marked)).toMatchObject({ fresh: true });
         expect(last(captures)?.victim).toEqual(taken);
@@ -1147,12 +1145,23 @@ describe('Board', () => {
         expect(drawn.checks.length).toBeGreaterThan(0);
       });
 
+      it('waits on past an entrance that ends sooner, on the frames after it', async () => {
+        const plan = introPlan('short');
+        const clock: IntroClock = { plan: { ...plan, total: replayAt(plan) - 0.1 }, t: 0 };
+        const renderer = await ReactThreeTestRenderer.create(view(clock));
+        clock.t = clock.plan.total;
+        await frames(renderer, 0.08);
+        expect(glideGroups(renderer)).toHaveLength(0);
+        await frames(renderer, 0.03);
+        expect(glideGroups(renderer)).toHaveLength(1);
+      });
+
       it('takes no input until the move has been played', async () => {
         const clock = entrance();
         const renderer = await ReactThreeTestRenderer.create(
           view(clock, { currentTurn: 'white', playerColor: 'white' }),
         );
-        clock.t = clock.plan.total;
+        clock.t = replayAt(clock.plan) - 0.01;
         await frames(renderer, 0.01);
         await press(findPiece(renderer, PieceType.Rook, 'white', FROM));
         expect(selectionRings(renderer)).toHaveLength(0);

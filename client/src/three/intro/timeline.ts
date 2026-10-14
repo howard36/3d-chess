@@ -235,9 +235,15 @@ export const pieceRing = (plan: IntroPlan, arrival: number, t: number) => {
 /** The HUD's opacity at `t`. */
 export const hudFade = (plan: IntroPlan, t: number) => through(plan.hud, t);
 
+/** When the last piece has formed, whole (seconds into the entrance; its ring still fading). */
+export const piecesFormed = (plan: IntroPlan) =>
+  plan.pieces.start + plan.pieces.spread * LAST_ARRIVAL + plan.pieces.duration;
+
 /**
  * A page opened on a game under way forms the position before its last
- * move, and plays that move this long (seconds) after the entrance is over,
- * every piece formed.
+ * move, and plays that move this long (seconds) after every piece has formed.
  */
-export const REPLAY_AFTER = 0.35;
+export const REPLAY_AFTER = 0.12;
+
+/** When that move plays, in seconds from the entrance's start (maybe past its end). */
+export const replayAt = (plan: IntroPlan) => piecesFormed(plan) + REPLAY_AFTER;

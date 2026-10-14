@@ -620,7 +620,7 @@ How the code is split:
   decoration can never take a click. The last move's line and entrance are keyed by move
   and play only for a move that arrived live, never on a reconnect. A page that opens on
   a game under way (a reload, a rejoin) forms the position before the last move in its
-  entrance, taking no input, and a beat after the entrance is over (`REPLAY_AFTER` in
+  entrance, taking no input, and a beat after its last piece has formed (`replayAt` in
   `three/intro/timeline.ts`) plays that move as it would have landed live: its glide, its
   line, a capture's effect, then a check or a mate (`three/replay.ts`). A move that lands
   meanwhile shows as it lands; with reduced motion the position is simply there.

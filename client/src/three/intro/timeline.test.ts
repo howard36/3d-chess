@@ -12,7 +12,10 @@ import {
   levelBuild,
   pieceArrival,
   pieceForm,
+  piecesFormed,
   pieceRing,
+  REPLAY_AFTER,
+  replayAt,
   sceneFade,
 } from './timeline';
 import type { IntroPlan } from './timeline';
@@ -196,4 +199,17 @@ describe('the pieces', () => {
     expect(hudFade(full, full.hud.start)).toBe(0);
     expect(full.hud.start + full.hud.duration).toBeLessThanOrEqual(full.total);
   });
+});
+
+describe('replayAt', () => {
+  it.each(['full', 'short', 'lobby'] as const)(
+    'plays the last move a beat after the %s entrance has formed every piece, its rings still fading',
+    (variant) => {
+      const plan = introPlan(variant);
+      expect(replayAt(plan)).toBeCloseTo(piecesFormed(plan) + REPLAY_AFTER);
+      // Every piece whole by then
+      expect(pieceForm(plan, LAST_ARRIVAL, replayAt(plan))).toBe(1);
+      expect(replayAt(plan)).toBeLessThan(plan.total);
+    },
+  );
 });
