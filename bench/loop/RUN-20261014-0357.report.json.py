@@ -58,7 +58,7 @@ report = {
     {'title': 'Two more rows leaned slower; one is now settled',
      'body': '<ul>'
              '<li><b>Start page answers its first click</b> +22% (1.80 1.29 1.04 0.92): nothing on that path changed (the preview is not paced; FP2, which paced it, moved nothing). The A/A on identical code leaned +31% on this row (chart: the A/A first, then the final).</li>'
-             '<li><b>The computer’s search speed</b> +29% in the final A/B (1.57 1.06 1.12 1.48), on code the branch does not touch. Re-run with 6 pairs after grading: +5.5%, pairs both ways (0.89 1.00 1.08 0.92 1.46 1.06), not called. Noise.</li></ul>',
+             '<li><b>The computer’s search speed</b> +29% in the final A/B (1.57 1.06 1.12 1.48), on code the branch does not touch. Re-run with 6 pairs after grading: +5.5%, pairs both ways (0.89 1.00 1.08 0.92 1.46 1.06), not called. Its median is above the 3% cap, but it is within noise: the pairs disagree on the direction, and the code it runs (<code>src/ai/</code>) is not changed by the branch.</li></ul>',
      'charts': [{'rows': {'change': AA, 'only': 'Cold load of the start screen · desktop · click at ready → side choice shown'}, 'caption': 'The A/A (identical code), 4 pairs: the first click.'},
                 {'rows': {'change': FINAL, 'only': 'Cold load of the start screen · desktop · click at ready → side choice shown'}, 'caption': 'The final A/B, 4 pairs: the first click.'},
                 {'rows': {'change': AIR, 'only': 'The computer thinks'}, 'caption': 'The search speed re-run, 6 pairs, client tier.'}],
