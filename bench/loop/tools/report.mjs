@@ -141,6 +141,8 @@ header { display: grid; gap: 6px; }
 .eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
 h1 { font: 700 clamp(28px, 6vw, 40px)/1.1 var(--display); margin: 0; text-wrap: balance; }
 .meta { color: var(--muted); font-size: 14px; }
+.meta p { margin: 0 0 10px; }
+.meta p:first-child { color: var(--ink); font-size: 17px; }
 .meta code, code { font-family: var(--mono); font-size: .86em; }
 section { display: grid; gap: 14px; border-top: 1px solid var(--rule); padding-top: 18px; min-width: 0; }
 h2 { font: 650 22px/1.2 var(--display); margin: 0; text-wrap: balance; }
