@@ -592,24 +592,84 @@ const BENCH_INIT = () => {
         if (!copy) return null;
         return copy.visible ? 'cached' : take?.visible ? 'capture' : 'plain';
       };
+      // When the GPU has drawn each frame: render() returns once the frame is
+      // handed over, and in software the GPU draws it for a long while after.
+      // A fence after each; fences pass in order, so one poller, off the
+      // frame, checks only the oldest still pending (its time, as r[5]; a
+      // frame with no fence gets false, never a time)
+      const ctx = gl.getContext();
+      const pending = [];
+      let polling = false;
+      const poll = () => {
+        while (pending.length) {
+          const [fence, record] = pending[0];
+          if (ctx.isContextLost()) {
+            record[5] = false;
+          } else if (ctx.getSyncParameter(fence, ctx.SYNC_STATUS) === ctx.SIGNALED) {
+            ctx.deleteSync(fence);
+            record[5] = now();
+          } else break;
+          pending.shift();
+        }
+        polling = pending.length > 0;
+        if (polling) setTimeout(poll, 1);
+      };
+      const drawn = (record) => {
+        const fence =
+          typeof ctx.fenceSync === 'function'
+            ? ctx.fenceSync(ctx.SYNC_GPU_COMMANDS_COMPLETE, 0)
+            : null;
+        if (!fence) {
+          record[5] = false;
+          return;
+        }
+        ctx.flush();
+        pending.push([fence, record]);
+        if (!polling) {
+          polling = true;
+          setTimeout(poll, 1);
+        }
+      };
       gl.render = function (scene, camera) {
         const t0 = performance.now();
         try {
           return render.call(this, scene, camera);
         } finally {
           const { calls, triangles } = this.info.render;
-          b.renders.push([
+          const record = [
             performance.timeOrigin + t0,
             performance.now() - t0,
             gardenMode(scene),
             calls,
             triangles,
-          ]);
+            null,
+          ];
+          b.renders.push(record);
+          drawn(record);
         }
       };
     },
   });
 };
+
+/**
+ * Waits (up to 15 s) until the first frame begun at or after `from` (with
+ * `click`, after the first click at or after it: a hover frame can come
+ * first) has been drawn by the GPU (its fence passed: r[5]; false, no fence,
+ * never comes), so a row reading it never drops the slow ones.
+ */
+const gpuDrawn = (page, from, click = false) =>
+  page
+    .waitForFunction(
+      ([t, c]) => {
+        const b = window.__bench;
+        const at = c ? b.clicks.find((k) => k[0] >= t)?.[0] : t;
+        return at != null && b.renders.find((r) => r[0] >= at)?.[5] != null;
+      },
+      [from, click],
+      { polling: 20, timeout: 15000 },
+    )
+    .catch(() => log('  (a frame was not drawn by the GPU within 15 s)'));
 
 /** A copy of the page's recorded data (plus its time origin). */
 const snap = (page) =>
@@ -883,7 +943,7 @@ const raw = report.raw;
 const ORDER = new Map();
 /** Wall seconds per step and scenario (build, startup, each section, total). */
 const TIMINGS = (raw.timings = {});
-const SW_NOTE = `Frames are drawn by SwiftShader (software WebGL) on the CPU (${os.cpus().length} cores here), so frame times are CPU costs far above a real GPU’s: compare them with each other, not with a device.`;
+const SW_NOTE = `Pictures are drawn by SwiftShader, which runs WebGL on the CPU (${os.cpus().length} cores here), so drawing takes far longer than on a real GPU: compare these times with each other, not with a device. A picture is *handed to the GPU* when the page’s render() call returns, and *drawn by the GPU* when the GPU has finished it (a WebGL fence placed after it has passed); the second is what the player sees.`;
 
 async function section(key, def, run) {
   if (!wants(key) || aborted) return;
@@ -1009,9 +1069,9 @@ async function bundleSection(bundle) {
   await section(
     'bundle',
     {
-      title: 'Bundle',
+      title: 'Download size',
       intro:
-        'Every file `vite build` emits, raw and compressed at the highest gzip and brotli levels (what a host could precompress). This is what a first visit downloads, before anything is drawn; `vite preview`, used below, gzips on the fly at the default level.',
+        'Every file that `vite build` produces, uncompressed and compressed at the highest gzip and brotli levels, which a host could compress in advance. A first visit downloads these files before anything is drawn. The `vite preview` server used in the sections below compresses on the fly with gzip at its default level.',
       columns: ['Asset', 'Group', 'Raw', 'gzip -9', 'brotli -11', 'Notes'],
       align: ['l', 'l', 'r', 'r', 'r', 'l'],
       timeoutMs: 120000,
@@ -1094,7 +1154,7 @@ async function coldSection(browser) {
     'cold-load',
     {
       title: 'Cold load of the start screen',
-      intro: `A first visit: a fresh browser context (empty cache) opens \`/\` until the “Play a friend” button is enabled and the socket to the server is open (“ready”), then clicks the button at once, until the side choice shows, ${CFG.coldRuns} runs per case. Desktop is ${VIEWPORTS.desktop.label}, phone ${VIEWPORTS.phone.label}; the third case models a mid-range phone on a mobile network: DevTools’ 4× CPU throttling and its “Fast 4G” preset (165 ms RTT, 8.1 Mbit/s down). Served from localhost by \`vite preview\` (gzip); the start page’s preview draws behind it as it loads.`,
+      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
       align: ['l', 'l', 'r', 'r', 'r', 'r'],
       timeoutMs: QUICK ? 120000 : 300000,
@@ -1179,11 +1239,11 @@ async function coldSection(browser) {
           ['HTML received', 'html'],
           ['first contentful paint', 'fcp'],
           ['DOMContentLoaded', 'dcl'],
-          ['create button enabled', 'button'],
-          ['socket open', 'socket'],
-          ['main-thread script, to ready', 'script'],
-          ['longest task, to ready', 'longest'],
-          ['click at ready → side choice shown', 'clickToChoice'],
+          ['“Play a friend” enabled', 'button'],
+          ['connection to the server open', 'socket'],
+          ['script run time, until ready', 'script'],
+          ['longest page freeze, until ready', 'longest'],
+          ['first click: side choice shown', 'clickToChoice'],
         ];
         metrics.forEach(([label, k], i) => {
           const [row, m] = stat(label, col(k));
@@ -1193,25 +1253,25 @@ async function coldSection(browser) {
         // uncached (the browser's GPU process caches them for the loads
         // after it): a player's first visit, which the median above hides
         if (c === cases[0]) {
-          const label = 'first load: click at ready → side choice shown';
+          const label = 'first visit’s first click: side choice shown';
           const [row, m] = stat(label, [runs[0].clickToChoice]);
           sec.add(['', ...row], m, `${c.label} · ${label}`);
         }
         sec.add(
           [
             '',
-            'bytes transferred (all / JS)',
+            'bytes downloaded (all / JS)',
             `${fmtBytes(median(col('transfer')))} / ${fmtBytes(median(col('jsTransfer')))}`,
             '',
             '',
             String(runs.length),
           ],
           metric(median(col('transfer')), 'bytes'),
-          `${c.label} · bytes transferred`,
+          `${c.label} · bytes downloaded`,
         );
       }
       sec.notes.push(
-        'Times are from navigation start. “ready” is the later of the button enabled and the socket open; “main-thread script” is Chromium’s ScriptDuration (CDP Performance metrics) until then, throttled time under 4× CPU. DevTools network emulation delays response bodies, not headers, hence “HTML received” (responseEnd) rather than TTFB. The browser has already drawn a board (the warm-up), and the cases take turns; the first load still meets the start page’s own shader programs uncached (“first load”).',
+        'Times are from the start of navigation. “Script run time” is Chromium’s ScriptDuration (from its Performance metrics) until ready; under the 4× CPU slowdown it is the slowed time. DevTools’ network emulation delays the body of a response but not its headers, so the table gives “HTML received” (the end of the response) rather than the time to the first byte. Before this section the browser has already drawn a board, and the cases take turns. The first visit still compiles the start page’s own shaders, which the browser caches for later visits; “first visit’s first click” shows that cost.',
       );
     },
   );
@@ -1339,7 +1399,7 @@ async function setupSection(browser, shared) {
     'setup',
     {
       title: 'Game setup',
-      intro: `Two players meet, each side timed on its own page with the other player a socket from here (two pages in one browser would share its GPU process and wait on each other’s shader compiles, as players on two devices never do). The creator clicks “Play a friend”, picks White and gets the share link (“create: click” is the pick, which asks the server for the game), then a socket joins and the creator’s board comes up. The joiner opens a socket-created game’s link and clicks “Join game”. Done when the page has the board mounted, its first frame drawn and the game’s entrance over. ${CFG.setupRuns} run(s) of each, desktop viewport. The first frame includes building the scene and its shader programs, which SwiftShader does on the CPU (the browser drew a board before this section, so the GPU process’s shader cache is warm, as for a returning player). ${SW_NOTE}`,
+      intro: `Two players meet. Each side is timed on its own page, with the other player played by a socket from this script, because two pages in one browser would share its GPU process and wait on each other’s shaders, which players on two devices never do. The creator clicks “Play a friend” and then White, which asks the server for a game, and gets the share link; then the socket joins and the creator’s board comes up. The joiner opens the link of a game the socket created and clicks “Join game”. Each run ends when the board’s first picture has been handed to the GPU and the game’s entrance is over. ${CFG.setupRuns} run(s) of each, on desktop. The first picture includes building the scene and its shaders. The browser drew a board before this section, so its shader cache is warm, as for a returning player. ${SW_NOTE}`,
       columns: ['Step', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
@@ -1370,27 +1430,47 @@ async function setupSection(browser, shared) {
       const c = (k) => created.map((r) => r[k]);
       const j = (k) => joined.map((r) => r[k]);
       sec.addAll([
-        stat('create: click → game_created received', c('createRtt'), 'server round trip'),
-        stat('create: click → share link shown', c('createShown')),
-        stat('creator: friend joins → game_start received', c('creatorStart')),
-        stat('creator: friend joins → first frame', c('creatorFrame'), 'board usable'),
-        stat('join: navigation → Join button', j('joinButton'), 'cold page load'),
-        stat('join: click → game_start received', j('joinStart')),
-        stat('join: click → joiner’s first frame', j('joinerFrame'), 'board usable'),
         stat(
-          'joiner’s first render() call',
+          'Creating: server confirms the game',
+          c('createRtt'),
+          'from the click on a side; one server round trip',
+        ),
+        stat('Creating: share link shown', c('createShown'), 'from the click on a side'),
+        stat('Creator: server says the friend joined', c('creatorStart'), 'from the friend’s join'),
+        stat(
+          'Creator: board’s first picture handed to the GPU',
+          c('creatorFrame'),
+          'from the friend’s join',
+        ),
+        stat('Joining: Join button shown', j('joinButton'), 'from opening the link; a first visit'),
+        stat('Joining: server confirms the seat', j('joinStart'), 'from the click on Join'),
+        stat(
+          'Joining: board’s first picture handed to the GPU',
+          j('joinerFrame'),
+          'from the click on Join',
+        ),
+        stat(
+          'Joining: time spent preparing the first picture',
           j('firstRenderCpu'),
-          'main thread, incl. shader setup',
+          'the render() call on the page, including shader setup',
         ),
-        stat('joiner: longest task, click → frame', j('joinerLongest')),
-        stat('joiner: long tasks total, click → frame', j('joinerLongTotal')),
+        stat(
+          'Joining: longest page freeze',
+          j('joinerLongest'),
+          'from the click on Join to the first picture',
+        ),
+        stat(
+          'Joining: page freezes in total',
+          j('joinerLongTotal'),
+          'from the click on Join to the first picture',
+        ),
         countStat(
-          'joiner: shader programs linked, click → frame',
+          'Joining: shaders compiled',
           j('joinerLinks'),
-          'count; lobby’s and board’s',
+          'count, lobby and board, from the click on Join to the first picture',
         ),
         countStat(
-          'joiner’s first render(): shader programs linked',
+          'Joining: shaders compiled for the first picture',
           j('firstRenderLinks'),
           'count',
         ),
@@ -1453,7 +1533,7 @@ async function movesSection(browser, shared) {
     'move-latency',
     {
       title: 'Move latency',
-      intro: `${plies.length} plies of the bench’s tactical game (\`client/bench/tacticalGame.ts\`: the opening of a real game, ${plies.filter((p) => p.capture).length} captures and ${plies.filter((p) => p.check).length} check among them), on the creator’s page from the setup section (White) against a socket (Black). White’s moves are clicked on the board, the piece and then its destination, through the app’s raycasting as the e2e suite clicks; Black’s are sent by the socket. Timed on the page’s clock (comparable with this process’s) from the destination click, or the socket’s send, to the move-announcer’s \`data-move-count\` changing (React’s commit) and to the end of the first frame drawn after it. Each move’s landing (its glide, and a taken piece’s topple) is then watched for ${LANDING_MS} ms before the next. ${SW_NOTE}`,
+      intro: `${plies.length} plies (single moves by one side) of the bench’s tactical game (\`client/bench/tacticalGame.ts\`, the opening of a real game with ${plies.filter((p) => p.capture).length} captures and ${plies.filter((p) => p.check).length} check), played on the creator’s page from the setup section. The player is White and clicks each move on the board, first the piece and then its destination, as the e2e tests click. The opponent is Black, played by a socket that sends its moves. Each move is timed from the click on the destination, or from the opponent’s send, to three points: the HUD showing the move (the move count changes), its picture handed to the GPU, and its picture drawn by the GPU. After each move the bench watches its animation (the glide, and a taken piece falling) for ${LANDING_MS} ms before the next move. ${SW_NOTE}`,
       columns: ['Measure', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
@@ -1500,6 +1580,7 @@ async function movesSection(browser, shared) {
         await page.waitForFunction((until) => window.__benchNow() >= until, drawnAt + LANDING_MS, {
           polling: 50,
         });
+        await gpuDrawn(page, committed);
         const s = await snap(page);
         const shown = s.counts.find((c) => c[1] === i + 1);
         if (shown[2] !== move)
@@ -1517,6 +1598,8 @@ async function movesSection(browser, shared) {
           echo: s.rx.find((r) => r[0] >= start && r[1] === 'move_made')?.[0] - start,
           shown: shown[0] - start,
           frame: drawn - start,
+          // ...and drawn by the GPU (its fence passed)
+          gpu: frame[5] ? frame[5] - start : null,
           render: frame[1],
           calls: frame[3],
           triangles: frame[4],
@@ -1535,63 +1618,81 @@ async function movesSection(browser, shared) {
       const opp = (k, pred) => pick('black', k, pred);
       const takes = (m) => m.capture;
       sec.addAll([
-        stat('click → page handles its echo', own('echo'), 'send, server, relay back'),
-        stat('click → announcer updated', own('shown'), 'echo, replay, React commit'),
-        stat('click → mover’s first frame with the move', own('frame'), 'what the player sees'),
         stat(
-          'click → mover’s first frame, captures',
+          'Player’s move: echo from the server received',
+          own('echo'),
+          'from the click on the destination',
+        ),
+        stat('Player’s move: shown in the HUD', own('shown'), 'the move count changes'),
+        stat('Player’s move: picture handed to the GPU', own('frame'), 'render() returned'),
+        stat('Player’s move: picture drawn by the GPU', own('gpu'), 'what the player sees'),
+        stat(
+          'Player’s capture: picture handed to the GPU',
           own('frame', takes),
           'the taken piece topples',
         ),
-        stat('mover: that frame’s render() call', own('render'), 'main thread'),
-        countStat('mover: that frame’s draw calls', own('calls'), 'count; GPU-independent'),
-        stat('mover: longest task, click → frame', own('longest')),
-        stat('opponent’s move: sent → page handles it', opp('echo'), 'server and relay'),
-        stat('opponent’s move: sent → announcer updated', opp('shown')),
-        stat('opponent’s move: sent → first frame with it', opp('frame'), 'what the player sees'),
         stat(
-          'opponent’s move: sent → first frame, captures',
+          'Player’s move: time spent preparing the picture',
+          own('render'),
+          'the render() call on the page',
+        ),
+        countStat(
+          'Player’s move: draw calls in the picture',
+          own('calls'),
+          'count; the same on any GPU',
+        ),
+        stat('Player’s move: longest page freeze', own('longest'), 'from the click to the picture'),
+        stat('Opponent’s move: received by the page', opp('echo'), 'from the opponent sending it'),
+        stat('Opponent’s move: shown in the HUD', opp('shown'), 'the move count changes'),
+        stat('Opponent’s move: picture handed to the GPU', opp('frame'), 'render() returned'),
+        stat('Opponent’s move: picture drawn by the GPU', opp('gpu'), 'what the player sees'),
+        stat(
+          'Opponent’s capture: picture handed to the GPU',
           opp('frame', takes),
-          'one of the page’s pieces topples',
+          'one of the player’s pieces topples',
         ),
-        stat('opponent: longest task, sent → frame', opp('longest')),
         stat(
-          'landing: longest render() call',
+          'Opponent’s move: longest page freeze',
+          opp('longest'),
+          'from the send to the picture',
+        ),
+        stat(
+          'After a move: longest time spent preparing a picture',
           moves.map((m) => m.landingLongestRender),
-          `main thread, ${LANDING_MS} ms after each move’s first frame`,
+          `the render() call, in the ${LANDING_MS} ms after each move’s first picture`,
         ),
         stat(
-          'landing: longest gap between frames',
+          'After a move: longest gap between pictures',
           moves.map((m) => m.landingLongestGap),
-          'jank',
+          'a visible stutter',
         ),
         stat(
-          'landing: longest task',
+          'After a move: longest page freeze',
           moves.map((m) => m.landingLongest),
         ),
         countStat(
-          'landing: shader programs linked',
+          'After a move: shaders compiled',
           moves.map((m) => m.landingLinks),
-          'count; 0 once warm (WarmPrograms)',
+          'count; 0 once the warm-up has compiled them',
         ),
         countStat(
-          `geometries alive, growth over ${moves.length} plies`,
+          `Geometries in memory: growth over ${moves.length} plies`,
           [after.geometries - before.geometries],
           `count; ${before.geometries} → ${after.geometries} (three.js info.memory)`,
         ),
         countStat(
-          `textures alive, growth over ${moves.length} plies`,
+          `Textures in memory: growth over ${moves.length} plies`,
           [after.textures - before.textures],
           `count; ${before.textures} → ${after.textures}`,
         ),
         countStat(
-          `shader programs, growth over ${moves.length} plies`,
+          `Shaders: growth over ${moves.length} plies`,
           [after.programs - before.programs],
           `count; ${before.programs} → ${after.programs}`,
         ),
       ]);
       sec.notes.push(
-        `A “page handles” time is when the message event is dispatched on the page’s main thread, so it includes any wait for the thread (a frame being drawn). Captures: ${plies
+        `“Received by the page” is when the page’s main thread handles the message, so it includes any wait for the thread, for example while a picture is prepared. Captures: ${plies
           .map((p, k) => (p.capture ? `ply ${k + 1} (${k % 2 ? 'Black' : 'White'})` : null))
           .filter(Boolean)
           .join(', ')}; check: ${plies
@@ -1656,7 +1757,7 @@ async function computerSection(browser) {
     'computer',
     {
       title: 'Playing the computer',
-      intro: `A game against the computer, ${CFG.computerRuns} run(s) in a fresh context each (${VIEWPORTS.desktop.label}): from the start page’s “Play the computer”, White and the ${level} level, into the game (the lobby’s way in, in full motion); then ${CFG.computerMoves} moves of White’s, each clicked on the board, each answered by the computer. Its search runs in a worker, started (and its code fetched) at its first move, and searches for a fixed time by level (${level}: 1,800 ms, as deep as that goes); the app then plays its move after a human pause (\`thinkTime\`, random by design), which is not timed here. “asked → answer” is the worker’s round trip, from the page’s request to its reply. ${SW_NOTE}`,
+      intro: `A game against the computer, ${CFG.computerRuns} run(s), each in a new browser profile (${VIEWPORTS.desktop.label}). The player clicks “Play the computer” on the start page, then White, then ${level}, and the lobby plays its way into the game with full motion. The player then makes ${CFG.computerMoves} moves on the board, and the computer answers each one. The computer’s search runs in a worker, which starts (and fetches its code) at the computer’s first move, and searches for a fixed time per level (${level}: 1,800 ms). The app then waits a random, human-like pause before it plays the move (\`thinkTime\`); that pause is not timed here. “Time to answer” runs from the page asking the worker for a move to the worker’s reply. ${SW_NOTE}`,
       columns: ['Measure', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
@@ -1706,6 +1807,12 @@ async function computerSection(browser) {
             });
           }
           const s = await snap(page);
+          // Its moves came from the search in a worker, not a fallback (a
+          // worker that failed thinks on the page; a search that failed
+          // plays at once): anything else times another path
+          if (!s.workers.length) throw new Error('computer: no worker was started');
+          const unthought = moves.findIndex((m) => !(m.nodes > 0));
+          if (unthought >= 0) throw new Error(`computer: move ${unthought + 1} had no search`);
           const pick = s.clicks.find((c) => c[0] >= beforePick)?.[0];
           const thinking = moves.map((m) => {
             const busy = tasksIn(s.lt, m.asked, m.answered).map((l) => l[1]);
@@ -1732,27 +1839,28 @@ async function computerSection(browser) {
       const later = runs.flatMap((r) => r.moves.slice(1));
       sec.addAll([
         stat(
-          `way in: ${level} click → first frame`,
+          `Way in: board’s first picture handed to the GPU`,
           runs.map((r) => r.wayInFrame),
-          'the lobby, then the board',
+          `from the click on ${level}; the lobby plays first`,
         ),
         stat(
-          `way in: ${level} click → entrance over`,
+          `Way in: board ready for moves`,
           runs.map((r) => r.wayInUsable),
-          'the board takes moves',
+          `from the click on ${level}; the entrance is over`,
         ),
         stat(
-          'first move: asked → answer from the worker',
+          'Computer’s first move: time to answer',
           runs.map((r) => r.moves[0]?.roundTrip),
-          'starts the worker, fetches the search',
+          'from the page asking to the worker answering; includes starting the worker',
         ),
         stat(
-          'later moves: asked → answer from the worker',
+          'Computer’s later moves: time to answer',
           later.map((m) => m.roundTrip),
+          'from the page asking to the worker answering',
         ),
         [
           [
-            'later moves: positions searched a second',
+            'Computer’s later moves: positions searched per second',
             fmtNum(median(later.map((m) => m.perSecond))),
             fmtNum(
               quantile(
@@ -1762,23 +1870,24 @@ async function computerSection(browser) {
             ),
             fmtNum(maxOf(later.map((m) => m.perSecond))),
             String(later.filter((m) => ok(m.perSecond)).length),
-            `in the worker; depth ${fmtNum(median(later.map((m) => m.depth)))} (median)`,
+            `search depth ${fmtNum(median(later.map((m) => m.depth)))} (median)`,
           ],
           metric(median(later.map((m) => m.perSecond)), 'per_s', 'higher'),
         ],
         stat(
-          'while it thinks: longest task on the page',
+          'While the computer thinks: longest page freeze',
           all.map((m) => m.longest),
-          'the search is off the page’s thread',
+          'the search runs in a worker, off the page',
         ),
         stat(
-          'its move: shown → first frame with it',
+          'Computer’s move: picture handed to the GPU',
           all.map((m) => m.shownToFrame),
+          'from its move reaching the HUD',
         ),
         countStat(
-          'shader programs linked after the entrance',
+          'Shaders compiled after the entrance',
           runs.map((r) => r.links),
-          'count; the game screen’s warm-up included',
+          'count, including the game’s shader warm-up',
         ),
       ]);
     },
@@ -1859,8 +1968,8 @@ async function selectSection(browser) {
   await section(
     'select',
     {
-      title: 'Selecting a piece',
-      intro: `A new game from White’s seat (${VIEWPORTS.desktop.label}), at rest: White’s pieces are picked up one after another with a real click through the app’s raycasting (as the e2e suite clicks), each put down again by a click on empty space before the next is picked up. ${CFG.selects} picks. Timed on the page’s clock from the click to the end of the first frame drawn after it (the piece held, its destinations shown), with that frame’s render() call and the shader programs linked on the way. ${SW_NOTE}`,
+      title: 'Picking up a piece',
+      intro: `A new game from White’s seat (${VIEWPORTS.desktop.label}), with nothing moving. The bench picks up White’s pieces one after another with real clicks, as the e2e tests click, and puts each down with a click on empty space before the next. ${CFG.selects} picks. Each pick is timed from the click to the picture that shows the piece held and its destinations: when that picture is handed to the GPU and when the GPU has drawn it. ${SW_NOTE}`,
       columns: ['Measure', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
@@ -1881,13 +1990,15 @@ async function selectSection(browser) {
         const zxy = squares[i % squares.length];
         const at = await squarePixel(page, zxy);
         if (!at) throw new Error(`no pixel reaches ${zxy}`);
-        const [t, warm] = await page.evaluate(() => [
+        const [t, warm, warmLink] = await page.evaluate(() => [
           window.__benchNow(),
           document.querySelector('canvas')?.dataset.warm === 'done',
+          document.querySelector('canvas')?.dataset.warmLink ?? null,
         ]);
         await page.mouse.click(at.x, at.y);
         await waitFrameAfter(page, t);
         await quietMain(page);
+        await gpuDrawn(page, t, true);
         const s = await snap(page);
         const frame = frameAfterClick(s, t);
         const drawn = frame ? frame[0] + frame[1] : 0;
@@ -1895,7 +2006,12 @@ async function selectSection(browser) {
           frame && {
             // The game's warm-up (WarmPrograms) was over at the click
             warm,
+            // How its programs were linked ahead (linkAhead's outcome: 'idle'
+            // read back at rest; anything else leaves the read-backs to the
+            // warm frame), or null before it was asked
+            warmLink,
             frame: drawn - t,
+            gpu: frame[5] ? frame[5] - t : null,
             render: frame[1],
             mode: frame[2],
             // A hover frame began between the press's start and the click
@@ -1921,9 +2037,14 @@ async function selectSection(browser) {
         await page.evaluate(ORBIT, { ms: 400, degPerSec: 40 });
         await quietMain(page);
         await page.waitForTimeout(500);
-        const zxy = squares[i % squares.length];
-        const at = await squarePixel(page, zxy);
-        if (!at) throw new Error(`no pixel reaches ${zxy}`);
+        // The next piece in the list a pixel reaches from this side
+        let zxy = null;
+        let at = null;
+        for (let k = 0; k < squares.length && !at; k++) {
+          zxy = squares[(i + k) % squares.length];
+          at = await squarePixel(page, zxy);
+        }
+        if (!at) throw new Error('no pixel reaches any of the pieces to pick up');
         const t = await page.evaluate(() => window.__benchNow());
         await page.mouse.click(at.x, at.y);
         await waitFrameAfter(page, t);
@@ -1967,52 +2088,69 @@ async function selectSection(browser) {
         ]);
       sec.addAll([
         stat(
-          'before any click: longest render() after the first frame',
+          'Before the first pick: longest time spent preparing a picture',
           [maxOf([0, ...afterFirst])],
-          'the entrance and the warm-up, to rest',
+          'the entrance and the shader warm-up',
         ),
-        stat('click → first frame with the piece held', col('frame'), 'what the player sees'),
+        stat('Picking up a piece: picture handed to the GPU', col('frame'), 'render() returned'),
+        stat('Picking up a piece: picture drawn by the GPU', col('gpu'), 'what the player sees'),
         stat(
-          'first pick: click → first frame with the piece held',
+          'First pick: picture handed to the GPU',
           picks
             .slice(0, 1)
             .filter(Boolean)
             .map((p) => p.frame),
-          'a player quick off the mark: the first pick once the entrance is over, often before the shader warm-up is done',
+          'the first piece picked up once the entrance is over, often before the shader warm-up has finished',
         ),
         countStat(
-          'first pick made while the warm-up was under way',
+          'First pick made during the shader warm-up',
           picks
             .slice(0, 1)
             .filter(Boolean)
             .map((p) => (p.warm ? 0 : 1)),
-          'count; 1 when the first pick met the warm-up',
+          'count; 1 when it was',
         ),
-        stat('that frame’s render() call', col('render'), 'main thread'),
-        stat('longest task, click → frame', col('longest')),
-        countStat('shader programs linked, click → frame', col('links'), 'count'),
         countStat(
-          'first frames that drew the garden in full',
+          'Shader warm-up could not finish ahead of its picture',
+          picks
+            .slice(0, 1)
+            .filter((p) => p?.warmLink)
+            .map((p) => (p.warmLink === 'idle' ? 0 : 1)),
+          'count; 1 when the warm-up’s picture had to wait for the GPU to finish the shaders',
+        ),
+        stat(
+          'Picking up a piece: time spent preparing the picture',
+          col('render'),
+          'the render() call on the page',
+        ),
+        stat(
+          'Picking up a piece: longest page freeze',
+          col('longest'),
+          'from the click to the picture',
+        ),
+        countStat('Picking up a piece: shaders compiled', col('links'), 'count'),
+        countStat(
+          'Picking up a piece: pictures that redrew the whole garden',
           [timed.filter((p) => p.mode !== 'cached').length],
           `count of ${timed.length}; the rest from its copy`,
         ),
         countStat(
-          'picks where a hover frame came before the click’s',
+          'Picks where a hover picture came first',
           [timed.filter((p) => p.hoverFirst).length],
           `count of ${timed.length}; timed from the click's own frame`,
         ),
         countStat(
-          'clicks that picked nothing up (no frame drawn)',
+          'Clicks that picked nothing up',
           [missed],
           `count of ${picks.length + turned.length}; left out of the times`,
         ),
         stat(
-          'after a turn of the view: click → first frame with the piece held',
+          'After turning the view: picture handed to the GPU',
           timedTurned.map((r) => r.frame),
           'the first click once the camera rests',
         ),
         countStat(
-          'after a turn of the view: first frames that drew the garden in full',
+          'After turning the view: pictures that redrew the whole garden',
           [timedTurned.filter((p) => p.mode !== 'cached').length],
           `count of ${timedTurned.length}`,
         ),
@@ -2029,8 +2167,8 @@ async function reopenSection(browser) {
     'reopen',
     {
       title: 'Reopening a long game',
-      intro: `A player reloads mid-game (adversarial for long games): a game with H plies already recorded (seeded over WebSockets) is opened in a fresh context with Black’s seat in localStorage, so the page rejoins and replays the whole record from the start. Then White (a socket) plays one more move. Cells are medians of ${CFG.reopenRuns} run(s) (a new game each; max and all runs in \`raw\`). ${SW_NOTE}`,
-      columns: ['Metric', ...plies.map((h) => `H = ${h}`), 'Notes'],
+      intro: `A player reloads the page in the middle of a long game, the hardest case for the record. A game that already has the number of plies in the column heading (a ply is one side’s move) is opened in a new browser profile that holds Black’s seat, so the page rejoins and replays the whole record. Then White, played by a socket, makes one more move. Each cell is the median of ${CFG.reopenRuns} run(s), a new game each; \`raw\` has every run. ${SW_NOTE}`,
+      columns: ['Metric', ...plies.map((h) => `${h} plies`), 'Notes'],
       align: ['l', ...plies.map(() => 'r'), 'l'],
       timeoutMs: QUICK ? 180000 : 420000,
     },
@@ -2102,47 +2240,52 @@ async function reopenSection(browser) {
       const row = (label, k, fmt, note = '', unit = 'ms') => [
         [label, ...plies.map((H) => fmt(med(H, k))), note],
         unit ? metric(med(top, k) * (unit === 'bytes' ? 1024 * 1024 : 1), unit) : null,
-        `${label} · H = ${top}`,
+        `${label} · ${top} plies`,
       ];
       sec.addAll([
-        row('navigation → game_state received', 'stateRx', fmtMs, 'page load + socket + rejoin'),
-        row('navigation → record shown (announcer = H)', 'recordShown', fmtMs),
         row(
-          'game_state handled → record shown',
-          'replay',
+          'game’s state received',
+          'stateRx',
           fmtMs,
-          'replay + React render and commit',
+          'from opening the page: load, connect, rejoin',
         ),
-        row('navigation → first frame drawn', 'firstFrame', fmtMs, 'incl. shader setup'),
+        row('move record shown', 'recordShown', fmtMs, 'from opening the page'),
+        row('replaying and showing the record', 'replay', fmtMs, 'from receiving the state'),
         row(
-          'long tasks total, to ready',
+          'board’s first picture handed to the GPU',
+          'firstFrame',
+          fmtMs,
+          'from opening the page; includes shader setup',
+        ),
+        row(
+          'page freezes in total, until ready',
           'ltTotal',
           fmtMs,
-          'ready = record shown and a frame drawn',
+          'ready: the record shown and the board’s first picture',
         ),
-        row('longest task, to ready', 'longest', fmtMs),
-        row('main-thread script, to loaded', 'script', fmtMs, 'CDP ScriptDuration'),
+        row('longest page freeze, until ready', 'longest', fmtMs),
+        row('script run time, until loaded', 'script', fmtMs, 'Chromium’s ScriptDuration'),
         row(
-          'JS heap used, loaded',
+          'JavaScript memory in use',
           'heapMiB',
           (x) => (ok(x) ? `${prec(x)} MiB` : '—'),
           'after a forced GC',
           'bytes',
         ),
         row(
-          'DOM nodes, loaded',
+          'page elements (DOM nodes)',
           'nodes',
           fmtInt,
           'the hidden move list has a row per two plies',
           null,
         ),
         row(
-          'next move: received → shown',
+          'next move: shown in the HUD',
           'nextShown',
           fmtMs,
-          'White’s move H+1 on the reopened page',
+          'from the page receiving White’s next move',
         ),
-        row('next move: longest task', 'nextLongest', fmtMs),
+        row('next move: longest page freeze', 'nextLongest', fmtMs),
         row(
           'seeding the game over WebSockets',
           'seedMs',
@@ -2151,7 +2294,7 @@ async function reopenSection(browser) {
         ),
       ]);
       sec.notes.push(
-        `Correctness guard: every run showed data-move-count = H and data-last-move = the long game’s H-th move, then H+1 after White’s move.`,
+        `Check: in every run the page showed the right number of moves and the right last move, before and after White’s extra move.`,
       );
     },
   );
@@ -2163,17 +2306,17 @@ async function presenceSection(browser) {
   await section(
     'presence',
     {
-      title: 'Opponent presence flapping',
+      title: 'Opponent reconnecting again and again',
       intro:
-        'An opponent on a flaky phone (adversarial): with Black’s page seated and the board up, White’s connection drops and rejoins (`rejoin_game`) F times in a row, each as soon as the server has answered, so the page is told “offline” then “online” 2F times. Each presence message is appended to the page’s message log and re-renders the game screen. Measured from the first drop until the page has caught up (no message for 200 ms, the opponent shown online); then White plays a move and the page is timed until it shows it.',
+        'An opponent on an unreliable phone, the hard case. Black’s page is open with the board up. White’s connection drops and comes back F times in a row, each time as soon as the server has answered, so the page is told “offline” and then “online” 2F times. Each of these messages is added to the page’s message log and renders the game screen again. Timed from the first drop until the page has caught up (no message for 200 ms and the opponent shown online). Then White plays a move, and the page is timed until it shows it.',
       columns: [
-        'Flaps F',
-        'presence msgs received',
-        'long tasks total',
-        'longest task',
-        'frames drawn',
+        'Reconnections F',
+        'online/offline messages',
+        'page freezes in total',
+        'longest page freeze',
+        'pictures handed to the GPU',
         'main thread busy',
-        'marker move lag',
+        'next move shown after',
         'Notes',
       ],
       align: ['r', 'r', 'r', 'r', 'r', 'r', 'r', 'l'],
@@ -2256,14 +2399,14 @@ async function presenceSection(browser) {
                 : `the ${F} drops and rejoins took ${fmtMs(r.flapMs)}; ${r.onlineChanges} presence changes committed`,
             ],
             metric(r.busy),
-            `F = ${F} · main thread busy`,
+            `${F} reconnections · main thread busy`,
           );
         } finally {
           await scope.close();
         }
       }
       sec.notes.push(
-        '“main thread busy” is the change in CDP TaskDuration from just before the first drop until the page had caught up (including the 200 ms of quiet); long tasks and “frames drawn” (renderer.render() calls) cover the same span; “marker move lag” is from sending the move to the page committing it. The board was at rest before the first drop, and the page ended showing the opponent online every time (guard).',
+        '“Main thread busy” is the change in Chromium’s TaskDuration from just before the first drop until the page had caught up, including the 200 ms of quiet. The page freezes and the pictures cover the same span. “Next move shown after” runs from White sending the move to the page showing it. The board was still before the first drop, and every run ended with the opponent shown online.',
       );
     },
   );
@@ -2283,7 +2426,8 @@ const ORBIT = async ({ ms, degPerSec }) => {
   const start = performance.now();
   await new Promise((resolve) => {
     const step = () => {
-      const t = performance.now() - start;
+      // Never past `ms`: the turn is the same however often frames come
+      const t = Math.min(ms, performance.now() - start);
       const yaw = yaw0 + ((degPerSec * Math.PI) / 180) * (t / 1000);
       camera.position.set(
         target.x + r * Math.cos(pitch) * Math.sin(yaw),
@@ -2478,14 +2622,14 @@ async function renderSection(browser) {
   await section(
     'render',
     {
-      title: 'Rendering (SwiftShader, relative only)',
-      intro: `The board at rest and while the view turns, from White’s seat, ${VIEWPORTS.desktop.label}${phone ? ` (orbits also on the ${VIEWPORTS.phone.label})` : ''}. Idle: ${CFG.idleMs / 1000} s untouched, in a new game (no move yet), with White’s knight on Ab1 selected, and in a game with a last move on the board (reopened, so no move is animating)${QUICK ? '' : ', also under prefers-reduced-motion'}. The canvas renders on demand, so an idle board should draw nothing. Orbit: the camera turns once round the tower in ${CFG.orbitMs / 1000} s, one step per animation frame, as a drag would, without and with the knight selected. ${SW_NOTE} The app caps the canvas at 2× device pixels (and a 4.5 MP budget), so the 3× phone draws at 2×.`,
+      title: 'Drawing the board (compare runs only)',
+      intro: `The board standing still and while the view turns, from White’s seat, ${VIEWPORTS.desktop.label}${phone ? ` (turning also on the ${VIEWPORTS.phone.label})` : ''}. Still: ${CFG.idleMs / 1000} s untouched, in a new game with no move yet, with White’s knight on Ab1 picked up, and in a game with a last move on the board (reopened, so no move is moving)${QUICK ? '' : ', also with reduced motion turned on'}. The canvas draws only when something changes, so a still board should draw nothing. Turning: the camera goes once round the tower in ${CFG.orbitMs / 1000} s, one step per display frame as a drag would, without and with the knight picked up. ${SW_NOTE} The app draws at most 2 canvas pixels per screen point (and 4.5 million pixels in all), so the phone’s 3× screen is drawn at 2×.`,
       columns: [
         'Case',
-        'frames',
-        'frames/s',
-        'interval median',
-        'interval p95',
+        'pictures',
+        'pictures/s',
+        'gap median',
+        'gap p95',
         'render() median',
         'Chromium CPU',
         'Notes',
@@ -2565,18 +2709,18 @@ async function renderSection(browser) {
           if (vp === 'desktop') r.idleSelected = await idleWindow(page, cdp, CFG.idleMs);
           r.orbitSelected = await orbitWindow(page);
           raw.render[vp] = r;
-          if (r.idle) sec.add(...idleRow(`${vp}: idle, new game`, r.idle, ''));
-          sec.add(...orbitRow(`${vp}: orbit`, r.orbit, `canvas ${canvas} device px; `));
+          if (r.idle) sec.add(...idleRow(`${vp}: still, new game`, r.idle, ''));
+          sec.add(...orbitRow(`${vp}: turning`, r.orbit, `canvas ${canvas} device px; `));
           if (r.idleSelected) {
             sec.add(
               ...idleRow(
-                `${vp}: idle, knight selected`,
+                `${vp}: still, knight picked up`,
                 r.idleSelected,
                 `${r.destinations} destinations marked; `,
               ),
             );
           }
-          sec.add(...orbitRow(`${vp}: orbit, knight selected`, r.orbitSelected, ''));
+          sec.add(...orbitRow(`${vp}: turning, knight picked up`, r.orbitSelected, ''));
         } finally {
           await scope.close();
         }
@@ -2584,11 +2728,11 @@ async function renderSection(browser) {
 
       // A game with a last move: its line's shimmer, and the same for a
       // player who asks for less motion
-      const lastMoveCases = [['lastMove', 'desktop: idle, a last move on the board', {}]];
+      const lastMoveCases = [['lastMove', 'desktop: still, a last move on the board', {}]];
       if (!QUICK) {
         lastMoveCases.push([
           'reducedMotion',
-          'desktop, reduced motion: idle, a last move on the board',
+          'desktop, reduced motion: still, a last move on the board',
           { reducedMotion: 'reduce' },
         ]);
       }
@@ -2616,7 +2760,7 @@ async function renderSection(browser) {
         }
       }
       sec.notes.push(
-        '“interval” is the time between successive renderer.render() calls (the frame period the player sees); “render()” the main-thread time inside one call (three.js building and submitting draw calls). “Chromium CPU” is the CPU time of all of this script’s Chromium processes per wall second (100% = one core; only this page is open), read from /proc; the GPU process share is where SwiftShader rasterises. Metric: frames/s (fewer is better when idle, more when turning).',
+        '“Gap” is the time between pictures handed to the GPU. “render()” is the time the page spends preparing one picture (three.js building and sending its draw calls). “Chromium CPU” is the CPU time of all of the bench’s Chromium processes per second of wall time (100% is one core; only this page is open), read from /proc; the GPU process’s share is where SwiftShader draws. The compared number is pictures per second: fewer is better while still, more while turning.',
       );
     },
   );
@@ -2628,10 +2772,10 @@ async function typedSection(browser, warm) {
   await section(
     'typed-paste',
     {
-      title: 'Move box: validating a long pasted string',
+      title: 'Move box: checking a long pasted text',
       intro:
-        'Adversarial input to the move box: a paste of `Ab1Aa3` + N spaces + `!` submitted with Enter on White’s turn, which the move box must reject. Its validation (`parseTypedMove`) runs on the main thread, so the page cannot draw or take input meanwhile. Timed from the Enter keydown to the error text being committed; not a GPU cost, so the numbers hold on real devices of similar CPU speed.',
-      columns: ['Input', 'Enter → error shown', 'longest task', 'Notes'],
+        'A hostile input to the move box: `Ab1Aa3`, then N spaces, then `!`, pasted and submitted with Enter on White’s turn. The move box must reject it. The check (`parseTypedMove`) runs on the page’s main thread, so the page cannot draw or take input meanwhile. Timed from pressing Enter to the error text appearing. No GPU work is involved, so the numbers hold on real devices with a similar CPU.',
+      columns: ['Input', 'error shown after Enter', 'longest page freeze', 'Notes'],
       align: ['l', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 120000 : 240000,
     },
@@ -2725,24 +2869,24 @@ function findings() {
   tryAdd(() => {
     const d = raw.cold.desktop;
     const t = raw.cold['phone-cpu4-4g'];
-    return `Start page: “Play a friend” is enabled ${fmtMs(med(d, 'button'))} after navigation on desktop and ${fmtMs(med(t, 'button'))} on a phone at 4× CPU on Fast 4G (medians); clicked at once, it shows the side choice ${fmtMs(med(d, 'clickToChoice'))} later on desktop and ${fmtMs(med(t, 'clickToChoice'))} on that phone.`;
+    return `Start page: “Play a friend” works ${fmtMs(med(d, 'button'))} after the page is opened on desktop and ${fmtMs(med(t, 'button'))} on a mid-range phone on a mobile network (medians). Clicked at once, it shows the side choice ${fmtMs(med(d, 'clickToChoice'))} later on desktop and ${fmtMs(med(t, 'clickToChoice'))} on that phone.`;
   });
   tryAdd(() => {
     const { joined, created } = raw.setup;
-    return `Joining a game: ${fmtMs(med(joined, 'joinerFrame'))} from the Join click to the joiner’s first frame (longest task ${fmtMs(med(joined, 'joinerLongest'))}, ${fmtInt(med(joined, 'joinerLinks'))} shader programs linked); the creator’s board draws ${fmtMs(med(created, 'creatorFrame'))} after the friend joins.`;
+    return `Joining a game: the board’s first picture is handed to the GPU ${fmtMs(med(joined, 'joinerFrame'))} after the click on Join (longest page freeze ${fmtMs(med(joined, 'joinerLongest'))}, ${fmtInt(med(joined, 'joinerLinks'))} shaders compiled). The creator’s board follows ${fmtMs(med(created, 'creatorFrame'))} after the friend joins.`;
   });
   tryAdd(() => {
     const m = raw.moves.plies;
     const mine = m.filter((r) => r.side === 'white');
     const theirs = m.filter((r) => r.side === 'black');
     const { before, after } = raw.moves.resources;
-    return `A move lands ${fmtMs(med(mine, 'frame'))} after the player’s click (first frame with it, median of ${mine.length}) and ${fmtMs(med(theirs, 'frame'))} after the opponent sends one; ${fmtInt(sum(m.map((r) => r.landingLinks)))} shader programs were linked during ${m.length} landings, and the renderer’s live geometries went from ${before.geometries} to ${after.geometries} over the game and its textures from ${before.textures} to ${after.textures}.`;
+    return `A move’s picture is drawn by the GPU ${fmtMs(med(mine, 'gpu'))} after the player’s click (median of ${mine.length} moves) and ${fmtMs(med(theirs, 'gpu'))} after the opponent sends one. ${fmtInt(sum(m.map((r) => r.landingLinks)))} shaders were compiled during the ${m.length} moves. Over the game, the geometries in memory went from ${before.geometries} to ${after.geometries} and the textures from ${before.textures} to ${after.textures}.`;
   });
   tryAdd(() => {
     const runs = raw.computer;
     const later = runs.flatMap((r) => r.moves.slice(1));
     const all = runs.flatMap((r) => r.moves);
-    return `Playing the computer: its first answer took ${fmtMs(median(runs.map((r) => r.moves[0].roundTrip)))} from request to reply (the worker started, the search fetched), later ones ${fmtMs(med(later, 'roundTrip'))}, at ${fmtNum(med(later, 'perSecond'))} positions a second; the page’s longest task while it thought was ${fmtMs(maxOf(all.map((m) => m.longest)))}.`;
+    return `Playing the computer: its first move took ${fmtMs(median(runs.map((r) => r.moves[0].roundTrip)))} to answer, including starting its worker, and later moves ${fmtMs(med(later, 'roundTrip'))}, at ${fmtNum(med(later, 'perSecond'))} positions searched per second. While it thought, the longest page freeze was ${fmtMs(maxOf(all.map((m) => m.longest)))}.`;
   });
   tryAdd(() => {
     const hs = Object.keys(raw.reopen)
@@ -2750,29 +2894,29 @@ function findings() {
       .sort((a, b) => a - b);
     const [lo, hi] = [hs[0], hs.at(-1)];
     const m = (H, k) => med(raw.reopen[H], k);
-    return `Reopening a ${hi}-ply game shows its record ${fmtMs(m(hi, 'recordShown'))} after navigation (${fmtMs(m(lo, 'recordShown'))} at ${lo} plies), and the next move shows ${fmtMs(m(hi, 'nextShown'))} after it arrives (${fmtMs(m(lo, 'nextShown'))} at ${lo}).`;
+    return `Reopening a ${hi}-ply game shows its move record ${fmtMs(m(hi, 'recordShown'))} after the page is opened (${fmtMs(m(lo, 'recordShown'))} at ${lo} plies), and the next move shows ${fmtMs(m(hi, 'nextShown'))} after it arrives (${fmtMs(m(lo, 'nextShown'))} at ${lo} plies).`;
   });
   tryAdd(() => {
     const p = raw.presence;
     const top = p.filter((r) => r.F > 0).at(-1);
-    return `${top.F} opponent disconnect/rejoin flaps (${top.presenceRx} presence messages in ${fmtMs(top.flapMs)}) cost the page ${fmtMs(top.busy)} of main-thread time and ${top.frames} frames; a move sent after them showed ${fmtMs(top.lag)} later.`;
+    return `An opponent who dropped and reconnected ${top.F} times (${top.presenceRx} online/offline messages in ${fmtMs(top.flapMs)}) cost the page ${fmtMs(top.busy)} of main-thread time and ${top.frames} pictures; a move sent after that showed ${fmtMs(top.lag)} later.`;
   });
   tryAdd(() => {
     const r = raw.render.desktop;
     const lm = raw.render.lastMove.idle;
     const rm = raw.render.reducedMotion?.idle;
-    return `Left alone for ${CFG.idleMs / 1000} s, a new game drew ${r.idle.frames} frames (Chromium ${pct(r.idle.cpuPct)} CPU), one with a piece selected ${r.idleSelected.frames}, one with a last move on the board ${lm.frames} (Chromium ${pct(lm.cpuPct)})${rm ? `, and that one under prefers-reduced-motion ${rm.frames}` : ''}.`;
+    return `Left alone for ${CFG.idleMs / 1000} s, a new game drew ${r.idle.frames} pictures (Chromium ${pct(r.idle.cpuPct)} CPU), one with a piece picked up ${r.idleSelected.frames}, and one with a last move on the board ${lm.frames} (Chromium ${pct(lm.cpuPct)})${rm ? `, or ${rm.frames} with reduced motion` : ''}.`;
   });
   tryAdd(() => {
     const t = raw.typed.filter((x) => x.n);
     const [a, big] = [t.at(-2), t.at(-1)];
     const growth = big.ms / a.ms;
     const exponent = Math.log(growth) / Math.log(big.n / a.n);
-    return `A pasted move of ${big.n.toLocaleString('en-US')} trailing spaces is rejected ${fmtMs(big.ms)} after Enter (longest task ${fmtMs(big.longest)}); from ${a.n.toLocaleString('en-US')} spaces the time grew ×${prec(growth)} for ×${prec(big.n / a.n)} the length (time ∝ length^${exponent.toFixed(1)}).`;
+    return `A pasted move with ${big.n.toLocaleString('en-US')} trailing spaces is rejected ${fmtMs(big.ms)} after Enter (longest page freeze ${fmtMs(big.longest)}). From ${a.n.toLocaleString('en-US')} spaces, the time grew ×${prec(growth)} for ×${prec(big.n / a.n)} the length (time grows as length^${exponent.toFixed(1)}).`;
   });
   if (offHost.length) {
     f.push(
-      `Guard: pages requested hosts other than 127.0.0.1: ${[...new Set(offHost)].slice(0, 5).join(', ')}.`,
+      `Warning: pages contacted hosts other than 127.0.0.1: ${[...new Set(offHost)].slice(0, 5).join(', ')}.`,
     );
   }
   return f;

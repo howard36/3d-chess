@@ -72,25 +72,47 @@ import {
   writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
+import { parseArgs } from 'node:util';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { PRIMARY, PRIMARY_BROWSER_SECTIONS, PRIMARY_CLIENT_FILES, keyOf } from './primary.mjs';
+import { median, verdict } from './verdict.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIENT = join(ROOT, 'client');
 const OUT_DIR = join(ROOT, 'bench', 'out');
 
-const args = process.argv.slice(2);
-const flag = (name) => args.includes(name);
-const option = (name, fallback) => {
-  const i = args.indexOf(name);
-  return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
-};
+// A flag it does not know, or one missing its value, stops it with the usage
+// above: a typo would otherwise run something else and overwrite the report
+const STRINGS = ['only', 'out', 'compare', 'from', 'rounds', 'files', 'grep', 'repeat', 'base'];
+STRINGS.push('pairs', 'server-sections', 'browser-sections');
+let parsed;
+try {
+  parsed = parseArgs({
+    options: Object.fromEntries([
+      ['quick', { type: 'boolean' }],
+      ['primary', { type: 'boolean' }],
+      ...STRINGS.map((name) => [name, { type: 'string' }]),
+    ]),
+    strict: true,
+    allowPositionals: false,
+  }).values;
+} catch (e) {
+  process.stderr.write(`[bench] ${e.message}\nUsage: see the top of bench/run.mjs.\n`);
+  process.exit(2);
+}
+const flag = (name) => parsed[name.slice(2)] === true;
+const option = (name, fallback) => parsed[name.slice(2)] || fallback;
 const QUICK = flag('--quick');
 const PRIMARY_ONLY = flag('--primary');
 const ONLY_GIVEN = option('--only', null);
 let ONLY = (ONLY_GIVEN ?? (PRIMARY_ONLY ? 'client,browser' : 'client,server,browser')).split(',');
+const TIERS = ['client', 'server', 'browser'];
+if (ONLY.some((t) => !TIERS.includes(t))) {
+  process.stderr.write(`[bench] --only takes ${TIERS.join(', ')} (comma-separated, no spaces)\n`);
+  process.exit(2);
+}
 const REPORT = resolve(option('--out', join(ROOT, 'bench', 'out', 'RESULTS.md')));
 const COMPARE = option('--compare', null);
 const FROM = option('--from', null);
@@ -189,11 +211,6 @@ function loadRun(dir) {
   }
   return { info, results };
 }
-
-const median = (xs) => {
-  const s = [...xs].sort((a, b) => a - b);
-  return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
-};
 
 /**
  * vitest's JSON with each case registered once per round (inRounds in
@@ -742,40 +759,6 @@ const shown = (value, unit) =>
           : duration(value);
 
 /**
- * The pairs' verdict for one measured thing: each pair's ratio head/base,
- * their geometric mean as the change, and a change called real only when
- * every pair agrees on its direction and it exceeds both 5% and the pairs'
- * own disagreement (their ratios' range). A value at 0 on a side is judged
- * by the pairs' differences instead (`diffs`, the change their median).
- */
-function verdict(pairs, better, unit) {
-  // A value at 0 on a side has no ratio: its change is the difference,
-  // called when every pair moves the same way. A count (the programs a move
-  // links once warm, a leak's growth) is judged so whenever a pair has a 0;
-  // anything else (a longest task, 0 until one reaches the browser's 50 ms)
-  // only when no two pairs give a ratio, since a time's differences all lean
-  // one way by chance far more often than its ratios clear the rule below
-  const ratioPairs = pairs.filter(([b, h]) => b > 0 && h > 0);
-  const zero = pairs.some(([b, h]) => b === 0 || h === 0);
-  if (pairs.length >= 2 && zero && (unit === 'count' || ratioPairs.length < 2)) {
-    const diffs = pairs.map(([b, h]) => h - b);
-    const change = median(diffs);
-    const real = diffs.every((d) => d > 0) || diffs.every((d) => d < 0);
-    const improved = better === 'higher' ? change > 0 : change < 0;
-    return { ratios: [], diffs, change, spread: 0, real, improved };
-  }
-  const ratios = pairs.map(([b, h]) => h / b).filter((r) => Number.isFinite(r) && r > 0);
-  if (ratios.length < 2) return null;
-  const mean = Math.exp(ratios.reduce((s, r) => s + Math.log(r), 0) / ratios.length);
-  const change = (mean - 1) * 100;
-  const spread = ((Math.max(...ratios) - Math.min(...ratios)) / mean) * 100;
-  const agree = ratios.every((r) => r > 1) || ratios.every((r) => r < 1);
-  const real = agree && Math.abs(change) > Math.max(5, spread);
-  const improved = better === 'higher' ? change > 0 : change < 0;
-  return { ratios, change, spread, real, improved };
-}
-
-/**
  * The tiers a change from `sha` to this checkout (commits, uncommitted and
  * untracked files) can move, and why: the server's code moves the server
  * tier, the client's app code (what the build is made of) the client and
@@ -882,12 +865,13 @@ function abMain() {
       `\`node bench/run.mjs ${process.argv.slice(2).join(' ')}\`.`,
   );
   md.push(
-    'Each pair’s head/base ratio compares two runs made next to each other in time, so a machine ' +
-      'that speeds up or slows down over the run weighs on both. A change is called **better** or ' +
-      '**worse** only when every pair agrees on its direction and it exceeds both 5% and the pairs’ ' +
-      'own disagreement (the ratios’ range); otherwise it is shown but not called. A value at 0 ' +
-      'on a side has no ratio: its change is the pairs’ difference, called when every pair moves ' +
-      'the same way.',
+    'A *pair* is one run of the base and one of the head, made back to back, so if the machine ' +
+      'speeds up or slows down during the comparison, both sides feel it. Each pair gives a ratio, ' +
+      'head divided by base. A change is called **better** or **worse** only when every pair moves ' +
+      'the same way, by more than 5% and by more than the pairs disagree with each other (the range ' +
+      'of their ratios). Otherwise the change is shown but not called. A value of 0 on one side has ' +
+      'no ratio: that row is judged by the pairs’ differences instead, and called when every pair ' +
+      'moves the same way.',
   );
   if (failures.length) {
     md.push(
@@ -953,8 +937,9 @@ function abMain() {
   md.push('## Primary rows');
   if (unmeasured.length) {
     md.push(
-      `**${unmeasured.length} of ${primary.length} primary rows not compared** (missing on a ` +
-        `side, or in fewer than two pairs), left out of the figure below: ` +
+      `**${unmeasured.length} of ${primary.length} primary rows not compared**, because they ` +
+        `are missing on one side or measured in fewer than two pairs. They are left out of the ` +
+        `overall figure: ` +
         `${unmeasured.map(({ p }) => p.moment).join('; ')}.`,
     );
   }
@@ -968,9 +953,9 @@ function abMain() {
     });
     const geo = Math.exp(speeds.reduce((t, x) => t + Math.log(x), 0) / speeds.length);
     md.push(
-      `Over the ${measured.length} primary rows measured (bench/primary.mjs), head runs at ` +
-        `**×${geo.toFixed(3)}** base’s speed (the geometric mean of each row’s median pair; ` +
-        `above 1 is faster; an A/A run of identical code measured ×1.004). ` +
+      `Over the ${measured.length} primary rows measured (\`bench/primary.mjs\`), the head is ` +
+        `**×${geo.toFixed(3)}** as fast as the base. That is the geometric mean of each row’s ` +
+        `median pair; above 1 means faster, and identical code compared with itself gave ×1.004. ` +
         `${measured.filter(({ r }) => r.v.real && r.v.improved).length} called better, ` +
         `${measured.filter(({ r }) => r.v.real && !r.v.improved).length} called worse.`,
     );
@@ -992,10 +977,10 @@ function abMain() {
   md.push(
     `${others.length} other measurements compared: **${better.length} better, ` +
       `${real.length - better.length} worse**, ${others.length - real.length} unchanged within ` +
-      `their noise. These say where the time goes, not whether a player waits less; and among ` +
-      `this many, identical code (A/A tests) had 1–5% called, so about ` +
-      `${Math.round(others.length * 0.01)}–${Math.round(others.length * 0.05)} calls here are ` +
-      `expected by chance.`,
+      `their noise. These show where the time goes, not whether a player waits less. When ` +
+      `identical code was compared with itself, 1–5% of measurements were called by chance, so ` +
+      `about ${Math.round(others.length * 0.01)}–${Math.round(others.length * 0.05)} of the calls ` +
+      `here may be chance.`,
   );
   if (real.length) {
     md.push(
@@ -1008,8 +993,8 @@ function abMain() {
   }
   md.push('## Everything measured');
   md.push(
-    '*Base* and *Head* are the medians over each side’s runs; for throughputs (/s) higher is ' +
-      'better, for everything else lower.',
+    '*Base* and *Head* are the medians of each side’s runs. For rates (per second) higher is ' +
+      'better; for everything else lower is better.',
   );
   for (const tier of ['client', 'startup', 'server', 'browser']) {
     const mine = rows.filter((r) => r.tier === tier);
@@ -1120,9 +1105,9 @@ if (findings.length) md.push(findings.map((f) => `- ${f}`).join('\n'));
   });
   md.push('## Primary rows');
   md.push(
-    'One number for each moment a player waits on, from the player’s action to what they see ' +
-      '(`bench/primary.mjs`); everything after them says where the time goes. `--primary` runs ' +
-      'only what these need.',
+    'One number for each moment a player waits for, timed from the player’s action to what ' +
+      'they see (`bench/primary.mjs`). Everything after them shows where the time goes. ' +
+      '`--primary` runs only what these need.',
   );
   md.push(
     table({
@@ -1267,8 +1252,10 @@ md.push(
     'Server and browser tiers measure wall-clock latency over real sockets on localhost, so they include ' +
       'the kernel’s loopback but no real network: production adds the internet round trip and Modal’s ' +
       'own `modal.Dict` latency, which only the server tier’s simulated-latency store models.',
-    'The browser tier renders WebGL in software (SwiftShader), so frame times are CPU-bound and far slower ' +
-      'than a GPU would draw; they are useful relative to each other, not as absolute frame rates.',
+    'The browser tier draws WebGL in software (SwiftShader, on the CPU), far more slowly than a GPU ' +
+      'would. Its times are useful compared with each other, not as what a device would show. A ' +
+      'picture is *handed to the GPU* when the page’s render() call returns and *drawn by the GPU* ' +
+      'when the GPU has finished it; the primary rows for moves and picking up a piece use the second.',
   ]
     .map((p) => `- ${p}`)
     .join('\n'),

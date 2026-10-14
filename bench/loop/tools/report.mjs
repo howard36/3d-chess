@@ -136,11 +136,13 @@ const css = `
   --ground: #1b1d22; --panel: #23262d; --ink: #ebe8e1; --muted: #a8acb5; --rule: #3a3e47;
   --gold: #f8c970; --good: #5fc9a2; --bad: #ff6d62; --flat: #8b8f98; --dot: #ebe8e1; color-scheme: dark }
 body { background: var(--ground); color: var(--ink); font: 16px/1.55 var(--body); }
-main { max-width: 46rem; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; display: grid; gap: 28px; }
+main { max-width: 46rem; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 64px; display: grid; gap: 28px; }
 header { display: grid; gap: 6px; }
 .eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
 h1 { font: 700 clamp(28px, 6vw, 40px)/1.1 var(--display); margin: 0; text-wrap: balance; }
 .meta { color: var(--muted); font-size: 14px; }
+.meta p { margin: 0 0 10px; }
+.meta p:first-child { color: var(--ink); font-size: 17px; }
 .meta code, code { font-family: var(--mono); font-size: .86em; }
 section { display: grid; gap: 14px; border-top: 1px solid var(--rule); padding-top: 18px; min-width: 0; }
 h2 { font: 650 22px/1.2 var(--display); margin: 0; text-wrap: balance; }
@@ -165,6 +167,7 @@ a { color: var(--gold); }
 `;
 
 let html = `<title>${esc(content.title)}</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@400;600&display=swap">
 <style>${css}</style>
