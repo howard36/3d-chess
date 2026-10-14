@@ -86,6 +86,9 @@ function DemoDirector({
   // stands, whatever the page showed before this director mounted
   const shown = React.useRef<DemoFrame | null>(null);
   const invalidate = useThree((s) => s.invalidate);
+  // The canvas draws on demand: set off with a frame of its own, or nothing
+  // asks for the first (the reveal, done, asks for no more)
+  React.useEffect(() => invalidate(), [invalidate]);
   useFrame((_, delta) => {
     clock.current += Math.min(delta, MAX_STEP_S);
     const frame = demoFrame(clock.current, order);
