@@ -1,0 +1,40 @@
+diff --git a/client/src/screens/LandingPreview.tsx b/client/src/screens/LandingPreview.tsx
+index 8bf3e11..42b42ef 100644
+--- a/client/src/screens/LandingPreview.tsx
++++ b/client/src/screens/LandingPreview.tsx
+@@ -13,6 +13,7 @@ import { DEMO_GAME, demoFrame, demoLog } from '../game/demo';
+ import type { DemoFrame } from '../game/demo';
+ import { deriveHistory } from '../game/history';
+ import type { GameHistory } from '../game/history';
++import { PaceOnGpu } from '../three/framePacer';
+ import { linkBeforeFirstFrame, setUpRenderer } from '../three/rendererSetup';
+ import { pointerEvents } from '../three/pointerEvents';
+ 
+@@ -121,6 +122,7 @@ export function LandingPreview({ still }: { still: boolean }) {
+         events={pointerEvents}
+       >
+         <Stage orientation="white" />
++        <PaceOnGpu />
+         {/* A fresh board for each pass (the next game opens under the veil),
+             and when motion is turned off or on: a board plays only the
+             moves made after it mounts */}
+diff --git a/client/src/screens/learn/LearnCanvas.tsx b/client/src/screens/learn/LearnCanvas.tsx
+index 43870b3..1a37618 100644
+--- a/client/src/screens/learn/LearnCanvas.tsx
++++ b/client/src/screens/learn/LearnCanvas.tsx
+@@ -6,6 +6,7 @@ import { CameraControls } from '../../three/CameraControls';
+ import { FitCameraToBoard } from '../../three/FitCameraToBoard';
+ import { elevationOf, orbitSweep } from '../../three/cameraFit';
+ import { usePixelBudget } from '../../three/pixelBudget';
++import { PaceOnGpu } from '../../three/framePacer';
+ import { setUpRenderer } from '../../three/rendererSetup';
+ import { pointerEvents } from '../../three/pointerEvents';
+ import { BackdropCache } from '../../three/scene/backdropCache';
+@@ -124,6 +125,7 @@ const LearnCanvas = ({
+       {/* The marks a move brings (its line, a capture's burn) linked
+           before the first move needs them, after the first frame */}
+       {drawn && <WarmPrograms />}
++      <PaceOnGpu />
+     </Canvas>
+   );
+ };
