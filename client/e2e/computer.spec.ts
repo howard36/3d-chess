@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { clickSquare, waitForBoard, waitForDestination } from './helpers/board';
+import { watchComputerGame } from './helpers/computer';
 
 // A game against the computer: the landing page's second button, the side,
 // then the computer's level, then a move by clicking the board, answered by the computer's
@@ -11,6 +12,7 @@ const moveCount = (page: Page) => page.getByTestId('move-announcer');
 test('a player plays the computer: a move, and its reply', async ({ browser }) => {
   const context = await browser.newContext({ reducedMotion: 'reduce' });
   const page = await context.newPage();
+  const seen = watchComputerGame(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'Play the computer' }).click();
   await expect(page).toHaveURL(/\/computer$/);
@@ -54,12 +56,15 @@ test('a player plays the computer: a move, and its reply', async ({ browser }) =
   await expect(page).toHaveURL(game);
   await waitForBoard(page);
   await expect(moveCount(page)).toHaveAttribute('data-move-count', '2');
+  // It thought and played with no fallback, and told the server nothing
+  expect(seen()).toEqual([]);
   await context.close();
 });
 
 test('playing Black, the computer opens the game', async ({ browser }) => {
   const context = await browser.newContext({ reducedMotion: 'reduce' });
   const page = await context.newPage();
+  const seen = watchComputerGame(page);
   await page.goto('/computer');
   await page.getByRole('button', { name: /^Black/ }).click();
   await page
@@ -71,6 +76,7 @@ test('playing Black, the computer opens the game', async ({ browser }) => {
   await expect(page.getByTestId('seat')).toHaveAttribute('data-seat', 'black');
   await expect(moveCount(page)).toHaveAttribute('data-move-count', '1', { timeout: 20_000 });
   await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
+  expect(seen()).toEqual([]);
   await context.close();
 });
 
