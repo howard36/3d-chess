@@ -7,9 +7,17 @@ import { openStandInGame } from './helpers/standIn';
 // "Something went wrong".
 
 test('the start page goes without its preview', async ({ page }) => {
-  await page.route(/\/src\/screens\/LandingPreview\.tsx/, (route) => route.abort('failed'));
+  let aborted = 0;
+  await page.route(/\/src\/screens\/LandingPreview\.tsx/, (route) => {
+    aborted++;
+    return route.abort('failed');
+  });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '3D Chess' })).toBeVisible();
+  // The failure handled (the preview's description goes with it) before the
+  // page is judged: the heading shows before the chunk is even asked for
+  await expect(page.getByText(/^Preview:/)).toHaveCount(0);
+  expect(aborted).toBeGreaterThan(0);
   await expect(page.getByRole('button', { name: 'Play a friend' })).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
 });

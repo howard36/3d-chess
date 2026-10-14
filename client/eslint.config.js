@@ -14,6 +14,25 @@ const NO_SET_PIECE = {
     'Never mutate a board: apply a move (engine/board.ts); only the engine and the lessons build positions.',
 };
 
+// Only the game canvas names __r3fState (e2e projects clicks through it):
+// published, read or defined, by name or by string. Kept in each block that
+// sets no-restricted-syntax, as a later block's list replaces an earlier one's
+const NO_R3F_STATE = [
+  {
+    selector: "Identifier[name='__r3fState']",
+    message:
+      'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
+  },
+  {
+    selector: "Literal[value='__r3fState']",
+    message:
+      'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
+  },
+];
+
+/** A timer or a frame of the browser's own, on any object (window, globalThis, self). */
+const TIMERS = ['setTimeout', 'setInterval', 'requestAnimationFrame', 'requestIdleCallback'];
+
 export default defineConfig(
   // src/types/schema.ts is generated (npm run generate:types); don't lint it
   { ignores: ['dist', 'coverage', 'test-results', 'playwright-report', 'src/types/schema.ts'] },
@@ -61,19 +80,7 @@ export default defineConfig(
           ],
         },
       ],
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "AssignmentExpression > MemberExpression.left[property.name='__r3fState']",
-          message:
-            'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
-        },
-        {
-          selector: "AssignmentExpression > MemberExpression.left[property.value='__r3fState']",
-          message:
-            'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...NO_R3F_STATE],
       'no-restricted-properties': ['error', NO_SET_PIECE],
     },
   },
@@ -83,7 +90,6 @@ export default defineConfig(
     rules: { 'no-restricted-properties': 'off' },
   },
   { files: ['src/types/messages.ts'], rules: { 'no-restricted-imports': 'off' } },
-  { files: ['src/screens/GameCanvas.tsx'], rules: { 'no-restricted-syntax': 'off' } },
   {
     // Animations run on r3f's clock, which the showcase's virtual clock drives;
     // a timer, a frame of the browser's own or the wall clock escapes it
@@ -96,32 +102,55 @@ export default defineConfig(
     rules: {
       'no-restricted-globals': [
         'error',
-        { name: 'setTimeout', message: 'Animate on r3f’s clock (useFrame), not a timer.' },
-        { name: 'setInterval', message: 'Animate on r3f’s clock (useFrame), not a timer.' },
-        {
-          name: 'requestAnimationFrame',
-          message: 'Animate on r3f’s clock (useFrame), not a frame of the browser’s own.',
-        },
+        ...TIMERS.map((name) => ({
+          name,
+          message:
+            'Animate on r3f’s clock (useFrame), not a timer or a frame of the browser’s own.',
+        })),
       ],
       'no-restricted-properties': [
         'error',
-        {
-          object: 'window',
-          property: 'setTimeout',
-          message: 'Animate on r3f’s clock, not a timer.',
-        },
+        ...TIMERS.map((property) => ({
+          property,
+          message:
+            'Animate on r3f’s clock (useFrame), not a timer or a frame of the browser’s own.',
+        })),
         { object: 'Date', property: 'now', message: 'Animate on r3f’s clock, not the wall clock.' },
         {
           object: 'performance',
           property: 'now',
           message: 'Animate on r3f’s clock, not the wall clock.',
         },
-        {
-          object: 'window',
-          property: 'requestAnimationFrame',
-          message: 'Animate on r3f’s clock (useFrame), not a frame of the browser’s own.',
-        },
         NO_SET_PIECE,
+      ],
+      'no-restricted-syntax': [
+        'error',
+        ...NO_R3F_STATE,
+        {
+          selector: "NewExpression[callee.name='Date']",
+          message: 'Animate on r3f’s clock, not the wall clock.',
+        },
+      ],
+    },
+  },
+  {
+    // The scene only draws: Board.tsx owns every interaction rule, and the
+    // scene's marks render outside the clickable group (CLAUDE.md "The board")
+    files: ['src/three/scene/**/*.tsx'],
+    ignores: ['**/*.test.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...NO_R3F_STATE,
+        {
+          selector: "NewExpression[callee.name='Date']",
+          message: 'Animate on r3f’s clock, not the wall clock.',
+        },
+        {
+          selector: 'JSXAttribute[name.name=/^on(Click|DoubleClick|ContextMenu|Wheel|Pointer)/]',
+          message:
+            'The scene only draws: Board.tsx owns every interaction (CLAUDE.md "The board").',
+        },
       ],
     },
   },
@@ -131,5 +160,18 @@ export default defineConfig(
     // so component-only modules would buy nothing here.
     files: ['src/three/scene/**/*.{ts,tsx}', 'src/three/pieceMotion.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
+  },
+  // The one place that publishes __r3fState (after the blocks that restrict it)
+  {
+    files: ['src/screens/GameCanvas.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Date']",
+          message: 'Animate on r3f’s clock, not the wall clock.',
+        },
+      ],
+    },
   },
 );
