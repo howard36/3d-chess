@@ -96,41 +96,69 @@ export function landingLens(width: number, height: number): LandingLens {
   };
 }
 
+/** The screens a picture is drawn for: 1x, and 2x for any finer (the canvas draws at most twice as fine: three/pixelBudget.ts). */
+export type PictureDensity = '1x' | '2x';
+export const PICTURE_DENSITIES: readonly PictureDensity[] = ['1x', '2x'];
+
 /**
  * A picture of the preview's first frame for each layout: the scene as the
  * layout's camera sees it, `centre` and `span` (the tangents of the picture's
- * middle and of its full height) wide enough for every common window of the
- * layout, phones' with their browser's bars too (landingLens.test.ts lists
- * them), and a little more, which the page fades into the night at its edges.
- * `width` x `height` pixels, as fine as a 2x phone or tablet, or a desktop at
- * 1x, draws it.
+ * middle and of its full height) and `aspect` (its width over its height)
+ * taking in every common window of the layout, phones' with their browser's
+ * bars too (landingLens.test.ts lists them), and a little more, which fades
+ * into the night at its edges (PICTURE_FADE, drawn into the picture). Each in
+ * two sizes in pixels: as fine as the preview's canvas draws on a screen of
+ * that density in the layout's common windows (2x: the pixel budget's), and
+ * the browser picks one by the screen's.
  */
 export interface LandingPicture {
   centre: [number, number];
   span: number;
-  width: number;
-  height: number;
+  aspect: number;
+  pixels: Record<PictureDensity, [number, number]>;
 }
 
 export const LANDING_PICTURES: Record<LandingLayout, LandingPicture> = {
-  phone: { centre: [0, -0.0586], span: 1.0041, width: 1770, height: 2610 },
-  tablet: { centre: [0, -0.1145], span: 0.825, width: 2216, height: 2310 },
-  wide: { centre: [-0.2364, -0.0437], span: 0.7834, width: 3200, height: 1332 },
+  phone: {
+    centre: [0, -0.0586],
+    span: 1.0041,
+    aspect: 0.678161,
+    pixels: { '1x': [1090, 1606], '2x': [2152, 3172] },
+  },
+  tablet: {
+    centre: [0, -0.1145],
+    span: 0.825,
+    aspect: 0.959307,
+    pixels: { '1x': [1662, 1732], '2x': [2976, 3102] },
+  },
+  wide: {
+    centre: [-0.2364, -0.0437],
+    span: 0.7834,
+    aspect: 2.402402,
+    pixels: { '1x': [3200, 1332], '2x': [4892, 2036] },
+  },
 };
 
 /**
  * The address of a layout's picture (public/landing/, written by
- * scripts/landing-pictures.mjs): AVIF, and WebP for a browser without it.
- * The built page's head preloads the AVIF on the start page
- * (preloadLandingPicture).
+ * scripts/landing-pictures.mjs): AVIF, and WebP for a browser without it,
+ * each at both densities.
  */
-export const pictureSource = (layout: LandingLayout, type: 'avif' | 'webp') =>
-  `/landing/${layout}.${type}`;
+export const pictureSource = (
+  layout: LandingLayout,
+  type: 'avif' | 'webp',
+  density: PictureDensity = '1x',
+) => `/landing/${layout}${density === '1x' ? '' : '@2x'}.${type}`;
+
+/** A `srcset` of a layout's picture at every density. */
+export const pictureSourceSet = (layout: LandingLayout, type: 'avif' | 'webp') =>
+  PICTURE_DENSITIES.map((d) => `${pictureSource(layout, type, d)} ${d}`).join(', ');
 
 /**
  * The share of a picture's width and height, at each edge, that fades into
- * the night, so a window wider or taller than the common ones sees the
- * picture end softly; every common window lies inside the fade.
+ * the night (drawn into the picture), so a window wider or taller than the
+ * common ones sees the picture end softly; every common window lies inside
+ * the fade.
  */
 export const PICTURE_FADE = 0.03;
 
@@ -152,7 +180,7 @@ export function picturePlacement(width: number, height: number): PicturePlacemen
   const lens = landingLens(width, height);
   const picture = LANDING_PICTURES[lens.layout];
   const perTangent = height / (2 * Math.tan((lens.fov * Math.PI) / 360));
-  const spanAcross = (picture.span * picture.width) / picture.height;
+  const spanAcross = picture.span * picture.aspect;
   return {
     layout: lens.layout,
     left: width / 2 + (picture.centre[0] - spanAcross / 2 - lens.shift[0]) * perTangent,

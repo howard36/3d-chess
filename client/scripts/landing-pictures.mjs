@@ -8,8 +8,8 @@
 // pictures, after anything visible changes in the preview's opening (the
 // tower, the pieces, the garden, the lens), as for scripts/readme-image.mjs.
 //
-//   node scripts/landing-pictures.mjs                      # phone, tablet and wide
-//   node scripts/landing-pictures.mjs --layout wide --out /tmp/pictures
+//   node scripts/landing-pictures.mjs                      # phone, tablet and wide, 1x and 2x
+//   node scripts/landing-pictures.mjs --layout wide --density 2x --out /tmp/pictures
 //
 // Starts its own Vite (no backend), or uses SHOWCASE_URL if set; ffmpeg (with
 // libaom-av1 and libwebp) encodes. Renders in software (SwiftShader).
@@ -31,6 +31,9 @@ const opt = (name, fallback) => {
 const CLIENT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.resolve(opt('out', path.join(CLIENT, 'public', 'landing')));
 const LAYOUTS = opt('layout', 'phone,tablet,wide').split(',');
+const DENSITIES = opt('density', '1x,2x').split(',');
+// --keep-png also writes the lossless render beside them (for comparing encodings)
+const KEEP_PNG = argv.includes('--keep-png');
 // Drawn at twice the CSS size, the picture's pixels (the canvas's buffer)
 const SCALE = 2;
 // AVIF's quality (CRF, lower is finer) and WebP's
@@ -79,55 +82,57 @@ const browser = await chromium.launch({
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'landing-pictures-'));
 try {
   fs.mkdirSync(OUT, { recursive: true });
-  for (const layout of LAYOUTS) {
-    const context = await browser.newContext({
-      viewport: { width: 400, height: 400 },
-      deviceScaleFactor: SCALE,
-      reducedMotion: 'no-preference',
-    });
-    await context.addInitScript(STILL_CLOCK);
-    const page = await context.newPage();
-    page.on('pageerror', (e) => console.error(`[page] ${e.message}`));
-    await page.goto(`${base}/landing-pictures.html?layout=${layout}`);
-    const { width, height } = await page.evaluate(() => window.__picture);
-    await page.setViewportSize({ width: width / SCALE, height: height / SCALE });
-    await page.waitForSelector('[data-testid="landing-canvas"] canvas', { timeout: 180000 });
-    // Frames until the picture stops changing (the piece set and the garden
-    // build over the first few), on a clock that never moves
-    let last = null;
-    for (let i = 0, same = 0; i < 120 && same < 3; i++) {
-      await page.evaluate(() => window.__step(0));
-      await page.waitForTimeout(400);
-      const shot = await page.screenshot({ type: 'png' });
-      same = last && shot.equals(last) ? same + 1 : 0;
-      last = shot;
+  for (const layout of LAYOUTS)
+    for (const density of DENSITIES) {
+      const context = await browser.newContext({
+        viewport: { width: 400, height: 400 },
+        deviceScaleFactor: SCALE,
+        reducedMotion: 'no-preference',
+      });
+      await context.addInitScript(STILL_CLOCK);
+      const page = await context.newPage();
+      page.on('pageerror', (e) => console.error(`[page] ${e.message}`));
+      await page.goto(`${base}/landing-pictures.html?layout=${layout}&density=${density}`);
+      const { width, height } = await page.evaluate(() => window.__picture);
+      await page.setViewportSize({ width: width / SCALE, height: height / SCALE });
+      await page.waitForSelector('[data-testid="landing-canvas"] canvas', { timeout: 180000 });
+      // Frames until the picture stops changing (the piece set and the garden
+      // build over the first few), on a clock that never moves
+      let last = null;
+      for (let i = 0, same = 0; i < 120 && same < 3; i++) {
+        await page.evaluate(() => window.__step(0));
+        await page.waitForTimeout(400);
+        const shot = await page.screenshot({ type: 'png' });
+        same = last && shot.equals(last) ? same + 1 : 0;
+        last = shot;
+      }
+      const name = density === '1x' ? layout : `${layout}@2x`;
+      const png = path.join(KEEP_PNG ? OUT : work, `${name}.png`);
+      fs.writeFileSync(png, last);
+      const encode = (args, file) =>
+        execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', png, ...args, file]);
+      const avif = path.join(OUT, `${name}.avif`);
+      const webp = path.join(OUT, `${name}.webp`);
+      encode(
+        [
+          '-c:v',
+          'libaom-av1',
+          '-still-picture',
+          '1',
+          '-crf',
+          AVIF_CRF,
+          '-cpu-used',
+          '4',
+          '-pix_fmt',
+          'yuv420p',
+        ],
+        avif,
+      );
+      encode(['-c:v', 'libwebp', '-quality', WEBP_QUALITY], webp);
+      const kb = (f) => `${Math.round(fs.statSync(f).size / 1024)} KB`;
+      console.log(`${name}: ${width}x${height}, ${avif} (${kb(avif)}), ${webp} (${kb(webp)})`);
+      await context.close();
     }
-    const png = path.join(work, `${layout}.png`);
-    fs.writeFileSync(png, last);
-    const encode = (args, file) =>
-      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', png, ...args, file]);
-    const avif = path.join(OUT, `${layout}.avif`);
-    const webp = path.join(OUT, `${layout}.webp`);
-    encode(
-      [
-        '-c:v',
-        'libaom-av1',
-        '-still-picture',
-        '1',
-        '-crf',
-        AVIF_CRF,
-        '-cpu-used',
-        '4',
-        '-pix_fmt',
-        'yuv420p',
-      ],
-      avif,
-    );
-    encode(['-c:v', 'libwebp', '-quality', WEBP_QUALITY], webp);
-    const kb = (f) => `${Math.round(fs.statSync(f).size / 1024)} KB`;
-    console.log(`${layout}: ${width}x${height}, ${avif} (${kb(avif)}), ${webp} (${kb(webp)})`);
-    await context.close();
-  }
 } finally {
   fs.rmSync(work, { recursive: true, force: true });
   await browser.close();

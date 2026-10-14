@@ -7,6 +7,8 @@ import {
   LANDING_PICTURES,
   PICTURE_FADE,
   landingLens,
+  pictureSource,
+  pictureSourceSet,
   picturePlacement,
 } from './landingLens';
 import { COMMON_WINDOWS } from './landingWindows';
@@ -102,11 +104,23 @@ describe('the pictures', () => {
     }
   });
 
-  it('show the scene at the scale of its pixels: the same tangents per pixel across and down', () => {
+  it('keep their shape at every density: the same scene across and down, to a pixel', () => {
     for (const p of Object.values(LANDING_PICTURES)) {
-      const across = (p.span * p.width) / p.height / p.width;
-      expect(across).toBeCloseTo(p.span / p.height, 12);
+      for (const [w, h] of Object.values(p.pixels)) {
+        expect((w % 2) + (h % 2)).toBe(0);
+        expect(Math.abs(w - h * p.aspect)).toBeLessThanOrEqual(1);
+      }
+      // 2x is the finer
+      expect(p.pixels['2x'][1]).toBeGreaterThan(p.pixels['1x'][1]);
     }
+  });
+
+  it('are named for their density', () => {
+    expect(pictureSource('wide', 'avif')).toBe('/landing/wide.avif');
+    expect(pictureSource('wide', 'webp', '2x')).toBe('/landing/wide@2x.webp');
+    expect(pictureSourceSet('phone', 'avif')).toBe(
+      '/landing/phone.avif 1x, /landing/phone@2x.avif 2x',
+    );
   });
 
   it('are placed by the window’s lens: a tangent of the view lands where the camera puts it', () => {

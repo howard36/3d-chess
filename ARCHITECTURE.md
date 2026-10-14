@@ -367,12 +367,17 @@ Key decisions:
   have needed (between about 31° and 50° on common windows; the fit's is 36°). A zoom
   scales the picture evenly and changes nothing else, so every window of a layout sees a
   scaled crop of one picture of the scene: the page shows that picture
-  (`screens/LandingPicture.tsx`, `public/landing/<layout>.avif` and `.webp`, 29–52 KB of
-  AVIF, larger than any common window of the layout and fading into the night at its
-  edges) from its first render, placed by the window's lens (`picturePlacement`, plain
-  arithmetic with the fit's numbers baked: the start page is the entry), and the built
-  page's head starts the AVIF downloading before the entry has run (`preloadLandingPicture`,
-  on `/` alone). The preview opens on exactly the picture's moment (the opening position
+  (`screens/LandingPicture.tsx`, `public/landing/<layout>.avif` and `.webp`, larger than
+  any common window of the layout and fading into the night at its edges, the fade drawn
+  into the picture) from its first render, placed by the window's lens (`picturePlacement`,
+  plain arithmetic with the fit's numbers baked, from the window's size as the page first
+  renders, nothing measured: the start page is the entry), and the built page's head starts
+  the AVIF downloading before the entry has run (`preloadLandingPicture`, on `/` alone).
+  Each layout's picture comes at two densities, picked by the screen's (`srcset`): 1x, and
+  `@2x` as fine as the preview's canvas draws on a finer screen (the pixel budget's); AVIF
+  of 16–44 KB at 1x and 37–73 KB at 2x, colour at half resolution (4:2:0: full
+  resolution, 4:4:4, cost 12–15% more for no difference to see at the size shown, and is a
+  profile not every AVIF decoder takes). The preview opens on exactly the picture's moment (the opening position
   from the turn's first angle) and fades in over it in 0.3 s once its first frame is
   drawn, nothing moving until it has, and the picture goes. The preview builds its scene (the garden and the board, the most work the page does) in a transition after its canvas is made (`Yielding` in `LandingPreview.tsx`), and links the scene's programs once it is in: React yields to input while it renders, so a click in the first second is answered at once instead of waiting on the build. `landingLens.test.ts`
   recomputes the baked numbers from the fit and fails when the rings, the opening view

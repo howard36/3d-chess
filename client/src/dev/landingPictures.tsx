@@ -3,22 +3,33 @@ import ReactDOM from 'react-dom/client';
 import '../index.css';
 import { LandingPreview } from '../screens/LandingPreview';
 import type { LandingLayout } from '../screens/landingLayout';
-import { LANDING_PICTURES } from '../three/landingLens';
+import { LANDING_PICTURES, PICTURE_FADE } from '../three/landingLens';
+import type { PictureDensity } from '../three/landingLens';
 
 // Entry of the dev-only page that draws the start page's pictures of its
 // preview (client/landing-pictures.html, served by Vite in development, left
-// out of the build): ?layout=phone|tablet|wide draws that layout's picture
-// (three/landingLens.ts's LANDING_PICTURES) to fill the window, which
-// scripts/landing-pictures.mjs sizes to the picture's pixels.
+// out of the build): ?layout=phone|tablet|wide&density=1x|2x draws that
+// layout's picture (three/landingLens.ts's LANDING_PICTURES) to fill the
+// window, which scripts/landing-pictures.mjs sizes to the picture's pixels,
+// its edges faded into the page's night (PICTURE_FADE) as the page shows it.
 
-const layout = (new URLSearchParams(window.location.search).get('layout') ??
-  'wide') as LandingLayout;
+const params = new URLSearchParams(window.location.search);
+const layout = (params.get('layout') ?? 'wide') as LandingLayout;
+const density = (params.get('density') ?? '1x') as PictureDensity;
 
 // The picture's size in pixels, for the script to size the window to
-(window as unknown as { __picture: unknown }).__picture = LANDING_PICTURES[layout];
+const [width, height] = LANDING_PICTURES[layout].pixels[density];
+(window as unknown as { __picture: unknown }).__picture = { width, height };
+
+const NIGHT = '#010205';
+const edge = `${PICTURE_FADE * 100}%`;
+const fade = (to: string) =>
+  `linear-gradient(to ${to}, ${NIGHT}, transparent ${edge}, transparent calc(100% - ${edge}), ${NIGHT})`;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <LandingPreview picture={layout} />
+    <div style={{ position: 'absolute', inset: 0, background: fade('right') }} />
+    <div style={{ position: 'absolute', inset: 0, background: fade('bottom') }} />
   </React.StrictMode>,
 );

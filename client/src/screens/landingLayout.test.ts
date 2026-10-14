@@ -1,5 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { LANDING_BANDS, landingLayoutOf, preloadLandingPicture } from './landingLayout';
+import { pictureSourceSet } from '../three/landingLens';
 
 const bands = (w: number, h: number) => ({
   top: LANDING_BANDS.top(h, w),
@@ -61,6 +62,10 @@ test('the start page preloads the picture of its layout, from the function’s s
       expect(links[0].getAttribute('href')).toBe(`/landing/${landingLayoutOf(w, h)}.avif`);
       expect(links[0].getAttribute('as')).toBe('image');
       expect(links[0].getAttribute('type')).toBe('image/avif');
+      // The same choice as the page's picture makes
+      expect(links[0].getAttribute('imagesrcset')).toBe(
+        pictureSourceSet(landingLayoutOf(w, h), 'avif'),
+      );
       links[0].remove();
     }
   }

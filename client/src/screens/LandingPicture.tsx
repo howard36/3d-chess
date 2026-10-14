@@ -1,45 +1,50 @@
 import React from 'react';
-import { PICTURE_FADE, pictureSource, picturePlacement } from '../three/landingLens';
+import { pictureSource, pictureSourceSet, picturePlacement } from '../three/landingLens';
 
-/** Fades the picture's outermost PICTURE_FADE into the night on every side (a window past the common ones). */
-const edge = `${PICTURE_FADE * 100}%`;
-const FADE = [
-  `linear-gradient(to right, transparent, #000 ${edge}, #000 calc(100% - ${edge}), transparent)`,
-  `linear-gradient(to bottom, transparent, #000 ${edge}, #000 calc(100% - ${edge}), transparent)`,
-].join(', ');
+/**
+ * The window's size, which the page's box fills (index.css: .landing, 100vw
+ * by 100dvh): read while rendering, so the picture is placed in the page's
+ * first commit without measuring (a layout forced in the first render held
+ * the page's buttons back), and kept as the window changes.
+ */
+function useWindowSize(): [number, number] {
+  const [size, setSize] = React.useState<[number, number]>(() => [
+    window.innerWidth,
+    window.innerHeight,
+  ]);
+  React.useEffect(() => {
+    const update = () =>
+      setSize((was) =>
+        was[0] === window.innerWidth && was[1] === window.innerHeight
+          ? was
+          : [window.innerWidth, window.innerHeight],
+      );
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  return size;
+}
 
 /**
  * The start page's picture of its preview: the opening position from the
  * preview's first angle, exactly as the preview's first frame will draw it
  * (three/landingLens.ts), shown from the page's first render, before
  * three.js has arrived. The preview fades in over it; under reduced motion it
- * is all the page shows. Sized to the box it fills, as the preview's canvas
- * is (the same box), measured before the first paint.
+ * is all the page shows. The browser picks the picture as fine as the screen
+ * (1x or 2x), and its edges fade into the page's night in the picture itself.
  */
 export function LandingPicture() {
-  const box = React.useRef<HTMLDivElement>(null);
-  const [size, setSize] = React.useState<[number, number] | null>(null);
-  React.useLayoutEffect(() => {
-    const element = box.current;
-    if (!element) return;
-    const measure = () => {
-      const { width, height } = element.getBoundingClientRect();
-      setSize((was) => (was && was[0] === width && was[1] === height ? was : [width, height]));
-    };
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-  const place = size && size[0] > 0 && size[1] > 0 ? picturePlacement(size[0], size[1]) : null;
+  const [width, height] = useWindowSize();
+  const place = width > 0 && height > 0 ? picturePlacement(width, height) : null;
   return (
-    <div ref={box} className="landing-picture" aria-hidden="true" data-testid="landing-picture">
+    <div className="landing-picture" aria-hidden="true" data-testid="landing-picture">
       {place && (
         <picture>
-          <source type="image/avif" srcSet={pictureSource(place.layout, 'avif')} />
+          <source type="image/avif" srcSet={pictureSourceSet(place.layout, 'avif')} />
           <img
             src={pictureSource(place.layout, 'webp')}
+            srcSet={pictureSourceSet(place.layout, 'webp')}
             alt=""
             decoding="async"
             fetchPriority="high"
@@ -51,10 +56,6 @@ export function LandingPicture() {
               transform: `translate(${place.left}px, ${place.top}px)`,
               width: place.width,
               height: place.height,
-              maskImage: FADE,
-              WebkitMaskImage: FADE,
-              maskComposite: 'intersect',
-              WebkitMaskComposite: 'source-in',
             }}
           />
         </picture>

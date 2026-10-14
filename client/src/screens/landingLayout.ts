@@ -27,7 +27,7 @@ export const landingLayoutOf = (width: number, height: number): LandingLayout =>
   !upright(width, height) ? 'wide' : tablet(width, height) ? 'tablet' : 'phone';
 /**
  * Starts the start page's picture of its preview (LandingPicture, the AVIF
- * of the window's layout) downloading from an inline script in the built
+ * of the window's layout, as fine as the screen) downloading from an inline script in the built
  * page's head, before the entry has loaded: vite.config.ts writes it in from
  * this function's source, so it must stand alone (landingLayout.test.ts
  * checks it picks the layout landingLayoutOf does). Only on the start page.
@@ -41,6 +41,8 @@ export function preloadLandingPicture(): void {
   link.setAttribute('as', 'image');
   link.type = 'image/avif';
   link.href = `/landing/${layout}.avif`;
+  // The picture as fine as the screen, as the page's own picks it (pictureSourceSet)
+  link.setAttribute('imagesrcset', `/landing/${layout}.avif 1x, /landing/${layout}@2x.avif 2x`);
   link.setAttribute('fetchpriority', 'high');
   document.head.appendChild(link);
 }

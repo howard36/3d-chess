@@ -29,11 +29,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** The page's box as a phone's window (jsdom lays nothing out). */
-const phoneWindow = () =>
-  vi
-    .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-    .mockReturnValue({ width: 390, height: 844 } as DOMRect);
+/** A phone's window. */
+const phoneWindow = () => {
+  vi.stubGlobal('innerWidth', 390);
+  vi.stubGlobal('innerHeight', 844);
+};
 
 const renderStart = () =>
   render(
@@ -67,7 +67,10 @@ test('the picture of the preview shows at once, and goes once the preview has fa
   const picture = screen.getByTestId('landing-picture');
   const img = picture.querySelector('img')!;
   expect(img.getAttribute('src')).toBe('/landing/phone.webp');
-  expect(picture.querySelector('source')!.getAttribute('srcset')).toBe('/landing/phone.avif');
+  // As fine as the screen
+  expect(picture.querySelector('source')!.getAttribute('srcset')).toBe(
+    '/landing/phone.avif 1x, /landing/phone@2x.avif 2x',
+  );
   // Larger than the window, which it covers
   expect(img.style.transform).toMatch(/^translate\(-[\d.]+px, -[\d.]+px\)$/);
   expect(parseFloat(img.style.width)).toBeGreaterThan(390);
