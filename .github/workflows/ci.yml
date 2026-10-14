@@ -26,7 +26,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: server/uv.lock
       - name: Install server dependencies
-        run: uv sync --extra test
+        run: uv sync --locked --extra test
         working-directory: server
       - name: Lint server (ruff)
         run: |
@@ -101,7 +101,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: server/uv.lock
       - name: Install server dependencies
-        run: uv sync --extra test
+        run: uv sync --locked --extra test
         working-directory: server
       - name: Install client dependencies
         run: npm ci
@@ -184,7 +184,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: server/uv.lock
       - name: Install deploy dependencies
-        run: uv sync --extra deploy
+        run: uv sync --locked --extra deploy
         working-directory: server
       # Run from server/ so Image.uv_sync("./") and
       # add_local_python_source("messages") resolve. GITHUB_SHA is baked into
