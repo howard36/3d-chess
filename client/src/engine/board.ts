@@ -247,6 +247,22 @@ export class Board {
     return newBoard;
   }
 
+  /**
+   * The board as it stood before `move` was played to reach this one, given
+   * the piece it took (`captured`): the inverse of applyMove. Null when this
+   * board can't have come from such a move (nothing on its destination, or
+   * something still on its source).
+   */
+  unapplyMove(move: Move, captured: Piece | null): Board | null {
+    const { from, to, promotion } = move;
+    const piece = this.getPiece(to);
+    if (!piece || this.getPiece(from)) return null;
+    const before = this.clone();
+    before.setPiece(from, promotion ? { type: PieceType.Pawn, color: piece.color } : piece);
+    before.setPiece(to, captured);
+    return before;
+  }
+
   /** The cell of the first king of `color` in cell order. */
   private kingCell(color: Color): number {
     const cells = this.cells;

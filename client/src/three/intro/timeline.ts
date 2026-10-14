@@ -236,9 +236,8 @@ export const pieceRing = (plan: IntroPlan, arrival: number, t: number) => {
 export const hudFade = (plan: IntroPlan, t: number) => through(plan.hud, t);
 
 /**
- * A page opened on a game under way shows the position's last move again
- * once the entrance is over, every piece formed, in seconds after its end:
- * after a beat its line draws itself in, and once it has, what the move did
- * to the kings (a check, a mate) plays.
+ * A page opened on a game under way forms the position before its last
+ * move, and plays that move this long (seconds) after the entrance is over,
+ * every piece formed.
  */
-export const MARKS_AFTER = { lastMove: 0.35, kings: 0.75 };
+export const REPLAY_AFTER = 0.35;

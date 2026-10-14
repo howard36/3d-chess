@@ -25,7 +25,7 @@ import { Board as EngineBoard } from '../engine';
 import { fromZXY } from '../engine/coords';
 import { IntroContext } from './intro/clock';
 import type { IntroClock } from './intro/clock';
-import { introPlan, MARKS_AFTER } from './intro/timeline';
+import { introPlan, REPLAY_AFTER } from './intro/timeline';
 
 type Renderer = { scene: unknown };
 type Color = 'white' | 'black';
@@ -1090,51 +1090,101 @@ describe('Board', () => {
       expect(drawn.checks.length).toBeGreaterThan(0);
     });
 
-    it('keeps the last move and its check back through the entrance, then brings them in after it', async () => {
-      const board = boardAfterMove();
-      board.setPiece({ x: 4, y: 4, z: 4 }, null);
-      board.setPiece({ x: 4, y: 3, z: 2 }, { type: PieceType.King, color: 'black' });
-      const clock: IntroClock = { plan: introPlan('short'), t: 0 };
-      const renderer = await ReactThreeTestRenderer.create(
+    describe('opened on a game under way, during its entrance', () => {
+      const KING = { x: 4, y: 3, z: 2 };
+      // The rook's arrival on TO, taking a pawn, checks Black's king along the rank
+      const withKing = (b: EngineBoard) => {
+        b.setPiece({ x: 4, y: 4, z: 4 }, null);
+        b.setPiece(KING, { type: PieceType.King, color: 'black' });
+        return b;
+      };
+      const taken = { type: PieceType.Pawn, color: 'black' } as const;
+      const entrance = (): IntroClock => ({ plan: introPlan('short'), t: 0 });
+      const view = (clock: IntroClock, props: Partial<BoardProps> = {}) => (
         <IntroContext.Provider value={clock}>
-          <Board board={board} currentTurn="black" lastMove={lastMove(1)} />
-        </IntroContext.Provider>,
+          <Board
+            board={withKing(boardAfterMove())}
+            currentTurn="black"
+            lastMove={lastMove(3, taken)}
+            {...props}
+          />
+        </IntroContext.Provider>
       );
-      const frames = (seconds: number) =>
+      const frames = (
+        renderer: Awaited<ReturnType<typeof ReactThreeTestRenderer.create>>,
+        seconds: number,
+      ) =>
         act(async () => {
           await renderer.advanceFrames(Math.round(seconds / 0.01), 0.01);
         });
-      // The pieces still forming: neither the move nor the check
-      clock.t = clock.plan.total - 0.01;
-      await frames(1);
-      expect(marked).toHaveLength(0);
-      expect(drawn.checks).toHaveLength(0);
-      // The entrance over: a beat, then the move's line draws itself in
-      clock.t = clock.plan.total;
-      await frames(MARKS_AFTER.lastMove - 0.02);
-      expect(marked).toHaveLength(0);
-      await frames(0.03);
-      expect(last(marked)).toMatchObject({ fresh: true, glideMs: 0 });
-      expect(drawn.checks).toHaveLength(0);
-      // ... and once it has, the check
-      await frames(MARKS_AFTER.kings - MARKS_AFTER.lastMove);
-      expect(drawn.checks.length).toBeGreaterThan(0);
-    });
 
-    it('shows a move that lands during the wait at once, with its glide', async () => {
-      const clock: IntroClock = { plan: introPlan('short'), t: 0 };
-      const renderer = await ReactThreeTestRenderer.create(
-        <IntroContext.Provider value={clock}>
-          <Board board={boardBeforeMove()} currentTurn="white" />
-        </IntroContext.Provider>,
-      );
-      await renderer.update(
-        <IntroContext.Provider value={clock}>
-          <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} />
-        </IntroContext.Provider>,
-      );
-      expect(last(marked)).toMatchObject({ fresh: true });
-      expect(glideGroups(renderer)).toHaveLength(1);
+      it('forms the position before the last move, and plays the move once the entrance is over', async () => {
+        const clock = entrance();
+        const renderer = await ReactThreeTestRenderer.create(view(clock));
+        // The pieces still forming: the rook stands where it came from, the
+        // pawn it takes where it stood; nothing marked, no check
+        clock.t = clock.plan.total - 0.01;
+        await frames(renderer, 0.01);
+        expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(FROM, 'white')]);
+        expect(piecePositions(renderer, PieceType.Pawn, 'black')).toEqual([toWorld(TO, 'white')]);
+        expect(marked).toHaveLength(0);
+        expect(drawn.checks).toHaveLength(0);
+        // The entrance over: a beat, then the move glides in as it would have live
+        clock.t = clock.plan.total;
+        await frames(renderer, REPLAY_AFTER - 0.02);
+        expect(glideGroups(renderer)).toHaveLength(0);
+        await frames(renderer, 0.03);
+        expect(glideGroups(renderer)).toHaveLength(1);
+        expect(last(marked)).toMatchObject({ fresh: true });
+        expect(last(captures)?.victim).toEqual(taken);
+        expect(drawn.checks).toHaveLength(0);
+        // ... and the check once it has landed
+        await frames(
+          renderer,
+          touchdownMs(planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'), { capture: true })) /
+            1000,
+        );
+        expect(drawn.checks.length).toBeGreaterThan(0);
+      });
+
+      it('takes no input until the move has been played', async () => {
+        const clock = entrance();
+        const renderer = await ReactThreeTestRenderer.create(
+          view(clock, { currentTurn: 'white', playerColor: 'white' }),
+        );
+        clock.t = clock.plan.total;
+        await frames(renderer, 0.01);
+        await press(findPiece(renderer, PieceType.Rook, 'white', FROM));
+        expect(selectionRings(renderer)).toHaveLength(0);
+      });
+
+      it('shows a move that lands meanwhile at once, as it lands', async () => {
+        const clock = entrance();
+        const renderer = await ReactThreeTestRenderer.create(view(clock));
+        const next = { x: 2, y: 4, z: 2 };
+        const after = withKing(rookBoard(next));
+        await renderer.update(
+          view(clock, {
+            board: after,
+            lastMove: { move: { from: TO, to: next }, moveCount: 4, capturedPiece: null },
+          }),
+        );
+        expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(next, 'white')]);
+        expect(last(marked)?.to.floor).toEqual(floorOf(next));
+      });
+
+      it('plays nothing back for a player who asked for less motion', async () => {
+        const matchMedia = window.matchMedia;
+        window.matchMedia = (query: string) =>
+          ({ matches: query.includes('reduce') }) as MediaQueryList;
+        try {
+          const renderer = await ReactThreeTestRenderer.create(view(entrance()));
+          expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(TO, 'white')]);
+          expect(last(marked)?.to.floor).toEqual(floorOf(TO));
+        } finally {
+          window.matchMedia = matchMedia;
+        }
+      });
     });
 
     it('hands a live capture to the capture effect, on the victim’s floor', async () => {
