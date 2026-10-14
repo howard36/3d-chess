@@ -1183,7 +1183,9 @@ from the same frame). A game's link is an invitation, so the build also writes
 `public/_redirects` has Cloudflare Pages serve it at `/game/*`; every other address gets
 `index.html` (Pages' single-page fallback). `og:image` names `https://3dchess.club/og.jpg`,
 which only holds what main deployed, so a branch's preview build points it at the
-preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
+preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`). `public/_headers` gives every
+address the headers that keep the app out of other sites' frames, its files to their served
+types, and a link out to naming only the site.
 
 Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
 per ecosystem (client npm, server uv, GitHub Actions, the actions pinned to commit SHAs),
