@@ -17,6 +17,27 @@ export let sink: unknown;
 const NODES = QUICK ? 2_000 : 20_000;
 const SEED = 1;
 
+/**
+ * What each search must come out as: within its nodes, the depth it completed
+ * and the move it chose, and the nodes it takes to complete that depth (a
+ * search to that depth alone). A faster search keeps all three; one made
+ * cheaper per node by searching worse (ordering moves worse, pruning less)
+ * needs more nodes for the same depth, and the timed row would read it as a
+ * win. A change to how it searches updates these on purpose, and is judged
+ * by self-play for strength (CLAUDE.md), not by this row.
+ */
+const EXPECTED_SEARCH: Record<string, { depth: number; move: string; nodes: number }> = QUICK
+  ? {
+      opening: { depth: 1, move: 'Ab1-Bb3', nodes: 2817 },
+      middlegame: { depth: 1, move: 'Ae2-Cd2', nodes: 172 },
+      'late middlegame': { depth: 1, move: 'Ab2-Bb2', nodes: 1601 },
+    }
+  : {
+      opening: { depth: 1, move: 'Ab1-Bb3', nodes: 2817 },
+      middlegame: { depth: 3, move: 'Ca1-Ca5', nodes: 12099 },
+      'late middlegame': { depth: 3, move: 'Ab2-Bb2', nodes: 9062 },
+    };
+
 const { decisive } = sharedGames();
 const cases: { name: string; about: string; records: MoveRecord[] }[] = [
   { name: 'opening', about: 'The starting position: 61 legal moves.', records: [] },
@@ -41,8 +62,23 @@ const think = (records: MoveRecord[]): ComputerMove | null =>
 const reached = cases.map((c) => {
   const t0 = performance.now();
   const r = think(c.records);
+  const ms = performance.now() - t0;
   if (!r) throw new Error(`the ${c.name} position has no legal move`);
-  return { ...c, nodes: r.nodes, depth: r.depth, ms: performance.now() - t0 };
+  const want = EXPECTED_SEARCH[c.name];
+  const move = `${r.move.from}-${r.move.to}${r.move.promotion ?? ''}`;
+  const toDepth = chooseMove(c.records, 'hard', SEED, {
+    level: { timeMs: 1e9, maxDepth: r.depth },
+  });
+  const got = { depth: r.depth, move, nodes: toDepth?.nodes };
+  if (!want || got.depth !== want.depth || got.move !== want.move || got.nodes !== want.nodes) {
+    throw new Error(
+      `Benchmark check failed: the ${c.name} search came out as ${JSON.stringify(got)}, expected ` +
+        `${JSON.stringify(want)}. The search now does different work, so its time is not ` +
+        'comparable. If that is meant (a change to how it searches), judge its strength by ' +
+        'self-play and update EXPECTED_SEARCH in client/bench/ai.bench.ts.',
+    );
+  }
+  return { ...c, nodes: r.nodes, depth: r.depth, ms };
 });
 
 const GROUP = 'A1 · The computer thinks (hard level, fixed nodes)';

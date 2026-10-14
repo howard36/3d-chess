@@ -394,6 +394,7 @@ function runBrowser(ctx = MAIN) {
 /** 3 significant figures with a unit picked by size (ms in). */
 function duration(ms) {
   if (!Number.isFinite(ms)) return String(ms);
+  if (ms === 0) return '0 ms';
   const sig = (v) => (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
   if (ms < 1e-3) return `${sig(ms * 1e6)} ns`;
   if (ms < 1) return `${sig(ms * 1e3)} µs`;
@@ -744,14 +745,19 @@ const shown = (value, unit) =>
  * The pairs' verdict for one measured thing: each pair's ratio head/base,
  * their geometric mean as the change, and a change called real only when
  * every pair agrees on its direction and it exceeds both 5% and the pairs'
- * own disagreement (their ratios' range). A count at 0 on a side is judged
+ * own disagreement (their ratios' range). A value at 0 on a side is judged
  * by the pairs' differences instead (`diffs`, the change their median).
  */
 function verdict(pairs, better, unit) {
-  // A count at 0 on a side (the programs a move links once warm, a leak's
-  // growth) has no ratio: its change is the difference, called when every
-  // pair moves the same way
-  if (unit === 'count' && pairs.length >= 2 && pairs.some(([b, h]) => b === 0 || h === 0)) {
+  // A value at 0 on a side has no ratio: its change is the difference,
+  // called when every pair moves the same way. A count (the programs a move
+  // links once warm, a leak's growth) is judged so whenever a pair has a 0;
+  // anything else (a longest task, 0 until one reaches the browser's 50 ms)
+  // only when no two pairs give a ratio, since a time's differences all lean
+  // one way by chance far more often than its ratios clear the rule below
+  const ratioPairs = pairs.filter(([b, h]) => b > 0 && h > 0);
+  const zero = pairs.some(([b, h]) => b === 0 || h === 0);
+  if (pairs.length >= 2 && zero && (unit === 'count' || ratioPairs.length < 2)) {
     const diffs = pairs.map(([b, h]) => h - b);
     const change = median(diffs);
     const real = diffs.every((d) => d > 0) || diffs.every((d) => d < 0);
@@ -879,7 +885,7 @@ function abMain() {
     'Each pair’s head/base ratio compares two runs made next to each other in time, so a machine ' +
       'that speeds up or slows down over the run weighs on both. A change is called **better** or ' +
       '**worse** only when every pair agrees on its direction and it exceeds both 5% and the pairs’ ' +
-      'own disagreement (the ratios’ range); otherwise it is shown but not called. A count at 0 ' +
+      'own disagreement (the ratios’ range); otherwise it is shown but not called. A value at 0 ' +
       'on a side has no ratio: its change is the pairs’ difference, called when every pair moves ' +
       'the same way.',
   );
@@ -902,12 +908,14 @@ function abMain() {
         .join('; ')}.`,
     );
   }
-  const fmtChange = (v) =>
+  const fmtDiff = (d, unit) =>
+    `${d > 0 ? '+' : d < 0 ? '−' : ''}${unit === 'count' ? Math.abs(d) : shown(Math.abs(d), unit)}`;
+  const fmtChange = (v, unit) =>
     !v
       ? ''
       : v.diffs
         ? v.change
-          ? `${v.change > 0 ? '+' : '−'}${Math.abs(v.change)}`
+          ? fmtDiff(v.change, unit)
           : ''
         : `${v.change > 0 ? '+' : '−'}${Math.abs(v.change).toFixed(Math.abs(v.change) >= 10 ? 0 : 1)}%`;
   const called = (v) =>
@@ -917,9 +925,9 @@ function abMain() {
     r.where,
     r.what,
     ...r.sides.map((xs) => (xs.length ? shown(median(xs), r.unit) : 'missing')),
-    fmtChange(r.v),
+    fmtChange(r.v, r.unit),
     r.v?.diffs
-      ? r.v.diffs.map((d) => (d > 0 ? `+${d}` : String(d))).join(' ')
+      ? r.v.diffs.map((d) => fmtDiff(d, r.unit)).join(' ')
       : r.v
         ? r.v.ratios.map((x) => x.toFixed(2)).join(' ')
         : '',

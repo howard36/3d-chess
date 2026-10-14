@@ -1,6 +1,6 @@
 import React from 'react';
 import type { MoveRecord } from '../types/messages';
-import { formatMove, plyLabel, stepOfKey, stepTo } from '../game/review';
+import { formatMove, plyLabel, STEP_KEY, stepOfKey, stepTo } from '../game/review';
 import type { ReviewStep } from '../game/review';
 
 export interface MoveHistoryProps {
@@ -143,12 +143,9 @@ const NAMES: Record<ReviewStep, string> = {
   next: 'Forward',
   latest: 'Latest',
 };
-const KEYS: Record<ReviewStep, string> = {
-  first: 'Home',
-  previous: '←',
-  next: '→',
-  latest: 'End',
-};
+/** How a step's key is written in its title. */
+const GLYPHS: Partial<Record<string, string>> = { ArrowLeft: '←', ArrowRight: '→' };
+const keyName = (s: ReviewStep) => GLYPHS[STEP_KEY[s]] ?? STEP_KEY[s];
 
 /**
  * The game's record, every move a button that shows the board after it, and
@@ -277,7 +274,8 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       className="hud-step"
       data-step={s}
       aria-label={NAMES[s]}
-      title={`${NAMES[s]} (${KEYS[s]})`}
+      title={`${NAMES[s]} (${keyName(s)})`}
+      aria-keyshortcuts={STEP_KEY[s]}
       // Not disabled, which would drop the focus of a player stepping with it
       aria-disabled={off || undefined}
       onClick={() => {
