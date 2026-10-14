@@ -41,6 +41,7 @@ import { Capture, Check, LastMove, Quiet } from './scene/markers';
 import { KNIGHT_YAW, layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
 import { Selection } from './scene/selection';
 import { pieceArrival } from './intro/timeline';
+import { useMarksAfterEntrance } from './intro/marks';
 
 // The 125 cell boxes are click targets only, never drawn: every one is
 // `visible={false}`, and three's Raycaster tests layers, not visibility, so
@@ -208,6 +209,13 @@ const Board = (props: BoardProps) => {
   // land (MoveGlide's onLanded); a move from history shows it at once.
   const [landedKey, setLandedKey] = useState(arrivalKey);
   const landing = !!glide && !glide.back && arrivalKey > landedKey;
+  // The position the board opens on keeps its last move, and what it did to
+  // the kings, until the entrance has formed every piece (marks.ts); a move
+  // since then shows as it lands.
+  const marks = useMarksAfterEntrance();
+  const opening = arrivalKey === 0;
+  const showLastMove = !opening || marks.lastMove;
+  const kingsWait = landing || (opening && !marks.kings);
   const glideToKey = glide ? toZXY(glide.to) : null;
   const revealKey = glide?.back && glide.captured ? toZXY(glide.from) : null;
 
@@ -429,12 +437,12 @@ const Board = (props: BoardProps) => {
   const isSelected = (c: Coord) => !!selected && sameCoord(selected, c);
 
   // Kings standing in check, with where they stand (once a live move has landed).
-  const checkedKings = landing
+  const checkedKings = kingsWait
     ? []
     : pieces.filter(({ type, color }) => type === PieceType.King && board.inCheck(color));
   const checked = checkedKings.map(({ color }) => color);
   const matedColor =
-    !landing && props.gameOver?.result === 'checkmate' && props.gameOver.winner
+    !kingsWait && props.gameOver?.result === 'checkmate' && props.gameOver.winner
       ? props.gameOver.winner === 'white'
         ? 'black'
         : 'white'
@@ -697,13 +705,14 @@ const Board = (props: BoardProps) => {
         {/* Keyed by square, so selecting another piece plays its entrance again */}
         {selected && <Selection key={`selection-${toZXY(selected)}`} {...markerAt(selected)} />}
         {/* Keyed by move: an entrance the marker plays on mount (when fresh)
-            plays once per move, and not again on a reconnect */}
-        {lastMove && (
+            plays once per move, and not again on a reconnect; the one the
+            board opens on draws itself in after the board's own entrance */}
+        {lastMove && showLastMove && (
           <LastMove
             key={`lastmove-${lastMove.moveCount}`}
             from={markerAt(lastMove.move.from)}
             to={markerAt(lastMove.move.to)}
-            fresh={!!glide && !glide.back}
+            fresh={(!!glide && !glide.back) || (opening && marks.late && !prefersReducedMotion())}
             glideMs={glide && !glide.back ? touchdownMs(glide.plan) : 0}
           />
         )}

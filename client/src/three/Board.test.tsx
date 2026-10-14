@@ -23,6 +23,9 @@ import type { Coord, Move } from '../engine';
 import { act } from 'react';
 import { Board as EngineBoard } from '../engine';
 import { fromZXY } from '../engine/coords';
+import { IntroContext } from './intro/clock';
+import type { IntroClock } from './intro/clock';
+import { introPlan, MARKS_AFTER } from './intro/timeline';
 
 type Renderer = { scene: unknown };
 type Color = 'white' | 'black';
@@ -1085,6 +1088,53 @@ describe('Board', () => {
         <Board board={board} currentTurn="black" lastMove={lastMove(1)} />,
       );
       expect(drawn.checks.length).toBeGreaterThan(0);
+    });
+
+    it('keeps the last move and its check back through the entrance, then brings them in after it', async () => {
+      const board = boardAfterMove();
+      board.setPiece({ x: 4, y: 4, z: 4 }, null);
+      board.setPiece({ x: 4, y: 3, z: 2 }, { type: PieceType.King, color: 'black' });
+      const clock: IntroClock = { plan: introPlan('short'), t: 0 };
+      const renderer = await ReactThreeTestRenderer.create(
+        <IntroContext.Provider value={clock}>
+          <Board board={board} currentTurn="black" lastMove={lastMove(1)} />
+        </IntroContext.Provider>,
+      );
+      const frames = (seconds: number) =>
+        act(async () => {
+          await renderer.advanceFrames(Math.round(seconds / 0.01), 0.01);
+        });
+      // The pieces still forming: neither the move nor the check
+      clock.t = clock.plan.total - 0.01;
+      await frames(1);
+      expect(marked).toHaveLength(0);
+      expect(drawn.checks).toHaveLength(0);
+      // The entrance over: a beat, then the move's line draws itself in
+      clock.t = clock.plan.total;
+      await frames(MARKS_AFTER.lastMove - 0.02);
+      expect(marked).toHaveLength(0);
+      await frames(0.03);
+      expect(last(marked)).toMatchObject({ fresh: true, glideMs: 0 });
+      expect(drawn.checks).toHaveLength(0);
+      // ... and once it has, the check
+      await frames(MARKS_AFTER.kings - MARKS_AFTER.lastMove);
+      expect(drawn.checks.length).toBeGreaterThan(0);
+    });
+
+    it('shows a move that lands during the wait at once, with its glide', async () => {
+      const clock: IntroClock = { plan: introPlan('short'), t: 0 };
+      const renderer = await ReactThreeTestRenderer.create(
+        <IntroContext.Provider value={clock}>
+          <Board board={boardBeforeMove()} currentTurn="white" />
+        </IntroContext.Provider>,
+      );
+      await renderer.update(
+        <IntroContext.Provider value={clock}>
+          <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} />
+        </IntroContext.Provider>,
+      );
+      expect(last(marked)).toMatchObject({ fresh: true });
+      expect(glideGroups(renderer)).toHaveLength(1);
     });
 
     it('hands a live capture to the capture effect, on the victim’s floor', async () => {

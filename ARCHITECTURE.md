@@ -618,7 +618,12 @@ How the code is split:
   click lands on the square whose floor is under the pointer. It renders the grid, markers
   and effects in the `board-decor` group, outside the clickable `board-grid` group, so
   decoration can never take a click. The last move's line and entrance are keyed by move
-  and play only for a move that arrived live, never on a reload or rejoin.
+  and play once per move: as a move arrives live, and for the move a page opens on (a
+  reload, a rejoin) only once the board's own entrance has formed every piece. That move,
+  and what it did to the kings (a check's ring and strike, a mate's fall), wait for the
+  entrance to end; after a beat its line draws itself in, and once it has, the check or
+  the mate plays (`MARKS_AFTER` in `three/intro/timeline.ts`, `three/intro/marks.ts`). A
+  move that lands meanwhile shows as it lands.
 - `three/PieceMesh.tsx` places a piece. Pointer events hit an invisible, still stand-in
   fitted round the piece at rest and lifted, never the moving body, so a piece that rises
   under the pointer cannot slip out from under it. `three/pieceMotion.tsx` holds the timed
