@@ -16,6 +16,34 @@ const upright = (width: number, height: number) => height >= width;
 const tablet = (width: number, height: number) => upright(width, height) && width >= 600;
 /** A window this short (a phone on its side) sets the menu a size down (index.css: max-height: 480px). */
 const short = (height: number) => height <= 480;
+/**
+ * The page's three layouts: an upright phone (the title above the tower, the
+ * tiles under it), an upright tablet (the menu in a band along the bottom)
+ * and a wide window (the menu in a column at the left). The preview frames
+ * each from a distance of its own (three/landingLens.ts).
+ */
+export type LandingLayout = 'phone' | 'tablet' | 'wide';
+export const landingLayoutOf = (width: number, height: number): LandingLayout =>
+  !upright(width, height) ? 'wide' : tablet(width, height) ? 'tablet' : 'phone';
+/**
+ * Starts the start page's picture of its preview (LandingPicture, the AVIF
+ * of the window's layout) downloading from an inline script in the built
+ * page's head, before the entry has loaded: vite.config.ts writes it in from
+ * this function's source, so it must stand alone (landingLayout.test.ts
+ * checks it picks the layout landingLayoutOf does). Only on the start page.
+ */
+export function preloadLandingPicture(): void {
+  if (location.pathname !== '/') return;
+  const [width, height] = [innerWidth, innerHeight];
+  const layout = height >= width ? (width >= 600 ? 'tablet' : 'phone') : 'wide';
+  const link = document.createElement('link');
+  link.rel = 'preload';
+  link.setAttribute('as', 'image');
+  link.type = 'image/avif';
+  link.href = `/landing/${layout}.avif`;
+  link.setAttribute('fetchpriority', 'high');
+  document.head.appendChild(link);
+}
 /** The page's side margin (index.css: --landing-gutter). */
 const gutter = (width: number): number => clamp(24, 0.06 * width, 112);
 /** The room under an upright window's menu (index.css: --landing-under). */

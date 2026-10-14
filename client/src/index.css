@@ -1066,6 +1066,22 @@ body {
   position: absolute;
   inset: 0;
 }
+/* The picture of the preview's first frame, under it until it fades in
+   (LandingPicture), placed by the preview's lens and larger than the window */
+.landing-picture {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.landing-picture img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  max-width: none;
+  transform-origin: 0 0;
+}
 /* The veil the demo closes between one game and the next (LandingPreview) */
 .landing-veil {
   position: absolute;

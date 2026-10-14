@@ -53,13 +53,15 @@ const renderApp = (at: string) =>
 /** Lets the refused loads settle. */
 const settle = () => act(() => new Promise((r) => setTimeout(r, 20)));
 
-test('the start page goes without its preview', async () => {
+test('the start page goes without its live preview, its picture standing in', async () => {
   renderApp('/');
   await settle();
   expect(screen.getByRole('heading', { name: '3D Chess' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Play a friend' })).toBeInTheDocument();
-  // Nor is a preview described that is not there
-  expect(screen.queryByText(/Preview:/)).toBeNull();
+  // The picture is described, not the games that are not there
+  expect(screen.getByTestId('landing-picture')).toBeInTheDocument();
+  expect(screen.getByText(/^Preview: the five-level tower, every piece/)).toBeInTheDocument();
+  expect(screen.queryByText(/games play themselves/)).toBeNull();
   expect(screen.queryByText('Something went wrong')).toBeNull();
 });
 

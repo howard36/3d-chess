@@ -334,12 +334,35 @@ Key decisions:
   it unmounts, which e2e reads to project clicks (the lobby's canvas never does).
 - **Landing page.** The start screen at `/` (`screens/StartScreen.tsx`) fills the window
   with a live preview (`screens/LandingPreview.tsx`): the real `Board`, drawn without its
-  labels (`labels={false}`) and framed on the tower alone (`towerBodyRings`), plays a
-  scripted 17-ply game ending in White's mate (`game/demo.ts`, the game `showcase.mjs`
-  records) as a log of `move_made` messages through `deriveHistory`, like a live game,
-  then fades under a veil and plays it again, while `three/AutoOrbit.tsx` turns the camera
-  round the tower at a fixed elevation, a full turn every two passes
-  (`three/landingView.ts`). The demo's clock is r3f's. The menu stands in a column at
+  labels (`labels={false}`) and framed on the tower alone (`towerBodyRings`), plays five
+  games the computer played against itself on Hard, each to mate (`game/demo.ts`: chosen
+  from a hundred for something happening all the way through and a mate rather than a
+  long chase), in an order drawn afresh for each visit and then round again (about 20
+  minutes), a move every 1.8 s, each as a log of `move_made` messages through
+  `deriveHistory`, like a live game, fading under a veil into the next, while
+  `three/AutoOrbit.tsx` turns the camera round the tower at a fixed elevation, a full turn
+  every 150 s (`three/landingView.ts`). The demo's clock is r3f's. (`showcase.mjs` records
+  the 17-ply game that was the demo before, `game/shortGame.ts`, which tests use too.)
+  The preview is framed by its lens, not its distance (`three/landingLens.ts`): each of
+  the page's three layouts (an upright phone, an upright tablet, a wide window:
+  `landingLayoutOf`) holds the camera at one distance, the game's fit's at a window of
+  that layout (390x700, a phone's browser with its bars showing; 820x1180; 1440x900),
+  and every window zooms the lens instead, to the field of view the fit's distance would
+  have needed (between about 31° and 50° on common windows; the fit's is 36°). A zoom
+  scales the picture evenly and changes nothing else, so every window of a layout sees a
+  scaled crop of one picture of the scene: the page shows that picture
+  (`screens/LandingPicture.tsx`, `public/landing/<layout>.avif` and `.webp`, 29–52 KB of
+  AVIF, larger than any common window of the layout and fading into the night at its
+  edges) from its first render, placed by the window's lens (`picturePlacement`, plain
+  arithmetic with the fit's numbers baked: the start page is the entry), and the built
+  page's head starts the AVIF downloading before the entry has run (`preloadLandingPicture`,
+  on `/` alone). The preview opens on exactly the picture's moment (the opening position
+  from the turn's first angle) and fades in over it in 0.3 s once its first frame is
+  drawn, nothing moving until it has, and the picture goes. `landingLens.test.ts`
+  recomputes the baked numbers from the fit and fails when the rings, the opening view
+  or the bands change: bake them again and re-render the pictures
+  (`scripts/landing-pictures.mjs`, through the dev-only `landing-pictures.html`). The
+  menu stands in a column at
   the left, set in from the window's edge by a gutter (6% of the width, 24–112 px), over a
   dark fade that clears just past the tower's edge: the title on two lines ("3D" in the
   level colours, then a short rule in them), the two ways to play as tiles side by side,
@@ -364,9 +387,10 @@ Key decisions:
   outlined button, opens the tutorial (see The tutorial); nothing else is written on the
   page. The canvas is `aria-hidden` and takes no pointer, and a visually hidden sentence
   says what it shows. The three buttons are the page's only controls: the preview always
-  plays (it has no pause), except under `prefers-reduced-motion`, where it is a still of
-  the final position, the king left standing, with still rims. In development
-  `?t=<seconds>` starts the demo that far in.
+  plays (it has no pause), except under `prefers-reduced-motion`, where the picture is all
+  the page shows (the preview's chunk, and three.js with it, never load), with still rims;
+  should the chunk fail to load, the picture stays too. In development `?t=<seconds>`
+  starts the demo that far in.
 - **No page.** Any other address (`/games`, `/game/` with no id) is the catch-all route's
   `screens/NotFound.tsx`: the lobby's glass card alone on the page's night, "Nothing here"
   and a Home button. It is in the entry and loads no scene.

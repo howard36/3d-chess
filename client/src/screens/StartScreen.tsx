@@ -7,11 +7,14 @@ import { PieceGlyph } from './PieceGlyph';
 import { BotGlyph } from './BotGlyph';
 import { PieceType } from '../engine/pieces';
 import { learnScreen } from './learn/learnChunk';
+import { LandingPicture } from './LandingPicture';
 
-// The preview (three.js, the scene, a demo game) is a chunk of its own,
-// asked for when the page first draws, so its title and button show without
-// waiting for it; the preview appears where it stands once it has loaded, and should
-// it fail to, the page goes without it
+// The preview (three.js, the scene, the demo's games) is a chunk of its own,
+// asked for when the page first draws, so its title and buttons show without
+// waiting for it. Meanwhile a picture of its first frame stands in for it
+// (LandingPicture), and the preview fades in over the picture once it draws;
+// should it fail to load, or the player ask for less motion, the picture is
+// all the page shows
 const { Component: LandingPreview } = lazyChunk(() =>
   import('./LandingPreview').then((m) => ({ default: m.LandingPreview })),
 );
@@ -22,21 +25,33 @@ const { Component: LandingPreview } = lazyChunk(() =>
 const StartScreen: React.FC = () => {
   const navigate = useNavigate();
   const still = useReducedMotion();
-  const [noPreview, setNoPreview] = React.useState(false);
+  // The live preview: loading (the picture showing), shown over the picture
+  // (which then goes), or failed to load (the picture stays)
+  const [preview, setPreview] = React.useState<'loading' | 'shown' | 'failed'>('loading');
+  // Motion turned back on brings a new preview, which fades in over the picture again
+  const [wasStill, setWasStill] = React.useState(still);
+  if (wasStill !== still) {
+    setWasStill(still);
+    if (preview === 'shown') setPreview('loading');
+  }
+  const live = !still && preview !== 'failed';
+  const onShown = React.useCallback(() => setPreview('shown'), []);
 
   return (
     <main className="landing" data-testid="landing">
-      <ChunkBoundary canvas onFail={() => setNoPreview(true)}>
-        <React.Suspense fallback={null}>
-          <LandingPreview still={still} />
-        </React.Suspense>
-      </ChunkBoundary>
-      {!noPreview && (
-        <p className="sr-only">
-          Preview: a sample game plays itself on the five-level tower and ends in checkmate by
-          White.
-        </p>
+      {!(live && preview === 'shown') && <LandingPicture />}
+      {live && (
+        <ChunkBoundary canvas onFail={() => setPreview('failed')}>
+          <React.Suspense fallback={null}>
+            <LandingPreview onShown={onShown} />
+          </React.Suspense>
+        </ChunkBoundary>
       )}
+      <p className="sr-only">
+        {live
+          ? 'Preview: games play themselves on the five-level tower, each to checkmate.'
+          : 'Preview: the five-level tower, every piece on its starting square.'}
+      </p>
       <div className="landing-scrim" aria-hidden="true" />
       <div className="landing-menu">
         <header className="landing-head">

@@ -1,4 +1,4 @@
-import { DEMO_GAME } from '../game/demo';
+import { SHORT_GAME } from '../game/shortGame';
 import { evaluate } from './evaluate';
 import {
   BLACK,
@@ -15,7 +15,7 @@ import {
 import type { WireMove } from './position';
 import { INF, MATE, Searcher } from './search';
 
-const demo: WireMove[] = DEMO_GAME.map((m) => {
+const demo: WireMove[] = SHORT_GAME.map((m) => {
   const [from, to] = m.split('-');
   return { from, to };
 });

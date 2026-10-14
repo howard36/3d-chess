@@ -1,15 +1,17 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, test, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import StartScreen from './StartScreen';
 
 // The preview is a WebGL canvas, which jsdom can't provide: a stand-in that
-// shows what it was handed
+// can say it has faded in over the picture
+let shownPreview: (() => void) | undefined;
 vi.mock('./LandingPreview', () => ({
-  LandingPreview: ({ still }: { still: boolean }) => (
-    <div data-testid="preview" data-still={String(still)} />
-  ),
+  LandingPreview: ({ onShown }: { onShown: () => void }) => {
+    shownPreview = onShown;
+    return <div data-testid="preview" />;
+  },
 }));
 
 const reduceMotion = (reduce: boolean) =>
@@ -24,7 +26,14 @@ const reduceMotion = (reduce: boolean) =>
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
+
+/** The page's box as a phone's window (jsdom lays nothing out). */
+const phoneWindow = () =>
+  vi
+    .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    .mockReturnValue({ width: 390, height: 844 } as DOMRect);
 
 const renderStart = () =>
   render(
@@ -51,10 +60,33 @@ test('playing a friend is the first thing Tab reaches, and the preview has no co
   ]);
 });
 
-test('for a player who asked for less motion the preview holds still', async () => {
-  reduceMotion(true);
+test('the picture of the preview shows at once, and goes once the preview has faded in over it', async () => {
+  reduceMotion(false);
+  phoneWindow();
   renderStart();
-  expect(await screen.findByTestId('preview')).toHaveAttribute('data-still', 'true');
+  const picture = screen.getByTestId('landing-picture');
+  const img = picture.querySelector('img')!;
+  expect(img.getAttribute('src')).toBe('/landing/phone.webp');
+  expect(picture.querySelector('source')!.getAttribute('srcset')).toBe('/landing/phone.avif');
+  // Larger than the window, which it covers
+  expect(img.style.transform).toMatch(/^translate\(-[\d.]+px, -[\d.]+px\)$/);
+  expect(parseFloat(img.style.width)).toBeGreaterThan(390);
+  await screen.findByTestId('preview');
+  expect(screen.getByTestId('landing-picture')).toBe(picture);
+  act(() => shownPreview!());
+  expect(screen.queryByTestId('landing-picture')).toBeNull();
+  expect(screen.getByText(/^Preview: games play themselves/)).toBeInTheDocument();
+});
+
+test('for a player who asked for less motion the picture is all there is: no preview, no three.js', async () => {
+  reduceMotion(true);
+  phoneWindow();
+  renderStart();
+  expect(screen.getByTestId('landing-picture').querySelector('img')).not.toBeNull();
+  // The preview's chunk is never asked for
+  await act(() => new Promise((r) => setTimeout(r, 20)));
+  expect(screen.queryByTestId('preview')).toBeNull();
+  expect(screen.getByText(/^Preview: the five-level tower, every piece/)).toBeInTheDocument();
 });
 
 test('nothing is written under the buttons', () => {

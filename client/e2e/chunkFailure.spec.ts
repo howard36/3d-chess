@@ -6,7 +6,7 @@ import { openStandInGame } from './helpers/standIn';
 // replaced them): the page goes on without its canvas, never the app's
 // "Something went wrong".
 
-test('the start page goes without its preview', async ({ page }) => {
+test('the start page goes without its preview, its picture standing in', async ({ page }) => {
   let aborted = 0;
   await page.route(/\/src\/screens\/LandingPreview\.tsx/, (route) => {
     aborted++;
@@ -14,9 +14,10 @@ test('the start page goes without its preview', async ({ page }) => {
   });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '3D Chess' })).toBeVisible();
-  // The failure handled (the preview's description goes with it) before the
+  // The failure handled (the description becomes the picture's) before the
   // page is judged: the heading shows before the chunk is even asked for
-  await expect(page.getByText(/^Preview:/)).toHaveCount(0);
+  await expect(page.getByText(/^Preview: the five-level tower, every piece/)).toHaveCount(1);
+  await expect(page.getByTestId('landing-picture').locator('img')).toBeVisible();
   expect(aborted).toBeGreaterThan(0);
   await expect(page.getByRole('button', { name: 'Play a friend' })).toBeVisible();
   await expect(page.getByText('Something went wrong')).toHaveCount(0);
