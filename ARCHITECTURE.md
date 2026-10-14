@@ -606,7 +606,14 @@ How the code is split:
   Board, PieceMesh and GameCanvas import these parts directly; unit tests stand them in
   with `vi.mock`.
 
-All motion runs on r3f's clock, and the canvas renders on demand.
+All motion runs on r3f's clock, and the canvas renders on demand. The game's and the
+lobby's canvases draw one frame at a time on the GPU (`three/framePacer.tsx`): a frame
+whose predecessor the GPU has not finished is not drawn, only asked for again, while the
+motion still steps every display frame. A GPU slower than the display (a phone's, software
+rendering) would otherwise be handed a picture every display frame and fall behind by
+several: a move's picture came over a second after the move in the browser bench, and
+another canvas's start-up waited on the queue. A stepped clock (the showcase's
+`window.__vclock`) draws every frame it runs.
 
 ### The garden
 
