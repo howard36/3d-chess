@@ -2,7 +2,7 @@ import React from 'react';
 import type { DrawOfferState } from '../game/ending';
 import type { Color } from '../types/messages';
 
-interface GameActionsProps {
+export interface GameActionsProps {
   /** This player's colour. */
   seat: Color;
   /** The draw offer since the last move (game/ending.ts). */
@@ -13,6 +13,19 @@ interface GameActionsProps {
   onOfferDraw: () => void;
   /** Answers the opponent's standing offer. */
   onAnswerDraw: (accept: boolean) => void;
+  /**
+   * Taking back the player's last move (and the reply to it): an arrow under
+   * the flag, while there is one to take back and it may be asked for
+   * (`enabled`). Against the computer it is taken back at once; against a
+   * friend it is asked for, and `request` is where the asking stands (as a
+   * draw offer's does), the opponent's answered with `onAnswer`.
+   */
+  takeBack?: {
+    enabled: boolean;
+    onTakeBack: () => void;
+    request?: DrawOfferState;
+    onAnswer?: (accept: boolean) => void;
+  };
 }
 
 /** A click this soon after "Resign" turned into its question is the same click, doubled: ignored. */
@@ -30,6 +43,20 @@ const Flag = () => (
   </svg>
 );
 
+/** An arrow turning back. */
+const Back = () => (
+  <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
+    <path
+      d="M5.5 3 2.5 6l3 3M3 6h6.5a3.5 3.5 0 0 1 0 7H7"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 /**
  * Resigning and draws, in a game under way: a flag under the way to the
  * tutorial (index.css, .hud-game) opens a small menu, "Offer draw" and
@@ -37,7 +64,10 @@ const Flag = () => (
  * ends the game. Under the flag, while it applies: the player's own offer
  * waiting ("Draw offered"), declined ("Draw declined"), or the opponent's,
  * with Accept and Decline. Never takes focus on its own; a screen reader
- * hears the offers through a polite live region.
+ * hears the offers through a polite live region. An arrow under the flag
+ * takes the player's last move back: at once against the computer, and
+ * against a friend once they agree, the asking shown as a draw offer is
+ * (one line under the buttons at a time).
  */
 const GameActions: React.FC<GameActionsProps> = ({
   seat,
@@ -46,6 +76,7 @@ const GameActions: React.FC<GameActionsProps> = ({
   onResign,
   onOfferDraw,
   onAnswerDraw,
+  takeBack,
 }) => {
   const [open, setOpen] = React.useState(false);
   // When "Resign" turned into its question (null: not asked)
@@ -80,6 +111,32 @@ const GameActions: React.FC<GameActionsProps> = ({
       : offer.declined === seat
         ? 'Draw declined.'
         : '';
+  const request = takeBack?.request;
+  const theirAsk = !!request && request.standing !== null && request.standing !== seat;
+  const myAsk = request?.standing === seat;
+  const askSaid = theirAsk
+    ? 'Your opponent asks to take back a move.'
+    : myAsk
+      ? 'Take-back requested.'
+      : request?.declined === seat
+        ? 'Take-back declined.'
+        : '';
+  // One line at most hangs under the buttons (a narrow window has room
+  // beside the tower for no more): a question for the player first, the
+  // take-back's before the draw's, then where the player's own stand
+  const line = theirAsk
+    ? 'takeback-offer'
+    : theirs
+      ? 'draw-offer'
+      : myAsk
+        ? 'takeback-pending'
+        : mine
+          ? 'draw-pending'
+          : request?.declined === seat
+            ? 'takeback-declined'
+            : offer.declined === seat
+              ? 'draw-declined'
+              : null;
 
   return (
     <div
@@ -105,6 +162,18 @@ const GameActions: React.FC<GameActionsProps> = ({
       >
         <Flag />
       </button>
+      {takeBack && (
+        <button
+          className="hud-game-menu"
+          data-testid="take-back"
+          aria-label={request ? 'Ask to take back move' : 'Take back move'}
+          title={request ? 'Ask to take back move' : 'Take back move'}
+          disabled={disabled || !takeBack.enabled}
+          onClick={takeBack.onTakeBack}
+        >
+          <Back />
+        </button>
+      )}
       {open && (
         <div id="game-menu" className="hud-menu hud-glass" role="group" aria-label="Game">
           {askedAt === null ? (
@@ -149,18 +218,18 @@ const GameActions: React.FC<GameActionsProps> = ({
           )}
         </div>
       )}
-      {mine && (
+      {line === 'draw-pending' && (
         <div className="hud-line hud-glass" data-testid="draw-pending">
           <span className="hud-dot" aria-hidden />
           Draw offered
         </div>
       )}
-      {!mine && offer.declined === seat && (
+      {line === 'draw-declined' && (
         <div className="hud-line hud-glass" data-testid="draw-declined">
           Draw declined
         </div>
       )}
-      {theirs && (
+      {line === 'draw-offer' && (
         <div className="hud-offer hud-glass" data-testid="draw-offer">
           <span className="hud-offer-words">Draw offered</span>
           <span className="hud-offer-answers">
@@ -182,10 +251,48 @@ const GameActions: React.FC<GameActionsProps> = ({
           </span>
         </div>
       )}
+      {line === 'takeback-pending' && (
+        <div className="hud-line hud-glass" data-testid="takeback-pending">
+          <span className="hud-dot" aria-hidden />
+          Take-back requested
+        </div>
+      )}
+      {line === 'takeback-declined' && (
+        <div className="hud-line hud-glass" data-testid="takeback-declined">
+          Take-back declined
+        </div>
+      )}
+      {line === 'takeback-offer' && (
+        <div className="hud-offer hud-glass" data-testid="takeback-offer">
+          <span className="hud-offer-words">Take-back requested</span>
+          <span className="hud-offer-answers">
+            <button
+              className="hud-menu-item"
+              data-accept=""
+              disabled={disabled}
+              onClick={() => takeBack?.onAnswer?.(true)}
+            >
+              Accept
+            </button>
+            <button
+              className="hud-menu-item"
+              disabled={disabled}
+              onClick={() => takeBack?.onAnswer?.(false)}
+            >
+              Decline
+            </button>
+          </span>
+        </div>
+      )}
       {/* Said, as well as shown: present from the first render, so each change is announced */}
       <div className="sr-only" role="status" data-testid="draw-announcer">
         {said}
       </div>
+      {request && (
+        <div className="sr-only" role="status" data-testid="takeback-announcer">
+          {askSaid}
+        </div>
+      )}
     </div>
   );
 };

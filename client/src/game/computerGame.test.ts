@@ -8,6 +8,8 @@ import {
   isOver,
   standingOffer,
   startGame,
+  takeBack,
+  takeBackPlies,
 } from './computerGame';
 import type { ComputerGame } from './computerGame';
 import { DEMO_GAME } from './demo';
@@ -200,6 +202,32 @@ it('takes a draw offer once a move; there is never one for the player to answer'
   expect(
     answer(moved, 'abc', { type: 'rejoin_game', gameId: 'abc', color: 'white' }).replies[0],
   ).toMatchObject({ drawOffer: { by: 'white', ply: 0 } });
+});
+
+it('takes back the player’s last move, and the computer’s reply if it has made one', () => {
+  // White: nothing until the player has moved
+  expect(takeBackPlies(game())).toBe(0);
+  expect(takeBack(game())).toEqual({ game: game(), replies: [] });
+  const thinking = game({ moves: records(['Bc2-Cc2']) });
+  expect(takeBackPlies(thinking)).toBe(1);
+  const replied = game({
+    moves: records(['Bc2-Cc2', 'Dc4-Cc4']),
+    drawOffer: { by: 'white', ply: 2, declined: true },
+  });
+  expect(takeBackPlies(replied)).toBe(2);
+  const back = takeBack(replied);
+  // The game as it now stands, as a rejoin's answer; the offer goes with the moves
+  expect(back.game).toEqual(game());
+  expect(back.replies).toEqual([{ type: 'game_state', color: 'white', started: true, moves: [] }]);
+  expect(takeBack(thinking).game!.moves).toEqual([]);
+  // Black: the computer's first move stays
+  const black = game({ color: 'black', moves: records(['Bc2-Cc2']) });
+  expect(takeBackPlies(black)).toBe(0);
+  expect(takeBackPlies({ ...black, moves: records(['Bc2-Cc2', 'Dc4-Cc4', 'Bd2-Cd2']) })).toBe(2);
+  // Not before the game, nor once it is over
+  expect(takeBackPlies(game({ started: false, moves: records(['Bc2-Cc2']) }))).toBe(0);
+  expect(takeBackPlies({ ...replied, ending: { result: 'resignation', winner: 'black' } })).toBe(0);
+  expect(takeBackPlies(null)).toBe(0);
 });
 
 it('accepts a draw only when it stands clearly worse, by its own reckoning', () => {

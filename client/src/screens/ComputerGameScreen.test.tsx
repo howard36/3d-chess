@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import ComputerGameScreen from './ComputerGameScreen';
 import { LobbyContext } from './lobby/lobbyContext';
 import type { LobbyApi, LobbyStage } from './lobby/lobbyContext';
-import { isArriving, markArriving, saveComputerGame } from '../lib/computerGames';
+import { isArriving, loadComputerGame, markArriving, saveComputerGame } from '../lib/computerGames';
 import { setStoredRole } from '../lib/playerRole';
 import { loadBoardChunk } from './testSupport';
 import { YOUR_MOVE_TITLE } from '../hooks/useTabSignal';
@@ -160,4 +160,27 @@ it('a game not kept here: "No game here", and a new game against the computer', 
   expect(await screen.findByRole('heading', { name: 'No game here' })).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Play the computer' }));
   expect(screen.getByText('choose a side and level')).toBeInTheDocument();
+});
+
+it('takes the player’s move back at once, and the computer’s reply with it', async () => {
+  saveComputerGame({
+    id: 'g9',
+    color: 'white',
+    difficulty: 'easy',
+    started: true,
+    moves: [
+      { by: 'white', from: 'Bc2', to: 'Cc2' },
+      { by: 'black', from: 'Dc4', to: 'Cc4' },
+    ],
+  });
+  render(at('g9'));
+  const takeBack = await screen.findByRole('button', { name: 'Take back move' });
+  await userEvent.click(takeBack);
+  const announcer = screen.getByTestId('move-announcer');
+  expect(announcer).toHaveAttribute('data-move-count', '0');
+  expect(announcer).toHaveTextContent('Move taken back. Your move.');
+  expect(loadComputerGame('g9')!.moves).toEqual([]);
+  // Nothing left to take back; and no question asked of the computer
+  expect(takeBack).toBeDisabled();
+  expect(screen.queryByTestId('takeback-pending')).toBeNull();
 });

@@ -19,12 +19,15 @@ from modal_app import (
     STORE_OPERATIONS,
     GameError,
     accept_draw,
+    accept_takeback,
     claim_seat,
     create_game,
     decline_draw,
+    decline_takeback,
     find_seat,
     offer_draw,
     record_move,
+    request_takeback,
     resign,
     taken_seats,
 )
@@ -194,12 +197,22 @@ def test_resign_ends_the_game_for_the_opponent():
     assert refusal(offer_draw, store, "G00001", "white") == "game_over"
     assert refusal(accept_draw, store, "G00001", "white") == "game_over"
     assert refusal(decline_draw, store, "G00001", "white") == "game_over"
+    for op in (request_takeback, accept_takeback, decline_takeback):
+        assert refusal(op, store, "G00001", "white") == "game_over"
     assert store["G00001"]["moves"] == []
 
 
 def test_resign_and_offers_need_a_game_under_way():
     store = {"G00001": {"seats": ["white"], "moves": []}}
-    for op in (resign, offer_draw, accept_draw, decline_draw):
+    for op in (
+        resign,
+        offer_draw,
+        accept_draw,
+        decline_draw,
+        request_takeback,
+        accept_takeback,
+        decline_takeback,
+    ):
         assert refusal(op, store, None, None) == "game_not_started"
         assert refusal(op, store, "G00001", "white") == "game_not_started"
     assert store["G00001"] == {"seats": ["white"], "moves": []}
@@ -239,6 +252,50 @@ def test_a_draw_offer_declined_or_lapsed():
     # ...and the game goes on, a new offer welcome
     assert offer_draw(store, "G00001", "white") == {"by": "white", "ply": 3}
     assert store["G00001"]["drawOffer"] == {"by": "white", "ply": 3}
+
+
+def test_a_take_back_granted_removes_the_move_and_its_reply():
+    store = under_way()
+    # Nothing to take back before a move of one's own
+    assert refusal(request_takeback, store, "G00001", "white") == "invalid_takeback"
+    record_move(store, "G00001", "white", move("Aa2", "Aa3"))
+    assert refusal(request_takeback, store, "G00001", "black") == "invalid_takeback"
+    record_move(store, "G00001", "black", move("Ea4", "Ea3"))
+    offer_draw(store, "G00001", "black")
+    # On White's own turn: the move and Black's reply go
+    assert request_takeback(store, "G00001", "white") == {"by": "white", "ply": 2}
+    # Only the opponent can answer it, and only one request stands
+    assert refusal(accept_takeback, store, "G00001", "white") == "invalid_takeback"
+    assert refusal(request_takeback, store, "G00001", "white") == "invalid_takeback"
+    assert refusal(request_takeback, store, "G00001", "black") == "invalid_takeback"
+    record = accept_takeback(store, "G00001", "black")
+    assert record["moves"] == [] and store["G00001"]["moves"] == []
+    # The offer and the request name plies the game can reach again: both go
+    assert "drawOffer" not in store["G00001"]
+    assert "takebackRequest" not in store["G00001"]
+    # On the opponent's turn: the requester's move alone goes
+    record_move(store, "G00001", "white", move("Aa2", "Aa3"))
+    request_takeback(store, "G00001", "white")
+    accept_takeback(store, "G00001", "black")
+    assert store["G00001"]["moves"] == []
+
+
+def test_a_take_back_declined_or_lapsed():
+    store = under_way()
+    record_move(store, "G00001", "white", move("Aa2", "Aa3"))
+    assert request_takeback(store, "G00001", "white") == {"by": "white", "ply": 1}
+    assert decline_takeback(store, "G00001", "black") == {"by": "white", "ply": 1, "declined": True}
+    assert len(store["G00001"]["moves"]) == 1
+    # Answered once, and asked for once a move
+    assert refusal(accept_takeback, store, "G00001", "black") == "invalid_takeback"
+    assert refusal(request_takeback, store, "G00001", "white") == "invalid_takeback"
+    # A move cancels a standing request
+    record_move(store, "G00001", "black", move("Ea4", "Ea3"))
+    request_takeback(store, "G00001", "black")
+    record_move(store, "G00001", "white", move("Aa3", "Aa4"))
+    assert refusal(accept_takeback, store, "G00001", "white") == "invalid_takeback"
+    assert refusal(decline_takeback, store, "G00001", "white") == "invalid_takeback"
+    assert len(store["G00001"]["moves"]) == 3
 
 
 def test_store_operations_are_synchronous():
