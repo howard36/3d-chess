@@ -291,7 +291,7 @@ Key decisions:
   narrow glass panel at the right under "How to play" and the flag, in one column with them
   (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
   height to fit (the list scrolls, the move shown kept in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
-  in a row under the tower (above "Play again" once the game is over), the move shown
+  in a row under the tower (above "Play again", or beside it in a window at least 560 px wide, where the tower fills the height and leaves room under it for one row), the move shown
   between them ("7… Ed4–Ba1"), which opens the list above them. Closed, the list is
   visually hidden, never `display: none`: it is how a screen reader reads the record, and
   a polite status says where the board stands as the player steps. A reopened game's list

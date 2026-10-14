@@ -929,7 +929,7 @@ body {
     max-height: none;
     transform: translateX(-50%);
   }
-  /* Over "Play again" once the game is over */
+  /* Over "Play again" once the game is over... */
   .hud-history[data-ended] {
     bottom: 76px;
   }
@@ -941,6 +941,25 @@ body {
   }
   .hud-latest {
     margin-left: 0;
+  }
+}
+/* ...or beside it, where the row has room for both: the tower fills the
+   height of such a window, which leaves room under it for one row only (the
+   steps at the left, centred on the button's height, and the button at the
+   right; 300 + 12 + 200 px about the middle) */
+@media (max-aspect-ratio: 13/9) and (min-height: 481px) and (min-width: 560px) {
+  .hud-history[data-ended] {
+    bottom: 24px;
+    left: calc(50% - 106px);
+  }
+  .game-screen:has(.hud-history[data-ended]) .hud-new-game {
+    left: calc(50% + 56px);
+    transform: none;
+  }
+}
+@media (max-aspect-ratio: 13/9) and (min-height: 481px) and (min-width: 560px) and (pointer: coarse) {
+  .hud-history[data-ended] {
+    bottom: 18px;
   }
 }
 /* A short window (a phone on its side): the panel beside the tower, as far
