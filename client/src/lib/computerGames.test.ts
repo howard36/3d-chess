@@ -28,11 +28,18 @@ it('keeps a game in the browser and reads it back', () => {
   expect(loadComputerGame(game.id)).toEqual(game);
 });
 
-it('ignores what is not a game, and plays on from memory where storage is refused', () => {
+it('ignores what is not a game, saying so, and plays on from memory where storage is refused', () => {
+  const unread = vi.spyOn(console, 'warn').mockImplementation(() => {});
   localStorage.setItem('3dchess:computer:junk', '{"id":"junk","color":"red"}');
   expect(loadComputerGame('junk')).toBeNull();
   localStorage.setItem('3dchess:computer:bad', '{not json');
   expect(loadComputerGame('bad')).toBeNull();
+  // Nothing stored is no game, and nothing to say
+  expect(loadComputerGame('none')).toBeNull();
+  expect(unread.mock.calls.map((c) => String(c[0]))).toEqual([
+    'The stored game junk is not one this page can read.',
+    'The stored game bad could not be read.',
+  ]);
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
     throw new Error('refused');
   });

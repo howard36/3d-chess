@@ -155,7 +155,8 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
           {step.army && <Army />}
           {step.directions && <Directions directions={step.directions} />}
           {step.promotionRow && <PromotionRow />}
-          <div className="learn-words">
+          {/* Said as each step comes, as the count is: Next keeps the focus */}
+          <div className="learn-words" aria-live="polite">
             <p className="learn-line">{step.line}</p>
             {step.note && <p className="learn-note">{step.note}</p>}
           </div>

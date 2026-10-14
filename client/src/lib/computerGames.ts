@@ -33,9 +33,11 @@ export function loadComputerGame(gameId: string): ComputerGame | null {
     if (raw) {
       const parsed: unknown = JSON.parse(raw);
       if (isGame(parsed, gameId)) return parsed;
+      // The only copy of a game, unreadable: say so (the page says only that there is none)
+      console.warn(`The stored game ${gameId} is not one this page can read.`, parsed);
     }
-  } catch {
-    // Unreadable or refused: no game
+  } catch (cause) {
+    console.warn(`The stored game ${gameId} could not be read.`, cause);
   }
   return null;
 }
