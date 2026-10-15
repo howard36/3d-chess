@@ -137,6 +137,7 @@ const hudRects = (page: Page) =>
         document.querySelector('[data-testid="captured-pieces"] [data-side="them"]'),
       ),
       rect('how to play', document.querySelector('.hud-learn')),
+      rect('home', document.querySelector('.hud-home')),
       // In sight once the game is over (while it is on, only in the page for a screen reader)
       rect(
         'move history',
@@ -157,8 +158,8 @@ const meet = (a: ScreenRect, b: ScreenRect, gap = 0) =>
  * What is wrong at this size, in words (nothing when all is well): a HUD rect
  * over a piece or label of the tower, the captured pieces out of the window,
  * outside the pill's width where they hang under it, or too close to each
- * other, and the way to the tutorial missing, out of the window or meeting
- * the rest of the HUD.
+ * other, and the way home or to the tutorial missing, out of the window or
+ * meeting the rest of the HUD.
  */
 async function problemsAt(page: Page, width: number, height: number) {
   await page.setViewportSize({ width, height });
@@ -206,14 +207,17 @@ async function problemsAt(page: Page, width: number, height: number) {
     }
   }
   if (hauls.length === 2 && meet(hauls[0], hauls[1], 3)) problems.push('the captures meet');
-  // The way to the tutorial stands clear of the rest of the HUD, and in the window
-  const learn = hud.find((r) => r.what === 'how to play');
-  if (!learn) problems.push('no way to the tutorial');
-  else {
-    if (learn.left < 0 || learn.right > width) problems.push('how to play runs out of the window');
-    for (const h of hud)
-      if (h !== learn && meet(learn, h, 4)) problems.push(`how to play meets the ${h.what}`);
-  }
+  // The ways home and to the tutorial stand clear of the rest of the HUD, and in the window
+  const corners = ['home', 'how to play'].map((what) => {
+    const corner = hud.find((r) => r.what === what);
+    if (!corner) problems.push(`no ${what}`);
+    else {
+      if (corner.left < 0 || corner.right > width) problems.push(`${what} runs out of the window`);
+      for (const h of hud)
+        if (h !== corner && meet(corner, h, 4)) problems.push(`${what} meets the ${h.what}`);
+    }
+    return corner;
+  });
   // The move history (once a move is played), in the window and clear of the rest of the HUD
   const moves = hud.find((r) => r.what === 'move history');
   if (moves) {
@@ -221,7 +225,7 @@ async function problemsAt(page: Page, width: number, height: number) {
       problems.push('the move history runs out of the window');
     }
     for (const h of hud)
-      if (h !== moves && h !== learn && meet(moves, h, 4)) {
+      if (h !== moves && !corners.includes(h) && meet(moves, h, 4)) {
         problems.push(`the move history meets the ${h.what}`);
       }
   }
@@ -274,10 +278,9 @@ for (const seat of ['white', 'black'] as const) {
     await page.keyboard.press('Home');
     await expect(page.getByTestId('move-history')).toHaveAttribute('data-viewing-ply', '0');
     expect(await everywhere()).toEqual([]);
-    // ...and the game reviewed, the player on a marked move: each side's
-    // marks at the top of the list, the better move under it (beside the
-    // tower), the mark beside the move shown (under it)
-    await page.getByTestId('analyse').click();
+    // ...and the game reviewed (the step back began it), the player on a
+    // marked move: each side's marks at the top of the list, the better move
+    // under it (beside the tower), the mark beside the move shown (under it)
     await expect(page.getByTestId('move-history')).toHaveAttribute('data-analysis', 'done', {
       timeout: 30_000,
     });

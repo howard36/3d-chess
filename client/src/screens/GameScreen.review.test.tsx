@@ -223,15 +223,17 @@ describe('stepping back through a finished game', () => {
 });
 
 describe('the review of a finished game', () => {
-  it('comes on asking, each move marked as its positions are done, the better move on the board', async () => {
+  it("comes with the result card's Review, each move marked as its positions are done, the better move on the board", async () => {
     searched.length = 0;
     render(gameScreenAt(fakeSocket([resigned])));
     await boardMounted();
-    await closeResult();
     // Nothing searched until asked
     expect(searched).toEqual([]);
     expect(board().betterMove).toBeNull();
-    await userEvent.click(screen.getByTestId('analyse'));
+    await userEvent.click(screen.getByRole('button', { name: 'Review' }));
+    // The card goes, and the focus lands on the move shown
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.querySelector('[data-ply="3"]')).toHaveFocus();
     await vi.waitFor(() => expect(nav()).toHaveAttribute('data-analysis', 'done'));
     // Every position, the one the players ended it in too
     expect(searched).toEqual([0, 1, 2, 3]);
@@ -249,9 +251,25 @@ describe('the review of a finished game', () => {
     expect(screen.queryByTestId('best-move')).toBeNull();
   });
 
+  it('begins with a step back through the record once the card is put away', async () => {
+    searched.length = 0;
+    render(gameScreenAt(fakeSocket([resigned])));
+    await boardMounted();
+    await closeResult();
+    // Put away, the card asks for nothing; the rematch below the tower is all
+    expect(searched).toEqual([]);
+    expect(nav()).not.toHaveAttribute('data-analysis');
+    expect(screen.queryByRole('button', { name: 'Review' })).toBeNull();
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    await vi.waitFor(() => expect(nav()).toHaveAttribute('data-analysis', 'done'));
+    expect(searched).toEqual([0, 1, 2, 3]);
+  });
+
   it('is not offered while the game is on', async () => {
     render(gameScreenAt(fakeSocket([snapshot])));
     await boardMounted();
-    expect(screen.queryByTestId('analyse')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Review' })).toBeNull();
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    expect(nav()).not.toHaveAttribute('data-analysis');
   });
 });

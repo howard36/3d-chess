@@ -2417,7 +2417,7 @@ async function reviewSection(browser) {
     'review',
     {
       title: 'Reviewing a finished game',
-      intro: `A player asks for the review of a game just over: the ${plies} plies of the tactical game the move-latency section plays (real play, captures by both sides), after which White resigns. Black’s page opens the finished game in a new browser profile (${VIEWPORTS.desktop.label}), closes the result card and clicks “Analyse”. The review searches each of the ${plies + 1} positions with a fixed node budget in the computer’s worker(s), so its marks are the same on any machine; they are recorded and checked to be the same in every run. Each cell is the median of ${CFG.reviewRuns} run(s); \`raw\` has every run. ${SW_NOTE}`,
+      intro: `A player asks for the review of a game just over: the ${plies} plies of the tactical game the move-latency section plays (real play, captures by both sides), after which White resigns. Black’s page opens the finished game in a new browser profile (${VIEWPORTS.desktop.label}), clicks the result card’s “Review”. The review searches each of the ${plies + 1} positions with a fixed node budget in the computer’s worker(s), so its marks are the same on any machine; they are recorded and checked to be the same in every run. Each cell is the median of ${CFG.reviewRuns} run(s); \`raw\` has every run. ${SW_NOTE}`,
       columns: ['Metric', 'Value', 'Notes'],
       align: ['l', 'r', 'l'],
       timeoutMs: QUICK ? 180000 : 420000,
@@ -2434,7 +2434,6 @@ async function reviewSection(browser) {
           await game.seats.black.close();
           const { page } = await openSeat(browser, scope, 'desktop', game.gameId, 'black');
           await waitBoard(page);
-          await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
           await quietMain(page);
           // Click to every mark in, timed in the page on the bench's clock (the
           // long tasks' too): the click and each change of the review
@@ -2443,7 +2442,7 @@ async function reviewSection(browser) {
             b.review = { clicked: null, half: null, done: null, stopped: false };
             const list = document.querySelector('[data-testid="move-history"]');
             document
-              .querySelector('[data-testid="analyse"]')
+              .querySelector('[data-testid="review"]')
               .addEventListener('click', () => (b.review.clicked = window.__benchNow()), {
                 capture: true,
               });
@@ -2459,7 +2458,7 @@ async function reviewSection(browser) {
               if (state === 'stopped') b.review.stopped = true;
             }).observe(list, { attributes: true, subtree: true });
           });
-          await page.getByTestId('analyse').click();
+          await page.getByTestId('review').click();
           await page.waitForFunction(
             () => window.__bench.review.done != null || window.__bench.review.stopped,
             null,
@@ -2492,8 +2491,8 @@ async function reviewSection(browser) {
       const med = (k) => median(raw.review.map((x) => x[k]));
       const row = (label, k, note = '') => [[label, fmtMs(med(k)), note], metric(med(k)), label];
       sec.addAll([
-        row('“Analyse” clicked → every mark in', 'done', `${plies + 1} positions`),
-        row('“Analyse” clicked → half the positions done', 'half'),
+        row('“Review” clicked → every mark in', 'done', `${plies + 1} positions`),
+        row('“Review” clicked → half the positions done', 'half'),
         row('longest page freeze during the review', 'longest'),
         row('page freezes in total during the review', 'ltTotal'),
       ]);

@@ -196,7 +196,7 @@ it('plays again at once after the game: the same level, the colours swapped', as
   });
   render(at('g7'));
   expect(await screen.findByRole('dialog', { name: 'You lose' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Review' })).toBeInTheDocument();
   const rematch = screen.getByRole('button', { name: 'Rematch' });
   expect(rematch).toHaveFocus();
   await userEvent.click(rematch);

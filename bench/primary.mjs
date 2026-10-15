@@ -92,7 +92,7 @@ export const PRIMARY = [
     tier: 'browser',
     section: 'review',
     where: 'Reviewing a finished game',
-    what: '“Analyse” clicked → every mark in',
+    what: '“Review” clicked → every mark in',
   },
   {
     moment: 'The player’s move appears',

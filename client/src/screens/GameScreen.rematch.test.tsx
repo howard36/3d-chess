@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameSocket } from '../hooks/useGameSocket';
@@ -64,15 +64,19 @@ describe('GameScreen: a rematch against a friend', () => {
   beforeEach(() => localStorage.setItem('3dchess:role:OLD123', 'white'));
   afterEach(() => localStorage.clear());
 
-  it('offers one from the result card, with the way home under it', () => {
+  it('offers one from the result card, with the review under it and the way home at the top', () => {
     const send = vi.fn(() => true);
     render(pageFor(fakeSocket([over()], send)));
-    expect(screen.getByRole('dialog', { name: 'You lose' })).toBeInTheDocument();
+    const card = screen.getByRole('dialog', { name: 'You lose' });
     expect(screen.queryByRole('button', { name: 'Play again' })).not.toBeInTheDocument();
     expect(go()).toHaveAccessibleName('Rematch');
     expect(go()).toHaveFocus();
+    expect(within(card).getByRole('button', { name: 'Review' })).toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: 'Home' })).toBeNull();
     act(() => go().click());
     expect(send).toHaveBeenCalledWith({ type: 'offer_rematch' });
+    // Behind the card, the board screen's own way home
+    act(() => screen.getByRole('button', { name: 'Close' }).click());
     act(() => screen.getByRole('button', { name: 'Home' }).click());
     expect(screen.getByTestId('home')).toBeInTheDocument();
   });
@@ -99,17 +103,28 @@ describe('GameScreen: a rematch against a friend', () => {
     expect(send).toHaveBeenLastCalledWith({ type: 'accept_rematch' });
     act(() => screen.getByRole('button', { name: 'Decline' }).click());
     expect(send).toHaveBeenLastCalledWith({ type: 'decline_rematch' });
-    expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review' })).toBeInTheDocument();
   });
 
-  it('turns to the way home once its own offer is declined', () => {
+  it('turns to the review once its own offer is declined', () => {
     render(pageFor(fakeSocket([over({ by: 'white', declined: true })])));
     expect(screen.getByTestId('rematch-declined')).toHaveTextContent('Rematch declined');
-    expect(go()).toHaveAccessibleName('Home');
+    expect(go()).toHaveAccessibleName('Review');
+    expect(go()).toHaveFocus();
     expect(screen.getByTestId('rematch-announcer')).toHaveTextContent('Rematch declined.');
-    expect(screen.getAllByRole('button', { name: 'Home' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Review' })).toHaveLength(1);
     act(() => go().click());
-    expect(screen.getByTestId('home')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('keeps the review below the tower once declined, until it has begun', () => {
+    render(pageFor(fakeSocket([over({ by: 'white', declined: true })])));
+    act(() => screen.getByRole('button', { name: 'Close' }).click());
+    expect(go()).toHaveAccessibleName('Review');
+    act(() => go().click());
+    // Begun: only the refusal stays below the tower
+    expect(screen.queryByTestId('rematch-go')).toBeNull();
+    expect(screen.getByTestId('rematch-declined')).toBeInTheDocument();
   });
 
   it("offers one again after declining the opponent's", () => {

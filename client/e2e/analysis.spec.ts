@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 import { waitForIntro } from './helpers/board';
 import { openStandInGame } from './helpers/standIn';
 
-// A finished game's review: nothing until "Analyse", then each position
+// A finished game's review: nothing until "Review", then each position
 // searched in the computer's worker (a node budget, so the same marks on any
 // machine), the marks in the list, and on a marked move the better move on
 // the board and named under the list; in a narrow window, the mark beside
@@ -36,10 +36,10 @@ test('a finished game is reviewed on asking: its blunders marked, the better mov
   await openStandInGame(page, 'white', 'REVIEWED', MATE);
   await waitForIntro(page);
   const history = page.getByTestId('move-history');
-  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
   await expect(history).not.toHaveAttribute('data-analysis');
 
-  await page.getByTestId('analyse').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Review' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(history).toHaveAttribute('data-analysis', /running|done/);
   await expect(history).toHaveAttribute('data-analysis', 'done', { timeout: 30_000 });
   // Black's queen into a capture, and White letting it go into a mate in one

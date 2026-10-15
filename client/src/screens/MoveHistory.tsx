@@ -7,11 +7,15 @@ import { sideName } from '../game/sides';
 import { GRADE_GLYPH, GRADES } from '../game/analysis';
 import type { Grade, GradeCounts } from '../game/analysis';
 import type { Turn } from '../game/history';
+import { focusFromCode } from '../lib/focus';
 import { Stone } from './TurnPill';
 
 /** The game's review, once the game is over (screens/useAnalysis.ts). */
 export interface HistoryAnalysis {
-  /** Not asked for yet ("Analyse"), under way, done, or stopped short ("Retry"). */
+  /**
+   * Not begun yet ("Review", or a step through the record, begins it), under
+   * way, done, or stopped short ("Retry").
+   */
   state: 'idle' | 'running' | 'done' | 'stopped';
   /** Positions done, of `total`. */
   done: number;
@@ -21,7 +25,8 @@ export interface HistoryAnalysis {
   counts: GradeCounts;
   /** The best move where the move shown was played, when the move shown is marked. */
   best: Pick<MoveRecord, 'from' | 'to' | 'promotion'> | null;
-  onAnalyse: () => void;
+  /** Goes on with a review that stopped short, from the positions it has. */
+  onRetry: () => void;
 }
 
 export interface MoveHistoryProps {
@@ -45,8 +50,13 @@ export interface MoveHistoryProps {
    * screen readers, and takes no step. It comes into sight with the result.
    */
   hidden?: boolean;
-  /** The review of the game (in sight with the record): the way to ask for it, then its marks. */
+  /** The review of the game (in sight with the record): its marks, as they come. */
   analysis?: HistoryAnalysis;
+  /**
+   * Counts the player's asks for the review (the result card's "Review"):
+   * each new one opens the list and puts the focus on the move shown.
+   */
+  reviewAsked?: number;
 }
 
 /** Moves a block of the list holds (an even number: a row is two moves). */
@@ -191,6 +201,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
   ended = false,
   hidden = false,
   analysis,
+  reviewAsked = 0,
 }) => {
   // Where the window has room the list is always open; where it has not,
   // it opens on asking (never while the game is on)
@@ -259,6 +270,18 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
   // thousands of buttons, which come a moment later (a deferred render), above
   const whole = React.useDeferredValue(true, false);
 
+  // Asked for the review: the list open, and the focus on the move shown
+  // once it is (by the layout effect after this one, in the same commit
+  // where the list was open already)
+  const focusAsked = React.useRef(false);
+  React.useLayoutEffect(() => {
+    if (reviewAsked === 0) return;
+    focusAsked.current = true;
+    // Where the window has room the list is open already
+    if (narrow) setAsked(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- on the ask alone
+  }, [reviewAsked]);
+
   // The shown move kept in view in the list (the latest, as moves land),
   // and focus kept on it while it is in the list
   const list = React.useRef<HTMLOListElement>(null);
@@ -278,8 +301,13 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
     else if (top + button.offsetHeight + pad > ol.scrollTop + ol.clientHeight) {
       ol.scrollTop = top + button.offsetHeight + pad - ol.clientHeight;
     }
-    if (ol.contains(document.activeElement) && document.activeElement !== button) button.focus();
-  }, [shown, moves.length, open, whole]);
+    if (focusAsked.current) {
+      focusAsked.current = false;
+      focusFromCode(button, { preventScroll: true });
+    } else if (ol.contains(document.activeElement) && document.activeElement !== button) {
+      button.focus();
+    }
+  }, [shown, moves.length, open, whole, reviewAsked]);
 
   const blocks = [];
   for (let start = 0; start < moves.length; start += BLOCK) {
@@ -359,17 +387,8 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
         best ? `${best.from}-${best.to}${best.promotion ? `=${best.promotion}` : ''}` : undefined
       }
     >
-      {/* The review: the way to ask for it, then each side's marks as they come */}
-      {open && analysis && (
-        <ReviewHead
-          analysis={analysis}
-          // The button goes as the review starts: focus on to the move shown
-          onAnalyse={() => {
-            list.current?.querySelector<HTMLElement>('[data-ply][tabindex="0"]')?.focus();
-            analysis.onAnalyse();
-          }}
-        />
-      )}
+      {/* The review, once begun: each side's marks as they come */}
+      {open && analysis && analysis.state !== 'idle' && <ReviewHead analysis={analysis} />}
       <ol
         id="move-list"
         ref={list}
@@ -432,20 +451,11 @@ const plural = (n: number, grade: Grade) =>
   n === 1 ? `1 ${grade}` : `${n === 0 ? 'no' : n} ${GRADE_PLURAL[grade]}`;
 
 /**
- * The top of the list once the game is over: "Analyse" until the review is
- * asked for, then each side's marks counted by grade, a thin bar under them
- * filling as the review goes, or "Retry" should it stop short.
+ * The top of the list once the review has begun: each side's marks counted
+ * by grade, a thin bar under them filling as the review goes, or "Retry"
+ * should it stop short.
  */
-function ReviewHead({ analysis, onAnalyse }: { analysis: HistoryAnalysis; onAnalyse: () => void }) {
-  if (analysis.state === 'idle') {
-    return (
-      <div className="hud-review">
-        <button type="button" className="hud-analyse" data-testid="analyse" onClick={onAnalyse}>
-          Analyse
-        </button>
-      </div>
-    );
-  }
+function ReviewHead({ analysis }: { analysis: HistoryAnalysis }) {
   return (
     <div className="hud-review" data-testid="analysis-counts">
       {SIDES.map((side) => {
@@ -469,8 +479,13 @@ function ReviewHead({ analysis, onAnalyse }: { analysis: HistoryAnalysis; onAnal
       })}
       {analysis.state === 'stopped' && (
         <p className="hud-stopped" role="status">
-          Analysis stopped{' '}
-          <button type="button" className="hud-analyse" data-testid="analyse" onClick={onAnalyse}>
+          Review stopped{' '}
+          <button
+            type="button"
+            className="hud-retry"
+            data-testid="retry"
+            onClick={analysis.onRetry}
+          >
             Retry
           </button>
         </p>
@@ -479,7 +494,7 @@ function ReviewHead({ analysis, onAnalyse }: { analysis: HistoryAnalysis; onAnal
         <div
           className="hud-progress"
           role="progressbar"
-          aria-label="Analysing"
+          aria-label="Reviewing"
           aria-valuemin={0}
           aria-valuemax={analysis.total}
           aria-valuenow={analysis.done}

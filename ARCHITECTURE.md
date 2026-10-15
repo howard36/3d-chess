@@ -245,9 +245,11 @@ Key decisions:
   page, and drops the ones no finger accounts for, so a lone finger always turns the view
   (`e2e/touchCamera.spec.ts` loses a finger's pointer-up through real touch input).
 - **HUD.** Quiet by default: a glass **turn pill** at the top centre (across the row on a phone held upright,
-  from a 12 px gutter at the left to the way to the tutorial at the right), a quiet "How to
-  play" at the top right ("?" in a narrow window), the move history once the game is over
-  (below), and nothing else unless something needs saying.
+  from the way home at the left to the way to the tutorial at the right), a quiet "← Home"
+  at the top left (the start page; "←" alone in a circle in a narrow window or a short one,
+  where the pill stands beside it), a quiet "How to play" at the top right ("?" in a narrow
+  window), the move history once the game is over (below), and nothing else unless something
+  needs saying. Home leaves the game as it is: its address brings the player back to the seat.
   The pill's left half is the player and its right half the opponent, each with a small stone in its army's
   material (porcelain, charcoal); the half of the side to move is lit, its stone ringed in
   light ("Your move" / "Their move"); check is shown on the board, not here. An opponent with no
@@ -258,20 +260,23 @@ Key decisions:
   checkmate", "White resigned", "by stalemate", "by repetition", "by the 50-move rule", "by
   agreement"); `data-result` is `checkmate`, `resignation`, `stalemate`, `repetition`,
   `fifty-moves` or `agreement`, and the board takes no more input. The card's call to
-  action, which has the focus, is "Rematch", with "Home" (the start page) quieter under it
-  (`Rematch` in `screens/EndGameModal.tsx`), against the computer and a friend alike. A
+  action, which has the focus, is "Rematch", with "Review" (an outlined pill: the game's
+  review, see below) quieter under it (`Rematch` in `screens/EndGameModal.tsx`), against the
+  computer and a friend alike; the way home is the HUD's, at the top left, not the card's. A
   rematch is a new game with the colours swapped. Against the computer it starts at once,
   at the same level (`ComputerGameScreen`'s `onRematch`, made as the side choice makes a
   game; the computer sits down as its page opens). Against a friend it is offered and
   answered like a draw: the button follows the offer, one element throughout so the focus
   stays on it: "Rematch offered" (waiting, not pressed) while the player's own stands,
-  "Accept rematch" with "Decline" beside "Home" under it for the opponent's, and "Home",
-  under "Rematch declined", once the player's own was declined. Accepted, both
+  "Accept rematch" with "Decline" under it for the opponent's, and "Review" (plain, the
+  card's one button), under "Rematch declined", once the player's own was declined. Accepted, both
   players' pages open the new game at once (the seat stored as a joined one is, the router's
   state asking for the whole entrance); a finished game opened after its rematch began says
-  "Join rematch" instead. The same buttons stand below the tower once the card is put away
-  (`RematchBar`), side by side, the quieter one over the pill where the room beside the
-  history's steps holds the pill alone; `rematch-announcer` says an offer and a refusal.
+  "Join rematch" instead. The rematch's buttons stand below the tower once the card is put
+  away (`RematchBar`), side by side, "Decline" over the pill where the room beside the
+  history's steps holds the pill alone (and once declined, "Review" until the review has
+  begun, then the refusal alone); there the review is begun by a step through the record;
+  `rematch-announcer` says an offer and a refusal.
   While the game is on, a
   flag in a circle stands under the way to the tutorial at the right (`screens/GameActions.tsx`,
   `.hud-game`, in one column with the move history, which takes its place once the game is over, `.hud-side`: below the HUD's band, but in every window shape where the window is empty
@@ -340,16 +345,19 @@ Key decisions:
   and a game ended by a resignation or an agreed draw is stepped through like one ended on
   the board, the board taking no input at its end either. (While the result card is up,
   nothing steps: it is a dialog.)
-  At the top of the list stands **"Analyse"**, a game's review on asking (never on its own:
-  it would cost a phone's battery), against a friend or the computer alike
-  (`screens/useAnalysis.ts`). Each position from the start on is searched in the computer's
-  workers, several at once and handed out from the start (see Playing the computer), and the
-  position a game ended in on the board (a mate, a draw) needs none. Should a search fail, or
-  the search's code fail to load, the review stops short and says so ("Analysis stopped",
-  with "Retry", which goes on from the positions already found). As each is done its moves are marked, a glyph after
+  **The review** is one thing, looking back and the engine's marks together, against a
+  friend or the computer alike (`screens/useAnalysis.ts`): the result card's **"Review"**
+  puts the card away, opens the list (in a narrow window too) with the focus on the move
+  shown, and begins it; with the card put away, the first step through the record begins it.
+  It never begins on its own (it would cost a phone's battery), and there is no other button
+  for it. Each position from the start on is searched in the computer's workers, several at
+  once and handed out from the start (see Playing the computer), and the position a game
+  ended in on the board (a mate, a draw) needs none. Should a search fail, or the search's
+  code fail to load, the review stops short and says so ("Review stopped", with "Retry",
+  which goes on from the positions already found). As each is done its moves are marked, a glyph after
   the move in the list, "?!" an inaccuracy, "?" a mistake and "??" a blunder (pale blue,
-  orange and red, but the glyph says which; a screen reader hears the grade), and the button
-  gives way to each side's marks counted by grade (its stone, then "?! 2 ? 0 ?? 1"), a
+  orange and red, but the glyph says which; a screen reader hears the grade), and the list's
+  top shows each side's marks counted by grade (its stone, then "?! 2 ? 0 ?? 1"), a
   thin bar under them filling as the review goes. Where the move shown is marked, the board
   draws the better move beside it (see The board) and the panel names it under the list
   ("Best Bc1–Cc2", beside a stroke of the line's amber); an unmarked move shows nothing
@@ -463,12 +471,12 @@ Key decisions:
   in its rim (`.landing-mode`, `.lobby-glass`: the ways to play, the sides, the levels);
   a screen's main action is the pill of starlight (`screens/PlayButton.tsx`); a secondary
   action is an outlined pill (`.button-secondary`, a size down as `.button-small`: "How to
-  play" on the start page, "Play here", Retry, the tutorial's Next); a word that goes back
-  or cancels is a quiet link (`.button-link`: "← Home", "How to play" in a game, Cancel,
-  Start over, the result's Decline and Home); a glyph alone is `.button-icon` (the result card's and an error's ✕). The
+  play" on the start page, "Play here", Retry, the tutorial's Next, the result's Review); a word that goes back
+  or cancels is a quiet link (`.button-link`: "← Home", in a game too, "How to play" in a
+  game, Cancel, Start over, the result's Decline); a glyph alone is `.button-icon` (the result card's and an error's ✕). The
   pill wears the turning rim of the level colours (`rim`) only where it stands alone on the scene and urges a
   game on: "Join game", the way on from a game taken or gone, the result's "Rematch" (and its
-  answers; plain once it turns to "Home"). In a card of
+  answers; plain once it turns to "Review"). In a card of
   the rimmed glass ("Copy link") it is plain, one rim to an object, and the 404 page's
   Home goes without. A rimmed card holds more than one thing: a heading and one button
   stand on the page alone. Every turning rim, the pill's and the tiles', is painted by
@@ -1206,7 +1214,7 @@ the way a person does; its own moves this turn are always all considered.
 Measured by self-play (`chooseMove`, alternating colours): Easy beat a random mover 6–0,
 Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking time.
 
-**A finished game's review** ("Analyse", see HUD) asks workers of its own, one fewer than
+**A finished game's review** ("Review", see HUD) asks workers of its own, one fewer than
 the machine's cores and at most three, one position each at a time, handed out from the
 start (`analyse` in `ai/computer.ts`, `analysePosition` in `ai/choose.ts`), so the marks come
 in from the first move on and the page's going stops it; each position is a search of its
@@ -1436,7 +1444,7 @@ in the report and exits 1.
 **The primary rows** (`bench/primary.mjs`) are one number for each moment a player waits
 on (CLAUDE.md "Performance"): the start page usable and answering its first click, a shared
 game's first screen, the first board frame (joining a game, playing the computer), a long
-game reopened, a finished game's review (from "Analyse" to every mark in, its marks checked
+game reopened, a finished game's review (from "Review" to every mark in, its marks checked
 the same in every run), a move landing (the player's and the opponent's), a piece selected,
 and the computer's search speed (at a fixed time a move, speed is strength). Each runs from the
 player's action (a click, a navigation, the opponent's send) to what the player sees,

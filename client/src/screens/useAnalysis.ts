@@ -54,7 +54,8 @@ const reviewWorkers = () =>
     : Math.max(1, Math.min(3, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1));
 
 /**
- * A finished game's review, asked for by the player ("Analyse"): each
+ * A finished game's review, asked for by the player ("Review", or a step
+ * through the record): each
  * position from the start on is searched in the computer's workers
  * (ai/computer.ts, analyse), several at once, handed out from the start, so
  * the marks come in from the first move on and the page never waits; the
