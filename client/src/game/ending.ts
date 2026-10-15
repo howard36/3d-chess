@@ -1,7 +1,8 @@
 // How the players themselves end a game, derived from the socket's message
 // log alongside the replayed record (history.ts): a resignation or an agreed
 // draw, and the draw offer standing between them (and, the same way, a
-// player's request to take back a move).
+// player's request to take back a move), and once the game is over, the
+// offer of a rematch.
 //
 // Like the moves, both come from the LATEST game_state snapshot plus the
 // messages after it. Each draw message names the ply it was made at, and an
@@ -89,6 +90,49 @@ export function selectTakebackRequest(
   plies: number,
 ): DrawOfferState {
   return selectAsk(messages, plies, 'takebackRequest', 'takeback_requested', 'takeback_declined');
+}
+
+export interface RematchState {
+  /** Who offered the rematch that stands now, if one does. */
+  standing: Color | null;
+  /** Whose rematch offer was declined, if one was (they cannot offer another). */
+  declined: Color | null;
+  /** The rematch's game, once it was accepted (each player holds the other colour there). */
+  gameId: string | null;
+  /** It was accepted while this page held the game (a rematch_started), not before. */
+  live: boolean;
+}
+
+/**
+ * The rematch offered once the game is over, from the log: who offered it,
+ * whose offer was declined, or the new game it began. Unlike a draw offer it
+ * names no ply: it stands until it is answered.
+ */
+export function selectRematch(messages: readonly WebSocketMessage[]): RematchState {
+  const { snapshot, after } = sinceSnapshot(messages);
+  const kept = snapshot?.rematch;
+  let offer: Color | null = kept?.by ?? null;
+  let declined = !!kept?.declined;
+  let gameId = kept?.gameId ?? null;
+  let live = false;
+  // Oldest first (`after` runs newest first)
+  for (let i = after.length - 1; i >= 0; i--) {
+    const m = after[i];
+    if (m.type === 'rematch_offered') {
+      offer = m.by;
+      declined = false;
+    } else if (m.type === 'rematch_declined') declined = true;
+    else if (m.type === 'rematch_started') {
+      gameId = m.gameId;
+      live = true;
+    }
+  }
+  return {
+    standing: offer && !declined && !gameId ? offer : null,
+    declined: offer && declined && !gameId ? offer : null,
+    gameId,
+    live,
+  };
 }
 
 /** A draw offer or a take-back request since the last move, from the log. */

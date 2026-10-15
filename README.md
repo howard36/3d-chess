@@ -6,7 +6,7 @@ Chess in three dimensions, on a 5×5×5 board.
 
 **[Play at 3dchess.club →](https://3dchess.club)**
 
-- **Against a friend:** pick a side and send them the game's link
+- **Against a friend:** pick a side and send them the game's link; afterwards, a rematch swaps the colours
 - **Against the computer:** Easy, Medium or Hard, running in your browser
 - **[Tutorial](https://3dchess.club/learn):** a short lesson on each piece's moves
 

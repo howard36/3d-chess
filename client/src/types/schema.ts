@@ -28,6 +28,12 @@ export type WebSocketV1MessageEnvelope =
   | DeclineTakeback
   | TakebackRequested
   | TakebackDeclined
+  | OfferRematch
+  | AcceptRematch
+  | DeclineRematch
+  | RematchOffered
+  | RematchDeclined
+  | RematchStarted
   | GameEnded
   | Presence
   | Error;
@@ -53,7 +59,8 @@ export type ErrorCode =
   | "seat_in_use"
   | "game_over"
   | "invalid_draw"
-  | "invalid_takeback";
+  | "invalid_takeback"
+  | "invalid_rematch";
 
 export interface CreateGame {
   type: "create_game";
@@ -114,6 +121,7 @@ export interface GameState {
   ending?: Ending;
   drawOffer?: DrawOffer;
   takebackRequest?: TakebackRequest;
+  rematch?: Rematch;
 }
 export interface MoveRecord {
   by: Color;
@@ -152,6 +160,20 @@ export interface TakebackRequest {
    * The opponent declined it. A take-back can be asked for once per move.
    */
   declined?: boolean;
+}
+/**
+ * The latest rematch offer, if any: standing, declined, or accepted (with the new game's id).
+ */
+export interface Rematch {
+  by: Color;
+  /**
+   * The opponent declined it. The same player cannot offer another; the opponent still can.
+   */
+  declined?: boolean;
+  /**
+   * The opponent accepted it: the new game, where each player holds the other colour.
+   */
+  gameId?: string;
 }
 export interface Move {
   type: "move";
@@ -239,6 +261,45 @@ export interface TakebackDeclined {
   type: "takeback_declined";
   by: Color;
   ply: number;
+}
+/**
+ * The sender offers the opponent a new game, colours swapped. If the opponent's offer stands, it accepts that one.
+ */
+export interface OfferRematch {
+  type: "offer_rematch";
+}
+/**
+ * The sender accepts the opponent's standing rematch offer. Both players are then sent rematch_started.
+ */
+export interface AcceptRematch {
+  type: "accept_rematch";
+}
+/**
+ * The sender declines the opponent's standing rematch offer.
+ */
+export interface DeclineRematch {
+  type: "decline_rematch";
+}
+/**
+ * To both players: `by` offered a rematch.
+ */
+export interface RematchOffered {
+  type: "rematch_offered";
+  by: Color;
+}
+/**
+ * To both players: `by` declined the opponent's rematch offer.
+ */
+export interface RematchDeclined {
+  type: "rematch_declined";
+  by: Color;
+}
+/**
+ * To both players: the rematch was accepted. `gameId` is the new game, both seats taken, each player holding the other colour; each rejoins it.
+ */
+export interface RematchStarted {
+  type: "rematch_started";
+  gameId: string;
 }
 /**
  * To both players: the game ended by resignation or agreement. No move, offer or resignation is accepted after it.

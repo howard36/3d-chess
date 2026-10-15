@@ -12,6 +12,7 @@ import type { Move } from '../engine';
 import type { GameHistory } from '../game/history';
 import type { Color } from '../types/messages';
 import EndGameModal, { NewGameBar } from './EndGameModal';
+import type { RematchProps } from './EndGameModal';
 import PromotionPicker from './PromotionPicker';
 import TurnPill from './TurnPill';
 import CapturedPieces from './CapturedPieces';
@@ -73,6 +74,8 @@ export interface GameViewProps {
    * against the computer, taking a move back too.
    */
   actions?: Omit<GameActionsProps, 'seat'>;
+  /** A friend's game: the rematch, offered once the game is over (instead of "Play again"). */
+  rematch?: RematchProps;
   /**
    * The entrance (three/intro/timeline.ts): `full` for a game that starts
    * while the page is open, `short` for a page that opens on a game already
@@ -125,6 +128,7 @@ const GameView: React.FC<GameViewProps> = ({
   reconnectingBanner,
   alerts,
   actions,
+  rematch,
   intro = 'full',
   introPaused = false,
   onFirstFrame,
@@ -330,6 +334,15 @@ const GameView: React.FC<GameViewProps> = ({
                 ? 'Your opponent is online.'
                 : 'Your opponent is offline.'}
           </div>
+          {rematch && gameOver && (
+            <div className="sr-only" role="status" data-testid="rematch-announcer">
+              {rematch.state.standing
+                ? 'Rematch offered.'
+                : rematch.state.declined
+                  ? 'Rematch declined.'
+                  : ''}
+            </div>
+          )}
         </div>
       </div>
       {promotionChoices && !boardDisabled && (
@@ -351,13 +364,14 @@ const GameView: React.FC<GameViewProps> = ({
             winner={gameOver.winner}
             seat={color ?? 'white'}
             newGamePath={newGamePath}
+            rematch={rematch}
             onClose={() => setClosedEnd(gameOver)}
           />
         </div>
       )}
       {gameOver && showEndModal && !resultUp && (
         <div inert={replaced}>
-          <NewGameBar newGamePath={newGamePath} />
+          <NewGameBar newGamePath={newGamePath} rematch={rematch} />
         </div>
       )}
       {replacedNotice}

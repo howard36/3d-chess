@@ -24,6 +24,10 @@ export type {
   TakebackRequest,
   TakebackRequested,
   TakebackDeclined,
+  Rematch,
+  RematchOffered,
+  RematchDeclined,
+  RematchStarted,
   GameEnded,
 } from './schema';
 

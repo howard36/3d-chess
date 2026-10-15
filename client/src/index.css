@@ -1979,6 +1979,46 @@ body {
 .hud-result-go {
   margin-top: 18px;
 }
+/* A friend's game over: the rematch, and under it the way to a new game
+   (or the answer to the opponent's offer); below the tower, side by side */
+.hud-rematch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.hud-rematch-other {
+  margin-top: 8px;
+}
+.hud-rematch-note {
+  margin: 16px 0 -8px;
+  color: var(--hud-muted);
+  font-size: 13.5px;
+}
+.hud-rematch[data-bar] {
+  position: relative;
+  flex-direction: row;
+  gap: 8px;
+}
+.hud-rematch[data-bar] .hud-rematch-other,
+.hud-rematch[data-bar] .hud-rematch-note {
+  flex: none;
+  margin: 0;
+}
+.hud-rematch[data-bar] .hud-rematch-note {
+  order: 1;
+}
+/* Beside the steps under the tower, the room at the right holds the pill
+   alone: its other button stands over it */
+@media (max-aspect-ratio: 13/9) and (min-height: 481px) and (min-width: 560px) {
+  .hud-rematch[data-bar] .hud-rematch-other,
+  .hud-rematch[data-bar] .hud-rematch-note {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+}
 
 /* The way to the tutorial in a game: the top right corner, beside the
    pill's band (.hud-top keeps 60 px each side), its words where the window

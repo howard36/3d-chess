@@ -114,8 +114,8 @@ Key decisions:
   selection).
 - **Server = relay + durable move log.** Per game the server stores `{seats, moves}` (plus
   `claimants`, which client id claimed each seat, and once there are any, `ending`, a
-  resignation or an agreed draw, `drawOffer`, the latest draw offer, and `takebackRequest`,
-  the latest request to take back a move) in a `modal.Dict`
+  resignation or an agreed draw, `drawOffer`, the latest draw offer, `takebackRequest`,
+  the latest request to take back a move, and `rematch`, the latest offer of a rematch) in a `modal.Dict`
   (durable) and keeps live sockets in a plain in-process dict (ephemeral).
   A disconnect detaches the socket but leaves the game record intact; `rejoin_game`
   reclaims a seat and receives the full history in a `game_state` message.
@@ -128,7 +128,7 @@ Key decisions:
   `modal.Dict`'s awaiting `.aio` calls): the store operations
   in `modal_app.py` (`create_game`, `claim_seat`, `taken_seats`, `find_seat`, `record_move`,
   `resign`, `offer_draw`, `accept_draw`, `decline_draw`, `request_takeback`, `accept_takeback`,
-  `decline_takeback`) are
+  `decline_takeback`, `offer_rematch`, `accept_rematch`, `decline_rematch`) are
   synchronous functions, so nothing inside them can yield to the event loop; and the
   WebSocket handler never reads or writes the store itself, only passes it to those
   operations. `modal.Dict`'s calls block; never switch to the `.aio` variants.
@@ -254,7 +254,20 @@ Key decisions:
   agreed"), and the result card says "You win", "You lose" or "Draw" with how ("by
   checkmate", "White resigned", "by stalemate", "by repetition", "by the 50-move rule", "by
   agreement"); `data-result` is `checkmate`, `resignation`, `stalemate`, `repetition`,
-  `fifty-moves` or `agreement`, and the board takes no more input. While the game is on, a
+  `fifty-moves` or `agreement`, and the board takes no more input. The card's one call to
+  action, which has the focus, is "Play again" against the computer (its side choice) and
+  "Rematch" against a friend, with "New game" (the side choice, `/new`) quieter under it
+  (`Rematch` in `screens/EndGameModal.tsx`). The rematch is a new game with the colours
+  swapped, offered and answered like a draw: the button follows the offer, one element
+  throughout so the focus stays on it: "Rematch offered" (waiting, not pressed) while the
+  player's own stands, "Accept rematch" with "Decline" under it for the opponent's, and
+  "New game", under "Rematch declined", once the player's own was declined. Accepted, both
+  players' pages open the new game at once (the seat stored as a joined one is, the router's
+  state asking for the whole entrance); a finished game opened after its rematch began says
+  "Join rematch" instead. The same buttons stand below the tower once the card is put away
+  (`NewGameBar`), side by side, the quieter one over the pill where the room beside the
+  history's steps holds the pill alone; `rematch-announcer` says an offer and a refusal.
+  While the game is on, a
   flag in a circle stands under the way to the tutorial at the right (`screens/GameActions.tsx`,
   `.hud-game`, in one column with the move history, which takes its place once the game is over, `.hud-side`: below the HUD's band, but in every window shape where the window is empty
   beside the tower, which `hudFit.spec.ts` checks with the rest of the HUD). It opens a small
@@ -306,7 +319,7 @@ Key decisions:
   narrow glass panel at the right under "How to play" and the flag, in one column with them
   (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
   height to fit (the list scrolls, the move shown kept in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
-  in a row under the tower (above "Play again", or beside it in a window at least 560 px wide, where the tower fills the height and leaves room under it for one row), the move shown
+  in a row under the tower (above "Play again" or the rematch, or beside it in a window at least 560 px wide, where the tower fills the height and leaves room under it for one row), the move shown
   between them ("7… Ed4–Ba1"), which opens the list above them. Closed, the list is
   visually hidden, never `display: none`: it is how a screen reader reads the record, and
   a polite status says where the board stands as the player steps. A reopened game's list
@@ -336,7 +349,9 @@ Key decisions:
   (the live ply at the live position), with `data-review` away from it and `data-hidden`
   while the game is on; `game-actions` is the flag's corner, with `take-back` (the arrow),
   and `draw-pending`, `draw-declined`, `draw-offer`, `takeback-pending`, `takeback-declined`
-  and `takeback-offer` in it while they show. The browser tab follows the pill: while it is the seated player's
+  and `takeback-offer` in it while they show; `rematch` holds the result's buttons (with
+  `data-bar` below the tower), its call to action `rematch-go` with `data-state` (`none`,
+  `mine`, `theirs`, `declined`, `begun`), and `rematch-declined` the note. The browser tab follows the pill: while it is the seated player's
   move in a game under way (a friend's or the computer's), in view or not, the title is
   "● Your move · 3D Chess" and the icon is `public/favicon-turn.svg` (the favicon, the
   tower's five levels, with a gold dot); the page's own come back on the opponent's move,
@@ -492,6 +507,19 @@ Message flow, happy path:
    record keeps the latest request (`takebackRequest`, `{by, ply, declined?}`), which a
    `game_state` carries, and it stands and lapses as a draw offer does (`game/ending.ts`,
    `selectTakebackRequest`); the same refusals apply (`game_not_started`, `game_over`).
+8. A rematch, once the game is over: `offer_rematch` → `rematch_offered {by}` to both; the
+   opponent's `decline_rematch` → `rematch_declined {by}` (the side declining), or
+   `accept_rematch` (or an `offer_rematch` of their own: both asked) → a new game with both
+   seats taken, each player in the other colour (each tab's claim going with its player),
+   and `rematch_started {gameId}` to both, whose pages store the seat and rejoin it there. The
+   record keeps the latest offer (`rematch`, `{by, declined?, gameId?}`), which a
+   `game_state` carries, so a player who comes back to the finished game finds the offer
+   standing or the new game's id (`selectRematch` in `game/ending.ts`). It names no ply and
+   stands until answered. The server takes it once both seats are taken, ended or not (a
+   mate or a draw on the board is the clients' to see; the app offers it only once the game
+   is over), and refuses with `invalid_rematch` an offer while the sender's own stands or
+   after it was declined (the opponent may still offer one), an answer with no offer of the
+   opponent's standing, and anything once the rematch has begun.
 
 Coordinates on the wire use the display notation described below (e.g. `"Aa1"`).
 
@@ -606,7 +634,7 @@ level (`scene/fx.tsx`), the obsidian blades round him sink into the glass and ar
 the winning army hops in a wave out from him. The result card follows `onToppled` after a
 hold on the final board (`screens/useEndCard.ts`), in the middle of
 the screen. It can be closed (its close button, Escape, a click outside it) to turn and
-zoom the final position, with "Play again" left below the tower. From history he simply falls. The knock lands
+zoom the final position, with "Play again" (or the rematch) left below the tower. From history he simply falls. The knock lands
 85 ms before the mating piece comes to rest (its glide eases in so slowly that it looks
 landed by then), the pulse spreads at 4.5 world units a second, the wave sets off 370 ms
 after the king strikes and travels at 15, and the card follows 1.3 s after the strike
@@ -904,7 +932,7 @@ until the row fits the width).
   the pick or the coin's rest, while the others still fade, so the pick, the camera's
   move and the card run as one). A
   refusal puts the kings back with "Couldn't start a game: …". The end-game dialog's
-  "Play again" and the invitation's "Play a friend" lead here.
+  "New game" and the invitation's "Play a friend" lead here.
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
   `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
   breathing dot and "Waiting for your friend…" under it. The card under the kings, of

@@ -1,8 +1,22 @@
 import React from 'react';
 import { useNavigate } from 'react-router';
 import type { GameOver, Turn } from '../game/history';
+import type { RematchState } from '../game/ending';
 import { DRAW_BY, isDecisive, resultWords } from '../game/announce';
 import { Stone } from './TurnPill';
+
+/** A friend's game: the rematch offered between the players, and the sends. */
+export interface RematchProps {
+  state: RematchState;
+  /** This player's colour. */
+  seat: Turn;
+  /** Nothing can be sent (disconnected, not yet back in the game, another tab has the seat). */
+  disabled: boolean;
+  onOffer: () => void;
+  onAnswer: (accept: boolean) => void;
+  /** Opens the rematch's game. */
+  onJoin: () => void;
+}
 
 interface EndGameModalProps {
   result: GameOver['result'];
@@ -13,15 +27,18 @@ interface EndGameModalProps {
   onClose: () => void;
   /** Where "Play again" leads: the same kind of game's side choice (/new by default). */
   newGamePath?: string;
+  /** A friend's game: a rematch first, "New game" for the side choice. */
+  rematch?: RematchProps;
 }
 
 /**
  * The result, over the final position: "You win" or "You lose" by checkmate
  * or a resignation ("White resigned"), or a draw (by stalemate, repetition,
  * the 50-move rule or agreement), with the winner's stone lit. Its button, which has
- * focus, starts another game of the same kind: its side choice. It can be closed (its close
- * button, Escape, a click outside it) to study the final board, which keeps
- * that button below the tower (NewGameBar).
+ * focus, starts another game of the same kind: its side choice, or against a
+ * friend, a rematch (Rematch). It can be closed (its close button, Escape, a
+ * click outside it) to study the final board, which keeps its buttons below
+ * the tower (NewGameBar).
  */
 const EndGameModal: React.FC<EndGameModalProps> = ({
   result,
@@ -29,6 +46,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
   seat,
   onClose,
   newGamePath = '/new',
+  rematch,
 }) => {
   const navigate = useNavigate();
   const title = !isDecisive(result) ? 'Draw' : winner === seat ? 'You win' : 'You lose';
@@ -78,14 +96,18 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
         <p id="end-game-how" style={{ marginTop: 4 }}>
           {how}
         </p>
-        {/* The dialog takes focus: a keyboard player lands on its only action */}
-        <button
-          autoFocus
-          className="landing-play lobby-go hud-result-go"
-          onClick={() => navigate(newGamePath)}
-        >
-          Play again
-        </button>
+        {rematch ? (
+          <Rematch {...rematch} newGamePath={newGamePath} />
+        ) : (
+          // The dialog takes focus: a keyboard player lands on its only action
+          <button
+            autoFocus
+            className="landing-play lobby-go hud-result-go"
+            onClick={() => navigate(newGamePath)}
+          >
+            Play again
+          </button>
+        )}
       </div>
     </div>
   );
@@ -93,14 +115,105 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
 
 export default EndGameModal;
 
-/** Play again, below the tower, once the result card has been put away. */
-export const NewGameBar: React.FC<{ newGamePath?: string }> = ({ newGamePath = '/new' }) => {
+/** Play again (or the rematch), below the tower, once the result card has been put away. */
+export const NewGameBar: React.FC<{ newGamePath?: string; rematch?: RematchProps }> = ({
+  newGamePath = '/new',
+  rematch,
+}) => {
   const navigate = useNavigate();
   return (
     <div className="hud-new-game">
-      <button className="landing-play lobby-go" onClick={() => navigate(newGamePath)}>
-        Play again
-      </button>
+      {rematch ? (
+        <Rematch {...rematch} newGamePath={newGamePath} bar />
+      ) : (
+        <button className="landing-play lobby-go" onClick={() => navigate(newGamePath)}>
+          Play again
+        </button>
+      )}
     </div>
   );
 };
+
+type RematchPhase = 'none' | 'mine' | 'theirs' | 'declined' | 'begun';
+
+/**
+ * A friend's game over: the rematch, and the way to a new game. One call to
+ * action, which follows the offer: "Rematch"; "Rematch offered" while the
+ * player's own waits; "Accept rematch" (with "Decline") for the opponent's;
+ * "Join rematch" for one accepted before the page opened. Once the player's
+ * own has been declined, "New game" takes its place. The button stays one
+ * element throughout, so the focus stays on it as the offer changes.
+ */
+function Rematch({
+  state,
+  seat,
+  disabled,
+  onOffer,
+  onAnswer,
+  onJoin,
+  newGamePath,
+  bar = false,
+}: RematchProps & { newGamePath: string; bar?: boolean }) {
+  const navigate = useNavigate();
+  const newGame = () => navigate(newGamePath);
+  const phase: RematchPhase = state.gameId
+    ? 'begun'
+    : state.declined === seat
+      ? 'declined'
+      : !state.standing
+        ? 'none'
+        : state.standing === seat
+          ? 'mine'
+          : 'theirs';
+  const [label, act] = (
+    {
+      none: ['Rematch', onOffer],
+      mine: ['Rematch offered', null],
+      theirs: ['Accept rematch', () => onAnswer(true)],
+      declined: ['New game', newGame],
+      begun: ['Join rematch', onJoin],
+    } as const
+  )[phase];
+  // Waiting on the opponent, or on the connection to send: shown, but not pressed
+  const waiting = phase === 'mine' || (disabled && phase !== 'declined' && phase !== 'begun');
+  return (
+    <div className="hud-rematch" data-testid="rematch" data-bar={bar ? '' : undefined}>
+      {phase === 'declined' && (
+        <p className="hud-rematch-note" data-testid="rematch-declined">
+          Rematch declined
+        </p>
+      )}
+      <button
+        // The dialog takes focus: a keyboard player lands on its call to action
+        autoFocus={!bar}
+        className={`landing-play lobby-go${bar ? '' : ' hud-result-go'}`}
+        data-testid="rematch-go"
+        data-state={phase}
+        aria-disabled={waiting || undefined}
+        onClick={() => {
+          if (!waiting) act?.();
+        }}
+      >
+        {phase === 'mine' && <span className="hud-dot" aria-hidden />}
+        {label}
+      </button>
+      {phase === 'theirs' ? (
+        <button
+          className="lobby-link hud-rematch-other"
+          aria-disabled={disabled || undefined}
+          onClick={() => {
+            if (!disabled) onAnswer(false);
+          }}
+        >
+          Decline
+        </button>
+      ) : (
+        phase !== 'declined' && (
+          <button className="lobby-link hud-rematch-other" onClick={newGame}>
+            New game
+          </button>
+        )
+      )}
+    </div>
+  );
+}

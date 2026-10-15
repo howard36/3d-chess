@@ -82,7 +82,7 @@ describe('the result card after a mate', () => {
       'by checkmate',
     );
     expect(screen.getByTestId('turn-indicator')).toHaveTextContent('Checkmate · you lose');
-    expect(screen.getByRole('button', { name: 'Play again' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Rematch' })).toHaveFocus();
   });
 
   it('waits for the mated king to strike the floor, not for the pulse', () => {
@@ -109,20 +109,20 @@ describe('the result card after a mate', () => {
     expect(result()).toBeInTheDocument();
   });
 
-  it('can be put away to study the final board, leaving Play again below it', () => {
+  it('can be put away to study the final board, leaving the rematch below it', () => {
     render(screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }]));
     expect(result()).toBeInTheDocument();
     expect(document.querySelector('[data-intro]')).toHaveAttribute('inert');
     act(() => screen.getByRole('button', { name: 'Close' }).click());
     expect(result()).not.toBeInTheDocument();
     expect(document.querySelector('[data-intro]')).not.toHaveAttribute('inert');
-    expect(screen.getByRole('button', { name: 'Play again' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rematch' })).toBeInTheDocument();
   });
 
   it('closes with Escape too', () => {
     render(screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }]));
     act(() => {
-      fireEvent.keyDown(screen.getByRole('button', { name: 'Play again' }), { key: 'Escape' });
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Rematch' }), { key: 'Escape' });
     });
     expect(result()).not.toBeInTheDocument();
   });

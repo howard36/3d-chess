@@ -1,10 +1,16 @@
 import React from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
 import { deriveHistory } from '../game/history';
 import type { GameHistory, GameOver } from '../game/history';
-import { selectDrawOffer, selectEnding, selectTakebackRequest, withEnding } from '../game/ending';
+import {
+  selectDrawOffer,
+  selectEnding,
+  selectRematch,
+  selectTakebackRequest,
+  withEnding,
+} from '../game/ending';
 import {
   hasSessionSince,
   refusedSince,
@@ -48,6 +54,11 @@ interface GameScreenProps {
 }
 
 type Phase = 'waiting' | 'joined' | 'started';
+
+/** The router's state on the way into a rematch just accepted. */
+interface RematchArrival {
+  rematch: true;
+}
 
 /** The longest the lobby holds its arrival for the game's first frame. */
 const FIRST_FRAME_WAIT_MS = 4000;
@@ -144,6 +155,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   const { board, replayFailedAt, gameOver } = history;
   const drawOffer = selectDrawOffer(messages, history.moveRecords.length);
   const takebackRequest = selectTakebackRequest(messages, history.moveRecords.length);
+  const rematch = selectRematch(messages);
 
   // The mate plays out (the king topples) before the result covers the
   // board, while the pulse runs on behind it — when the mate was just played
@@ -315,6 +327,21 @@ const GameScreen: React.FC<GameScreenProps> = ({
     if (gameSocket.sentThisSession?.((m) => m.type === 'look_game' && m.gameId === gameId)) return;
     gameSocket.send({ type: 'look_game', gameId });
   }, [gameId, storedRole, joinRequested, looked, sessionId, status, gameSocket]);
+
+  // A rematch accepted: each player takes the other colour in the new game,
+  // stored as a seat is, and opens it. Accepted while this page held the
+  // game, both players go at once; one accepted before (the finished game
+  // reopened) waits for "Join rematch".
+  const joinRematch = React.useCallback(() => {
+    if (!rematch.gameId || !color) return;
+    setStoredRole(rematch.gameId, color === 'white' ? 'black' : 'white');
+    navigate(`/game/${rematch.gameId}`, { state: { rematch: true } satisfies RematchArrival });
+  }, [rematch.gameId, color, navigate]);
+  React.useEffect(() => {
+    if (rematch.live) joinRematch();
+  }, [rematch.live, joinRematch]);
+  // This page opened on a rematch just begun: its game starts now, with the whole entrance
+  const rematchArrival = !!(useLocation().state as RematchArrival | null)?.rematch;
 
   const handlePlayHere = () => {
     takeoverRef.current = true;
@@ -497,6 +524,9 @@ const GameScreen: React.FC<GameScreenProps> = ({
   if (lobbyView && phase !== 'started') lobbyShown.current = true;
   useLobbyView(lobbyView);
 
+  // Offers, answers and resignations go only on a socket back in the game (a queued one is dropped)
+  const actionsDisabled = status !== 'connected' || !sessionReady || replaced;
+
   if (phase === 'started') {
     return (
       <GameView
@@ -522,8 +552,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         }
         actions={{
           offer: drawOffer,
-          // Sent only on a socket back in the game (a queued one is dropped)
-          disabled: status !== 'connected' || !sessionReady || replaced,
+          disabled: actionsDisabled,
           onResign: () => gameSocket.send({ type: 'resign' }),
           onOfferDraw: () => gameSocket.send({ type: 'offer_draw' }),
           onAnswerDraw: (accept) =>
@@ -546,9 +575,28 @@ const GameScreen: React.FC<GameScreenProps> = ({
                   gameSocket.send({ type: accept ? 'accept_takeback' : 'decline_takeback' }),
               },
         }}
+        rematch={
+          computer || !color
+            ? undefined
+            : {
+                state: rematch,
+                seat: color,
+                disabled: actionsDisabled,
+                onOffer: () => gameSocket.send({ type: 'offer_rematch' }),
+                onAnswer: (accept) =>
+                  gameSocket.send({ type: accept ? 'accept_rematch' : 'decline_rematch' }),
+                onJoin: joinRematch,
+              }
+        }
         // The whole entrance for a game that started while this page was
         // open, a short one for a page that opened on a game under way
-        intro={handover !== 'none' ? 'lobby' : startedLive(messages) ? 'full' : 'short'}
+        intro={
+          handover !== 'none'
+            ? 'lobby'
+            : startedLive(messages) || (rematchArrival && history.moveRecords.length === 0)
+              ? 'full'
+              : 'short'
+        }
         // Held on its first frame while the lobby plays out over it
         introPaused={handover === 'arrive' || (handover === 'leave' && !revealed)}
         onFirstFrame={() => setGameDrawn(true)}
