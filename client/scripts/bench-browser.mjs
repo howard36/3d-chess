@@ -68,6 +68,7 @@ const SECTION_KEYS = [
   'move-latency',
   'computer',
   'reopen',
+  'review',
   'presence',
   'select',
   'render',
@@ -126,6 +127,7 @@ const FULL = {
   selectsAfterTurn: 4,
   reopenPlies: [0, 100, 500, 2000],
   reopenRuns: 2,
+  reviewRuns: 2,
   flaps: [0, 200],
   idleMs: 2000,
   orbitMs: 3000,
@@ -144,6 +146,7 @@ const PROFILES = {
     selectsAfterTurn: 2,
     reopenPlies: [0, 100, 500],
     reopenRuns: 1,
+    reviewRuns: 1,
     flaps: [50],
     idleMs: 1000,
     orbitMs: 1500,
@@ -161,6 +164,7 @@ const PROFILES = {
     selectsAfterTurn: 0,
     reopenPlies: [2000],
     reopenRuns: 1,
+    reviewRuns: 1,
   },
 };
 const PROFILE = QUICK ? 'quick' : opt('profile', 'full');
@@ -935,7 +939,7 @@ class Scope {
  * A started game with `plies` of the long game recorded, both seats held
  * by sockets here: { gameId, seats: { white, black } }.
  */
-async function seedGame(scope, plies) {
+async function seedGame(scope, plies, moveOf = gameMove) {
   const tag = Math.random().toString(36).slice(2, 10);
   const a = scope.sock(await Sock.open(WS_URL));
   a.send({ type: 'create_game', clientId: `bench-${tag}-a` });
@@ -950,7 +954,7 @@ async function seedGame(scope, plies) {
   const clientIds = { [color]: `bench-${tag}-a`, [other(color)]: `bench-${tag}-b` };
   for (let i = 0; i < plies; i++) {
     const s = seats[i % 2 === 0 ? 'white' : 'black'];
-    const [from, to] = gameMove(i).split('-');
+    const [from, to] = moveOf(i).split('-');
     s.send({ type: 'move', from, to });
     // Every seated socket hears every move: its (i+1)th echo is this one
     await s.waitType('move_made', i + 1);
@@ -2388,6 +2392,94 @@ async function reopenSection(browser) {
   );
 }
 
+// 5b. Reviewing a finished game ----------------------------------------------
+
+async function reviewSection(browser) {
+  const plies = TACTICAL_GAME.length;
+  await section(
+    'review',
+    {
+      title: 'Reviewing a finished game',
+      intro: `A player asks for the review of a game just over: the ${plies} plies of the tactical game the move-latency section plays (real play, captures by both sides), after which White resigns. Black’s page opens the finished game in a new browser profile (${VIEWPORTS.desktop.label}), closes the result card and clicks “Analyse”. The review searches each of the ${plies + 1} positions with a fixed node budget in the computer’s worker(s), so its marks are the same on any machine; they are recorded and checked to be the same in every run. Each cell is the median of ${CFG.reviewRuns} run(s); \`raw\` has every run. ${SW_NOTE}`,
+      columns: ['Metric', 'Value', 'Notes'],
+      align: ['l', 'r', 'l'],
+      timeoutMs: QUICK ? 180000 : 420000,
+    },
+    async (sec) => {
+      raw.review = [];
+      for (let r = 0; r < CFG.reviewRuns; r++) {
+        const scope = new Scope();
+        try {
+          const game = await seedGame(scope, plies, (i) => TACTICAL_GAME[i].move);
+          game.seats.white.send({ type: 'resign' });
+          await game.seats.black.waitType('game_ended');
+          await game.seats.white.close();
+          await game.seats.black.close();
+          const { page } = await openSeat(browser, scope, 'desktop', game.gameId, 'black');
+          await waitBoard(page);
+          await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+          await quietMain(page);
+          // Click to every mark in, timed in the page: the click and each change of the review
+          await page.evaluate(() => {
+            const b = window.__bench;
+            b.review = { clicked: null, half: null, done: null };
+            const list = document.querySelector('[data-testid="move-history"]');
+            document
+              .querySelector('[data-testid="analyse"]')
+              .addEventListener('click', () => (b.review.clicked = performance.now()), {
+                capture: true,
+              });
+            new MutationObserver(() => {
+              const bar = document.querySelector('[data-testid="analysis-progress"]');
+              if (bar && b.review.half == null) {
+                const now = Number(bar.getAttribute('aria-valuenow'));
+                if (2 * now >= Number(bar.getAttribute('aria-valuemax')))
+                  b.review.half = performance.now();
+              }
+              if (list.getAttribute('data-analysis') === 'done' && b.review.done == null)
+                b.review.done = performance.now();
+            }).observe(list, { attributes: true, subtree: true });
+          });
+          await page.getByTestId('analyse').click();
+          await page.waitForFunction(() => window.__bench.review.done != null, null, {
+            polling: 100,
+            timeout: 300000,
+          });
+          const s = await snap(page);
+          const { clicked, half, done } = s.review;
+          const marks = await page
+            .locator('[data-ply]')
+            .evaluateAll((els) =>
+              els.map((e) => `${e.dataset.ply}${e.dataset.grade ? ':' + e.dataset.grade : ''}`),
+            );
+          const lts = tasksIn(s.lt, clicked, done);
+          raw.review.push({
+            half: half - clicked,
+            done: done - clicked,
+            longest: maxOf([0, ...lts.map((l) => l[1])]),
+            ltTotal: sum(lts.map((l) => l[1])),
+            marks: marks.join(' '),
+          });
+        } finally {
+          await scope.close();
+        }
+      }
+      const marks = new Set(raw.review.map((x) => x.marks));
+      if (marks.size !== 1)
+        throw new Error(`the review's marks differ between runs: ${[...marks]}`);
+      const med = (k) => median(raw.review.map((x) => x[k]));
+      const row = (label, k, note = '') => [[label, fmtMs(med(k)), note], metric(med(k)), label];
+      sec.addAll([
+        row('“Analyse” clicked → every mark in', 'done', `${plies + 1} positions`),
+        row('“Analyse” clicked → half the positions done', 'half'),
+        row('longest page freeze during the review', 'longest'),
+        row('page freezes in total during the review', 'ltTotal'),
+      ]);
+      sec.notes.push(`Check: the same marks in every run: \`${[...marks][0]}\`.`);
+    },
+  );
+}
+
 // 6. Presence flapping ------------------------------------------------------
 
 async function presenceSection(browser) {
@@ -3205,6 +3297,7 @@ async function main() {
   }
   await computerSection(browser);
   await reopenSection(browser);
+  await reviewSection(browser);
   await presenceSection(browser);
   await selectSection(browser);
   await renderSection(browser);

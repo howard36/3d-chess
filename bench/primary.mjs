@@ -88,6 +88,13 @@ export const PRIMARY = [
     what: 'move record shown · 2000 plies',
   },
   {
+    moment: 'A finished game’s review, every mark in',
+    tier: 'browser',
+    section: 'review',
+    where: 'Reviewing a finished game',
+    what: '“Analyse” clicked → every mark in',
+  },
+  {
     moment: 'The player’s move appears',
     tier: 'browser',
     section: 'move-latency',
