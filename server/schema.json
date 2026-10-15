@@ -24,6 +24,12 @@
     { "$ref": "#/definitions/decline_takeback" },
     { "$ref": "#/definitions/takeback_requested" },
     { "$ref": "#/definitions/takeback_declined" },
+    { "$ref": "#/definitions/offer_rematch" },
+    { "$ref": "#/definitions/accept_rematch" },
+    { "$ref": "#/definitions/decline_rematch" },
+    { "$ref": "#/definitions/rematch_offered" },
+    { "$ref": "#/definitions/rematch_declined" },
+    { "$ref": "#/definitions/rematch_started" },
     { "$ref": "#/definitions/game_ended" },
     { "$ref": "#/definitions/presence" },
     { "$ref": "#/definitions/error" }
@@ -50,7 +56,8 @@
         "seat_in_use",
         "game_over",
         "invalid_draw",
-        "invalid_takeback"
+        "invalid_takeback",
+        "invalid_rematch"
       ]
     },
     "ending_result": {
@@ -95,6 +102,23 @@
         }
       },
       "required": ["by", "ply"],
+      "additionalProperties": false
+    },
+    "rematch": {
+      "description": "A new game with the same two players, colours swapped, offered by `by` once the game is over. It stands until it is answered.",
+      "type": "object",
+      "properties": {
+        "by": { "$ref": "#/definitions/color" },
+        "declined": {
+          "description": "The opponent declined it. The same player cannot offer another; the opponent still can.",
+          "type": "boolean"
+        },
+        "gameId": {
+          "description": "The opponent accepted it: the new game, where each player holds the other colour.",
+          "type": "string"
+        }
+      },
+      "required": ["by"],
       "additionalProperties": false
     },
     "create_game": {
@@ -205,6 +229,10 @@
         "takebackRequest": {
           "description": "The latest take-back request, if any; it stands only if its ply is the number of moves and it was not declined.",
           "$ref": "#/definitions/takeback_request"
+        },
+        "rematch": {
+          "description": "The latest rematch offer, if any: standing, declined, or accepted (with the new game's id).",
+          "$ref": "#/definitions/rematch"
         }
       },
       "required": ["type", "color", "started", "moves"],
@@ -335,6 +363,57 @@
         "ply": { "type": "integer", "minimum": 0 }
       },
       "required": ["type", "by", "ply"],
+      "additionalProperties": false
+    },
+    "offer_rematch": {
+      "description": "The sender offers the opponent a new game, colours swapped. If the opponent's offer stands, it accepts that one.",
+      "type": "object",
+      "properties": { "type": { "const": "offer_rematch" } },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "accept_rematch": {
+      "description": "The sender accepts the opponent's standing rematch offer. Both players are then sent rematch_started.",
+      "type": "object",
+      "properties": { "type": { "const": "accept_rematch" } },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "decline_rematch": {
+      "description": "The sender declines the opponent's standing rematch offer.",
+      "type": "object",
+      "properties": { "type": { "const": "decline_rematch" } },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "rematch_offered": {
+      "description": "To both players: `by` offered a rematch.",
+      "type": "object",
+      "properties": {
+        "type": { "const": "rematch_offered" },
+        "by": { "$ref": "#/definitions/color" }
+      },
+      "required": ["type", "by"],
+      "additionalProperties": false
+    },
+    "rematch_declined": {
+      "description": "To both players: `by` declined the opponent's rematch offer.",
+      "type": "object",
+      "properties": {
+        "type": { "const": "rematch_declined" },
+        "by": { "$ref": "#/definitions/color" }
+      },
+      "required": ["type", "by"],
+      "additionalProperties": false
+    },
+    "rematch_started": {
+      "description": "To both players: the rematch was accepted. `gameId` is the new game, both seats taken, each player holding the other colour; each rejoins it.",
+      "type": "object",
+      "properties": {
+        "type": { "const": "rematch_started" },
+        "gameId": { "type": "string" }
+      },
+      "required": ["type", "gameId"],
       "additionalProperties": false
     },
     "game_ended": {

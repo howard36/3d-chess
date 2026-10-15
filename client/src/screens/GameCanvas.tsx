@@ -38,6 +38,8 @@ export interface GameCanvasProps {
   board: EngineBoard;
   currentTurn: Turn;
   lastMove: LastMove | undefined;
+  /** The better move where the move shown was played, when the review marks it (Board). */
+  betterMove?: Move | null;
   gameOver: GameOver | null;
   /** The board takes no input (GameView's rules, and while the entrance plays). */
   disabled: boolean;
@@ -57,6 +59,7 @@ const GameCanvas = ({
   board,
   currentTurn,
   lastMove,
+  betterMove,
   gameOver,
   disabled,
   onMove,
@@ -140,6 +143,7 @@ const GameCanvas = ({
             onMove={onMove}
             onChoosePromotion={onChoosePromotion}
             lastMove={lastMove}
+            betterMove={betterMove}
             // Nothing can be picked up while the entrance plays
             disabled={disabled}
             gameOver={gameOver}

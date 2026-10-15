@@ -2,6 +2,25 @@ import React from 'react';
 import type { MoveRecord } from '../types/messages';
 import { formatMove, plyLabel, STEP_KEY, stepOfKey, stepTo } from '../game/review';
 import type { ReviewStep } from '../game/review';
+import { GRADE_GLYPH, GRADES } from '../game/analysis';
+import type { Grade, GradeCounts } from '../game/analysis';
+import type { Turn } from '../game/history';
+import { Stone } from './TurnPill';
+
+/** The game's review, once the game is over (screens/useAnalysis.ts). */
+export interface HistoryAnalysis {
+  /** Not asked for yet ("Analyse"), under way, or done. */
+  state: 'idle' | 'running' | 'done';
+  /** Positions done, of `total`. */
+  done: number;
+  total: number;
+  /** Each move's grade (move `n` at `n - 1`), as far as the review has come. */
+  grades: readonly (Grade | null | undefined)[];
+  counts: GradeCounts;
+  /** The best move where the move shown was played, when the move shown is marked. */
+  best: Pick<MoveRecord, 'from' | 'to' | 'promotion'> | null;
+  onAnalyse: () => void;
+}
 
 export interface MoveHistoryProps {
   /** The whole move record, as the server holds it. */
@@ -17,13 +36,15 @@ export interface MoveHistoryProps {
    * behind a dialog, nor while the game's entrance plays.
    */
   enabled: boolean;
-  /** The game is over and "Play again" stands under the tower (index.css keeps clear of it). */
+  /** The game is over and the rematch stands under the tower (index.css keeps clear of it). */
   ended?: boolean;
   /**
    * The game is on: the record is out of sight, kept in the page as words for
    * screen readers, and takes no step. It comes into sight with the result.
    */
   hidden?: boolean;
+  /** The review of the game (in sight with the record): the way to ask for it, then its marks. */
+  analysis?: HistoryAnalysis;
 }
 
 /** Moves a block of the list holds (an even number: a row is two moves). */
@@ -59,23 +80,39 @@ interface BlockProps {
   open: boolean;
   /** The moves are words only (the record out of sight while the game is on). */
   words: boolean;
+  /** The review's grades, move `n` at `n - 1` (none before it is asked for). */
+  grades: readonly (Grade | null | undefined)[];
   onShow: (ply: number) => void;
 }
 
+const NO_GRADES: readonly (Grade | null | undefined)[] = [];
+
+/** A move's mark after it: the glyph, its grade in words for a screen reader. */
+const Mark = ({ grade }: { grade: Grade }) => (
+  <>
+    <span className="hud-mark" data-grade={grade} aria-hidden>
+      {GRADE_GLYPH[grade]}
+    </span>
+    <span className="sr-only">, {grade}</span>
+  </>
+);
+
 /** The rows of moves `start` to `start + BLOCK` (as many as there are), each move a button. */
 const MoveBlock = React.memo(
-  ({ moves, start, applied, shown, open, words, onShow }: BlockProps) => {
+  ({ moves, start, applied, shown, open, words, grades, onShow }: BlockProps) => {
     const ply = (i: number) => {
       const n = i + 1;
       // One text node; Black's starts with the space between the two
       // (white space at a line's start is not drawn)
       const text = n % 2 === 0 ? ` ${formatMove(moves[i])}` : formatMove(moves[i]);
       if (words) return <span>{text}</span>;
+      const grade = grades[i];
       return (
         <button
           type="button"
           className="hud-ply"
           data-ply={n}
+          data-grade={grade ?? undefined}
           aria-current={n === shown ? 'step' : undefined}
           // One stop in the list for Tab, the shown move (← → step on)
           tabIndex={open && n === shown ? 0 : -1}
@@ -84,6 +121,7 @@ const MoveBlock = React.memo(
           onClick={() => onShow(n)}
         >
           {text}
+          {grade && <Mark grade={grade} />}
         </button>
       );
     };
@@ -114,7 +152,7 @@ const MoveBlock = React.memo(
     if (Math.min(a.applied, end) !== Math.min(b.applied, end)) return false;
     if (Math.min(a.moves.length, end) !== Math.min(b.moves.length, end)) return false;
     for (let i = a.start; i < Math.min(a.moves.length, end); i++) {
-      if (a.moves[i] !== b.moves[i]) return false;
+      if (a.moves[i] !== b.moves[i] || a.grades[i] !== b.grades[i]) return false;
     }
     return true;
   },
@@ -163,6 +201,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
   enabled,
   ended = false,
   hidden = false,
+  analysis,
 }) => {
   // Where the window has room the list is always open; where it has not,
   // it opens on asking (never while the game is on)
@@ -268,6 +307,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
         shown={shown > start && shown <= start + BLOCK ? shown : -1}
         open={open}
         words={hidden}
+        grades={(!hidden && analysis?.grades) || NO_GRADES}
         onShow={show}
       />,
     );
@@ -292,6 +332,8 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
     );
   }
   const label = plyLabel(moves, shown);
+  const shownGrade = (shown > 0 && analysis?.grades[shown - 1]) || null;
+  const best = analysis?.best ?? null;
   const stepButton = (s: ReviewStep, off: boolean, named = false) => (
     <button
       type="button"
@@ -325,7 +367,22 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       data-review={reviewing || undefined}
       data-open={open || undefined}
       data-ended={ended || undefined}
+      data-analysis={analysis && analysis.state !== 'idle' ? analysis.state : undefined}
+      data-best={
+        best ? `${best.from}-${best.to}${best.promotion ? `=${best.promotion}` : ''}` : undefined
+      }
     >
+      {/* The review: the way to ask for it, then each side's marks as they come */}
+      {open && analysis && (
+        <ReviewHead
+          analysis={analysis}
+          // The button goes as the review starts: focus on to the move shown
+          onAnalyse={() => {
+            list.current?.querySelector<HTMLElement>('[data-ply][tabindex="0"]')?.focus();
+            analysis.onAnalyse();
+          }}
+        />
+      )}
       <ol
         id="move-list"
         ref={list}
@@ -335,6 +392,13 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       >
         {blocks}
       </ol>
+      {/* The better move where the move shown was played, drawn on the board too */}
+      {open && best && (
+        <p className="hud-best" data-testid="best-move">
+          <span className="hud-best-line" aria-hidden />
+          Best {formatMove(best as MoveRecord)}
+        </p>
+      )}
       <div className="hud-steps">
         {stepButton('first', shown === 0)}
         {stepButton('previous', shown === 0)}
@@ -348,6 +412,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
         >
           <span className="sr-only">Move list, at </span>
           {label}
+          {shownGrade && <Mark grade={shownGrade} />}
         </button>
         {stepButton('next', !reviewing)}
         <span className="hud-latest">{stepButton('latest', !reviewing, true)}</span>
@@ -360,10 +425,75 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
             : ''
           : shown === 0
             ? 'Starting position.'
-            : `Move ${shown} of ${applied}: ${formatMove(moves[shown - 1])}.`}
+            : `Move ${shown} of ${applied}: ${formatMove(moves[shown - 1])}${
+                shownGrade ? `, ${shownGrade}` : ''
+              }.${best ? ` Best ${formatMove(best as MoveRecord)}.` : ''}`}
       </div>
     </nav>
   );
 };
 
 export default MoveHistory;
+
+const SIDES: readonly Turn[] = ['white', 'black'];
+const GRADE_PLURAL: Record<Grade, string> = {
+  inaccuracy: 'inaccuracies',
+  mistake: 'mistakes',
+  blunder: 'blunders',
+};
+const plural = (n: number, grade: Grade) =>
+  n === 1 ? `1 ${grade}` : `${n === 0 ? 'no' : n} ${GRADE_PLURAL[grade]}`;
+
+/**
+ * The top of the list once the game is over: "Analyse" until the review is
+ * asked for, then each side's marks counted by grade, a thin bar under them
+ * filling as the review goes.
+ */
+function ReviewHead({ analysis, onAnalyse }: { analysis: HistoryAnalysis; onAnalyse: () => void }) {
+  if (analysis.state === 'idle') {
+    return (
+      <div className="hud-review">
+        <button type="button" className="hud-analyse" data-testid="analyse" onClick={onAnalyse}>
+          Analyse
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="hud-review" data-testid="analysis-counts">
+      {SIDES.map((side) => {
+        const counts = analysis.counts[side];
+        return (
+          <p key={side} className="hud-counts" data-side={side}>
+            <Stone color={side} aria-hidden />
+            <span className="sr-only">
+              {side === 'white' ? 'White' : 'Black'}:{' '}
+              {GRADES.map((g) => plural(counts[g], g)).join(', ')}
+            </span>
+            {GRADES.map((g) => (
+              <span key={g} className="hud-count" data-grade={g} data-count={counts[g]} aria-hidden>
+                <span className="hud-mark" data-grade={g}>
+                  {GRADE_GLYPH[g]}
+                </span>
+                {counts[g]}
+              </span>
+            ))}
+          </p>
+        );
+      })}
+      {analysis.state === 'running' && (
+        <div
+          className="hud-progress"
+          role="progressbar"
+          aria-label="Analysing"
+          aria-valuemin={0}
+          aria-valuemax={analysis.total}
+          aria-valuenow={analysis.done}
+          data-testid="analysis-progress"
+        >
+          <span style={{ width: `${(100 * analysis.done) / Math.max(1, analysis.total)}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}

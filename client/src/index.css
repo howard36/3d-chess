@@ -823,6 +823,127 @@ body {
   color: var(--hud-muted);
   cursor: default;
 }
+/* The review (screens/MoveHistory.tsx): "Analyse", then each side's marks
+   counted under a thin bar that fills as it goes; a mark after its move, a
+   colour per grade (the glyph says which: the colour only helps); and the
+   better move where a marked move was played, in the amber of its line on
+   the board */
+.hud-history {
+  --grade-inaccuracy: #8fd0f7;
+  --grade-mistake: #ffa04d;
+  --grade-blunder: #ff6157;
+  --better: #ffb547;
+}
+.hud-mark {
+  margin-left: 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+/* A marked move gives up a little of its padding, so its glyph stays inside its light */
+.hud-ply[data-grade] {
+  padding-right: 3px;
+  overflow: hidden;
+}
+.hud-mark[data-grade='inaccuracy'] {
+  color: var(--grade-inaccuracy);
+}
+.hud-mark[data-grade='mistake'] {
+  color: var(--grade-mistake);
+}
+.hud-mark[data-grade='blunder'] {
+  color: var(--grade-blunder);
+}
+/* On the lit move shown, the same hues deep enough to read on its light */
+.hud-history[data-review] .hud-ply[aria-current] .hud-mark[data-grade='inaccuracy'] {
+  color: #17689c;
+}
+.hud-history[data-review] .hud-ply[aria-current] .hud-mark[data-grade='mistake'] {
+  color: #a65200;
+}
+.hud-history[data-review] .hud-ply[aria-current] .hud-mark[data-grade='blunder'] {
+  color: #c2241b;
+}
+.hud-review {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  margin-bottom: 3px;
+  padding: 2px 2px 5px;
+  border-bottom: 1px solid rgba(236, 241, 255, 0.1);
+}
+.hud-analyse {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--hud-hair-strong);
+  border-radius: 3px;
+  background: none;
+  color: var(--hud-fg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hud-analyse:hover {
+  background: rgba(236, 241, 255, 0.08);
+}
+.hud-counts {
+  display: grid;
+  grid-template-columns: 24px repeat(3, 1fr);
+  align-items: center;
+  height: 20px;
+  margin: 0;
+  font-size: 12px;
+}
+.hud-counts > .hud-stone {
+  width: 11px;
+  height: 11px;
+  margin-left: 6px;
+}
+.hud-count .hud-mark {
+  margin: 0 4px 0 0;
+}
+.hud-count[data-count='0'] {
+  color: var(--hud-muted);
+}
+.hud-count[data-count='0'] .hud-mark {
+  opacity: 0.5;
+}
+.hud-progress {
+  position: absolute;
+  right: 2px;
+  bottom: -1px;
+  left: 2px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: rgba(236, 241, 255, 0.08);
+}
+.hud-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--hud-light);
+  transition: width 200ms ease;
+}
+.hud-best {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  margin: 3px 0 0;
+  padding: 2px 6px 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.hud-best-line {
+  flex: none;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--better);
+  box-shadow: 0 0 6px rgba(255, 181, 71, 0.6);
+}
 .hud-steps {
   display: flex;
   flex: none;
@@ -999,6 +1120,18 @@ body {
   .hud-moves {
     max-height: none;
   }
+  /* Reviewed, a move and its mark share the narrower panel's column: the
+     number's column and the move's type give up a little room */
+  .hud-history[data-analysis] .hud-moves li {
+    grid-template-columns: 18px 1fr 1fr;
+  }
+  .hud-history[data-analysis] .hud-moves li > .hud-ply:nth-child(1) {
+    margin-left: 0;
+  }
+  .hud-history[data-analysis] .hud-ply {
+    padding: 0 2px 0 4px;
+    font-size: 11.5px;
+  }
 }
 /* A touch screen: the steps a fingertip wide */
 @media (pointer: coarse) {
@@ -1015,6 +1148,9 @@ body {
   }
   .hud-ply {
     height: 30px;
+  }
+  .hud-analyse {
+    height: 36px;
   }
 }
 /* A touch screen with the panel beside the tower: the fingertip-wide steps
@@ -1972,6 +2108,48 @@ body {
 }
 .hud-result-go {
   margin-top: 18px;
+}
+/* A game over: the rematch, and under it the way home (and the answer to
+   the opponent's offer); below the tower, side by side */
+.hud-rematch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.hud-rematch-other {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.hud-rematch-note {
+  margin: 16px 0 -8px;
+  color: var(--hud-muted);
+  font-size: 13.5px;
+}
+.hud-rematch[data-bar] {
+  position: relative;
+  flex-direction: row;
+  gap: 8px;
+}
+.hud-rematch[data-bar] .hud-rematch-other,
+.hud-rematch[data-bar] .hud-rematch-note {
+  flex: none;
+  margin: 0;
+}
+.hud-rematch[data-bar] .hud-rematch-note {
+  order: 1;
+}
+/* Beside the steps under the tower, the room at the right holds the pill
+   alone: its other button stands over it */
+@media (max-aspect-ratio: 13/9) and (min-height: 481px) and (min-width: 560px) {
+  .hud-rematch[data-bar] .hud-rematch-other,
+  .hud-rematch[data-bar] .hud-rematch-note {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
 }
 
 /* The way to the tutorial in a game: the top right corner, beside the

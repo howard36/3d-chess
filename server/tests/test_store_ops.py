@@ -19,13 +19,16 @@ from modal_app import (
     STORE_OPERATIONS,
     GameError,
     accept_draw,
+    accept_rematch,
     accept_takeback,
     claim_seat,
     create_game,
     decline_draw,
+    decline_rematch,
     decline_takeback,
     find_seat,
     offer_draw,
+    offer_rematch,
     record_move,
     request_takeback,
     resign,
@@ -296,6 +299,64 @@ def test_a_take_back_declined_or_lapsed():
     assert refusal(accept_takeback, store, "G00001", "white") == "invalid_takeback"
     assert refusal(decline_takeback, store, "G00001", "white") == "invalid_takeback"
     assert len(store["G00001"]["moves"]) == 3
+
+
+def test_a_rematch_accepted_starts_a_game_with_the_colours_swapped():
+    store = under_way()
+    store["G00001"]["claimants"] = {"white": "tab-w", "black": "tab-b"}
+    resign(store, "G00001", "white")
+    assert offer_rematch(store, "G00001", "white") == {"by": "white"}
+    # Only the opponent can answer it, and it is offered once
+    assert refusal(accept_rematch, store, "G00001", "white") == "invalid_rematch"
+    assert refusal(decline_rematch, store, "G00001", "white") == "invalid_rematch"
+    assert refusal(offer_rematch, store, "G00001", "white") == "invalid_rematch"
+    started = accept_rematch(store, "G00001", "black")
+    new_gid = started["gameId"]
+    assert started == {"by": "white", "gameId": new_gid}
+    assert store["G00001"]["rematch"] == started
+    # Both seats taken, each player (and each tab's claim) on the other side
+    assert store[new_gid] == {
+        "seats": ["white", "black"],
+        "moves": [],
+        "claimants": {"black": "tab-w", "white": "tab-b"},
+    }
+    # Begun once: nothing more to offer or answer
+    for op in (offer_rematch, accept_rematch, decline_rematch):
+        assert refusal(op, store, "G00001", "black") == "invalid_rematch"
+        assert refusal(op, store, "G00001", "white") == "invalid_rematch"
+    # The new game is under way, and can be rematched in turn
+    record_move(store, new_gid, "white", move("Aa2", "Aa3"))
+    assert offer_rematch(store, new_gid, "black") == {"by": "black"}
+
+
+def test_a_rematch_offered_by_both_starts_it():
+    store = under_way()
+    offer_rematch(store, "G00001", "black")
+    started = offer_rematch(store, "G00001", "white")
+    assert started == {"by": "black", "gameId": started["gameId"]}
+    assert store[started["gameId"]] == {"seats": ["white", "black"], "moves": []}
+
+
+def test_a_rematch_declined():
+    store = under_way()
+    offer_rematch(store, "G00001", "white")
+    assert decline_rematch(store, "G00001", "black") == {"by": "white", "declined": True}
+    assert len(store) == 1
+    # Answered once; the player declined cannot ask again...
+    assert refusal(accept_rematch, store, "G00001", "black") == "invalid_rematch"
+    assert refusal(decline_rematch, store, "G00001", "black") == "invalid_rematch"
+    assert refusal(offer_rematch, store, "G00001", "white") == "invalid_rematch"
+    # ...but the one who declined may change their mind
+    assert offer_rematch(store, "G00001", "black") == {"by": "black"}
+    assert accept_rematch(store, "G00001", "white")["by"] == "black"
+
+
+def test_a_rematch_needs_both_players():
+    store = {"G00001": {"seats": ["white"], "moves": []}}
+    for op in (offer_rematch, accept_rematch, decline_rematch):
+        assert refusal(op, store, None, None) == "game_not_started"
+        assert refusal(op, store, "G00001", "white") == "game_not_started"
+    assert store == {"G00001": {"seats": ["white"], "moves": []}}
 
 
 def test_store_operations_are_synchronous():

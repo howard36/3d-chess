@@ -44,6 +44,25 @@ vi.mock('../three/Board', () => ({
   },
 }));
 
+// The review's searches, answered at once from a script: each position's
+// best move and score, the start first
+const REVIEW = vi.hoisted(() => [
+  { best: { from: 'Bb1', to: 'Cb1' }, score: 30 },
+  { best: { from: 'Ed5', to: 'Ee4' }, score: 0 },
+  { best: { from: 'Cb1', to: 'Db1' }, score: 400 },
+  { best: { from: 'Ee5', to: 'Ed4' }, score: -420 },
+]);
+const searched = vi.hoisted(() => [] as number[]);
+vi.mock('../ai/computer', () => ({
+  createComputer: () => ({
+    analyse: (records: unknown[]) => {
+      searched.push(records.length);
+      return Promise.resolve(REVIEW[records.length]);
+    },
+    dispose: () => {},
+  }),
+}));
+
 const RECORD: MoveRecord[] = [
   { by: 'white', from: 'Bb1', to: 'Cb1' },
   { by: 'black', from: 'Dd5', to: 'Cd5' },
@@ -200,5 +219,39 @@ describe('stepping back through a finished game', () => {
     expect(nav()).not.toHaveAttribute('data-review');
     expect(board().gameOver).toMatchObject({ result: 'agreement' });
     expect(board().disabled).toBe(true);
+  });
+});
+
+describe('the review of a finished game', () => {
+  it('comes on asking, each move marked as its positions are done, the better move on the board', async () => {
+    searched.length = 0;
+    render(gameScreenAt(fakeSocket([resigned])));
+    await boardMounted();
+    await closeResult();
+    // Nothing searched until asked
+    expect(searched).toEqual([]);
+    expect(board().betterMove).toBeNull();
+    await userEvent.click(screen.getByTestId('analyse'));
+    await vi.waitFor(() => expect(nav()).toHaveAttribute('data-analysis', 'done'));
+    // Every position, the one the players ended it in too
+    expect(searched).toEqual([0, 1, 2, 3]);
+    // Black's reply threw the game away; White's moves were the best
+    expect(document.querySelector('[data-ply="2"]')).toHaveAttribute('data-grade', 'blunder');
+    expect(document.querySelectorAll('[data-grade].hud-ply')).toHaveLength(1);
+    expect(document.querySelector('.hud-counts[data-side="black"]')).toHaveTextContent(/1 blunder/);
+    // At the end, an unmarked move: nothing more on the board
+    expect(board().betterMove).toBeNull();
+    await userEvent.click(document.querySelector<HTMLElement>('[data-ply="2"]')!);
+    expect(board().betterMove).toEqual({ from: fromZXY('Ed5'), to: fromZXY('Ee4') });
+    expect(screen.getByTestId('best-move')).toHaveTextContent('Best Ed5–Ee4');
+    await userEvent.click(document.querySelector<HTMLElement>('[data-ply="1"]')!);
+    expect(board().betterMove).toBeNull();
+    expect(screen.queryByTestId('best-move')).toBeNull();
+  });
+
+  it('is not offered while the game is on', async () => {
+    render(gameScreenAt(fakeSocket([snapshot])));
+    await boardMounted();
+    expect(screen.queryByTestId('analyse')).toBeNull();
   });
 });

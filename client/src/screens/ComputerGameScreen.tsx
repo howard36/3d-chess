@@ -1,8 +1,15 @@
 import React from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import GameScreen from './GameScreen';
 import { useComputerGame } from '../hooks/useComputerGame';
-import { doneArriving, isArriving, loadComputerGame } from '../lib/computerGames';
+import {
+  doneArriving,
+  isArriving,
+  loadComputerGame,
+  newComputerGameId,
+  saveComputerGame,
+} from '../lib/computerGames';
+import { setStoredRole } from '../lib/playerRole';
 
 // A game against the computer (/computer/:gameId): the game screen, with the
 // computer standing in for the server and the opponent. One per game, so
@@ -25,6 +32,17 @@ const ComputerGame: React.FC<{ gameId: string }> = ({ gameId }) => {
   // arrival plays there. Once only: a later visit opens on the game itself
   const [arriving] = React.useState(() => isArriving(gameId));
   React.useEffect(() => doneArriving(gameId), [gameId]);
+  const navigate = useNavigate();
+  // A new game at the same level, the colours swapped, made as the side
+  // choice makes one; the computer sits down as its page opens
+  const rematch = () => {
+    if (!game) return;
+    const id = newComputerGameId();
+    const color = game.color === 'white' ? 'black' : 'white';
+    saveComputerGame({ id, color, difficulty: game.difficulty, started: false, moves: [] });
+    setStoredRole(id, color);
+    navigate(`/computer/${id}`);
+  };
   return (
     <GameScreen
       gameSocket={socket}
@@ -35,6 +53,7 @@ const ComputerGame: React.FC<{ gameId: string }> = ({ gameId }) => {
               difficulty: game.difficulty,
               arriving,
               onTakeBack: socket.takeBack,
+              onRematch: rematch,
             }
           : undefined
       }

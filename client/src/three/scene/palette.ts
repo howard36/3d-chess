@@ -66,6 +66,13 @@ export const PALETTE = {
   move: '#f8c970',
   /** The last move's line and circles: a pale mint, a hue of its own past the sky of level E. */
   trace: '#acefd1',
+  /**
+   * The better move a finished game's review shows where a marked move was
+   * played: a warm amber, clear of the mint of the move played and the red of
+   * a capture (a destination's gold never shows while the record is stepped
+   * through: nothing can be picked up).
+   */
+  better: '#ffb547',
   /** A capture: a clear red. */
   capture: '#ff4a3d',
   /** Check: a deeper red, drawn in shapes of its own (plate, blades). */

@@ -1,11 +1,11 @@
 import { Board } from '../engine/board';
 import { moveFromMessage } from '../engine/protocol';
 import { SHORT_GAME } from '../game/shortGame';
-import { assessPosition, chooseMove, hardToSee, pickMove, seeded } from './choose';
+import { analysePosition, assessPosition, chooseMove, hardToSee, pickMove, seeded } from './choose';
 import { DIFFICULTIES, LEVELS, isDifficulty, thinkTime } from './levels';
-import { BISHOP, KING, KNIGHT, PAWN, QUEEN, UNICORN, cellOf } from './position';
+import { BISHOP, KING, KNIGHT, PAWN, Position, QUEEN, UNICORN, cellOf } from './position';
 import type { WireMove } from './position';
-import { MATE } from './search';
+import { MATE, Searcher } from './search';
 
 const demo: WireMove[] = SHORT_GAME.map((m) => {
   const [from, to] = m.split('-');
@@ -31,6 +31,66 @@ it('weighs up a position for the side to move', () => {
   // Even at the start; won for White a move before the demo's mate
   expect(Math.abs(assessPosition([], { maxNodes: 4000 }))).toBeLessThan(100);
   expect(assessPosition(demo.slice(0, -1), { maxNodes: 4000 })).toBeGreaterThan(MATE - 100);
+});
+
+/** A game of Easy's where White, to move, has one legal move. */
+const FORCED = (
+  'Bc2-Cc2 Eb5-Db3 Ad1-Ac3 Ee4-Be1 Ae1-Be1 Ec4-Dd3 Ae2-Db5 Ed5-Db5 Bd2-Cd2 Dd3-Cc4 Ac3-Cc4 ' +
+  'Dd4-Cc4 Ba1-Ca1 Dd5-Dd4 Ac2-Ae4 Db3-Da1 Ab1-Cb2 Ed4-Cb2 Ab2-Cd4 Da1-Ec1 Ca1-Cb2 Dc4-Cd4 ' +
+  'Ae4-Ad5 Cd4-Cd3 Ad2-Dd5 Ec5-Ed5 Bd1-Cd1 Eb4-Ed2 Dd5-Db3 Ed5-Ec5 Ad5-Dd5'
+)
+  .split(' ')
+  .map((m) => ({ from: m.slice(0, 3), to: m.slice(4) }));
+
+describe('a review’s look at a position', () => {
+  it('gives the best move and its worth, the same each time', () => {
+    const start = analysePosition([], { maxNodes: 4000 });
+    expect(start.best).toBeTruthy();
+    expect(isLegal([], start.best!)).toBe(true);
+    expect(Math.abs(start.score)).toBeLessThan(100);
+    expect(start.mate).toBeUndefined();
+    expect(analysePosition([], { maxNodes: 4000 })).toEqual(start);
+  });
+
+  it('counts a forced mate in plies, for the side to move or against it', () => {
+    expect(analysePosition(demo.slice(0, -1), { maxNodes: 4000 })).toEqual({
+      best: demo[demo.length - 1],
+      score: MATE - 1,
+      mate: 1,
+    });
+    // A move short of that mate, Black is mated whatever it does
+    const lost = analysePosition([...demo.slice(0, -1), { from: 'Cd2', to: 'Cc4' }], {
+      maxNodes: 20000,
+    });
+    expect(lost.mate).toBe(-2);
+    expect(lost.score).toBe(-MATE + 2);
+  });
+
+  it('has no move once mated', () => {
+    expect(analysePosition(demo, { maxNodes: 4000 }).best).toBeNull();
+  });
+
+  it('looks past a forced move as past any other', () => {
+    const forced = analysePosition(FORCED, { maxNodes: 20000 });
+    expect(forced.best).toBeTruthy();
+    expect(
+      new Searcher(Position.fromRecords(FORCED)).search({
+        maxDepth: 40,
+        timeMs: 1e6,
+        maxNodes: 20000,
+        margin: 0,
+      }).depth,
+    ).toBe(1);
+    expect(
+      new Searcher(Position.fromRecords(FORCED)).search({
+        maxDepth: 40,
+        timeMs: 1e6,
+        maxNodes: 20000,
+        margin: 0,
+        deepenForced: true,
+      }).depth,
+    ).toBeGreaterThan(1);
+  });
 });
 
 it('plays a legal move at every level, all game long', () => {

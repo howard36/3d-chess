@@ -114,8 +114,8 @@ Key decisions:
   selection).
 - **Server = relay + durable move log.** Per game the server stores `{seats, moves}` (plus
   `claimants`, which client id claimed each seat, and once there are any, `ending`, a
-  resignation or an agreed draw, `drawOffer`, the latest draw offer, and `takebackRequest`,
-  the latest request to take back a move) in a `modal.Dict`
+  resignation or an agreed draw, `drawOffer`, the latest draw offer, `takebackRequest`,
+  the latest request to take back a move, and `rematch`, the latest offer of a rematch) in a `modal.Dict`
   (durable) and keeps live sockets in a plain in-process dict (ephemeral).
   A disconnect detaches the socket but leaves the game record intact; `rejoin_game`
   reclaims a seat and receives the full history in a `game_state` message.
@@ -128,7 +128,7 @@ Key decisions:
   `modal.Dict`'s awaiting `.aio` calls): the store operations
   in `modal_app.py` (`create_game`, `claim_seat`, `taken_seats`, `find_seat`, `record_move`,
   `resign`, `offer_draw`, `accept_draw`, `decline_draw`, `request_takeback`, `accept_takeback`,
-  `decline_takeback`) are
+  `decline_takeback`, `offer_rematch`, `accept_rematch`, `decline_rematch`) are
   synchronous functions, so nothing inside them can yield to the event loop; and the
   WebSocket handler never reads or writes the store itself, only passes it to those
   operations. `modal.Dict`'s calls block; never switch to the `.aio` variants.
@@ -254,7 +254,22 @@ Key decisions:
   agreed"), and the result card says "You win", "You lose" or "Draw" with how ("by
   checkmate", "White resigned", "by stalemate", "by repetition", "by the 50-move rule", "by
   agreement"); `data-result` is `checkmate`, `resignation`, `stalemate`, `repetition`,
-  `fifty-moves` or `agreement`, and the board takes no more input. While the game is on, a
+  `fifty-moves` or `agreement`, and the board takes no more input. The card's call to
+  action, which has the focus, is "Rematch", with "Home" (the start page) quieter under it
+  (`Rematch` in `screens/EndGameModal.tsx`), against the computer and a friend alike. A
+  rematch is a new game with the colours swapped. Against the computer it starts at once,
+  at the same level (`ComputerGameScreen`'s `onRematch`, made as the side choice makes a
+  game; the computer sits down as its page opens). Against a friend it is offered and
+  answered like a draw: the button follows the offer, one element throughout so the focus
+  stays on it: "Rematch offered" (waiting, not pressed) while the player's own stands,
+  "Accept rematch" with "Decline" beside "Home" under it for the opponent's, and "Home",
+  under "Rematch declined", once the player's own was declined. Accepted, both
+  players' pages open the new game at once (the seat stored as a joined one is, the router's
+  state asking for the whole entrance); a finished game opened after its rematch began says
+  "Join rematch" instead. The same buttons stand below the tower once the card is put away
+  (`RematchBar`), side by side, the quieter one over the pill where the room beside the
+  history's steps holds the pill alone; `rematch-announcer` says an offer and a refusal.
+  While the game is on, a
   flag in a circle stands under the way to the tutorial at the right (`screens/GameActions.tsx`,
   `.hud-game`, in one column with the move history, which takes its place once the game is over, `.hud-side`: below the HUD's band, but in every window shape where the window is empty
   beside the tower, which `hudFit.spec.ts` checks with the rest of the HUD). It opens a small
@@ -306,7 +321,7 @@ Key decisions:
   narrow glass panel at the right under "How to play" and the flag, in one column with them
   (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
   height to fit (the list scrolls, the move shown kept in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
-  in a row under the tower (above "Play again", or beside it in a window at least 560 px wide, where the tower fills the height and leaves room under it for one row), the move shown
+  in a row under the tower (above the rematch, or beside it in a window at least 560 px wide, where the tower fills the height and leaves room under it for one row), the move shown
   between them ("7… Ed4–Ba1"), which opens the list above them. Closed, the list is
   visually hidden, never `display: none`: it is how a screen reader reads the record, and
   a polite status says where the board stands as the player steps. A reopened game's list
@@ -322,6 +337,21 @@ Key decisions:
   and a game ended by a resignation or an agreed draw is stepped through like one ended on
   the board, the board taking no input at its end either. (While the result card is up,
   nothing steps: it is a dialog.)
+  At the top of the list stands **"Analyse"**, a game's review on asking (never on its own:
+  it would cost a phone's battery), against a friend or the computer alike
+  (`screens/useAnalysis.ts`). Each position from the start on is searched in the computer's
+  worker, one at a time (see Playing the computer), and the position a game ended in on the
+  board (a mate, a draw) needs none. As each is done its moves are marked, a glyph after
+  the move in the list, "?!" an inaccuracy, "?" a mistake and "??" a blunder (pale blue,
+  orange and red, but the glyph says which; a screen reader hears the grade), and the button
+  gives way to each side's marks counted by grade (its stone, then "?! 2 ? 0 ?? 1"), a
+  thin bar under them filling as the review goes. Where the move shown is marked, the board
+  draws the better move beside it (see The board) and the panel names it under the list
+  ("Best Bc1–Cc2", beside a stroke of the line's amber); an unmarked move shows nothing
+  more. In a window no wider than 13:9 the mark stands beside the move shown between the
+  steps, and the review's top and the better move's name come with the list. The review
+  lasts for the page's life; leaving the page, or another record, stops the work
+  (`game/analysis.ts` grades each move: see Playing the computer).
   The earlier positions are replayed only while the player looks back (`game/review.ts`),
   never on a move landing. One step
   glides like a move (back, in reverse), a jump snaps (see The board); with reduced motion
@@ -334,9 +364,14 @@ Key decisions:
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
   and `data-move-count`; `move-history` the ply the board shows as `data-viewing-ply`
   (the live ply at the live position), with `data-review` away from it and `data-hidden`
-  while the game is on; `game-actions` is the flag's corner, with `take-back` (the arrow),
+  while the game is on, `data-analysis` (`running`, `done`) once the review is asked for
+  (`analyse`, the button) and `data-best` the better move where the move shown is marked
+  (`Bc1-Cc2`, named in `best-move`); each move marked carries `data-grade` (`inaccuracy`,
+  `mistake`, `blunder`), and `.hud-counts` each side's counts as `data-count` by grade; `game-actions` is the flag's corner, with `take-back` (the arrow),
   and `draw-pending`, `draw-declined`, `draw-offer`, `takeback-pending`, `takeback-declined`
-  and `takeback-offer` in it while they show. The browser tab follows the pill: while it is the seated player's
+  and `takeback-offer` in it while they show; `rematch` holds the result's buttons (with
+  `data-bar` below the tower), its call to action `rematch-go` with `data-state` (`none`,
+  `mine`, `theirs`, `declined`, `begun`), and `rematch-declined` the note. The browser tab follows the pill: while it is the seated player's
   move in a game under way (a friend's or the computer's), in view or not, the title is
   "● Your move · 3D Chess" and the icon is `public/favicon-turn.svg` (the favicon, the
   tower's five levels, with a gold dot); the page's own come back on the opponent's move,
@@ -423,10 +458,11 @@ Key decisions:
   action is an outlined pill (`.button-secondary`, a size down as `.button-small`: "How to
   play" on the start page, "Play here", Retry, the tutorial's Next); a word that goes back
   or cancels is a quiet link (`.button-link`: "← Home", "How to play" in a game, Cancel,
-  Start over); a glyph alone is `.button-icon` (the result card's and an error's ✕). The
+  Start over, the result's Decline and Home); a glyph alone is `.button-icon` (the result card's and an error's ✕). The
   pill wears the turning rim of the level colours (`rim`, its colours carried round it
   at one pace by `screens/rim.ts`) only where it stands alone on the scene and urges a
-  game on: "Join game", the way on from a game taken or gone, "Play again". In a card of
+  game on: "Join game", the way on from a game taken or gone, the result's "Rematch" (and its
+  answers; plain once it turns to "Home"). In a card of
   the rimmed glass ("Copy link") it is plain, one rim to an object, and the 404 page's
   Home goes without. A rimmed card holds more than one thing: a heading and one button
   stand on the page alone. Focus the page moves by itself (a page's one action on
@@ -511,6 +547,19 @@ Message flow, happy path:
    record keeps the latest request (`takebackRequest`, `{by, ply, declined?}`), which a
    `game_state` carries, and it stands and lapses as a draw offer does (`game/ending.ts`,
    `selectTakebackRequest`); the same refusals apply (`game_not_started`, `game_over`).
+8. A rematch, once the game is over: `offer_rematch` → `rematch_offered {by}` to both; the
+   opponent's `decline_rematch` → `rematch_declined {by}` (the side declining), or
+   `accept_rematch` (or an `offer_rematch` of their own: both asked) → a new game with both
+   seats taken, each player in the other colour (each tab's claim going with its player),
+   and `rematch_started {gameId}` to both, whose pages store the seat and rejoin it there. The
+   record keeps the latest offer (`rematch`, `{by, declined?, gameId?}`), which a
+   `game_state` carries, so a player who comes back to the finished game finds the offer
+   standing or the new game's id (`selectRematch` in `game/ending.ts`). It names no ply and
+   stands until answered. The server takes it once both seats are taken, ended or not (a
+   mate or a draw on the board is the clients' to see; the app offers it only once the game
+   is over), and refuses with `invalid_rematch` an offer while the sender's own stands or
+   after it was declined (the opponent may still offer one), an answer with no offer of the
+   opponent's standing, and anything once the rematch has begun.
 
 Coordinates on the wire use the display notation described below (e.g. `"Aa1"`).
 
@@ -591,7 +640,10 @@ seats, and that at the side post no letter stands on the tower on screen.
 
 Play is marked in light on the glass: a thin gold circle round each square the selected
 piece can reach (fuller under the pointer), red round a capture (four arcs turning slowly round the victim), a mint line from the last
-move's source to its destination, and a king in check turns red among four clusters of dark obsidian blades. The
+move's source to its destination (in a finished game's review, where the move shown is
+marked, a still amber line beside it, the better move, from a small circle to a circle
+just outside a piece's ring: `Better` in `scene/markers.tsx`, drawn by the last move's own
+programs, so it links none and asks for no frames), and a king in check turns red among four clusters of dark obsidian blades. The
 marks look the same from every angle, and a destination takes the pointer and the click on its
 circle alone (`MARK_RADIUS`), so a square's empty corners reach a circle beneath. While the pointer is on a level (a square of it, a piece
 or a destination), the other levels step back: their glass, edges and marks give up a share of
@@ -625,7 +677,7 @@ level (`scene/fx.tsx`), the obsidian blades round him sink into the glass and ar
 the winning army hops in a wave out from him. The result card follows `onToppled` after a
 hold on the final board (`screens/useEndCard.ts`), in the middle of
 the screen. It can be closed (its close button, Escape, a click outside it) to turn and
-zoom the final position, with "Play again" left below the tower. From history he simply falls. The knock lands
+zoom the final position, with the rematch left below the tower. From history he simply falls. The knock lands
 85 ms before the mating piece comes to rest (its glide eases in so slowly that it looks
 landed by then), the pulse spreads at 4.5 world units a second, the wave sets off 370 ms
 after the king strikes and travels at 15, and the card follows 1.3 s after the strike
@@ -922,8 +974,8 @@ until the row fits the width).
   both the answer and the moment are over (`onSettled`, `LOBBY_TIMING.settle`: 0.3 s after
   the pick or the coin's rest, while the others still fade, so the pick, the camera's
   move and the card run as one). A
-  refusal puts the kings back with "Couldn't start a game: …". The end-game dialog's
-  "Play again" and the invitation's "Play a friend" lead here.
+  refusal puts the kings back with "Couldn't start a game: …". The invitation's "Play a
+  friend" leads here.
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
   `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
   breathing dot and "Waiting for your friend…" under it. The card under the kings, of
@@ -1063,7 +1115,7 @@ stands, as a rejoin's answer would (and a game not yet begun has the computer si
 once), so the page holds its seat from its first render. It plays the arrival only when it
 was opened from its side choice (`markArriving`, in memory: a reload or a visit from
 history opens on the game itself, with its own entrance). The pill calls
-the opponent "Computer", and "Play again" leads back to `/computer`. A page for a game
+the opponent "Computer", and "Rematch" starts the next game at once (see HUD). A page for a game
 this browser does not hold says "No game here", with "Play the computer".
 
 **The computer's move.** Whenever the record leaves the computer to move, the hook asks
@@ -1139,6 +1191,25 @@ the way a person does; its own moves this turn are always all considered.
 
 Measured by self-play (`chooseMove`, alternating colours): Easy beat a random mover 6–0,
 Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking time.
+
+**A finished game's review** ("Analyse", see HUD) asks the same worker one position at a
+time (`analyse` in `ai/computer.ts`, `analysePosition` in `ai/choose.ts`), so the marks come
+in as the positions are done and the page's going stops it: Hard's depth and quiescence,
+margin 0, no noise or blind spots, as `assessPosition`, but bounded by 120,000 positions
+searched (`ANALYSIS_NODES`, about a third of a second in the browser) rather than the
+clock, so a game reviewed anywhere gets the same marks (1.5 s is a backstop for a slow
+machine), and looking past a forced move (`deepenForced`; a move needs no choosing, but its
+grade needs what it leads to). Each answer is the best move and its score for the side to
+move, a forced mate as the plies to it. `game/analysis.ts` grades each move as lichess
+does: what it cost the mover in winning chances (from -1 to 1, a logistic of the score:
+`2 / (1 + e^(-0.00368 cp)) - 1`) between the best score before it and the negated score
+after it, so a pawn thrown away a queen ahead counts for little; 0.1 an inaccuracy, 0.2 a
+mistake, 0.3 a blunder. The best move is never marked. Walking into a forced mate, or
+letting one go, is a blunder unless the player stood (or still stands) so far behind (or
+ahead) that it hardly changes the result: a mistake past 7 pawns, an inaccuracy past 10. In
+self-play (`chooseMove` games, each position reviewed), per 100 moves: Easy 13.6
+inaccuracies, 6.6 mistakes and 5.8 blunders, Medium 10.5, 2.1 and 2.9, Hard 2.0, 0 and 0.3
+(16 Easy, 12 Medium and 8 Hard sides).
 
 ## The tutorial
 

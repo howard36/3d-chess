@@ -36,6 +36,7 @@ const scripted = (answers: (ComputerMove | null | 'fail')[], scores: (number | '
       const s = scores.shift() ?? 0;
       return s === 'fail' ? Promise.reject(new Error('no')) : Promise.resolve(s);
     },
+    analyse: () => Promise.reject(new Error('not asked in a game')),
     dispose: () => {
       disposed = true;
     },
@@ -305,6 +306,7 @@ it('takes a move back: the computer drops what it was thinking over, then answer
         : Promise.resolve(reply('Dd4', 'Cd4'));
     },
     assess: () => Promise.resolve(0),
+    analyse: () => Promise.reject(new Error('not asked in a game')),
     dispose: () => {},
   };
   const { result } = renderHook(() =>

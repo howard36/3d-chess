@@ -42,6 +42,7 @@ class ErrorCode(Enum):
     game_over = 'game_over'
     invalid_draw = 'invalid_draw'
     invalid_takeback = 'invalid_takeback'
+    invalid_rematch = 'invalid_rematch'
 
 
 class EndingResult(Enum):
@@ -81,6 +82,21 @@ class TakebackRequest(BaseModel):
     declined: bool | None = Field(
         None,
         description='The opponent declined it. A take-back can be asked for once per move.',
+    )
+
+
+class Rematch(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    by: Color
+    declined: bool | None = Field(
+        None,
+        description='The opponent declined it. The same player cannot offer another; the opponent still can.',
+    )
+    gameId: str | None = Field(
+        None,
+        description='The opponent accepted it: the new game, where each player holds the other colour.',
     )
 
 
@@ -279,6 +295,51 @@ class TakebackDeclined(BaseModel):
     ply: conint(ge=0)
 
 
+class OfferRematch(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['offer_rematch']
+
+
+class AcceptRematch(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['accept_rematch']
+
+
+class DeclineRematch(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['decline_rematch']
+
+
+class RematchOffered(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['rematch_offered']
+    by: Color
+
+
+class RematchDeclined(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['rematch_declined']
+    by: Color
+
+
+class RematchStarted(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['rematch_started']
+    gameId: str
+
+
 class GameEnded(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -327,6 +388,10 @@ class GameState(BaseModel):
         None,
         description='The latest take-back request, if any; it stands only if its ply is the number of moves and it was not declined.',
     )
+    rematch: Rematch | None = Field(
+        None,
+        description="The latest rematch offer, if any: standing, declined, or accepted (with the new game's id).",
+    )
 
 
 class WebsocketV1MessageEnvelope(
@@ -353,6 +418,12 @@ class WebsocketV1MessageEnvelope(
         | DeclineTakeback
         | TakebackRequested
         | TakebackDeclined
+        | OfferRematch
+        | AcceptRematch
+        | DeclineRematch
+        | RematchOffered
+        | RematchDeclined
+        | RematchStarted
         | GameEnded
         | Presence
         | Error
@@ -381,6 +452,12 @@ class WebsocketV1MessageEnvelope(
         | DeclineTakeback
         | TakebackRequested
         | TakebackDeclined
+        | OfferRematch
+        | AcceptRematch
+        | DeclineRematch
+        | RematchOffered
+        | RematchDeclined
+        | RematchStarted
         | GameEnded
         | Presence
         | Error
