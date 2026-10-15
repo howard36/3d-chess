@@ -1465,7 +1465,10 @@ for uncommitted work, `--base main` for a branch): it checks the base commit out
 temporary worktree, gives it this checkout's benchmark code, and runs the two interleaved
 (base, head, head, base, ...), judging each change by pairs of runs made next to each
 other, so a shared machine speeding up or slowing down over the run cannot pass for a
-change. It writes `bench/out/AB.md`, opening with the primary rows, their verdicts and one
+change. So a check added with a change runs against the base too: a check the base cannot
+pass (a throw on the old behaviour) fails the whole comparison. Make it a row that measures
+instead (a count, which the base reports as it is), and let the verdict show the difference.
+It writes `bench/out/AB.md`, opening with the primary rows, their verdicts and one
 speed for them all (the geometric mean of each row's median pair: ×1.004 for identical
 code); `--primary` runs only what those rows need (the browser tier's `primary` profile and
 the client tier's search bench), about 13 minutes for three pairs on a 4-core VM, where

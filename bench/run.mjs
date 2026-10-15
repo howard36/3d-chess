@@ -683,7 +683,14 @@ const HARNESS = [
 /** A worktree of `ref` with this checkout's harness and installed dependencies. */
 function baseWorktree(ref) {
   const sha = sh('git', ['rev-parse', '--verify', `${ref}^{commit}`]);
-  if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`--base: not a commit: ${ref}`);
+  if (!/^[0-9a-f]{40}$/.test(sha)) {
+    // A cloud session's clone is shallow: an old base (the first recorded run) isn't in it
+    const shallow = sh('git', ['rev-parse', '--is-shallow-repository']) === 'true';
+    throw new Error(
+      `--base: not a commit: ${ref}` +
+        (shallow ? ' (this clone is shallow: fetch the history first, git fetch --unshallow)' : ''),
+    );
+  }
   const dir = join(mkdtempSync(join(os.tmpdir(), 'bench-base-')), 'tree');
   execFileSync('git', ['worktree', 'add', '--detach', dir, sha], { cwd: ROOT, stdio: 'ignore' });
   for (const path of HARNESS) {

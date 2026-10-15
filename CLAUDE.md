@@ -51,6 +51,7 @@ Client code imports wire types from `client/src/types/messages.ts` (hand-written
 
 ## Performance
 
+- When goals conflict: correct rules, then a readable board, then speed, then polish.
 - What speed is for: the moments a player waits on the main thread. That means the start page becoming usable, a game page's first screen, the first board frame (building the piece set), a move landing, and selecting a piece. Bytes on the start page count too (phones on mobile networks). A change that buys one of these with another is a trade-off to name in the PR, not a win.
 - Measure with the suite, interleaved: `node bench/run.mjs --primary --base main` (or without `--primary` for every row; narrow it with `--only`, `--files`, `--grep`, `--browser-sections`), with nothing else running. A change counts only when the A/B calls it, and it is a win for the player only in the primary rows; the diagnostics say where the time goes, and among hundreds of them a few are called by chance (the report says how many to expect). A "worse" row in code the diff doesn't touch (the server tier on a client-only change) is the VM drifting.
 - Output stays byte-identical unless the change is meant to alter it: the piece geometry (`golden.test.ts` hashes; `knightData.test.ts` and `occlusionData.test.ts` for the precomputed parts) and the engine's move lists, order included (`board.reference.test.ts` compares with the rules written out naively; the suite's fixtures are fingerprinted).
@@ -76,7 +77,7 @@ Write for a capable player who needs no hand-holding. The scene, the layout and 
 
 - Conventional Commits with scope: `feat(client):`, `fix(server):`, `test(e2e):`, `ci:`, `docs:`.
 - Branch and open a PR to `main` (a ruleset blocks direct pushes). Merging to `main` deploys to Modal via CI.
-- Merge with `gh pr merge --squash --delete-branch`. The PR title becomes the commit subject (Conventional Commit) and the description its body: what changed, why, how verified.
-- One PR per session, scoped to one logical change. Independent extra work goes on its own branch from fresh `main` in parallel; dependent work waits for the merge. Don't stack PRs.
+- Merge with `gh pr merge --squash --delete-branch`. The `main` ruleset refuses the merge until `client`, `server-tests` and `e2e` pass on a head that is up to date with `main`: merge `main` in first and wait for CI. The PR title becomes the commit subject (Conventional Commit) and the description its body: what changed, why, how verified.
+- One PR per session, scoped to one logical change. Independent extra work goes on its own branch from fresh `main` in parallel; dependent work waits for the merge. Don't stack PRs. A perf run (`/perf-iteration`) is the exception: one PR for the whole run, each change its own commit with its evidence, all of them listed in the description.
 - Keep a branch current by merging `main` in, not rebasing or force-pushing. For conflicts in generated files or lockfiles, take either side and regenerate, then re-run `/check`; a clean merge can still break the build.
 - Parallel agents: stay in your own area, and don't edit `server/schema.json` while another PR does.
