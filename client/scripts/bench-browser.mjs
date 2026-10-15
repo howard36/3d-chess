@@ -1293,13 +1293,23 @@ async function coldSection(browser) {
             timeout: 120000,
           });
           // (awaited here, before the context closes under it)
-          return await page.evaluate(() => {
+          const run = await page.evaluate(() => {
             const { firsts } = window.__bench;
             const t0 = performance.timeOrigin;
             const live = firsts.previewLive - t0;
             const picture = firsts.landingPicture ? firsts.landingPicture - t0 : Infinity;
-            return { board: Math.min(picture, live), preview: live };
+            const fetched = performance
+              .getEntriesByType('resource')
+              .filter((e) => new URL(e.name).pathname.startsWith('/landing/'))
+              .map((e) => new URL(e.name).pathname);
+            return {
+              board: Math.min(picture, live),
+              preview: live,
+              shown: picture <= live ? 'picture' : 'preview',
+              fetched,
+            };
           });
+          return run;
         } finally {
           await ctx.close();
         }
@@ -1341,6 +1351,13 @@ async function coldSection(browser) {
           );
           sec.add(['', ...row], m, `${c.label} · ${label}`);
         }
+        // One: the picture shown, preloaded by the page's head (another is a
+        // preload that guessed the window's layout wrong, fetched for nothing)
+        const [row, m] = countStat(
+          'pictures of the board downloaded',
+          raw.coldPicture[c.key].map((r) => new Set(r.fetched).size),
+        );
+        sec.add(['', ...row], m, `${c.label} · pictures of the board downloaded`);
         // The section's first load meets the start page's preview programs
         // uncached (the browser's GPU process caches them for the loads
         // after it): a player's first visit, which the median above hides
