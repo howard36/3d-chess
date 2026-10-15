@@ -69,6 +69,16 @@ const Back = () => (
  * against a friend once they agree, the asking shown as a draw offer is
  * (one line under the buttons at a time).
  */
+/** The line under the buttons, by what it says: a question to answer, or where a request stands. */
+const LINE_WORDS = {
+  'takeback-offer': 'Take-back requested',
+  'draw-offer': 'Draw offered',
+  'takeback-pending': 'Take-back requested',
+  'draw-pending': 'Draw offered',
+  'takeback-declined': 'Take-back declined',
+  'draw-declined': 'Draw declined',
+} as const;
+
 const GameActions: React.FC<GameActionsProps> = ({
   seat,
   offer,
@@ -124,7 +134,7 @@ const GameActions: React.FC<GameActionsProps> = ({
   // One line at most hangs under the buttons (a narrow window has room
   // beside the tower for no more): a question for the player first, the
   // take-back's before the draw's, then where the player's own stand
-  const line = theirAsk
+  const line: keyof typeof LINE_WORDS | null = theirAsk
     ? 'takeback-offer'
     : theirs
       ? 'draw-offer'
@@ -218,71 +228,32 @@ const GameActions: React.FC<GameActionsProps> = ({
           )}
         </div>
       )}
-      {line === 'draw-pending' && (
-        <div className="hud-line hud-glass" data-testid="draw-pending">
-          <span className="hud-dot" aria-hidden />
-          Draw offered
-        </div>
-      )}
-      {line === 'draw-declined' && (
-        <div className="hud-line hud-glass" data-testid="draw-declined">
-          Draw declined
-        </div>
-      )}
-      {line === 'draw-offer' && (
-        <div className="hud-offer hud-glass" data-testid="draw-offer">
-          <span className="hud-offer-words">Draw offered</span>
+      {line && line.endsWith('-offer') ? (
+        <div className="hud-offer hud-glass" data-testid={line}>
+          <span className="hud-offer-words">{LINE_WORDS[line]}</span>
           <span className="hud-offer-answers">
-            <button
-              className="hud-menu-item"
-              data-accept=""
-              disabled={disabled}
-              onClick={() => onAnswerDraw(true)}
-            >
-              Accept
-            </button>
-            <button
-              className="hud-menu-item"
-              disabled={disabled}
-              onClick={() => onAnswerDraw(false)}
-            >
-              Decline
-            </button>
+            {[true, false].map((accept) => (
+              <button
+                key={String(accept)}
+                className="hud-menu-item"
+                data-accept={accept ? '' : undefined}
+                disabled={disabled}
+                onClick={() =>
+                  line === 'draw-offer' ? onAnswerDraw(accept) : takeBack?.onAnswer?.(accept)
+                }
+              >
+                {accept ? 'Accept' : 'Decline'}
+              </button>
+            ))}
           </span>
         </div>
-      )}
-      {line === 'takeback-pending' && (
-        <div className="hud-line hud-glass" data-testid="takeback-pending">
-          <span className="hud-dot" aria-hidden />
-          Take-back requested
-        </div>
-      )}
-      {line === 'takeback-declined' && (
-        <div className="hud-line hud-glass" data-testid="takeback-declined">
-          Take-back declined
-        </div>
-      )}
-      {line === 'takeback-offer' && (
-        <div className="hud-offer hud-glass" data-testid="takeback-offer">
-          <span className="hud-offer-words">Take-back requested</span>
-          <span className="hud-offer-answers">
-            <button
-              className="hud-menu-item"
-              data-accept=""
-              disabled={disabled}
-              onClick={() => takeBack?.onAnswer?.(true)}
-            >
-              Accept
-            </button>
-            <button
-              className="hud-menu-item"
-              disabled={disabled}
-              onClick={() => takeBack?.onAnswer?.(false)}
-            >
-              Decline
-            </button>
-          </span>
-        </div>
+      ) : (
+        line && (
+          <div className="hud-line hud-glass" data-testid={line}>
+            {line.endsWith('-pending') && <span className="hud-dot" aria-hidden />}
+            {LINE_WORDS[line]}
+          </div>
+        )
       )}
       {/* Said, as well as shown: present from the first render, so each change is announced */}
       <div className="sr-only" role="status" data-testid="draw-announcer">
