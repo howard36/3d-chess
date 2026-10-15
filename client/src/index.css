@@ -1153,11 +1153,11 @@ body {
  * a pill of starlight ringed by a rim of the five level colours that turns
  * slowly, glowing sky on its left and rose on its right like the tower's
  * top and base levels. On hover it lifts; while a game is being
- * created the rim turns fast round a dark pill. The rim is a straight
- * gradient, sky at the left through to rose at the right, whose angle
- * turns: a colour wheel about the pill's middle (conic) running sky to
- * rose and back turned back on itself, a pixel of another colour at the
- * middle of each edge and a seam through the dark pill.
+ * created the rim turns fast round a dark pill. The turning rim is painted
+ * by its component (screens/PlayButton.tsx, screens/rim.ts), each colour
+ * placed by its distance round the pill so it keeps one pace on the long
+ * edges and the ends alike; the straight gradient here, sky at the left
+ * through to rose at the right, is the rim at rest until it does.
  */
 @property --landing-turn {
   syntax: '<angle>';
@@ -1165,14 +1165,7 @@ body {
   initial-value: 0deg;
 }
 .landing-play {
-  --landing-rim: linear-gradient(
-    calc(90deg + var(--landing-turn)),
-    #47bbec 8%,
-    #4180f3,
-    #8f61fc,
-    #de5cec,
-    #ec539b 92%
-  );
+  --landing-rim: linear-gradient(90deg, #47bbec 8%, #4180f3, #8f61fc, #de5cec, #ec539b 92%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1195,7 +1188,6 @@ body {
     12px 0 30px -12px rgba(236, 83, 155, 0.6),
     0 0 24px rgba(143, 97, 252, 0.16);
   cursor: pointer;
-  animation: landing-rim 9s linear infinite;
   transition:
     box-shadow 200ms,
     transform 200ms;
@@ -1227,7 +1219,6 @@ body {
   color: var(--hud-fg);
   font-weight: 600;
   cursor: progress;
-  animation-duration: 1.4s;
   /* The label and the fill change together, never white on white */
   transition: none;
 }

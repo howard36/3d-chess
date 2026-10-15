@@ -4,6 +4,7 @@ import type { Color } from '../../types/messages';
 import type { Invitation } from '../../game/invitation';
 import type { GameSocket } from '../../hooks/useGameSocket';
 import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
+import { PlayButton } from '../PlayButton';
 
 // The cards over the lobby's scene on a game's page before it starts, of the
 // home page's tile glass (.lobby-glass): the creator's invitation to send,
@@ -50,9 +51,9 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
       </p>
       {canCopy && (
         <div className="lobby-actions">
-          <button ref={first} className="landing-play lobby-go" onClick={copy}>
+          <PlayButton ref={first} onClick={copy}>
             {copied ? 'Copied ✓' : 'Copy link'}
-          </button>
+          </PlayButton>
         </div>
       )}
       {/* The button says "Copied"; only a failed copy needs words */}
@@ -83,9 +84,9 @@ export const InvitationCard: React.FC<{
         </h2>
         <div className="lobby-actions">
           {/* In the home page's words for where it leads */}
-          <button autoFocus className="landing-play lobby-go" onClick={() => navigate(newGamePath)}>
+          <PlayButton autoFocus onClick={() => navigate(newGamePath)}>
             {newGamePath === '/computer' ? 'Play the computer' : 'Play a friend'}
-          </button>
+          </PlayButton>
         </div>
       </section>
     );
@@ -109,15 +110,14 @@ export const InvitationCard: React.FC<{
       data-testid="invitation"
     >
       <div className="lobby-actions">
-        <button
+        <PlayButton
           autoFocus
-          className="landing-play lobby-go"
           onClick={onAccept}
           aria-disabled={joining || undefined}
           data-testid="accept-invitation"
         >
           {joining ? 'Joining…' : 'Join game'}
-        </button>
+        </PlayButton>
       </div>
     </section>
   );

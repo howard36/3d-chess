@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import type { GameOver, Turn } from '../game/history';
 import { DRAW_BY, isDecisive, resultWords } from '../game/announce';
 import { Stone } from './TurnPill';
+import { PlayButton } from './PlayButton';
 
 interface EndGameModalProps {
   result: GameOver['result'];
@@ -79,13 +80,9 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
           {how}
         </p>
         {/* The dialog takes focus: a keyboard player lands on its only action */}
-        <button
-          autoFocus
-          className="landing-play lobby-go hud-result-go"
-          onClick={() => navigate(newGamePath)}
-        >
+        <PlayButton autoFocus className="hud-result-go" onClick={() => navigate(newGamePath)}>
           Play again
-        </button>
+        </PlayButton>
       </div>
     </div>
   );
@@ -98,9 +95,7 @@ export const NewGameBar: React.FC<{ newGamePath?: string }> = ({ newGamePath = '
   const navigate = useNavigate();
   return (
     <div className="hud-new-game">
-      <button className="landing-play lobby-go" onClick={() => navigate(newGamePath)}>
-        Play again
-      </button>
+      <PlayButton onClick={() => navigate(newGamePath)}>Play again</PlayButton>
     </div>
   );
 };
