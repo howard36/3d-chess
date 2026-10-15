@@ -274,6 +274,16 @@ for (const seat of ['white', 'black'] as const) {
     await page.keyboard.press('Home');
     await expect(page.getByTestId('move-history')).toHaveAttribute('data-viewing-ply', '0');
     expect(await everywhere()).toEqual([]);
+    // ...and the game reviewed, the player on a marked move: each side's
+    // marks at the top of the list, the better move under it (beside the
+    // tower), the mark beside the move shown (under it)
+    await page.getByTestId('analyse').click();
+    await expect(page.getByTestId('move-history')).toHaveAttribute('data-analysis', 'done', {
+      timeout: 30_000,
+    });
+    await page.locator('[data-ply="3"]').click();
+    await expect(page.getByTestId('move-history')).toHaveAttribute('data-best', /-/);
+    expect(await everywhere()).toEqual([]);
   });
 }
 

@@ -42,6 +42,7 @@ const drawn = vi.hoisted(() => ({
   checks: [] as MarkerProps[],
   lastMoves: [] as LastMoveMarkerProps[],
   lastMoveMounts: [] as string[],
+  betters: [] as { from: MarkerProps; to: MarkerProps }[],
   captures: [] as CaptureFxProps[],
   selectionMounts: 0,
 }));
@@ -77,6 +78,10 @@ vi.mock('./scene/markers', () => ({
     drawn.checks.push(props);
     return null;
   },
+  Better: (props: { from: MarkerProps; to: MarkerProps }) => {
+    drawn.betters.push(props);
+    return <group userData={{ better: true }} />;
+  },
 }));
 vi.mock('./scene/selection', () => ({
   Selection: ({ floor }: MarkerProps) => {
@@ -106,6 +111,7 @@ beforeEach(() => {
   drawn.checks.length = 0;
   drawn.lastMoves.length = 0;
   drawn.lastMoveMounts.length = 0;
+  drawn.betters.length = 0;
   drawn.captures.length = 0;
   drawn.selectionMounts = 0;
 });
@@ -923,6 +929,28 @@ describe('Board', () => {
       // and the piece rests exactly on its cell.
       expect(glideGroups(renderer)).toHaveLength(0);
       expect(piecePositions(renderer, PieceType.Rook, 'white')).toEqual([toWorld(TO, 'white')]);
+    });
+
+    it('draws the better move beside the last one, in the decoration, while it is given', async () => {
+      const better = { from: FROM, to: { x: 2, y: 4, z: 2 } };
+      const renderer = await ReactThreeTestRenderer.create(
+        <Board
+          board={boardAfterMove()}
+          currentTurn="black"
+          lastMove={lastMove(1)}
+          betterMove={better}
+        />,
+      );
+      expect(last(drawn.betters)!.from.floor).toEqual(floorOf(FROM));
+      expect(last(drawn.betters)!.to.floor).toEqual(floorOf(better.to));
+      // Decoration: outside the group that takes clicks
+      const marks = root(renderer).findAll((node) => node.props.userData?.better === true);
+      expect(marks).toHaveLength(1);
+      expect(gridOf(renderer).findAll((node) => node.props.userData?.better === true)).toEqual([]);
+      await renderer.update(
+        <Board board={boardAfterMove()} currentTurn="black" lastMove={lastMove(1)} />,
+      );
+      expect(root(renderer).findAll((node) => node.props.userData?.better === true)).toEqual([]);
     });
 
     it('draws no frame for a render that changes nothing, once a move has glided in', async () => {

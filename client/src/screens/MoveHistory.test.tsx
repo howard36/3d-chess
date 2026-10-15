@@ -12,7 +12,8 @@ vi.mock('../game/review', async (actual) => {
   return { ...real, formatMove: vi.fn(real.formatMove) };
 });
 const formatted = vi.mocked(review.formatMove);
-import type { MoveHistoryProps } from './MoveHistory';
+import type { HistoryAnalysis, MoveHistoryProps } from './MoveHistory';
+import type { Grade } from '../game/analysis';
 
 const SHUFFLE: MoveRecord[] = [
   { by: 'white', from: 'Ab1', to: 'Aa3' },
@@ -380,5 +381,152 @@ describe('in a narrow window', () => {
     expect(screen.getByTestId('move-list')).not.toHaveClass('sr-only');
     turn(true);
     expect(screen.getByTestId('move-list')).toHaveClass('sr-only');
+  });
+});
+
+describe('the review', () => {
+  const counts = (white: number[], black: number[]) => ({
+    white: { inaccuracy: white[0], mistake: white[1], blunder: white[2] },
+    black: { inaccuracy: black[0], mistake: black[1], blunder: black[2] },
+  });
+  const analysis = (over: Partial<HistoryAnalysis> = {}): HistoryAnalysis => ({
+    state: 'idle',
+    done: 0,
+    total: 7,
+    grades: [],
+    counts: counts([0, 0, 0], [0, 0, 0]),
+    best: null,
+    onAnalyse: () => {},
+    ...over,
+  });
+
+  it('is asked for with "Analyse" at the top of the list', async () => {
+    const onAnalyse = vi.fn();
+    render(history({ moves: record(6), analysis: analysis({ onAnalyse }) }));
+    expect(screen.getByTestId('analyse')).toHaveTextContent('Analyse');
+    await userEvent.click(screen.getByTestId('analyse'));
+    expect(onAnalyse).toHaveBeenCalledOnce();
+    // The button is about to go: focus moves on to the move shown
+    expect(document.querySelector('[data-ply="6"]')).toHaveFocus();
+    expect(screen.getByTestId('move-history')).not.toHaveAttribute('data-analysis');
+  });
+
+  it('fills a bar as it goes, and marks each move after it, its grade in words', () => {
+    render(
+      history({
+        moves: record(6),
+        analysis: analysis({
+          state: 'running',
+          done: 4,
+          grades: [null, 'blunder', 'inaccuracy'],
+          counts: counts([1, 0, 0], [0, 0, 1]),
+        }),
+      }),
+    );
+    expect(screen.queryByTestId('analyse')).toBeNull();
+    expect(screen.getByTestId('move-history')).toHaveAttribute('data-analysis', 'running');
+    const bar = screen.getByRole('progressbar', { name: 'Analysing' });
+    expect(bar).toHaveAttribute('aria-valuenow', '4');
+    expect(bar).toHaveAttribute('aria-valuemax', '7');
+    expect(document.querySelector('[data-ply="1"]')).not.toHaveAttribute('data-grade');
+    const blunder = document.querySelector('[data-ply="2"]')!;
+    expect(blunder).toHaveAttribute('data-grade', 'blunder');
+    expect(blunder.querySelector('.hud-mark')).toHaveTextContent('??');
+    expect(screen.getByRole('button', { name: 'Ed5–Ee3, blunder' })).toBe(blunder);
+    expect(document.querySelector('[data-ply="3"] .hud-mark')).toHaveTextContent('?!');
+    expect(rows()[0]).toBe('1. Ab1–Aa3 Ed5–Ee3??, blunder');
+  });
+
+  it('counts each side’s marks, said as a sentence', () => {
+    render(
+      history({
+        moves: record(6),
+        analysis: analysis({ state: 'done', counts: counts([2, 1, 0], [0, 0, 1]) }),
+      }),
+    );
+    expect(screen.getByTestId('move-history')).toHaveAttribute('data-analysis', 'done');
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    const white = document.querySelector('.hud-counts[data-side="white"]')!;
+    expect(white).toHaveTextContent(/^White: 2 inaccuracies, 1 mistake, no blunders\?!/);
+    expect(white.querySelector('.hud-count[data-grade="inaccuracy"]')).toHaveAttribute(
+      'data-count',
+      '2',
+    );
+    const black = document.querySelector('.hud-counts[data-side="black"]')!;
+    expect(black).toHaveTextContent(/^Black: no inaccuracies, no mistakes, 1 blunder\?!/);
+  });
+
+  it('says the better move where the move shown is marked', () => {
+    const best = { from: 'Ed5', to: 'Ec3' };
+    const { rerender } = render(
+      history({
+        moves: record(6),
+        shown: 2,
+        analysis: analysis({ state: 'done', grades: [null, 'mistake'], best }),
+      }),
+    );
+    expect(screen.getByTestId('best-move')).toHaveTextContent('Best Ed5–Ec3');
+    expect(screen.getByTestId('move-history')).toHaveAttribute('data-best', 'Ed5-Ec3');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Move 2 of 6: Ed5–Ee3, mistake. Best Ed5–Ec3.',
+    );
+    rerender(
+      history({ moves: record(6), shown: 1, analysis: analysis({ state: 'done', best: null }) }),
+    );
+    expect(screen.queryByTestId('best-move')).toBeNull();
+    expect(screen.getByTestId('move-history')).not.toHaveAttribute('data-best');
+    rerender(
+      history({
+        moves: record(6),
+        shown: 6,
+        analysis: analysis({ state: 'done', best: { ...best, promotion: 'Q' } }),
+      }),
+    );
+    expect(screen.getByTestId('move-history')).toHaveAttribute('data-best', 'Ed5-Ec3=Q');
+  });
+
+  it('lists again only the block whose marks change', () => {
+    const moves = record(200);
+    const view = (grades: (Grade | null)[]) =>
+      history({ moves, analysis: analysis({ state: 'running', grades }) });
+    const { rerender } = render(view([]));
+    formatted.mockClear();
+    rerender(view([null, 'blunder']));
+    // The first block's 64 moves, and the move shown (the toggle's words)
+    expect(formatted.mock.calls.length).toBeLessThanOrEqual(66);
+    expect(formatted.mock.calls.length).toBeGreaterThanOrEqual(64);
+  });
+
+  it('carries the mark beside the move shown in a narrow window, the counts in the list', async () => {
+    windowNarrow(true);
+    const best = { from: 'Ed5', to: 'Ec3' };
+    render(
+      history({
+        moves: record(6),
+        shown: 2,
+        analysis: analysis({ state: 'done', grades: [null, 'blunder'], best }),
+      }),
+    );
+    const toggle = screen.getByRole('button', { name: /Move list/ });
+    expect(toggle).toHaveTextContent('1… Ed5–Ee3??');
+    // The counts and the better move's words wait for the list to open
+    expect(screen.queryByTestId('analysis-counts')).toBeNull();
+    expect(screen.queryByTestId('best-move')).toBeNull();
+    expect(screen.getByTestId('move-history')).toHaveAttribute('data-best', 'Ed5-Ec3');
+    await userEvent.click(toggle);
+    expect(screen.getByTestId('analysis-counts')).toBeInTheDocument();
+    expect(screen.getByTestId('best-move')).toBeInTheDocument();
+  });
+
+  it('shows nothing of itself while the game is on', () => {
+    render(
+      history({
+        moves: record(6),
+        hidden: true,
+        analysis: analysis({ state: 'done', grades: ['blunder'] }),
+      }),
+    );
+    expect(screen.queryByTestId('analyse')).toBeNull();
+    expect(document.querySelector('.hud-mark')).toBeNull();
   });
 });

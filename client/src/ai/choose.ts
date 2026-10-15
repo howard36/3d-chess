@@ -20,7 +20,7 @@ import {
   moveTo,
 } from './position';
 import type { WireMove } from './position';
-import { MATE_BOUND, Searcher } from './search';
+import { MATE, MATE_BOUND, Searcher } from './search';
 import type { RootScore } from './search';
 
 export interface ComputerMove extends MoveFeel {
@@ -176,6 +176,57 @@ export function assessPosition(
     quiescence,
     now: options.now,
   }).score;
+}
+
+/** What a review of the game makes of one of its positions (analysePosition). */
+export interface PositionAnalysis {
+  /** The best move, as on the wire; null with no legal move. */
+  best: WireMove | null;
+  /** Centipawns for the side to move (past ±MATE_BOUND a mate: see `mate`). */
+  score: number;
+  /**
+   * A forced mate found: the plies to it, positive when the side to move
+   * mates, negative when it is mated.
+   */
+  mate?: number;
+}
+
+/**
+ * How many positions a review looks at for each position of the game: the
+ * same answer on every machine, in about a third of a second in the browser.
+ */
+export const ANALYSIS_NODES = 120_000;
+/** A review's limit on a position should the machine be slow (milliseconds). */
+export const ANALYSIS_MS = 1500;
+
+/**
+ * The best move after `records` and what it is worth, for a review of the
+ * game: Hard's depth and quiescence, as assessPosition, but bounded by
+ * positions searched (ANALYSIS_NODES) rather than time, so it comes out the
+ * same everywhere, and looking past a forced move as past any other.
+ */
+export function analysePosition(
+  records: readonly WireMove[],
+  options: Pick<ChooseOptions, 'now' | 'maxNodes'> = {},
+): PositionAnalysis {
+  const { maxDepth, quiescence } = LEVELS.hard;
+  const result = new Searcher(Position.fromRecords(records)).search({
+    maxDepth,
+    timeMs: ANALYSIS_MS,
+    maxNodes: options.maxNodes ?? ANALYSIS_NODES,
+    margin: 0,
+    quiescence,
+    deepenForced: true,
+    now: options.now,
+  });
+  const analysis: PositionAnalysis = {
+    best: result.move ? Position.record(result.move) : null,
+    score: result.score,
+  };
+  if (result.move && Math.abs(result.score) >= MATE_BOUND) {
+    analysis.mate = result.score > 0 ? MATE - result.score : -(MATE + result.score);
+  }
+  return analysis;
 }
 
 /**

@@ -37,7 +37,7 @@ import { KNOCK_STRIKE_MS } from './pieceMotion';
 import { fallAway } from './mate';
 import { focusLevelOf } from './scene/focus';
 import { Grid } from './scene/grid';
-import { Capture, Check, LastMove, Quiet } from './scene/markers';
+import { Better, Capture, Check, LastMove, Quiet } from './scene/markers';
 import { knightFacing, layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
 import { Selection } from './scene/selection';
 import { pieceArrival } from './intro/timeline';
@@ -96,6 +96,11 @@ export interface BoardProps {
   onChoosePromotion?: (choices: Move[]) => void;
   board: EngineBoard;
   lastMove?: LastMoveInfo;
+  /**
+   * The better move where the last move was played, drawn beside it: a
+   * finished game's review shows it where it marks the move shown.
+   */
+  betterMove?: Move | null;
   /** Freezes interaction (selection and moves) while still rendering the position. */
   disabled?: boolean;
   /** Set once the game has ended: the mated king topples. */
@@ -706,6 +711,14 @@ const Board = (props: BoardProps) => {
             to={markerAt(lastMove.move.to)}
             fresh={!!glide && !glide.back}
             glideMs={glide && !glide.back ? touchdownMs(glide.plan) : 0}
+          />
+        )}
+        {/* Keyed by its squares: a still mark, made again only for another move */}
+        {props.betterMove && (
+          <Better
+            key={`better-${toZXY(props.betterMove.from)}-${toZXY(props.betterMove.to)}`}
+            from={markerAt(props.betterMove.from)}
+            to={markerAt(props.betterMove.to)}
           />
         )}
         {checkedKings.map(({ color, coord }) => (

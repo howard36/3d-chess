@@ -1,3 +1,4 @@
+import { SHORT_GAME } from '../game/shortGame';
 import { createComputer } from './computer';
 import type { ThinkReply, ThinkRequest } from './computer';
 
@@ -21,20 +22,22 @@ class FakeWorker {
       const reply: ThinkReply =
         FakeWorker.mode === 'error'
           ? { id: request.id, error: 'boom' }
-          : request.assess
-            ? { id: request.id, score: -42 }
-            : {
-                id: request.id,
-                move: {
-                  move: { from: 'Dc4', to: 'Cc4' },
-                  score: 0,
-                  depth: 1,
-                  nodes: 1,
-                  forced: false,
-                  obvious: false,
-                  ply: request.records.length,
-                },
-              };
+          : request.analyse
+            ? { id: request.id, analysis: { best: { from: 'Bb1', to: 'Cb1' }, score: 12 } }
+            : request.assess
+              ? { id: request.id, score: -42 }
+              : {
+                  id: request.id,
+                  move: {
+                    move: { from: 'Dc4', to: 'Cc4' },
+                    score: 0,
+                    depth: 1,
+                    nodes: 1,
+                    forced: false,
+                    obvious: false,
+                    ply: request.records.length,
+                  },
+                };
       this.onmessage?.({ data: reply } as MessageEvent<ThinkReply>);
     });
   }
@@ -70,6 +73,27 @@ it('asks its worker what it makes of a position, or works it out on the page', a
   const onPage = createComputer();
   expect(typeof (await onPage.assess([]))).toBe('number');
 });
+
+it('asks its worker for a position’s best move, or works it out on the page', async () => {
+  FakeWorker.mode = 'answer';
+  vi.stubGlobal('Worker', FakeWorker);
+  const computer = createComputer();
+  expect(await computer.analyse([{ from: 'Bc2', to: 'Cc2' }])).toEqual({
+    best: { from: 'Bb1', to: 'Cb1' },
+    score: 12,
+  });
+  expect(FakeWorker.last!.requests[0]).toMatchObject({
+    analyse: true,
+    records: [{ from: 'Bc2', to: 'Cc2' }],
+  });
+  expect(FakeWorker.last!.requests[0].assess).toBeUndefined();
+  computer.dispose();
+
+  vi.stubGlobal('Worker', undefined);
+  const onPage = createComputer();
+  const mated = SHORT_GAME.map((m) => ({ from: m.slice(0, 3), to: m.slice(4) }));
+  expect(await onPage.analyse(mated)).toMatchObject({ best: null });
+}, 20_000);
 
 it('passes on a search that failed', async () => {
   FakeWorker.mode = 'error';

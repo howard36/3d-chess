@@ -337,6 +337,21 @@ Key decisions:
   and a game ended by a resignation or an agreed draw is stepped through like one ended on
   the board, the board taking no input at its end either. (While the result card is up,
   nothing steps: it is a dialog.)
+  At the top of the list stands **"Analyse"**, a game's review on asking (never on its own:
+  it would cost a phone's battery), against a friend or the computer alike
+  (`screens/useAnalysis.ts`). Each position from the start on is searched in the computer's
+  worker, one at a time (see Playing the computer), and the position a game ended in on the
+  board (a mate, a draw) needs none. As each is done its moves are marked, a glyph after
+  the move in the list, "?!" an inaccuracy, "?" a mistake and "??" a blunder (pale blue,
+  orange and red, but the glyph says which; a screen reader hears the grade), and the button
+  gives way to each side's marks counted by grade (its stone, then "?! 2 ? 0 ?? 1"), a
+  thin bar under them filling as the review goes. Where the move shown is marked, the board
+  draws the better move beside it (see The board) and the panel names it under the list
+  ("Best Bc1–Cc2", beside a stroke of the line's amber); an unmarked move shows nothing
+  more. In a window no wider than 13:9 the mark stands beside the move shown between the
+  steps, and the review's top and the better move's name come with the list. The review
+  lasts for the page's life; leaving the page, or another record, stops the work
+  (`game/analysis.ts` grades each move: see Playing the computer).
   The earlier positions are replayed only while the player looks back (`game/review.ts`),
   never on a move landing. One step
   glides like a move (back, in reverse), a jump snaps (see The board); with reduced motion
@@ -349,7 +364,10 @@ Key decisions:
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
   and `data-move-count`; `move-history` the ply the board shows as `data-viewing-ply`
   (the live ply at the live position), with `data-review` away from it and `data-hidden`
-  while the game is on; `game-actions` is the flag's corner, with `take-back` (the arrow),
+  while the game is on, `data-analysis` (`running`, `done`) once the review is asked for
+  (`analyse`, the button) and `data-best` the better move where the move shown is marked
+  (`Bc1-Cc2`, named in `best-move`); each move marked carries `data-grade` (`inaccuracy`,
+  `mistake`, `blunder`), and `.hud-counts` each side's counts as `data-count` by grade; `game-actions` is the flag's corner, with `take-back` (the arrow),
   and `draw-pending`, `draw-declined`, `draw-offer`, `takeback-pending`, `takeback-declined`
   and `takeback-offer` in it while they show; `rematch` holds the result's buttons (with
   `data-bar` below the tower), its call to action `rematch-go` with `data-state` (`none`,
@@ -602,7 +620,10 @@ seats, and that at the side post no letter stands on the tower on screen.
 
 Play is marked in light on the glass: a thin gold circle round each square the selected
 piece can reach (fuller under the pointer), red round a capture (four arcs turning slowly round the victim), a mint line from the last
-move's source to its destination, and a king in check turns red among four clusters of dark obsidian blades. The
+move's source to its destination (in a finished game's review, where the move shown is
+marked, a still amber line beside it, the better move, from a small circle to a circle
+just outside a piece's ring: `Better` in `scene/markers.tsx`, drawn by the last move's own
+programs, so it links none and asks for no frames), and a king in check turns red among four clusters of dark obsidian blades. The
 marks look the same from every angle, and a destination takes the pointer and the click on its
 circle alone (`MARK_RADIUS`), so a square's empty corners reach a circle beneath. While the pointer is on a level (a square of it, a piece
 or a destination), the other levels step back: their glass, edges and marks give up a share of
@@ -1149,6 +1170,25 @@ the way a person does; its own moves this turn are always all considered.
 
 Measured by self-play (`chooseMove`, alternating colours): Easy beat a random mover 6–0,
 Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking time.
+
+**A finished game's review** ("Analyse", see HUD) asks the same worker one position at a
+time (`analyse` in `ai/computer.ts`, `analysePosition` in `ai/choose.ts`), so the marks come
+in as the positions are done and the page's going stops it: Hard's depth and quiescence,
+margin 0, no noise or blind spots, as `assessPosition`, but bounded by 120,000 positions
+searched (`ANALYSIS_NODES`, about a third of a second in the browser) rather than the
+clock, so a game reviewed anywhere gets the same marks (1.5 s is a backstop for a slow
+machine), and looking past a forced move (`deepenForced`; a move needs no choosing, but its
+grade needs what it leads to). Each answer is the best move and its score for the side to
+move, a forced mate as the plies to it. `game/analysis.ts` grades each move as lichess
+does: what it cost the mover in winning chances (from -1 to 1, a logistic of the score:
+`2 / (1 + e^(-0.00368 cp)) - 1`) between the best score before it and the negated score
+after it, so a pawn thrown away a queen ahead counts for little; 0.1 an inaccuracy, 0.2 a
+mistake, 0.3 a blunder. The best move is never marked. Walking into a forced mate, or
+letting one go, is a blunder unless the player stood (or still stands) so far behind (or
+ahead) that it hardly changes the result: a mistake past 7 pawns, an inaccuracy past 10. In
+self-play (`chooseMove` games, each position reviewed), per 100 moves: Easy 13.6
+inaccuracies, 6.6 mistakes and 5.8 blunders, Medium 10.5, 2.1 and 2.9, Hard 2.0, 0 and 0.3
+(16 Easy, 12 Medium and 8 Hard sides).
 
 ## The tutorial
 
