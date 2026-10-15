@@ -16,12 +16,12 @@ test('a player plays the computer: a move, and its reply', async ({ browser }) =
   await page.goto('/');
   await page.getByRole('button', { name: 'Play the computer' }).click();
   await expect(page).toHaveURL(/\/computer$/);
-  // The side first; then the level, a choice of three, Medium unless
-  // played before
+  // The side first; then the level, a choice of three, the first of them
+  // the page's first stop
   await page.getByRole('button', { name: /^White/ }).click();
   const levels = page.getByRole('group', { name: 'Difficulty' });
   await expect(page.getByRole('heading', { name: 'Choose difficulty' })).toBeVisible();
-  await expect(levels.getByRole('button', { name: 'Medium' })).toBeFocused();
+  await expect(levels.getByRole('button', { name: 'Easy' })).toBeFocused();
   await levels.getByRole('button', { name: 'Easy' }).click();
   await page.waitForURL(/\/computer\/[a-z0-9]+$/);
   await waitForBoard(page);

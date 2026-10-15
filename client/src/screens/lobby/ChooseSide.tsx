@@ -14,12 +14,7 @@ import { BotGlyph } from '../BotGlyph';
 import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 import { DIFFICULTIES, DIFFICULTY_NAME } from '../../ai/levels';
 import type { Difficulty } from '../../ai/levels';
-import {
-  getStoredDifficulty,
-  createComputerGame,
-  markArriving,
-  setStoredDifficulty,
-} from '../../lib/computerGames';
+import { createComputerGame, markArriving } from '../../lib/computerGames';
 import { computerGame } from '../computerGameChunk';
 import { prefersReducedMotion } from '../../three/motion';
 import { autoFocusRef } from '../../lib/focus';
@@ -34,12 +29,14 @@ const levelRim = glassRim(
   (el, pointed) =>
     el.hasAttribute('data-hover') || (pointed && canHover() && !(el as HTMLButtonElement).disabled),
 );
-/** The stored level's tile takes the focus as it comes, quietly. */
-const levelRimFocused = (el: HTMLElement | null) => {
-  const done = levelRim(el);
+/** The first of a row (White, Easy) takes the focus as it comes: the page's first stop. */
+const focusedFirst = (rim: typeof levelRim) => (el: HTMLElement | null) => {
+  const done = rim(el);
   autoFocusRef(el);
   return done;
 };
+const choiceRimFirst = focusedFirst(choiceRim);
+const levelRimFirst = focusedFirst(levelRim);
 
 // The first page of a new game: the player picks a side. The three kings
 // stand on the glass (LobbyScene): porcelain, the split king for Random, and
@@ -136,7 +133,6 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
   const pickLevel = (difficulty: Difficulty) => {
     if (!picked || level) return;
     const id = createComputerGame(picked.side, difficulty);
-    setStoredDifficulty(difficulty);
     setLevel(difficulty);
     setComputerGameId(id);
     if (prefersReducedMotion()) setGone(true);
@@ -213,7 +209,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
           return (
             <button
               key={choice}
-              ref={choiceRim}
+              ref={choice === CHOICES[0].choice ? choiceRimFirst : choiceRim}
               className="lobby-choice lobby-glass"
               data-choice={choice}
               data-chosen={chosen ? '' : undefined}
@@ -234,7 +230,10 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
               // A mouse's hover only: a tap leaves nothing lit behind it
               onPointerEnter={(e) => !picked && e.pointerType === 'mouse' && setHover(choice)}
               onPointerLeave={() => setHover((h) => (h === choice ? null : h))}
-              onFocus={() => !picked && setHover(choice)}
+              // The page's own focus on arrival lights nothing until a key shows it
+              onFocus={(e) =>
+                !picked && !e.currentTarget.hasAttribute('data-quiet-focus') && setHover(choice)
+              }
               onBlur={() => setHover((h) => (h === choice ? null : h))}
               onClick={() => pick(choice)}
             >
@@ -266,7 +265,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
                 data-faded={level && level !== d ? '' : undefined}
                 disabled={!!level}
                 aria-pressed={level === d}
-                ref={d === getStoredDifficulty() ? levelRimFocused : levelRim}
+                ref={i === 0 ? levelRimFirst : levelRim}
                 onClick={() => pickLevel(d)}
               >
                 {/* The computer and its strength, one bar to three */}

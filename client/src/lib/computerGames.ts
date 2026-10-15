@@ -11,7 +11,6 @@ import type { Color } from '../types/messages';
 import { setStoredRole } from './playerRole';
 
 const keyFor = (gameId: string) => `3dchess:computer:${gameId}`;
-const DIFFICULTY_KEY = '3dchess:computer-difficulty';
 /** The games whose last write storage refused: newer than its copy. */
 const memory = new Map<string, ComputerGame>();
 
@@ -84,23 +83,4 @@ export function createComputerGame(color: Color, difficulty: Difficulty): string
   saveComputerGame({ id, color, difficulty, started: false, moves: [] });
   setStoredRole(id, color);
   return id;
-}
-
-/** The level last played (Medium the first time). */
-export function getStoredDifficulty(): Difficulty {
-  try {
-    const value = localStorage.getItem(DIFFICULTY_KEY);
-    if (isDifficulty(value)) return value;
-  } catch {
-    // Storage refused: the default
-  }
-  return 'medium';
-}
-
-export function setStoredDifficulty(difficulty: Difficulty): void {
-  try {
-    localStorage.setItem(DIFFICULTY_KEY, difficulty);
-  } catch {
-    // Remembered for this visit only by the page's own state
-  }
 }

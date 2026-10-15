@@ -11,6 +11,7 @@ import { Army, Directions, LevelsIcon, PromotionRow } from './Directions';
 import { cardBeside } from './learnLayout';
 import { backToGame } from './learnBack';
 import './learn.css';
+import { autoFocusRef } from '../../lib/focus';
 
 // The board (three.js, the scene) is a chunk of its own, the one the game's
 // board loads: the menu and the lesson's words show without waiting for it
@@ -178,7 +179,9 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
               Reset
             </button>
           )}
+          {/* The page's first stop: the way on, focused as it opens */}
           <button
+            ref={autoFocusRef}
             className="button-secondary button-small learn-next"
             onClick={goNext}
             aria-label={`Next: ${nextLabel}`}
