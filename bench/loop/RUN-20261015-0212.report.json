@@ -7,7 +7,7 @@
   "items": [
    {
     "title": "Review PR #147, and decide whether to split it",
-    "body": "<p>The PR holds the run’s changes in four kinds. Each commit’s message gives its evidence; six commits hold two related changes each (listed in the run record), not one. CLAUDE.md asks for one logical change per PR; the run’s instructions asked for one branch and one PR. CI passed on the merge commit 89eb146: client, server tests and all three e2e shards.</p>",
+    "body": "<p>The PR holds the run’s changes in four kinds. Each commit’s message gives its evidence; six commits hold two related changes each (listed in the run record), not one. CLAUDE.md asks for one logical change per PR; the run’s instructions asked for one branch and one PR. CI passed on the merge commit 89eb146: client, server tests and all three e2e shards. CI on the last head runs as this is written; see the PR for its result.</p>",
     "figure": {
      "html": "<table><thead><tr><th>Part</th><th>Commits</th><th>What it does</th></tr></thead><tbody><tr><td>Start page and review</td><td>0c7aea0, b305f6d, 4b7fb96</td><td>the phone’s picture; the review in parallel workers; a review that fails says so</td></tr><tr><td>Server</td><td>fea5a5a, cfbace2, 10ce347, 2e17292</td><td>tests that catch a lost write-back; a cap on frame size; rejoin fields from the schema</td></tr><tr><td>Client fixes</td><td>9ba343a, 1d1ca66, bb04a04</td><td>a rematch’s seat; the offer line; the level list</td></tr><tr><td>Bench, checks, lint, cleanup</td><td>995fca9, f3a7997, ede4014, beccfdf, 7cbf25a, 822038e</td><td>the review’s bench section; grade edges; the canvas lint rule; e2e and test cleanup</td></tr></tbody></table>",
      "caption": "A split along the four kinds of change."
@@ -77,14 +77,14 @@
    },
    {
     "title": "The headline results again, on the final commit",
-    "body": "<p>After merging main, I measured the start page and the review again on the final commit, against the new main. Both results hold: the phone’s board appears at 923 ms instead of 1.76 s (46% faster), and the review finishes in 4.74 s instead of 10.4 s (56% faster), both called. Both “usable” rows leaned faster (desktop 2.8%, phone 6.5%), not called.</p><p>One row was called worse: the desktop’s first visit’s first click, 19 → 512 ms. It is timed once per run and has two modes, about 15 ms or about 500 ms, depending on whether the click lands while the first visit is still preparing its shaders. Pooled over the last two A/Bs, the slow mode came up in 4 of 9 branch runs and 3 of 9 main runs, and the 6-pair re-check before the merge called nothing (it leaned 82% faster). Main’s own later clicks hit the slow mode too (370, 555 and 338 ms). I read it as noise that a 3-pair A/B can call either way; the next run times more first visits.</p>",
+    "body": "<p>After merging main, I measured the start page and the review again on the merge commit 89eb146, against the new main. The last code commit, 9afbf60, changes only the review’s worker count where there are no workers; the review was measured on it too (below), the start page was not. Both results hold: the phone’s board appears at 923 ms instead of 1.76 s (46% faster), and the review finishes in 4.74 s instead of 10.4 s (56% faster), both called. Both “usable” rows leaned faster (desktop 2.8%, phone 6.5%), not called.</p><p>One row was called worse: the desktop’s first visit’s first click, 19 → 512 ms. It is timed once per run and has two modes, about 15 ms or about 500 ms, depending on whether the click lands while the first visit is still preparing its shaders. Pooled over the last two A/Bs, the slow mode came up in 4 of 9 branch runs and 3 of 9 main runs, and the 6-pair re-check before the merge called nothing (it leaned 82% faster). Main’s own later clicks hit the slow mode too (370, 555 and 338 ms). I read it as noise that a 3-pair A/B can call either way; the next run times more first visits.</p>",
     "charts": [
      {
       "rows": {
        "change": "tip: 89eb146 vs de25815 (cold-load + review, 3 pairs)",
        "only": "Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|bytes downloaded|pictures of the board downloaded)|Reviewing a finished game · “Analyse” clicked|Cold load of the start screen · desktop · first visit’s first click"
       },
-      "caption": "The final commit 89eb146 against main de25815 (main after #141, #144 and #145), 3 pairs."
+      "caption": "The merge commit 89eb146 against main de25815 (main after #141, #144 and #145), 3 pairs."
      }
     ]
    },
@@ -103,14 +103,14 @@
    },
    {
     "title": "The branch against the first recorded run",
-    "body": "<p>The run’s target was 1.2 times the speed of the first recorded run (92ce041). The final commit is 2.17 times as fast over the eleven headline measurements the old code can also make; it had no computer player and no review. Six are called better, most by far: a move or a picked-up piece now appears in about 0.4–0.5 s instead of over 5 s, mostly from the last run’s change to how pictures reach the GPU. Three are called worse than the first run, all on the start page: usable on desktop (78 → 123 ms) and on the phone (709 → 925 ms), and the first click (8.5 → 22 ms). The start page has grown a lot since then (the computer player, the tutorial, the picture), and this run’s fix recovers only part of that. A reopened long game uses 34% more JavaScript heap than in the first run, as earlier runs already found.</p>",
+    "body": "<p>The run’s target was 1.2 times the speed of the first recorded run (92ce041). The merge commit 89eb146 is 2.17 times as fast over the eleven headline measurements the old code can also make; it had no computer player and no review. Six are called better, most by far: a move or a picked-up piece now appears in about 0.4–0.5 s instead of over 5 s, mostly from the last run’s change to how pictures reach the GPU. Three are called worse than the first run, all on the start page: usable on desktop (78 → 123 ms) and on the phone (709 → 925 ms), and the first click (8.5 → 22 ms). The start page has grown a lot since then (the computer player, the tutorial, the picture), and this run’s fix recovers only part of that. A reopened long game uses 34% more JavaScript heap than in the first run, as earlier runs already found.</p>",
     "charts": [
      {
       "rows": {
        "change": "vs first run: 89eb146 vs 92ce041 (primary, 3 pairs)",
        "only": "PRIMARY"
       },
-      "caption": "The final commit 89eb146 against the first recorded run 92ce041, 3 pairs."
+      "caption": "The merge commit 89eb146 against the first recorded run 92ce041, 3 pairs."
      }
     ]
    }
@@ -133,7 +133,7 @@
    },
    {
     "title": "A finished game’s review searches in several workers at once",
-    "body": "<p>A review searches each position of the game for a fixed number of positions (120,000), so its marks are the same on any machine. It used to search one position at a time in one worker. Each position is a separate search, so they can run side by side with the same results. The review now uses one worker per spare core, at most three, and hands the positions out from the start of the game (commit b305f6d). The marks were identical in all 16 runs of the A/B, and the page showed no freezes.</p><p>A review whose search failed used to show “done” with its counts as if final, so a review that failed at the first move read as a perfect game. Now it says “Analysis stopped” with a Retry button, which continues from the positions already found. The diff review found that a search finishing after the stop could restart the progress bar for good; that is fixed with a test (4b7fb96). The grading found that with no worker available the review ran three searches on the page’s own thread instead of one; it now runs one there (9afbf60, with a test).</p>",
+    "body": "<p>A review searches each position of the game for a fixed number of positions (120,000), so its marks are the same on any machine. It used to search one position at a time in one worker. Each position is a separate search, so they can run side by side with the same results. The review now uses one worker per spare core, at most three, and hands the positions out from the start of the game (commit b305f6d). The marks were identical in all 16 runs of the A/B, and the page showed no freezes.</p><p>A review whose search failed used to show “done” with its counts as if final, so a review that failed at the first move read as a perfect game. Now it says “Analysis stopped” with a Retry button, which continues from the positions already found. The diff review found that a search finishing after the stop could restart the progress bar for good; that is fixed with a test (4b7fb96). The grading found that when the review cannot use workers it runs its searches on the page’s own thread, three at a time instead of one. 9afbf60 fixes this only for a browser with no workers at all (with a test). When a worker’s script fails to load (a stale file after a deploy, say), each of the three still falls back to the page on its own, so the page can be busy three times as long. That case is not fixed; it is first in Next.</p>",
     "charts": [
      {
       "rows": {
@@ -163,7 +163,7 @@
   ]
  },
  "removed": {
-  "intro": "<p>Nothing was deleted outright. Against the current main, the branch adds 574 lines and removes 215 in 30 files, outside the run’s notes. The app’s code grows by 59 lines (client +27, server +32): the parallel review and its stopped state, the rematch’s seat, the preload fix, the size cap and the copying store. Cleanup removed 29 lines from GameActions (six near-identical blocks into one table) and 21 lines of test stubs that nothing read. Tests grow by 153 lines, the bench by 123 (the review section, the picture count and the probe), lint by 11 and docs by 13. My shared e2e resign helper and level-list change were dropped in the merge, since #144 had made the same changes.</p>"
+  "intro": "<p>Nothing was deleted outright. Against the current main, the branch adds 574 lines and removes 215 in 30 files, outside the run’s notes. The app’s code grows by 62 lines (client +30, server +32): the parallel review and its stopped state, the rematch’s seat, the preload fix, the size cap and the copying store. Cleanup removed 29 lines from GameActions (six near-identical blocks into one table) and 21 lines of test stubs that nothing read. Tests grow by about 165 lines, the bench by 123 (the review section, the picture count and the probe), lint by 11 and docs by 13. My shared e2e resign helper and level-list change were dropped in the merge, since #144 had made the same changes.</p>"
  },
  "rejected": {
   "items": [
@@ -196,6 +196,6 @@
   "intro": "<p>Other sessions merged three PRs into main during the run (#141, #144 and #145), and more were open. I merged main into the branch at 89eb146. Six files conflicted. #144 had also made one shared e2e <code>resign</code> helper and made <code>isDifficulty</code> read the list of levels, so I took main’s versions and dropped mine. The rematch keeps its colour in the navigation, using main’s <code>otherSide</code>. Lint, typecheck, 1,373 unit tests and 79 server tests pass on the merge. Main moved again at 05:09 UTC (#146, ec44dfa). The branch is behind it but merges cleanly (checked with <code>git merge-tree</code>); I did not merge it, so that the final measurements stay on the commit they measured. ARCHITECTURE.md now describes the parallel review and its stopped state, the picture’s preload, the copying store and the size cap. CLAUDE.md is unchanged.</p>"
  },
  "next": {
-  "intro": "<ol><li>Measure a review’s time per position on a phone, to see whether the 1.5 s limit bites (RV18).</li><li>Count the shaders linked at the end of a reopened game’s entrance, where #140’s replay may have moved three of them (RP1).</li><li>Keep a review’s results when the page is reloaded (RV-K).</li><li>Make <code>/assets/*</code> cacheable for a year in <code>_headers</code>, after reading the production headers (P2′).</li><li>The smaller items in the ledger: V16, I13–I15, D9–D11, DR2–DR4, E15, M9′, CW2.</li></ol>"
+  "intro": "<ol><li>Run on-page searches one at a time when a worker’s script fails to load, so a review never runs three on the page thread (RV17, the part 9afbf60 left).</li><li>Measure a review’s time per position on a phone, to see whether the 1.5 s limit bites (RV18).</li><li>Count the shaders linked at the end of a reopened game’s entrance, where #140’s replay may have moved three of them (RP1).</li><li>Keep a review’s results when the page is reloaded (RV-K).</li><li>Make <code>/assets/*</code> cacheable for a year in <code>_headers</code>, after reading the production headers (P2′).</li><li>The smaller items in the ledger: V16, I13–I15, D9–D11, DR2–DR4, E15, M9′, CW2.</li></ol>"
  }
 }

@@ -127,7 +127,8 @@ report = {
        'The marks were identical in all 16 runs of the A/B, and the page showed no freezes.</p>'
        '<p>A review whose search failed used to show “done” with its counts as if final, so a review that failed at the first move read as a perfect game. Now it says “Analysis stopped” with a Retry button, which continues from the positions already found. '
        'The diff review found that a search finishing after the stop could restart the progress bar for good; that is fixed with a test (4b7fb96). '
-       'The grading found that with no worker available the review ran three searches on the page’s own thread instead of one; it now runs one there (9afbf60, with a test).</p>',
+       'The grading found that when the review cannot use workers it runs its searches on the page’s own thread, three at a time instead of one. 9afbf60 fixes this only for a browser with no workers at all (with a test). '
+       'When a worker’s script fails to load (a stale file after a deploy, say), each of the three still falls back to the page on its own, so the page can be busy three times as long. That case is not fixed; it is first in Next.</p>',
      'charts': [{'rows': {'change': RVP, 'only': REVIEW}, 'caption': 'Parallel review against the commit before it, 4 pairs.'}]},
     {'title': 'The server’s tests now catch a lost write-back, and one large message can no longer stall every game',
      'body':
@@ -181,6 +182,7 @@ report = {
      'ARCHITECTURE.md now describes the parallel review and its stopped state, the picture’s preload, the copying store and the size cap. CLAUDE.md is unchanged.</p>'},
 
   'next': {'intro': '<ol>'
+     '<li>Run on-page searches one at a time when a worker’s script fails to load, so a review never runs three on the page thread (RV17, the part 9afbf60 left).</li>'
      '<li>Measure a review’s time per position on a phone, to see whether the 1.5 s limit bites (RV18).</li>'
      '<li>Count the shaders linked at the end of a reopened game’s entrance, where #140’s replay may have moved three of them (RP1).</li>'
      '<li>Keep a review’s results when the page is reloaded (RV-K).</li>'
