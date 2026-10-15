@@ -536,8 +536,12 @@ def test_a_take_back_declined_and_play_goes_on(client, store):
             "ply": 1,
         }
         # A rejoin finds the request, declined
-        assert store[gid]["takebackRequest"] == {"by": "white", "ply": 1, "declined": True}
+        declined = {"by": "white", "ply": 1, "declined": True}
+        assert store[gid]["takebackRequest"] == declined
         assert len(store[gid]["moves"]) == 1
+        white_ws.close()
+        with client.websocket_connect("/ws") as again:
+            assert rejoin(again, gid, "white")["takebackRequest"] == declined
 
 
 def test_a_move_cancels_a_standing_offer(client):

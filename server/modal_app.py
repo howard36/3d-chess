@@ -596,19 +596,13 @@ async def _close_replaced(old_ws: WebSocket) -> None:
 def _game_state(record: dict, color: str) -> dict:
     """The `game_state` snapshot of `record` for the player seated as `color`.
 
-    It carries everything a rejoining client replays: the moves, and the
-    ending, the latest draw offer, take-back request and rematch offer when
-    there are any.
+    It carries everything a rejoining client replays: the moves, and every
+    other key the record shares with the schema's `game_state` (the ending,
+    the latest draw offer, take-back request and rematch offer, when there
+    are any), so a field added to both is never dropped on a rejoin.
     """
-    state = {
-        "type": "game_state",
-        "color": color,
-        "started": len(record["seats"]) == 2,
-        "moves": record["moves"],
-    }
-    for key in ("ending", "drawOffer", "takebackRequest", "rematch"):
-        if key in record:
-            state[key] = record[key]
+    state = {k: v for k, v in record.items() if k in GameState.model_fields}
+    state |= {"type": "game_state", "color": color, "started": len(record["seats"]) == 2}
     model = GameState.model_validate(state)
     return model.model_dump(mode="json", by_alias=True, exclude_none=True)
 
