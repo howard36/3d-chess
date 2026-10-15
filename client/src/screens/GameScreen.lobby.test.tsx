@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import GameScreen from './GameScreen';
-import EndGameModal, { NewGameBar } from './EndGameModal';
+import EndGameModal, { RematchBar } from './EndGameModal';
+import { NO_REMATCH } from '../game/ending';
 import { LobbyContext } from './lobby/lobbyContext';
 import type { LobbyApi, LobbyStage } from './lobby/lobbyContext';
 import type { GameSocket } from '../hooks/useGameSocket';
@@ -459,55 +460,41 @@ describe('the handover from the lobby to the game', () => {
 });
 
 describe('the end of a game', () => {
-  it('starts the next one at the side choice', async () => {
-    render(
-      <MemoryRouter initialEntries={['/game/abc123']}>
-        <Routes>
-          <Route path="/new" element={<p>choose a side</p>} />
-          <Route
-            path="/game/:gameId"
-            element={
-              <EndGameModal result="checkmate" winner="white" seat="white" onClose={() => {}} />
-            }
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Play again' }));
-    expect(screen.getByText('choose a side')).toBeInTheDocument();
-  });
+  const rematch = {
+    state: NO_REMATCH,
+    seat: 'white' as const,
+    disabled: false,
+    onOffer: () => {},
+    onAnswer: () => {},
+    onJoin: () => {},
+  };
 
-  it("against the computer, at the computer's side choice, from the card and from below the tower", async () => {
+  it('leads home, from the card and from below the tower', async () => {
     render(
       <MemoryRouter initialEntries={['/computer/g1']}>
         <Routes>
-          <Route path="/computer" element={<p>play the computer</p>} />
+          <Route path="/" element={<p>home</p>} />
           <Route
             path="/computer/:gameId"
             element={
-              <EndGameModal
-                result="stalemate"
-                seat="white"
-                newGamePath="/computer"
-                onClose={() => {}}
-              />
+              <EndGameModal result="stalemate" seat="white" rematch={rematch} onClose={() => {}} />
             }
           />
         </Routes>
       </MemoryRouter>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Play again' }));
-    expect(screen.getByText('play the computer')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Home' }));
+    expect(screen.getByText('home')).toBeInTheDocument();
     cleanup();
     render(
-      <MemoryRouter initialEntries={['/computer/g1']}>
+      <MemoryRouter initialEntries={['/game/abc123']}>
         <Routes>
-          <Route path="/computer" element={<p>play the computer</p>} />
-          <Route path="/computer/:gameId" element={<NewGameBar newGamePath="/computer" />} />
+          <Route path="/" element={<p>home</p>} />
+          <Route path="/game/:gameId" element={<RematchBar rematch={rematch} />} />
         </Routes>
       </MemoryRouter>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Play again' }));
-    expect(screen.getByText('play the computer')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Home' }));
+    expect(screen.getByText('home')).toBeInTheDocument();
   });
 });

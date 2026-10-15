@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { selectDrawOffer, selectEnding, selectTakebackRequest, withEnding } from './ending';
+import {
+  selectDrawOffer,
+  selectEnding,
+  selectRematch,
+  selectTakebackRequest,
+  withEnding,
+} from './ending';
 import { deriveHistory } from './history';
 import type { GameState, MoveMade, WebSocketMessage } from '../types/messages';
 
@@ -130,5 +136,52 @@ describe('selectDrawOffer', () => {
     ).toEqual({ standing: null, declined: 'black', canOffer: false });
     // ...and is gone once a move has been played since
     expect(selectDrawOffer([state({ drawOffer: { by: 'black', ply: 2 } })], 3)).toEqual(none);
+  });
+});
+
+describe('selectRematch', () => {
+  const none = { standing: null, declined: null, gameId: null, live: false };
+  const ended: WebSocketMessage = { type: 'game_ended', result: 'resignation', winner: 'black' };
+
+  it('is empty until someone offers one', () => {
+    expect(selectRematch([])).toEqual(none);
+    expect(selectRematch([state(), made, ended])).toEqual(none);
+  });
+
+  it('reads an offer, its refusal and an offer made back', () => {
+    const offered: WebSocketMessage[] = [state(), ended, { type: 'rematch_offered', by: 'white' }];
+    expect(selectRematch(offered)).toEqual({ ...none, standing: 'white' });
+    const declined = [...offered, { type: 'rematch_declined', by: 'black' } as const];
+    expect(selectRematch(declined)).toEqual({ ...none, declined: 'white' });
+    // The one who declined offers one back
+    expect(selectRematch([...declined, { type: 'rematch_offered', by: 'black' }])).toEqual({
+      ...none,
+      standing: 'black',
+    });
+  });
+
+  it('tells a rematch begun while the page held the game from one begun before', () => {
+    const live: WebSocketMessage[] = [
+      state(),
+      { type: 'rematch_offered', by: 'white' },
+      { type: 'rematch_started', gameId: 'NEW123' },
+    ];
+    expect(selectRematch(live)).toEqual({ ...none, gameId: 'NEW123', live: true });
+    expect(selectRematch([state({ rematch: { by: 'white', gameId: 'NEW123' } })])).toEqual({
+      ...none,
+      gameId: 'NEW123',
+    });
+    // A later snapshot supersedes what came before it
+    expect(selectRematch([...live, state({ rematch: { by: 'white', gameId: 'NEW123' } })])).toEqual(
+      { ...none, gameId: 'NEW123' },
+    );
+  });
+
+  it('keeps the offer and the refusal a snapshot carries', () => {
+    expect(selectRematch([state({ rematch: { by: 'black' } })]).standing).toBe('black');
+    expect(selectRematch([state({ rematch: { by: 'black', declined: true } })])).toEqual({
+      ...none,
+      declined: 'black',
+    });
   });
 });

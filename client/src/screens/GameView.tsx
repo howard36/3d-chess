@@ -11,7 +11,8 @@ import type { ChunkFailure } from '../components/ChunkBoundary';
 import type { Move } from '../engine';
 import type { GameHistory } from '../game/history';
 import type { Color } from '../types/messages';
-import EndGameModal, { NewGameBar } from './EndGameModal';
+import EndGameModal, { RematchBar } from './EndGameModal';
+import type { RematchProps } from './EndGameModal';
 import PromotionPicker from './PromotionPicker';
 import TurnPill from './TurnPill';
 import CapturedPieces from './CapturedPieces';
@@ -47,8 +48,6 @@ export interface GameViewProps {
   reconnecting: boolean;
   /** What the pill calls the opponent ("Opponent" by default; "Computer"). */
   opponentName?: string;
-  /** Where "Play again" leads: the side choice (/new) by default. */
-  newGamePath?: string;
   /** The board takes no input (disconnected, a stale snapshot, a move awaiting its echo). */
   boardDisabled: boolean;
   /** Sends a move (a click on the board, the move box, the promotion dialog). */
@@ -73,6 +72,8 @@ export interface GameViewProps {
    * against the computer, taking a move back too.
    */
   actions?: Omit<GameActionsProps, 'seat'>;
+  /** The rematch, once the game is over (against a friend, offered and answered). */
+  rematch?: RematchProps;
   /**
    * The entrance (three/intro/timeline.ts): `full` for a game that starts
    * while the page is open, `short` for a page that opens on a game already
@@ -114,7 +115,6 @@ const GameView: React.FC<GameViewProps> = ({
   opponentOnline,
   reconnecting,
   opponentName,
-  newGamePath = '/new',
   boardDisabled,
   onMove,
   promotionChoices,
@@ -125,6 +125,7 @@ const GameView: React.FC<GameViewProps> = ({
   reconnectingBanner,
   alerts,
   actions,
+  rematch,
   intro = 'full',
   introPaused = false,
   onFirstFrame,
@@ -330,6 +331,15 @@ const GameView: React.FC<GameViewProps> = ({
                 ? 'Your opponent is online.'
                 : 'Your opponent is offline.'}
           </div>
+          {rematch && gameOver && (
+            <div className="sr-only" role="status" data-testid="rematch-announcer">
+              {rematch.state.standing
+                ? 'Rematch offered.'
+                : rematch.state.declined
+                  ? 'Rematch declined.'
+                  : ''}
+            </div>
+          )}
         </div>
       </div>
       {promotionChoices && !boardDisabled && (
@@ -350,14 +360,14 @@ const GameView: React.FC<GameViewProps> = ({
             result={gameOver.result}
             winner={gameOver.winner}
             seat={color ?? 'white'}
-            newGamePath={newGamePath}
+            rematch={rematch}
             onClose={() => setClosedEnd(gameOver)}
           />
         </div>
       )}
-      {gameOver && showEndModal && !resultUp && (
+      {gameOver && showEndModal && !resultUp && rematch && (
         <div inert={replaced}>
-          <NewGameBar newGamePath={newGamePath} />
+          <RematchBar rematch={rematch} />
         </div>
       )}
       {replacedNotice}

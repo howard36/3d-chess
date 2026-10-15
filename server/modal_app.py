@@ -12,10 +12,12 @@ from pydantic import ValidationError
 
 from messages import (
     AcceptDraw,
+    AcceptRematch,
     AcceptTakeback,
     Color,
     CreateGame,
     DeclineDraw,
+    DeclineRematch,
     DeclineTakeback,
     DrawDeclined,
     DrawOffered,
@@ -32,8 +34,12 @@ from messages import (
     Move,
     MoveMade,
     OfferDraw,
+    OfferRematch,
     Presence,
     RejoinGame,
+    RematchDeclined,
+    RematchOffered,
+    RematchStarted,
     RequestTakeback,
     Resign,
     TakebackDeclined,
@@ -122,8 +128,10 @@ class GameError(Exception):
 # claimed each seat), "ending" once a player resigns or a draw is agreed
 # ({"result", "winner"?}), and "drawOffer", the latest draw offer
 # ({"by", "ply", "declined"?}; it stands only while "ply" is the number of
-# moves, so a move cancels it without touching it), and "takebackRequest",
-# the latest take-back request, kept the same way. In production it is a modal.Dict,
+# moves, so a move cancels it without touching it), "takebackRequest",
+# the latest take-back request, kept the same way, and "rematch", the latest
+# offer of a new game between the same players ({"by", "declined"?,
+# "gameId"?}: "gameId" once accepted). In production it is a modal.Dict,
 # which returns deserialized copies and whose calls BLOCK (they are the sync
 # wrappers; never switch to the `.aio` variants). So every mutation below is a
 # read-modify-write that must complete without yielding to the event loop, or
@@ -156,6 +164,14 @@ def _stored(store, gid: str) -> dict | None:
 _rng = random.SystemRandom()
 
 
+def _fresh_id(store) -> str:
+    """An id no game in `store` has."""
+    while True:
+        gid = "".join(_rng.choices(GAME_ID_CHARS, k=6))
+        if gid not in store:
+            return gid
+
+
 def create_game(store, client_id: str | None = None, color: str | None = None) -> tuple[str, str]:
     """Create a game with one seat claimed; return (game id, creator's color).
 
@@ -163,10 +179,7 @@ def create_game(store, client_id: str | None = None, color: str | None = None) -
     random. `client_id`, when the client sent one, is remembered as the
     seat's claimant (see claim_seat).
     """
-    while True:
-        gid = "".join(_rng.choices(GAME_ID_CHARS, k=6))
-        if gid not in store:
-            break
+    gid = _fresh_id(store)
     # Creator can be white or black, but white always moves first
     if color is None:
         color = _rng.choice(["white", "black"])
@@ -377,6 +390,81 @@ def decline_draw(store, gid: str | None, color: str | None) -> dict:
     return offer
 
 
+def _seated_record(store, gid: str | None) -> dict:
+    """The record of `gid` once both seats are taken, whether or not it has ended.
+
+    A rematch is offered once the game is over, which the server cannot
+    always tell: a mate or a draw on the board is the clients' to see.
+    """
+    record = store.get(gid) if gid is not None else None
+    if record is None:
+        raise GameError(ErrorCode.game_not_started, "Not in a game")
+    if len(record["seats"]) < 2:
+        raise GameError(ErrorCode.game_not_started, "Both players must have joined")
+    return record
+
+
+def _start_rematch(store, gid: str, record: dict, offer: dict) -> dict:
+    """Store the rematch `offer` asks for and return it, accepted ({"by", "gameId"}).
+
+    The new game has both seats taken, each player holding the other colour
+    (each tab's claim goes with its player), and no moves.
+    """
+    new_gid = _fresh_id(store)
+    rematch: dict = {"seats": ["white", "black"], "moves": []}
+    claimants = record.get("claimants")
+    if claimants:
+        rematch["claimants"] = {_opponent(c): client_id for c, client_id in claimants.items()}
+    store[new_gid] = rematch
+    started = {"by": offer["by"], "gameId": new_gid}
+    record["rematch"] = started
+    store[gid] = record
+    return started
+
+
+def offer_rematch(store, gid: str | None, color: str | None) -> dict:
+    """`color` offers a rematch of `gid`; return the offer ({"by"}), or the rematch begun.
+
+    The opponent's offer standing, this accepts it (both asked). A player
+    whose offer was declined cannot offer another; the opponent still can.
+    """
+    record = _seated_record(store, gid)
+    latest = record.get("rematch")
+    if latest is not None:
+        if "gameId" in latest:
+            raise GameError(ErrorCode.invalid_rematch, "The rematch has already begun")
+        if latest["by"] == color:
+            raise GameError(ErrorCode.invalid_rematch, "A rematch was already offered")
+        if not latest.get("declined"):
+            return _start_rematch(store, gid, record, latest)
+    offer = {"by": color}
+    record["rematch"] = offer
+    store[gid] = record
+    return offer
+
+
+def _rematch_to_answer(record: dict, color: str | None) -> dict:
+    offer = record.get("rematch")
+    if offer is None or offer.get("declined") or "gameId" in offer or offer["by"] == color:
+        raise GameError(ErrorCode.invalid_rematch, "No rematch to answer")
+    return offer
+
+
+def accept_rematch(store, gid: str | None, color: str | None) -> dict:
+    """`color` accepts the opponent's rematch offer in `gid`; return it, with the new game's id."""
+    record = _seated_record(store, gid)
+    return _start_rematch(store, gid, record, _rematch_to_answer(record, color))
+
+
+def decline_rematch(store, gid: str | None, color: str | None) -> dict:
+    """`color` declines the opponent's rematch offer in `gid`; return it, declined."""
+    record = _seated_record(store, gid)
+    offer = {**_rematch_to_answer(record, color), "declined": True}
+    record["rematch"] = offer
+    store[gid] = record
+    return offer
+
+
 STORE_OPERATIONS = (
     create_game,
     claim_seat,
@@ -390,6 +478,9 @@ STORE_OPERATIONS = (
     request_takeback,
     accept_takeback,
     decline_takeback,
+    offer_rematch,
+    accept_rematch,
+    decline_rematch,
 )
 
 
@@ -486,7 +577,8 @@ def _game_state(record: dict, color: str) -> dict:
     """The `game_state` snapshot of `record` for the player seated as `color`.
 
     It carries everything a rejoining client replays: the moves, and the
-    ending, the latest draw offer and take-back request when there are any.
+    ending, the latest draw offer, take-back request and rematch offer when
+    there are any.
     """
     state = {
         "type": "game_state",
@@ -494,7 +586,7 @@ def _game_state(record: dict, color: str) -> dict:
         "started": len(record["seats"]) == 2,
         "moves": record["moves"],
     }
-    for key in ("ending", "drawOffer", "takebackRequest"):
+    for key in ("ending", "drawOffer", "takebackRequest", "rematch"):
         if key in record:
             state[key] = record[key]
     model = GameState.model_validate(state)
@@ -509,6 +601,16 @@ async def _broadcast(gid: str, message) -> None:
     payload = message.model_dump(mode="json", by_alias=True, exclude_none=True)
     for sock in list(connections.get(gid, {}).values()):
         await _safe_send(sock, payload)
+
+
+async def _announce_rematch(gid: str, rematch: dict) -> None:
+    """Tell both players of `gid` of a rematch offered, or of the rematch begun."""
+    if "gameId" in rematch:
+        logger.info("rematch started gid=%s new=%s", gid, rematch["gameId"])
+        await _broadcast(gid, RematchStarted(type="rematch_started", gameId=rematch["gameId"]))
+    else:
+        logger.info("rematch offered gid=%s by=%s", gid, rematch["by"])
+        await _broadcast(gid, RematchOffered(type="rematch_offered", by=Color(rematch["by"])))
 
 
 def _require_not_in_game(gid: str | None) -> None:
@@ -742,6 +844,16 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                             type="takeback_declined", by=Color(player_color), ply=request["ply"]
                         )
                         await _broadcast(gid, declined)
+                    elif isinstance(envelope, OfferRematch):
+                        await _announce_rematch(gid, offer_rematch(store, gid, player_color))
+                    elif isinstance(envelope, AcceptRematch):
+                        await _announce_rematch(gid, accept_rematch(store, gid, player_color))
+                    elif isinstance(envelope, DeclineRematch):
+                        decline_rematch(store, gid, player_color)
+                        logger.info("rematch declined gid=%s by=%s", gid, player_color)
+                        await _broadcast(
+                            gid, RematchDeclined(type="rematch_declined", by=Color(player_color))
+                        )
                     else:
                         # Structurally valid, but a message type only the server may send
                         raise GameError(
