@@ -19,6 +19,9 @@ import CapturedPieces from './CapturedPieces';
 import MoveCard from './MoveCard';
 import MoveHistory from './MoveHistory';
 import { useReview } from './useReview';
+import { useAnalysis } from './useAnalysis';
+import { betterMove } from '../game/analysis';
+import { moveFromMessage } from '../engine/protocol';
 import MoveAnnouncer from './MoveAnnouncer';
 import GameActions from './GameActions';
 import type { GameActionsProps } from './GameActions';
@@ -197,6 +200,14 @@ const GameView: React.FC<GameViewProps> = ({
   // move. The pill, the announcer and their hooks follow the live game.
   const review = useReview(history);
   const shown = review.position;
+  // The finished game's review, on asking: each move's mark in the list,
+  // and where the move shown is marked, the better move on the board
+  const analysis = useAnalysis(history);
+  const better = gameOver ? betterMove(analysis.grades, analysis.positions, shown.ply) : null;
+  const betterOnBoard = React.useMemo(
+    () => (better ? moveFromMessage({ by: 'white', ...better }) : null),
+    [better],
+  );
   return (
     // game-screen (index.css): no text selection, callout or double-tap
     // zoom on a touch screen, except in the move box and the move list
@@ -228,6 +239,7 @@ const GameView: React.FC<GameViewProps> = ({
               board={shown.board}
               currentTurn={shown.currentTurn}
               lastMove={shown.lastMove}
+              betterMove={betterOnBoard}
               gameOver={review.reviewing ? null : gameOver}
               // Nothing can be picked up while the entrance plays, nor in
               // an earlier position
@@ -298,6 +310,19 @@ const GameView: React.FC<GameViewProps> = ({
               ended={!!gameOver && showEndModal && !resultUp}
               // Out of sight while the game is on; in sight with the result
               hidden={!gameOver || !showEndModal}
+              analysis={
+                gameOver
+                  ? {
+                      state: analysis.state,
+                      done: analysis.done,
+                      total: analysis.total,
+                      grades: analysis.grades,
+                      counts: analysis.counts,
+                      best: better,
+                      onAnalyse: analysis.start,
+                    }
+                  : undefined
+              }
             />
           </div>
           {boardLoad.failed && (

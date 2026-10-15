@@ -140,3 +140,22 @@ test('the board’s first frame links no shader program: they are linked before 
   expect(linked.length).toBeGreaterThan(20);
   expect(linked.filter((l) => l.inRender)).toEqual([]);
 });
+
+test('a finished game’s review links no shader program: the better move is drawn by the marks’', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await openStandInGame(page, 'white', 'REVIEWLINKS', MATE);
+  await waitForBoard(page);
+  await warm(page);
+  await countLinks(page);
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+  await page.getByTestId('analyse').click();
+  const history = page.getByTestId('move-history');
+  await expect(history).toHaveAttribute('data-analysis', 'done', { timeout: 60_000 });
+  // White's blunder: the better move drawn beside the move played
+  await page.locator('[data-ply="3"]').click();
+  await expect(history).toHaveAttribute('data-best', 'Bc1-Cc2');
+  await page.waitForTimeout(1000);
+  expect(await links(page)).toEqual([]);
+});
