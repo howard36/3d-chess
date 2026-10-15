@@ -35,6 +35,12 @@ export interface SearchLimits {
   quiescence?: number;
   /** Moves the side searching does not see below the root (they are not searched). */
   hidden?: (move: number) => boolean;
+  /**
+   * Looks deeper at a position with one legal move too, instead of stopping
+   * after the first iteration (a move needs no choosing, but a review of the
+   * game needs what the move leads to).
+   */
+  deepenForced?: boolean;
   /** The clock (performance.now by default). */
   now?: () => number;
 }
@@ -176,7 +182,7 @@ export class Searcher {
       // The best first next time, then the rest by this iteration's scores
       root.sort((a, b) => rootScore.get(b)! - rootScore.get(a)!);
       this.canStop = true;
-      if (root.length === 1) break;
+      if (root.length === 1 && !limits.deepenForced) break;
       // A mate found is not bettered by looking deeper
       if (Math.abs(best) >= MATE_BOUND && depth >= MATE - Math.abs(best)) break;
       // An iteration takes several times the last: don't start one that can't finish

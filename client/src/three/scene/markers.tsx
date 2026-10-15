@@ -44,6 +44,11 @@ import { useRetireOnUnmount } from './programs';
 //   running from the centre of one square to the centre of the other (pieces
 //   hide the line wherever it passes behind them, and the piece that moved
 //   stands on its end).
+// - the better move (a finished game's review, where a marked move was
+//   played): a still line of amber light from a small circle on the square
+//   the better move left to a circle a little wider than a piece's ring
+//   where it would have landed, drawn at once and never moving, so the
+//   board asks for no frames while it shows.
 // - check: a crown of red light lying round the king in place of his ring, a
 //   band with eight points. It strikes when check arrives (it lands a little
 //   large, flashes and sends one strong wave out), then breathes slowly,
@@ -551,6 +556,56 @@ export const LastMove = ({ from, to, fresh = false, glideMs = 0 }: LastMoveMarke
     </>
   );
 };
+
+/**
+ * The better move where a marked move was played (the game's review): an
+ * amber line between the two squares, a small circle where it starts and a
+ * wider one where it lands, clear of the ring at a piece's foot. It claims
+ * no ring and plays nothing: a still mark of the scene's own programs.
+ */
+export const Better = ({ from, to }: { from: MarkerProps; to: MarkerProps }) => (
+  // Named for tests and tools (e2e/analysis.spec.ts)
+  <group name="better-move">
+    <Mark
+      floor={from.floor}
+      kind="trace"
+      color={PALETTE.better}
+      fillA={0.06}
+      radius={TRACE_TO * BETTER_FROM_SCALE}
+      width={0.0085}
+      opacity={0.9}
+      growMs={0}
+    />
+    <Mark
+      floor={to.floor}
+      kind="trace"
+      color={PALETTE.better}
+      fillA={0.05}
+      radius={TRACE_TO + BETTER_TO_GAP}
+      width={0.0085}
+      opacity={0.9}
+      growMs={0}
+      renderOrder={LAYER.marker + 0.1}
+    />
+    <LastMoveLine
+      from={from.floor}
+      to={to.floor}
+      color={PALETTE.better}
+      radius={BETTER_RADIUS}
+      lift={LINE_LIFT + 0.008}
+      opacity={BETTER_STRENGTH}
+    />
+  </group>
+);
+
+/** The better move's circle where it starts, smaller than the last move's. */
+const BETTER_FROM_SCALE = 0.42;
+/** How far the better move's circle where it lands stands outside a piece's ring. */
+const BETTER_TO_GAP = 0.045;
+/** How bright the better move's line is, 0–1: more than the last move's, having no shimmer. */
+const BETTER_STRENGTH = 0.95;
+/** Its tube's radius: a little thicker than the last move's, so a short line still reads. */
+const BETTER_RADIUS = 0.011;
 
 /** How bright and thick the last-move line is, 0–1. */
 const LINE_STRENGTH = 0.7;

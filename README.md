@@ -8,6 +8,7 @@ Chess in three dimensions, on a 5×5×5 board.
 
 - **Against a friend:** pick a side and send them the game's link
 - **Against the computer:** Easy, Medium or Hard, running in your browser
+- **Afterwards:** Analyse marks each side's mistakes and shows the better move
 - **[Tutorial](https://3dchess.club/learn):** a short lesson on each piece's moves
 
 ## Rules
