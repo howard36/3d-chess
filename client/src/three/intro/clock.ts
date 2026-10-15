@@ -23,7 +23,7 @@ export interface IntroClock {
 export const lobbyHandover: { t: number | null } = { t: null };
 
 /** No entrance: everything is already in its final state. */
-export const FINISHED: IntroClock = Object.freeze({ plan: introPlan('none'), t: Infinity });
+const FINISHED: IntroClock = Object.freeze({ plan: introPlan('none'), t: Infinity });
 
 export const IntroContext = createContext<IntroClock>(FINISHED);
 

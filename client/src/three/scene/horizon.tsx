@@ -12,6 +12,7 @@ import {
   SrcColorFactor,
   ZeroFactor,
 } from 'three';
+import { dimNow } from './gardenDetail';
 import type { GardenDetailProps } from './gardenDetail';
 import { noRaycast } from '../noRaycast';
 import { useDisposeOnUnmount } from './dispose';
@@ -78,7 +79,7 @@ const multiply = {
 const useDim = (dim: GardenDetailProps['dim']) => {
   const uniform = useMemo(() => ({ value: 1 }), []);
   useFrame(() => {
-    uniform.value = typeof dim === 'function' ? dim() : (dim ?? 1);
+    uniform.value = dimNow(dim);
   });
   return uniform;
 };
@@ -86,8 +87,6 @@ const useDim = (dim: GardenDetailProps['dim']) => {
 // The veil, the plain thickening into the night, is drawn in the ground's
 // own shader (stage.tsx, VEIL_VERTEX_GLSL in horizonGround.ts): one pass over the
 // plain, not two.
-
-export { VEIL } from './horizonGround';
 
 // --- The far hills -------------------------------------------------------------------
 
@@ -231,7 +230,7 @@ const Hills = ({ dim }: { dim: { value: number } }) => {
 // --- The far tower and its window --------------------------------------------------
 
 /** Where it stands: on white's side of the world, left of the tower in the opening view. */
-export const TOWER_AT = { azimuth: WHITE_LOOK + 15, radius: 175 } as const;
+const TOWER_AT = { azimuth: WHITE_LOOK + 15, radius: 175 } as const;
 
 /**
  * A rook's tower drawn flat (world units, x across, y up): a slender shaft
@@ -456,7 +455,7 @@ const FarTower = ({ dim }: { dim: { value: number } }) => {
 // --- The other tower ---------------------------------------------------------------
 
 /** Where the other tower burns: on black's side of the world, left of the tower in Black's view. */
-export const OTHER_TOWER_AT = { azimuth: BLACK_LOOK + 23, radius: 215 } as const;
+const OTHER_TOWER_AT = { azimuth: BLACK_LOOK + 23, radius: 215 } as const;
 
 /**
  * Its shape (world units): five square plates `side` across, floating in a

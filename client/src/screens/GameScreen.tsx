@@ -29,6 +29,7 @@ import { useTabSignal } from '../hooks/useTabSignal';
 import { useEndCard } from './useEndCard';
 import GameView from './GameView';
 import { selectInvitation } from '../game/invitation';
+import { otherSide, sideName } from '../game/sides';
 import type { Color } from '../types/messages';
 import { InvitationCard, InviteCard } from './lobby/LobbyCards';
 import { Stone } from './TurnPill';
@@ -36,6 +37,7 @@ import { useLobbyView } from './lobby/lobbyContext';
 import type { LobbyStage } from './lobby/lobbyContext';
 import { DIFFICULTY_NAME } from '../ai/levels';
 import type { Difficulty } from '../ai/levels';
+import { autoFocusRef } from '../lib/focus';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
@@ -348,7 +350,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   // reopened) waits for "Join rematch".
   const joinRematch = React.useCallback(() => {
     if (!rematch.gameId || !color) return;
-    const next = color === 'white' ? 'black' : 'white';
+    const next = otherSide(color);
     setStoredRole(rematch.gameId, next);
     navigate(`/game/${rematch.gameId}`, {
       state: { rematch: true, color: next } satisfies RematchArrival,
@@ -375,7 +377,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         {shownError.error.message}
       </span>
       <button
-        className="hud-dismiss"
+        className="button-icon"
         onClick={() => setDismissedAt(shownError.index)}
         aria-label="Dismiss error"
       >
@@ -415,7 +417,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
           Your seat moved to the newer tab or window. Close this one, or take the game back here.
         </p>
         {/* A dialog takes focus, so Enter answers it without hunting for it */}
-        <button autoFocus className="hud-button" onClick={handlePlayHere}>
+        <button ref={autoFocusRef} className="button-secondary" onClick={handlePlayHere}>
           Play here
         </button>
       </div>
@@ -432,7 +434,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
   );
 
   // --- Before the game: the lobby (screens/lobby) ---------------------------------
-  const other = (c: Color): Color => (c === 'white' ? 'black' : 'white');
   const invitation = selectInvitation(messages, gameId ?? '', joinRequested || seat.joined);
   // A guest: opened the invitation here (and may have accepted it); a host:
   // holds a seat it did not join here (it created the game)
@@ -489,12 +490,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
         toss: null,
         seat: color,
         // The seat that has just filled: the guest's own, or the host's opponent's
-        arriving: host ? other(color) : color,
+        arriving: host ? otherSide(color) : color,
         caption: computer
           ? `Computer · ${DIFFICULTY_NAME[computer.difficulty]}`
           : host
             ? 'Opponent joined'
-            : `You play ${color === 'white' ? 'White' : 'Black'}`,
+            : `You play ${sideName(color)}`,
         onArrived: () => setArrived(true),
         onReveal: () => setRevealed(true),
         onLeft: () => setHandover('done'),
@@ -503,7 +504,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   } else if (hosting && storedRole) {
     lobbyView = {
       beat: 'wait',
-      taken: { [storedRole]: true, [other(storedRole)]: false } as Record<Color, boolean>,
+      taken: { [storedRole]: true, [otherSide(storedRole)]: false } as Record<Color, boolean>,
       mine: storedRole,
       card: true,
       hover: null,
@@ -511,7 +512,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       seat: storedRole,
     };
   } else if (guest && (invitation.state === 'open' || invitation.state === 'joining')) {
-    const host = other(invitation.seat);
+    const host = otherSide(invitation.seat);
     const joining = invitation.state === 'joining';
     lobbyView = {
       beat: 'invited',
@@ -640,7 +641,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   return (
     <div className="lobby-page" inert={replaced}>
       <header className="lobby-top">
-        <button className="lobby-link" onClick={() => navigate('/')}>
+        <button className="button-link" onClick={() => navigate('/')}>
           <span aria-hidden>←</span> Home
         </button>
       </header>
@@ -648,7 +649,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       {hosting && storedRole && (
         // Continues the side choice's last heading, so it does not rise again
         <div className="lobby-heading" data-still="">
-          <h1>You play {storedRole === 'white' ? 'White' : 'Black'}</h1>
+          <h1>You play {sideName(storedRole)}</h1>
           <p className="lobby-heading-wait">
             <span className="hud-dot" aria-hidden />
             Waiting for your friend…
@@ -661,7 +662,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
             You're invited to play {/* The stone and its side's name kept together on one line */}
             <span className="lobby-nowrap">
               <Stone color={invitation.seat} />
-              {invitation.seat === 'white' ? 'White' : 'Black'}
+              {sideName(invitation.seat)}
             </span>
           </h1>
         </div>

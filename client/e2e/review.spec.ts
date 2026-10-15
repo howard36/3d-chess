@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { resign, startGame } from './helpers/game';
 import { clickSquare } from './helpers/board';
+import { closeResult, resign, startGame } from './helpers/game';
 
 // The move history, out of sight while the game is on (no list, no steps, the
 // arrows step nowhere), and once it is over a way back through it: a move in
@@ -54,11 +54,6 @@ const anyDestination = (page: Page) =>
     });
     return found;
   });
-
-/** Resigns the game from `page`'s seat, through the flag's menu. */
-/** Puts the result card away, to study the final board. */
-const closeResult = (page: Page) =>
-  page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
 
 test('the move history waits out the game, then steps back through it', async ({ browser }) => {
   const game = await startGame(browser);

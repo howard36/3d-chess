@@ -27,7 +27,7 @@ export interface Metric {
   spread?: number;
 }
 
-export interface Sidecar {
+interface Sidecar {
   /** Each bench group's introduction (what real-world path it models), keyed by its name. */
   intros?: Record<string, string>;
   /** Workload descriptions, keyed by the bench group they belong to. */

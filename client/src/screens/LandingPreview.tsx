@@ -22,7 +22,7 @@ import { pointerEvents } from '../three/pointerEvents';
 const MAX_STEP_S = 0.1;
 
 /** Seconds the preview takes to fade in over the start page's picture of it. */
-export const REVEAL_S = 0.3;
+const REVEAL_S = 0.3;
 
 /**
  * Where the demo starts, in seconds: from the start, but in development a

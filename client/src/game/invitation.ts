@@ -3,6 +3,7 @@
 // the refusals that can follow it or the join.
 
 import type { Color, WebSocketMessage } from '../types/messages';
+import { otherSide } from './sides';
 
 export type Invitation =
   /** Asked; no answer yet. */
@@ -15,8 +16,6 @@ export type Invitation =
   | { state: 'full' }
   /** No such game (mistyped, or expired). */
   | { state: 'gone' };
-
-const other = (c: Color): Color => (c === 'white' ? 'black' : 'white');
 
 /**
  * The invitation to `gameId` as the log tells it. `joining` is whether the
@@ -39,6 +38,6 @@ export function selectInvitation(
   if (full || (seats && seats.length >= 2)) return { state: 'full' };
   if (!seats || seats.length === 0)
     return joining ? { state: 'joining', seat: 'white' } : { state: 'opening' };
-  const seat = other(seats[0]);
+  const seat = otherSide(seats[0]);
   return joining ? { state: 'joining', seat } : { state: 'open', seat };
 }

@@ -2,6 +2,8 @@ import React from 'react';
 import type { MoveRecord } from '../types/messages';
 import { formatMove, plyLabel, STEP_KEY, stepOfKey, stepTo } from '../game/review';
 import type { ReviewStep } from '../game/review';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { sideName } from '../game/sides';
 import { GRADE_GLYPH, GRADES } from '../game/analysis';
 import type { Grade, GradeCounts } from '../game/analysis';
 import type { Turn } from '../game/history';
@@ -52,23 +54,10 @@ const BLOCK = 64;
 
 /** A window too narrow for the list beside the tower: it opens on asking (index.css). */
 const NARROW = '(max-aspect-ratio: 13/9) and (min-height: 481px)';
-const narrowNow = () =>
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia(NARROW).matches;
 
-/** Whether the window is narrow (NARROW), following it as it changes. */
-function useNarrow() {
-  const [narrow, setNarrow] = React.useState(narrowNow);
-  React.useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const query = window.matchMedia(NARROW);
-    const changed = () => setNarrow(query.matches);
-    query.addEventListener?.('change', changed);
-    return () => query.removeEventListener?.('change', changed);
-  }, []);
-  return narrow;
-}
+/** Whether a key went to a text field, which keeps its own keys. */
+const inField = (target: EventTarget | null) =>
+  !!(target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"]');
 
 interface BlockProps {
   moves: MoveRecord[];
@@ -205,7 +194,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
 }) => {
   // Where the window has room the list is always open; where it has not,
   // it opens on asking (never while the game is on)
-  const narrow = useNarrow();
+  const narrow = useMediaQuery(NARROW);
   const [asked, setAsked] = React.useState(false);
   const open = !hidden && (!narrow || asked);
   const reviewing = shown < applied;
@@ -237,8 +226,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
     };
     const escape = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
-      const t = e.target as HTMLElement | null;
-      if (t?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      if (inField(e.target)) return;
       if (nav.current?.contains(document.activeElement)) toggle.current?.focus();
       setAsked(false);
     };
@@ -257,8 +245,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
       const s = stepOfKey(e.key);
       if (!s) return;
-      const t = e.target as HTMLElement | null;
-      if (t?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      if (inField(e.target)) return;
       e.preventDefault();
       step(s);
     };
@@ -467,8 +454,7 @@ function ReviewHead({ analysis, onAnalyse }: { analysis: HistoryAnalysis; onAnal
           <p key={side} className="hud-counts" data-side={side}>
             <Stone color={side} aria-hidden />
             <span className="sr-only">
-              {side === 'white' ? 'White' : 'Black'}:{' '}
-              {GRADES.map((g) => plural(counts[g], g)).join(', ')}
+              {sideName(side)}: {GRADES.map((g) => plural(counts[g], g)).join(', ')}
             </span>
             {GRADES.map((g) => (
               <span key={g} className="hud-count" data-grade={g} data-count={counts[g]} aria-hidden>

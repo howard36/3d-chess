@@ -13,7 +13,7 @@ export const DIFFICULTY_NAME: Record<Difficulty, string> = {
 };
 
 export const isDifficulty = (value: unknown): value is Difficulty =>
-  (DIFFICULTIES as readonly unknown[]).includes(value);
+  DIFFICULTIES.includes(value as Difficulty);
 
 export interface Level {
   /** The deepest it looks, in plies, and for how long (milliseconds). */

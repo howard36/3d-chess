@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { playFrom, waitForBoard } from './helpers/board';
 import { resign, startGame } from './helpers/game';
-import { clickSquare, waitForBoard, waitForDestination } from './helpers/board';
-import { watchComputerGame } from './helpers/computer';
+import { startComputerGame } from './helpers/computer';
 
 // Ending a game by the players' own decision: a resignation, and a draw
 // offered and declined, cancelled by a move, then agreed. Both players see
@@ -84,26 +84,14 @@ test('a draw offered, declined, cancelled by a move, then agreed', async ({ brow
 test('against the computer: it declines an even draw, and takes a resignation', async ({
   browser,
 }) => {
-  const context = await browser.newContext({ reducedMotion: 'reduce' });
-  const page = await context.newPage();
   // Declined because it weighed the position up, not because it could not
-  const seen = watchComputerGame(page);
-  await page.goto('/computer');
-  await page.getByRole('button', { name: /^White/ }).click();
-  await page
-    .getByRole('group', { name: 'Difficulty' })
-    .getByRole('button', { name: 'Easy' })
-    .click();
-  await page.waitForURL(/\/computer\/[a-z0-9]+$/);
-  await waitForBoard(page);
+  const { context, page, seen } = await startComputerGame(browser);
 
   // Even at the start: declined after a moment's thought
   await offerDraw(page);
   await expect(page.getByTestId('draw-declined')).toBeVisible({ timeout: 20_000 });
   // ...and it plays on
-  await clickSquare(page, 'Bc2', 'white');
-  await waitForDestination(page, 'Cc2');
-  await clickSquare(page, 'Cc2', 'white');
+  await playFrom(page, 'white', 'Bc2', 'Cc2');
   const announcer = page.getByTestId('move-announcer');
   await expect(announcer).toHaveAttribute('data-move-count', '2', { timeout: 20_000 });
 
@@ -162,23 +150,11 @@ test('a take-back asked for, declined, then granted, by both players’ consent'
 });
 
 test('against the computer: a move taken back at once, its reply with it', async ({ browser }) => {
-  const context = await browser.newContext({ reducedMotion: 'reduce' });
-  const page = await context.newPage();
-  const seen = watchComputerGame(page);
-  await page.goto('/computer');
-  await page.getByRole('button', { name: /^White/ }).click();
-  await page
-    .getByRole('group', { name: 'Difficulty' })
-    .getByRole('button', { name: 'Easy' })
-    .click();
-  await page.waitForURL(/\/computer\/[a-z0-9]+$/);
-  await waitForBoard(page);
+  const { context, page, seen } = await startComputerGame(browser);
 
   const takeBack = page.getByRole('button', { name: 'Take back move' });
   await expect(takeBack).toBeDisabled();
-  await clickSquare(page, 'Bc2', 'white');
-  await waitForDestination(page, 'Cc2');
-  await clickSquare(page, 'Cc2', 'white');
+  await playFrom(page, 'white', 'Bc2', 'Cc2');
   const announcer = page.getByTestId('move-announcer');
   await expect(announcer).toHaveAttribute('data-move-count', '2', { timeout: 20_000 });
 
@@ -191,9 +167,7 @@ test('against the computer: a move taken back at once, its reply with it', async
   await waitForBoard(page);
   await expect(announcer).toHaveAttribute('data-move-count', '0');
   // ...and the game goes on from there
-  await clickSquare(page, 'Bd2', 'white');
-  await waitForDestination(page, 'Cd2');
-  await clickSquare(page, 'Cd2', 'white');
+  await playFrom(page, 'white', 'Bd2', 'Cd2');
   await expect(announcer).toHaveAttribute('data-move-count', '2', { timeout: 20_000 });
   expect(seen()).toEqual([]);
   await context.close();

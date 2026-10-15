@@ -3,13 +3,12 @@ import { useNavigate, useParams } from 'react-router';
 import GameScreen from './GameScreen';
 import { useComputerGame } from '../hooks/useComputerGame';
 import {
+  createComputerGame,
   doneArriving,
   isArriving,
   loadComputerGame,
-  newComputerGameId,
-  saveComputerGame,
 } from '../lib/computerGames';
-import { setStoredRole } from '../lib/playerRole';
+import { otherSide } from '../game/sides';
 
 // A game against the computer (/computer/:gameId): the game screen, with the
 // computer standing in for the server and the opponent. One per game, so
@@ -37,10 +36,7 @@ const ComputerGame: React.FC<{ gameId: string }> = ({ gameId }) => {
   // choice makes one; the computer sits down as its page opens
   const rematch = () => {
     if (!game) return;
-    const id = newComputerGameId();
-    const color = game.color === 'white' ? 'black' : 'white';
-    saveComputerGame({ id, color, difficulty: game.difficulty, started: false, moves: [] });
-    setStoredRole(id, color);
+    const id = createComputerGame(otherSide(game.color), game.difficulty);
     navigate(`/computer/${id}`);
   };
   return (

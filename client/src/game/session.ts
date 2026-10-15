@@ -75,7 +75,7 @@ const ANSWERS: ReadonlySet<WebSocketMessage['type']> = new Set([
   'move_made',
 ]);
 
-export interface StandingError {
+interface StandingError {
   error: ServerError;
   /** Its place in the log (a dismissal names the error it dismissed). */
   index: number;

@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { getPlayerColor, playFrom, waitForBoard } from './helpers/board';
 import { resign, startGame } from './helpers/game';
-import { clickSquare, getPlayerColor, waitForBoard, waitForDestination } from './helpers/board';
+import { startComputerGame } from './helpers/computer';
 
 // A rematch between friends: offered from the result card, declined, offered
 // back and accepted, which takes both players straight into a new game with
@@ -49,9 +50,7 @@ test('a rematch declined, offered back and accepted swaps the colours', async ({
   expect(await getPlayerColor(black)).toBe('white');
 
   // ...and play it: the old Black opens
-  await clickSquare(black, 'Bc2', 'white');
-  await waitForDestination(black, 'Cc2');
-  await clickSquare(black, 'Cc2', 'white');
+  await playFrom(black, 'white', 'Bc2', 'Cc2');
   for (const page of [white, black]) {
     await expect(page.getByTestId('move-announcer')).toHaveAttribute('data-last-move', 'Bc2-Cc2');
   }
@@ -72,16 +71,7 @@ test('a rematch declined, offered back and accepted swaps the colours', async ({
 test('against the computer, a rematch starts at once: the same level, the colours swapped', async ({
   browser,
 }) => {
-  const context = await browser.newContext({ reducedMotion: 'reduce' });
-  const page = await context.newPage();
-  await page.goto('/computer');
-  await page.getByRole('button', { name: /^White/ }).click();
-  await page
-    .getByRole('group', { name: 'Difficulty' })
-    .getByRole('button', { name: 'Easy' })
-    .click();
-  await page.waitForURL(/\/computer\/[a-z0-9]+$/);
-  await waitForBoard(page);
+  const { context, page } = await startComputerGame(browser);
   const oldUrl = page.url();
   await resign(page);
   await expect(page.getByRole('dialog', { name: 'You lose' })).toBeVisible();

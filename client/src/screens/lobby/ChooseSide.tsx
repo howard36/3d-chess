@@ -5,6 +5,7 @@ import type { GameSocket } from '../../hooks/useGameSocket';
 import { useResendOnReconnect } from '../../hooks/useResendOnReconnect';
 import { getClientId } from '../../lib/clientId';
 import { setStoredRole } from '../../lib/playerRole';
+import { otherSide, sideName } from '../../game/sides';
 import type { Choice } from '../../three/lobby/LobbyScene';
 import type { Side } from '../../three/lobby/lobbyMotion';
 import { useLobbyView } from './lobbyContext';
@@ -15,13 +16,30 @@ import { DIFFICULTIES, DIFFICULTY_NAME } from '../../ai/levels';
 import type { Difficulty } from '../../ai/levels';
 import {
   getStoredDifficulty,
+  createComputerGame,
   markArriving,
-  newComputerGameId,
-  saveComputerGame,
   setStoredDifficulty,
 } from '../../lib/computerGames';
 import { computerGame } from '../computerGameChunk';
 import { prefersReducedMotion } from '../../three/motion';
+import { autoFocusRef } from '../../lib/focus';
+import { glassRim } from '../turningRim';
+
+// The rims turn while a side is pointed at or focused (data-hover), and a
+// level while it is too, or under a mouse until one is picked
+const choiceRim = glassRim((el) => el.hasAttribute('data-hover'));
+const canHover = () =>
+  typeof window.matchMedia === 'function' && window.matchMedia('(hover: hover)').matches;
+const levelRim = glassRim(
+  (el, pointed) =>
+    el.hasAttribute('data-hover') || (pointed && canHover() && !(el as HTMLButtonElement).disabled),
+);
+/** The stored level's tile takes the focus as it comes, quietly. */
+const levelRimFocused = (el: HTMLElement | null) => {
+  const done = levelRim(el);
+  autoFocusRef(el);
+  return done;
+};
 
 // The first page of a new game: the player picks a side. The three kings
 // stand on the glass (LobbyScene): porcelain, the split king for Random, and
@@ -47,8 +65,6 @@ const CHOICES: { choice: Choice; name: string }[] = [
 
 // Until the scene has placed the kings on screen
 const FALLBACK_X = { white: '25%', coin: '50%', black: '75%' };
-
-const other = (side: Side): Side => (side === 'white' ? 'black' : 'white');
 
 const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
   gameSocket,
@@ -119,9 +135,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
   const leveling = computer && settled && !!picked;
   const pickLevel = (difficulty: Difficulty) => {
     if (!picked || level) return;
-    const id = newComputerGameId();
-    saveComputerGame({ id, color: picked.side, difficulty, started: false, moves: [] });
-    setStoredRole(id, picked.side);
+    const id = createComputerGame(picked.side, difficulty);
     setStoredDifficulty(difficulty);
     setLevel(difficulty);
     setComputerGameId(id);
@@ -137,7 +151,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
           // filling as its level is chosen (the arrival on the game's page
           // answers it)
           beat: 'invited',
-          taken: { [side]: true, [other(side)]: !!level } as Record<Side, boolean>,
+          taken: { [side]: true, [otherSide(side)]: !!level } as Record<Side, boolean>,
           mine: side,
           hover: null,
           toss: null,
@@ -148,7 +162,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
     levelView ?? {
       beat: 'choose',
       taken: side
-        ? ({ [side]: true, [other(side)]: false } as Record<Side, boolean>)
+        ? ({ [side]: true, [otherSide(side)]: false } as Record<Side, boolean>)
         : {
             white: true,
             black: true,
@@ -177,14 +191,14 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
           !picked || computer
           ? 'Choose your side'
           : // (once the coin has come to rest, what it gave)
-            `You play ${picked.side === 'white' ? 'White' : 'Black'}`;
+            `You play ${sideName(picked.side)}`;
   const out = level ? '' : undefined;
   return (
     // Entering (until a pick): the page's words come in with the scene's
     // entrance, the buttons once the kings have formed
     <div className="lobby-page" data-testid="choose-side" data-enter={picked ? undefined : ''}>
       <header className="lobby-top" data-out={out}>
-        <button className="lobby-link" onClick={() => navigate('/')}>
+        <button className="button-link" onClick={() => navigate('/')}>
           <span aria-hidden>←</span> Home
         </button>
       </header>
@@ -199,6 +213,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
           return (
             <button
               key={choice}
+              ref={choiceRim}
               className="lobby-choice lobby-glass"
               data-choice={choice}
               data-chosen={chosen ? '' : undefined}
@@ -251,7 +266,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
                 data-faded={level && level !== d ? '' : undefined}
                 disabled={!!level}
                 aria-pressed={level === d}
-                autoFocus={d === getStoredDifficulty()}
+                ref={d === getStoredDifficulty() ? levelRimFocused : levelRim}
                 onClick={() => pickLevel(d)}
               >
                 {/* The computer and its strength, one bar to three */}

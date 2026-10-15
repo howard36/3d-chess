@@ -23,7 +23,7 @@ const brightness = (m: number) => 0.8 * 10 ** (-0.18 * m);
 /** A size (CSS px): the brightest about 3.6, everything past the third magnitude a dot. */
 const sizeOf = (m: number) => 1.15 + 2.5 * Math.max(0, (2.8 - m) / 2.8) ** 1.4;
 
-export interface FieldBuffers {
+interface FieldBuffers {
   pos: number[];
   size: number[];
   bright: number[];

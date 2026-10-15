@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BufferGeometry } from 'three';
-import { GROUND_RADIUS, groundParts } from './horizonGround';
-import { VEIL } from './horizon';
+import { GROUND_RADIUS, groundParts, VEIL } from './horizonGround';
 
 // The plain's footprint: a disc nearly as wide as the sky, rim the same
 // distance off on every side, in parts that meet with no seam, and the veil

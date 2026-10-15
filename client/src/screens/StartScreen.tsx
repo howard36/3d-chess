@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router';
-import { prefersReducedMotion } from '../three/motion';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { lazyChunk } from '../lib/cachedImport';
 import { ChunkBoundary } from '../components/ChunkBoundary';
 import { PieceGlyph } from './PieceGlyph';
@@ -8,6 +8,10 @@ import { BotGlyph } from './BotGlyph';
 import { PieceType } from '../engine/pieces';
 import { learnScreen } from './learn/learnChunk';
 import { LandingPicture } from './LandingPicture';
+import { glassRim } from './turningRim';
+
+/** The tiles' rim turns while the pointer is on them. */
+const tileRim = glassRim((_, pointed) => pointed);
 
 // The preview (three.js, the scene, the demo's games) is a chunk of its own,
 // asked for when the page first draws, so its title and buttons show without
@@ -24,7 +28,8 @@ const { Component: LandingPreview } = lazyChunk(() =>
 // it; a game against the computer by choosing a side and a level (/computer).
 const StartScreen: React.FC = () => {
   const navigate = useNavigate();
-  const still = useReducedMotion();
+  // Whether the player asked their system for less motion, following a change
+  const still = useMediaQuery('(prefers-reduced-motion: reduce)');
   // The live preview: loading (the picture showing), shown over the picture
   // (which then goes), or failed to load (the picture stays)
   const [preview, setPreview] = React.useState<'loading' | 'shown' | 'failed'>('loading');
@@ -60,7 +65,7 @@ const StartScreen: React.FC = () => {
           </h1>
         </header>
         <div className="landing-foot">
-          <button className="landing-mode" onClick={() => navigate('/new')}>
+          <button ref={tileRim} className="landing-mode" onClick={() => navigate('/new')}>
             <span className="landing-mode-icon" aria-hidden>
               <span className="landing-face">
                 <PieceGlyph type={PieceType.Knight} color="white" size={24} />
@@ -69,7 +74,7 @@ const StartScreen: React.FC = () => {
             </span>
             <span className="landing-label">Play a friend</span>
           </button>
-          <button className="landing-mode" onClick={() => navigate('/computer')}>
+          <button ref={tileRim} className="landing-mode" onClick={() => navigate('/computer')}>
             <span className="landing-mode-icon landing-mode-icon-wide" aria-hidden>
               <span className="landing-face">
                 <PieceGlyph type={PieceType.Knight} color="white" size={24} />
@@ -81,7 +86,7 @@ const StartScreen: React.FC = () => {
           </button>
         </div>
         <button
-          className="landing-learn"
+          className="button-secondary landing-learn"
           onClick={() => navigate('/learn')}
           // The tutorial's page is a chunk of its own: asked for on the way to the button
           onPointerEnter={learnScreen.preload}
@@ -93,18 +98,5 @@ const StartScreen: React.FC = () => {
     </main>
   );
 };
-
-/** Whether the player asked their system for less motion, following a change while the page is open. */
-function useReducedMotion(): boolean {
-  const [reduced, setReduced] = React.useState(prefersReducedMotion);
-  React.useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const update = () => setReduced(query.matches);
-    query.addEventListener?.('change', update);
-    return () => query.removeEventListener?.('change', update);
-  }, []);
-  return reduced;
-}
 
 export default StartScreen;

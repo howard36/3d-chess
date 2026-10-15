@@ -5,8 +5,10 @@
 // kept in the browser (lib/computerGames.ts) and comes back on a reload.
 
 import { Board } from '../engine';
+import { sameCoord } from '../engine/coords';
 import { moveFromMessage, moveToMessage } from '../engine/protocol';
 import { deriveHistory } from './history';
+import { otherSide, turnAfter } from './sides';
 import type { Difficulty } from '../ai/levels';
 import type {
   Color,
@@ -46,12 +48,6 @@ export interface Answer {
   replies: WebSocketMessage[];
 }
 
-const other = (c: Color): Color => (c === 'white' ? 'black' : 'white');
-
-/** The side to move after `moves`. */
-const turnAfter = (moves: readonly MoveRecord[]): Color =>
-  moves.length % 2 === 0 ? 'white' : 'black';
-
 /** The position after `moves`, or null if one of them cannot be played. */
 const replay = (moves: readonly MoveRecord[]): Board | null => {
   let board = Board.setupStartingPosition();
@@ -75,13 +71,7 @@ const isLegal = (board: Board, record: MoveRecord): boolean => {
   if (!piece || piece.color !== record.by) return false;
   return board
     .generateLegalMoves(move.from)
-    .some(
-      (m) =>
-        m.to.x === move.to.x &&
-        m.to.y === move.to.y &&
-        m.to.z === move.to.z &&
-        m.promotion === move.promotion,
-    );
+    .some((m) => sameCoord(m.to, move.to) && m.promotion === move.promotion);
 };
 
 /** The game as a rejoin's answer gives it. */
@@ -116,7 +106,7 @@ export const standingOffer = (game: ComputerGame | null): DrawOffer | null => {
 
 /** Whether it is the computer's move in a game under way. */
 export function computerToMove(game: ComputerGame | null): game is ComputerGame {
-  return !!game && game.started && turnAfter(game.moves) !== game.color && !isOver(game);
+  return !!game && game.started && turnAfter(game.moves.length) !== game.color && !isOver(game);
 }
 
 const error = (code: ServerError['code'], message: string): WebSocketMessage => ({
@@ -150,7 +140,7 @@ export function answer(game: ComputerGame | null, gameId: string, msg: WebSocket
   if (!game.started) return none([error('game_not_started', 'The game has not started')]);
   if (game.ending) return none([error('game_over', 'The game is over')]);
   if (msg.type === 'resign') {
-    const ending: Ending = { result: 'resignation', winner: other(game.color) };
+    const ending: Ending = { result: 'resignation', winner: otherSide(game.color) };
     return { game: { ...game, ending }, replies: [{ type: 'game_ended', ...ending }] };
   }
   if (msg.type === 'offer_draw') {
@@ -163,7 +153,7 @@ export function answer(game: ComputerGame | null, gameId: string, msg: WebSocket
   // The computer never offers a draw, so there is none for the player to answer
   if (msg.type === 'accept_draw' || msg.type === 'decline_draw')
     return none([error('invalid_draw', 'No draw offer to answer')]);
-  const by = turnAfter(game.moves);
+  const by = turnAfter(game.moves.length);
   if (by !== game.color) return none([error('wrong_turn', 'Not your turn')]);
   const record: MoveRecord = { by, from: msg.from, to: msg.to };
   if (msg.promotion) record.promotion = msg.promotion;
@@ -184,8 +174,8 @@ export function answer(game: ComputerGame | null, gameId: string, msg: WebSocket
 export function answerDrawOffer(game: ComputerGame, score: number | null): Answer {
   const offer = standingOffer(game);
   if (!offer) return { game, replies: [] };
-  const computer = other(game.color);
-  const own = score === null ? null : turnAfter(game.moves) === computer ? score : -score;
+  const computer = otherSide(game.color);
+  const own = score === null ? null : turnAfter(game.moves.length) === computer ? score : -score;
   if (own !== null && own <= ACCEPTS_DRAW_AT) {
     const ending: Ending = { result: 'agreement' };
     return { game: { ...game, ending }, replies: [{ type: 'game_ended', ...ending }] };
@@ -240,7 +230,7 @@ export function computerMove(
   move: Pick<MoveRecord, 'from' | 'to' | 'promotion'>,
 ): Answer {
   if (!computerToMove(game)) return { game, replies: [] };
-  const record: MoveRecord = { by: other(game.color), from: move.from, to: move.to };
+  const record: MoveRecord = { by: otherSide(game.color), from: move.from, to: move.to };
   if (move.promotion) record.promotion = move.promotion;
   const board = replay(game.moves);
   if (!board || !isLegal(board, record)) return { game, replies: [] };
@@ -256,7 +246,7 @@ export function fallbackMove(
 ): Pick<MoveRecord, 'from' | 'to' | 'promotion'> | null {
   const board = replay(game.moves);
   if (!board) return null;
-  const moves = board.generateAllLegalMoves(turnAfter(game.moves));
+  const moves = board.generateAllLegalMoves(turnAfter(game.moves.length));
   if (moves.length === 0) return null;
   const { from, to, promotion } = moveToMessage(moves[0]);
   return promotion ? { from, to, promotion } : { from, to };

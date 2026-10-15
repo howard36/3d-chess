@@ -54,7 +54,7 @@ const HALF_ROW = SEAT_SPACING + 0.5;
  * bottom, lets them stand smaller. With a card docked `beside` them the row
  * keeps to the room left of it, `BESIDE_ROOM` of the frame's half-width.
  */
-export const viewDistance = (aspect: number, beside = false) => {
+const viewDistance = (aspect: number, beside = false) => {
   const narrow = aspect < 0.9;
   const byHeight = (KING_TOP * KING_SCALE) / ((narrow ? 0.2 : 0.3) * 2 * TAN_V);
   const share = beside ? BESIDE_ROOM * 0.85 : narrow ? 0.94 : 0.8;
@@ -189,16 +189,15 @@ export const kingEntrance = (t: number, at: number) => ({
 export const faceAngle = (side: Side) => (side === 'white' ? Math.PI / 2 : -Math.PI / 2);
 
 /** The coin's turn `t` seconds into a toss landing on `side`: two turns and a bit, slowing. */
-export const tossAngle = (t: number, side: Side, duration = LOBBY_TIMING.toss) => {
+export const tossAngle = (t: number, side: Side) => {
   const end = faceAngle(side) + Math.PI * 2 * 2;
   // Fast off the hand, slowing to rest on its face without passing it
-  const k = clamp01(t / duration);
+  const k = clamp01(t / LOBBY_TIMING.toss);
   return end * (1 - (1 - k) ** 3);
 };
 
 /** How high the coin is thrown while it spins (piece units): up and back down. */
-export const tossHop = (t: number, duration = LOBBY_TIMING.toss) =>
-  Math.sin(Math.PI * clamp01(t / duration)) * 0.4;
+export const tossHop = (t: number) => Math.sin(Math.PI * clamp01(t / LOBBY_TIMING.toss)) * 0.4;
 
 /** How far the landed coin has glided toward its seat, 0 to 1, eased in and out. */
 export const tossGlide = (t: number) =>

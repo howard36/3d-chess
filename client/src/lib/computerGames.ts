@@ -7,6 +7,8 @@
 import type { ComputerGame } from '../game/computerGame';
 import { isDifficulty } from '../ai/levels';
 import type { Difficulty } from '../ai/levels';
+import type { Color } from '../types/messages';
+import { setStoredRole } from './playerRole';
 
 const keyFor = (gameId: string) => `3dchess:computer:${gameId}`;
 const DIFFICULTY_KEY = '3dchess:computer-difficulty';
@@ -73,6 +75,14 @@ export function newComputerGameId(): string {
   const bytes = new Uint8Array(10);
   crypto.getRandomValues(bytes);
   for (const b of bytes) id += alphabet[b % alphabet.length];
+  return id;
+}
+
+/** Starts a game against the computer, `color` the player's: stored, seat and all. Its id. */
+export function createComputerGame(color: Color, difficulty: Difficulty): string {
+  const id = newComputerGameId();
+  saveComputerGame({ id, color, difficulty, started: false, moves: [] });
+  setStoredRole(id, color);
   return id;
 }
 

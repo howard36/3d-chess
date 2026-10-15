@@ -54,7 +54,7 @@ import type { CameraPose, Side } from './lobbyMotion';
 // it. What it shows is declared by the screens over it (LobbyView); how it
 // moves from one picture to the next is its own business, on r3f's clock.
 
-export type LobbyBeat = 'choose' | 'wait' | 'invited' | 'arrive' | 'leave';
+type LobbyBeat = 'choose' | 'wait' | 'invited' | 'arrive' | 'leave';
 export type Choice = Side | 'random';
 
 export interface LobbyView {

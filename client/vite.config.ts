@@ -266,9 +266,6 @@ export default defineConfig({
     invitePage(),
     socialImageOnPreviews(),
   ],
-  css: {
-    postcss: './postcss.config.js',
-  },
   resolve: {
     // r3f pins a scheduler of its own (0.28) beside react-dom's (0.27, the
     // same code): one copy, and one task queue for both roots

@@ -8,6 +8,7 @@
 import type { Board } from '../engine';
 import { PieceType } from '../engine/pieces';
 import { FILES, LEVELS, RANKS } from '../engine/coords';
+import { otherSide } from './sides';
 import type { Turn } from './history';
 
 /**
@@ -65,7 +66,7 @@ export function materialOf(board: Board, side: Turn): number {
 
 /** How far `side` is ahead on material, in pawns (negative: behind). */
 export function materialLead(board: Board, side: Turn): number {
-  return materialOf(board, side) - materialOf(board, side === 'white' ? 'black' : 'white');
+  return materialOf(board, side) - materialOf(board, otherSide(side));
 }
 
 const NAME: Record<PieceType, string> = {
