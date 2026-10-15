@@ -131,7 +131,10 @@ Key decisions:
   `decline_takeback`, `offer_rematch`, `accept_rematch`, `decline_rematch`) are
   synchronous functions, so nothing inside them can yield to the event loop; and the
   WebSocket handler never reads or writes the store itself, only passes it to those
-  operations. `modal.Dict`'s calls block; never switch to the `.aio` variants.
+  operations. `modal.Dict`'s calls block; never switch to the `.aio` variants. Without a
+  `modal.Dict` (the tests, e2e's backend, local runs) the store is a `CopyingStore`, which
+  pickles on every read and write as `modal.Dict` does, so a store operation that forgets
+  its write-back fails the tests.
 - **Seat persistence on the client.** The assigned color is stored in
   `localStorage` (`client/src/lib/playerRole.ts`) keyed by game id, and is used to
   auto-`rejoin_game` on page load **and** after any mid-session drop: the socket hook
@@ -340,8 +343,10 @@ Key decisions:
   At the top of the list stands **"Analyse"**, a game's review on asking (never on its own:
   it would cost a phone's battery), against a friend or the computer alike
   (`screens/useAnalysis.ts`). Each position from the start on is searched in the computer's
-  worker, one at a time (see Playing the computer), and the position a game ended in on the
-  board (a mate, a draw) needs none. As each is done its moves are marked, a glyph after
+  workers, several at once and handed out from the start (see Playing the computer), and the
+  position a game ended in on the board (a mate, a draw) needs none. Should a search fail, or
+  the search's code fail to load, the review stops short and says so ("Analysis stopped",
+  with "Retry", which goes on from the positions already found). As each is done its moves are marked, a glyph after
   the move in the list, "?!" an inaccuracy, "?" a mistake and "??" a blunder (pale blue,
   orange and red, but the glyph says which; a screen reader hears the grade), and the button
   gives way to each side's marks counted by grade (its stone, then "?! 2 ? 0 ?? 1"), a
@@ -364,7 +369,7 @@ Key decisions:
   `move-announcer` the latest move as `data-last-move` (`Bb1-Cb1`, `=U` for a promotion)
   and `data-move-count`; `move-history` the ply the board shows as `data-viewing-ply`
   (the live ply at the live position), with `data-review` away from it and `data-hidden`
-  while the game is on, `data-analysis` (`running`, `done`) once the review is asked for
+  while the game is on, `data-analysis` (`running`, `done`, `stopped`) once the review is asked for
   (`analyse`, the button) and `data-best` the better move where the move shown is marked
   (`Bc1-Cc2`, named in `best-move`); each move marked carries `data-grade` (`inaccuracy`,
   `mistake`, `blunder`), and `.hud-counts` each side's counts as `data-count` by grade; `game-actions` is the flag's corner, with `take-back` (the arrow),
@@ -407,7 +412,9 @@ Key decisions:
   into the picture) from its first render, placed by the window's lens (`picturePlacement`,
   plain arithmetic with the fit's numbers baked, from the window's size as the page first
   renders, nothing measured: the start page is the entry), and the built page's head starts
-  the AVIF downloading before the entry has run (`preloadLandingPicture`, on `/` alone).
+  the AVIF downloading before the entry has run (`preloadLandingPicture`, on `/` alone; written
+  in after `<meta name="viewport">`, since before it a phone's window reads 980 px wide and the
+  script would fetch the tablet's picture: `vite.config.test.ts`).
   Each layout's picture comes at two densities, picked by the screen's (`srcset`): 1x, and
   `@2x` as fine as the preview's canvas draws on a finer screen (the pixel budget's); AVIF
   of 16–44 KB at 1x and 37–73 KB at 2x, colour at half resolution (4:2:0: full
@@ -1171,9 +1178,11 @@ the way a person does; its own moves this turn are always all considered.
 Measured by self-play (`chooseMove`, alternating colours): Easy beat a random mover 6–0,
 Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking time.
 
-**A finished game's review** ("Analyse", see HUD) asks the same worker one position at a
-time (`analyse` in `ai/computer.ts`, `analysePosition` in `ai/choose.ts`), so the marks come
-in as the positions are done and the page's going stops it: Hard's depth and quiescence,
+**A finished game's review** ("Analyse", see HUD) asks workers of its own, one fewer than
+the machine's cores and at most three, one position each at a time, handed out from the
+start (`analyse` in `ai/computer.ts`, `analysePosition` in `ai/choose.ts`), so the marks come
+in from the first move on and the page's going stops it; each position is a search of its
+own, so the marks are the same however the positions are split: Hard's depth and quiescence,
 margin 0, no noise or blind spots, as `assessPosition`, but bounded by 120,000 positions
 searched (`ANALYSIS_NODES`, about a third of a second in the browser) rather than the
 clock, so a game reviewed anywhere gets the same marks (1.5 s is a backstop for a slow
@@ -1399,8 +1408,9 @@ in the report and exits 1.
 **The primary rows** (`bench/primary.mjs`) are one number for each moment a player waits
 on (CLAUDE.md "Performance"): the start page usable and answering its first click, a shared
 game's first screen, the first board frame (joining a game, playing the computer), a long
-game reopened, a move landing (the player's and the opponent's), a piece selected, and the
-computer's search speed (at a fixed time a move, speed is strength). Each runs from the
+game reopened, a finished game's review (from "Analyse" to every mark in, its marks checked
+the same in every run), a move landing (the player's and the opponent's), a piece selected,
+and the computer's search speed (at a fixed time a move, speed is strength). Each runs from the
 player's action (a click, a navigation, the opponent's send) to what the player sees,
 never from a point in between, which a change can move without the player noticing. The
 report and the A/B comparison lead with them; every other row is a diagnostic, saying
@@ -1466,6 +1476,9 @@ different work.
 - Modal's edge rejects binary WebSocket frames before they reach the app; the local
   uvicorn backend answers them with an `invalid_message` error instead. The client only
   ever sends text.
+- A frame over 4,096 characters is refused with `invalid_message` before it is parsed (the
+  longest a client sends is about 150): validating a wide object against every message
+  model held the one event loop for seconds.
 - The server records any shape-valid, turn-correct move without checking legality. The
   client replays history defensively — a record it cannot apply, or one that leaves a
   position it cannot evaluate (a captured king), freezes the board at the last good
