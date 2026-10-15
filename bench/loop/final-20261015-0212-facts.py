@@ -2,7 +2,6 @@
 # RUN-20261015-0212.report.json.py. Run: python3 final-20261015-0212-facts.py
 import json, pathlib
 here = pathlib.Path(__file__).parent
-FIRST_DONE = False  # set once ab-20261015-vs-first-run.md is in the scoreboard
 facts = {
   'ci': 'CI passed on the merge commit 89eb146: client, server tests and all three e2e shards.',
   'recheck_change': 'tip: 89eb146 vs de25815 (cold-load + review, 3 pairs)',

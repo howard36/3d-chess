@@ -443,7 +443,7 @@ Ideas from 12 read-only reviewers (lens 10 folded into lens 1: no dependency mov
 | RV14 | Keyed offer line: with two offers standing, a focused Decline could decline the next one | GameActions.tsx | **kept** (4b7fb96) |
 | RV15 | CopyingStore did not copy on write; deepcopy made a 2,000-ply seed 5.7× slower (final A/B: seeding 1.27 → 7.18 s, bench setup only) | modal_app.py | **kept** (2e17292): pickles (0.7 vs 5.2 ms per 2,000-move record), on writes too; a test of both |
 | RV16 | The RecursionError catch is unreachable under the 4,096 cap (2,047 levels at most; Python 3.13 parses 4,000) | modal_app.py | **kept** (2e17292): removed with its claim |
-| RV17 | With no worker, the review runs 3 computers inline on the main thread | useAnalysis.ts, ai/computer.ts | open: one computer when there is no worker |
+| RV17 | With no worker, the review runs 3 computers inline on the main thread (a regression b305f6d caused) | useAnalysis.ts, ai/computer.ts | **kept** (9afbf60): one computer where there is no Worker; the test fails without it. A worker whose script fails to load (onerror) still falls back inline per computer: open |
 | RV18 | `ANALYSIS_MS` (1.5 s) may cut a position short with 3 workers on a slow phone, making marks machine-dependent | choose.ts:200 | open: measure per-position time on a phone |
 | RV19 | "Analysis stopped" is inserted already filled into a role=status with a button: may not be announced | MoveHistory.tsx | open |
 | RV20 | `vite.config.test.ts` is in no tsconfig (not typechecked) | client/ | open |

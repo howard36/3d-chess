@@ -43,7 +43,7 @@ report = {
   'needs': {'items': [
     {'title': 'Review PR #147, and decide whether to split it',
      'body':
-       '<p>The PR holds eleven changes of four kinds, each in its own commit with its evidence in the message. '
+       '<p>The PR holds the run’s changes in four kinds. Each commit’s message gives its evidence; six commits hold two related changes each (listed in the run record), not one. '
        'CLAUDE.md asks for one logical change per PR; the run’s instructions asked for one branch and one PR. '
        f'{facts["ci"]}</p>',
      'figure': {'html': table(['Part', 'Commits', 'What it does'], [
@@ -54,15 +54,20 @@ report = {
                 'caption': 'A split along the four kinds of change.'},
      'recommend': 'Split it into the first three parts plus the fourth, or squash-merge it as it is. Either works; the commits do not depend on one another except where the table groups them.'},
 
-    {'title': 'The start page got slower on phones with #138; the branch removes the cause, and one row needs watching',
+    {'title': 'The start page got slower on phones with #138; the branch fixes a bug that cost part of it, and two rows need watching',
      'body':
        '<p>Since the last run, six features landed on main. One of them, #138 (the start page’s picture), made “Start page usable, phone” 9.4% slower, called in every pair (776 → 848 ms), while making the board appear about twice as soon. '
-       'The cause was a bug in #138, which this branch fixes: the picture’s preload ran before the page knew it was on a phone, so every phone downloaded the tablet’s 73 KB picture beside the page’s code.</p>'
-       '<p>Against main, the fixed branch has the phone’s “usable” time 3.5% sooner in one A/B and 0.2% sooner in another, neither called. I did not compare the branch with the code from before #138, so whether the 9.4% is fully recovered is not measured. '
-       '“Start page usable, desktop” leaned slower in two of three A/Bs (+4.0% and +6.4%, every pair of the second above 1, not called) and 1.8% faster in the third. I found nothing in the branch that touches the desktop’s path to “usable”.</p>',
+       '#138 also had a bug, which this branch fixes: the picture’s preload ran before the page knew it was on a phone, so every phone downloaded the tablet’s 73 KB picture beside the page’s code. That explains part of the extra bytes, but not necessarily the slowdown.</p>'
+       '<p>Against main, the fixed branch has the phone’s “usable” time 3.4% sooner (final A/B), 0.2% sooner (6-pair re-check) and 6.5% sooner (after the merge), none called. I did not compare the branch with the code from before #138, so how much of the 9.4% is recovered is not measured. '
+       '“Start page usable, desktop” leaned slower in two A/Bs (+4.0% and +6.4%, every pair of the second above 1, not called) and faster in two (−1.8% and −2.8%). The preload fix moves an inline script in the page’s head, which runs on desktop too, so the branch does touch that path.</p>',
      'charts': [{'rows': {'change': REG, 'only': START}, 'caption': 'Main 9f2d524 against the last run’s end 145729b: what #138 did, 4 pairs.'},
                 {'rows': {'change': RECHECK0, 'only': START}, 'caption': 'The branch (2e17292) against main 9f2d524, 6 pairs.'}],
-     'recommend': 'Merge the fix. The next run compares the start page against 145729b directly, and watches the desktop’s “usable” row with more pairs.'},
+     'recommend': 'Merge the fix. The next run compares the start page against 145729b directly, and measures the desktop’s “usable” row with more pairs.'},
+
+    {'title': 'Flag: a review now holds more memory than the bench measures',
+     'body': '<p>The run’s memory rule flags any peak increase over 5%. The page’s own heap did not grow (a reopened long game: −0.1%). '
+             'But a review now runs up to three workers instead of one, and the bench does not measure workers. By estimate, each extra worker holds its own JavaScript heap and 3.25 MiB of search tables (ledger M9′), so a review on a 4-core machine may hold about 10 MB more while it runs, and frees it when it ends. Against a page heap of about 14 MB that is well over 5%. It is not measured.</p>',
+     'recommend': 'Keep the parallel review, and let the next run measure the workers’ memory (Chrome’s memory tools can) and make the search tables once per worker (M9′), which removes most of the per-position allocation.'},
 
     {'title': 'Four findings that are design or rules decisions',
      'body': '<p>The reviewers found these. None is in the PR, because each changes behaviour that a player would notice or a rule of the game.</p>',
@@ -88,14 +93,19 @@ report = {
   'scoreboard': {'intro':
      '<p>The bench’s headline measurements are the moments a player waits for, listed in <code>bench/primary.mjs</code>. '
      'This run added one: a finished game’s review, from “Analyse” to every move marked. '
-     'Against main, the branch is 1.097 times as fast over all fourteen. Two are called better: the phone’s start page showing its board (46% faster) and the review (54% faster). None is called worse. '
-     'Memory stayed within the 5% limit: a reopened long game uses 0.1% less JavaScript heap.</p>'
+     'Against main, the branch is 1.097 times as fast over all fourteen. Two are called better: the phone’s start page showing its board (46% faster) and the review (54% faster). None is called worse, but two lean slower than the run’s 3% limit without being called: “Start page usable, desktop” (see Needs from me) and “Reopening a long game” (+9.5%; measured again below, −12% on the last commit). '
+     'The page’s heap did not grow (−0.1% on a reopened long game); the review’s workers are not measured (see Needs from me).</p>'
      f'{facts["scoreboard_extra"]}',
    'items': [
     {'title': 'The branch against main', 'charts': [{'rows': {'change': FINAL, 'only': 'PRIMARY'}, 'caption': 'Branch beccfdf against main 9f2d524, 4 pairs.'}]},
     {'title': 'The headline results again, on the final commit',
      'body': facts['recheck'],
      'charts': [{'rows': {'change': RECHECK, 'only': START + '|' + REVIEW + '|' + CLICK}, 'caption': facts['recheck_caption']}]},
+    {'title': 'Reopening a long game, measured again on the last commit',
+     'body': '<p>In the final A/B the headline row “Reopening a long game (2,000 plies)” leaned 9.5% slower (161 → 178 ms, not called), over the run’s 3% limit, and the re-checks after it did not measure it. '
+             'Measured again on the last commit, 9afbf60, against main de25815: 12% faster (167 → 157 ms, not called), with its first picture −1.8%, its page freezes −2.7% and its heap +0.2%. The lean did not recur. '
+             'The same A/B measured the review on this commit: 54% faster, called. Seeding the 2,000-ply game takes 4.3 times as long in the bench’s local server, which now copies records as production does; that is bench setup, not a moment a player waits on.</p>',
+     'charts': [{'rows': {'change': 'reopen: 9afbf60 vs de25815 (reopen + review, 3 pairs)', 'only': 'Reopening a long game · (move record shown|board’s first picture|page freezes in total|JavaScript memory)|' + REVIEW}, 'caption': 'The last commit 9afbf60 against main de25815, 3 pairs.'}]},
     {'title': 'The branch against the first recorded run',
      'body': facts['first'],
      'charts': [{'rows': {'change': FIRST, 'only': 'PRIMARY'}, 'caption': facts['first_caption']}]},
@@ -116,7 +126,8 @@ report = {
        'Each position is a separate search, so they can run side by side with the same results. The review now uses one worker per spare core, at most three, and hands the positions out from the start of the game (commit b305f6d). '
        'The marks were identical in all 16 runs of the A/B, and the page showed no freezes.</p>'
        '<p>A review whose search failed used to show “done” with its counts as if final, so a review that failed at the first move read as a perfect game. Now it says “Analysis stopped” with a Retry button, which continues from the positions already found. '
-       'The diff review found that a search finishing after the stop could restart the progress bar for good; that is fixed with a test (4b7fb96).</p>',
+       'The diff review found that a search finishing after the stop could restart the progress bar for good; that is fixed with a test (4b7fb96). '
+       'The grading found that with no worker available the review ran three searches on the page’s own thread instead of one; it now runs one there (9afbf60, with a test).</p>',
      'charts': [{'rows': {'change': RVP, 'only': REVIEW}, 'caption': 'Parallel review against the commit before it, 4 pairs.'}]},
     {'title': 'The server’s tests now catch a lost write-back, and one large message can no longer stall every game',
      'body':
@@ -124,6 +135,8 @@ report = {
        'The tests and the local server now use a store that copies the way production does (commits fea5a5a and 2e17292). Removing a write-back now fails two tests; on main all 77 pass.</p>'
        '<p>Every message is checked against all 31 message types. A 1 MB message made of 100,000 short keys took 7.4 s to check on this machine, and the server handles all games on one thread. Messages longer than 4,096 characters are now refused before they are read (cfbace2); the longest real message is about 150. '
        'A rejoin now sends every field the stored record shares with the protocol, instead of a hand-kept list, and its test reads the field from the rejoin (10ce347).</p>'},
+    {'title': 'A focus bug my own cleanup caused, fixed',
+     'body': '<p>Merging the six offer lines into one table (1d1ca66) made React reuse one element for whichever line shows. With a take-back and a draw offer both standing, a keyboard player who declined the take-back kept focus on the same button, which then declined the draw. The diff review caught it, and keying each line by what it says fixes it (4b7fb96). This fix has no test.</p>'},
     {'title': 'A rematch keeps its seat when the browser refuses to save it',
      'body': '<p>When local storage was full or turned off, accepting a rematch opened the new game with no saved seat, and the page showed “Game full” for the game the player had just been placed in. The page now also carries the seat in its navigation (9ba343a).</p>'},
     {'title': 'Checks that can now fail',
@@ -150,7 +163,6 @@ report = {
      '<li>The words “Analysis stopped” and “Retry” for a failed review.</li>'
      '<li>Messages over 4,096 characters are refused with “Message is too large”.</li>'
      '<li>The local server, e2e and the bench now copy records the way production does. Seeding a 2,000-move game in the bench takes longer (bench setup only, not a measured moment).</li>'
-     '<li>The keyboard fix on the offer line: after answering one offer, focus no longer lands on the next offer’s button.</li>'
      '<li>I accepted the later first paint on the unthrottled phone, since the board itself appears sooner.</li>'
      '<li>The branch is pushed as <code>claude/serene-galileo-jajbb3</code>, the session’s branch, not <code>improve/20261015-0212</code>.</li>'
      '<li>I folded the dependencies reviewer into the “what’s new” reviewer: every dependency is current (three r186, react-three-fiber 9.8.1, Vite 8.3.4).</li></ul>'},
@@ -165,10 +177,10 @@ report = {
   'merge': {'intro': '<p>Other sessions merged three PRs into main during the run (#141, #144 and #145), and more were open. I merged main into the branch at 89eb146. '
      'Six files conflicted. #144 had also made one shared e2e <code>resign</code> helper and made <code>isDifficulty</code> read the list of levels, so I took main’s versions and dropped mine. The rematch keeps its colour in the navigation, using main’s <code>otherSide</code>. '
      'Lint, typecheck, 1,373 unit tests and 79 server tests pass on the merge. '
+     'Main moved again at 05:09 UTC (#146, ec44dfa). The branch is behind it but merges cleanly (checked with <code>git merge-tree</code>); I did not merge it, so that the final measurements stay on the commit they measured. '
      'ARCHITECTURE.md now describes the parallel review and its stopped state, the picture’s preload, the copying store and the size cap. CLAUDE.md is unchanged.</p>'},
 
   'next': {'intro': '<ol>'
-     '<li>Use one search on the page, not three, when the browser cannot start a worker (RV17).</li>'
      '<li>Measure a review’s time per position on a phone, to see whether the 1.5 s limit bites (RV18).</li>'
      '<li>Count the shaders linked at the end of a reopened game’s entrance, where #140’s replay may have moved three of them (RP1).</li>'
      '<li>Keep a review’s results when the page is reloaded (RV-K).</li>'
