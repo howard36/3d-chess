@@ -96,6 +96,9 @@ export function useAnalysis(history: GameHistory): Analysis {
     const total = records.length + 1;
     const stopped = (cause: unknown) => {
       if (!live()) return;
+      // The run is over: a search still under way (on the page, which
+      // disposing cannot stop) lands nowhere
+      runs.current++;
       console.warn('The review stopped short.', cause);
       stopAll(workers);
       asked.current = null;

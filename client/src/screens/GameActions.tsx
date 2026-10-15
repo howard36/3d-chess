@@ -57,6 +57,16 @@ const Back = () => (
   </svg>
 );
 
+/** The line under the buttons, by what it says: a question to answer, or where a request stands. */
+const LINE_WORDS = {
+  'takeback-offer': 'Take-back requested',
+  'draw-offer': 'Draw offered',
+  'takeback-pending': 'Take-back requested',
+  'draw-pending': 'Draw offered',
+  'takeback-declined': 'Take-back declined',
+  'draw-declined': 'Draw declined',
+} as const;
+
 /**
  * Resigning and draws, in a game under way: a flag under the way to the
  * tutorial (index.css, .hud-game) opens a small menu, "Offer draw" and
@@ -69,16 +79,6 @@ const Back = () => (
  * against a friend once they agree, the asking shown as a draw offer is
  * (one line under the buttons at a time).
  */
-/** The line under the buttons, by what it says: a question to answer, or where a request stands. */
-const LINE_WORDS = {
-  'takeback-offer': 'Take-back requested',
-  'draw-offer': 'Draw offered',
-  'takeback-pending': 'Take-back requested',
-  'draw-pending': 'Draw offered',
-  'takeback-declined': 'Take-back declined',
-  'draw-declined': 'Draw declined',
-} as const;
-
 const GameActions: React.FC<GameActionsProps> = ({
   seat,
   offer,
@@ -229,7 +229,8 @@ const GameActions: React.FC<GameActionsProps> = ({
         </div>
       )}
       {line && line.endsWith('-offer') ? (
-        <div className="hud-offer hud-glass" data-testid={line}>
+        // Keyed by the line: a button the player pressed never becomes another offer's
+        <div key={line} className="hud-offer hud-glass" data-testid={line}>
           <span className="hud-offer-words">{LINE_WORDS[line]}</span>
           <span className="hud-offer-answers">
             {[true, false].map((accept) => (
@@ -249,7 +250,7 @@ const GameActions: React.FC<GameActionsProps> = ({
         </div>
       ) : (
         line && (
-          <div className="hud-line hud-glass" data-testid={line}>
+          <div key={line} className="hud-line hud-glass" data-testid={line}>
             {line.endsWith('-pending') && <span className="hud-dot" aria-hidden />}
             {LINE_WORDS[line]}
           </div>

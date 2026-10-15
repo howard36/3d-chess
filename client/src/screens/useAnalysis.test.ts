@@ -174,6 +174,20 @@ it('says where a search fails, and asked again goes on from the positions it has
   expect(result.current.grades).toEqual([null, 'blunder', 'blunder', null]);
 });
 
+it('stays stopped when a search still under way finishes after another failed', async () => {
+  // As on the page itself (no worker), where disposing cannot stop a search
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  cores(8);
+  const { result } = renderHook(() => useAnalysis(historyOf(MATE)));
+  act(() => result.current.start());
+  await act(async () => {});
+  const [first, second] = worker.answers.splice(0);
+  await act(async () => first(new Error('no')));
+  await act(async () => second(at(11, 'Ed5', 'Cc5')));
+  expect(result.current.state).toBe('stopped');
+  expect(worker.asked).toEqual([0, 1, 2]);
+});
+
 it('can be asked again when the computer could not be had', async () => {
   worker.fails = true;
   const { result } = renderHook(() => useAnalysis(historyOf(MATE)));
