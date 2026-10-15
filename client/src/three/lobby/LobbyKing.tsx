@@ -53,7 +53,7 @@ const settle = (from: number, to: number, dt: number, rate: number) => {
 };
 
 /** Pointer handlers for a king that can be picked (the choosing screen). */
-export interface Pickable {
+interface Pickable {
   onOver?: () => void;
   onOut?: () => void;
   onPick?: () => void;

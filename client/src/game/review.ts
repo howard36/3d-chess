@@ -9,6 +9,7 @@
 import { Board } from '../engine';
 import type { PieceType } from '../engine';
 import { moveFromMessage } from '../engine/protocol';
+import { turnAfter } from './sides';
 import type { MoveRecord } from '../types/messages';
 import type { GameHistory, LastMove, Turn } from './history';
 
@@ -32,8 +33,6 @@ export interface ReviewLine {
   /** `positions[n]` is the position after `n` moves, for every n up to `records.length`. */
   positions: readonly Position[];
 }
-
-const turnAfter = (ply: number): Turn => (ply % 2 === 0 ? 'white' : 'black');
 
 const start = (): Position => ({
   ply: 0,

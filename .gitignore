@@ -1,7 +1,5 @@
 # Node
 node_modules/
-
-# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -16,40 +14,21 @@ Thumbs.db
 *.swp
 *.swo
 
-# Build outputs
-/dist/
-/build/
-
 # Local env
 .env
 .env.*
 
-# Ignore client build and node_modules (redundant, but explicit)
-client/node_modules/
-client/dist/
-client/build/
-
-# Refer to client/.gitignore for frontend-specific ignores
-# (e.g. coverage, test-results, etc.)
+# Client build and test output: see client/.gitignore
 
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-
-# Python virtualenvs
 .venv/
 .python-version
-
-# Test cache
 .pytest_cache/
+*.egg-info/
+# (server/uv.lock stays tracked for reproducible installs)
 
-# (server) build/lock files
-# Keep uv.lock tracked for reproducible installs
-
-# Python packaging egg-info directories
-*.egg-info/ 
 # Claude Code worktrees
 .claude/worktrees/
 

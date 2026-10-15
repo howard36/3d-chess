@@ -9,7 +9,6 @@
 
 /** (Also read by earlySocket.ts's inline script.) */
 export const CLIENT_ID_KEY = '3dchess:clientId';
-const KEY = CLIENT_ID_KEY;
 
 const randomId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -21,10 +20,10 @@ let cached: string | null = null;
 export function getClientId(): string {
   if (cached) return cached;
   try {
-    cached = sessionStorage.getItem(KEY);
+    cached = sessionStorage.getItem(CLIENT_ID_KEY);
     if (!cached) {
       cached = randomId();
-      sessionStorage.setItem(KEY, cached);
+      sessionStorage.setItem(CLIENT_ID_KEY, cached);
     }
   } catch {
     // Storage disabled: an id for this page load still covers a reconnect

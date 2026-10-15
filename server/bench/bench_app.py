@@ -64,10 +64,8 @@ class PickleStore:
     def __init__(self, latency_ms: float = 0.0) -> None:
         self._data: dict[str, bytes] = {}
         self._latency_s = latency_ms / 1000.0
-        self.calls = 0
 
     def _rpc(self) -> None:
-        self.calls += 1
         if self._latency_s:
             time.sleep(self._latency_s)  # blocking, like modal.Dict's sync wrappers
 
@@ -91,13 +89,10 @@ class PickleStore:
     def __len__(self) -> int:
         return len(self._data)
 
-    # Benchmark-only helpers, never called by modal_app: they bypass the
-    # modelled RPC so a timed loop can reset a record between samples.
+    # Benchmark-only, never called by modal_app: bypasses the modelled RPC
+    # so a timed loop can reset a record between samples.
     def raw_put(self, key: str, blob: bytes) -> None:
         self._data[key] = blob
-
-    def raw_blob(self, key: str) -> bytes:
-        return self._data[key]
 
 
 def make_store(spec: str) -> Any:

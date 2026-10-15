@@ -13,7 +13,7 @@ export const DIFFICULTY_NAME: Record<Difficulty, string> = {
 };
 
 export const isDifficulty = (value: unknown): value is Difficulty =>
-  value === 'easy' || value === 'medium' || value === 'hard';
+  DIFFICULTIES.includes(value as Difficulty);
 
 export interface Level {
   /** The deepest it looks, in plies, and for how long (milliseconds). */

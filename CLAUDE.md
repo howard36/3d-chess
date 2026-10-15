@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Two independent projects, no root package.json: `client/` (React 19 + Vite + react-three-fiber, npm) and `server/` (FastAPI on Modal, uv). `ARCHITECTURE.md` is the single authoritative doc for rules, protocol, and architecture; `README.md` is the short page for people (picture, link to play, rules in brief) and stays that way; `client/README.md` is untouched Vite boilerplate.
+Two independent projects, no root package.json: `client/` (React 19 + Vite + react-three-fiber, npm) and `server/` (FastAPI on Modal, uv). `ARCHITECTURE.md` is the single authoritative doc for rules, protocol, and architecture; `README.md` is the short page for people (picture, link to play, rules in brief) and stays that way; `client/README.md` only points to them.
 
 ## Commands
 

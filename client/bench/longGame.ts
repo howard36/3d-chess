@@ -21,7 +21,7 @@ import { positionHash } from '../src/engine/draws';
 const PAWN_EVERY = 40;
 
 /** The moves' text as the move box takes it (`Ab1-Aa3`). */
-export const moveText = (m: Move) => `${toZXY(m.from)}-${toZXY(m.to)}`;
+const moveText = (m: Move) => `${toZXY(m.from)}-${toZXY(m.to)}`;
 
 export function generateLongGame(plies: number): string[] {
   let board = Board.setupStartingPosition();

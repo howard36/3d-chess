@@ -83,7 +83,7 @@ const UP: V3 = [0, 1, 0];
  * Writes the strokes' segments into per-instance arrays from segment
  * `first` on; returns the segment after the last written.
  */
-export const writeStrokes = (
+const writeStrokes = (
   arrays: Record<AttrName, Float32Array>,
   strokes: readonly NeonStroke[],
   first = 0,
@@ -197,7 +197,7 @@ export const STROKE_REACH = 0.62;
  * the round joint needs (the reach times the sine of half the turn), so a
  * smooth curve's many short segments do not each draw a cap over the next.
  */
-export const strokeRunOn = (
+const strokeRunOn = (
   before: readonly [number, number],
   end: readonly [number, number],
   dir: readonly [number, number],

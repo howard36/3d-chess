@@ -41,7 +41,6 @@ export interface BoardLayout {
    * the board's vertical axis round its platforms, pieces and labels
    * (towerFrameRings in scene/labelAnchors.ts), which look the same however
    * the view has turned, so turning never moves the framing (FitCameraToBoard).
-   * Without them, the rings round the halfExtents box.
    */
   frameRings?: readonly FrameRing[];
   /** Direction from the board's centre to the camera when a game opens. */
@@ -134,8 +133,6 @@ export interface CelebrationProps {
   floor: Vec3;
   /** Wait this long before the pulse leaves (ms): the king strikes the floor then. */
   delayMs?: number;
-  /** How fast the pulse spreads (world units a second). */
-  speed?: number;
 }
 
 /**

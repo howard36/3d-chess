@@ -1,6 +1,7 @@
 import React from 'react';
 import type { GameOver, Turn } from '../game/history';
 import { resultWords } from '../game/announce';
+import { otherSide, sideName } from '../game/sides';
 
 interface TurnPillProps {
   /** This player's colour. */
@@ -17,9 +18,6 @@ interface TurnPillProps {
   /** What the opponent's half calls them while it is the player's move ("Opponent"). */
   opponentName?: string;
 }
-
-const named = (side: Turn) => (side === 'white' ? 'White' : 'Black');
-const other = (side: Turn): Turn => (side === 'white' ? 'black' : 'white');
 
 /** A small disc in an army's material, ringed with light for the side to move. */
 export const Stone = ({
@@ -43,12 +41,12 @@ export const Stone = ({
 
 /** What the pill says, in words, for a screen reader reaching it. */
 const describe = ({ seat, turn, inCheck, gameOver, opponentOnline }: TurnPillProps) => {
-  const you = `You play ${named(seat)}.`;
+  const you = `You play ${sideName(seat)}.`;
   if (gameOver) {
     const { how, verdict } = resultWords(gameOver, seat);
     return `${you} ${how}${verdict === 'draw' ? ', a draw' : verdict ? `, ${verdict}` : ''}.`;
   }
-  const move = turn === seat ? 'Your move' : `${named(turn)} to move`;
+  const move = turn === seat ? 'Your move' : `${sideName(turn)} to move`;
   const away = opponentOnline === false ? ' Your opponent is offline.' : '';
   return `${you} ${move}${inCheck ? ', in check' : ''}.${away}`;
 };
@@ -62,7 +60,7 @@ const describe = ({ seat, turn, inCheck, gameOver, opponentOnline }: TurnPillPro
  */
 const TurnPill: React.FC<TurnPillProps> = (props) => {
   const { seat, turn, inCheck, gameOver, opponentOnline, stale, opponentName = 'Opponent' } = props;
-  const them = other(seat);
+  const them = otherSide(seat);
   // The seat, for screen readers (and for tests: data-seat)
   const label = (
     <span className="sr-only" data-testid="seat" data-seat={seat}>

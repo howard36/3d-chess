@@ -193,7 +193,7 @@ export class Position {
   /**
    * Which cells hold each side's pieces: four 32-bit words a side (White's
    * 0-3, Black's 4-7), cell c at bit c & 31 of word c >> 5. Loops over the
-   * pieces walk the set bits instead of all 125 cells (see forEachBit).
+   * pieces walk the set bits instead of all 125 cells.
    */
   readonly occ = new Int32Array(8);
   hashLo = 0;

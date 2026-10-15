@@ -58,7 +58,7 @@ const FRAME_MARGIN = 1.05;
 const MOST_BANDS = 0.75;
 
 /** The preview's camera for a window: its distance, vertical field of view (degrees) and lens shift (tangents, x right, y up). */
-export interface LandingLens {
+interface LandingLens {
   layout: LandingLayout;
   distance: number;
   fov: number;
@@ -98,7 +98,7 @@ export function landingLens(width: number, height: number): LandingLens {
 
 /** The screens a picture is drawn for: 1x, and 2x for any finer (the canvas draws at most twice as fine: three/pixelBudget.ts). */
 export type PictureDensity = '1x' | '2x';
-export const PICTURE_DENSITIES: readonly PictureDensity[] = ['1x', '2x'];
+const PICTURE_DENSITIES: readonly PictureDensity[] = ['1x', '2x'];
 
 /**
  * A picture of the preview's first frame for each layout: the scene as the
@@ -163,7 +163,7 @@ export const pictureSourceSet = (layout: LandingLayout, type: 'avif' | 'webp') =
 export const PICTURE_FADE = 0.03;
 
 /** Where a layout's picture lies in a window, in CSS px from its top left corner. */
-export interface PicturePlacement {
+interface PicturePlacement {
   layout: LandingLayout;
   left: number;
   top: number;

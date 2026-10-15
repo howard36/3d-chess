@@ -32,7 +32,7 @@ declare global {
 }
 
 /** The storage keys the app uses (playerRole.ts, clientId.ts), for the inline script. */
-export interface EarlyKeys {
+interface EarlyKeys {
   role: string;
   clientId: string;
 }

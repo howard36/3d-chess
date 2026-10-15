@@ -5,8 +5,8 @@ export type { Orientation };
 
 /**
  * Reads which colour a page is seated as, from the turn pill (its seat,
- * `data-seat`). The creator's colour is random, so tests must discover it
- * rather than assume it.
+ * `data-seat`), for a test that plays whichever colour it was given
+ * (`side: 'Random'`).
  */
 export async function getPlayerColor(page: Page): Promise<Orientation> {
   const seat = await page.getByTestId('seat').getAttribute('data-seat');
@@ -25,7 +25,7 @@ export async function getPlayerColor(page: Page): Promise<Orientation> {
  *
  * The square is found, projected and checked for occlusion in the page,
  * against the live r3f state exposed by the Canvas onCreated hook in
- * GameView.tsx: the square's click box carries its name (userData.zxy), so
+ * GameCanvas.tsx: the square's click box carries its name (userData.zxy), so
  * the helper never recomputes the layout, and it stays correct if the camera
  * moves. A 3D board is not a grid: the ray through a square often passes
  * through another first, and if that one is also a legal destination (or
@@ -218,6 +218,17 @@ export async function waitForDestination(page: Page, zxy: string): Promise<void>
     });
     return found;
   }, zxy);
+}
+
+/**
+ * Plays one move from `page`, seated as `seat`: selects `from`, waits for
+ * `to` to light up (waitForDestination), and clicks it. It does not wait for
+ * the move to land; Game.play does, for a game between two pages.
+ */
+export async function playFrom(page: Page, seat: Orientation, from: string, to: string) {
+  await clickSquare(page, from, seat);
+  await waitForDestination(page, to);
+  await clickSquare(page, to, seat);
 }
 
 /** A rect in page pixels, named for what it is. */

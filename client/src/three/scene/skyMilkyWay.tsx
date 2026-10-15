@@ -29,9 +29,9 @@ import { skyPointMaterial } from './skyShaders';
 // shade, and only where the band is; a dust of faint stars gathers in it.
 
 /** Where the band rises out of the horizon (degrees round from +z toward +x). */
-export const BAND_NODE = 236;
+const BAND_NODE = 236;
 /** Its tilt to the horizon (degrees). */
-export const BAND_TILT = 68;
+const BAND_TILT = 68;
 /** The radius it is drawn at: between the stars' dome and the sky's sphere. */
 const BAND_RADIUS = 350;
 /** Its half-width (degrees) and the strip's, which reaches well past the glow. */

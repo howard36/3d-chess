@@ -3,6 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { WebSocketMessage } from '../types/messages';
 import { TURN_ICON, YOUR_MOVE_TITLE } from '../hooks/useTabSignal';
 import { fakeSocket, gameScreenAt, loadBoardChunk } from './testSupport';
+import { SHORT_GAME } from '../game/shortGame';
 
 // The browser tab's title and icon through a game: "Your move" and the dot
 // while it is the player's move, the page's own otherwise. As in
@@ -26,11 +27,7 @@ vi.mock('../three/intro/IntroDirector', () => ({
 vi.mock('../three/Board', () => ({ default: () => null }));
 
 // The showcase game: 17 plies ending in White's mate.
-const GAME =
-  'Ab2-De5 Ed4-Ba1 Ac2-Cc4 Dc4-Dc3 Ad2-Dd5 Ec4-Dd5 Aa1-Ba1 Dd5-Db3 Cc4-Db3 Db4-Cb4 Ad1-Cd2 Dc3-Cc3 Aa2-Da5 Eb4-Ed2 Da5-Db4 Ed2-Cb2 Db3-Ec4'.split(
-    ' ',
-  );
-const moves = GAME.map((m, i): WebSocketMessage => {
+const moves = SHORT_GAME.map((m, i): WebSocketMessage => {
   const [from, to] = m.split('-');
   return { type: 'move_made', by: i % 2 === 0 ? 'white' : 'black', from, to };
 });

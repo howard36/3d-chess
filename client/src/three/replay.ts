@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { Board as EngineBoard } from '../engine';
-import type { LastMoveInfo } from './Board';
+import type { LastMove } from '../game/history';
 import { useIntro } from './intro/clock';
 import { introDone, replayAt } from './intro/timeline';
 import { prefersReducedMotion } from './motion';
@@ -20,7 +20,7 @@ const MAX_STEP = 0.25;
  */
 export function useEntranceReplay(
   board: EngineBoard,
-  lastMove: LastMoveInfo | undefined,
+  lastMove: LastMove | undefined,
 ): { board: EngineBoard; ply: number } | null {
   const intro = useIntro();
   const invalidate = useThree((s) => s.invalidate);

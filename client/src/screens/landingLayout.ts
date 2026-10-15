@@ -3,7 +3,7 @@
 // nothing from three.js: three.js stays out of the entry, and the preview
 // (LandingPreview, a lazy chunk) hands these to its fit.
 
-export interface LandingBands {
+interface LandingBands {
   top: (height: number, width: number) => number;
   bottom: (height: number, width: number) => number;
   left: (width: number, height: number) => number;
