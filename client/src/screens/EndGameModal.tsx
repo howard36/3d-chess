@@ -4,6 +4,8 @@ import type { GameOver, Turn } from '../game/history';
 import type { RematchState } from '../game/ending';
 import { DRAW_BY, isDecisive, resultWords } from '../game/announce';
 import { Stone } from './TurnPill';
+import { PlayButton } from './PlayButton';
+import { autoFocusRef } from '../lib/focus';
 
 /** The rematch: against a friend, offered between the players; against the computer, at once. */
 export interface RematchProps {
@@ -69,7 +71,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({ result, winner, seat, onClo
         data-winner={winner}
         style={{ position: 'relative', padding: '22px 44px 20px' }}
       >
-        <button className="hud-close" aria-label="Close" onClick={onClose}>
+        <button className="button-icon hud-close" aria-label="Close" onClick={onClose}>
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
             <path
               d="M4 4l8 8M12 4l-8 8"
@@ -151,10 +153,12 @@ function Rematch({
           Rematch declined
         </p>
       )}
-      <button
+      <PlayButton
         // The dialog takes focus: a keyboard player lands on its call to action
-        autoFocus={!bar}
-        className={`landing-play lobby-go${bar ? '' : ' hud-result-go'}`}
+        ref={bar ? undefined : autoFocusRef}
+        // Its turning rim urges the next game on, not the way home
+        rim={phase !== 'declined'}
+        className={bar ? undefined : 'hud-result-go'}
         data-testid="rematch-go"
         data-state={phase}
         aria-disabled={waiting || undefined}
@@ -164,12 +168,12 @@ function Rematch({
       >
         {phase === 'mine' && <span className="hud-dot" aria-hidden />}
         {label}
-      </button>
+      </PlayButton>
       {phase !== 'declined' && (
         <span className="hud-rematch-other">
           {phase === 'theirs' && (
             <button
-              className="lobby-link"
+              className="button-link"
               aria-disabled={disabled || undefined}
               onClick={() => {
                 if (!disabled) onAnswer(false);
@@ -178,7 +182,7 @@ function Rematch({
               Decline
             </button>
           )}
-          <button className="lobby-link" onClick={home}>
+          <button className="button-link" onClick={home}>
             Home
           </button>
         </span>

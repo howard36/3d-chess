@@ -20,16 +20,12 @@
   --hud-hair-strong: rgba(236, 241, 255, 0.28);
   --hud-light: #e6eeff;
   --hud-check: #ff3338;
-  /* Dialogs and their buttons */
+  /* Dialogs */
   --modal-bg: linear-gradient(180deg, rgba(14, 16, 22, 0.97), rgba(5, 6, 10, 0.98));
   --modal-fg: #eef1f7;
   --modal-backdrop: rgba(1, 2, 5, 0.55);
   --modal-radius: 6px;
   --modal-shadow: 0 0 0 1px rgba(236, 241, 255, 0.14), 0 24px 60px rgba(0, 0, 0, 0.6);
-  --button-bg: transparent;
-  --button-fg: #f6f8ff;
-  --button-border: 1px solid rgba(236, 241, 255, 0.55);
-  --button-radius: 3px;
   /* The five level colours, sky (E, the top) to rose (A, the base), as every gradient of them
      runs, left to right and top to bottom: the home page's title and rims, the lobby's */
   --landing-levels: linear-gradient(90deg, #47bbec, #4180f3, #8f61fc, #de5cec, #ec539b);
@@ -257,23 +253,6 @@ body {
   font-size: 13px;
   pointer-events: none;
 }
-.hud-dismiss {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--hud-muted);
-  font: inherit;
-  font-size: 14px;
-  cursor: pointer;
-}
-.hud-dismiss:hover,
-.hud-dismiss:focus-visible {
-  color: var(--hud-fg);
-  background: rgba(236, 241, 255, 0.08);
-}
 /* Where the board would stand, when it failed to load: the notice and its retry */
 .hud-center {
   position: absolute;
@@ -283,24 +262,102 @@ body {
   justify-content: center;
   padding: 0 12px;
 }
-.hud-retry {
+
+/* Focus the page moved by itself wears no ring, the browser's either, until
+   the player presses a key (lib/focus.ts): each control's own ring is drawn
+   only :focus-visible:not([data-quiet-focus]) */
+[data-quiet-focus]:focus-visible {
+  outline: none;
+}
+/*
+ * The app's buttons besides the pill of starlight (.landing-play) and the
+ * glass tiles (.landing-mode, .lobby-glass), one style each wherever they
+ * stand: a secondary action, outlined (.button-secondary; .button-small a
+ * size down, in a card or a notice); a quiet word that goes back or cancels
+ * (.button-link); and a glyph alone (.button-icon). Where one stands (its
+ * margins, a place on the page) belongs to its context's class.
+ */
+.button-secondary {
+  display: inline-flex;
   flex: none;
-  height: 28px;
-  padding: 0 12px;
-  border: var(--button-border);
-  border-radius: var(--button-radius);
-  background: var(--button-bg);
-  color: var(--button-fg);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 20px;
+  border: 1px solid rgba(236, 241, 255, 0.3);
+  border-radius: 999px;
+  background: rgba(10, 12, 18, 0.45);
+  color: var(--hud-fg);
   font: inherit;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 160ms,
+    background-color 160ms;
+}
+.button-secondary:hover {
+  border-color: rgba(236, 241, 255, 0.55);
+  background: rgba(16, 19, 28, 0.8);
+}
+.button-secondary:focus-visible:not([data-quiet-focus]) {
+  outline: 2px solid var(--hud-accent);
+  outline-offset: 3px;
+}
+.button-small {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13.5px;
+}
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
-.hud-retry:hover,
-.hud-retry:focus-visible {
-  border-color: #f3f6ff;
-  box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.25);
+.button-link:hover,
+.button-link:focus-visible {
+  color: var(--hud-fg);
+}
+.button-link:focus-visible {
   outline: none;
+  box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.25);
+}
+.button-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.button-icon:hover,
+.button-icon:focus-visible {
+  color: var(--hud-fg);
+  background: rgba(236, 241, 255, 0.08);
+}
+.button-icon:focus-visible {
+  outline: 1px solid rgba(236, 241, 255, 0.4);
 }
 /* The pill, with the pieces each side has taken hanging under its halves */
 .hud-bar {
@@ -587,41 +644,11 @@ body {
   font-size: 13.5px;
   line-height: 1.45;
 }
-.hud-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 38px;
+.hud-dialog .button-secondary {
   margin-top: 16px;
-  padding: 0 22px;
-  border: var(--button-border);
-  border-radius: var(--button-radius);
-  background: var(--button-bg);
-  color: var(--button-fg);
-  font: inherit;
-  font-size: 14.5px;
-  font-weight: 600;
-  cursor: pointer;
 }
-.hud-button:hover,
-.hud-button:focus-visible {
-  border-color: #f3f6ff;
-  box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.25);
-  outline: none;
-}
-.hud-link {
+.hud-dialog .button-link {
   margin-top: 12px;
-  padding: 4px 8px;
-  border: 0;
-  background: none;
-  color: var(--hud-muted);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-.hud-link:hover,
-.hud-link:focus-visible {
-  color: var(--hud-fg);
 }
 .hud-tiles {
   display: flex;
@@ -649,7 +676,7 @@ body {
   cursor: pointer;
 }
 .hud-tile:hover,
-.hud-tile:focus-visible {
+.hud-tile:focus-visible:not([data-quiet-focus]) {
   border-color: rgba(230, 238, 255, 0.75);
   color: var(--hud-fg);
   box-shadow:
@@ -1285,15 +1312,17 @@ body {
   gap: 10px;
 }
 /*
- * The call to action of the lobby's cards and the result card (.lobby-go):
- * a pill of starlight ringed by a rim of the five level colours that turns
- * slowly, glowing sky on its left and rose on its right like the tower's
- * top and base levels. On hover it lifts; while a game is being
- * created the rim turns fast round a dark pill. The rim is a straight
- * gradient, sky at the left through to rose at the right, whose angle
- * turns: a colour wheel about the pill's middle (conic) running sky to
- * rose and back turned back on itself, a pixel of another colour at the
- * middle of each edge and a seam through the dark pill.
+ * The main action of a screen (screens/PlayButton.tsx, .lobby-go): a pill
+ * of starlight that lifts on hover. Where it stands alone on the scene and
+ * the action is one to urge (joining, playing, playing again), it wears a
+ * rim of the five level colours ([data-rim]) that turns slowly, glowing sky
+ * on its left and rose on its right like the tower's top and base levels;
+ * while the game is being joined the rim turns fast round a dark pill. In
+ * a card of the rimmed glass it stays plain: one rim to an object. The
+ * turning rim is painted by its component (screens/rim.ts), each colour
+ * placed by its distance round the pill so it keeps one pace on the long
+ * edges and the ends alike; the straight gradient here, sky at the left
+ * through to rose at the right, is the rim at rest until it does.
  */
 @property --landing-turn {
   syntax: '<angle>';
@@ -1301,14 +1330,7 @@ body {
   initial-value: 0deg;
 }
 .landing-play {
-  --landing-rim: linear-gradient(
-    calc(90deg + var(--landing-turn)),
-    #47bbec 8%,
-    #4180f3,
-    #8f61fc,
-    #de5cec,
-    #ec539b 92%
-  );
+  --landing-rim: linear-gradient(var(--hud-accent), var(--hud-accent));
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1326,15 +1348,18 @@ body {
   font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.005em;
+  box-shadow: 0 0 22px rgba(230, 238, 255, 0.12);
+  cursor: pointer;
+  transition:
+    box-shadow 200ms,
+    transform 200ms;
+}
+.landing-play[data-rim] {
+  --landing-rim: linear-gradient(90deg, #47bbec 8%, #4180f3, #8f61fc, #de5cec, #ec539b 92%);
   box-shadow:
     -12px 0 30px -12px rgba(71, 187, 236, 0.6),
     12px 0 30px -12px rgba(236, 83, 155, 0.6),
     0 0 24px rgba(143, 97, 252, 0.16);
-  cursor: pointer;
-  animation: landing-rim 9s linear infinite;
-  transition:
-    box-shadow 200ms,
-    transform 200ms;
 }
 @keyframes landing-rim {
   to {
@@ -1343,6 +1368,9 @@ body {
 }
 .landing-play:not([aria-disabled='true']):hover {
   transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 0 30px rgba(230, 238, 255, 0.24);
+}
+.landing-play[data-rim]:not([aria-disabled='true']):hover {
   box-shadow:
     -16px 0 38px -10px rgba(71, 187, 236, 0.8),
     16px 0 38px -10px rgba(236, 83, 155, 0.8),
@@ -1352,7 +1380,7 @@ body {
   transform: scale(0.98);
 }
 /* An outline, not a shadow: the ring stays whether or not the pointer is on it */
-.landing-play:focus-visible {
+.landing-play:focus-visible:not([data-quiet-focus]) {
   outline: 2px solid var(--hud-accent);
   outline-offset: 4px;
 }
@@ -1363,7 +1391,6 @@ body {
   color: var(--hud-fg);
   font-weight: 600;
   cursor: progress;
-  animation-duration: 1.4s;
   /* The label and the fill change together, never white on white */
   transition: none;
 }
@@ -1531,26 +1558,6 @@ body {
   top: 14px;
   left: 14px;
 }
-.lobby-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: var(--button-radius);
-  background: none;
-  color: var(--hud-muted);
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.lobby-link:hover,
-.lobby-link:focus-visible {
-  color: var(--hud-fg);
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.25);
-}
 .lobby-heading {
   position: absolute;
   top: max(9vh, 56px);
@@ -1637,7 +1644,7 @@ body {
 .lobby-choice::before {
   opacity: 0.3;
 }
-.lobby-glass:is([data-hover], [data-chosen], :focus-visible) {
+.lobby-glass:is([data-hover], [data-chosen], :focus-visible:not([data-quiet-focus])) {
   --landing-glow: 1;
   background-position:
     0 0,
@@ -1694,7 +1701,7 @@ body {
 }
 /* A level's rim is always up, as the home page's tiles' are: focus is the
    tiles' outline */
-.lobby-level:focus-visible {
+.lobby-level:focus-visible:not([data-quiet-focus]) {
   outline: 2px solid var(--hud-accent);
   outline-offset: 3px;
 }
@@ -1996,18 +2003,20 @@ body {
   margin: 0 7px 0 2px;
   vertical-align: -1px;
 }
-/* An address with no page (screens/NotFound.tsx): the card alone, in the
-   middle of the page's night */
-.lost .lobby-card {
+/* An address with no page (screens/NotFound.tsx): the page's heading and
+   its way home under it, alone in the middle of the page's night */
+.lost .lobby-heading {
   top: 50%;
-  bottom: auto;
-  transform: translate(-50%, -50%);
-  animation-name: lost-card-in;
+  transform: translateY(-50%);
+  animation-name: lost-in;
 }
-@keyframes lost-card-in {
+.lost .lobby-actions {
+  margin-top: 28px;
+}
+@keyframes lost-in {
   from {
     opacity: 0;
-    transform: translate(-50%, calc(-50% + 14px));
+    transform: translateY(calc(-50% + 10px));
   }
 }
 .lobby-actions {
@@ -2025,7 +2034,8 @@ body {
   font-size: 16px;
 }
 /* The guest's card: only its action, the button alone where the host's
-   card stands, with no glass round it */
+   card stands, with no glass round it (and so a game that is taken or gone:
+   its heading the page's, its way on alone) */
 .lobby-invitation {
   padding: 20px 24px;
   backdrop-filter: none;
@@ -2087,22 +2097,6 @@ body {
   position: absolute;
   top: 8px;
   right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--hud-muted);
-  cursor: pointer;
-}
-.hud-close:hover,
-.hud-close:focus-visible {
-  color: var(--hud-fg);
-  outline: 1px solid rgba(236, 241, 255, 0.4);
 }
 /* Play again, below the tower, once the result card is put away */
 .hud-new-game {
@@ -2232,7 +2226,7 @@ body {
   cursor: pointer;
 }
 .hud-game-menu:hover,
-.hud-game-menu:focus-visible,
+.hud-game-menu:focus-visible:not([data-quiet-focus]),
 .hud-game-menu[aria-expanded='true'] {
   color: var(--hud-fg);
   outline: none;
@@ -2277,7 +2271,7 @@ body {
   cursor: pointer;
 }
 .hud-menu-item:hover:not(:disabled),
-.hud-menu-item:focus-visible {
+.hud-menu-item:focus-visible:not([data-quiet-focus]) {
   outline: none;
   background: rgba(236, 241, 255, 0.1);
 }
@@ -2472,33 +2466,9 @@ body {
   transform: scaleX(-1);
 }
 
-/* The way to the tutorial: a button under the tiles, quieter than they are */
+/* The way to the tutorial: a secondary button under the tiles, as wide as they are */
 .landing-learn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 44px;
   margin-top: 14px;
-  padding: 0 20px;
-  border: 1px solid rgba(236, 241, 255, 0.2);
-  border-radius: 12px;
-  background: rgba(10, 12, 18, 0.45);
-  color: var(--hud-fg);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    border-color 160ms,
-    background-color 160ms;
-}
-.landing-learn:hover {
-  border-color: rgba(236, 241, 255, 0.4);
-  background: rgba(16, 19, 28, 0.8);
-}
-.landing-learn:focus-visible {
-  outline: 2px solid var(--hud-accent);
-  outline-offset: 3px;
 }
 
 /* A phone on its side: everything a size down, the column a little narrower */

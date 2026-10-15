@@ -37,6 +37,7 @@ import { useLobbyView } from './lobby/lobbyContext';
 import type { LobbyStage } from './lobby/lobbyContext';
 import { DIFFICULTY_NAME } from '../ai/levels';
 import type { Difficulty } from '../ai/levels';
+import { autoFocusRef } from '../lib/focus';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
@@ -367,7 +368,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         {shownError.error.message}
       </span>
       <button
-        className="hud-dismiss"
+        className="button-icon"
         onClick={() => setDismissedAt(shownError.index)}
         aria-label="Dismiss error"
       >
@@ -407,7 +408,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
           Your seat moved to the newer tab or window. Close this one, or take the game back here.
         </p>
         {/* A dialog takes focus, so Enter answers it without hunting for it */}
-        <button autoFocus className="hud-button" onClick={handlePlayHere}>
+        <button ref={autoFocusRef} className="button-secondary" onClick={handlePlayHere}>
           Play here
         </button>
       </div>
@@ -631,7 +632,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   return (
     <div className="lobby-page" inert={replaced}>
       <header className="lobby-top">
-        <button className="lobby-link" onClick={() => navigate('/')}>
+        <button className="button-link" onClick={() => navigate('/')}>
           <span aria-hidden>←</span> Home
         </button>
       </header>

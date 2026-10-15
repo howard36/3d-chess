@@ -15,7 +15,7 @@ const LearnRoute = () => {
     return (
       <main className="lobby" data-testid="learn-failed">
         <header className="lobby-top">
-          <button className="lobby-link" onClick={() => navigate('/')}>
+          <button className="button-link" onClick={() => navigate('/')}>
             <span aria-hidden>←</span> Home
           </button>
         </header>

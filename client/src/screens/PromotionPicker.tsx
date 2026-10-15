@@ -2,6 +2,7 @@ import React from 'react';
 import type { Move } from '../engine';
 import type { Turn } from '../game/history';
 import { PieceGlyph } from './PieceGlyph';
+import { focusFromCode } from '../lib/focus';
 
 interface PromotionPickerProps {
   /** The legal promotion moves for the clicked square, one per piece. */
@@ -20,7 +21,7 @@ interface PromotionPickerProps {
 const PromotionPicker: React.FC<PromotionPickerProps> = ({ choices, color, onPick, onCancel }) => {
   const firstButton = React.useRef<HTMLButtonElement | null>(null);
   React.useEffect(() => {
-    firstButton.current?.focus();
+    focusFromCode(firstButton.current);
   }, []);
 
   return (
@@ -52,7 +53,7 @@ const PromotionPicker: React.FC<PromotionPickerProps> = ({ choices, color, onPic
             </button>
           ))}
         </div>
-        <button className="hud-link" onClick={onCancel}>
+        <button className="button-link" onClick={onCancel}>
           Cancel
         </button>
       </div>

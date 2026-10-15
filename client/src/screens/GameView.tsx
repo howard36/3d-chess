@@ -333,7 +333,7 @@ const GameView: React.FC<GameViewProps> = ({
                 ) : (
                   <>
                     Couldn't load the board
-                    <button className="hud-retry" onClick={retryBoard}>
+                    <button className="button-secondary button-small" onClick={retryBoard}>
                       Retry
                     </button>
                   </>
@@ -413,7 +413,7 @@ function HowToPlay() {
   const state: LearnState = { back: pathname };
   return (
     <button
-      className="lobby-link hud-learn"
+      className="button-link hud-learn"
       aria-label="How to play"
       title="How to play"
       onClick={() => navigate('/learn', { state })}

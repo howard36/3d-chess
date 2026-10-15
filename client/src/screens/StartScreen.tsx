@@ -82,7 +82,7 @@ const StartScreen: React.FC = () => {
           </button>
         </div>
         <button
-          className="landing-learn"
+          className="button-secondary landing-learn"
           onClick={() => navigate('/learn')}
           // The tutorial's page is a chunk of its own: asked for on the way to the button
           onPointerEnter={learnScreen.preload}
