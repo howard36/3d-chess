@@ -49,6 +49,9 @@ afterEach(() => vi.restoreAllMocks());
 /** The machine's cores, which set how many workers a review takes (one fewer, at most 3). */
 const cores = (n: number) =>
   Object.defineProperty(navigator, 'hardwareConcurrency', { value: n, configurable: true });
+// A browser with workers (jsdom has none): the review's computers are stood in for above
+beforeEach(() => vi.stubGlobal('Worker', class {}));
+afterEach(() => vi.unstubAllGlobals());
 
 const MATE = ['Ad1-Ac3', 'Ec4-Cc2', 'Ac2-Ad1', 'Cc2-Bb1']; // Black mates
 const historyOf = (moves: string[], resigned = false): GameHistory => {
@@ -186,6 +189,16 @@ it('stays stopped when a search still under way finishes after another failed', 
   await act(async () => second(at(11, 'Ed5', 'Cc5')));
   expect(result.current.state).toBe('stopped');
   expect(worker.asked).toEqual([0, 1, 2]);
+});
+
+it('searches one position at a time on the page itself, where there are no workers', async () => {
+  vi.stubGlobal('Worker', undefined);
+  cores(8);
+  const { result } = renderHook(() => useAnalysis(historyOf(MATE)));
+  act(() => result.current.start());
+  await act(async () => {});
+  expect(worker.made).toBe(1);
+  expect(worker.asked).toEqual([0]);
 });
 
 it('can be asked again when the computer could not be had', async () => {

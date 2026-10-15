@@ -48,7 +48,10 @@ const stopAll = (workers: React.RefObject<Computer[]>) => {
  * many there are; one core is left to the page.
  */
 const reviewWorkers = () =>
-  Math.max(1, Math.min(3, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1));
+  // Without workers the searches run on the page itself: one at a time
+  typeof Worker === 'undefined'
+    ? 1
+    : Math.max(1, Math.min(3, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1));
 
 /**
  * A finished game's review, asked for by the player ("Analyse"): each
