@@ -14,5 +14,15 @@ describe('PlayButton', () => {
     const button = screen.getByTestId('go');
     expect(button).toHaveClass('landing-play', 'lobby-go', 'hud-result-go');
     expect(ref.current).toBe(button);
+    expect(button).not.toHaveAttribute('data-rim');
+  });
+
+  it('wears the turning rim only when asked to', () => {
+    render(
+      <PlayButton rim data-testid="go">
+        Join game
+      </PlayButton>,
+    );
+    expect(screen.getByTestId('go')).toHaveAttribute('data-rim');
   });
 });

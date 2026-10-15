@@ -61,7 +61,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
         data-winner={winner}
         style={{ position: 'relative', padding: '22px 44px 20px' }}
       >
-        <button className="hud-close" aria-label="Close" onClick={onClose}>
+        <button className="button-icon hud-close" aria-label="Close" onClick={onClose}>
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
             <path
               d="M4 4l8 8M12 4l-8 8"
@@ -80,7 +80,7 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
           {how}
         </p>
         {/* The dialog takes focus: a keyboard player lands on its only action */}
-        <PlayButton autoFocus className="hud-result-go" onClick={() => navigate(newGamePath)}>
+        <PlayButton rim autoFocus className="hud-result-go" onClick={() => navigate(newGamePath)}>
           Play again
         </PlayButton>
       </div>
@@ -95,7 +95,9 @@ export const NewGameBar: React.FC<{ newGamePath?: string }> = ({ newGamePath = '
   const navigate = useNavigate();
   return (
     <div className="hud-new-game">
-      <PlayButton onClick={() => navigate(newGamePath)}>Play again</PlayButton>
+      <PlayButton rim onClick={() => navigate(newGamePath)}>
+        Play again
+      </PlayButton>
     </div>
   );
 };

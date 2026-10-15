@@ -264,44 +264,6 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.learn-again {
-  padding: 4px 6px;
-  white-space: nowrap;
-  border: 0;
-  background: none;
-  color: var(--hud-muted);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.learn-again:hover,
-.learn-again:focus-visible {
-  color: var(--hud-fg);
-  outline: none;
-}
-.learn-next {
-  display: inline-flex;
-  white-space: nowrap;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 14px;
-  border: var(--button-border);
-  border-radius: 16px;
-  background: none;
-  color: var(--button-fg);
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.learn-next:hover,
-.learn-next:focus-visible {
-  border-color: #f3f6ff;
-  box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.25);
-  outline: none;
-}
 /* A touch screen: Next, and Reset beside it, take a fingertip's 44 px tall,
    reaching into the foot's room above and the card's padding below; as they
    look, they keep the card's height, which every lesson is fitted to */

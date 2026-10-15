@@ -6,12 +6,12 @@ import type { GameSocket } from '../../hooks/useGameSocket';
 import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 import { PlayButton } from '../PlayButton';
 
-// The cards over the lobby's scene on a game's page before it starts, of the
-// home page's tile glass (.lobby-glass): the creator's invitation to send,
-// and the invitation as its guest opens it.
-// Their one action is a pill of starlight in a rim of the level colours
-// (.landing-play, the result card's too), so the way in looks the same at
-// every step.
+// The cards over the lobby's scene on a game's page before it starts: the
+// creator's invitation to send, of the home page's tile glass (.lobby-glass),
+// and the invitation as its guest opens it, its button alone on the scene.
+// Their one action is the pill of starlight (PlayButton, the result card's
+// too), so the way in looks the same at every step: plain in the glass, in
+// its turning rim where it stands alone.
 
 /** The link as it is set on the card: without its scheme. */
 const shownLink = (link: string) => link.replace(/^[a-z]+:\/\//, '');
@@ -77,18 +77,24 @@ export const InvitationCard: React.FC<{
   // the server is slow to answer (a cold start, a dropped connection)
   const slow = useDelayed(invitation.state === 'opening', SLOW_SERVER_MS);
   if (invitation.state === 'full' || invitation.state === 'gone') {
+    // No card for a heading and one button: the heading is the page's, the
+    // way on stands alone where the invitation's would
     return (
-      <section className="lobby-card lobby-glass" aria-labelledby="invitation-title" role="alert">
-        <h2 id="invitation-title">
-          {invitation.state === 'full' ? 'This game is taken' : 'No game here'}
-        </h2>
-        <div className="lobby-actions">
-          {/* In the home page's words for where it leads */}
-          <PlayButton autoFocus onClick={() => navigate(newGamePath)}>
-            {newGamePath === '/computer' ? 'Play the computer' : 'Play a friend'}
-          </PlayButton>
+      <>
+        <div className="lobby-heading" role="alert">
+          <h1 id="invitation-title">
+            {invitation.state === 'full' ? 'This game is taken' : 'No game here'}
+          </h1>
         </div>
-      </section>
+        <section className="lobby-card lobby-invitation" aria-labelledby="invitation-title">
+          <div className="lobby-actions">
+            {/* In the home page's words for where it leads */}
+            <PlayButton rim autoFocus onClick={() => navigate(newGamePath)}>
+              {newGamePath === '/computer' ? 'Play the computer' : 'Play a friend'}
+            </PlayButton>
+          </div>
+        </section>
+      </>
     );
   }
   if (invitation.state === 'opening') {
@@ -111,6 +117,7 @@ export const InvitationCard: React.FC<{
     >
       <div className="lobby-actions">
         <PlayButton
+          rim
           autoFocus
           onClick={onAccept}
           aria-disabled={joining || undefined}

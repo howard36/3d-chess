@@ -104,7 +104,7 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
       </div>
       {/* Home where the lobby has it */}
       <header className="lobby-top">
-        <button className="lobby-link" onClick={leave}>
+        <button className="button-link" onClick={leave}>
           <span aria-hidden>←</span> {back ? 'Game' : 'Home'}
         </button>
       </header>
@@ -174,11 +174,15 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
             </p>
           )}
           {practice.lastMove && (
-            <button className="learn-again" onClick={startOver}>
+            <button className="button-link learn-again" onClick={startOver}>
               Reset
             </button>
           )}
-          <button className="learn-next" onClick={goNext} aria-label={`Next: ${nextLabel}`}>
+          <button
+            className="button-secondary button-small learn-next"
+            onClick={goNext}
+            aria-label={`Next: ${nextLabel}`}
+          >
             {nextLabel} <span aria-hidden>→</span>
           </button>
         </div>

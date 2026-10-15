@@ -413,8 +413,23 @@ Key decisions:
   should the chunk fail to load, the picture stays too. In development `?t=<seconds>`
   starts the demo that far in.
 - **No page.** Any other address (`/games`, `/game/` with no id) is the catch-all route's
-  `screens/NotFound.tsx`: the lobby's glass card alone on the page's night, "Nothing here"
-  and a Home button. It is in the entry and loads no scene.
+  `screens/NotFound.tsx`: "Nothing here" in the lobby's heading type in the middle of the
+  page's night, and a Home button under it, with no card round the two. It is in the entry
+  and loads no scene.
+- **Buttons.** Every button is one of a few kinds, each with one style wherever it stands
+  (`index.css`; a context's class only places it): a choice among several is a glass tile
+  in its rim (`.landing-mode`, `.lobby-glass`: the ways to play, the sides, the levels);
+  a screen's main action is the pill of starlight (`screens/PlayButton.tsx`); a secondary
+  action is an outlined pill (`.button-secondary`, a size down as `.button-small`: "How to
+  play" on the start page, "Play here", Retry, the tutorial's Next); a word that goes back
+  or cancels is a quiet link (`.button-link`: "← Home", "How to play" in a game, Cancel,
+  Start over); a glyph alone is `.button-icon` (the result card's and an error's ✕). The
+  pill wears the turning rim of the level colours (`rim`, its colours carried round it
+  at one pace by `screens/rim.ts`) only where it stands alone on the scene and urges a
+  game on: "Join game", the way on from a game taken or gone, "Play again". In a card of
+  the rimmed glass ("Copy link") it is plain, one rim to an object, and the 404 page's
+  Home goes without. A rimmed card holds more than one thing: a heading and one button
+  stand on the page alone.
 
 ## Protocol
 
@@ -911,7 +926,7 @@ until the row fits the width).
   the tiles' glass in their rim: "Invite
   a friend", the link (`lib/gameLink.ts`, plain, without its scheme, on one line and
   cut off at its end when long, its box only as wide as the link), and one "Copy
-  link" pill of starlight in a rim of the level colours (only where the clipboard can be
+  link" pill of starlight, plain in the card's rim (only where the clipboard can be
   written); nothing else. A copy turns the button to
   "Copied ✓" (and is said, "Link copied"); only a failed one is written: "Couldn't copy.
   Select the link." The neon seat breathes (for its
@@ -930,7 +945,8 @@ until the row fits the width).
   before the server answers, on the glass and not yet in its light. The scene is framed as
   the host's wait, the kings a little higher over "Join game" (the view's `card`), and the
   click eases it down to the arrival's framing, as the game's start does on the host's page. A game with both seats taken, or
-  none, gets a card "This game is taken" or "No game here" with "Play a friend". A page
+  none, says "This game is taken" or "No game here" as the page's heading, with "Play a
+  friend" alone where "Join game" would stand. A page
   with a stored seat shows no lobby, only "Returning to your game…", until its rejoin is
   answered.
 - **The handover.** When the game starts on a page that showed the lobby, `arrive`: the

@@ -184,7 +184,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
     // entrance, the buttons once the kings have formed
     <div className="lobby-page" data-testid="choose-side" data-enter={picked ? undefined : ''}>
       <header className="lobby-top" data-out={out}>
-        <button className="lobby-link" onClick={() => navigate('/')}>
+        <button className="button-link" onClick={() => navigate('/')}>
           <span aria-hidden>←</span> Home
         </button>
       </header>

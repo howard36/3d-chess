@@ -42,7 +42,7 @@ function ComputerGameRoute() {
       <div className="lobby-page">
         <p className="lobby-foot" role="alert">
           Couldn't load the game{' '}
-          <button className="hud-retry" onClick={reloadPage}>
+          <button className="button-secondary button-small" onClick={reloadPage}>
             Retry
           </button>
         </p>

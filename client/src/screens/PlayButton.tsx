@@ -1,13 +1,14 @@
 import React from 'react';
 import { rimGradient, rimPoints } from './rim';
 
-// The call to action of the lobby's cards and the result card: the pill of
-// starlight (.landing-play, .lobby-go) whose rim of the level colours turns
-// round it at one pace (./rim.ts), a lap in 9s, in 1.4s while it waits
-// (aria-disabled). The rim is painted here, a frame at a time, on the
-// animation frames (so the showcase's virtual clock records it); with less
-// motion asked for it stands still at rest. Until then, and wherever script
-// does not run, the stylesheet's straight gradient stands in.
+// The main action of a screen: the pill of starlight (.landing-play,
+// .lobby-go). With `rim`, where it stands alone on the scene and the action
+// is one to urge, a rim of the level colours turns round it at one pace
+// (./rim.ts), a lap in 9s, in 1.4s while it waits (aria-disabled); in a card
+// of the rimmed glass it goes without. The rim is painted here, a frame at a
+// time, on the animation frames (so the showcase's virtual clock records
+// it); with less motion asked for it stands still at rest. Until then, and
+// wherever script does not run, the stylesheet's straight gradient stands in.
 
 const LAP_MS = 9000;
 const BUSY_LAP_MS = 1400;
@@ -20,14 +21,16 @@ const reducedMotion = () =>
 
 type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   ref?: React.Ref<HTMLButtonElement>;
+  /** The turning rim of the level colours, for an action to urge standing alone. */
+  rim?: boolean;
 };
 
-export const PlayButton: React.FC<Props> = ({ ref, className, ...props }) => {
+export const PlayButton: React.FC<Props> = ({ ref, className, rim = false, ...props }) => {
   const own = React.useRef<HTMLButtonElement>(null);
   React.useImperativeHandle(ref, () => own.current!, []);
   React.useLayoutEffect(() => {
     const el = own.current;
-    if (!el) return;
+    if (!el || !rim) return;
     let points: ReturnType<typeof rimPoints> = [];
     let size = '';
     let turn = 0;
@@ -60,12 +63,14 @@ export const PlayButton: React.FC<Props> = ({ ref, className, ...props }) => {
     return () => {
       resize?.disconnect();
       cancelAnimationFrame(frame);
+      el.style.removeProperty('--landing-rim');
     };
-  }, []);
+  }, [rim]);
   return (
     <button
       ref={own}
       className={className ? `landing-play lobby-go ${className}` : 'landing-play lobby-go'}
+      data-rim={rim || undefined}
       {...props}
     />
   );
