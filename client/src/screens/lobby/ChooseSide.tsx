@@ -23,6 +23,23 @@ import {
 import { computerGame } from '../computerGameChunk';
 import { prefersReducedMotion } from '../../three/motion';
 import { autoFocusRef } from '../../lib/focus';
+import { glassRim } from '../turningRim';
+
+// The rims turn while a side is pointed at or focused (data-hover), and a
+// level while it is too, or under a mouse until one is picked
+const choiceRim = glassRim((el) => el.hasAttribute('data-hover'));
+const canHover = () =>
+  typeof window.matchMedia === 'function' && window.matchMedia('(hover: hover)').matches;
+const levelRim = glassRim(
+  (el, pointed) =>
+    el.hasAttribute('data-hover') || (pointed && canHover() && !(el as HTMLButtonElement).disabled),
+);
+/** The stored level's tile takes the focus as it comes, quietly. */
+const levelRimFocused = (el: HTMLElement | null) => {
+  const done = levelRim(el);
+  autoFocusRef(el);
+  return done;
+};
 
 // The first page of a new game: the player picks a side. The three kings
 // stand on the glass (LobbyScene): porcelain, the split king for Random, and
@@ -200,6 +217,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
           return (
             <button
               key={choice}
+              ref={choiceRim}
               className="lobby-choice lobby-glass"
               data-choice={choice}
               data-chosen={chosen ? '' : undefined}
@@ -252,7 +270,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
                 data-faded={level && level !== d ? '' : undefined}
                 disabled={!!level}
                 aria-pressed={level === d}
-                ref={d === getStoredDifficulty() ? autoFocusRef : undefined}
+                ref={d === getStoredDifficulty() ? levelRimFocused : levelRim}
                 onClick={() => pickLevel(d)}
               >
                 {/* The computer and its strength, one bar to three */}
