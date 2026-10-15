@@ -205,7 +205,7 @@ const GameView: React.FC<GameViewProps> = ({
   // The review is one thing: asked for with the result card's "Review", or
   // begun by a step through the finished game's record, it searches every
   // position as it goes (never on its own: it would cost a phone's battery)
-  const { start: startAnalysis } = analysis;
+  const { start: startAnalysis, state: analysisState } = analysis;
   const [reviewAsked, setReviewAsked] = React.useState(0);
   const startReview = React.useCallback(() => {
     setClosedEnd(gameOver);
@@ -215,10 +215,11 @@ const GameView: React.FC<GameViewProps> = ({
   const { show } = review;
   const showPly = React.useCallback(
     (ply: number) => {
-      if (gameOver) startAnalysis();
+      // (one stopped short goes on only with its "Retry")
+      if (gameOver && analysisState === 'idle') startAnalysis();
       show(ply);
     },
-    [gameOver, startAnalysis, show],
+    [gameOver, analysisState, startAnalysis, show],
   );
   const better = gameOver ? betterMove(analysis.grades, analysis.positions, shown.ply) : null;
   const betterOnBoard = React.useMemo(
@@ -338,6 +339,7 @@ const GameView: React.FC<GameViewProps> = ({
                       grades: analysis.grades,
                       counts: analysis.counts,
                       best: better,
+                      onRetry: startAnalysis,
                     }
                   : undefined
               }
@@ -414,7 +416,7 @@ const GameView: React.FC<GameViewProps> = ({
         <div inert={replaced}>
           <RematchBar
             rematch={rematch}
-            onReview={analysis.state === 'idle' ? startReview : undefined}
+            onReview={analysisState === 'idle' ? startReview : undefined}
           />
         </div>
       )}

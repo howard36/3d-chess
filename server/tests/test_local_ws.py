@@ -2,8 +2,8 @@
 
 These run create_web_app() in-process with Starlette's TestClient, so they
 cover message validation, game lifecycle, turn handling, disconnect cleanup,
-and rejoin without needing Modal credentials. The durable store is a plain
-dict here; production passes a modal.Dict with the same access patterns.
+and rejoin without needing Modal credentials. The durable store is a
+CopyingStore here, whose reads hand out copies like production's modal.Dict.
 """
 
 import logging
@@ -15,12 +15,12 @@ from starlette.websockets import WebSocketDisconnect
 from uvicorn.protocols.utils import ClientDisconnected
 
 import modal_app
-from modal_app import create_web_app
+from modal_app import CopyingStore, create_web_app
 
 
 @pytest.fixture()
 def store():
-    return {}
+    return CopyingStore()
 
 
 @pytest.fixture()
@@ -158,6 +158,21 @@ def test_binary_frame_gets_error_and_connection_survives(client):
         err = ws.receive_json()
         assert err["type"] == "error"
         assert err["code"] == "invalid_message"
+        create_game(ws)
+
+
+def test_an_oversized_or_deeply_nested_frame_gets_error_and_connection_survives(client):
+    with client.websocket_connect("/ws") as ws:
+        # Refused unparsed: a wide object validated against every message
+        # model would hold the event loop for every game
+        wide = "{" + ",".join(f'"k{i}":0' for i in range(1000)) + "}"
+        ws.send_text(wide)
+        err = ws.receive_json()
+        assert (err["code"], err["message"]) == ("invalid_message", "Message is too large")
+        # Nested deep, yet short: refused as JSON, the socket kept
+        ws.send_text("[" * 2000)
+        err = ws.receive_json()
+        assert (err["code"], err["message"]) == ("invalid_message", "Message is not valid JSON")
         create_game(ws)
 
 
@@ -521,8 +536,12 @@ def test_a_take_back_declined_and_play_goes_on(client, store):
             "ply": 1,
         }
         # A rejoin finds the request, declined
-        assert store[gid]["takebackRequest"] == {"by": "white", "ply": 1, "declined": True}
+        declined = {"by": "white", "ply": 1, "declined": True}
+        assert store[gid]["takebackRequest"] == declined
         assert len(store[gid]["moves"]) == 1
+        white_ws.close()
+        with client.websocket_connect("/ws") as again:
+            assert rejoin(again, gid, "white")["takebackRequest"] == declined
 
 
 def test_a_move_cancels_a_standing_offer(client):

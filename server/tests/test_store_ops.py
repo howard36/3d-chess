@@ -17,6 +17,7 @@ import modal_app
 from messages import ErrorCode, Move, Promotion
 from modal_app import (
     STORE_OPERATIONS,
+    CopyingStore,
     GameError,
     accept_draw,
     accept_rematch,
@@ -48,7 +49,7 @@ def move(frm, to, promotion=None):
 
 
 def test_create_game_claims_one_seat(white_creator):
-    store = {}
+    store = CopyingStore()
     gid, color = create_game(store)
     assert len(gid) == 6
     assert color == "white"
@@ -56,7 +57,7 @@ def test_create_game_claims_one_seat(white_creator):
 
 
 def test_create_game_gives_the_creator_the_side_asked_for(white_creator):
-    store = {}
+    store = CopyingStore()
     gid, color = create_game(store, "tab-a", "black")
     assert color == "black"
     assert store[gid] == {"seats": ["black"], "moves": [], "claimants": {"black": "tab-a"}}
@@ -64,7 +65,7 @@ def test_create_game_gives_the_creator_the_side_asked_for(white_creator):
 
 
 def test_create_game_never_reuses_an_id(monkeypatch):
-    store = {"AAAAAA": {"seats": ["white"], "moves": []}}
+    store = CopyingStore({"AAAAAA": {"seats": ["white"], "moves": []}})
     ids = iter(["AAAAAA", "BBBBBB"])
     monkeypatch.setattr(modal_app._rng, "choices", lambda *a, **k: list(next(ids)))
     gid, _ = create_game(store)
@@ -87,21 +88,21 @@ def test_an_id_create_game_would_never_make_is_never_looked_up():
 
 
 def test_create_game_makes_ids_of_the_shape_looked_up():
-    store = {}
+    store = CopyingStore()
     for _ in range(50):
         gid, _ = create_game(store)
         assert modal_app.GAME_ID.fullmatch(gid)
 
 
 def test_claim_seat_takes_the_free_color(white_creator):
-    store = {}
+    store = CopyingStore()
     gid, _ = create_game(store)
     assert claim_seat(store, gid) == ("black", False)
     assert store[gid]["seats"] == ["white", "black"]
 
 
 def test_claim_seat_remembers_and_recognises_the_claimant(white_creator):
-    store = {}
+    store = CopyingStore()
     gid, _ = create_game(store, "tab-a")
     assert store[gid]["claimants"] == {"white": "tab-a"}
     assert claim_seat(store, gid, "tab-b") == ("black", False)
@@ -118,7 +119,7 @@ def test_claim_seat_remembers_and_recognises_the_claimant(white_creator):
 
 
 def test_claim_seat_errors():
-    store = {"FULL00": {"seats": ["white", "black"], "moves": []}}
+    store = CopyingStore({"FULL00": {"seats": ["white", "black"], "moves": []}})
     with pytest.raises(GameError) as e:
         claim_seat(store, "NOPE00")
     assert e.value.code.value == "invalid_game"
@@ -130,7 +131,7 @@ def test_claim_seat_errors():
 
 
 def test_taken_seats(white_creator):
-    store = {}
+    store = CopyingStore()
     gid, _ = create_game(store)
     assert taken_seats(store, gid) == ["white"]
     claim_seat(store, gid)
@@ -141,7 +142,7 @@ def test_taken_seats(white_creator):
 
 
 def test_find_seat():
-    store = {"G00001": {"seats": ["white"], "moves": []}}
+    store = CopyingStore({"G00001": {"seats": ["white"], "moves": []}})
     assert find_seat(store, "G00001", "white") is not None
     with pytest.raises(GameError) as e:
         find_seat(store, "G00001", "black")
@@ -152,7 +153,7 @@ def test_find_seat():
 
 
 def test_record_move_enforces_game_state_and_turn():
-    store = {"G00001": {"seats": ["white"], "moves": []}}
+    store = CopyingStore({"G00001": {"seats": ["white"], "moves": []}})
     with pytest.raises(GameError) as e:
         record_move(store, None, None, move("Aa2", "Aa3"))
     assert e.value.code.value == "invalid_move"
@@ -160,7 +161,7 @@ def test_record_move_enforces_game_state_and_turn():
         record_move(store, "G00001", "white", move("Aa2", "Aa3"))
     assert e.value.code.value == "game_not_started"
 
-    store["G00001"]["seats"].append("black")
+    store["G00001"] = {**store["G00001"], "seats": ["white", "black"]}
     with pytest.raises(GameError) as e:
         record_move(store, "G00001", "black", move("Ea4", "Ea3"))
     assert e.value.code.value == "wrong_turn"
@@ -181,7 +182,7 @@ def test_record_move_enforces_game_state_and_turn():
 
 
 def under_way():
-    return {"G00001": {"seats": ["white", "black"], "moves": []}}
+    return CopyingStore({"G00001": {"seats": ["white", "black"], "moves": []}})
 
 
 def refusal(op, *args):
@@ -206,7 +207,7 @@ def test_resign_ends_the_game_for_the_opponent():
 
 
 def test_resign_and_offers_need_a_game_under_way():
-    store = {"G00001": {"seats": ["white"], "moves": []}}
+    store = CopyingStore({"G00001": {"seats": ["white"], "moves": []}})
     for op in (
         resign,
         offer_draw,
@@ -303,7 +304,7 @@ def test_a_take_back_declined_or_lapsed():
 
 def test_a_rematch_accepted_starts_a_game_with_the_colours_swapped():
     store = under_way()
-    store["G00001"]["claimants"] = {"white": "tab-w", "black": "tab-b"}
+    store["G00001"] = {**store["G00001"], "claimants": {"white": "tab-w", "black": "tab-b"}}
     resign(store, "G00001", "white")
     assert offer_rematch(store, "G00001", "white") == {"by": "white"}
     # Only the opponent can answer it, and it is offered once
@@ -352,7 +353,7 @@ def test_a_rematch_declined():
 
 
 def test_a_rematch_needs_both_players():
-    store = {"G00001": {"seats": ["white"], "moves": []}}
+    store = CopyingStore({"G00001": {"seats": ["white"], "moves": []}})
     for op in (offer_rematch, accept_rematch, decline_rematch):
         assert refusal(op, store, None, None) == "game_not_started"
         assert refusal(op, store, "G00001", "white") == "game_not_started"
@@ -381,9 +382,9 @@ def test_handler_never_touches_the_store_directly():
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and getattr(node.func, "id", None) in names:
             handed.update(id(a) for a in node.args if isinstance(a, ast.Name) and a.id == "store")
-    # The one other use: the default, `if store is None: store = {}`
+    # The one other use: the default, `if store is None: store = CopyingStore()`
     default = tree.body[0].body[0]
-    assert ast.unparse(default) == "if store is None:\n    store = {}"
+    assert ast.unparse(default) == "if store is None:\n    store = CopyingStore()"
     allowed = {id(default.test.left)}
     for node in ast.walk(tree):
         if isinstance(node, ast.Name) and node.id == "store" and isinstance(node.ctx, ast.Load):
@@ -417,3 +418,16 @@ def test_the_store_is_never_used_through_its_async_variants():
         if isinstance(node, ast.Attribute)
     ]
     assert "aio" not in code
+
+
+def test_the_local_store_copies_as_modal_dict_does():
+    """A record changed after it was written, or on a read never written back,
+    is not changed in the store: the property every store operation's
+    write-back relies on in production."""
+    store = CopyingStore()
+    record = {"moves": []}
+    store["G00001"] = record
+    record["moves"].append("after the write")
+    store.get("G00001")["moves"].append("on a read")
+    store["G00001"]["moves"].append("on another read")
+    assert store == {"G00001": {"moves": []}}

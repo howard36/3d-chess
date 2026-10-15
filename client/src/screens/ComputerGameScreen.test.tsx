@@ -39,8 +39,6 @@ const entrance = vi.hoisted(() => ({ auto: true, end: null as (() => void) | nul
 vi.mock('../three/intro/IntroDirector', async () => {
   const React = await import('react');
   return {
-    INTRO_SCENE_VAR: '--intro-scene',
-    INTRO_HUD_VAR: '--intro-hud',
     IntroDirector: ({ onDone }: { onDone?: () => void }) => {
       entrance.end = onDone ?? null;
       React.useEffect(() => {

@@ -12,8 +12,11 @@ import { Stone } from './TurnPill';
 
 /** The game's review, once the game is over (screens/useAnalysis.ts). */
 export interface HistoryAnalysis {
-  /** Not begun yet ("Review", or a step through the record, begins it), under way, or done. */
-  state: 'idle' | 'running' | 'done';
+  /**
+   * Not begun yet ("Review", or a step through the record, begins it), under
+   * way, done, or stopped short ("Retry").
+   */
+  state: 'idle' | 'running' | 'done' | 'stopped';
   /** Positions done, of `total`. */
   done: number;
   total: number;
@@ -22,6 +25,8 @@ export interface HistoryAnalysis {
   counts: GradeCounts;
   /** The best move where the move shown was played, when the move shown is marked. */
   best: Pick<MoveRecord, 'from' | 'to' | 'promotion'> | null;
+  /** Goes on with a review that stopped short, from the positions it has. */
+  onRetry: () => void;
 }
 
 export interface MoveHistoryProps {
@@ -447,7 +452,8 @@ const plural = (n: number, grade: Grade) =>
 
 /**
  * The top of the list once the review has begun: each side's marks counted
- * by grade, a thin bar under them filling as the review goes.
+ * by grade, a thin bar under them filling as the review goes, or "Retry"
+ * should it stop short.
  */
 function ReviewHead({ analysis }: { analysis: HistoryAnalysis }) {
   return (
@@ -471,6 +477,19 @@ function ReviewHead({ analysis }: { analysis: HistoryAnalysis }) {
           </p>
         );
       })}
+      {analysis.state === 'stopped' && (
+        <p className="hud-stopped" role="status">
+          Review stopped{' '}
+          <button
+            type="button"
+            className="hud-retry"
+            data-testid="retry"
+            onClick={analysis.onRetry}
+          >
+            Retry
+          </button>
+        </p>
+      )}
       {analysis.state === 'running' && (
         <div
           className="hud-progress"

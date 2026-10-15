@@ -47,8 +47,6 @@ vi.mock('../three/scene/warm', () => ({
   WarmPrograms: () => null,
 }));
 vi.mock('../three/intro/IntroDirector', () => ({
-  INTRO_SCENE_VAR: '--intro-scene',
-  INTRO_HUD_VAR: '--intro-hud',
   IntroDirector: ({ paused, onFirstFrame }: { paused?: boolean; onFirstFrame?: () => void }) => {
     intro.paused = !!paused;
     intro.firstFrame = onFirstFrame ?? null;

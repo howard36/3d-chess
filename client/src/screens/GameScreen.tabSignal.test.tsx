@@ -20,8 +20,6 @@ vi.mock('../three/scene/backdropCache', () => ({
 vi.mock('../three/framePacer', () => ({ PaceOnGpu: () => null }));
 vi.mock('../three/scene/warm', () => ({ WarmPrograms: () => null }));
 vi.mock('../three/intro/IntroDirector', () => ({
-  INTRO_SCENE_VAR: '--intro-scene',
-  INTRO_HUD_VAR: '--intro-hud',
   IntroDirector: () => null,
 }));
 vi.mock('../three/Board', () => ({ default: () => null }));

@@ -12,7 +12,7 @@ import { preloadLandingPicture } from './src/screens/landingLayout';
  * script in its head, before the entry has loaded and run, on the start page
  * alone (preloadLandingPicture).
  */
-const preloadLandingPictureOnStartPage = (): Plugin => ({
+export const preloadLandingPictureOnStartPage = (): Plugin => ({
   name: 'preload-landing-picture',
   apply: 'build',
   async transformIndexHtml(html) {
@@ -21,10 +21,12 @@ const preloadLandingPictureOnStartPage = (): Plugin => ({
       `(${preloadLandingPicture.toString()})()`,
     );
     if (errors.length) throw new Error(`preload-landing-picture: ${errors[0].message}`);
-    const charset = /<meta charset[^>]*>/i;
-    if (!charset.test(html))
-      throw new Error('preload-landing-picture: index.html has no <meta charset>');
-    return html.replace(charset, (tag) => `${tag}\n    <script>${code.trim()}</script>`);
+    // After the viewport's tag: before it, a phone's innerWidth is the
+    // default 980 px, and the script would pick (and fetch) the tablet's picture
+    const viewport = /<meta name="viewport"[^>]*>/i;
+    if (!viewport.test(html))
+      throw new Error('preload-landing-picture: index.html has no <meta name="viewport">');
+    return html.replace(viewport, (tag) => `${tag}\n    <script>${code.trim()}</script>`);
   },
 });
 

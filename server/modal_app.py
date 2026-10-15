@@ -1,5 +1,7 @@
+import json
 import logging
 import os
+import pickle
 import random
 import re
 import string
@@ -105,6 +107,35 @@ def _client(ws: WebSocket) -> str:
 
 app = modal.App("3d-chess-backend")
 
+# The longest message a client sends (a rejoin with its client id) is about
+# 150 characters. A longer frame is refused before it is parsed: validating a
+# huge object against every message model would hold the one event loop.
+MAX_MESSAGE_CHARS = 4096
+
+
+def _snapshot(value):
+    """A copy made as modal.Dict makes one, by pickling."""
+    return pickle.loads(pickle.dumps(value, pickle.HIGHEST_PROTOCOL))
+
+
+class CopyingStore(dict):
+    """The store when no modal.Dict is passed (tests, e2e, local runs): reads
+    and writes copy, as modal.Dict's (de)serializing does, so a store
+    operation that changes a record and never writes it back loses the change
+    here too."""
+
+    def __getitem__(self, key):
+        return _snapshot(super().__getitem__(key))
+
+    def get(self, key, default=None):
+        return _snapshot(super().get(key, default))
+
+    def __setitem__(self, key, value):
+        # A write is a snapshot too: a record changed after it was written back
+        # is not changed in the store
+        super().__setitem__(key, _snapshot(value))
+
+
 # Live sockets only: gid -> {color: websocket}. The durable game record (seats
 # claimed, move history) lives in the store passed to create_web_app, so a
 # disconnect only detaches the socket here — the game itself survives and a
@@ -143,8 +174,8 @@ class GameError(Exception):
 #   2. The WebSocket handler never touches `store` itself; it only passes it
 #      to these functions. So there is no read in the handler that a later
 #      write could race against.
-# test_store_ops.py asserts both. Tests pass a plain dict, which has the same
-# access pattern.
+# test_store_ops.py asserts both. Tests pass a CopyingStore, which has the
+# same access pattern and copies as modal.Dict does.
 
 
 # A game id as create_game makes them. Any other names no game and is never
@@ -576,19 +607,13 @@ async def _close_replaced(old_ws: WebSocket) -> None:
 def _game_state(record: dict, color: str) -> dict:
     """The `game_state` snapshot of `record` for the player seated as `color`.
 
-    It carries everything a rejoining client replays: the moves, and the
-    ending, the latest draw offer, take-back request and rematch offer when
-    there are any.
+    It carries everything a rejoining client replays: the moves, and every
+    other key the record shares with the schema's `game_state` (the ending,
+    the latest draw offer, take-back request and rematch offer, when there
+    are any), so a field added to both is never dropped on a rejoin.
     """
-    state = {
-        "type": "game_state",
-        "color": color,
-        "started": len(record["seats"]) == 2,
-        "moves": record["moves"],
-    }
-    for key in ("ending", "drawOffer", "takebackRequest", "rematch"):
-        if key in record:
-            state[key] = record[key]
+    state = {k: v for k, v in record.items() if k in GameState.model_fields}
+    state |= {"type": "game_state", "color": color, "started": len(record["seats"]) == 2}
     model = GameState.model_validate(state)
     return model.model_dump(mode="json", by_alias=True, exclude_none=True)
 
@@ -620,7 +645,7 @@ def _require_not_in_game(gid: str | None) -> None:
 
 def create_web_app(store=None) -> fastapi.FastAPI:
     if store is None:
-        store = {}
+        store = CopyingStore()
     _configure_logging()
     web_app = fastapi.FastAPI()
 
@@ -642,12 +667,19 @@ def create_web_app(store=None) -> fastapi.FastAPI:
             # disconnect, so stop the loop and fall through to `finally`.
             while ws.application_state == WebSocketState.CONNECTED:
                 try:
-                    data = await ws.receive_json()
+                    text = await ws.receive_text()
+                    if len(text) > MAX_MESSAGE_CHARS:
+                        await _send_error(
+                            ws, ErrorCode.invalid_message, "Message is too large", gid
+                        )
+                        continue
+                    data = json.loads(text)
                 except (ValueError, KeyError):
                     # ValueError: the text frame was not valid JSON. KeyError:
                     # Starlette reads message["text"], which a binary frame
                     # doesn't carry; without this the exception would escape
-                    # the loop and kill the connection.
+                    # the loop and kill the connection. (JSON nested past the
+                    # recursion limit cannot get under the length cap.)
                     await _send_error(
                         ws, ErrorCode.invalid_message, "Message is not valid JSON", gid
                     )

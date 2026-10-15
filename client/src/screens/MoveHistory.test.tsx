@@ -405,7 +405,16 @@ describe('the review', () => {
     grades: [],
     counts: counts([0, 0, 0], [0, 0, 0]),
     best: null,
+    onRetry: () => {},
     ...over,
+  });
+
+  it('says so when it stops short, and goes on with "Retry"', async () => {
+    const onRetry = vi.fn();
+    render(history({ moves: record(6), analysis: analysis({ state: 'stopped', onRetry }) }));
+    expect(document.querySelector('.hud-stopped')).toHaveTextContent('Review stopped');
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledOnce();
   });
 
   it('shows nothing of itself before it begins: no button to ask for it', () => {

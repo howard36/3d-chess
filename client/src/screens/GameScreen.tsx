@@ -65,9 +65,13 @@ interface GameScreenProps {
 
 type Phase = 'waiting' | 'joined' | 'started';
 
-/** The router's state on the way into a rematch just accepted. */
+/**
+ * The router's state on the way into a rematch just accepted, with the seat
+ * it is stored under (the stored role may have failed to be written).
+ */
 interface RematchArrival {
   rematch: true;
+  color: Color;
 }
 
 /** The longest the lobby holds its arrival for the game's first frame. */
@@ -93,9 +97,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
   const [dismissedAt, setDismissedAt] = React.useState(-1);
   // Render mirror of the persisted role; localStorage is the source of truth
   const computerColor = computer?.color ?? null;
-  const [storedRole, setStoredRoleState] = React.useState(
-    () => computerColor ?? (gameId ? getStoredRole(gameId) : null),
-  );
+  const arrival = useLocation().state as RematchArrival | null;
+  const roleOf = (id: string | undefined) =>
+    computerColor ?? (id ? (getStoredRole(id) ?? arrival?.color ?? null) : null);
+  const [storedRole, setStoredRoleState] = React.useState(() => roleOf(gameId));
   // The socket session a rejoin_game was last sent on, so each fresh socket
   // (page load or mid-game reconnect) rejoins at most once.
   const rejoinSessionRef = React.useRef(0);
@@ -117,9 +122,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
   React.useEffect(() => {
     // Re-sync when the route's gameId changes (a different game's page)
-    setStoredRoleState(computerColor ?? (gameId ? getStoredRole(gameId) : null));
+    setStoredRoleState(roleOf(gameId));
     rejoinSessionRef.current = 0;
     rejoinSentAtRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read as the game changes
   }, [gameId, computerColor]);
 
   const { messages, sessionId, sessionStartIndex, status } = gameSocket;
@@ -344,14 +350,17 @@ const GameScreen: React.FC<GameScreenProps> = ({
   // reopened) waits for "Join rematch".
   const joinRematch = React.useCallback(() => {
     if (!rematch.gameId || !color) return;
-    setStoredRole(rematch.gameId, otherSide(color));
-    navigate(`/game/${rematch.gameId}`, { state: { rematch: true } satisfies RematchArrival });
+    const next = otherSide(color);
+    setStoredRole(rematch.gameId, next);
+    navigate(`/game/${rematch.gameId}`, {
+      state: { rematch: true, color: next } satisfies RematchArrival,
+    });
   }, [rematch.gameId, color, navigate]);
   React.useEffect(() => {
     if (rematch.live) joinRematch();
   }, [rematch.live, joinRematch]);
   // This page opened on a rematch just begun: its game starts now, with the whole entrance
-  const rematchArrival = !!(useLocation().state as RematchArrival | null)?.rematch;
+  const rematchArrival = !!arrival?.rematch;
 
   const handlePlayHere = () => {
     takeoverRef.current = true;

@@ -21,10 +21,6 @@ interface OrbitLike {
   update: () => void;
 }
 
-// The CSS custom properties the entrance fades the page's parts by, in a
-// module of their own so the page can name them without loading three.js
-export { INTRO_HUD_VAR, INTRO_SCENE_VAR };
-
 const ORIGIN = new Vector3();
 const direction = new Vector3();
 

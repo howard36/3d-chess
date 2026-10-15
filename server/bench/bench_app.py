@@ -2,10 +2,11 @@
 
 Production keeps game records in a `modal.Dict`: every call is a blocking
 network RPC that (de)serializes the value, so `record_move` reads and rewrites
-the whole record (every move so far) on each move. Local dev passes a plain
-dict, which has neither cost. The models here sit between the two:
+the whole record (every move so far) on each move. Local runs copy
+(CopyingStore) but have no latency. The models here sit between the two:
 
-- `dict`:        plain dict (what `create_web_app()` uses locally).
+- `dict`:        plain dict, neither cost (`create_web_app()` uses a
+                 CopyingStore locally, which copies like `pickle`).
 - `pickle`:      copy-on-read/write; every get/contains/set pickles or
                  unpickles, like modal.Dict's serialization, with no latency.
 - `latent:<ms>`: `pickle` plus a blocking `time.sleep` per call, a MODEL of

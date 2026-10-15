@@ -840,8 +840,8 @@ body {
   color: var(--hud-muted);
   cursor: default;
 }
-/* The review (screens/MoveHistory.tsx): "Analyse", then each side's marks
-   counted under a thin bar that fills as it goes; a mark after its move, a
+/* The review (screens/MoveHistory.tsx): each side's marks counted under a
+   thin bar that fills as it goes ("Retry" should it stop short); a mark after its move, a
    colour per grade (the glyph says which: the colour only helps); and the
    better move where a marked move was played, in the amber of its line on
    the board */
@@ -911,6 +911,29 @@ body {
 }
 .hud-count[data-count='0'] .hud-mark {
   opacity: 0.5;
+}
+.hud-stopped {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 0 0 6px;
+  color: var(--hud-muted);
+  font-size: 12px;
+}
+.hud-retry {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--hud-hair-strong);
+  border-radius: 3px;
+  background: none;
+  color: var(--hud-fg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hud-retry:hover {
+  background: rgba(236, 241, 255, 0.08);
 }
 .hud-progress {
   position: absolute;
@@ -1150,6 +1173,9 @@ body {
   }
   .hud-ply {
     height: 30px;
+  }
+  .hud-retry {
+    height: 36px;
   }
 }
 /* A touch screen with the panel beside the tower: the fingertip-wide steps
