@@ -152,9 +152,11 @@ jobs:
 
   # One check for the whole suite, under the name it always had (branch
   # protection and the deploy wait on `e2e`): green only if every group is.
+  # Not on a cancelled run (a newer push to the PR supersedes it): there it
+  # would report a failure that never happened; it shows as skipped instead.
   e2e:
     needs: e2e-group
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Every E2E group passed
