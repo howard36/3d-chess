@@ -11,8 +11,8 @@ import { Stone } from './TurnPill';
 
 /** The game's review, once the game is over (screens/useAnalysis.ts). */
 export interface HistoryAnalysis {
-  /** Not asked for yet ("Analyse"), under way, or done. */
-  state: 'idle' | 'running' | 'done';
+  /** Not asked for yet ("Analyse"), under way, done, or stopped short ("Retry"). */
+  state: 'idle' | 'running' | 'done' | 'stopped';
   /** Positions done, of `total`. */
   done: number;
   total: number;
@@ -434,7 +434,7 @@ const plural = (n: number, grade: Grade) =>
 /**
  * The top of the list once the game is over: "Analyse" until the review is
  * asked for, then each side's marks counted by grade, a thin bar under them
- * filling as the review goes.
+ * filling as the review goes, or "Retry" should it stop short.
  */
 function ReviewHead({ analysis, onAnalyse }: { analysis: HistoryAnalysis; onAnalyse: () => void }) {
   if (analysis.state === 'idle') {
@@ -467,6 +467,14 @@ function ReviewHead({ analysis, onAnalyse }: { analysis: HistoryAnalysis; onAnal
           </p>
         );
       })}
+      {analysis.state === 'stopped' && (
+        <p className="hud-stopped" role="status">
+          Analysis stopped{' '}
+          <button type="button" className="hud-analyse" data-testid="analyse" onClick={onAnalyse}>
+            Retry
+          </button>
+        </p>
+      )}
       {analysis.state === 'running' && (
         <div
           className="hud-progress"

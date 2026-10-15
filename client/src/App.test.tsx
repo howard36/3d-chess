@@ -43,8 +43,6 @@ vi.mock('./three/scene/warm', () => ({
 vi.mock('./three/intro/IntroDirector', async () => {
   const { useEffect } = await import('react');
   return {
-    INTRO_SCENE_VAR: '--intro-scene',
-    INTRO_HUD_VAR: '--intro-hud',
     IntroDirector: ({ onDone }: { onDone?: () => void }) => {
       // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
       useEffect(() => onDone?.(), []);

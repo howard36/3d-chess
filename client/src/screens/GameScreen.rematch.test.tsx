@@ -22,8 +22,6 @@ vi.mock('../three/scene/warm', () => ({
   WarmPrograms: () => null,
 }));
 vi.mock('../three/intro/IntroDirector', () => ({
-  INTRO_SCENE_VAR: '--intro-scene',
-  INTRO_HUD_VAR: '--intro-hud',
   IntroDirector: () => null,
 }));
 vi.mock('../three/Board', () => ({ default: () => null }));
@@ -134,7 +132,10 @@ describe('GameScreen: a rematch against a friend', () => {
       pageFor(fakeSocket([over({ by: 'white' }), { type: 'rematch_started', gameId: 'NEW456' }])),
     );
     expect(screen.getByTestId('arrived')).toHaveTextContent('NEW456');
-    expect(screen.getByTestId('arrived')).toHaveAttribute('data-state', '{"rematch":true}');
+    expect(screen.getByTestId('arrived')).toHaveAttribute(
+      'data-state',
+      '{"rematch":true,"color":"black"}',
+    );
     expect(getStoredRole('NEW456')).toBe('black');
   });
 
@@ -145,6 +146,23 @@ describe('GameScreen: a rematch against a friend', () => {
     act(() => go().click());
     expect(screen.getByTestId('arrived')).toHaveTextContent('NEW456');
     expect(getStoredRole('NEW456')).toBe('black');
+  });
+
+  it('takes its seat in the rematch even when the seat could not be stored', () => {
+    const send = vi.fn(() => true);
+    render(
+      <MemoryRouter
+        initialEntries={[{ pathname: '/game/NEW456', state: { rematch: true, color: 'black' } }]}
+      >
+        <Routes>
+          <Route path="/game/:gameId" element={<GameScreen gameSocket={fakeSocket([], send)} />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'rejoin_game', gameId: 'NEW456', color: 'black' }),
+    );
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'look_game' }));
   });
 
   it('keeps the rematch below the tower once the card is put away', () => {

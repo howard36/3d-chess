@@ -1,0 +1,113 @@
+diff --git a/client/src/App.sceneChunk.test.tsx b/client/src/App.sceneChunk.test.tsx
+index 197551a..a45f7f7 100644
+--- a/client/src/App.sceneChunk.test.tsx
++++ b/client/src/App.sceneChunk.test.tsx
+@@ -2,7 +2,7 @@
+ // deploy that replaced it): each goes on without its canvas, never the app's
+ // "Something went wrong".
+ import WS from 'jest-websocket-mock';
+-import { act, render, screen } from '@testing-library/react';
++import { act, fireEvent, render, screen } from '@testing-library/react';
+ import userEvent from '@testing-library/user-event';
+ import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
+ import { MemoryRouter } from 'react-router';
+@@ -55,6 +55,8 @@ const settle = () => act(() => new Promise((r) => setTimeout(r, 20)));
+ 
+ test('the start page goes without its live preview, its picture standing in', async () => {
+   renderApp('/');
++  // The preview is asked for once its picture is on screen
++  fireEvent.load(screen.getByTestId('landing-picture').querySelector('img')!);
+   await settle();
+   expect(screen.getByRole('heading', { name: '3D Chess' })).toBeInTheDocument();
+   expect(screen.getByRole('button', { name: 'Play a friend' })).toBeInTheDocument();
+diff --git a/client/src/screens/LandingPicture.tsx b/client/src/screens/LandingPicture.tsx
+index 34ec9df..00c7b14 100644
+--- a/client/src/screens/LandingPicture.tsx
++++ b/client/src/screens/LandingPicture.tsx
+@@ -34,9 +34,22 @@ function useWindowSize(): [number, number] {
+  * is all the page shows. The browser picks the picture as fine as the screen
+  * (1x or 2x), and its edges fade into the page's night in the picture itself.
+  */
+-export function LandingPicture() {
++export function LandingPicture({ onPainted }: { onPainted?: () => void }) {
+   const [width, height] = useWindowSize();
++  // Painted (decoded, then a frame), or failed to load: either way done with
++  const painted = React.useRef(onPainted);
++  painted.current = onPainted;
++  const done = React.useCallback((img: HTMLImageElement) => {
++    (img.decode?.() ?? Promise.resolve())
++      .catch(() => {})
++      .then(() => requestAnimationFrame(() => painted.current?.()));
++  }, []);
+   const place = width > 0 && height > 0 ? picturePlacement(width, height) : null;
++  // No window to place it in: nothing to wait for
++  const placed = place !== null;
++  React.useEffect(() => {
++    if (!placed) painted.current?.();
++  }, [placed]);
+   return (
+     <div className="landing-picture" aria-hidden="true" data-testid="landing-picture">
+       {place && (
+@@ -48,6 +61,8 @@ export function LandingPicture() {
+             alt=""
+             decoding="async"
+             fetchPriority="high"
++            onLoad={(e) => done(e.currentTarget)}
++            onError={() => painted.current?.()}
+             data-layout={place.layout}
+             style={{
+               // Moved, not laid out, there: a box's position is snapped to the
+diff --git a/client/src/screens/StartScreen.test.tsx b/client/src/screens/StartScreen.test.tsx
+index 7e2c015..c1eecc9 100644
+--- a/client/src/screens/StartScreen.test.tsx
++++ b/client/src/screens/StartScreen.test.tsx
+@@ -1,4 +1,4 @@
+-import { act, render, screen } from '@testing-library/react';
++import { act, fireEvent, render, screen } from '@testing-library/react';
+ import userEvent from '@testing-library/user-event';
+ import { afterEach, expect, test, vi } from 'vitest';
+ import { MemoryRouter, Route, Routes } from 'react-router';
+@@ -74,6 +74,10 @@ test('the picture of the preview shows at once, and goes once the preview has fa
+   // Larger than the window, which it covers
+   expect(img.style.transform).toMatch(/^translate\(-[\d.]+px, -[\d.]+px\)$/);
+   expect(parseFloat(img.style.width)).toBeGreaterThan(390);
++  // The preview's chunk waits for the picture to be on screen
++  await act(() => new Promise((r) => setTimeout(r, 20)));
++  expect(screen.queryByTestId('preview')).toBeNull();
++  fireEvent.load(img);
+   await screen.findByTestId('preview');
+   expect(screen.getByTestId('landing-picture')).toBe(picture);
+   act(() => shownPreview!());
+diff --git a/client/src/screens/StartScreen.tsx b/client/src/screens/StartScreen.tsx
+index 3244276..4224cc7 100644
+--- a/client/src/screens/StartScreen.tsx
++++ b/client/src/screens/StartScreen.tsx
+@@ -10,8 +10,8 @@ import { learnScreen } from './learn/learnChunk';
+ import { LandingPicture } from './LandingPicture';
+ 
+ // The preview (three.js, the scene, the demo's games) is a chunk of its own,
+-// asked for when the page first draws, so its title and buttons show without
+-// waiting for it. Meanwhile a picture of its first frame stands in for it
++// asked for once the page has drawn its picture, so its title, buttons and
++// picture show without waiting for it. Meanwhile a picture of its first frame stands in for it
+ // (LandingPicture), and the preview fades in over the picture once it draws;
+ // should it fail to load, or the player ask for less motion, the picture is
+ // all the page shows
+@@ -36,11 +36,15 @@ const StartScreen: React.FC = () => {
+   }
+   const live = !still && preview !== 'failed';
+   const onShown = React.useCallback(() => setPreview('shown'), []);
++  // The preview's chunk is asked for once the picture is on screen: its
++  // evaluation and first frame would otherwise hold the picture's frame back
++  const [pictured, setPictured] = React.useState(false);
++  const onPainted = React.useCallback(() => setPictured(true), []);
+ 
+   return (
+     <main className="landing" data-testid="landing">
+-      {!(live && preview === 'shown') && <LandingPicture />}
+-      {live && (
++      {!(live && preview === 'shown') && <LandingPicture onPainted={onPainted} />}
++      {live && pictured && (
+         <ChunkBoundary canvas onFail={() => setPreview('failed')}>
+           <React.Suspense fallback={null}>
+             <LandingPreview onShown={onShown} />

@@ -910,6 +910,14 @@ body {
 .hud-count[data-count='0'] .hud-mark {
   opacity: 0.5;
 }
+.hud-stopped {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 0 0 6px;
+  color: var(--hud-muted);
+  font-size: 12px;
+}
 .hud-progress {
   position: absolute;
   right: 2px;
