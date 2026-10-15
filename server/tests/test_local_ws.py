@@ -2,8 +2,8 @@
 
 These run create_web_app() in-process with Starlette's TestClient, so they
 cover message validation, game lifecycle, turn handling, disconnect cleanup,
-and rejoin without needing Modal credentials. The durable store is a plain
-dict here; production passes a modal.Dict with the same access patterns.
+and rejoin without needing Modal credentials. The durable store is a
+CopyingStore here, whose reads hand out copies like production's modal.Dict.
 """
 
 import logging
@@ -15,12 +15,12 @@ from starlette.websockets import WebSocketDisconnect
 from uvicorn.protocols.utils import ClientDisconnected
 
 import modal_app
-from modal_app import create_web_app
+from modal_app import CopyingStore, create_web_app
 
 
 @pytest.fixture()
 def store():
-    return {}
+    return CopyingStore()
 
 
 @pytest.fixture()

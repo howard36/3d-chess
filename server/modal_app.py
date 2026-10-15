@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 import random
@@ -104,6 +105,19 @@ def _client(ws: WebSocket) -> str:
 
 
 app = modal.App("3d-chess-backend")
+
+
+class CopyingStore(dict):
+    """The store when no modal.Dict is passed (tests, e2e, local runs): reads
+    hand out copies, as modal.Dict's do, so a store operation that changes a
+    record and never writes it back loses the change here too."""
+
+    def __getitem__(self, key):
+        return copy.deepcopy(super().__getitem__(key))
+
+    def get(self, key, default=None):
+        return copy.deepcopy(super().get(key, default))
+
 
 # Live sockets only: gid -> {color: websocket}. The durable game record (seats
 # claimed, move history) lives in the store passed to create_web_app, so a
@@ -620,7 +634,7 @@ def _require_not_in_game(gid: str | None) -> None:
 
 def create_web_app(store=None) -> fastapi.FastAPI:
     if store is None:
-        store = {}
+        store = CopyingStore()
     _configure_logging()
     web_app = fastapi.FastAPI()
 
