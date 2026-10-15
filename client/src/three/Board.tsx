@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { GameOver } from '../game/history';
+import type { GameOver, LastMove as LastMoveInfo } from '../game/history';
 import type { RefObject } from 'react';
 import { useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
@@ -38,7 +38,7 @@ import { fallAway } from './mate';
 import { focusLevelOf } from './scene/focus';
 import { Grid } from './scene/grid';
 import { Capture, Check, LastMove, Quiet } from './scene/markers';
-import { KNIGHT_YAW, layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
+import { knightFacing, layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
 import { Selection } from './scene/selection';
 import { pieceArrival } from './intro/timeline';
 import { useEntranceReplay } from './replay';
@@ -81,13 +81,8 @@ const markMaterial = new MeshBasicMaterial({ side: DoubleSide });
 
 const atCellFloor = ([x, y, z]: Vec3): Vec3 => [x, y + layout.floorY, z];
 
-export interface LastMoveInfo {
-  move: Move;
-  /** Total moves played; increments exactly once per new move. */
-  moveCount: number;
-  /** Piece that stood on move.to before the move, if the move captured. */
-  capturedPiece: Piece | null;
-}
+// The last move as the history derives it (game/history.ts)
+export type { LastMoveInfo };
 
 export interface BoardProps {
   currentTurn: PieceColor;
@@ -449,10 +444,6 @@ const Board = (props: BoardProps) => {
         ? 'black'
         : 'white'
       : null;
-  // A knight looks along the ranks — toward the opponent — turned a little to
-  // show its profile.
-  const knightFacing = (color: PieceColor) =>
-    (color === orientation ? 1 : -1) * (Math.PI / 2 - KNIGHT_YAW);
   const matedKing = pieces.find(
     ({ type, color }) => type === PieceType.King && color === matedColor,
   );
@@ -655,7 +646,7 @@ const Board = (props: BoardProps) => {
               cheerAt={mate?.cheer.get(key)}
               carried={!!carried && sameCoord(carried, coord)}
               refused={refused?.key === key ? refused.count : 0}
-              facing={knightFacing(color)}
+              facing={knightFacing(color, orientation)}
               arrival={pieceArrival({ type, color, ...coord })}
             />
           );
@@ -729,7 +720,7 @@ const Board = (props: BoardProps) => {
             key={`capturefx-${arrivalKey}`}
             {...markerAt(glide.to)}
             victim={glide.captured}
-            victimFacing={knightFacing(glide.captured.color)}
+            victimFacing={knightFacing(glide.captured.color, orientation)}
             hitMs={contactAtMs(glide.plan) ?? touchdownMs(glide.plan)}
             landMs={touchdownMs(glide.plan)}
             heading={glide.plan.heading}
@@ -739,7 +730,6 @@ const Board = (props: BoardProps) => {
         {matedKing && mate && (
           <Celebration
             {...markerAt(matedKing.coord)}
-            speed={MATE_TUNING.pulseSpeed}
             // The pulse leaves as he strikes the floor
             delayMs={mate.live ? KNOCK_STRIKE_MS - 60 : 0}
           />

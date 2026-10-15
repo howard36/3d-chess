@@ -36,7 +36,7 @@ const VALUE: Record<PieceType, number> = {
   [PieceType.Pawn]: 1,
 };
 
-export interface PlayedGame {
+interface PlayedGame {
   name: string;
   records: MoveRecord[];
   /** positions[i] is the board after i moves. */
@@ -320,7 +320,7 @@ export function flappingLog(records: MoveRecord[], flaps: number): WebSocketMess
 
 // --- Descriptions ---------------------------------------------------------------
 
-export interface FixtureDescription {
+interface FixtureDescription {
   fixture: string;
   pieces: number;
   sideToMove: Side;

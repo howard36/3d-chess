@@ -30,13 +30,13 @@ export interface ComputerGameOptions {
 }
 
 /** The socket's stand-in, and what only a game against the computer has. */
-export interface ComputerGameSocket extends GameSocket {
+interface ComputerGameSocket extends GameSocket {
   /** Takes back the player's last move, and the computer's reply (game/computerGame.ts). */
   takeBack: () => void;
 }
 
 /** The computer answers a draw offer after a beat, as a person would, never at once. */
-export const DRAW_ANSWER_MS = 900;
+const DRAW_ANSWER_MS = 900;
 
 const defaultPace = (game: ComputerGame, move: ComputerMove) =>
   thinkTime(game.difficulty, move, Math.random());

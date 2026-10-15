@@ -13,7 +13,7 @@ export const GROUND_RADIUS = 390;
 /** Where the plain begins to thicken, and where it is the night's own (world units from the camera, across). */
 export const VEIL = [70, 330] as const;
 /** The veil starts no nearer the plain's centre than this (world units). */
-export const VEIL_INNER = Math.max(VEIL[0] - 55, 1);
+const VEIL_INNER = Math.max(VEIL[0] - 55, 1);
 /** The sky's sphere (stage.tsx's Sky). */
 const SKY_RADIUS = 400;
 

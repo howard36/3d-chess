@@ -56,7 +56,7 @@ export const seenFromFront = (
  * a figure that changes on one frame is out of frame however the camera has
  * turned since the frame it was tested against.
  */
-export const OFF_FRAME_SLACK = MathUtils.degToRad(3);
+const OFF_FRAME_SLACK = MathUtils.degToRad(3);
 
 const corners = new Float32Array(24);
 

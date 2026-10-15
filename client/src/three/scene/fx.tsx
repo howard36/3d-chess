@@ -7,8 +7,16 @@ import { PieceType } from '../../engine/pieces';
 import { MOVE_ANIMATION, prefersReducedMotion } from '../motion';
 import { LAYER } from './layers';
 import { noRaycast } from '../noRaycast';
-import type { CaptureFxProps, CelebrationProps, PieceColor } from '../types';
-import { FRAME, KNIGHT_YAW, LEVEL_COLORS, levelAt, MARGIN, PALETTE, PIECE_SCALE } from './palette';
+import type { CaptureFxProps, CelebrationProps } from '../types';
+import {
+  FRAME,
+  knightFacing,
+  LEVEL_COLORS,
+  levelAt,
+  MARGIN,
+  PALETTE,
+  PIECE_SCALE,
+} from './palette';
 import { easeOutCubic, easeOutQuad } from './ease';
 import { wholePiece } from './occlusion';
 import { overlayMaterial } from './overlay';
@@ -56,10 +64,6 @@ const useLife = (lifeMs: number, step: (ms: number) => void, tightUntil = 0) => 
   return alive;
 };
 
-/** The yaw Board gives a knight of this colour (see knightFacing in Board.tsx). */
-const knightYaw = (piece: PieceType, color: PieceColor, orientation: PieceColor) =>
-  piece === PieceType.Knight ? (color === orientation ? 1 : -1) * (Math.PI / 2 - KNIGHT_YAW) : 0;
-
 // --- Capture ------------------------------------------------------------------------------
 
 export const outlineMaterial = () =>
@@ -90,7 +94,7 @@ export const outlineMaterial = () =>
 const CAPTURE_MS = 820;
 
 /** The hit: the victim knocked over away from the attacker, and a ring on the glass. */
-export const KNOCK = {
+const KNOCK = {
   /** How long it takes to fall as far as it goes, and how far (radians). */
   ms: 460,
   angle: 1.2,
@@ -177,7 +181,7 @@ export const CaptureFx = ({
   if (!alive) return null;
   const turn =
     victim.type === PieceType.Knight
-      ? (victimFacing ?? knightYaw(victim.type, victim.color, orientation as PieceColor))
+      ? (victimFacing ?? knightFacing(victim.color, orientation))
       : 0;
   // (the piece keeps its own facing however it is aimed to fall)
   const facing: [number, number, number] = [0, turn - yaw, 0];
@@ -278,9 +282,9 @@ const farthestCorner = (x: number, z: number) =>
   );
 
 /** How long the pulse from `(x, z)` lasts (seconds). */
-export const pulseSeconds = (x: number, z: number, speed = PULSE_SPEED) =>
+export const pulseSeconds = (x: number, z: number) =>
   // The front reaches the far corner at 95% of the pulse's life, as it fades
-  (farthestCorner(x, z) + 0.15) / speed / 0.95;
+  (farthestCorner(x, z) + 0.15) / PULSE_SPEED / 0.95;
 
 /** The mate pulse's material (Celebration), from the king's foot at (x, z) on `level`. */
 export const pulseMaterial = (x = 0, z = 0, level = 0) =>
@@ -303,7 +307,7 @@ export const pulseMaterial = (x = 0, z = 0, level = 0) =>
  * Mate: one pulse of light from the king's foot across his level as he
  * falls, and the garden's colossal pieces brighten for a breath.
  */
-export const Celebration = ({ floor, delayMs = 0, speed = PULSE_SPEED }: CelebrationProps) => {
+export const Celebration = ({ floor, delayMs = 0 }: CelebrationProps) => {
   const [kx, ky, kz] = floor;
   const level = levelAt(ky);
   const material = useMemo(() => pulseMaterial(kx, kz, level), [kx, kz, level]);
@@ -315,7 +319,7 @@ export const Celebration = ({ floor, delayMs = 0, speed = PULSE_SPEED }: Celebra
     [],
   );
   const reach = farthestCorner(kx, kz) + 0.15;
-  const lifeMs = pulseSeconds(kx, kz, speed) * 1000;
+  const lifeMs = pulseSeconds(kx, kz) * 1000;
   const still = prefersReducedMotion();
   // (With reduced motion nothing crosses the board, so it is over at once)
   const wait = PULSE_DELAY_MS + delayMs;

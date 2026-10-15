@@ -8,7 +8,7 @@
 export const LEARN_TOP_PX = 56;
 
 /** A window this tall or less is short: the card stands beside the tower, compact. */
-export const LEARN_SHORT_PX = 480;
+const LEARN_SHORT_PX = 480;
 
 /**
  * Whether the card stands beside the tower (.learn[data-card='beside']): in

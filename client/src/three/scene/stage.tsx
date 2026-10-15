@@ -20,6 +20,8 @@ import { PROFILES } from '../pieces';
 import { noRaycast } from '../noRaycast';
 import { GRID_LINES } from './gridLines';
 import type { platformStack } from './mask';
+import { dimNow } from './gardenDetail';
+import type { GardenDim } from './gardenDetail';
 import {
   SHADE_AT_VERTEX,
   shadeAt,
@@ -624,7 +626,7 @@ const GardenUniforms = ({
 }: {
   turn: number;
   shade?: ShadeStack;
-  dim?: number | (() => number);
+  dim?: GardenDim;
   /** Leave out a figure the camera stands behind (gardenSides.ts). */
   sides?: boolean;
 }) => {
@@ -637,7 +639,7 @@ const GardenUniforms = ({
   // their own just before they render
   useFrame(({ camera, size, gl }) => {
     gardenTurn.value = turn;
-    gardenDim.value = typeof dim === 'function' ? dim() : dim;
+    gardenDim.value = dimNow(dim);
     const aspect = size.width / Math.max(size.height, 1);
     updateTowerOutline(camera, aspect, shade);
     gl.getDrawingBufferSize(drawingBuffer);
@@ -819,7 +821,7 @@ export const Sculptures = ({
 }: {
   turn: number;
   shade?: ShadeStack;
-  dim?: number | (() => number);
+  dim?: GardenDim;
   /** Leave out a figure the camera stands behind (gardenSides.ts). */
   sides?: boolean;
 }) => {
@@ -842,7 +844,7 @@ export const Sculptures = ({
 
 /** How far above the polished ground the camera must stay. */
 const CLEARANCE = 1.2;
-const BASE_MAX_POLAR = layout.orbit?.maxPolarAngle ?? Math.PI;
+const BASE_MAX_POLAR = layout.orbit.maxPolarAngle;
 
 interface OrbitLike {
   target: Vector3;
@@ -884,7 +886,7 @@ export const Stage = ({
   orientation,
   shade,
   dim,
-}: StageProps & { shade?: ShadeStack; dim?: number | (() => number) }) => {
+}: StageProps & { shade?: ShadeStack; dim?: GardenDim }) => {
   const turn = orientation === 'black' ? -1 : 1;
   return (
     <>
@@ -895,9 +897,9 @@ export const Stage = ({
       <Sculptures turn={turn} shade={shade} dim={dim} sides />
       <SculptureGlow />
       <SkyDetail />
-      <BoardDetail turn={turn} shade={shade} dim={dim} />
-      <Court turn={turn} shade={shade} dim={dim} />
-      <Horizon turn={turn} shade={shade} dim={dim} />
+      <BoardDetail turn={turn} />
+      <Court turn={turn} dim={dim} />
+      <Horizon turn={turn} dim={dim} />
       <ShootingStar />
     </>
   );

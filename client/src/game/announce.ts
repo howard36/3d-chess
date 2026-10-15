@@ -10,7 +10,7 @@ import type { Piece } from '../engine';
 import type { GameHistory, GameOver, Turn } from './history';
 
 /** How a game ended, in a word or two: the turn pill's and the screen reader's. */
-export const RESULT_NAME: Record<GameOver['result'], string> = {
+const RESULT_NAME: Record<GameOver['result'], string> = {
   checkmate: 'Checkmate',
   stalemate: 'Stalemate',
   repetition: 'Repetition',
@@ -20,7 +20,7 @@ export const RESULT_NAME: Record<GameOver['result'], string> = {
 };
 
 /** The results with a winner: a mate, or a resignation. */
-export type DecisiveResult = 'checkmate' | 'resignation';
+type DecisiveResult = 'checkmate' | 'resignation';
 export const isDecisive = (result: GameOver['result']): result is DecisiveResult =>
   result === 'checkmate' || result === 'resignation';
 

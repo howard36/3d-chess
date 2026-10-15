@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { GARDEN, gardenView, SQUARE, squareCentre } from './stage';
-import { placeStar, SKY_PLAN } from './heavens';
+import { SKY_PLAN } from './heavens';
+import { placeStar } from './skyPlace';
 import { sculptureOf } from './sculptures';
 import { eyeAt } from './testKit';
 

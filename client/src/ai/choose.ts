@@ -32,7 +32,7 @@ export interface ComputerMove extends MoveFeel {
   nodes: number;
 }
 
-export interface ChooseOptions {
+interface ChooseOptions {
   /** Overrides for the level (tests, the strength script). */
   level?: Partial<Level>;
   /** The search's clock. */
@@ -155,7 +155,7 @@ export function chooseMove(
 }
 
 /** How long the computer weighs up a position (a draw offered to it), at most. */
-export const ASSESS_MS = 400;
+const ASSESS_MS = 400;
 
 /**
  * What the search makes of the position after `records`, in centipawns for
