@@ -1,4 +1,5 @@
 import copy
+import json
 import logging
 import os
 import random
@@ -105,6 +106,11 @@ def _client(ws: WebSocket) -> str:
 
 
 app = modal.App("3d-chess-backend")
+
+# The longest message a client sends (a rejoin with its client id) is about
+# 150 characters. A longer frame is refused before it is parsed: validating a
+# huge object against every message model would hold the one event loop.
+MAX_MESSAGE_CHARS = 4096
 
 
 class CopyingStore(dict):
@@ -656,12 +662,19 @@ def create_web_app(store=None) -> fastapi.FastAPI:
             # disconnect, so stop the loop and fall through to `finally`.
             while ws.application_state == WebSocketState.CONNECTED:
                 try:
-                    data = await ws.receive_json()
-                except (ValueError, KeyError):
+                    text = await ws.receive_text()
+                    if len(text) > MAX_MESSAGE_CHARS:
+                        await _send_error(
+                            ws, ErrorCode.invalid_message, "Message is too large", gid
+                        )
+                        continue
+                    data = json.loads(text)
+                except (ValueError, KeyError, RecursionError):
                     # ValueError: the text frame was not valid JSON. KeyError:
                     # Starlette reads message["text"], which a binary frame
-                    # doesn't carry; without this the exception would escape
-                    # the loop and kill the connection.
+                    # doesn't carry. RecursionError: JSON nested past Python's
+                    # limit. Without this the exception would escape the loop
+                    # and kill the connection.
                     await _send_error(
                         ws, ErrorCode.invalid_message, "Message is not valid JSON", gid
                     )

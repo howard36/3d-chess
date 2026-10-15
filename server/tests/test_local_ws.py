@@ -161,6 +161,21 @@ def test_binary_frame_gets_error_and_connection_survives(client):
         create_game(ws)
 
 
+def test_an_oversized_or_deeply_nested_frame_gets_error_and_connection_survives(client):
+    with client.websocket_connect("/ws") as ws:
+        # Refused unparsed: a wide object validated against every message
+        # model would hold the event loop for every game
+        wide = "{" + ",".join(f'"k{i}":0' for i in range(1000)) + "}"
+        ws.send_text(wide)
+        err = ws.receive_json()
+        assert (err["code"], err["message"]) == ("invalid_message", "Message is too large")
+        # Nested past Python's recursion limit, yet short
+        ws.send_text("[" * 2000)
+        err = ws.receive_json()
+        assert (err["code"], err["message"]) == ("invalid_message", "Message is not valid JSON")
+        create_game(ws)
+
+
 def test_schema_violations_get_error_and_connection_survives(client):
     with client.websocket_connect("/ws") as ws:
         # Unknown message type
