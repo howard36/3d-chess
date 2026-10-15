@@ -418,6 +418,9 @@ def test_resigning_needs_a_game_under_way(client):
             "request_takeback",
             "accept_takeback",
             "decline_takeback",
+            "offer_rematch",
+            "accept_rematch",
+            "decline_rematch",
         ):
             ws.send_json({"type": kind})
             assert ws.receive_json()["code"] == "game_not_started"
@@ -429,6 +432,8 @@ def test_resigning_needs_a_game_under_way(client):
         ws.send_json({"type": "game_ended", "result": "agreement"})
         assert ws.receive_json()["code"] == "invalid_message"
         ws.send_json({"type": "draw_offered", "by": "white", "ply": 0})
+        assert ws.receive_json()["code"] == "invalid_message"
+        ws.send_json({"type": "rematch_started", "gameId": "ABCDEF"})
         assert ws.receive_json()["code"] == "invalid_message"
 
 
@@ -572,6 +577,64 @@ def test_rejoin_carries_the_ending_and_the_latest_offer(client, creator_is_white
         state = rejoin(ws_w, gid, "white")
         assert state["ending"] == {"result": "resignation", "winner": "white"}
         assert state["moves"] == [{"by": "white", "from": "Aa2", "to": "Aa3"}]
+
+
+def test_a_rematch_offered_and_accepted(client, store, creator_is_white):
+    with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
+        gid, white_ws, black_ws = start_game(ws1, ws2)
+        white_ws.send_json({"type": "resign"})
+        both_receive(white_ws, black_ws)
+        black_ws.send_json({"type": "offer_rematch"})
+        assert both_receive(white_ws, black_ws) == {"type": "rematch_offered", "by": "black"}
+        # The offerer can neither answer nor repeat it
+        black_ws.send_json({"type": "accept_rematch"})
+        assert black_ws.receive_json()["code"] == "invalid_rematch"
+        black_ws.send_json({"type": "offer_rematch"})
+        assert black_ws.receive_json()["code"] == "invalid_rematch"
+        white_ws.send_json({"type": "accept_rematch"})
+        started = both_receive(white_ws, black_ws)
+        assert started["type"] == "rematch_started"
+        new_gid = started["gameId"]
+        assert new_gid != gid and store[new_gid]["seats"] == ["white", "black"]
+        # The finished game's record says so, for a player who comes back to it
+        assert store[gid]["rematch"] == {"by": "black", "gameId": new_gid}
+    assert wait_until(lambda: len(modal_app.connections) == 0)
+
+    # Each player rejoins the new game in the other colour, and it is under way
+    with client.websocket_connect("/ws") as ws_w, client.websocket_connect("/ws") as ws_b:
+        assert rejoin(ws_b, new_gid, "black") == {
+            "type": "game_state",
+            "color": "black",
+            "started": True,
+            "moves": [],
+        }
+        state = rejoin(ws_w, new_gid, "white")
+        assert state["started"] and state["moves"] == []
+        assert ws_b.receive_json() == presence("white", True)
+        ws_w.send_json({"type": "move", "from": "Aa2", "to": "Aa3"})
+        assert both_receive(ws_w, ws_b)["type"] == "move_made"
+        # ...and the old game's record goes to whoever comes back to it
+    with client.websocket_connect("/ws") as ws:
+        assert rejoin(ws, gid, "white")["rematch"] == {"by": "black", "gameId": new_gid}
+
+
+def test_a_rematch_declined_and_offered_back(client, store):
+    with client.websocket_connect("/ws") as ws1, client.websocket_connect("/ws") as ws2:
+        gid, white_ws, black_ws = start_game(ws1, ws2)
+        # A mate on the board is the clients' to see: the server takes the
+        # offer once both seats are taken
+        white_ws.send_json({"type": "offer_rematch"})
+        both_receive(white_ws, black_ws)
+        black_ws.send_json({"type": "decline_rematch"})
+        assert both_receive(white_ws, black_ws) == {"type": "rematch_declined", "by": "black"}
+        assert store[gid]["rematch"] == {"by": "white", "declined": True}
+        white_ws.send_json({"type": "offer_rematch"})
+        assert white_ws.receive_json()["code"] == "invalid_rematch"
+        # Offered back by the one who declined, and offered by both: it starts
+        black_ws.send_json({"type": "offer_rematch"})
+        assert both_receive(white_ws, black_ws) == {"type": "rematch_offered", "by": "black"}
+        white_ws.send_json({"type": "offer_rematch"})
+        assert both_receive(white_ws, black_ws)["type"] == "rematch_started"
 
 
 def test_moves_while_opponent_disconnected_appear_on_rejoin(client, creator_is_white):

@@ -186,3 +186,30 @@ it('takes the player’s move back at once, and the computer’s reply with it',
   expect(takeBack).toBeDisabled();
   expect(screen.queryByTestId('takeback-pending')).toBeNull();
 });
+
+it('plays again at once after the game: the same level, the colours swapped', async () => {
+  saveComputerGame({
+    id: 'g7',
+    color: 'white',
+    difficulty: 'hard',
+    started: true,
+    moves: [{ by: 'white', from: 'Bc2', to: 'Cc2' }],
+    ending: { result: 'resignation', winner: 'black' },
+  });
+  render(at('g7'));
+  expect(await screen.findByRole('dialog', { name: 'You lose' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
+  const rematch = screen.getByRole('button', { name: 'Rematch' });
+  expect(rematch).toHaveFocus();
+  await userEvent.click(rematch);
+  // The new game's page, the player Black against the same level
+  await waitFor(() => expect(screen.getByTestId('seat')).toHaveAttribute('data-seat', 'black'));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  const ids = Object.keys(localStorage)
+    .filter((k) => k.startsWith('3dchess:computer:') && !k.endsWith(':g7'))
+    .map((k) => k.slice('3dchess:computer:'.length));
+  expect(ids).toHaveLength(1);
+  // (the computer, White now, may already have opened)
+  expect(loadComputerGame(ids[0])).toMatchObject({ color: 'black', difficulty: 'hard' });
+  expect(loadComputerGame(ids[0])!.ending).toBeUndefined();
+});

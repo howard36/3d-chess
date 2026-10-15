@@ -36,7 +36,7 @@ export interface MoveHistoryProps {
    * behind a dialog, nor while the game's entrance plays.
    */
   enabled: boolean;
-  /** The game is over and "Play again" stands under the tower (index.css keeps clear of it). */
+  /** The game is over and the rematch stands under the tower (index.css keeps clear of it). */
   ended?: boolean;
   /**
    * The game is on: the record is out of sight, kept in the page as words for
