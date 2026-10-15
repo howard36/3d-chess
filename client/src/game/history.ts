@@ -10,6 +10,7 @@ import { Board, PieceType } from '../engine';
 import type { Move, Piece } from '../engine';
 import { FIFTY_MOVE_PLIES, REPETITIONS, hashAfter, positionHash } from '../engine/draws';
 import { moveFromMessage } from '../engine/protocol';
+import { otherSide, turnAfter } from './sides';
 import type { GameState, MoveMade, MoveRecord, WebSocketMessage } from '../types/messages';
 
 export type Turn = 'white' | 'black';
@@ -103,15 +104,13 @@ const sameRecord = (
   prev.moveRecords.length === moveRecords.length &&
   prev.moveRecords.every((r, i) => r === moveRecords[i]);
 
-const turnAfter = (moveCount: number): Turn => (moveCount % 2 === 0 ? 'white' : 'black');
-
 /**
  * How the game stands after the last move. A mate ends it even on the move
  * that would also complete a repetition or the fifty moves, as in chess.
  */
 const gameOverAt = (board: Board, turn: Turn, positions: readonly number[]): GameOver | null => {
   if (board.isCheckmate(turn)) {
-    return { result: 'checkmate', winner: turn === 'white' ? 'black' : 'white' };
+    return { result: 'checkmate', winner: otherSide(turn) };
   }
   if (board.isStalemate(turn)) return { result: 'stalemate' };
   const now = positions[positions.length - 1];

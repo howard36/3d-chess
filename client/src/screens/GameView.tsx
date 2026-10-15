@@ -25,8 +25,6 @@ import type { GameActionsProps } from './GameActions';
 import { learnScreen } from './learn/learnChunk';
 import type { LearnState } from './learn/learnBack';
 
-export type { IntroVariant };
-
 // The 3D board (three.js, the scene, the entrance's director) is a chunk of
 // its own, the one the lobby's canvas loads too, asked for as soon as this
 // view loads: the HUD and the move record show without waiting for it, and
@@ -76,7 +74,8 @@ export interface GameViewProps {
   rematch?: RematchProps;
   /**
    * The entrance (three/intro/timeline.ts): `full` for a game that starts
-   * while the page is open, `short` for a page that opens on a game already
+   * while the page is open, `lobby` for one that starts as the lobby hands
+   * over to it, `short` for a page that opens on a game already
    * under way, `none` for the finished scene at once. Read once, when the
    * view mounts. With prefers-reduced-motion any entrance is a short fade.
    */

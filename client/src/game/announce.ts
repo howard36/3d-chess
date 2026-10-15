@@ -5,6 +5,7 @@
 // it is now, relative to the player ("Your move", or the other side's name).
 
 import { toZXY } from '../engine/coords';
+import { otherSide, sideName } from './sides';
 import type { Piece } from '../engine';
 import type { GameHistory, GameOver, Turn } from './history';
 
@@ -31,9 +32,6 @@ export const DRAW_BY: Record<Exclude<GameOver['result'], DecisiveResult>, string
   agreement: 'by agreement',
 };
 
-const named = (side: Turn) => (side === 'white' ? 'White' : 'Black');
-const other = (side: Turn): Turn => (side === 'white' ? 'black' : 'white');
-
 /**
  * A finished game's result in a few words, for the player seated as `seat`:
  * how it ended ("Checkmate", "White resigned", "Draw agreed") and the verdict
@@ -46,7 +44,8 @@ export function resultWords(
   const { result, winner } = gameOver;
   if (result === 'agreement') return { how: RESULT_NAME.agreement, verdict: null };
   if (!isDecisive(result) || !winner) return { how: RESULT_NAME[result], verdict: 'draw' };
-  const how = result === 'resignation' ? `${named(other(winner))} resigned` : RESULT_NAME[result];
+  const how =
+    result === 'resignation' ? `${sideName(otherSide(winner))} resigned` : RESULT_NAME[result];
   return { how, verdict: winner === seat ? 'you win' : 'you lose' };
 }
 const lower = (piece: Piece) => piece.type.toLowerCase();
@@ -63,23 +62,27 @@ export function describeLastMove(history: GameHistory): string | null {
   const mover = move.promotion ? 'pawn' : lower(arrived);
   const where = capturedPiece ? `takes ${lower(capturedPiece)} on ${to}` : `to ${to}`;
   const promotes = move.promotion ? `, promotes to ${lower(arrived)}` : '';
-  return `${named(arrived.color)} ${mover} ${from} ${where}${promotes}`;
+  return `${sideName(arrived.color)} ${mover} ${from} ${where}${promotes}`;
 }
 
 /** Whose move it is, or how the game ended, for the player seated as `seat`. */
 export function describeTurn(history: GameHistory, seat: Turn | null): string {
   const { gameOver, currentTurn, board, replayFailedAt } = history;
   if (gameOver && isDecisive(gameOver.result)) {
-    const winner = gameOver.winner ?? other(currentTurn);
-    const verdict = seat ? (winner === seat ? 'You win.' : 'You lose.') : `${named(winner)} wins.`;
+    const winner = gameOver.winner ?? otherSide(currentTurn);
+    const verdict = seat
+      ? winner === seat
+        ? 'You win.'
+        : 'You lose.'
+      : `${sideName(winner)} wins.`;
     const how =
-      gameOver.result === 'resignation' ? `${named(other(winner))} resigned` : 'Checkmate';
+      gameOver.result === 'resignation' ? `${sideName(otherSide(winner))} resigned` : 'Checkmate';
     return `${how}. ${verdict}`;
   }
   if (gameOver?.result === 'agreement') return 'Draw agreed.';
   if (gameOver) return `${RESULT_NAME[gameOver.result]}. Draw.`;
   const check = replayFailedAt === null && board.inCheck(currentTurn) ? 'Check. ' : '';
-  return `${check}${currentTurn === seat ? 'Your move.' : `${named(currentTurn)} to move.`}`;
+  return `${check}${currentTurn === seat ? 'Your move.' : `${sideName(currentTurn)} to move.`}`;
 }
 
 /**

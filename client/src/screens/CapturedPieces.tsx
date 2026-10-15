@@ -3,6 +3,7 @@ import type { Board } from '../engine';
 import type { PieceType } from '../engine/pieces';
 import type { Turn } from '../game/history';
 import { describeTaken, groupTaken, materialLead } from '../game/material';
+import { otherSide } from '../game/sides';
 import type { TakenGroup } from '../game/material';
 import { PieceGlyph } from './PieceGlyph';
 
@@ -14,8 +15,6 @@ interface CapturedPiecesProps {
   /** The position, for the material lead. */
   board: Board;
 }
-
-const other = (side: Turn): Turn => (side === 'white' ? 'black' : 'white');
 
 /**
  * One side's haul: a silhouette per kind of piece taken, in the taken army's
@@ -59,7 +58,7 @@ const Haul = ({
  * lands); a screen reader finds it after the pill.
  */
 const CapturedPieces: React.FC<CapturedPiecesProps> = ({ seat, captured, board }) => {
-  const them = other(seat);
+  const them = otherSide(seat);
   const lead = React.useMemo(() => materialLead(board, seat), [board, seat]);
   const mine = groupTaken(captured[seat]);
   const theirs = groupTaken(captured[them]);

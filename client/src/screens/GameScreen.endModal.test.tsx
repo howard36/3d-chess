@@ -5,6 +5,7 @@ import type { WebSocketMessage } from '../types/messages';
 import { Board } from '../engine';
 import { fromZXY } from '../engine/coords';
 import { fakeSocket, gameScreenAt } from './testSupport';
+import { SHORT_GAME } from '../game/shortGame';
 
 // As in App.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
 vi.mock('@react-three/fiber', () => ({
@@ -37,11 +38,7 @@ vi.mock('../three/toppled', () => ({
 const kingFell = () => topple.listeners.forEach((listener) => listener());
 
 // The showcase game: 17 plies ending in White's mate.
-const GAME =
-  'Ab2-De5 Ed4-Ba1 Ac2-Cc4 Dc4-Dc3 Ad2-Dd5 Ec4-Dd5 Aa1-Ba1 Dd5-Db3 Cc4-Db3 Db4-Cb4 Ad1-Cd2 Dc3-Cc3 Aa2-Da5 Eb4-Ed2 Da5-Db4 Ed2-Cb2 Db3-Ec4'.split(
-    ' ',
-  );
-const records = GAME.map((m, i) => {
+const records = SHORT_GAME.map((m, i) => {
   const [from, to] = m.split('-');
   return { by: i % 2 === 0 ? ('white' as const) : ('black' as const), from, to };
 });
