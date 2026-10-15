@@ -42,8 +42,13 @@ beforeEach(() => {
   worker.made = 0;
   worker.disposed = 0;
   worker.fails = false;
+  cores(2);
 });
 afterEach(() => vi.restoreAllMocks());
+
+/** The machine's cores, which set how many workers a review takes (one fewer, at most 3). */
+const cores = (n: number) =>
+  Object.defineProperty(navigator, 'hardwareConcurrency', { value: n, configurable: true });
 
 const MATE = ['Ad1-Ac3', 'Ec4-Cc2', 'Ac2-Ad1', 'Cc2-Bb1']; // Black mates
 const historyOf = (moves: string[], resigned = false): GameHistory => {
@@ -80,8 +85,10 @@ it('waits to be asked, then searches each position in turn, marks coming in as t
   expect(result.current.state).toBe('running');
   await act(async () => {});
   expect(worker.asked).toEqual([0]);
-  await answer(at(40, 'Ad1', 'Cc1'));
+  // The mate the game ended in, counted from the start: it needs no search
   expect(result.current.done).toBe(1);
+  await answer(at(40, 'Ad1', 'Cc1'));
+  expect(result.current.done).toBe(2);
   expect(result.current.grades).toEqual([undefined, undefined, undefined, undefined]);
   await answer(at(11, 'Ed5', 'Cc5'));
   // The first move, a little off the best: no mark
@@ -100,7 +107,36 @@ it('waits to be asked, then searches each position in turn, marks coming in as t
   expect(worker.disposed).toBe(1);
   // Asked again, nothing more is searched
   act(() => result.current.start());
+  await act(async () => {});
   expect(worker.made).toBe(1);
+  expect(worker.asked).toEqual([0, 1, 2, 3]);
+  expect(result.current.state).toBe('done');
+  expect(result.current.done).toBe(5);
+});
+
+it('searches in several workers at once, the marks the same whatever order they finish in', async () => {
+  cores(8);
+  const { result } = renderHook(() => useAnalysis(historyOf(MATE.slice(0, 3), true)));
+  act(() => result.current.start());
+  await act(async () => {});
+  // Three workers (one core left to the page), the positions handed out from the start
+  expect(worker.made).toBe(3);
+  expect(worker.asked).toEqual([0, 1, 2]);
+  const [first, second, third] = worker.answers.splice(0);
+  await act(async () => third(at(1050, 'Bc1', 'Cc2')));
+  // The worker done first takes the next position
+  expect(worker.asked).toEqual([0, 1, 2, 3]);
+  await act(async () => first(at(40, 'Ad1', 'Cc1')));
+  await act(async () =>
+    worker.answers.shift()!({ best: { from: 'Cc2', to: 'Bb1' }, score: 30999, mate: 1 }),
+  );
+  expect(result.current.state).toBe('running');
+  expect(result.current.grades).toEqual([undefined, undefined, 'blunder']);
+  await act(async () => second(at(11, 'Ed5', 'Cc5')));
+  expect(result.current.state).toBe('done');
+  expect(result.current.done).toBe(4);
+  expect(result.current.grades).toEqual([null, 'blunder', 'blunder']);
+  expect(worker.disposed).toBe(3);
 });
 
 it('searches the last position too, of a game the players ended', async () => {
@@ -114,22 +150,37 @@ it('searches the last position too, of a game the players ended', async () => {
   expect(result.current.state).toBe('done');
 });
 
-it('stops where a search fails', async () => {
+it('says where a search fails, and asked again goes on from the positions it has', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   const { result } = renderHook(() => useAnalysis(historyOf(MATE)));
   act(() => result.current.start());
   await act(async () => {});
+  await answer(at(40, 'Ad1', 'Cc1'));
   await answer(new Error('no'));
-  expect(result.current.state).toBe('done');
-  expect(result.current.done).toBe(0);
+  expect(result.current.state).toBe('stopped');
+  expect(result.current.done).toBe(2);
   expect(worker.disposed).toBe(1);
+  expect(warn).toHaveBeenCalledWith('The review stopped short.', new Error('no'));
+
+  act(() => result.current.start());
+  await act(async () => {});
+  expect(result.current.state).toBe('running');
+  // Not the start again: the second position, which failed
+  expect(worker.asked).toEqual([0, 1, 1]);
+  await answer(at(11, 'Ed5', 'Cc5'));
+  await answer(at(1050, 'Bc1', 'Cc2'));
+  await answer({ best: { from: 'Cc2', to: 'Bb1' }, score: 30999, mate: 1 });
+  expect(result.current.state).toBe('done');
+  expect(result.current.grades).toEqual([null, 'blunder', 'blunder', null]);
 });
 
 it('can be asked again when the computer could not be had', async () => {
   worker.fails = true;
   const { result } = renderHook(() => useAnalysis(historyOf(MATE)));
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
   act(() => result.current.start());
   await act(async () => {});
-  expect(result.current.state).toBe('idle');
+  expect(result.current.state).toBe('stopped');
   worker.fails = false;
   act(() => result.current.start());
   await act(async () => {});
