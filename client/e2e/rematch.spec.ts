@@ -1,20 +1,11 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { startGame } from './helpers/game';
+import { resign, startGame } from './helpers/game';
 import { clickSquare, getPlayerColor, waitForBoard, waitForDestination } from './helpers/board';
 
 // A rematch between friends: offered from the result card, declined, offered
 // back and accepted, which takes both players straight into a new game with
 // the colours swapped. The finished game, opened again, leads to it.
-
-async function resign(page: Page) {
-  await page.getByRole('button', { name: 'Resign or offer a draw' }).click();
-  await page.getByRole('button', { name: 'Resign', exact: true }).click();
-  await expect(page.getByText('Resign?')).toBeVisible();
-  // The question ignores a click hard on the heels of the one that asked it
-  await page.waitForTimeout(500);
-  await page.getByRole('button', { name: 'Resign', exact: true }).click();
-}
 
 const go = (page: Page) => page.getByTestId('rematch-go');
 

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { startGame } from './helpers/game';
+import { resign, startGame } from './helpers/game';
 import { clickSquare, waitForBoard, waitForDestination } from './helpers/board';
 import { watchComputerGame } from './helpers/computer';
 
@@ -9,15 +9,6 @@ import { watchComputerGame } from './helpers/computer';
 // every step, and a reload comes back to it.
 
 const menu = (page: Page) => page.getByRole('button', { name: 'Resign or offer a draw' });
-
-async function resign(page: Page) {
-  await menu(page).click();
-  await page.getByRole('button', { name: 'Resign', exact: true }).click();
-  await expect(page.getByText('Resign?')).toBeVisible();
-  // The question ignores a click hard on the heels of the one that asked it
-  await page.waitForTimeout(500);
-  await page.getByRole('button', { name: 'Resign', exact: true }).click();
-}
 
 async function offerDraw(page: Page) {
   await menu(page).click();

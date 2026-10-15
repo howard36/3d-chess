@@ -122,3 +122,13 @@ export async function startGame(
   };
   return game;
 }
+
+/** Resigns for `page`'s player, through the game's menu and its question. */
+export async function resign(page: Page) {
+  await page.getByRole('button', { name: 'Resign or offer a draw' }).click();
+  await page.getByRole('button', { name: 'Resign', exact: true }).click();
+  await expect(page.getByText('Resign?')).toBeVisible();
+  // The question ignores a click hard on the heels of the one that asked it
+  await page.waitForTimeout(500);
+  await page.getByRole('button', { name: 'Resign', exact: true }).click();
+}
