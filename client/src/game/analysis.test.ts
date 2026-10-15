@@ -102,6 +102,31 @@ describe('a move graded', () => {
   });
 });
 
+describe('the grades’ edges', () => {
+  // From a level position, a move that leaves the opponent `s` centipawns up
+  // gives away winningChances(s): 0.1 at 54.5, 0.2 at 110.1, 0.3 at 168.1
+  const lost = (s: number) => gradeMove(at(0), PLAYED, at(s));
+  it('mark a move by the winning chances it gives away, from a tenth on', () => {
+    expect([54, 55, 110, 111, 168, 169].map(lost)).toEqual([
+      null,
+      'inaccuracy',
+      'inaccuracy',
+      'mistake',
+      'mistake',
+      'blunder',
+    ]);
+  });
+  it('soften a mate walked into only past seven pawns behind, and past ten', () => {
+    const into = (behind: number) => gradeMove(at(-behind), PLAYED, mate(1));
+    expect([700, 701, 999, 1000].map(into)).toEqual([
+      'blunder',
+      'mistake',
+      'mistake',
+      'inaccuracy',
+    ]);
+  });
+});
+
 describe('the moves of a game', () => {
   const records = [PLAYED, REPLY, BEST];
 
