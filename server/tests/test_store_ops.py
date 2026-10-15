@@ -418,3 +418,16 @@ def test_the_store_is_never_used_through_its_async_variants():
         if isinstance(node, ast.Attribute)
     ]
     assert "aio" not in code
+
+
+def test_the_local_store_copies_as_modal_dict_does():
+    """A record changed after it was written, or on a read never written back,
+    is not changed in the store: the property every store operation's
+    write-back relies on in production."""
+    store = CopyingStore()
+    record = {"moves": []}
+    store["G00001"] = record
+    record["moves"].append("after the write")
+    store.get("G00001")["moves"].append("on a read")
+    store["G00001"]["moves"].append("on another read")
+    assert store == {"G00001": {"moves": []}}

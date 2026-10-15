@@ -169,7 +169,7 @@ def test_an_oversized_or_deeply_nested_frame_gets_error_and_connection_survives(
         ws.send_text(wide)
         err = ws.receive_json()
         assert (err["code"], err["message"]) == ("invalid_message", "Message is too large")
-        # Nested past Python's recursion limit, yet short
+        # Nested deep, yet short: refused as JSON, the socket kept
         ws.send_text("[" * 2000)
         err = ws.receive_json()
         assert (err["code"], err["message"]) == ("invalid_message", "Message is not valid JSON")

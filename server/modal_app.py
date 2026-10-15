@@ -1,7 +1,7 @@
-import copy
 import json
 import logging
 import os
+import pickle
 import random
 import re
 import string
@@ -113,16 +113,27 @@ app = modal.App("3d-chess-backend")
 MAX_MESSAGE_CHARS = 4096
 
 
+def _snapshot(value):
+    """A copy made as modal.Dict makes one, by pickling."""
+    return pickle.loads(pickle.dumps(value, pickle.HIGHEST_PROTOCOL))
+
+
 class CopyingStore(dict):
     """The store when no modal.Dict is passed (tests, e2e, local runs): reads
-    hand out copies, as modal.Dict's do, so a store operation that changes a
-    record and never writes it back loses the change here too."""
+    and writes copy, as modal.Dict's (de)serializing does, so a store
+    operation that changes a record and never writes it back loses the change
+    here too."""
 
     def __getitem__(self, key):
-        return copy.deepcopy(super().__getitem__(key))
+        return _snapshot(super().__getitem__(key))
 
     def get(self, key, default=None):
-        return copy.deepcopy(super().get(key, default))
+        return _snapshot(super().get(key, default))
+
+    def __setitem__(self, key, value):
+        # A write is a snapshot too: a record changed after it was written back
+        # is not changed in the store
+        super().__setitem__(key, _snapshot(value))
 
 
 # Live sockets only: gid -> {color: websocket}. The durable game record (seats
@@ -163,8 +174,8 @@ class GameError(Exception):
 #   2. The WebSocket handler never touches `store` itself; it only passes it
 #      to these functions. So there is no read in the handler that a later
 #      write could race against.
-# test_store_ops.py asserts both. Tests pass a plain dict, which has the same
-# access pattern.
+# test_store_ops.py asserts both. Tests pass a CopyingStore, which has the
+# same access pattern and copies as modal.Dict does.
 
 
 # A game id as create_game makes them. Any other names no game and is never
@@ -663,12 +674,12 @@ def create_web_app(store=None) -> fastapi.FastAPI:
                         )
                         continue
                     data = json.loads(text)
-                except (ValueError, KeyError, RecursionError):
+                except (ValueError, KeyError):
                     # ValueError: the text frame was not valid JSON. KeyError:
                     # Starlette reads message["text"], which a binary frame
-                    # doesn't carry. RecursionError: JSON nested past Python's
-                    # limit. Without this the exception would escape the loop
-                    # and kill the connection.
+                    # doesn't carry; without this the exception would escape
+                    # the loop and kill the connection. (JSON nested past the
+                    # recursion limit cannot get under the length cap.)
                     await _send_error(
                         ws, ErrorCode.invalid_message, "Message is not valid JSON", gid
                     )
