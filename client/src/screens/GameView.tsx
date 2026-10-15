@@ -202,6 +202,24 @@ const GameView: React.FC<GameViewProps> = ({
   // The finished game's review, on asking: each move's mark in the list,
   // and where the move shown is marked, the better move on the board
   const analysis = useAnalysis(history);
+  // The review is one thing: asked for with the result card's "Review", or
+  // begun by a step through the finished game's record, it searches every
+  // position as it goes (never on its own: it would cost a phone's battery)
+  const { start: startAnalysis } = analysis;
+  const [reviewAsked, setReviewAsked] = React.useState(0);
+  const startReview = React.useCallback(() => {
+    setClosedEnd(gameOver);
+    startAnalysis();
+    setReviewAsked((n) => n + 1);
+  }, [gameOver, startAnalysis]);
+  const { show } = review;
+  const showPly = React.useCallback(
+    (ply: number) => {
+      if (gameOver) startAnalysis();
+      show(ply);
+    },
+    [gameOver, startAnalysis, show],
+  );
   const better = gameOver ? betterMove(analysis.grades, analysis.positions, shown.ply) : null;
   const betterOnBoard = React.useMemo(
     () => (better ? moveFromMessage({ by: 'white', ...better }) : null),
@@ -291,7 +309,9 @@ const GameView: React.FC<GameViewProps> = ({
             onMove={onMove}
             shown={boardLoad.failed}
           />
-          {/* After the move box, which stays the first Tab stop */}
+          {/* After the move box, which stays the first Tab stop: the way
+              home at the top left, the tutorial across from it */}
+          <HomeLink />
           <HowToPlay />
           {/* Under the way to the tutorial, one column at the right where
               the window has room beside the tower (index.css, .hud-side):
@@ -303,7 +323,7 @@ const GameView: React.FC<GameViewProps> = ({
               moves={moveRecords}
               applied={history.appliedMoveCount}
               shown={shown.ply}
-              onShow={review.show}
+              onShow={showPly}
               // Not behind a dialog, nor while the entrance plays
               enabled={!behindDialog && !introPlaying}
               ended={!!gameOver && showEndModal && !resultUp}
@@ -318,10 +338,10 @@ const GameView: React.FC<GameViewProps> = ({
                       grades: analysis.grades,
                       counts: analysis.counts,
                       best: better,
-                      onAnalyse: analysis.start,
                     }
                   : undefined
               }
+              reviewAsked={reviewAsked}
             />
           </div>
           {boardLoad.failed && (
@@ -386,12 +406,16 @@ const GameView: React.FC<GameViewProps> = ({
             seat={color ?? 'white'}
             rematch={rematch}
             onClose={() => setClosedEnd(gameOver)}
+            onReview={startReview}
           />
         </div>
       )}
       {gameOver && showEndModal && !resultUp && rematch && (
         <div inert={replaced}>
-          <RematchBar rematch={rematch} />
+          <RematchBar
+            rematch={rematch}
+            onReview={analysis.state === 'idle' ? startReview : undefined}
+          />
         </div>
       )}
       {replacedNotice}
@@ -400,6 +424,29 @@ const GameView: React.FC<GameViewProps> = ({
 };
 
 export default GameView;
+
+/**
+ * The way home from a game, at the top left, across from the way to the
+ * tutorial (index.css, .hud-home): "← Home" where the window has room, the
+ * arrow alone in a circle where it has not. The game stays as it is: its
+ * address brings the player back to their seat.
+ */
+function HomeLink() {
+  const navigate = useNavigate();
+  return (
+    <button
+      className="button-link hud-home"
+      aria-label="Home"
+      title="Home"
+      onClick={() => navigate('/')}
+    >
+      <span aria-hidden>←</span>
+      <span className="hud-home-word" aria-hidden>
+        Home
+      </span>
+    </button>
+  );
+}
 
 /**
  * The way to the tutorial from a game, at the top right, across from where

@@ -32,6 +32,8 @@ test('a finished game shows the result and lets both players start over', async 
 
   const oldUrl = game.white.url();
   for (const page of [game.white, game.black]) {
+    // The way home stands at the board screen's top left, behind the card
+    await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
     await page.getByRole('button', { name: 'Home' }).click();
     await page.getByRole('button', { name: 'Play a friend' }).click();
     await expect(page.getByRole('heading', { name: 'Choose your side' })).toBeVisible();

@@ -469,32 +469,33 @@ describe('the end of a game', () => {
     onJoin: () => {},
   };
 
-  it('leads home, from the card and from below the tower', async () => {
+  it('leads to the review, from the card and, once its rematch is declined, from below the tower', async () => {
+    const onReview = vi.fn();
     render(
-      <MemoryRouter initialEntries={['/computer/g1']}>
-        <Routes>
-          <Route path="/" element={<p>home</p>} />
-          <Route
-            path="/computer/:gameId"
-            element={
-              <EndGameModal result="stalemate" seat="white" rematch={rematch} onClose={() => {}} />
-            }
-          />
-        </Routes>
-      </MemoryRouter>,
+      <EndGameModal
+        result="stalemate"
+        seat="white"
+        rematch={rematch}
+        onClose={() => {}}
+        onReview={onReview}
+      />,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Home' }));
-    expect(screen.getByText('home')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Home' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Review' }));
+    expect(onReview).toHaveBeenCalledOnce();
     cleanup();
-    render(
-      <MemoryRouter initialEntries={['/game/abc123']}>
-        <Routes>
-          <Route path="/" element={<p>home</p>} />
-          <Route path="/game/:gameId" element={<RematchBar rematch={rematch} />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Home' }));
-    expect(screen.getByText('home')).toBeInTheDocument();
+    const declined = { ...rematch, state: { ...NO_REMATCH, declined: 'white' as const } };
+    render(<RematchBar rematch={declined} onReview={onReview} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Review' }));
+    expect(onReview).toHaveBeenCalledTimes(2);
+    cleanup();
+    render(<RematchBar rematch={rematch} onReview={onReview} />);
+    expect(screen.queryByRole('button', { name: 'Review' })).toBeNull();
+  });
+
+  it('offers the review alone in a card that has no rematch', async () => {
+    const onReview = vi.fn();
+    render(<EndGameModal result="stalemate" seat="white" onClose={() => {}} onReview={onReview} />);
+    expect(screen.getByRole('button', { name: 'Review' })).toHaveFocus();
   });
 });

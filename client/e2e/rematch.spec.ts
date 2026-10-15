@@ -19,14 +19,14 @@ test('a rematch declined, offered back and accepted swaps the colours', async ({
   await expect(black.getByRole('dialog', { name: 'You win' })).toBeVisible();
   const oldUrl = white.url();
 
-  // White offers; Black declines: White's turns to the way home, Black's stays
+  // White offers; Black declines: White's turns to the review, Black's stays
   await expect(go(white)).toHaveText('Rematch');
   await go(white).click();
   await expect(go(white)).toHaveAttribute('data-state', 'mine');
   await expect(go(black)).toHaveText('Accept rematch');
   await black.getByRole('button', { name: 'Decline' }).click();
   await expect(white.getByTestId('rematch-declined')).toBeVisible();
-  await expect(go(white)).toHaveText('Home');
+  await expect(go(white)).toHaveText('Review');
   await expect(go(black)).toHaveText('Rematch');
 
   // Black offers one back, from below the tower, and White accepts
@@ -75,7 +75,7 @@ test('against the computer, a rematch starts at once: the same level, the colour
   const oldUrl = page.url();
   await resign(page);
   await expect(page.getByRole('dialog', { name: 'You lose' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Home' })).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Review' })).toBeVisible();
   await expect(go(page)).toBeFocused();
   await go(page).click();
 

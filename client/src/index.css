@@ -433,11 +433,11 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* A phone upright: the pill fills the row, but for the way to the tutorial
-   at its right (.hud-learn) */
+/* A phone upright: the pill fills the row, but for the way home at its left
+   (.hud-home) and the way to the tutorial at its right (.hud-learn) */
 @media (max-width: 520px) {
   .hud-top {
-    left: 12px;
+    left: 58px;
     right: 58px;
   }
   .hud-bar {
@@ -463,6 +463,23 @@ body {
     padding: 0 11px;
   }
 }
+/* The narrowest phones, where the ways home and to the tutorial flank the
+   pill: the pieces taken a size down and closer, so every kind taken from
+   both sides still fits under it */
+@media (max-width: 420px) {
+  .hud-captures {
+    gap: 6px;
+    padding: 0 8px;
+  }
+  .hud-haul {
+    gap: 0.5px;
+  }
+  .hud-taken svg {
+    width: 18px;
+    height: 18px;
+    margin: 0 -4.5px;
+  }
+}
 /* A touch screen: the pill at least 44 px tall */
 @media (pointer: coarse) {
   .hud-pill {
@@ -475,7 +492,7 @@ body {
    the window is empty beside the tower */
 @media (max-height: 480px) {
   .hud-top {
-    left: 12px;
+    left: 58px;
     right: auto;
     align-items: flex-start;
   }
@@ -873,21 +890,6 @@ body {
   padding: 2px 2px 5px;
   border-bottom: 1px solid rgba(236, 241, 255, 0.1);
 }
-.hud-analyse {
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--hud-hair-strong);
-  border-radius: 3px;
-  background: none;
-  color: var(--hud-fg);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.hud-analyse:hover {
-  background: rgba(236, 241, 255, 0.08);
-}
 .hud-counts {
   display: grid;
   grid-template-columns: 24px repeat(3, 1fr);
@@ -1148,9 +1150,6 @@ body {
   }
   .hud-ply {
     height: 30px;
-  }
-  .hud-analyse {
-    height: 36px;
   }
 }
 /* A touch screen with the panel beside the tower: the fingertip-wide steps
@@ -2080,8 +2079,8 @@ body {
 .hud-result-go {
   margin-top: 18px;
 }
-/* A game over: the rematch, and under it the way home (and the answer to
-   the opponent's offer); below the tower, side by side */
+/* A game over: the rematch (and the answer to the opponent's offer), and in
+   the result card the review under it; below the tower, side by side */
 .hud-rematch {
   display: flex;
   flex-direction: column;
@@ -2091,6 +2090,9 @@ body {
   display: inline-flex;
   gap: 4px;
   margin-top: 8px;
+}
+.hud-dialog .hud-review-go {
+  margin-top: 10px;
 }
 .hud-rematch-note {
   margin: 16px 0 -8px;
@@ -2120,6 +2122,37 @@ body {
     left: 50%;
     transform: translateX(-50%);
     white-space: nowrap;
+  }
+}
+
+/* The way home from a game: the top left corner, across from the way to
+   the tutorial, its word where the window has room for it and the pill, the
+   arrow alone in a circle where it has not (a short window too, where the
+   pill stands at the top left beside it) */
+.hud-home {
+  position: absolute;
+  top: 16px;
+  left: max(12px, env(safe-area-inset-left));
+  pointer-events: auto;
+}
+@media (max-width: 719px), (max-height: 480px) {
+  .hud-home {
+    top: 14px;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid rgba(236, 241, 255, 0.22);
+    border-radius: 50%;
+  }
+  .hud-home-word {
+    display: none;
+  }
+}
+@media ((max-width: 719px) or (max-height: 480px)) and (pointer: coarse) {
+  .hud-home {
+    width: 40px;
+    height: 40px;
   }
 }
 

@@ -352,6 +352,15 @@ describe('in a narrow window', () => {
     expect(list).toHaveClass('sr-only');
   });
 
+  it('opens on the ask for the review, the focus on the move shown', () => {
+    windowNarrow(true);
+    const { rerender } = render(history({ moves: record(6) }));
+    expect(screen.getByTestId('move-list')).toHaveClass('sr-only');
+    rerender(history({ moves: record(6), reviewAsked: 1 }));
+    expect(screen.getByTestId('move-list')).not.toHaveClass('sr-only');
+    expect(document.querySelector('[data-ply="6"]')).toHaveFocus();
+  });
+
   it('puts the open list away with a press elsewhere, or Escape', async () => {
     windowNarrow(true);
     render(
@@ -396,18 +405,13 @@ describe('the review', () => {
     grades: [],
     counts: counts([0, 0, 0], [0, 0, 0]),
     best: null,
-    onAnalyse: () => {},
     ...over,
   });
 
-  it('is asked for with "Analyse" at the top of the list', async () => {
-    const onAnalyse = vi.fn();
-    render(history({ moves: record(6), analysis: analysis({ onAnalyse }) }));
-    expect(screen.getByTestId('analyse')).toHaveTextContent('Analyse');
-    await userEvent.click(screen.getByTestId('analyse'));
-    expect(onAnalyse).toHaveBeenCalledOnce();
-    // The button is about to go: focus moves on to the move shown
-    expect(document.querySelector('[data-ply="6"]')).toHaveFocus();
+  it('shows nothing of itself before it begins: no button to ask for it', () => {
+    render(history({ moves: record(6), analysis: analysis() }));
+    expect(screen.queryByTestId('analysis-counts')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Analyse|Review/ })).toBeNull();
     expect(screen.getByTestId('move-history')).not.toHaveAttribute('data-analysis');
   });
 
@@ -423,9 +427,8 @@ describe('the review', () => {
         }),
       }),
     );
-    expect(screen.queryByTestId('analyse')).toBeNull();
     expect(screen.getByTestId('move-history')).toHaveAttribute('data-analysis', 'running');
-    const bar = screen.getByRole('progressbar', { name: 'Analysing' });
+    const bar = screen.getByRole('progressbar', { name: 'Reviewing' });
     expect(bar).toHaveAttribute('aria-valuenow', '4');
     expect(bar).toHaveAttribute('aria-valuemax', '7');
     expect(document.querySelector('[data-ply="1"]')).not.toHaveAttribute('data-grade');
@@ -526,7 +529,7 @@ describe('the review', () => {
         analysis: analysis({ state: 'done', grades: ['blunder'] }),
       }),
     );
-    expect(screen.queryByTestId('analyse')).toBeNull();
+    expect(screen.queryByTestId('analysis-counts')).toBeNull();
     expect(document.querySelector('.hud-mark')).toBeNull();
   });
 });

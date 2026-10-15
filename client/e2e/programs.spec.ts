@@ -149,8 +149,7 @@ test('a finished game’s review links no shader program: the better move is dra
   await waitForBoard(page);
   await warm(page);
   await countLinks(page);
-  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
-  await page.getByTestId('analyse').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Review' }).click();
   const history = page.getByTestId('move-history');
   await expect(history).toHaveAttribute('data-analysis', 'done', { timeout: 60_000 });
   // White's blunder: the better move drawn beside the move played
