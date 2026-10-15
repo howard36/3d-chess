@@ -2,9 +2,9 @@
 // from the search (choose.ts) so the page can read them without loading it:
 // the search runs in a worker of its own.
 
-export type Difficulty = 'easy' | 'medium' | 'hard';
+export const DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 
-export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard'];
+export type Difficulty = (typeof DIFFICULTIES)[number];
 
 export const DIFFICULTY_NAME: Record<Difficulty, string> = {
   easy: 'Easy',
@@ -13,7 +13,7 @@ export const DIFFICULTY_NAME: Record<Difficulty, string> = {
 };
 
 export const isDifficulty = (value: unknown): value is Difficulty =>
-  value === 'easy' || value === 'medium' || value === 'hard';
+  (DIFFICULTIES as readonly unknown[]).includes(value);
 
 export interface Level {
   /** The deepest it looks, in plies, and for how long (milliseconds). */
