@@ -1,10 +1,4 @@
-import {
-  getStoredDifficulty,
-  loadComputerGame,
-  newComputerGameId,
-  saveComputerGame,
-  setStoredDifficulty,
-} from './computerGames';
+import { loadComputerGame, newComputerGameId, saveComputerGame } from './computerGames';
 import type { ComputerGame } from '../game/computerGame';
 
 const game: ComputerGame = {
@@ -50,8 +44,6 @@ it('ignores what is not a game, saying so, and plays on from memory where storag
   const other = { ...game, id: 'memoryonly' };
   saveComputerGame(other);
   expect(loadComputerGame('memoryonly')).toEqual(other);
-  expect(getStoredDifficulty()).toBe('medium');
-  expect(() => setStoredDifficulty('easy')).not.toThrow();
 });
 
 it('plays on from its latest move once storage starts refusing it, and says so once', () => {
@@ -75,14 +67,6 @@ it('plays on from its latest move once storage starts refusing it, and says so o
   saveComputerGame(later);
   localStorage.setItem(`3dchess:computer:${game.id}`, JSON.stringify(game));
   expect(loadComputerGame(game.id)).toEqual(game);
-});
-
-it('remembers the last level, Medium the first time', () => {
-  expect(getStoredDifficulty()).toBe('medium');
-  setStoredDifficulty('hard');
-  expect(getStoredDifficulty()).toBe('hard');
-  localStorage.setItem('3dchess:computer-difficulty', 'impossible');
-  expect(getStoredDifficulty()).toBe('medium');
 });
 
 it('makes ids no server game could have', () => {

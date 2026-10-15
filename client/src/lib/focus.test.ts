@@ -66,4 +66,27 @@ describe('focus the page moves by itself', () => {
     focusFromCode(null);
     expect(go).not.toHaveAttribute('data-quiet-focus');
   });
+
+  it('keeps the focus where it is on the first Tab, showing it there', () => {
+    const go = button('Join game');
+    focusFromCode(go);
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true, bubbles: true });
+    go.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(go);
+    expect(go).not.toHaveAttribute('data-quiet-focus');
+    // The next Tab is the browser's
+    const next = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true, bubbles: true });
+    go.dispatchEvent(next);
+    expect(next.defaultPrevented).toBe(false);
+  });
+
+  it("lets the control's focus handler tell a quiet focus from the keyboard's", () => {
+    const go = button('White');
+    const seen: boolean[] = [];
+    go.addEventListener('focus', () => seen.push(go.hasAttribute('data-quiet-focus')));
+    focusFromCode(go);
+    press('Enter');
+    expect(seen).toEqual([true, false]);
+  });
 });
