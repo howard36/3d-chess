@@ -6,7 +6,8 @@ import type { Orientation } from './board';
 /**
  * A two-player game with both seats taken, ready to play. `white` and `black`
  * are the pages holding each seat; which of the two browser contexts got
- * which colour is random and already resolved for you.
+ * which colour follows `side` (random only with `'Random'`) and is already
+ * resolved for you.
  */
 export interface Game {
   white: Page;
