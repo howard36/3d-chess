@@ -174,6 +174,19 @@ describe('choosing a side', () => {
     expect(view!.hover).toBeNull();
   });
 
+  it('takes White as the first stop, lit only once a Tab shows its focus', async () => {
+    render(at(fakeSocket()));
+    expect(white()).toHaveFocus();
+    expect(white()).toHaveAttribute('data-quiet-focus');
+    expect(view!.hover).toBeNull();
+    await userEvent.tab();
+    expect(white()).toHaveFocus();
+    expect(white()).not.toHaveAttribute('data-quiet-focus');
+    expect(view!.hover).toBe('white');
+    await userEvent.tab();
+    expect(random()).toHaveFocus();
+  });
+
   it('goes on to the game once both the answer and the moment are over', async () => {
     const send = vi.fn(() => true);
     const { rerender } = render(at(fakeSocket([], send)));
@@ -402,17 +415,15 @@ describe('against the computer', () => {
     });
   });
 
-  it('offers the last level played first (Medium the first time)', async () => {
-    const { unmount } = render(computerAt(fakeSocket()));
-    await userEvent.click(white());
-    settle();
-    expect(level('Medium')).toHaveFocus();
-    await userEvent.click(level('Hard'));
-    unmount();
+  it('puts the first level, Easy, first: its focus a Tab shows', async () => {
     render(computerAt(fakeSocket()));
     await userEvent.click(white());
     settle();
-    expect(level('Hard')).toHaveFocus();
+    expect(level('Easy')).toHaveFocus();
+    expect(level('Easy')).toHaveAttribute('data-quiet-focus');
+    await userEvent.tab();
+    expect(level('Easy')).toHaveFocus();
+    expect(level('Easy')).not.toHaveAttribute('data-quiet-focus');
   });
 
   it('leaves the side to the coin, then asks for the level', async () => {

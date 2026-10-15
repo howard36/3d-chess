@@ -473,6 +473,10 @@ Key decisions:
   (`autoFocusRef`, `focusFromCode`, never `autoFocus`): browsers ring any focus a script
   moves before a pointer has pressed, so it is marked `data-quiet-focus` and wears no ring
   until the player presses a key; for a player already on the keyboard it rings at once.
+  A page's first Tab stop is its main action, the first where there are several: the page
+  focuses it quietly as it opens (White on the side choice, Easy among the levels, Next in
+  the tutorial, the pill on a page that has one), and the first Tab shows the ring there
+  instead of moving on. The board screen's first stop stays the move box.
 
 ## Protocol
 
@@ -1085,8 +1089,8 @@ plays offline.
    moves on to its invitation), the page is an invitation (the `invited` beat, with no
    card: the camera holds the side choice's framing): the computer's seat across from the
    player's opens, its outline drawn up from the foot and breathing, and Easy, Medium and Hard in a row under
-   the kings, where the side's buttons were (`.lobby-levels`, rising in turn; the level last played has the focus,
-   Medium the first time, `lib/computerGames.ts`): three tiles like the home page's, each
+   the kings, where the side's buttons were (`.lobby-levels`, rising in turn; Easy, the first, has the focus, so the first
+   Tab stops on it): three tiles like the home page's, each
    the computer's robot (`screens/BotGlyph.tsx`, the home page's) beside its strength, one bar to three in the colours of the tower's levels from the top down (sky, violet, rose), and the level's
    name (a phone on its side sets them shorter, the robot beside the name).
 3. _The computer arrives._ A level fills the computer's king at once (its seat taken)
