@@ -2436,14 +2436,15 @@ async function reviewSection(browser) {
           await waitBoard(page);
           await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
           await quietMain(page);
-          // Click to every mark in, timed in the page: the click and each change of the review
+          // Click to every mark in, timed in the page on the bench's clock (the
+          // long tasks' too): the click and each change of the review
           await page.evaluate(() => {
             const b = window.__bench;
-            b.review = { clicked: null, half: null, done: null };
+            b.review = { clicked: null, half: null, done: null, stopped: false };
             const list = document.querySelector('[data-testid="move-history"]');
             document
               .querySelector('[data-testid="analyse"]')
-              .addEventListener('click', () => (b.review.clicked = performance.now()), {
+              .addEventListener('click', () => (b.review.clicked = window.__benchNow()), {
                 capture: true,
               });
             new MutationObserver(() => {
@@ -2451,19 +2452,23 @@ async function reviewSection(browser) {
               if (bar && b.review.half == null) {
                 const now = Number(bar.getAttribute('aria-valuenow'));
                 if (2 * now >= Number(bar.getAttribute('aria-valuemax')))
-                  b.review.half = performance.now();
+                  b.review.half = window.__benchNow();
               }
-              if (list.getAttribute('data-analysis') === 'done' && b.review.done == null)
-                b.review.done = performance.now();
+              const state = list.getAttribute('data-analysis');
+              if (state === 'done' && b.review.done == null) b.review.done = window.__benchNow();
+              if (state === 'stopped') b.review.stopped = true;
             }).observe(list, { attributes: true, subtree: true });
           });
           await page.getByTestId('analyse').click();
-          await page.waitForFunction(() => window.__bench.review.done != null, null, {
-            polling: 100,
-            timeout: 300000,
-          });
+          await page.waitForFunction(
+            () => window.__bench.review.done != null || window.__bench.review.stopped,
+            null,
+            { polling: 100, timeout: 300000 },
+          );
           const s = await snap(page);
-          const { clicked, half, done } = s.review;
+          const { clicked, half, done, stopped } = s.review;
+          if (stopped) throw new Error('the review stopped short (data-analysis="stopped")');
+          if (half == null) throw new Error('the review was never seen half done');
           const marks = await page
             .locator('[data-ply]')
             .evaluateAll((els) =>
