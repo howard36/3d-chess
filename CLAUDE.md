@@ -51,6 +51,7 @@ Client code imports wire types from `client/src/types/messages.ts` (hand-written
 
 ## Performance
 
+- When goals conflict: correct rules, then a readable board, then speed, then polish.
 - What speed is for: the moments a player waits on the main thread. That means the start page becoming usable, a game page's first screen, the first board frame (building the piece set), a move landing, and selecting a piece. Bytes on the start page count too (phones on mobile networks). A change that buys one of these with another is a trade-off to name in the PR, not a win.
 - Measure with the suite, interleaved: `node bench/run.mjs --primary --base main` (or without `--primary` for every row; narrow it with `--only`, `--files`, `--grep`, `--browser-sections`), with nothing else running. A change counts only when the A/B calls it, and it is a win for the player only in the primary rows; the diagnostics say where the time goes, and among hundreds of them a few are called by chance (the report says how many to expect). A "worse" row in code the diff doesn't touch (the server tier on a client-only change) is the VM drifting.
 - Output stays byte-identical unless the change is meant to alter it: the piece geometry (`golden.test.ts` hashes; `knightData.test.ts` and `occlusionData.test.ts` for the precomputed parts) and the engine's move lists, order included (`board.reference.test.ts` compares with the rules written out naively; the suite's fixtures are fingerprinted).
