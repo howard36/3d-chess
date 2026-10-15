@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { clickSquare, waitForBoard, waitForDestination } from './helpers/board';
-import { watchComputerGame } from './helpers/computer';
+import { playFrom, waitForBoard } from './helpers/board';
+import { startComputerGame, watchComputerGame } from './helpers/computer';
 
 // A game against the computer: the landing page's second button, the side,
 // then the computer's level, then a move by clicking the board, answered by the computer's
@@ -31,9 +31,7 @@ test('a player plays the computer: a move, and its reply', async ({ browser }) =
   await expect(pill).toContainText('Computer');
   await page.screenshot({ path: 'test-results/computer-start.png' });
 
-  await clickSquare(page, 'Bc2', 'white');
-  await waitForDestination(page, 'Cc2');
-  await clickSquare(page, 'Cc2', 'white');
+  await playFrom(page, 'white', 'Bc2', 'Cc2');
   await expect(moveCount(page)).toHaveAttribute('data-last-move', 'Bc2-Cc2');
   // The computer thinks, then plays Black's first move
   await expect(moveCount(page)).toHaveAttribute('data-move-count', '2', { timeout: 20_000 });
@@ -62,17 +60,10 @@ test('a player plays the computer: a move, and its reply', async ({ browser }) =
 });
 
 test('playing Black, the computer opens the game', async ({ browser }) => {
-  const context = await browser.newContext({ reducedMotion: 'reduce' });
-  const page = await context.newPage();
-  const seen = watchComputerGame(page);
-  await page.goto('/computer');
-  await page.getByRole('button', { name: /^Black/ }).click();
-  await page
-    .getByRole('group', { name: 'Difficulty' })
-    .getByRole('button', { name: 'Hard' })
-    .click();
-  await page.waitForURL(/\/computer\/[a-z0-9]+$/);
-  await waitForBoard(page);
+  const { context, page, seen } = await startComputerGame(browser, {
+    side: 'Black',
+    level: 'Hard',
+  });
   await expect(page.getByTestId('seat')).toHaveAttribute('data-seat', 'black');
   await expect(moveCount(page)).toHaveAttribute('data-move-count', '1', { timeout: 20_000 });
   await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');

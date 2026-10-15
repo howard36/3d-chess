@@ -220,6 +220,17 @@ export async function waitForDestination(page: Page, zxy: string): Promise<void>
   }, zxy);
 }
 
+/**
+ * Plays one move from `page`, seated as `seat`: selects `from`, waits for
+ * `to` to light up (waitForDestination), and clicks it. It does not wait for
+ * the move to land; Game.play does, for a game between two pages.
+ */
+export async function playFrom(page: Page, seat: Orientation, from: string, to: string) {
+  await clickSquare(page, from, seat);
+  await waitForDestination(page, to);
+  await clickSquare(page, to, seat);
+}
+
 /** A rect in page pixels, named for what it is. */
 export interface ScreenRect {
   what: string;

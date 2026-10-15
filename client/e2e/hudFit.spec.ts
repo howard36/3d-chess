@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { towerRects, waitForIntro } from './helpers/board';
+import { closeResult } from './helpers/game';
 import type { ScreenRect } from './helpers/board';
 import { openStandInGame } from './helpers/standIn';
 
@@ -64,10 +65,6 @@ async function seated(page: Page, seat: 'white' | 'black') {
     requestTakeback: game.requestTakeback,
   };
 }
-
-/** Puts the result card away, to study the final board. */
-const closeResult = (page: Page) =>
-  page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
 
 /** How far the pill's content runs past its rim, in CSS px (0 when it fits), at each size. */
 async function overflowAtEverySize(page: Page) {

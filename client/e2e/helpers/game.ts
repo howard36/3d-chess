@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import { clickSquare, getPlayerColor, waitForBoard, waitForDestination } from './board';
+import { getPlayerColor, playFrom, waitForBoard } from './board';
 import type { Orientation } from './board';
 
 /**
@@ -89,9 +89,7 @@ export async function startGame(
     play: async (from, to) => {
       const seat = await game.turn();
       const page = seats[seat];
-      await clickSquare(page, from, seat);
-      await waitForDestination(page, to);
-      await clickSquare(page, to, seat);
+      await playFrom(page, seat, from, to);
       // The turn chip names the other side, or gives the result if this
       // move ended the game
       const next = seat === 'white' ? 'black' : 'white';
@@ -123,3 +121,17 @@ export async function startGame(
   };
   return game;
 }
+
+/** Resigns the game from `page`'s seat, through the flag's menu. */
+export async function resign(page: Page) {
+  await page.getByRole('button', { name: 'Resign or offer a draw' }).click();
+  await page.getByRole('button', { name: 'Resign', exact: true }).click();
+  await expect(page.getByText('Resign?')).toBeVisible();
+  // The question ignores a click hard on the heels of the one that asked it
+  await page.waitForTimeout(500);
+  await page.getByRole('button', { name: 'Resign', exact: true }).click();
+}
+
+/** Puts the result card away, to study the final board. */
+export const closeResult = (page: Page) =>
+  page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
