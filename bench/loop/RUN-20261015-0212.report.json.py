@@ -98,7 +98,7 @@ report = {
      f'{facts["scoreboard_extra"]}',
    'items': [
     {'title': 'The branch against main', 'charts': [{'rows': {'change': FINAL, 'only': 'PRIMARY'}, 'caption': 'Branch beccfdf against main 9f2d524, 4 pairs.'}]},
-    {'title': 'The headline results again, on the final commit',
+    {'title': 'The headline results again, on the merge commit',
      'body': facts['recheck'],
      'charts': [{'rows': {'change': RECHECK, 'only': START + '|' + REVIEW + '|' + CLICK}, 'caption': facts['recheck_caption']}]},
     {'title': 'Reopening a long game, measured again on the last commit',

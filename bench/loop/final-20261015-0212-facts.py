@@ -13,7 +13,7 @@ facts = {
               'Pooled over the last two A/Bs, the slow mode came up in 4 of 9 branch runs and 3 of 9 main runs, and the 6-pair re-check before the merge called nothing (it leaned 82% faster). '
               'Main’s own later clicks hit the slow mode too (370, 555 and 338 ms). I read it as noise that a 3-pair A/B can call either way; the next run times more first visits.</p>'),
   'scoreboard_extra': '',
-  'removed': ('<p>Nothing was deleted outright. Against the current main, the branch adds 574 lines and removes 215 in 30 files, outside the run’s notes. '
+  'removed': ('<p>Nothing was deleted outright. Against main at de25815, the branch adds 590 lines and removes 215 in 30 files, outside the run’s notes. '
               'The app’s code grows by 62 lines (client +30, server +32): the parallel review and its stopped state, the rematch’s seat, the preload fix, the size cap and the copying store. '
               'Cleanup removed 29 lines from GameActions (six near-identical blocks into one table) and 21 lines of test stubs that nothing read. '
               'Tests grow by about 165 lines, the bench by 123 (the review section, the picture count and the probe), lint by 11 and docs by 13. '

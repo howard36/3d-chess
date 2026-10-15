@@ -76,7 +76,7 @@
     ]
    },
    {
-    "title": "The headline results again, on the final commit",
+    "title": "The headline results again, on the merge commit",
     "body": "<p>After merging main, I measured the start page and the review again on the merge commit 89eb146, against the new main. The last code commit, 9afbf60, changes only the review’s worker count where there are no workers; the review was measured on it too (below), the start page was not. Both results hold: the phone’s board appears at 923 ms instead of 1.76 s (46% faster), and the review finishes in 4.74 s instead of 10.4 s (56% faster), both called. Both “usable” rows leaned faster (desktop 2.8%, phone 6.5%), not called.</p><p>One row was called worse: the desktop’s first visit’s first click, 19 → 512 ms. It is timed once per run and has two modes, about 15 ms or about 500 ms, depending on whether the click lands while the first visit is still preparing its shaders. Pooled over the last two A/Bs, the slow mode came up in 4 of 9 branch runs and 3 of 9 main runs, and the 6-pair re-check before the merge called nothing (it leaned 82% faster). Main’s own later clicks hit the slow mode too (370, 555 and 338 ms). I read it as noise that a 3-pair A/B can call either way; the next run times more first visits.</p>",
     "charts": [
      {
@@ -163,7 +163,7 @@
   ]
  },
  "removed": {
-  "intro": "<p>Nothing was deleted outright. Against the current main, the branch adds 574 lines and removes 215 in 30 files, outside the run’s notes. The app’s code grows by 62 lines (client +30, server +32): the parallel review and its stopped state, the rematch’s seat, the preload fix, the size cap and the copying store. Cleanup removed 29 lines from GameActions (six near-identical blocks into one table) and 21 lines of test stubs that nothing read. Tests grow by about 165 lines, the bench by 123 (the review section, the picture count and the probe), lint by 11 and docs by 13. My shared e2e resign helper and level-list change were dropped in the merge, since #144 had made the same changes.</p>"
+  "intro": "<p>Nothing was deleted outright. Against main at de25815, the branch adds 590 lines and removes 215 in 30 files, outside the run’s notes. The app’s code grows by 62 lines (client +30, server +32): the parallel review and its stopped state, the rematch’s seat, the preload fix, the size cap and the copying store. Cleanup removed 29 lines from GameActions (six near-identical blocks into one table) and 21 lines of test stubs that nothing read. Tests grow by about 165 lines, the bench by 123 (the review section, the picture count and the probe), lint by 11 and docs by 13. My shared e2e resign helper and level-list change were dropped in the merge, since #144 had made the same changes.</p>"
  },
  "rejected": {
   "items": [
