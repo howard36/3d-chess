@@ -429,7 +429,11 @@ Key decisions:
   game on: "Join game", the way on from a game taken or gone, "Play again". In a card of
   the rimmed glass ("Copy link") it is plain, one rim to an object, and the 404 page's
   Home goes without. A rimmed card holds more than one thing: a heading and one button
-  stand on the page alone.
+  stand on the page alone. Focus the page moves by itself (a page's one action on
+  arrival, a dialog's button, the promotion's first piece) goes through `lib/focus.ts`
+  (`autoFocusRef`, `focusFromCode`, never `autoFocus`): browsers ring any focus a script
+  moves before a pointer has pressed, so it is marked `data-quiet-focus` and wears no ring
+  until the player presses a key; for a player already on the keyboard it rings at once.
 
 ## Protocol
 

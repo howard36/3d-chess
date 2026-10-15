@@ -29,6 +29,7 @@ import { useLobbyView } from './lobby/lobbyContext';
 import type { LobbyStage } from './lobby/lobbyContext';
 import { DIFFICULTY_NAME } from '../ai/levels';
 import type { Difficulty } from '../ai/levels';
+import { autoFocusRef } from '../lib/focus';
 
 interface GameScreenProps {
   gameSocket: GameSocket;
@@ -371,7 +372,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
           Your seat moved to the newer tab or window. Close this one, or take the game back here.
         </p>
         {/* A dialog takes focus, so Enter answers it without hunting for it */}
-        <button autoFocus className="button-secondary" onClick={handlePlayHere}>
+        <button ref={autoFocusRef} className="button-secondary" onClick={handlePlayHere}>
           Play here
         </button>
       </div>

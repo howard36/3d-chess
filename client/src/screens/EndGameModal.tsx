@@ -4,6 +4,7 @@ import type { GameOver, Turn } from '../game/history';
 import { DRAW_BY, isDecisive, resultWords } from '../game/announce';
 import { Stone } from './TurnPill';
 import { PlayButton } from './PlayButton';
+import { autoFocusRef } from '../lib/focus';
 
 interface EndGameModalProps {
   result: GameOver['result'];
@@ -80,7 +81,12 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
           {how}
         </p>
         {/* The dialog takes focus: a keyboard player lands on its only action */}
-        <PlayButton rim autoFocus className="hud-result-go" onClick={() => navigate(newGamePath)}>
+        <PlayButton
+          rim
+          ref={autoFocusRef}
+          className="hud-result-go"
+          onClick={() => navigate(newGamePath)}
+        >
           Play again
         </PlayButton>
       </div>

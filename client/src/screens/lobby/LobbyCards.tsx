@@ -5,6 +5,7 @@ import type { Invitation } from '../../game/invitation';
 import type { GameSocket } from '../../hooks/useGameSocket';
 import { SLOW_SERVER_MS, useDelayed } from '../../hooks/useDelayed';
 import { PlayButton } from '../PlayButton';
+import { autoFocusRef, focusFromCode } from '../../lib/focus';
 
 // The cards over the lobby's scene on a game's page before it starts: the
 // creator's invitation to send, of the home page's tile glass (.lobby-glass),
@@ -36,7 +37,7 @@ export const InviteCard: React.FC<{ link: string; seat: Color }> = ({ link, seat
   };
   const first = React.useRef<HTMLButtonElement>(null);
   // The choice is made; the next thing to do is send the link
-  React.useEffect(() => first.current?.focus({ preventScroll: true }), []);
+  React.useEffect(() => focusFromCode(first.current, { preventScroll: true }), []);
   return (
     <section
       className="lobby-card lobby-glass lobby-invite"
@@ -89,7 +90,7 @@ export const InvitationCard: React.FC<{
         <section className="lobby-card lobby-invitation" aria-labelledby="invitation-title">
           <div className="lobby-actions">
             {/* In the home page's words for where it leads */}
-            <PlayButton rim autoFocus onClick={() => navigate(newGamePath)}>
+            <PlayButton rim ref={autoFocusRef} onClick={() => navigate(newGamePath)}>
               {newGamePath === '/computer' ? 'Play the computer' : 'Play a friend'}
             </PlayButton>
           </div>
@@ -118,7 +119,7 @@ export const InvitationCard: React.FC<{
       <div className="lobby-actions">
         <PlayButton
           rim
-          autoFocus
+          ref={autoFocusRef}
           onClick={onAccept}
           aria-disabled={joining || undefined}
           data-testid="accept-invitation"

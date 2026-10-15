@@ -1,6 +1,7 @@
 import React from 'react';
 import type { DrawOfferState } from '../game/ending';
 import type { Color } from '../types/messages';
+import { autoFocusRef, focusFromCode } from '../lib/focus';
 
 export interface GameActionsProps {
   /** This player's colour. */
@@ -86,7 +87,7 @@ const GameActions: React.FC<GameActionsProps> = ({
   const close = React.useCallback((refocus: boolean) => {
     setOpen(false);
     setAskedAt(null);
-    if (refocus) trigger.current?.focus();
+    if (refocus) focusFromCode(trigger.current);
   }, []);
 
   // Put away by a press anywhere else, and whenever nothing can be sent
@@ -199,7 +200,7 @@ const GameActions: React.FC<GameActionsProps> = ({
               </p>
               <div className="hud-menu-row" role="group" aria-labelledby="resign-ask">
                 {/* Focus lands on the safe answer */}
-                <button autoFocus className="hud-menu-item" onClick={() => close(true)}>
+                <button ref={autoFocusRef} className="hud-menu-item" onClick={() => close(true)}>
                   Cancel
                 </button>
                 <button

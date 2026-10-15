@@ -263,6 +263,12 @@ body {
   padding: 0 12px;
 }
 
+/* Focus the page moved by itself wears no ring, the browser's either, until
+   the player presses a key (lib/focus.ts): each control's own ring is drawn
+   only :focus-visible:not([data-quiet-focus]) */
+[data-quiet-focus]:focus-visible {
+  outline: none;
+}
 /*
  * The app's buttons besides the pill of starlight (.landing-play) and the
  * glass tiles (.landing-mode, .lobby-glass), one style each wherever they
@@ -297,7 +303,7 @@ body {
   border-color: rgba(236, 241, 255, 0.55);
   background: rgba(16, 19, 28, 0.8);
 }
-.button-secondary:focus-visible {
+.button-secondary:focus-visible:not([data-quiet-focus]) {
   outline: 2px solid var(--hud-accent);
   outline-offset: 3px;
 }
@@ -670,7 +676,7 @@ body {
   cursor: pointer;
 }
 .hud-tile:hover,
-.hud-tile:focus-visible {
+.hud-tile:focus-visible:not([data-quiet-focus]) {
   border-color: rgba(230, 238, 255, 0.75);
   color: var(--hud-fg);
   box-shadow:
@@ -1238,7 +1244,7 @@ body {
   transform: scale(0.98);
 }
 /* An outline, not a shadow: the ring stays whether or not the pointer is on it */
-.landing-play:focus-visible {
+.landing-play:focus-visible:not([data-quiet-focus]) {
   outline: 2px solid var(--hud-accent);
   outline-offset: 4px;
 }
@@ -1502,7 +1508,7 @@ body {
 .lobby-choice::before {
   opacity: 0.3;
 }
-.lobby-glass:is([data-hover], [data-chosen], :focus-visible) {
+.lobby-glass:is([data-hover], [data-chosen], :focus-visible:not([data-quiet-focus])) {
   --landing-glow: 1;
   background-position:
     0 0,
@@ -1559,7 +1565,7 @@ body {
 }
 /* A level's rim is always up, as the home page's tiles' are: focus is the
    tiles' outline */
-.lobby-level:focus-visible {
+.lobby-level:focus-visible:not([data-quiet-focus]) {
   outline: 2px solid var(--hud-accent);
   outline-offset: 3px;
 }
@@ -2042,7 +2048,7 @@ body {
   cursor: pointer;
 }
 .hud-game-menu:hover,
-.hud-game-menu:focus-visible,
+.hud-game-menu:focus-visible:not([data-quiet-focus]),
 .hud-game-menu[aria-expanded='true'] {
   color: var(--hud-fg);
   outline: none;
@@ -2087,7 +2093,7 @@ body {
   cursor: pointer;
 }
 .hud-menu-item:hover:not(:disabled),
-.hud-menu-item:focus-visible {
+.hud-menu-item:focus-visible:not([data-quiet-focus]) {
   outline: none;
   background: rgba(236, 241, 255, 0.1);
 }

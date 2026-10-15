@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router';
 import { PlayButton } from './PlayButton';
+import { autoFocusRef } from '../lib/focus';
 
 // Any address the app has no page for (a mistyped one, /game/ with no game):
 // the lobby's heading on the page's night, and the way home under it, with
@@ -11,7 +12,7 @@ const NotFound = () => {
       <section className="lobby-heading" aria-labelledby="not-found-title">
         <h1 id="not-found-title">Nothing here</h1>
         <div className="lobby-actions">
-          <PlayButton autoFocus onClick={() => navigate('/')}>
+          <PlayButton ref={autoFocusRef} onClick={() => navigate('/')}>
             Home
           </PlayButton>
         </div>

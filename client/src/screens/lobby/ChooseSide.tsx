@@ -22,6 +22,7 @@ import {
 } from '../../lib/computerGames';
 import { computerGame } from '../computerGameChunk';
 import { prefersReducedMotion } from '../../three/motion';
+import { autoFocusRef } from '../../lib/focus';
 
 // The first page of a new game: the player picks a side. The three kings
 // stand on the glass (LobbyScene): porcelain, the split king for Random, and
@@ -251,7 +252,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
                 data-faded={level && level !== d ? '' : undefined}
                 disabled={!!level}
                 aria-pressed={level === d}
-                autoFocus={d === getStoredDifficulty()}
+                ref={d === getStoredDifficulty() ? autoFocusRef : undefined}
                 onClick={() => pickLevel(d)}
               >
                 {/* The computer and its strength, one bar to three */}
