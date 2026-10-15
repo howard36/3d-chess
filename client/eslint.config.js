@@ -30,6 +30,15 @@ const NO_R3F_STATE = [
   },
 ];
 
+// The app's canvases draw on demand: the garden's copy, the frame pacer and
+// the "no frame for a render that changes nothing" counts all depend on it
+// (CLAUDE.md "The board", "Performance")
+const ON_DEMAND = {
+  selector:
+    "JSXOpeningElement[name.name='Canvas']:not(:has(JSXAttribute[name.name='frameloop'][value.value='demand']))",
+  message: 'An app canvas renders on demand: frameloop="demand".',
+};
+
 /** A timer or a frame of the browser's own, on any object (window, globalThis, self). */
 const TIMERS = ['setTimeout', 'setInterval', 'requestAnimationFrame', 'requestIdleCallback'];
 
@@ -130,6 +139,7 @@ export default defineConfig(
           selector: "NewExpression[callee.name='Date']",
           message: 'Animate on r3f’s clock, not the wall clock.',
         },
+        ON_DEMAND,
       ],
     },
   },
@@ -171,6 +181,7 @@ export default defineConfig(
           selector: "NewExpression[callee.name='Date']",
           message: 'Animate on r3f’s clock, not the wall clock.',
         },
+        ON_DEMAND,
       ],
     },
   },
