@@ -137,9 +137,9 @@ const GameCanvas = ({
             <Stage orientation={color ?? 'white'} />
           </BackdropCache>
           <Board
-            board={board} // Pass the EngineBoard instance
+            board={board}
             currentTurn={currentTurn}
-            playerColor={color} // Pass the determined player color
+            playerColor={color}
             onMove={onMove}
             onChoosePromotion={onChoosePromotion}
             lastMove={lastMove}

@@ -109,7 +109,7 @@ export const SculptureViewer = ({ params }: { params: URLSearchParams }) => {
         <color attach="background" args={['#05070d']} />
         <Rig turn={turn} />
         <Sculptures turn={turn} shade={NO_SHADE} />
-        <BoardDetail turn={turn} shade={NO_SHADE} />
+        <BoardDetail turn={turn} />
       </Canvas>
     </div>
   );

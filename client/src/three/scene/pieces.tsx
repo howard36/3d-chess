@@ -384,7 +384,7 @@ const colorAtLevel = (level: number, out: Color) => {
  * this is ~15% of a frame), so the effects are compiled out where they
  * cannot happen rather than skipped by their uniforms.
  */
-export type GlazeVariant = 'steady' | 'form' | 'cut';
+type GlazeVariant = 'steady' | 'form' | 'cut';
 
 const GLAZE_DEFINES: Record<GlazeVariant, Record<string, string>> = {
   steady: {},
@@ -578,7 +578,7 @@ const CHECK_RATE = 1 / 0.25;
 export const PieceBody = (props: PieceBodyProps) => {
   const { type, color, selected, hovered, inCheck } = props;
   const focus = props.focus ?? 0;
-  const level = props.level ?? 0;
+  const { level } = props;
   const invalidate = useThree((s) => s.invalidate);
   const glide = useGlide();
   const still = useMemo(prefersReducedMotion, []);

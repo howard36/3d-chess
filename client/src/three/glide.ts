@@ -35,7 +35,7 @@ export const GLIDE = {
 const length = ([x, y, z]: Vec3) => Math.hypot(x, y, z);
 
 /** The glide's ease, 0 to 1: slow out of the square, fastest midway, slow into the next. */
-export const easeGlide = (u: number) => (u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2);
+const easeGlide = (u: number) => (u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2);
 
 /** Where along the time the ease reaches `s` (its inverse). */
 const easeGlideInverse = (s: number) =>
@@ -76,7 +76,7 @@ export const touchdownMs = (plan: GlidePlan) => plan.travelMs;
 /** When it reaches its victim, or null for a quiet move. */
 export const contactAtMs = (plan: GlidePlan) => plan.contactMs;
 
-export interface GlidePose {
+interface GlidePose {
   /** Where the piece is, as an offset from its square. */
   offset: Vec3;
   /** How far along the path it is, 0 to 1. */

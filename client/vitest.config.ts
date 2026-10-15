@@ -5,13 +5,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/setupTests.ts',
-    exclude: [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/e2e/**',
-      '**/coverage/**',
-      '**/test-results/**',
-    ],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
     coverage: {
       // The rules engine, the computer player and the log-derived game state
       // are gated; hooks and lib are reported for visibility only (no

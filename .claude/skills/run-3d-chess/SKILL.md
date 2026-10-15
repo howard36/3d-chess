@@ -77,8 +77,8 @@ test('inspect', async ({ browser }) => {
 
 `helpers/game.ts` — `startGame(browser, { side })` walks the real way in
 (landing page "Play a friend" → `/new` "Choose your side" → the side's
-button, White by default → the guest opens the link and clicks "Take
-your seat"), waits for both boards (`waitForBoard`: the entrance is over
+button, White by default → the guest opens the link and clicks "Join
+game"), waits for both boards (`waitForBoard`: the entrance is over
 and the lobby gone), and returns a `Game`:
 
 | member | what it does |
@@ -102,7 +102,7 @@ click time, so it works from any orbited angle without a settle wait.
 
 ```bash
 npm run lint && npm run test        # eslint + vitest
-uv run --project ../server pytest   # spawns a real uvicorn
+(cd .. && uv run --project server pytest)  # spawns a real uvicorn
 npm run e2e                         # drive.spec is skipped without DRIVE_MOVES
 ```
 
@@ -120,7 +120,7 @@ noise, not failures.
   other side. `clickSquare` finds the square in the page's own scene, so
   it works from either seat; its `seat` only labels its errors.
 - **Click projection relies on `window.__r3fState`**, published by the
-  Canvas `onCreated` hook in `src/screens/GameView.tsx` (the game's
+  Canvas `onCreated` hook in `src/screens/GameCanvas.tsx` (the game's
   canvas; the lobby's never publishes it). If it is removed, every
   helper throws `window.__r3fState missing`.
 - **The board only mounts once both players are seated.** Before that a

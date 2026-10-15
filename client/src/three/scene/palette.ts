@@ -159,7 +159,7 @@ export const LEVEL_COLORS = ['#ec539b', '#de5cec', '#8f61fc', '#4180f3', '#47bbe
  * OKLab (mixWithWhite, colors.ts), lightened a little and paled in
  * proportion, its hue held.
  */
-export const LEVEL_EDGE_LIFT = 0.09;
+const LEVEL_EDGE_LIFT = 0.09;
 export const LEVEL_EDGE_COLORS = LEVEL_COLORS.map((c) => mixWithWhite(c, LEVEL_EDGE_LIFT));
 
 // A compact tower: the Staunton set at 0.8 leaves the king clear air
@@ -184,6 +184,13 @@ export const GROUND_Y = FRAME.levelY[0] - 3.4;
 
 /** Knights turn this far off the rank line, to show their profile. */
 export const KNIGHT_YAW = 0.5;
+
+/**
+ * The yaw of a knight of `color` on the board drawn for `orientation`: it
+ * looks along the ranks, toward the opponent, turned a little (KNIGHT_YAW).
+ */
+export const knightFacing = (color: 'white' | 'black', orientation: 'white' | 'black') =>
+  (color === orientation ? 1 : -1) * (Math.PI / 2 - KNIGHT_YAW);
 
 /**
  * Radius of a piece's foot circle (piece units; ×PIECE_SCALE in the world,

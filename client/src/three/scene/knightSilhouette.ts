@@ -139,7 +139,7 @@ export const knightEyes = (winks: boolean) => {
 /** The knight's slices, from the collar's top up past its ears (built once). */
 let slices: Slice[] | null = null;
 export const knightSlices = (): Slice[] => (slices ??= buildSlices());
-export const buildSlices = (): Slice[] => {
+const buildSlices = (): Slice[] => {
   const loop = smoothLoop(KNIGHT_OUTLINE, 4);
   const out: Slice[] = [];
   const earTop = EAR.to[1] + EAR.r1;

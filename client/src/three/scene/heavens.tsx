@@ -8,8 +8,6 @@ import { chartGeometry, EGG_PLAN, majorEntries } from './skyChart';
 import { richFieldGeometry } from './skyStars';
 import { skyLineMaterial, skyPointMaterial } from './skyShaders';
 
-export { placeStar, skyDirection } from './skyPlace';
-
 // The night overhead. A field of stars, spent where a camera can see it
 // (skyStars.ts), and high above the garden, where only a camera sunk below
 // the horizon looking up past the tower can see, eight chess pieces drawn

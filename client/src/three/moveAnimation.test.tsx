@@ -13,12 +13,12 @@ import {
   Lift,
   liftEntry,
   ON_FLOOR,
-  onToppled,
   Topple,
   TOPPLE_MS,
   TOPPLE_STRIKE,
   useGlide,
 } from './pieceMotion';
+import { onToppled } from './toppled';
 
 type Vec = { x: number; y: number; z: number };
 const FROM: [number, number, number] = [0, 0, 2];

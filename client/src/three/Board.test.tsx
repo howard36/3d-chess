@@ -129,7 +129,7 @@ const sameVec = (a: unknown, b: [number, number, number]) =>
   JSON.stringify(a) === JSON.stringify(b);
 
 // The rendered node for a piece of the given type/colour. Uses findAll so it
-// is robust to wrapper groups (MoveGlide, GhostPiece) around the PieceMesh.
+// is robust to wrapper groups (MoveGlide) around the PieceMesh.
 // Pass `at` to pick a specific piece when several of that kind are on the
 // board; it is resolved in White's frame unless `orientation` says otherwise.
 function findPiece(

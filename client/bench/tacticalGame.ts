@@ -13,7 +13,7 @@ import { sharedGames } from './fixtures';
 /** Plies of the decisive game the bench plays: up to Black's answer to White's check. */
 export const TACTICAL_PLIES = 32;
 
-export interface TacticalPly {
+interface TacticalPly {
   /** As the move box takes it (`Ad2-Ac3`). */
   move: string;
   /** Whether it takes a piece, and whether it gives check. */

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router';
-import { prefersReducedMotion } from '../three/motion';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { lazyChunk } from '../lib/cachedImport';
 import { ChunkBoundary } from '../components/ChunkBoundary';
 import { PieceGlyph } from './PieceGlyph';
@@ -28,7 +28,8 @@ const { Component: LandingPreview } = lazyChunk(() =>
 // it; a game against the computer by choosing a side and a level (/computer).
 const StartScreen: React.FC = () => {
   const navigate = useNavigate();
-  const still = useReducedMotion();
+  // Whether the player asked their system for less motion, following a change
+  const still = useMediaQuery('(prefers-reduced-motion: reduce)');
   // The live preview: loading (the picture showing), shown over the picture
   // (which then goes), or failed to load (the picture stays)
   const [preview, setPreview] = React.useState<'loading' | 'shown' | 'failed'>('loading');
@@ -97,18 +98,5 @@ const StartScreen: React.FC = () => {
     </main>
   );
 };
-
-/** Whether the player asked their system for less motion, following a change while the page is open. */
-function useReducedMotion(): boolean {
-  const [reduced, setReduced] = React.useState(prefersReducedMotion);
-  React.useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const update = () => setReduced(query.matches);
-    query.addEventListener?.('change', update);
-    return () => query.removeEventListener?.('change', update);
-  }, []);
-  return reduced;
-}
 
 export default StartScreen;

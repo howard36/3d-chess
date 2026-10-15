@@ -361,9 +361,6 @@ export const toppleAngle = (ms: number, knocked: boolean) => {
   return { angle, struck: false, settled: false };
 };
 
-// When a toppling king strikes the floor (on the scene's own clock, however
-// slowly the frames come), for the result card to follow (GameScreen.tsx)
-export { onToppled } from './toppled';
 // The base is a disc of about this radius: the piece pivots on its rim, as a
 // real one tips over, rather than sinking through the board around its centre.
 const PIVOT = 0.22;
@@ -375,14 +372,11 @@ const PIVOT = 0.22;
  */
 export const Topple = ({
   active,
-  delayMs = 0,
   knocked = false,
   away,
   children,
 }: {
   active: boolean;
-  /** How long he stands still before he starts to go (ms). */
-  delayMs?: number;
   /** Whether he is knocked over, teetering at the edge of his balance first (KNOCK_FALL). */
   knocked?: boolean;
   /**
@@ -444,8 +438,7 @@ export const Topple = ({
     // few frames however slowly they come (the result card waits for it),
     // while the first frame after an idle spell still can't skip it
     elapsed.current += Math.min(delta * 1000, TOPPLE_STEP_MS);
-    const ms = elapsed.current - delayMs;
-    const { angle, struck: down, settled } = toppleAngle(Math.max(ms, 0), knocked);
+    const { angle, struck: down, settled } = toppleAngle(elapsed.current, knocked);
     const side = angle >= 0 ? 1 : -1;
     rim.current.position.z = -PIVOT * side;
     back.current.position.z = PIVOT * side;

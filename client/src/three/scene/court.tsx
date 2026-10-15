@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { AdditiveBlending, Color, DoubleSide, ShaderMaterial } from 'three';
+import { dimNow } from './gardenDetail';
 import type { GardenDetailProps } from './gardenDetail';
 import { noRaycast } from '../noRaycast';
 import { shadeUniforms } from './mask';
@@ -220,7 +221,7 @@ export const Court = ({ turn, dim }: GardenDetailProps) => {
   useEffect(() => () => material.dispose(), [material]);
   material.uniforms.uTurn.value = turn;
   useFrame(() => {
-    material.uniforms.uDim.value = typeof dim === 'function' ? dim() : (dim ?? 1);
+    material.uniforms.uDim.value = dimNow(dim);
   });
   return (
     <mesh

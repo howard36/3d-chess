@@ -22,7 +22,7 @@ export const MATE_BOUND = MATE - 512;
 const MAX_PLY = 64;
 const MOVES_PER_PLY = 512;
 
-export interface SearchLimits {
+interface SearchLimits {
   /** The deepest iteration, in plies. */
   maxDepth: number;
   /** Stop after this long (milliseconds); the first iteration always completes. */
@@ -51,7 +51,7 @@ export interface RootScore {
   score: number;
 }
 
-export interface SearchResult {
+interface SearchResult {
   /** The best move found (0 if there is no legal move). */
   move: number;
   score: number;

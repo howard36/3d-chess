@@ -468,7 +468,7 @@ export const moreRingsOf = (type: PieceType): { radius: number; y: number }[] =>
 type P3 = [number, number, number];
 
 /** A stroke fixed on a sculpture in 3D (x along its facing, y up, z across), and its surface's normals. */
-export interface FixedStroke {
+interface FixedStroke {
   points: P3[];
   normals: P3[];
   closed: boolean;
@@ -480,7 +480,7 @@ export interface FixedStroke {
  * with the view), its rings fitted to its outline so they meet it at its
  * edge.
  */
-export interface CleanDrawing {
+interface CleanDrawing {
   /** Drawings turned to face the viewer (x across, y up): what is the same from every side. */
   outlines: Outline[];
   /** Fixed in 3D on the body: the bishop's cut, the unicorn's spiral. */

@@ -1,19 +1,11 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { playFrom, waitForBoard } from './helpers/board';
 import { startGame } from './helpers/game';
-import { clickSquare, waitForBoard, waitForDestination } from './helpers/board';
-import type { Orientation } from './helpers/board';
 
 // The session layer: a seat survives a reload, and a second tab of the same
 // game takes the seat over cleanly instead of the two tabs evicting each
 // other forever.
-
-/** Plays one move from `page` (seated as `seat`) without the Game helper. */
-async function playFrom(page: Page, seat: Orientation, from: string, to: string) {
-  await clickSquare(page, from, seat);
-  await waitForDestination(page, to);
-  await clickSquare(page, to, seat);
-}
 
 test('a reloaded page rejoins its seat and restores the position', async ({ browser }) => {
   const game = await startGame(browser);
