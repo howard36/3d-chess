@@ -1,5 +1,6 @@
 import { rimFacing, rimGradient, rimPoints } from './rim';
 import type { RimPoint } from './rim';
+import { prefersReducedMotion } from '../three/motion';
 
 // The level colours' rim turning round a control at one pace (./rim.ts), the
 // pill of starlight's (PlayButton) and the glass tiles' alike. Each paints
@@ -29,10 +30,6 @@ const MAX_STEP_MS = 500;
 /** The attributes a control's turning can follow (a hover the scene marks, a wait). */
 const STATES = ['data-hover', 'disabled', 'aria-disabled'];
 
-const reducedMotion = () =>
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 /**
  * A ref for a control with a turning rim: one function serves every control
  * of a kind, each attached control keeping its own turn until it detaches.
@@ -47,7 +44,7 @@ export function turningRim(options: TurningRimOptions) {
     let pointed = false;
     let frame = 0;
     let last: number | null = null;
-    const reduced = reducedMotion();
+    const reduced = prefersReducedMotion();
     const paint = () => {
       if (points.length) el.style.setProperty('--landing-rim', rimGradient(points, turn, sky));
     };
