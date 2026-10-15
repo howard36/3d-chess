@@ -11,9 +11,9 @@ RVP = 'RV-P: review in parallel workers vs 995fca9 (review, 4 pairs)'
 SP1 = 'SP1 (rejected): preview chunk after the picture vs b305f6d (cold-load, 5 pairs)'
 PL = "PL: the picture's preload after the viewport tag vs b305f6d (cold-load, 5 pairs)"
 FINAL = 'final: beccfdf vs 9f2d524 (primary, 4 pairs)'
+RECHECK0 = 'recheck: 2e17292 vs 9f2d524 (cold-load + review, 6 pairs)'
 RECHECK = facts['recheck_change']
 FIRST = facts['first_change']
-SINCE = facts['since_change']
 
 START = 'Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|bytes downloaded|pictures of the board downloaded)'
 REVIEW = 'Reviewing a finished game · “Analyse” clicked'
@@ -54,15 +54,15 @@ report = {
                 'caption': 'A split along the four kinds of change.'},
      'recommend': 'Split it into the first three parts plus the fourth, or squash-merge it as it is. Either works; the commits do not depend on one another except where the table groups them.'},
 
-    {'title': 'The start page got slower on phones with #138; this branch recovers most of it',
+    {'title': 'The start page got slower on phones with #138; the branch removes the cause, and one row needs watching',
      'body':
-       '<p>Since the last run, six features landed on main. One of them, #138 (the start page’s picture), made “Start page usable, phone” 9.4% slower, called in every pair (776 → 848 ms). '
-       'It also made the board appear far sooner, which was its purpose. '
-       'The cause of the slowdown was a bug in #138: the picture’s preload ran before the page knew it was on a phone, so every phone downloaded the tablet’s 73 KB picture first. This branch fixes that. '
-       f'{facts["since"]}</p>',
-     'charts': [{'rows': {'change': REG, 'only': START}, 'caption': 'Main 9f2d524 against the last run’s end 145729b, 4 pairs.'},
-                {'rows': {'change': SINCE, 'only': START}, 'caption': facts['since_caption']}],
-     'recommend': facts['since_recommend']},
+       '<p>Since the last run, six features landed on main. One of them, #138 (the start page’s picture), made “Start page usable, phone” 9.4% slower, called in every pair (776 → 848 ms), while making the board appear about twice as soon. '
+       'The cause was a bug in #138, which this branch fixes: the picture’s preload ran before the page knew it was on a phone, so every phone downloaded the tablet’s 73 KB picture beside the page’s code.</p>'
+       '<p>Against main, the fixed branch has the phone’s “usable” time 3.5% sooner in one A/B and 0.2% sooner in another, neither called. I did not compare the branch with the code from before #138, so whether the 9.4% is fully recovered is not measured. '
+       '“Start page usable, desktop” leaned slower in two of three A/Bs (+4.0% and +6.4%, every pair of the second above 1, not called) and 1.8% faster in the third. I found nothing in the branch that touches the desktop’s path to “usable”.</p>',
+     'charts': [{'rows': {'change': REG, 'only': START}, 'caption': 'Main 9f2d524 against the last run’s end 145729b: what #138 did, 4 pairs.'},
+                {'rows': {'change': RECHECK0, 'only': START}, 'caption': 'The branch (2e17292) against main 9f2d524, 6 pairs.'}],
+     'recommend': 'Merge the fix. The next run compares the start page against 145729b directly, and watches the desktop’s “usable” row with more pairs.'},
 
     {'title': 'Four findings that are design or rules decisions',
      'body': '<p>The reviewers found these. None is in the PR, because each changes behaviour that a player would notice or a rule of the game.</p>',
@@ -162,7 +162,10 @@ report = {
      f'<li>{facts["e2e"]}</li>'
      '<li>Caching of the built files on Cloudflare Pages. The sandbox cannot reach pages.dev to read the headers.</li></ul>'},
 
-  'merge': {'intro': '<p>No other sessions worked on the repo, and main did not change during the run. ARCHITECTURE.md now describes the parallel review and its stopped state, the picture’s preload, the copying store and the size cap. CLAUDE.md is unchanged.</p>'},
+  'merge': {'intro': '<p>Other sessions merged three PRs into main during the run (#141, #144 and #145), and more were open. I merged main into the branch at 89eb146. '
+     'Six files conflicted. #144 had also made one shared e2e <code>resign</code> helper and made <code>isDifficulty</code> read the list of levels, so I took main’s versions and dropped mine. The rematch keeps its colour in the navigation, using main’s <code>otherSide</code>. '
+     'Lint, typecheck, 1,373 unit tests and 79 server tests pass on the merge. '
+     'ARCHITECTURE.md now describes the parallel review and its stopped state, the picture’s preload, the copying store and the size cap. CLAUDE.md is unchanged.</p>'},
 
   'next': {'intro': '<ol>'
      '<li>Use one search on the page, not three, when the browser cannot start a worker (RV17).</li>'

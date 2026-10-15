@@ -1,0 +1,179 @@
+{
+ "title": "Perf run 20261015-0212",
+ "eyebrow": "3D chess · perf-iteration · run 20261015-0212",
+ "heading": "A phone’s start page shows its board in half the time, and a game’s review finishes in less than half",
+ "meta": "<p>On a phone, the start page now shows its board in about 0.9 s instead of 1.7 s. A finished game’s review now marks every move in 4.6 s instead of 10 s. The phone fix is a bug fix: every phone downloaded the tablet’s picture first and the right picture late. The run also fixed four correctness problems on the server and in the client. No headline measurement got worse. Everything is in <a href=\"https://github.com/howard36/3d-chess/pull/147\">PR #147</a>.</p><p class=\"small\">Run 2026-10-15, 02:12–05:30 UTC. Main at <code>9f2d524</code>, branch <code>improve/20261015-0212</code> (pushed as <code>claude/serene-galileo-jajbb3</code>). Measured in headless Chromium with SwiftShader (WebGL drawn on the CPU) on 4 CPUs. Every comparison is an A/B: the bench runs main and the branch back to back several times, and each back-to-back run is a <em>pair</em>. A change is <em>called</em> only when every pair moves the same way, by more than 5% and by more than the pairs disagree with each other.</p>",
+ "needs": {
+  "items": [
+   {
+    "title": "Review PR #147, and decide whether to split it",
+    "body": "<p>The PR holds eleven changes of four kinds, each in its own commit with its evidence in the message. CLAUDE.md asks for one logical change per PR; the run’s instructions asked for one branch and one PR. CI passed on the merge commit 89eb146: client, server tests and all three e2e shards.</p>",
+    "figure": {
+     "html": "<table><thead><tr><th>Part</th><th>Commits</th><th>What it does</th></tr></thead><tbody><tr><td>Start page and review</td><td>0c7aea0, b305f6d, 4b7fb96</td><td>the phone’s picture; the review in parallel workers; a review that fails says so</td></tr><tr><td>Server</td><td>fea5a5a, cfbace2, 10ce347, 2e17292</td><td>tests that catch a lost write-back; a cap on frame size; rejoin fields from the schema</td></tr><tr><td>Client fixes</td><td>9ba343a, 1d1ca66, bb04a04</td><td>a rematch’s seat; the offer line; the level list</td></tr><tr><td>Bench, checks, lint, cleanup</td><td>995fca9, f3a7997, ede4014, beccfdf, 7cbf25a, 822038e</td><td>the review’s bench section; grade edges; the canvas lint rule; e2e and test cleanup</td></tr></tbody></table>",
+     "caption": "A split along the four kinds of change."
+    },
+    "recommend": "Split it into the first three parts plus the fourth, or squash-merge it as it is. Either works; the commits do not depend on one another except where the table groups them."
+   },
+   {
+    "title": "The start page got slower on phones with #138; the branch removes the cause, and one row needs watching",
+    "body": "<p>Since the last run, six features landed on main. One of them, #138 (the start page’s picture), made “Start page usable, phone” 9.4% slower, called in every pair (776 → 848 ms), while making the board appear about twice as soon. The cause was a bug in #138, which this branch fixes: the picture’s preload ran before the page knew it was on a phone, so every phone downloaded the tablet’s 73 KB picture beside the page’s code.</p><p>Against main, the fixed branch has the phone’s “usable” time 3.5% sooner in one A/B and 0.2% sooner in another, neither called. I did not compare the branch with the code from before #138, so whether the 9.4% is fully recovered is not measured. “Start page usable, desktop” leaned slower in two of three A/Bs (+4.0% and +6.4%, every pair of the second above 1, not called) and 1.8% faster in the third. I found nothing in the branch that touches the desktop’s path to “usable”.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regression check: 9f2d524 (six features) vs 145729b (primary, 4 pairs)",
+       "only": "Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|bytes downloaded|pictures of the board downloaded)"
+      },
+      "caption": "Main 9f2d524 against the last run’s end 145729b: what #138 did, 4 pairs."
+     },
+     {
+      "rows": {
+       "change": "recheck: 2e17292 vs 9f2d524 (cold-load + review, 6 pairs)",
+       "only": "Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|bytes downloaded|pictures of the board downloaded)"
+      },
+      "caption": "The branch (2e17292) against main 9f2d524, 6 pairs."
+     }
+    ],
+    "recommend": "Merge the fix. The next run compares the start page against 145729b directly, and watches the desktop’s “usable” row with more pairs."
+   },
+   {
+    "title": "Four findings that are design or rules decisions",
+    "body": "<p>The reviewers found these. None is in the PR, because each changes behaviour that a player would notice or a rule of the game.</p>",
+    "figure": {
+     "html": "<table><thead><tr><th>Finding</th><th>Where</th><th>Fixing it costs</th><th>My recommendation</th></tr></thead><tbody><tr><td>One player can use up the other’s single take-back or draw offer for a move by asking first</td><td><code>modal_app.py:309, 359</code></td><td>about 6 lines on the server and the same in the client</td><td>Allow each side its own ask per move</td></tr><tr><td>On an upright phone, “Analyse” is hidden until the move list is opened</td><td><code>MoveHistory.tsx:210, 376</code>; ARCHITECTURE.md calls it intended</td><td>a small control in the step row</td><td>Add it: the review is easy to miss on a phone</td></tr><tr><td>A rematch closes and reopens the connection and rebuilds the 3D board</td><td><code>App.tsx:33, 83</code></td><td>a protocol change; the full entrance plays again</td><td>Leave it</td></tr><tr><td>A rematch’s id is in every rejoin, so anyone with the first game’s link can take a seat in its rematches</td><td><code>modal_app.py:589</code></td><td>one line in ARCHITECTURE.md “Scope and trust”</td><td>Add the line</td></tr></tbody></table>",
+     "caption": "Ledger items SEC6, I16, RM and SEC7."
+    },
+    "recommend": "Tell me which of the four to do; each is small except the rematch connection."
+   },
+   {
+    "title": "CLAUDE.md is still missing five sections the run expects",
+    "body": "<p>The run expects a North star and sections on measurement, reporting, loop state and tests. As in the last seven runs, I used the nearest thing the repo has.</p>",
+    "figure": {
+     "html": "<table><thead><tr><th>Missing section</th><th>Used instead</th></tr></thead><tbody><tr><td>North star</td><td>ARCHITECTURE.md “Scope and trust assumptions”, and CLAUDE.md “Performance” for what speed is for</td></tr><tr><td>Measurement</td><td>CLAUDE.md “Performance”: <code>bench/run.mjs --primary --base</code></td></tr><tr><td>Reporting, loop state, session log</td><td><code>bench/loop/</code> as earlier runs left it</td></tr><tr><td>Tests</td><td>the unit, e2e and server suites, and CLAUDE.md’s coverage rules</td></tr></tbody></table>",
+     "caption": "What each missing section was replaced with."
+    },
+    "recommend": "Add a short North star (what the game is for, and what it is not) when convenient."
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The bench’s headline measurements are the moments a player waits for, listed in <code>bench/primary.mjs</code>. This run added one: a finished game’s review, from “Analyse” to every move marked. Against main, the branch is 1.097 times as fast over all fourteen. Two are called better: the phone’s start page showing its board (46% faster) and the review (54% faster). None is called worse. Memory stayed within the 5% limit: a reopened long game uses 0.1% less JavaScript heap.</p>",
+  "items": [
+   {
+    "title": "The branch against main",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: beccfdf vs 9f2d524 (primary, 4 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "Branch beccfdf against main 9f2d524, 4 pairs."
+     }
+    ]
+   },
+   {
+    "title": "The headline results again, on the final commit",
+    "body": "<p>After merging main, I measured the start page and the review again on the final commit, against the new main. Both results hold: the phone’s board appears at 923 ms instead of 1.76 s (46% faster), and the review finishes in 4.74 s instead of 10.4 s (56% faster), both called. Both “usable” rows leaned faster (desktop 2.8%, phone 6.5%), not called.</p><p>One row was called worse: the desktop’s first visit’s first click, 19 → 512 ms. It is timed once per run and has two modes, about 15 ms or about 500 ms, depending on whether the click lands while the first visit is still preparing its shaders. Pooled over the last two A/Bs, the slow mode came up in 4 of 9 branch runs and 3 of 9 main runs, and the 6-pair re-check before the merge called nothing (it leaned 82% faster). Main’s own later clicks hit the slow mode too (370, 555 and 338 ms). I read it as noise that a 3-pair A/B can call either way; the next run times more first visits.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "tip: 89eb146 vs de25815 (cold-load + review, 3 pairs)",
+       "only": "Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|bytes downloaded|pictures of the board downloaded)|Reviewing a finished game · “Analyse” clicked|Cold load of the start screen · desktop · first visit’s first click"
+      },
+      "caption": "The final commit 89eb146 against main de25815 (main after #141, #144 and #145), 3 pairs."
+     }
+    ]
+   },
+   {
+    "title": "The branch against the first recorded run",
+    "body": "<p>The run’s target was 1.2 times the speed of the first recorded run (92ce041). The final commit is 2.17 times as fast over the eleven headline measurements the old code can also make; it had no computer player and no review. Six are called better, most by far: a move or a picked-up piece now appears in about 0.4–0.5 s instead of over 5 s, mostly from the last run’s change to how pictures reach the GPU. Three are called worse than the first run, all on the start page: usable on desktop (78 → 123 ms) and on the phone (709 → 925 ms), and the first click (8.5 → 22 ms). The start page has grown a lot since then (the computer player, the tutorial, the picture), and this run’s fix recovers only part of that. A reopened long game uses 34% more JavaScript heap than in the first run, as earlier runs already found.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "vs first run: 89eb146 vs 92ce041 (primary, 3 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "The final commit 89eb146 against the first recorded run 92ce041, 3 pairs."
+     }
+    ]
+   }
+  ]
+ },
+ "changed": {
+  "items": [
+   {
+    "title": "A phone downloads the start page’s own picture, and shows it in half the time",
+    "body": "<p>The start page shows a picture of its 3D preview until the preview has loaded. A small script in the page’s head starts that picture downloading early, choosing the phone, tablet or wide picture from the window’s size. The build placed the script before the tag that tells a phone to use its own width, and until that tag is read a phone reports a 980-pixel-wide window. So every phone chose the tablet’s picture (73 KB), and the phone’s own picture started downloading only when the page drew it.</p><p>The script now follows that tag (commit 0c7aea0). A unit test fails if it moves back, and the bench now counts the pictures each cold load downloads. On the slowed phone, the board appears at 870 ms instead of 1.70 s, the page downloads 12% less, and “Play a friend” is ready 3.5% sooner (not called). One diagnostic got worse. On the phone without slowing, the first paint comes 76 ms later (146 → 222 ms), because the picture has already arrived and the first frame now includes it. The board on that phone appears 8.5% sooner.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "PL: the picture's preload after the viewport tag vs b305f6d (cold-load, 5 pairs)",
+       "only": "Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|bytes downloaded|pictures of the board downloaded)"
+      },
+      "caption": "The fix against the commit before it, 5 pairs."
+     }
+    ]
+   },
+   {
+    "title": "A finished game’s review searches in several workers at once",
+    "body": "<p>A review searches each position of the game for a fixed number of positions (120,000), so its marks are the same on any machine. It used to search one position at a time in one worker. Each position is a separate search, so they can run side by side with the same results. The review now uses one worker per spare core, at most three, and hands the positions out from the start of the game (commit b305f6d). The marks were identical in all 16 runs of the A/B, and the page showed no freezes.</p><p>A review whose search failed used to show “done” with its counts as if final, so a review that failed at the first move read as a perfect game. Now it says “Analysis stopped” with a Retry button, which continues from the positions already found. The diff review found that a search finishing after the stop could restart the progress bar for good; that is fixed with a test (4b7fb96).</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "RV-P: review in parallel workers vs 995fca9 (review, 4 pairs)",
+       "only": "Reviewing a finished game · “Analyse” clicked"
+      },
+      "caption": "Parallel review against the commit before it, 4 pairs."
+     }
+    ]
+   },
+   {
+    "title": "The server’s tests now catch a lost write-back, and one large message can no longer stall every game",
+    "body": "<p>Each change to a game record is read, changed and written back. In production the store hands out copies, so the write-back is the whole change. The tests used a plain dictionary, which hands out the record itself, so a missing write-back passed every test. The tests and the local server now use a store that copies the way production does (commits fea5a5a and 2e17292). Removing a write-back now fails two tests; on main all 77 pass.</p><p>Every message is checked against all 31 message types. A 1 MB message made of 100,000 short keys took 7.4 s to check on this machine, and the server handles all games on one thread. Messages longer than 4,096 characters are now refused before they are read (cfbace2); the longest real message is about 150. A rejoin now sends every field the stored record shares with the protocol, instead of a hand-kept list, and its test reads the field from the rejoin (10ce347).</p>"
+   },
+   {
+    "title": "A rematch keeps its seat when the browser refuses to save it",
+    "body": "<p>When local storage was full or turned off, accepting a rematch opened the new game with no saved seat, and the page showed “Game full” for the game the player had just been placed in. The page now also carries the seat in its navigation (9ba343a).</p>"
+   },
+   {
+    "title": "Checks that can now fail",
+    "body": "<ul><li>The grade thresholds are tested a centipawn either side of each edge. A slope 2% off now fails the test (ede4014).</li><li>Lint now fails any app canvas that does not draw on demand (beccfdf).</li><li>The start page’s e2e tests now check that the picture decoded, not only that its box is visible (7cbf25a).</li><li>The bench has a review section, which fails if two runs give different marks (995fca9, fixed in f3a7997).</li></ul>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<p>Nothing was deleted outright. Against the current main, the branch adds 574 lines and removes 215 in 30 files, outside the run’s notes. The app’s code grows by 59 lines (client +27, server +32): the parallel review and its stopped state, the rematch’s seat, the preload fix, the size cap and the copying store. Cleanup removed 29 lines from GameActions (six near-identical blocks into one table) and 21 lines of test stubs that nothing read. Tests grow by 153 lines, the bench by 123 (the review section, the picture count and the probe), lint by 11 and docs by 13. My shared e2e resign helper and level-list change were dropped in the merge, since #144 had made the same changes.</p>"
+ },
+ "rejected": {
+  "items": [
+   {
+    "title": "Loading the 3D preview only after the picture is on screen",
+    "body": "<p>A reviewer suggested that the preview’s code, loading at the same time, held the picture back. Five pairs showed otherwise: the phone’s board leaned 9.8% faster (not called), the desktop’s leaned 27% slower (not called), and the phone’s live preview was called 11% slower. I reverted it; the patch is in <code>bench/loop/patches/picture-before-preview-SP1.patch</code>. Looking at that phone load step by step is what found the real cause, the wrong picture.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "SP1 (rejected): preview chunk after the picture vs b305f6d (cold-load, 5 pairs)",
+       "only": "Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|bytes downloaded|pictures of the board downloaded)"
+      },
+      "caption": "Preview after the picture, against b305f6d, 5 pairs."
+     }
+    ]
+   },
+   {
+    "title": "Catching JSON nested too deeply",
+    "body": "<p>I added a catch for this with the size cap. The diff review pointed out that a message under 4,096 characters can nest at most 2,047 levels, which Python parses without trouble, so the catch could never run. I removed it.</p>"
+   }
+  ]
+ },
+ "choices": {
+  "intro": "<ul><li>The review uses one worker per spare core, at most three. On a 4-core phone that is three workers during a review, using up to about 10 MB more memory while it runs (not measured).</li><li>The words “Analysis stopped” and “Retry” for a failed review.</li><li>Messages over 4,096 characters are refused with “Message is too large”.</li><li>The local server, e2e and the bench now copy records the way production does. Seeding a 2,000-move game in the bench takes longer (bench setup only, not a measured moment).</li><li>The keyboard fix on the offer line: after answering one offer, focus no longer lands on the next offer’s button.</li><li>I accepted the later first paint on the unthrottled phone, since the board itself appears sooner.</li><li>The branch is pushed as <code>claude/serene-galileo-jajbb3</code>, the session’s branch, not <code>improve/20261015-0212</code>.</li><li>I folded the dependencies reviewer into the “what’s new” reviewer: every dependency is current (three r186, react-three-fiber 9.8.1, Vite 8.3.4).</li></ul>"
+ },
+ "notConfirmed": {
+  "intro": "<ul><li>The review on a real phone. With three workers on a slow phone, a position might hit the 1.5 s time limit before its 120,000 positions, and its marks would then differ from a desktop’s.</li><li>The workers’ memory during a review. The bench measures the page’s memory, not the workers’.</li><li>Whether Modal’s own front end accepts frames larger than 4,096 characters at all; the cap holds either way.</li><li>The full e2e suite on this machine. It ran in CI on the merge commit and passed; here I ran the six specs the changes touch (14 tests, all passing).</li><li>Caching of the built files on Cloudflare Pages. The sandbox cannot reach pages.dev to read the headers.</li></ul>"
+ },
+ "merge": {
+  "intro": "<p>Other sessions merged three PRs into main during the run (#141, #144 and #145), and more were open. I merged main into the branch at 89eb146. Six files conflicted. #144 had also made one shared e2e <code>resign</code> helper and made <code>isDifficulty</code> read the list of levels, so I took main’s versions and dropped mine. The rematch keeps its colour in the navigation, using main’s <code>otherSide</code>. Lint, typecheck, 1,373 unit tests and 79 server tests pass on the merge. ARCHITECTURE.md now describes the parallel review and its stopped state, the picture’s preload, the copying store and the size cap. CLAUDE.md is unchanged.</p>"
+ },
+ "next": {
+  "intro": "<ol><li>Use one search on the page, not three, when the browser cannot start a worker (RV17).</li><li>Measure a review’s time per position on a phone, to see whether the 1.5 s limit bites (RV18).</li><li>Count the shaders linked at the end of a reopened game’s entrance, where #140’s replay may have moved three of them (RP1).</li><li>Keep a review’s results when the page is reloaded (RV-K).</li><li>Make <code>/assets/*</code> cacheable for a year in <code>_headers</code>, after reading the production headers (P2′).</li><li>The smaller items in the ledger: V16, I13–I15, D9–D11, DR2–DR4, E15, M9′, CW2.</li></ol>"
+ }
+}
