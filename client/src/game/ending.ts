@@ -103,6 +103,14 @@ export interface RematchState {
   live: boolean;
 }
 
+/** No rematch offered: a game against the computer, whose rematch is made at once. */
+export const NO_REMATCH: RematchState = {
+  standing: null,
+  declined: null,
+  gameId: null,
+  live: false,
+};
+
 /**
  * The rematch offered once the game is over, from the log: who offered it,
  * whose offer was declined, or the new game it began. Unlike a draw offer it

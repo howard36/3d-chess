@@ -11,7 +11,7 @@ import type { ChunkFailure } from '../components/ChunkBoundary';
 import type { Move } from '../engine';
 import type { GameHistory } from '../game/history';
 import type { Color } from '../types/messages';
-import EndGameModal, { NewGameBar } from './EndGameModal';
+import EndGameModal, { RematchBar } from './EndGameModal';
 import type { RematchProps } from './EndGameModal';
 import PromotionPicker from './PromotionPicker';
 import TurnPill from './TurnPill';
@@ -48,8 +48,6 @@ export interface GameViewProps {
   reconnecting: boolean;
   /** What the pill calls the opponent ("Opponent" by default; "Computer"). */
   opponentName?: string;
-  /** Where "Play again" leads: the side choice (/new) by default. */
-  newGamePath?: string;
   /** The board takes no input (disconnected, a stale snapshot, a move awaiting its echo). */
   boardDisabled: boolean;
   /** Sends a move (a click on the board, the move box, the promotion dialog). */
@@ -74,7 +72,7 @@ export interface GameViewProps {
    * against the computer, taking a move back too.
    */
   actions?: Omit<GameActionsProps, 'seat'>;
-  /** A friend's game: the rematch, offered once the game is over (instead of "Play again"). */
+  /** The rematch, once the game is over (against a friend, offered and answered). */
   rematch?: RematchProps;
   /**
    * The entrance (three/intro/timeline.ts): `full` for a game that starts
@@ -117,7 +115,6 @@ const GameView: React.FC<GameViewProps> = ({
   opponentOnline,
   reconnecting,
   opponentName,
-  newGamePath = '/new',
   boardDisabled,
   onMove,
   promotionChoices,
@@ -363,15 +360,14 @@ const GameView: React.FC<GameViewProps> = ({
             result={gameOver.result}
             winner={gameOver.winner}
             seat={color ?? 'white'}
-            newGamePath={newGamePath}
             rematch={rematch}
             onClose={() => setClosedEnd(gameOver)}
           />
         </div>
       )}
-      {gameOver && showEndModal && !resultUp && (
+      {gameOver && showEndModal && !resultUp && rematch && (
         <div inert={replaced}>
-          <NewGameBar newGamePath={newGamePath} rematch={rematch} />
+          <RematchBar rematch={rematch} />
         </div>
       )}
       {replacedNotice}

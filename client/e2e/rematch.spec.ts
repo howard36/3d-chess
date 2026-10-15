@@ -27,14 +27,14 @@ test('a rematch declined, offered back and accepted swaps the colours', async ({
   await expect(black.getByRole('dialog', { name: 'You win' })).toBeVisible();
   const oldUrl = white.url();
 
-  // White offers; Black declines: White's turns to a new game, Black's stays
+  // White offers; Black declines: White's turns to the way home, Black's stays
   await expect(go(white)).toHaveText('Rematch');
   await go(white).click();
   await expect(go(white)).toHaveAttribute('data-state', 'mine');
   await expect(go(black)).toHaveText('Accept rematch');
   await black.getByRole('button', { name: 'Decline' }).click();
   await expect(white.getByTestId('rematch-declined')).toBeVisible();
-  await expect(go(white)).toHaveText('New game');
+  await expect(go(white)).toHaveText('Home');
   await expect(go(black)).toHaveText('Rematch');
 
   // Black offers one back, from below the tower, and White accepts
@@ -76,4 +76,38 @@ test('a rematch declined, offered back and accepted swaps the colours', async ({
   expect(white.url()).toBe(black.url());
   await expect(white.getByTestId('move-announcer')).toHaveAttribute('data-move-count', '1');
   await game.close();
+});
+
+test('against the computer, a rematch starts at once: the same level, the colours swapped', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  await page.goto('/computer');
+  await page.getByRole('button', { name: /^White/ }).click();
+  await page
+    .getByRole('group', { name: 'Difficulty' })
+    .getByRole('button', { name: 'Easy' })
+    .click();
+  await page.waitForURL(/\/computer\/[a-z0-9]+$/);
+  await waitForBoard(page);
+  const oldUrl = page.url();
+  await resign(page);
+  await expect(page.getByRole('dialog', { name: 'You lose' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Home' })).toBeVisible();
+  await expect(go(page)).toBeFocused();
+  await go(page).click();
+
+  // A new game at once, the player Black: the computer, White now, opens it
+  await page.waitForURL(
+    (url) => /^\/computer\/[a-z0-9]+$/.test(url.pathname) && url.href !== oldUrl,
+  );
+  await expect(page.getByTestId('seat')).toHaveAttribute('data-seat', 'black');
+  await waitForBoard(page);
+  await expect(page.getByTestId('turn-indicator')).toContainText('Computer');
+  await expect(page.getByTestId('turn-indicator')).not.toHaveAttribute('data-result');
+  await expect(page.getByTestId('move-announcer')).toHaveAttribute('data-move-count', '1', {
+    timeout: 20_000,
+  });
+  await context.close();
 });

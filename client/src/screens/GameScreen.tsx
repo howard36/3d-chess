@@ -6,6 +6,7 @@ import { deriveHistory } from '../game/history';
 import type { GameHistory, GameOver } from '../game/history';
 import {
   selectDrawOffer,
+  NO_REMATCH,
   selectEnding,
   selectRematch,
   selectTakebackRequest,
@@ -44,10 +45,17 @@ interface GameScreenProps {
    * page's first render (there is no one to invite); `arriving`, the side
    * choice is still on the lobby's stage, and the computer's king takes its
    * seat there before the game's entrance (the arrival, as a friend's would).
-   * `onTakeBack` takes back the player's last move (and the computer's reply).
+   * `onTakeBack` takes back the player's last move (and the computer's reply);
+   * `onRematch` starts the rematch, the colours swapped, at the same level.
    */
-  computer?: { color: Color; difficulty: Difficulty; arriving?: boolean; onTakeBack?: () => void };
-  /** Where "Play again" (and "No game here") leads: the side choice (/new) by default. */
+  computer?: {
+    color: Color;
+    difficulty: Difficulty;
+    arriving?: boolean;
+    onTakeBack?: () => void;
+    onRematch?: () => void;
+  };
+  /** Where "No game here" leads: the side choice (/new) by default. */
   newGamePath?: string;
   /** Called once the game's entrance is over and the board is in play. */
   onPlaying?: () => void;
@@ -535,7 +543,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
         opponentOnline={opponentOnline}
         reconnecting={status === 'reconnecting'}
         opponentName={computer ? 'Computer' : undefined}
-        newGamePath={newGamePath}
         boardDisabled={boardDisabled}
         onMove={handleMove}
         promotionChoices={promotionChoices}
@@ -576,17 +583,27 @@ const GameScreen: React.FC<GameScreenProps> = ({
               },
         }}
         rematch={
-          computer || !color
+          !color
             ? undefined
-            : {
-                state: rematch,
-                seat: color,
-                disabled: actionsDisabled,
-                onOffer: () => gameSocket.send({ type: 'offer_rematch' }),
-                onAnswer: (accept) =>
-                  gameSocket.send({ type: accept ? 'accept_rematch' : 'decline_rematch' }),
-                onJoin: joinRematch,
-              }
+            : computer
+              ? computer.onRematch && {
+                  // Nothing to offer or answer: the computer always plays again
+                  state: NO_REMATCH,
+                  seat: color,
+                  disabled: false,
+                  onOffer: computer.onRematch,
+                  onAnswer: () => {},
+                  onJoin: () => {},
+                }
+              : {
+                  state: rematch,
+                  seat: color,
+                  disabled: actionsDisabled,
+                  onOffer: () => gameSocket.send({ type: 'offer_rematch' }),
+                  onAnswer: (accept) =>
+                    gameSocket.send({ type: accept ? 'accept_rematch' : 'decline_rematch' }),
+                  onJoin: joinRematch,
+                }
         }
         // The whole entrance for a game that started while this page was
         // open, a short one for a page that opened on a game under way

@@ -44,7 +44,7 @@ const pageFor = (socket: GameSocket) => (
     <Routes>
       <Route path="/game/OLD123" element={<GameScreen gameSocket={socket} />} />
       <Route path="/game/:gameId" element={<Arrived />} />
-      <Route path="/new" element={<p data-testid="side-choice" />} />
+      <Route path="/" element={<p data-testid="home" />} />
     </Routes>
   </MemoryRouter>
 );
@@ -66,7 +66,7 @@ describe('GameScreen: a rematch against a friend', () => {
   beforeEach(() => localStorage.setItem('3dchess:role:OLD123', 'white'));
   afterEach(() => localStorage.clear());
 
-  it('offers one from the result card, with the way to a new game under it', () => {
+  it('offers one from the result card, with the way home under it', () => {
     const send = vi.fn(() => true);
     render(pageFor(fakeSocket([over()], send)));
     expect(screen.getByRole('dialog', { name: 'You lose' })).toBeInTheDocument();
@@ -75,8 +75,8 @@ describe('GameScreen: a rematch against a friend', () => {
     expect(go()).toHaveFocus();
     act(() => go().click());
     expect(send).toHaveBeenCalledWith({ type: 'offer_rematch' });
-    act(() => screen.getByRole('button', { name: 'New game' }).click());
-    expect(screen.getByTestId('side-choice')).toBeInTheDocument();
+    act(() => screen.getByRole('button', { name: 'Home' }).click());
+    expect(screen.getByTestId('home')).toBeInTheDocument();
   });
 
   it('waits on its own offer, the button kept and the focus on it', () => {
@@ -101,16 +101,17 @@ describe('GameScreen: a rematch against a friend', () => {
     expect(send).toHaveBeenLastCalledWith({ type: 'accept_rematch' });
     act(() => screen.getByRole('button', { name: 'Decline' }).click());
     expect(send).toHaveBeenLastCalledWith({ type: 'decline_rematch' });
-    expect(screen.queryByRole('button', { name: 'New game' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
   });
 
-  it('turns to a new game once its own offer is declined', () => {
+  it('turns to the way home once its own offer is declined', () => {
     render(pageFor(fakeSocket([over({ by: 'white', declined: true })])));
     expect(screen.getByTestId('rematch-declined')).toHaveTextContent('Rematch declined');
-    expect(go()).toHaveAccessibleName('New game');
+    expect(go()).toHaveAccessibleName('Home');
     expect(screen.getByTestId('rematch-announcer')).toHaveTextContent('Rematch declined.');
+    expect(screen.getAllByRole('button', { name: 'Home' })).toHaveLength(1);
     act(() => go().click());
-    expect(screen.getByTestId('side-choice')).toBeInTheDocument();
+    expect(screen.getByTestId('home')).toBeInTheDocument();
   });
 
   it("offers one again after declining the opponent's", () => {

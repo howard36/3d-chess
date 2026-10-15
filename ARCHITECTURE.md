@@ -254,18 +254,20 @@ Key decisions:
   agreed"), and the result card says "You win", "You lose" or "Draw" with how ("by
   checkmate", "White resigned", "by stalemate", "by repetition", "by the 50-move rule", "by
   agreement"); `data-result` is `checkmate`, `resignation`, `stalemate`, `repetition`,
-  `fifty-moves` or `agreement`, and the board takes no more input. The card's one call to
-  action, which has the focus, is "Play again" against the computer (its side choice) and
-  "Rematch" against a friend, with "New game" (the side choice, `/new`) quieter under it
-  (`Rematch` in `screens/EndGameModal.tsx`). The rematch is a new game with the colours
-  swapped, offered and answered like a draw: the button follows the offer, one element
-  throughout so the focus stays on it: "Rematch offered" (waiting, not pressed) while the
-  player's own stands, "Accept rematch" with "Decline" under it for the opponent's, and
-  "New game", under "Rematch declined", once the player's own was declined. Accepted, both
+  `fifty-moves` or `agreement`, and the board takes no more input. The card's call to
+  action, which has the focus, is "Rematch", with "Home" (the start page) quieter under it
+  (`Rematch` in `screens/EndGameModal.tsx`), against the computer and a friend alike. A
+  rematch is a new game with the colours swapped. Against the computer it starts at once,
+  at the same level (`ComputerGameScreen`'s `onRematch`, made as the side choice makes a
+  game; the computer sits down as its page opens). Against a friend it is offered and
+  answered like a draw: the button follows the offer, one element throughout so the focus
+  stays on it: "Rematch offered" (waiting, not pressed) while the player's own stands,
+  "Accept rematch" with "Decline" beside "Home" under it for the opponent's, and "Home",
+  under "Rematch declined", once the player's own was declined. Accepted, both
   players' pages open the new game at once (the seat stored as a joined one is, the router's
   state asking for the whole entrance); a finished game opened after its rematch began says
   "Join rematch" instead. The same buttons stand below the tower once the card is put away
-  (`NewGameBar`), side by side, the quieter one over the pill where the room beside the
+  (`RematchBar`), side by side, the quieter one over the pill where the room beside the
   history's steps holds the pill alone; `rematch-announcer` says an offer and a refusal.
   While the game is on, a
   flag in a circle stands under the way to the tutorial at the right (`screens/GameActions.tsx`,
@@ -319,7 +321,7 @@ Key decisions:
   narrow glass panel at the right under "How to play" and the flag, in one column with them
   (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
   height to fit (the list scrolls, the move shown kept in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
-  in a row under the tower (above "Play again" or the rematch, or beside it in a window at least 560 px wide, where the tower fills the height and leaves room under it for one row), the move shown
+  in a row under the tower (above the rematch, or beside it in a window at least 560 px wide, where the tower fills the height and leaves room under it for one row), the move shown
   between them ("7… Ed4–Ba1"), which opens the list above them. Closed, the list is
   visually hidden, never `display: none`: it is how a screen reader reads the record, and
   a polite status says where the board stands as the player steps. A reopened game's list
@@ -634,7 +636,7 @@ level (`scene/fx.tsx`), the obsidian blades round him sink into the glass and ar
 the winning army hops in a wave out from him. The result card follows `onToppled` after a
 hold on the final board (`screens/useEndCard.ts`), in the middle of
 the screen. It can be closed (its close button, Escape, a click outside it) to turn and
-zoom the final position, with "Play again" (or the rematch) left below the tower. From history he simply falls. The knock lands
+zoom the final position, with the rematch left below the tower. From history he simply falls. The knock lands
 85 ms before the mating piece comes to rest (its glide eases in so slowly that it looks
 landed by then), the pulse spreads at 4.5 world units a second, the wave sets off 370 ms
 after the king strikes and travels at 15, and the card follows 1.3 s after the strike
@@ -931,8 +933,8 @@ until the row fits the width).
   both the answer and the moment are over (`onSettled`, `LOBBY_TIMING.settle`: 0.3 s after
   the pick or the coin's rest, while the others still fade, so the pick, the camera's
   move and the card run as one). A
-  refusal puts the kings back with "Couldn't start a game: …". The end-game dialog's
-  "New game" and the invitation's "Play a friend" lead here.
+  refusal puts the kings back with "Couldn't start a game: …". The invitation's "Play a
+  friend" leads here.
 - **The host** (`GameScreen`'s `wait` beat and `InviteCard` in
   `screens/lobby/LobbyCards.tsx`). The heading stays "You play Black", now with a
   breathing dot and "Waiting for your friend…" under it. The card under the kings, of
@@ -1071,7 +1073,7 @@ stands, as a rejoin's answer would (and a game not yet begun has the computer si
 once), so the page holds its seat from its first render. It plays the arrival only when it
 was opened from its side choice (`markArriving`, in memory: a reload or a visit from
 history opens on the game itself, with its own entrance). The pill calls
-the opponent "Computer", and "Play again" leads back to `/computer`. A page for a game
+the opponent "Computer", and "Rematch" starts the next game at once (see HUD). A page for a game
 this browser does not hold says "No game here", with "Play the computer".
 
 **The computer's move.** Whenever the record leaves the computer to move, the hook asks

@@ -1979,14 +1979,16 @@ body {
 .hud-result-go {
   margin-top: 18px;
 }
-/* A friend's game over: the rematch, and under it the way to a new game
-   (or the answer to the opponent's offer); below the tower, side by side */
+/* A game over: the rematch, and under it the way home (and the answer to
+   the opponent's offer); below the tower, side by side */
 .hud-rematch {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 .hud-rematch-other {
+  display: inline-flex;
+  gap: 4px;
   margin-top: 8px;
 }
 .hud-rematch-note {
