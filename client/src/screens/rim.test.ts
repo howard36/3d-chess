@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RIM_SAMPLES, rimColour, rimGradient, rimPoints } from './rim';
+import { RIM_SAMPLES, rimColour, rimFacing, rimGradient, rimPoints } from './rim';
 
 const SKY = 'rgb(71,187,236)';
 const VIOLET = 'rgb(143,97,252)';
@@ -62,5 +62,57 @@ describe('the rim of the pill of starlight', () => {
     expect(colourAt(quarter, 180)).toBe(ROSE);
     expect(colourAt(quarter, 0)).toBe(SKY);
     expect(rimGradient(points, 1)).toBe(rest);
+  });
+
+  it("runs round a tile's rounded corners at the same even steps", () => {
+    // The start page's tile: 14 px corners, the rim's middle 0.75 px in
+    const [w, h, radius, inset] = [165, 116, 14, 0.75];
+    const points = rimPoints(w, h, { radius, inset });
+    for (let i = 1; i < points.length; i++) {
+      expect(points[i].angle).toBeGreaterThan(points[i - 1].angle);
+    }
+    // The middles of the sides a quarter round apart, as in any box
+    expect(rimFacing(w, h, { radius, inset }, 90)).toBeCloseTo(0.25, 5);
+    expect(rimFacing(w, h, { radius, inset }, 180)).toBeCloseTo(0.5, 5);
+    expect(rimFacing(w, h, { radius, inset }, 270)).toBeCloseTo(0.75, 5);
+    // The share of a lap a colour spends on the top's straight run is its share of the rim
+    const r = radius - inset;
+    const across = w - 2 * inset - 2 * r;
+    const down = h - 2 * inset - 2 * r;
+    const length = 2 * across + 2 * down + 2 * Math.PI * r;
+    const end = (Math.atan2(across / 2, h / 2 - inset) * 180) / Math.PI;
+    const onTop = points.filter((p) => p.angle <= end || p.angle >= 360 - end);
+    expect(onTop.length / RIM_SAMPLES).toBeCloseTo(across / length, 1);
+  });
+
+  it('finds the point of the rim facing a way', () => {
+    // A pill's ends, whichever way round the bearing is given
+    expect(rimFacing(240, 52, {}, 270)).toBeCloseTo(0.75, 5);
+    expect(rimFacing(240, 52, {}, -90)).toBeCloseTo(0.75, 5);
+    expect(rimFacing(240, 52, {}, 0)).toBe(0);
+    // A tile's corner faces the diagonal: on its arc, where its points' bearings
+    // lean that way, nowhere near the top's middle
+    const [w, h, radius, inset] = [146, 46, 14, 0.75];
+    const at = rimFacing(w, h, { radius, inset }, 308);
+    const r = radius - inset;
+    const across = w - 2 * inset - 2 * r;
+    const down = h - 2 * inset - 2 * r;
+    const length = 2 * across + 2 * down + 2 * Math.PI * r;
+    const cornerStart = (across / 2 + across + 2 * down + (3 * Math.PI * r) / 2) / length;
+    expect(at).toBeGreaterThan(cornerStart);
+    expect(at).toBeLessThan(cornerStart + (Math.PI * r) / 2 / length);
+    expect(rimFacing(0, 0, {}, 90)).toBe(0);
+  });
+
+  it('rests sky where it is asked to', () => {
+    const box = { radius: 14, inset: 0.75 };
+    const points = rimPoints(165, 116, box);
+    const sky = rimFacing(165, 116, box, 308);
+    const css = rimGradient(points, 0, sky);
+    const first = points.find((p) => Math.abs(p.at - sky) < 1 / RIM_SAMPLES)!;
+    expect(colourAt(css, first.angle)).toBe(SKY);
+    const rose = (sky + 0.5) % 1;
+    const across = points.find((p) => Math.abs(p.at - rose) < 1 / RIM_SAMPLES)!;
+    expect(colourAt(css, across.angle)).toBe(ROSE);
   });
 });

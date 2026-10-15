@@ -8,6 +8,10 @@ import { BotGlyph } from './BotGlyph';
 import { PieceType } from '../engine/pieces';
 import { learnScreen } from './learn/learnChunk';
 import { LandingPicture } from './LandingPicture';
+import { glassRim } from './turningRim';
+
+/** The tiles' rim turns while the pointer is on them. */
+const tileRim = glassRim((_, pointed) => pointed);
 
 // The preview (three.js, the scene, the demo's games) is a chunk of its own,
 // asked for when the page first draws, so its title and buttons show without
@@ -61,7 +65,7 @@ const StartScreen: React.FC = () => {
           </h1>
         </header>
         <div className="landing-foot">
-          <button className="landing-mode" onClick={() => navigate('/new')}>
+          <button ref={tileRim} className="landing-mode" onClick={() => navigate('/new')}>
             <span className="landing-mode-icon" aria-hidden>
               <span className="landing-face">
                 <PieceGlyph type={PieceType.Knight} color="white" size={24} />
@@ -70,7 +74,7 @@ const StartScreen: React.FC = () => {
             </span>
             <span className="landing-label">Play a friend</span>
           </button>
-          <button className="landing-mode" onClick={() => navigate('/computer')}>
+          <button ref={tileRim} className="landing-mode" onClick={() => navigate('/computer')}>
             <span className="landing-mode-icon landing-mode-icon-wide" aria-hidden>
               <span className="landing-face">
                 <PieceGlyph type={PieceType.Knight} color="white" size={24} />

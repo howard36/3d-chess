@@ -459,13 +459,16 @@ Key decisions:
   play" on the start page, "Play here", Retry, the tutorial's Next); a word that goes back
   or cancels is a quiet link (`.button-link`: "← Home", "How to play" in a game, Cancel,
   Start over, the result's Decline and Home); a glyph alone is `.button-icon` (the result card's and an error's ✕). The
-  pill wears the turning rim of the level colours (`rim`, its colours carried round it
-  at one pace by `screens/rim.ts`) only where it stands alone on the scene and urges a
+  pill wears the turning rim of the level colours (`rim`) only where it stands alone on the scene and urges a
   game on: "Join game", the way on from a game taken or gone, the result's "Rematch" (and its
   answers; plain once it turns to "Home"). In a card of
   the rimmed glass ("Copy link") it is plain, one rim to an object, and the 404 page's
   Home goes without. A rimmed card holds more than one thing: a heading and one button
-  stand on the page alone. Focus the page moves by itself (a page's one action on
+  stand on the page alone. Every turning rim, the pill's and the tiles', is painted by
+  `screens/turningRim.ts` on the animation frames, each colour placed by its distance round
+  the control (`screens/rim.ts`), so it moves at one pace along long sides, short sides and
+  corners alike; at rest it puts sky and rose where the stylesheet's straight gradient does
+  (the pill's ends, the tiles' top left and bottom right corners). Focus the page moves by itself (a page's one action on
   arrival, a dialog's button, the promotion's first piece) goes through `lib/focus.ts`
   (`autoFocusRef`, `focusFromCode`, never `autoFocus`): browsers ring any focus a script
   moves before a pointer has pressed, so it is marked `data-quiet-focus` and wears no ring
@@ -953,9 +956,9 @@ until the row fits the width).
   `--seat-<seat>-front`), and nothing under the heading. The page is in the home page's
   language: the headings in its display type (heavy and tight, over the short rule of the
   level colours that stands under its title), and the buttons and cards of its tiles'
-  glass (`.lobby-glass`, shared with `.landing-mode`). A side button shows a trace of the
-  tiles' rim at rest and all of it, with the tiles' glow and sheen, when pointed at (on it
-  or on its king), focused or chosen. A king lifts under a mouse (on it or its button) or its
+  glass (`.lobby-glass`, shared with `.landing-mode`). A side button wears the tiles'
+  rim in full, as they do, and their glow and sheen when pointed at (on it or on its king),
+  focused or chosen, its rim turning while pointed at. A king lifts under a mouse (on it or its button) or its
   button's focus, as if picked up, and clicking either picks; a tap leaves no hover behind.
   A pick is final: `create_game {color}` goes out at once (and again on the next socket if
   its answer is lost), and the heading turns to "You play Black" (or "Leaving it to
