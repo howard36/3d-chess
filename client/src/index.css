@@ -778,11 +778,23 @@ body {
   max-height: min(42vh, 340px);
   margin: 0;
   padding: 2px 0;
+  /* The list's edges are where its rows scroll out of sight: a hairline
+     marks each one where something stands beyond it (the counts, the steps,
+     the better move), so a row is cut off at an edge, not out of nothing */
+  border-color: rgba(236, 241, 255, 0.1);
+  border-style: none;
+  border-width: 1px 0;
   overflow-y: auto;
   list-style: none;
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(236, 241, 255, 0.2) transparent;
+}
+:not(.sr-only) + .hud-moves {
+  border-top-style: solid;
+}
+.hud-moves:not(:last-child):has(+ :not(.sr-only)) {
+  border-bottom-style: solid;
 }
 .hud-moves li {
   display: grid;
@@ -857,17 +869,12 @@ body {
 .hud-ply:focus-visible {
   outline: none;
 }
+/* The move shown, lit the same at the latest move as at an earlier one */
 .hud-ply[aria-current] {
-  color: var(--hud-fg);
+  color: var(--hud-accent-fg);
   font-weight: 600;
 }
 .hud-ply[aria-current] .hud-ply-word {
-  background: rgba(236, 241, 255, 0.16);
-}
-.hud-history[data-review] .hud-ply[aria-current] {
-  color: var(--hud-accent-fg);
-}
-.hud-history[data-review] .hud-ply[aria-current] .hud-ply-word {
   background: var(--hud-accent);
 }
 .hud-ply:disabled {
@@ -905,13 +912,13 @@ body {
   color: var(--grade-blunder);
 }
 /* On the lit move shown, the same hues deep enough to read on its light */
-.hud-history[data-review] .hud-ply[aria-current] .hud-mark[data-grade='inaccuracy'] {
+.hud-ply[aria-current] .hud-mark[data-grade='inaccuracy'] {
   color: #17689c;
 }
-.hud-history[data-review] .hud-ply[aria-current] .hud-mark[data-grade='mistake'] {
+.hud-ply[aria-current] .hud-mark[data-grade='mistake'] {
   color: #a65200;
 }
-.hud-history[data-review] .hud-ply[aria-current] .hud-mark[data-grade='blunder'] {
+.hud-ply[aria-current] .hud-mark[data-grade='blunder'] {
   color: #c2241b;
 }
 .hud-review {
