@@ -43,7 +43,11 @@ export interface MoveHistoryProps {
    * behind a dialog, nor while the game's entrance plays.
    */
   enabled: boolean;
-  /** The game is over and the rematch stands under the tower (index.css keeps clear of it). */
+  /**
+   * The game is over and its result card put away: in a narrow window the
+   * steps take the pill's place at the top, the list opening under them
+   * (index.css), clear of the rematch under the tower.
+   */
   ended?: boolean;
   /**
    * The game is on: the record is out of sight, kept in the page as words for
@@ -294,8 +298,9 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       return;
     }
     // Scrolled by hand rather than scrollIntoView, which would scroll the
-    // game's page too
-    const top = button.offsetTop - ol.offsetTop;
+    // game's page too. Measured from the list's rects, not offsetTop: each
+    // row's containment (content-visibility) makes it its button's offset parent
+    const top = button.getBoundingClientRect().top - ol.getBoundingClientRect().top + ol.scrollTop;
     const pad = 6;
     if (top - pad < ol.scrollTop) ol.scrollTop = top - pad;
     else if (top + button.offsetHeight + pad > ol.scrollTop + ol.clientHeight) {
@@ -349,7 +354,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
   const label = plyLabel(moves, shown);
   const shownGrade = (shown > 0 && analysis?.grades[shown - 1]) || null;
   const best = analysis?.best ?? null;
-  const stepButton = (s: ReviewStep, off: boolean, named = false) => (
+  const stepButton = (s: ReviewStep, off: boolean) => (
     <button
       type="button"
       className="hud-step"
@@ -363,15 +368,33 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
         if (!off) step(s);
       }}
     >
-      {/* Its name beside it where there is room (index.css): the way back lit */}
-      {named && (
-        <span className="hud-step-name" aria-hidden>
-          {NAMES[s]}
-        </span>
-      )}
       <Icon d={ICONS[s]} />
     </button>
   );
+  const steps = (
+    <div className="hud-steps">
+      {stepButton('first', shown === 0)}
+      {stepButton('previous', shown === 0)}
+      <button
+        ref={toggle}
+        type="button"
+        className="hud-now"
+        aria-expanded={open}
+        aria-controls="move-list"
+        onClick={() => setAsked(!open)}
+      >
+        <span className="sr-only">Move list, at </span>
+        {label}
+        {shownGrade && <Mark grade={shownGrade} />}
+      </button>
+      {stepButton('next', !reviewing)}
+      {stepButton('latest', !reviewing)}
+    </div>
+  );
+  // In a narrow window the steps stand at the top (the pill's place, once the
+  // result card is put away) and the list opens under them: first in the
+  // page too, so Tab goes from the toggle into the list it opened
+  const stepsFirst = narrow;
   return (
     <nav
       ref={nav}
@@ -387,6 +410,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
         best ? `${best.from}-${best.to}${best.promotion ? `=${best.promotion}` : ''}` : undefined
       }
     >
+      {stepsFirst && steps}
       {/* The review, once begun: each side's marks as they come */}
       {open && analysis && analysis.state !== 'idle' && <ReviewHead analysis={analysis} />}
       <ol
@@ -405,24 +429,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
           Best {formatMove(best as MoveRecord)}
         </p>
       )}
-      <div className="hud-steps">
-        {stepButton('first', shown === 0)}
-        {stepButton('previous', shown === 0)}
-        <button
-          ref={toggle}
-          type="button"
-          className="hud-now"
-          aria-expanded={open}
-          aria-controls="move-list"
-          onClick={() => setAsked(!open)}
-        >
-          <span className="sr-only">Move list, at </span>
-          {label}
-          {shownGrade && <Mark grade={shownGrade} />}
-        </button>
-        {stepButton('next', !reviewing)}
-        <span className="hud-latest">{stepButton('latest', !reviewing, true)}</span>
-      </div>
+      {!stepsFirst && steps}
       {/* Where the board stands, said as the player steps */}
       <div className="sr-only" role="status">
         {!reviewing

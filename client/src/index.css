@@ -750,11 +750,11 @@ body {
 /*
  * The move history (screens/MoveHistory.tsx), in sight once the game is over:
  * the moves in pairs, each a button that shows the board after it, over the
- * four steps through them. A narrow panel at the right, under the way to the
- * tutorial, where the window leaves room beside the tower; in a window no
- * wider than 13:9 the steps alone, under the tower, the move shown between
- * them opening the list above them. Away from the live position the way back
- * to it is lit.
+ * four steps through them. A narrow panel at the right, at the top once the
+ * result card is put away (the way to the tutorial gone), where the window
+ * leaves room beside the tower; in a window no wider than 13:9 the steps
+ * alone, in the pill's place at the top once the card is put away, the move
+ * shown between them opening the list under them.
  */
 .hud-history {
   position: absolute;
@@ -1027,29 +1027,13 @@ body {
 .hud-history[data-review] .hud-now {
   color: var(--hud-fg);
 }
-/* Away from the live position: the way back is lit */
-.hud-history[data-review] .hud-step[data-step='latest'] {
-  background: var(--hud-accent);
-  color: var(--hud-accent-fg);
-}
-.hud-latest {
-  display: flex;
-  margin-left: auto;
-}
-.hud-step-name {
-  display: none;
-  margin-right: 4px;
-  font-size: 12px;
-  font-weight: 600;
-}
-/* Away from the live position, the way back says what it is, where there is room */
+/* Beside the tower, where the move shown is lit in the list, the four steps
+   share the panel's width */
 @media not ((max-aspect-ratio: 13/9) and (min-height: 481px)) {
-  .hud-history[data-review] .hud-step-name {
-    display: inline;
-  }
-  .hud-history[data-review] .hud-step[data-step='latest'] {
+  .hud-step {
+    flex: 1 1 0;
     width: auto;
-    padding: 0 6px 0 10px;
+    min-width: 0;
   }
 }
 /* Where the window has room beside the tower, the flag for resigning and
@@ -1089,9 +1073,17 @@ body {
     min-height: 0;
     max-height: 100%;
   }
+  /* The result card put away: the record alone in the column, up in the
+     corner the way to the tutorial leaves */
+  .hud-side:has(> .hud-history[data-ended]) {
+    top: 12px;
+  }
 }
-/* A window no wider than 13:9: the steps under the tower, the list above
-   them on asking */
+/* A window no wider than 13:9: the steps under the tower behind the result
+   card; put away, they take the pill's place at the top (the HUD's band,
+   which the board stays below), the rematch alone under the tower, and the
+   list opens under them on asking, a few moves tall, so it covers little of
+   the tower */
 @media (max-aspect-ratio: 13/9) and (min-height: 481px) {
   .hud-history {
     top: auto;
@@ -1102,37 +1094,59 @@ body {
     max-height: none;
     transform: translateX(-50%);
   }
-  /* Over "Play again" once the game is over... */
   .hud-history[data-ended] {
-    bottom: 76px;
+    top: 12px;
+    bottom: auto;
+    /* The pill's width, between the way home and the empty corner across */
+    width: min(340px, calc(100vw - 120px));
+    padding: 2px;
+    border-radius: 20px;
+  }
+  .hud-history[data-ended][data-open] {
+    border-radius: 16px;
+  }
+  .hud-history[data-ended] .hud-step,
+  .hud-history[data-ended] .hud-now {
+    height: 34px;
+    border-radius: 17px;
+  }
+  .hud-history[data-ended][data-open] .hud-steps {
+    margin: 0 0 3px;
+    padding: 0 0 2px;
+    border-top: 0;
+    border-bottom: 1px solid rgba(236, 241, 255, 0.1);
+  }
+  /* Each side's marks on one line */
+  .hud-history[data-ended] .hud-review {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    padding: 0 4px 4px;
+  }
+  .hud-history[data-ended] .hud-counts {
+    grid-template-columns: 22px repeat(3, auto);
+    column-gap: 12px;
+  }
+  .hud-history[data-ended] .hud-stopped {
+    flex-basis: 100%;
   }
   .hud-moves {
     max-height: min(36dvh, 300px);
   }
+  /* Four rows of moves (the shown one kept in view), whole rows only */
+  .hud-history[data-ended] .hud-moves {
+    max-height: calc(4 * 24px + 4px);
+    scroll-snap-type: y mandatory;
+    scroll-padding-top: 2px;
+  }
+  .hud-history[data-ended] .hud-moves li {
+    scroll-snap-align: start;
+  }
+  .hud-history[data-ended] .hud-best {
+    margin-bottom: 4px;
+  }
   .hud-now {
     display: block;
-  }
-  .hud-latest {
-    margin-left: 0;
-  }
-}
-/* ...or beside it, where the row has room for both: the tower fills the
-   height of such a window, which leaves room under it for one row only (the
-   steps at the left, centred on the button's height, and the button at the
-   right; 300 + 12 + 200 px about the middle) */
-@media (max-aspect-ratio: 13/9) and (min-height: 481px) and (min-width: 560px) {
-  .hud-history[data-ended] {
-    bottom: 24px;
-    left: calc(50% - 106px);
-  }
-  .game-screen:has(.hud-history[data-ended]) .hud-new-game {
-    left: calc(50% + 56px);
-    transform: none;
-  }
-}
-@media (max-aspect-ratio: 13/9) and (min-height: 481px) and (min-width: 560px) and (pointer: coarse) {
-  .hud-history[data-ended] {
-    bottom: 18px;
   }
 }
 /* A short window (a phone on its side): the panel beside the tower, as far
@@ -1178,31 +1192,18 @@ body {
     height: 36px;
   }
 }
-/* A touch screen with the panel beside the tower: the fingertip-wide steps
-   share the panel's width with the way back, which keeps its name... */
-@media (pointer: coarse) {
-  @media not ((max-aspect-ratio: 13/9) and (min-height: 481px)) {
-    .hud-step,
-    .hud-latest {
-      flex: 1 1 0;
-      width: auto;
-      min-width: 0;
-    }
-    .hud-history[data-review] .hud-latest {
-      flex: none;
-    }
+/* ...in the pill's place, as tall as the pill */
+@media (max-aspect-ratio: 13/9) and (min-height: 481px) and (pointer: coarse) {
+  .hud-history[data-ended] {
+    border-radius: 22px;
   }
-}
-/* ...but for a phone on its side, which has no room for it */
-@media (max-height: 480px) and (pointer: coarse) {
-  .hud-history[data-review] .hud-latest {
-    flex: 1 1 0;
+  .hud-history[data-ended] .hud-step,
+  .hud-history[data-ended] .hud-now {
+    height: 38px;
+    border-radius: 19px;
   }
-  .hud-history[data-review] .hud-step[data-step='latest'] {
-    padding: 0;
-  }
-  .hud-history[data-review] .hud-step-name {
-    display: none;
+  .hud-history[data-ended] .hud-moves {
+    max-height: calc(4 * 32px + 4px);
   }
 }
 
@@ -2137,18 +2138,6 @@ body {
 }
 .hud-rematch[data-bar] .hud-rematch-note {
   order: 1;
-}
-/* Beside the steps under the tower, the room at the right holds the pill
-   alone: its other button stands over it */
-@media (max-aspect-ratio: 13/9) and (min-height: 481px) and (min-width: 560px) {
-  .hud-rematch[data-bar] .hud-rematch-other,
-  .hud-rematch[data-bar] .hud-rematch-note {
-    position: absolute;
-    bottom: calc(100% + 4px);
-    left: 50%;
-    transform: translateX(-50%);
-    white-space: nowrap;
-  }
 }
 
 /* The way home from a game: the top left corner, across from the way to

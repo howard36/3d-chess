@@ -115,7 +115,7 @@ test('the move history waits out the game, then steps back through it', async ({
   await game.close();
 });
 
-test('on a phone the steps stand under the tower once the game is over, the list a tap away', async ({
+test("on a phone the steps take the pill's place once the game is over, the list a tap away", async ({
   browser,
 }) => {
   const game = await startGame(browser);
@@ -123,11 +123,15 @@ test('on a phone the steps stand under the tower once the game is over, the list
   await white.setViewportSize({ width: 390, height: 844 });
   await game.playAll(['Bb1-Cb1', 'Dd5-Cd5']);
   const history = white.getByTestId('move-history');
-  // While the game is on, no steps under the tower
+  // While the game is on, no steps
   await expect(history).toHaveAttribute('data-hidden', 'true');
   await expect(white.getByRole('button', { name: 'Back', exact: true })).toHaveCount(0);
   await resign(white);
   await closeResult(white);
+  // At the top, above the tower, where the pill stood (out of sight now)
+  const steps = await history.boundingBox();
+  expect(steps!.y).toBeLessThan(60);
+  await expect(white.getByTestId('turn-indicator')).not.toBeInViewport();
   // Closed: the list out of sight, but in the page for screen readers
   await expect(white.getByTestId('move-list')).toHaveClass(/sr-only/);
   await white.getByRole('button', { name: 'Back', exact: true }).click();

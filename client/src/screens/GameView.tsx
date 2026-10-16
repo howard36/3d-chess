@@ -191,6 +191,12 @@ const GameView: React.FC<GameViewProps> = ({
   // end, as on the mate preview's replay, brings it back)
   const [closedEnd, setClosedEnd] = React.useState<typeof gameOver>(null);
   const resultUp = showEndModal && !!gameOver && closedEnd !== gameOver;
+  // The card put away: the screen is the review's, the board, the record and
+  // the rematch alone. The pill, the pieces taken and the way to the tutorial
+  // step aside (the pill and the pieces stay in the page, out of sight, for a
+  // screen reader and the tests' hooks), and the steps take the pill's place
+  // in a narrow window (index.css)
+  const afterResult = !!gameOver && showEndModal && !resultUp;
   // While a dialog is up, everything behind it is out of reach: not
   // clickable (the backdrop covers it) and not focusable or readable either.
   const behindDialog = replaced || resultUp || (!!promotionChoices && !boardDisabled);
@@ -282,7 +288,7 @@ const GameView: React.FC<GameViewProps> = ({
             {color && (
               // The pill, and under it the pieces each side has taken (they
               // fade in last in the entrance: --intro-hud)
-              <div className="hud-bar">
+              <div className={afterResult ? 'hud-bar sr-only' : 'hud-bar'}>
                 <TurnPill
                   seat={color}
                   turn={currentTurn}
@@ -311,9 +317,10 @@ const GameView: React.FC<GameViewProps> = ({
             shown={boardLoad.failed}
           />
           {/* After the move box, which stays the first Tab stop: the way
-              home at the top left, the tutorial across from it */}
+              home at the top left, the tutorial across from it (not in the
+              review) */}
           <HomeLink />
-          <HowToPlay />
+          {!afterResult && <HowToPlay />}
           {/* Under the way to the tutorial, one column at the right where
               the window has room beside the tower (index.css, .hud-side):
               resigning and draws while the game is on, then the move
@@ -327,7 +334,7 @@ const GameView: React.FC<GameViewProps> = ({
               onShow={showPly}
               // Not behind a dialog, nor while the entrance plays
               enabled={!behindDialog && !introPlaying}
-              ended={!!gameOver && showEndModal && !resultUp}
+              ended={afterResult}
               // Out of sight while the game is on; in sight with the result
               hidden={!gameOver || !showEndModal}
               analysis={
@@ -412,7 +419,7 @@ const GameView: React.FC<GameViewProps> = ({
           />
         </div>
       )}
-      {gameOver && showEndModal && !resultUp && rematch && (
+      {afterResult && rematch && (
         <div inert={replaced}>
           <RematchBar
             rematch={rematch}
