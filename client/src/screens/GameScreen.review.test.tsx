@@ -112,6 +112,25 @@ describe('while the game is on', () => {
     expect(board().disabled).toBe(false);
   });
 
+  it('offers no way home until the game is over, then a house, beside the rematch in the review', async () => {
+    const { rerender } = render(gameScreenAt(fakeSocket([snapshot])));
+    await boardMounted();
+    expect(screen.queryByRole('button', { name: 'Home' })).not.toBeInTheDocument();
+    rerender(
+      gameScreenAt(
+        fakeSocket([snapshot, { type: 'game_ended', result: 'resignation', winner: 'white' }]),
+      ),
+    );
+    await screen.findByRole('dialog', {}, { timeout: 3000 });
+    const home = () => screen.getByRole('button', { name: 'Home' });
+    expect(home().querySelector('path')).toHaveAttribute(
+      'd',
+      expect.stringMatching(/^M2\.5 7\.5 8 2\.5/),
+    );
+    await closeResult();
+    expect(home().closest('.hud-end')).toContainElement(screen.getByTestId('rematch'));
+  });
+
   it('brings it into sight with the result, once the end has played', async () => {
     const { rerender } = render(gameScreenAt(fakeSocket([snapshot])));
     await boardMounted();

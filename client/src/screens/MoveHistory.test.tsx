@@ -81,6 +81,15 @@ describe('the move list', () => {
     expect(rows()).toEqual(expected);
   });
 
+  it('widens the numbers’ column from move 100, the digits counted', () => {
+    const { rerender } = render(history({ moves: record(198) }));
+    expect(screen.getByTestId('move-list')).not.toHaveAttribute('data-digits');
+    rerender(history({ moves: record(199) }));
+    expect(screen.getByTestId('move-list')).toHaveAttribute('data-digits', '3');
+    rerender(history({ moves: record(1999) }));
+    expect(screen.getByTestId('move-list')).toHaveAttribute('data-digits', '4');
+  });
+
   it('keeps a row to three nodes, each move its words in one span', () => {
     // A reopened long game mounts every row of its record: the number,
     // then each move a button round its words (Black's after the space

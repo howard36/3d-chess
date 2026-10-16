@@ -367,6 +367,8 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
 
   // Nothing to show before the first move
   if (moves.length === 0) return null;
+  // The last row's number, in digits
+  const digits = String(Math.ceil(moves.length / 2)).length;
   // While the game is on, the record is said, not shown
   if (hidden) {
     return (
@@ -463,6 +465,9 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
         className={open ? 'hud-moves' : 'hud-moves sr-only'}
         aria-label="Move history"
         data-testid="move-list"
+        // How many digits the last move's number has, from three on: the
+        // numbers' column widens to hold it (index.css)
+        data-digits={digits > 2 ? digits : undefined}
       >
         {blocks}
       </ol>
