@@ -2541,9 +2541,14 @@ async function reviewSection(browser) {
         throw new Error(`the review's marks differ between runs: ${[...marks]}`);
       const med = (k) => median(raw.review.map((x) => x[k]));
       const row = (label, k, note = '') => [[label, fmtMs(med(k)), note], metric(med(k)), label];
+      // Named by the button clicked, so an A/B never pairs a span that
+      // closes the card first with one that does not (1016:BV2)
+      const via = new Set(raw.review.map((x) => x.via));
+      if (via.size !== 1) throw new Error(`the review was reached two ways: ${[...via]}`);
+      const clicked = (label) => (via.has('analyse') ? label.replace('Review', 'Analyse') : label);
       sec.addAll([
-        row('“Review” clicked → every mark in', 'done', `${plies + 1} positions`),
-        row('“Review” clicked → half the positions done', 'half'),
+        row(clicked('“Review” clicked → every mark in'), 'done', `${plies + 1} positions`),
+        row(clicked('“Review” clicked → half the positions done'), 'half'),
         row('longest page freeze during the review', 'longest'),
         row('page freezes in total during the review', 'ltTotal'),
       ]);
