@@ -173,6 +173,9 @@ table { border-collapse: collapse; font-size: 14px; font-variant-numeric: tabula
 th, td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
 a { color: var(--gold); }
 :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.chart table { border-collapse: collapse; width: 100%; min-width: 420px; font-size: 0.95rem; }
+.chart th, .chart td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--rule); }
+.chart th { font-weight: 600; }
 `;
 
 let html = `<title>${esc(content.title)}</title>
