@@ -1116,19 +1116,24 @@ body {
     border-top: 0;
     border-bottom: 1px solid rgba(236, 241, 255, 0.1);
   }
-  /* Each side's marks on one line */
+  /* Each side's marks on one line, a half of the row each with a hairline
+     between them, so each side's counts stand together with its stone and
+     apart from the other's */
   .hud-history[data-ended] .hud-review {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: space-around;
-    padding: 0 4px 4px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 0 0 4px;
   }
   .hud-history[data-ended] .hud-counts {
-    grid-template-columns: 22px repeat(3, auto);
-    column-gap: 12px;
+    grid-template-columns: 17px repeat(3, auto);
+    justify-content: center;
+    column-gap: 9px;
+  }
+  .hud-history[data-ended] .hud-counts + .hud-counts {
+    border-left: 1px solid rgba(236, 241, 255, 0.1);
   }
   .hud-history[data-ended] .hud-stopped {
-    flex-basis: 100%;
+    grid-column: 1 / -1;
   }
   .hud-moves {
     max-height: min(36dvh, 300px);
