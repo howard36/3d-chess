@@ -23,6 +23,7 @@ const [width, height] = LANDING_PICTURES[layout].pixels[density];
 (window as unknown as { __picture: unknown }).__picture = { width, height };
 
 const NIGHT = PALETTE.skyTop;
+document.body.style.background = NIGHT;
 const edge = `${PICTURE_FADE * 100}%`;
 const fade = (to: string) =>
   `linear-gradient(to ${to}, ${NIGHT}, transparent ${edge}, transparent calc(100% - ${edge}), ${NIGHT})`;
