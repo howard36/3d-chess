@@ -1503,8 +1503,9 @@ it described.
 
 To measure a change, run `node bench/run.mjs --primary --base <ref>` (e.g. `--base HEAD`
 for uncommitted work, `--base main` for a branch): it checks the base commit out into a
-temporary worktree, gives it this checkout's benchmark code, and runs the two interleaved
-(base, head, head, base, ...), judging each change by pairs of runs made next to each
+temporary worktree, gives it this checkout's benchmark code, copies this checkout (its
+uncommitted files too) into a second one laid out alike, so the two differ only in their
+code, and runs the two interleaved (base, head, head, base, ...), judging each change by pairs of runs made next to each
 other, so a shared machine speeding up or slowing down over the run cannot pass for a
 change. So a check added with a change runs against the base too: a check the base cannot
 pass (a throw on the old behaviour) fails the whole comparison. Make it a row that measures

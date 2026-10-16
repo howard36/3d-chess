@@ -49,7 +49,8 @@
 //
 // --base <ref> is the way to measure a change: it checks <ref> out into a
 // temporary worktree, copies this checkout's benchmark code over it (so only
-// the app differs), runs the selected tiers on both, interleaved over --pairs
+// the app differs), copies this checkout into a second one laid out alike
+// (node_modules and .venv linked in), runs the selected tiers on both, interleaved over --pairs
 // pairs (base then head, then head then base, ...), and writes an A/B report
 // (bench/out/AB.md unless --out) judging each change by pairs of runs made
 // next to each other. A/A tests on a shared VM showed its speed drifting by
@@ -723,6 +724,27 @@ function baseWorktree(ref) {
   return { dir, sha, python: VENV_PYTHON };
 }
 
+/**
+ * This checkout as it stands (its commit, uncommitted and untracked files),
+ * laid out as the base's worktree is: a temp dir with node_modules and .venv
+ * linked in. Run from the checkout itself, the head would differ from the
+ * base in where it lives as well as in its code (1016:AA1).
+ */
+function headWorktree() {
+  const dir = join(mkdtempSync(join(os.tmpdir(), 'bench-head-')), 'tree');
+  execFileSync('git', ['worktree', 'add', '--detach', dir, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
+  for (const f of changedSince('HEAD')) {
+    const to = join(dir, f);
+    if (existsSync(join(ROOT, f))) {
+      mkdirSync(dirname(to), { recursive: true });
+      cpSync(join(ROOT, f), to);
+    } else rmSync(to, { force: true });
+  }
+  symlinkSync(join(CLIENT, 'node_modules'), join(dir, 'client', 'node_modules'), 'dir');
+  symlinkSync(join(ROOT, 'server', '.venv'), join(dir, 'server', '.venv'), 'dir');
+  return dir;
+}
+
 function removeWorktree(dir) {
   spawnSync('git', ['worktree', 'remove', '--force', dir], { cwd: ROOT, stdio: 'ignore' });
   rmSync(dirname(dir), { recursive: true, force: true });
@@ -765,6 +787,25 @@ const shown = (value, unit) =>
           ? String(Number(value.toPrecision(3)))
           : duration(value);
 
+/** The files of this checkout (commits, uncommitted and untracked) that differ from `ref`. */
+function changedSince(ref) {
+  return [
+    ...sh('git', ['diff', '--name-only', ref]).split('\n'),
+    ...sh('git', ['ls-files', '--others', '--exclude-standard']).split('\n'),
+  ].filter((f) => f && f !== 'unknown');
+}
+
+/** Of those, the ones the app is made of: not the benchmark code, not tests, not bench/loop. */
+function appChanges(sha) {
+  const harness = (f) => HARNESS.some((h) => f === h || f.startsWith(`${h}/`));
+  return changedSince(sha).filter(
+    (f) =>
+      !harness(f) &&
+      !f.startsWith('bench/') &&
+      !/\.test\.tsx?$|\.spec\.ts$|^server\/tests\//.test(f),
+  );
+}
+
 /**
  * The tiers a change from `sha` to this checkout (commits, uncommitted and
  * untracked files) can move, and why: the server's code moves the server
@@ -773,12 +814,7 @@ const shown = (value, unit) =>
  * on both sides. Nothing the app is made of changed (an A/A test): every tier.
  */
 function tiersFromDiff(sha) {
-  const changed = [
-    ...sh('git', ['diff', '--name-only', sha]).split('\n'),
-    ...sh('git', ['ls-files', '--others', '--exclude-standard']).split('\n'),
-  ].filter((f) => f && f !== 'unknown');
-  const harness = (f) => HARNESS.some((h) => f === h || f.startsWith(`${h}/`));
-  const app = changed.filter((f) => !harness(f) && !/\.test\.tsx?$|\.spec\.ts$/.test(f));
+  const app = appChanges(sha);
   const server = app.some((f) => f.startsWith('server/') && !f.startsWith('server/tests/'));
   const client = app.some((f) =>
     /^client\/(src\/|public\/|index\.html$|vite\.config\.ts$|package(-lock)?\.json$)/.test(f),
@@ -798,6 +834,8 @@ function tiersFromDiff(sha) {
 
 function abMain() {
   const { dir, sha, python: basePython } = baseWorktree(BASE);
+  const headDir = headWorktree();
+  const appFiles = appChanges(sha);
   const chosen = ONLY_GIVEN
     ? { tiers: ONLY, why: '--only' }
     : PRIMARY_ONLY
@@ -812,7 +850,7 @@ function abMain() {
   const failures = [];
   let cleaned = false;
   const clean = () => {
-    if (!cleaned) removeWorktree(dir);
+    if (!cleaned) [dir, headDir].forEach(removeWorktree);
     cleaned = true;
   };
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => (clean(), process.exit(130)));
@@ -822,7 +860,7 @@ function abMain() {
       // run weighs on both sides alike
       for (const side of pair % 2 ? ['head', 'base'] : ['base', 'head']) {
         const ctx = {
-          root: side === 'base' ? dir : ROOT,
+          root: side === 'base' ? dir : headDir,
           out: join(OUT_DIR, 'ab', side, String(pair + 1)),
           rounds: 1,
           repeat: 1,
@@ -867,7 +905,14 @@ function abMain() {
   md.push(
     `Base \`${BASE}\` (\`${sha.slice(0, 7)}\`) against this checkout (\`${headSha.slice(0, 7)}\`` +
       `${dirty ? ' with uncommitted changes' : ''}), ${runs.base.length} interleaved pairs (base then head, then ` +
-      `head then base, ...) of ${tiers.join(', ')} (${chosen.why}); both sides run this checkout’s benchmark code. ` +
+      `head then base, ...) of ${tiers.join(', ')} (${chosen.why}); both sides run this checkout’s benchmark code, ` +
+      `each from a temporary worktree. ` +
+      (appFiles.length
+        ? `The app differs in ${appFiles.length} file(s): ${appFiles
+            .slice(0, 12)
+            .map((f) => `\`${f}\``)
+            .join(', ')}${appFiles.length > 12 ? ', …' : ''}. `
+        : 'No file the app is made of differs: an A/A test. ') +
       `${Math.round((finished - started) / 60000)} min. Generated by ` +
       `\`node bench/run.mjs ${process.argv.slice(2).join(' ')}\`.`,
   );
@@ -878,7 +923,9 @@ function abMain() {
       'the same way, by more than 5% and by more than the pairs disagree with each other (the range ' +
       'of their ratios). Otherwise the change is shown but not called. A value of 0 on one side has ' +
       'no ratio: that row is judged by the pairs’ differences instead, and called when every pair ' +
-      'moves the same way.',
+      'moves the same way. *Base first* and *Head first* are the geometric means of the ratios of ' +
+      'the pairs where that side ran first: a gap between them that the overall figure lacks is the ' +
+      'order of the runs, not the code (too few pairs to call anything on).',
   );
   if (failures.length) {
     md.push(
@@ -967,13 +1014,36 @@ function abMain() {
         `${measured.filter(({ r }) => r.v.real && !r.v.improved).length} called worse.`,
     );
   }
+  // Each pair's ratio by which side ran first (pair 1, 3, ...: the base)
+  const byOrder = (r) => {
+    const key = keyOf(r);
+    const geo = (first) => {
+      const logs = runs.base
+        .map((m, i) => [i, m.get(key)?.value, runs.head[i]?.get(key)?.value])
+        .filter(([i, b, h]) => i % 2 === (first === 'base' ? 0 : 1) && b > 0 && h > 0)
+        .map(([, b, h]) => Math.log(h / b));
+      return logs.length ? Math.exp(logs.reduce((t, x) => t + x, 0) / logs.length).toFixed(2) : '';
+    };
+    return [geo('base'), geo('head')];
+  };
   md.push(
     table({
-      columns: ['Moment', 'Base', 'Head', 'Change', 'Pairs (head/base)', 'Verdict'],
-      align: ['l', 'r', 'r', 'r', 'r', 'l'],
-      rows: primary.map(({ p, r }) =>
-        r ? [p.moment, ...line(r).slice(3)] : [p.moment, '', '', '', '', 'not measured'],
-      ),
+      columns: [
+        'Moment',
+        'Base',
+        'Head',
+        'Change',
+        'Pairs (head/base)',
+        'Base first',
+        'Head first',
+        'Verdict',
+      ],
+      align: ['l', 'r', 'r', 'r', 'r', 'r', 'r', 'l'],
+      rows: primary.map(({ p, r }) => {
+        if (!r) return [p.moment, '', '', '', '', '', '', 'not measured'];
+        const cells = line(r).slice(3);
+        return [p.moment, ...cells.slice(0, 4), ...byOrder(r), cells[4]];
+      }),
     }),
   );
 
