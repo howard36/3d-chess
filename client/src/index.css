@@ -930,6 +930,11 @@ body {
      this one may not */
   overflow: visible;
 }
+/* What a pawn became, between "=" and "+": a letter's side bearings, not
+   the gap after the moving piece */
+.hud-icon[data-promotion] {
+  margin: 0 0.06em;
+}
 @supports (width: round(1cap, 1px)) and (width: mod(3px, 2px)) {
   .hud-icon {
     height: round(up, calc(var(--caps) * var(--lift, 1)), 1px);
