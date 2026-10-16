@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { build, defineConfig, minify } from 'vite';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -206,6 +207,14 @@ const r3fCatalogue = (): Plugin => {
  */
 const SCENE_MODULE =
   /\/node_modules\/(three|@react-three)\/|\/src\/ai\/(?!levels\.ts$|computer\.ts$)/;
+/**
+ * The start page's own code and styles (the entry and what it imports
+ * statically), gzipped at the highest level: bytes a phone on a mobile network
+ * waits on (CLAUDE.md "Performance"). The build fails above this, so a change
+ * or a dependency's update that adds to them says so; raise it on purpose,
+ * naming the cost in the PR. A tripwire for growth, not the host's size.
+ */
+const ENTRY_GZIP_BUDGET = 121_000;
 const SHOWN_BEFORE_SCENE = [
   '/src/screens/learn/LearnScreen.tsx',
   '/src/screens/ComputerGameScreen.tsx',
@@ -234,6 +243,21 @@ const keepSceneOutOfEntry = (): Plugin => ({
     // Those pages load as chunks of their own, never in the entry (a static
     // import would put them there, and the walk below would find it seen)
     const entry = new Set(seen);
+    const css = new Set(
+      [...entry].flatMap((f) => [...(chunks.get(f)!.viteMetadata?.importedCss ?? [])]),
+    );
+    const gz = (text: string | Uint8Array) => gzipSync(text, { level: 9 }).length;
+    const bytes =
+      [...entry].reduce((t, f) => t + gz(chunks.get(f)!.code), 0) +
+      [...css].reduce((t, f) => {
+        const asset = bundle[f];
+        return t + (asset?.type === 'asset' ? gz(asset.source) : 0);
+      }, 0);
+    if (bytes > ENTRY_GZIP_BUDGET)
+      this.error(
+        `keep-scene-out-of-entry: the start page's code and styles are ${bytes} bytes gzipped, ` +
+          `over ENTRY_GZIP_BUDGET (${ENTRY_GZIP_BUDGET}): name the cost in the PR and raise it`,
+      );
     for (const page of SHOWN_BEFORE_SCENE) {
       const chunk = [...chunks.values()].find((c) =>
         c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(page)),
