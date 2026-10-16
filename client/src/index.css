@@ -787,7 +787,8 @@ body {
 .hud-moves li {
   display: grid;
   grid-template-columns: 26px 1fr 1fr;
-  align-items: center;
+  /* The number on the moves' line, though smaller */
+  align-items: baseline;
   column-gap: 2px;
   min-height: 24px;
   /* A row out of the list's view is not laid out or drawn, its height
@@ -803,6 +804,9 @@ body {
   margin-left: 4px;
 }
 .hud-ply {
+  /* As wide as its words, so the move shown is lit only round them */
+  justify-self: start;
+  max-width: 100%;
   min-width: 0;
   height: 22px;
   padding: 0 5px;
@@ -886,9 +890,8 @@ body {
   display: flex;
   flex: none;
   flex-direction: column;
-  margin-bottom: 3px;
-  padding: 2px 2px 5px;
-  border-bottom: 1px solid rgba(236, 241, 255, 0.1);
+  margin-bottom: 6px;
+  padding: 2px 2px 0;
 }
 .hud-counts {
   display: grid;
@@ -902,6 +905,14 @@ body {
   width: 11px;
   height: 11px;
   margin-left: 6px;
+}
+/* A count's glyph and number trimmed to their capitals, so they centre on
+   the stone beside them as they look, not by their line's box */
+.hud-counts .hud-count {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
 }
 .hud-count .hud-mark {
   margin: 0 4px 0 0;
@@ -976,9 +987,7 @@ body {
   gap: 2px;
 }
 .hud-history[data-open] .hud-steps {
-  margin-top: 3px;
-  padding-top: 4px;
-  border-top: 1px solid rgba(236, 241, 255, 0.1);
+  margin-top: 4px;
 }
 .hud-step {
   display: flex;
@@ -1111,29 +1120,26 @@ body {
     border-radius: 17px;
   }
   .hud-history[data-ended][data-open] .hud-steps {
-    margin: 0 0 3px;
-    padding: 0 0 2px;
-    border-top: 0;
-    border-bottom: 1px solid rgba(236, 241, 255, 0.1);
+    margin: 0 0 6px;
   }
-  /* Each side's marks on one line, a half of the row each with a hairline
-     between them, so each side's counts stand together with its stone and
-     apart from the other's */
+  /* Each side's marks on one line: close together after its stone, and
+     the two sides far apart, so the space alone says which are whose */
   .hud-history[data-ended] .hud-review {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 0 0 4px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    column-gap: 36px;
+    padding: 0;
   }
   .hud-history[data-ended] .hud-counts {
-    grid-template-columns: 17px repeat(3, auto);
-    justify-content: center;
-    column-gap: 9px;
+    display: flex;
+    gap: 10px;
   }
-  .hud-history[data-ended] .hud-counts + .hud-counts {
-    border-left: 1px solid rgba(236, 241, 255, 0.1);
+  .hud-history[data-ended] .hud-counts > .hud-stone {
+    margin: 0 -2px 0 0;
   }
   .hud-history[data-ended] .hud-stopped {
-    grid-column: 1 / -1;
+    flex-basis: 100%;
   }
   .hud-moves {
     max-height: min(36dvh, 300px);
