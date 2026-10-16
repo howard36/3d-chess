@@ -1,3 +1,5 @@
+// Deterministic pseudo-random numbers, so a failure replays
+import { seeded } from '../ai/choose';
 import { ALL_PROMOTION_TYPES, Board } from './board';
 import type { Move } from './board';
 import type { Coord } from './coords';
@@ -135,14 +137,6 @@ const legal = (b: Board, from: Coord): Move[] => {
 const allLegal = (b: Board, color: Color) =>
   squares.filter((s) => b.getPiece(s)?.color === color).flatMap((s) => legal(b, s));
 
-// Deterministic pseudo-random numbers (mulberry32), so a failure replays.
-const rng = (seed: number) => () => {
-  seed = (seed + 0x6d2b79f5) | 0;
-  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
-
 const TYPES = Object.values(PieceType);
 
 /** A sparse random position with one king a side (maybe in check, maybe both). */
@@ -175,7 +169,7 @@ const expectSameRules = (b: Board) => {
 describe('the engine agrees with the rules written out naively', () => {
   it('along random games', () => {
     for (const seed of [11, 12, 13]) {
-      const random = rng(seed);
+      const random = seeded(seed);
       let b = Board.setupStartingPosition();
       let color: Color = 'white';
       for (let ply = 0; ply < 60; ply++) {
@@ -190,7 +184,7 @@ describe('the engine agrees with the rules written out naively', () => {
   });
 
   it('in random sparse positions, attacks on every square included', () => {
-    const random = rng(7);
+    const random = seeded(7);
     for (let i = 0; i < 80; i++) {
       const b = randomPosition(random);
       expectSameRules(b);
