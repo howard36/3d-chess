@@ -530,8 +530,10 @@ const BENCH_INIT = () => {
       !f.joinButton &&
       !f.turnIndicator &&
       (buttonNamed('Join game') || buttonNamed('Join Game'))
-    )
+    ) {
       f.joinButton = t;
+      performance.mark('join-shown');
+    }
     if (!f.sideChoice && document.querySelector('[aria-label="Choose your side"] button')) {
       f.sideChoice = t;
     }
@@ -1478,8 +1480,17 @@ async function joinViaUI(browser, scope) {
   const { gameId } = white.last.game_created;
   const ctx = scope.ctx(await newBenchContext(browser, 'desktop'));
   const page = await ctx.newPage();
+  // BENCH_TRACE_JOIN=<dir>: a Chrome trace of each join's page from the
+  // link to the click, its "Join game" marked (join-shown), into <dir>
+  const traceDir = process.env.BENCH_TRACE_JOIN;
+  if (traceDir)
+    await browser.startTracing(page, {
+      categories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'v8.execute'],
+    });
   await page.goto(`${BASE}/game/${gameId}`);
   await page.getByRole('button', { name: /^Join game\b/i }).click();
+  if (traceDir)
+    fs.writeFileSync(path.join(traceDir, `join-${Date.now()}.json`), await browser.stopTracing());
   await waitFirstFrame(page);
   const b = await snap(page);
   const click = b.clicks.find((c) => /^Join game$/i.test(c[1]))?.[0];
@@ -1500,6 +1511,9 @@ async function joinViaUI(browser, scope) {
       .map(([t, n, d]) => [Math.round(t - first[0]), n, Math.round(d)]),
     // Where the joiner's wait goes: what happened from the click to its first frame
     joinTrace: {
+      // The click, from the page's time origin (the Join button's own row
+      // starts there), so the long tasks below line up with it
+      clickAt: Math.round(click - b.timeOrigin),
       stages: b.stage
         .filter(([t]) => t >= click - 1 && t <= frame + 1)
         .map(([t, ...rest]) => [Math.round(t - click), ...rest]),
