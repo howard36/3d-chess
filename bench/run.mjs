@@ -695,7 +695,13 @@ function machineState(lastEnd) {
   // Processes earlier runs left behind, by their own executable (a shell
   // whose command line names them is not one)
   const left = { chromium: 0, preview: 0, uvicorn: 0 };
-  for (const pid of readdirSync('/proc').filter((d) => /^\d+$/.test(d))) {
+  let pids = null;
+  try {
+    pids = readdirSync('/proc').filter((d) => /^\d+$/.test(d));
+  } catch {
+    // No /proc (macOS): the column stays blank
+  }
+  for (const pid of pids ?? []) {
     const argv = read(`/proc/${pid}/cmdline`).split('\0');
     const exe = argv[0].split('/').pop();
     if (exe === 'headless_shell' || exe === 'chrome') left.chromium++;
@@ -709,7 +715,7 @@ function machineState(lastEnd) {
     cpu: avg10('/proc/pressure/cpu'),
     io: avg10('/proc/pressure/io'),
     memGiB: Number(/MemAvailable:\s+(\d+)/.exec(read('/proc/meminfo'))?.[1]) / 2 ** 20,
-    left: `${left.chromium} / ${left.preview} / ${left.uvicorn}`,
+    left: pids ? `${left.chromium} / ${left.preview} / ${left.uvicorn}` : '',
   };
 }
 
@@ -1083,6 +1089,24 @@ function abMain() {
         return [p.moment, ...cells.slice(0, 4), ...byOrder(r), cells[4]];
       }),
     }),
+  );
+
+  // The skill's speed rule, worked out here so nobody counts pairs by hand: a
+  // primary row worse in every pair, or more than 3% worse at its median pair
+  // (not the Change column, which is the pairs' geometric mean), is the
+  // owner's to see, called or not
+  const flagged = measured.flatMap(({ p, r }) => {
+    const worse = r.v.ratios.map((x) => (r.better === 'higher' ? 1 / x : x));
+    const mid = median(worse);
+    const over = worse.filter((x) => x > 1).length;
+    if (over < worse.length && mid <= 1.03) return [];
+    return [`${p.moment}: median pair ×${mid.toFixed(3)}, ${over} of ${worse.length} pairs worse`];
+  });
+  md.push(
+    flagged.length
+      ? `**For "Needs from me"** (worse in every pair, or more than 3% worse at the median pair): ` +
+          `${flagged.join('; ')}.`
+      : 'No primary row is worse in every pair or more than 3% worse at its median pair.',
   );
 
   const others = rows.filter((r) => !PRIMARY.some((p) => keyOf(p) === keyOf(r)));
