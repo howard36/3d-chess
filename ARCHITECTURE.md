@@ -345,7 +345,11 @@ Key decisions:
   Where the window leaves room beside the tower it is a
   narrow glass panel at the right under "How to play" and the flag, in one column with them
   (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
-  height to fit (the list scrolls, the move shown kept in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
+  height to fit (the list scrolls, the move shown kept in view, the latest as moves land),
+  wider once the game is over in a window over 480 px tall (240 px, so a reviewed move that
+  names its starting square, takes, checks and is marked fits its column). A move longer
+  than its column takes the room it needs and Black's goes under it, never cut off
+  (`e2e/hudFit.spec.ts` checks every move whole); in a window no wider than 13:9 only the steps show,
   in a row: under the tower behind the result card, and once it is put away in the pill's
   place at the top (the HUD's band, which the fitted board stays below, so the steps never
   cover the tower and never stand over the rematch), the move shown between them

@@ -842,28 +842,45 @@ body {
 .hud-moves:not(:last-child):has(+ :not(.sr-only)) {
   border-bottom-style: solid;
 }
+/* A row: the number, then White's move and Black's, each in its column. A
+   move longer than its column (the whole starting square, a capture, a
+   check and a mark) takes the room it needs, and Black's then goes under
+   it, at its column still (pushed to the row's end, as wide as its column),
+   rather than either being cut off */
 .hud-moves li {
-  display: grid;
-  grid-template-columns: 26px 1fr 1fr;
+  --num: 26px;
+  --lead: 4px;
+  --col: calc((100% - var(--num) - 2 * 2px) / 2);
+  display: flex;
+  flex-wrap: wrap;
   /* The number on the moves' line, as large but quieter, so its digits
      stand as tall as the moves' and centre with them */
   align-items: baseline;
-  column-gap: 2px;
+  gap: 2px;
   min-height: 24px;
   /* A row out of the list's view is not laid out or drawn, its height
      kept (a reopened game's record is thousands of rows) */
   content-visibility: auto;
   contain-intrinsic-size: auto 24px;
-  /* The move's number, a bare text node: its own column */
-  color: var(--hud-muted);
   font-size: 12.5px;
+}
+.hud-num {
+  flex: none;
+  width: var(--num);
+  color: var(--hud-muted);
   /* Its digits as wide as each other, so the numbers line up; a move's
      squares keep the font's own, where a "1" is as narrow as it looks */
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
-.hud-moves li > .hud-ply:nth-child(1) {
-  margin-left: 4px;
+.hud-num + .hud-ply {
+  min-width: calc(var(--col) - var(--lead));
+  max-width: calc(100% - var(--num) - 2px - var(--lead));
+  margin-left: var(--lead);
+}
+.hud-ply + .hud-ply {
+  min-width: var(--col);
+  margin-left: auto;
 }
 .hud-ply {
   /* As wide as its words, which it centres in its height (a fingertip's on
@@ -871,10 +888,9 @@ body {
      edges and the words' baseline round to the pixel alike (below) */
   --ply-height: 22px;
   display: flex;
+  flex: none;
   align-items: flex-start;
-  justify-self: start;
   max-width: 100%;
-  min-width: 0;
   height: var(--ply-height);
   padding: round(down, calc((var(--ply-height) - round(1cap, 1px) - 10px) / 2), 1px) 0 0;
   border: 0;
@@ -1192,6 +1208,14 @@ body {
     top: 12px;
   }
 }
+/* Beside the tower in a window of some height, a reviewed game's record
+   wider than a game's, so that its columns hold a move that names its whole
+   starting square, takes, checks and is marked (♜Ea5xEb5+ ??) */
+@media (min-height: 481px) and (not (max-aspect-ratio: 13/9)) {
+  .hud-history[data-ended] {
+    width: 240px;
+  }
+}
 /* A window no wider than 13:9: the steps under the tower behind the result
    card; put away, they take the pill's place at the top (the HUD's band,
    which the board stays below), the rematch alone under the tower, and the
@@ -1277,11 +1301,9 @@ body {
   /* Reviewed, a move and its mark share the narrower panel's column: the
      number's column and the move's type give up a little room */
   .hud-history[data-analysis] .hud-moves li {
-    grid-template-columns: 22px 1fr 1fr;
+    --num: 22px;
+    --lead: 0px;
     font-size: 11.5px;
-  }
-  .hud-history[data-analysis] .hud-moves li > .hud-ply:nth-child(1) {
-    margin-left: 0;
   }
   .hud-history[data-analysis] .hud-ply {
     font-size: 11.5px;
