@@ -1153,8 +1153,9 @@ function abMain() {
   }
   md.push('## Everything measured');
   md.push(
-    '*Base* and *Head* are the medians of each side’s runs. For rates (per second) higher is ' +
-      'better; for everything else lower is better.',
+    '*Base* and *Head* are the medians of each side’s runs. For rates (per second) and the ' +
+      'loads whose board showed first as its picture, higher is better; the early placements ' +
+      'are counted but never called; for everything else lower is better.',
   );
   for (const tier of ['client', 'startup', 'server', 'browser']) {
     const mine = rows.filter((r) => r.tier === tier);
