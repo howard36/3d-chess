@@ -381,7 +381,7 @@ body {
 .button-link:focus-visible {
   color: var(--hud-fg);
 }
-.button-link:focus-visible {
+.button-link:focus-visible:not([data-quiet-focus]) {
   outline: none;
   box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.25);
 }
@@ -406,7 +406,7 @@ body {
   color: var(--hud-fg);
   background: rgba(236, 241, 255, 0.08);
 }
-.button-icon:focus-visible {
+.button-icon:focus-visible:not([data-quiet-focus]) {
   outline: 1px solid rgba(236, 241, 255, 0.4);
 }
 /* The pill, with the pieces each side has taken hanging under its halves */
@@ -924,9 +924,9 @@ body {
 .hud-ply:hover .hud-ply-word {
   background: rgba(236, 241, 255, 0.08);
 }
-.hud-ply:focus-visible .hud-ply-word,
-.hud-step:focus-visible,
-.hud-now:focus-visible {
+.hud-ply:focus-visible:not([data-quiet-focus]) .hud-ply-word,
+.hud-step:focus-visible:not([data-quiet-focus]),
+.hud-now:focus-visible:not([data-quiet-focus]) {
   outline: 1.5px solid rgba(230, 238, 255, 0.7);
   outline-offset: -1.5px;
 }
@@ -1339,7 +1339,7 @@ body {
 }
 
 /* Keyboard focus: the HUD's starlight halo, not the browser's ring */
-.hud-go:focus-visible {
+.hud-go:focus-visible:not([data-quiet-focus]) {
   outline: none !important;
   box-shadow:
     0 0 0 2px rgba(243, 246, 255, 0.9),
@@ -2450,7 +2450,7 @@ body {
   color: var(--hud-accent-fg);
 }
 .hud-offer .hud-menu-item[data-accept]:hover,
-.hud-offer .hud-menu-item[data-accept]:focus-visible {
+.hud-offer .hud-menu-item[data-accept]:focus-visible:not([data-quiet-focus]) {
   background: #fff;
   box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.25);
 }
@@ -2535,7 +2535,7 @@ body {
 .landing-mode:active {
   transform: scale(0.98);
 }
-.landing-mode:focus-visible {
+.landing-mode:focus-visible:not([data-quiet-focus]) {
   outline: 2px solid var(--hud-accent);
   outline-offset: 3px;
 }

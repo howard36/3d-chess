@@ -69,3 +69,45 @@ test('cap, round() and mod() are read only where @supports says the browser has 
   );
   expect(found).toEqual([]);
 });
+
+// A control focused by the page itself, for a player on a pointer, carries
+// data-quiet-focus and shows no ring (lib/focus.ts); the browser's outline
+// is taken off for it globally, but a ring a rule draws (an outline set
+// after that rule, a box-shadow, a descendant's) shows unless the rule
+// itself leaves the quiet focus out (CLAUDE.md "Gotchas")
+test('every focus ring a stylesheet draws leaves out the quiet focus', () => {
+  const parts = (selector: string): string[] => {
+    const out: string[] = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < selector.length; i++) {
+      if (selector[i] === '(') depth++;
+      else if (selector[i] === ')') depth--;
+      else if (selector[i] === ',' && depth === 0) {
+        out.push(selector.slice(start, i));
+        start = i + 1;
+      }
+    }
+    return [...out, selector.slice(start)].map((s) => s.trim());
+  };
+  const rings: string[] = [];
+  const unquiet: string[] = [];
+  for (const file of sources(SRC).filter((f) => f.endsWith('.css'))) {
+    const css = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const ring = /(^|;)\s*(outline|box-shadow)\s*:(?!\s*none\s*(;|$))/.test(body);
+      if (!ring) continue;
+      for (const part of parts(selector)) {
+        if (!part.includes(':focus-visible')) continue;
+        rings.push(part);
+        if (
+          part.split(':focus-visible').length - 1 !==
+          part.split(':focus-visible:not([data-quiet-focus])').length - 1
+        )
+          unquiet.push(`${file.slice(SRC.length + 1)}: ${part}`);
+      }
+    }
+  }
+  expect(rings.length).toBeGreaterThan(5);
+  expect(unquiet).toEqual([]);
+});
