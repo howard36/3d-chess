@@ -5,11 +5,16 @@ import { defineConfig } from '@playwright/test';
 // the runner's CPU and only more runners make it faster. Playwright's own
 // --shard splits by test count, which leaves one job with all the games
 // played move by move, so the groups are named here, balanced by their
-// measured time. `rest` is every file not named, so a new spec always runs.
+// measured time (each about 3 minutes of tests, under 2 on a runner's two
+// workers). `rest` is every file not named, so a new spec always runs: when
+// it grows past the others, name its slowest files in a group of their own.
 // Unset, the whole suite runs.
 const GROUPS: Record<string, string[]> = {
   games: ['gameOver', 'promotion', 'playMove'],
   session: ['session', 'createGame'],
+  framing: ['hudFit', 'orbit'],
+  offers: ['resignDraw', 'rematch'],
+  learn: ['learn', 'touchCamera'],
 };
 const named = Object.values(GROUPS)
   .flat()

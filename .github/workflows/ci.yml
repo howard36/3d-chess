@@ -80,10 +80,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [games, session, rest]
+        group: [games, session, framing, offers, learn, rest]
     name: e2e (${{ matrix.group }})
     runs-on: ubuntu-latest
-    # A group takes about 10 minutes, and three stalled tries at the OS
+    # A group takes about 3 minutes, and three stalled tries at the OS
     # packages below add at most 16; a hung step fails the job long before
     # GitHub's 6-hour default
     timeout-minutes: 40
