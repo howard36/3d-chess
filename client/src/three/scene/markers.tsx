@@ -38,9 +38,10 @@ import { useRetireOnUnmount } from './programs';
 //   level ring (which steps aside, claims.ts), so two circles never stack;
 //   its one idea is four arcs of one radius and length turning slowly and
 //   evenly round the victim. Hover as above.
-// - the last move: a thin continuous line of see-through mint light, a soft glow
-//   of the line's own mint travelling calmly along it, from a small circle where the piece
-//   started to the same circle, larger, round the piece where it landed,
+// - the last move: a thin continuous line of see-through mint light, a
+//   soft glow of the line's own mint travelling calmly along it, from a
+//   small circle where the piece started to the same circle, larger, round
+//   the piece where it landed,
 //   running from the centre of one square to the centre of the other (pieces
 //   hide the line wherever it passes behind them, and the piece that moved
 //   stands on its end).
@@ -603,7 +604,7 @@ const BETTER_FROM_SCALE = 0.42;
 const BETTER_TO_GAP = 0.045;
 /** How bright the better move's line is, 0–1: more than the last move's, having no shimmer. */
 const BETTER_STRENGTH = 0.95;
-/** Its tube's radius: the last move's, so a short line still reads. */
+/** Its tube's radius, which the last move's line shares: enough that a short line still reads. */
 const BETTER_RADIUS = 0.011;
 
 /**
@@ -615,9 +616,9 @@ const BETTER_RADIUS = 0.011;
 const TRACE_LINE = { opacity: 0.5, radius: BETTER_RADIUS };
 
 // The shimmer on the last-move line: a soft glow of the line's own mint at
-// full strength, a little wider than the line, travelling along it from where the move started to where it
-// ended, one every SHIMMER.spacing, added to the line's light so it shows
-// while the line itself stays faint.
+// full strength, a little wider than the line, travelling along it from
+// where the move started to where it ended, one every SHIMMER.spacing,
+// added to the line's light so it shows while the line itself stays faint.
 const LINE_LIFT = 0.02;
 const LINE_DRAW_MS = 380;
 const SHIMMER = { speed: 0.45, spacing: 1.8, length: 0.32, peak: 0.75 };
