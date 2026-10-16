@@ -1453,8 +1453,8 @@ update can move the piece set's golden hashes (`golden.test.ts`; `npm run bake:p
 the shapes change), and `datamodel-code-generator`, pinned exactly, whose update may need
 `messages.py` regenerated. `@types/node` majors are ignored: they move with `.nvmrc`.
 
-The client's entry (117 KB gzip with its CSS; the build fails above `ENTRY_GZIP_BUDGET`,
-raised only on purpose) holds the start screen, the side choice and the game
+The client's entry (with its CSS, kept under `ENTRY_GZIP_BUDGET` gzipped in `vite.config.ts`:
+the build fails above it, raised only on purpose) holds the start screen, the side choice and the game
 screen (the invitation, the HUD, the move record). Everything 3D is a chunk the entry loads
 lazily, shared by the start page's preview (`screens/LandingPreview.tsx`), the lobby's
 canvas (`screens/lobby/LobbyCanvas.tsx`), the game's board (`screens/GameCanvas.tsx`) and
