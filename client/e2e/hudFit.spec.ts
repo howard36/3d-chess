@@ -200,19 +200,22 @@ async function problemsAt(page: Page, width: number, height: number) {
   for (const h of hud) {
     for (const t of tower) if (meet(h, t)) problems.push(`${h.what} covers ${t.what}`);
   }
-  const pill = hud.find((r) => r.what === 'pill')!;
+  const review = await page.locator('[data-testid="move-history"][data-ended]').count();
+  // Measured at all while the game is on (a pill hidden from sight would
+  // pass with nothing to cover); a finished game's steps may take its place
+  const pill = hud.find((r) => r.what === 'pill');
+  if (!pill && !review) problems.push('no pill measured');
   const hauls = hud.filter((r) => r.what.endsWith('captures'));
   for (const h of hauls) {
     if (h.left < 0 || h.right > width) problems.push(`${h.what} run out of the window`);
     // Under the pill, except in a short window (beside the tower, at the left)
-    if (height > 480 && (h.left < pill.left - 0.5 || h.right > pill.right + 0.5)) {
+    if (pill && height > 480 && (h.left < pill.left - 0.5 || h.right > pill.right + 0.5)) {
       problems.push(`${h.what} run past the pill`);
     }
   }
   if (hauls.length === 2 && meet(hauls[0], hauls[1], 3)) problems.push('the captures meet');
   // The ways home and to the tutorial (but in the review) stand clear of the
   // rest of the HUD, and in the window
-  const review = await page.locator('[data-testid="move-history"][data-ended]').count();
   const corners = (review ? ['home'] : ['home', 'how to play']).map((what) => {
     const corner = hud.find((r) => r.what === what);
     if (!corner) problems.push(`no ${what}`);
