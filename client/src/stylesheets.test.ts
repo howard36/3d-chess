@@ -30,7 +30,7 @@ test('every custom property the stylesheets read without a fallback is set somew
   expect(read.size).toBeGreaterThan(20);
   // Set from script: its name in the code, as a style key or a setProperty's
   const unset = [...read].filter(
-    (name) => !defined.has(name) && !code.some((c) => new RegExp(`['\`]${name}\\b`).test(c)),
+    (name) => !defined.has(name) && !code.some((c) => new RegExp(`['\`]${name}(?![\\w-])`).test(c)),
   );
   expect(unset).toEqual([]);
 });
