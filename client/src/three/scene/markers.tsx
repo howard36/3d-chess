@@ -603,15 +603,16 @@ const BETTER_FROM_SCALE = 0.42;
 const BETTER_TO_GAP = 0.045;
 /** How bright the better move's line is, 0–1: more than the last move's, having no shimmer. */
 const BETTER_STRENGTH = 0.95;
-/** Its tube's radius: a little thicker than the last move's, so a short line still reads. */
+/** Its tube's radius: the last move's, so a short line still reads. */
 const BETTER_RADIUS = 0.011;
 
 /**
  * The last-move line: its circles' mint, see-through, so it weighs less and
- * the shimmer of that mint at full strength travelling along it shows (as
- * the check's line and its glow: each line its colour at half strength).
+ * the shimmer of that mint at full strength travelling along it shows, as
+ * the check's line under its glow; as thick as the better move's, thinner
+ * than the check's.
  */
-const TRACE_LINE = { opacity: 0.5, radius: 0.00815 };
+const TRACE_LINE = { opacity: 0.6, radius: BETTER_RADIUS };
 
 // The shimmer on the last-move line: a soft glow of the line's own mint at
 // full strength, a little wider than the line, travelling along it from where the move started to where it
