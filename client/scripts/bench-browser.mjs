@@ -2463,10 +2463,18 @@ async function reviewSection(browser) {
           // card is closed and the list's “Analyse” clicked, as the bench did
           // then (its span leaves out closing the card), so a --base against
           // it still measures the review
-          const via = await page.evaluate(() =>
-            ['review', 'analyse'].find((id) => document.querySelector(`[data-testid="${id}"]`)),
-          );
-          if (!via) throw new Error('no Review on this page (a commit before #143?)');
+          // (waited for: the card may come a frame after the board)
+          const via = await page
+            .waitForFunction(
+              () =>
+                ['review', 'analyse'].find((id) => document.querySelector(`[data-testid="${id}"]`)),
+              null,
+              { timeout: 10000 },
+            )
+            .then((h) => h.jsonValue())
+            .catch(() => {
+              throw new Error('neither Review nor Analyse showed on the finished game in 10 s');
+            });
           if (via === 'analyse')
             await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
           await quietMain(page);
