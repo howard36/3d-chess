@@ -20,6 +20,9 @@ export default defineConfig({
       ],
       exclude: ['src/ai/worker.ts', '**/*.test.ts'],
       thresholds: {
+        // Each file on its own: a glob's total would carry an untested new
+        // module under a well-tested whole
+        perFile: true,
         'src/engine/**/*.ts': {
           statements: 90,
           branches: 90,

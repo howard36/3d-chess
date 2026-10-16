@@ -477,7 +477,7 @@ From Find and Improve (steps 3–4). Status of the regression items: RG2's attac
 | RV-K | (20261015-0212:RV-K) Keep a review's positions for the page's life, keyed by the record | a second review | 3 | useAnalysis.ts:74-118 (read) | open |
 | V16 | (20261012:V16) The cold-load board row says which it timed (picture or live preview) and stops timing a picture whose decode failed | measurement | 8 | bench-browser.mjs:542-547, 1300-1309 (read) | kept: two count rows per case (`ab-20261016-0037-rg2b.md`: 6 of 6 loads showed the picture first, 0 failed, both sides) |
 | RV21 | (1012:RV21) A malformed or oversized game id shows "gone" at once and is never sent | invitation | 12 | invitation.ts:24-42, earlySocket.ts:53-66, modal_app.py:181-188 (read) | open |
-| T15 | (1012:T15) Coverage gates per file (`thresholds.perFile`), not per glob | checks | 13 | vitest.config.ts:22-41 (read) | open: list the files under 90% first |
+| T15 | (1012:T15) Coverage gates per file (`thresholds.perFile`), not per glob | checks | 13 | vitest.config.ts:22-41 (read) | kept: `perFile: true`; every gated file is ≥ 90% today (lowest ai/computer.ts 91.7%, engine/board.ts 92.4%), and a probe module at 0% in src/game/ now fails the gate (measured) |
 | T1′ | (1012:T1′) The garden-at-rest test never advances r3f's clock, so no timed garden event can show | checks | 13 | backdropCache.test.tsx:221-238 (read) | open |
 | T24 | (1014:T24) Review gates on the board are unreachable (only gameOver reaches them) | dead code | 13 | GameView.tsx:39, 264, 266 (read) | open |
 | PR2 | (20261014:PR2, with PC) Preload per address: no tutorial chunks on game pages; ComputerGameScreen on /computer/:id | game page, phone | 5, 7 | vite.config.ts:45-50, 80 (read) | open |
