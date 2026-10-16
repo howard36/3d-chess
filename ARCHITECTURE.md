@@ -245,11 +245,13 @@ Key decisions:
   page, and drops the ones no finger accounts for, so a lone finger always turns the view
   (`e2e/touchCamera.spec.ts` loses a finger's pointer-up through real touch input).
 - **HUD.** Quiet by default: a glass **turn pill** at the top centre (across the row on a phone held upright,
-  from the way home at the left to the way to the tutorial at the right), a quiet "← Home"
-  at the top left (the start page; "←" alone in a circle in a narrow window or a short one,
-  where the pill stands beside it), a quiet "How to play" at the top right ("?" in a narrow
-  window), the move history once the game is over (below), and nothing else unless something
-  needs saying. Home leaves the game as it is: its address brings the player back to the seat.
+  between the corners at the left and right), a quiet "How to play" at the top right ("?"
+  in a narrow window), the move history once the game is over (below), and nothing else
+  unless something needs saying. There is no way home while the game is on: the player
+  stays in it. Once it is over a quiet "Home" with a house (`screens/House.tsx`) stands at
+  the top left (the start page; the house alone in a circle in a narrow window or a short
+  one, where the pill stands beside it). Home leaves the game as it is: its address brings
+  the player back to the seat.
   The pill's left half is the player and its right half the opponent, each with a small stone in its army's
   material (porcelain, charcoal); the half of the side to move is lit, its stone ringed in
   light ("Your move" / "Their move"); check is shown on the board, not here. An opponent with no
@@ -262,7 +264,7 @@ Key decisions:
   `fifty-moves` or `agreement`, and the board takes no more input. The card's call to
   action, which has the focus, is "Rematch", with "Review" (an outlined pill: the game's
   review, see below) quieter under it (`Rematch` in `screens/EndGameModal.tsx`), against the
-  computer and a friend alike; the way home is the HUD's, at the top left, not the card's. A
+  computer and a friend alike; the way home is the HUD's, not the card's. A
   rematch is a new game with the colours swapped. Against the computer it starts at once,
   at the same level (`ComputerGameScreen`'s `onRematch`, made as the side choice makes a
   game; the computer sits down as its page opens). Against a friend it is offered and
@@ -278,7 +280,11 @@ Key decisions:
   `rematch-announcer` says an offer and a refusal. With the card put away the screen is the
   review's: the board, the record and the rematch. The pill and the captured pieces step
   out of sight (still in the page, visually hidden, for a screen reader and the hooks
-  below) and the way to the tutorial goes; the way home stays.
+  below) and the way to the tutorial goes; the way home stays. In a window no wider than
+  13:9, where the steps take the top row, the way home stands with the rematch in one row
+  below the tower (`.hud-end`), at its left, the rematch in its middle while there is room;
+  the steps then have the top row's whole width (to 400 px), so the move shown between
+  them and each side's marks fit on one line on a 360 px phone.
   While the game is on, a
   flag in a circle stands under the way to the tutorial at the right (`screens/GameActions.tsx`,
   `.hud-game`, in one column with the move history, which takes its place once the game is over, `.hud-side`: below the HUD's band, but in every window shape where the window is empty
@@ -513,7 +519,7 @@ Key decisions:
   a screen's main action is the pill of starlight (`screens/PlayButton.tsx`); a secondary
   action is an outlined pill (`.button-secondary`, a size down as `.button-small`: "How to
   play" on the start page, "Play here", Retry, the tutorial's Next, the result's Review); a word that goes back
-  or cancels is a quiet link (`.button-link`: "← Home", in a game too, "How to play" in a
+  or cancels is a quiet link (`.button-link`: "← Home", a game's "Home" once it is over, "How to play" in a
   game, Cancel, Start over, the result's Decline); a glyph alone is `.button-icon` (the result card's and an error's ✕). The
   pill wears the turning rim of the level colours (`rim`) only where it stands alone on the scene and urges a
   game on: "Join game", the way on from a game taken or gone, the result's "Rematch" (and its

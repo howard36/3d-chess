@@ -25,7 +25,7 @@ import { notateCandidate } from '../game/notation';
 import { moveFromMessage } from '../engine/protocol';
 import MoveAnnouncer from './MoveAnnouncer';
 import GameActions from './GameActions';
-import { Arrow } from './Arrow';
+import { House } from './House';
 import type { GameActionsProps } from './GameActions';
 import { learnScreen } from './learn/learnChunk';
 import type { LearnState } from './learn/learnBack';
@@ -325,10 +325,11 @@ const GameView: React.FC<GameViewProps> = ({
             onMove={onMove}
             shown={boardLoad.failed}
           />
-          {/* After the move box, which stays the first Tab stop: the way
-              home at the top left, the tutorial across from it (not in the
-              review) */}
-          <HomeLink />
+          {/* After the move box, which stays the first Tab stop: the
+              tutorial at the top right (not in the review), and once the
+              game is over the way home across from it (in the review it
+              stands with the rematch, below) */}
+          {gameOver && !afterResult && <HomeLink />}
           {!afterResult && <HowToPlay />}
           {/* Under the way to the tutorial, one column at the right where
               the window has room beside the tower (index.css, .hud-side):
@@ -430,12 +431,17 @@ const GameView: React.FC<GameViewProps> = ({
           />
         </div>
       )}
-      {afterResult && rematch && (
-        <div inert={replaced}>
-          <RematchBar
-            rematch={rematch}
-            onReview={analysisState === 'idle' ? startReview : undefined}
-          />
+      {/* The review: the way home and the rematch, one row below the tower
+          in a narrow window, else home at the top left (index.css, .hud-end) */}
+      {afterResult && (
+        <div className="hud-end" inert={replaced}>
+          <HomeLink />
+          {rematch && (
+            <RematchBar
+              rematch={rematch}
+              onReview={analysisState === 'idle' ? startReview : undefined}
+            />
+          )}
         </div>
       )}
       {replacedNotice}
@@ -446,10 +452,12 @@ const GameView: React.FC<GameViewProps> = ({
 export default GameView;
 
 /**
- * The way home from a game, at the top left, across from the way to the
- * tutorial (index.css, .hud-home): "← Home" where the window has room, the
- * arrow alone in a circle where it has not. The game stays as it is: its
- * address brings the player back to their seat.
+ * The way home from a game, once it is over (while it is on, the player
+ * stays in it): at the top left, across from the way to the tutorial, or in
+ * a narrow window's review beside the rematch (index.css, .hud-home,
+ * .hud-end). A house and "Home" where the window has room, the house alone in
+ * a circle where it has not. The game stays as it is: its address brings the
+ * player back to their seat.
  */
 function HomeLink() {
   const navigate = useNavigate();
@@ -460,7 +468,7 @@ function HomeLink() {
       title="Home"
       onClick={() => navigate('/')}
     >
-      <Arrow to="left" />
+      <House />
       <span className="hud-home-word caps" aria-hidden>
         Home
       </span>
