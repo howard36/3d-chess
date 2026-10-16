@@ -761,6 +761,8 @@ async function settle(page, { quietMs = 300, timeout = 15000 } = {}) {
     );
     return true;
   } catch {
+    // Said in the findings: the next timed action met a canvas still drawing
+    raw.unrested = (raw.unrested ?? 0) + 1;
     return false;
   }
 }
@@ -3115,6 +3117,10 @@ function findings() {
   };
   const pct = (x) => `${Math.round(x)}%`;
   const med = (rows, k) => median(rows.map((r) => r[k]));
+  if (raw.unrested)
+    f.push(
+      `The canvas did not come to rest within its wait ${raw.unrested} time(s): the action timed after it met a GPU still drawing.`,
+    );
   tryAdd(() => {
     const d = raw.cold.desktop;
     const t = raw.cold['phone-cpu4-4g'];
