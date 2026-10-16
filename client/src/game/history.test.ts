@@ -296,9 +296,13 @@ describe('deriveHistory: the work a landing move costs', () => {
     const applied = vi.spyOn(Board.prototype, 'applyMove');
     // Its notation asks no piece for its legal moves: no other black pawn reaches Bd5
     const legal = vi.spyOn(Board.prototype, 'generateLegalMoves');
-    deriveHistory([...log, moveMade('black', 'Cd5', 'Bd5')], prev);
+    const next = deriveHistory([...log, moveMade('black', 'Cd5', 'Bd5')], prev);
     expect(applied).toHaveBeenCalledTimes(1);
     expect(legal).not.toHaveBeenCalled();
+    // The earlier moves' notation is kept, not made anew: the move list's
+    // blocks compare it by identity (MoveHistory.tsx) and redraw only the last
+    expect(next.notation).toHaveLength(4);
+    prev.notation.forEach((n, i) => expect(next.notation[i]).toBe(n));
     applied.mockRestore();
     legal.mockRestore();
   });
