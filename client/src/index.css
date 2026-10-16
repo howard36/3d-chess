@@ -29,8 +29,11 @@
   /* The five level colours, sky (E, the top) to rose (A, the base), as every gradient of them
      runs, left to right and top to bottom: the home page's title and rims, the lobby's */
   --landing-levels: linear-gradient(90deg, #47bbec, #4180f3, #8f61fc, #de5cec, #ec539b);
+  /* The night round the tower: the garden's sky at its top (palette.ts, skyTop), which the
+     start page's pictures fade into at their edges */
+  --night: #010205;
   /* The start and waiting pages */
-  --page-bg: radial-gradient(ellipse at 50% 60%, #0a0d15 0%, #04050a 60%, #010205 100%);
+  --page-bg: radial-gradient(ellipse at 50% 60%, #0a0d15 0%, #04050a 60%, var(--night) 100%);
   --page-fg: #eef1f7;
 }
 
@@ -1411,7 +1414,7 @@ body {
   height: 100dvh;
   width: 100vw;
   overflow: hidden;
-  background: #010205;
+  background: var(--night);
   color: var(--hud-fg);
   font-family: var(--hud-font);
   letter-spacing: var(--hud-tracking);
@@ -1439,13 +1442,13 @@ body {
 /* The same picture placed by the built page before the entry ran
    (earlyPicture.ts), until the page takes it in */
 #landing-early {
-  background: #010205;
+  background: var(--night);
 }
 /* The veil the demo closes between one game and the next (LandingPreview) */
 .landing-veil {
   position: absolute;
   inset: 0;
-  background: #010205;
+  background: var(--night);
   pointer-events: none;
 }
 /* A fade behind the menu, clear just past the tower's edge */

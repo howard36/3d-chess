@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { rimColour } from './screens/rim';
-import { LEVEL_COLORS } from './three/scene/palette';
+import { LEVEL_COLORS, PALETTE } from './three/scene/palette';
 
 // (vitest runs from client/)
 const SRC = join(process.cwd(), 'src');
@@ -157,4 +157,15 @@ test('the stylesheets and the rims use exactly the board’s level colours', () 
   expect([0, 0.29, 0.5, 0.71, 1].map(rimColour)).toEqual(
     [...levels].reverse().map((c) => `rgb(${c.join(',')})`),
   );
+});
+
+// The page's night is the garden's sky at its top: the start page's pictures
+// fade into it at their edges, and the lobby and the preview's veil fade to it
+test('the stylesheets’ night is the sky’s, and no stylesheet spells it out again', () => {
+  const sheets = sources(SRC).filter((f) => f.endsWith('.css'));
+  const all = sheets.map((f) => readFileSync(f, 'utf8')).join('\n');
+  expect(all.match(/--night:\s*(#[0-9a-f]{6})/i)?.[1].toLowerCase()).toBe(
+    PALETTE.skyTop.toLowerCase(),
+  );
+  expect(all.match(new RegExp(PALETTE.skyTop, 'gi'))).toHaveLength(1);
 });

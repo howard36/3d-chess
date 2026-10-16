@@ -5,6 +5,7 @@ import { LandingPreview } from '../screens/LandingPreview';
 import type { LandingLayout } from '../screens/landingLayout';
 import { LANDING_PICTURES, PICTURE_FADE } from '../three/landingLens';
 import type { PictureDensity } from '../three/landingLens';
+import { PALETTE } from '../three/scene/palette';
 
 // Entry of the dev-only page that draws the start page's pictures of its
 // preview (client/landing-pictures.html, served by Vite in development, left
@@ -21,7 +22,7 @@ const density = (params.get('density') ?? '1x') as PictureDensity;
 const [width, height] = LANDING_PICTURES[layout].pixels[density];
 (window as unknown as { __picture: unknown }).__picture = { width, height };
 
-const NIGHT = '#010205';
+const NIGHT = PALETTE.skyTop;
 const edge = `${PICTURE_FADE * 100}%`;
 const fade = (to: string) =>
   `linear-gradient(to ${to}, ${NIGHT}, transparent ${edge}, transparent calc(100% - ${edge}), ${NIGHT})`;
