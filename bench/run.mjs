@@ -719,6 +719,26 @@ function machineState(lastEnd) {
   };
 }
 
+/**
+ * Waits, at most a minute, for the CPU to go quiet (under 2% of the last 10 s
+ * waiting on it) before a run: the run before one leaves ~23% behind for its
+ * first seconds (1016:AA1). Without /proc it does not wait.
+ */
+function settle() {
+  const start = Date.now();
+  const cell = new Int32Array(new SharedArrayBuffer(4));
+  for (;;) {
+    let cpu = NaN;
+    try {
+      cpu = Number(/some avg10=([\d.]+)/.exec(readFileSync('/proc/pressure/cpu', 'utf8'))?.[1]);
+    } catch {
+      // No pressure file (macOS, an old kernel): nothing to wait on
+    }
+    if (!(cpu >= 2) || Date.now() - start > 60000) return;
+    Atomics.wait(cell, 0, 0, 1000);
+  }
+}
+
 /** A worktree of `ref` with this checkout's harness and installed dependencies. */
 function baseWorktree(ref) {
   const sha = sh('git', ['rev-parse', '--verify', `${ref}^{commit}`]);
@@ -911,6 +931,7 @@ function abMain() {
         rmSync(ctx.out, { recursive: true, force: true });
         mkdirSync(ctx.out, { recursive: true });
         log(`pair ${pair + 1} of ${PAIRS}: ${side}`);
+        settle();
         machine.push({ pair: pair + 1, side, ...machineState(lastEnd) });
         const results = {};
         if (tiers.includes('client')) results.client = runClient(ctx);
@@ -1149,7 +1170,8 @@ function abMain() {
   }
   md.push('## The machine at each run');
   md.push(
-    'As each run began: seconds since the run before it ended, the load average over a minute, ' +
+    'As each run began, once the CPU had gone quiet (under 2% waiting on it, a minute at most): ' +
+      'seconds since the run before it ended, the load average over a minute, ' +
       'the share of the last 10 s that tasks waited on the CPU and on I/O (Linux pressure), ' +
       'memory available, and the processes earlier runs left alive (Chromium, `vite preview`, ' +
       'uvicorn). For reading an order gap between the pairs (*Base first*, *Head first*).',
