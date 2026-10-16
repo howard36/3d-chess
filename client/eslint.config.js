@@ -17,23 +17,13 @@ const NO_SET_PIECE = {
 // Only the game canvas names __r3fState (e2e projects clicks through it):
 // published, read or defined, by name or by string. Kept in each block that
 // sets no-restricted-syntax, as a later block's list replaces an earlier one's
+const R3F_ONLY =
+  'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.';
 const NO_R3F_STATE = [
-  {
-    selector: "Identifier[name='__r3fState']",
-    message:
-      'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
-  },
-  {
-    selector: 'Literal[value=/__r3fState/]',
-    message:
-      'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
-  },
-  {
-    selector: 'TemplateElement[value.raw=/__r3fState/]',
-    message:
-      'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
-  },
-];
+  "Identifier[name='__r3fState']",
+  'Literal[value=/__r3fState/]',
+  'TemplateElement[value.raw=/__r3fState/]',
+].map((selector) => ({ selector, message: R3F_ONLY }));
 
 // CLAUDE.md "Gotchas": focus the page moves by itself goes through lib/focus.ts,
 // so its ring shows only for a player on the keyboard (kept, like
