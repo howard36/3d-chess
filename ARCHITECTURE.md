@@ -333,7 +333,10 @@ Key decisions:
   `GameHistory.notation`; `screens/MoveText.tsx` draws it): the icon (a pawn's too: a letter
   would read as a level, B for both bishop and level B), "x" for a capture, the destination,
   "=" and the icon of what a pawn became, and "+" for check or "#" for mate (♘xBb3+,
-  ♙Ed5=♕, ♕Ee5#). Where another piece of the same kind and side could make the same move
+  ♙Ed5=♕, ♕Ee5#); each icon is cut to its ink and stands on the baseline exactly as tall
+  as the capitals, as a letter would, and the squares keep the font's own figures (a
+  tabular "1" stands alone in a digit's width), the moves' numbers alone tabular so
+  they line up. Where another piece of the same kind and side could make the same move
   (a pinned one does not count), the whole starting square comes first, joined by "x" or,
   for a move that takes nothing, "–" (♙Cd2xCc3, ♙Cc2–Cc3): never a part of the square,
   which beside a level-file-rank square reads as one. A screen reader hears the move in

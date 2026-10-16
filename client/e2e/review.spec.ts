@@ -155,11 +155,33 @@ test("on a phone the steps take the pill's place once the game is over, the list
     });
     const word = document.querySelector('.hud-ply[aria-current] .hud-ply-word')!;
     const style = getComputedStyle(word);
-    return { counts, light: parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) };
+    // Each move's icon on the baseline and no taller than the capitals
+    const icons = [...document.querySelectorAll('.hud-moves .hud-icon')].map((icon) => {
+      const probe = document.createElement('span');
+      probe.style.cssText = 'display: inline-block; width: 0; height: 1cap';
+      icon.after(probe);
+      const box = icon.getBoundingClientRect();
+      const cap = probe.getBoundingClientRect();
+      probe.remove();
+      return { over: cap.top - box.top, foot: box.bottom - cap.bottom };
+    });
+    return {
+      counts,
+      light: parseFloat(style.paddingTop) - parseFloat(style.paddingBottom),
+      icons,
+      figures: style.fontVariantNumeric,
+    };
   });
   expect(offsets.counts).toHaveLength(6);
   for (const off of offsets.counts) expect(Math.abs(off)).toBeLessThanOrEqual(0.5);
   expect(Math.abs(offsets.light)).toBeLessThanOrEqual(0.5);
+  expect(offsets.icons).toHaveLength(2);
+  for (const { over, foot } of offsets.icons) {
+    expect(over).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(foot)).toBeLessThanOrEqual(0.5);
+  }
+  // A move's figures the font's own: a tabular "1" stands in a digit's width
+  expect(offsets.figures).toBe('normal');
   await white.locator('[data-ply="2"]').click();
   await expect(history).not.toHaveAttribute('data-review');
   await expect.poll(() => pieceOn(white, 'Cd5')).toBe('black pawn');
