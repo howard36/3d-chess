@@ -286,9 +286,13 @@ describe('deriveHistory: the work a landing move costs', () => {
     ];
     const prev = deriveHistory(log);
     const applied = vi.spyOn(Board.prototype, 'applyMove');
+    // Its notation asks no piece for its legal moves: no other black pawn reaches Bd5
+    const legal = vi.spyOn(Board.prototype, 'generateLegalMoves');
     deriveHistory([...log, moveMade('black', 'Cd5', 'Bd5')], prev);
     expect(applied).toHaveBeenCalledTimes(1);
+    expect(legal).not.toHaveBeenCalled();
     applied.mockRestore();
+    legal.mockRestore();
   });
 });
 

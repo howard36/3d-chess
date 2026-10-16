@@ -323,14 +323,26 @@ Key decisions:
   words for a screen reader (visually hidden, nothing to press), and ← → Home End step
   nowhere. It comes into sight with the result card (after a mate's fall, as the card
   does), and from then on is the record in
-  numbered pairs ("1. Bb1–Cb1 Dd5–Cd5"), every move a button that shows the board as it
+  numbered pairs ("1. ♙Cb1 ♙Cd5"), every move a button that shows the board as it
   stood after it, over four steps: the start (move 0), back, on and the latest, and ← → Home
-  End while focus is not in a field. Where the window leaves room beside the tower it is a
+  End while focus is not in a field.
+  The record writes a move as chess does, with the piece's icon for its letter
+  (`game/notation.ts`, worked out by the replay from the position before each move,
+  `GameHistory.notation`; `screens/MoveText.tsx` draws it): the icon (a pawn's too: a letter
+  would read as a level, B for both bishop and level B), "x" for a capture, the destination,
+  "=" and the icon of what a pawn became, and "+" for check or "#" for mate (♘xBb3+,
+  ♙Ed5=♕, ♕Ee5#). Where another piece of the same kind and side could make the same move
+  (a pinned one does not count), the whole starting square comes first, joined by "x" or,
+  for a move that takes nothing, "–" (♙Cd2xCc3, ♙Cc2–Cc3): never a part of the square,
+  which beside a level-file-rank square reads as one. A screen reader hears the move in
+  words ("Pawn Cd2 takes Cc3, check"); a record past one the replay could not play keeps
+  the wire's form (`Bb1–Cb1`), and the move box takes only the wire's form (`Bb1-Cb1`).
+  Where the window leaves room beside the tower it is a
   narrow glass panel at the right under "How to play" and the flag, in one column with them
   (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
   height to fit (the list scrolls, the move shown kept in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
   in a row under the tower (above the rematch, or beside it in a window at least 560 px wide, where the tower fills the height and leaves room under it for one row), the move shown
-  between them ("7… Ed4–Ba1"), which opens the list above them. Closed, the list is
+  between them ("7… ♗xBa1+"), which opens the list above them. Closed, the list is
   visually hidden, never `display: none`: it is how a screen reader reads the record, and
   a polite status says where the board stands as the player steps. A reopened game's list
   comes in two renders: the blocks in view (the last, the move shown's) with the record, the
@@ -360,7 +372,7 @@ Key decisions:
   top shows each side's marks counted by grade (its stone, then "?! 2 ? 0 ?? 1"), a
   thin bar under them filling as the review goes. Where the move shown is marked, the board
   draws the better move beside it (see The board) and the panel names it under the list
-  ("Best Bc1–Cc2", beside a stroke of the line's amber); an unmarked move shows nothing
+  ("Best ♙Cc2", beside a stroke of the line's amber); an unmarked move shows nothing
   more. In a window no wider than 13:9 the mark stands beside the move shown between the
   steps, and the review's top and the better move's name come with the list. The review
   lasts for the page's life; leaving the page, or another record, stops the work
