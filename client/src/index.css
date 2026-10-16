@@ -814,7 +814,6 @@ body {
   max-height: calc(100dvh - 60px - 14px);
   padding: 4px;
   font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
   pointer-events: auto;
   /* In the game's entrance it fades in with the pill (--intro-hud) */
   opacity: var(--intro-hud, 1);
@@ -858,6 +857,8 @@ body {
   /* The move's number, a bare text node: its own column */
   color: var(--hud-muted);
   font-size: 12.5px;
+  /* Its digits as wide as each other, so the numbers line up; a move's
+     squares keep the font's own, where a "1" is as narrow as it looks */
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -881,20 +882,22 @@ body {
   color: rgba(238, 241, 247, 0.86);
   font: inherit;
   font-size: 12.5px;
+  font-variant-numeric: normal;
   letter-spacing: 0.01em;
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
 }
 /* A piece's icon in the record (screens/MoveText.tsx): its silhouette, in
-   the text's colour, standing on the line as a letter does (the glyph's
-   ground, y = 21 of its 24, on the baseline), its empty sides taken in */
+   the text's colour, cut to its ink and standing on the line as a capital
+   does, its ground on the baseline and its top on the capitals' (rounded
+   as .caps rounds them, so a row's icons and words share their pixels) */
 .hud-icon {
   display: inline-block;
-  width: 1.3em;
-  height: 1.3em;
-  margin: 0 -0.12em 0 -0.22em;
-  vertical-align: -0.16em;
+  width: auto;
+  height: var(--caps);
+  margin: 0 0.2em 0 0;
+  vertical-align: baseline;
   fill: currentColor;
 }
 /* A move's words and their light: trimmed to their capitals (a block, as
@@ -950,9 +953,10 @@ body {
   --grade-blunder: #ff6157;
   --better: #ffb547;
 }
+/* A move's mark, as large as the move's words: its "?" and "!" stand as
+   tall as their capitals */
 .hud-mark {
   margin-left: 2px;
-  font-size: 11.5px;
   font-weight: 700;
   letter-spacing: -0.03em;
 }
@@ -1126,7 +1130,7 @@ body {
   border: 0;
   border-radius: 3px;
   background: none;
-  color: var(--hud-muted);
+  color: var(--hud-fg);
   font: inherit;
   font-size: 12px;
   white-space: nowrap;
@@ -1134,10 +1138,7 @@ body {
   cursor: pointer;
 }
 .hud-now:hover {
-  color: var(--hud-fg);
-}
-.hud-history[data-review] .hud-now {
-  color: var(--hud-fg);
+  background: rgba(236, 241, 255, 0.08);
 }
 /* Beside the tower, where the move shown is lit in the list, the four steps
    share the panel's width */
