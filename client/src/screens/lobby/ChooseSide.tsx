@@ -1,4 +1,5 @@
 import React from 'react';
+import { Arrow } from '../Arrow';
 import { useNavigate } from 'react-router';
 import type { GameCreated, Error as ServerError } from '../../types/messages';
 import type { GameSocket } from '../../hooks/useGameSocket';
@@ -195,7 +196,8 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
     <div className="lobby-page" data-testid="choose-side" data-enter={picked ? undefined : ''}>
       <header className="lobby-top" data-out={out}>
         <button className="button-link" onClick={() => navigate('/')}>
-          <span aria-hidden>←</span> Home
+          <Arrow to="left" />
+          <span className="caps">Home</span>
         </button>
       </header>
       {/* The heading answers the pick at once; keyed, so each line fades in */}
@@ -237,7 +239,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
               onBlur={() => setHover((h) => (h === choice ? null : h))}
               onClick={() => pick(choice)}
             >
-              {name}
+              <span className="caps">{name}</span>
             </button>
           );
         })}

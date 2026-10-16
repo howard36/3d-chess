@@ -34,19 +34,23 @@ const CONFIRM_ARMS_MS = 350;
 
 /** A white flag on its staff. */
 const Flag = () => (
-  <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
-    <path d="M4 14.5V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path
-      d="M4.6 2.6c2.6-1.2 4.2 1 6.9-.2v6.2c-2.7 1.2-4.3-1-6.9.2z"
-      fill="currentColor"
-      fillOpacity="0.85"
-    />
+  // 16 px in a circle of an even size, so it is centred on a whole pixel;
+  // a quarter unit up, so the pole's ink (round ends and all) is centred
+  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+    <g transform="translate(0 -0.25)">
+      <path d="M4 14.5V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M4.6 2.6c2.6-1.2 4.2 1 6.9-.2v6.2c-2.7 1.2-4.3-1-6.9.2z"
+        fill="currentColor"
+        fillOpacity="0.85"
+      />
+    </g>
   </svg>
 );
 
 /** An arrow turning back. */
 const Back = () => (
-  <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
+  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
     <path
       d="M5.5 3 2.5 6l3 3M3 6h6.5a3.5 3.5 0 0 1 0 7H7"
       fill="none"
@@ -197,10 +201,10 @@ const GameActions: React.FC<GameActionsProps> = ({
                   close(true);
                 }}
               >
-                {mine ? 'Draw offered' : 'Offer draw'}
+                <span className="caps">{mine ? 'Draw offered' : 'Offer draw'}</span>
               </button>
               <button className="hud-menu-item" onClick={() => setAskedAt(performance.now())}>
-                Resign
+                <span className="caps">Resign</span>
               </button>
             </>
           ) : (
@@ -211,7 +215,7 @@ const GameActions: React.FC<GameActionsProps> = ({
               <div className="hud-menu-row" role="group" aria-labelledby="resign-ask">
                 {/* Focus lands on the safe answer */}
                 <button ref={autoFocusRef} className="hud-menu-item" onClick={() => close(true)}>
-                  Cancel
+                  <span className="caps">Cancel</span>
                 </button>
                 <button
                   className="hud-menu-item"
@@ -222,7 +226,7 @@ const GameActions: React.FC<GameActionsProps> = ({
                     close(false);
                   }}
                 >
-                  Resign
+                  <span className="caps">Resign</span>
                 </button>
               </div>
             </>
@@ -232,7 +236,7 @@ const GameActions: React.FC<GameActionsProps> = ({
       {line && line.endsWith('-offer') ? (
         // Keyed by the line: a button the player pressed never becomes another offer's
         <div key={line} className="hud-offer hud-glass" data-testid={line}>
-          <span className="hud-offer-words">{LINE_WORDS[line]}</span>
+          <span className="hud-offer-words caps">{LINE_WORDS[line]}</span>
           <span className="hud-offer-answers">
             {[true, false].map((accept) => (
               <button
@@ -244,7 +248,7 @@ const GameActions: React.FC<GameActionsProps> = ({
                   line === 'draw-offer' ? onAnswerDraw(accept) : takeBack?.onAnswer?.(accept)
                 }
               >
-                {accept ? 'Accept' : 'Decline'}
+                <span className="caps">{accept ? 'Accept' : 'Decline'}</span>
               </button>
             ))}
           </span>
@@ -253,7 +257,7 @@ const GameActions: React.FC<GameActionsProps> = ({
         line && (
           <div key={line} className="hud-line hud-glass" data-testid={line}>
             {line.endsWith('-pending') && <span className="hud-dot" aria-hidden />}
-            {LINE_WORDS[line]}
+            <span className="caps">{LINE_WORDS[line]}</span>
           </div>
         )
       )}

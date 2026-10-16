@@ -202,7 +202,7 @@ export function Army() {
         {ARMY.map(({ type, count }) => (
           <li key={type} data-piece={type}>
             <PieceGlyph type={type} color="white" size={22} />
-            <span>{count}</span>
+            <span className="caps">{count}</span>
           </li>
         ))}
       </ul>

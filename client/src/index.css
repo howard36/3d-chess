@@ -162,6 +162,7 @@ body {
   min-width: 300px;
   max-width: 100%;
   height: 40px;
+  height: calc(40px + mod(40px - var(--caps), 2px));
   border-radius: 20px;
   font-size: 14.5px;
   font-weight: 600;
@@ -194,7 +195,15 @@ body {
   flex: none;
   width: 1px;
   height: 18px;
+  height: calc(18px + mod(18px - var(--caps), 2px));
   background: var(--hud-hair-strong);
+}
+/* The stones a pixel larger where that centres them on the words (.caps) */
+.hud-pill .hud-stone {
+  width: 16px;
+  width: calc(16px + mod(16px - var(--caps), 2px));
+  height: 16px;
+  height: calc(16px + mod(16px - var(--caps), 2px));
 }
 .hud-result {
   justify-content: center;
@@ -223,7 +232,9 @@ body {
 .hud-dot {
   flex: none;
   width: 6px;
+  width: calc(6px + mod(var(--caps) - 6px, 2px));
   height: 6px;
+  height: calc(6px + mod(var(--caps) - 6px, 2px));
   border-radius: 50%;
   background: var(--hud-light);
   box-shadow: 0 0 8px rgba(230, 238, 255, 0.8);
@@ -270,6 +281,36 @@ body {
   outline: none;
 }
 /*
+ * Words centred by their capitals, whatever font the system gives (.caps):
+ * a block trimmed to the capitals (text-box: from their top to the
+ * baseline; it applies to blocks only), the capitals' fraction of a pixel
+ * over them as a margin, so it stands C = round(1cap, 1px) tall with its
+ * baseline on a whole pixel. A box that centres it grows a pixel where its
+ * height and C differ in parity (calc(H + mod(H - var(--caps), 2px))), and
+ * so does an icon beside it: the browser rounds boxes and baselines to the
+ * pixel each on its own, and a centring that lands on a half rounds them
+ * apart. (The difference is always taken positive: Chrome's mod() gives
+ * 2px, not 0, for an even negative one.) Where cap, round(), mod() or
+ * text-box are unknown, the plain size given first holds.
+ */
+:root {
+  --caps: round(1cap, 1px);
+}
+.caps {
+  display: block;
+  margin-top: calc(var(--caps) - 1cap);
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
+}
+/* An arrow beside them (screens/Arrow.tsx), as tall as they stand */
+.caps-arrow {
+  flex: none;
+  width: auto;
+  height: 0.75em;
+  height: var(--caps);
+  aspect-ratio: 1;
+}
+/*
  * The app's buttons besides the pill of starlight (.landing-play) and the
  * glass tiles (.landing-mode, .lobby-glass), one style each wherever they
  * stand: a secondary action, outlined (.button-secondary; .button-small a
@@ -285,6 +326,7 @@ body {
   gap: 6px;
   box-sizing: border-box;
   height: 44px;
+  height: calc(44px + mod(44px - var(--caps), 2px));
   padding: 0 20px;
   border: 1px solid rgba(236, 241, 255, 0.3);
   border-radius: 999px;
@@ -309,6 +351,7 @@ body {
 }
 .button-small {
   height: 32px;
+  height: calc(32px + mod(32px - var(--caps), 2px));
   padding: 0 14px;
   font-size: 13.5px;
 }
@@ -316,7 +359,10 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
+  box-sizing: border-box;
+  height: 32px;
+  height: calc(32px + mod(32px - var(--caps), 2px));
+  padding: 0 10px;
   border: 0;
   border-radius: 6px;
   background: none;
@@ -484,6 +530,7 @@ body {
 @media (pointer: coarse) {
   .hud-pill {
     height: 44px;
+    height: calc(44px + mod(44px - var(--caps), 2px));
     border-radius: 22px;
   }
 }
@@ -1428,6 +1475,7 @@ body {
   justify-content: center;
   gap: 10px;
   height: 52px;
+  height: calc(52px + mod(52px - var(--caps), 2px));
   min-width: 240px;
   padding: 0 30px 0 24px;
   border: 2px solid transparent;
@@ -1502,6 +1550,7 @@ body {
     width: 100%;
     min-width: 0;
     height: 48px;
+    height: calc(48px + mod(48px - var(--caps), 2px));
     padding: 0 16px;
     font-size: 16px;
   }
@@ -1690,7 +1739,9 @@ body {
   justify-content: center;
   box-sizing: border-box;
   min-width: clamp(92px, calc(var(--king) * 0.62), 200px);
+  --choice-height: round(clamp(46px, calc(var(--king) * 0.185), 60px), 1px);
   height: clamp(46px, calc(var(--king) * 0.185), 60px);
+  height: calc(var(--choice-height) + mod(var(--choice-height) - var(--caps), 2px));
   padding: 0 1em;
   white-space: nowrap;
   border-radius: 14px;
@@ -2097,6 +2148,7 @@ body {
 }
 .lobby-go {
   height: 48px;
+  height: calc(48px + mod(48px - var(--caps), 2px));
   min-width: 200px;
   padding: 0 26px;
   font-size: 16px;
@@ -2131,6 +2183,11 @@ body {
   max-width: 100%;
   margin: 14px auto 0;
   padding: 10px 18px;
+  /* Trimmed to its capitals (.caps), the fraction over them: as tall as
+     its line's box made it before */
+  padding: calc(15px + var(--caps) - 1cap) 18px 15px;
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.03);
@@ -2226,7 +2283,9 @@ body {
     top: 14px;
     justify-content: center;
     width: 36px;
+    width: calc(36px + mod(36px - var(--caps), 2px));
     height: 36px;
+    height: calc(36px + mod(36px - var(--caps), 2px));
     padding: 0;
     border: 1px solid rgba(236, 241, 255, 0.22);
     border-radius: 50%;
@@ -2238,7 +2297,9 @@ body {
 @media ((max-width: 719px) or (max-height: 480px)) and (pointer: coarse) {
   .hud-home {
     width: 40px;
+    width: calc(40px + mod(40px - var(--caps), 2px));
     height: 40px;
+    height: calc(40px + mod(40px - var(--caps), 2px));
   }
 }
 
@@ -2259,7 +2320,9 @@ body {
     top: 14px;
     justify-content: center;
     width: 36px;
+    width: calc(36px + mod(36px - var(--caps), 2px));
     height: 36px;
+    height: calc(36px + mod(36px - var(--caps), 2px));
     padding: 0;
     border: 1px solid rgba(236, 241, 255, 0.22);
     border-radius: 50%;
@@ -2268,7 +2331,7 @@ body {
     display: none;
   }
   .hud-learn-mark {
-    display: inline;
+    display: block;
   }
 }
 /* A touch screen: a fingertip's circle, centred on the taller pill */
@@ -2276,7 +2339,9 @@ body {
   .hud-learn {
     top: 14px;
     width: 40px;
+    width: calc(40px + mod(40px - var(--caps), 2px));
     height: 40px;
+    height: calc(40px + mod(40px - var(--caps), 2px));
   }
 }
 
@@ -2347,7 +2412,10 @@ body {
   padding: 6px;
 }
 .hud-menu-item {
+  display: flex;
+  align-items: center;
   height: 32px;
+  height: calc(32px + mod(32px - var(--caps), 2px));
   padding: 0 12px;
   border: 0;
   border-radius: 3px;
@@ -2397,6 +2465,7 @@ body {
 }
 .hud-offer .hud-menu-item {
   height: 30px;
+  height: calc(30px + mod(30px - var(--caps), 2px));
   border-radius: 15px;
   font-size: 13px;
 }
@@ -2412,6 +2481,7 @@ body {
 @media (pointer: coarse) {
   .hud-offer .hud-menu-item {
     height: 36px;
+    height: calc(36px + mod(36px - var(--caps), 2px));
     border-radius: 18px;
   }
 }
@@ -2497,11 +2567,19 @@ body {
 .landing-mode .landing-label {
   font-size: clamp(13px, calc(10.5cqi - 3.5px), 17px);
 }
+/* The tile's arrow (as screens/Arrow.tsx draws it), centred on its badge:
+   the tile's padding over the badge, and half of what the badge stands over
+   the arrow's 14 px */
 .landing-mode::after {
-  content: '→';
+  content: '';
   position: absolute;
-  top: 18px;
+  top: calc(12px + (44px - 14px) / 2);
   right: 14px;
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 6h9M7 2.5 10.5 6 7 9.5' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
   opacity: 0.5;
   transition:
     transform 200ms,
@@ -2577,7 +2655,7 @@ body {
     padding: 8px 12px 10px;
   }
   .landing-mode::after {
-    top: 14px;
+    top: calc(8px + (34px - 14px) / 2);
   }
   .landing-mode-icon {
     --landing-icon-width: 52px;
@@ -2589,6 +2667,7 @@ body {
   }
   .landing-learn {
     height: 38px;
+    height: calc(38px + mod(38px - var(--caps), 2px));
     margin-top: 10px;
     font-size: 14px;
   }
@@ -2691,7 +2770,7 @@ body {
     height: 32px;
   }
   .landing-mode::after {
-    top: 20px;
+    top: calc(14px + (50px - 14px) / 2);
     right: 18px;
   }
 }
