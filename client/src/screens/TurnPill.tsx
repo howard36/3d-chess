@@ -81,7 +81,7 @@ const TurnPill: React.FC<TurnPillProps> = (props) => {
       <div className="hud-pill hud-glass hud-result" {...common}>
         {label}
         <Stone color={gameOver.winner ?? seat} lit aria-hidden />
-        <span aria-hidden>
+        <span className="caps" aria-hidden>
           {how}
           {verdict && <span className="hud-sub"> · {verdict}</span>}
         </span>
@@ -95,11 +95,11 @@ const TurnPill: React.FC<TurnPillProps> = (props) => {
       {label}
       <span className="hud-half" data-side="me" data-on={mine || undefined} aria-hidden>
         <Stone color={seat} lit={mine} />
-        <span>{mine ? 'Your move' : 'You'}</span>
+        <span className="caps">{mine ? 'Your move' : 'You'}</span>
       </span>
       <span className="hud-rule" aria-hidden />
       <span className="hud-half" data-side="them" data-on={!mine || undefined} aria-hidden>
-        <span>{away ? 'Offline' : mine ? opponentName : 'Their move'}</span>
+        <span className="caps">{away ? 'Offline' : mine ? opponentName : 'Their move'}</span>
         <Stone color={them} lit={!mine} absent={away} />
       </span>
     </div>

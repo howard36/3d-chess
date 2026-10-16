@@ -1,4 +1,5 @@
 import React from 'react';
+import { Arrow } from './Arrow';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import type { Move } from '../engine';
 import { moveToMessage } from '../engine/protocol';
@@ -389,7 +390,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   const reconnectingBanner = status === 'reconnecting' && (
     <div className="hud-line hud-glass">
       <span className="hud-dot" aria-hidden />
-      Reconnecting…
+      <span className="caps">Reconnecting…</span>
     </div>
   );
 
@@ -418,7 +419,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         </p>
         {/* A dialog takes focus, so Enter answers it without hunting for it */}
         <button ref={autoFocusRef} className="button-secondary" onClick={handlePlayHere}>
-          Play here
+          <span className="caps">Play here</span>
         </button>
       </div>
     </div>
@@ -642,7 +643,8 @@ const GameScreen: React.FC<GameScreenProps> = ({
     <div className="lobby-page" inert={replaced}>
       <header className="lobby-top">
         <button className="button-link" onClick={() => navigate('/')}>
-          <span aria-hidden>←</span> Home
+          <Arrow to="left" />
+          <span className="caps">Home</span>
         </button>
       </header>
       {/* The story's line: the side this page plays, or the invitation */}
@@ -652,7 +654,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
           <h1>You play {sideName(storedRole)}</h1>
           <p className="lobby-heading-wait">
             <span className="hud-dot" aria-hidden />
-            Waiting for your friend…
+            <span className="caps">Waiting for your friend…</span>
           </p>
         </div>
       )}

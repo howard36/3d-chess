@@ -92,7 +92,7 @@ const StartScreen: React.FC = () => {
           onPointerEnter={learnScreen.preload}
           onFocus={learnScreen.preload}
         >
-          How to play
+          <span className="caps">How to play</span>
         </button>
       </div>
     </main>

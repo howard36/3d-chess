@@ -202,13 +202,13 @@ function Rematch({
               if (!disabled) onAnswer(false);
             }}
           >
-            Decline
+            <span className="caps">Decline</span>
           </button>
         </span>
       )}
       {!bar && phase !== 'declined' && onReview && (
         <button className="button-secondary hud-review-go" data-testid="review" onClick={onReview}>
-          Review
+          <span className="caps">Review</span>
         </button>
       )}
     </div>

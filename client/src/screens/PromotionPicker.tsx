@@ -54,7 +54,7 @@ const PromotionPicker: React.FC<PromotionPickerProps> = ({ choices, color, onPic
           ))}
         </div>
         <button className="button-link" onClick={onCancel}>
-          Cancel
+          <span className="caps">Cancel</span>
         </button>
       </div>
     </div>

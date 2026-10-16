@@ -24,6 +24,7 @@ import { betterMove } from '../game/analysis';
 import { moveFromMessage } from '../engine/protocol';
 import MoveAnnouncer from './MoveAnnouncer';
 import GameActions from './GameActions';
+import { Arrow } from './Arrow';
 import type { GameActionsProps } from './GameActions';
 import { learnScreen } from './learn/learnChunk';
 import type { LearnState } from './learn/learnBack';
@@ -363,7 +364,7 @@ const GameView: React.FC<GameViewProps> = ({
                   <>
                     Couldn't load the board
                     <button className="button-secondary button-small" onClick={retryBoard}>
-                      Retry
+                      <span className="caps">Retry</span>
                     </button>
                   </>
                 )}
@@ -449,8 +450,8 @@ function HomeLink() {
       title="Home"
       onClick={() => navigate('/')}
     >
-      <span aria-hidden>←</span>
-      <span className="hud-home-word" aria-hidden>
+      <Arrow to="left" />
+      <span className="hud-home-word caps" aria-hidden>
         Home
       </span>
     </button>
@@ -477,10 +478,10 @@ function HowToPlay() {
       onPointerEnter={learnScreen.preload}
       onFocus={learnScreen.preload}
     >
-      <span className="hud-learn-word" aria-hidden>
+      <span className="hud-learn-word caps" aria-hidden>
         How to play
       </span>
-      <span className="hud-learn-mark" aria-hidden>
+      <span className="hud-learn-mark caps" aria-hidden>
         ?
       </span>
     </button>

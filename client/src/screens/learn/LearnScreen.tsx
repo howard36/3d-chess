@@ -6,6 +6,7 @@ import { LESSONS, lessonById, practise, reachable, startPractice } from '../../g
 import type { Lesson } from '../../game/lessons';
 import type { Move } from '../../engine';
 import { PieceGlyph } from '../PieceGlyph';
+import { Arrow } from '../Arrow';
 import PromotionPicker from '../PromotionPicker';
 import { Army, Directions, LevelsIcon, PromotionRow } from './Directions';
 import { cardBeside } from './learnLayout';
@@ -106,7 +107,8 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
       {/* Home where the lobby has it */}
       <header className="lobby-top">
         <button className="button-link" onClick={leave}>
-          <span aria-hidden>←</span> {back ? 'Game' : 'Home'}
+          <Arrow to="left" />
+          <span className="caps">{back ? 'Game' : 'Home'}</span>
         </button>
       </header>
       <section
@@ -176,7 +178,7 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
           )}
           {practice.lastMove && (
             <button className="button-link learn-again" onClick={startOver}>
-              Reset
+              <span className="caps">Reset</span>
             </button>
           )}
           {/* The page's first stop: the way on, focused as it opens */}
@@ -186,7 +188,8 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
             onClick={goNext}
             aria-label={`Next: ${nextLabel}`}
           >
-            {nextLabel} <span aria-hidden>→</span>
+            <span className="caps">{nextLabel}</span>
+            <Arrow to="right" />
           </button>
         </div>
       </section>
