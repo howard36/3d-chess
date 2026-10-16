@@ -43,3 +43,24 @@ test('for a player who asked for less motion, the picture is all there is', asyn
   await expect(page.getByTestId('landing-canvas')).toHaveCount(0);
   await context.close();
 });
+
+// r3f mounts a canvas's scene within the canvas's own commit, so a page
+// left the moment its canvas comes (the preview's, the tutorial's) has
+// nothing left to connect its events to a gone container
+test('leaving the start page or the tutorial the moment its canvas comes throws nothing', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  for (let i = 0; i < 3; i++) {
+    await page.goto('/');
+    await page.getByTestId('landing-canvas').waitFor({ state: 'attached' });
+    await page.getByRole('button', { name: 'How to play' }).click();
+    await page.getByTestId('learn-canvas').waitFor({ state: 'attached' });
+    await page.goBack();
+    await page.getByTestId('landing-canvas').waitFor({ state: 'attached' });
+  }
+  // Long enough for a late first commit to land
+  await page.waitForTimeout(1000);
+  expect(errors).toEqual([]);
+});

@@ -68,6 +68,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -681,6 +682,43 @@ const HARNESS = [
   'server/bench',
 ];
 
+/** The machine as a run begins (Linux; blank where /proc says nothing). */
+function machineState(lastEnd) {
+  const read = (file) => {
+    try {
+      return readFileSync(file, 'utf8');
+    } catch {
+      return '';
+    }
+  };
+  const avg10 = (file) => Number(/some avg10=([\d.]+)/.exec(read(file))?.[1]);
+  // Processes earlier runs left behind, by their own executable (a shell
+  // whose command line names them is not one)
+  const left = { chromium: 0, preview: 0, uvicorn: 0 };
+  let pids = null;
+  try {
+    pids = readdirSync('/proc').filter((d) => /^\d+$/.test(d));
+  } catch {
+    // No /proc (macOS): the column stays blank
+  }
+  for (const pid of pids ?? []) {
+    const argv = read(`/proc/${pid}/cmdline`).split('\0');
+    const exe = argv[0].split('/').pop();
+    if (exe === 'headless_shell' || exe === 'chrome') left.chromium++;
+    else if (exe === 'node' && argv.includes('preview') && argv.some((a) => /vite(\.js)?$/.test(a)))
+      left.preview++;
+    else if (/^python/.test(exe) && argv.includes('uvicorn')) left.uvicorn++;
+  }
+  return {
+    gap: lastEnd === null ? NaN : (Date.now() - lastEnd) / 1000,
+    load: os.loadavg()[0],
+    cpu: avg10('/proc/pressure/cpu'),
+    io: avg10('/proc/pressure/io'),
+    memGiB: Number(/MemAvailable:\s+(\d+)/.exec(read('/proc/meminfo'))?.[1]) / 2 ** 20,
+    left: pids ? `${left.chromium} / ${left.preview} / ${left.uvicorn}` : '',
+  };
+}
+
 /** A worktree of `ref` with this checkout's harness and installed dependencies. */
 function baseWorktree(ref) {
   const sha = sh('git', ['rev-parse', '--verify', `${ref}^{commit}`]);
@@ -847,6 +885,10 @@ function abMain() {
   const headSha = sh('git', ['rev-parse', 'HEAD']);
   const dirty = sh('git', ['status', '--porcelain', '--', '.', ':!bench/out']) !== '';
   const runs = { base: [], head: [] };
+  // What the machine was doing as each run began (1016:AA1: the run that
+  // goes first in its pair differs from the second by ~10%, unexplained)
+  const machine = [];
+  let lastEnd = null;
   const failures = [];
   let cleaned = false;
   const clean = () => {
@@ -869,6 +911,7 @@ function abMain() {
         rmSync(ctx.out, { recursive: true, force: true });
         mkdirSync(ctx.out, { recursive: true });
         log(`pair ${pair + 1} of ${PAIRS}: ${side}`);
+        machine.push({ pair: pair + 1, side, ...machineState(lastEnd) });
         const results = {};
         if (tiers.includes('client')) results.client = runClient(ctx);
         if (tiers.includes('server')) results.server = runServer(ctx);
@@ -877,6 +920,7 @@ function abMain() {
           if (!r.ok) failures.push({ side, pair: pair + 1, tier, tail: r.tail });
         }
         runs[side].push(flatten(results));
+        lastEnd = Date.now();
       }
     }
   } finally {
@@ -1047,6 +1091,24 @@ function abMain() {
     }),
   );
 
+  // The skill's speed rule, worked out here so nobody counts pairs by hand: a
+  // primary row worse in every pair, or more than 3% worse at its median pair
+  // (not the Change column, which is the pairs' geometric mean), is the
+  // owner's to see, called or not
+  const flagged = measured.flatMap(({ p, r }) => {
+    const worse = r.v.ratios.map((x) => (r.better === 'higher' ? 1 / x : x));
+    const mid = median(worse);
+    const over = worse.filter((x) => x > 1).length;
+    if (over < worse.length && mid <= 1.03) return [];
+    return [`${p.moment}: median pair ×${mid.toFixed(3)}, ${over} of ${worse.length} pairs worse`];
+  });
+  md.push(
+    flagged.length
+      ? `**For "Needs from me"** (worse in every pair, or more than 3% worse at the median pair): ` +
+          `${flagged.join('; ')}.`
+      : 'No primary row is worse in every pair or more than 3% worse at its median pair.',
+  );
+
   const others = rows.filter((r) => !PRIMARY.some((p) => keyOf(p) === keyOf(r)));
   const real = others.filter((r) => r.v?.real);
   const better = real.filter((r) => r.v.improved);
@@ -1085,6 +1147,39 @@ function abMain() {
       }),
     );
   }
+  md.push('## The machine at each run');
+  md.push(
+    'As each run began: seconds since the run before it ended, the load average over a minute, ' +
+      'the share of the last 10 s that tasks waited on the CPU and on I/O (Linux pressure), ' +
+      'memory available, and the processes earlier runs left alive (Chromium, `vite preview`, ' +
+      'uvicorn). For reading an order gap between the pairs (*Base first*, *Head first*).',
+  );
+  const f1 = (v) => (Number.isFinite(v) ? v.toFixed(1) : '');
+  md.push(
+    table({
+      columns: [
+        'Pair',
+        'Side',
+        'Gap (s)',
+        'Load',
+        'CPU wait %',
+        'I/O wait %',
+        'Memory (GiB)',
+        'Left: Chromium / preview / uvicorn',
+      ],
+      align: ['r', 'l', 'r', 'r', 'r', 'r', 'r', 'r'],
+      rows: machine.map((m) => [
+        String(m.pair),
+        m.side,
+        f1(m.gap),
+        m.load.toFixed(2),
+        f1(m.cpu),
+        f1(m.io),
+        f1(m.memGiB),
+        m.left,
+      ]),
+    }),
+  );
   const report = resolve(option('--out', join(OUT_DIR, 'AB.md')));
   mkdirSync(dirname(report), { recursive: true });
   writeFileSync(report, md.join('\n\n') + '\n');

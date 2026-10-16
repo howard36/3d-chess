@@ -53,15 +53,26 @@ const randomSeed = () => Math.floor(Math.random() * 2 ** 31);
 
 type Answer = ComputerMove | null | number | PositionAnalysis;
 
-/** Runs the search on the page's own thread. */
-const inline = async (request: ThinkRequest): Promise<Answer> => {
-  const { analysePosition, assessPosition, chooseMove } = await import('./choose');
-  // Let the page draw the move just made before the thread is taken
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  if (request.analyse) return analysePosition(request.records);
-  return request.assess
-    ? assessPosition(request.records)
-    : chooseMove(request.records, request.difficulty, request.seed);
+/** The searches run on the page, every computer's, one after another. */
+let onPage: Promise<unknown> = Promise.resolve();
+
+/**
+ * Runs the search on the page's own thread, after any other computer's
+ * (a review's several, whose worker failed, would otherwise take the thread
+ * in turn with no frame between them).
+ */
+const inline = (request: ThinkRequest): Promise<Answer> => {
+  const run = onPage.then(async () => {
+    const { analysePosition, assessPosition, chooseMove } = await import('./choose');
+    // Let the page draw the move just made before the thread is taken
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    if (request.analyse) return analysePosition(request.records);
+    return request.assess
+      ? assessPosition(request.records)
+      : chooseMove(request.records, request.difficulty, request.seed);
+  });
+  onPage = run.catch(() => {});
+  return run;
 };
 
 export function createComputer(): Computer {

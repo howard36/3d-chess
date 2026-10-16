@@ -1,4 +1,5 @@
 import React from 'react';
+import { EARLY_PICTURE_ID } from '../screens/earlyPicture';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -24,6 +25,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
     console.error('Unhandled render error:', error, info.componentStack);
+    // The start page's early picture (earlyPicture.ts) stands over the page
+    // until the start page takes it in; a render that threw never will
+    document.getElementById(EARLY_PICTURE_ID)?.remove();
   }
 
   render() {

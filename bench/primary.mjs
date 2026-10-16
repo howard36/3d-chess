@@ -39,6 +39,13 @@ export const PRIMARY = [
     what: 'phone, 4× CPU, Fast 4G · “Play a friend” enabled',
   },
   {
+    moment: 'Start page usable, phone, returning (4× CPU, Fast 4G)',
+    tier: 'browser',
+    section: 'cold-load',
+    where: 'Cold load of the start screen',
+    what: 'phone, 4× CPU, Fast 4G, returning · “Play a friend” enabled',
+  },
+  {
     moment: 'Start page shows the board, phone (4× CPU, Fast 4G)',
     tier: 'browser',
     section: 'cold-load',
