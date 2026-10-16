@@ -286,19 +286,17 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
         </>
       )}
       <div className="lobby-foot" role="status">
-        {failed && !created ? (
-          <span className="lobby-error">Couldn't start a game: {failed.message}</span>
-        ) : !stalled ? (
-          ''
-        ) : status === 'reconnecting' ? (
-          'Reconnecting to server…'
-        ) : status !== 'connected' ? (
-          'Connecting to server…'
-        ) : waiting ? (
-          'Waiting for server…'
-        ) : (
-          ''
-        )}
+        {failed && !created
+          ? `Couldn't start a game: ${failed.message}`
+          : !stalled
+            ? ''
+            : status === 'reconnecting'
+              ? 'Reconnecting to server…'
+              : status !== 'connected'
+                ? 'Connecting to server…'
+                : waiting
+                  ? 'Waiting for server…'
+                  : ''}
       </div>
     </div>
   );

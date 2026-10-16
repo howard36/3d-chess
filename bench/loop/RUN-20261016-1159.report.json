@@ -1,0 +1,133 @@
+{
+  "title": "Perf run 20261016-1159",
+  "eyebrow": "3D chess · perf-iteration · run 20261016-1159",
+  "heading": "No speed change: a fairer bench, controls that keep their size and drop stray focus rings, a faster reconnect, and eight new checks",
+  "meta": "<p>This run made the game no faster and no slower. On <code>864989e</code>, the branch's last code commit, against the base <code>e65577d</code> (main), 8 pairs: ×0.995 over the 14 headline rows, none called better or worse, and no other measurement called either. Memory is unchanged. The commits after <code>864989e</code> change only <code>bench/loop/</code>.</p><p>The kept changes fix things rather than speed them up. The bench now runs both sides of a comparison the same way. Buttons and pills keep their size in browsers without the newer CSS. A control the page focuses for a mouse player no longer shows a ring. A dropped connection retries as soon as the network is back. Eight rules that only the docs held are now tests or lint rules. One speed change, SP4, shows the phone's board 28% sooner but makes the buttons respond later. It waits on you.</p>",
+  "needs": {
+    "intro": "<p>One decision waits on you: whether to take a change that shows the start page's board sooner on a phone but makes its buttons respond a little later. It is not in the PR. Its patch and its comparison are in <code>bench/loop/</code>.</p><p>The skill also asks me to list every headline row that is more than 3% slower at the median pair, even when no comparison calls it. Five rows are, on <code>864989e</code> against <code>e65577d</code>, 8 pairs (<code>ab-20261016-1159-final.md</code>). None is slower in every pair. In each one, the lean follows which side ran first in the pair, the bench's known order effect (AA1), more than it follows the code:</p><ul><li>Joining a game, first board picture: +8.2%, pairs 0.91 1.34 1.13 1.20 1.18 0.86 0.84 1.34; 1.01 when the base ran first, 1.16 when the head did.</li><li>The player's move appears: +6.4%, pairs 1.31 1.02 1.21 1.03 1.24 1.05 1.02 0.75; 1.19 base first, 0.95 head first.</li><li>A picked-up piece appears: +4.0%, pairs 0.93 1.04 1.05 1.27 1.14 1.08 0.87 0.98; 1.00 base first, 1.09 head first.</li><li>The desktop start page usable: +3.9%, pairs 1.09 0.98 0.83 1.47 1.10 1.00 1.06 0.90; 1.01 base first, 1.07 head first.</li><li>A shared game's page, first screen: +3.6%, pairs 0.92 1.63 0.91 1.27 0.76 1.30 0.79 0.98; 0.84 base first, 1.28 head first.</li></ul><p>Nothing in the branch runs on a move or a selection except stylesheet rules that compute to the same values. I recommend no action on these.</p>",
+    "items": [
+      {
+        "title": "SP4: draw the start page's picture before the app's script runs",
+        "body": "<p>On the start page, the picture of the board is placed by React, after the app's script has loaded and run. On a slow phone, the picture appears about 75 ms after the buttons start to work. The patch places the same picture from a small inline script in the page, before the app's script runs. React takes over the picture when its own copy has decoded.</p><p>Measured against <code>480ce57</code> with the patch applied, 8 pairs, cold load (<code>ab-20261016-1159-sp4.md</code>):</p><ul><li>Phone, the board on screen: 750 → 536 ms (−28%). Every pair is faster, so the comparison calls it better.</li><li>Phone, first paint: −36%, called better.</li><li>Desktop, the board on screen: 125 → 83 ms (−39%), not called.</li><li>Phone, the start page usable: 676 → 703 ms (+3.4%), 6 of 8 pairs slower, not called. The page's DOMContentLoaded and its script time each grow by about 22 ms.</li><li>Desktop, the start page usable: 69.4 → 76.1 ms (+13%), 7 of 8 pairs slower, not called.</li></ul><p>So on a phone the player sees the board about 210 ms sooner, and the buttons respond about 27 ms later. On a desktop the buttons respond about 7 ms later. The likely cost is the picture's first frame, which now runs before the app's script. The patch adds 166 lines, about 100 of them outside tests.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "SP4 (parked, patch): the start page's picture placed before the entry, vs 480ce57 (cold load, 8 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "The start page's headline rows with the patch against without it, 8 pairs (ab-20261016-1159-sp4.md)."
+          }
+        ],
+        "recommend": "Take it. On a phone, the board appears about 210 ms sooner, which a player sees. The buttons respond about 27 ms later, which no comparison has called. If you agree, the next run applies <code>bench/loop/patches/early-picture-SP4.patch</code> on fresh main and measures it again with 8 pairs before it lands."
+      }
+    ]
+  },
+  "scoreboard": {
+    "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. On <code>864989e</code> against <code>e65577d</code>, 8 pairs: ×0.995 over the 14 rows, none called better or worse (identical code compared with itself gives about ×1.004). None of the 86 other measurements is called. JavaScript memory on a reopened long game is +0.1%; geometries grown over 16 moves stay at 10, and textures at 0.</p><p>At the start of the run, main <code>e65577d</code> against the last run's base <code>b455e10</code> was ×0.972 over the 14 rows, none called. Two desktop start-page rows leaned slower at 4 pairs, and 8 pairs showed them as noise (+1.3% and −1.7%).</p><p>This run did not measure against the first recorded run (92ce041), because no kept change was meant to change speed. The last measurement stands: <code>e02a235</code> was 2.48 times as fast as 92ce041 over the 11 headline rows both can measure, against a target of 1.2.</p>",
+    "items": [
+      {
+        "title": "The final code against the base",
+        "charts": [
+          {
+            "rows": {
+              "change": "final: 864989e vs e65577d (primary, 8 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "Headline rows, 864989e against e65577d, 8 pairs (ab-20261016-1159-final.md)."
+          }
+        ]
+      },
+      {
+        "title": "The base against the last run's base, at the start of this run",
+        "charts": [
+          {
+            "rows": {
+              "change": "regress: e65577d vs b455e10 (primary, 4 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "Headline rows, e65577d against b455e10, 4 pairs (ab-20261016-1159-regress.md)."
+          }
+        ]
+      },
+      {
+        "title": "The same code against itself, with the bench's fix (AA1)",
+        "body": "<p>Both sides ran <code>7a6bb32</code>'s app, each from its own temporary copy of the repo. No row is called. The shared game's page is still 0.93 when the base runs first and 1.22 when the head does: the order of the runs in a pair still moves the cold-load and setup rows.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "AA1 A/A: 7a6bb32 vs itself, both sides in temp worktrees (cold load, setup; 8 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "Identical app code, 8 pairs (ab-20261016-1159-aa-sym.md)."
+          }
+        ]
+      },
+      {
+        "title": "Against the first recorded run (an earlier run's measurement)",
+        "charts": [
+          {
+            "rows": {
+              "change": "vs first run: e02a235 vs 92ce041 (primary, 3 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "Headline rows, e02a235 against 92ce041, 3 pairs, measured in run 20261016-0037."
+          }
+        ]
+      }
+    ]
+  },
+  "changed": {
+    "intro": "<p>No kept change was made to be faster. The run made the bench's comparisons fairer, fixed four things a player or a screen-reader user could meet, and added checks for rules that only a sentence in the docs held.</p>",
+    "items": [
+      {
+        "title": "The comparison runs both sides the same way (AA1, e940709)",
+        "body": "<p>Before, the code under test ran from the working checkout and the base ran from a temporary copy of the repo. Identical code leaned towards the checkout's side on the cold-load and setup rows. Now both sides run from a temporary copy laid out the same way. The report names the app files that differ between the two sides, and splits each headline row's pairs by which side ran first. An identical-code comparison with 8 pairs called no row. The effect of run order remains, and is the next run's first item.</p>"
+      },
+      {
+        "title": "Pills and buttons keep their size in browsers without the newer CSS (CF1, e02bf17)",
+        "body": "<p>Many controls computed their height from the <code>cap</code> unit and the <code>round()</code> and <code>mod()</code> functions. A browser that lacks any of them drops the whole declaration, so the turn pill and the buttons shrank to the height of their text. These values are now set under <code>@supports</code>, with plain values for other browsers. Where the features exist, nothing changes: the review checked the arithmetic for every height. A stylesheet test now fails on any use of these features outside such a block. The probe that measured the sizes in Chromium was not kept, so the repo shows only the test and the arithmetic.</p>"
+      },
+      {
+        "title": "No focus ring when the page moves focus for a mouse or touch player (22697da)",
+        "body": "<p>CLAUDE.md asks each focus ring to leave out focus that the page moved by itself. Ten rules did not, so a player who clicked could see a ring or a white Accept button they had not asked for. All ten now follow the rule, and a stylesheet test fails on a ring drawn without it. <code>bench/loop/tools/ring-probe.mjs</code> renders the controls in Chromium. Focused from the keyboard, all 10 look as before. Focused quietly, the old stylesheets drew a ring on 9 and the new ones on none.</p>"
+      },
+      {
+        "title": "A dropped connection comes back as soon as the network does (P3, 581e17f)",
+        "body": "<p>After a dropped connection, the game retried after a wait that grows to 8 s. Now a waiting retry runs at once when the browser reports it is back online, or when the player returns to the tab. It never runs beside an open connection, and never after another tab took the seat. A test shows the retry within 200 ms, inside the first 500 ms wait. I kept it as a fix to what a player sees, not as a speed gain: the page sat at “reconnecting” for up to 8 s with the network already back. Its gain is not measured. The bench has no network-drop scenario, so it is an exception to the rule that app code grows only for a measured gain, listed under Choices made alone.</p>"
+      },
+      {
+        "title": "Smaller fixes a player or screen reader meets",
+        "body": "<ul><li>The move list's focus that follows the shown move no longer scrolls the page (FT2, 480ce57).</li><li>A screen reader now hears “Review done.” or “Review stopped.” from a status that is present from the first render, so the change is spoken (RV19, 2bea7b2).</li></ul>"
+      },
+      {
+        "title": "Checks for rules that only the docs held",
+        "body": "<ul><li>The level colours in the stylesheets and in the rims must equal <code>LEVEL_COLORS</code> (LC1, 0430b05).</li><li>The landing sizes that <code>LANDING_BANDS</code> copies must match <code>index.css</code> (C2 part, 996ce4b).</li><li>CLAUDE.md and ARCHITECTURE.md must list exactly the store operations the server test knows (DR3, 6245a37), and the server's game-not-started test reads its payload-free messages from <code>schema.json</code> (4b524ff).</li><li>The wall-clock lint and the <code>__r3fState</code> lint now catch the same calls written through <code>globalThis</code>, <code>window</code> or a template string (E6, 4b35edc).</li><li><code>vite.config.test.ts</code> is now typechecked (RV20, 1b1f17f).</li><li>Test setup restores its ResizeObserver and idle-callback stand-ins before each test (TS1, 54f17c0), and the disposed computer's test waits on a live answer instead of 80 ms (4ddfb91).</li><li>The bench names the review rows by the button clicked, so a comparison never pairs two different paths (BV2, b4dc6f7). Scoreboard rows measured on uncommitted code say so (SB1, 8123af3).</li></ul>"
+      }
+    ]
+  },
+  "removed": {
+    "intro": "<p>Nothing was removed this run. Against the base, outside <code>bench/loop/</code>, the branch adds 459 lines and removes 130. The app's code grows by 49 lines: the CSS fallbacks and focus rules (+20 net), the reconnect (+19) and the review's status (+10). Tests grow by 201 lines net, the bench by 75, lint and tsconfig by 1, and ARCHITECTURE.md by 3. The engine tests now share the search's random generator instead of their own copies (12 lines fewer).</p>"
+  },
+  "rejected": {
+    "items": [
+      {
+        "title": "Share the garden's geometry between the three canvases (R2)",
+        "body": "<p>A one-off probe under node, not kept, timed the garden's geometry at about 25 ms cold and 8 ms warm. That is about 1% of the 1 s join row, below what a comparison can call.</p>"
+      },
+      {
+        "title": "Three ideas rejected on reading",
+        "body": "<ul><li>BU1 said the bench counted a settle timeout twice. It does not: the first count is never reported.</li><li>T24 would drop GameView's review checks that cannot be reached. They state the intent where it is used; removing them saves about 5 lines and relies on a rule held in another file.</li><li>A reviewer said a test leaves its focus spy in place. The file's <code>afterEach</code> restores every mock.</li></ul>"
+      }
+    ],
+    "intro": "<p>SP4 is not rejected. It waits on you, under Needs from me.</p>"
+  },
+  "choices": {
+    "intro": "<ul><li>I parked SP4 rather than keeping or rejecting it, because it trades one player moment against another.</li><li>I kept AA1 on one identical-code comparison, without measuring the old layout again in the same session. The side difference is removed by construction.</li><li>I made the level colours a test, not CSS custom properties. The copies are needed before any script runs, and <code>color-mix()</code> would add the kind of browser-support risk CF1 removed.</li><li>I did not re-measure the opponent's move after the regression check (+5.3% at 4 pairs, pairs split both ways): nothing that changed runs on a move.</li><li>Corrected after review: the commit messages of e940709, e02bf17, 54f17c0 and 5ce187a carry counts the review found wrong or unbacked. The run record and the PR description give the corrected ones (AA1's side estimate is a hand count, ≈×0.95, not printed by any report; 13 files call <code>vi.unstubAllGlobals()</code>, not 12; D3 removed 12 lines net, not 7; CF1's sizes come from a probe that was not kept).</li><li>The five headline rows over 3% at the median pair on the final code are listed under Needs from me, with no action recommended, because each lean follows the pair order.</li><li>I kept the reconnect (P3, 581e17f, +19 app lines) without measuring its gain, as a fix to behaviour a player sees: the page showed “reconnecting” for up to 8 s with the network back. The bench has no network-drop scenario, so this is an unmeasured exception to the rule that app code grows only for a measured gain. To overrule it, revert 581e17f on its own.</li></ul>"
+  },
+  "notConfirmed": {
+    "intro": "<ul><li>Why the order of runs in a pair moves the cold-load and setup rows (AA1). Identical code reads 0.93 on the shared page when the base runs first and 1.22 when the head does.</li><li>The reconnect on a real phone. iOS Safari may leave a background tab's connection half-open, and no event reveals it (ledger P4).</li><li>CF1's fallbacks in a real old browser (Chrome 120, Safari 16). They were checked by arithmetic and by a stylesheet test only (ledger CF2).</li></ul>"
+  },
+  "next": {
+    "intro": "<ol><li>Your answer on SP4. If yes, apply the patch on fresh main and measure it again with 8 pairs.</li><li>Find what the first run of a pair shares (AA1): identical-code comparisons with 16 pairs, varying one thing at a time, and the side estimate printed in the report.</li><li>A year's cache for <code>/assets/*</code>, with a warm-load case in the bench (0930:17).</li><li>Count the first click's two modes instead of timing a median (1009-1606:Q1).</li><li>Run the on-page searches one at a time when a worker fails to load (1015:RV17).</li></ol>"
+  }
+}

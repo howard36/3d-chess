@@ -6,8 +6,10 @@ and rejoin without needing Modal credentials. The durable store is a
 CopyingStore here, whose reads hand out copies like production's modal.Dict.
 """
 
+import json
 import logging
 import time
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -423,20 +425,21 @@ def test_resignation_ends_the_game_for_both(client, store):
         assert len(store[gid]["moves"]) == 1
 
 
+# Every message that is its type alone (resign, the offers and their answers),
+# read from the schema, so a new one is exercised here without being listed
+PAYLOAD_FREE = [
+    name
+    for name, definition in json.loads(
+        (Path(__file__).resolve().parents[1] / "schema.json").read_text()
+    )["definitions"].items()
+    if set(definition.get("properties", {})) == {"type"}
+]
+
+
 def test_resigning_needs_a_game_under_way(client):
+    assert len(PAYLOAD_FREE) >= 10
     with client.websocket_connect("/ws") as ws:
-        for kind in (
-            "resign",
-            "offer_draw",
-            "accept_draw",
-            "decline_draw",
-            "request_takeback",
-            "accept_takeback",
-            "decline_takeback",
-            "offer_rematch",
-            "accept_rematch",
-            "decline_rematch",
-        ):
+        for kind in PAYLOAD_FREE:
             ws.send_json({"type": kind})
             assert ws.receive_json()["code"] == "game_not_started"
         create_game(ws)

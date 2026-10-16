@@ -2,6 +2,7 @@ import React from 'react';
 import type { Board, Move } from '../engine';
 import type { Color } from '../types/messages';
 import { parseTypedMove } from '../game/typedMove';
+import { focusFromCode } from '../lib/focus';
 
 interface MoveCardProps {
   board: Board;
@@ -103,7 +104,7 @@ const MoveCard: React.FC<MoveCardProps> = ({
           setText('');
           setProblem(null);
           setDismissed(true);
-          cardRef.current?.focus();
+          focusFromCode(cardRef.current);
         }
       }}
     >

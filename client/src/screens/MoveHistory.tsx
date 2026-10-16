@@ -267,7 +267,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
     const escape = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
       if (inField(e.target)) return;
-      if (nav.current?.contains(document.activeElement)) toggle.current?.focus();
+      if (nav.current?.contains(document.activeElement)) focusFromCode(toggle.current);
       setAsked(false);
     };
     document.addEventListener('pointerdown', away);
@@ -335,7 +335,13 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       focusAsked.current = false;
       focusFromCode(button, { preventScroll: true });
     } else if (ol.contains(document.activeElement) && document.activeElement !== button) {
-      button.focus();
+      // Focus follows the player's own place in the list, ring as the browser
+      // decides: focusFromCode would quiet it after a click, so the next Tab
+      // would only show the ring (ledger 1016:FT1, the owner's call)
+      // (the list was scrolled by hand above: a focus's own scroll could move
+      // the page under the HUD on a phone, 1016:FT2)
+      // eslint-disable-next-line no-restricted-syntax
+      button.focus({ preventScroll: true });
     }
   }, [shown, moves.length, open, whole, reviewAsked]);
 
@@ -492,6 +498,14 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
                   : ''
               }`}
       </div>
+      {/* How the review ended, said when it does (the bar and the counts are seen) */}
+      <div className="sr-only" role="status" data-testid="review-said">
+        {analysis?.state === 'done'
+          ? 'Review done.'
+          : analysis?.state === 'stopped'
+            ? 'Review stopped.'
+            : ''}
+      </div>
     </nav>
   );
 };
@@ -535,7 +549,7 @@ function ReviewHead({ analysis }: { analysis: HistoryAnalysis }) {
         );
       })}
       {analysis.state === 'stopped' && (
-        <p className="hud-stopped" role="status">
+        <p className="hud-stopped">
           Review stopped{' '}
           <button
             type="button"

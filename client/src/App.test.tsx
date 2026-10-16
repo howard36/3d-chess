@@ -251,6 +251,7 @@ test('GameScreen shows a reconnecting notice while the socket is down', () => {
 
 test('GameScreen freezes at the last good position when history has an unplayable move', () => {
   setStoredRole('abc123', 'white');
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   renderGameScreen(
     'abc123',
     fakeSocket([
@@ -267,10 +268,14 @@ test('GameScreen freezes at the last good position when history has an unplayabl
   expect(screen.getByRole('alert')).toHaveTextContent(/can't be replayed by this version/);
   // Nothing was applied, so the shown position is still White to move
   expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
+  // The page's renders replay the record again and again: the console hears of it once
+  expect(warn).toHaveBeenCalledOnce();
+  warn.mockRestore();
 });
 
 test('GameScreen freezes before a recorded king capture instead of crashing', () => {
   setStoredRole('abc123', 'white');
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   renderGameScreen(
     'abc123',
     fakeSocket([
@@ -294,6 +299,8 @@ test('GameScreen freezes before a recorded king capture instead of crashing', ()
   expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'white');
   // The record itself is still listed in full
   expect(screen.getByTestId('move-list')).toHaveTextContent('Ac2–Ec5');
+  expect(warn).toHaveBeenCalledOnce();
+  warn.mockRestore();
 });
 
 test('GameScreen lists played moves in the notation of the record', () => {

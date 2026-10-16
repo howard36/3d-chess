@@ -107,6 +107,26 @@ describe('useGameSocket', () => {
     expect(result.current.messages).toHaveLength(1);
   });
 
+  it('tries again at once when the network comes back or the page is shown', async () => {
+    const { result } = renderHook(() => useGameSocket());
+    await server.connected;
+    for (const back of [
+      () => window.dispatchEvent(new Event('online')),
+      () => document.dispatchEvent(new Event('visibilitychange')),
+    ]) {
+      act(() => {
+        server.close();
+      });
+      await waitFor(() => {
+        expect(result.current.status).toBe('reconnecting');
+      });
+      server = new WS(WS_URL);
+      act(back);
+      // Well inside the backoff's first wait (500 ms)
+      await waitFor(() => expect(result.current.status).toBe('connected'), { timeout: 200 });
+    }
+  });
+
   it('flushes queued messages on reconnect but drops stale moves', async () => {
     const { result } = renderHook(() => useGameSocket());
     await server.connected;
@@ -159,6 +179,10 @@ describe('useGameSocket', () => {
     // retry would rejoin and evict the other tab, which would retry in turn.
     // Wait past the first backoff step (500ms) to prove nothing fires.
     server = new WS(WS_URL);
+    // Nor when the network comes back
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
     await new Promise((r) => setTimeout(r, 700));
     expect(result.current.status).toBe('replaced');
     expect(result.current.sessionId).toBe(firstSession);

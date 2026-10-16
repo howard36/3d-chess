@@ -64,7 +64,7 @@
 .learn-tab:hover {
   background: rgba(236, 241, 255, 0.05);
 }
-.learn-tab:focus-visible {
+.learn-tab:focus-visible:not([data-quiet-focus]) {
   outline: none;
   box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.35);
 }
@@ -149,7 +149,7 @@
 .learn-step:hover::after {
   background: rgba(236, 241, 255, 0.6);
 }
-.learn-step:focus-visible {
+.learn-step:focus-visible:not([data-quiet-focus]) {
   outline: none;
   box-shadow: inset 0 0 0 2px rgba(230, 238, 255, 0.35);
 }

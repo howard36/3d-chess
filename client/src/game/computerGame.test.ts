@@ -136,12 +136,17 @@ it('sees a game over: mate, or a record it cannot play', () => {
   expect(isOver(mated)).toBe(true);
   expect(computerToMove(mated)).toBe(false);
   expect(fallbackMove(mated)).toBeNull();
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   const broken = game({ moves: records(['Ca3-Cb3']) }); // no piece on Ca3
   expect(isOver(broken)).toBe(true);
+  expect(computerToMove(broken)).toBe(false);
   expect(fallbackMove(broken)).toBeNull();
   expect(answer(broken, 'abc', { type: 'move', from: 'Dc4', to: 'Cc4' }).replies[0]).toMatchObject({
     code: 'wrong_turn',
   });
+  // isOver replays the record on each call: the console hears of it once
+  expect(warn).toHaveBeenCalledOnce();
+  warn.mockRestore();
 });
 
 it('stops at a draw: the computer plays no further', () => {

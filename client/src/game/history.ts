@@ -126,6 +126,9 @@ const gameOverAt = (board: Board, turn: Turn, positions: readonly number[]): Gam
   return null;
 };
 
+/** The records a replay stopped at that the console has been told about. */
+const saidUnplayable = new WeakSet<MoveRecord>();
+
 /**
  * Derives the game from the message log.
  *
@@ -181,7 +184,13 @@ export function deriveHistory(
       board = next;
       appliedMoveCount = i + 1;
       lastMove = { move, moveCount: appliedMoveCount, capturedPiece: taken };
-    } catch {
+    } catch (error) {
+      // The page says only that the record can't be replayed: the console says
+      // why, once per failing record (every later derive replays it again)
+      if (!saidUnplayable.has(moveRecords[i])) {
+        saidUnplayable.add(moveRecords[i]);
+        console.warn(`Move ${i + 1} of the record can't be replayed:`, moveRecords[i], error);
+      }
       replayFailedAt = i;
       break;
     }

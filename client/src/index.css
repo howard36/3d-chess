@@ -161,8 +161,7 @@ body {
   width: auto;
   min-width: 300px;
   max-width: 100%;
-  height: 40px;
-  height: calc(40px + mod(40px - var(--caps), 2px));
+  height: calc(40px + var(--caps-odd));
   border-radius: 20px;
   font-size: 14.5px;
   font-weight: 600;
@@ -194,16 +193,13 @@ body {
 .hud-rule {
   flex: none;
   width: 1px;
-  height: 18px;
-  height: calc(18px + mod(18px - var(--caps), 2px));
+  height: calc(18px + var(--caps-odd));
   background: var(--hud-hair-strong);
 }
 /* The stones a pixel larger where that centres them on the words (.caps) */
 .hud-pill .hud-stone {
-  width: 16px;
-  width: calc(16px + mod(16px - var(--caps), 2px));
-  height: 16px;
-  height: calc(16px + mod(16px - var(--caps), 2px));
+  width: calc(16px + var(--caps-odd));
+  height: calc(16px + var(--caps-odd));
 }
 .hud-result {
   justify-content: center;
@@ -231,10 +227,8 @@ body {
 }
 .hud-dot {
   flex: none;
-  width: 6px;
-  width: calc(6px + mod(var(--caps) - 6px, 2px));
-  height: 6px;
-  height: calc(6px + mod(var(--caps) - 6px, 2px));
+  width: calc(6px + var(--caps-odd));
+  height: calc(6px + var(--caps-odd));
   border-radius: 50%;
   background: var(--hud-light);
   box-shadow: 0 0 8px rgba(230, 238, 255, 0.8);
@@ -286,19 +280,33 @@ body {
  * baseline; it applies to blocks only), the capitals' fraction of a pixel
  * over them as a margin, so it stands C = round(1cap, 1px) tall with its
  * baseline on a whole pixel. A box that centres it grows a pixel where its
- * height and C differ in parity (calc(H + mod(H - var(--caps), 2px))), and
- * so does an icon beside it: the browser rounds boxes and baselines to the
- * pixel each on its own, and a centring that lands on a half rounds them
- * apart. (The difference is always taken positive: Chrome's mod() gives
- * 2px, not 0, for an even negative one.) Where cap, round(), mod() or
- * text-box are unknown, the plain size given first holds.
+ * height and C differ in parity, and so does an icon beside it: the
+ * browser rounds boxes and baselines to the pixel each on its own, and a
+ * centring that lands on a half rounds them apart. Every such H is even,
+ * so the pixel is C's own: calc(H + var(--caps-odd)).
+ * A browser without cap, round() or mod() (Safari before 17.2, Chrome
+ * before 125: inside the build's target) would find each of those invalid
+ * where it is used, and the property would fall back to its initial value
+ * (a pill or a button shrunk to its words): there the three stand at plain
+ * values, the words a little off centre. No plain size goes before a rule
+ * that reads them: a declaration with var() is kept whatever else it holds.
  */
 :root {
-  --caps: round(1cap, 1px);
+  --caps: 0.7em;
+  --caps-odd: 0px;
+  /* The capitals' fraction of a pixel, set over them */
+  --caps-lift: 0px;
+}
+@supports (width: round(1cap, 1px)) and (width: mod(3px, 2px)) {
+  :root {
+    --caps: round(1cap, 1px);
+    --caps-odd: mod(var(--caps), 2px);
+    --caps-lift: calc(var(--caps) - 1cap);
+  }
 }
 .caps {
   display: block;
-  margin-top: calc(var(--caps) - 1cap);
+  margin-top: var(--caps-lift);
   line-height: 1;
   text-box: trim-both cap alphabetic;
 }
@@ -306,7 +314,6 @@ body {
 .caps-arrow {
   flex: none;
   width: auto;
-  height: 0.75em;
   height: var(--caps);
   aspect-ratio: 1;
 }
@@ -325,8 +332,7 @@ body {
   justify-content: center;
   gap: 6px;
   box-sizing: border-box;
-  height: 44px;
-  height: calc(44px + mod(44px - var(--caps), 2px));
+  height: calc(44px + var(--caps-odd));
   padding: 0 20px;
   border: 1px solid rgba(236, 241, 255, 0.3);
   border-radius: 999px;
@@ -350,8 +356,7 @@ body {
   outline-offset: 3px;
 }
 .button-small {
-  height: 32px;
-  height: calc(32px + mod(32px - var(--caps), 2px));
+  height: calc(32px + var(--caps-odd));
   padding: 0 14px;
   font-size: 13.5px;
 }
@@ -360,8 +365,7 @@ body {
   align-items: center;
   gap: 6px;
   box-sizing: border-box;
-  height: 32px;
-  height: calc(32px + mod(32px - var(--caps), 2px));
+  height: calc(32px + var(--caps-odd));
   padding: 0 10px;
   border: 0;
   border-radius: 6px;
@@ -377,7 +381,7 @@ body {
 .button-link:focus-visible {
   color: var(--hud-fg);
 }
-.button-link:focus-visible {
+.button-link:focus-visible:not([data-quiet-focus]) {
   outline: none;
   box-shadow: 0 0 0 2px rgba(230, 238, 255, 0.25);
 }
@@ -402,7 +406,7 @@ body {
   color: var(--hud-fg);
   background: rgba(236, 241, 255, 0.08);
 }
-.button-icon:focus-visible {
+.button-icon:focus-visible:not([data-quiet-focus]) {
   outline: 1px solid rgba(236, 241, 255, 0.4);
 }
 /* The pill, with the pieces each side has taken hanging under its halves */
@@ -529,8 +533,7 @@ body {
 /* A touch screen: the pill at least 44 px tall */
 @media (pointer: coarse) {
   .hud-pill {
-    height: 44px;
-    height: calc(44px + mod(44px - var(--caps), 2px));
+    height: calc(44px + var(--caps-odd));
     border-radius: 22px;
   }
 }
@@ -892,7 +895,7 @@ body {
   align-items: flex-start;
   max-width: 100%;
   height: var(--ply-height);
-  padding: round(down, calc((var(--ply-height) - round(1cap, 1px) - 10px) / 2), 1px) 0 0;
+  padding: calc((var(--ply-height) - var(--caps) - var(--caps-odd) - 10px) / 2) 0 0;
   border: 0;
   background: none;
   color: rgba(238, 241, 247, 0.86);
@@ -925,7 +928,7 @@ body {
 .hud-ply-word {
   display: block;
   min-width: 0;
-  padding: calc(5px + round(1cap, 1px) - 1cap) 8px 5px;
+  padding: calc(5px + var(--caps-lift)) 8px 5px;
   overflow: hidden;
   border-radius: 4px;
   line-height: 1;
@@ -937,9 +940,9 @@ body {
 .hud-ply:hover .hud-ply-word {
   background: rgba(236, 241, 255, 0.08);
 }
-.hud-ply:focus-visible .hud-ply-word,
-.hud-step:focus-visible,
-.hud-now:focus-visible {
+.hud-ply:focus-visible:not([data-quiet-focus]) .hud-ply-word,
+.hud-step:focus-visible:not([data-quiet-focus]),
+.hud-now:focus-visible:not([data-quiet-focus]) {
   outline: 1.5px solid rgba(230, 238, 255, 0.7);
   outline-offset: -1.5px;
 }
@@ -1014,13 +1017,13 @@ body {
   /* The row, the stone and each count (below) sized from the capitals'
      height rounded to the pixel (C): the row C + 12 px, the stone C + 2 px,
      so all three centre on whole pixels and nothing rounds apart */
-  height: calc(round(1cap, 1px) + 12px);
+  height: calc(var(--caps) + 12px);
   margin: 0;
   font-size: 11.5px;
 }
 .hud-counts > .hud-stone {
-  width: calc(round(1cap, 1px) + 2px);
-  height: calc(round(1cap, 1px) + 2px);
+  width: calc(var(--caps) + 2px);
+  height: calc(var(--caps) + 2px);
   margin-left: 6px;
 }
 /* A count's glyph and number trimmed to their capitals (a block, as the
@@ -1030,7 +1033,7 @@ body {
    the count stands C tall */
 .hud-counts .hud-count {
   display: block;
-  margin-top: calc(round(1cap, 1px) - 1cap);
+  margin-top: var(--caps-lift);
   /* One size, its glyph's too, so one height of capitals sets the row */
   font-size: inherit;
   line-height: 1;
@@ -1358,7 +1361,7 @@ body {
 }
 
 /* Keyboard focus: the HUD's starlight halo, not the browser's ring */
-.hud-go:focus-visible {
+.hud-go:focus-visible:not([data-quiet-focus]) {
   outline: none !important;
   box-shadow:
     0 0 0 2px rgba(243, 246, 255, 0.9),
@@ -1497,10 +1500,6 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  height: 52px;
-  height: calc(52px + mod(52px - var(--caps), 2px));
-  min-width: 240px;
-  padding: 0 30px 0 24px;
   border: 2px solid transparent;
   border-radius: 999px;
   background:
@@ -1508,7 +1507,6 @@ body {
     var(--landing-rim) border-box;
   color: var(--hud-accent-fg);
   font: inherit;
-  font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.005em;
   box-shadow: 0 0 22px rgba(230, 238, 255, 0.12);
@@ -1552,30 +1550,17 @@ body {
   /* The label and the fill change together, never white on white */
   transition: none;
 }
-/* The pill in the lobby's cards (.lobby-go): spanning a phone's column, a
-   step up in a tall wide window, a step down in a short one */
+/* Its size is the lobby's (.lobby-go); it spans a phone's column and a
+   short window's */
 @media (max-width: 480px) {
   .landing-play {
     width: 100%;
     max-width: 360px;
-    min-width: 0;
-  }
-}
-@media (min-height: 860px) and (min-width: 700px) {
-  .landing-play {
-    height: 58px;
-    min-width: 270px;
-    font-size: 18px;
   }
 }
 @media (max-height: 480px) {
   .landing-play {
     width: 100%;
-    min-width: 0;
-    height: 48px;
-    height: calc(48px + mod(48px - var(--caps), 2px));
-    padding: 0 16px;
-    font-size: 16px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1583,7 +1568,6 @@ body {
   .landing-mode,
   .landing-mode:hover,
   .landing-mode::before {
-    animation: none !important;
     transition: none;
   }
 }
@@ -1762,9 +1746,7 @@ body {
   justify-content: center;
   box-sizing: border-box;
   min-width: clamp(92px, calc(var(--king) * 0.62), 200px);
-  --choice-height: round(clamp(46px, calc(var(--king) * 0.185), 60px), 1px);
   height: clamp(46px, calc(var(--king) * 0.185), 60px);
-  height: calc(var(--choice-height) + mod(var(--choice-height) - var(--caps), 2px));
   padding: 0 1em;
   white-space: nowrap;
   border-radius: 14px;
@@ -1774,6 +1756,14 @@ body {
   font-weight: 700;
   letter-spacing: 0.005em;
   cursor: pointer;
+}
+/* A whole number of pixels tall, growing one where it and the capitals
+   differ in parity (.caps), where the browser can say so */
+@supports (width: round(1cap, 1px)) and (width: mod(3px, 2px)) {
+  .lobby-choice {
+    --choice-height: round(clamp(46px, calc(var(--king) * 0.185), 60px), 1px);
+    height: calc(var(--choice-height) + mod(var(--choice-height) - var(--caps), 2px));
+  }
 }
 .lobby-choice:disabled {
   cursor: default;
@@ -1855,9 +1845,6 @@ body {
   color: var(--hud-muted);
   font-size: 13.5px;
   text-align: center;
-}
-.lobby-error {
-  color: var(--hud-check-ink);
 }
 /* The arrival's line stands where the pages' headings do, over the stage */
 .lobby-caption {
@@ -2170,8 +2157,7 @@ body {
   margin-top: 16px;
 }
 .lobby-go {
-  height: 48px;
-  height: calc(48px + mod(48px - var(--caps), 2px));
+  height: calc(48px + var(--caps-odd));
   min-width: 200px;
   padding: 0 26px;
   font-size: 16px;
@@ -2205,10 +2191,9 @@ body {
   width: fit-content;
   max-width: 100%;
   margin: 14px auto 0;
-  padding: 10px 18px;
   /* Trimmed to its capitals (.caps), the fraction over them: as tall as
      its line's box made it before */
-  padding: calc(15px + var(--caps) - 1cap) 18px 15px;
+  padding: calc(15px + var(--caps-lift)) 18px 15px;
   line-height: 1;
   text-box: trim-both cap alphabetic;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -2305,10 +2290,8 @@ body {
   .hud-home {
     top: 14px;
     justify-content: center;
-    width: 36px;
-    width: calc(36px + mod(36px - var(--caps), 2px));
-    height: 36px;
-    height: calc(36px + mod(36px - var(--caps), 2px));
+    width: calc(36px + var(--caps-odd));
+    height: calc(36px + var(--caps-odd));
     padding: 0;
     border: 1px solid rgba(236, 241, 255, 0.22);
     border-radius: 50%;
@@ -2319,10 +2302,8 @@ body {
 }
 @media ((max-width: 719px) or (max-height: 480px)) and (pointer: coarse) {
   .hud-home {
-    width: 40px;
-    width: calc(40px + mod(40px - var(--caps), 2px));
-    height: 40px;
-    height: calc(40px + mod(40px - var(--caps), 2px));
+    width: calc(40px + var(--caps-odd));
+    height: calc(40px + var(--caps-odd));
   }
 }
 
@@ -2342,10 +2323,8 @@ body {
   .hud-learn {
     top: 14px;
     justify-content: center;
-    width: 36px;
-    width: calc(36px + mod(36px - var(--caps), 2px));
-    height: 36px;
-    height: calc(36px + mod(36px - var(--caps), 2px));
+    width: calc(36px + var(--caps-odd));
+    height: calc(36px + var(--caps-odd));
     padding: 0;
     border: 1px solid rgba(236, 241, 255, 0.22);
     border-radius: 50%;
@@ -2361,10 +2340,8 @@ body {
 @media (max-width: 719px) and (pointer: coarse) {
   .hud-learn {
     top: 14px;
-    width: 40px;
-    width: calc(40px + mod(40px - var(--caps), 2px));
-    height: 40px;
-    height: calc(40px + mod(40px - var(--caps), 2px));
+    width: calc(40px + var(--caps-odd));
+    height: calc(40px + var(--caps-odd));
   }
 }
 
@@ -2437,8 +2414,7 @@ body {
 .hud-menu-item {
   display: flex;
   align-items: center;
-  height: 32px;
-  height: calc(32px + mod(32px - var(--caps), 2px));
+  height: calc(32px + var(--caps-odd));
   padding: 0 12px;
   border: 0;
   border-radius: 3px;
@@ -2487,8 +2463,7 @@ body {
   gap: 2px;
 }
 .hud-offer .hud-menu-item {
-  height: 30px;
-  height: calc(30px + mod(30px - var(--caps), 2px));
+  height: calc(30px + var(--caps-odd));
   border-radius: 15px;
   font-size: 13px;
 }
@@ -2497,14 +2472,13 @@ body {
   color: var(--hud-accent-fg);
 }
 .hud-offer .hud-menu-item[data-accept]:hover,
-.hud-offer .hud-menu-item[data-accept]:focus-visible {
+.hud-offer .hud-menu-item[data-accept]:focus-visible:not([data-quiet-focus]) {
   background: #fff;
   box-shadow: 0 0 0 3px rgba(230, 238, 255, 0.25);
 }
 @media (pointer: coarse) {
   .hud-offer .hud-menu-item {
-    height: 36px;
-    height: calc(36px + mod(36px - var(--caps), 2px));
+    height: calc(36px + var(--caps-odd));
     border-radius: 18px;
   }
 }
@@ -2583,7 +2557,7 @@ body {
 .landing-mode:active {
   transform: scale(0.98);
 }
-.landing-mode:focus-visible {
+.landing-mode:focus-visible:not([data-quiet-focus]) {
   outline: 2px solid var(--hud-accent);
   outline-offset: 3px;
 }
@@ -2689,8 +2663,7 @@ body {
     height: 24px;
   }
   .landing-learn {
-    height: 38px;
-    height: calc(38px + mod(38px - var(--caps), 2px));
+    height: calc(38px + var(--caps-odd));
     margin-top: 10px;
     font-size: 14px;
   }

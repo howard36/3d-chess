@@ -118,7 +118,7 @@
     "body": "<p>Each step remounts the board; its glass, rims, glaze and label sprites were disposed, so three.js dropped their programs and the next frame linked them again. They are retired now, as the marks of play are.</p>",
     "figure": {
      "html": "<table><thead><tr><th>Step</th><th>Main: programs · long tasks</th><th>Branch</th></tr></thead><tbody><tr><td>Bishop → Black (7 steps × 4 runs)</td><td>4 · median 342 ms (263–563)</td><td>0 · none</td></tr></tbody></table>",
-     "caption": "bench/loop/probe-20261009-learn-links.md: builds served by vite preview, alternated 4 runs a side, SwiftShader."
+     "caption": "bench/loop/probe-20261009-learn-links.md (in git history at 1a04c29): builds served by vite preview, alternated 4 runs a side, SwiftShader."
     }
    },
    {
@@ -142,7 +142,7 @@
   "items": [
    {
     "title": "Hard’s search: skip a pass predicted not to finish (A1)",
-    "body": "<p>A pass the clock stops is thrown away, and the player waits for it. Predicting the next pass from the growth of the last two cut the median wait from 1466 to 1151 ms a move, but searched shallower in 11 of 40 positions (3 moves differed): the growth swings between ×1.5 and ×10. A ×2 floor kept the depth and saved nothing (1543 → 1514 ms). <code>bench/loop/probe-20261009-ai-iterations.md</code>.</p>"
+    "body": "<p>A pass the clock stops is thrown away, and the player waits for it. Predicting the next pass from the growth of the last two cut the median wait from 1466 to 1151 ms a move, but searched shallower in 11 of 40 positions (3 moves differed): the growth swings between ×1.5 and ×10. A ×2 floor kept the depth and saved nothing (1543 → 1514 ms). <code>bench/loop/probe-20261009-ai-iterations.md</code> (in git history at 1a04c29).</p>"
    }
   ]
  },

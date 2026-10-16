@@ -1,0 +1,14 @@
+# Only the loop state the perf-iteration skill lists (its <loop_state>): the
+# ledger, the scoreboard, run records and report files, the A/B reports they
+# point to, tools/ and patches/. Built pages, images, charts, traces and raw
+# JSON stay in bench/out/. (The earliest runs' A/B reports, named otherwise,
+# are tracked already.)
+/*
+!/.gitignore
+!/LEDGER.md
+!/RUN-*.md
+!/ab-*.md
+!/scoreboard.jsonl
+!/RUN-*.report.json
+!/tools/
+!/patches/
