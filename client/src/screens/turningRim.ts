@@ -88,10 +88,13 @@ export function turningRim(options: TurningRimOptions) {
       pointed = false;
       update();
     };
-    measure();
-    update();
+    // The observer's first word on a control comes after the page's own layout
+    // and before its paint, so it paints the rim at rest in the first frame
+    // without forcing a layout inside React's commit, once for each control
     const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
-    resize?.observe(el);
+    if (resize) resize.observe(el);
+    else measure();
+    update();
     const states = typeof MutationObserver === 'function' ? new MutationObserver(update) : null;
     states?.observe(el, { attributes: true, attributeFilter: STATES });
     el.addEventListener('pointerenter', enter);
