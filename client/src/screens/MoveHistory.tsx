@@ -338,8 +338,10 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       // Focus follows the player's own place in the list, ring as the browser
       // decides: focusFromCode would quiet it after a click, so the next Tab
       // would only show the ring (ledger 1016:FT1, the owner's call)
+      // (the list was scrolled by hand above: a focus's own scroll could move
+      // the page under the HUD on a phone, 1016:FT2)
       // eslint-disable-next-line no-restricted-syntax
-      button.focus();
+      button.focus({ preventScroll: true });
     }
   }, [shown, moves.length, open, whole, reviewAsked]);
 

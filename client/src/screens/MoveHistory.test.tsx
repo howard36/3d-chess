@@ -164,6 +164,15 @@ describe('the move list', () => {
     expect(onShow).not.toHaveBeenCalled();
   });
 
+  it('takes the focus to the move shown without scrolling the page', async () => {
+    const { rerender } = render(history({ moves: record(6), shown: 1 }));
+    await userEvent.click(document.querySelector<HTMLElement>('[data-ply="1"]')!);
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    rerender(history({ moves: record(6), shown: 5 }));
+    expect(document.querySelector('[data-ply="5"]')).toHaveFocus();
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
   it('cannot show a move past one the replay could not play', () => {
     render(history({ moves: record(4), applied: 2, shown: 2 }));
     expect(document.querySelector('[data-ply="3"]')).toBeDisabled();
