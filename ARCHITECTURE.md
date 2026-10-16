@@ -570,7 +570,8 @@ Message flow, happy path:
    code **4001 `seat_replaced`** (last connection wins). The client treats that code as
    "stop reconnecting": it shows a _this game is open in another tab_ notice with a button
    that rejoins and takes the seat back, instead of retrying and evicting the newer tab in
-   turn. Any other close is a network fault and is retried with backoff.
+   turn. Any other close is a network fault and is retried with backoff; a waiting retry
+   runs at once when the window comes back `online` or the page is shown again.
    The client sends `takeover: false` on an automatic reconnect (and `true`, the default,
    on page load and "Play here"). With `takeover: false` the server refuses with error
    `seat_in_use` if the seat is held by a live socket of a _different_ client id, so a tab

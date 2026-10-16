@@ -128,6 +128,8 @@ it('never answers once disposed', async () => {
   computer.think([], 'easy').then(answered);
   // A live computer asked after it, on the same thread, answers after any
   // answer the disposed one could give (a wait of its own could end first)
-  expect((await createComputer().think([], 'easy'))?.move).toBeTruthy();
+  const live = createComputer();
+  expect((await live.think([], 'easy'))?.move).toBeTruthy();
+  live.dispose();
   expect(answered).not.toHaveBeenCalled();
 });
