@@ -442,7 +442,11 @@ Key decisions:
   renders, nothing measured: the start page is the entry), and the built page's head starts
   the AVIF downloading before the entry has run (`preloadLandingPicture`, on `/` alone; written
   in after `<meta name="viewport">`, since before it a phone's window reads 980 px wide and the
-  script would fetch the tablet's picture: `vite.config.test.ts`).
+  script would fetch the tablet's picture: `vite.config.test.ts`). The built page also places
+  the picture from an inline script after `#root` (`screens/earlyPicture.ts`), so a phone
+  paints it as it arrives, before the entry; `LandingPicture` takes that very element in as
+  its own in its first commit (while its layout's file fits the window), and
+  `earlyPicture.test.tsx` holds the two markups equal.
   Each layout's picture comes at two densities, picked by the screen's (`srcset`): 1x, and
   `@2x` as fine as the preview's canvas draws on a finer screen (the pixel budget's); AVIF
   of 16–44 KB at 1x and 37–73 KB at 2x, colour at half resolution (4:2:0: full

@@ -1,5 +1,11 @@
 import React from 'react';
-import { pictureSource, pictureSourceSet, picturePlacement } from '../three/landingLens';
+import {
+  pictureSource,
+  pictureSourceSet,
+  picturePlacement,
+  type PicturePlacement,
+} from '../three/landingLens';
+import { EARLY_PICTURE_ID, earlyPicture } from './earlyPicture';
 
 /**
  * The window's size, which the page's box fills (index.css: .landing, 100vw
@@ -33,13 +39,27 @@ function useWindowSize(): [number, number] {
  * three.js has arrived. The preview fades in over it; under reduced motion it
  * is all the page shows. The browser picks the picture as fine as the screen
  * (1x or 2x), and its edges fade into the page's night in the picture itself.
+ * Where the built page placed the same picture before the entry ran
+ * (earlyPicture.ts), that element becomes this one's, for as long as its
+ * file is the one the window's layout asks for.
  */
 export function LandingPicture() {
   const [width, height] = useWindowSize();
   const place = width > 0 && height > 0 ? picturePlacement(width, height) : null;
+  const box = React.useRef<HTMLDivElement>(null);
+  const [early] = React.useState(earlyPicture);
+  const earlyImg = early?.querySelector('img');
+  const adopt = place !== null && earlyImg?.dataset.layout === place.layout;
+  React.useLayoutEffect(() => {
+    if (!early) return;
+    if (adopt && early.parentNode !== box.current) box.current!.append(early);
+    document.getElementById(EARLY_PICTURE_ID)?.remove();
+    if (adopt) Object.assign(earlyImg!.style, placement(place!));
+    else early.remove();
+  });
   return (
-    <div className="landing-picture" aria-hidden="true" data-testid="landing-picture">
-      {place && (
+    <div className="landing-picture" aria-hidden="true" data-testid="landing-picture" ref={box}>
+      {place && !adopt && (
         <picture>
           <source type="image/avif" srcSet={pictureSourceSet(place.layout, 'avif')} />
           <img
@@ -49,17 +69,22 @@ export function LandingPicture() {
             decoding="async"
             fetchPriority="high"
             data-layout={place.layout}
-            style={{
-              // Moved, not laid out, there: a box's position is snapped to the
-              // pixel grid, a transform's is not, and the preview's frame is
-              // not snapped either
-              transform: `translate(${place.left}px, ${place.top}px)`,
-              width: place.width,
-              height: place.height,
-            }}
+            style={placement(place)}
           />
         </picture>
       )}
     </div>
   );
+}
+
+/**
+ * Moved, not laid out, there: a box's position is snapped to the pixel grid,
+ * a transform's is not, and the preview's frame is not snapped either.
+ */
+function placement(place: PicturePlacement) {
+  return {
+    transform: `translate(${place.left}px, ${place.top}px)`,
+    width: `${place.width}px`,
+    height: `${place.height}px`,
+  };
 }

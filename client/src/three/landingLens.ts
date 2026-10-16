@@ -163,7 +163,7 @@ export const pictureSourceSet = (layout: LandingLayout, type: 'avif' | 'webp') =
 export const PICTURE_FADE = 0.03;
 
 /** Where a layout's picture lies in a window, in CSS px from its top left corner. */
-interface PicturePlacement {
+export interface PicturePlacement {
   layout: LandingLayout;
   left: number;
   top: number;

@@ -540,8 +540,13 @@ const BENCH_INIT = () => {
     // The start page's picture of its preview (where there is one), from the
     // frame it is painted in (decoded, then the next frame), and the live
     // preview on screen: drawn, and not held transparent (where it fades in
-    // over the picture, once it has)
-    const picture = document.querySelector('[data-testid="landing-picture"] img');
+    // over the picture, once it has). The built page may place the picture
+    // before the entry runs (#landing-early, before #root), which the page
+    // then takes in as its own
+    if (document.getElementById('landing-early')) b.earlyPicture = true;
+    const picture = document.querySelector(
+      '#landing-early img, [data-testid="landing-picture"] img',
+    );
     if (!f.landingPicture && !b.pictureSeen && picture?.complete && picture.naturalWidth > 0) {
       b.pictureSeen = true;
       // (a picture that fails to decode is never painted: not timed, but counted)
@@ -1299,7 +1304,7 @@ async function coldSection(browser) {
           });
           // (awaited here, before the context closes under it)
           const run = await page.evaluate(() => {
-            const { firsts, pictureFailed = false } = window.__bench;
+            const { firsts, pictureFailed = false, earlyPicture = false } = window.__bench;
             const t0 = performance.timeOrigin;
             const live = firsts.previewLive - t0;
             const picture = firsts.landingPicture ? firsts.landingPicture - t0 : Infinity;
@@ -1313,6 +1318,7 @@ async function coldSection(browser) {
               shown: picture <= live ? 'picture' : 'preview',
               fetched,
               pictureFailed,
+              earlyPicture,
             };
           });
           return run;
@@ -1369,6 +1375,9 @@ async function coldSection(browser) {
         for (const [label, pick] of [
           ['loads whose board showed first as its picture', (r) => r.shown === 'picture'],
           ['pictures that failed to decode', (r) => r.pictureFailed],
+          // The built page's inline script (earlyPicture.ts), which nothing
+          // else runs: e2e serves the dev page
+          ['loads whose picture was placed before the entry ran', (r) => r.earlyPicture],
         ]) {
           const [row, m] = countStat(label, [raw.coldPicture[c.key].filter(pick).length]);
           sec.add(['', ...row], m, `${c.label} · ${label}`);

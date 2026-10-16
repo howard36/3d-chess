@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, test, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import StartScreen from './StartScreen';
+import { EARLY_PICTURE_ID, earlyPicture, placeEarlyPicture } from './earlyPicture';
 
 // The preview is a WebGL canvas, which jsdom can't provide: a stand-in that
 // can say it has faded in over the picture
@@ -79,6 +80,32 @@ test('the picture of the preview shows at once, and goes once the preview has fa
   act(() => shownPreview!());
   expect(screen.queryByTestId('landing-picture')).toBeNull();
   expect(screen.getByText(/^Preview: games play themselves/)).toBeInTheDocument();
+});
+
+test('the page takes in the picture the built page placed early, while its layout fits', () => {
+  reduceMotion(false);
+  phoneWindow();
+  const root = document.createElement('div');
+  root.id = 'root';
+  document.body.append(root);
+  placeEarlyPicture();
+  const placed = earlyPicture()!;
+  renderStart();
+  const box = screen.getByTestId('landing-picture');
+  // The very element, alone, and its wrapper gone
+  expect(box.querySelectorAll('picture')).toHaveLength(1);
+  expect(box.querySelector('picture')).toBe(placed);
+  expect(document.getElementById(EARLY_PICTURE_ID)).toBeNull();
+  // A window of another layout asks for another file: the page's own
+  act(() => {
+    vi.stubGlobal('innerWidth', 1440);
+    vi.stubGlobal('innerHeight', 900);
+    window.dispatchEvent(new Event('resize'));
+  });
+  expect(box.querySelectorAll('picture')).toHaveLength(1);
+  expect(placed.isConnected).toBe(false);
+  expect(box.querySelector('img')!.getAttribute('src')).toBe('/landing/wide.webp');
+  root.remove();
 });
 
 test('for a player who asked for less motion the picture is all there is: no preview, no three.js', async () => {

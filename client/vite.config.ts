@@ -1,4 +1,5 @@
-import { defineConfig, minify } from 'vite';
+import { resolve } from 'node:path';
+import { build, defineConfig, minify } from 'vite';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
@@ -27,6 +28,45 @@ export const preloadLandingPictureOnStartPage = (): Plugin => ({
     if (!viewport.test(html))
       throw new Error('preload-landing-picture: index.html has no <meta name="viewport">');
     return html.replace(viewport, (tag) => `${tag}\n    <script>${code.trim()}</script>`);
+  },
+});
+
+/**
+ * And places it from an inline script right after #root, so the browser
+ * paints it as soon as it has arrived, before the entry has loaded and run
+ * (src/screens/earlyPicture.ts, bundled here with the lens it places by).
+ */
+export const placeLandingPictureEarly = (): Plugin => ({
+  name: 'place-landing-picture-early',
+  apply: 'build',
+  async transformIndexHtml(html) {
+    const entry = resolve(import.meta.dirname, 'src/screens/earlyPicture.ts');
+    const built = await build({
+      configFile: false,
+      logLevel: 'silent',
+      publicDir: false,
+      plugins: [
+        {
+          name: 'early-picture',
+          resolveId: (id) => (id === 'early-picture' ? id : null),
+          load: (id) =>
+            id === 'early-picture'
+              ? `import { placeEarlyPicture } from ${JSON.stringify(entry)}; placeEarlyPicture();`
+              : null,
+        },
+      ],
+      build: {
+        write: false,
+        minify: true,
+        rolldownOptions: { input: 'early-picture', output: { format: 'iife' } },
+      },
+    });
+    const output = (Array.isArray(built) ? built[0] : built) as { output: { code?: string }[] };
+    const code = output.output[0].code ?? '';
+    const root = '<div id="root"></div>';
+    if (!html.includes(root))
+      throw new Error('place-landing-picture-early: no #root in index.html');
+    return html.replace(root, `${root}\n    <script>${code.trim()}</script>`);
   },
 });
 
@@ -261,6 +301,7 @@ export default defineConfig({
     r3fCatalogue(),
     earlySocket(),
     preloadLandingPictureOnStartPage(),
+    placeLandingPictureEarly(),
     preloadSceneOnGamePages(),
     keepSceneOutOfEntry(),
     invitePage(),
