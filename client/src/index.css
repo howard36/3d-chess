@@ -930,7 +930,7 @@ body {
      this one may not */
   overflow: visible;
 }
-@supports (width: round(up, 1.5px, 1px)) {
+@supports (width: round(1cap, 1px)) and (width: mod(3px, 2px)) {
   .hud-icon {
     height: round(up, calc(var(--caps) * var(--lift, 1)), 1px);
   }
