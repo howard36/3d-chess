@@ -817,6 +817,17 @@ body {
   white-space: nowrap;
   cursor: pointer;
 }
+/* A piece's icon in the record (screens/MoveText.tsx): its silhouette, in
+   the text's colour, standing on the line as a letter does (the glyph's
+   ground, y = 21 of its 24, on the baseline), its empty sides taken in */
+.hud-icon {
+  display: inline-block;
+  width: 1.3em;
+  height: 1.3em;
+  margin: 0 -0.12em 0 -0.22em;
+  vertical-align: -0.16em;
+  fill: currentColor;
+}
 .hud-ply:hover {
   background: rgba(236, 241, 255, 0.08);
   color: var(--hud-fg);

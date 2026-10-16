@@ -204,6 +204,8 @@ describe('deriveHistory: game over', () => {
     expect(h.replayFailedAt).toBeNull();
     expect(h.currentTurn).toBe('black');
     expect(h.gameOver).toEqual({ result: 'checkmate', winner: 'white' });
+    // The mating move is written so
+    expect(h.notation.map((n) => n.check)).toEqual(['', '', '#']);
   });
 
   it('is null while the game is on', () => {
@@ -287,6 +289,43 @@ describe('deriveHistory: the work a landing move costs', () => {
     deriveHistory([...log, moveMade('black', 'Cd5', 'Bd5')], prev);
     expect(applied).toHaveBeenCalledTimes(1);
     applied.mockRestore();
+  });
+});
+
+describe('deriveHistory: the notation', () => {
+  it('writes each applied move from the position before it', () => {
+    const h = deriveHistory([
+      snapshot([
+        { by: 'white', from: 'Bb1', to: 'Cb1' },
+        { by: 'black', from: 'Ed5', to: 'Cc5' },
+        { by: 'white', from: 'Ab1', to: 'Ac3' },
+      ]),
+    ]);
+    expect(h.notation.map((n) => [n.piece, n.from, n.to])).toEqual([
+      [PieceType.Pawn, null, 'Cb1'],
+      // Both of Black's knights reach Cc5, and both of White's Ac3
+      [PieceType.Knight, 'Ed5', 'Cc5'],
+      [PieceType.Knight, 'Ab1', 'Ac3'],
+    ]);
+  });
+
+  it('writes the same move by move as replayed whole, and nothing past a move it could not play', () => {
+    const records: MoveRecord[] = [
+      { by: 'white', from: 'Bb1', to: 'Cb1' },
+      { by: 'black', from: 'Ed5', to: 'Cc5' },
+      { by: 'white', from: 'Ab1', to: 'Ac3' },
+    ];
+    let h = deriveHistory([snapshot([])]);
+    const log: WebSocketMessage[] = [snapshot([])];
+    for (const r of records) {
+      log.push(moveMade(r.by, r.from, r.to));
+      h = deriveHistory([...log], h);
+    }
+    expect(h.notation).toEqual(deriveHistory([snapshot(records)]).notation);
+    // An empty square to move from: the record stops there
+    const broken = deriveHistory([snapshot([...records, { by: 'black', from: 'Cc3', to: 'Cc2' }])]);
+    expect(broken.replayFailedAt).toBe(3);
+    expect(broken.notation).toHaveLength(3);
   });
 });
 

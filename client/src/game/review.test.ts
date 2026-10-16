@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Board, PieceType } from '../engine';
 import { deriveHistory } from './history';
-import { formatMove, plyLabel, reviewLine, stepOfKey, stepTo } from './review';
+import { formatMove, plyNumber, reviewLine, stepOfKey, stepTo } from './review';
 import type { MoveRecord, WebSocketMessage } from '../types/messages';
 
 const recordsOf = (moves: string[]): MoveRecord[] =>
@@ -117,10 +117,10 @@ describe('the steps through the record', () => {
 
 describe('how a ply is written', () => {
   it('numbers the moves in pairs, Black’s after "…", the start as "Start"', () => {
-    expect(plyLabel(GAME, 0)).toBe('Start');
-    expect(plyLabel(GAME, 1)).toBe('1. Ae2–Db5');
-    expect(plyLabel(GAME, 2)).toBe('1… Ec4–Bc1');
-    expect(plyLabel(GAME, 7)).toBe('4. Aa2–Da5');
+    expect(plyNumber(0)).toBe('Start');
+    expect(plyNumber(1)).toBe('1.');
+    expect(plyNumber(2)).toBe('1…');
+    expect(plyNumber(7)).toBe('4.');
   });
 
   it('writes a promotion after the move', () => {

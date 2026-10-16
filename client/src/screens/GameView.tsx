@@ -21,6 +21,7 @@ import MoveHistory from './MoveHistory';
 import { useReview } from './useReview';
 import { useAnalysis } from './useAnalysis';
 import { betterMove } from '../game/analysis';
+import { notateCandidate } from '../game/notation';
 import { moveFromMessage } from '../engine/protocol';
 import MoveAnnouncer from './MoveAnnouncer';
 import GameActions from './GameActions';
@@ -226,6 +227,13 @@ const GameView: React.FC<GameViewProps> = ({
     () => (better ? moveFromMessage({ by: 'white', ...better }) : null),
     [better],
   );
+  // How the record writes it: played from the position before the move shown
+  const betterNotation = React.useMemo(() => {
+    const last = shown.lastMove;
+    if (!betterOnBoard || !last) return null;
+    const before = shown.board.unapplyMove(last.move, last.capturedPiece);
+    return before ? notateCandidate(before, betterOnBoard) : null;
+  }, [betterOnBoard, shown.board, shown.lastMove]);
   return (
     // game-screen (index.css): no text selection, callout or double-tap
     // zoom on a touch screen, except in the move box and the move list
@@ -323,6 +331,7 @@ const GameView: React.FC<GameViewProps> = ({
             <MoveHistory
               moves={moveRecords}
               applied={history.appliedMoveCount}
+              notation={history.notation}
               shown={shown.ply}
               onShow={showPly}
               // Not behind a dialog, nor while the entrance plays
@@ -339,6 +348,7 @@ const GameView: React.FC<GameViewProps> = ({
                       grades: analysis.grades,
                       counts: analysis.counts,
                       best: better,
+                      bestNotation: betterNotation,
                       onRetry: startAnalysis,
                     }
                   : undefined

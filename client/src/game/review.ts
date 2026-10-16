@@ -110,18 +110,19 @@ export const stepOfKey = (key: string): ReviewStep | null =>
   (Object.keys(STEP_KEY) as ReviewStep[]).find((s) => STEP_KEY[s] === key) ?? null;
 
 /**
- * How a ply is written in the record: the move's number, with "…" for
- * Black's ("7… Ed4–Ba1"), or "Start" for the starting position.
+ * A ply's number in the record: the move's, with "…" for Black's ("7…"), or
+ * "Start" for the starting position. The move itself follows it
+ * (game/notation.ts).
  */
-export function plyLabel(records: readonly MoveRecord[], ply: number): string {
+export function plyNumber(ply: number): string {
   if (ply === 0) return 'Start';
-  const n = Math.ceil(ply / 2);
-  return `${n}${ply % 2 === 1 ? '.' : '…'} ${formatMove(records[ply - 1])}`;
+  return `${Math.ceil(ply / 2)}${ply % 2 === 1 ? '.' : '…'}`;
 }
 
 /**
  * A move as the wire writes it (level-file-rank), with an en dash and the
- * promotion after "=", so a record this client cannot replay still lists.
+ * promotion after "=": how the record lists a move this client cannot
+ * replay, which has no notation (game/notation.ts).
  */
 export const formatMove = (m: MoveRecord) =>
   `${m.from}–${m.to}${m.promotion ? `=${m.promotion}` : ''}`;

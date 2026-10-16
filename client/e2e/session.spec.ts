@@ -18,7 +18,7 @@ test('a reloaded page rejoins its seat and restores the position', async ({ brow
   await expect(game.white.getByTestId('seat')).toHaveAttribute('data-seat', 'white');
   await expect(game.white.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
   await expect(game.white.getByTestId('move-announcer')).toHaveAttribute('data-move-count', '1');
-  await expect(game.white.getByTestId('move-list')).toContainText('Bb1–Cb1');
+  await expect(game.white.getByTestId('move-list')).toContainText('Pawn to Cb1');
 
   // The restored session is live: the opponent's next move arrives, and the
   // reloaded player can answer it.
