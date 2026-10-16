@@ -282,6 +282,76 @@ describe('inCheck', () => {
   });
 });
 
+describe('checkers', () => {
+  const place = (board: Board, pieces: [string, PieceType, 'white' | 'black'][]) => {
+    for (const [square, type, color] of pieces) board.setPiece(fromZXY(square), { type, color });
+    return board;
+  };
+
+  it('a double check: the knight that moved and the bishop it uncovered', () => {
+    // Cb3–Dd3 checks the king on Db4 and opens Bb2's line through Cb3
+    const board = place(new Board(), [
+      ['Db4', PieceType.King, 'black'],
+      ['Dc4', PieceType.Pawn, 'black'],
+      ['Dd3', PieceType.Knight, 'white'],
+      ['Bb2', PieceType.Bishop, 'white'],
+      ['Aa1', PieceType.King, 'white'],
+    ]);
+    expect(board.checkers('black').map(toZXY).sort()).toEqual(['Bb2', 'Dd3']);
+    expect(board.checkers('white')).toEqual([]);
+  });
+
+  it('a blocked rook gives no check, and nor does a pawn capturing away', () => {
+    const board = place(new Board(), [
+      ['Cc3', PieceType.King, 'black'],
+      ['Cc1', PieceType.Rook, 'white'],
+      ['Cc2', PieceType.Pawn, 'black'],
+      // A white pawn captures towards higher ranks and levels: not from Dd4
+      ['Dd4', PieceType.Pawn, 'white'],
+      ['Ee5', PieceType.King, 'white'],
+    ]);
+    expect(board.checkers('black')).toEqual([]);
+    board.setPiece(fromZXY('Cc2'), null);
+    expect(board.checkers('black').map(toZXY)).toEqual(['Cc1']);
+  });
+
+  it('finds exactly the pieces whose attacks reach the king, through a played game', () => {
+    let seed = 7;
+    const random = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+    let board = Board.setupStartingPosition();
+    let color: 'white' | 'black' = 'white';
+    let checks = 0;
+    for (let ply = 0; ply < 400; ply++) {
+      for (const side of ['white', 'black'] as const) {
+        const king = toZXY(board.findKing(side));
+        const expected: string[] = [];
+        for (let z = 0; z < 5; z++)
+          for (let x = 0; x < 5; x++)
+            for (let y = 0; y < 5; y++) {
+              const piece = board.getPiece({ x, y, z });
+              if (!piece || piece.color === side) continue;
+              if (board.generateAttackedSquares({ x, y, z }).some((c) => toZXY(c) === king))
+                expected.push(toZXY({ x, y, z }));
+            }
+        const found = board.checkers(side).map(toZXY);
+        expect(found.sort()).toEqual(expected.sort());
+        expect(found.length > 0).toBe(board.inCheck(side));
+        if (found.length) checks++;
+      }
+      const moves = board.generateAllLegalMoves(color);
+      if (moves.length === 0) {
+        board = Board.setupStartingPosition();
+        color = 'white';
+        continue;
+      }
+      board = board.applyMove(moves[Math.floor(random() * moves.length)]);
+      color = color === 'white' ? 'black' : 'white';
+    }
+    // (The game wanders into enough checks to mean something)
+    expect(checks).toBeGreaterThan(10);
+  });
+});
+
 describe('generateAllLegalMoves', () => {
   it('black king in corner has only one legal move due to two white rooks defending each other', () => {
     const board = new Board();

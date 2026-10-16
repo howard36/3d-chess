@@ -273,10 +273,12 @@ Key decisions:
   players' pages open the new game at once (the seat stored as a joined one is, the router's
   state asking for the whole entrance); a finished game opened after its rematch began says
   "Join rematch" instead. The rematch's buttons stand below the tower once the card is put
-  away (`RematchBar`), side by side, "Decline" over the pill where the room beside the
-  history's steps holds the pill alone (and once declined, "Review" until the review has
+  away (`RematchBar`), side by side (and once declined, "Review" until the review has
   begun, then the refusal alone); there the review is begun by a step through the record;
-  `rematch-announcer` says an offer and a refusal.
+  `rematch-announcer` says an offer and a refusal. With the card put away the screen is the
+  review's: the board, the record and the rematch. The pill and the captured pieces step
+  out of sight (still in the page, visually hidden, for a screen reader and the hooks
+  below) and the way to the tutorial goes; the way home stays.
   While the game is on, a
   flag in a circle stands under the way to the tutorial at the right (`screens/GameActions.tsx`,
   `.hud-game`, in one column with the move history, which takes its place once the game is over, `.hud-side`: below the HUD's band, but in every window shape where the window is empty
@@ -341,19 +343,22 @@ Key decisions:
   narrow glass panel at the right under "How to play" and the flag, in one column with them
   (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
   height to fit (the list scrolls, the move shown kept in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
-  in a row under the tower (above the rematch, or beside it in a window at least 560 px wide, where the tower fills the height and leaves room under it for one row), the move shown
-  between them ("7… ♗xBa1+"), which opens the list above them. Closed, the list is
+  in a row: under the tower behind the result card, and once it is put away in the pill's
+  place at the top (the HUD's band, which the fitted board stays below, so the steps never
+  cover the tower and never stand over the rematch), the move shown between them
+  ("7… ♗xBa1+"), which opens the list under them, four rows of moves tall and each side's
+  marks on one line, so it covers little of the tower. Beside the tower, the card put
+  away, the panel moves up into the corner the way to the tutorial leaves. Closed, the list is
   visually hidden, never `display: none`: it is how a screen reader reads the record, and
   a polite status says where the board stands as the player steps. A reopened game's list
   comes in two renders: the blocks in view (the last, the move shown's) with the record, the
   rest a deferred render later, so thousands of buttons never hold up the record; rows out of
   the list's view are not laid out (`content-visibility`). On a touch screen the steps are a
-  fingertip wide and, beside the tower, share the panel's width (on a phone on its side the
-  way back goes without its name). Away from the live
+  fingertip wide, and beside the tower the four steps share the panel's width. Away from the live
   position (`screens/useReview.ts`) the board shows the earlier one, its last-move line,
   check and captured pieces, and takes no input (no selection, no move; the move box says
-  "Go to the latest move first."); the move shown is lit in the list and the way back
-  ("Latest") is lit too. The pill, the announcer and their hooks follow the game throughout,
+  "Go to the latest move first."); the move shown is lit in the list; the way back
+  ("Latest") looks like the other steps. The pill, the announcer and their hooks follow the game throughout,
   and a game ended by a resignation or an agreed draw is stepped through like one ended on
   the board, the board taking no input at its end either. (While the result card is up,
   nothing steps: it is a dialog.)
@@ -677,7 +682,12 @@ piece can reach (fuller under the pointer), red round a capture (four arcs turni
 move's source to its destination (in a finished game's review, where the move shown is
 marked, a still amber line beside it, the better move, from a small circle to a circle
 just outside a piece's ring: `Better` in `scene/markers.tsx`, drawn by the last move's own
-programs, so it links none and asks for no frames), and a king in check turns red among four clusters of dark obsidian blades. The
+programs, so it links none and asks for no frames), and a king in check turns red among four clusters of dark obsidian blades,
+with a thin, dim red line running to him from each piece giving check (`Board.checkers()` in
+the engine), drawn in from the checker as the check strikes, a soft glow of bright red
+travelling along it to him, so a check from another level, or one the moving piece uncovered
+(a double check), shows where it comes from. At mate the lines stay and their glow stops.
+They are drawn by the last move's line and shimmer programs, so they link none. The
 marks look the same from every angle, and a destination takes the pointer and the click on its
 circle alone (`MARK_RADIUS`), so a square's empty corners reach a circle beneath. While the pointer is on a level (a square of it, a piece
 or a destination), the other levels step back: their glass, edges and marks give up a share of

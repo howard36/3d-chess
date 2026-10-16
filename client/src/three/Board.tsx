@@ -725,6 +725,7 @@ const Board = (props: BoardProps) => {
           <Check
             key={`check-${color}`}
             {...markerAt(coord)}
+            checkers={board.checkers(color).map(markerAt)}
             {...(color === matedColor ? { mated: true } : {})}
           />
         ))}

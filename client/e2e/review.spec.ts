@@ -115,7 +115,7 @@ test('the move history waits out the game, then steps back through it', async ({
   await game.close();
 });
 
-test('on a phone the steps stand under the tower once the game is over, the list a tap away', async ({
+test("on a phone the steps take the pill's place once the game is over, the list a tap away", async ({
   browser,
 }) => {
   const game = await startGame(browser);
@@ -123,11 +123,15 @@ test('on a phone the steps stand under the tower once the game is over, the list
   await white.setViewportSize({ width: 390, height: 844 });
   await game.playAll(['Bb1-Cb1', 'Dd5-Cd5']);
   const history = white.getByTestId('move-history');
-  // While the game is on, no steps under the tower
+  // While the game is on, no steps
   await expect(history).toHaveAttribute('data-hidden', 'true');
   await expect(white.getByRole('button', { name: 'Back', exact: true })).toHaveCount(0);
   await resign(white);
   await closeResult(white);
+  // At the top, above the tower, where the pill stood (out of sight now)
+  const steps = await history.boundingBox();
+  expect(steps!.y).toBeLessThan(60);
+  await expect(white.getByTestId('turn-indicator')).not.toBeInViewport();
   // Closed: the list out of sight, but in the page for screen readers
   await expect(white.getByTestId('move-list')).toHaveClass(/sr-only/);
   await white.getByRole('button', { name: 'Back', exact: true }).click();
@@ -136,6 +140,26 @@ test('on a phone the steps stand under the tower once the game is over, the list
   // The move shown opens the list, whose moves show the board after them
   await white.getByRole('button', { name: /Move list/ }).click();
   await expect(white.getByTestId('move-list')).not.toHaveClass(/sr-only/);
+  // Each side's counts centred on its stone, and the move shown's light
+  // even round its words: their boxes are trimmed to the capitals, so this
+  // holds in any font (within the baseline's rounding to the pixel)
+  await expect(white.getByTestId('analysis-counts')).toBeVisible();
+  const offsets = await white.evaluate(() => {
+    const mid = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return (r.top + r.bottom) / 2;
+    };
+    const counts = [...document.querySelectorAll('.hud-counts')].flatMap((row) => {
+      const stone = mid(row.querySelector('.hud-stone')!);
+      return [...row.querySelectorAll('.hud-count')].map((c) => mid(c) - stone);
+    });
+    const word = document.querySelector('.hud-ply[aria-current] .hud-ply-word')!;
+    const style = getComputedStyle(word);
+    return { counts, light: parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) };
+  });
+  expect(offsets.counts).toHaveLength(6);
+  for (const off of offsets.counts) expect(Math.abs(off)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(offsets.light)).toBeLessThanOrEqual(0.5);
   await white.locator('[data-ply="2"]').click();
   await expect(history).not.toHaveAttribute('data-review');
   await expect.poll(() => pieceOn(white, 'Cd5')).toBe('black pawn');
