@@ -1,4 +1,5 @@
 import React from 'react';
+import { Arrow } from '../Arrow';
 import { useNavigate } from 'react-router';
 import { ChunkBoundary } from '../../components/ChunkBoundary';
 import { learnScreen } from './learnChunk';
@@ -16,7 +17,8 @@ const LearnRoute = () => {
       <main className="lobby" data-testid="learn-failed">
         <header className="lobby-top">
           <button className="button-link" onClick={() => navigate('/')}>
-            <span aria-hidden>←</span> Home
+            <Arrow to="left" />
+            <span className="caps">Home</span>
           </button>
         </header>
         <div className="lobby-heading">
