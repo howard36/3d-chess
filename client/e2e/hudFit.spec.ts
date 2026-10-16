@@ -116,11 +116,14 @@ for (const seat of ['white', 'black'] as const) {
  * The HUD's rects over the board: the pill, each side's captured pieces, the
  * way to the tutorial, the flag for resigning and draws and the arrow for
  * taking a move back, with the opponent's draw offer and take-back request
- * under them when they stand, and the move history.
+ * under them when they stand, and the move history. In the review (the
+ * result card put away) the pill and the captured pieces are only in the
+ * page for a screen reader, and the way to the tutorial is gone.
  */
 const hudRects = (page: Page) =>
   page.evaluate(() => {
     const rect = (what: string, el: Element | null) => {
+      if (el?.closest('.sr-only')) return null;
       const b = el?.getBoundingClientRect();
       return b && b.width >= 1 && b.height >= 1
         ? { what, left: b.left, top: b.top, right: b.right, bottom: b.bottom }
@@ -207,8 +210,10 @@ async function problemsAt(page: Page, width: number, height: number) {
     }
   }
   if (hauls.length === 2 && meet(hauls[0], hauls[1], 3)) problems.push('the captures meet');
-  // The ways home and to the tutorial stand clear of the rest of the HUD, and in the window
-  const corners = ['home', 'how to play'].map((what) => {
+  // The ways home and to the tutorial (but in the review) stand clear of the
+  // rest of the HUD, and in the window
+  const review = await page.locator('[data-testid="move-history"][data-ended]').count();
+  const corners = (review ? ['home'] : ['home', 'how to play']).map((what) => {
     const corner = hud.find((r) => r.what === what);
     if (!corner) problems.push(`no ${what}`);
     else {
@@ -273,7 +278,8 @@ for (const seat of ['white', 'black'] as const) {
     await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-result', 'checkmate');
     await expect(page.getByTestId('move-history')).not.toHaveAttribute('data-hidden');
     expect(await everywhere()).toEqual([]);
-    // ...and the card put away, the player looking back at the opening
+    // ...and the card put away, the player looking back at the opening (the
+    // steps in the pill's place in a narrow window)
     await closeResult(page);
     await page.keyboard.press('Home');
     await expect(page.getByTestId('move-history')).toHaveAttribute('data-viewing-ply', '0');
@@ -292,8 +298,7 @@ for (const seat of ['white', 'black'] as const) {
 
 // A touch screen (pointer: coarse) makes the steps through the history (in
 // sight once the game is over) a fingertip wide: they stay inside their panel
-// and the window at every size, the way back to the end too, which grows its
-// name while looking back
+// and the window at every size, looking back too
 test.describe('on a touch screen', () => {
   test.use({ hasTouch: true, isMobile: true });
 
