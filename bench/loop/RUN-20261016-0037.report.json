@@ -2,7 +2,7 @@
  "title": "Perf run 20261016-0037",
  "eyebrow": "3D chess · perf-iteration · run 20261016-0037",
  "heading": "The start page is ready sooner on desktop again, and the loop's records are tidy",
- "meta": "<p>A change made two PRs ago, the turning rainbow rims on the start page's buttons, had made the start page slower. Each rim measured its button while React was still building the page, which forced the browser to lay out the page early. The rims now measure a moment later, after the browser's own layout. On the final commit, “Start page usable” is 28% sooner on desktop (89.8 → 64.3 ms) and 9.6% sooner on the slowed phone (726 → 655 ms), both called better. No headline row is called worse. One row, the opponent's move appearing, leaned slower without being called; 8 more pairs on the final code put it at 6% faster, so it was noise. One question is left for you: whether the move list's focus should stay quiet after a click. The rest of the run is checks and record-keeping: a lint rule, a stricter coverage gate, two bench fixes and a tidy ledger. Everything is in <a href=\"https://github.com/howard36/3d-chess/pull/154\">the PR</a>.</p><p class=\"small\">Run 2026-10-16, 00:37–05:10 UTC. Main at <code>1a04c29</code> (with <code>4a4a1d6</code>, a CI-only change, merged in), branch <code>improve/20261016-0037</code> (pushed as <code>claude/perf-orchestrator-agent-fsf3mk</code>). Measured in headless Chromium with SwiftShader (WebGL drawn on the CPU) on 4 CPUs. Every comparison is an A/B: the bench runs main and the branch back to back several times, and each back-to-back run is a <em>pair</em>. A change is <em>called</em> only when every pair moves the same way, by more than 5% and by more than the pairs disagree with each other.</p>",
+ "meta": "<p>A change made two PRs ago, the turning rainbow rims on the start page's buttons, had made the start page slower. Each rim measured its button while React was still building the page, which forced the browser to lay out the page early. The rims now measure a moment later, after the browser's own layout. On the final commit, “Start page usable” is 28% sooner on desktop (89.8 → 64.3 ms) and 9.6% sooner on the slowed phone (726 → 655 ms), both called better. No headline row is called worse. Main moved on during the run (#151, the red check lines); with it merged in, the branch against main as it now is: “Start page usable” on desktop is 20–22% sooner in every one of 9 pairs, though the pairs spread too much for a call, and the phone's gain is smaller (3–5%, not called). One row, the opponent's move appearing, leaned slower without being called; 8 more pairs on the final code put it at 6% faster, so it was noise. One question is left for you: whether the move list's focus should stay quiet after a click. The rest of the run is checks and record-keeping: a lint rule, a stricter coverage gate, two bench fixes and a tidy ledger. Everything is in <a href=\"https://github.com/howard36/3d-chess/pull/154\">the PR</a>.</p><p class=\"small\">Run 2026-10-16, 00:37–06:20 UTC. Base <code>1a04c29</code>; main's <code>4a4a1d6</code> (CI only) and <code>ee73ce3</code> (#151, the red check lines) merged in, so the branch is level with main, branch <code>improve/20261016-0037</code> (pushed as <code>claude/perf-orchestrator-agent-fsf3mk</code>). Measured in headless Chromium with SwiftShader (WebGL drawn on the CPU) on 4 CPUs. Every comparison is an A/B: the bench runs main and the branch back to back several times, and each back-to-back run is a <em>pair</em>. A change is <em>called</em> only when every pair moves the same way, by more than 5% and by more than the pairs disagree with each other.</p>",
  "needs": {
   "items": [
    {
@@ -17,10 +17,10 @@
   ]
  },
  "scoreboard": {
-  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Against main, the final commit is 1.072 times as fast over all 14 (identical code compared with itself gives about 1.004). Two are called better: “Start page usable” on desktop (−28%) and on the slowed phone (−9.6%). None is called worse. The page's memory did not grow: JavaScript memory on a reopened long game +0.0%, and geometries and textures grown over 16 moves are the same on both sides.</p><p>Against the first recorded run (92ce041), the final commit is 2.48 times as fast over the 11 headline rows both can measure; the target is 1.2. Moves and picking up a piece take about a tenth of the time they did. Two rows are called worse than the first run, both already known: “Start page usable” on desktop (+23%) and on the slowed phone (+13%). The start page has grown since then: the computer player, the tutorial and the picture. JavaScript memory on a reopened long game is 35% higher than the first run, also known.</p>",
+  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Against main as it was when the run began (<code>1a04c29</code>), the final commit is 1.072 times as fast over all 14 (identical code compared with itself gives about 1.004). Two are called better: “Start page usable” on desktop (−28%) and on the slowed phone (−9.6%). None is called worse. The page's memory did not grow: JavaScript memory on a reopened long game +0.0%, and geometries and textures grown over 16 moves are the same on both sides.</p><p>Main then moved to <code>ee73ce3</code> (#151, the red check lines), which the branch has merged in. Against it, the merged branch is 1.040 times as fast over the 14 headline rows, none called. “Start page usable” on desktop is 20% sooner in 3 pairs and 22% in 6 more (every pair better, but too spread to call); on the slowed phone 3.4% and 4.9%. Three rows that looked worse in the 3 pairs were run again with 6: the review +1.4%, reopening a long game −11%, the desktop's first click −22%. None is called. Memory is unchanged (heap −0.4%).</p><p>Against the first recorded run (92ce041), the final commit is 2.48 times as fast over the 11 headline rows both can measure; the target is 1.2. Moves and picking up a piece take about a tenth of the time they did. Two rows are called worse than the first run, both already known: “Start page usable” on desktop (+23%) and on the slowed phone (+13%). The start page has grown since then: the computer player, the tutorial and the picture. JavaScript memory on a reopened long game is 35% higher than the first run, also known.</p>",
   "items": [
    {
-    "title": "The branch against main",
+    "title": "The branch against main at the run's start (1a04c29)",
     "charts": [
      {
       "rows": {
@@ -28,6 +28,32 @@
        "only": "PRIMARY"
       },
       "caption": "Final commit e02a235 against main 1a04c29, 4 pairs (ab-20261016-0037-verify.md)."
+     }
+    ]
+   },
+   {
+    "title": "The branch against main with #151 (ee73ce3)",
+    "charts": [
+     {
+      "rows": {
+       "change": "verify after main's #151: 40fea18 vs ee73ce3 (primary, 3 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "The branch with main merged in (40fea18) against main ee73ce3, 3 pairs (ab-20261016-0037-vs-main.md)."
+     },
+     {
+      "rows": {
+       "change": "verify after main's #151: 40fea18 vs ee73ce3 (cold load, 6 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "The start page's rows again, 6 pairs (ab-20261016-0037-vs-main-cold.md)."
+     },
+     {
+      "rows": {
+       "change": "verify after main's #151: 40fea18 vs ee73ce3 (review and reopen, 6 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "The review and reopen rows again, 6 pairs (ab-20261016-0037-vs-main-review.md)."
      }
     ]
    },
@@ -75,7 +101,7 @@
    },
    {
     "title": "Checks that now run instead of rules that only remind",
-    "body": "<ul><li><strong>Focus lint (026a7b2).</strong> ESLint now refuses <code>autoFocus</code> and a bare <code>.focus()</code> under <code>src/</code>, outside <code>lib/focus.ts</code> and tests, which is the CLAUDE.md rule about focus the page moves by itself. Two Escape handlers moved to <code>focusFromCode</code>; the move list's following focus keeps main's plain focus behind a named exception (see Needs from me). The scene's and canvases' lint blocks do not carry the rule yet (ledger 1016:FL1).</li><li><strong>Coverage per file (bcfeaad).</strong> The 90% gates on <code>engine/</code>, <code>ai/</code> and <code>game/</code> now hold for each file, not for each folder's total. Lowest today: <code>ai/computer.ts</code> 91.7% of branches, <code>engine/board.ts</code> 92.4%.</li><li><strong>A rimmed button's frames stop when it goes (171e1d8).</strong> The test's frame stub now cancels by id, so a cleanup that cancels the wrong frame fails.</li><li><strong>bench/loop/ keeps only the loop state (32912a5).</strong> A <code>.gitignore</code> allow-list, so built pages, images and raw JSON cannot be committed there again.</li></ul>"
+    "body": "<ul><li><strong>Focus lint (026a7b2).</strong> ESLint now refuses <code>autoFocus</code> and a bare <code>.focus()</code> under <code>src/</code>, outside <code>lib/focus.ts</code> and tests, which is the CLAUDE.md rule about focus the page moves by itself. Two Escape handlers moved to <code>focusFromCode</code>; the move list's following focus keeps main's plain focus behind a named exception (see Needs from me). The scene's and canvases' lint blocks do not carry the rule yet (ledger 1016:FL1).</li><li><strong>Coverage per file (bcfeaad).</strong> The 90% gates on <code>engine/</code>, <code>ai/</code> and <code>game/</code> now hold for each file, not for each folder's total. Lowest today: <code>ai/computer.ts</code> 91.7% of branches, <code>ai/search.ts</code> 94.7% of functions. They now also gate #151's new code.</li><li><strong>A rimmed button's frames stop when it goes (171e1d8).</strong> The test's frame stub now cancels by id, so a cleanup that cancels the wrong frame fails.</li><li><strong>bench/loop/ keeps only the loop state (32912a5).</strong> A <code>.gitignore</code> allow-list, so built pages, images and raw JSON cannot be committed there again.</li></ul>"
    },
    {
     "title": "The bench measures what it says",
@@ -108,7 +134,7 @@
   ]
  },
  "choices": {
-  "intro": "<ul><li>I fixed the rims by moving their measure, not by changing how they turn. A rim still repaints on every frame while it turns (under the pointer on the start page, always on the lobby's pill). A cheaper turn would change what a player sees, so I did not try one.</li><li>The focus lint first changed the move list's focus after a click (an extra Tab). I took that back out of the PR and put the question under Needs from me. The lint's other two moves (two Escape handlers) change nothing a player sees: they run after a key press, where <code>focusFromCode</code> is a plain focus.</li><li>The report's charts drew a ratio of medians while its words quote the A/B's change, so they could disagree by several points. The charts now draw the A/B's change.</li><li>The ledger tidy: one row per idea under its oldest id (33 merges), 5 repeats of rejected ideas moved to Rejected, 15 rows deleted because the idea was kept since or its code is gone (among them V16, kept this run, and I16, whose button #148 removed). Every file and name the open rows cite still exists. Ideas from run 20261012-1644 and earlier that no later run raised are parked. 252 open rows became 184. The run record lists each merge and deletion; the old ledger is in git history at 1a04c29.</li><li>The scoreboard rows measured on uncommitted code now carry <code>+wip</code> after their head commit, and V16's two count rows are filed under V16 instead of the rejected RG2b.</li></ul>",
+  "intro": "<ul><li>I fixed the rims by moving their measure, not by changing how they turn. A rim still repaints on every frame while it turns (under the pointer on the start page, always on the lobby's pill). A cheaper turn would change what a player sees, so I did not try one.</li><li>The focus lint first changed the move list's focus after a click (an extra Tab). I took that back out of the PR and put the question under Needs from me. The lint's other two moves (two Escape handlers) change nothing a player sees: they run after a key press, where <code>focusFromCode</code> is a plain focus.</li><li>The report's charts drew a ratio of medians while its words quote the A/B's change, so they could disagree by several points. The charts now draw the A/B's change.</li><li>The ledger tidy: one row per idea under its oldest id (33 merges), 5 repeats of rejected ideas moved to Rejected, 15 rows deleted because the idea was kept since or its code is gone (among them V16, kept this run, and I16, whose button #148 removed). Every file and name the open rows cite still exists. Ideas from run 20261012-1644 and earlier that no later run raised are parked. 252 open rows became 184. The run record lists each merge and deletion; the old ledger is in git history at 1a04c29.</li><li>The second grade found one more shipped idea in the ledger: deploying with <code>--strategy recreate</code> (1009-1606:S1), which #118 merged on 2026-10-11. It is deleted. No other open row waits on a PR.</li><li>Against main with #151, three headline rows looked worse in 3 pairs (reopening a long game +6.8%, the review's median pair +9%, the desktop's first click's median pair +7%). None of them runs code this PR changes, and 6 more pairs put them at −11%, +1.4% and −22%, none called, so none is under Needs from me.</li><li>The scoreboard rows measured on uncommitted code now carry <code>+wip</code> after their head commit, and V16's two count rows are filed under V16 instead of the rejected RG2b.</li></ul>",
   "items": [
    {
     "title": "“The opponent's move appears” leaned slower: I called it noise",
