@@ -542,10 +542,11 @@ const BENCH_INIT = () => {
     const picture = document.querySelector('[data-testid="landing-picture"] img');
     if (!f.landingPicture && !b.pictureSeen && picture?.complete && picture.naturalWidth > 0) {
       b.pictureSeen = true;
-      picture
-        .decode()
-        .catch(() => {})
-        .then(() => requestAnimationFrame(() => (f.landingPicture = now())));
+      // (a picture that fails to decode is never painted: not timed, but counted)
+      picture.decode().then(
+        () => requestAnimationFrame(() => (f.landingPicture = now())),
+        () => (b.pictureFailed = true),
+      );
     }
     const opacity = document.querySelector('.landing-preview')?.style.opacity;
     if (!f.previewLive && b.landingDrawn && (opacity === '' || opacity === '1')) f.previewLive = t;
@@ -1294,7 +1295,7 @@ async function coldSection(browser) {
           });
           // (awaited here, before the context closes under it)
           const run = await page.evaluate(() => {
-            const { firsts } = window.__bench;
+            const { firsts, pictureFailed = false } = window.__bench;
             const t0 = performance.timeOrigin;
             const live = firsts.previewLive - t0;
             const picture = firsts.landingPicture ? firsts.landingPicture - t0 : Infinity;
@@ -1307,6 +1308,7 @@ async function coldSection(browser) {
               preview: live,
               shown: picture <= live ? 'picture' : 'preview',
               fetched,
+              pictureFailed,
             };
           });
           return run;
@@ -1358,6 +1360,15 @@ async function coldSection(browser) {
           raw.coldPicture[c.key].map((r) => new Set(r.fetched).size),
         );
         sec.add(['', ...row], m, `${c.label} · pictures of the board downloaded`);
+        // Which the board row timed: a change that stops the picture painting
+        // shows here, not only as a later board under the min() above
+        for (const [label, pick] of [
+          ['loads whose board showed first as its picture', (r) => r.shown === 'picture'],
+          ['pictures that failed to decode', (r) => r.pictureFailed],
+        ]) {
+          const [row, m] = countStat(label, [raw.coldPicture[c.key].filter(pick).length]);
+          sec.add(['', ...row], m, `${c.label} · ${label}`);
+        }
         // The section's first load meets the start page's preview programs
         // uncached (the browser's GPU process caches them for the loads
         // after it): a player's first visit, which the median above hides
