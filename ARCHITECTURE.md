@@ -1436,8 +1436,8 @@ preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
 `public/_headers` sets three headers on every address: other sites may not show the app in
 a frame, browsers must not guess file types, and a link the player follows sends only the
 site's name. Nothing there keeps a file, so a returning browser asks for each one again
-(Pages' default). `vite preview` sends the same headers (`hostHeaders`), so the bench's
-returning visit is cached as a player's is.
+(Pages' default). The bench's `vite preview` sends the same headers
+(`client/bench/preview.config.ts`), so its returning visit is cached as a player's is.
 
 Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
 per ecosystem (client npm, server uv, GitHub Actions, the actions pinned to commit SHAs),
