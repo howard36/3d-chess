@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
 
 // Mock ResizeObserver (a class: it is constructed with new, which a mock
 // with an arrow function for its implementation refuses)
@@ -41,3 +41,12 @@ if (!('AnimationEvent' in window)) {
 // the whole set behind its tests. An idle callback that never comes keeps
 // the preload asleep; pieces are built when first drawn, as before.
 vi.stubGlobal('requestIdleCallback', () => 0);
+
+// Again before each test: Vitest gives a stubbed global back as it was
+// before its first stub, absent in jsdom, so a file's vi.unstubAllGlobals()
+// took these two with it for the rest of the file, and its later tests ran
+// a path no browser takes (1016:TS1)
+beforeEach(() => {
+  vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+  vi.stubGlobal('requestIdleCallback', () => 0);
+});

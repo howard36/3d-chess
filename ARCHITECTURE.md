@@ -492,8 +492,9 @@ Key decisions:
   alphabetic`, which applies to blocks only, so a button's words are a span of their own),
   the capitals' fraction of a pixel set over them, so it stands `round(1cap, 1px)` tall with
   its baseline on a whole pixel. A box that centres one grows a pixel where its height and
-  the capitals' differ in parity (`calc(H + mod(H - var(--caps), 2px))`, the difference
-  always positive: Chrome's `mod()` gives 2px for an even negative one), and so does an icon
+  the capitals' differ in parity (`calc(H + var(--caps-odd))`, every H even; a browser
+  without `cap`, `round()` or `mod()` gets plain values for the three variables under
+  `@supports`, not boxes shrunk to their words), and so does an icon
   beside it (the pill's stones, the waiting dot): the browser rounds boxes and baselines to
   the pixel each on its own, and a centring that lands on a half rounds them apart. An arrow
   beside words is `screens/Arrow.tsx`, as tall as their capitals with its ink centred on
@@ -569,7 +570,8 @@ Message flow, happy path:
    code **4001 `seat_replaced`** (last connection wins). The client treats that code as
    "stop reconnecting": it shows a _this game is open in another tab_ notice with a button
    that rejoins and takes the seat back, instead of retrying and evicting the newer tab in
-   turn. Any other close is a network fault and is retried with backoff.
+   turn. Any other close is a network fault and is retried with backoff; a waiting retry
+   runs at once when the window comes back `online` or the page is shown again.
    The client sends `takeover: false` on an automatic reconnect (and `true`, the default,
    on page load and "Play here"). With `takeover: false` the server refuses with error
    `seat_in_use` if the seat is held by a live socket of a _different_ client id, so a tab
@@ -1503,8 +1505,9 @@ it described.
 
 To measure a change, run `node bench/run.mjs --primary --base <ref>` (e.g. `--base HEAD`
 for uncommitted work, `--base main` for a branch): it checks the base commit out into a
-temporary worktree, gives it this checkout's benchmark code, and runs the two interleaved
-(base, head, head, base, ...), judging each change by pairs of runs made next to each
+temporary worktree, gives it this checkout's benchmark code, copies this checkout (its
+uncommitted files too) into a second one laid out alike, so the two differ only in their
+code, and runs the two interleaved (base, head, head, base, ...), judging each change by pairs of runs made next to each
 other, so a shared machine speeding up or slowing down over the run cannot pass for a
 change. So a check added with a change runs against the base too: a check the base cannot
 pass (a throw on the old behaviour) fails the whole comparison. Make it a row that measures

@@ -126,6 +126,10 @@ it('never answers once disposed', async () => {
   computer.dispose();
   const answered = vi.fn();
   computer.think([], 'easy').then(answered);
-  await new Promise((r) => setTimeout(r, 80));
+  // A live computer asked after it, on the same thread, answers after any
+  // answer the disposed one could give (a wait of its own could end first)
+  const live = createComputer();
+  expect((await live.think([], 'easy'))?.move).toBeTruthy();
+  live.dispose();
   expect(answered).not.toHaveBeenCalled();
 });

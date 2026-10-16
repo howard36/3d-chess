@@ -1,8 +1,10 @@
 // Appends an A/B report's rows (bench/run.mjs --base ... --out <file>.md) to
 // scoreboard.jsonl, one JSON object per measured row:
-//   node ab2jsonl.mjs <report.md> --run <id> --change <ledger id> [--variant <text>] [--only <regex>]
+//   node ab2jsonl.mjs <report.md> --run <id> --change <ledger id> [--variant <text>] [--only <regex>] [--head <sha>]
 // --only keeps the rows whose "where · case" matches (the rows the change is
-// about, plus the primary ones); without it every row is kept.
+// about, plus the primary ones); without it every row is kept. A head measured
+// with uncommitted changes is written <sha>+wip (its parent's sha and more),
+// unless --head names the commit the change became.
 import { appendFileSync, readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,14 +18,15 @@ const file = args[0];
 const run = opt('--run');
 const change = opt('--change');
 if (!file || !run || !change) {
-  console.error('usage: node ab2jsonl.mjs <report.md> --run <id> --change <id> [--variant t] [--only re]');
+  console.error('usage: node ab2jsonl.mjs <report.md> --run <id> --change <id> [--variant t] [--only re] [--head sha]');
   process.exit(2);
 }
 const variant = opt('--variant');
 const only = opt('--only') ? new RegExp(opt('--only')) : null;
 const text = readFileSync(file, 'utf8');
 const base = text.match(/^Base `([0-9a-f]+)`/m)?.[1] ?? null;
-const head = text.match(/against this checkout \(`([^`]+)`/m)?.[1] ?? null;
+const measured = text.match(/against this checkout \(`([^`]+)`( with uncommitted changes)?/m);
+const head = opt('--head') ?? (measured ? `${measured[1]}${measured[2] ? '+wip' : ''}` : null);
 
 /** A value as the report prints it ("1.2 ms", "830 µs", "7.91 fps", "4.5/s") in its unit's base. */
 const SCALE = { ns: 1e-6, 'µs': 1e-3, ms: 1, s: 1000, B: 1, KiB: 1024, MiB: 1024 ** 2 };

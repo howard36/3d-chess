@@ -1,0 +1,297 @@
+diff --git a/client/src/index.css b/client/src/index.css
+index 71e9098..9215220 100644
+--- a/client/src/index.css
++++ b/client/src/index.css
+@@ -1393,6 +1393,15 @@ body {
+   max-width: none;
+   transform-origin: 0 0;
+ }
++/* The same picture placed by the built page before the entry ran
++   (earlyPicture.ts), under the page, whose night lets it through until the
++   page's own picture has decoded over it */
++#landing-early {
++  background: #010205;
++}
++[data-early-picture] .landing {
++  background: transparent;
++}
+ /* The veil the demo closes between one game and the next (LandingPreview) */
+ .landing-veil {
+   position: absolute;
+diff --git a/client/src/screens/LandingPicture.tsx b/client/src/screens/LandingPicture.tsx
+index 34ec9df..eab5520 100644
+--- a/client/src/screens/LandingPicture.tsx
++++ b/client/src/screens/LandingPicture.tsx
+@@ -1,5 +1,6 @@
+ import React from 'react';
+ import { pictureSource, pictureSourceSet, picturePlacement } from '../three/landingLens';
++import { dropEarlyPicture } from './earlyPicture';
+ 
+ /**
+  * The window's size, which the page's box fills (index.css: .landing, 100vw
+@@ -33,9 +34,12 @@ function useWindowSize(): [number, number] {
+  * three.js has arrived. The preview fades in over it; under reduced motion it
+  * is all the page shows. The browser picks the picture as fine as the screen
+  * (1x or 2x), and its edges fade into the page's night in the picture itself.
++ * The built page placed the same picture before the entry ran (earlyPicture.ts):
++ * it goes once this one has decoded over it, or when this one goes.
+  */
+ export function LandingPicture() {
+   const [width, height] = useWindowSize();
++  React.useEffect(() => dropEarlyPicture, []);
+   const place = width > 0 && height > 0 ? picturePlacement(width, height) : null;
+   return (
+     <div className="landing-picture" aria-hidden="true" data-testid="landing-picture">
+@@ -49,6 +53,13 @@ export function LandingPicture() {
+             decoding="async"
+             fetchPriority="high"
+             data-layout={place.layout}
++            onLoad={(e) => {
++              const img = e.currentTarget;
++              (img.decode ? img.decode() : Promise.resolve()).then(
++                dropEarlyPicture,
++                dropEarlyPicture,
++              );
++            }}
+             style={{
+               // Moved, not laid out, there: a box's position is snapped to the
+               // pixel grid, a transform's is not, and the preview's frame is
+diff --git a/client/src/screens/StartScreen.test.tsx b/client/src/screens/StartScreen.test.tsx
+index 7e2c015..a652797 100644
+--- a/client/src/screens/StartScreen.test.tsx
++++ b/client/src/screens/StartScreen.test.tsx
+@@ -1,8 +1,9 @@
+-import { act, render, screen } from '@testing-library/react';
++import { act, fireEvent, render, screen } from '@testing-library/react';
+ import userEvent from '@testing-library/user-event';
+ import { afterEach, expect, test, vi } from 'vitest';
+ import { MemoryRouter, Route, Routes } from 'react-router';
+ import StartScreen from './StartScreen';
++import { EARLY_PICTURE_ID } from './earlyPicture';
+ 
+ // The preview is a WebGL canvas, which jsdom can't provide: a stand-in that
+ // can say it has faded in over the picture
+@@ -81,6 +82,26 @@ test('the picture of the preview shows at once, and goes once the preview has fa
+   expect(screen.getByText(/^Preview: games play themselves/)).toBeInTheDocument();
+ });
+ 
++test('the picture the built page placed early goes once the page’s own has loaded over it', async () => {
++  reduceMotion(false);
++  phoneWindow();
++  const early = document.createElement('div');
++  early.id = EARLY_PICTURE_ID;
++  document.body.append(early);
++  document.documentElement.setAttribute('data-early-picture', '');
++  const { unmount } = renderStart();
++  expect(document.getElementById(EARLY_PICTURE_ID)).not.toBeNull();
++  await act(async () => {
++    fireEvent.load(screen.getByTestId('landing-picture').querySelector('img')!);
++  });
++  expect(document.getElementById(EARLY_PICTURE_ID)).toBeNull();
++  expect(document.documentElement.hasAttribute('data-early-picture')).toBe(false);
++  // And when the page goes before its own has loaded
++  document.body.append(early);
++  unmount();
++  expect(document.getElementById(EARLY_PICTURE_ID)).toBeNull();
++});
++
+ test('for a player who asked for less motion the picture is all there is: no preview, no three.js', async () => {
+   reduceMotion(true);
+   phoneWindow();
+diff --git a/client/src/screens/earlyPicture.test.ts b/client/src/screens/earlyPicture.test.ts
+new file mode 100644
+index 0000000..730833e
+--- /dev/null
++++ b/client/src/screens/earlyPicture.test.ts
+@@ -0,0 +1,36 @@
++import { afterEach, expect, test } from 'vitest';
++import { picturePlacement } from '../three/landingLens';
++import { EARLY_PICTURE_ID, dropEarlyPicture, placeEarlyPicture } from './earlyPicture';
++
++afterEach(() => {
++  dropEarlyPicture();
++  document.body.innerHTML = '';
++  window.history.replaceState(null, '', '/');
++});
++
++test('the start page places its picture under the page, where its own will stand', () => {
++  document.body.innerHTML = '<div id="root"></div>';
++  placeEarlyPicture();
++  const early = document.getElementById(EARLY_PICTURE_ID)!;
++  expect(early.nextElementSibling?.id).toBe('root');
++  expect(document.documentElement.hasAttribute('data-early-picture')).toBe(true);
++  const place = picturePlacement(innerWidth, innerHeight);
++  const img = early.querySelector('img')!;
++  expect(img.style.transform).toBe(`translate(${place.left}px, ${place.top}px)`);
++  expect(img.style.width).toBe(`${place.width}px`);
++  expect(img.getAttribute('src')).toBe(`/landing/${place.layout}.webp`);
++  expect(early.querySelector('source')!.getAttribute('srcset')).toContain(
++    `/landing/${place.layout}@2x.avif 2x`,
++  );
++  dropEarlyPicture();
++  expect(document.getElementById(EARLY_PICTURE_ID)).toBeNull();
++  expect(document.documentElement.hasAttribute('data-early-picture')).toBe(false);
++});
++
++test('any other page places none', () => {
++  document.body.innerHTML = '<div id="root"></div>';
++  window.history.replaceState(null, '', '/new');
++  placeEarlyPicture();
++  expect(document.getElementById(EARLY_PICTURE_ID)).toBeNull();
++  expect(document.documentElement.hasAttribute('data-early-picture')).toBe(false);
++});
+diff --git a/client/src/screens/earlyPicture.ts b/client/src/screens/earlyPicture.ts
+new file mode 100644
+index 0000000..ee901ac
+--- /dev/null
++++ b/client/src/screens/earlyPicture.ts
+@@ -0,0 +1,36 @@
++import { picturePlacement, pictureSource, pictureSourceSet } from '../three/landingLens';
++
++/**
++ * The start page's picture, placed from an inline script in the built page's
++ * body (vite.config.ts) before the entry has loaded and run: on a phone's
++ * network the picture arrives well before the entry, and the browser paints
++ * it at once instead of after React's first render. It lies under the page
++ * (before #root), and the page's night lets it through
++ * (`[data-early-picture] .landing`) until LandingPicture's own picture, the
++ * same file in the same place, has decoded over it.
++ */
++export const EARLY_PICTURE_ID = 'landing-early';
++
++export function placeEarlyPicture(): void {
++  const root = document.getElementById('root');
++  const [width, height] = [innerWidth, innerHeight];
++  if (location.pathname !== '/' || !root || !(width > 0 && height > 0)) return;
++  const place = picturePlacement(width, height);
++  const picture = document.createElement('div');
++  picture.id = EARLY_PICTURE_ID;
++  picture.className = 'landing-picture';
++  picture.setAttribute('aria-hidden', 'true');
++  picture.innerHTML =
++    `<picture><source type="image/avif" srcset="${pictureSourceSet(place.layout, 'avif')}">` +
++    `<img src="${pictureSource(place.layout, 'webp')}" srcset="${pictureSourceSet(place.layout, 'webp')}" ` +
++    `alt="" decoding="async" fetchpriority="high" style="transform: translate(${place.left}px, ${place.top}px); ` +
++    `width: ${place.width}px; height: ${place.height}px"></picture>`;
++  document.body.insertBefore(picture, root);
++  document.documentElement.setAttribute('data-early-picture', '');
++}
++
++/** The page's own picture has taken over, or the start page has gone. */
++export function dropEarlyPicture(): void {
++  document.getElementById(EARLY_PICTURE_ID)?.remove();
++  document.documentElement.removeAttribute('data-early-picture');
++}
+diff --git a/client/vite.config.test.ts b/client/vite.config.test.ts
+index 5f1517a..ecd9a28 100644
+--- a/client/vite.config.test.ts
++++ b/client/vite.config.test.ts
+@@ -1,7 +1,7 @@
+ import { readFileSync } from 'node:fs';
+ import { resolve } from 'node:path';
+ import { expect, test } from 'vitest';
+-import { preloadLandingPictureOnStartPage } from './vite.config';
++import { placeLandingPictureEarly, preloadLandingPictureOnStartPage } from './vite.config';
+ 
+ test('the built page preloads its picture after the viewport tag, where a phone knows its width', async () => {
+   const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+@@ -15,3 +15,15 @@ test('the built page preloads its picture after the viewport tag, where a phone
+   expect(viewport).toBeGreaterThan(-1);
+   expect(built.indexOf('innerWidth')).toBeGreaterThan(viewport);
+ });
++
++test('the built page places the start page’s picture right after #root, self-contained', async () => {
++  const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
++  const transform = placeLandingPictureEarly().transformIndexHtml as (
++    html: string,
++  ) => Promise<string>;
++  const built = await transform(html);
++  const script = built.match(/<div id="root"><\/div>\s*<script>([\s\S]*?)<\/script>/)?.[1];
++  expect(script).toBeTruthy();
++  expect(script).not.toMatch(/\bimport\b/);
++  expect(script).toContain('landing-early');
++});
+diff --git a/client/vite.config.ts b/client/vite.config.ts
+index 02e2458..1f06098 100644
+--- a/client/vite.config.ts
++++ b/client/vite.config.ts
+@@ -1,4 +1,5 @@
+-import { defineConfig, minify } from 'vite';
++import { resolve } from 'node:path';
++import { build, defineConfig, minify } from 'vite';
+ import type { Plugin } from 'vite';
+ import react from '@vitejs/plugin-react';
+ import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
+@@ -30,6 +31,45 @@ export const preloadLandingPictureOnStartPage = (): Plugin => ({
+   },
+ });
+ 
++/**
++ * And places it from an inline script right after #root, so the browser
++ * paints it as soon as it has arrived, before the entry has loaded and run
++ * (src/screens/earlyPicture.ts, bundled here with the lens it places by).
++ */
++export const placeLandingPictureEarly = (): Plugin => ({
++  name: 'place-landing-picture-early',
++  apply: 'build',
++  async transformIndexHtml(html) {
++    const entry = resolve(import.meta.dirname, 'src/screens/earlyPicture.ts');
++    const built = await build({
++      configFile: false,
++      logLevel: 'silent',
++      publicDir: false,
++      plugins: [
++        {
++          name: 'early-picture',
++          resolveId: (id) => (id === 'early-picture' ? id : null),
++          load: (id) =>
++            id === 'early-picture'
++              ? `import { placeEarlyPicture } from ${JSON.stringify(entry)}; placeEarlyPicture();`
++              : null,
++        },
++      ],
++      build: {
++        write: false,
++        minify: true,
++        rolldownOptions: { input: 'early-picture', output: { format: 'iife' } },
++      },
++    });
++    const output = (Array.isArray(built) ? built[0] : built) as { output: { code?: string }[] };
++    const code = output.output[0].code ?? '';
++    const root = '<div id="root"></div>';
++    if (!html.includes(root))
++      throw new Error('place-landing-picture-early: no #root in index.html');
++    return html.replace(root, `${root}\n    <script>${code.trim()}</script>`);
++  },
++});
++
+ /**
+  * three.js, the scene and the set's precomputed parts load in a chunk of
+  * their own, the one the lobby's canvas (LobbyCanvas.tsx), the game's board
+@@ -261,6 +301,7 @@ export default defineConfig({
+     r3fCatalogue(),
+     earlySocket(),
+     preloadLandingPictureOnStartPage(),
++    placeLandingPictureEarly(),
+     preloadSceneOnGamePages(),
+     keepSceneOutOfEntry(),
+     invitePage(),
+diff --git a/client/scripts/bench-browser.mjs b/client/scripts/bench-browser.mjs
+index 22b9461..953c8d2 100644
+--- a/client/scripts/bench-browser.mjs
++++ b/client/scripts/bench-browser.mjs
+@@ -540,8 +540,12 @@ const BENCH_INIT = () => {
+     // The start page's picture of its preview (where there is one), from the
+     // frame it is painted in (decoded, then the next frame), and the live
+     // preview on screen: drawn, and not held transparent (where it fades in
+-    // over the picture, once it has)
+-    const picture = document.querySelector('[data-testid="landing-picture"] img');
++    // over the picture, once it has). The built page may place the picture
++    // before the entry runs (#landing-early, first in the document), React's
++    // own taking over once it has decoded
++    const picture = document.querySelector(
++      '#landing-early img, [data-testid="landing-picture"] img',
++    );
+     if (!f.landingPicture && !b.pictureSeen && picture?.complete && picture.naturalWidth > 0) {
+       b.pictureSeen = true;
+       // (a picture that fails to decode is never painted: not timed, but counted)

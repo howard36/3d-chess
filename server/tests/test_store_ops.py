@@ -10,6 +10,8 @@ separated from its write by an `await`.
 
 import ast
 import inspect
+import re
+from pathlib import Path
 
 import pytest
 
@@ -431,3 +433,16 @@ def test_the_local_store_copies_as_modal_dict_does():
     store.get("G00001")["moves"].append("on a read")
     store["G00001"]["moves"].append("on another read")
     assert store == {"G00001": {"moves": []}}
+
+
+def test_the_docs_name_every_store_operation_and_nothing_else():
+    """CLAUDE.md and ARCHITECTURE.md list the store operations by hand; a new
+    one added to STORE_OPERATIONS (or one taken out) must be named there too,
+    or the next change reads a stale list of what may not await."""
+    root = Path(__file__).resolve().parents[2]
+    names = {op.__name__ for op in STORE_OPERATIONS}
+    for doc in ("CLAUDE.md", "ARCHITECTURE.md"):
+        text = " ".join((root / doc).read_text(encoding="utf-8").split())
+        listed = re.search(r"the store operations (?:in `modal_app\.py` )?\(([^)]*)\)", text)
+        assert listed, f"{doc}: no list of the store operations"
+        assert set(re.findall(r"`(\w+)`", listed.group(1))) == names, doc
