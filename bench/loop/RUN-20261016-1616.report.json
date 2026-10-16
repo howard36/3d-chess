@@ -1,28 +1,41 @@
 {
   "title": "Perf run 20261016-1616",
   "eyebrow": "3D chess · perf-iteration · run 20261016-1616",
-  "heading": "The start page shows its board about 200 ms sooner on a phone",
-  "meta": "<p>The start page now places its picture of the board from a small script in the page, before the app's own script has loaded. On <code>6dc0af5</code>, the branch's last code commit, against the base <code>f294faf</code>, 8 pairs: a phone shows the board after 529 ms instead of 736 ms, and a desktop after 75 ms instead of 139 ms. Every pair is faster on both. The phone's first paint is called better (−39%).</p><p>You said yes to this trade last run. Its cost is small and not called by the comparison: the desktop page becomes usable about 2 ms later, and its first click is answered about 2.5 ms later. That second cost is new to you, so it is listed below.</p><p>The run also queued the computer's searches when its worker fails, removed a wrapper that r3f 9.8 made dead, fixed an error screen that SP4's picture could hide, and taught the bench a returning phone and the machine's state at each run. A year's cache for built files waits on you.</p>",
+  "heading": "The start page shows its board about 150 ms sooner on a phone",
+  "meta": "<p>On a phone, the start page now places its picture of the board from a small script in the page, before the app's own script has loaded. On <code>b0efe05</code>, the branch's last code commit, against the base <code>f294faf</code>, cold load, 8 pairs: a phone shows the board after 576 ms instead of 733 ms (−21%, every pair faster, not called), and its first paint is called better (−39%). Becoming usable moved by ×1.01 at the median pair, the small cost you accepted.</p><p>Desktops and tablets keep the page as it was. With the picture placed early there too, a desktop's board showed about 60 ms sooner, but its first click was answered about 2.5 ms later (×1.275 at the median pair, not called). You said yes for phones, so that trade is parked for you to decide later (SP5).</p><p>The run also queued the computer's searches when its worker fails, removed a wrapper that r3f 9.8 made dead, fixed an error screen that the early picture could hide, and taught the bench a returning phone and the machine's state at each run. A year's cache for built files waits on you.</p>",
   "needs": {
     "intro": "<p>Two items. Neither blocks the PR.</p>",
     "items": [
       {
-        "title": "Four headline rows lean slower on the final code (none called)",
-        "body": "<p>The skill asks me to list any headline row worse in every pair, or more than 3% worse at the median pair, even when the comparison does not call it. On <code>6dc0af5</code> against <code>f294faf</code>, 8 pairs (<code>ab-20261016-1616-final.md</code>), four rows are:</p><ul><li><b>Desktop, the first click answered:</b> 10.9 → 13.4 ms. Median pair ×1.275, 5 of 8 pairs slower (1.39 1.36 0.75 1.44 0.92 1.23 1.32 0.93). SP4's own comparison gave ×1.07. This row has two modes and swings 20–90% between runs, but it has now leaned the same way twice. It comes from SP4, and your yes did not cover it.</li><li><b>Desktop, the start page usable:</b> 68.0 → 70.1 ms. Median pair ×1.04, 6 of 8 slower (1.15 0.98 1.01 1.03 1.10 1.05 0.91 1.09). This is the cost you accepted.</li><li><b>Playing the computer, first board picture:</b> 1.21 → 1.27 s. Median pair ×1.049, 5 of 8 slower (1.09 0.92 1.04 1.09 1.06 1.07 0.98 0.97).</li><li><b>The player's move appears:</b> 268 → 280 ms. Median pair ×1.045, 5 of 8 slower (1.22 1.08 1.06 1.03 0.98 0.94 0.94 1.16).</li></ul><p>No code from this run runs on the last two. The head side also holds main's #159 and #160, which restyle the move record that a move updates.</p>",
+        "title": "Three headline rows lean slower (none called)",
+        "body": "<p>The skill asks me to list any headline row worse in every pair, or more than 3% worse at the median pair, even when the comparison does not call it.</p><ul><li><b>Desktop, the start page shows the board</b> (<code>b0efe05</code> against <code>f294faf</code>, cold load, 8 pairs, <code>ab-20261016-1616-sp4-phone.md</code>): median pair ×1.034, 5 of 8 slower (1.02 1.04 0.68 1.05 1.14 1.42 0.81 0.92). The desktop now runs the base's code plus a 2.4 KB script that stops at once, and the pairs span 0.68–1.42.</li><li><b>Playing the computer, first board picture</b> (<code>6dc0af5</code> against <code>f294faf</code>, 8 pairs, <code>ab-20261016-1616-final.md</code>): 1.21 → 1.27 s, median pair ×1.049, 5 of 8 slower (1.09 0.92 1.04 1.09 1.06 1.07 0.98 0.97).</li><li><b>The player's move appears</b> (same comparison): 268 → 280 ms, median pair ×1.045, 5 of 8 slower (1.22 1.08 1.06 1.03 0.98 0.94 0.94 1.16).</li></ul><p>No code from this run runs on the last two. The head side also holds main's #159 and #160, which restyle the move record that a move updates. The desktop's first click (×1.275) and usable (×1.04) on the final comparison came from the early picture, which <code>b0efe05</code> takes off the desktop.</p>",
         "charts": [
           {
-            "rows": { "change": "final: 6dc0af5 vs f294faf (primary, 8 pairs)", "only": "PRIMARY" },
+            "rows": {
+              "change": "1016-1616:SP4 phone only: b0efe05 vs f294faf (cold load, 8 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "Start page rows, b0efe05 against f294faf, cold load, 8 pairs (ab-20261016-1616-sp4-phone.md). Each dot is one pair."
+          },
+          {
+            "rows": {
+              "change": "final: 6dc0af5 vs f294faf (primary, 8 pairs)",
+              "only": "PRIMARY"
+            },
             "caption": "Headline rows, 6dc0af5 against f294faf, 8 pairs (ab-20261016-1616-final.md). Each dot is one pair."
           }
         ],
-        "recommend": "Merge as it is. The board shows about 200 ms sooner on a phone. The desktop costs are a few milliseconds and not called. The next run measures the desktop alone with 16 pairs (SP5). If the cost holds, it places the early picture only at phone widths, so a desktop pays nothing."
+        "recommend": "No action. The next run's regression check reads the last two again."
       },
       {
         "title": "0930:17: keep built files in the browser's cache for a year",
         "body": "<p>With <code>/assets/*</code> cached for a year, a returning phone's start page is usable after 402 ms instead of 557 ms (every pair 0.66–0.74, called better). It needs 2 requests instead of 18.5. First visits do not change.</p><p>The cost: a click made the instant the button works is answered after 624 ms instead of 38.8 ms (every pair 14–22 times slower, called worse). The returning board on screen is +18% (not called), and first paint is +14%. With the scene's code already cached, the browser runs it and builds the preview exactly when that click lands.</p><p>One caveat came up in review. The base side of that comparison was served with the preview server's default headers, not the host's. The committed bench without the cache rule reads 568–571 ms and 15 requests, so the gain is about as large. It should still be measured again on the committed bench.</p>",
         "charts": [
           {
-            "rows": { "change": "0930:17", "only": "returning" },
+            "rows": {
+              "change": "0930:17",
+              "only": "returning"
+            },
             "caption": "Returning phone, with the year's cache against without it, 6 pairs (ab-20261016-1616-cache.md)."
           }
         ],
@@ -31,14 +44,29 @@
     ]
   },
   "scoreboard": {
-    "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. On <code>6dc0af5</code> against <code>f294faf</code>, 8 pairs: ×1.055 over the 15 rows, none called better or worse. Of the 105 other measurements, the phone's first paint is called better on a first visit (−39%) and on a returning visit (−30%), and the desktop makes 18 requests instead of 19. The three rows called \"worse\" count the loads whose picture was placed early, 0 → 5, which is the point of the change. Geometries grown over 16 moves stay at 10, and textures at 0.</p><p>At the start of the run, <code>f294faf</code> against the last run's base was ×0.996, none called.</p><p>This run did not measure against the first recorded run (92ce041). The last measurement stands: <code>e02a235</code> was 2.48 times as fast over the 11 rows both can measure, against a target of 1.2.</p>",
+    "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. On <code>6dc0af5</code> against <code>f294faf</code>, 8 pairs: ×1.055 over the 15 rows, none called better or worse. <code>b0efe05</code> then took the early picture off desktops and tablets; it changes only the start page, which was measured again on it (cold load, 8 pairs): the phone's board −21%, every pair faster; the phone's first paint called better on a first visit (−39%) and a returning one (−30%); the desktop rows back at the base's, none called. Geometries grown over 16 moves stay at 10, and textures at 0 (6dc0af5).</p><p>At the start of the run, <code>f294faf</code> against the last run's base was ×0.996, none called.</p><p>This run did not measure against the first recorded run (92ce041). The last measurement stands: <code>e02a235</code> was 2.48 times as fast over the 11 rows both can measure, against a target of 1.2.</p>",
     "items": [
       {
-        "title": "The final code against the base",
+        "title": "The start page on the final code against the base",
         "charts": [
           {
-            "rows": { "change": "final: 6dc0af5 vs f294faf (primary, 8 pairs)", "only": "board on screen|first contentful paint|enabled|side choice" },
-            "caption": "The start page's rows, 6dc0af5 against f294faf, 8 pairs (ab-20261016-1616-final.md)."
+            "rows": {
+              "change": "1016-1616:SP4 phone only: b0efe05 vs f294faf (cold load, 8 pairs)",
+              "only": "board on screen|first contentful paint|enabled|side choice"
+            },
+            "caption": "The start page's rows, b0efe05 against f294faf, cold load, 8 pairs (ab-20261016-1616-sp4-phone.md)."
+          }
+        ]
+      },
+      {
+        "title": "Every headline row, before the phone-only change",
+        "charts": [
+          {
+            "rows": {
+              "change": "final: 6dc0af5 vs f294faf (primary, 8 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "Headline rows, 6dc0af5 against f294faf, 8 pairs (ab-20261016-1616-final.md)."
           }
         ]
       },
@@ -46,7 +74,10 @@
         "title": "Identical code against itself",
         "charts": [
           {
-            "rows": { "change": "1016:AA1 A/A: cold load with the returning case and the machine table, 8 pairs", "only": "PRIMARY" },
+            "rows": {
+              "change": "1016:AA1 A/A: cold load with the returning case and the machine table, 8 pairs",
+              "only": "PRIMARY"
+            },
             "caption": "aba8f50 against itself, cold load, 8 pairs (ab-20261016-1616-aa.md): how far the rows move with no change."
           }
         ]
@@ -55,7 +86,10 @@
         "title": "Against the first recorded run (last measured in run 20261016-0037)",
         "charts": [
           {
-            "rows": { "change": "vs first run: e02a235 vs 92ce041 (primary, 3 pairs)", "only": "PRIMARY" },
+            "rows": {
+              "change": "vs first run: e02a235 vs 92ce041 (primary, 3 pairs)",
+              "only": "PRIMARY"
+            },
             "caption": "Headline rows, e02a235 against 92ce041, 3 pairs."
           }
         ]
@@ -63,11 +97,11 @@
     ]
   },
   "changed": {
-    "intro": "<p>One change is for speed (SP4). The others fix behaviour, remove dead code, or let the bench see more.</p>",
+    "intro": "<p>One change is for speed (SP4, on phones). The others fix behaviour, remove dead code, or let the bench see more.</p>",
     "items": [
       {
-        "title": "The start page's picture is placed before the app's script runs (SP4, f20a29f)",
-        "body": "<p>Before, React placed the picture of the board after the app's script had loaded and run. Now a 2.4 KB script inside the built page places the same picture as the page is parsed. When React renders the start page, it takes that very element in as its own, so the picture is fetched and decoded once. Measured on the final code: a phone shows the board after 529 ms instead of 736 ms, and a desktop after 75 ms instead of 139 ms. Tests hold the two markups equal at three window sizes, run the built script, and cap its size at 3,200 bytes.</p>"
+        "title": "On a phone, the start page's picture is placed before the app's script runs (SP4, f20a29f, b0efe05)",
+        "body": "<p>Before, React placed the picture of the board after the app's script had loaded and run. Now, in a phone's window, a 2.4 KB script inside the built page places the same picture as the page is parsed. When React renders the start page, it takes that very element in as its own, so the picture is fetched and decoded once. On <code>b0efe05</code>: a phone shows the board after 576 ms instead of 733 ms, every pair faster. Tests hold the two markups equal at three phone sizes, check that a tablet or desktop window gets none, run the built script, and cap its size at 3,200 bytes.</p>"
       },
       {
         "title": "An error on the start page is no longer hidden under the picture (6dc0af5)",
@@ -99,7 +133,7 @@
     "intro": "<p><code>pointerEvents.ts</code> and its test are gone (−44 lines), with the two props that used it (aba8f50). It worked round an r3f race that the installed r3f 9.8.1 no longer has: its root mounts inside the canvas's layout effect. An e2e test now leaves the start page and the tutorial the moment their canvases appear.</p><p>Against main, outside <code>bench/loop/</code>, the app's code grows by 146 lines net (+193, −47): SP4's early picture and its build step, the preview server's headers (used only by <code>vite preview</code>), the search queue and the error-screen fix. Tests grow by 227 net, the bench by 143, and ARCHITECTURE.md by 6.</p>"
   },
   "rejected": {
-    "intro": "<p>0930:17 is not rejected. It waits on you, under Needs from me.</p>",
+    "intro": "<p>0930:17 is not rejected. It waits on you, under Needs from me. The early picture on desktops and tablets is parked, not rejected (SP5, <code>bench/loop/patches/early-picture-desktop-SP5.patch</code>): it showed a desktop's board about 60 ms sooner but answered its first click about 2.5 ms later, a trade you were not asked about.</p>",
     "items": [
       {
         "title": "SP4 as first written: swap the picture when React's copy has decoded",
@@ -108,12 +142,12 @@
     ]
   },
   "choices": {
-    "intro": "<ul><li>I kept SP4 in the PR with its desktop costs listed, not removed. You said yes to it, the costs are not called, and a phone-only form is the next run's first item.</li><li>I landed the returning-phone measurement without the year's cache that it was built for, because the cache trades one moment against another.</li><li>I kept the search queue without a timing row: the bench never meets a failed worker.</li><li>I kept the leave-at-once e2e test although it cannot fail on today's r3f. It guards against a future change in r3f and costs about 1 s.</li><li>I fixed the error screen under the picture in this run rather than logging it: SP4 caused it, and the fix is 4 lines.</li><li>Commit messages are not rewritten. The messages of f20a29f (\"4 of 8 pairs\", \"+4.0%\") and 49d692e (\"557 ms, 18.5 requests\") carry figures that review found wrong. The run record and the PR give the corrected ones.</li></ul>"
+    "intro": "<ul><li>I limited SP4 to the phone layout. Your yes named phones; on a desktop it also slowed the first click, a trade you were not asked about. Tablets go with desktops: they are not phones, and the bench does not measure them.</li><li>I landed the returning-phone measurement without the year's cache that it was built for, because the cache trades one moment against another.</li><li>I kept the search queue without a timing row: the bench never meets a failed worker.</li><li>I kept the leave-at-once e2e test although it cannot fail on today's r3f. It guards against a future change in r3f and costs about 1 s.</li><li>I fixed the error screen under the picture in this run rather than logging it: SP4 caused it, and the fix is 4 lines.</li><li>Commit messages are not rewritten. The messages of f20a29f (\"4 of 8 pairs\", \"+4.0%\") and 49d692e (\"557 ms, 18.5 requests\") carry figures that review found wrong. The run record and the PR give the corrected ones.</li></ul>"
   },
   "notConfirmed": {
     "intro": "<ul><li>SP4 in a real browser on the built page was checked by hand once (one image, one picture request). No e2e test runs against the build (EB1).</li><li>The <code>/proc</code> guard has not run on a Mac.</li><li>What causes the order effect between the runs of a pair (AA1). Leftover processes are ruled out.</li></ul>"
   },
   "next": {
-    "intro": "<ol><li>SP5: measure SP4's desktop cost with 16 desktop pairs. If it holds, place the early picture only at phone widths.</li><li>HH1, then RC1: serve the same headers on both sides of a comparison, then hold the preview's build on a returning visit. After that, 0930:17 can be asked again.</li><li>AA1: wait for the CPU to settle before each run, then compare identical code again.</li><li>Q1: count the first click's two modes, which SP5 needs.</li><li>RQ1 and LP1: small items from this run's review.</li></ol>"
+    "intro": "<ol><li>HH1, then RC1: serve the same headers on both sides of a comparison, then hold the preview's build on a returning visit. After that, 0930:17 can be asked again.</li><li>AA1: wait for the CPU to settle before each run, then compare identical code again.</li><li>Q1: count the first click's two modes. SP5 (the early picture on a desktop) needs it before it can be asked.</li><li>RQ1 and LP1: small items from this run's review.</li></ol>"
   }
 }
