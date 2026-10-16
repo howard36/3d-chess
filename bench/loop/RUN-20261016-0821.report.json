@@ -1,56 +1,36 @@
 {
  "title": "Perf run 20261016-0821",
  "eyebrow": "3D chess · perf-iteration · run 20261016-0821",
- "heading": "No speed change this run: dead CSS removed, five checks that could not fail now can, and a slower join traced to the labels' new type",
- "meta": "<p>This run made the game no faster and no slower. Against main <code>b455e10</code>, the final code (<code>3b73fe5</code>) has no headline row called better or worse in 4 pairs, and memory is unchanged. The PR removes 47 lines of the app's CSS that never applied, adds a console warning when a game's record can't be replayed, and makes five tests and lint rules able to fail on the faults they name. The run also found that the shared game's first screen got about 21% slower in the bench when the labels started being centred by their capital letters (#155). No fix that keeps that look was found, so the question is yours (below).</p>",
+ "heading": "No speed change this run: dead CSS removed, five checks that could not fail now can, and a replay failure that says why, once",
+ "meta": "<p>This run made the game no faster and no slower. Against main <code>b455e10</code>, the final code (measured on <code>3b73fe5</code>; the one code commit after it, <code>fc71549</code>, changes only what happens when a replay fails) has no headline row called better or worse in 4 pairs, and memory is unchanged. The PR removes 47 lines of the app's CSS that never applied, adds a console warning (said once per game) when a game's record can't be replayed, and makes five tests and lint rules able to fail on the faults they name. The shared game's first screen leans slower in the bench since the labels started being centred by their capital letters (#155), but no comparison calls it, and the same code compared with itself leans as far. It stays in the ledger as a question about the bench, not a decision for you.</p>",
  "needs": {
+  "intro": "<p>Nothing waits on you. The skill asks me to list every headline row that is more than 3% slower at the median pair, or slower in every pair, even when the comparison does not call it. None of these is called, the branch changes no code these rows run, and the same code compared with itself leans as far on the rows that comparison covered.</p>",
   "items": [
    {
-    "title": "Keep the labels' new type although the shared game's first screen is slower in the bench?",
-    "body": "<p>#155 centres every label by the height of its capital letters. In the bench, the commit that did it made the Join button on a shared game's page appear 21% later (89.6 → 114 ms, 8 pairs), and the joiner's first board picture 8.8% later (7 of 8 pairs worse). On main as it is now, the Join button is 23% later in 6 pairs. When the browser records a trace of each join, the gap shrinks to 3.1%, and a separate probe saw only 3–6%. So the bench shows a real but uneven cost, mostly in the second game a browser joins, and I could not name the work behind it.</p><p>Two things were tried without keeping the look and gave no wall-time change in the probe: dropping the <code>cap</code> unit, and dropping <code>text-box</code>. No player-facing change is in this PR.</p>",
-    "charts": [
-     {
-      "rows": {
-       "change": "bisect RG6: 8daa058 (#155) vs e913e50 (setup, 8 pairs)",
-       "only": "Game setup · Joining: (Join button shown|board’s first picture handed to the GPU)"
-      },
-      "caption": "#155 alone against the commit before it, 8 pairs (ab-20261016-0821-bisect-155.md)."
-     },
-     {
-      "rows": {
-       "change": "1016-0821:RG6: b455e10 vs e913e50, setup, 4 pairs, joins traced",
-       "only": "Game setup · Joining: (Join button shown|board’s first picture handed to the GPU)"
-      },
-      "caption": "The same comparison on main b455e10 with each join traced, 4 pairs (ab-20261016-0821-rg6-traced.md)."
-     }
-    ],
-    "recommend": "Keep the look. The cost is under 25 ms on a screen that appears once per game, it is smaller in every measurement made without the bench's back-to-back joins, and the type is a deliberate design choice. Say so if you want the old label alignment back instead."
-   },
-   {
-    "title": "Two headline rows lean slower on the final code; merge anyway?",
-    "body": "<p>The skill asks me to list any headline row more than 3% slower at the median, even when the comparison does not call it. Two are:</p><ul><li>The joiner's first board picture: +20% in 4 pairs (1.40 1.16 1.02 1.26), then +6.6% in 8 more (5 of 8 slower).</li><li>Reopening a long game: +18% in 4 pairs, then +19% in 8 (pairs 0.87 to 2.24). Its first step, the server's answer arriving, is +26%, and that happens before any of the page's code runs.</li></ul><p>To see how far identical code drifts, I compared the final code with itself, 8 pairs. It gave the joiner's picture +7.5%, the shared game's page +15% (7 of 8 pairs slower), and reopening −7.6%. The branch changes no code these rows run: it deletes CSS declarations that never applied and adds a warning that only prints when a record fails to replay.</p>",
+    "title": "Headline rows over 3% at the median pair on the final code (not called)",
+    "body": "<ul><li>4 pairs on <code>3b73fe5</code> (ab-20261016-0821-final.md): the joiner's first board picture 1.40 1.16 1.02 1.26; reopening a long game 1.20 0.76 1.92 1.11; the player's move 1.03 1.03 1.09 1.12; the desktop's start page showing the board 0.89 0.67 1.18 1.38.</li><li>8 pairs (ab-20261016-0821-final8.md): the joiner's picture 1.25 1.08 1.04 0.88 1.01 1.20 0.94 1.18 (median 1.06); reopening 1.14 0.91 1.23 0.87 0.96 2.24 0.97 1.72 (1.06); the opponent's move 1.07 1.05 1.09 1.13 1.11 0.80 1.39 0.74 (1.08). The player's move settled at 0.96.</li><li>The same code against itself, 8 pairs (ab-20261016-0821-aa-final.md): the joiner's picture median 1.06 (6 of 8 pairs slower), the shared game's page 1.105 (7 of 8), reopening 0.97. The move rows had no such comparison this run.</li></ul><p>The last code commit, <code>fc71549</code>, changes only what happens when a replay fails, which no bench row runs, so these figures stand for it.</p>",
     "charts": [
      {
       "rows": {
        "change": "final re-check: 3b73fe5 vs b455e10 (setup, reopen, move latency; 8 pairs)",
-       "only": "Game setup · Joining: (Join button shown|board’s first picture handed to the GPU)|Reopening a long game · (move record shown|game’s state received|replaying and showing the record) · 2000 plies"
+       "only": "PRIMARY"
       },
       "caption": "The final code against main b455e10, 8 pairs (ab-20261016-0821-final8.md)."
      },
      {
       "rows": {
        "change": "A/A: 3b73fe5 vs itself (setup, reopen; 8 pairs)",
-       "only": "Game setup · Joining: (Join button shown|board’s first picture handed to the GPU)|Reopening a long game · (move record shown|game’s state received|replaying and showing the record) · 2000 plies"
+       "only": "PRIMARY"
       },
       "caption": "The final code against itself, 8 pairs (ab-20261016-0821-aa-final.md)."
      }
     ],
-    "recommend": "Merge as is. Identical code leans as far, and the next run's first item is the bench's pair-order offset that causes it (ledger 1016:AA1)."
+    "recommend": "No action. Finding the bench's pair-order offset (ledger 1016:AA1) is the next run's first item; until then these rows are read beside a same-code comparison."
    }
   ]
  },
  "scoreboard": {
-  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. On the final code <code>3b73fe5</code> against main <code>b455e10</code>, 4 pairs: 0.982 times as fast over the 14 rows, none called better or worse (identical code compared with itself gives about 1.004). JavaScript memory on a reopened long game is +0.0%; geometries grown over 16 moves stay at 10 and textures at 0. Three rows that leaned slower were run again with 8 pairs: the player's own move went from +6.7% to −2.2%; the other two are under Needs from me.</p><p>At the start of the run, main <code>b455e10</code> against the last run's base <code>1a04c29</code> was 1.024 times as fast over the 14 rows, none called. The one lead, the shared game's first screen (+24% in 8 pairs, 7 slower), was bisected to #155 (Needs from me).</p><p>This run did not measure against the first recorded run (92ce041), because no change here was meant to change speed. The last run's figure stands: <code>e02a235</code> was 2.48 times as fast as 92ce041 over the 11 headline rows both can measure, against a target of 1.2. The chart below is that comparison.</p>",
+  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. On the final code <code>3b73fe5</code> against main <code>b455e10</code>, 4 pairs: 0.982 times as fast over the 14 rows, none called better or worse (identical code compared with itself gives about 1.004). JavaScript memory on a reopened long game is +0.0%; geometries grown over 16 moves stay at 10 and textures at 0. Three sections were run again with 8 pairs: the player's own move settled; the rows still over 3% at the median pair are listed under Needs from me.</p><p>At the start of the run, main <code>b455e10</code> against the last run's base <code>1a04c29</code> was 1.024 times as fast over the 14 rows, none called. The one lead, the shared game's first screen (7 of 8 pairs slower, not called), follows #155 in a bisect. No comparison calls it, and the same code against itself leans as far (+15%, 7 of 8 pairs), so it stays in the ledger as a measurement question (RG6), with a chart under Not confirmed.</p><p>This run did not measure against the first recorded run (92ce041), because no change here was meant to change speed. The last run's figure stands: <code>e02a235</code> was 2.48 times as fast as 92ce041 over the 11 headline rows both can measure, against a target of 1.2. The chart below is that comparison.</p>",
   "items": [
    {
     "title": "The final code against main",
@@ -93,8 +73,8 @@
  "changed": {
   "items": [
    {
-    "title": "A record that can't be replayed now says why (debc150)",
-    "body": "<p>When a game's saved moves could not be replayed, the page showed that the record stopped, and nothing said which move or why. The console now gets one warning with the move and the error. A test checks the exact message.</p>"
+    "title": "A record that can't be replayed now says why, once (debc150, fc71549)",
+    "body": "<p>When a game's saved moves could not be replayed, the page showed that the record stopped, and nothing said which move or why. The console now gets a warning with the move and the error, once per failing record: the page replays a frozen record again on every update, and a game against the computer replays it on every check, so the first version repeated itself. The tests that replay a broken record check that it is said once, which also keeps the warning out of the test output.</p>"
    },
    {
     "title": "Five checks that passed on broken code now fail on it",
@@ -111,31 +91,46 @@
   ]
  },
  "removed": {
-  "intro": "<p>Against main, outside bench/loop/, the branch adds 153 lines and removes 82 in 11 files. The app's own code shrinks by 47 lines: −47 in <code>index.css</code> (28 plain sizes that a later rule in the same block always replaced, the play pill's sizes that <code>.lobby-go</code> always overrides, the never-coloured <code>.lobby-error</code>, and a reduced-motion <code>animation: none</code> with no animation left to stop), −2 in <code>ChooseSide.tsx</code>, and +2 for the warning in <code>history.ts</code>. Tests grow by 82 lines, the bench by 33, and the lint config by 3. The one visible-in-principle deletion, a taller play pill in tall windows, never applied: <code>.lobby-go</code> always won the cascade.</p>"
+  "intro": "<p>Against main, outside bench/loop/, the branch adds 197 lines and removes 84 in 15 files. The app's own code shrinks by 47 lines: −47 in <code>index.css</code> (28 plain sizes that a later rule in the same block always replaced, the play pill's sizes that <code>.lobby-go</code> always overrides, the never-coloured <code>.lobby-error</code>, and a reduced-motion <code>animation: none</code> with no animation left to stop), −2 in <code>ChooseSide.tsx</code>, and +9 for the warning in <code>history.ts</code>, so −40 in all. Tests grow by 117 lines, the bench by 33, and the lint config by 3. The one visible-in-principle deletion, a taller play pill in tall windows, never applied: <code>.lobby-go</code> always won the cascade.</p>"
  },
  "rejected": {
   "items": [
    {
-    "title": "A fix for the slower join that keeps #155's look",
-    "body": "<p>Builds without the <code>cap</code> unit, and without <code>text-box</code>, moved no wall time in the probe. Parked for you (Needs from me).</p>"
-   },
-   {
-    "title": "A faster test for ambiguous moves in the notation",
-    "body": "<p>Replaying the bench's 2,000-move game under node takes 6.8 ms, and 3.4 ms with the ambiguity test removed altogether. That is at most about 3% of reopening a long game, below what the bench can call, for about 30 new lines of engine code. Not tried in the app.</p>"
-   },
-   {
     "title": "One component for a move as the move list says it",
-    "body": "<p>It saved no lines, and its first version formatted each move once more per render, which the move list's count test caught. Reverted.</p>"
+    "body": "<p>It saved no lines, and its first version formatted each move once more per render, which the move list's count test caught. Reverted; in the ledger as 1016-0821:MH1 so it is not retried blind.</p>"
+   }
+  ],
+  "intro": "<p>Not tried: a fix for #155's join that keeps its look (builds without the <code>cap</code> unit or <code>text-box</code> moved no wall time in a probe, and no comparison calls a cost), and a faster ambiguity test in the notation (an exploratory timing under node bounds it at about 3% of reopening a long game; parked as 1016-0821:NA1 until an A/B can read that row).</p>"
+ },
+ "choices": {
+  "intro": "<ul><li>The regression check ran against the last run's base (<code>1a04c29</code>), not its bookmark, so that it covered the five PRs main took during the last run.</li><li><code>.lobby-error</code> had never been coloured. I deleted the rule rather than make the error red, because red would change what a player sees.</li><li>The play pill's taller size in tall windows had never applied. I deleted it rather than make it apply.</li><li>Only the comparisons a decision rests on are committed. Three bisect steps, a cold-load same-code comparison, the probe's traces and timings stay out of git, and the record calls their figures exploratory.</li><li>The slower join after #155 (RG6) is not put to you: no comparison calls it, and the same code leans as far against itself. It is parked as a question about the bench.</li><li>The warning is said once per failing record (a WeakSet), so a game against the computer, which replays with no earlier result to compare with, also says it once.</li><li>Six of the diff reviewers' smaller findings went into the ledger instead of the PR (CF1, CG1, HW1, SV1, AV1, BU1); three were fixed here, and the warning part of HW1 was fixed after grading (fc71549).</li></ul>"
+ },
+ "notConfirmed": {
+  "intro": "<ul><li>That the CSS deletions change nothing on screen rests on reading the cascade and on one-off comparisons of the parsed and computed styles in Chromium, which are not committed. No screenshot pair was made.</li><li>Whether #155 makes the shared game's first screen slower at all (RG6, chart below). No comparison calls it; the same code leans as far against itself; the probe and the traced bench saw 3–6%.</li><li>That the capital-sized buttons keep their size in browsers without <code>mod()</code>, <code>round()</code> or the <code>cap</code> unit (Chrome before 125, Safari before 17.2). Read in the source, not loaded in such a browser (ledger CF1).</li></ul>",
+  "items": [
+   {
+    "title": "The shared game's first screen after #155 (RG6)",
+    "body": "<p>#155 against the commit before it, 8 pairs: the Join button 1.36 1.34 1.14 1.66 1.53 1.03 0.97 0.86, not called. The final code against itself, 8 pairs: the same row leans +15%, 7 of 8 pairs slower. The lean sits inside what the bench does with identical code.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "bisect RG6: 8daa058 (#155) vs e913e50 (setup, 8 pairs)",
+       "only": "Game setup · Joining: (Join button shown|board’s first picture handed to the GPU)"
+      },
+      "caption": "#155 alone against the commit before it, 8 pairs (ab-20261016-0821-bisect-155.md)."
+     },
+     {
+      "rows": {
+       "change": "A/A: 3b73fe5 vs itself (setup, reopen; 8 pairs)",
+       "only": "Game setup · Joining: (Join button shown|board’s first picture handed to the GPU)"
+      },
+      "caption": "The final code against itself, 8 pairs (ab-20261016-0821-aa-final.md)."
+     }
+    ]
    }
   ]
  },
- "choices": {
-  "intro": "<ul><li>The regression check ran against the last run's base (<code>1a04c29</code>), not its bookmark, so that it covered the five PRs main took during the last run.</li><li><code>.lobby-error</code> had never been coloured. I deleted the rule rather than make the error red, because red would change what a player sees.</li><li>The play pill's taller size in tall windows had never applied. I deleted it rather than make it apply.</li><li>Only the RG6 A/B reports are committed; the probe's traces and timings stay out of git, and the record calls its figures exploratory.</li><li>Six of the diff reviewers' smaller findings went into the ledger instead of the PR (CF1, CG1, HW1, SV1, AV1, BU1); three were fixed here.</li></ul>"
- },
- "notConfirmed": {
-  "intro": "<ul><li>That the CSS deletions change nothing on screen rests on reading the cascade and on one-off comparisons of the parsed and computed styles in Chromium, which are not committed. No screenshot pair was made.</li><li>Why the second join in a browser is slower after #155. The probe and the traced bench disagree with the untraced bench on its size.</li><li>That the capital-sized buttons keep their size in browsers without <code>mod()</code>, <code>round()</code> or the <code>cap</code> unit (Chrome before 125, Safari before 17.2). Read in the source, not loaded in such a browser (ledger CF1).</li></ul>"
- },
  "next": {
-  "intro": "<ol><li>Find the bench's pair-order offset: identical code leans 7–15% on the setup rows (1016:AA1).</li><li>Give the capital-sized boxes a fallback for older browsers (1016-0821:CF1).</li><li>Count the first click's two modes instead of timing a median (1009-1606:Q1).</li><li>Run on-page searches one at a time when a worker fails to load (1015:RV17).</li><li>Place the phone's start-page picture before the entry runs (1015:SP4).</li><li>A year's cache for <code>/assets/*</code>, with a warm-load case in the bench (0930:17).</li></ol>"
+  "intro": "<ol><li>Find the bench's pair-order offset: identical code leans 7–15% on the setup rows (1016:AA1). Then settle RG6 against a same-code comparison of the same length.</li><li>Give the capital-sized boxes a fallback for older browsers (1016-0821:CF1).</li><li>Count the first click's two modes instead of timing a median (1009-1606:Q1).</li><li>Run on-page searches one at a time when a worker fails to load (1015:RV17).</li><li>Place the phone's start-page picture before the entry runs (1015:SP4).</li><li>A year's cache for <code>/assets/*</code>, with a warm-load case in the bench (0930:17).</li></ol>"
  }
 }
