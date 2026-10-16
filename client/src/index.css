@@ -1439,6 +1439,11 @@ body {
   max-width: none;
   transform-origin: 0 0;
 }
+/* The same picture placed by the built page before the entry ran
+   (earlyPicture.ts), until the page takes it in */
+#landing-early {
+  background: #010205;
+}
 /* The veil the demo closes between one game and the next (LandingPreview) */
 .landing-veil {
   position: absolute;

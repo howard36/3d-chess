@@ -105,6 +105,37 @@ describe('useGameSocket', () => {
     expect(result.current.sessionId).toBe(firstSession + 1);
     expect(result.current.sessionStartIndex).toBe(1);
     expect(result.current.messages).toHaveLength(1);
+
+    // The network back or the page shown once the retry has connected: no
+    // second socket beside the open one (no try is waiting any more)
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(result.current.sessionId).toBe(firstSession + 1);
+    expect(result.current.status).toBe('connected');
+  });
+
+  it('a page shown while hidden tries nothing early', async () => {
+    const { result } = renderHook(() => useGameSocket());
+    await server.connected;
+    act(() => {
+      server.close();
+    });
+    await waitFor(() => expect(result.current.status).toBe('reconnecting'));
+    server = new WS(WS_URL);
+    const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    try {
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      // Still inside the backoff's first wait (500 ms)
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(result.current.status).toBe('reconnecting');
+    } finally {
+      hidden.mockRestore();
+    }
   });
 
   it('tries again at once when the network comes back or the page is shown', async () => {

@@ -1,4 +1,6 @@
-import { defineConfig, minify } from 'vite';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { build, defineConfig, minify } from 'vite';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
@@ -27,6 +29,94 @@ export const preloadLandingPictureOnStartPage = (): Plugin => ({
     if (!viewport.test(html))
       throw new Error('preload-landing-picture: index.html has no <meta name="viewport">');
     return html.replace(viewport, (tag) => `${tag}\n    <script>${code.trim()}</script>`);
+  },
+});
+
+/**
+ * And places it from an inline script right after #root, so the browser
+ * paints it as soon as it has arrived, before the entry has loaded and run
+ * (src/screens/earlyPicture.ts, bundled here with the lens it places by).
+ */
+export const placeLandingPictureEarly = (): Plugin => ({
+  name: 'place-landing-picture-early',
+  apply: 'build',
+  async transformIndexHtml(html) {
+    const entry = resolve(import.meta.dirname, 'src/screens/earlyPicture.ts');
+    const built = await build({
+      configFile: false,
+      logLevel: 'silent',
+      publicDir: false,
+      plugins: [
+        {
+          name: 'early-picture',
+          resolveId: (id) => (id === 'early-picture' ? id : null),
+          load: (id) =>
+            id === 'early-picture'
+              ? `import { placeEarlyPicture } from ${JSON.stringify(entry)}; placeEarlyPicture();`
+              : null,
+        },
+      ],
+      build: {
+        write: false,
+        minify: true,
+        rolldownOptions: { input: 'early-picture', output: { format: 'iife' } },
+      },
+    });
+    const output = (Array.isArray(built) ? built[0] : built) as { output: { code?: string }[] };
+    const code = output.output[0].code ?? '';
+    const root = '<div id="root"></div>';
+    if (!html.includes(root))
+      throw new Error('place-landing-picture-early: no #root in index.html');
+    return html.replace(root, `${root}\n    <script>${code.trim()}</script>`);
+  },
+});
+
+/** One rule of the host's `_headers` file: the paths it matches and the headers it adds. */
+interface HeaderRule {
+  path: RegExp;
+  headers: [string, string][];
+}
+
+/**
+ * Cloudflare Pages' `_headers` format: a path (`*` matches anything) on a
+ * line of its own, then its headers indented under it, `#` for a comment.
+ */
+export function parseHeaders(text: string): HeaderRule[] {
+  const rules: HeaderRule[] = [];
+  for (const line of text.split('\n')) {
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+    if (/^\S/.test(line)) {
+      const parts = line
+        .trim()
+        .split('*')
+        .map((p) => p.replace(/[.+?^${}()|[\]\\]/g, '\\$&'));
+      rules.push({ path: new RegExp(`^${parts.join('.*')}$`), headers: [] });
+    } else {
+      const at = line.indexOf(':');
+      rules.at(-1)!.headers.push([line.slice(0, at).trim(), line.slice(at + 1).trim()]);
+    }
+  }
+  return rules;
+}
+
+/**
+ * `vite preview` sends the host's headers too (public/_headers), so the
+ * bench's returning visit is cached as a player's is (each file revalidated
+ * where the host says nothing: sirv's no-cache, Pages' max-age=0).
+ */
+export const hostHeaders = (): Plugin => ({
+  name: 'host-headers',
+  configurePreviewServer(server) {
+    const rules = parseHeaders(
+      readFileSync(resolve(import.meta.dirname, 'public/_headers'), 'utf8'),
+    );
+    server.middlewares.use((req, res, next) => {
+      const path = (req.url ?? '/').split('?')[0];
+      for (const rule of rules)
+        if (rule.path.test(path))
+          for (const [name, value] of rule.headers) res.setHeader(name, value);
+      next();
+    });
   },
 });
 
@@ -261,10 +351,12 @@ export default defineConfig({
     r3fCatalogue(),
     earlySocket(),
     preloadLandingPictureOnStartPage(),
+    placeLandingPictureEarly(),
     preloadSceneOnGamePages(),
     keepSceneOutOfEntry(),
     invitePage(),
     socialImageOnPreviews(),
+    hostHeaders(),
   ],
   resolve: {
     // r3f pins a scheduler of its own (0.28) beside react-dom's (0.27, the

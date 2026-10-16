@@ -7,7 +7,6 @@ import { FitCameraToBoard } from '../../three/FitCameraToBoard';
 import { elevationOf, orbitSweep } from '../../three/cameraFit';
 import { usePixelBudget } from '../../three/pixelBudget';
 import { setUpRenderer } from '../../three/rendererSetup';
-import { pointerEvents } from '../../three/pointerEvents';
 import { BackdropCache } from '../../three/scene/backdropCache';
 import { layout } from '../../three/scene/palette';
 import { Stage } from '../../three/scene/stage';
@@ -95,8 +94,6 @@ const LearnCanvas = ({
       gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
       frameloop="demand"
       onCreated={setUpRenderer}
-      // The page may be left before the first commit: never connect to a gone container
-      events={pointerEvents}
     >
       <BackdropCache>
         <Stage orientation="white" />
