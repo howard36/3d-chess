@@ -38,7 +38,7 @@ import { useRetireOnUnmount } from './programs';
 //   level ring (which steps aside, claims.ts), so two circles never stack;
 //   its one idea is four arcs of one radius and length turning slowly and
 //   evenly round the victim. Hover as above.
-// - the last move: a thin continuous line of deep mint light, a soft glow
+// - the last move: a thin continuous line of see-through mint light, a soft glow
 //   of the line's own mint travelling calmly along it, from a small circle where the piece
 //   started to the same circle, larger, round the piece where it landed,
 //   running from the centre of one square to the centre of the other (pieces
@@ -443,11 +443,6 @@ const CAPTURE_RADIUS = MARK_RADIUS.capture;
 const TRACE_TO = FOOT_RING;
 /** The last move's circle where it started: the same circle, smaller. */
 const TRACE_FROM_SCALE = 0.64;
-/**
- * The line itself: the circles' mint a little deeper, so it weighs less and
- * the shimmer travelling along it (Shimmer) shows.
- */
-const TRACE_LINE = `#${new Color(PALETTE.trace).multiplyScalar(0.72).getHexString()}`;
 const FROM_YIELDS: ClaimKind[] = ['quiet', 'capture'];
 const TO_YIELDS: ClaimKind[] = ['capture'];
 
@@ -502,7 +497,7 @@ export const Capture = ({ floor, hovered = false, dim }: MarkerProps) => {
 // The Selection marker lives in selection.tsx, with the held piece's light.
 
 /**
- * The last move: a thin circle of pale mint round the piece where it landed
+ * The last move: a thin circle of mint round the piece where it landed
  * (in place of its level ring; drawn in as it lands), the same circle
  * smaller where it started, and a thin continuous line between them with a
  * calm shimmer travelling along it. The circle where it started steps aside
@@ -513,7 +508,6 @@ export const LastMove = ({ from, to, fresh = false, glideMs = 0 }: LastMoveMarke
   // The line draws on as the piece sets off; the destination's mark as it arrives
   const lineDelay = glideMs * 0.3;
   useClaim('trace', to.floor);
-  const radius = 0.005 + 0.0045 * LINE_STRENGTH;
   return (
     <>
       <Mark
@@ -545,17 +539,17 @@ export const LastMove = ({ from, to, fresh = false, glideMs = 0 }: LastMoveMarke
       <LastMoveLine
         from={from.floor}
         to={to.floor}
-        color={TRACE_LINE}
-        radius={radius}
+        color={PALETTE.trace}
+        radius={TRACE_LINE.radius}
         lift={LINE_LIFT}
-        opacity={LINE_STRENGTH}
+        opacity={TRACE_LINE.opacity}
         drawInMs={fresh ? LINE_DRAW_MS : 0}
         drawInDelayMs={fresh ? lineDelay : 0}
       />
       <Shimmer
         from={from.floor}
         to={to.floor}
-        radius={radius}
+        radius={TRACE_LINE.radius}
         delayMs={fresh ? lineDelay + LINE_DRAW_MS : 0}
       />
     </>
@@ -612,12 +606,15 @@ const BETTER_STRENGTH = 0.95;
 /** Its tube's radius: a little thicker than the last move's, so a short line still reads. */
 const BETTER_RADIUS = 0.011;
 
-/** How bright and thick the last-move line is, 0–1. */
-const LINE_STRENGTH = 0.7;
+/**
+ * The last-move line: its circles' mint, see-through, so it weighs less and
+ * the shimmer of that mint at full strength travelling along it shows (as
+ * the check's line and its glow: each line its colour at half strength).
+ */
+const TRACE_LINE = { opacity: 0.5, radius: 0.00815 };
 
 // The shimmer on the last-move line: a soft glow of the line's own mint at
-// full strength (the line is drawn darker, TRACE_LINE), a little wider than
-// the line, travelling along it from where the move started to where it
+// full strength, a little wider than the line, travelling along it from where the move started to where it
 // ended, one every SHIMMER.spacing, added to the line's light so it shows
 // while the line itself stays faint.
 const LINE_LIFT = 0.02;
