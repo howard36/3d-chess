@@ -118,7 +118,7 @@ const gameMove = (i) => {
 // --primary asks for it)
 const FULL = {
   coldRuns: 6,
-  coldCases: ['desktop', 'phone', 'phone-cpu4-4g'],
+  coldCases: ['desktop', 'phone', 'phone-cpu4-4g', 'phone-cpu4-4g-returning'],
   setupRuns: 2,
   moves: 32,
   computerRuns: 2,
@@ -156,7 +156,7 @@ const PROFILES = {
   primary: {
     ...FULL,
     coldRuns: 5,
-    coldCases: ['desktop', 'phone-cpu4-4g'],
+    coldCases: ['desktop', 'phone-cpu4-4g', 'phone-cpu4-4g-returning'],
     setupRuns: 1,
     moves: 16,
     computerRuns: 1,
@@ -1203,20 +1203,44 @@ async function coldSection(browser) {
     { key: 'desktop', label: 'desktop', vp: 'desktop' },
     { key: 'phone', label: 'phone', vp: 'phone' },
     { key: 'phone-cpu4-4g', label: 'phone, 4× CPU, Fast 4G', vp: 'phone', cpu: 4, net: FAST_4G },
+    {
+      key: 'phone-cpu4-4g-returning',
+      label: 'phone, 4× CPU, Fast 4G, returning',
+      vp: 'phone',
+      cpu: 4,
+      net: FAST_4G,
+      returning: true,
+    },
   ].filter((c) => CFG.coldCases.includes(c.key));
   await section(
     'cold-load',
     {
       title: 'Cold load of the start screen',
-      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. In as many more loads, left alone, it times the board’s first showing (the start page’s picture of its preview, decoded and painted, or the live preview where there is no picture) and the live preview on screen (its first frame drawn, and faded in over the picture where there is one). Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
+      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. In as many more loads, left alone, it times the board’s first showing (the start page’s picture of its preview, decoded and painted, or the live preview where there is no picture) and the live preview on screen (its first frame drawn, and faded in over the picture where there is one). Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The fourth is that phone coming back: its profile has visited the start page once before (until the live preview showed), so its cache holds what the host let it keep (\`vite preview\` sends the host’s \`public/_headers\`; a file they say nothing about is asked for again, as Cloudflare Pages does by default). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
       align: ['l', 'l', 'r', 'r', 'r', 'r'],
       timeoutMs: QUICK ? 240000 : 480000,
     },
     async (sec) => {
+      /**
+       * A fresh context, or for a returning player one that has visited the
+       * start page once (unthrottled), until its live preview showed.
+       */
+      const contextFor = async (c) => {
+        const ctx = await newBenchContext(browser, c.vp);
+        if (!c.returning) return ctx;
+        const first = await ctx.newPage();
+        await first.goto(`${BASE}/`, { waitUntil: 'load', timeout: 60000 });
+        await first.waitForFunction(() => window.__bench.firsts.previewLive, null, {
+          polling: 20,
+          timeout: 120000,
+        });
+        await first.close();
+        return ctx;
+      };
       /** One cold load: a fresh context opens `/` until the page can create a game. */
       const coldRun = async (c) => {
-        const ctx = await newBenchContext(browser, c.vp);
+        const ctx = await contextFor(c);
         try {
           const page = await ctx.newPage();
           const cdp = await ctx.newCDPSession(page);
@@ -1273,6 +1297,9 @@ async function coldSection(browser) {
               jsTransfer: res
                 .filter((r) => /\.js$/.test(r.name))
                 .reduce((s, r) => s + (r.transferSize || 0), 0),
+              // Files that went to the server (a cached one asked again
+              // counts), the page included; one from the cache alone has no transfer
+              requests: 1 + res.filter((r) => r.transferSize > 0).length,
             };
           });
           m.script = pm.ScriptDuration * 1000;
@@ -1288,7 +1315,7 @@ async function coldSection(browser) {
        * preview itself).
        */
       const pictureRun = async (c) => {
-        const ctx = await newBenchContext(browser, c.vp);
+        const ctx = await contextFor(c);
         try {
           const page = await ctx.newPage();
           const cdp = await ctx.newCDPSession(page);
@@ -1381,6 +1408,11 @@ async function coldSection(browser) {
         ]) {
           const [row, m] = countStat(label, [raw.coldPicture[c.key].filter(pick).length]);
           sec.add(['', ...row], m, `${c.label} · ${label}`);
+        }
+        {
+          const label = 'requests to the server, until the side choice';
+          const [row, m] = countStat(label, col('requests'));
+          sec.add(['', ...row], m, `${c.label} · requests to the server`);
         }
         // The section's first load meets the start page's preview programs
         // uncached (the browser's GPU process caches them for the loads
