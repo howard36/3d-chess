@@ -1,0 +1,56 @@
+diff --git a/client/public/_headers b/client/public/_headers
+index 24cc9da..ec2f957 100644
+--- a/client/public/_headers
++++ b/client/public/_headers
+@@ -7,3 +7,8 @@
+   Content-Security-Policy: frame-ancestors 'none'
+   X-Content-Type-Options: nosniff
+   Referrer-Policy: strict-origin-when-cross-origin
++
++# Built files whose names carry a hash of their contents (Vite's assets/):
++# a returning player's browser uses its copy without asking again
++/assets/*
++  Cache-Control: public, max-age=31536000, immutable
+--- a/client/vite.config.test.ts
++++ b/client/vite.config.test.ts
+@@ -1,4 +1,4 @@
+-import { readFileSync } from 'node:fs';
++import { existsSync, readFileSync } from 'node:fs';
+ import { resolve } from 'node:path';
+ import { expect, test } from 'vitest';
+ import {
+@@ -49,3 +49,21 @@
+   expect([rule.path.test('/a.b/c/d'), rule.path.test('/axb/c')]).toEqual([true, false]);
+   expect(rule.headers).toEqual([['X-Test', '1']]);
+ });
++
++test('the host keeps the built files a year, and only those, whose names carry their hash', () => {
++  const rules = parseHeaders(readFileSync(resolve(process.cwd(), 'public/_headers'), 'utf8'));
++  const cache = (path: string) =>
++    rules
++      .filter((r) => r.path.test(path))
++      .flatMap((r) => r.headers)
++      .find(([name]) => name === 'Cache-Control')?.[1];
++  expect(cache('/assets/index-B2x9_kQe.js')).toBe('public, max-age=31536000, immutable');
++  for (const path of ['/', '/index.html', '/game/abc', '/landing/phone.avif', '/og.jpg'])
++    expect(cache(path)).toBeUndefined();
++  // And every page keeps the security headers
++  expect(rules.find((r) => r.path.test('/game/abc'))!.headers.map(([name]) => name)).toContain(
++    'X-Frame-Options',
++  );
++  // Nothing from public/ lands among them under a name without a hash
++  expect(existsSync(resolve(process.cwd(), 'public/assets'))).toBe(false);
++});
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -1429,8 +1429,8 @@
+ preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
+ `public/_headers` sets three headers on every address: other sites may not show the app in
+ a frame, browsers must not guess file types, and a link the player follows sends only the
+-site's name. Nothing there keeps a file, so a returning browser asks for each one again
+-(Pages' default). `vite preview` sends the same headers (`hostHeaders`), so the bench's
++site's name. The built files under `/assets/`, whose names carry their hash, are kept a
++year; anything else a returning browser asks for again (Pages' default). `vite preview` sends the same headers (`hostHeaders`), so the bench's
+ returning visit is cached as a player's is.
+ 
+ Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
