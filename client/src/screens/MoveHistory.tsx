@@ -498,6 +498,14 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
                   : ''
               }`}
       </div>
+      {/* How the review ended, said when it does (the bar and the counts are seen) */}
+      <div className="sr-only" role="status" data-testid="review-said">
+        {analysis?.state === 'done'
+          ? 'Review done.'
+          : analysis?.state === 'stopped'
+            ? 'Review stopped.'
+            : ''}
+      </div>
     </nav>
   );
 };
@@ -541,7 +549,7 @@ function ReviewHead({ analysis }: { analysis: HistoryAnalysis }) {
         );
       })}
       {analysis.state === 'stopped' && (
-        <p className="hud-stopped" role="status">
+        <p className="hud-stopped">
           Review stopped{' '}
           <button
             type="button"

@@ -425,8 +425,16 @@ describe('the review', () => {
 
   it('says so when it stops short, and goes on with "Retry"', async () => {
     const onRetry = vi.fn();
-    render(history({ moves: record(6), analysis: analysis({ state: 'stopped', onRetry }) }));
+    const { rerender } = render(
+      history({ moves: record(6), analysis: analysis({ state: 'running', onRetry }) }),
+    );
+    // Said in a status that was there before it stopped, so a screen reader hears it
+    const said = screen.getByTestId('review-said');
+    expect(said).toHaveTextContent('');
+    rerender(history({ moves: record(6), analysis: analysis({ state: 'stopped', onRetry }) }));
     expect(document.querySelector('.hud-stopped')).toHaveTextContent('Review stopped');
+    expect(screen.getByTestId('review-said')).toBe(said);
+    expect(said).toHaveTextContent('Review stopped.');
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledOnce();
   });
@@ -470,6 +478,7 @@ describe('the review', () => {
         analysis: analysis({ state: 'done', counts: counts([2, 1, 0], [0, 0, 1]) }),
       }),
     );
+    expect(screen.getByTestId('review-said')).toHaveTextContent('Review done.');
     expect(screen.getByTestId('move-history')).toHaveAttribute('data-analysis', 'done');
     expect(screen.queryByRole('progressbar')).toBeNull();
     const white = document.querySelector('.hud-counts[data-side="white"]')!;
@@ -493,7 +502,7 @@ describe('the review', () => {
     );
     expect(screen.getByTestId('best-move')).toHaveTextContent('Best Ed5–Ec3');
     expect(screen.getByTestId('move-history')).toHaveAttribute('data-best', 'Ed5-Ec3');
-    expect(screen.getByRole('status')).toHaveTextContent(
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent(
       'Move 2 of 6: Ed5–Ee3, mistake. Best Ed5–Ec3.',
     );
     rerender(
