@@ -903,6 +903,11 @@ body {
   margin: 0 0.2em 0 0;
   vertical-align: baseline;
   fill: currentColor;
+  /* Its ink reaches its box's every edge, and the browser paints the box
+     rounded to the pixel (a rook 6.45 px wide drawn 6 px, its right
+     prong cut thinner than its left): an SVG clips what overflows it, so
+     this one may not */
+  overflow: visible;
 }
 /* A move's words and their light: trimmed to their capitals (a block, as
    the trim needs), so the light stands 5 px over and under them and 8 px
