@@ -1465,9 +1465,6 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  height: calc(52px + mod(52px - var(--caps), 2px));
-  min-width: 240px;
-  padding: 0 30px 0 24px;
   border: 2px solid transparent;
   border-radius: 999px;
   background:
@@ -1475,7 +1472,6 @@ body {
     var(--landing-rim) border-box;
   color: var(--hud-accent-fg);
   font: inherit;
-  font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.005em;
   box-shadow: 0 0 22px rgba(230, 238, 255, 0.12);
@@ -1519,29 +1515,17 @@ body {
   /* The label and the fill change together, never white on white */
   transition: none;
 }
-/* The pill in the lobby's cards (.lobby-go): spanning a phone's column, a
-   step up in a tall wide window, a step down in a short one */
+/* Its size is the lobby's (.lobby-go); it spans a phone's column and a
+   short window's */
 @media (max-width: 480px) {
   .landing-play {
     width: 100%;
     max-width: 360px;
-    min-width: 0;
-  }
-}
-@media (min-height: 860px) and (min-width: 700px) {
-  .landing-play {
-    height: 58px;
-    min-width: 270px;
-    font-size: 18px;
   }
 }
 @media (max-height: 480px) {
   .landing-play {
     width: 100%;
-    min-width: 0;
-    height: calc(48px + mod(48px - var(--caps), 2px));
-    padding: 0 16px;
-    font-size: 16px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
