@@ -665,7 +665,12 @@ piece can reach (fuller under the pointer), red round a capture (four arcs turni
 move's source to its destination (in a finished game's review, where the move shown is
 marked, a still amber line beside it, the better move, from a small circle to a circle
 just outside a piece's ring: `Better` in `scene/markers.tsx`, drawn by the last move's own
-programs, so it links none and asks for no frames), and a king in check turns red among four clusters of dark obsidian blades. The
+programs, so it links none and asks for no frames), and a king in check turns red among four clusters of dark obsidian blades,
+with a thin, dim red line running to him from each piece giving check (`Board.checkers()` in
+the engine), drawn in from the checker as the check strikes, a soft glow of bright red
+travelling along it to him, so a check from another level, or one the moving piece uncovered
+(a double check), shows where it comes from. At mate the lines stay and their glow stops.
+They are drawn by the last move's line and shimmer programs, so they link none. The
 marks look the same from every angle, and a destination takes the pointer and the click on its
 circle alone (`MARK_RADIUS`), so a square's empty corners reach a circle beneath. While the pointer is on a level (a square of it, a piece
 or a destination), the other levels step back: their glass, edges and marks give up a share of

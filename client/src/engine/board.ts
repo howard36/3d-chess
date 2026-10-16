@@ -346,6 +346,45 @@ export class Board {
   }
 
   /**
+   * The pieces giving check to the king of `color`, as the squares they stand
+   * on (none when it is not in check, two in a double check): what attacks()
+   * finds, every one of them, in the same order of looking.
+   */
+  checkers(color: 'white' | 'black'): Coord[] {
+    const cells = this.cells;
+    const target = this.kingCell(color);
+    const byColor = color === 'white' ? 'black' : 'white';
+    const found: number[] = [];
+    const rays = RAYS[target];
+    for (let d = 0; d < rays.length; d++) {
+      const ray = rays[d];
+      for (let n = 0; n < ray.length; n++) {
+        const piece = cells[ray[n]];
+        if (!piece) continue;
+        if (piece.color === byColor) {
+          const type = piece.type;
+          if (
+            type === PieceType.Queen ||
+            type === SLIDER[d] ||
+            (n === 0 && type === PieceType.King)
+          )
+            found.push(ray[n]);
+        }
+        break;
+      }
+    }
+    for (const from of KNIGHT_JUMPS[target]) {
+      const piece = cells[from];
+      if (piece && piece.type === PieceType.Knight && piece.color === byColor) found.push(from);
+    }
+    for (const from of PAWN_ATTACKERS[byColor][target]) {
+      const piece = cells[from];
+      if (piece && piece.type === PieceType.Pawn && piece.color === byColor) found.push(from);
+    }
+    return found.map(coordOf);
+  }
+
+  /**
    * Returns true if the king of the given color is in check.
    */
   inCheck(color: 'white' | 'black'): boolean {

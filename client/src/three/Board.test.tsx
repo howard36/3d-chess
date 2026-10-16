@@ -39,7 +39,7 @@ const gridOf = (renderer: Renderer) => root(renderer).children[0];
 const drawn = vi.hoisted(() => ({
   bodies: [] as PieceBodyProps[],
   grids: [] as GridProps[],
-  checks: [] as MarkerProps[],
+  checks: [] as (MarkerProps & { checkers?: MarkerProps[]; mated?: boolean })[],
   lastMoves: [] as LastMoveMarkerProps[],
   lastMoveMounts: [] as string[],
   betters: [] as { from: MarkerProps; to: MarkerProps }[],
@@ -802,6 +802,27 @@ describe('Board', () => {
     const inCheck = new Map(drawn.bodies.map((b) => [`${b.color} ${b.type}`, b.inCheck]));
     expect(inCheck.get('black King')).toBe(true);
     expect(inCheck.get('white Rook')).toBe(false);
+  });
+
+  it('draws the check from every piece giving it, at their floors', async () => {
+    // A double check: the knight on Dd3 and the bishop on Bb2 it uncovered
+    const board = new EngineBoard();
+    board.setPiece(fromZXY('Db4'), { type: PieceType.King, color: 'black' });
+    board.setPiece(fromZXY('Dd3'), { type: PieceType.Knight, color: 'white' });
+    board.setPiece(fromZXY('Bb2'), { type: PieceType.Bishop, color: 'white' });
+    board.setPiece(fromZXY('Aa1'), { type: PieceType.King, color: 'white' });
+    await ReactThreeTestRenderer.create(
+      <Board board={board} currentTurn="black" playerColor="black" />,
+    );
+    const floorOf = (zxy: string) => {
+      const [x, y, z] = toWorld(fromZXY(zxy), 'black');
+      return [x, y + FLOOR_Y, z];
+    };
+    const check = last(drawn.checks)!;
+    expect(check.floor).toEqual(floorOf('Db4'));
+    expect(check.checkers!.map((c) => c.floor).sort()).toEqual(
+      [floorOf('Bb2'), floorOf('Dd3')].sort(),
+    );
   });
 
   // The viewing player's own army must read the same way for both colours:
