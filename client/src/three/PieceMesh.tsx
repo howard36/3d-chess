@@ -24,6 +24,8 @@ export type PieceMeshProps = JSX.IntrinsicElements['group'] & {
   selected?: boolean;
   hovered?: boolean;
   inCheck?: boolean;
+  /** (Preview) gives check: takes some of the king's red, this strongly. */
+  threat?: number;
   /** This king has been checkmated: he topples. */
   mated?: boolean;
   /** Whether he is knocked over (rather than simply falling), and which way he falls (Topple). */
@@ -149,6 +151,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
   selected = false,
   hovered = false,
   inCheck = false,
+  threat = 0,
   mated = false,
   knocked = false,
   fallAway,
@@ -204,6 +207,7 @@ export const PieceMesh: React.FC<PieceMeshProps> = React.memo(function PieceMesh
             selected={selected}
             hovered={hovered}
             inCheck={inCheck}
+            threat={threat}
             level={level}
             focus={focus}
             arrival={arrival}

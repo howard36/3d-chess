@@ -731,3 +731,86 @@ export const Check = ({ floor, mated = false }: MarkerProps) => {
     </>
   );
 };
+
+// --- Checkers (preview) ---------------------------------------------------------------------
+
+/** How the pieces giving check are marked (a preview of the options). */
+export type CheckerStyle = 'lines' | 'rings' | 'glow' | 'path' | 'both';
+
+/**
+ * What gives check: for each piece checking the king, a red line from it to
+ * the king ('lines'), a red circle round its foot ('rings'), or a small red
+ * circle on each square its check passes through and a ring round the piece
+ * ('path'). ('glow' tints the pieces themselves: PieceMesh's `threat`.)
+ */
+export const Checkers = ({
+  style,
+  king,
+  checkers,
+}: {
+  style: CheckerStyle;
+  king: MarkerProps;
+  checkers: { at: MarkerProps; through: MarkerProps[] }[];
+}) => (
+  <group name="checkers">
+    {checkers.map(({ at, through }, i) => (
+      <group key={i}>
+        {style === 'lines' && (
+          <>
+            <Mark
+              floor={at.floor}
+              kind="trace"
+              color={PALETTE.check}
+              fillA={0.06}
+              radius={TRACE_TO * TRACE_FROM_SCALE}
+              width={0.0085}
+              opacity={0.9}
+              growMs={0}
+            />
+            <LastMoveLine
+              from={at.floor}
+              to={king.floor}
+              color={PALETTE.check}
+              radius={0.014}
+              lift={LINE_LIFT + 0.004}
+              opacity={0.9}
+            />
+          </>
+        )}
+        {(style === 'rings' || style === 'path') && <CheckerRing floor={at.floor} />}
+        {style === 'path' &&
+          through.map((sq, j) => (
+            <Mark
+              key={j}
+              floor={sq.floor}
+              kind="trace"
+              color={PALETTE.check}
+              fillA={0.5}
+              radius={TRACE_TO * 0.4}
+              width={0.008}
+              opacity={0.95}
+              growMs={0}
+            />
+          ))}
+      </group>
+    ))}
+  </group>
+);
+
+/** A red circle round a checking piece, in place of its level ring (and the last move's). */
+const CheckerRing = ({ floor }: { floor: Vec3 }) => {
+  useClaim('capture', floor);
+  return (
+    <Mark
+      floor={floor}
+      kind="trace"
+      color={PALETTE.check}
+      fillA={0.18}
+      radius={FOOT_RING + 0.01}
+      width={0.014}
+      opacity={1}
+      growMs={0}
+      renderOrder={LAYER.marker + 0.15}
+    />
+  );
+};

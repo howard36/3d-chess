@@ -577,6 +577,7 @@ const CHECK_RATE = 1 / 0.25;
  */
 export const PieceBody = (props: PieceBodyProps) => {
   const { type, color, selected, hovered, inCheck } = props;
+  const threat = props.threat ?? 0;
   const focus = props.focus ?? 0;
   const { level } = props;
   const invalidate = useThree((s) => s.invalidate);
@@ -609,14 +610,14 @@ export const PieceBody = (props: PieceBodyProps) => {
   const ring = useRef(0);
   if ((hovered || selected) && !awake) setAwake(true);
   if (selected && !lit) setLit(true);
-  useEffect(() => invalidate(), [hovered, selected, inCheck, focus, invalidate]);
+  useEffect(() => invalidate(), [hovered, selected, inCheck, threat, focus, invalidate]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20);
     const w = weights.current;
     const hover = toward(w.hover, hovered && !selected ? 1 : 0, dt * HOVER_RATE);
     const hold = toward(w.hold, selected ? 1 : 0, dt * HOLD_RATE);
-    const c = toward(w.check, inCheck ? 1 : 0, dt * CHECK_RATE);
+    const c = toward(w.check, inCheck ? 1 : threat, dt * CHECK_RATE);
     // At the glass's pace (plates.tsx)
     const fo = toward(w.focus, focus, (dt * 1000) / LEVEL_FOCUS_MS);
     let moving = hover !== w.hover || hold !== w.hold || c !== w.check || fo !== w.focus;

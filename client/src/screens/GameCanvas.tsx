@@ -22,6 +22,9 @@ import { linkBeforeFirstFrame, setUpRenderer } from '../three/rendererSetup';
 import type { Board as EngineBoard, Move } from '../engine';
 import type { GameOver, LastMove, Turn } from '../game/history';
 import type { Color } from '../types/messages';
+import { doubleCheckDemo } from '../dev/doubleCheck';
+
+const demo = doubleCheckDemo();
 
 // The game's 3D board and its entrance: three.js, the scene and its camera,
 // in the chunk the lobby's canvas and the landing page's preview share.
@@ -137,12 +140,12 @@ const GameCanvas = ({
             <Stage orientation={color ?? 'white'} />
           </BackdropCache>
           <Board
-            board={board}
-            currentTurn={currentTurn}
+            board={demo?.board ?? board}
+            currentTurn={demo ? 'black' : currentTurn}
             playerColor={color}
             onMove={onMove}
             onChoosePromotion={onChoosePromotion}
-            lastMove={lastMove}
+            lastMove={demo?.lastMove ?? lastMove}
             betterMove={betterMove}
             // Nothing can be picked up while the entrance plays
             disabled={disabled}

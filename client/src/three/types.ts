@@ -63,6 +63,8 @@ export interface PieceBodyProps {
   hovered: boolean;
   /** This is a king and its side is in check. */
   inCheck: boolean;
+  /** (Preview) gives check: takes some of the king's red, this strongly. */
+  threat?: number;
   /** The level (engine z, 0 = A) of the cell the piece stands on. */
   level: number;
   /**

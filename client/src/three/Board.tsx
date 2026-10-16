@@ -37,7 +37,8 @@ import { KNOCK_STRIKE_MS } from './pieceMotion';
 import { fallAway } from './mate';
 import { focusLevelOf } from './scene/focus';
 import { Grid } from './scene/grid';
-import { Better, Capture, Check, LastMove, Quiet } from './scene/markers';
+import { Better, Capture, Check, Checkers, LastMove, Quiet } from './scene/markers';
+import type { CheckerStyle } from './scene/markers';
 import { knightFacing, layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
 import { Selection } from './scene/selection';
 import { pieceArrival } from './intro/timeline';
@@ -443,6 +444,42 @@ const Board = (props: BoardProps) => {
     ? []
     : pieces.filter(({ type, color }) => type === PieceType.King && board.inCheck(color));
   const checked = checkedKings.map(({ color }) => color);
+  // (Preview) how the pieces giving check are marked: ?checkers=lines|rings|glow|path|both
+  const checkerStyle = (
+    import.meta.env.DEV ? new URLSearchParams(window.location.search).get('checkers') : null
+  ) as CheckerStyle | null;
+  // Each checked king's checkers, with the squares their check passes through
+  const checkersOf = checkedKings.map(({ color, coord: king }) => ({
+    king,
+    checkers: pieces
+      .filter(
+        (p) =>
+          p.color !== color &&
+          board.generateAttackedSquares(p.coord).some((c) => sameCoord(c, king)),
+      )
+      .map((p) => {
+        const through: Coord[] = [];
+        if (p.type !== PieceType.Knight) {
+          const step = (a: number, b: number) => Math.sign(b - a);
+          const d = {
+            x: step(p.coord.x, king.x),
+            y: step(p.coord.y, king.y),
+            z: step(p.coord.z, king.z),
+          };
+          let c = { x: p.coord.x + d.x, y: p.coord.y + d.y, z: p.coord.z + d.z };
+          while (!sameCoord(c, king)) {
+            through.push(c);
+            c = { x: c.x + d.x, y: c.y + d.y, z: c.z + d.z };
+          }
+        }
+        return { coord: p.coord, through };
+      }),
+  }));
+  const threatened = new Set(
+    checkerStyle === 'glow' || checkerStyle === 'both'
+      ? checkersOf.flatMap(({ checkers }) => checkers.map(({ coord }) => toZXY(coord)))
+      : [],
+  );
   const matedColor =
     !kingsWait && props.gameOver?.result === 'checkmate' && props.gameOver.winner
       ? props.gameOver.winner === 'white'
@@ -643,6 +680,7 @@ const Board = (props: BoardProps) => {
               selected={isSelected(coord)}
               hovered={hovered === key && canPick(coord)}
               inCheck={inCheck}
+              threat={threatened.has(key) ? 0.6 : 0}
               level={coord.z}
               focus={focusLevel === null || isSelected(coord) ? 0 : coord.z === focusLevel ? 1 : -1}
               mated={isMated}
@@ -728,6 +766,19 @@ const Board = (props: BoardProps) => {
             {...(color === matedColor ? { mated: true } : {})}
           />
         ))}
+        {checkerStyle &&
+          checkerStyle !== 'glow' &&
+          checkersOf.map(({ king, checkers }) => (
+            <Checkers
+              key={`checkers-${toZXY(king)}`}
+              style={checkerStyle === 'both' ? 'lines' : checkerStyle}
+              king={markerAt(king)}
+              checkers={checkers.map(({ coord, through }) => ({
+                at: markerAt(coord),
+                through: through.map(markerAt),
+              }))}
+            />
+          ))}
         {glide && !glide.back && glide.captured && (
           <CaptureFx
             key={`capturefx-${arrivalKey}`}
