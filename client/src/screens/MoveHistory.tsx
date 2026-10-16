@@ -105,10 +105,9 @@ const MoveBlock = React.memo(
   ({ moves, start, applied, shown, open, words, grades, onShow }: BlockProps) => {
     const ply = (i: number) => {
       const n = i + 1;
-      // One text node; Black's starts with the space between the two
-      // (white space at a line's start is not drawn)
-      const text = n % 2 === 0 ? ` ${formatMove(moves[i])}` : formatMove(moves[i]);
-      if (words) return <span>{text}</span>;
+      // As words: one text node, Black's starting with the space between the two
+      if (words)
+        return <span>{n % 2 === 0 ? ` ${formatMove(moves[i])}` : formatMove(moves[i])}</span>;
       const grade = grades[i];
       return (
         <button
@@ -123,16 +122,22 @@ const MoveBlock = React.memo(
           disabled={n > applied}
           onClick={() => onShow(n)}
         >
-          {text}
-          {grade && <Mark grade={grade} />}
+          {/* Black's starts with the space between the two (not drawn: the
+              button lays out only its words); the words are lit on their
+              own, trimmed to their capitals (index.css) */}
+          {n % 2 === 0 ? ' ' : null}
+          <span className="hud-ply-word">
+            {formatMove(moves[i])}
+            {grade && <Mark grade={grade} />}
+          </span>
         </button>
       );
     };
     const rows = [];
     for (let i = start; i < Math.min(moves.length, start + BLOCK); i += 2) {
-      // Three nodes a row and one text node each (the number, then the
-      // moves), no wrappers or spacers: a reopened game of thousands of
-      // moves mounts its whole record, a render after the blocks in view
+      // Three nodes a row (the number, then the moves, each a button round
+      // its words), nothing else: a reopened game of thousands of moves
+      // mounts its whole record, a render after the blocks in view
       // (`whole`, below). It reads "1. Bb1–Cb1 Dd5–Cd5".
       rows.push(
         <li key={i / 2 + 1}>
