@@ -542,10 +542,11 @@ const BENCH_INIT = () => {
     const picture = document.querySelector('[data-testid="landing-picture"] img');
     if (!f.landingPicture && !b.pictureSeen && picture?.complete && picture.naturalWidth > 0) {
       b.pictureSeen = true;
-      picture
-        .decode()
-        .catch(() => {})
-        .then(() => requestAnimationFrame(() => (f.landingPicture = now())));
+      // (a picture that fails to decode is never painted: not timed, but counted)
+      picture.decode().then(
+        () => requestAnimationFrame(() => (f.landingPicture = now())),
+        () => (b.pictureFailed = true),
+      );
     }
     const opacity = document.querySelector('.landing-preview')?.style.opacity;
     if (!f.previewLive && b.landingDrawn && (opacity === '' || opacity === '1')) f.previewLive = t;
@@ -1294,7 +1295,7 @@ async function coldSection(browser) {
           });
           // (awaited here, before the context closes under it)
           const run = await page.evaluate(() => {
-            const { firsts } = window.__bench;
+            const { firsts, pictureFailed = false } = window.__bench;
             const t0 = performance.timeOrigin;
             const live = firsts.previewLive - t0;
             const picture = firsts.landingPicture ? firsts.landingPicture - t0 : Infinity;
@@ -1307,6 +1308,7 @@ async function coldSection(browser) {
               preview: live,
               shown: picture <= live ? 'picture' : 'preview',
               fetched,
+              pictureFailed,
             };
           });
           return run;
@@ -1358,6 +1360,15 @@ async function coldSection(browser) {
           raw.coldPicture[c.key].map((r) => new Set(r.fetched).size),
         );
         sec.add(['', ...row], m, `${c.label} · pictures of the board downloaded`);
+        // Which the board row timed: a change that stops the picture painting
+        // shows here, not only as a later board under the min() above
+        for (const [label, pick] of [
+          ['loads whose board showed first as its picture', (r) => r.shown === 'picture'],
+          ['pictures that failed to decode', (r) => r.pictureFailed],
+        ]) {
+          const [row, m] = countStat(label, [raw.coldPicture[c.key].filter(pick).length]);
+          sec.add(['', ...row], m, `${c.label} · ${label}`);
+        }
         // The section's first load meets the start page's preview programs
         // uncached (the browser's GPU process caches them for the loads
         // after it): a player's first visit, which the median above hides
@@ -2434,15 +2445,25 @@ async function reviewSection(browser) {
           await game.seats.black.close();
           const { page } = await openSeat(browser, scope, 'desktop', game.gameId, 'black');
           await waitBoard(page);
+          // A page before #148 has no Review on the result card: there the
+          // card is closed and the list's “Analyse” clicked, as the bench did
+          // then (its span leaves out closing the card), so a --base against
+          // it still measures the review
+          const via = await page.evaluate(() =>
+            ['review', 'analyse'].find((id) => document.querySelector(`[data-testid="${id}"]`)),
+          );
+          if (!via) throw new Error('no Review on this page (a commit before #143?)');
+          if (via === 'analyse')
+            await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
           await quietMain(page);
           // Click to every mark in, timed in the page on the bench's clock (the
           // long tasks' too): the click and each change of the review
-          await page.evaluate(() => {
+          await page.evaluate((via) => {
             const b = window.__bench;
             b.review = { clicked: null, half: null, done: null, stopped: false };
             const list = document.querySelector('[data-testid="move-history"]');
             document
-              .querySelector('[data-testid="review"]')
+              .querySelector(`[data-testid="${via}"]`)
               .addEventListener('click', () => (b.review.clicked = window.__benchNow()), {
                 capture: true,
               });
@@ -2457,8 +2478,8 @@ async function reviewSection(browser) {
               if (state === 'done' && b.review.done == null) b.review.done = window.__benchNow();
               if (state === 'stopped') b.review.stopped = true;
             }).observe(list, { attributes: true, subtree: true });
-          });
-          await page.getByTestId('review').click();
+          }, via);
+          await page.getByTestId(via).click();
           await page.waitForFunction(
             () => window.__bench.review.done != null || window.__bench.review.stopped,
             null,
@@ -2480,6 +2501,7 @@ async function reviewSection(browser) {
             longest: maxOf([0, ...lts.map((l) => l[1])]),
             ltTotal: sum(lts.map((l) => l[1])),
             marks: marks.join(' '),
+            via,
           });
         } finally {
           await scope.close();
@@ -2497,6 +2519,10 @@ async function reviewSection(browser) {
         row('page freezes in total during the review', 'ltTotal'),
       ]);
       sec.notes.push(`Check: the same marks in every run: \`${[...marks][0]}\`.`);
+      if (raw.review.some((x) => x.via === 'analyse'))
+        sec.notes.push(
+          'This commit has no Review on the result card (before #148): the card was closed first and “Analyse” clicked, so the span leaves out closing the card.',
+        );
     },
   );
 }

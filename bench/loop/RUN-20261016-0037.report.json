@@ -1,0 +1,226 @@
+{
+ "title": "Perf run 20261016-0037",
+ "eyebrow": "3D chess · perf-iteration · run 20261016-0037",
+ "heading": "The start page is ready sooner on desktop again, and the loop's records are tidy",
+ "meta": "<p>A change made two PRs ago, the turning rainbow rims on the start page's buttons, had made the start page slower. Each rim measured its button while React was still building the page, which forced the browser to lay out the page early. The rims now measure a moment later, after the browser's own layout. On the final code against main <code>d415b21</code> (4 pairs on <code>eec59c2</code>; the last merge, #156, changes only the record's type, on both sides), no headline row is called better or worse. There “Start page usable” on desktop is 22% sooner (84.8 → 67.0 ms). Across four comparisons against main as it moved, it is 12–22% sooner and better in all 16 pairs, though the pairs spread too much for a call. The slowed phone's gain is 3–5%, not called. Three rows leaned worse on the final code without a call; they are under Choices made alone. Earlier, on <code>e02a235</code>, before main's later merges, both start-page rows were called better against the run's base <code>1a04c29</code>: desktop 28% sooner (89.8 → 64.3 ms), the slowed phone 9.6% (726 → 655 ms). Main moved on five times during the run (#153, #151, #150, #155 with #152, and #156); all are merged in. One row, the opponent's move appearing, leaned slower on <code>e02a235</code> without being called; 8 more pairs on <code>3c84e28</code> put it at 6% faster, so it was noise. One question is left for you: whether the move list's focus should stay quiet after a click. The rest of the run is checks and record-keeping: a lint rule, a stricter coverage gate, two bench fixes and a tidy ledger. Everything is in <a href=\"https://github.com/howard36/3d-chess/pull/154\">the PR</a>.</p><p class=\"small\">Run 2026-10-16, 00:37–08:16 UTC. Base <code>1a04c29</code>; main's <code>4a4a1d6</code> (CI only) <code>ee73ce3</code> (#151), <code>e913e50</code> (#150), <code>d415b21</code> (#155, #152) and <code>d7bd050</code> (#156) merged in, so the branch is level with main, branch <code>improve/20261016-0037</code> (pushed as <code>claude/perf-orchestrator-agent-fsf3mk</code>). Measured in headless Chromium with SwiftShader (WebGL drawn on the CPU) on 4 CPUs. Every comparison is an A/B: the bench runs main and the branch back to back several times, and each back-to-back run is a <em>pair</em>. A change is <em>called</em> only when every pair moves the same way, by more than 5% and by more than the pairs disagree with each other.</p>",
+ "needs": {
+  "items": [
+   {
+    "title": "Should the move list's focus stay quiet after a click?",
+    "body": "<p>CLAUDE.md asks every focus the page moves by itself to go through <code>focusFromCode</code>, so the ring shows only for a keyboard player, and this run's new lint enforces it. One place on main does not: when a player has clicked a move in the list and a new move lands, focus follows to the new move with a plain <code>.focus()</code>. Through <code>focusFromCode</code> the first Tab after that would only show the ring, and a second Tab would move on. That is a change a player sees, so the PR keeps main's behaviour, with a lint exception that names the question (ledger 1016:FT1). The other version is saved as <code>bench/loop/patches/move-list-quiet-focus-FT1.patch</code>. The PR does not wait on this.</p>",
+    "figure": {
+     "html": "<table class=\"pairs\"><thead><tr><th>A player clicks a move in the list, then a new move lands</th><th>Main, and this PR</th><th>The parked patch</th></tr></thead><tbody><tr><td>Focus follows to the new move</td><td>Yes, no ring</td><td>Yes, no ring</td></tr><tr><td>The player presses Tab</td><td>Focus goes to the next control</td><td>The ring shows on the move; a second Tab goes on</td></tr><tr><td>A player who steps with the arrow keys</td><td>Ring shows</td><td>Ring shows (no change)</td></tr></tbody></table>",
+     "caption": "What a player sees in each version. MoveHistory.tsx, the focus that follows the shown move."
+    },
+    "recommend": "Keep main's behaviour, as the PR does. The extra Tab costs a keyboard player a keystroke, and the case only arises after a click, where no ring is the browser's own choice too. Say so if you want the patch applied instead."
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. On the final code against main <code>d415b21</code> (#155 and #152: labels set by their capitals, the record in chess notation), measured on <code>eec59c2</code>, 4 pairs: 1.022 times as fast over the 14 rows, none called (identical code compared with itself gives about 1.004). “Start page usable” on desktop −22% (pairs 0.77 0.64 0.82 0.95), on the slowed phone −4.6%. Reopening a long game was 13% slower in every pair; 8 more pairs put it at −0.4%, with pairs from 0.62 to 1.76. A shared game's first screen was 5.7% slower, and 2.2% faster in the same 8 pairs. The computer's first board picture was 2.8% slower and was not run again (see Choices made alone). Memory unchanged. The last merge, #156, changes only the record's type, on both sides, so it was not measured again.</p><p>Earlier, against main as it was when the run began (<code>1a04c29</code>), <code>e02a235</code> (the branch before main's later merges) is 1.072 times as fast over all 14. Two are called better: “Start page usable” on desktop (−28%) and on the slowed phone (−9.6%). None is called worse. The page's memory did not grow: JavaScript memory on a reopened long game +0.0%, and geometries and textures grown over 16 moves are the same on both sides.</p><p>Main then moved to <code>ee73ce3</code> (#151, the red check lines), which the branch has merged in. Against it, the merge <code>40fea18</code> is 1.040 times as fast over the 14 headline rows, none called. “Start page usable” on desktop is 20% sooner in 3 pairs and 22% in 6 more (every pair better, but too spread to call); on the slowed phone 3.4% and 4.9%. Three rows that looked worse in the 3 pairs were run again with 6: the review +1.4%, reopening a long game −11%, the desktop's first click −22%. None is called. Memory is unchanged (heap −0.4%).</p><p>Then main moved to <code>e913e50</code> (#150, the review's layout), merged in too. The merge <code>5ee6094</code> against it, 3 pairs: 1.080 times as fast over the 14 rows; “Start page usable” on desktop −12% and the desktop's board −18%, not called. One row was called worse: the player's move, +5.7% (pairs 1.06 1.08 1.03). In 8 more pairs it is +2.7%, not called, and the picked-up piece +4.0%, not called; the same pick-up section run against itself gives −1.2% with pairs from 0.89 to 1.18. The branch's code does not run during a move or a pick-up.</p><p>Against the first recorded run (92ce041), <code>e02a235</code> is 2.48 times as fast over the 11 headline rows both can measure; the target is 1.2. Moves and picking up a piece take about a tenth of the time they did. Two rows are called worse than the first run, both already known: “Start page usable” on desktop (+23%) and on the slowed phone (+13%). The start page has grown since then: the computer player, the tutorial and the picture. JavaScript memory on a reopened long game is 35% higher than the first run, also known.</p>",
+  "items": [
+   {
+    "title": "The final code against main (d415b21)",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: eec59c2 vs main d415b21 (primary, 4 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "eec59c2 (the final code but #156's record type, on both sides) against main d415b21, 4 pairs (ab-20261016-0037-final.md)."
+     },
+     {
+      "rows": {
+       "change": "final: eec59c2 vs main d415b21 (reopen and setup, 8 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "The reopen and shared-game rows again, 8 pairs (ab-20261016-0037-final-reopen8.md)."
+     }
+    ]
+   },
+   {
+    "title": "e02a235 against main at the run's start (1a04c29)",
+    "charts": [
+     {
+      "rows": {
+       "change": "verify: e02a235 vs 1a04c29 (primary, 4 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "e02a235 (the branch before main's later merges) against main 1a04c29, 4 pairs (ab-20261016-0037-verify.md)."
+     }
+    ]
+   },
+   {
+    "title": "Against main with #150 (e913e50), before #155 and #152",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 5ee6094 vs main e913e50 (primary, 3 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "5ee6094 (the merge of main e913e50) against main e913e50, 3 pairs (ab-20261016-0037-vs-main150.md)."
+     },
+     {
+      "rows": {
+       "change": "final: 5ee6094 vs main e913e50 (moves and pick-up, 8 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "The move and pick-up rows again, 8 pairs (ab-20261016-0037-vs-main150-moves8.md)."
+     },
+     {
+      "rows": {
+       "change": "A/A: 5ee6094 vs itself built in a worktree (select, 8 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "The pick-up section against itself, 8 pairs: the bench's own noise on that row (ab-20261016-0037-aa-select.md)."
+     }
+    ]
+   },
+   {
+    "title": "The branch against main with #151 (ee73ce3), before #150",
+    "charts": [
+     {
+      "rows": {
+       "change": "verify after main's #151: 40fea18 vs ee73ce3 (primary, 3 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "The branch with main merged in (40fea18) against main ee73ce3, 3 pairs (ab-20261016-0037-vs-main.md)."
+     },
+     {
+      "rows": {
+       "change": "verify after main's #151: 40fea18 vs ee73ce3 (cold load, 6 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "The start page's rows again, 6 pairs (ab-20261016-0037-vs-main-cold.md)."
+     },
+     {
+      "rows": {
+       "change": "verify after main's #151: 40fea18 vs ee73ce3 (review and reopen, 6 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "The review and reopen rows again, 6 pairs (ab-20261016-0037-vs-main-review.md)."
+     }
+    ]
+   },
+   {
+    "title": "The branch against the first recorded run",
+    "charts": [
+     {
+      "rows": {
+       "change": "vs first run: e02a235 vs 92ce041 (primary, 3 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "e02a235 against the first recorded run's base 92ce041, 3 pairs (ab-20261016-0037-vs-first-run.md). The base has no computer player or review."
+     }
+    ]
+   },
+   {
+    "title": "Main against the last run's base",
+    "body": "<p>Before changing anything, I compared main (1a04c29) with the last run's base (9f2d524) to find what had regressed in between. The phone's start page showed its board in half the time (the last run's fix). Three start-page rows had become slower on desktop: the first click (+59%, called), “usable” (+19%, worse in every pair) and the board appearing (+14%). A bisect of the six PRs in between put the cause on #145, the turning rims.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regression check: 1a04c29 vs 9f2d524, the last run's base (primary, 4 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "Main 1a04c29 against the last run's base 9f2d524, 4 pairs (ab-20261016-0037-regress.md)."
+     }
+    ]
+   }
+  ]
+ },
+ "changed": {
+  "items": [
+   {
+    "title": "The rims no longer force a layout as their buttons appear (25dbdc9)",
+    "body": "<p>Each rimmed button (the start page's two, the side choice's three, the lobby's pill) read its own size as React attached it. Reading a size in the middle of React's work makes the browser lay out the page at once, for each button. The rims now take their first size from a ResizeObserver, which reports after the browser's own layout and before the first paint, so the first frame still shows each rim at rest. The look does not change. A new unit test counts the layout reads at attach and fails if they come back.</p><p>Measured on the change alone against main (cold load, 4 pairs): the desktop's board appears 26% sooner (176 → 138 ms) and its page is usable 17% sooner (79.2 → 66.5 ms), both called. On <code>e02a235</code>, against the run's base, the first click was also back: desktop −28% (pairs 0.70 0.61 0.86 0.75) and the slowed phone −45% (pairs 0.40 0.62 0.84 0.43), every pair better but not called because the pairs spread widely. On the final code against main <code>d415b21</code>, the desktop's first click is +2.0% (pairs 1.41 1.13 0.68 1.00) and the slowed phone's −14% (pairs 0.91 1.28 0.79 0.60), neither called.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: eec59c2 vs main d415b21 (primary, 4 pairs)",
+       "only": "Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|first click: side choice shown)"
+      },
+      "caption": "Start page rows, the final code (eec59c2) against main d415b21, 4 pairs (ab-20261016-0037-final.md)."
+     },
+     {
+      "rows": {
+       "change": "verify: e02a235 vs 1a04c29 (primary, 4 pairs)",
+       "only": "Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|first click: side choice shown)"
+      },
+      "caption": "Start page rows, e02a235 against main 1a04c29, 4 pairs (ab-20261016-0037-verify.md)."
+     }
+    ]
+   },
+   {
+    "title": "Checks that now run instead of rules that only remind",
+    "body": "<ul><li><strong>Focus lint (026a7b2).</strong> ESLint now refuses <code>autoFocus</code> and a bare <code>.focus()</code> under <code>src/</code>, outside <code>lib/focus.ts</code> and tests, which is the CLAUDE.md rule about focus the page moves by itself. Two Escape handlers moved to <code>focusFromCode</code>; the move list's following focus keeps main's plain focus behind a named exception (see Needs from me). The scene's and canvases' lint blocks do not carry the rule yet (ledger 1016:FL1).</li><li><strong>Coverage per file (bcfeaad).</strong> The 90% gates on <code>engine/</code>, <code>ai/</code> and <code>game/</code> now hold for each file, not for each folder's total. Lowest today: <code>ai/computer.ts</code> 91.7% of branches, <code>ai/search.ts</code> 94.7% of functions. They now also gate #151's new code.</li><li><strong>A rimmed button's frames stop when it goes (171e1d8).</strong> The test's frame stub now cancels by id, so a cleanup that cancels the wrong frame fails.</li><li><strong>bench/loop/ keeps only the loop state (32912a5).</strong> A <code>.gitignore</code> allow-list, so built pages, images and raw JSON cannot be committed there again.</li></ul>"
+   },
+   {
+    "title": "The bench measures what it says",
+    "body": "<ul><li><strong>Review against older bases (1dfd8cd).</strong> Since #148 the bench's review section clicked a button that older pages lack, so any comparison with a commit before #148 lost its review rows. It now uses the older “Analyse” button when there is no “Review”. Against 9f2d524 the review row is 6.35 → 2.97 s, the last run's parallel review.</li><li><strong>The start page's board row says what it timed (0924ced).</strong> Two count rows per cold load: loads whose board first appeared as its picture, and pictures that failed to decode. A picture that fails to decode is no longer timed as shown.</li></ul>"
+   },
+   {
+    "title": "The loop's records",
+    "body": "<p>bench/loop/ held 163 files. 54 were built pages, charts, screenshots, traces, raw JSON and probe notes, which the loop does not keep; they are gone (still in git history). The old SCOREBOARD.md became 814 rows of <code>scoreboard.jsonl</code>. The ledger is now two tables, Open and Rejected, with every id named by its run, as the skill asks.</p>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<p>Against main, outside bench/loop/, the branch adds 152 lines and removes 24 in 8 files. The app's code grows by 6 lines: the rim's measure, one import, and the move list's lint exception with its comment. Tests grow by 77 lines, the bench by 26, and lint and test config by 17. In bench/loop/, 54 files and SCOREBOARD.md were removed; the ledger shrank from 489 lines to 228 by dropping kept ideas and ideas whose code is gone, and merging repeats.</p>"
+ },
+ "rejected": {
+  "items": [
+   {
+    "title": "Focusing the side choice's first tile without scrolling (RG2b)",
+    "body": "<p>After the rim fix, the side choice's first focus still lays out the page as it appears. Passing <code>preventScroll</code> to that focus did not move the first click: desktop +1.8% (pairs 0.94 0.96 1.38 0.86), slowed phone +18% (pairs 1.09 1.22 0.98 1.50). Reverted; it was two lines, so no patch is kept.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "RG2b",
+       "only": "Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|first click: side choice shown)"
+      },
+      "caption": "preventScroll against the commit before it, 4 pairs (ab-20261016-0037-rg2b.md)."
+     }
+    ]
+   }
+  ]
+ },
+ "choices": {
+  "intro": "<ul><li>I fixed the rims by moving their measure, not by changing how they turn. A rim still repaints on every frame while it turns (under the pointer on the start page, always on the lobby's pill). A cheaper turn would change what a player sees, so I did not try one.</li><li>The focus lint first changed the move list's focus after a click (an extra Tab). I took that back out of the PR and put the question under Needs from me. The lint's other two moves (two Escape handlers) change nothing a player sees: they run after a key press, where <code>focusFromCode</code> is a plain focus.</li><li>The report's charts drew a ratio of medians while its words quote the A/B's change, so they could disagree by several points. The charts now draw the A/B's change, to within a point: the scoreboard keeps each pair to two places.</li><li>The ledger tidy: one row per idea under its oldest id (33 merges), 5 repeats of rejected ideas moved to Rejected, 15 rows deleted because the idea was kept since or its code is gone (among them V16, kept this run, and I16, whose button #148 removed). Every file and name the open rows cite still exists. Ideas from run 20261012-1644 and earlier that no later run raised are parked. 252 open rows became 184. The run record lists each merge and deletion; the old ledger is in git history at 1a04c29.</li><li>The second grade found one more shipped idea in the ledger: deploying with <code>--strategy recreate</code> (1009-1606:S1), which #118 merged on 2026-10-11. It is deleted. No other open row waits on a PR.</li><li>Against main with #151, three headline rows looked worse in 3 pairs (reopening a long game +6.8%, the review's median pair +9%, the desktop's first click's median pair +7%). Reopening and the review run no code this PR changes; the first click does (it shows the side choice's rims). 6 more pairs put them at −11%, +1.4% and −22%, none called, so none is under Needs from me.</li><li>On <code>5ee6094</code> (the merge of main e913e50), “The player's move appears” was called 5.7% worse in 3 pairs against main e913e50. I re-ran it with 8 pairs (+2.7%, not called) rather than list it under Needs from me: the 8-pair reading against the run's base, on <code>3c84e28</code>, was −5.6%, and no code the branch changes runs during a move. “A picked-up piece appears” leaned 2–8% slower in every comparison before the last, never called and inside an A/A's spread; on the final code against <code>d415b21</code> it is 10% faster, not called. It is in the ledger as 1016:PK1, to read with 8 or more pairs in the next run's first comparison.</li><li>On the final code against main <code>d415b21</code> (4 pairs on <code>eec59c2</code>), three headline rows were worse by the bar that puts a row under Needs from me. I kept them out, judging none of them this PR's doing. <strong>Reopening a long game</strong>: +13%, worse in every pair (1.02 1.22 1.22 1.08). It runs no code this PR changes, and 8 more pairs on the same code put it at −0.4% (pairs 0.62 to 1.76), not called. <strong>A shared game's page, first screen</strong>: +5.7%, median pair 1.12 (1.59 1.08 1.17 0.62). Its Join button has a rim, so the PR's code runs there, but the same 8 pairs put it at −2.2%, not called. <strong>First board picture, playing the computer</strong>: +2.8%, median pair 1.045 (1.09 1.04 1.05 0.94). It is timed from the click on the level, after the side choice's rims have attached, and its other readings this run go from +3.2% to −5.0%, none called. It was not re-run on the final code: its only re-run was 6 pairs on <code>e02a235</code> against 1a04c29 (−4.4%).</li><li>Main moved five times during the run. I merged each in and ran <code>/check</code> on each merge. I re-measured the headline rows after #151, #150 and #152, but not after #156, which changes only the record's type (on both sides of any comparison) and leaves the branch's diff against main as it was.</li><li>The scoreboard rows measured on uncommitted code now carry <code>+wip</code> after their head commit, and V16's two count rows are filed under V16 instead of the rejected RG2b.</li></ul>",
+  "items": [
+   {
+    "title": "“The opponent's move appears” leaned slower: I called it noise",
+    "body": "<p>On <code>e02a235</code> against main <code>1a04c29</code> this headline row was 19% slower (pairs 1.29 1.34 0.98 1.18), then 15% slower in 6 pairs, never called. No code this run changed runs during a game, and comparing the commit with itself gave +3.8%, so I did not hold the PR for it. Eight more pairs on <code>3c84e28</code> settle it: 262 → 244 ms, 6.1% <em>faster</em> (pairs 0.90 1.20 0.75 0.83 1.04 0.99 0.98 0.89), not called. The player's move: −5.6%. On the final code against main <code>d415b21</code> it is +7.1%, median pair 1.01 (1.05 0.97 0.97 1.34), not called.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "MV1: 3c84e28 vs 1a04c29 (move-latency, 8 pairs)",
+       "only": "Move latency · (Player’s|Opponent’s) move: picture (handed to|drawn by) the GPU"
+      },
+      "caption": "3c84e28 against main 1a04c29, 8 pairs (ab-20261016-0037-moves8.md)."
+     },
+     {
+      "rows": {
+       "change": "verify: e02a235 vs 1a04c29 (primary, 4 pairs)",
+       "only": "Move latency · (Player’s|Opponent’s) move: picture (handed to|drawn by) the GPU"
+      },
+      "caption": "The first reading: e02a235 against main 1a04c29, 4 pairs (ab-20261016-0037-verify.md)."
+     },
+     {
+      "rows": {
+       "change": "A/A: e02a235 vs itself built in a worktree (move-latency, 6 pairs)",
+       "only": "Move latency · (Player’s|Opponent’s) move: picture (handed to|drawn by) the GPU"
+      },
+      "caption": "e02a235 against itself, 6 pairs: the bench's own noise on these rows (ab-20261016-0037-aa-moves.md)."
+     }
+    ]
+   }
+  ]
+ },
+ "notConfirmed": {
+  "intro": "<ul><li>Which commit won back #145's cost on “Start page usable, phone”. #147 and #148 were bisected only on reopening a game.</li><li>The rims' first frame in a real browser. Unit tests run under jsdom, which has no real ResizeObserver; the e2e suite passed, but no e2e test looks at the rim in the first frame (ledger 1016:RF1).</li><li>Whether each open idea's mechanism still holds. The tidy checked that the files and names each row cites still exist, not each claim.</li></ul>"
+ },
+ "next": {
+  "intro": "<ol><li>An A/A of the cold-load section, 6 or more pairs, since one A/B this run showed the head slower before any script ran (1016:AA1).</li><li>Count the first click's two modes (about 7 or 14 ms) instead of timing a median, then re-bisect #141–#146 against 9f2d524 (1009-1606:Q1).</li><li>Run on-page searches one at a time when a worker fails to load (1015:RV17).</li><li>Place the phone's start-page picture before the entry runs, estimated 731 → about 450–500 ms (1015:SP4).</li><li>A year's cache for <code>/assets/*</code>, with a warm-load case in the bench to measure it (0930:17).</li><li>Spread the focus lint into the scene's and canvases' lint blocks (1016:FL1).</li></ol>"
+ }
+}

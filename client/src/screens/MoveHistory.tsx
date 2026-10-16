@@ -267,7 +267,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
     const escape = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
       if (inField(e.target)) return;
-      if (nav.current?.contains(document.activeElement)) toggle.current?.focus();
+      if (nav.current?.contains(document.activeElement)) focusFromCode(toggle.current);
       setAsked(false);
     };
     document.addEventListener('pointerdown', away);
@@ -335,6 +335,10 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       focusAsked.current = false;
       focusFromCode(button, { preventScroll: true });
     } else if (ol.contains(document.activeElement) && document.activeElement !== button) {
+      // Focus follows the player's own place in the list, ring as the browser
+      // decides: focusFromCode would quiet it after a click, so the next Tab
+      // would only show the ring (ledger 1016:FT1, the owner's call)
+      // eslint-disable-next-line no-restricted-syntax
       button.focus();
     }
   }, [shown, moves.length, open, whole, reviewAsked]);
