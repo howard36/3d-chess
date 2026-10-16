@@ -154,12 +154,12 @@ const MoveBlock = React.memo(
     const rows = [];
     for (let i = start; i < Math.min(moves.length, start + BLOCK); i += 2) {
       // Three nodes a row (the number, then the moves, each a button round
-      // its words), nothing else: a reopened game of thousands of moves
+      // its words, each in its column: index.css), nothing else: a reopened game of thousands of moves
       // mounts its whole record, a render after the blocks in view
       // (`whole`, below). It reads "1. ♙Cb1 ♙Cd5".
       rows.push(
         <li key={i / 2 + 1}>
-          {`${i / 2 + 1}. `}
+          <span className="hud-num">{`${i / 2 + 1}. `}</span>
           {ply(i)}
           {i + 1 < moves.length ? ply(i + 1) : null}
         </li>,
