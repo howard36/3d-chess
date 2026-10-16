@@ -1834,9 +1834,6 @@ body {
   font-size: 13.5px;
   text-align: center;
 }
-.lobby-error {
-  color: var(--hud-check-ink);
-}
 /* The arrival's line stands where the pages' headings do, over the stage */
 .lobby-caption {
   z-index: 1501;
