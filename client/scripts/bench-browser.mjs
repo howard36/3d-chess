@@ -530,8 +530,10 @@ const BENCH_INIT = () => {
       !f.joinButton &&
       !f.turnIndicator &&
       (buttonNamed('Join game') || buttonNamed('Join Game'))
-    )
+    ) {
       f.joinButton = t;
+      performance.mark('join-shown');
+    }
     if (!f.sideChoice && document.querySelector('[aria-label="Choose your side"] button')) {
       f.sideChoice = t;
     }
@@ -542,10 +544,11 @@ const BENCH_INIT = () => {
     const picture = document.querySelector('[data-testid="landing-picture"] img');
     if (!f.landingPicture && !b.pictureSeen && picture?.complete && picture.naturalWidth > 0) {
       b.pictureSeen = true;
-      picture
-        .decode()
-        .catch(() => {})
-        .then(() => requestAnimationFrame(() => (f.landingPicture = now())));
+      // (a picture that fails to decode is never painted: not timed, but counted)
+      picture.decode().then(
+        () => requestAnimationFrame(() => (f.landingPicture = now())),
+        () => (b.pictureFailed = true),
+      );
     }
     const opacity = document.querySelector('.landing-preview')?.style.opacity;
     if (!f.previewLive && b.landingDrawn && (opacity === '' || opacity === '1')) f.previewLive = t;
@@ -758,6 +761,8 @@ async function settle(page, { quietMs = 300, timeout = 15000 } = {}) {
     );
     return true;
   } catch {
+    // Said in the findings: the next timed action met a canvas still drawing
+    raw.unrested = (raw.unrested ?? 0) + 1;
     return false;
   }
 }
@@ -1294,7 +1299,7 @@ async function coldSection(browser) {
           });
           // (awaited here, before the context closes under it)
           const run = await page.evaluate(() => {
-            const { firsts } = window.__bench;
+            const { firsts, pictureFailed = false } = window.__bench;
             const t0 = performance.timeOrigin;
             const live = firsts.previewLive - t0;
             const picture = firsts.landingPicture ? firsts.landingPicture - t0 : Infinity;
@@ -1307,6 +1312,7 @@ async function coldSection(browser) {
               preview: live,
               shown: picture <= live ? 'picture' : 'preview',
               fetched,
+              pictureFailed,
             };
           });
           return run;
@@ -1358,6 +1364,15 @@ async function coldSection(browser) {
           raw.coldPicture[c.key].map((r) => new Set(r.fetched).size),
         );
         sec.add(['', ...row], m, `${c.label} · pictures of the board downloaded`);
+        // Which the board row timed: a change that stops the picture painting
+        // shows here, not only as a later board under the min() above
+        for (const [label, pick] of [
+          ['loads whose board showed first as its picture', (r) => r.shown === 'picture'],
+          ['pictures that failed to decode', (r) => r.pictureFailed],
+        ]) {
+          const [row, m] = countStat(label, [raw.coldPicture[c.key].filter(pick).length]);
+          sec.add(['', ...row], m, `${c.label} · ${label}`);
+        }
         // The section's first load meets the start page's preview programs
         // uncached (the browser's GPU process caches them for the loads
         // after it): a player's first visit, which the median above hides
@@ -1467,8 +1482,22 @@ async function joinViaUI(browser, scope) {
   const { gameId } = white.last.game_created;
   const ctx = scope.ctx(await newBenchContext(browser, 'desktop'));
   const page = await ctx.newPage();
-  await page.goto(`${BASE}/game/${gameId}`);
-  await page.getByRole('button', { name: /^Join game\b/i }).click();
+  // BENCH_TRACE_JOIN=<dir>: a Chrome trace of each join's page from the
+  // link to the click, its "Join game" marked (join-shown), into <dir>
+  const traceDir = process.env.BENCH_TRACE_JOIN;
+  if (traceDir) {
+    fs.mkdirSync(traceDir, { recursive: true });
+    await browser.startTracing(page, {
+      categories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'v8.execute'],
+    });
+  }
+  try {
+    await page.goto(`${BASE}/game/${gameId}`);
+    await page.getByRole('button', { name: /^Join game\b/i }).click();
+  } finally {
+    if (traceDir)
+      fs.writeFileSync(path.join(traceDir, `join-${Date.now()}.json`), await browser.stopTracing());
+  }
   await waitFirstFrame(page);
   const b = await snap(page);
   const click = b.clicks.find((c) => /^Join game$/i.test(c[1]))?.[0];
@@ -1489,6 +1518,9 @@ async function joinViaUI(browser, scope) {
       .map(([t, n, d]) => [Math.round(t - first[0]), n, Math.round(d)]),
     // Where the joiner's wait goes: what happened from the click to its first frame
     joinTrace: {
+      // The click, from the page's time origin (the Join button's own row
+      // starts there), so the long tasks below line up with it
+      clickAt: Math.round(click - b.timeOrigin),
       stages: b.stage
         .filter(([t]) => t >= click - 1 && t <= frame + 1)
         .map(([t, ...rest]) => [Math.round(t - click), ...rest]),
@@ -2434,15 +2466,33 @@ async function reviewSection(browser) {
           await game.seats.black.close();
           const { page } = await openSeat(browser, scope, 'desktop', game.gameId, 'black');
           await waitBoard(page);
+          // A page before #148 has no Review on the result card: there the
+          // card is closed and the list's “Analyse” clicked, as the bench did
+          // then (its span leaves out closing the card), so a --base against
+          // it still measures the review
+          // (waited for: the card may come a frame after the board)
+          const via = await page
+            .waitForFunction(
+              () =>
+                ['review', 'analyse'].find((id) => document.querySelector(`[data-testid="${id}"]`)),
+              null,
+              { timeout: 10000 },
+            )
+            .then((h) => h.jsonValue())
+            .catch(() => {
+              throw new Error('neither Review nor Analyse showed on the finished game in 10 s');
+            });
+          if (via === 'analyse')
+            await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
           await quietMain(page);
           // Click to every mark in, timed in the page on the bench's clock (the
           // long tasks' too): the click and each change of the review
-          await page.evaluate(() => {
+          await page.evaluate((via) => {
             const b = window.__bench;
             b.review = { clicked: null, half: null, done: null, stopped: false };
             const list = document.querySelector('[data-testid="move-history"]');
             document
-              .querySelector('[data-testid="review"]')
+              .querySelector(`[data-testid="${via}"]`)
               .addEventListener('click', () => (b.review.clicked = window.__benchNow()), {
                 capture: true,
               });
@@ -2457,8 +2507,8 @@ async function reviewSection(browser) {
               if (state === 'done' && b.review.done == null) b.review.done = window.__benchNow();
               if (state === 'stopped') b.review.stopped = true;
             }).observe(list, { attributes: true, subtree: true });
-          });
-          await page.getByTestId('review').click();
+          }, via);
+          await page.getByTestId(via).click();
           await page.waitForFunction(
             () => window.__bench.review.done != null || window.__bench.review.stopped,
             null,
@@ -2480,6 +2530,7 @@ async function reviewSection(browser) {
             longest: maxOf([0, ...lts.map((l) => l[1])]),
             ltTotal: sum(lts.map((l) => l[1])),
             marks: marks.join(' '),
+            via,
           });
         } finally {
           await scope.close();
@@ -2490,13 +2541,22 @@ async function reviewSection(browser) {
         throw new Error(`the review's marks differ between runs: ${[...marks]}`);
       const med = (k) => median(raw.review.map((x) => x[k]));
       const row = (label, k, note = '') => [[label, fmtMs(med(k)), note], metric(med(k)), label];
+      // Named by the button clicked, so an A/B never pairs a span that
+      // closes the card first with one that does not (1016:BV2)
+      const via = new Set(raw.review.map((x) => x.via));
+      if (via.size !== 1) throw new Error(`the review was reached two ways: ${[...via]}`);
+      const clicked = (label) => (via.has('analyse') ? label.replace('Review', 'Analyse') : label);
       sec.addAll([
-        row('“Review” clicked → every mark in', 'done', `${plies + 1} positions`),
-        row('“Review” clicked → half the positions done', 'half'),
+        row(clicked('“Review” clicked → every mark in'), 'done', `${plies + 1} positions`),
+        row(clicked('“Review” clicked → half the positions done'), 'half'),
         row('longest page freeze during the review', 'longest'),
         row('page freezes in total during the review', 'ltTotal'),
       ]);
       sec.notes.push(`Check: the same marks in every run: \`${[...marks][0]}\`.`);
+      if (raw.review.some((x) => x.via === 'analyse'))
+        sec.notes.push(
+          'This commit has no Review on the result card (before #148): the card was closed first and “Analyse” clicked, so the span leaves out closing the card.',
+        );
     },
   );
 }
@@ -3067,6 +3127,10 @@ function findings() {
   };
   const pct = (x) => `${Math.round(x)}%`;
   const med = (rows, k) => median(rows.map((r) => r[k]));
+  if (raw.unrested)
+    f.push(
+      `The canvas did not come to rest within its wait ${raw.unrested} time(s): the action timed after it met a GPU still drawing.`,
+    );
   tryAdd(() => {
     const d = raw.cold.desktop;
     const t = raw.cold['phone-cpu4-4g'];

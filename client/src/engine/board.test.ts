@@ -1,3 +1,5 @@
+// Deterministic pseudo-random numbers, so a failure replays
+import { seeded } from '../ai/choose';
 import { ALL_PROMOTION_TYPES, Board, Move } from './board';
 import { PieceType } from './pieces';
 import { Coord, fromZXY, toZXY } from './coords';
@@ -1057,21 +1059,13 @@ describe('Exchanging rank and level is a symmetry of the rules', () => {
     }
   };
 
-  // Deterministic pseudo-random numbers (mulberry32), so a failure replays.
-  const rng = (seed: number) => () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-
   it('holds for the starting position', () => {
     expectSymmetric(Board.setupStartingPosition());
   });
 
   it('holds along random games from the start', () => {
     for (const seed of [1, 2, 3]) {
-      const random = rng(seed);
+      const random = seeded(seed);
       let board = Board.setupStartingPosition();
       let color: 'white' | 'black' = 'white';
       for (let ply = 0; ply < 24; ply++) {

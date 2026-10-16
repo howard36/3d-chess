@@ -24,10 +24,25 @@ const NO_R3F_STATE = [
       'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
   },
   {
-    selector: "Literal[value='__r3fState']",
+    selector: 'Literal[value=/__r3fState/]',
     message:
       'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
   },
+  {
+    selector: 'TemplateElement[value.raw=/__r3fState/]',
+    message:
+      'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
+  },
+];
+
+// CLAUDE.md "Gotchas": focus the page moves by itself goes through lib/focus.ts,
+// so its ring shows only for a player on the keyboard (kept, like
+// NO_R3F_STATE, in each block that sets no-restricted-syntax)
+const FOCUS_FROM_CODE =
+  'Focus the page moves goes through lib/focus.ts (autoFocusRef, focusFromCode).';
+const NO_BARE_FOCUS = [
+  { selector: "JSXAttribute[name.name='autoFocus']", message: FOCUS_FROM_CODE },
+  { selector: "CallExpression[callee.property.name='focus']", message: FOCUS_FROM_CODE },
 ];
 
 // The app's canvases draw on demand: the garden's copy, the frame pacer and
@@ -38,6 +53,15 @@ const ON_DEMAND = {
     "JSXOpeningElement[name.name='Canvas']:not(:has(JSXAttribute[name.name='frameloop'][value.value='demand']))",
   message: 'An app canvas renders on demand: frameloop="demand".',
 };
+
+// The wall clock, read through any object too (globalThis.Date.now(),
+// window.performance.now(), new globalThis.Date()): no-restricted-properties
+// sees only a bare Date or performance
+const WALL_CLOCK = [
+  "NewExpression[callee.name='Date']",
+  "NewExpression[callee.property.name='Date']",
+  "MemberExpression[property.name='now'][object.property.name=/^(Date|performance)$/]",
+].map((selector) => ({ selector, message: 'Animate on r3f’s clock, not the wall clock.' }));
 
 /** A timer or a frame of the browser's own, on any object (window, globalThis, self). */
 const TIMERS = ['setTimeout', 'setInterval', 'requestAnimationFrame', 'requestIdleCallback'];
@@ -89,7 +113,7 @@ export default defineConfig(
           ],
         },
       ],
-      'no-restricted-syntax': ['error', ...NO_R3F_STATE],
+      'no-restricted-syntax': ['error', ...NO_R3F_STATE, ...NO_BARE_FOCUS],
       'no-restricted-properties': ['error', NO_SET_PIECE],
     },
   },
@@ -99,6 +123,10 @@ export default defineConfig(
     rules: { 'no-restricted-properties': 'off' },
   },
   { files: ['src/types/messages.ts'], rules: { 'no-restricted-imports': 'off' } },
+  {
+    files: ['src/lib/focus.ts', '**/*.test.{ts,tsx}'],
+    rules: { 'no-restricted-syntax': ['error', ...NO_R3F_STATE] },
+  },
   {
     // Animations run on r3f's clock, which the showcase's virtual clock drives;
     // a timer, a frame of the browser's own or the wall clock escapes it
@@ -135,10 +163,8 @@ export default defineConfig(
       'no-restricted-syntax': [
         'error',
         ...NO_R3F_STATE,
-        {
-          selector: "NewExpression[callee.name='Date']",
-          message: 'Animate on r3f’s clock, not the wall clock.',
-        },
+        ...NO_BARE_FOCUS,
+        ...WALL_CLOCK,
         ON_DEMAND,
       ],
     },
@@ -152,10 +178,8 @@ export default defineConfig(
       'no-restricted-syntax': [
         'error',
         ...NO_R3F_STATE,
-        {
-          selector: "NewExpression[callee.name='Date']",
-          message: 'Animate on r3f’s clock, not the wall clock.',
-        },
+        ...NO_BARE_FOCUS,
+        ...WALL_CLOCK,
         {
           selector: 'JSXAttribute[name.name=/^on(Click|DoubleClick|ContextMenu|Wheel|Pointer)/]',
           message:
@@ -175,14 +199,7 @@ export default defineConfig(
   {
     files: ['src/screens/GameCanvas.tsx'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "NewExpression[callee.name='Date']",
-          message: 'Animate on r3f’s clock, not the wall clock.',
-        },
-        ON_DEMAND,
-      ],
+      'no-restricted-syntax': ['error', ...NO_BARE_FOCUS, ...WALL_CLOCK, ON_DEMAND],
     },
   },
 );

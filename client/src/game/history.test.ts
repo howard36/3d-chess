@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MockInstance } from 'vitest';
 import { deriveHistory } from './history';
 import type { Turn } from './history';
 import { PieceType } from '../engine';
@@ -171,13 +172,23 @@ describe('deriveHistory: identity', () => {
       moveMade('white', 'Ba1', 'Ca1'),
       moveMade('black', 'Cc3', 'Dc3'), // Cc3 is empty
     ];
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const first = deriveHistory(log);
     expect(first.replayFailedAt).toBe(1);
+    // Why, in the console: the move and the rules' own error
+    expect(warn).toHaveBeenCalledWith(
+      "Move 2 of the record can't be replayed:",
+      expect.objectContaining({ from: 'Cc3', to: 'Dc3' }),
+      expect.any(Error),
+    );
     log.push(moveMade('white', 'Ca1', 'Da1'));
     const next = deriveHistory(log, first);
     expect(next.replayFailedAt).toBe(1);
     expect(next.appliedMoveCount).toBe(1);
     expect(next.board.getPiece(fromZXY('Da1'))).toBeNull();
+    // Said once: the later derive stops at the same record without saying it again
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 
   it('ignores a previous history built from a different record', () => {
@@ -214,6 +225,17 @@ describe('deriveHistory: game over', () => {
 });
 
 describe('deriveHistory: unplayable records', () => {
+  // Each says why in the console, once
+  let warn: MockInstance<typeof console.warn>;
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    const said = warn.mock.calls.length;
+    warn.mockRestore();
+    expect(said).toBe(1);
+  });
+
   it('freezes at the first record that cannot be applied', () => {
     const h = deriveHistory([
       snapshot([
@@ -288,9 +310,13 @@ describe('deriveHistory: the work a landing move costs', () => {
     const applied = vi.spyOn(Board.prototype, 'applyMove');
     // Its notation asks no piece for its legal moves: no other black pawn reaches Bd5
     const legal = vi.spyOn(Board.prototype, 'generateLegalMoves');
-    deriveHistory([...log, moveMade('black', 'Cd5', 'Bd5')], prev);
+    const next = deriveHistory([...log, moveMade('black', 'Cd5', 'Bd5')], prev);
     expect(applied).toHaveBeenCalledTimes(1);
     expect(legal).not.toHaveBeenCalled();
+    // The earlier moves' notation is kept, not made anew: the move list's
+    // blocks compare it by identity (MoveHistory.tsx) and redraw only the last
+    expect(next.notation).toHaveLength(4);
+    prev.notation.forEach((n, i) => expect(next.notation[i]).toBe(n));
     applied.mockRestore();
     legal.mockRestore();
   });
@@ -327,9 +353,12 @@ describe('deriveHistory: the notation', () => {
     }
     expect(h.notation).toEqual(deriveHistory([snapshot(records)]).notation);
     // An empty square to move from: the record stops there
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const broken = deriveHistory([snapshot([...records, { by: 'black', from: 'Cc3', to: 'Cc2' }])]);
     expect(broken.replayFailedAt).toBe(3);
     expect(broken.notation).toHaveLength(3);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 });
 

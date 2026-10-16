@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { LANDING_BANDS, landingLayoutOf, preloadLandingPicture } from './landingLayout';
 import { pictureSourceSet } from '../three/landingLens';
@@ -29,6 +31,30 @@ test('an upright tablet: title and tiles in one band along the bottom', () => {
   // The taller of the title (11vw a line, with its rule) and the tiles
   const title = 2 * 0.92 * 0.11 * 834 + 22;
   expect(bottom).toBeCloseTo(0.06 * 834 + 16 + Math.max(title, 132 + 14 + 44));
+});
+
+// The bands mirror index.css's landing sizes by hand (the numbers above):
+// a retune of the stylesheet that the bands miss would frame the preview,
+// and its pictures, under the menu or short of it
+test('the stylesheet still sizes the menu as the bands assume', () => {
+  const css = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\s+/g, ' ');
+  const portrait = css.slice(css.indexOf('@media (orientation: portrait) and (min-width: 600px)'));
+  const short = css.slice(css.indexOf('@media (max-height: 480px) { .landing {'));
+  for (const [where, sheet, rule] of [
+    ['the gutter', css, /\.landing \{[^}]*--landing-gutter: clamp\(24px, 6vw, 112px\)/],
+    ['the column', css, /\.landing \{[^}]*--landing-column: clamp\(340px, 30vw, 440px\)/],
+    ['the short column', short, /^[^}]*--landing-column: clamp\(300px, 38vw, 340px\)/],
+    ['a phone’s tiles', css, /\.landing-mode \{[^}]* height: 116px/],
+    ['a phone’s title', css, /\.landing h1 \{ font-size: 64px; \}/],
+    ['the tablet’s tiles', portrait, /\.landing-mode \{[^}]* height: 132px/],
+    ['the tablet’s title', portrait, /\.landing h1 \{ font-size: clamp\(64px, 11vw, 112px\); \}/],
+    ['the tablet’s rule', portrait, /\.landing-head::after \{[^}]* margin-top: 20px/],
+    ['the tutorial’s button', css, /\.landing-learn \{[^}]* margin-top: 14px/],
+  ] as const) {
+    expect(sheet, where).toMatch(rule);
+  }
 });
 
 test('three layouts: a phone and a tablet upright, and anything wider than tall', () => {

@@ -236,7 +236,10 @@ export function useGameSocket(): GameSocket {
           return;
         }
         setStatus('reconnecting');
-        retryTimer = setTimeout(connect, reconnectDelayMs(attemptRef.current++));
+        retryTimer = setTimeout(() => {
+          retryTimer = undefined;
+          connect();
+        }, reconnectDelayMs(attemptRef.current++));
       };
 
       if (adopted && !usable) {
@@ -268,8 +271,24 @@ export function useGameSocket(): GameSocket {
 
     connect();
 
+    // The network back, or the page shown again (a phone out of a lift, or
+    // back from another app): the next try at once, not after the backoff's
+    // wait (up to 8 s). Only while a try is waiting: never beside an open or
+    // opening socket, nor after the seat was taken over (no try waits then)
+    const kick = () => {
+      if (disposed || retryTimer === undefined || document.visibilityState === 'hidden') return;
+      clearTimeout(retryTimer);
+      retryTimer = undefined;
+      attemptRef.current = 0;
+      connect();
+    };
+    window.addEventListener('online', kick);
+    document.addEventListener('visibilitychange', kick);
+
     return () => {
       disposed = true;
+      window.removeEventListener('online', kick);
+      document.removeEventListener('visibilitychange', kick);
       if (retryTimer !== undefined) clearTimeout(retryTimer);
       socketRef.current?.close();
       socketRef.current = null;
